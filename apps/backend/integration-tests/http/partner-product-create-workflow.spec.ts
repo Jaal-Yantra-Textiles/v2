@@ -600,6 +600,68 @@ setupSharedTestSuite(() => {
         expect(amounts).toContain(9999)
       })
 
+      it("honours ?fields= and still returns the ids the caller asked for", async () => {
+        const created = await api.post(
+          `/partners/stores/${partner.storeId}/products`,
+          unmanagedProduct(`narrow-${partner.unique}`, partner.currencyCode),
+          { headers: partner.headers }
+        )
+        const productId = created.data.product.id
+        const variant = created.data.product.variants[0]
+
+        const res = await api.post(
+          `/partners/stores/${partner.storeId}/products/${productId}/variants/batch?fields=id`,
+          {
+            update: [
+              {
+                id: variant.id,
+                prices: [{ amount: 7777, currency_code: partner.currencyCode }],
+              },
+            ],
+          },
+          { headers: partner.headers }
+        )
+
+        expect(res.status).toBe(200)
+        expect(res.data.updated[0].id).toBe(variant.id)
+        // The narrowing is real: the 20-odd scalars the default set carries
+        // must NOT come back when the caller asked for `id`.
+        expect(res.data.updated[0].sku).toBeUndefined()
+        expect(res.data.updated[0].weight).toBeUndefined()
+      })
+
+      it("a narrowed request still carries the price ids the FX fanout needs", async () => {
+        // `withPriceIds` enforces this server-side. If it ever regresses, the
+        // fanout goes quiet with no error — prices stay in one currency and
+        // read as "not available" everywhere else. The response is the only
+        // place that invariant is observable from outside.
+        const created = await api.post(
+          `/partners/stores/${partner.storeId}/products`,
+          unmanagedProduct(`fanout-${partner.unique}`, partner.currencyCode),
+          { headers: partner.headers }
+        )
+        const productId = created.data.product.id
+        const variant = created.data.product.variants[0]
+
+        const res = await api.post(
+          `/partners/stores/${partner.storeId}/products/${productId}/variants/batch?fields=id`,
+          {
+            update: [
+              {
+                id: variant.id,
+                prices: [{ amount: 8888, currency_code: partner.currencyCode }],
+              },
+            ],
+          },
+          { headers: partner.headers }
+        )
+
+        expect(res.status).toBe(200)
+        const prices = res.data.updated[0].prices || []
+        expect(prices.length).toBeGreaterThan(0)
+        expect(prices.every((pr: any) => typeof pr.id === "string")).toBe(true)
+      })
+
       it("a delete-only batch skips the enrichment re-read entirely", async () => {
         // The re-read is the expensive phase on this route (15977ms of a
         // 16364ms request at its worst). A batch that only deletes has nothing

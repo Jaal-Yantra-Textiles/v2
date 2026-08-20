@@ -46,6 +46,11 @@ export const POST = async (
       create: body.create,
       update: body.update,
       delete: body.delete,
+      // Core reaches `refetchBatchVariants` with `req.queryConfig.fields`; this
+      // route hard-coded the list, so its only caller could not ask for less.
+      // Same wiring as core now — the default is unchanged for anyone who
+      // sends no `?fields=`.
+      fields: (req as any).queryConfig?.fields,
     },
   })
 

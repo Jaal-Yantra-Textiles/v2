@@ -302,6 +302,7 @@ import { ListInventoryItemRawMaterialsQuerySchema } from "./admin/inventory-item
 import { BulkImportSchema } from "./admin/inventory-items/bulk-import/validators";
 import { PartnerCreateStoreReq } from "./partners/stores/validators";
 import { PartnerCreateProductReq, PartnerArtisanProductDetailReq, PartnerProductSpecReq, PartnerStoreCreateProductReq, PartnerQuickCreateProductReq } from "./partners/products/validators";
+import { BATCH_VARIANT_FIELDS } from "../workflows/partner/batch-partner-variants";
 import { StoreMadeToSpecReq } from "./store/carts/[id]/made-to-spec/validators";
 import {
   PartnerCreateRegionReq,
@@ -3082,6 +3083,16 @@ export default defineMiddlewares({
       middlewares: [
         createCorsPartnerMiddleware(),
         authenticate("partner", ["session", "bearer"]),
+        // #1370 — core's admin batch route wires `req.queryConfig.fields` into
+        // `refetchBatchVariants`, so a caller can shrink the response. This
+        // route hard-coded the list, and the enrichment it pays for is the
+        // phase that ran 377ms-6002ms (15977ms at its worst). `defaults` is
+        // exactly what the route used to hard-code, so nothing changes for a
+        // caller that sends no `?fields=`.
+        validateAndTransformQuery(
+          z.object({ fields: z.string().optional() }) as any,
+          { defaults: BATCH_VARIANT_FIELDS }
+        ),
       ],
     },
     {

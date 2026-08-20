@@ -45,18 +45,35 @@ export type BatchPartnerVariantsInput = {
   create?: any[]
   update?: any[]
   delete?: string[]
+  /**
+   * Response field set, straight from `req.queryConfig.fields` the way core
+   * does it. Omitted → `BATCH_VARIANT_FIELDS`.
+   *
+   * ⚠️ Narrowing this is a real trade: the FX fanout is driven by
+   * `collectVariantPriceIds`, which reads the `prices` the enrichment built.
+   * Drop the price fields and the fanout goes quiet — without erroring.
+   */
+  fields?: string[]
 }
 
 /**
- * The field list core's admin batch route uses, plus the pre-remapped price
- * keys this response needs.
+ * DEFAULT field set — what a caller gets when it does not ask for less.
  *
+ * This is core's `defaultAdminProductsVariantFields` (its own batch default)
+ * minus `thumbnail` and `deleted_at`, with the price keys written pre-remapped.
  * `remapKeysForVariant` only rewrites fields starting with `prices`/`*prices`,
- * so the `price_set.prices.*` entries pass through untouched — and
- * `remapVariantResponse` needs them to build `prices`, which
- * `collectVariantPriceIds` then reads to drive the FX fanout. Getting this
- * wrong would not fail loudly: the response would simply carry no prices and
- * the fanout would silently have nothing to do.
+ * so `price_set.prices.*` passes through untouched and lands on the same query
+ * core's `*prices` would — `remapVariantResponse` needs it to build `prices`,
+ * which `collectVariantPriceIds` then reads to drive the FX fanout. Getting
+ * this wrong would not fail loudly: the response would carry no prices and the
+ * fanout would silently have nothing to do.
+ *
+ * ⚠️ It is a DEFAULT, not a ceiling — that distinction is the whole point.
+ * Core reaches `refetchBatchVariants` with `req.queryConfig.fields`, so an
+ * admin client can shrink the set with `?fields=`. This route hard-coded the
+ * list instead, so its one caller (the partner-ui pricing screen) had no way
+ * to ask for less — and that caller discards the entire body, then refetches.
+ * See #1370.
  */
 export const BATCH_VARIANT_FIELDS = [
   "id",
@@ -86,6 +103,31 @@ export const BATCH_VARIANT_FIELDS = [
   "price_set.prices.price_rules.attribute",
 ]
 
+/**
+ * Resolve the caller's field set, and guarantee price ids are in it.
+ *
+ * The FX fanout needs the ids of prices the write CREATED — an update that adds
+ * a currency sends no id, so that one is only knowable from the re-read. If a
+ * caller narrows `fields` past the prices, those never fan out: no error, no
+ * log, the price simply reads "not available" in every other region. That is
+ * #1370 Open 1 all over again.
+ *
+ * So the invariant lives here rather than in each client's query string. A
+ * caller can shrink the response as far as it likes; it cannot shrink it below
+ * what the fanout needs. `price_set.prices.id` alone is cheap — it is the id
+ * column, not the full price payload.
+ */
+export const withPriceIds = (fields?: string[]): string[] => {
+  if (!fields?.length) return BATCH_VARIANT_FIELDS
+  const hasPrices = fields.some(
+    (f) =>
+      f.startsWith("price_set.prices") ||
+      f.startsWith("prices") ||
+      f.startsWith("*prices")
+  )
+  return hasPrices ? fields : [...fields, "price_set.prices.id"]
+}
+
 export const seedBatchInventoryLevelsStep = createStep(
   "seed-batch-inventory-levels",
   async (
@@ -112,7 +154,12 @@ export const seedBatchInventoryLevelsStep = createStep(
 export const enrichBatchVariantsStep = createStep(
   "enrich-batch-variants",
   async (
-    input: { created: any[]; updated: any[]; deleted: string[] },
+    input: {
+      created: any[]
+      updated: any[]
+      deleted: string[]
+      fields: string[]
+    },
     { container }
   ) => {
     const t0 = Date.now()
@@ -124,7 +171,7 @@ export const enrichBatchVariantsStep = createStep(
         deleted: input.deleted,
       },
       container,
-      BATCH_VARIANT_FIELDS
+      input.fields
     )
 
     const created = batchResults.created.map((v: any) => remapVariantResponse(v))
@@ -194,25 +241,44 @@ export const batchPartnerVariantsWorkflow = createWorkflow(
       ({ facts }) => facts.needsEnrichment === true
     ).then(function () {
       return enrichBatchVariantsStep(
-        transform({ facts }, ({ facts }) => ({
+        transform({ input, facts }, ({ input, facts }) => ({
           created: facts.created,
           updated: facts.updated,
           deleted: facts.deleted,
+          fields: withPriceIds(input.fields),
         }))
       )
     })
 
     // Medusa's pricing module emits no `price.created` we could subscribe to,
     // so the fanout is kicked off here for every price the batch touched.
+    //
+    // ⚠️ The price ids come from BOTH the request and the enrichment, and that
+    // is not belt-and-braces — it is what makes `fields` safe to narrow.
+    // `collectVariantPriceIds` reads the `prices` the enrichment built, so a
+    // caller sending `?fields=id` would silently starve the fanout: no error,
+    // no log, prices simply never converted into the store's other currencies.
+    // That is the exact failure #1370 Open 1 already shipped once. An UPDATE
+    // carries its price ids in the request body, so we take them from there and
+    // only lean on the enrichment for prices that did not exist until the write.
     const fanoutInput = transform(
       { input, enriched },
-      ({ input, enriched }) => ({
-        storeId: input.storeId,
-        priceIds: collectVariantPriceIds([
+      ({ input, enriched }) => {
+        const fromRequest: string[] = []
+        for (const u of input.update ?? []) {
+          for (const pr of u?.prices ?? []) {
+            if (pr?.id) fromRequest.push(String(pr.id))
+          }
+        }
+        const fromEnrichment = collectVariantPriceIds([
           ...((enriched as any)?.created ?? []),
           ...((enriched as any)?.updated ?? []),
-        ]),
-      })
+        ])
+        return {
+          storeId: input.storeId,
+          priceIds: Array.from(new Set([...fromRequest, ...fromEnrichment])),
+        }
+      }
     )
 
     const fanout = when(
