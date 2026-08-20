@@ -379,6 +379,14 @@ export async function resolveCoreLocationIds(
  * a trap: prod carries legacy duplicates named after partners (`Shramdaan` vs
  * the partner's `Shramdaan India Warehouse`). Partner stores are reachable
  * through the partner↔store link, so the brand store is what's left over.
+ *
+ * ⚠️ `withDeleted` is not optional here. `deletePartnerWorkflow` SOFT-deletes a
+ * partner and leaves its store and its partner↔store link entirely alone, so
+ * without this flag a deleted partner vanishes from the query while its store
+ * does not — and the store is then mistaken for a second brand store, throwing
+ * on every caller. A store that belonged to a deleted partner is still not the
+ * brand store. This was live on prod: the heuristic threw until the orphan
+ * store was cleaned up, and would have re-broken on the next deletion.
  */
 export async function resolveBrandLocationId(
   container: MedusaContainer
@@ -388,6 +396,7 @@ export async function resolveBrandLocationId(
   const { data: partners } = await query.graph({
     entity: "partners",
     fields: ["id", "stores.id"],
+    withDeleted: true,
   })
   const partnerStoreIds = new Set<string>()
   for (const p of (partners || []) as any[]) {
