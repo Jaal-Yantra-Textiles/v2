@@ -121,47 +121,10 @@ import { AuthenticatedMedusaRequest, MedusaResponse } from "@medusajs/framework/
 import { MedusaError, ContainerRegistrationKeys, Modules } from "@medusajs/framework/utils"
 import { PartnerCreateProductReq } from "./validators"
 import { createProductsWorkflow } from "@medusajs/medusa/core-flows"
-import { getPartnerFromAuthContext, ensureInventoryLevelsForVariants } from "../helpers"
+import { getPartnerFromAuthContext, ensureInventoryLevelsForVariants, phaseTimer } from "../helpers"
 import { requestVariantPriceFanout } from "../../../workflows/fx/fanout-variant-prices"
 import { PARTNER_MODULE } from "../../../modules/partner"
 import { PARTNER_ONBOARDING_PROFILE_MODULE } from "../../../modules/partner-onboarding-profile"
-
-/**
- * Phase timing for this route (#1370).
- *
- * A `Zari Work Pashmina` create with 2 variants took >70s server-side and 504'd
- * at the 60s edge, while the product row was written 1.3s in — the partner sees
- * a failure for a product that exists, and the worker logs show its subscribers
- * and FX fanout completing normally. So the time is spent on the server AFTER
- * the write, in a phase nothing currently measures.
- *
- * Unlike variants/batch this route has no response re-read to blame, and the
- * same run showed ZERO redis-cache timeouts, so neither of the two standing
- * theories covers it. Rather than theorise a third, measure: this route had no
- * instrumentation at all, and phase timing is what identified the 97% re-read
- * on the sibling route.
- *
- * Deliberately `info` and always on — the slow saves are intermittent, and a
- * flag we turn on after a partner complains is off during every occurrence
- * worth measuring.
- */
-const phaseTimer = (logger: any, requestId: string) => {
-  const t0 = Date.now()
-  let last = t0
-  const marks: string[] = []
-  return {
-    mark(name: string) {
-      const now = Date.now()
-      marks.push(`${name}=${now - last}ms`)
-      last = now
-    },
-    done(suffix = "") {
-      logger?.info?.(
-        `[partners/products] ${requestId} total=${Date.now() - t0}ms ${marks.join(" ")}${suffix}`
-      )
-    },
-  }
-}
 
 export const POST = async (
   req: AuthenticatedMedusaRequest,
@@ -172,7 +135,7 @@ export const POST = async (
   }
 
   const logger: any = req.scope.resolve(ContainerRegistrationKeys.LOGGER)
-  const timer = phaseTimer(logger, req.get("x-request-id") || "-")
+  const timer = phaseTimer(logger, "partners/products", req.get("x-request-id") || "-")
 
   const partner = await getPartnerFromAuthContext(req.auth_context, req.scope)
   if (!partner) {

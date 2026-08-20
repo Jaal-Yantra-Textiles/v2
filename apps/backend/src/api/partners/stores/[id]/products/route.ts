@@ -1,7 +1,9 @@
 import { AuthenticatedMedusaRequest, MedusaResponse } from "@medusajs/framework/http"
+import { ContainerRegistrationKeys } from "@medusajs/framework/utils"
 import { createProductsWorkflow } from "@medusajs/medusa/core-flows"
 import {
   ensureInventoryLevelsForVariants,
+  phaseTimer,
   validatePartnerStoreAccess,
 } from "../../../helpers"
 import listStoreProductsWorkflow from "../../../../../workflows/partner/list-store-products"
@@ -38,11 +40,20 @@ export const POST = async (
   req: AuthenticatedMedusaRequest,
   res: MedusaResponse
 ) => {
+  const logger: any = req.scope.resolve(ContainerRegistrationKeys.LOGGER)
+  const timer = phaseTimer(
+    logger,
+    "partners/stores/products",
+    req.get("x-request-id") || "-"
+  )
+
   const { partner, store } = await validatePartnerStoreAccess(
     req.auth_context,
     req.params.id,
     req.scope
   )
+
+  timer.mark("auth")
 
   const body = req.body as Record<string, any>
 
@@ -65,11 +76,14 @@ export const POST = async (
     body.status = "proposed"
   }
 
+  timer.mark("proposalGate")
+
   const { result } = await createProductsWorkflow(req.scope).run({
     input: {
       products: [body] as any,
     },
   })
+  timer.mark("createWorkflow")
 
   const product = result[0]
 
@@ -78,17 +92,21 @@ export const POST = async (
   if (isCoreChannelListing && product?.id) {
     await recordArtisanProposal(req.scope, partner.id, product.id)
   }
+  timer.mark("proposalRecord")
 
   // Auto-seed inventory_level rows at the partner's stock location(s) for
   // any managed-inventory variants on the new product. Without this, the
   // partner-ui inventory page 404s on those items.
   const variantIds = (product?.variants || []).map((v: any) => v.id)
   await ensureInventoryLevelsForVariants(req.scope, store, variantIds)
+  timer.mark("inventoryLevels")
 
   // FX fanout — materialise auto-converted prices in the store's other
   // supported currencies so the product isn't "not available" in non-native
   // regions. Idempotent + never throws (see fanout-variant-prices.ts).
   await requestVariantPriceFanout(req.scope, { storeId: store.id, variantIds })
+  timer.mark("fanoutEmit")
+  timer.done(` variants=${variantIds.length}`)
 
   res.status(201).json({ product })
 }

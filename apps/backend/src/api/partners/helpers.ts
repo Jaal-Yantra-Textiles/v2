@@ -545,3 +545,42 @@ export const getPartnerSalesChannelId = async (
 
     return { partner, store, salesChannelId: store.default_sales_channel_id }
 }
+/**
+ * Phase timing for partner write routes (#1370).
+ *
+ * These saves are slow in a way no single measurement has yet explained: a
+ * `variants/batch` price save runs 14-50s with the write itself at ~700ms, and
+ * a `POST .../products` create 504'd at the 60s edge while the product row
+ * landed 1.3s in and the worker finished its subscribers and FX fanout
+ * normally. Three theories have already died (the option graph, core's refetch
+ * helper, inline subscribers), and phase timing is the one technique that has
+ * actually moved the diagnosis — it is what identified the 97% response re-read
+ * on variants/batch.
+ *
+ * Shared rather than copied because the create paths come in pairs: the legacy
+ * `POST /partners/products` that the assistant's `create_product` tool posts to,
+ * and the store-scoped `POST /partners/stores/:id/products` that the partner UI
+ * actually calls. Instrumenting one and reasoning about the other is how the
+ * partner-facing path stays unmeasured.
+ *
+ * Deliberately `info` and always on: the slow saves are intermittent, and a
+ * flag we switch on after a partner complains is off during every occurrence
+ * worth measuring.
+ */
+export const phaseTimer = (logger: any, label: string, requestId: string) => {
+  const t0 = Date.now()
+  let last = t0
+  const marks: string[] = []
+  return {
+    mark(name: string) {
+      const now = Date.now()
+      marks.push(`${name}=${now - last}ms`)
+      last = now
+    },
+    done(suffix = "") {
+      logger?.info?.(
+        `[${label}] ${requestId} total=${Date.now() - t0}ms ${marks.join(" ")}${suffix}`
+      )
+    },
+  }
+}
