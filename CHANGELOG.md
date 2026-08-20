@@ -1,3 +1,10 @@
+# [13.112.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.111.6...v13.112.0) (2026-08-20)
+
+
+### Features
+
+* **store:** public freight estimate for a bulk quantity ([#1390](https://github.com/Jaal-Yantra-Textiles/v2/issues/1390)) ([8d966e9](https://github.com/Jaal-Yantra-Textiles/v2/commit/8d966e9dbcbf5439aa857fbf1bec25141245329b)), closes [#1389](https://github.com/Jaal-Yantra-Textiles/v2/issues/1389) [#1389](https://github.com/Jaal-Yantra-Textiles/v2/issues/1389)
+
 ## [13.111.6](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.111.5...v13.111.6) (2026-08-20)
 
 
