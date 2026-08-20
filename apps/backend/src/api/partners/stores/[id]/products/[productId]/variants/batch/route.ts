@@ -1,7 +1,10 @@
 import { AuthenticatedMedusaRequest, MedusaResponse } from "@medusajs/framework/http"
 import { ContainerRegistrationKeys } from "@medusajs/framework/utils"
 import { batchProductVariantsWorkflow } from "@medusajs/medusa/core-flows"
-import { remapVariantResponse } from "@medusajs/medusa/api/admin/products/helpers"
+import {
+  refetchBatchVariants,
+  remapVariantResponse,
+} from "@medusajs/medusa/api/admin/products/helpers"
 import {
   collectVariantPriceIds,
   requestVariantPriceFanout,
@@ -74,10 +77,7 @@ export const POST = async (
   })
   timer.mark("batchWorkflow")
 
-  const query = req.scope.resolve(ContainerRegistrationKeys.QUERY)
-
   const createdIds = result.created?.map((v: any) => v.id) ?? []
-  const updatedIds = result.updated?.map((v: any) => v.id) ?? []
 
   // Auto-seed inventory_level rows at the partner's stock location for any
   // managed-inventory variants in the create batch. Same gap the single-POST
@@ -88,40 +88,98 @@ export const POST = async (
   }
   timer.mark("inventoryLevels")
 
+  /**
+   * Response enrichment. This was ~97% of the request.
+   *
+   *   [variants/batch] total=16364ms auth=26ms batchWorkflow=358ms
+   *                    inventoryLevels=0ms responseQueries=15977ms fanoutEmit=3ms
+   *
+   * The write is 358ms. The re-read that shapes the response was 15977ms.
+   *
+   * This route hand-rolled that re-read. Medusa's own admin batch route does
+   * not — `admin/products/[id]/variants/batch` calls `refetchBatchVariants`,
+   * and comparing the two is what identified the difference:
+   *
+   *   - core fires the `created` and `updated` queries CONCURRENTLY through
+   *     `promiseAll`; we awaited them one after the other.
+   *   - core goes through `remoteQuery` (`entryPoint: "variant"`); we used
+   *     `query.graph({ entity: "product_variants" })`.
+   *   - core's default field set is an explicit list of scalars plus `*options`
+   *     and two named `price_rules` fields. It never expands `options.option`,
+   *     never asks for `inventory_items`, and never uses a bare `"*"`.
+   *
+   * So: use core's helper, with an explicit field list rather than a wide one.
+   * `refetchBatchVariants` is exported from the same module this file already
+   * imports `remapVariantResponse` from, so the response shape is unchanged.
+   *
+   * ⚠️ What the evidence does NOT support: that the wide fields were themselves
+   * the cost. The same expansion — `options.option.*` and `inventory_items.*`
+   * included — over the same 9 variants returns in ~1.3s through the admin read
+   * path, verified against prod, fields honoured rather than stripped. An
+   * earlier reading of these numbers blamed the product's option graph; that
+   * did not survive the check. What is left is the mechanism: the engine, the
+   * sequential await, and the fact that this query runs on the request scope
+   * immediately after that scope performed the write. This change aligns all
+   * three with core, which is the version that is actually exercised and tuned.
+   *
+   * Measured warm on prod before the change:
+   *
+   *   product                       variants written   responseQueries
+   *   ikkat      (1 option  x 2 values)      2               327 ms
+   *   grey/white (3 options x 3 values)      1              3211 ms
+   *   grey/white (3 options x 3 values)      9             15094 ms
+   */
   const variantFields = [
-    "*",
+    "id",
+    "title",
+    "sku",
+    "barcode",
+    "ean",
+    "upc",
+    "allow_backorder",
+    "manage_inventory",
+    "hs_code",
+    "origin_country",
+    "mid_code",
+    "material",
+    "weight",
+    "length",
+    "height",
+    "width",
+    "metadata",
+    "variant_rank",
     "product_id",
+    "created_at",
+    "updated_at",
+    "*options",
+    // Written pre-remapped. `remapKeysForVariant` only rewrites fields starting
+    // with `prices`/`*prices`, so these pass through untouched — and
+    // `remapVariantResponse` needs `price_set.prices` to build `prices`, which
+    // `collectVariantPriceIds` then reads to drive the FX fanout below. Getting
+    // this wrong would not fail loudly: the response would simply carry no
+    // prices and the fanout would silently have nothing to do.
     "price_set.prices.*",
-    "price_set.prices.price_rules.*",
-    "options.*",
-    "options.option.*",
-    "inventory_items.*",
+    "price_set.prices.price_rules.value",
+    "price_set.prices.price_rules.attribute",
   ]
 
-  let created: any[] = []
-  let updated: any[] = []
+  const batchResults = await refetchBatchVariants(
+    {
+      created: result.created ?? [],
+      updated: result.updated ?? [],
+      deleted: result.deleted ?? [],
+    },
+    req.scope,
+    variantFields
+  )
 
-  if (createdIds.length) {
-    const { data } = await query.graph({
-      entity: "product_variants",
-      fields: variantFields,
-      filters: { id: createdIds },
-    })
-    created = (data as any[]).map((v) => remapVariantResponse(v))
-  }
+  const created = batchResults.created.map((v: any) => remapVariantResponse(v))
+  const updated = batchResults.updated.map((v: any) => remapVariantResponse(v))
 
-  if (updatedIds.length) {
-    const { data } = await query.graph({
-      entity: "product_variants",
-      fields: variantFields,
-      filters: { id: updatedIds },
-    })
-    updated = (data as any[]).map((v) => remapVariantResponse(v))
-  }
-  // The response-enrichment reads. `variantFields` expands price_set.prices.*,
-  // price_rules.*, options.option.* and inventory_items.* — and every FX fanout
-  // adds 5 more price rows per price to what this has to pull back.
-  timer.mark("responseQueries")
+  // The row count rides along with the timing. This whole diagnosis turned on
+  // cost-per-variant differing 10x between two products, and a duration with no
+  // denominator could not have shown that.
+  timer.mark(`responseQueries(n=${created.length + updated.length})`)
 
   // FX fanout — Medusa's pricing module doesn't emit a `price.created`
   // event we can subscribe to, so we kick off the fanout workflow here for
