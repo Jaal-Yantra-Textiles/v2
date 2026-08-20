@@ -80,6 +80,7 @@ import { seedEmailTemplatesJob } from "./seed-jobs"
 import { seedInvestorPanelsJob } from "./seed-investor-panels-job"
 import { replayFxFanoutJob } from "./fanout-fx-job"
 import { backfillStoreCurrenciesJob } from "./backfill-store-currencies-job"
+import { deleteOrphanStoreJob } from "./delete-orphan-store-job"
 import { backfillPartnerEmailVerifiedJob } from "./backfill-partner-email-verified-job"
 import { backfillPartnerHostingProviderJob } from "./backfill-partner-hosting-provider-job"
 import { repointPartnerStorefrontSharedJob } from "./repoint-partner-storefront-shared-job"
@@ -5768,6 +5769,7 @@ export const MAINTENANCE_JOBS: MaintenanceJob[] = [
   reconcileInventoryMirrorJob,
   replayFxFanoutJob,
   backfillStoreCurrenciesJob,
+  deleteOrphanStoreJob,
   backfillPartnerEmailVerifiedJob,
   backfillPartnerHostingProviderJob,
   repointPartnerStorefrontSharedJob,

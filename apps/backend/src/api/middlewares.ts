@@ -201,6 +201,7 @@ import { CreateConversationSchema as PartnerCreateConversationSchema, UpdateConv
 import { CreateConversationSchema as AdminAssistantCreateConversationSchema, UpdateConversationSchema as AdminAssistantUpdateConversationSchema } from "./admin/assistant/conversations/validators";
 import { BulkHsCodesSchema } from "./admin/customs/hs-codes/validators";
 import { BulkUpdateProductsSchema } from "./admin/products/bulk-update/validators";
+import { BulkProductSpecReq } from "./admin/products/spec-bulk/validators";
 import {
   CreateExportLutSchema,
   UpdateExportLutSchema,
@@ -2739,6 +2740,24 @@ export default defineMiddlewares({
         createCorsPartnerMiddleware(),
         authenticate("partner", ["session", "bearer"]),
         validateAndTransformBody(wrapSchema(BulkUpdateProductsSchema)),
+      ],
+    },
+    // Bulk production-spec write. One weave, one param set and one palette
+    // across a whole run is the normal case; doing it product-by-product is
+    // twenty confirmations for one decision. Same validator on both surfaces —
+    // the partner route additionally ownership-checks every id in the handler.
+    {
+      matcher: "/admin/products/spec-bulk",
+      method: "POST",
+      middlewares: [validateAndTransformBody(wrapSchema(BulkProductSpecReq))],
+    },
+    {
+      matcher: "/partners/products/spec-bulk",
+      method: "POST",
+      middlewares: [
+        createCorsPartnerMiddleware(),
+        authenticate("partner", ["session", "bearer"]),
+        validateAndTransformBody(wrapSchema(BulkProductSpecReq)),
       ],
     },
     // Partner mirrors. These carry their own CORS + partner auth, and the POST

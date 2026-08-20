@@ -92,6 +92,11 @@ describe("admin MCP tool tiers", () => {
       [
         "add_design_construction_detail",
         "add_inventory_raw_material",
+        // Same rule as set_product_spec, which it batches: a spec spends no
+        // money, calls no carrier and messages nobody. It stays `sensitive`,
+        // so the confirm gate still applies — and it needs that gate more than
+        // the single tool does, since one call can overwrite a hundred specs.
+        "bulk_set_product_spec",
         "create_crm_company",
         "create_crm_contact",
         "create_crm_opportunity",

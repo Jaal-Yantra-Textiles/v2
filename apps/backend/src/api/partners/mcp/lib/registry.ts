@@ -23,6 +23,10 @@
 
 import type { McpToolDef } from "../../../../lib/mcp-core"
 import {
+  PHYSICAL_AND_CUSTOMS_BODY_PARAMS,
+  physicalAndCustomsSchemaProps,
+} from "../../../../lib/product-attributes/tool-schema"
+import {
   PRODUCT_SPEC_BODY_PARAMS,
   PRODUCT_SPEC_WRITE_GUIDANCE,
   productSpecSchemaProps,
@@ -863,6 +867,64 @@ export const PARTNER_MCP_TOOLS: PartnerMcpToolDef[] = [
     ),
     sideEffects:
       "Replaces the stored palette and custom fields when those keys are passed.",
+    nextSteps: ["get_product_spec"],
+  },
+  {
+    name: "bulk_set_product_spec",
+    description: [
+      "Write ONE production spec across MANY of your products in a single call — the normal case when a run of pieces shares a weave, a parameter set and a palette and differs only in colourway. Sensitive: requires confirm:true. ALWAYS dry_run first.",
+      "",
+      "TARGETING:",
+      "- `spec` applies to every product listed.",
+      "- `products: [{ product_id, spec }]` — a row's own `spec` wins over the batch-wide one, so you can share a weave and vary the palette in the same call.",
+      "",
+      "Creates a spec where none exists and updates where one does — you do not have to know which, and a mixed batch is fine. Each row reports which actually happened (`created` / `updated`).",
+      "",
+      `⚠️ ${"`colors`, `fields` and `options` REPLACE what is stored when present"}. Omit a key to leave those rows untouched. Across a batch this is the sharpest edge here, so the dry-run plan names, per product, exactly which of the three it would replace — read it before confirming.`,
+      "",
+      "Returns a PER-ROW outcome: one bad product id never discards the rest, so read `results` and `warnings` rather than just the status. Everything is scoped to your own catalogue — a product that isn't yours comes back as an error row.",
+      `Capped at 100 products per call. ${PRODUCT_SPEC_WRITE_GUIDANCE}`,
+    ].join("\n"),
+    method: "POST",
+    path: "/partners/products/spec-bulk",
+    write: true,
+    sensitive: true,
+    bodyParams: ["products", "spec", "dry_run"],
+    inputSchema: obj(
+      {
+        products: {
+          type: "array",
+          description:
+            "Products to write. A row's own `spec` wins over the batch-wide `spec`.",
+          items: {
+            type: "object",
+            properties: {
+              product_id: STR("Product id, e.g. 'prod_...'."),
+              spec: {
+                type: "object",
+                description:
+                  "Spec for this product only. Same shape as the batch-wide `spec`.",
+                properties: productSpecSchemaProps(),
+                additionalProperties: false,
+              },
+            },
+            required: ["product_id"],
+            additionalProperties: false,
+          },
+        },
+        spec: {
+          type: "object",
+          description:
+            "Applied to every row that carries no `spec` of its own. Provide this, or a `spec` on every row.",
+          properties: productSpecSchemaProps(),
+          additionalProperties: false,
+        },
+        dry_run: BOOL("Return the plan without writing. Do this first."),
+      },
+      ["products"]
+    ),
+    sideEffects:
+      "Replaces the stored palette, custom fields and option groups on EVERY listed product when those keys are passed.",
     nextSteps: ["get_product_spec"],
   },
 
@@ -1867,7 +1929,18 @@ export const PARTNER_MCP_TOOLS: PartnerMcpToolDef[] = [
     path: "/partners/stores/:id/products/:productId/variants",
     pathParams: ["id", "productId"],
     write: true,
-    bodyParams: ["title", "sku", "options", "prices", "manage_inventory", "allow_backorder"],
+    bodyParams: [
+      "title",
+      "sku",
+      "options",
+      "prices",
+      "manage_inventory",
+      "allow_backorder",
+      // A variant born without a weight cannot be quoted for freight, and the
+      // partner has to come back and fix it through a second tool. Setting it
+      // at creation is the only way the data is right by default.
+      ...PHYSICAL_AND_CUSTOMS_BODY_PARAMS,
+    ],
     sideEffects:
       "creates the variant + its inventory item; the new variant starts at 0 stock.",
     nextSteps: ["set_inventory_level"],
@@ -1877,6 +1950,7 @@ export const PARTNER_MCP_TOOLS: PartnerMcpToolDef[] = [
         productId: STR("Product id."),
         title: STR("Variant title, e.g. 'Red / M'."),
         sku: STR("Stock-keeping unit."),
+        ...physicalAndCustomsSchemaProps(),
         options: {
           type: "object",
           description: "Option→value map, e.g. { Size: 'M', Color: 'Red' }.",
@@ -1917,13 +1991,14 @@ export const PARTNER_MCP_TOOLS: PartnerMcpToolDef[] = [
       "prices",
       "manage_inventory",
       "allow_backorder",
-      // Customs fields. The route already spreads the whole body into
-      // updateProductVariantsWorkflow, so these have always persisted — they
-      // were simply never exposed, which left the assistant unable to fix the
-      // missing-HSN failures that block international labels.
-      "hs_code",
-      "origin_country",
-      "material",
+      // Physical + customs fields. The route already spreads the whole body
+      // into updateProductVariantsWorkflow, so these have always persisted —
+      // they were simply never exposed. The customs trio was added first (it
+      // blocked international labels); `weight` and the dimensions were left
+      // out in the same way and blocked every freight quote, silently, because
+      // the dispatcher drops unlisted keys without a word. See
+      // lib/product-attributes/tool-schema.ts.
+      ...PHYSICAL_AND_CUSTOMS_BODY_PARAMS,
     ],
     inputSchema: obj(
       {
@@ -1932,11 +2007,7 @@ export const PARTNER_MCP_TOOLS: PartnerMcpToolDef[] = [
         variantId: STR("Variant id to update."),
         title: STR("New variant title."),
         sku: STR("New SKU."),
-        hs_code: STR(
-          "HS/HSN customs code. Required for international shipping labels."
-        ),
-        origin_country: STR("ISO-2 country of manufacture."),
-        material: STR("Material description for customs."),
+        ...physicalAndCustomsSchemaProps(),
         options: {
           type: "object",
           description: "Option→value map to change.",

@@ -219,4 +219,12 @@ export type McpToolResult = {
   current?: unknown
   /** Human-readable warning for sensitive/dangerous actions. */
   warning?: string
+  /**
+   * Non-fatal notices about the call that ran — currently, arguments the tool
+   * does not forward and therefore silently discarded.
+   *
+   * Distinct from `warning`, which is pre-execution copy for the confirmation
+   * card. These describe what actually happened to a request that succeeded.
+   */
+  warnings?: string[]
 }
