@@ -6,6 +6,8 @@ import { MedusaError } from "@medusajs/framework/utils"
 import { z } from "@medusajs/framework/zod"
 import { PRODUCTION_RUNS_MODULE } from "../../../../../modules/production_runs"
 import type ProductionRunService from "../../../../../modules/production_runs/service"
+import { updateDesignWorkflow } from "../../../../../workflows/designs/update-design"
+import { listSingleDesignsWorkflow } from "../../../../../workflows/designs/list-single-design"
 
 const AttachMediaBodySchema = z.object({
   media_url: z.string().url("media_url must be a valid URL"),
@@ -22,6 +24,8 @@ const AttachMediaBodySchema = z.object({
  * a production run. The media URL and metadata are appended to
  * `run.metadata.attached_media` so they survive alongside the run, and an
  * activity note is written to the timeline so the attachment is auditable.
+ * When the run links a design (`run.design_id`), the same URL is also
+ * appended to the design's `media_files` gallery.
  *
  * This does NOT copy the file — it records the URL the messaging system
  * already persisted when the inbound WhatsApp media was received.
@@ -111,8 +115,48 @@ export const POST = async (
 
   const updated = await service.retrieveProductionRun(runId)
 
+  // The same media should land on the design's gallery too, not just on the
+  // run. Resolve the run's design (nullable — retail-minted runs have none)
+  // and append the URL to `design.media_files`, de-duplicating by url so a
+  // re-attach never doubles an entry. Best-effort: the run attachment is the
+  // primary action and has already succeeded.
+  let updatedDesign: any = null
+  if (run.design_id) {
+    try {
+      const { result: currentDesign } = await listSingleDesignsWorkflow(
+        req.scope
+      ).run({ input: { id: run.design_id, fields: ["*"] } })
+
+      const existing: any[] = Array.isArray((currentDesign as any)?.media_files)
+        ? (currentDesign as any).media_files
+        : []
+      const seen = new Set<string>(existing.map((m) => m?.url).filter(Boolean))
+      const mergedMedia = seen.has(body.media_url)
+        ? existing
+        : [...existing, { url: body.media_url, isThumbnail: false }]
+
+      const { errors } = await updateDesignWorkflow(req.scope).run({
+        input: { id: run.design_id, media_files: mergedMedia },
+      })
+      if (errors?.length) {
+        throw new MedusaError(
+          MedusaError.Types.UNEXPECTED_STATE,
+          "Failed to attach media to design"
+        )
+      }
+
+      const { result: updatedDesignResult } = await listSingleDesignsWorkflow(
+        req.scope
+      ).run({ input: { id: run.design_id, fields: ["*"] } })
+      updatedDesign = updatedDesignResult
+    } catch {
+      // Best-effort — the run attachment already succeeded.
+    }
+  }
+
   res.status(200).json({
     production_run: updated,
+    design: updatedDesign,
     message: "Media attached to run",
   })
 }
