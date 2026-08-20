@@ -1,3 +1,12 @@
+## [13.111.6](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.111.5...v13.111.6) (2026-08-20)
+
+
+### Bug Fixes
+
+* **fx:** fanout dropped quantity bounds, so tiers were base-currency only ([#1386](https://github.com/Jaal-Yantra-Textiles/v2/issues/1386)) ([5e477a1](https://github.com/Jaal-Yantra-Textiles/v2/commit/5e477a13d9f1602200a4bd4df0fce94cac7d3076))
+* **production-runs:** serialise attach-media, stop losing concurrent uploads ([#1388](https://github.com/Jaal-Yantra-Textiles/v2/issues/1388)) ([a30c272](https://github.com/Jaal-Yantra-Textiles/v2/commit/a30c2721601b64c89991f35776c581233a7ceaab)), closes [#1387](https://github.com/Jaal-Yantra-Textiles/v2/issues/1387) [#1385](https://github.com/Jaal-Yantra-Textiles/v2/issues/1385)
+* **partners:** update_store_product wrote nothing on every MCP call ([#1384](https://github.com/Jaal-Yantra-Textiles/v2/issues/1384)) ([1c9ad13](https://github.com/Jaal-Yantra-Textiles/v2/commit/1c9ad13b804499c32d7a296a451f1337dd968b3c)), closes [#1348](https://github.com/Jaal-Yantra-Textiles/v2/issues/1348)
+
 ## [13.111.5](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.111.4...v13.111.5) (2026-08-20)
 
 
