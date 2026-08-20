@@ -321,6 +321,21 @@ jobs:
           copilot svc deploy --name medusa-server --env prod --force \
             --tag "${{ needs.build-and-push.outputs.image_tag }}"
 
+      # #1372 — `--force` above is NOT reliable. With `image.location` the CFN
+      # change set has no diff, ECS reports the deployment COMPLETED against the
+      # tasks already running, and copilot exits 0 having replaced nothing. This
+      # step is the only one in the pipeline that asks "is the new code running?"
+      # — it compares each running task's startedAt to the image's
+      # imagePushedAt, repairs via force-new-deployment if they are stale, and
+      # fails the job if the repair does not take.
+      - name: Assert medusa-server is running the new image
+        working-directory: deploy/aws
+        env:
+          AWS_REGION: ${{ env.AWS_REGION }}
+        run: |
+          ./assert-service-rolled.sh medusa-server \
+            "${{ needs.build-and-push.outputs.image_tag }}"
+
   deploy-worker:
     name: Deploy medusa-worker
     runs-on: ubuntu-latest
@@ -349,6 +364,18 @@ jobs:
         run: |
           copilot svc deploy --name medusa-worker --env prod --force \
             --tag "${{ needs.build-and-push.outputs.image_tag }}"
+
+      # See the medusa-server assertion above. The worker happened to roll on
+      # the run that exposed this (#1372) — which is exactly why the server's
+      # failure was invisible: two services, same workflow, different outcomes,
+      # one green check each.
+      - name: Assert medusa-worker is running the new image
+        working-directory: deploy/aws
+        env:
+          AWS_REGION: ${{ env.AWS_REGION }}
+        run: |
+          ./assert-service-rolled.sh medusa-worker \
+            "${{ needs.build-and-push.outputs.image_tag }}"
 
   # ─────────────────────────────────────────────────────────────────────────
   # 4. Health-check the public endpoint after both deploys are done.
