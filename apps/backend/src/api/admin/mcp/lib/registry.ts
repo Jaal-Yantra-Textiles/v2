@@ -246,6 +246,64 @@ export const ADMIN_MCP_TOOLS: AdminMcpToolDef[] = [
       "Replaces the stored palette and custom fields when those keys are passed. The spec is the maker's own record of the product — check with the partner before overwriting one they authored.",
     nextSteps: ["get_product_spec"],
   },
+  {
+    name: "bulk_set_product_spec",
+    description: [
+      "Write ONE production spec across MANY products in a single call — the normal case when a run of pieces shares a weave, a parameter set and a palette. Sensitive: requires confirm:true. ALWAYS dry_run first.",
+      "",
+      "TARGETING:",
+      "- `spec` applies to every product listed.",
+      "- `products: [{ product_id, spec }]` — a row's own `spec` wins over the batch-wide one.",
+      "",
+      "Creates a spec where none exists and updates where one does; a mixed batch is fine and each row reports which happened (`created` / `updated`).",
+      "",
+      "⚠️ `colors`, `fields` and `options` REPLACE what is stored when present. The dry-run plan names, per product, which of the three it would replace — read it before confirming.",
+      "",
+      "Returns a PER-ROW outcome: one bad product id never discards the rest. Read `results` and `warnings`, not just the status.",
+      `⚠️ UNSCOPED — this reaches EVERY maker's catalogue, and a spec is the maker's own record of their product. Overwriting a hundred specs someone else authored is not recoverable from here. Capped at 100 products per call. ${PRODUCT_SPEC_WRITE_GUIDANCE}`,
+    ].join("\n"),
+    method: "POST",
+    path: "/admin/products/spec-bulk",
+    write: true,
+    sensitive: true,
+    tier: "write",
+    bodyParams: ["products", "spec", "dry_run"],
+    inputSchema: obj(
+      {
+        products: {
+          type: "array",
+          description:
+            "Products to write. A row's own `spec` wins over the batch-wide `spec`.",
+          items: {
+            type: "object",
+            properties: {
+              product_id: STR("Product id, e.g. 'prod_...'."),
+              spec: {
+                type: "object",
+                description: "Spec for this product only.",
+                properties: productSpecSchemaProps(),
+                additionalProperties: false,
+              },
+            },
+            required: ["product_id"],
+            additionalProperties: false,
+          },
+        },
+        spec: {
+          type: "object",
+          description:
+            "Applied to every row that carries no `spec` of its own. Provide this, or a `spec` on every row.",
+          properties: productSpecSchemaProps(),
+          additionalProperties: false,
+        },
+        dry_run: BOOL("Return the plan without writing. Do this first."),
+      },
+      ["products"]
+    ),
+    sideEffects:
+      "Replaces the stored palette, custom fields and option groups on EVERY listed product when those keys are passed, across any maker's catalogue.",
+    nextSteps: ["get_product_spec"],
+  },
 
   // ===== Customers =========================================================
   {
