@@ -178,13 +178,17 @@ export const ensurePartnerInventoryLevelsStep = createStep(
 export const requestPartnerPriceFanoutStep = createStep(
   "request-partner-price-fanout",
   async (
-    input: { storeId: string; variantIds: string[] },
+    input: { storeId: string; variantIds?: string[]; priceIds?: string[] },
     { container }
   ) => {
     const t0 = Date.now()
+    // Either axis is valid: the create paths know their new variants, the batch
+    // path knows the exact prices it touched. `requestVariantPriceFanout`
+    // no-ops when both are empty rather than waking the worker for nothing.
     await requestVariantPriceFanout(container, {
       storeId: input.storeId,
       variantIds: input.variantIds,
+      priceIds: input.priceIds,
     })
     return new StepResponse({ ms: Date.now() - t0 })
   }

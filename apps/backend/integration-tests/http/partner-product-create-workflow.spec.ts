@@ -564,6 +564,79 @@ setupSharedTestSuite(() => {
       })
     })
 
+    describe("variants/batch — same workflow discipline (#1380)", () => {
+      it("updates prices and returns the enriched variants", async () => {
+        const created = await api.post(
+          `/partners/stores/${partner.storeId}/products`,
+          unmanagedProduct(`batch-${partner.unique}`, partner.currencyCode),
+          { headers: partner.headers }
+        )
+        const productId = created.data.product.id
+        const variant = created.data.product.variants[0]
+
+        const res = await api.post(
+          `/partners/stores/${partner.storeId}/products/${productId}/variants/batch`,
+          {
+            update: [
+              {
+                id: variant.id,
+                prices: [{ amount: 9999, currency_code: partner.currencyCode }],
+              },
+            ],
+          },
+          { headers: partner.headers }
+        )
+
+        expect(res.status).toBe(200)
+        expect(res.data.updated).toHaveLength(1)
+        expect(res.data.updated[0].id).toBe(variant.id)
+        // The enrichment must still produce `prices` — `remapVariantResponse`
+        // builds them from `price_set.prices`, and if that field spelling ever
+        // drifts the response goes quietly price-less and the FX fanout has
+        // nothing to fan out.
+        const amounts = (res.data.updated[0].prices || []).map(
+          (pr: any) => pr.amount
+        )
+        expect(amounts).toContain(9999)
+      })
+
+      it("a delete-only batch skips the enrichment re-read entirely", async () => {
+        // The re-read is the expensive phase on this route (15977ms of a
+        // 16364ms request at its worst). A batch that only deletes has nothing
+        // to re-read, and used to pay for the round trip anyway.
+        const created = await api.post(
+          `/partners/stores/${partner.storeId}/products`,
+          unmanagedProduct(`del-${partner.unique}`, partner.currencyCode),
+          { headers: partner.headers }
+        )
+        const productId = created.data.product.id
+        const variantId = created.data.product.variants[1].id
+
+        const res = await api.post(
+          `/partners/stores/${partner.storeId}/products/${productId}/variants/batch`,
+          { delete: [variantId] },
+          { headers: partner.headers }
+        )
+
+        expect(res.status).toBe(200)
+        expect(res.data.deleted?.ids).toContain(variantId)
+        expect(res.data.deleted?.deleted).toBe(true)
+        expect(res.data.created).toEqual([])
+        expect(res.data.updated).toEqual([])
+
+        // And the variant really is gone — a shape-only assertion here would
+        // pass just as happily against a no-op.
+        const detail = await api.get(
+          `/partners/stores/${partner.storeId}/products/${productId}`,
+          { headers: partner.headers }
+        )
+        const remaining = (detail.data.product?.variants || []).map(
+          (v: any) => v.id
+        )
+        expect(remaining).not.toContain(variantId)
+      })
+    })
+
     describe("both routes produce the same product state", () => {
       it("attaches the store's default sales channel either way", async () => {
         const viaLegacy = await api.post(

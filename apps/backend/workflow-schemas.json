@@ -5038,6 +5038,48 @@
     "source": "custom_ts",
     "sourceFile": "src/workflows/partner/associate-partner-person-types.ts"
   },
+  "batch-partner-variants": {
+    "fields": [
+      {
+        "name": "storeId",
+        "type": "string",
+        "required": true,
+        "placeholder": "{{ $last.storeId }}"
+      },
+      {
+        "name": "productId",
+        "type": "string",
+        "required": true,
+        "placeholder": "{{ $last.productId }}"
+      },
+      {
+        "name": "store",
+        "type": "object",
+        "required": true,
+        "placeholder": "{}"
+      },
+      {
+        "name": "create",
+        "type": "array",
+        "required": false,
+        "placeholder": "{{ $last.create }}"
+      },
+      {
+        "name": "update",
+        "type": "date",
+        "required": false,
+        "placeholder": "{{ $trigger.update }}"
+      },
+      {
+        "name": "delete",
+        "type": "array",
+        "required": false,
+        "placeholder": "{{ $last.delete }}"
+      }
+    ],
+    "source": "custom_ts",
+    "sourceFile": "src/workflows/partner/batch-partner-variants.ts"
+  },
   "connect-partner-whatsapp": {
     "fields": [
       {
