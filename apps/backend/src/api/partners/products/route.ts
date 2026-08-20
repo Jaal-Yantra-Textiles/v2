@@ -126,6 +126,43 @@ import { requestVariantPriceFanout } from "../../../workflows/fx/fanout-variant-
 import { PARTNER_MODULE } from "../../../modules/partner"
 import { PARTNER_ONBOARDING_PROFILE_MODULE } from "../../../modules/partner-onboarding-profile"
 
+/**
+ * Phase timing for this route (#1370).
+ *
+ * A `Zari Work Pashmina` create with 2 variants took >70s server-side and 504'd
+ * at the 60s edge, while the product row was written 1.3s in — the partner sees
+ * a failure for a product that exists, and the worker logs show its subscribers
+ * and FX fanout completing normally. So the time is spent on the server AFTER
+ * the write, in a phase nothing currently measures.
+ *
+ * Unlike variants/batch this route has no response re-read to blame, and the
+ * same run showed ZERO redis-cache timeouts, so neither of the two standing
+ * theories covers it. Rather than theorise a third, measure: this route had no
+ * instrumentation at all, and phase timing is what identified the 97% re-read
+ * on the sibling route.
+ *
+ * Deliberately `info` and always on — the slow saves are intermittent, and a
+ * flag we turn on after a partner complains is off during every occurrence
+ * worth measuring.
+ */
+const phaseTimer = (logger: any, requestId: string) => {
+  const t0 = Date.now()
+  let last = t0
+  const marks: string[] = []
+  return {
+    mark(name: string) {
+      const now = Date.now()
+      marks.push(`${name}=${now - last}ms`)
+      last = now
+    },
+    done(suffix = "") {
+      logger?.info?.(
+        `[partners/products] ${requestId} total=${Date.now() - t0}ms ${marks.join(" ")}${suffix}`
+      )
+    },
+  }
+}
+
 export const POST = async (
   req: AuthenticatedMedusaRequest,
   res: MedusaResponse
@@ -133,6 +170,9 @@ export const POST = async (
   if (!req.auth_context?.actor_id) {
     throw new MedusaError(MedusaError.Types.UNAUTHORIZED, "Partner authentication required")
   }
+
+  const logger: any = req.scope.resolve(ContainerRegistrationKeys.LOGGER)
+  const timer = phaseTimer(logger, req.get("x-request-id") || "-")
 
   const partner = await getPartnerFromAuthContext(req.auth_context, req.scope)
   if (!partner) {
@@ -180,11 +220,14 @@ export const POST = async (
     ],
   }
 
+  timer.mark("prepare")
+
   const { result } = await createProductsWorkflow(req.scope).run({
     input: {
       products: [productInput],
     },
   })
+  timer.mark("createWorkflow")
 
   const created = result?.[0]
 
@@ -198,6 +241,7 @@ export const POST = async (
   // throws (see ensureInventoryLevelsForVariants).
   const variantIds = (created?.variants || []).map((v: any) => v.id)
   await ensureInventoryLevelsForVariants(req.scope, store, variantIds)
+  timer.mark("inventoryLevels")
 
   // FX fanout — materialise auto-converted prices in the store's other
   // supported currencies. EXACTLY the same gap as the inventory levels above,
@@ -214,6 +258,7 @@ export const POST = async (
   // never inline. See requestVariantPriceFanout for why that distinction is a
   // availability concern and not a latency one.
   await requestVariantPriceFanout(req.scope, { storeId: store.id, variantIds })
+  timer.mark("fanoutEmit")
 
   // Record product → owning partner so the cross-list subscriber can resolve
   // ownership cleanly on publish (see links/partner-product.ts).
@@ -236,6 +281,8 @@ export const POST = async (
       })
       .catch(() => {})
   }
+  timer.mark("linkAndEvent")
+  timer.done(` variants=${variantIds.length}`)
 
   return res.status(201).json({
     message: isCoreChannelListing ? "Product proposed" : "Product created",
