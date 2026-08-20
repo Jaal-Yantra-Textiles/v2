@@ -575,6 +575,7 @@ const CHECKOUT_WRITE_TOOLS: McpToolDef[] = [
       properties: {
         region_id: { type: "string", description: "Region id (reg_...) — the cart's region." },
         ...FIELDS_PROP,
+        ...PAGINATION_PROPS,
         ...STORE_PROP,
       },
     },

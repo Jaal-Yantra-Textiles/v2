@@ -162,6 +162,13 @@ const CONSUMPTION_LOG_BODY = [
   "inventoryItemId", "rawMaterialId", "productionRunId", "quantity",
   "unitCost", "unitOfMeasure", "consumptionType", "notes", "locationId", "metadata",
 ]
+/**
+ * The run-scoped tool carries the run in its path, so it never offers
+ * `productionRunId` as an argument — and must not claim to forward one.
+ */
+const RUN_CONSUMPTION_LOG_BODY = CONSUMPTION_LOG_BODY.filter(
+  (k) => k !== "productionRunId"
+)
 const consumptionLogSchema = (withRun: boolean) =>
   obj(
     {
@@ -634,7 +641,7 @@ export const PARTNER_MCP_TOOLS: PartnerMcpToolDef[] = [
     path: "/partners/production-runs/:id/consumption-logs",
     pathParams: ["id"],
     write: true,
-    bodyParams: CONSUMPTION_LOG_BODY,
+    bodyParams: RUN_CONSUMPTION_LOG_BODY,
     inputSchema: {
       ...consumptionLogSchema(false),
       properties: {
@@ -1629,7 +1636,7 @@ export const PARTNER_MCP_TOOLS: PartnerMcpToolDef[] = [
     path: "/partners/stores/:id/products",
     pathParams: ["id"],
     queryParams: ["q", "limit", "offset"],
-    inputSchema: obj({ id: STR("Store id.") }, ["id"]),
+    inputSchema: obj({ id: STR("Store id."), ...PAGINATION }, ["id"]),
   },
   {
     name: "get_store_product",
@@ -1824,7 +1831,7 @@ export const PARTNER_MCP_TOOLS: PartnerMcpToolDef[] = [
     path: "/partners/stores/:id/product-variants",
     pathParams: ["id"],
     queryParams: ["q", "limit", "offset"],
-    inputSchema: obj({ id: STR("Store id.") }, ["id"]),
+    inputSchema: obj({ id: STR("Store id."), ...PAGINATION }, ["id"]),
   },
   // ---- Product option + variant writes: edit a product after create_product
   // (add a colour/size, fix a price, remove a variant). Options must exist

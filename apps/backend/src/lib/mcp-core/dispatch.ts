@@ -44,6 +44,31 @@ const substitutePath = (
   return { path }
 }
 
+/**
+ * Names in `inputSchema.required` that carry no value in `args` (#1371).
+ *
+ * The schema's `required` array is the ONE place a tool declares what it must
+ * be called with, so it is what the dispatcher enforces — no second list to
+ * drift out of step with it. Empty strings count as missing (matching
+ * `substitutePath`); `false` and `0` do not.
+ */
+const missingRequired = (
+  def: McpToolDef,
+  args: Record<string, unknown>
+): string[] => {
+  const required = def.inputSchema?.required
+  if (!Array.isArray(required)) return []
+  return required.filter((key: unknown) => {
+    if (typeof key !== "string") return false
+    const value = args[key]
+    return (
+      value === undefined ||
+      value === null ||
+      (typeof value === "string" && value.trim() === "")
+    )
+  }) as string[]
+}
+
 const pick = (
   keys: string[] | undefined,
   args: Record<string, unknown>
@@ -77,6 +102,21 @@ export async function dispatchMcpTool(
   }
 
   const args = rawArgs || {}
+
+  // --- Required arguments: refuse BEFORE any rail (#1371) ---------------------
+  // A call missing what the tool declares it needs cannot succeed at the route,
+  // so it must never reach the confirm gate: an argument-less `create_product`
+  // used to render an Approve card and only 400 *after* the partner pressed it.
+  // Returning it as a refusal instead hands the model an error it can retry —
+  // which it does — rather than asking a human to approve an impossible action.
+  const missing = missingRequired(def, args)
+  if (missing.length) {
+    return fail(
+      `Tool '${name}' was called without required argument(s): ${missing.join(
+        ", "
+      )}. Supply them and call it again.`
+    )
+  }
 
   // --- Native tools: run in-process via the surface handler -------------------
   // Store discovery / key resolution etc. — no route, no write/rail gating
