@@ -1,8 +1,7 @@
 import { AuthenticatedMedusaRequest, MedusaResponse } from "@medusajs/framework/http"
 import { ContainerRegistrationKeys, MedusaError } from "@medusajs/framework/utils"
-import { createProductsWorkflow } from "@medusajs/medusa/core-flows"
+import { createPartnerProductWorkflow } from "../../../../../../workflows/partner/create-partner-product"
 import { getPartnerStore } from "../../../../helpers"
-import { requestVariantPriceFanout } from "../../../../../../workflows/fx/fanout-variant-prices"
 
 /**
  * POST /partners/discover/products/:id/copy
@@ -12,7 +11,7 @@ export const POST = async (
   req: AuthenticatedMedusaRequest,
   res: MedusaResponse
 ) => {
-  const { store } = await getPartnerStore(req.auth_context, req.scope)
+  const { partner, store } = await getPartnerStore(req.auth_context, req.scope)
   const salesChannelId = store.default_sales_channel_id
 
   if (!salesChannelId) {
@@ -118,7 +117,6 @@ export const POST = async (
     collection_id: source.collection?.id || undefined,
     tags: (source.tags || []).map((t: any) => ({ id: t.id })),
     categories: (source.categories || []).map((c: any) => ({ id: c.id })),
-    sales_channels: [{ id: salesChannelId }],
     options,
     variants,
     metadata: {
@@ -128,21 +126,26 @@ export const POST = async (
     },
   }
 
-  const { result } = await createProductsWorkflow(req.scope).run({
+  // #1380 — the shared create workflow. Two things this route used to miss come
+  // for free: the copied variants default to `manage_inventory: true`, and
+  // nothing here ever seeded their stock levels, so partner-ui 404'd on the
+  // copied item exactly as it did before the helper existed on the other paths.
+  //
+  // The channel is passed explicitly even though it resolves to the same store
+  // default the workflow would pick — this route already refused earlier if it
+  // was missing, so naming it keeps that guarantee visible at the call site.
+  // The artisan gate stays off — copying has never entered the proposal queue.
+  const { result } = await createPartnerProductWorkflow(req.scope).run({
     input: {
-      products: [newProductInput],
+      partnerId: partner?.id ?? null,
+      storeId: store.id,
+      product: newProductInput,
+      salesChannelIds: [salesChannelId],
+      applyArtisanGate: false,
     },
   })
 
-  const created = result[0]
-
-  // FX fanout — the copied product's prices came from the source channel in
-  // one currency; materialise this store's other supported currencies.
-  // Idempotent + never throws.
-  await requestVariantPriceFanout(req.scope, {
-    storeId: store.id,
-    variantIds: ((created as any)?.variants || []).map((v: any) => v.id),
-  })
+  const created = result.product
 
   res.status(201).json({
     product: created,
