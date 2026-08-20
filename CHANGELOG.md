@@ -1,3 +1,10 @@
+## [13.111.2](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.111.1...v13.111.2) (2026-08-20)
+
+
+### Performance Improvements
+
+* **partners:** phase-time the slow variants/batch save, batch its N+1 ([#1369](https://github.com/Jaal-Yantra-Textiles/v2/issues/1369)) ([5e288f4](https://github.com/Jaal-Yantra-Textiles/v2/commit/5e288f41883ecbf3d2bd5293c7dc20f6f300679e))
+
 ## [13.111.1](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.111.0...v13.111.1) (2026-08-20)
 
 
