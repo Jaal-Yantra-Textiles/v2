@@ -4,6 +4,7 @@ import {
   logWorkflowPhases,
   validatePartnerStoreAccess,
 } from "../../../../../../helpers"
+import { remapVariantResponse } from "@medusajs/medusa/api/admin/products/helpers"
 import { batchPartnerVariantsWorkflow } from "../../../../../../../../workflows/partner/batch-partner-variants"
 
 /**
@@ -62,9 +63,12 @@ export const POST = async (
     { auth: authMs, ...result.phases }
   )
 
+  // Response shaping stays at the HTTP edge, same as core's admin batch route.
+  // The workflow returns raw variants with `price_set` intact; `prices` is a
+  // wire concern.
   res.json({
-    created: result.created,
-    updated: result.updated,
+    created: result.created.map((v: any) => remapVariantResponse(v)),
+    updated: result.updated.map((v: any) => remapVariantResponse(v)),
     deleted: result.deleted,
   })
 }

@@ -30,10 +30,7 @@ import {
   transform,
 } from "@medusajs/framework/workflows-sdk"
 import { batchProductVariantsWorkflow } from "@medusajs/medusa/core-flows"
-import {
-  refetchBatchVariants,
-  remapVariantResponse,
-} from "@medusajs/medusa/api/admin/products/helpers"
+import { refetchBatchVariants } from "@medusajs/medusa/api/admin/products/helpers"
 import { collectVariantPriceIds } from "../fx/fanout-variant-prices"
 import { ensureInventoryLevelsForVariants } from "../../api/partners/helpers"
 import { requestPartnerPriceFanoutStep } from "./create-partner-product"
@@ -148,8 +145,14 @@ export const seedBatchInventoryLevelsStep = createStep(
 )
 
 /**
- * Re-read the written variants to shape the response. The expensive one.
- * Read-only, so it has no compensation: nothing to undo.
+ * Re-read the written variants. The expensive step.
+ *
+ * Returns them RAW, with `price_set` intact — `remapVariantResponse` is HTTP
+ * presentation and is applied by the route, exactly as core's admin batch route
+ * does it. A workflow that returned an HTTP-shaped DTO would hand the same
+ * shape to a subscriber or a script that never asked for it.
+ *
+ * Read-only, so no compensation: nothing to undo.
  */
 export const enrichBatchVariantsStep = createStep(
   "enrich-batch-variants",
@@ -174,8 +177,8 @@ export const enrichBatchVariantsStep = createStep(
       input.fields
     )
 
-    const created = batchResults.created.map((v: any) => remapVariantResponse(v))
-    const updated = batchResults.updated.map((v: any) => remapVariantResponse(v))
+    const created = batchResults.created ?? []
+    const updated = batchResults.updated ?? []
 
     return new StepResponse({
       created,
@@ -270,6 +273,9 @@ export const batchPartnerVariantsWorkflow = createWorkflow(
             if (pr?.id) fromRequest.push(String(pr.id))
           }
         }
+        // Works on the RAW variants: collectVariantPriceIds falls back to
+        // `price_set.prices` when `prices` is absent, which is precisely the
+        // shape the step now returns.
         const fromEnrichment = collectVariantPriceIds([
           ...((enriched as any)?.created ?? []),
           ...((enriched as any)?.updated ?? []),
