@@ -13,6 +13,7 @@ import {
   Tooltip,
   Skeleton,
   Select,
+  RadioGroup,
 } from "@medusajs/ui"
 import type { Message } from "../../../hooks/api/messaging"
 import {
@@ -83,13 +84,29 @@ export const MessageRunActionModal = ({
   const [allowShortfall, setAllowShortfall] = useState(false)
   const [sendSummary, setSendSummary] = useState(true)
 
-  // Fetch the partner's production runs — only non-terminal ones for
-  // activity_note and attach_media; for complete_run show in_progress ones.
+  // Fetch the partner's production runs. complete_run asks the server for
+  // in_progress runs only; activity_note / attach_media fetch the partner's
+  // runs unfiltered and narrow client-side to the active ones, newest first.
   const statusFilter = actionType === "complete_run" ? "in_progress" : undefined
   const { production_runs = [], isPending: runsLoading } = useProductionRuns(
     { partner_id: partnerId, limit: 50, ...(statusFilter ? { status: statusFilter } : {}) },
     { enabled: !!partnerId && open }
   )
+
+  // A message is only worth logging against a run that is live with this
+  // partner. Completed/cancelled are terminal (a redo is a NEW run), and
+  // awaiting_reassignment has no partner — it belongs to reassignment.
+  const OPEN_RUN_STATUSES = ["in_progress", "sent_to_partner", "approved"]
+
+  const productionRuns = useMemo(() => {
+    const sorted = [...production_runs].sort((a, b) => {
+      const aTime = a.created_at ? new Date(a.created_at).getTime() : 0
+      const bTime = b.created_at ? new Date(b.created_at).getTime() : 0
+      return bTime - aTime
+    })
+    if (actionType === "complete_run") return sorted
+    return sorted.filter((r) => OPEN_RUN_STATUSES.includes(r.status))
+  }, [production_runs, actionType])
 
   const noteMutation = useAddRunActivityNote(selectedRunId, {
     onSuccess: () => {
@@ -132,8 +149,8 @@ export const MessageRunActionModal = ({
   }, [message?.id, actionType])
 
   const selectedRun = useMemo(
-    () => production_runs.find((r) => r.id === selectedRunId),
-    [production_runs, selectedRunId]
+    () => productionRuns.find((r) => r.id === selectedRunId),
+    [productionRuns, selectedRunId]
   )
 
   const title = actionType === "activity_note"
@@ -144,6 +161,20 @@ export const MessageRunActionModal = ({
 
   const isSubmitting =
     noteMutation.isPending || completeMutation.isPending || attachMutation.isPending
+
+  // produced_quantity is REQUIRED to complete a run (a run with nothing made
+  // is not a completion); rejected_quantity is optional but, once typed, must
+  // be a non-negative number — otherwise "Complete run" stays disabled.
+  const invalidQuantity = (raw: string) =>
+    raw.trim() !== "" && (!Number.isFinite(Number(raw)) || Number(raw) < 0)
+
+  const completeRunDisabled =
+    isSubmitting ||
+    !selectedRunId ||
+    (actionType === "complete_run" &&
+      (producedQty.trim() === "" ||
+        invalidQuantity(producedQty) ||
+        invalidQuantity(rejectedQty)))
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
@@ -176,9 +207,13 @@ export const MessageRunActionModal = ({
         conversation_id: conversationId,
       })
     } else if (actionType === "complete_run") {
-      const produced = producedQty ? Number(producedQty) : undefined
+      if (producedQty.trim() === "") {
+        toast.error("Produced quantity is required")
+        return
+      }
+      const produced = Number(producedQty)
       const rejected = rejectedQty ? Number(rejectedQty) : undefined
-      if (produced != null && (!Number.isFinite(produced) || produced < 0)) {
+      if (!Number.isFinite(produced) || produced < 0) {
         toast.error("Produced quantity must be a non-negative number")
         return
       }
@@ -259,7 +294,7 @@ export const MessageRunActionModal = ({
               <Label>
                 Production run{" "}
                 <Text size="xsmall" className="inline text-ui-fg-muted">
-                  — {actionType === "complete_run" ? "in-progress runs only" : "all non-cancelled runs"}
+                  — {actionType === "complete_run" ? "in-progress runs only" : "active runs (in-progress, sent to partner, approved)"}
                 </Text>
               </Label>
               {runsLoading ? (
@@ -267,7 +302,7 @@ export const MessageRunActionModal = ({
                   <Skeleton className="h-10 w-full" />
                   <Skeleton className="h-4 w-3/4" />
                 </div>
-              ) : production_runs.length === 0 ? (
+              ) : productionRuns.length === 0 ? (
                 <Text size="small" className="text-ui-fg-muted mt-2">
                   No {actionType === "complete_run" ? "in-progress" : "open"} production runs found for this partner.
                 </Text>
@@ -280,7 +315,7 @@ export const MessageRunActionModal = ({
                     <Select.Value placeholder="Select a production run…" />
                   </Select.Trigger>
                   <Select.Content>
-                    {production_runs.map((run) => (
+                    {productionRuns.map((run) => (
                       <Select.Item key={run.id} value={run.id}>
                         <div className="flex items-center gap-2">
                           <Badge
@@ -408,26 +443,20 @@ export const MessageRunActionModal = ({
 
                 <div className="mb-4">
                   <Label>Cost type</Label>
-                  <div className="flex items-center gap-4 mt-1">
-                    <label className="flex items-center gap-1.5 cursor-pointer">
-                      <input
-                        type="radio"
-                        name="cost-type"
-                        checked={costType === "total"}
-                        onChange={() => setCostType("total")}
-                      />
-                      <Text size="small">Total</Text>
-                    </label>
-                    <label className="flex items-center gap-1.5 cursor-pointer">
-                      <input
-                        type="radio"
-                        name="cost-type"
-                        checked={costType === "per_unit"}
-                        onChange={() => setCostType("per_unit")}
-                      />
-                      <Text size="small">Per unit</Text>
-                    </label>
-                  </div>
+                  <RadioGroup
+                    value={costType}
+                    onValueChange={(v) => setCostType(v as "per_unit" | "total")}
+                    className="flex items-center gap-4 mt-1"
+                  >
+                    <div className="flex items-center gap-1.5">
+                      <RadioGroup.Item id="cost-type-total" value="total" />
+                      <Label htmlFor="cost-type-total" size="small">Total</Label>
+                    </div>
+                    <div className="flex items-center gap-1.5">
+                      <RadioGroup.Item id="cost-type-per-unit" value="per_unit" />
+                      <Label htmlFor="cost-type-per-unit" size="small">Per unit</Label>
+                    </div>
+                  </RadioGroup>
                 </div>
 
                 {rejectionReason && rejectionReason !== NO_REJECTION && (
@@ -482,7 +511,7 @@ export const MessageRunActionModal = ({
               <Button
                 type="submit"
                 isLoading={isSubmitting}
-                disabled={isSubmitting || !selectedRunId}
+                disabled={completeRunDisabled}
               >
                 {actionType === "activity_note" ? "Add note" : actionType === "attach_media" ? "Attach media" : "Complete run"}
               </Button>
