@@ -214,6 +214,7 @@ import { TestBlogEmailSchema } from "./admin/websites/[id]/pages/[pageId]/subs/t
 import { listSocialPlatformsQuerySchema, SocialPlatformSchema, UpdateSocialPlatformSchema, ConnectWhatsAppSchema } from "./admin/social-platforms/validators";
 import { CreateDeploymentAccountSchema, UpdateDeploymentAccountSchema, ListDeploymentAccountsQuerySchema } from "./admin/deployment-accounts/validators";
 import { StoreAiSearchSchema } from "./store/ai/search/validators";
+import { StoreShippingEstimateSchema } from "./store/shipping-estimate/validators";
 import { StoreAiChatSchema } from "./store/ai/chat/validators";
 import { StoreGenerateAiImageReqSchema } from "./store/ai/imagegen/validators";
 import { StoreTryOnReqSchema } from "./store/ai/tryon/validators";
@@ -4472,6 +4473,19 @@ export default defineMiddlewares({
       middlewares: [
         authenticate("customer", ["session", "bearer"]),
         validateAndTransformBody(wrapSchema(AccessFeeConfirmSchema)),
+      ],
+    },
+
+    // Public freight estimate for a bulk quantity (#1389). Scoped to a store
+    // by the publishable key's sales channel — which IDENTIFIES the storefront
+    // but does not protect the route: the key ships in the browser bundle. The
+    // route is built to be cheap to hammer (manual options cost no carrier
+    // call; calculated rates are cached per lane) rather than hard to reach.
+    {
+      matcher: "/store/shipping-estimate",
+      method: "GET",
+      middlewares: [
+        validateAndTransformQuery(wrapSchema(StoreShippingEstimateSchema), {}),
       ],
     },
 
