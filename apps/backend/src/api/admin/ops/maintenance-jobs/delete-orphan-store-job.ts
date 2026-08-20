@@ -204,6 +204,20 @@ export const deleteOrphanStoreJob: MaintenanceJob = {
       orderCount = (orders ?? []).length
     }
 
+    // Publishable keys on that channel, resolved up front so the DRY RUN can
+    // name them. A rehearsal that omits an entity the real run deletes is a
+    // rehearsal of a different job — and this is the exact entity whose
+    // omission caused the 2026-08-21 storefront outage.
+    let orphanKeys: Array<{ id: string; title?: string }> = []
+    if (channelId) {
+      const { data: keys } = await query.graph({
+        entity: "api_key",
+        fields: ["id", "title", "type"],
+        filters: { type: "publishable", sales_channels: { id: channelId } },
+      })
+      orphanKeys = (keys ?? []) as any[]
+    }
+
     let stockLevelCount = 0
     if (locationId) {
       const { data: levels } = await query.graph({
@@ -250,6 +264,17 @@ export const deleteOrphanStoreJob: MaintenanceJob = {
       },
     ]
     if (cascade) {
+      // Before the channel, mirroring the deletion order — the key's link must
+      // go before the thing it points at.
+      for (const k of orphanKeys) {
+        changes.push({
+          entity: "publishable_key",
+          id: k.id,
+          field: "deleted",
+          before: k.title ?? k.id,
+          after: "(removed)",
+        })
+      }
       if (channelId) {
         changes.push({
           entity: "sales_channel",
@@ -285,7 +310,7 @@ export const deleteOrphanStoreJob: MaintenanceJob = {
         dry_run,
         applied: false,
         summary: `Would delete store ${store.name ?? store_id} (${store_id})${
-          cascade ? " and its own sales channel + stock location" : ""
+          cascade ? " and its own publishable key + sales channel + stock location" : ""
         }. No products, orders or stock. Region ${facts.region_id ?? "(none)"} left untouched.`,
         changes,
         errors: [],
@@ -309,7 +334,43 @@ export const deleteOrphanStoreJob: MaintenanceJob = {
       // Best-effort, and deliberately AFTER the store: the store row is what
       // breaks brand resolution, so a channel that refuses to delete must not
       // leave the store standing.
+      //
+      // 🔴 The publishable key goes FIRST, before its sales channel.
+      //
+      // This job's description promised to remove the key and no code ever
+      // did. On 2026-08-21 that took every partner storefront down: the
+      // channel was deleted, the key survived pointing at it, and
+      // `/web/storefront/resolve` expanded the dangling link to
+      // `sales_channels: [null]` and threw. That query is unfiltered across
+      // ALL publishable keys, so one orphan key broke resolution for every
+      // tenant, and the edge middleware served its no-storefront 404
+      // platform-wide.
+      //
+      // Deleting the key first means the link is gone before the channel is,
+      // so the dangling state never exists — not even in the window between
+      // two awaits, and not at all if the channel delete then fails.
       if (channelId) {
+        try {
+          const apiKeyService: any = container.resolve("api_key")
+          const keys = await apiKeyService.listApiKeys({
+            type: "publishable",
+            sales_channels: { id: channelId },
+          })
+          for (const k of keys ?? []) {
+            // A publishable key cannot be deleted until it is revoked; core
+            // refuses with "Cannot delete api keys that are not revoked".
+            if (!k.revoked_at) {
+              await apiKeyService.revoke(k.id, { revoked_by: "delete-orphan-store" })
+            }
+            await apiKeyService.deleteApiKeys([k.id])
+          }
+        } catch (err: any) {
+          errors.push({
+            id: channelId,
+            message: `Store deleted, but its publishable key was not — this leaves a dangling sales-channel link that breaks storefront resolution for EVERY tenant; remove it by hand: ${err?.message ?? err}`,
+          })
+        }
+
         try {
           const scService: any = container.resolve("sales_channel")
           await scService.softDeleteSalesChannels([channelId])
@@ -338,7 +399,7 @@ export const deleteOrphanStoreJob: MaintenanceJob = {
       dry_run,
       applied: true,
       summary: `Deleted store ${store.name ?? store_id} (${store_id})${
-        cascade ? " and its own sales channel + stock location" : ""
+        cascade ? " and its own publishable key + sales channel + stock location" : ""
       }. Region ${facts.region_id ?? "(none)"} untouched.${
         errors.length ? ` ${errors.length} cascade step(s) failed.` : ""
       }`,

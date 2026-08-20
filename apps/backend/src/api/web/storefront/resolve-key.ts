@@ -51,6 +51,22 @@ export async function resolveStorefrontForPartner(
   }
 
   // Find the publishable key linked to this sales channel.
+  //
+  // ⚠️ This query is UNFILTERED across every publishable key on the platform,
+  // so it is a shared blast radius: `.find` evaluates the predicate against
+  // other tenants' keys before reaching this one's. A single malformed row
+  // therefore breaks resolution for every partner ordered after it, not just
+  // the partner who owns it.
+  //
+  // That is not hypothetical. Deleting a store's sales channel while its
+  // publishable key survived left a dangling link, and the expansion returned
+  // `sales_channels: [null]`. The unguarded `sc.id` threw
+  // `TypeError: Cannot read properties of undefined (reading 'id')`, and EVERY
+  // partner storefront 404'd — the edge middleware treats a non-ok resolve as
+  // "no tenant here" and serves its no-storefront page.
+  //
+  // So `sc?.id` is not defensive noise. A dead link belonging to one tenant
+  // must never be able to take down another's storefront.
   const { data: apiKeys } = await query.graph({
     entity: "api_keys",
     fields: ["*", "sales_channels.*"],
@@ -58,7 +74,7 @@ export async function resolveStorefrontForPartner(
   })
 
   const matchingKey = (apiKeys || []).find((key: any) =>
-    (key.sales_channels || []).some((sc: any) => sc.id === salesChannelId)
+    (key?.sales_channels || []).some((sc: any) => sc?.id === salesChannelId)
   )
 
   return {
