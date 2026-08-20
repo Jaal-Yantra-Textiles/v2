@@ -1,3 +1,10 @@
+## [13.111.1](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.111.0...v13.111.1) (2026-08-20)
+
+
+### Bug Fixes
+
+* the FX fanout that OOM-killed prod twice, and the prices it never set ([#1368](https://github.com/Jaal-Yantra-Textiles/v2/issues/1368)) ([7f2c67d](https://github.com/Jaal-Yantra-Textiles/v2/commit/7f2c67dd7b23fbc26556143bf5c47fd7af18bb5c))
+
 # [13.111.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.110.0...v13.111.0) (2026-08-19)
 
 
