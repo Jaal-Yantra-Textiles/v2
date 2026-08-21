@@ -2958,7 +2958,8 @@ export const PARTNER_MCP_TOOLS: PartnerMcpToolDef[] = [
   },
   {
     name: "list_price_preferences",
-    description: "List pricing preferences (e.g. tax-inclusive settings per currency/region).",
+    description:
+      "List pricing preferences (tax-inclusive settings per currency/region). Scoped: returns only preferences for this partner's own regions and their store's supported currencies.",
     method: "GET",
     path: "/partners/price-preferences",
     inputSchema: obj({}),
@@ -2966,15 +2967,15 @@ export const PARTNER_MCP_TOOLS: PartnerMcpToolDef[] = [
   {
     name: "create_price_preference",
     description:
-      "Create a pricing preference — e.g. mark prices tax-inclusive for a currency or region. `attribute` is 'currency_code' or 'region_id'; `value` is the code/id.",
+      "Create a pricing preference — mark prices tax-inclusive for a REGION this partner owns exclusively. `attribute` must be 'region_id'; `value` is the region id. Currency-level preferences are refused: they apply to every store pricing in that currency, not just this one. A region shared with another partner is refused too.",
     method: "POST",
     path: "/partners/price-preferences",
     write: true,
     bodyParams: ["attribute", "value", "is_tax_inclusive"],
     inputSchema: obj(
       {
-        attribute: STR("'currency_code' or 'region_id'."),
-        value: STR("The currency code or region id the preference applies to."),
+        attribute: STR("Must be 'region_id'. Currency-level preferences are platform-wide and are refused."),
+        value: STR("The region id the preference applies to. Must be a region this partner owns exclusively."),
         is_tax_inclusive: BOOL("Whether prices for this attribute include tax."),
       },
       ["attribute", "value"]
@@ -2982,7 +2983,8 @@ export const PARTNER_MCP_TOOLS: PartnerMcpToolDef[] = [
   },
   {
     name: "update_price_preference",
-    description: "Update a pricing preference.",
+    description:
+      "Update a pricing preference. Only preferences on a region this partner owns exclusively can be changed; currency-level and shared-region preferences are refused with the reason.",
     method: "POST",
     path: "/partners/price-preferences/:id",
     pathParams: ["id"],
@@ -2992,8 +2994,8 @@ export const PARTNER_MCP_TOOLS: PartnerMcpToolDef[] = [
     inputSchema: obj(
       {
         id: STR("Price preference id."),
-        attribute: STR("'currency_code' or 'region_id'."),
-        value: STR("Currency code or region id."),
+        attribute: STR("Must be 'region_id'; currency-level preferences are refused."),
+        value: STR("Region id — must be exclusively this partner's."),
         is_tax_inclusive: BOOL("Whether prices include tax."),
       },
       ["id"]
@@ -3001,7 +3003,8 @@ export const PARTNER_MCP_TOOLS: PartnerMcpToolDef[] = [
   },
   {
     name: "delete_price_preference",
-    description: "Delete a pricing preference.",
+    description:
+      "Delete a pricing preference. Only preferences on a region this partner owns exclusively can be deleted.",
     method: "DELETE",
     path: "/partners/price-preferences/:id",
     pathParams: ["id"],

@@ -239,6 +239,73 @@ export const validatePartnerEntityOwnership = async (
 }
 
 /**
+ * PURE: which of `ids` are missing from the set the partner owns.
+ *
+ * Split out so the "both ends" rule is testable without a database, and so the
+ * two callers cannot drift — an ownership rule that exists in two copies is one
+ * edit away from disagreeing with itself.
+ */
+export const missingOwnedIds = (
+    ownedIds: Array<string | null | undefined>,
+    ids: Array<string | null | undefined>,
+): string[] => {
+    const owned = new Set(ownedIds.filter(Boolean) as string[])
+    const missing = new Set<string>()
+    for (const id of ids) {
+        if (id && !owned.has(id)) missing.add(id)
+    }
+    return [...missing]
+}
+
+/**
+ * Assert the partner owns EVERY id in the list, else throw NOT_FOUND.
+ *
+ * 🔴 The rule this exists to enforce: **validate both ends of any request that
+ * names an id.** Owning the resource in the URL says nothing about owning the
+ * ids in the body. Two partner routes proved that — one let a partner add
+ * arbitrary customers to their own group, the other let them add their own
+ * customer to ANOTHER partner's group — and once customer groups carry
+ * negotiated B2B price lists, that second one hands a partner someone else's
+ * pricing.
+ *
+ * NOT_FOUND rather than NOT_ALLOWED, matching every other guard here: a partner
+ * probing ids must not be able to tell "exists but not yours" from "no such
+ * thing".
+ */
+export const validatePartnerOwnsEntities = async (
+    authContext: { actor_id?: string | null } | undefined,
+    entityType: "product_categories" | "product_collections" | "customers" | "customer_groups",
+    entityIds: string[],
+    container: MedusaContainer,
+): Promise<{ partner: any; store: any }> => {
+    const { partner, store } = await getPartnerStore(authContext, container)
+
+    const ids = (entityIds || []).filter(Boolean)
+    if (!ids.length) {
+        return { partner, store }
+    }
+
+    const query = container.resolve(ContainerRegistrationKeys.QUERY)
+    const { data } = await query.graph({
+        entity: "stores",
+        fields: [`${entityType}.id`],
+        filters: { id: store.id },
+    })
+
+    const owned = ((data?.[0] as any)?.[entityType] || []).map((e: any) => e?.id)
+    const missing = missingOwnedIds(owned, ids)
+
+    if (missing.length) {
+        throw new MedusaError(
+            MedusaError.Types.NOT_FOUND,
+            `${entityType.replace("_", " ")} not found: ${missing.join(", ")}`
+        )
+    }
+
+    return { partner, store }
+}
+
+/**
  * Pure ownership predicate (#778 C1): does this inventory order's linked partner
  * match the acting partner? Exported for unit testing.
  */
