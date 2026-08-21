@@ -359,6 +359,101 @@ setupSharedTestSuite(() => {
       expect(currentQuote.data.quote.status).toBe("active")
     })
 
+    it("pages, searches and sorts for real — the count is the SET, not the page", async () => {
+      /**
+       * #1441. Both list routes used to return the whole table and report
+       * `count = quotes.length`, so the admin pager was a client-side illusion
+       * and the partner route ignored `limit`/`offset` outright while the hook
+       * sent them. A pager over an unwindowed set moves nothing.
+       */
+      const { api } = getSharedTestEnv()
+      const tag = `page-${seed.unique}`
+
+      // Three quotes, distinguishable by company so search can pick one out.
+      for (const n of [1, 2, 3]) {
+        await loud(`mint-page-${n}`, () =>
+          api.post(
+            "/partners/quotes",
+            mintBody(seed, {
+              buyer_email: `${tag}-${n}@jaalyantra.test`,
+              recipient_company: n === 2 ? `Findable ${tag}` : `Other ${tag}`,
+            }),
+            { headers: seed.headers }
+          )
+        )
+      }
+
+      const firstPage = await loud("list-page-1", () =>
+        api.get("/partners/quotes?limit=2&offset=0", { headers: seed.headers })
+      )
+      expect(firstPage.data.quotes).toHaveLength(2)
+      // The count describes everything that matches, not this window.
+      expect(firstPage.data.count).toBeGreaterThan(2)
+      expect(firstPage.data.limit).toBe(2)
+
+      const secondPage = await loud("list-page-2", () =>
+        api.get("/partners/quotes?limit=2&offset=2", { headers: seed.headers })
+      )
+      // A real window moved: no id appears on both pages.
+      const firstIds = firstPage.data.quotes.map((q: any) => q.id)
+      const secondIds = secondPage.data.quotes.map((q: any) => q.id)
+      expect(secondIds.some((id: string) => firstIds.includes(id))).toBe(false)
+
+      // Search narrows the SET, not the page.
+      const searched = await loud("list-search", () =>
+        api.get(`/partners/quotes?q=Findable ${tag}`, { headers: seed.headers })
+      )
+      expect(searched.data.count).toBe(1)
+      expect(searched.data.quotes[0].recipient_company).toBe(`Findable ${tag}`)
+
+      // Sort is honoured, and an unknown sort field falls back rather than 500s.
+      const sorted = await loud("list-sorted", () =>
+        api.get("/partners/quotes?order=created_at:ASC&limit=100", {
+          headers: seed.headers,
+        })
+      )
+      const times = sorted.data.quotes.map((q: any) =>
+        new Date(q.created_at).getTime()
+      )
+      expect([...times].sort((a, b) => a - b)).toEqual(times)
+
+      const junkSort = await loud("list-junk-sort", () =>
+        api.get("/partners/quotes?order=token_hash:ASC", {
+          headers: seed.headers,
+        })
+      )
+      expect(junkSort.status).toBe(200)
+    })
+
+    it("🔴 a partner cannot widen their own scope with a query param", async () => {
+      // The route pins `partner_id` to the authenticated partner. If a query
+      // param could override it, any partner could list every other partner's
+      // quotes — the #1397/#1433 cross-tenant shape, on the one route that
+      // exists precisely to be scoped.
+      const { api } = getSharedTestEnv()
+      // ⚠️ Mint inside this test: the runner restores a DB snapshot before EVERY
+      // test, so rows created by a sibling test are already gone by the time
+      // this one runs — an empty list here would read as a passing assertion.
+      await loud("mint-scope", () =>
+        api.post(
+          "/partners/quotes",
+          mintBody(seed, { buyer_email: `scope-${seed.unique}@jaalyantra.test` }),
+          { headers: seed.headers }
+        )
+      )
+
+      const mine = await loud("list-mine", () =>
+        api.get("/partners/quotes?limit=100", { headers: seed.headers })
+      )
+      const spoofed = await loud("list-spoofed", () =>
+        api.get("/partners/quotes?partner_id=part_someone_else&limit=100", {
+          headers: seed.headers,
+        })
+      )
+      expect(spoofed.data.count).toBe(mine.data.count)
+      expect(spoofed.data.count).toBeGreaterThan(0)
+    })
+
     it("leaves ANOTHER buyer's quote alone when this buyer is re-quoted", async () => {
       // Supersede is scoped to one customer group. A bug here would expire an
       // unrelated buyer's live prices, which is far worse than the defect it

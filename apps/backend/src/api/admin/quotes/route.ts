@@ -2,6 +2,7 @@ import { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
 import { ContainerRegistrationKeys, MedusaError } from "@medusajs/framework/utils"
 
 import { PARTNER_QUOTE_MODULE } from "../../../modules/partner-quote"
+import { buildQuoteListQuery } from "../../../modules/partner-quote/lib/list-query"
 import { mintQuoteWorkflow } from "../../../workflows/partner-quote/mint-quote"
 import { assertVariantsInStore } from "./lib/assert-variants-in-store"
 
@@ -19,20 +20,27 @@ import { assertVariantsInStore } from "./lib/assert-variants-in-store"
  * only thing standing between a quote and a platform-wide price cut.
  */
 
-/** List across partners, or scoped to one. */
+/**
+ * List across partners, or scoped to one.
+ *
+ * 🔑 `count` is the number of MATCHING rows, not the length of this page.
+ * It used to be `quotes.length` over an unpaginated read, which made the
+ * admin table's pager a client-side illusion over the whole table and its
+ * count meaningless. Paging, search and sort semantics are shared with
+ * `/partners/quotes` via `buildQuoteListQuery` so the two surfaces cannot
+ * drift.
+ */
 export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
   const service: any = req.scope.resolve(PARTNER_QUOTE_MODULE)
 
-  const partnerId = String((req.query.partner_id as string) || "").trim()
-  const status = String((req.query.status as string) || "").trim()
+  const { filters, config } = buildQuoteListQuery(req.query as any)
 
-  const filters: Record<string, unknown> = {}
-  if (partnerId) filters.partner_id = partnerId
-  if (status) filters.status = status
+  const [quotes, count] = await service.listAndCountPartnerQuotes(
+    filters,
+    config
+  )
 
-  const quotes = await service.listPartnerQuotes(filters)
-
-  res.json({ quotes, count: quotes?.length ?? 0 })
+  res.json({ quotes, count, limit: config.take, offset: config.skip })
 }
 
 /**

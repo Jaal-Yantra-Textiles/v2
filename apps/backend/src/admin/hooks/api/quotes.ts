@@ -31,7 +31,29 @@ export type AdminQuote = Record<string, any> & {
   created_at?: string
 }
 
-export type AdminQuoteListResponse = { quotes: AdminQuote[]; count: number }
+/**
+ * 🔑 `count` is the number of MATCHING rows, not the length of `quotes`.
+ * Until #1441 the route returned the whole table and reported its length, so
+ * anything paging on this was paging over a lie. `limit`/`offset` echo what
+ * the server actually applied after clamping.
+ */
+export type AdminQuoteListResponse = {
+  quotes: AdminQuote[]
+  count: number
+  limit?: number
+  offset?: number
+}
+
+export type AdminQuoteListQuery = {
+  partner_id?: string
+  status?: string
+  /** Free text over buyer email, company and recipient name. */
+  q?: string
+  limit?: number
+  offset?: number
+  /** `field:ASC|DESC`. An unknown field falls back to `created_at:DESC`. */
+  order?: string
+}
 
 export type AdminMintQuotePayload = {
   partner_id: string
@@ -57,7 +79,7 @@ export type AdminMintQuotePayload = {
 export type AdminMintQuoteResponse = { quote: AdminQuote; token: string }
 
 export const useQuotes = (
-  query?: { partner_id?: string; status?: string },
+  query?: AdminQuoteListQuery,
   options?: Omit<
     UseQueryOptions<AdminQuoteListResponse, FetchError, AdminQuoteListResponse, any>,
     "queryFn" | "queryKey"
