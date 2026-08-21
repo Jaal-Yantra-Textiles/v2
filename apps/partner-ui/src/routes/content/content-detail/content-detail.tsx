@@ -411,9 +411,14 @@ const ContentDetailInner = () => {
           <div>
             <Label>Block Type</Label>
             <Select value={newBlockType} onValueChange={setNewBlockType}>
-              {BLOCK_TYPES.map((t) => (
-                <Select.Item key={t} value={t}>{t}</Select.Item>
-              ))}
+              <Select.Trigger>
+                <Select.Value placeholder="Select block type" />
+              </Select.Trigger>
+              <Select.Content>
+                {BLOCK_TYPES.map((t) => (
+                  <Select.Item key={t} value={t}>{t}</Select.Item>
+                ))}
+              </Select.Content>
             </Select>
           </div>
           <div>
