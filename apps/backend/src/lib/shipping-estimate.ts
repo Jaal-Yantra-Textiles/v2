@@ -261,6 +261,9 @@ export async function buildShippingEstimate(
       "fulfillment_sets.service_zones.shipping_options.name",
       "fulfillment_sets.service_zones.shipping_options.price_type",
       "fulfillment_sets.service_zones.shipping_options.prices.*",
+      // Needed to SKIP conditional prices — see the rule check below. Without
+      // this relation the rows arrive looking unconditional.
+      "fulfillment_sets.service_zones.shipping_options.prices.price_rules.*",
     ],
     filters: { id: input.store.default_location_id },
   })
@@ -292,6 +295,23 @@ export async function buildShippingEstimate(
           ) {
             continue
           }
+
+          // 🔴 A RULE-BOUND price is not an offer this estimate can make.
+          //
+          // `create-store-with-defaults` gives every Indian store a second
+          // price row of 0 INR gated on `item_total >= 2999` — retail free
+          // shipping. Pushed unconditionally, that 0 is the cheapest option on
+          // the lane and the picker takes it, so EVERY quote from such a store
+          // was quoting freight 0. Found live: the first prod B2B quote
+          // (₹36,00,000, 21 kg to Mumbai) froze `quoted_freight: 0`.
+          //
+          // The estimate has no cart, so it cannot evaluate `item_total` — and
+          // it must not guess. Same reasoning as the currency check above and
+          // the region one below it: a price whose applicability we cannot
+          // establish is not a cheaper answer, it is a different question.
+          // This is the THIRD blindness on this picker — zone (#1424),
+          // currency (#1424), and now rule.
+          if ((price?.price_rules?.length ?? 0) > 0) continue
 
           manual.push({
             shipping_option_id: so.id,
