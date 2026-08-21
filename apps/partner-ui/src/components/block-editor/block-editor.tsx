@@ -132,8 +132,13 @@ export const BlockEditor = ({
                 value={(content.align as string) || "center"}
                 onValueChange={(v) => updateContent("align", v)}
               >
-                <Select.Item value="center">Center</Select.Item>
-                <Select.Item value="left">Left</Select.Item>
+                <Select.Trigger>
+                  <Select.Value placeholder="Center" />
+                </Select.Trigger>
+                <Select.Content>
+                  <Select.Item value="center">Center</Select.Item>
+                  <Select.Item value="left">Left</Select.Item>
+                </Select.Content>
               </Select>
             </div>
             <ImageUrlInput
@@ -207,10 +212,15 @@ export const BlockEditor = ({
                 value={(content.layout as string) || "full"}
                 onValueChange={(v) => updateContent("layout", v)}
               >
-                <Select.Item value="full">Full Width</Select.Item>
-                <Select.Item value="split">Split</Select.Item>
-                <Select.Item value="image-left">Image Left</Select.Item>
-                <Select.Item value="image-right">Image Right</Select.Item>
+                <Select.Trigger>
+                  <Select.Value placeholder="Full Width" />
+                </Select.Trigger>
+                <Select.Content>
+                  <Select.Item value="full">Full Width</Select.Item>
+                  <Select.Item value="split">Split</Select.Item>
+                  <Select.Item value="image-left">Image Left</Select.Item>
+                  <Select.Item value="image-right">Image Right</Select.Item>
+                </Select.Content>
               </Select>
             </div>
             <ImageUrlInput
@@ -445,9 +455,14 @@ export const BlockEditor = ({
             value={block.status}
             onValueChange={(v) => onUpdate(block.id, { status: v as ContentBlock["status"] })}
           >
-            <Select.Item value="Active">Active</Select.Item>
-            <Select.Item value="Inactive">Inactive</Select.Item>
-            <Select.Item value="Draft">Draft</Select.Item>
+            <Select.Trigger>
+              <Select.Value placeholder="Active" />
+            </Select.Trigger>
+            <Select.Content>
+              <Select.Item value="Active">Active</Select.Item>
+              <Select.Item value="Inactive">Inactive</Select.Item>
+              <Select.Item value="Draft">Draft</Select.Item>
+            </Select.Content>
           </Select>
         </div>
 
@@ -486,10 +501,15 @@ export const BlockEditor = ({
             value={(block.settings?.max_width as string) || "default"}
             onValueChange={(v) => updateSettings("max_width", v)}
           >
-            <Select.Item value="default">Default</Select.Item>
-            <Select.Item value="narrow">Narrow</Select.Item>
-            <Select.Item value="wide">Wide</Select.Item>
-            <Select.Item value="full">Full Width</Select.Item>
+            <Select.Trigger>
+              <Select.Value placeholder="Default" />
+            </Select.Trigger>
+            <Select.Content>
+              <Select.Item value="default">Default</Select.Item>
+              <Select.Item value="narrow">Narrow</Select.Item>
+              <Select.Item value="wide">Wide</Select.Item>
+              <Select.Item value="full">Full Width</Select.Item>
+            </Select.Content>
           </Select>
         </div>
       </div>
@@ -585,9 +605,14 @@ const GalleryEditor = ({
             })
           }
         >
-          <Select.Item value="2">2 Columns</Select.Item>
-          <Select.Item value="3">3 Columns</Select.Item>
-          <Select.Item value="4">4 Columns</Select.Item>
+          <Select.Trigger>
+            <Select.Value placeholder="3 Columns" />
+          </Select.Trigger>
+          <Select.Content>
+            <Select.Item value="2">2 Columns</Select.Item>
+            <Select.Item value="3">3 Columns</Select.Item>
+            <Select.Item value="4">4 Columns</Select.Item>
+          </Select.Content>
         </Select>
       </div>
     </>
