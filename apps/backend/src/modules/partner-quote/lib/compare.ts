@@ -33,13 +33,14 @@ export type QuoteCompareInput = {
   /** True when the buyer has changed quantity or destination away from the quoted ones. */
   buyer_changed_inputs: boolean
   /** From `quoteUnusableReason`. */
-  unusable_reason: "revoked" | "expired" | null
+  unusable_reason: "revoked" | "superseded" | "expired" | null
   /** Whole days to expiry, from `daysUntilExpiry`. */
   days_until_expiry: number | null
 }
 
 export type QuoteDisplayState =
   | "dead_link"
+  | "superseded_quoted_only"
   | "expired_quoted_only"
   | "quoted_only"
   | "show_both"
@@ -88,6 +89,29 @@ export function compareQuote(input: QuoteCompareInput): QuoteCompareResult {
       explanation:
         "The partner who sent this quote has withdrawn it. Get in touch with them for a current one.",
       disclaimer: null,
+      expiry_notice: null,
+    }
+  }
+
+  if (unusable_reason === "superseded") {
+    // Deliberately NOT the revoked copy. Nobody withdrew this quote — a newer
+    // one replaced it, and its price list has been expired so it can no longer
+    // price a cart. Telling the buyer the partner "withdrew" it would be
+    // untrue and would send them into an apologetic conversation instead of
+    // simply asking for the current link.
+    //
+    // The quoted figures stay visible: this is still the record of what was
+    // said. No live number, because recomputing one here would read as an
+    // offer we are still making at these terms.
+    return {
+      state: "superseded_quoted_only",
+      show_quoted: quoted !== null,
+      show_live: false,
+      landed_delta: null,
+      headline: "A newer quote has replaced this one",
+      explanation:
+        "These are the figures as originally quoted. The partner has since sent an updated quote — ask them for the current link.",
+      disclaimer: DISCLAIMER,
       expiry_notice: null,
     }
   }

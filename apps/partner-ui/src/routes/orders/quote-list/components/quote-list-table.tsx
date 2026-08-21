@@ -104,6 +104,11 @@ const useColumns = () => {
           if (quote.status === "revoked") {
             return <StatusBadge color="red">Revoked</StatusBadge>
           }
+          // A newer quote for the same buyer expired this one's price list
+          // (#1435). Not a withdrawal, so not red.
+          if (quote.status === "superseded") {
+            return <StatusBadge color="orange">Superseded</StatusBadge>
+          }
           if (isExpired(quote)) {
             return <StatusBadge color="grey">Expired</StatusBadge>
           }

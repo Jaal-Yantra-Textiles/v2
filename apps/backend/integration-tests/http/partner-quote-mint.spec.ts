@@ -110,8 +110,8 @@ setupSharedTestSuite(() => {
       expect(quote.token_hash).toBeTruthy()
       expect(quote.token_hash).not.toBe(res.data.token)
 
-      const priceListId = quote.metadata?.price_list_id
-      const customerGroupId = quote.metadata?.customer_group_id
+      const priceListId = quote.price_list_id
+      const customerGroupId = quote.customer_group_id
       expect(priceListId).toBeTruthy()
       expect(customerGroupId).toBeTruthy()
 
@@ -140,7 +140,7 @@ setupSharedTestSuite(() => {
       )
       expect(res.status).toBe(201)
 
-      const priceList = await readPriceList(res.data.quote.metadata.price_list_id)
+      const priceList = await readPriceList(res.data.quote.price_list_id)
       const prices: any[] = priceList.prices ?? []
 
       // One price per quoted line. The bug dropped every line, because
@@ -211,7 +211,7 @@ setupSharedTestSuite(() => {
       // 🔑 And the price list's window is that same pair — this is the step
       // that threw `input.now.toISOString is not a function`, so a green
       // assertion here is the regression test for a Date arriving as a string.
-      const priceList = await readPriceList(quote.metadata.price_list_id)
+      const priceList = await readPriceList(quote.price_list_id)
       expect(new Date(priceList.starts_at).getTime()).toBe(quotedAt)
       expect(new Date(priceList.ends_at).getTime()).toBe(expiresAt)
     })
@@ -311,15 +311,86 @@ setupSharedTestSuite(() => {
 
       // 🔑 One identity, two quotes. A second group would have core tie-break
       // the two lists against each other on `amount ASC`.
-      expect(second.data.quote.metadata.customer_group_id).toBe(
-        first.data.quote.metadata.customer_group_id
+      expect(second.data.quote.customer_group_id).toBe(
+        first.data.quote.customer_group_id
       )
-      expect(second.data.quote.metadata.customer_id).toBe(
-        first.data.quote.metadata.customer_id
+      expect(second.data.quote.customer_id).toBe(
+        first.data.quote.customer_id
       )
-      expect(second.data.quote.metadata.price_list_id).not.toBe(
-        first.data.quote.metadata.price_list_id
+      expect(second.data.quote.price_list_id).not.toBe(
+        first.data.quote.price_list_id
       )
+
+      /**
+       * 🔴 THE ASSERTION THIS TEST WAS MISSING (#1435).
+       *
+       * Everything above was already here, and it verified that two DISTINCT
+       * price lists exist — which is the bug, not the fix. The test's own name
+       * claimed "replaces prices instead of stacking a second list" while its
+       * body confirmed the stacking and stopped. Both lists were active on one
+       * group, both with `rules_count: 1`, and core tie-breaks on `amount ASC`,
+       * so a re-quote at a HIGHER price handed the buyer the old cheaper one.
+       *
+       * The prior list must now be expired, and the prior quote marked
+       * superseded.
+       */
+      const priorList = await readPriceList(first.data.quote.price_list_id)
+      expect(priorList).toBeTruthy()
+      expect(new Date(priorList.ends_at).getTime()).toBeLessThanOrEqual(
+        Date.now()
+      )
+
+      const currentList = await readPriceList(second.data.quote.price_list_id)
+      expect(new Date(currentList.ends_at).getTime()).toBeGreaterThan(Date.now())
+
+      // And the buyer's older link says so, rather than silently repricing.
+      const priorQuote = await loud("read-prior", () =>
+        api.get(`/partners/quotes/${first.data.quote.id}`, {
+          headers: seed.headers,
+        })
+      )
+      expect(priorQuote.data.quote.status).toBe("superseded")
+
+      const currentQuote = await loud("read-current", () =>
+        api.get(`/partners/quotes/${second.data.quote.id}`, {
+          headers: seed.headers,
+        })
+      )
+      expect(currentQuote.data.quote.status).toBe("active")
+    })
+
+    it("leaves ANOTHER buyer's quote alone when this buyer is re-quoted", async () => {
+      // Supersede is scoped to one customer group. A bug here would expire an
+      // unrelated buyer's live prices, which is far worse than the defect it
+      // fixes — so it gets its own test rather than riding on the one above.
+      const { api } = getSharedTestEnv()
+      const buyerA = `buyer-a-${seed.unique}@jaalyantra.test`
+      const buyerB = `buyer-b-${seed.unique}@jaalyantra.test`
+
+      const a1 = await loud("mint-a1", () =>
+        api.post("/partners/quotes", mintBody(seed, { buyer_email: buyerA }), {
+          headers: seed.headers,
+        })
+      )
+      await loud("mint-b1", () =>
+        api.post("/partners/quotes", mintBody(seed, { buyer_email: buyerB }), {
+          headers: seed.headers,
+        })
+      )
+      // Re-quote B only.
+      await loud("mint-b2", () =>
+        api.post("/partners/quotes", mintBody(seed, { buyer_email: buyerB }), {
+          headers: seed.headers,
+        })
+      )
+
+      const untouched = await loud("read-a1", () =>
+        api.get(`/partners/quotes/${a1.data.quote.id}`, { headers: seed.headers })
+      )
+      expect(untouched.data.quote.status).toBe("active")
+
+      const aList = await readPriceList(a1.data.quote.price_list_id)
+      expect(new Date(aList.ends_at).getTime()).toBeGreaterThan(Date.now())
     })
   })
 })

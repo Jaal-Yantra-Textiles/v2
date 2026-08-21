@@ -111,6 +111,10 @@ const QuoteDetailPage = () => {
   }
 
   const isRevoked = quote.status === "revoked"
+  // A newer quote for this buyer expired this one's price list (#1435). It is
+  // not revocable any more — there is nothing left to delete — but it is also
+  // not a withdrawal, so it must not read as one.
+  const isSuperseded = quote.status === "superseded"
 
   return (
     <div className="flex flex-col gap-y-3">
@@ -123,10 +127,12 @@ const QuoteDetailPage = () => {
             </Text>
           </div>
           <div className="flex items-center gap-3">
-            <StatusBadge color={isRevoked ? "red" : "green"}>
-              {isRevoked ? "Revoked" : "Active"}
+            <StatusBadge
+              color={isRevoked ? "red" : isSuperseded ? "orange" : "green"}
+            >
+              {isRevoked ? "Revoked" : isSuperseded ? "Superseded" : "Active"}
             </StatusBadge>
-            {!isRevoked && (
+            {!isRevoked && !isSuperseded && (
               <Button
                 variant="danger"
                 size="small"

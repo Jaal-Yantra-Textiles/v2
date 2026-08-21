@@ -64,6 +64,24 @@ describe("partner-quote token", () => {
       ).toBe("expired")
     })
 
+    it("reports superseded ahead of expired — the buyer has somewhere to go", () => {
+      // #1435: a superseded quote is usually still inside its own TTL, but even
+      // once past it, "a newer quote replaced this" is the more useful thing to
+      // say than "this expired" — one of them points the buyer somewhere.
+      expect(
+        quoteUnusableReason({ status: "superseded", expires_at: days(-1) }, NOW)
+      ).toBe("superseded")
+      expect(
+        quoteUnusableReason({ status: "superseded", expires_at: days(7) }, NOW)
+      ).toBe("superseded")
+    })
+
+    it("reports revoked ahead of superseded — a withdrawal is the stronger fact", () => {
+      expect(
+        quoteUnusableReason({ status: "revoked", expires_at: days(7) }, NOW)
+      ).toBe("revoked")
+    })
+
     it("reports revoked ahead of expired — a withdrawn quote is not merely stale", () => {
       // The two states get different copy: "expired" invites a re-send,
       // "revoked" does not. Ordering them wrong would tell a buyer to ask for
