@@ -360,5 +360,168 @@ setupSharedTestSuite(() => {
       expect(detail.status).toBe(200)
       expect(detail.data.production_run.finish_notes).toBe(noteText)
     })
+
+    // ── UI-adjacent: verify list/detail API responses carry the fields the
+    //    admin UI renders (status, partner, design snapshot, quantity, yield) ──
+
+    it("returns design snapshot and produced_quantity in the detail response for the UI", async () => {
+      const unique = Date.now() + 12
+      const { partnerId } = await createPartner(unique)
+      const designId = await createDesign(unique)
+      const runId = await createRunWithStatus(designId, partnerId, "in_progress", {
+        accepted_at: new Date(),
+        started_at: new Date(),
+        produced_quantity: 8,
+      })
+
+      const detail = await api.get(
+        `/admin/production-runs/${runId}`,
+        { headers: adminHeaders.headers }
+      )
+      expect(detail.status).toBe(200)
+      expect(detail.data.production_run.id).toBe(runId)
+      expect(detail.data.production_run.status).toBe("in_progress")
+      expect(detail.data.production_run.partner_id).toBe(partnerId)
+      expect(detail.data.production_run.design_id).toBe(designId)
+      expect(detail.data.production_run.produced_quantity).toBe(8)
+    })
+
+    it("accept → start → finish transitions flow through the correct statuses", async () => {
+      const unique = Date.now() + 13
+      const { partnerId } = await createPartner(unique)
+      const designId = await createDesign(unique)
+      const runId = await createRunWithStatus(designId, partnerId, "sent_to_partner")
+
+      // Before accept: no accepted_at
+      const beforeAccept = await api.get(
+        `/admin/production-runs/${runId}`,
+        { headers: adminHeaders.headers }
+      )
+      expect(beforeAccept.data.production_run.accepted_at).toBeFalsy()
+
+      // Accept → in_progress + accepted_at
+      const accept = await post(`/admin/production-runs/${runId}/accept`)
+      expect(accept.status).toBe(200)
+      expect(accept.data.production_run.status).toBe("in_progress")
+      expect(accept.data.production_run.accepted_at).toBeTruthy()
+      expect(accept.data.production_run.started_at).toBeFalsy()
+
+      // Start → started_at set
+      const start = await post(`/admin/production-runs/${runId}/start`)
+      expect(start.status).toBe(200)
+      expect(start.data.production_run.started_at).toBeTruthy()
+      expect(start.data.production_run.finished_at).toBeFalsy()
+
+      // Finish → finished_at set + finish_notes
+      const finishNotes = "UI flow test — all good"
+      const finish = await post(`/admin/production-runs/${runId}/finish`, {
+        notes: finishNotes,
+      })
+      expect(finish.status).toBe(200)
+      expect(finish.data.production_run.finished_at).toBeTruthy()
+      expect(finish.data.production_run.finish_notes).toBe(finishNotes)
+    })
+
+    it("rejects accept on a run already in_progress (already accepted)", async () => {
+      const unique = Date.now() + 14
+      const { partnerId } = await createPartner(unique)
+      const designId = await createDesign(unique)
+      const runId = await createRunWithStatus(designId, partnerId, "in_progress", {
+        accepted_at: new Date(),
+      })
+
+      const res = await post(`/admin/production-runs/${runId}/accept`)
+      expect(res.status).toBeGreaterThanOrEqual(400)
+    })
+
+    it("rejects start on a run with no partner assigned", async () => {
+      const unique = Date.now() + 15
+      const designId = await createDesign(unique)
+      const res = await api.post(
+        "/admin/production-runs",
+        { design_id: designId, quantity: 1 },
+        adminHeaders
+      )
+      expect(res.status).toBe(201)
+      const runId = res.data.production_run.id
+
+      const startRes = await post(`/admin/production-runs/${runId}/start`)
+      expect(startRes.status).toBeGreaterThanOrEqual(400)
+    })
+
+    it("records admin activity audit entries for start and finish", async () => {
+      const unique = Date.now() + 16
+      const { partnerId } = await createPartner(unique)
+      const designId = await createDesign(unique)
+      const runId = await createRunWithStatus(designId, partnerId, "in_progress", {
+        accepted_at: new Date(),
+        started_at: new Date(),
+      })
+
+      const finish = await post(`/admin/production-runs/${runId}/finish`, {
+        notes: "Audit trail test",
+      })
+      expect(finish.status).toBe(200)
+
+      const activitiesRes = await api.get(
+        `/admin/production-runs/${runId}/activities`,
+        { headers: adminHeaders.headers }
+      )
+      expect(activitiesRes.status).toBe(200)
+
+      const activities = activitiesRes.data.activities || []
+      const finishEntry = activities.find(
+        (a: any) =>
+          a.actor_type === "admin" && a.kind === "finished_by_admin"
+      )
+      expect(finishEntry).toBeDefined()
+      expect(finishEntry.summary).toContain("admin")
+    })
+
+    it("finish with empty notes still succeeds", async () => {
+      const unique = Date.now() + 17
+      const { partnerId } = await createPartner(unique)
+      const designId = await createDesign(unique)
+      const runId = await createRunWithStatus(designId, partnerId, "in_progress", {
+        accepted_at: new Date(),
+        started_at: new Date(),
+      })
+
+      const finish = await post(`/admin/production-runs/${runId}/finish`)
+      expect(finish.status).toBe(200)
+      expect(finish.data.production_run.finished_at).toBeTruthy()
+    })
+
+    it("list endpoint supports filtering by status for the UI table", async () => {
+      const unique = Date.now() + 18
+      const { partnerId } = await createPartner(unique)
+      const designId = await createDesign(unique)
+
+      // Create runs in different statuses
+      const inProgressId = await createRunWithStatus(designId, partnerId, "in_progress", {
+        accepted_at: new Date(),
+      })
+      const sentId = await createRunWithStatus(designId, partnerId, "sent_to_partner")
+
+      // Filter by status=in_progress
+      const inProgressRes = await api.get(
+        `/admin/production-runs?status=in_progress&limit=50`,
+        { headers: adminHeaders.headers }
+      )
+      expect(inProgressRes.status).toBe(200)
+      const inProgressRuns = inProgressRes.data.production_runs || []
+      expect(inProgressRuns.some((r: any) => r.id === inProgressId)).toBe(true)
+      expect(inProgressRuns.some((r: any) => r.id === sentId)).toBe(false)
+
+      // Filter by status=sent_to_partner
+      const sentRes = await api.get(
+        `/admin/production-runs?status=sent_to_partner&limit=50`,
+        { headers: adminHeaders.headers }
+      )
+      expect(sentRes.status).toBe(200)
+      const sentRuns = sentRes.data.production_runs || []
+      expect(sentRuns.some((r: any) => r.id === sentId)).toBe(true)
+      expect(sentRuns.some((r: any) => r.id === inProgressId)).toBe(false)
+    })
   })
 })

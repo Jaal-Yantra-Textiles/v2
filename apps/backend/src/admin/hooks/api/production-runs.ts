@@ -650,6 +650,89 @@ export const useAdminCompleteRun = (
   })
 }
 
+// --- Admin lifecycle hooks (accept / start / finish) ---
+// These mirror the partner-side accept/start/finish but are initiated by an
+// admin on behalf of the assigned partner.
+
+export const useAdminAcceptRun = (
+  runId: string,
+  options?: UseMutationOptions<
+    { production_run: AdminProductionRun; message: string },
+    FetchError,
+    void
+  >
+) => {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: async () =>
+      sdk.client.fetch<{ production_run: AdminProductionRun; message: string }>(
+        `/admin/production-runs/${runId}/accept`,
+        { method: "POST" }
+      ),
+    onSuccess: (data, variables, _mutateResult, context) => {
+      queryClient.invalidateQueries({ queryKey: productionRunQueryKeys.detail(runId) })
+      queryClient.invalidateQueries({ queryKey: productionRunQueryKeys.lists() })
+      options?.onSuccess?.(data, variables, _mutateResult, context)
+    },
+    ...options,
+  })
+}
+
+export const useAdminStartRun = (
+  runId: string,
+  options?: UseMutationOptions<
+    { production_run: AdminProductionRun; message: string },
+    FetchError,
+    void
+  >
+) => {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: async () =>
+      sdk.client.fetch<{ production_run: AdminProductionRun; message: string }>(
+        `/admin/production-runs/${runId}/start`,
+        { method: "POST" }
+      ),
+    onSuccess: (data, variables, _mutateResult, context) => {
+      queryClient.invalidateQueries({ queryKey: productionRunQueryKeys.detail(runId) })
+      queryClient.invalidateQueries({ queryKey: productionRunQueryKeys.lists() })
+      options?.onSuccess?.(data, variables, _mutateResult, context)
+    },
+    ...options,
+  })
+}
+
+export type AdminFinishRunPayload = {
+  notes?: string
+}
+
+export const useAdminFinishRun = (
+  runId: string,
+  options?: UseMutationOptions<
+    { production_run: AdminProductionRun; message: string },
+    FetchError,
+    AdminFinishRunPayload
+  >
+) => {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: async (payload: AdminFinishRunPayload) =>
+      sdk.client.fetch<{ production_run: AdminProductionRun; message: string }>(
+        `/admin/production-runs/${runId}/finish`,
+        { method: "POST", body: payload }
+      ),
+    onSuccess: (data, variables, _mutateResult, context) => {
+      queryClient.invalidateQueries({ queryKey: productionRunQueryKeys.detail(runId) })
+      queryClient.invalidateQueries({ queryKey: productionRunQueryKeys.lists() })
+      options?.onSuccess?.(data, variables, _mutateResult, context)
+    },
+    ...options,
+  })
+}
+
 export type AdminAttachMediaToRunPayload = {
   media_url: string
   media_mime_type?: string

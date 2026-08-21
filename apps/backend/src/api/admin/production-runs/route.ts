@@ -259,6 +259,9 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
   if (q.parent_run_id) {
     filters.parent_run_id = q.parent_run_id
   }
+  if (q.exclude_children === "true" || q.exclude_children === true) {
+    filters.parent_run_id = null
+  }
   if (q.run_type) {
     filters.run_type = q.run_type
   }
@@ -314,7 +317,38 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
     pagination: { skip: offset, take: limit },
   })
 
-  const list = runs || []
+  const list = (runs || []) as any[]
+
+  // When listing parent runs only, resolve partner_id from the first child
+  // for any parent that has no partner of its own (the approve+assign flow
+  // puts the partner on the child, not the parent).
+  if (q.exclude_children === "true" || q.exclude_children === true) {
+    const parentIdsNeedingResolution = list
+      .filter((r) => !r.partner_id)
+      .map((r) => r.id)
+
+    if (parentIdsNeedingResolution.length) {
+      const { data: children } = await query.graph({
+        entity: "production_runs",
+        fields: ["id", "parent_run_id", "partner_id"],
+        filters: { parent_run_id: parentIdsNeedingResolution },
+        pagination: { take: parentIdsNeedingResolution.length },
+      })
+
+      // Map first child's partner_id back to its parent
+      const childByParent = new Map<string, string>()
+      for (const child of children || []) {
+        if (child.parent_run_id && child.partner_id && !childByParent.has(child.parent_run_id)) {
+          childByParent.set(child.parent_run_id, child.partner_id)
+        }
+      }
+      for (const run of list) {
+        if (!run.partner_id && childByParent.has(run.id)) {
+          run.partner_id = childByParent.get(run.id)
+        }
+      }
+    }
+  }
 
   return res.status(200).json({
     production_runs: list,
