@@ -103,6 +103,11 @@ const scopeWith = (
                       {
                         service_zones: [
                           {
+                            // A zone with no geo zones covers NOTHING (#1424),
+                            // so a manual fixture has to declare its lane.
+                            geo_zones: manualOptions.length
+                              ? [{ country_code: "in" }]
+                              : [],
                             shipping_options: manualOptions,
                           },
                         ],
@@ -263,6 +268,76 @@ describe("buildQuoteView — freight", () => {
     expect(view.live_error).toMatch(/postal code/i)
     expect(view.quoted?.landed_total).toBe(403_900)
     expect(view.compare.show_quoted).toBe(true)
+  })
+})
+
+describe("buildQuoteView — the free-shipping row that quoted every bulk consignment at zero", () => {
+  /**
+   * Found on the FIRST live prod B2B quote: ₹36,00,000, 21 kg to Mumbai,
+   * `quoted_freight: 0`.
+   *
+   * `create-store-with-defaults` gives every Indian store a second price row of
+   * 0 INR gated on `item_total >= 2999` — retail free shipping. The estimate
+   * read `prices[]` and pushed every row as its own option WITHOUT looking at
+   * `price_rules`, so the 0 was always on the lane and always the cheapest.
+   *
+   * This is the third blindness on the same picker: zone, currency (both
+   * #1424), and now rule.
+   */
+  const FREE_OVER_2999 = {
+    id: "so_flat",
+    name: "Domestic Shipping",
+    price_type: "flat",
+    prices: [
+      { amount: 99, currency_code: "inr", price_rules: [] },
+      {
+        amount: 0,
+        currency_code: "inr",
+        price_rules: [
+          { attribute: "item_total", operator: "gte", value: "2999" },
+        ],
+      },
+    ],
+  }
+
+  it("does not take a rule-bound 0 as the cheapest option", async () => {
+    const captured: Captured = { contexts: [], rateWeights: [] }
+    const view = await buildQuoteView(
+      scopeWith(captured, { manual: [FREE_OVER_2999] }) as any,
+      baseInput()
+    )
+
+    // 0 would be the bug. 99 is the unconditional flat, and it is genuinely
+    // cheaper than the 3900 carrier rate, so it is the honest answer here.
+    expect(view.freight.chosen?.amount).toBe(99)
+    expect(view.live?.freight).toBe(99)
+    expect(view.freight.options.map((o) => o.amount)).not.toContain(0)
+  })
+
+  it("drops the conditional row even when it is the ONLY price", async () => {
+    const captured: Captured = { contexts: [], rateWeights: [] }
+    const view = await buildQuoteView(
+      scopeWith(captured, {
+        manual: [{ ...FREE_OVER_2999, prices: [FREE_OVER_2999.prices[1]] }],
+      }) as any,
+      baseInput()
+    )
+
+    // The estimate has no cart and must not guess: with nothing unconditional
+    // on the lane, the carrier rate stands rather than a free ride.
+    expect(view.freight.chosen?.amount).toBe(3900)
+  })
+
+  it("still keeps an ordinary unconditional flat price", async () => {
+    const captured: Captured = { contexts: [], rateWeights: [] }
+    const view = await buildQuoteView(
+      scopeWith(captured, {
+        manual: [{ ...FREE_OVER_2999, prices: [FREE_OVER_2999.prices[0]] }],
+      }) as any,
+      baseInput()
+    )
+
+    expect(view.freight.chosen?.amount).toBe(99)
   })
 })
 
