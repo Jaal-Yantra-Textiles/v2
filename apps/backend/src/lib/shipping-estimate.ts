@@ -236,6 +236,23 @@ export async function buildShippingEstimate(
   const totalWeightGrams = lines.reduce((sum, l) => sum + l.line_weight_grams, 0)
 
   // ---- Origin ------------------------------------------------------------
+  // 🔴 REFUSE rather than read everything. `filters: { id: undefined }` is not
+  // "no location", it is NO FILTER — every stock location on the platform, from
+  // every tenant. That is how one dangling publishable key took every
+  // storefront down (#1397), and it is how the public quote page ended up
+  // offering a buyer another partner's "In Person Pickup" while omitting the
+  // store's own domestic option.
+  //
+  // A missing origin cannot produce a right answer, so it must not produce a
+  // confident wrong one. The caller is the only thing that knows which store
+  // this is; if it did not say, that is the bug, and it should be loud.
+  if (!input.store?.default_location_id) {
+    throw new MedusaError(
+      MedusaError.Types.INVALID_DATA,
+      "No pickup location was given for this store, so freight cannot be quoted. (Refusing to read every location on the platform.)"
+    )
+  }
+
   const { data: locations } = await query.graph({
     entity: "stock_locations",
     fields: ["id", "name", "address.postal_code", "address.country_code"],

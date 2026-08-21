@@ -1,5 +1,5 @@
 import { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
-import { MedusaError } from "@medusajs/framework/utils"
+import { ContainerRegistrationKeys, MedusaError } from "@medusajs/framework/utils"
 
 import { PARTNER_QUOTE_MODULE } from "../../../../../modules/partner-quote"
 import { buildQuoteView } from "../../../../../modules/partner-quote/lib/build-quote-view"
@@ -54,6 +54,31 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
     }
   }
 
+  // 🔴 The store's PICKUP LOCATION, not just its id.
+  //
+  // `buildShippingEstimate` filters its location reads on
+  // `store.default_location_id`. Passing only `{ id }` left that undefined, and
+  // `filters: { id: undefined }` is NO FILTER — so this page collected manual
+  // shipping options from EVERY stock location on the platform. Found live on
+  // the second prod mint: the buyer was offered another partner's "European
+  // Shipping", "Private" and "In Person Pickup" (for a Mumbai delivery), while
+  // this store's own domestic option was missing entirely — and the page's
+  // freight therefore disagreed with the freight the mint had frozen seconds
+  // earlier. Cross-tenant read on a public, unauthenticated route; same shape
+  // as #1397.
+  //
+  // The estimate now refuses a missing location outright, so this can only fail
+  // loudly. Kept as a filtered read by id — never a bare list.
+  const query: any = req.scope.resolve(ContainerRegistrationKeys.QUERY)
+  const { data: stores } = quote.store_id
+    ? await query.graph({
+        entity: "stores",
+        fields: ["id", "default_location_id"],
+        filters: { id: quote.store_id },
+      })
+    : { data: [] }
+  const store = (stores ?? [])[0] as any
+
   const view = await buildQuoteView(req.scope, {
     quote: { ...quote, lines },
     lines: effectiveLines,
@@ -61,7 +86,10 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
     destination_postal_code: quote.destination_postal_code,
     currency_code: quote.currency_code,
     region_id: quote.region_id,
-    store: { id: quote.store_id ?? undefined },
+    store: {
+      id: quote.store_id ?? undefined,
+      default_location_id: store?.default_location_id ?? null,
+    },
     partner_id: quote.partner_id ?? null,
     /**
      * #1428 — whose storefront is serving this page.

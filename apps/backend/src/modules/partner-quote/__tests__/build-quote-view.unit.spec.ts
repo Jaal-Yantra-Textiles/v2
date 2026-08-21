@@ -341,6 +341,44 @@ describe("buildQuoteView — the free-shipping row that quoted every bulk consig
   })
 })
 
+describe("buildQuoteView — the missing pickup location that read every tenant", () => {
+  /**
+   * Found on the SECOND live prod mint. The public `/store/b2b/quotes/:token`
+   * route passed `store: { id }` and no `default_location_id`, and
+   * `filters: { id: undefined }` is NOT "no location" — it is NO FILTER.
+   *
+   * The buyer's page therefore collected manual shipping options from EVERY
+   * stock location on the platform. A Mumbai consignment was offered another
+   * partner's "European Shipping", "Private" and "In Person Pickup", while this
+   * store's own domestic option was missing — so the page's freight disagreed
+   * with the freight the mint had frozen minutes earlier.
+   *
+   * A cross-tenant read on a public, unauthenticated route: the #1397 shape.
+   * A missing origin cannot produce a right answer, so it must not produce a
+   * confident wrong one.
+   */
+  it("refuses to price at all when no pickup location was given", async () => {
+    const captured: Captured = { contexts: [], rateWeights: [] }
+    const view = await buildQuoteView(
+      scopeWith(captured) as any,
+      baseInput({ store: { id: "store_1" } })
+    )
+
+    // No live half, and it says why — rather than a landed total built from
+    // somebody else's shipping options.
+    expect(view.live).toBeNull()
+    expect(view.live_error).toMatch(/pickup location/i)
+    expect(view.live_error).toMatch(/every location on the platform/i)
+  })
+
+  it("still prices normally once the location is given", async () => {
+    const captured: Captured = { contexts: [], rateWeights: [] }
+    const view = await buildQuoteView(scopeWith(captured) as any, baseInput())
+
+    expect(view.live).not.toBeNull()
+  })
+})
+
 describe("buildQuoteView — lifecycle", () => {
   it("never re-prices a revoked link", async () => {
     const captured: Captured = { contexts: [], rateWeights: [] }
