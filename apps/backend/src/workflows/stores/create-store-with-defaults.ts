@@ -493,17 +493,36 @@ const autoLinkFulfillmentProvidersStep = createStep(
           }
 
           if (profileId) {
-            // Determine provider and currency-specific pricing
-            const providerMap: Record<string, string> = {
-              in: "delhivery_delhivery",
+            // Determine provider and currency-specific pricing.
+            //
+            // The primary carrier per country, in PREFERENCE order — the first
+            // one actually registered wins. It used to be a bare
+            // `{ in: "delhivery_delhivery" }`, which meant a store whose
+            // Delhivery credentials were absent still got a Delhivery option
+            // (and no other), so its only calculated carrier was one that could
+            // never answer. Preferring a registered carrier makes the map
+            // describe what the store CAN ship on rather than what we hoped.
+            //
+            // Shiprocket sits second rather than first only because Delhivery is
+            // the incumbent on live IN stores; both get an option either way —
+            // the Shiprocket block further down adds its own regardless, so this
+            // ordering decides the "Standard Shipping" default, not availability.
+            const providerPreference: Record<string, string[]> = {
+              in: ["delhivery_delhivery", "shiprocket_shiprocket"],
             }
-            const providerId = providerMap[countryLower] || "manual_manual"
+            const providerId =
+              (providerPreference[countryLower] || []).find((id) =>
+                enabledIds.includes(id)
+              ) || "manual_manual"
 
-            // For Delhivery (calculated pricing) — Delhivery's API returns real-time rates
-            // For manual provider — use flat tiered pricing based on country/currency
-            const isDelhivery = providerId === "delhivery_delhivery"
+            // A real carrier prices via calculatePrice (live rates); the manual
+            // provider cannot, so it gets flat tiered pricing instead. Keyed on
+            // "is this a carrier" rather than on Delhivery's id specifically,
+            // so adding a carrier to the preference list above does not silently
+            // fall through to the manual branch.
+            const isCarrier = providerId !== "manual_manual"
 
-            if (isDelhivery) {
+            if (isCarrier) {
               // Delhivery: use calculated pricing (calls calculatePrice on the provider)
               await createShippingOptionsWorkflow(container).run({
                 input: [{
@@ -514,7 +533,7 @@ const autoLinkFulfillmentProvidersStep = createStep(
                   price_type: "calculated",
                   type: {
                     label: "Standard",
-                    description: "Standard delivery via Delhivery",
+                    description: "Standard delivery — live carrier rates",
                     code: "standard",
                   },
                   rules: [
@@ -534,7 +553,7 @@ const autoLinkFulfillmentProvidersStep = createStep(
                   price_type: "calculated",
                   type: {
                     label: "Return",
-                    description: "Return pickup via Delhivery",
+                    description: "Return pickup — live carrier rates",
                     code: "return",
                   },
                   rules: [
@@ -634,7 +653,7 @@ const autoLinkFulfillmentProvidersStep = createStep(
 
             console.log(
               `[create-store] Created shipping options for ${countryLabel} ` +
-              `(${isDelhivery ? "calculated/Delhivery" : "flat tiered/manual"})`
+              `(${isCarrier ? `calculated/${providerId}` : "flat tiered/manual"})`
             )
 
             // --- Shiprocket, alongside Delhivery (#1417) ---------------------

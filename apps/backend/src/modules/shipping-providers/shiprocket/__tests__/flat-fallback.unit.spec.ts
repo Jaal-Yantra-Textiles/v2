@@ -1,4 +1,5 @@
 import {
+  DEFAULT_FLAT_FALLBACK,
   parseFlatFallbackAmounts,
   resolveFlatFallbackAmount,
 } from "../flat-fallback"
@@ -47,15 +48,35 @@ describe("resolveFlatFallbackAmount", () => {
     ).toBe(9900)
   })
 
-  it("refuses — naming the country — when nothing is configured", () => {
+  it("falls back to a DEFINED, non-zero default when nothing is configured", () => {
+    // Deliberately not a refusal: no provider in this codebase throws from
+    // calculatePrice, and a throw that propagates takes the whole shipping
+    // options listing with it — leaving the buyer nothing, not even the manual
+    // flat option that exists for exactly this case.
     const { amount, reason } = resolveFlatFallbackAmount({}, "US")
 
-    expect(amount).toBeUndefined()
+    expect(amount).toBe(DEFAULT_FLAT_FALLBACK)
+    expect(amount).toBeGreaterThan(0)
+    // The reason still travels, so the caller can log that this was a default
+    // rather than a chosen number. That log is the only thing separating this
+    // from the silent zero it replaced.
     expect(reason).toContain("US")
   })
 
-  it("refuses when the config itself is absent", () => {
-    expect(resolveFlatFallbackAmount(undefined, "IN").amount).toBeUndefined()
+  it("defaults when the config itself is absent", () => {
+    expect(resolveFlatFallbackAmount(undefined, "IN").amount).toBe(
+      DEFAULT_FLAT_FALLBACK
+    )
+  })
+
+  it("still prefers a CONFIGURED amount over the default", () => {
+    const { amount, reason } = resolveFlatFallbackAmount(
+      { flat_fallback_amount: 777 },
+      "IN"
+    )
+    expect(amount).toBe(777)
+    // No reason: this number was chosen, so there is nothing to warn about.
+    expect(reason).toBeUndefined()
   })
 })
 

@@ -1,7 +1,4 @@
-import {
-  AbstractFulfillmentProviderService,
-  MedusaError,
-} from "@medusajs/framework/utils"
+import { AbstractFulfillmentProviderService } from "@medusajs/framework/utils"
 import {
   CreateFulfillmentResult,
   FulfillmentOption,
@@ -81,9 +78,10 @@ class ShiprocketFulfillmentService extends AbstractFulfillmentProviderService {
    * to decide what an unquotable lane costs.
    *
    * 🔴 It no longer answers `0`. Every path that cannot produce a live rate —
-   * an underivable lane, a carrier error, an empty courier list — resolves to
-   * the configured flat fallback, and if none is configured it THROWS naming the
-   * country. See `flat-fallback.ts` for why a defaulted default is not an option.
+   * an underivable lane, a carrier error, an empty courier list — resolves to a
+   * flat fallback: the configured one, else a defined non-zero default. It never
+   * throws; see `flat-fallback.ts` for why a throw here is worse than what it
+   * replaced.
    */
   async calculatePrice(
     _optionData: Record<string, unknown>,
@@ -96,7 +94,7 @@ class ShiprocketFulfillmentService extends AbstractFulfillmentProviderService {
     ).toUpperCase()
 
     if (!derived.context) {
-      return this.flatFallbackOrThrow(destinationCountry, derived.reason!)
+      return this.flatFallback(destinationCountry, derived.reason!)
     }
 
     const rateContext = derived.context
@@ -117,7 +115,7 @@ class ShiprocketFulfillmentService extends AbstractFulfillmentProviderService {
       // successful quote of 0 is precisely the bug this method used to have, so
       // it falls back like any other failure.
       if (!recommended || !Number.isFinite(Number(recommended.amount))) {
-        return this.flatFallbackOrThrow(
+        return this.flatFallback(
           destinationCountry,
           `Shiprocket returned no courier for ${rateContext.origin_pincode} → ${
             rateContext.destination_country || rateContext.destination_pincode
@@ -131,19 +129,20 @@ class ShiprocketFulfillmentService extends AbstractFulfillmentProviderService {
       }
     } catch (e: any) {
       this.logger.error(`Shiprocket calculatePrice error: ${e.message}`)
-      return this.flatFallbackOrThrow(destinationCountry, e.message)
+      return this.flatFallback(destinationCountry, e.message)
     }
   }
 
   /**
-   * The flat rate, or a loud refusal when nobody has configured one.
+   * The flat rate for a lane the carrier would not quote.
    *
    * The `reason` is logged rather than returned: the buyer must not be shown a
    * carrier's internal complaint, but an operator needs to know the lane fell
    * back rather than quoting live — otherwise a carrier outage looks exactly
-   * like normal pricing.
+   * like normal pricing. 🔑 That log line is the ONLY thing separating this from
+   * the silent zero it replaced, so it must never be dropped to reduce noise.
    */
-  private flatFallbackOrThrow(
+  private flatFallback(
     destinationCountry: string,
     reason: string
   ): CalculatedShippingOptionPrice {
@@ -152,21 +151,14 @@ class ShiprocketFulfillmentService extends AbstractFulfillmentProviderService {
       destinationCountry
     )
 
-    if (amount === undefined) {
-      throw new MedusaError(
-        MedusaError.Types.NOT_ALLOWED,
-        `Shiprocket could not quote this shipment (${reason}), and ${unconfigured}`
-      )
-    }
-
     this.logger.warn(
       `[shiprocket] falling back to the flat rate ${amount} for ${
         destinationCountry || "IN"
-      } — ${reason}`
+      } — ${reason}${unconfigured ? ` (${unconfigured})` : ""}`
     )
 
     return {
-      calculated_amount: amount,
+      calculated_amount: amount!,
       // A flat rate is a figure WE set, so it carries no carrier tax treatment
       // to inherit. Claiming tax-inclusive here would quietly shrink it.
       is_calculated_price_tax_inclusive: false,

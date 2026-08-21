@@ -13,22 +13,32 @@
  * blocks checkout on a carrier hiccup, so this takes the flat rate: the buyer
  * always gets a number, and it is a number somebody chose.
  *
- * ## Why an unconfigured fallback THROWS
+ * ## Why an unconfigured fallback does NOT throw
  *
- * Defaulting the default (to 0, or to some invented amount) reintroduces
- * exactly the silent-zero bug this replaces. If nobody has said what an
- * unquotable Indian lane costs, we do not know — and saying so loudly at
- * checkout is recoverable, whereas shipping thousands of free parcels is not.
+ * An earlier cut of this threw when nothing was configured, on the reasoning
+ * that a defaulted default reintroduces the silent zero. Refuting fact: NO
+ * provider in this codebase throws from `calculatePrice` — Delhivery, live in
+ * production today, returns 0 on both a bad pincode and a carrier error. So a
+ * throw here has no precedent, and if it propagates it takes the WHOLE shipping
+ * options listing with it, leaving the buyer no options at all — including the
+ * manual flat one that exists precisely for this case. That is strictly worse
+ * than what it replaced.
  *
- * So: configure `flat_fallback_amounts` (or at minimum `flat_fallback_amount`)
- * and the fallback is silent and cheap; leave it unset and the first carrier
- * outage tells you, once, in an error naming the country.
+ * `DEFAULT_FLAT_FALLBACK` is the compromise: a real, non-zero, LOGGED amount
+ * matching the flat companion option `create-store-with-defaults` provisions, so
+ * behaviour is defined with no configuration at all. It is not the silent zero —
+ * it is distinguishable from a free lane and it announces itself in the log.
+ * Override per-country when the real numbers are known.
  *
- * Amounts are MINOR units (paise for INR), matching how Medusa carries money.
+ * Amounts are in the store's own price units (rupees for INR), matching what
+ * the carrier returns and what the flat companion option is priced in.
  */
 
+/** Matches the flat companion option provisioned by create-store-with-defaults. */
+export const DEFAULT_FLAT_FALLBACK = 200
+
 export type FlatFallbackConfig = {
-  /** Per-destination-country minor-unit amounts, keyed by ISO2 (case-insensitive). */
+  /** Per-destination-country amounts in store price units, keyed by ISO2 (case-insensitive). */
   flat_fallback_amounts?: Record<string, number>
   /** Applied when no country-specific amount is configured. */
   flat_fallback_amount?: number
@@ -60,15 +70,18 @@ export function resolveFlatFallbackAmount(
   const fallback = config?.flat_fallback_amount
   if (Number.isFinite(Number(fallback))) return { amount: Number(fallback) }
 
+  // Defined, non-zero and logged by the caller. See the header for why this is
+  // a default rather than a refusal.
   return {
-    reason: `no flat fallback rate is configured for ${country}. Set \`flat_fallback_amounts\` (or \`flat_fallback_amount\`) on the Shiprocket provider so an unquotable lane has a price instead of silently costing nothing.`,
+    amount: DEFAULT_FLAT_FALLBACK,
+    reason: `no flat fallback is configured for ${country}; used the default ${DEFAULT_FLAT_FALLBACK}`,
   }
 }
 
 /**
  * Read the fallback config off env, for the medusa-config provider block.
  *
- * `SHIPROCKET_FLAT_FALLBACK_AMOUNTS` is `IN=9900,US=249000` — ISO2=minor units,
+ * `SHIPROCKET_FLAT_FALLBACK_AMOUNTS` is `IN=200,US=3200` — ISO2=amount in store price units,
  * comma-separated. Malformed pairs are DROPPED rather than coerced: a typo that
  * silently became 0 would be the original bug with extra steps, and a dropped
  * pair surfaces as the loud "no flat fallback configured" error.
