@@ -305,6 +305,7 @@ import { BulkImportSchema } from "./admin/inventory-items/bulk-import/validators
 import { PartnerCreateStoreReq } from "./partners/stores/validators";
 import { PartnerCreateProductReq, PartnerArtisanProductDetailReq, PartnerProductSpecReq, PartnerStoreCreateProductReq, PartnerQuickCreateProductReq } from "./partners/products/validators";
 import { PartnerCreatePriceListReq, PartnerUpdatePriceListReq } from "./partners/price-lists/validators";
+import { PartnerMintQuoteReq } from "./partners/quotes/validators";
 import { BATCH_VARIANT_FIELDS } from "../workflows/partner/batch-partner-variants";
 import { StoreMadeToSpecReq } from "./store/carts/[id]/made-to-spec/validators";
 import {
@@ -5576,6 +5577,26 @@ export default defineMiddlewares({
       matcher: "/partners/customer-groups/:id/customers",
       method: "POST",
       middlewares: [authenticate("partner", ["session", "bearer"])],
+    },
+    // Partner B2B quotes (#1389 S3). The buyer half lives at
+    // /store/b2b/quotes/:token and is deliberately unauthenticated — the token
+    // IS the credential.
+    {
+      matcher: "/partners/quotes",
+      method: "GET",
+      middlewares: [
+        createCorsPartnerMiddleware(),
+        authenticate("partner", ["session", "bearer"]),
+      ],
+    },
+    {
+      matcher: "/partners/quotes",
+      method: "POST",
+      middlewares: [
+        createCorsPartnerMiddleware(),
+        authenticate("partner", ["session", "bearer"]),
+        validateAndTransformBody(wrapSchema(PartnerMintQuoteReq)),
+      ],
     },
     // Partner price list endpoints (#1405). Unlike customer-groups above,
     // every write body is validated — a price list carries money and the rule
