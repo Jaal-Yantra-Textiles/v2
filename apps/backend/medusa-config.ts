@@ -1,5 +1,6 @@
 import { loadEnv, defineConfig, Modules } from "@medusajs/framework/utils";
 import path from "path";
+import { parseFlatFallbackAmounts } from "./src/modules/shipping-providers/shiprocket/flat-fallback"
 
 loadEnv(process.env.NODE_ENV || 'development', process.cwd())
 
@@ -443,6 +444,17 @@ module.exports = defineConfig({
                           email: process.env.SHIPROCKET_EMAIL,
                           password: process.env.SHIPROCKET_PASSWORD,
                           pickup_location: process.env.SHIPROCKET_PICKUP_LOCATION,
+                          // What an UNQUOTABLE lane costs (#1417). Without one,
+                          // calculatePrice used to answer 0 — free shipping
+                          // wearing the shape of a real quote. `IN=9900,US=249000`
+                          // (ISO2=minor units); see shiprocket/flat-fallback.ts.
+                          flat_fallback_amounts: parseFlatFallbackAmounts(
+                            process.env.SHIPROCKET_FLAT_FALLBACK_AMOUNTS
+                          ),
+                          flat_fallback_amount: process.env
+                            .SHIPROCKET_FLAT_FALLBACK_AMOUNT
+                            ? Number(process.env.SHIPROCKET_FLAT_FALLBACK_AMOUNT)
+                            : undefined,
                         },
                       },
                     ]

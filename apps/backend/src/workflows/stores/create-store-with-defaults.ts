@@ -493,17 +493,36 @@ const autoLinkFulfillmentProvidersStep = createStep(
           }
 
           if (profileId) {
-            // Determine provider and currency-specific pricing
-            const providerMap: Record<string, string> = {
-              in: "delhivery_delhivery",
+            // Determine provider and currency-specific pricing.
+            //
+            // The primary carrier per country, in PREFERENCE order — the first
+            // one actually registered wins. It used to be a bare
+            // `{ in: "delhivery_delhivery" }`, which meant a store whose
+            // Delhivery credentials were absent still got a Delhivery option
+            // (and no other), so its only calculated carrier was one that could
+            // never answer. Preferring a registered carrier makes the map
+            // describe what the store CAN ship on rather than what we hoped.
+            //
+            // Shiprocket sits second rather than first only because Delhivery is
+            // the incumbent on live IN stores; both get an option either way —
+            // the Shiprocket block further down adds its own regardless, so this
+            // ordering decides the "Standard Shipping" default, not availability.
+            const providerPreference: Record<string, string[]> = {
+              in: ["delhivery_delhivery", "shiprocket_shiprocket"],
             }
-            const providerId = providerMap[countryLower] || "manual_manual"
+            const providerId =
+              (providerPreference[countryLower] || []).find((id) =>
+                enabledIds.includes(id)
+              ) || "manual_manual"
 
-            // For Delhivery (calculated pricing) — Delhivery's API returns real-time rates
-            // For manual provider — use flat tiered pricing based on country/currency
-            const isDelhivery = providerId === "delhivery_delhivery"
+            // A real carrier prices via calculatePrice (live rates); the manual
+            // provider cannot, so it gets flat tiered pricing instead. Keyed on
+            // "is this a carrier" rather than on Delhivery's id specifically,
+            // so adding a carrier to the preference list above does not silently
+            // fall through to the manual branch.
+            const isCarrier = providerId !== "manual_manual"
 
-            if (isDelhivery) {
+            if (isCarrier) {
               // Delhivery: use calculated pricing (calls calculatePrice on the provider)
               await createShippingOptionsWorkflow(container).run({
                 input: [{
@@ -514,7 +533,7 @@ const autoLinkFulfillmentProvidersStep = createStep(
                   price_type: "calculated",
                   type: {
                     label: "Standard",
-                    description: "Standard delivery via Delhivery",
+                    description: "Standard delivery — live carrier rates",
                     code: "standard",
                   },
                   rules: [
@@ -534,7 +553,7 @@ const autoLinkFulfillmentProvidersStep = createStep(
                   price_type: "calculated",
                   type: {
                     label: "Return",
-                    description: "Return pickup via Delhivery",
+                    description: "Return pickup — live carrier rates",
                     code: "return",
                   },
                   rules: [
@@ -634,8 +653,98 @@ const autoLinkFulfillmentProvidersStep = createStep(
 
             console.log(
               `[create-store] Created shipping options for ${countryLabel} ` +
-              `(${isDelhivery ? "calculated/Delhivery" : "flat tiered/manual"})`
+              `(${isCarrier ? `calculated/${providerId}` : "flat tiered/manual"})`
             )
+
+            // The flat rate a lane falls back to, in the store's own price
+            // units. One constant so the manual companion option and the
+            // Shiprocket option's `data.flat_fallback_amount` cannot drift.
+            const FLAT_FALLBACK_AMOUNT = 200
+
+            // --- Shiprocket, alongside Delhivery (#1417) ---------------------
+            //
+            // Shiprocket was ALREADY linked to every IN stock location above and
+            // registered as a fulfillment provider in both configs — but no
+            // shipping option was ever created for it, because `providerMap`
+            // hardcodes `in -> delhivery_delhivery`. So it was provisioned and
+            // invisible: a carrier the store could not actually pick.
+            //
+            // 🔑 The flat companion is the point of this block, not a nicety. An
+            // IN store's domestic zone carried ONLY calculated options, and
+            // `buildShippingEstimate` skips calculated options when assembling
+            // its manual list — so the store's entire quote freight rested on one
+            // live rate call with no fallback, and a carrier hiccup 400'd the
+            // whole mint. A flat option gives that path something to fall back to.
+            if (
+              countryLower === "in" &&
+              enabledIds.includes("shiprocket_shiprocket")
+            ) {
+              try {
+                await createShippingOptionsWorkflow(container).run({
+                  input: [{
+                    name: "Standard Shipping (Shiprocket)",
+                    service_zone_id: serviceZone.id,
+                    shipping_profile_id: profileId,
+                    provider_id: "shiprocket_shiprocket",
+                    price_type: "calculated",
+                    // What this option costs when Shiprocket will not quote the
+                    // lane. Stamped here — the same number the manual companion
+                    // below is priced at — so the fallback IS the manual
+                    // provider's price rather than a constant that happens to
+                    // match it. Editable per store alongside that option.
+                    data: { flat_fallback_amount: FLAT_FALLBACK_AMOUNT },
+                    type: {
+                      label: "Standard",
+                      description: "Standard delivery via Shiprocket — live rates",
+                      code: `shiprocket-standard-${suffix}`,
+                    },
+                    rules: [
+                      { attribute: "enabled_in_store", value: "true", operator: "eq" },
+                      { attribute: "is_return", value: "false", operator: "eq" },
+                    ],
+                  }] as any,
+                })
+
+                await createShippingOptionsWorkflow(container).run({
+                  input: [{
+                    name: "Standard Shipping (Flat)",
+                    service_zone_id: serviceZone.id,
+                    shipping_profile_id: profileId,
+                    // Deliberately `manual_manual`, not Shiprocket: this option
+                    // exists FOR the case where no carrier will quote, so routing
+                    // it through a carrier would reintroduce the dependency it is
+                    // meant to remove.
+                    provider_id: "manual_manual",
+                    price_type: "flat",
+                    type: {
+                      label: "Standard (Flat)",
+                      description: "Flat-rate delivery — used when no carrier will quote",
+                      code: `flat-fallback-${suffix}`,
+                    },
+                    prices: [
+                      {
+                        currency_code: input.currencyCode.toLowerCase(),
+                        amount: FLAT_FALLBACK_AMOUNT,
+                      },
+                    ],
+                    rules: [
+                      { attribute: "enabled_in_store", value: "true", operator: "eq" },
+                      { attribute: "is_return", value: "false", operator: "eq" },
+                    ],
+                  }] as any,
+                })
+
+                console.log(
+                  `[create-store] Created Shiprocket calculated + flat fallback options`
+                )
+              } catch (srErr: any) {
+                // Best-effort, like every other carrier block here: a store with
+                // Delhivery options is still a usable store.
+                console.error(
+                  `[create-store] Failed to create Shiprocket options: ${srErr.message}`
+                )
+              }
+            }
 
             // --- International coverage (mirrors the #954 DP backfill) --------
             // Add an "International" zone covering every OTHER region's countries
@@ -746,9 +855,53 @@ const autoLinkFulfillmentProvidersStep = createStep(
                   })
                 }
 
+                // Shiprocket cross-border, for IN-origin stores (#1417).
+                //
+                // 🔑 For an Indian origin, Shiprocket IS the cross-border rate
+                // source — Delhivery's cross-border product ("Starfleet") has no
+                // rate API at all, and DHL only appears when its own carrier is
+                // enabled. Without this the international zone offered an IN
+                // store nothing but the hand-set manual placeholder.
+                //
+                // The client already branches to `/international/courier/serviceability`
+                // on the destination country, and `calculatePrice` now passes that
+                // country through — before #1417 it did not, so this option would
+                // have quoted every foreign cart via the India-only endpoint and
+                // been answered with an empty courier list.
+                if (
+                  countryLower === "in" &&
+                  enabledIds.includes("shiprocket_shiprocket")
+                ) {
+                  await createShippingOptionsWorkflow(container).run({
+                    input: [
+                      {
+                        name: `International Shipping (Shiprocket) (${suffix})`,
+                        price_type: "calculated",
+                        provider_id: "shiprocket_shiprocket",
+                        service_zone_id: intlZone.id,
+                        shipping_profile_id: profileId,
+                        type: {
+                          label: "International",
+                          description: "Cross-border delivery via Shiprocket — live rates",
+                          code: `shiprocket-international-${suffix}`,
+                        },
+                        rules: [
+                          { attribute: "enabled_in_store", value: "true", operator: "eq" },
+                          { attribute: "is_return", value: "false", operator: "eq" },
+                        ],
+                      },
+                    ] as any,
+                  })
+                }
+
                 console.log(
                   `[create-store] Created International zone (${intlCountries.size} countries) ` +
-                    `+ manual${dhlEnabled ? " + DHL" : ""} option(s)`
+                    `+ manual${dhlEnabled ? " + DHL" : ""}${
+                      countryLower === "in" &&
+                      enabledIds.includes("shiprocket_shiprocket")
+                        ? " + Shiprocket"
+                        : ""
+                    } option(s)`
                 )
               }
             } catch (intlErr: any) {
