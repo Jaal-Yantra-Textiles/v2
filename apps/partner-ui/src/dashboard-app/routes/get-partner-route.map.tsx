@@ -618,6 +618,19 @@ export function getPartnerRouteMap(): RouteObject[] {
                   lazy: () => import("../../routes/orders/order-list"),
                   handle: { breadcrumb: () => "All" },
                 },
+                // #1389 S3 — quotes. A static segment, so it ranks above
+                // `:id` and a quote id never collides with an order id.
+                {
+                  path: "quotes",
+                  lazy: () => import("../../routes/orders/quote-list"),
+                  handle: { breadcrumb: () => "Quotes" },
+                  children: [
+                    {
+                      path: "create",
+                      lazy: () => import("../../routes/orders/quote-create"),
+                    },
+                  ],
+                },
                 {
                   path: ":id",
                   handle: {
