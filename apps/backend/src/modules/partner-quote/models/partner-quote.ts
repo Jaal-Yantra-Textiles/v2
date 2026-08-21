@@ -1,9 +1,21 @@
 import { model } from "@medusajs/framework/utils"
 
+import PartnerQuoteLine from "./partner-quote-line"
+
 /**
  * A shareable B2B quote: a partner mints a link, a business buyer opens it and
- * sees tier price + spec + live landed cost for their quantity and destination
- * (EPIC #1389).
+ * sees tier prices + spec + live landed cost for their quantities and
+ * destination (EPIC #1389).
+ *
+ * ## A quote is a BASKET, not a line
+ *
+ * Lines live on `partner_quote_line`. A single-product quote is simply a
+ * one-line quote, so nothing about that case is special-cased.
+ *
+ * 🔑 **Freight is on the quote, never on a line.** A multi-product quote ships
+ * as ONE consignment, so the lane is quoted once against the summed weight.
+ * Per-line freight would charge the buyer for several deliveries they are not
+ * getting, and at bulk quantities that error is not small.
  *
  * ## The one rule this model exists to enforce
  *
@@ -38,9 +50,9 @@ const PartnerQuote = model.define("partner_quote", {
   store_id: model.text().nullable(),
 
   // ===== What was quoted ==================================================
-  variant_id: model.text(),
-  product_id: model.text().nullable(),
-  quantity: model.number(),
+  // See `partner-quote-line.ts`. The basket is the child rows; nothing about
+  // "which variant" or "how many" belongs here.
+  lines: model.hasMany(() => PartnerQuoteLine, { mappedBy: "quote" }),
 
   // Destination for the freight leg. Kept as plain fields rather than an
   // address row: a quote destination is a rough "where to", not a shippable
@@ -61,14 +73,15 @@ const PartnerQuote = model.define("partner_quote", {
   // ===== Frozen at mint: evidence, never an input to pricing ==============
   // These are literally the live builder's output at mint time, so no second
   // pricing path exists that could disagree with the page.
-  quoted_unit_amount: model.bigNumber().nullable(),
+  // Per-line money lives on the line. These are the basket totals: the sum of
+  // the frozen line subtotals, the ONE freight leg, and the landed total.
   quoted_subtotal: model.bigNumber().nullable(),
   quoted_freight: model.bigNumber().nullable(),
   quoted_landed_total: model.bigNumber().nullable(),
-  // Which weight the frozen freight was computed from — a declared product
-  // weight over-quotes a lighter variant, and at 200 units that can cross a
-  // carrier slab, so the provenance travels with the number.
-  quoted_weight_source: model.enum(["variant", "product"]).nullable(),
+  // Total consignment weight the frozen freight was quoted against. Which
+  // LEVEL each line's weight came from is on the line, because a basket can
+  // mix a variant-weighted item with a product-weighted one.
+  quoted_weight_grams: model.number().nullable(),
   quoted_at: model.dateTime().nullable(),
 
   // ===== Token + lifecycle ================================================
