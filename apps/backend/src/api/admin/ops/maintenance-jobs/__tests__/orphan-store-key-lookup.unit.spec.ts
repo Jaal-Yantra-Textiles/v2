@@ -137,7 +137,9 @@ describe("restore-orphan-store — counting the keys linked to a channel", () =>
 
     // A key IS linked, so the "mint a replacement" warning must not fire.
     expect(
-      result.errors.some((e: any) => e.message.includes("recreate_publishable_key"))
+      (result.errors ?? []).some((e: any) =>
+        e.message.includes("recreate_publishable_key")
+      )
     ).toBe(false)
   })
 })
