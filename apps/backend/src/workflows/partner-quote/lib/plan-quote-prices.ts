@@ -86,6 +86,30 @@ export function planQuotePrices(
 }
 
 /**
+ * The rule attribute a CART can actually match on.
+ *
+ * 🔴 NOT `customer_group_id`, which is the name the admin price-list UI uses
+ * and the obvious thing to write. A cart's pricing context is built by
+ * `getVariantsAndItemsWithPrices` as the cart object itself — `{ customer:
+ * { groups: [...] }, region, currency_code, ... }` — and the pricing module
+ * then runs `flattenObjectToKeyValuePairs` over it, producing the key
+ * **`customer.groups.id`**. There is no step anywhere that also emits
+ * `customer_group_id`, so a price list ruled on that name matches nothing a
+ * cart ever asks for.
+ *
+ * The failure is silent and looks exactly like success: the list is created,
+ * `rules_count` is 1, the rule row holds the right group id, and the cart
+ * quietly charges the ordinary price. It was found by pricing the same buyer's
+ * cart twice against two price lists that differed only in this string
+ * (`partner-quote-cart-pricing.spec.ts`) — 45 000 with `customer_group_id`,
+ * 19 000 with this one.
+ *
+ * ⚠️ Verified against Medusa 2.19. If the cart's context builder changes, the
+ * integration test that pins this is the thing that will tell you.
+ */
+export const QUOTE_GROUP_RULE_ATTRIBUTE = "customer.groups.id"
+
+/**
  * PURE: has this price list actually been scoped to the buyer?
  *
  * 🔴 `rules_count = 0` applies a price list to EVERYONE. Core does not treat an
@@ -110,7 +134,11 @@ export function priceListScopedToGroup(
 
   return rules.some((r: any) => {
     const attr = r?.attribute ?? r?.rule_attribute
-    if (attr && attr !== "customer_group_id") return false
+    // Deliberately strict: a rule under any OTHER attribute — including the
+    // plausible-looking `customer_group_id` — does not scope this list to a
+    // cart, so treating it as scoped would re-hide the exact bug this constant
+    // exists to prevent.
+    if (attr && attr !== QUOTE_GROUP_RULE_ATTRIBUTE) return false
     const values = r?.value ?? r?.values
     if (Array.isArray(values)) {
       return values.some((v: any) => (v?.value ?? v) === groupId)

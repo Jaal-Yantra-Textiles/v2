@@ -105,7 +105,7 @@ describe("priceListScopedToGroup", () => {
         {
           rules_count: 1,
           price_list_rules: [
-            { attribute: "customer_group_id", value: [{ value: "cg_1" }] },
+            { attribute: "customer.groups.id", value: [{ value: "cg_1" }] },
           ],
         },
         "cg_1"
@@ -119,7 +119,7 @@ describe("priceListScopedToGroup", () => {
         {
           rules_count: 1,
           price_list_rules: [
-            { attribute: "customer_group_id", value: [{ value: "cg_other" }] },
+            { attribute: "customer.groups.id", value: [{ value: "cg_other" }] },
           ],
         },
         "cg_1"

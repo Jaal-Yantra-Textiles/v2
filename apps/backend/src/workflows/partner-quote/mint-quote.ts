@@ -25,6 +25,7 @@ import {
 import {
   planQuotePrices,
   priceListScopedToGroup,
+  QUOTE_GROUP_RULE_ATTRIBUTE,
 } from "./lib/plan-quote-prices"
 
 export type MintQuoteInput = {
@@ -261,7 +262,9 @@ const mintPriceListStep = createStep(
             type: "override",
             starts_at: now.toISOString(),
             ends_at: expiresAt.toISOString(),
-            rules: { customer_group_id: [input.customer_group_id] },
+            // See QUOTE_GROUP_RULE_ATTRIBUTE — `customer_group_id` here
+            // creates a price list that no cart can ever match.
+            rules: { [QUOTE_GROUP_RULE_ATTRIBUTE]: [input.customer_group_id] },
             prices,
           } as any,
         ],
