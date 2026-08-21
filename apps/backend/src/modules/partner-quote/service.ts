@@ -1,8 +1,10 @@
 import { MedusaService } from "@medusajs/framework/utils"
 import PartnerQuote from "./models/partner-quote"
+import PartnerQuoteLine from "./models/partner-quote-line"
 
 class PartnerQuoteService extends MedusaService({
   PartnerQuote,
+  PartnerQuoteLine,
 }) {
   /**
    * Look up a quote by the sha256 of its raw token. Returns null when no row

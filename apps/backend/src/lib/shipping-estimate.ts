@@ -1,0 +1,319 @@
+import { ContainerRegistrationKeys, MedusaError, Modules } from "@medusajs/framework/utils"
+
+import { resolveShippingProvider } from "../modules/shipping-providers/resolver"
+
+/**
+ * The freight estimate, as a function rather than an HTTP route (#1389 S2).
+ *
+ * ## Why this was extracted
+ *
+ * `GET /store/shipping-estimate` owned this logic inline. The B2B quote builder
+ * needs the same number, and the only ways to reuse a route body are to copy it
+ * or to HTTP to yourself. Copying gives you two freight paths that will disagree
+ * — the exact failure the quote model exists to prevent — and HTTP-to-self
+ * throws away the 15-minute cache from the caller's perspective, buys a second
+ * round-trip, and turns a carrier hiccup into a self-inflicted 500.
+ *
+ * So the route and the quote builder both call this. One cache, one weight
+ * rule, one shape.
+ *
+ * ## A basket, not a line
+ *
+ * The input is a LIST of lines, because a multi-product quote ships as ONE
+ * consignment: the lane is quoted once, against the summed weight. Quoting
+ * each line separately and adding the results charges the buyer for several
+ * deliveries they are not getting, and at bulk quantities that error is not
+ * small. `GET /store/shipping-estimate` is simply the one-line case.
+ *
+ * ## Weight: fall back to the product, never to a guess
+ *
+ * A variant with no weight of its own inherits the PRODUCT's, and the estimate
+ * says which one it used (#1394 item 2). That rescues 21 variants platform-wide
+ * that are unquotable otherwise.
+ *
+ * 🔑 The fallback is reported, not buried. A declared product weight over-quotes
+ * a lighter variant — 115 g against a real 105 g — and at 200 units that can
+ * cross a carrier slab, so `weight_source` travels with the number and gets
+ * frozen onto the quote row.
+ *
+ * When NEITHER level has a weight, this refuses with a 422 naming the variant.
+ * That is deliberate and it is the one place this differs from the order-83
+ * fulfilment path, which estimates a weight when none exists. Estimating is fine
+ * for an internal retry; it is not fine for a number a buyer decides on. 140 of
+ * 183 variants platform-wide have no weight at either level, so this refusal
+ * fires for real — the gap belongs in the catalogue, not papered over here.
+ */
+
+export type ShippingEstimateLineInput = {
+  variant_id: string
+  quantity: number
+}
+
+export type ShippingEstimateInput = {
+  /** The basket. One entry is the ordinary single-product case. */
+  lines: ShippingEstimateLineInput[]
+  destination_postal_code: string
+  country_code?: string
+  carrier?: string
+  /** The store whose default stock location is the origin. */
+  store: { id?: string; default_location_id?: string | null }
+}
+
+export type ShippingEstimateOption = {
+  shipping_option_id?: string
+  courier_id?: string | null
+  courier_name?: string | null
+  name?: string
+  amount: number
+  currency_code: string
+  estimated_days?: number | null
+  is_recommended?: boolean
+  source: "manual" | "calculated"
+}
+
+export type ShippingEstimateLine = {
+  variant_id: string
+  variant_title: string | null
+  product_id: string | null
+  product_title: string | null
+  quantity: number
+  unit_weight_grams: number
+  /** Which level the unit weight came from. See the header. */
+  weight_source: "variant" | "product"
+  line_weight_grams: number
+}
+
+export type ShippingEstimate = {
+  lines: ShippingEstimateLine[]
+  /** The whole consignment. This is what the carrier was asked about. */
+  total_weight_grams: number
+  origin_postal_code: string
+  destination_postal_code: string
+  country_code: string
+  manual: ShippingEstimateOption[]
+  calculated: ShippingEstimateOption[]
+  calculated_error: string | null
+  cache_hit: boolean
+  is_estimate: true
+}
+
+/**
+ * PURE: pick the unit weight and say where it came from.
+ *
+ * Split out so the rule that decides a buyer's freight number is testable
+ * without a container, a carrier or a database.
+ */
+export function resolveUnitWeight(variant: {
+  id?: string
+  title?: string | null
+  weight?: unknown
+  product?: { weight?: unknown } | null
+}): { weight_grams: number; weight_source: "variant" | "product" } | null {
+  const variantWeight = Number(variant?.weight)
+  if (variantWeight && !Number.isNaN(variantWeight) && variantWeight > 0) {
+    return { weight_grams: variantWeight, weight_source: "variant" }
+  }
+
+  const productWeight = Number(variant?.product?.weight)
+  if (productWeight && !Number.isNaN(productWeight) && productWeight > 0) {
+    return { weight_grams: productWeight, weight_source: "product" }
+  }
+
+  return null
+}
+
+/**
+ * Bucket the weight so near-identical quantities share a cache entry rather
+ * than minting one per quantity a buyer drags a slider through.
+ */
+export function weightBucketGrams(weightGrams: number): number {
+  return Math.ceil(weightGrams / 500) * 500
+}
+
+export async function buildShippingEstimate(
+  scope: any,
+  input: ShippingEstimateInput
+): Promise<ShippingEstimate> {
+  const query = scope.resolve(ContainerRegistrationKeys.QUERY)
+  const logger: any = scope.resolve(ContainerRegistrationKeys.LOGGER)
+
+  const countryCode = String(input.country_code || "in").toLowerCase()
+  const destinationPostalCode = String(input.destination_postal_code)
+
+  const lineInputs = (input.lines || []).filter(
+    (l) => l && l.variant_id && Number(l.quantity) > 0
+  )
+  if (!lineInputs.length) {
+    throw new MedusaError(
+      MedusaError.Types.INVALID_DATA,
+      "A freight estimate needs at least one line with a quantity."
+    )
+  }
+
+  // ---- Weights -----------------------------------------------------------
+  const { data: variants } = await query.graph({
+    entity: "variant",
+    fields: [
+      "id",
+      "title",
+      "weight",
+      "product.id",
+      "product.title",
+      "product.weight",
+    ],
+    filters: { id: lineInputs.map((l) => l.variant_id) },
+  })
+  const byId = new Map<string, any>(
+    ((variants ?? []) as any[]).map((v) => [v.id, v])
+  )
+
+  const lines: ShippingEstimateLine[] = []
+  for (const line of lineInputs) {
+    const variant = byId.get(line.variant_id)
+    if (!variant) {
+      throw new MedusaError(
+        MedusaError.Types.NOT_FOUND,
+        `Variant ${line.variant_id} not found`
+      )
+    }
+
+    const resolved = resolveUnitWeight(variant)
+    if (!resolved) {
+      // Deliberately a refusal, not a fallback, and it fails the WHOLE basket:
+      // a landed total missing one line's freight is a wrong number wearing a
+      // confident label. See the header.
+      throw new MedusaError(
+        MedusaError.Types.INVALID_DATA,
+        `Variant "${variant.title || variant.id}" has no shipping weight, and neither does its product, so freight cannot be quoted for it. Set a weight on the variant first.`
+      )
+    }
+
+    const quantity = Number(line.quantity)
+    lines.push({
+      variant_id: variant.id,
+      variant_title: variant.title ?? null,
+      product_id: variant.product?.id ?? null,
+      product_title: variant.product?.title ?? null,
+      quantity,
+      unit_weight_grams: resolved.weight_grams,
+      weight_source: resolved.weight_source,
+      line_weight_grams: Math.round(resolved.weight_grams * quantity),
+    })
+  }
+
+  const totalWeightGrams = lines.reduce((sum, l) => sum + l.line_weight_grams, 0)
+
+  // ---- Origin ------------------------------------------------------------
+  const { data: locations } = await query.graph({
+    entity: "stock_locations",
+    fields: ["id", "name", "address.postal_code", "address.country_code"],
+    filters: { id: input.store.default_location_id },
+  })
+  const originPostalCode = String(
+    (locations?.[0] as any)?.address?.postal_code || ""
+  ).trim()
+  if (!originPostalCode) {
+    throw new MedusaError(
+      MedusaError.Types.INVALID_DATA,
+      "This store's pickup location has no postal code, so freight cannot be quoted. Add one to the location."
+    )
+  }
+
+  // ---- Manual / flat options — no carrier call ---------------------------
+  const { data: optionLocations } = await query.graph({
+    entity: "stock_locations",
+    fields: [
+      "id",
+      "fulfillment_sets.service_zones.shipping_options.id",
+      "fulfillment_sets.service_zones.shipping_options.name",
+      "fulfillment_sets.service_zones.shipping_options.price_type",
+      "fulfillment_sets.service_zones.shipping_options.prices.*",
+    ],
+    filters: { id: input.store.default_location_id },
+  })
+
+  const manual: ShippingEstimateOption[] = []
+  for (const fs of (optionLocations?.[0] as any)?.fulfillment_sets || []) {
+    for (const zone of fs?.service_zones || []) {
+      for (const so of zone?.shipping_options || []) {
+        if (so?.price_type === "calculated") continue
+        for (const price of so?.prices || []) {
+          // Only currency-scoped flat prices are meaningful without a cart;
+          // region-scoped ones need a region the estimate does not have.
+          if (!price?.currency_code) continue
+          manual.push({
+            shipping_option_id: so.id,
+            name: so.name,
+            amount: Number(price.amount),
+            currency_code: String(price.currency_code).toLowerCase(),
+            source: "manual",
+          })
+        }
+      }
+    }
+  }
+
+  // ---- Calculated rates — cached per lane --------------------------------
+  const carrier = String(input.carrier || "shiprocket").toLowerCase()
+  const weightBucket = weightBucketGrams(totalWeightGrams)
+  const cacheKey = `shipping-estimate:${carrier}:${originPostalCode}:${destinationPostalCode}:${countryCode}:${weightBucket}`
+
+  let calculated: ShippingEstimateOption[] = []
+  let calculatedError: string | null = null
+  let cacheHit = false
+
+  const cacheService: any = scope.resolve(Modules.CACHE)
+  const cached = await cacheService.get(cacheKey).catch(() => null)
+  if (cached) {
+    calculated = cached as ShippingEstimateOption[]
+    cacheHit = true
+  } else {
+    try {
+      const provider = await resolveShippingProvider(scope, carrier)
+      if (!provider.getRates) {
+        throw new MedusaError(
+          MedusaError.Types.NOT_ALLOWED,
+          `${carrier} does not support rate quotes`
+        )
+      }
+      const rates = await provider.getRates({
+        origin_pincode: originPostalCode,
+        destination_pincode: destinationPostalCode,
+        destination_country: countryCode,
+        weight_grams: weightBucket,
+      })
+      calculated = (rates || []).map((r: any) => ({
+        courier_id: r.courier_id ?? null,
+        courier_name: r.courier_name ?? null,
+        amount: Number(r.amount),
+        currency_code: String(r.currency_code || "inr").toLowerCase(),
+        estimated_days: r.estimated_days ?? null,
+        is_recommended: !!r.is_recommended,
+        source: "calculated",
+      }))
+      await cacheService.set(cacheKey, calculated, 900).catch(() => {})
+    } catch (err) {
+      // A carrier that will not quote must not blank the whole estimate — the
+      // manual options are still a real, quotable answer.
+      calculatedError = err instanceof Error ? err.message : String(err)
+      logger?.warn?.(
+        `[shipping-estimate] ${carrier} rates failed for ${originPostalCode}->${destinationPostalCode}: ${calculatedError}`
+      )
+    }
+  }
+
+  return {
+    lines,
+    total_weight_grams: totalWeightGrams,
+    origin_postal_code: originPostalCode,
+    destination_postal_code: destinationPostalCode,
+    country_code: countryCode,
+    manual,
+    calculated,
+    calculated_error: calculatedError,
+    cache_hit: cacheHit,
+    // Never present these as a final price: carrier rates move, and the manual
+    // tier is a placeholder the partner is expected to edit.
+    is_estimate: true,
+  }
+}
