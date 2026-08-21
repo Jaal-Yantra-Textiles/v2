@@ -44,7 +44,7 @@ export const GET = async (req: MedusaStoreRequest, res: MedusaResponse) => {
       fields: (req as any).queryConfig?.fields || [
         "id", "name", "description", "handle", "rank",
         "parent_category_id", "created_at", "updated_at", "metadata",
-        "*parent_category", "*category_children",
+        "parent_category.*", "category_children.*",
       ],
       filters,
       pagination: (req as any).queryConfig?.pagination,
