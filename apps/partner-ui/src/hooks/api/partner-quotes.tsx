@@ -213,3 +213,64 @@ export const useMintPartnerQuote = (
     ...options,
   })
 }
+
+/** One named reason a basket cannot be quoted (#1445). */
+export type QuoteReadinessIssue = {
+  code: string
+  severity: "blocking" | "warning"
+  /** Written for the partner looking at the wizard, not for a log. */
+  message: string
+  variant_id?: string | null
+  data?: Record<string, unknown>
+}
+
+export type QuoteReadiness = {
+  ready: boolean
+  issues: QuoteReadinessIssue[]
+  blocking_count: number
+  warning_count: number
+  freight: {
+    chosen: { name: string | null; amount: number; currency_code: string } | null
+    total_weight_grams: number | null
+    error: string | null
+  }
+}
+
+export type QuoteReadinessPayload = {
+  lines: Array<{ variant_id: string; quantity: number }>
+  destination_country_code: string
+  destination_postal_code?: string | null
+  destination_city?: string | null
+  currency_code: string
+  region_id?: string | null
+  carrier?: string
+}
+
+/**
+ * The mint preflight (#1445).
+ *
+ * 🔴 A mutation rather than a query even though it writes nothing: the input is
+ * a whole basket, so it is POSTed, and it must run on demand when the partner
+ * reaches the last step — not on every keystroke of a quantity field, which is
+ * what a `useQuery` keyed on the form state would do. It prices every line and
+ * asks a carrier; that is not a thing to fire per render.
+ *
+ * The mint runs the same assessor server-side, so skipping this changes what
+ * the partner SEES, never what the platform accepts.
+ */
+export const useQuoteReadiness = (
+  options?: UseMutationOptions<
+    { readiness: QuoteReadiness },
+    FetchError,
+    QuoteReadinessPayload
+  >
+) => {
+  return useMutation({
+    mutationFn: async (payload) =>
+      await sdk.client.fetch<{ readiness: QuoteReadiness }>(
+        "/partners/quotes/readiness",
+        { method: "POST", body: payload }
+      ),
+    ...options,
+  })
+}
