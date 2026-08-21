@@ -17,8 +17,8 @@ import { daysUntilExpiry, quoteUnusableReason } from "./token"
  *
  * ## Three callers, one implementation
  *
- * 1. the public `/web/quotes/:token` route — what the buyer sees, recomputed
- *    live as they move the quantity dial;
+ * 1. the public `/store/b2b/quotes/:token` route — what the buyer sees,
+ *    recomputed live as they move the quantity dial;
  * 2. the email retrieval step — what the buyer receives;
  * 3. **mint**, where this same output is frozen into the row's `quoted_*`
  *    columns.
