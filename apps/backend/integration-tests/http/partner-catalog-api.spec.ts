@@ -110,6 +110,54 @@ setupSharedTestSuite(() => {
         expect(Array.isArray(res.data.product_categories)).toBe(true)
       })
 
+      it("GET /partners/product-categories respects parent_category_id=null and include_descendants_tree", async () => {
+        const unique = Date.now()
+
+        // Create a parent category
+        const parentRes = await api.post(
+          "/partners/product-categories",
+          { name: `Parent ${unique}`, handle: `parent-${unique}` },
+          { headers: partner.headers }
+        )
+        const parentId = parentRes.data.product_category.id
+
+        // Create two child categories under the parent
+        for (let i = 0; i < 2; i++) {
+          await api.post(
+            "/partners/product-categories",
+            {
+              name: `Child ${i} ${unique}`,
+              handle: `child-${i}-${unique}`,
+              parent_category_id: parentId,
+              is_internal: true,
+            },
+            { headers: partner.headers }
+          )
+        }
+
+        // Query root categories only, with descendants tree
+        const res = await api.get(
+          "/partners/product-categories?parent_category_id=null&include_descendants_tree=true",
+          { headers: partner.headers }
+        )
+        expect(res.status).toBe(200)
+        expect(Array.isArray(res.data.product_categories)).toBe(true)
+
+        // No child should appear as a top-level row
+        const topLevelIds = res.data.product_categories.map((c: any) => c.id)
+        const childNames = res.data.product_categories.map((c: any) => c.name)
+        expect(childNames).not.toContain(`Child 0 ${unique}`)
+        expect(childNames).not.toContain(`Child 1 ${unique}`)
+
+        // The parent should be present and have category_children populated
+        const parent = res.data.product_categories.find(
+          (c: any) => c.id === parentId
+        )
+        expect(parent).toBeDefined()
+        expect(parent.category_children).toBeDefined()
+        expect(parent.category_children.length).toBe(2)
+      })
+
       it("POST /partners/product-categories creates a category", async () => {
         const unique = Date.now()
         const res = await api.post(
