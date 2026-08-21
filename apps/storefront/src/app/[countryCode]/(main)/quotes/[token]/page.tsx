@@ -4,8 +4,18 @@ import { notFound } from "next/navigation"
 import { retrieveQuote } from "@lib/data/quotes"
 import QuoteTemplate from "@modules/quotes/templates"
 
+/**
+ * 🔴 `params` is a PROMISE. Next 15 still allowed synchronous access with a
+ * deprecation warning; Next 16 removed that fallback, so reading `.token` off
+ * the unawaited promise yields `undefined` — and this app is on Next 16 while
+ * `apps/storefront-starter` is on Next 15. This file was ported verbatim
+ * between the two (#1427), which is exactly how the shape regressed: the
+ * fetch went out as `/store/b2b/quotes/undefined`, the backend correctly 404'd
+ * an unknown token, and `retrieveQuote`'s catch-all turned it into a
+ * not-found page. Identical files across two majors is the bug, not the fix.
+ */
 type Props = {
-  params: { countryCode: string; token: string }
+  params: Promise<{ countryCode: string; token: string }>
 }
 
 /**
@@ -29,7 +39,8 @@ export const metadata: Metadata = {
 export const dynamic = "force-dynamic"
 
 export default async function QuotePage({ params }: Props) {
-  const quote = await retrieveQuote(params.token)
+  const { token } = await params
+  const quote = await retrieveQuote(token)
 
   // An unknown token and a revoked one are indistinguishable by design — the
   // backend 404s both so a prober learns nothing, and this preserves that.
