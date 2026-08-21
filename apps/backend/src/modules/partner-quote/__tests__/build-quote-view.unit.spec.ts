@@ -379,6 +379,63 @@ describe("buildQuoteView — the missing pickup location that read every tenant"
   })
 })
 
+describe("buildQuoteView — an INR carrier rate on a EUR quote", () => {
+  /**
+   * Found on the FIRST live international quote: Srinagar → Berlin, 3 kg, EUR.
+   *
+   * Carriers answer in their OWN currency. Shiprocket returned ₹3,788 /
+   * ₹5,232.50 / ₹14,436 alongside a €35 manual flat, and €35 won ONLY because
+   * 35 is the smallest raw number. Take the flat away and `composeQuoteMoney`
+   * adds 3788 straight onto a EUR subtotal: €4,718 becomes €8,506, rendered
+   * with a € sign.
+   *
+   * #1424 put this guard on the MANUAL branch and stopped there. The stub here
+   * quotes in INR, so an EUR quote must see no calculated option at all.
+   */
+  const EUR_FLAT = {
+    id: "so_intl",
+    name: "International Shipping",
+    price_type: "flat",
+    prices: [{ amount: 35, currency_code: "eur", price_rules: [] }],
+  }
+
+  it("never lets an INR carrier rate into a EUR total", async () => {
+    const captured: Captured = { contexts: [], rateWeights: [] }
+    const view = await buildQuoteView(
+      scopeWith(captured, { manual: [EUR_FLAT] }) as any,
+      baseInput({ currency_code: "eur", lines: [{ variant_id: "var_a", quantity: 29 }] })
+    )
+
+    // The INR stub rates (3900 / 4200) are cheaper as raw numbers than nothing,
+    // and 3900 would have been ADDED to a EUR subtotal.
+    expect(view.freight.options.every((o) => o.currency_code === "eur")).toBe(true)
+    expect(view.freight.chosen?.amount).toBe(35)
+    expect(view.freight.chosen?.currency_code).toBe("eur")
+  })
+
+  it("has no live half at all when only foreign-currency rates exist", async () => {
+    const captured: Captured = { contexts: [], rateWeights: [] }
+    const view = await buildQuoteView(
+      scopeWith(captured) as any,
+      baseInput({ currency_code: "eur" })
+    )
+
+    // No EUR option on the lane. Refusing is the point — a landed total built
+    // from an INR number would look perfectly ordinary.
+    expect(view.live).toBeNull()
+    expect(view.live_error).toMatch(/freight/i)
+  })
+
+  it("still keeps INR rates on an INR quote", async () => {
+    const captured: Captured = { contexts: [], rateWeights: [] }
+    const view = await buildQuoteView(scopeWith(captured) as any, baseInput())
+
+    // The guard must not over-correct into dropping the domestic case.
+    expect(view.freight.chosen?.amount).toBe(3900)
+    expect(view.freight.chosen?.currency_code).toBe("inr")
+  })
+})
+
 describe("buildQuoteView — lifecycle", () => {
   it("never re-prices a revoked link", async () => {
     const captured: Captured = { contexts: [], rateWeights: [] }

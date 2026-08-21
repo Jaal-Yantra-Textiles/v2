@@ -347,14 +347,20 @@ export async function buildShippingEstimate(
   const weightBucket = weightBucketGrams(totalWeightGrams)
   const cacheKey = `shipping-estimate:${carrier}:${originPostalCode}:${destinationPostalCode}:${countryCode}:${weightBucket}`
 
-  let calculated: ShippingEstimateOption[] = []
+  // 🔑 Carrier rates do NOT depend on the quote currency — the carrier answers
+  // in its own — so the cache holds them UNFILTERED and the currency guard is
+  // applied on both the hit and the miss path. Caching the filtered list under
+  // a key with no currency in it would serve an INR quote's survivors to a EUR
+  // one, which is the bug the guard exists to prevent, reintroduced through the
+  // cache.
+  let rawCalculated: ShippingEstimateOption[] = []
   let calculatedError: string | null = null
   let cacheHit = false
 
   const cacheService: any = scope.resolve(Modules.CACHE)
   const cached = await cacheService.get(cacheKey).catch(() => null)
   if (cached) {
-    calculated = cached as ShippingEstimateOption[]
+    rawCalculated = cached as ShippingEstimateOption[]
     cacheHit = true
   } else {
     try {
@@ -371,16 +377,17 @@ export async function buildShippingEstimate(
         destination_country: countryCode,
         weight_grams: weightBucket,
       })
-      calculated = (rates || []).map((r: any) => ({
-        courier_id: r.courier_id ?? null,
-        courier_name: r.courier_name ?? null,
-        amount: Number(r.amount),
-        currency_code: String(r.currency_code || "inr").toLowerCase(),
-        estimated_days: r.estimated_days ?? null,
-        is_recommended: !!r.is_recommended,
-        source: "calculated",
-      }))
-      await cacheService.set(cacheKey, calculated, 900).catch(() => {})
+      rawCalculated = (rates || [])
+        .map((r: any) => ({
+          courier_id: r.courier_id ?? null,
+          courier_name: r.courier_name ?? null,
+          amount: Number(r.amount),
+          currency_code: String(r.currency_code || "inr").toLowerCase(),
+          estimated_days: r.estimated_days ?? null,
+          is_recommended: !!r.is_recommended,
+          source: "calculated" as const,
+        }))
+      await cacheService.set(cacheKey, rawCalculated, 900).catch(() => {})
     } catch (err) {
       // A carrier that will not quote must not blank the whole estimate — the
       // manual options are still a real, quotable answer.
@@ -390,6 +397,35 @@ export async function buildShippingEstimate(
       )
     }
   }
+
+  /**
+   * 🔴 #1424's currency guard, which only ever covered the MANUAL branch.
+   *
+   * Carriers quote in their OWN currency — an Indian carrier answers in INR
+   * whatever the buyer is being billed in. `pickFreightOption` sorts on the raw
+   * `amount` and `composeQuoteMoney` adds it straight to the subtotal, so an
+   * INR rate on a EUR quote is not merely irrelevant: it silently WINS whenever
+   * its number is smaller, and is then added to a EUR total and rendered with a
+   * € sign.
+   *
+   * Seen on the first live international quote (Srinagar → Berlin, 3 kg, EUR):
+   * Shiprocket answered ₹3,788 / ₹5,232.50 / ₹14,436 alongside a €35 flat.
+   * €35 won ONLY because 35 is the smallest number — take the flat option away
+   * and the buyer's landed total becomes €4,718 + 3,788 = €8,506.
+   *
+   * Dropped rather than converted: converting needs an FX rate this function
+   * does not have, and a wrong rate is a wrong price wearing a confident label.
+   * Cross-border live rates in the buyer's own currency are a real gap, but a
+   * gap is recoverable and a mispriced consignment is not.
+   */
+  const calculated = rawCalculated.filter((r) => {
+    if (!quoteCurrency) return true
+    if (r.currency_code === quoteCurrency) return true
+    logger?.warn?.(
+      `[shipping-estimate] dropped ${carrier} rate ${r.amount} ${r.currency_code} — quote is in ${quoteCurrency}, and mixing currencies would corrupt the landed total`
+    )
+    return false
+  })
 
   return {
     lines,
