@@ -659,7 +659,22 @@ export const ADMIN_MCP_TOOLS: AdminMcpToolDef[] = [
     path: "/admin/products",
     write: true,
     sensitive: true,
-    bodyParams: ["title", "status", "description", "subtitle", "handle", "metadata"],
+    bodyParams: [
+      "title",
+      "status",
+      "description",
+      "subtitle",
+      "handle",
+      "thumbnail",
+      "images",
+      "categories",
+      "collection_id",
+      "type_id",
+      "tags",
+      ...PHYSICAL_AND_CUSTOMS_BODY_PARAMS,
+      "discountable",
+      "metadata",
+    ],
     inputSchema: obj(
       {
         title: STR("Product title (required)."),
@@ -667,12 +682,33 @@ export const ADMIN_MCP_TOOLS: AdminMcpToolDef[] = [
         description: STR("Product description."),
         subtitle: STR("Optional subtitle."),
         handle: STR("Optional URL handle (auto-derived from title if omitted)."),
+        thumbnail: STR("Optional thumbnail image URL."),
+        images: {
+          type: "array",
+          description: "Optional array of image URLs.",
+          items: { type: "string" },
+        },
+        categories: {
+          type: "array",
+          description:
+            "Category ids to assign this product to. Pass as [{ id: 'pcat_...' }]. A product can belong to multiple categories. Use create_product_category / list_product_categories to manage categories first.",
+          items: { type: "object", properties: { id: STR("Category id.") }, required: ["id"] },
+        },
+        collection_id: STR("Optional collection id. A product belongs to at most ONE collection."),
+        type_id: STR("Optional product type id."),
+        tags: {
+          type: "array",
+          description: "Tag ids to assign. Pass as [{ id: 'ptag_...' }].",
+          items: { type: "object", properties: { id: STR("Tag id.") }, required: ["id"] },
+        },
+        ...physicalAndCustomsSchemaProps(),
+        discountable: BOOL("Whether the product can be discounted (default true)."),
         metadata: { type: "object", description: "Optional key/value metadata." },
       },
       ["title"]
     ),
     sideEffects: "Creates a new product in 'draft' status unless status is set.",
-    nextSteps: ["get_product", "update_product"],
+    nextSteps: ["get_product", "update_product", "set_category_products"],
   },
   {
     // Creating a product for someone ELSE, into their live shop. Core
@@ -761,7 +797,7 @@ export const ADMIN_MCP_TOOLS: AdminMcpToolDef[] = [
   {
     name: "update_product",
     description:
-      "Update an existing product (title, status, description, handle, metadata). Sensitive: requires confirm:true. Use dry_run to see the current product first.",
+      "Update an existing product (title, status, description, handle, categories, collection, metadata and more). Sensitive: requires confirm:true. Use dry_run to see the current product first.",
     method: "POST",
     path: "/admin/products/:id",
     pathParams: ["id"],
@@ -774,11 +810,14 @@ export const ADMIN_MCP_TOOLS: AdminMcpToolDef[] = [
       "description",
       "subtitle",
       "handle",
-      "metadata",
-      // Product-level physical + customs attributes. Core's UpdateProduct
-      // validator accepts all of them. Product-level weight is the fallback the
-      // shipping estimate uses when a variant carries none.
+      "thumbnail",
+      "categories",
+      "collection_id",
+      "type_id",
+      "tags",
       ...PHYSICAL_AND_CUSTOMS_BODY_PARAMS,
+      "discountable",
+      "metadata",
     ],
     inputSchema: obj(
       {
@@ -788,12 +827,28 @@ export const ADMIN_MCP_TOOLS: AdminMcpToolDef[] = [
         description: STR("New description."),
         subtitle: STR("New subtitle."),
         handle: STR("New URL handle."),
+        thumbnail: STR("New thumbnail image URL."),
+        categories: {
+          type: "array",
+          description:
+            "Category ids to assign. Pass as [{ id: 'pcat_...' }]. Replaces the existing category assignments.",
+          items: { type: "object", properties: { id: STR("Category id.") }, required: ["id"] },
+        },
+        collection_id: STR("New collection id. Set to null to remove from collection."),
+        type_id: STR("New product type id."),
+        tags: {
+          type: "array",
+          description: "Tag ids to assign. Pass as [{ id: 'ptag_...' }].",
+          items: { type: "object", properties: { id: STR("Tag id.") }, required: ["id"] },
+        },
         ...physicalAndCustomsSchemaProps(),
+        discountable: BOOL("Whether the product can be discounted."),
         metadata: { type: "object", description: "Metadata to merge." },
       },
       ["id"]
     ),
     sideEffects: "Publishing a product makes it live on the storefront.",
+    nextSteps: ["get_product", "list_product_categories", "set_category_products"],
   },
   {
     name: "bulk_update_products",
@@ -812,6 +867,8 @@ export const ADMIN_MCP_TOOLS: AdminMcpToolDef[] = [
       "- `location_ids` defaults to every location on the scoping sales channel.",
       "",
       "⚠️ `manage_inventory: false` is REFUSED here. Core dismisses the variant's inventory item and its levels with it, with no undo, so it is not something to do to a whole selector. Use `update_product_variant` one variant at a time.",
+      "",
+      "CATEGORIES & COLLECTIONS — the `selector` accepts `category_id` and `collection_id` as FILTERS to scope which products to update. You CANNOT set categories or collections via `product_update` or per-row `update` — those fields are not in the allow-list. To assign products to categories/collections in bulk, use `set_category_products` / `set_collection_products` after updating.",
       "Capped at 200 products per call.",
     ].join("\n"),
     method: "POST",
@@ -912,6 +969,260 @@ export const ADMIN_MCP_TOOLS: AdminMcpToolDef[] = [
     sideEffects:
       "Overwrites live catalogue fields and on-hand stock across many products at once. Enabling tracking creates inventory items and levels. Setting a quantity below a variant's reserved stock oversells open orders — the response warns, it does not block.",
     nextSteps: ["list_products", "get_product"],
+  },
+  // ===== Product categories (nested tree) =================================
+  // Medusa's product_category model is self-referential (parent_category /
+  // category_children) with a materialised path, so categories nest to any
+  // depth. The admin MCP had no category CRUD tools — only the partner MCP
+  // did. These mirror the partner surface but hit the Medusa built-in admin
+  // routes (no store scoping).
+  {
+    name: "list_product_categories",
+    description:
+      "List product categories (paginated). Supports free-text search via q. Filter by parent_category_id to list children of a node, or pass include_descendants_tree / include_ancestors_tree to retrieve the full tree. Use is_active to see only visible categories.",
+    method: "GET",
+    path: "/admin/product-categories",
+    queryParams: [
+      "q",
+      "limit",
+      "offset",
+      "parent_category_id",
+      "is_active",
+      "is_internal",
+      "include_ancestors_tree",
+      "include_descendants_tree",
+    ],
+    inputSchema: obj({
+      ...PAGINATION,
+      parent_category_id: STR("Filter to children of this parent category (for navigating the tree)."),
+      is_active: BOOL("Filter to active/inactive categories."),
+      is_internal: BOOL("Filter to internal-only categories."),
+      include_ancestors_tree: BOOL("Include all ancestor categories in the response (walk up the tree)."),
+      include_descendants_tree: BOOL("Include all descendant categories in the response (walk down the tree)."),
+    }),
+  },
+  {
+    name: "get_product_category",
+    description:
+      "Get a single product category by id. Pass include_ancestors_tree to see the full path from root, or include_descendants_tree to see all sub-categories.",
+    method: "GET",
+    path: "/admin/product-categories/:id",
+    pathParams: ["id"],
+    queryParams: ["include_ancestors_tree", "include_descendants_tree"],
+    inputSchema: obj({
+      id: STR("Category id."),
+      include_ancestors_tree: BOOL("Include all ancestor categories (walk up to root)."),
+      include_descendants_tree: BOOL("Include all descendant categories (walk down the tree)."),
+    }),
+  },
+  {
+    name: "create_product_category",
+    description:
+      "Create a product category. Categories can be NESTED: pass parent_category_id to make this a child of an existing category. Set is_active to true to make it visible on the storefront. Sensitive: requires confirm:true.",
+    method: "POST",
+    path: "/admin/product-categories",
+    write: true,
+    sensitive: true,
+    bodyParams: [
+      "name",
+      "description",
+      "handle",
+      "is_active",
+      "is_internal",
+      "parent_category_id",
+      "external_id",
+      "metadata",
+      "rank",
+    ],
+    inputSchema: obj(
+      {
+        name: STR("Category name (required)."),
+        description: STR("Optional description."),
+        handle: STR("Optional URL handle (auto-derived from name if omitted)."),
+        is_active: BOOL("Whether the category is active/visible on the storefront."),
+        is_internal: BOOL("Internal-only category (not shown to customers)."),
+        parent_category_id: STR(
+          "Parent category id for NESTING. Omit for a root-level category. Pass an existing category's id to make this a sub-category."
+        ),
+        external_id: STR("Optional external id for syncing with an external system."),
+        metadata: { type: "object", additionalProperties: true, description: "Optional key/value metadata." },
+        rank: INT("Sort rank within the parent (0 = first)."),
+      },
+      ["name"]
+    ),
+    nextSteps: ["list_product_categories", "update_product_category", "set_category_products"],
+  },
+  {
+    name: "update_product_category",
+    description:
+      "Update a product category. Pass only the fields to change. To move a category in the tree, pass a new parent_category_id (or null to make it root). Sensitive: requires confirm:true.",
+    method: "POST",
+    path: "/admin/product-categories/:id",
+    pathParams: ["id"],
+    write: true,
+    sensitive: true,
+    previewPath: "/admin/product-categories/:id",
+    bodyParams: [
+      "name",
+      "description",
+      "handle",
+      "is_active",
+      "is_internal",
+      "parent_category_id",
+      "external_id",
+      "metadata",
+      "rank",
+    ],
+    inputSchema: obj(
+      {
+        id: STR("Category id."),
+        name: STR("New name."),
+        description: STR("New description."),
+        handle: STR("New URL handle."),
+        is_active: BOOL("Active/visible on storefront."),
+        is_internal: BOOL("Internal-only."),
+        parent_category_id: STR(
+          "New parent category id to MOVE this category in the tree. Pass null to make it root-level."
+        ),
+        external_id: STR("External id."),
+        metadata: { type: "object", additionalProperties: true, description: "Metadata to merge." },
+        rank: INT("New sort rank within the parent."),
+      },
+      ["id"]
+    ),
+  },
+  {
+    name: "delete_product_category",
+    description:
+      "Delete a product category. Cascades to child categories. Products in the category are unlinked, not deleted. Sensitive: requires confirm:true.",
+    method: "DELETE",
+    path: "/admin/product-categories/:id",
+    pathParams: ["id"],
+    write: true,
+    sensitive: true,
+    previewPath: "/admin/product-categories/:id",
+    inputSchema: obj({ id: STR("Category id to delete.") }, ["id"]),
+  },
+  {
+    name: "set_category_products",
+    description:
+      "Add and/or remove products from a category in one call. `add` and `remove` are arrays of product ids. A product can belong to multiple categories. Sensitive: requires confirm:true.",
+    method: "POST",
+    path: "/admin/product-categories/:id/products",
+    pathParams: ["id"],
+    write: true,
+    sensitive: true,
+    bodyParams: ["add", "remove"],
+    inputSchema: obj(
+      {
+        id: STR("Category id."),
+        add: { type: "array", description: "Product ids to add to this category.", items: { type: "string" } },
+        remove: {
+          type: "array",
+          description: "Product ids to remove from this category.",
+          items: { type: "string" },
+        },
+      },
+      ["id"]
+    ),
+  },
+  // ===== Product collections ==============================================
+  // Collections are FLAT merchandising groups (no nesting, unlike categories).
+  // A product belongs to at most ONE collection (collection_id on the product).
+  // Use categories for hierarchical organisation; use collections for
+  // curated groups like "Summer Sale" or "New Arrivals".
+  {
+    name: "list_product_collections",
+    description:
+      "List product collections (paginated). Supports free-text search via q.",
+    method: "GET",
+    path: "/admin/collections",
+    queryParams: ["q", "limit", "offset"],
+    inputSchema: obj({ ...PAGINATION }),
+  },
+  {
+    name: "get_product_collection",
+    description: "Get a single product collection by id.",
+    method: "GET",
+    path: "/admin/collections/:id",
+    pathParams: ["id"],
+    inputSchema: obj({ id: STR("Collection id.") }, ["id"]),
+  },
+  {
+    name: "create_product_collection",
+    description:
+      "Create a product collection (a flat merchandising group, NOT nested). A product belongs to at most one collection. Sensitive: requires confirm:true.",
+    method: "POST",
+    path: "/admin/collections",
+    write: true,
+    sensitive: true,
+    bodyParams: ["title", "handle", "external_id", "metadata"],
+    inputSchema: obj(
+      {
+        title: STR("Collection title (required)."),
+        handle: STR("Optional URL handle (auto-derived from title if omitted)."),
+        external_id: STR("Optional external id for syncing with an external system."),
+        metadata: { type: "object", additionalProperties: true, description: "Optional key/value metadata." },
+      },
+      ["title"]
+    ),
+    nextSteps: ["list_product_collections", "update_product_collection", "set_collection_products"],
+  },
+  {
+    name: "update_product_collection",
+    description: "Update a product collection. Pass only the fields to change. Sensitive: requires confirm:true.",
+    method: "POST",
+    path: "/admin/collections/:id",
+    pathParams: ["id"],
+    write: true,
+    sensitive: true,
+    previewPath: "/admin/collections/:id",
+    bodyParams: ["title", "handle", "external_id", "metadata"],
+    inputSchema: obj(
+      {
+        id: STR("Collection id."),
+        title: STR("New title."),
+        handle: STR("New URL handle."),
+        external_id: STR("External id."),
+        metadata: { type: "object", additionalProperties: true, description: "Metadata to merge." },
+      },
+      ["id"]
+    ),
+  },
+  {
+    name: "delete_product_collection",
+    description:
+      "Delete a product collection. Products are unlinked, not deleted. Sensitive: requires confirm:true.",
+    method: "DELETE",
+    path: "/admin/collections/:id",
+    pathParams: ["id"],
+    write: true,
+    sensitive: true,
+    previewPath: "/admin/collections/:id",
+    inputSchema: obj({ id: STR("Collection id to delete.") }, ["id"]),
+  },
+  {
+    name: "set_collection_products",
+    description:
+      "Add and/or remove products from a collection. `add`/`remove` are arrays of product ids. A product can belong to only ONE collection, so adding it to a new collection removes it from its previous one. Sensitive: requires confirm:true.",
+    method: "POST",
+    path: "/admin/collections/:id/products",
+    pathParams: ["id"],
+    write: true,
+    sensitive: true,
+    bodyParams: ["add", "remove"],
+    inputSchema: obj(
+      {
+        id: STR("Collection id."),
+        add: { type: "array", description: "Product ids to add to this collection.", items: { type: "string" } },
+        remove: {
+          type: "array",
+          description: "Product ids to remove from this collection.",
+          items: { type: "string" },
+        },
+      },
+      ["id"]
+    ),
   },
   // ===== Customs / HS codes ===============================================
   // Shiprocket rejects EVERY international shipment whose lines lack an HSN,
