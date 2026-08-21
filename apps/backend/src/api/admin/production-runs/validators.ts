@@ -144,6 +144,10 @@ export const AdminRedispatchParkedRunsReq = z.object({
   confirm: z.boolean().optional(),
 })
 
+export const AdminFinishProductionRunReq = z.object({
+  notes: z.string().max(1000).nullish(),
+})
+
 export type AdminCreateProductionRunReq = z.infer<typeof AdminCreateProductionRunReq>
 export type AdminApproveProductionRunReq = z.infer<typeof AdminApproveProductionRunReq>
 export type AdminSendProductionRunToProductionReq = z.infer<typeof AdminSendProductionRunToProductionReq>
@@ -151,3 +155,4 @@ export type AdminStartDispatchProductionRunReq = z.infer<typeof AdminStartDispat
 export type AdminResumeDispatchProductionRunReq = z.infer<typeof AdminResumeDispatchProductionRunReq>
 export type AdminAssignProductionRunPartnerReq = z.infer<typeof AdminAssignProductionRunPartnerReq>
 export type AdminRedispatchParkedRunsReq = z.infer<typeof AdminRedispatchParkedRunsReq>
+export type AdminFinishProductionRunReq = z.infer<typeof AdminFinishProductionRunReq>
