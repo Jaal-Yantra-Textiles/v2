@@ -84,7 +84,7 @@ class ShiprocketFulfillmentService extends AbstractFulfillmentProviderService {
    * replaced.
    */
   async calculatePrice(
-    _optionData: Record<string, unknown>,
+    optionData: Record<string, unknown>,
     _data: Record<string, unknown>,
     context: any
   ): Promise<CalculatedShippingOptionPrice> {
@@ -94,7 +94,7 @@ class ShiprocketFulfillmentService extends AbstractFulfillmentProviderService {
     ).toUpperCase()
 
     if (!derived.context) {
-      return this.flatFallback(destinationCountry, derived.reason!)
+      return this.flatFallback(destinationCountry, derived.reason!, optionData)
     }
 
     const rateContext = derived.context
@@ -119,7 +119,8 @@ class ShiprocketFulfillmentService extends AbstractFulfillmentProviderService {
           destinationCountry,
           `Shiprocket returned no courier for ${rateContext.origin_pincode} → ${
             rateContext.destination_country || rateContext.destination_pincode
-          }`
+          }`,
+          optionData
         )
       }
 
@@ -129,7 +130,7 @@ class ShiprocketFulfillmentService extends AbstractFulfillmentProviderService {
       }
     } catch (e: any) {
       this.logger.error(`Shiprocket calculatePrice error: ${e.message}`)
-      return this.flatFallback(destinationCountry, e.message)
+      return this.flatFallback(destinationCountry, e.message, optionData)
     }
   }
 
@@ -144,11 +145,13 @@ class ShiprocketFulfillmentService extends AbstractFulfillmentProviderService {
    */
   private flatFallback(
     destinationCountry: string,
-    reason: string
+    reason: string,
+    optionData?: Record<string, unknown>
   ): CalculatedShippingOptionPrice {
     const { amount, reason: unconfigured } = resolveFlatFallbackAmount(
       this.fallbackConfig,
-      destinationCountry
+      destinationCountry,
+      optionData
     )
 
     this.logger.warn(

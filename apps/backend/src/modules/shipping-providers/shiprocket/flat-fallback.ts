@@ -52,8 +52,20 @@ export type FlatFallbackConfig = {
  */
 export function resolveFlatFallbackAmount(
   config: FlatFallbackConfig | undefined,
-  destinationCountry: string | undefined
+  destinationCountry: string | undefined,
+  /**
+   * The shipping option's own `data` blob. This is the FIRST place we look,
+   * because it is the only per-store lever: `create-store-with-defaults` stamps
+   * the same amount here that it prices the manual companion option at, so when
+   * the carrier will not quote, the manual provider's number is literally what
+   * takes over — not a constant that merely happens to match. An operator
+   * editing the flat option's price can edit this alongside it.
+   */
+  optionData?: Record<string, unknown>
 ): { amount?: number; reason?: string } {
+  const fromOption = Number((optionData as any)?.flat_fallback_amount)
+  if (Number.isFinite(fromOption)) return { amount: fromOption }
+
   const country = String(destinationCountry || "IN").toUpperCase()
 
   const byCountry = config?.flat_fallback_amounts

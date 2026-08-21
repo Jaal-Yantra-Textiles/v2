@@ -26,9 +26,18 @@ export const QuoteMintedPanel = ({ result }: QuoteMintedPanelProps) => {
   const domain =
     (partner as any)?.custom_domain || (partner as any)?.storefront_domain
 
-  const link = domain
-    ? `https://${domain}/quotes/${result.token}`
-    : null
+  // Both storefronts route every page under `app/[countryCode]/`, so a link
+  // without that segment 404s. It does not need a new field: the quote already
+  // carries a REQUIRED `destination_country_code`, so the segment is inferred
+  // from the buyer's own destination rather than guessed or defaulted.
+  const countryCode = String(
+    (result as any)?.quote?.destination_country_code || ""
+  ).toLowerCase()
+
+  const link =
+    domain && countryCode
+      ? `https://${domain}/${countryCode}/quotes/${result.token}`
+      : null
 
   const copy = async (value: string, label: string) => {
     try {

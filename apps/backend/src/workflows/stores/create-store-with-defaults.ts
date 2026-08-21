@@ -656,6 +656,11 @@ const autoLinkFulfillmentProvidersStep = createStep(
               `(${isCarrier ? `calculated/${providerId}` : "flat tiered/manual"})`
             )
 
+            // The flat rate a lane falls back to, in the store's own price
+            // units. One constant so the manual companion option and the
+            // Shiprocket option's `data.flat_fallback_amount` cannot drift.
+            const FLAT_FALLBACK_AMOUNT = 200
+
             // --- Shiprocket, alongside Delhivery (#1417) ---------------------
             //
             // Shiprocket was ALREADY linked to every IN stock location above and
@@ -682,6 +687,12 @@ const autoLinkFulfillmentProvidersStep = createStep(
                     shipping_profile_id: profileId,
                     provider_id: "shiprocket_shiprocket",
                     price_type: "calculated",
+                    // What this option costs when Shiprocket will not quote the
+                    // lane. Stamped here — the same number the manual companion
+                    // below is priced at — so the fallback IS the manual
+                    // provider's price rather than a constant that happens to
+                    // match it. Editable per store alongside that option.
+                    data: { flat_fallback_amount: FLAT_FALLBACK_AMOUNT },
                     type: {
                       label: "Standard",
                       description: "Standard delivery via Shiprocket — live rates",
@@ -710,7 +721,12 @@ const autoLinkFulfillmentProvidersStep = createStep(
                       description: "Flat-rate delivery — used when no carrier will quote",
                       code: `flat-fallback-${suffix}`,
                     },
-                    prices: [{ currency_code: input.currencyCode.toLowerCase(), amount: 200 }],
+                    prices: [
+                      {
+                        currency_code: input.currencyCode.toLowerCase(),
+                        amount: FLAT_FALLBACK_AMOUNT,
+                      },
+                    ],
                     rules: [
                       { attribute: "enabled_in_store", value: "true", operator: "eq" },
                       { attribute: "is_return", value: "false", operator: "eq" },
