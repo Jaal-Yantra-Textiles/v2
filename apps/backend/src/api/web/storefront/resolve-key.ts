@@ -52,25 +52,27 @@ export async function resolveStorefrontForPartner(
 
   // Find the publishable key linked to this sales channel.
   //
-  // ⚠️ This query is UNFILTERED across every publishable key on the platform,
-  // so it is a shared blast radius: `.find` evaluates the predicate against
-  // other tenants' keys before reaching this one's. A single malformed row
-  // therefore breaks resolution for every partner ordered after it, not just
-  // the partner who owns it.
+  // 🔴 FILTERED BY SALES CHANNEL, deliberately.
   //
-  // That is not hypothetical. Deleting a store's sales channel while its
-  // publishable key survived left a dangling link, and the expansion returned
-  // `sales_channels: [null]`. The unguarded `sc.id` threw
-  // `TypeError: Cannot read properties of undefined (reading 'id')`, and EVERY
-  // partner storefront 404'd — the edge middleware treats a non-ok resolve as
-  // "no tenant here" and serves its no-storefront page.
+  // This query used to fetch EVERY publishable key on the platform and scan for
+  // a match, which made it a shared blast radius: `.find` evaluated the
+  // predicate against other tenants' keys on the way to this one's. On
+  // 2026-08-21 a store's sales channel was deleted while its publishable key
+  // survived, the dangling link expanded to `sales_channels: [null]`, and the
+  // unguarded `sc.id` threw. Every partner whose key sorted after the orphan's
+  // got a 500 — and the edge middleware treats a non-ok resolve as "no tenant
+  // here", so it served a friendly 404 and every storefront, custom domains
+  // included, went dark.
   //
-  // So `sc?.id` is not defensive noise. A dead link belonging to one tenant
-  // must never be able to take down another's storefront.
+  // Filtering at the database is the property that makes that impossible
+  // rather than merely survivable: another tenant's rows are never walked while
+  // resolving this one's. The `sc?.id` guard below stays anyway — it now only
+  // has to hold against THIS partner's own malformed row, which is a blast
+  // radius of one.
   const { data: apiKeys } = await query.graph({
     entity: "api_keys",
     fields: ["*", "sales_channels.*"],
-    filters: { type: "publishable" },
+    filters: { type: "publishable", sales_channels: { id: salesChannelId } },
   })
 
   const matchingKey = (apiKeys || []).find((key: any) =>
