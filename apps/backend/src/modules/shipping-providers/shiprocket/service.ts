@@ -1,4 +1,7 @@
-import { AbstractFulfillmentProviderService } from "@medusajs/framework/utils"
+import {
+  AbstractFulfillmentProviderService,
+  MedusaError,
+} from "@medusajs/framework/utils"
 import {
   CreateFulfillmentResult,
   FulfillmentOption,
@@ -11,6 +14,8 @@ import {
 } from "@medusajs/framework/types"
 import { ShiprocketClient, ShiprocketOptions } from "./client"
 import { CreateShipmentInput, ShipmentItem } from "../provider-interface"
+import { deriveShiprocketRateContext } from "./rate-context"
+import { FlatFallbackConfig, resolveFlatFallbackAmount } from "./flat-fallback"
 
 type InjectedDeps = { logger: Logger }
 
@@ -28,11 +33,20 @@ class ShiprocketFulfillmentService extends AbstractFulfillmentProviderService {
 
   protected client: ShiprocketClient
   protected logger: Logger
+  /** What an unquotable lane costs. See `flat-fallback.ts`. */
+  protected fallbackConfig: FlatFallbackConfig
 
-  constructor({ logger }: InjectedDeps, options: ShiprocketOptions) {
+  constructor(
+    { logger }: InjectedDeps,
+    options: ShiprocketOptions & FlatFallbackConfig
+  ) {
     super()
     this.logger = logger
     this.client = new ShiprocketClient(options)
+    this.fallbackConfig = {
+      flat_fallback_amounts: options?.flat_fallback_amounts,
+      flat_fallback_amount: options?.flat_fallback_amount,
+    }
   }
 
   async getFulfillmentOptions(): Promise<FulfillmentOption[]> {
@@ -58,46 +72,104 @@ class ShiprocketFulfillmentService extends AbstractFulfillmentProviderService {
     return true
   }
 
+  /**
+   * Price the cart's lane (#1417).
+   *
+   * Domestic AND international. The derivation lives in `deriveShiprocketRateContext`
+   * (pure, unit-tested) and the client already branches on `destination_country`
+   * into the `/international/*` endpoint — this method's job is only to ask, and
+   * to decide what an unquotable lane costs.
+   *
+   * 🔴 It no longer answers `0`. Every path that cannot produce a live rate —
+   * an underivable lane, a carrier error, an empty courier list — resolves to
+   * the configured flat fallback, and if none is configured it THROWS naming the
+   * country. See `flat-fallback.ts` for why a defaulted default is not an option.
+   */
   async calculatePrice(
     _optionData: Record<string, unknown>,
     _data: Record<string, unknown>,
     context: any
   ): Promise<CalculatedShippingOptionPrice> {
+    const derived = deriveShiprocketRateContext(context)
+    const destinationCountry = String(
+      context?.shipping_address?.country_code || ""
+    ).toUpperCase()
+
+    if (!derived.context) {
+      return this.flatFallbackOrThrow(destinationCountry, derived.reason!)
+    }
+
+    const rateContext = derived.context
+
     try {
-      const originPin = String(context?.from_location?.address?.postal_code || "")
-      const destPin = String(context?.shipping_address?.postal_code || "")
-      const isValidPin = (p: string) => /^\d{6}$/.test(p)
-      if (!isValidPin(originPin) || !isValidPin(destPin)) {
-        return { calculated_amount: 0, is_calculated_price_tax_inclusive: false }
-      }
-
-      const items = (context?.items || []) as any[]
-      let totalWeight = 0
-      let totalQty = 0
-      let hasWeight = false
-      for (const item of items) {
-        const qty = item.quantity || 1
-        totalQty += qty
-        if (item.variant?.weight) {
-          hasWeight = true
-          totalWeight += item.variant.weight * qty
-        }
-      }
-      if (!hasWeight) totalWeight = Math.max(400, totalQty * 400)
-
       const rates = await this.client.getRates({
-        origin_pincode: originPin,
-        destination_pincode: destPin,
-        weight_grams: totalWeight,
+        origin_pincode: rateContext.origin_pincode,
+        destination_pincode: rateContext.destination_pincode,
+        destination_country: rateContext.destination_country,
+        weight_grams: rateContext.weight_grams,
+        dimensions_cm: rateContext.dimensions_cm,
       })
+
       const recommended = rates.find((r) => r.is_recommended) || rates[0]
+
+      // An EMPTY courier list is a refusal wearing a 200 — it is how the
+      // domestic endpoint answers a lane it will not carry. Treating it as a
+      // successful quote of 0 is precisely the bug this method used to have, so
+      // it falls back like any other failure.
+      if (!recommended || !Number.isFinite(Number(recommended.amount))) {
+        return this.flatFallbackOrThrow(
+          destinationCountry,
+          `Shiprocket returned no courier for ${rateContext.origin_pincode} → ${
+            rateContext.destination_country || rateContext.destination_pincode
+          }`
+        )
+      }
+
       return {
-        calculated_amount: recommended?.amount || 0,
+        calculated_amount: Number(recommended.amount),
         is_calculated_price_tax_inclusive: true,
       }
     } catch (e: any) {
       this.logger.error(`Shiprocket calculatePrice error: ${e.message}`)
-      return { calculated_amount: 0, is_calculated_price_tax_inclusive: false }
+      return this.flatFallbackOrThrow(destinationCountry, e.message)
+    }
+  }
+
+  /**
+   * The flat rate, or a loud refusal when nobody has configured one.
+   *
+   * The `reason` is logged rather than returned: the buyer must not be shown a
+   * carrier's internal complaint, but an operator needs to know the lane fell
+   * back rather than quoting live — otherwise a carrier outage looks exactly
+   * like normal pricing.
+   */
+  private flatFallbackOrThrow(
+    destinationCountry: string,
+    reason: string
+  ): CalculatedShippingOptionPrice {
+    const { amount, reason: unconfigured } = resolveFlatFallbackAmount(
+      this.fallbackConfig,
+      destinationCountry
+    )
+
+    if (amount === undefined) {
+      throw new MedusaError(
+        MedusaError.Types.NOT_ALLOWED,
+        `Shiprocket could not quote this shipment (${reason}), and ${unconfigured}`
+      )
+    }
+
+    this.logger.warn(
+      `[shiprocket] falling back to the flat rate ${amount} for ${
+        destinationCountry || "IN"
+      } — ${reason}`
+    )
+
+    return {
+      calculated_amount: amount,
+      // A flat rate is a figure WE set, so it carries no carrier tax treatment
+      // to inherit. Claiming tax-inclusive here would quietly shrink it.
+      is_calculated_price_tax_inclusive: false,
     }
   }
 
