@@ -202,16 +202,27 @@ export const PUT = async (
   res.status(200).json({ partner: result })
 }
 
-// Delete a partner by id
+/**
+ * Soft-delete a partner, and with it the things that are meaningless without
+ * it: its store, that store's sales channel, and its products. The publishable
+ * key is UNLINKED rather than revoked or deleted — see
+ * `workflows/partners/lib/partner-deletion-plan.ts` for why each tier is what
+ * it is. Nothing here is hard-deleted, and commercial history is never touched.
+ *
+ * Refuses by default when the partner still has orders in flight. `?force=true`
+ * overrides that — the orders themselves stay untouched either way, but their
+ * storefront goes dark.
+ */
 export const DELETE = async (
   req: MedusaRequest,
   res: MedusaResponse
 ) => {
   const id = req.params.id
+  const force = String((req.query as any)?.force ?? "") === "true"
 
-  await deletePartnerWorkflow(req.scope).run({
-    input: { id },
+  const { result } = await deletePartnerWorkflow(req.scope).run({
+    input: { id, force },
   })
 
-  res.status(200).json({ id, object: "partner", deleted: true })
+  res.status(200).json({ id, object: "partner", deleted: true, result })
 }
