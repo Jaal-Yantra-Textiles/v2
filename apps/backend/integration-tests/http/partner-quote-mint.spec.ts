@@ -359,6 +359,136 @@ setupSharedTestSuite(() => {
       expect(currentQuote.data.quote.status).toBe("active")
     })
 
+    describe("the readiness preflight (#1445)", () => {
+      it("passes a basket that can actually be quoted, and previews the freight", async () => {
+        const { api } = getSharedTestEnv()
+        const body = mintBody(seed)
+        const res = await loud("readiness-ok", () =>
+          api.post(
+            "/partners/quotes/readiness",
+            {
+              lines: body.lines,
+              destination_country_code: body.destination_country_code,
+              destination_postal_code: body.destination_postal_code,
+              destination_city: body.destination_city,
+              currency_code: body.currency_code,
+              region_id: body.region_id,
+              carrier: body.carrier,
+            },
+            { headers: seed.headers }
+          )
+        )
+
+        expect(res.status).toBe(200)
+        expect(res.data.readiness.ready).toBe(true)
+        expect(res.data.readiness.blocking_count).toBe(0)
+        // It resolved a real freight option in the quote's own currency —
+        // the #1424/#1434 guard, asserted from outside.
+        expect(res.data.readiness.freight.chosen).toBeTruthy()
+        expect(res.data.readiness.freight.chosen.currency_code).toBe(
+          body.currency_code
+        )
+        expect(res.data.readiness.freight.total_weight_grams).toBeGreaterThan(0)
+      })
+
+      it("names the variant that does not exist rather than failing vaguely", async () => {
+        const { api } = getSharedTestEnv()
+        const body = mintBody(seed)
+        const res = await loud("readiness-missing-variant", () =>
+          api.post(
+            "/partners/quotes/readiness",
+            {
+              lines: [{ variant_id: "variant_does_not_exist", quantity: 5 }],
+              destination_country_code: body.destination_country_code,
+              destination_postal_code: body.destination_postal_code,
+              currency_code: body.currency_code,
+              region_id: body.region_id,
+              carrier: body.carrier,
+            },
+            { headers: seed.headers }
+          )
+        )
+
+        expect(res.data.readiness.ready).toBe(false)
+        const codes = res.data.readiness.issues.map((i: any) => i.code)
+        expect(codes).toContain("variant_missing")
+        const issue = res.data.readiness.issues.find(
+          (i: any) => i.code === "variant_missing"
+        )
+        expect(issue.variant_id).toBe("variant_does_not_exist")
+        expect(issue.severity).toBe("blocking")
+      })
+
+      it("reports EVERY blocking failure at once, not just the first", async () => {
+        // 🔑 The whole point of a preflight. Throwing on the first problem —
+        // which is what buildQuoteView does, correctly, on a render path —
+        // makes a partner fix one thing per round trip.
+        const { api } = getSharedTestEnv()
+        const body = mintBody(seed)
+        const res = await loud("readiness-multi", () =>
+          api.post(
+            "/partners/quotes/readiness",
+            {
+              lines: [
+                { variant_id: "variant_missing_one", quantity: 5 },
+                { variant_id: "variant_missing_two", quantity: 5 },
+              ],
+              destination_country_code: body.destination_country_code,
+              destination_postal_code: body.destination_postal_code,
+              currency_code: body.currency_code,
+              region_id: body.region_id,
+              carrier: body.carrier,
+            },
+            { headers: seed.headers }
+          )
+        )
+
+        expect(res.data.readiness.blocking_count).toBeGreaterThanOrEqual(2)
+        const ids = res.data.readiness.issues
+          .filter((i: any) => i.code === "variant_missing")
+          .map((i: any) => i.variant_id)
+        expect(ids).toEqual(
+          expect.arrayContaining(["variant_missing_one", "variant_missing_two"])
+        )
+      })
+
+      it("does not resolve `readiness` as a quote id", async () => {
+        // The static segment sits alongside /partners/quotes/:id. If the
+        // dynamic route won, this would 404 as an unknown quote and the
+        // preflight would silently not exist.
+        const { api } = getSharedTestEnv()
+        const res = await loud("readiness-routing", () =>
+          api.post(
+            "/partners/quotes/readiness",
+            {
+              lines: mintBody(seed).lines,
+              destination_country_code: "in",
+              destination_postal_code: "400001",
+              currency_code: seed.currencyCode,
+              region_id: seed.regionId,
+              carrier: "manual",
+            },
+            { headers: seed.headers }
+          )
+        )
+        expect(res.status).toBe(200)
+        expect(res.data.readiness).toBeDefined()
+      })
+
+      it("🔴 the MINT itself refuses an unquotable basket — the preflight is not advisory", async () => {
+        // A checklist a client can skip is not a gate. The same assessor runs
+        // as the first step of the workflow, before anything is created.
+        const { api } = getSharedTestEnv()
+        const body = mintBody(seed, {
+          lines: [{ variant_id: "variant_does_not_exist", quantity: 5 }],
+        })
+
+        await expect(
+          api.post("/partners/quotes", body, { headers: seed.headers })
+        ).rejects.toMatchObject({ response: { status: 400 } })
+      })
+    })
+
     it("pages, searches and sorts for real — the count is the SET, not the page", async () => {
       /**
        * #1441. Both list routes used to return the whole table and report

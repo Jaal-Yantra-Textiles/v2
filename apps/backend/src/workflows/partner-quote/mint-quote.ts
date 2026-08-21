@@ -18,6 +18,7 @@ import {
 
 import { PARTNER_QUOTE_MODULE } from "../../modules/partner-quote"
 import { buildQuoteView } from "../../modules/partner-quote/lib/build-quote-view"
+import { assessQuoteReadiness } from "../../modules/partner-quote/lib/quote-readiness"
 import {
   generateQuoteToken,
   quoteExpiryFrom,
@@ -173,6 +174,51 @@ const resolveQuoteBuyerStep = createStep(
         .deleteCustomers([undo.createdCustomerId])
         .catch(() => {})
     }
+  }
+)
+
+/**
+ * Refuse to quote what cannot be shipped or priced (#1445).
+ *
+ * Every wrong number this feature produced was minted SUCCESSFULLY — a
+ * zone-blind freight pick, a rupee rate in a euro total, a rule-bound zero
+ * that shipped bulk free. In each case the mint returned 201 and nobody knew.
+ * This is the gate that turns those into a refusal.
+ *
+ * 🔑 It reports EVERY blocking failure at once, not the first. A partner
+ * fixing a quote one error at a time plays whack-a-mole across five round
+ * trips; the wizards call the same assessor up front so the mint button is
+ * only live when it would produce a number worth acting on.
+ *
+ * ⚠️ `check_catalogue` is false here. The workflow's `store` input carries the
+ * location but not the sales channel, and the admin route already runs
+ * `assertVariantsInStore` with the channel it fetched. Checking with a missing
+ * channel would either refuse every quote or — worse — silently pass. The
+ * readiness ENDPOINTS do the catalogue half, where the channel is in hand.
+ */
+const validateQuoteReadinessStep = createStep(
+  "validate-quote-readiness-step",
+  async (input: MintQuoteInput, { container }) => {
+    const readiness = await assessQuoteReadiness(container, {
+      lines: input.lines,
+      store: input.store,
+      destination_country_code: input.destination_country_code,
+      destination_postal_code: input.destination_postal_code,
+      currency_code: input.currency_code,
+      region_id: input.region_id,
+      carrier: input.carrier,
+      check_catalogue: false,
+    })
+
+    if (!readiness.ready) {
+      const blocking = readiness.issues.filter((i) => i.severity === "blocking")
+      throw new MedusaError(
+        MedusaError.Types.INVALID_DATA,
+        `This quote cannot be minted:\n${blocking.map((i) => `• ${i.message}`).join("\n")}`
+      )
+    }
+
+    return new StepResponse(readiness)
   }
 )
 
@@ -553,6 +599,10 @@ export const mintQuoteWorkflow = createWorkflow(
   "mint-partner-quote",
   (input: MintQuoteInput) => {
     const timing = prepareTimingStep(input)
+
+    // Before anything is created. A readiness failure must cost nothing —
+    // no customer, no group, no price list, nothing to compensate.
+    validateQuoteReadinessStep(input)
 
     const buyer = resolveQuoteBuyerStep(input)
     const view = buildAndFreezeStep({ mint: input, now: timing.now } as any)

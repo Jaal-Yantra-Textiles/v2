@@ -13,12 +13,15 @@ import { KeyboundForm } from "../../../../../components/utilities/keybound-form"
 import { useDocumentDirection } from "../../../../../hooks/use-document-direction"
 import {
   MintPartnerQuoteResponse,
+  QuoteReadiness,
   useMintPartnerQuote,
+  useQuoteReadiness,
 } from "../../../../../hooks/api/partner-quotes"
 import { QuoteBuyerForm } from "./quote-buyer-form"
 import { QuoteMintedPanel } from "./quote-minted-panel"
 import { QuoteProductsForm } from "./quote-products-form"
 import { QuoteQuantitiesForm } from "./quote-quantities-form"
+import { QuoteReadinessPanel } from "./quote-readiness-panel"
 import {
   QuoteBuyerFields,
   QuoteBuyerSchema,
@@ -87,6 +90,16 @@ export const QuoteCreateForm = ({
 
   const { mutateAsync, isPending } = useMintPartnerQuote()
 
+  /**
+   * #1445 — the preflight. Run on submit rather than on every quantity change:
+   * it prices every line and asks a carrier, which is not a thing to fire per
+   * keystroke. The mint runs the same assessor server-side, so this changes
+   * what the partner SEES, never what the platform accepts.
+   */
+  const { mutateAsync: checkReadiness, isPending: isChecking } =
+    useQuoteReadiness()
+  const [readiness, setReadiness] = useState<QuoteReadiness | null>(null)
+
   const handleSubmit = form.handleSubmit(async (data) => {
     /**
      * A blank or zero quantity means "not in this basket" — it is dropped, not
@@ -107,6 +120,42 @@ export const QuoteCreateForm = ({
         t(
           "quotes.create.noLines",
           "Set a quantity on at least one variant — a quote with no lines has nothing to price."
+        )
+      )
+      setTab(Tab.QUANTITY)
+      return
+    }
+
+    // Preflight before anything is created. A basket that cannot be shipped or
+    // priced is refused HERE, with every reason named at once, rather than
+    // minting a confident wrong number the way #1424/#1430/#1434 all did.
+    let assessed: QuoteReadiness | null = null
+    try {
+      const result = await checkReadiness({
+        lines: lines.map((l) => ({
+          variant_id: l.variant_id,
+          quantity: l.quantity,
+        })),
+        destination_country_code: data.destination_country_code,
+        destination_postal_code: data.destination_postal_code || null,
+        destination_city: data.destination_city || null,
+        currency_code: data.currency_code,
+      })
+      assessed = result.readiness
+      setReadiness(result.readiness)
+    } catch {
+      // 🔑 A preflight that cannot run must not block the mint. The workflow
+      // runs the same assessor as its first step, so the real gate is still
+      // there — failing closed here would turn an unrelated network blip into
+      // "you cannot quote".
+      setReadiness(null)
+    }
+
+    if (assessed && !assessed.ready) {
+      toast.error(
+        t(
+          "quotes.create.readiness.blockedToast",
+          "This quote cannot be minted yet — see the reasons above."
         )
       )
       setTab(Tab.QUANTITY)
@@ -277,7 +326,14 @@ export const QuoteCreateForm = ({
               className="size-full overflow-hidden"
               value={Tab.QUANTITY}
             >
-              <QuoteQuantitiesForm form={form} />
+              <div className="flex h-full flex-col overflow-y-auto">
+                {readiness && (
+                  <div className="px-6 pt-4 md:px-16">
+                    <QuoteReadinessPanel readiness={readiness} />
+                  </div>
+                )}
+                <QuoteQuantitiesForm form={form} />
+              </div>
             </ProgressTabs.Content>
           </RouteFocusModal.Body>
           <RouteFocusModal.Footer>
@@ -293,7 +349,7 @@ export const QuoteCreateForm = ({
                   type="submit"
                   variant="primary"
                   size="small"
-                  isLoading={isPending}
+                  isLoading={isPending || isChecking}
                 >
                   {t("quotes.create.mint", "Mint quote")}
                 </Button>
