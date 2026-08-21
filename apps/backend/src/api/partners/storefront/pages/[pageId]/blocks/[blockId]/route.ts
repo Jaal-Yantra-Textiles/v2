@@ -2,7 +2,10 @@ import {
   AuthenticatedMedusaRequest,
   MedusaResponse,
 } from "@medusajs/framework/http"
-import { validatePartnerBlockOwnership } from "../../../../helpers"
+import {
+  validatePartnerBlockOwnership,
+  triggerStorefrontRevalidate,
+} from "../../../../helpers"
 import { updateBlockWorkflow } from "../../../../../../../workflows/website/page-blocks/update-block"
 import { deleteBlockWorkflow } from "../../../../../../../workflows/website/page-blocks/delete-block"
 
@@ -32,7 +35,7 @@ export const PUT = async (
   req: AuthenticatedMedusaRequest,
   res: MedusaResponse
 ) => {
-  await validatePartnerBlockOwnership(
+  const { website } = await validatePartnerBlockOwnership(
     req.auth_context,
     req.params.pageId,
     req.params.blockId,
@@ -47,7 +50,11 @@ export const PUT = async (
     },
   })
 
-  res.json({ block: result })
+  const revalidation = await triggerStorefrontRevalidate(website, {
+    paths: ["/"],
+  })
+
+  res.json({ block: result, revalidation })
 }
 
 /**
@@ -58,7 +65,7 @@ export const DELETE = async (
   req: AuthenticatedMedusaRequest,
   res: MedusaResponse
 ) => {
-  await validatePartnerBlockOwnership(
+  const { website } = await validatePartnerBlockOwnership(
     req.auth_context,
     req.params.pageId,
     req.params.blockId,
@@ -68,6 +75,8 @@ export const DELETE = async (
   const { result } = await deleteBlockWorkflow(req.scope).run({
     input: { block_id: req.params.blockId },
   })
+
+  await triggerStorefrontRevalidate(website, { paths: ["/"] })
 
   res.json(result)
 }
