@@ -43,22 +43,45 @@ const DELHIVERY_PROVIDER = "delhivery_delhivery"
 
 /**
  * REAL flat manual rates (major currency units), keyed by region currency.
- * `base` is the default shipping amount; `freeAbove` is the cart item_total at or
- * above which shipping becomes free (a Medusa `item_total >= N` price rule — the
- * "price range"/tiered feature). Domestic is India (INR); everything else is a
- * true cross-border rate. `usd` is the fallback for unlisted currencies.
+ * `base` is the default shipping amount; free shipping applies to a BAND —
+ * `item_total >= freeAbove` AND `item_total <= freeUpTo` — not to an open-ended
+ * tail. Domestic is India (INR); everything else is a true cross-border rate.
+ * `usd` is the fallback for unlisted currencies.
+ *
+ * 🔴 `freeUpTo` is the half that was missing, and its absence was expensive.
+ *
+ * A `gte` threshold cannot exclude bulk: a B2B consignment is LARGER than a
+ * retail basket, so it clears the bar harder. Free shipping written as
+ * "over ₹2,999" therefore applies to a ₹36,00,000 order — and the first live
+ * B2B quote duly landed on freight 0. (It reached 0 by a second route too: the
+ * estimate never read `price_rules` at all — see #1430 — but fixing that only
+ * made the quote honest, it did not stop the CART from shipping bulk free.)
+ *
+ * The ceiling is where retail stops, not where bulk starts, so it is set from
+ * the largest plausible consumer basket. Founder call, 21 Aug 2026: ₹25,000
+ * domestic; international one step higher (₹30,000-equivalent) because
+ * cross-border pricing steps at 5 kg and more providers are coming online.
+ * Non-INR ceilings are the same 1.2× step applied to this table's OWN existing
+ * `freeAbove` ratios, so the currencies stay consistent with each other rather
+ * than with a spot rate that will have moved by the time anyone reads this.
  */
-export const DOMESTIC_MANUAL_RATES: Record<string, { base: number; freeAbove: number }> = {
-  inr: { base: 99, freeAbove: 2999 },
+export const DOMESTIC_MANUAL_RATES: Record<
+  string,
+  { base: number; freeAbove: number; freeUpTo: number }
+> = {
+  inr: { base: 99, freeAbove: 2999, freeUpTo: 25000 },
 }
-export const INTL_MANUAL_RATES: Record<string, { base: number; freeAbove: number }> = {
-  usd: { base: 39, freeAbove: 350 },
-  eur: { base: 35, freeAbove: 300 },
-  gbp: { base: 30, freeAbove: 275 },
-  aud: { base: 55, freeAbove: 450 },
-  cad: { base: 50, freeAbove: 400 },
-  inr: { base: 3200, freeAbove: 25000 },
-  idr: { base: 550000, freeAbove: 5000000 },
+export const INTL_MANUAL_RATES: Record<
+  string,
+  { base: number; freeAbove: number; freeUpTo: number }
+> = {
+  usd: { base: 39, freeAbove: 350, freeUpTo: 420 },
+  eur: { base: 35, freeAbove: 300, freeUpTo: 360 },
+  gbp: { base: 30, freeAbove: 275, freeUpTo: 330 },
+  aud: { base: 55, freeAbove: 450, freeUpTo: 540 },
+  cad: { base: 50, freeAbove: 400, freeUpTo: 480 },
+  inr: { base: 3200, freeAbove: 25000, freeUpTo: 30000 },
+  idr: { base: 550000, freeAbove: 5000000, freeUpTo: 6000000 },
 }
 
 const enabledRule = { attribute: "enabled_in_store", value: "true", operator: "eq" as const }
@@ -90,20 +113,27 @@ export const locationSuffix = (locationId: string): string =>
 
 /**
  * Build the flat tiered price list for a manual option: a default `base` price
- * plus a `0` price gated on `item_total >= freeAbove` (free-shipping tier).
+ * plus a `0` price gated on a free-shipping BAND.
+ *
+ * 🔑 Both bounds, always. A `gte` alone is an open-ended tail that every bulk
+ * order clears — see the rate table above for what that cost.
  */
 const manualTieredPrices = (
   currencies: string[],
-  rates: Record<string, { base: number; freeAbove: number }>
+  rates: Record<string, { base: number; freeAbove: number; freeUpTo: number }>
 ): TieredPrice[] => {
   const out: TieredPrice[] = []
   for (const cur of currencies) {
-    const rate = rates[cur] ?? rates["usd"] ?? { base: 39, freeAbove: 350 }
+    const rate =
+      rates[cur] ?? rates["usd"] ?? { base: 39, freeAbove: 350, freeUpTo: 420 }
     out.push({ currency_code: cur, amount: rate.base })
     out.push({
       currency_code: cur,
       amount: 0,
-      rules: [{ attribute: "item_total", operator: "gte" as const, value: rate.freeAbove }],
+      rules: [
+        { attribute: "item_total", operator: "gte" as const, value: rate.freeAbove },
+        { attribute: "item_total", operator: "lte" as const, value: rate.freeUpTo },
+      ],
     })
   }
   return out
