@@ -304,6 +304,7 @@ import { ListInventoryItemRawMaterialsQuerySchema } from "./admin/inventory-item
 import { BulkImportSchema } from "./admin/inventory-items/bulk-import/validators";
 import { PartnerCreateStoreReq } from "./partners/stores/validators";
 import { PartnerCreateProductReq, PartnerArtisanProductDetailReq, PartnerProductSpecReq, PartnerStoreCreateProductReq, PartnerQuickCreateProductReq } from "./partners/products/validators";
+import { PartnerCreatePriceListReq, PartnerUpdatePriceListReq } from "./partners/price-lists/validators";
 import { BATCH_VARIANT_FIELDS } from "../workflows/partner/batch-partner-variants";
 import { StoreMadeToSpecReq } from "./store/carts/[id]/made-to-spec/validators";
 import {
@@ -5575,6 +5576,51 @@ export default defineMiddlewares({
       matcher: "/partners/customer-groups/:id/customers",
       method: "POST",
       middlewares: [authenticate("partner", ["session", "bearer"])],
+    },
+    // Partner price list endpoints (#1405). Unlike customer-groups above,
+    // every write body is validated — a price list carries money and the rule
+    // that decides whose money it is.
+    {
+      matcher: "/partners/price-lists",
+      method: "GET",
+      middlewares: [
+        createCorsPartnerMiddleware(),
+        authenticate("partner", ["session", "bearer"]),
+      ],
+    },
+    {
+      matcher: "/partners/price-lists",
+      method: "POST",
+      middlewares: [
+        createCorsPartnerMiddleware(),
+        authenticate("partner", ["session", "bearer"]),
+        validateAndTransformBody(wrapSchema(PartnerCreatePriceListReq)),
+      ],
+    },
+    {
+      matcher: "/partners/price-lists/:id",
+      method: "GET",
+      middlewares: [
+        createCorsPartnerMiddleware(),
+        authenticate("partner", ["session", "bearer"]),
+      ],
+    },
+    {
+      matcher: "/partners/price-lists/:id",
+      method: "POST",
+      middlewares: [
+        createCorsPartnerMiddleware(),
+        authenticate("partner", ["session", "bearer"]),
+        validateAndTransformBody(wrapSchema(PartnerUpdatePriceListReq)),
+      ],
+    },
+    {
+      matcher: "/partners/price-lists/:id",
+      method: "DELETE",
+      middlewares: [
+        createCorsPartnerMiddleware(),
+        authenticate("partner", ["session", "bearer"]),
+      ],
     },
     // Partner Order endpoints
     {
