@@ -26,18 +26,28 @@ import type { MaintenanceChange, MaintenanceJob, MaintenanceJobResult } from "./
  * the CART, which reads the rules correctly and would still have shipped a bulk
  * order free. Both halves are needed; neither substitutes for the other.)
  *
- * ## Which ceiling, and how this job knows
+ * ## INTERNATIONAL ONLY — domestic is deliberately left open
  *
- * The ceiling is where RETAIL stops, not where bulk starts, so it comes from
- * the rate table in `backfill-partner-shipping-options-job.ts` — the same
- * source new stores are provisioned from. Domestic ₹25,000; international one
- * step higher, because cross-border pricing steps at 5 kg.
+ * Founder call, 21 Aug 2026: Indian domestic freight is ₹99-scale, so
+ * absorbing it on a large order is a rounding error against the order itself,
+ * and capping it would start charging real retail carts that ship free today.
+ * The domestic rate table therefore declares no `freeUpTo`, and this job treats
+ * that absence as the decision it is: domestic rows are reported as
+ * intentionally uncapped, never "fixed".
+ *
+ * Cross-border freight is not absorbable, and its pricing steps at 5 kg, so an
+ * uncapped free tier there is a real loss on exactly the orders most likely to
+ * use it. Ceilings come from the rate table in
+ * `backfill-partner-shipping-options-job.ts` — the same source new stores are
+ * provisioned from.
  *
  * 🔑 Domestic and international are told apart by the EXISTING `gte` value, not
  * by the option's name. INR appears in both tables (2999 domestic, 25000
  * international) and the thresholds are distinct, so the row identifies its own
  * lane. Names were hand-edited during #954 and cannot be trusted for this —
- * the same trap that made the Shiprocket backfill classify from geo zones.
+ * the same trap that made the Shiprocket backfill classify from geo zones. That
+ * distinction is now load-bearing in BOTH directions: mistaking a domestic row
+ * for an international one would cap a tier the founder chose to leave open.
  *
  * A threshold matching NEITHER table was set by hand. This job reports it and
  * moves on rather than imposing a ceiling nobody chose.
@@ -61,7 +71,8 @@ export type FreeShippingCapPlan = {
   free_above: number
   /** The ceiling to add. */
   free_up_to: number
-  lane: "domestic" | "international"
+  /** Only ever "international" — see the header. */
+  lane: "international"
 }
 
 export type FreeShippingCapSkip = {
@@ -117,12 +128,19 @@ export function planFreeShippingCaps(options: any[]): {
       // 🔑 The lane comes from the threshold, never from the name.
       const domestic = DOMESTIC_MANUAL_RATES[currency]
       const intl = INTL_MANUAL_RATES[currency]
-      let lane: "domestic" | "international" | null = null
+      let lane: "international" | null = null
       let freeUpTo = 0
 
       if (domestic && domestic.freeAbove === freeAbove) {
-        lane = "domestic"
-        freeUpTo = domestic.freeUpTo
+        // Deliberately uncapped. Reported so a reader can see the row was
+        // examined and left alone, rather than silently missed.
+        skipped.push({
+          price_id: price.id,
+          shipping_option_name: name,
+          currency_code: currency,
+          reason: `Domestic free shipping is deliberately uncapped (founder call, 21 Aug 2026) — ₹99-scale freight is absorbable, and a ceiling would start charging retail carts that ship free today.`,
+        })
+        continue
       } else if (intl && intl.freeAbove === freeAbove) {
         lane = "international"
         freeUpTo = intl.freeUpTo
@@ -155,9 +173,9 @@ export function planFreeShippingCaps(options: any[]): {
 
 export const capFreeShippingBandJob: MaintenanceJob = {
   id: "cap-free-shipping-band",
-  label: "Close the open end of free shipping (bulk orders were shipping free)",
+  label: "Cap the international free-shipping tier (domestic stays open)",
   description:
-    "Every partner store's manual flat shipping option has a 0-priced row gated on `item_total >= N` — retail free shipping with no upper bound. A `gte` cannot exclude bulk: a B2B consignment is LARGER than a retail basket, so it clears the bar harder, and the first live B2B quote (₹36,00,000, 21 kg) shipped free. This adds the matching `item_total <= ceiling` rule so free shipping applies to a BAND. Ceilings come from the same rate table new stores are provisioned from — ₹25,000 domestic, one step higher international because cross-border pricing steps at 5 kg. Domestic and international are told apart by the EXISTING threshold, not by the option name (names were hand-edited during #954). A threshold matching neither table was set by hand: it is reported and left alone. Idempotent — a price that already has an `lte` is skipped. Dry-run previews every ceiling it would add.",
+    "Every partner store's manual flat shipping option has a 0-priced row gated on `item_total >= N` — retail free shipping with no upper bound. A `gte` cannot exclude bulk: a B2B consignment is LARGER than a retail basket, so it clears the bar harder, and the first live B2B quote (₹36,00,000, 21 kg) shipped free. This adds the matching `item_total <= ceiling` rule to INTERNATIONAL tiers only, so cross-border free shipping applies to a BAND. DOMESTIC IS LEFT OPEN ON PURPOSE (founder call, 21 Aug 2026): ₹99-scale freight is absorbable, and a ceiling would start charging retail carts that ship free today — domestic rows are reported as intentionally uncapped, never changed. Ceilings come from the same rate table new stores are provisioned from. Domestic and international are told apart by the EXISTING threshold, not by the option name (names were hand-edited during #954). A threshold matching neither table was set by hand: it is reported and left alone. Idempotent — a price that already has an `lte` is skipped. Dry-run previews every ceiling it would add.",
   params: [
     {
       name: "shipping_option_id",
@@ -237,8 +255,8 @@ export const capFreeShippingBandJob: MaintenanceJob = {
 
     const scanned = (options ?? []).length
     const summary = changes.length
-      ? `${dry_run ? "Would cap" : "Capped"} ${changes.length} free-shipping tier(s) across ${scanned} scanned option(s); ${skipped.length} hand-set threshold(s) left alone.`
-      : `No changes — scanned ${scanned} option(s); every free-shipping tier is already bounded. ${skipped.length} hand-set threshold(s) left alone.`
+      ? `${dry_run ? "Would cap" : "Capped"} ${changes.length} INTERNATIONAL free-shipping tier(s) across ${scanned} scanned option(s); ${skipped.length} tier(s) left alone (domestic-by-design or hand-set).`
+      : `No changes — scanned ${scanned} option(s); every international free-shipping tier is already bounded. ${skipped.length} tier(s) left alone (domestic-by-design or hand-set).`
 
     return {
       job_id: capFreeShippingBandJob.id,
