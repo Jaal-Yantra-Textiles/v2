@@ -1,4 +1,5 @@
 import {
+  Button,
   Container,
   DataTable,
   Heading,
@@ -114,6 +115,9 @@ const QuotesPage = () => {
               at mint and cannot be recovered — re-mint to issue a new one.
             </Text>
           </div>
+          <Button size="small" onClick={() => navigate("/quotes/create")}>
+            Mint quote
+          </Button>
         </DataTable.Toolbar>
         <DataTable.Table />
         <DataTable.Pagination />

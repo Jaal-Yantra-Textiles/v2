@@ -3,6 +3,7 @@ import { ContainerRegistrationKeys, MedusaError } from "@medusajs/framework/util
 
 import { PARTNER_QUOTE_MODULE } from "../../../modules/partner-quote"
 import { mintQuoteWorkflow } from "../../../workflows/partner-quote/mint-quote"
+import { assertVariantsInStore } from "./lib/assert-variants-in-store"
 
 /**
  * Admin quotes (#1389 S5).
@@ -49,7 +50,13 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
   const query = req.scope.resolve(ContainerRegistrationKeys.QUERY)
   const { data: partners } = await query.graph({
     entity: "partners",
-    fields: ["id", "name", "stores.id", "stores.default_location_id"],
+    fields: [
+      "id",
+      "name",
+      "stores.id",
+      "stores.default_location_id",
+      "stores.default_sales_channel_id",
+    ],
     filters: { id: partnerId },
   })
 
@@ -68,6 +75,16 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
       `Partner ${partner.name || partnerId} has no store, so a quote cannot be priced for them.`
     )
   }
+
+  // 🔴 An admin picks the partner from one dropdown and the variants from
+  // another; a single mis-click freezes one partner's prices onto another
+  // partner's customer group, and NOTHING downstream catches it. The partner
+  // surface cannot make this mistake, so the guard lives here.
+  await assertVariantsInStore(req.scope, {
+    variantIds: (body.lines ?? []).map((l: any) => l.variant_id),
+    salesChannelId: store.default_sales_channel_id,
+    partnerLabel: partner.name || partnerId,
+  })
 
   const { result } = await mintQuoteWorkflow(req.scope).run({
     input: {
