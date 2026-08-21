@@ -2,7 +2,10 @@ import {
   AuthenticatedMedusaRequest,
   MedusaResponse,
 } from "@medusajs/framework/http"
-import { validatePartnerPageOwnership } from "../../helpers"
+import {
+  validatePartnerPageOwnership,
+  triggerStorefrontRevalidate,
+} from "../../helpers"
 import { updatePageWorkflow } from "../../../../../workflows/website/website-page/update-page"
 import { deletePageWorkflow } from "../../../../../workflows/website/website-page/delete-page"
 
@@ -45,7 +48,11 @@ export const PUT = async (
     },
   })
 
-  res.json({ page: result })
+  const revalidation = await triggerStorefrontRevalidate(website, {
+    paths: ["/"],
+  })
+
+  res.json({ page: result, revalidation })
 }
 
 /**
@@ -56,7 +63,7 @@ export const DELETE = async (
   req: AuthenticatedMedusaRequest,
   res: MedusaResponse
 ) => {
-  await validatePartnerPageOwnership(
+  const { website } = await validatePartnerPageOwnership(
     req.auth_context,
     req.params.pageId,
     req.scope
@@ -65,6 +72,8 @@ export const DELETE = async (
   const { result } = await deletePageWorkflow(req.scope).run({
     input: { id: req.params.pageId },
   })
+
+  await triggerStorefrontRevalidate(website, { paths: ["/"] })
 
   res.json(result)
 }

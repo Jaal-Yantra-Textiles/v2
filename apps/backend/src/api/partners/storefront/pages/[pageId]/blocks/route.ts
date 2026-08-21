@@ -2,7 +2,10 @@ import {
   AuthenticatedMedusaRequest,
   MedusaResponse,
 } from "@medusajs/framework/http"
-import { validatePartnerPageOwnership } from "../../../helpers"
+import {
+  validatePartnerPageOwnership,
+  triggerStorefrontRevalidate,
+} from "../../../helpers"
 import { createBlockWorkflow } from "../../../../../../workflows/website/page-blocks/create-block"
 import { createBatchBlocksWorkflow } from "../../../../../../workflows/website/page-blocks/create-batch-blocks"
 import { listBlocksWorkflow } from "../../../../../../workflows/website/page-blocks/list-blocks"
@@ -41,7 +44,7 @@ export const POST = async (
   req: AuthenticatedMedusaRequest,
   res: MedusaResponse
 ) => {
-  await validatePartnerPageOwnership(
+  const { website } = await validatePartnerPageOwnership(
     req.auth_context,
     req.params.pageId,
     req.scope
@@ -67,6 +70,7 @@ export const POST = async (
           errors: result.errors,
         })
       }
+      await triggerStorefrontRevalidate(website, { paths: ["/"] })
       return res.status(207).json({
         message: "Some blocks created, some failed",
         blocks: result.created,
@@ -74,6 +78,7 @@ export const POST = async (
       })
     }
 
+    await triggerStorefrontRevalidate(website, { paths: ["/"] })
     return res.status(201).json({
       message: "All blocks created successfully",
       blocks: result.created,
@@ -87,6 +92,8 @@ export const POST = async (
       page_id: pageId,
     },
   })
+
+  await triggerStorefrontRevalidate(website, { paths: ["/"] })
 
   res.status(201).json({ block: result })
 }

@@ -2,7 +2,7 @@ import {
   AuthenticatedMedusaRequest,
   MedusaResponse,
 } from "@medusajs/framework/http"
-import { getPartnerWebsite } from "../helpers"
+import { getPartnerWebsite, triggerStorefrontRevalidate } from "../helpers"
 import { createPageWorkflow } from "../../../../workflows/website/website-page/create-page"
 import { listPageWorkflow } from "../../../../workflows/website/website-page/list-page"
 
@@ -63,6 +63,8 @@ export const POST = async (
       genMetaDataLLM: (req.validatedBody as any).genMetaDataLLM || false,
     },
   })
+
+  await triggerStorefrontRevalidate(website, { paths: ["/"] })
 
   res.status(201).json({ page: result })
 }
