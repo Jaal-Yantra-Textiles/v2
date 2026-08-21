@@ -364,9 +364,18 @@ export const deleteOrphanStoreJob: MaintenanceJob = {
       if (channelId) {
         try {
           const apiKeyService: any = container.resolve("api_key")
-          const keys = await apiKeyService.listApiKeys({
-            type: "publishable",
-            sales_channels: { id: channelId },
+          // 🔴 `sales_channels` is a LINK, not a field on the ApiKey model —
+          // the module service cannot filter on it and throws. This block used
+          // `apiKeyService.listApiKeys({ sales_channels: … })`, which meant the
+          // key removal this job's own comment calls load-bearing threw on its
+          // first line, got converted into an error note, and left behind the
+          // exact dangling link the comment describes. Only Query resolves
+          // links — which is how the dry-run path 140 lines above already does
+          // it, so the preview reported keys the apply could never remove.
+          const { data: keys } = await query.graph({
+            entity: "api_key",
+            fields: ["id", "title", "revoked_at"],
+            filters: { type: "publishable", sales_channels: { id: channelId } },
           })
           for (const k of keys ?? []) {
             // A publishable key cannot be deleted until it is revoked; core

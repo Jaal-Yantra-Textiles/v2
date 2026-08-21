@@ -1,4 +1,4 @@
-import { MedusaError } from "@medusajs/framework/utils"
+import { ContainerRegistrationKeys, MedusaError } from "@medusajs/framework/utils"
 import { z } from "@medusajs/framework/zod"
 import {
   createApiKeysWorkflow,
@@ -177,7 +177,7 @@ export const restoreOrphanStoreJob: MaintenanceJob = {
     const storeService: any = container.resolve("store")
     const scService: any = container.resolve("sales_channel")
     const locService: any = container.resolve("stock_location")
-    const apiKeyService: any = container.resolve("api_key")
+    const query: any = container.resolve(ContainerRegistrationKeys.QUERY)
 
     // `withDeleted` is opt-in everywhere in Medusa, and the row we are looking
     // for is by definition deleted — reading it without this returns nothing
@@ -211,9 +211,16 @@ export const restoreOrphanStoreJob: MaintenanceJob = {
 
     let linkedKeyCount = 0
     if (channelId) {
-      const keys = await apiKeyService.listApiKeys({
-        type: "publishable",
-        sales_channels: { id: channelId },
+      // 🔴 `sales_channels` is a LINK, not a field on the ApiKey model, so the
+      // module service throws on it — only Query resolves links. This line read
+      // `apiKeyService.listApiKeys({ sales_channels: … })` and threw for EVERY
+      // real store: a store that does not exist has no channel id, so the block
+      // was skipped and the refusal path returned 200, which is why the job
+      // looked healthy. Registration is not function.
+      const { data: keys } = await query.graph({
+        entity: "api_key",
+        fields: ["id"],
+        filters: { type: "publishable", sales_channels: { id: channelId } },
       })
       linkedKeyCount = (keys ?? []).length
     }
