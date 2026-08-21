@@ -220,6 +220,43 @@ export const useContentBlocks = (
   return { blocks: data?.blocks || [], count: data?.count || 0, ...rest }
 }
 
+export const useCreateContentBlock = (pageId: string) => {
+  return useMutation({
+    mutationFn: (payload: {
+      name: string
+      type: string
+      content?: Record<string, unknown>
+      settings?: Record<string, unknown>
+      order?: number
+      status?: string
+    }) =>
+      sdk.client.fetch<{ blocks: ContentBlock[] }>(
+        `/partners/storefront/pages/${pageId}/blocks`,
+        { method: "POST", body: { blocks: [payload] } }
+      ),
+    onSuccess: () => {
+      queryClient.invalidateQueries({
+        queryKey: contentQueryKeys.list({ type: "blocks", pageId }),
+      })
+    },
+  })
+}
+
+export const useDeleteContentBlock = (pageId: string) => {
+  return useMutation({
+    mutationFn: (blockId: string) =>
+      sdk.client.fetch(
+        `/partners/storefront/pages/${pageId}/blocks/${blockId}`,
+        { method: "DELETE" }
+      ),
+    onSuccess: () => {
+      queryClient.invalidateQueries({
+        queryKey: contentQueryKeys.list({ type: "blocks", pageId }),
+      })
+    },
+  })
+}
+
 // -- Theme --
 
 export type WebsiteTheme = {
