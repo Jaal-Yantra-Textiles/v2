@@ -12,8 +12,10 @@ import {
 } from "@medusajs/ui"
 import {
   ArrowPath,
+  CheckCircle,
   EllipsisHorizontal,
   PencilSquare,
+  PlayMiniSolid,
   Trash,
   Users,
   XMark,
@@ -33,6 +35,9 @@ import { ProductionRunChildrenSection } from "../../../components/production-run
 import { ProductionRunActivityTimeline } from "../../../components/production-runs/production-run-activity-timeline"
 import { productionRunLoader } from "./loader"
 import {
+  useAdminAcceptRun,
+  useAdminFinishRun,
+  useAdminStartRun,
   useCancelProductionRun,
   useProductionRun,
   useProductionRuns,
@@ -57,6 +62,9 @@ const ProductionRunDetailPage = () => {
   const tasks = liveData?.tasks || initialData?.tasks || []
   const cancelRun = useCancelProductionRun(id || "")
   const updateRun = useUpdateProductionRun(id || "")
+  const acceptRun = useAdminAcceptRun(id || "")
+  const startRun = useAdminStartRun(id || "")
+  const finishRun = useAdminFinishRun(id || "")
 
   // A run is treated as a parent aggregator when it has at least one child run.
   // Parents should never show dispatch/cost/partner controls — those belong on
@@ -76,6 +84,18 @@ const ProductionRunDetailPage = () => {
     run?.dispatch_state === "idle" &&
     !run?.dispatch_completed_at &&
     !!run?.partner_id
+
+  // ── Admin lifecycle actions (accept / start / finish) ──────────────────
+  // Admin can act on behalf of the assigned partner. Each is gated by the
+  // run's current lifecycle state and the presence of a partner.
+  const hasPartner = !!run?.partner_id
+  const notTerminal = !!run?.status && !["completed", "cancelled"].includes(run.status)
+  const canAccept =
+    !isParent && hasPartner && notTerminal && run?.status === "sent_to_partner" && !run?.accepted_at
+  const canStart =
+    !isParent && hasPartner && notTerminal && !!run?.accepted_at && !run?.started_at
+  const canFinish =
+    !isParent && hasPartner && notTerminal && !!run?.started_at && !run?.finished_at
 
   // #1228 — a run parked by the reminder cap (or a decline) has no partner and
   // no other control on this page; this is its only way back into production.
@@ -111,6 +131,40 @@ const ProductionRunDetailPage = () => {
       toast.success("Cost cleared")
     } catch (e: any) {
       toast.error(e?.message || "Failed to clear cost")
+    }
+  }
+
+  const handleAccept = async () => {
+    try {
+      await acceptRun.mutateAsync()
+      toast.success("Production run accepted")
+    } catch (e: any) {
+      toast.error(e?.message || "Failed to accept run")
+    }
+  }
+
+  const handleStart = async () => {
+    try {
+      await startRun.mutateAsync()
+      toast.success("Production run started")
+    } catch (e: any) {
+      toast.error(e?.message || "Failed to start run")
+    }
+  }
+
+  const handleFinish = async () => {
+    const confirmed = await prompt({
+      title: "Finish production run",
+      description: "This marks the run as finished. You can add optional notes. Continue?",
+      confirmText: "Finish run",
+      cancelText: "Keep",
+    })
+    if (!confirmed) return
+    try {
+      await finishRun.mutateAsync({})
+      toast.success("Production run finished")
+    } catch (e: any) {
+      toast.error(e?.message || "Failed to finish run")
     }
   }
 
@@ -162,6 +216,52 @@ const ProductionRunDetailPage = () => {
               </Text>
             </div>
             <div className="flex items-center gap-x-2">
+              {/* Admin lifecycle actions — accept → start → finish, on behalf
+                  of the assigned partner. Cancel lives in the overflow menu. */}
+              {canAccept && (
+                <Button
+                  size="small"
+                  variant="secondary"
+                  onClick={handleAccept}
+                  disabled={acceptRun.isPending}
+                >
+                  <CheckCircle className="mr-1.5" />
+                  Accept
+                </Button>
+              )}
+              {canStart && (
+                <Button
+                  size="small"
+                  variant="secondary"
+                  onClick={handleStart}
+                  disabled={startRun.isPending}
+                >
+                  <PlayMiniSolid className="mr-1.5" />
+                  Start
+                </Button>
+              )}
+              {canFinish && (
+                <Button
+                  size="small"
+                  variant="secondary"
+                  onClick={handleFinish}
+                  disabled={finishRun.isPending}
+                >
+                  <CheckCircle className="mr-1.5" />
+                  Finish
+                </Button>
+              )}
+              {canCancel && !canAccept && !canStart && !canFinish && !canDispatch && !isParked && (
+                <Button
+                  size="small"
+                  variant="danger"
+                  onClick={handleCancel}
+                  disabled={cancelRun.isPending}
+                >
+                  <XMark className="mr-1.5" />
+                  Cancel run
+                </Button>
+              )}
               {run.status === "pending_review" && (
                 <Link to="approve">
                   <Button size="small">Approve</Button>

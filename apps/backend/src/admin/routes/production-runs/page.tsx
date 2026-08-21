@@ -10,9 +10,9 @@ import {
   useDataTable,
 } from "@medusajs/ui"
 import { createColumnHelper } from "@tanstack/react-table"
-import { useCallback, useMemo } from "react"
+import { useCallback, useMemo, useState } from "react"
 import debounce from "lodash/debounce"
-import { useNavigate, useSearchParams } from "react-router-dom"
+import { Link, useNavigate } from "react-router-dom"
 
 import { useProductionRuns, type AdminProductionRun } from "../../hooks/api/production-runs"
 import { usePartners } from "../../hooks/api/partners"
@@ -21,8 +21,6 @@ import { productionRunStatusColor } from "../../lib/status-colors"
 const PAGE_SIZE = 20
 
 const columnHelper = createColumnHelper<AdminProductionRun>()
-
-// ── URL ↔ state helpers ──────────────────────────────────────────────────
 
 const STATUS_OPTIONS = [
   "draft",
@@ -41,75 +39,86 @@ const labelFor = (s: string) =>
     .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
     .join(" ")
 
-const parseFiltersFromParams = (sp: URLSearchParams): DataTableFilteringState => {
-  const f: DataTableFilteringState = {}
-  const status = sp.get("status")
-  if (status) f.status = status
-  const runType = sp.get("run_type")
-  if (runType) f.run_type = runType
-  const partnerId = sp.get("partner_id")
-  if (partnerId) f.partner_id = partnerId
-  return f
-}
-
-const buildParams = (
-  filters: DataTableFilteringState,
-  pagination: DataTablePaginationState,
-  search: string
-): URLSearchParams => {
-  const p = new URLSearchParams()
-  if (filters.status) p.set("status", filters.status as string)
-  if (filters.run_type) p.set("run_type", filters.run_type as string)
-  if (filters.partner_id) p.set("partner_id", filters.partner_id as string)
-  if (search) p.set("q", search)
-  if (pagination.pageIndex > 0) p.set("page", String(pagination.pageIndex + 1))
-  if (pagination.pageSize !== PAGE_SIZE) p.set("limit", String(pagination.pageSize))
-  return p
-}
-
-// ── Page component ────────────────────────────────────────────────────────
+const shortId = (id: string) =>
+  id && id.length > 12 ? `${id.slice(0, 8)}…` : id
 
 const ProductionRunsListPage = () => {
   const navigate = useNavigate()
-  const [searchParams, setSearchParams] = useSearchParams()
 
-  // ── Search + filters + pagination from URL ─────────────────────────────
-  const search = searchParams.get("q") ?? ""
-  const filtering = parseFiltersFromParams(searchParams)
-  const pagination: DataTablePaginationState = {
-    pageIndex: Math.max(0, parseInt(searchParams.get("page") || "1", 10) - 1),
-    pageSize: parseInt(searchParams.get("limit") || String(PAGE_SIZE), 10),
-  }
+  const [pagination, setPagination] = useState<DataTablePaginationState>({
+    pageIndex: 0,
+    pageSize: PAGE_SIZE,
+  })
+  const [filtering, setFiltering] = useState<DataTableFilteringState>({})
+  const [search, setSearch] = useState("")
+
+  const handleFilterChange = useCallback(
+    debounce((nf: DataTableFilteringState) => {
+      setFiltering(nf)
+      setPagination((p) => ({ ...p, pageIndex: 0 }))
+    }, 300),
+    [],
+  )
+
+  const handleSearchChange = useCallback(
+    debounce((q: string) => {
+      setSearch(q)
+      setPagination((p) => ({ ...p, pageIndex: 0 }))
+    }, 300),
+    [],
+  )
 
   const offset = pagination.pageIndex * pagination.pageSize
 
-  // ── Data ───────────────────────────────────────────────────────────────
+  const statusFilter = filtering.status
+    ? Array.isArray(filtering.status)
+      ? (filtering.status[0] as string)
+      : (filtering.status as string)
+    : undefined
+
+  const runTypeFilter = filtering.run_type
+    ? Array.isArray(filtering.run_type)
+      ? (filtering.run_type[0] as string)
+      : (filtering.run_type as string)
+    : undefined
+
+  const partnerFilter = filtering.partner_id
+    ? Array.isArray(filtering.partner_id)
+      ? (filtering.partner_id[0] as string)
+      : (filtering.partner_id as string)
+    : undefined
+
   const { production_runs, count, isLoading, isError, error } = useProductionRuns({
     limit: pagination.pageSize,
     offset,
     q: search || undefined,
-    status: filtering.status as string | undefined,
-    run_type: filtering.run_type as string | undefined,
-    partner_id: filtering.partner_id as string | undefined,
+    status: statusFilter,
+    run_type: runTypeFilter,
+    partner_id: partnerFilter,
+    exclude_children: true,
   })
 
-  // ── Partner filter options ─────────────────────────────────────────────
   const { partners = [] } = usePartners({ limit: 100, offset: 0 })
   const partnerOptions = useMemo(
     () =>
       (partners || [])
         .filter((p) => p?.id && p?.name)
         .map((p) => ({ label: p.name, value: p.id })),
-    [partners]
+    [partners],
   )
 
-  // ── Columns ─────────────────────────────────────────────────────────────
   const columns = useMemo(
     () => [
       columnHelper.accessor("id", {
-        header: "ID",
+        header: "Run",
         cell: ({ getValue }) => (
-          <span className="font-mono text-ui-fg-subtle">{getValue()}</span>
+          <Link
+            to={`/production-runs/${getValue()}`}
+            className="text-ui-fg-interactive hover:underline font-mono text-ui-fg-subtle"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {shortId(getValue() ?? "")}
+          </Link>
         ),
       }),
       columnHelper.accessor("status", {
@@ -127,41 +136,85 @@ const ProductionRunsListPage = () => {
         header: "Type",
         cell: ({ getValue }) => {
           const t = getValue()
-          return t ? <span className="capitalize">{t}</span> : "—"
+          return t ? (
+            <Text size="small" className="capitalize">{t}</Text>
+          ) : (
+            <Text size="small" className="text-ui-fg-subtle">—</Text>
+          )
         },
       }),
       columnHelper.accessor("quantity", {
         header: "Qty",
-        cell: ({ getValue }) => getValue() ?? "—",
+        cell: ({ row, getValue }) => {
+          const qty = getValue()
+          const produced = row.original?.produced_quantity
+          if (qty == null) return <Text size="small" className="text-ui-fg-subtle">—</Text>
+          if (produced != null) {
+            return (
+              <div className="flex flex-col">
+                <Text size="small" weight="plus">{produced} / {qty}</Text>
+                <Text size="xsmall" className="text-ui-fg-subtle">produced</Text>
+              </div>
+            )
+          }
+          return <Text size="small">{qty}</Text>
+        },
       }),
       columnHelper.accessor("partner_id", {
         header: "Partner",
         cell: ({ getValue }) => {
           const id = getValue()
-          if (!id) return "—"
+          if (!id) return <Text size="small" className="text-ui-fg-subtle">—</Text>
           const partner = (partners || []).find((p) => p.id === id)
-          return partner?.name ?? id
+          const name = partner?.name ?? id
+          return (
+            <Link
+              to={`/partners/${id}`}
+              className="text-ui-fg-interactive hover:underline"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <Text size="small">{name}</Text>
+            </Link>
+          )
         },
       }),
       columnHelper.accessor("design_id", {
         header: "Design",
-        cell: ({ getValue }) => {
+        cell: ({ row, getValue }) => {
           const id = getValue()
-          return id ? <span className="font-mono text-ui-fg-subtle">{id}</span> : "—"
+          if (!id) return <Text size="small" className="text-ui-fg-subtle">—</Text>
+          const designName = row.original?.snapshot?.design?.name
+          return (
+            <Link
+              to={`/designs/${id}`}
+              className="text-ui-fg-interactive hover:underline"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <Text size="small">{designName || shortId(id)}</Text>
+            </Link>
+          )
         },
       }),
       columnHelper.accessor("created_at", {
         header: "Created",
         cell: ({ getValue }) => {
           const v = getValue()
-          return v ? new Date(v as any).toLocaleDateString() : "—"
+          return v ? (
+            <Text size="small" className="text-ui-fg-subtle">
+              {new Date(v as any).toLocaleDateString("en-US", {
+                month: "short",
+                day: "numeric",
+              })}
+            </Text>
+          ) : (
+            <Text size="small" className="text-ui-fg-subtle">—</Text>
+          )
         },
       }),
     ],
-    [partners]
+    [partners],
   )
 
-  // ── Filters ──────────────────────────────────────────────────────────────
   const filterHelper = createDataTableFilterHelper<AdminProductionRun>()
   const filters = useMemo(
     () => [
@@ -184,34 +237,9 @@ const ProductionRunsListPage = () => {
         options: partnerOptions,
       }),
     ],
-    [partnerOptions]
+    [partnerOptions],
   )
 
-  // ── URL sync callbacks ───────────────────────────────────────────────────
-  const handlePaginationChange = useCallback(
-    (np: DataTablePaginationState) => {
-      setSearchParams(buildParams(filtering, np, search), { replace: true })
-    },
-    [filtering, search, setSearchParams]
-  )
-
-  const handleFilterChange = useCallback(
-    debounce((nf: DataTableFilteringState) => {
-      setSearchParams(buildParams(nf, { pageIndex: 0, pageSize: pagination.pageSize }, search), {
-        replace: true,
-      })
-    }, 300),
-    [pagination.pageSize, search, setSearchParams]
-  )
-
-  const handleSearchChange = useCallback(
-    debounce((ns: string) => {
-      setSearchParams(buildParams(filtering, pagination, ns), { replace: true })
-    }, 300),
-    [filtering, pagination, setSearchParams]
-  )
-
-  // ── Table ─────────────────────────────────────────────────────────────────
   const table = useDataTable({
     data: production_runs ?? [],
     columns,
@@ -222,7 +250,7 @@ const ProductionRunsListPage = () => {
     isLoading,
     pagination: {
       state: pagination,
-      onPaginationChange: handlePaginationChange,
+      onPaginationChange: setPagination,
     },
     search: {
       state: search,
@@ -241,20 +269,22 @@ const ProductionRunsListPage = () => {
   return (
     <Container className="divide-y p-0">
       <DataTable instance={table}>
-        <DataTable.Toolbar className="flex flex-col md:flex-row justify-between gap-y-4 px-6 py-4">
+        <DataTable.Toolbar className="flex justify-between items-center px-6 py-4">
           <div>
             <Heading>Production Runs</Heading>
             <Text className="text-ui-fg-subtle" size="small">
-              Search by run ID, design name, partner, or product
+              Manage production runs and their lifecycle
             </Text>
           </div>
-          <div className="flex flex-col sm:flex-row w-full md:w-auto gap-y-2 gap-x-2">
-            <div className="flex items-center gap-x-2">
-              <DataTable.FilterMenu tooltip="Filter production runs" />
-            </div>
-          </div>
         </DataTable.Toolbar>
-        <DataTable.Search placeholder="Search by ID, design, partner, or product..." />
+        <div className="flex items-center justify-between gap-x-4 px-6 py-4 border-t border-ui-border-base">
+          <div className="w-full max-w-[50%] flex items-center gap-x-4">
+            <DataTable.FilterMenu tooltip="Filter production runs" />
+          </div>
+          <div className="flex shrink-0 items-center gap-x-2">
+            <DataTable.Search placeholder="Search runs, designs, partners..." />
+          </div>
+        </div>
         <DataTable.Table />
         <DataTable.Pagination />
       </DataTable>
