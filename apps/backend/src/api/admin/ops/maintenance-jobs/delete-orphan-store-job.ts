@@ -38,7 +38,19 @@ import type {
  *
  * 🔑 **Never a store that is doing anything.** Products, orders, stock levels
  * or a partner link each abort that store, by name, rather than being reported
- * as a warning someone might skim past. A store cannot be un-deleted.
+ * as a warning someone might skim past.
+ *
+ * ## The undo
+ *
+ * This docblock used to end "A store cannot be un-deleted", and that was wrong
+ * in the direction that costs you an incident: the store, channel and location
+ * removals are all SOFT, so they were always restorable — nobody had written
+ * the restore. `restore-orphan-store` now does (#1399 item 3).
+ *
+ * 🔴 The publishable key is the exception, and it is not recoverable. Core
+ * offers no soft delete for an api key and refuses to delete an unrevoked one,
+ * so the key below is revoked and hard-deleted, and its TOKEN is gone. The
+ * restore job can mint a replacement, but it is a different string.
  *
  * `store_id` is REQUIRED. There is no "find and delete all orphans" mode: an
  * inferred list of things to destroy is exactly the wrong place for inference,
