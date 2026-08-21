@@ -4,10 +4,11 @@ import { hostToCandidates, resolveStorefrontForPartner } from "../resolve-key"
  * The multi-tenant host → publishable-key walk, and the cross-tenant outage it
  * caused on 2026-08-21.
  *
- * `resolveStorefrontForPartner` queries EVERY publishable key on the platform
- * unfiltered, then `.find`s the one linked to this partner's sales channel.
- * That makes the query a shared blast radius: the predicate runs against other
- * tenants' rows on the way to this tenant's.
+ * `resolveStorefrontForPartner` USED TO query every publishable key on the
+ * platform unfiltered, then `.find` the one linked to this partner's sales
+ * channel. That made the query a shared blast radius: the predicate ran against
+ * other tenants' rows on the way to this tenant's. It is now filtered by sales
+ * channel at the database (#1399 item 2), and the guard below it stays.
  *
  * An orphan store's sales channel was deleted while its publishable key
  * survived. The dangling link expanded to `sales_channels: [null]`, the
@@ -131,5 +132,51 @@ describe("hostToCandidates", () => {
       host: "uniquepashmina.com",
       subdomain: null,
     })
+  })
+})
+
+/**
+ * #1399 item 2 — the blast radius itself, not just its symptom.
+ *
+ * The `sc?.id` guard makes a dangling link survivable. Filtering the query
+ * makes another tenant's rows unreachable, which is the stronger property: the
+ * outage needed BOTH a malformed row and a query willing to walk it.
+ */
+describe("resolveStorefrontForPartner — query scoping", () => {
+  const capturingQuery = (apiKeys: any[]) => {
+    const calls: any[] = []
+    return {
+      calls,
+      query: {
+        graph: async (args: any) => {
+          calls.push(args)
+          return { data: apiKeys }
+        },
+      },
+    }
+  }
+
+  it("filters the api_keys query by THIS partner's sales channel", async () => {
+    const { calls, query } = capturingQuery([key("apk_mine", ["sc_live"])])
+
+    await resolveStorefrontForPartner(query as any, partner())
+
+    expect(calls).toHaveLength(1)
+    expect(calls[0].entity).toBe("api_keys")
+    expect(calls[0].filters).toEqual({
+      type: "publishable",
+      sales_channels: { id: "sc_live" },
+    })
+  })
+
+  it("never asks for keys unscoped to a sales channel", async () => {
+    // A regression here is invisible in behaviour — every assertion about the
+    // returned key still passes — and only shows up as another platform-wide
+    // outage the next time one row goes bad.
+    const { calls, query } = capturingQuery([key("apk_mine", ["sc_live"])])
+
+    await resolveStorefrontForPartner(query as any, partner())
+
+    expect(calls[0].filters?.sales_channels).toBeDefined()
   })
 })
