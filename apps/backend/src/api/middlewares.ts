@@ -166,6 +166,7 @@ import {
   AdminResumeDispatchProductionRunReq,
   AdminSendProductionRunToProductionReq,
   AdminStartDispatchProductionRunReq,
+  AdminFinishProductionRunReq,
 } from "./admin/production-runs/validators";
 import { AdminUpdateProductionRunPolicySchema } from "./admin/production-run-policy/validators";
 import {
@@ -4648,6 +4649,19 @@ export default defineMiddlewares({
       matcher: "/admin/production-runs/:id/assign-partner",
       method: "POST",
       middlewares: [validateAndTransformBody(wrapSchema(AdminAssignProductionRunPartnerReq))],
+    },
+    {
+      matcher: "/admin/production-runs/:id/accept",
+      method: "POST",
+    },
+    {
+      matcher: "/admin/production-runs/:id/start",
+      method: "POST",
+    },
+    {
+      matcher: "/admin/production-runs/:id/finish",
+      method: "POST",
+      middlewares: [validateAndTransformBody(wrapSchema(AdminFinishProductionRunReq))],
     },
     {
       // Re-send parked runs to the partner they came from (batch).
