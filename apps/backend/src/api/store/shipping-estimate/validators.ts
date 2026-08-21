@@ -13,6 +13,14 @@ export const StoreShippingEstimateSchema = z.object({
   destination_postal_code: z.string().min(3).max(16),
   /** ISO-2. Drives the domestic-vs-cross-border branch inside the adapter. */
   country_code: z.string().min(2).max(2).optional(),
+  /**
+   * Restricts manual/flat options to those priced in this currency. Optional
+   * because this route predates it; when absent, options are not
+   * currency-filtered, which is what every existing caller already gets.
+   * Supplying it is strictly safer — the picker sorts on the raw amount, so a
+   * foreign-currency option wins whenever its number is smaller.
+   */
+  currency_code: z.string().min(3).max(3).optional(),
   /** Defaults to the aggregator, which returns every courier on the lane. */
   carrier: z.string().min(2).max(40).optional(),
 })

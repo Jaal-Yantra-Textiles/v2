@@ -54,6 +54,12 @@ export type ShippingEstimateInput = {
   lines: ShippingEstimateLineInput[]
   destination_postal_code: string
   country_code?: string
+  /**
+   * The currency the quote is denominated in. REQUIRED to compare manual
+   * options: the picker sorts on the raw `amount`, so without this an option
+   * priced in another currency silently wins whenever its number is smaller.
+   */
+  currency_code?: string
   carrier?: string
   /** The store whose default stock location is the origin. */
   store: { id?: string; default_location_id?: string | null }
@@ -123,6 +129,31 @@ export function resolveUnitWeight(variant: {
 }
 
 /**
+ * PURE: does this service zone actually cover the destination country?
+ *
+ * A shipping option is an offer to carry a parcel to the zone it belongs to.
+ * Considering every zone on the location turns a European flat rate into a
+ * candidate for a Mumbai delivery — found live, where a 21 kg domestic
+ * consignment was quoted "European Shipping" at 10 AUD.
+ *
+ * A zone with NO geo zones is treated as covering nothing rather than
+ * everything: an unscoped zone is a provisioning accident, and reading it as
+ * "worldwide" is how one bad row prices every lane.
+ */
+export function zoneCoversDestination(
+  zone: { geo_zones?: Array<{ country_code?: string | null }> | null } | null,
+  destinationCountry: string
+): boolean {
+  const target = String(destinationCountry || "").toLowerCase()
+  if (!target) return false
+
+  const zones = zone?.geo_zones ?? []
+  return zones.some(
+    (g) => String(g?.country_code || "").toLowerCase() === target
+  )
+}
+
+/**
  * Bucket the weight so near-identical quantities share a cache entry rather
  * than minting one per quantity a buyer drags a slider through.
  */
@@ -138,6 +169,7 @@ export async function buildShippingEstimate(
   const logger: any = scope.resolve(ContainerRegistrationKeys.LOGGER)
 
   const countryCode = String(input.country_code || "in").toLowerCase()
+  const quoteCurrency = String(input.currency_code || "").toLowerCase()
   const destinationPostalCode = String(input.destination_postal_code)
 
   const lineInputs = (input.lines || []).filter(
@@ -224,6 +256,7 @@ export async function buildShippingEstimate(
     entity: "stock_locations",
     fields: [
       "id",
+      "fulfillment_sets.service_zones.geo_zones.country_code",
       "fulfillment_sets.service_zones.shipping_options.id",
       "fulfillment_sets.service_zones.shipping_options.name",
       "fulfillment_sets.service_zones.shipping_options.price_type",
@@ -235,12 +268,31 @@ export async function buildShippingEstimate(
   const manual: ShippingEstimateOption[] = []
   for (const fs of (optionLocations?.[0] as any)?.fulfillment_sets || []) {
     for (const zone of fs?.service_zones || []) {
+      // 🔴 A zone that does not cover the destination must not price it.
+      // Found live: a Mumbai domestic quote was given "European Shipping" at
+      // 10 AUD, because every zone on the location was considered. A shipping
+      // option is an offer to carry a parcel to the zone it belongs to; from
+      // any other zone it is not a cheaper answer, it is a different question.
+      if (!zoneCoversDestination(zone, countryCode)) continue
+
       for (const so of zone?.shipping_options || []) {
         if (so?.price_type === "calculated") continue
         for (const price of so?.prices || []) {
           // Only currency-scoped flat prices are meaningful without a cart;
           // region-scoped ones need a region the estimate does not have.
           if (!price?.currency_code) continue
+
+          // 🔴 And it must be priced in the currency we are quoting. The picker
+          // sorts on the raw `amount`, so an option in another currency is not
+          // merely irrelevant — it silently WINS whenever its number happens to
+          // be smaller. 10 AUD beat 200 INR and was then rendered as Rs 10.
+          if (
+            quoteCurrency &&
+            String(price.currency_code).toLowerCase() !== quoteCurrency
+          ) {
+            continue
+          }
+
           manual.push({
             shipping_option_id: so.id,
             name: so.name,

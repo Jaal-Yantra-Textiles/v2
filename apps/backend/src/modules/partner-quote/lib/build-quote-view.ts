@@ -347,6 +347,10 @@ export async function buildQuoteView(
         })),
         destination_postal_code: String(input.destination_postal_code ?? ""),
         country_code: input.destination_country_code,
+        // Without this the manual options are compared across currencies and
+        // the cheapest NUMBER wins regardless of unit — a 10 AUD European
+        // option beat a rupee rate on a live Mumbai quote.
+        currency_code: input.currency_code,
         carrier: input.carrier,
         store: input.store,
       })

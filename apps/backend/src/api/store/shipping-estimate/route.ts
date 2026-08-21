@@ -40,6 +40,7 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
     quantity: rawQuantity,
     destination_postal_code: destinationPostalCode,
     country_code: rawCountryCode,
+    currency_code: rawCurrencyCode,
     carrier: rawCarrier,
   } = req.validatedQuery as Record<string, any>
 
@@ -58,6 +59,10 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
     lines: [{ variant_id: variantId, quantity: Number(rawQuantity) }],
     destination_postal_code: String(destinationPostalCode),
     country_code: rawCountryCode,
+    // Optional here (this route predates it) — when absent the manual options
+    // are not currency-filtered, which is the behaviour every existing caller
+    // already has. Supplying it is strictly safer.
+    currency_code: rawCurrencyCode,
     carrier: rawCarrier,
     store,
   })
