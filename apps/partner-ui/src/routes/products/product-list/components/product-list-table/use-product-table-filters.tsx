@@ -3,6 +3,7 @@ import { useTranslation } from "react-i18next"
 import { createDataTableFilterHelper } from "@medusajs/ui"
 import { HttpTypes } from "@medusajs/types"
 import { useDataTableDateFilters } from "../../../../../components/data-table/helpers/general/use-data-table-date-filters"
+import { useProductCategories } from "../../../../../hooks/api/categories"
 import { useProductTypes } from "../../../../../hooks/api/product-types"
 import { useProductTags } from "../../../../../hooks/api"
 import { useSalesChannels } from "../../../../../hooks/api/sales-channels"
@@ -25,6 +26,15 @@ export const useProductTableFilters = () => {
     limit: 1000,
     offset: 0,
   })
+
+  const { product_categories } = useProductCategories(
+    {
+      parent_category_id: "null",
+      include_descendants_tree: true,
+      limit: 100,
+    },
+    { enabled: true }
+  )
 
   const { sales_channels } = useSalesChannels({
     limit: 1000,
@@ -55,6 +65,19 @@ export const useProductTableFilters = () => {
           options: product_tags.map((t) => ({
             label: t.value,
             value: t.id,
+          })),
+        })
+      )
+    }
+
+    if (product_categories?.length) {
+      filters.push(
+        filterHelper.accessor("category_id", {
+          label: t("fields.categories"),
+          type: "multiselect",
+          options: product_categories.map((c) => ({
+            label: c.name,
+            value: c.id,
           })),
         })
       )
