@@ -1,11 +1,12 @@
 import { useCallback, useState } from "react"
 import { Text, Button, IconButton, Tooltip, Select } from "@medusajs/ui"
 import { Trash, Plus, Images } from "@medusajs/icons"
-import { ContentBlock } from "../../../hooks/api/content"
-import { TipTapEditor } from "../../tiptap-editor/tiptap-editor"
+import { ContentBlock } from "../../hooks/api/content"
+import { TipTapEditor } from "../tiptap-editor/tiptap-editor"
+
 
 type BlockEditorProps = {
-  block: ContentBlock
+  block: ContentBlock 
   onUpdate: (blockId: string, updates: Partial<ContentBlock>) => void
   onDelete: (blockId: string) => void
   saveStatus: "saved" | "saving" | "unsaved"
