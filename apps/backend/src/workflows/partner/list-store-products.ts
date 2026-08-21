@@ -63,6 +63,12 @@ const listStoreProductsStep = createStep(
         "products_link.product.sales_channels.*",
         "products_link.product.variants.id",
         "products_link.product.variants.title",
+        // #1389 — the quote builder quotes freight against the basket's summed
+        // weight, so the picker has to be able to say which variants are
+        // weighable BEFORE a quote is minted. Without this the surface cannot
+        // tell "no weight recorded" from "weight not fetched", and would report
+        // a fully-weighted catalogue as unquotable.
+        "products_link.product.variants.weight",
         "products_link.product.images.*",
         "products_link.product_id",
       ],

@@ -3,6 +3,7 @@ import {
   createStep,
   StepResponse,
   WorkflowResponse,
+  transform,
 } from "@medusajs/framework/workflows-sdk"
 import {
   ContainerRegistrationKeys,
@@ -381,13 +382,36 @@ export const mintQuoteWorkflow = createWorkflow(
     const buyer = resolveQuoteBuyerStep(input)
     const view = buildAndFreezeStep({ mint: input, now: timing.now } as any)
 
+    /**
+     * 🔴 The amount to freeze is the LIVE one.
+     *
+     * `buildQuoteView` is called with `quote: null` at mint time — there is no
+     * persisted quote yet — so `quoted_unit_amount` is null on EVERY line by
+     * construction (`build-quote-view.ts`: it reads the frozen row, which does
+     * not exist). Handing `view.lines` straight to `planQuotePrices`, which
+     * correctly drops any line with a null amount, dropped every line and made
+     * the mint fail 100% of the time with "No quoted line carried a price".
+     *
+     * `persistQuoteStep` already reads `live_unit_amount` for exactly this
+     * reason; this is the same conversion, at the sibling call site that
+     * missed it. The `quoted_*` fields are for comparing a LATER view against
+     * a quote already on disk — at mint, live IS the quote.
+     */
+    const priceRows = transform({ view }, ({ view }) =>
+      ((view as any)?.lines ?? []).map((l: any) => ({
+        variant_id: l.variant_id,
+        quantity: l.quantity,
+        quoted_unit_amount: l.live_unit_amount ?? null,
+      }))
+    )
+
     const priceList = mintPriceListStep({
       partner_id: input.partner_id,
       customer_group_id: buyer.customer_group_id,
       currency_code: input.currency_code,
       expires_at: timing.expires_at,
       now: timing.now,
-      lines: view.lines,
+      lines: priceRows,
     } as any)
 
     const persisted = persistQuoteStep({
