@@ -810,11 +810,18 @@ export function getPartnerRouteMap(): RouteObject[] {
                   path: "",
                   lazy: () =>
                     import("../../routes/categories/category-list"),
-                },
-                {
-                  path: "create",
-                  lazy: () =>
-                    import("../../routes/categories/category-create"),
+                  children: [
+                    {
+                      path: "create",
+                      lazy: () =>
+                        import("../../routes/categories/category-create"),
+                    },
+                    {
+                      path: "organize",
+                      lazy: () =>
+                        import("../../routes/categories/category-organize"),
+                    },
+                  ],
                 },
                 {
                   path: ":id",
