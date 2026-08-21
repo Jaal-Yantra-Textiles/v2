@@ -236,16 +236,31 @@ const mintPriceListStep = createStep(
       )
     }
 
+    /**
+     * ⚠️ A step's input is SERIALIZED on the way in, so a `Date` handed over by
+     * an earlier step arrives here as an ISO **string** — the declared
+     * `now: Date` type describes the graph, not the runtime value, and tsc
+     * cannot see the difference. Calling `.toISOString()` on it threw
+     * `input.now.toISOString is not a function` and 500'd the mint.
+     *
+     * Re-hydrate rather than re-deriving: `prepareTimingStep` owns mint time
+     * precisely so every downstream step shares ONE timestamp. Calling
+     * `new Date()` here would silently reintroduce the drift that step exists
+     * to prevent.
+     */
+    const now = new Date(input.now)
+    const expiresAt = new Date(input.expires_at)
+
     const { result } = await createPriceListsWorkflow(container).run({
       input: {
         price_lists_data: [
           {
             title: `Quote — ${input.customer_group_id}`,
-            description: `Quoted prices for customer group ${input.customer_group_id}, minted ${input.now.toISOString()}.`,
+            description: `Quoted prices for customer group ${input.customer_group_id}, minted ${now.toISOString()}.`,
             status: "active",
             type: "override",
-            starts_at: input.now.toISOString(),
-            ends_at: input.expires_at.toISOString(),
+            starts_at: now.toISOString(),
+            ends_at: expiresAt.toISOString(),
             rules: { customer_group_id: [input.customer_group_id] },
             prices,
           } as any,
@@ -329,10 +344,10 @@ const persistQuoteStep = createStep(
       quoted_freight: input.view.live?.freight ?? null,
       quoted_landed_total: input.view.live?.landed_total ?? null,
       quoted_weight_grams: input.view.total_weight_grams ?? null,
-      quoted_at: input.now,
+      quoted_at: new Date(input.now),
       token_hash: hash,
       status: "active",
-      expires_at: input.expires_at,
+      expires_at: new Date(input.expires_at),
       created_by: input.mint.created_by ?? null,
       metadata: {
         customer_id: input.buyer.customer_id,
