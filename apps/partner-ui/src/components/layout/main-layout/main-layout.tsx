@@ -224,6 +224,11 @@ const useCoreRoutes = (
           { label: "All", to: "/orders/all" },
           { label: "Design", to: "/orders/design" },
           { label: "Inventory", to: "/orders/inventory" },
+          // #1389 S3. The route has existed since the quote list shipped, but
+          // nothing in the nav pointed at it — a partner could only reach their
+          // own quotes by typing the URL, so in practice the list did not
+          // exist. Sibling of the other order kinds because a quote becomes one.
+          { label: t("app.nav.main.quotes", "Quotes"), to: "/orders/quotes" },
         ],
       },
       { icon: <CurrencyDollar />, label: t("app.nav.main.paymentSubmissions"), to: "/payment-submissions" },
@@ -281,6 +286,11 @@ const useCoreRoutes = (
           { label: "All", to: "/orders/all" },
           { label: "Design", to: "/orders/design" },
           { label: "Inventory", to: "/orders/inventory" },
+          // #1389 S3. The route has existed since the quote list shipped, but
+          // nothing in the nav pointed at it — a partner could only reach their
+          // own quotes by typing the URL, so in practice the list did not
+          // exist. Sibling of the other order kinds because a quote becomes one.
+          { label: t("app.nav.main.quotes", "Quotes"), to: "/orders/quotes" },
         ],
       },
       { icon: <Users />, label: t("app.nav.main.customers"), to: "/customers" },

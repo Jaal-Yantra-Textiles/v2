@@ -55,6 +55,21 @@ export const POST = async (
     },
   })
 
+  // Best-effort: activity logging must never turn a successful mint into a 500.
+  // A lost log line is recoverable; a failed mint that already created a live
+  // price list is not.
+  const quoteService: any = req.scope.resolve(PARTNER_QUOTE_MODULE)
+  await quoteService
+    .recordEvent({
+      quote_id: (result as any)?.quote?.id,
+      type: "minted",
+      actor_type: "partner",
+      actor_id: partner.id,
+      message: `Quote minted with ${body.lines.length} line(s).`,
+      data: { line_count: body.lines.length, ttl_days: body.ttl_days ?? null },
+    })
+    .catch(() => {})
+
   const logger: any = req.scope.resolve(ContainerRegistrationKeys.LOGGER)
   logger.info(
     `[quote] partner=${partner.id} minted quote=${(result as any)?.quote?.id} lines=${body.lines.length}`

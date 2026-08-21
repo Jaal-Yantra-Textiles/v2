@@ -17,6 +17,7 @@ import { partnerEmailTemplates } from "../../../../scripts/seed-partner-email-te
 import { investorEmailTemplates } from "../../../../scripts/seed-investor-email-templates"
 import { TEMPLATE_DEFINITION as cartAbandonedTemplate } from "../../../../scripts/seed-cart-abandoned-email"
 import { tourEmailTemplate } from "../../../../scripts/seed-tour-email-template"
+import { quoteEmailTemplates } from "../../../../scripts/seed-quote-email-template"
 import { visualFlowLifecycleTemplates } from "../../../../scripts/seed-visual-flow-lifecycle-email-templates"
 
 /**
@@ -97,6 +98,11 @@ export const EMAIL_TEMPLATE_SETS: Array<{
     key: "tour",
     label: "tour itinerary template",
     specs: [tourEmailTemplate as EmailTemplateSpec],
+  },
+  {
+    key: "quote",
+    label: "B2B quote templates",
+    specs: quoteEmailTemplates as EmailTemplateSpec[],
   },
   {
     key: "visual-flow-lifecycle",
@@ -240,7 +246,7 @@ export const seedEmailTemplatesJob: MaintenanceJob = {
   id: "seed-email-templates",
   label: "Seed email templates",
   description:
-    "Seed the reference email templates into a fresh / empty admin from the console — no shell or `medusa exec` needed (#457). Wraps the idempotent email-template seed scripts. Pick a set with the `set` param (core, additional, reengagement, partner, cart-abandoned, tour, visual-flow-lifecycle) or leave it blank / 'all' to seed every set. By default apply creates ONLY missing templates (skip-existing, never clobbers an admin-edited template). To push a REDESIGNED template live, pass overwrite=true — existing templates are updated from the spec; scope it with `only=<template_key>` (e.g. only=blog-subscriber) so you don't touch anything else. Dry-run always writes nothing.",
+    `Seed the reference email templates into a fresh / empty admin from the console — no shell or \`medusa exec\` needed (#457). Wraps the idempotent email-template seed scripts. Pick a set with the \`set\` param (${EMAIL_TEMPLATE_SET_KEYS.join(", ")}) or leave it blank / 'all' to seed every set. By default apply creates ONLY missing templates (skip-existing, never clobbers an admin-edited template). To push a REDESIGNED template live, pass overwrite=true — existing templates are updated from the spec; scope it with \`only=<template_key>\` (e.g. only=blog-subscriber) so you don't touch anything else. Dry-run always writes nothing.`,
   params: [
     {
       name: "set",

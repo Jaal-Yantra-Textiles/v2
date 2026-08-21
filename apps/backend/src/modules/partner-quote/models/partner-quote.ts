@@ -1,6 +1,7 @@
 import { model } from "@medusajs/framework/utils"
 
 import PartnerQuoteLine from "./partner-quote-line"
+import PartnerQuoteEvent from "./partner-quote-event"
 
 /**
  * A shareable B2B quote: a partner mints a link, a business buyer opens it and
@@ -53,6 +54,8 @@ const PartnerQuote = model.define("partner_quote", {
   // See `partner-quote-line.ts`. The basket is the child rows; nothing about
   // "which variant" or "how many" belongs here.
   lines: model.hasMany(() => PartnerQuoteLine, { mappedBy: "quote" }),
+  /** Append-only activity. See partner-quote-event.ts. */
+  events: model.hasMany(() => PartnerQuoteEvent, { mappedBy: "quote" }),
 
   // Destination for the freight leg. Kept as plain fields rather than an
   // address row: a quote destination is a rough "where to", not a shippable

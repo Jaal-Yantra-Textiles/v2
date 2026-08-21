@@ -631,6 +631,15 @@ export function getPartnerRouteMap(): RouteObject[] {
                     },
                   ],
                 },
+                // #1389 S5 — the quote detail. A SIBLING of the list rather
+                // than a child: the list renders its own <Outlet/> for the
+                // create modal, and nesting a full page there would draw the
+                // detail on top of the table instead of replacing it.
+                {
+                  path: "quotes/:quoteId",
+                  lazy: () => import("../../routes/orders/quote-detail"),
+                  handle: { breadcrumb: () => "Quote" },
+                },
                 {
                   path: ":id",
                   handle: {
