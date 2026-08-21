@@ -156,7 +156,22 @@ export const retrieveQuote = async (
       }
     )
     return quote ?? null
-  } catch {
+  } catch (e: any) {
+    /**
+     * The buyer-facing behaviour is unchanged: null becomes a 404, and an
+     * unknown token stays indistinguishable from a revoked one.
+     *
+     * 🔑 But the OPERATOR needs the cause. Every failure here — a bad token, an
+     * unreachable backend, a missing publishable key, a 500 in the view builder
+     * — used to collapse into the same silent 404, which made a Next 16 params
+     * regression (#1427: the token arrived as the literal string `undefined`)
+     * indistinguishable from a revoked link. Log the token LENGTH, never the
+     * token: it is the credential.
+     */
+    console.error(
+      `[quotes] retrieveQuote failed: token_len=${token?.length ?? 0} ` +
+        `status=${e?.status ?? "n/a"} message=${e?.message ?? String(e)}`
+    )
     return null
   }
 }
