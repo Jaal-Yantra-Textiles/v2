@@ -12,7 +12,7 @@ const base = {
   quoted: money(),
   live: money(),
   buyer_changed_inputs: false,
-  unusable_reason: null as null | "revoked" | "expired",
+  unusable_reason: null as null | "revoked" | "superseded" | "expired",
   days_until_expiry: 10 as number | null,
 }
 
@@ -73,6 +73,27 @@ describe("compareQuote", () => {
       expect(r.show_live).toBe(false)
       expect(r.landed_delta).toBeNull()
       expect(r.headline).toContain("expired")
+    })
+
+    it("shows the quoted figures but no live number once superseded", () => {
+      // Same reasoning as expiry: the record of what was said stays, but a
+      // recomputed live number would read as an offer still on the table.
+      const r = compareQuote({ ...base, unusable_reason: "superseded" })
+      expect(r.state).toBe("superseded_quoted_only")
+      expect(r.show_quoted).toBe(true)
+      expect(r.show_live).toBe(false)
+      expect(r.landed_delta).toBeNull()
+    })
+
+    it("does not tell a superseded buyer the partner withdrew the quote", () => {
+      // #1435: a superseded quote was REPLACED, not pulled. Using the revoked
+      // copy would send the buyer into an apologetic conversation instead of
+      // simply asking for the current link.
+      const superseded = compareQuote({ ...base, unusable_reason: "superseded" })
+      expect(superseded.state).not.toBe("dead_link")
+      expect(superseded.headline.toLowerCase()).toContain("newer")
+      expect(superseded.explanation).not.toContain("withdrawn")
+      expect(superseded.explanation.toLowerCase()).toContain("updated quote")
     })
 
     it("does not tell a buyer to ask for a re-send of a withdrawn quote", () => {

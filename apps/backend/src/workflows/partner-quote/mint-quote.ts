@@ -13,6 +13,7 @@ import {
 import {
   createPriceListsWorkflow,
   deletePriceListsWorkflow,
+  updatePriceListsWorkflow,
 } from "@medusajs/medusa/core-flows"
 
 import { PARTNER_QUOTE_MODULE } from "../../modules/partner-quote"
@@ -314,6 +315,162 @@ const mintPriceListStep = createStep(
   }
 )
 
+/**
+ * Retire every EARLIER active quote for this buyer (#1435).
+ *
+ * ## The bug this exists to fix
+ *
+ * `resolveQuoteBuyerStep`'s docblock has claimed since the module was written
+ * that a repeat buyer's second quote "replaces their prices rather than
+ * stacking a second list that core would tie-break against the first on
+ * `amount ASC`". **Nothing implemented that.** Two active price lists sat on
+ * one customer group, both with `rules_count: 1`, and core's tie-break picked
+ * the CHEAPEST — so a partner re-quoting the same buyer at a HIGHER price (
+ * materials moved, quantity dropped a tier) handed them the old, cheaper
+ * prices at checkout. The page showed the new number; the cart charged the old
+ * one. Expiry did not rescue it either: each list carries its own TTL from its
+ * own mint.
+ *
+ * A confident comment is not an implementation.
+ *
+ * ## Why `ends_at`, not delete
+ *
+ * Expiring the prior list is REVERSIBLE, and this step has to be: it runs
+ * before `persistQuoteStep`, so a later failure must put the buyer's previous
+ * quote back exactly as it was. A deleted price list cannot be restored, and
+ * compensating a destructive act with a re-create would mint a NEW list id
+ * that the old quote row does not point at. Setting `ends_at` to now stops the
+ * list pricing any cart immediately — expiry is native, there is no sweeper —
+ * and the compensation writes the original timestamp back.
+ *
+ * ## Ordering
+ *
+ * Runs AFTER the new price list is minted and verified, so a mint that fails
+ * its own rule check never touches the buyer's existing quote. At this point
+ * the new quote row does not exist yet, so every active quote found here is by
+ * definition a prior one — no need to exclude self.
+ */
+const supersedePriorQuotesStep = createStep(
+  "supersede-prior-quotes-step",
+  async (
+    input: { customer_group_id: string; now: Date },
+    { container }
+  ) => {
+    const service: any = container.resolve(PARTNER_QUOTE_MODULE)
+    const query: any = container.resolve(ContainerRegistrationKeys.QUERY)
+    const logger: any = container.resolve(ContainerRegistrationKeys.LOGGER)
+
+    // See the note in `mintPriceListStep`: a Date crossing a step boundary
+    // arrives as an ISO string, and tsc cannot see it.
+    const now = new Date(input.now)
+
+    const priors = await service.listPartnerQuotes({
+      customer_group_id: input.customer_group_id,
+      status: "active",
+    })
+
+    if (!priors?.length) {
+      return new StepResponse({ superseded: [] as string[] }, null)
+    }
+
+    const undo: Array<{
+      quote_id: string
+      price_list_id: string | null
+      previous_ends_at: string | null
+    }> = []
+
+    for (const prior of priors) {
+      let previousEndsAt: string | null = null
+
+      if (prior.price_list_id) {
+        // Read the CURRENT ends_at before overwriting it, so the compensation
+        // restores the real value rather than a guess.
+        const { data: lists } = await query.graph({
+          entity: "price_list",
+          fields: ["id", "ends_at"],
+          filters: { id: prior.price_list_id },
+        })
+        const existing = (lists ?? [])[0] as any
+        previousEndsAt = existing?.ends_at
+          ? new Date(existing.ends_at).toISOString()
+          : null
+
+        if (existing) {
+          await updatePriceListsWorkflow(container).run({
+            input: {
+              price_lists_data: [
+                { id: prior.price_list_id, ends_at: now.toISOString() } as any,
+              ],
+            },
+          })
+        } else {
+          // The list is already gone (revoked by hand, or cleaned up). Mark the
+          // quote anyway — but say so, rather than reporting a clean supersede.
+          logger.warn(
+            `[quote] supersede ${prior.id}: price list ${prior.price_list_id} no longer exists`
+          )
+        }
+      } else {
+        logger.warn(
+          `[quote] supersede ${prior.id}: no price_list_id recorded, nothing to expire`
+        )
+      }
+
+      await service.updatePartnerQuotes({
+        id: prior.id,
+        status: "superseded",
+      })
+
+      await service
+        .recordEvent({
+          quote_id: prior.id,
+          type: "superseded",
+          actor_type: "system",
+          message:
+            "A newer quote was minted for this buyer, so this quote's prices were expired.",
+          data: { price_list_id: prior.price_list_id ?? null },
+        })
+        .catch(() => {})
+
+      undo.push({
+        quote_id: prior.id,
+        price_list_id: prior.price_list_id ?? null,
+        previous_ends_at: previousEndsAt,
+      })
+    }
+
+    logger.info(
+      `[quote] superseded ${undo.length} prior quote(s) for group ${input.customer_group_id}`
+    )
+
+    return new StepResponse(
+      { superseded: undo.map((u) => u.quote_id) },
+      undo
+    )
+  },
+  async (undo, { container }) => {
+    if (!undo?.length) return
+    const service: any = container.resolve(PARTNER_QUOTE_MODULE)
+
+    for (const row of undo) {
+      if (row.price_list_id && row.previous_ends_at) {
+        await updatePriceListsWorkflow(container)
+          .run({
+            input: {
+              price_lists_data: [
+                { id: row.price_list_id, ends_at: row.previous_ends_at } as any,
+              ],
+            },
+          })
+          .catch(() => {})
+      }
+      await service
+        .updatePartnerQuotes({ id: row.quote_id, status: "active" })
+        .catch(() => {})
+    }
+  }
+)
+
 /** Persist the quote and its lines, and mint the token. */
 const persistQuoteStep = createStep(
   "persist-quote-step",
@@ -352,11 +509,11 @@ const persistQuoteStep = createStep(
       status: "active",
       expires_at: new Date(input.expires_at),
       created_by: input.mint.created_by ?? null,
-      metadata: {
-        customer_id: input.buyer.customer_id,
-        customer_group_id: input.buyer.customer_group_id,
-        price_list_id: input.price_list_id,
-      },
+      // #1440: columns, not metadata. `customer_group_id` is the key the
+      // supersede step queries on, and a json key cannot be filtered.
+      customer_id: input.buyer.customer_id,
+      customer_group_id: input.buyer.customer_group_id,
+      price_list_id: input.price_list_id,
     })
 
     await service.createPartnerQuoteLines(
@@ -430,6 +587,16 @@ export const mintQuoteWorkflow = createWorkflow(
       expires_at: timing.expires_at,
       now: timing.now,
       lines: priceRows,
+    } as any)
+
+    /**
+     * #1435 — retire the buyer's previous quotes AFTER the new price list is
+     * minted and verified, so a failed mint never disturbs a quote the buyer
+     * already holds. Its compensation restores them.
+     */
+    supersedePriorQuotesStep({
+      customer_group_id: buyer.customer_group_id,
+      now: timing.now,
     } as any)
 
     const persisted = persistQuoteStep({

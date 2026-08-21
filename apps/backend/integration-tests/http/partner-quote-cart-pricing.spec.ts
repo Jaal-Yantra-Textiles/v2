@@ -194,7 +194,7 @@ setupSharedTestSuite(() => {
         const quote = await mintFor(buyer)
         // If this ever fails, the prices are handed to an account nobody logs
         // into, and every pricing assertion in this file becomes meaningless.
-        expect(quote.metadata.customer_id).toBe(buyer.customerId)
+        expect(quote.customer_id).toBe(buyer.customerId)
       })
 
       it("charges the quoted amount for the quoted basket", async () => {
@@ -384,7 +384,7 @@ setupSharedTestSuite(() => {
         // has to run on a cron to retire a quote's prices.
         await loud("expire", () =>
           api.post(
-            `/admin/price-lists/${quote.metadata.price_list_id}`,
+            `/admin/price-lists/${quote.price_list_id}`,
             { ends_at: new Date(Date.now() - 60_000).toISOString() },
             adminHeaders
           )
@@ -408,7 +408,7 @@ setupSharedTestSuite(() => {
         // `status: draft` IS the revoke — the same reason no sweeper is needed.
         await loud("revoke", () =>
           api.post(
-            `/admin/price-lists/${quote.metadata.price_list_id}`,
+            `/admin/price-lists/${quote.price_list_id}`,
             { status: "draft" },
             adminHeaders
           )

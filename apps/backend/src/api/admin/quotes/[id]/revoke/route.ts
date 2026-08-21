@@ -38,7 +38,14 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
     return res.json({ quote, already_revoked: true })
   }
 
-  const priceListId = (quote.metadata as any)?.price_list_id
+  /**
+   * #1440 moved this off `metadata` and onto a column. The metadata fallback
+   * stays for rows minted before that migration ran — the backfill covers them,
+   * but a revoke that silently skipped a live price list because a backfill was
+   * missed is the exact failure this route exists to prevent.
+   */
+  const priceListId =
+    (quote as any)?.price_list_id ?? (quote.metadata as any)?.price_list_id
   if (priceListId) {
     await deletePriceListsWorkflow(req.scope).run({
       input: { ids: [priceListId] },
@@ -48,7 +55,7 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
     // A quote with no recorded price list either never froze or was minted
     // before the id was stored. Say so rather than reporting a clean revoke.
     logger.warn(
-      `[quote] revoke ${quote.id} had no price_list_id in metadata — nothing to delete`
+      `[quote] revoke ${quote.id} had no price_list_id recorded — nothing to delete`
     )
   }
 

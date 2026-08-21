@@ -76,8 +76,22 @@ const QuotesPage = () => {
         cell: ({ getValue }) => {
           const status = String(getValue() || "active")
           return (
-            <StatusBadge color={status === "active" ? "green" : "red"}>
-              {status === "active" ? "Active" : "Revoked"}
+            // `superseded` is deliberately not red: nobody withdrew this
+            // quote, a newer one replaced it (#1435).
+            <StatusBadge
+              color={
+                status === "active"
+                  ? "green"
+                  : status === "superseded"
+                    ? "orange"
+                    : "red"
+              }
+            >
+              {status === "active"
+                ? "Active"
+                : status === "superseded"
+                  ? "Superseded"
+                  : "Revoked"}
             </StatusBadge>
           )
         },

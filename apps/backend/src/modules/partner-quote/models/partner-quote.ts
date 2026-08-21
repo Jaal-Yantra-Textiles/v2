@@ -87,10 +87,40 @@ const PartnerQuote = model.define("partner_quote", {
   quoted_weight_grams: model.number().nullable(),
   quoted_at: model.dateTime().nullable(),
 
+  // ===== Buyer identity — the edges this quote's prices hang off ==========
+  /**
+   * 🔴 These are NOT metadata, and they used to be (#1440).
+   *
+   * The mint creates a customer, a customer group named for the buyer, and a
+   * price list ruled on that group. Those three ids are what make the quoted
+   * number the number the cart charges, and what a revoke has to delete.
+   *
+   * They lived in `metadata` json until #1440, which made the one query that
+   * matters impossible: "what other active price lists does this buyer's group
+   * already have?" A module service `list` cannot filter on a json key, so a
+   * repeat quote silently STACKED a second price list on the same group and
+   * core tie-broke on `amount ASC` — handing a re-quoted buyer the older,
+   * cheaper prices (#1435). Columns, not a blob, is what makes supersede
+   * possible at all.
+   */
+  customer_id: model.text().nullable(),
+  // The index lives in the migration, not here — `.index()` is not available
+  // after `.nullable()`, and this module follows the same convention as
+  // `ai_usage`: indexes are maintained by the migrations.
+  customer_group_id: model.text().nullable(),
+  price_list_id: model.text().nullable(),
+
   // ===== Token + lifecycle ================================================
   // sha256(raw). The raw token is returned once, at mint.
   token_hash: model.text().unique(),
-  status: model.enum(["active", "revoked"]).default("active"),
+  /**
+   * `superseded` means a NEWER quote to the same buyer replaced this one, and
+   * this quote's price list has been expired so it can no longer price a cart.
+   * It is deliberately distinct from `revoked`: nobody withdrew this quote, and
+   * the buyer should be told a current one exists rather than that the partner
+   * pulled the offer.
+   */
+  status: model.enum(["active", "revoked", "superseded"]).default("active"),
   expires_at: model.dateTime().nullable(),
 
   // ===== Engagement (fire-and-forget; tracking must never 500 a buyer) =====
@@ -99,6 +129,11 @@ const PartnerQuote = model.define("partner_quote", {
   view_count: model.number().default(0),
 
   created_by: model.text().nullable(),
+  /**
+   * Genuinely incidental data only. The buyer identity ids that used to live
+   * here are now columns above — see the note on `customer_id`. Nothing
+   * load-bearing goes back in here.
+   */
   metadata: model.json().nullable(),
 })
 

@@ -47,8 +47,12 @@ export type QuoteLifecycle = {
 export function quoteUnusableReason(
   quote: QuoteLifecycle,
   now: Date
-): "revoked" | "expired" | null {
+): "revoked" | "superseded" | "expired" | null {
   if (quote.status === "revoked") return "revoked"
+  // Checked before expiry: a superseded quote is usually still inside its own
+  // TTL, and "a newer quote replaced this" is the more useful thing to say than
+  // "this expired" — the buyer has somewhere to go.
+  if (quote.status === "superseded") return "superseded"
   if (
     quote.expires_at &&
     new Date(quote.expires_at).getTime() <= now.getTime()

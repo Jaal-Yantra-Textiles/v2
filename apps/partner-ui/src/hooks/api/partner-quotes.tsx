@@ -58,7 +58,7 @@ export type PartnerQuote = {
   quoted_weight_grams?: number | null
   quoted_at?: string | null
 
-  status: "active" | "revoked"
+  status: "active" | "revoked" | "superseded"
   expires_at?: string | null
 
   viewed_at?: string | null

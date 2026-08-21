@@ -24,7 +24,7 @@ export type AdminQuote = Record<string, any> & {
   destination_country_code?: string
   quoted_landed_total?: number | null
   quoted_freight?: number | null
-  status?: "active" | "revoked"
+  status?: "active" | "revoked" | "superseded"
   expires_at?: string | null
   view_count?: number
   last_viewed_at?: string | null
