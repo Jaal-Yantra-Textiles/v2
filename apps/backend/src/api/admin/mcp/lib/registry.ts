@@ -3589,7 +3589,7 @@ export const ADMIN_MCP_TOOLS: AdminMcpToolDef[] = [
   {
     name: "search_pinterest",
     description:
-      "Search Pinterest for reference images by keyword. Returns pins with image urls that can be read with read_image or recorded on a design as inspiration. Requires PINTEREST_ACCESS_TOKEN to be configured.",
+      "Find reference images on Pinterest by keyword. Returns pins with image urls that can be read with read_image or recorded on a design as inspiration. Check the `source` field before reporting results: 'partner_search' is all of Pinterest, while 'own_pins' means only OUR OWN saved pins were searched — never say 'nothing exists on Pinterest' when the source was own_pins.",
     method: "GET",
     path: "/admin/pinterest",
     queryParams: ["q", "bookmark"],
