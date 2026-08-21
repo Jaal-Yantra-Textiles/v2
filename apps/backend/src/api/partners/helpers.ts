@@ -210,9 +210,23 @@ export const resolvePartnerShipFromLocation = async (
     return { partner, locationId: picked?.id ?? null }
 }
 
+/**
+ * Every core entity a partner can own, keyed by the `field` its store link
+ * declares in `src/links/`. Deliberately a closed union: an entity type only
+ * belongs here once a `store ↔ …` link exists, because both guards below ask
+ * the store for `${entityType}.id` and a missing link resolves to an empty
+ * list — which reads as "you own nothing" and 404s every legitimate request.
+ */
+export type PartnerScopedEntity =
+    | "product_categories"
+    | "product_collections"
+    | "customers"
+    | "customer_groups"
+    | "price_lists"
+
 export const validatePartnerEntityOwnership = async (
     authContext: { actor_id?: string | null } | undefined,
-    entityType: "product_categories" | "product_collections" | "customers" | "customer_groups",
+    entityType: PartnerScopedEntity,
     entityId: string,
     container: MedusaContainer,
 ): Promise<{ partner: any; store: any }> => {
@@ -274,7 +288,7 @@ export const missingOwnedIds = (
  */
 export const validatePartnerOwnsEntities = async (
     authContext: { actor_id?: string | null } | undefined,
-    entityType: "product_categories" | "product_collections" | "customers" | "customer_groups",
+    entityType: PartnerScopedEntity,
     entityIds: string[],
     container: MedusaContainer,
 ): Promise<{ partner: any; store: any }> => {
