@@ -1,0 +1,208 @@
+import { Container, Heading, StatusBadge, Text } from "@medusajs/ui"
+import { useTranslation } from "react-i18next"
+import { useParams } from "react-router-dom"
+
+import {
+  usePartnerQuote,
+  type PartnerQuoteEvent,
+} from "../../../hooks/api/partner-quotes"
+
+/**
+ * A partner's own quote, in detail (#1389 S5).
+ *
+ * The list answers "what have I quoted"; this answers "what exactly did I quote
+ * this buyer, and what has happened since". The second question is the one asked
+ * when a buyer comes back to argue about a price.
+ */
+
+const money = (amount?: number | null, currency?: string) =>
+  amount === null || amount === undefined
+    ? "—"
+    : new Intl.NumberFormat("en-US", {
+        style: "currency",
+        currency: (currency || "inr").toUpperCase(),
+      }).format(amount)
+
+const Field = ({ label, value }: { label: string; value: React.ReactNode }) => (
+  <div className="flex items-start justify-between gap-4 px-6 py-3">
+    <Text size="small" className="text-ui-fg-subtle">
+      {label}
+    </Text>
+    <div className="text-right">{value}</div>
+  </div>
+)
+
+const ACTOR_LABEL: Record<string, string> = {
+  partner: "You",
+  admin: "Admin",
+  buyer: "Buyer",
+  system: "System",
+}
+
+const Timeline = ({ events }: { events: PartnerQuoteEvent[] }) => {
+  const { t } = useTranslation()
+
+  if (!events?.length) {
+    return (
+      <div className="px-6 py-6">
+        <Text size="small" className="text-ui-fg-subtle">
+          {t(
+            "quotes.activity.empty",
+            "No activity yet. Quotes minted before activity logging shipped have no history — that is expected, not a gap in this quote."
+          )}
+        </Text>
+      </div>
+    )
+  }
+
+  return (
+    <ul className="px-6 py-4">
+      {events.map((e) => (
+        <li
+          key={e.id}
+          className="flex gap-3 border-l border-ui-border-base pl-4 pb-4 last:pb-0"
+        >
+          <div className="flex flex-col">
+            <div className="flex items-center gap-2">
+              <Text size="small" weight="plus">
+                {e.type}
+              </Text>
+              {/* 🔑 Shown, not hidden: a quote an admin minted on your behalf
+                  must never look like one you minted yourself. */}
+              <StatusBadge color={e.actor_type === "buyer" ? "blue" : "grey"}>
+                {ACTOR_LABEL[e.actor_type] ?? e.actor_type}
+              </StatusBadge>
+            </div>
+            {e.message ? (
+              <Text size="small" className="text-ui-fg-subtle">
+                {e.message}
+              </Text>
+            ) : null}
+            <Text size="xsmall" className="text-ui-fg-muted">
+              {new Date(e.created_at).toLocaleString()}
+            </Text>
+          </div>
+        </li>
+      ))}
+    </ul>
+  )
+}
+
+export const QuoteDetail = () => {
+  const { t } = useTranslation()
+  // Named `quoteId` in the route map, not `id`: a sibling `:id` already
+  // exists under /orders for retail orders, and two params called `id` in one
+  // branch resolve to whichever matched last.
+  const { quoteId } = useParams()
+  const { quote, isLoading } = usePartnerQuote(quoteId!)
+
+  if (isLoading || !quote) {
+    return (
+      <Container>
+        <Text size="small" className="text-ui-fg-subtle">
+          {isLoading
+            ? t("general.loading", "Loading…")
+            : t("quotes.notFound", "Quote not found.")}
+        </Text>
+      </Container>
+    )
+  }
+
+  const isRevoked = (quote as any).status === "revoked"
+
+  return (
+    <div className="flex flex-col gap-y-3">
+      <Container className="divide-y p-0">
+        <div className="flex items-center justify-between px-6 py-4">
+          <div>
+            <Heading>
+              {(quote as any).recipient_company ||
+                (quote as any).recipient_name ||
+                t("quotes.title", "Quote")}
+            </Heading>
+            <Text size="small" className="text-ui-fg-subtle">
+              {(quote as any).email_sent_to}
+            </Text>
+          </div>
+          <StatusBadge color={isRevoked ? "red" : "green"}>
+            {isRevoked
+              ? t("quotes.status.revoked", "Revoked")
+              : t("quotes.status.active", "Active")}
+          </StatusBadge>
+        </div>
+
+        <Field
+          label={t("fields.landedTotal", "Landed total")}
+          value={
+            <Text size="small" weight="plus">
+              {money(
+                (quote as any).quoted_landed_total,
+                (quote as any).currency_code
+              )}
+            </Text>
+          }
+        />
+        <Field
+          label={t("fields.freight", "Freight")}
+          value={
+            <Text size="small">
+              {money((quote as any).quoted_freight, (quote as any).currency_code)}
+            </Text>
+          }
+        />
+        <Field
+          label={t("fields.destination", "Destination")}
+          value={
+            <Text size="small">
+              {String((quote as any).destination_country_code || "").toUpperCase()}
+              {(quote as any).destination_postal_code
+                ? ` ${(quote as any).destination_postal_code}`
+                : ""}
+            </Text>
+          }
+        />
+        <Field
+          label={t("fields.expiresAt", "Expires")}
+          value={
+            <Text size="small">
+              {(quote as any).expires_at
+                ? new Date((quote as any).expires_at).toLocaleString()
+                : "—"}
+            </Text>
+          }
+        />
+        <Field
+          label={t("fields.viewed", "Viewed")}
+          value={
+            <Text size="small">
+              {Number((quote as any).view_count || 0) === 0
+                ? t("quotes.notViewed", "Not yet")
+                : `${(quote as any).view_count}×`}
+            </Text>
+          }
+        />
+        {/* 🔴 Stated plainly. The raw token is returned once at mint and only
+            its sha256 is stored, so nothing can rebuild the link — a "copy
+            link" button here would be a button that cannot work. */}
+        <Field
+          label={t("quotes.minted.buyerLink", "Buyer link")}
+          value={
+            <Text size="small" className="text-ui-fg-subtle">
+              {t(
+                "quotes.linkNotRecoverable",
+                "Shown once at mint and not recoverable. Mint a new quote to issue a fresh link."
+              )}
+            </Text>
+          }
+        />
+      </Container>
+
+      <Container className="divide-y p-0">
+        <div className="px-6 py-4">
+          <Heading level="h2">{t("quotes.activity.title", "Activity")}</Heading>
+        </div>
+        <Timeline events={((quote as any).events ?? []) as PartnerQuoteEvent[]} />
+      </Container>
+    </div>
+  )
+}

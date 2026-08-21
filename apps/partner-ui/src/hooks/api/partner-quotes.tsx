@@ -143,6 +143,53 @@ export const usePartnerQuotes = (
   }
 }
 
+export type PartnerQuoteEvent = {
+  id: string
+  type: string
+  actor_type: "partner" | "admin" | "buyer" | "system"
+  actor_id?: string | null
+  message?: string | null
+  data?: Record<string, unknown> | null
+  created_at: string
+}
+
+export type PartnerQuoteDetailResponse = {
+  quote: PartnerQuote & { events?: PartnerQuoteEvent[] }
+}
+
+/**
+ * One of the partner's own quotes, with its lines and activity.
+ *
+ * 🔴 The response carries no token and never can — only its sha256 is stored,
+ * so no read can rebuild the buyer link. The detail view says so rather than
+ * offering a copy button that cannot work.
+ */
+export const usePartnerQuote = (
+  id: string,
+  options?: Omit<
+    UseQueryOptions<
+      PartnerQuoteDetailResponse,
+      FetchError,
+      PartnerQuoteDetailResponse,
+      QueryKey
+    >,
+    "queryFn" | "queryKey"
+  >
+) => {
+  const { data, ...rest } = useQuery({
+    queryKey: partnerQuotesQueryKeys.detail(id),
+    queryFn: async () =>
+      await sdk.client.fetch<PartnerQuoteDetailResponse>(
+        `/partners/quotes/${id}`,
+        { method: "GET" }
+      ),
+    enabled: !!id,
+    ...options,
+  })
+
+  return { quote: data?.quote, ...rest }
+}
+
 export const useMintPartnerQuote = (
   options?: UseMutationOptions<
     MintPartnerQuoteResponse,

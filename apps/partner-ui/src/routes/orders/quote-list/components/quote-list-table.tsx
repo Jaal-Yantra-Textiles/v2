@@ -154,6 +154,9 @@ export const QuoteListTable = () => {
         columns={columns}
         rowCount={count}
         getRowId={(row) => row.id}
+        // Without this the list was a dead end — a partner could see that a
+        // quote existed but never open it.
+        navigateTo={(row) => `/orders/quotes/${row.id}`}
         pageSize={PAGE_SIZE}
         isLoading={isPending}
         heading={t("quotes.domain", "Quotes")}

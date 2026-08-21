@@ -307,6 +307,7 @@ import { PartnerCreateStoreReq } from "./partners/stores/validators";
 import { PartnerCreateProductReq, PartnerArtisanProductDetailReq, PartnerProductSpecReq, PartnerStoreCreateProductReq, PartnerQuickCreateProductReq } from "./partners/products/validators";
 import { PartnerCreatePriceListReq, PartnerUpdatePriceListReq } from "./partners/price-lists/validators";
 import { PartnerMintQuoteReq } from "./partners/quotes/validators";
+import { AdminMintQuoteReq } from "./admin/quotes/validators";
 import { BATCH_VARIANT_FIELDS } from "../workflows/partner/batch-partner-variants";
 import { StoreMadeToSpecReq } from "./store/carts/[id]/made-to-spec/validators";
 import {
@@ -5610,6 +5611,21 @@ export default defineMiddlewares({
         createCorsPartnerMiddleware(),
         authenticate("partner", ["session", "bearer"]),
         validateAndTransformBody(wrapSchema(PartnerMintQuoteReq)),
+      ],
+    },
+    // Admin quotes (#1389 S5). Same capability as the partner surface, but the
+    // owning partner must be named — an admin has none of their own.
+    {
+      matcher: "/admin/quotes",
+      method: "POST",
+      middlewares: [validateAndTransformBody(wrapSchema(AdminMintQuoteReq))],
+    },
+    {
+      matcher: "/partners/quotes/:id",
+      method: "GET",
+      middlewares: [
+        createCorsPartnerMiddleware(),
+        authenticate("partner", ["session", "bearer"]),
       ],
     },
     // Partner price list endpoints (#1405). Unlike customer-groups above,
