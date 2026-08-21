@@ -48,33 +48,46 @@ const DELHIVERY_PROVIDER = "delhivery_delhivery"
  * tail. Domestic is India (INR); everything else is a true cross-border rate.
  * `usd` is the fallback for unlisted currencies.
  *
- * 🔴 `freeUpTo` is the half that was missing, and its absence was expensive.
+ * 🔴 `freeUpTo` exists because a `gte` threshold cannot exclude bulk: a B2B
+ * consignment is LARGER than a retail basket, so it clears the bar harder, not
+ * less. Free shipping written as "over X" therefore applies in full to a
+ * seven-figure order.
  *
- * A `gte` threshold cannot exclude bulk: a B2B consignment is LARGER than a
- * retail basket, so it clears the bar harder. Free shipping written as
- * "over ₹2,999" therefore applies to a ₹36,00,000 order — and the first live
- * B2B quote duly landed on freight 0. (It reached 0 by a second route too: the
- * estimate never read `price_rules` at all — see #1430 — but fixing that only
- * made the quote honest, it did not stop the CART from shipping bulk free.)
+ * ## Domestic is deliberately UNCAPPED
  *
- * The ceiling is where retail stops, not where bulk starts, so it is set from
- * the largest plausible consumer basket. Founder call, 21 Aug 2026: ₹25,000
- * domestic; international one step higher (₹30,000-equivalent) because
- * cross-border pricing steps at 5 kg and more providers are coming online.
- * Non-INR ceilings are the same 1.2× step applied to this table's OWN existing
- * `freeAbove` ratios, so the currencies stay consistent with each other rather
- * than with a spot rate that will have moved by the time anyone reads this.
+ * Founder call, 21 Aug 2026: domestic keeps its open-ended free tier. Indian
+ * domestic freight is ₹99-scale, so absorbing it on a large order is a rounding
+ * error against the order itself, and capping it would start charging real
+ * retail carts that ship free today. `freeUpTo` is therefore OPTIONAL, and its
+ * absence is a decision rather than an oversight.
+ *
+ * ⚠️ The known consequence: a domestic B2B quote shows real freight (the quote
+ * estimate skips rule-bound prices — #1430) while the cart still ships free, so
+ * the buyer pays LESS than quoted. That direction is a pleasant surprise rather
+ * than a dispute, which is why it is acceptable here and would not be if it ran
+ * the other way.
+ *
+ * ## International IS capped
+ *
+ * Cross-border freight is not a rounding error, and its pricing steps at 5 kg —
+ * so an uncapped free tier there is a real loss on exactly the orders most
+ * likely to use it. The ceiling is one step (1.2×) above the existing
+ * threshold, applied to this table's OWN `freeAbove` ratios so the currencies
+ * stay consistent with each other rather than with a spot rate that will have
+ * moved by the time anyone reads this.
  */
 export const DOMESTIC_MANUAL_RATES: Record<
   string,
-  { base: number; freeAbove: number; freeUpTo: number }
+  { base: number; freeAbove: number; freeUpTo?: number }
 > = {
-  inr: { base: 99, freeAbove: 2999, freeUpTo: 25000 },
+  // No `freeUpTo` — see "Domestic is deliberately UNCAPPED" above.
+  inr: { base: 99, freeAbove: 2999 },
 }
 export const INTL_MANUAL_RATES: Record<
   string,
   { base: number; freeAbove: number; freeUpTo: number }
 > = {
+  // Every entry HAS a ceiling. Cross-border freight is not absorbable.
   usd: { base: 39, freeAbove: 350, freeUpTo: 420 },
   eur: { base: 35, freeAbove: 300, freeUpTo: 360 },
   gbp: { base: 30, freeAbove: 275, freeUpTo: 330 },
@@ -113,28 +126,35 @@ export const locationSuffix = (locationId: string): string =>
 
 /**
  * Build the flat tiered price list for a manual option: a default `base` price
- * plus a `0` price gated on a free-shipping BAND.
+ * plus a `0` price gated on the free-shipping tier.
  *
- * 🔑 Both bounds, always. A `gte` alone is an open-ended tail that every bulk
- * order clears — see the rate table above for what that cost.
+ * 🔑 The upper bound is emitted only when the rate table declares one. An
+ * absent `freeUpTo` means the tier is deliberately open-ended (domestic — see
+ * the rate table), NOT that a ceiling was forgotten. Defaulting one in here
+ * would silently start charging carts that ship free today.
  */
 const manualTieredPrices = (
   currencies: string[],
-  rates: Record<string, { base: number; freeAbove: number; freeUpTo: number }>
+  rates: Record<string, { base: number; freeAbove: number; freeUpTo?: number }>
 ): TieredPrice[] => {
   const out: TieredPrice[] = []
   for (const cur of currencies) {
     const rate =
       rates[cur] ?? rates["usd"] ?? { base: 39, freeAbove: 350, freeUpTo: 420 }
     out.push({ currency_code: cur, amount: rate.base })
-    out.push({
-      currency_code: cur,
-      amount: 0,
-      rules: [
-        { attribute: "item_total", operator: "gte" as const, value: rate.freeAbove },
-        { attribute: "item_total", operator: "lte" as const, value: rate.freeUpTo },
-      ],
-    })
+
+    const rules: any[] = [
+      { attribute: "item_total", operator: "gte" as const, value: rate.freeAbove },
+    ]
+    if (Number.isFinite(rate.freeUpTo)) {
+      rules.push({
+        attribute: "item_total",
+        operator: "lte" as const,
+        value: rate.freeUpTo,
+      })
+    }
+
+    out.push({ currency_code: cur, amount: 0, rules })
   }
   return out
 }

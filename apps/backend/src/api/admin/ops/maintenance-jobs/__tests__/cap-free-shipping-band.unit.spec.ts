@@ -1,12 +1,13 @@
 import { planFreeShippingCaps } from "../cap-free-shipping-band-job"
 
 /**
- * Free shipping had no upper bound, so every bulk order cleared it.
+ * International free shipping had no upper bound, so every bulk order cleared it.
  *
- * The assertions that matter are the ones about telling the two lanes apart and
- * about NOT acting. INR appears in both rate tables; if the lane were read from
- * the option's name, a hand-renamed zone (#954 renamed several) would get the
- * wrong ceiling and nothing would ever look wrong.
+ * The assertions that matter are the ones about NOT acting. Domestic is
+ * deliberately left open (founder call, 21 Aug 2026), so capping it would be a
+ * defect, not an improvement — and INR appears in BOTH rate tables, so a lane
+ * read from the option's name would cap the very tier that must stay open. A
+ * hand-renamed zone (#954 renamed several) is enough to trigger that.
  */
 
 const gte = (value: number) => ({
@@ -32,23 +33,20 @@ const option = (over: any = {}) => ({
 })
 
 describe("planFreeShippingCaps", () => {
-  it("caps a domestic INR tier at the domestic ceiling", () => {
-    const { plan } = planFreeShippingCaps([option()])
+  it("leaves a DOMESTIC tier open, and says it did so on purpose", () => {
+    // 🔴 The founder's call. ₹99-scale freight is absorbable, and a ceiling
+    // here would start charging retail carts that ship free today. Reported
+    // rather than silently passed over, so a reader can see it was examined.
+    const { plan, skipped } = planFreeShippingCaps([option()])
 
-    expect(plan).toHaveLength(1)
-    expect(plan[0]).toMatchObject({
-      price_id: "price_free",
-      currency_code: "inr",
-      free_above: 2999,
-      free_up_to: 25000,
-      lane: "domestic",
-    })
+    expect(plan).toHaveLength(0)
+    expect(skipped[0].reason).toMatch(/deliberately uncapped/)
   })
 
-  it("caps an INTERNATIONAL INR tier higher, from the threshold and not the name", () => {
+  it("caps an INTERNATIONAL INR tier, from the threshold and not the name", () => {
     // 🔑 Same currency, same misleading name, different lane. Only the existing
-    // threshold (25000, the international one) can tell them apart — and
-    // cross-border pricing steps at 5 kg, so the ceiling is a step higher.
+    // threshold (25000, the international one) can tell them apart. Get this
+    // wrong in the other direction and a domestic tier gets capped.
     const { plan } = planFreeShippingCaps([
       option({
         name: "Domestic Shipping · renamed-during-954",
@@ -79,12 +77,13 @@ describe("planFreeShippingCaps", () => {
   it("is idempotent — a tier that already has a ceiling is skipped", () => {
     const { plan, skipped } = planFreeShippingCaps([
       option({
+        name: "International Shipping · 68M3HY2V",
         prices: [
           {
             id: "price_free",
             amount: 0,
-            currency_code: "inr",
-            price_rules: [gte(2999), lte(25000)],
+            currency_code: "eur",
+            price_rules: [gte(300), lte(360)],
           },
         ],
       }),
