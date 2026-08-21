@@ -2,10 +2,19 @@ import { AuthenticatedMedusaRequest, MedusaResponse } from "@medusajs/framework/
 import { ContainerRegistrationKeys } from "@medusajs/framework/utils"
 
 import { PARTNER_QUOTE_MODULE } from "../../../modules/partner-quote"
+import { buildQuoteListQuery } from "../../../modules/partner-quote/lib/list-query"
 import { mintQuoteWorkflow } from "../../../workflows/partner-quote/mint-quote"
 import { getPartnerStore, tryGetPartnerStore } from "../helpers"
 
-/** The partner's own quotes. Scoped by `partner_id`, never listed globally. */
+/**
+ * The partner's own quotes. Scoped by `partner_id`, never listed globally.
+ *
+ * 🔑 `partner_id` is passed as a PINNED filter, which `buildQuoteListQuery`
+ * refuses to let a query string override. The list previously ignored
+ * `limit`/`offset` entirely while `usePartnerQuotes` sent them, so the table's
+ * pager moved a window over a set that was never windowed and `count` was the
+ * length of everything.
+ */
 export const GET = async (
   req: AuthenticatedMedusaRequest,
   res: MedusaResponse
@@ -16,9 +25,16 @@ export const GET = async (
   }
 
   const service: any = req.scope.resolve(PARTNER_QUOTE_MODULE)
-  const quotes = await service.listPartnerQuotes({ partner_id: partner.id })
+  const { filters, config } = buildQuoteListQuery(req.query as any, {
+    partner_id: partner.id,
+  })
 
-  res.json({ quotes, count: quotes.length })
+  const [quotes, count] = await service.listAndCountPartnerQuotes(
+    filters,
+    config
+  )
+
+  res.json({ quotes, count, limit: config.take, offset: config.skip })
 }
 
 /**
