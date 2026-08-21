@@ -17,8 +17,8 @@ import { daysUntilExpiry, quoteUnusableReason } from "./token"
  *
  * ## Three callers, one implementation
  *
- * 1. the public `/web/quotes/:token` route — what the buyer sees, recomputed
- *    live as they move the quantity dial;
+ * 1. the public `/store/b2b/quotes/:token` route — what the buyer sees,
+ *    recomputed live as they move the quantity dial;
  * 2. the email retrieval step — what the buyer receives;
  * 3. **mint**, where this same output is frozen into the row's `quoted_*`
  *    columns.
@@ -347,6 +347,10 @@ export async function buildQuoteView(
         })),
         destination_postal_code: String(input.destination_postal_code ?? ""),
         country_code: input.destination_country_code,
+        // Without this the manual options are compared across currencies and
+        // the cheapest NUMBER wins regardless of unit — a 10 AUD European
+        // option beat a rupee rate on a live Mumbai quote.
+        currency_code: input.currency_code,
         carrier: input.carrier,
         store: input.store,
       })
