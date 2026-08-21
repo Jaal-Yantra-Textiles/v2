@@ -62,6 +62,19 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
     currency_code: quote.currency_code,
     region_id: quote.region_id,
     store: { id: quote.store_id ?? undefined },
+    partner_id: quote.partner_id ?? null,
+    /**
+     * #1428 — whose storefront is serving this page.
+     *
+     * 🔑 NOT `quote.store_id`. Both mint paths resolve the store FROM the
+     * partner, so the quote can only ever answer "the partner's own" and the
+     * producer credit would never render. The serving storefront is the one
+     * that sent the publishable key, which is the same signal
+     * `/store/partner-showcase` uses to tell one's own shop from someone
+     * else's. Absent ⇒ the builder says nothing rather than guessing.
+     */
+    viewer_sales_channel_ids:
+      (req as any).publishable_key_context?.sales_channel_ids ?? null,
     now: new Date(),
   })
 

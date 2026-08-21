@@ -1,7 +1,9 @@
 import { Text } from "@medusajs/ui"
+import Image from "next/image"
 
 import { convertToLocale } from "@lib/util/money"
 import type { QuoteView, QuoteViewLine } from "@lib/data/quotes"
+import QuoteLineSpecRows from "../quote-line-spec"
 
 /**
  * The quoted basket, line by line.
@@ -31,23 +33,50 @@ const LineRow = ({
 }) => (
   <tr className="border-b border-ui-border-base last:border-b-0">
     <td className="py-4 pr-4 align-top">
-      <Text className="txt-medium-plus text-ui-fg-base">
-        {line.product_title ?? "Product"}
-      </Text>
-      {line.variant_title ? (
-        <Text className="txt-small text-ui-fg-subtle">{line.variant_title}</Text>
-      ) : null}
-      {line.note ? (
-        <Text className="txt-small text-ui-fg-muted italic mt-1">{line.note}</Text>
-      ) : null}
-      {/* A declared PRODUCT weight over-quotes a lighter variant, and at bulk
-          quantities that can cross a carrier slab — so where the weight came
-          from travels with the number rather than being buried. */}
-      {line.weight_source === "product" ? (
-        <Text className="txt-small text-ui-fg-muted mt-1">
-          Weight estimated from the product, not this variant.
-        </Text>
-      ) : null}
+      <div className="flex gap-x-4">
+        {/* 🔴 No placeholder photo. A plausible WRONG image on a quote is worse
+            than an empty cell — the buyer is agreeing to *that* item. The box
+            is reserved either way so the rows stay aligned. */}
+        {line.thumbnail ? (
+          <div className="relative h-16 w-16 shrink-0 overflow-hidden rounded-md bg-ui-bg-subtle">
+            <Image
+              src={line.thumbnail}
+              alt={line.product_title ?? "Quoted item"}
+              fill
+              sizes="64px"
+              quality={60}
+              className="object-cover object-center"
+            />
+          </div>
+        ) : null}
+        <div className="min-w-0">
+          <Text className="txt-medium-plus text-ui-fg-base">
+            {line.product_title ?? "Product"}
+          </Text>
+          {line.variant_title ? (
+            <Text className="txt-small text-ui-fg-subtle">{line.variant_title}</Text>
+          ) : null}
+          {line.note ? (
+            <Text className="txt-small text-ui-fg-muted italic mt-1">{line.note}</Text>
+          ) : null}
+          {/* A declared PRODUCT weight over-quotes a lighter variant, and at bulk
+              quantities that can cross a carrier slab — so where the weight came
+              from travels with the number rather than being buried. */}
+          {line.weight_source === "product" ? (
+            <Text className="txt-small text-ui-fg-muted mt-1">
+              Weight estimated from the product, not this variant.
+            </Text>
+          ) : null}
+          {/* A PRODUCT thumbnail on a variant-specific line is a weaker claim than
+              the variant's own photo, so it is captioned rather than passed off. */}
+          {line.image_source === "product" ? (
+            <Text className="txt-small text-ui-fg-muted mt-1">
+              Image shows the product; this variant may differ.
+            </Text>
+          ) : null}
+          {line.spec ? <QuoteLineSpecRows spec={line.spec} /> : null}
+        </div>
+      </div>
     </td>
     <td className="py-4 px-4 align-top text-right whitespace-nowrap">
       <Text className="txt-medium text-ui-fg-base">{line.quantity}</Text>

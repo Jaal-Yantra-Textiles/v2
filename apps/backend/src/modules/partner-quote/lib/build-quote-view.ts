@@ -10,6 +10,8 @@ import {
   type QuoteCompareResult,
   type QuoteMoney,
 } from "./compare"
+import { resolveQuoteProducer, type QuoteProducer } from "./quote-producer"
+import { resolveQuoteSpecs, type QuoteLineSpec } from "./quote-spec"
 import { daysUntilExpiry, quoteUnusableReason } from "./token"
 
 /**
@@ -102,6 +104,14 @@ export type BuildQuoteViewInput = {
   region_id?: string | null
   /** The partner store: origin location and pricing scope. */
   store: { id?: string; default_location_id?: string | null }
+  /** The producing partner. Only needed to render the credit — never priced. */
+  partner_id?: string | null
+  /**
+   * The sales channels of the storefront SERVING this page, from its
+   * publishable key. Decides whether naming the producer is a selling point or
+   * noise — see `quote-producer.ts`. Absent ⇒ say nothing.
+   */
+  viewer_sales_channel_ids?: string[] | null
   carrier?: string
   /** Passed in so the whole view is deterministic under test. */
   now: Date
@@ -113,6 +123,19 @@ export type QuoteViewLine = {
   product_id: string | null
   product_title: string | null
   product_handle: string | null
+  /**
+   * The variant's own image where it has one, else the product thumbnail.
+   * 🔑 Null rather than a stand-in: a WRONG image on a quote is worse than no
+   * image, because the buyer is agreeing to *that* item.
+   */
+  thumbnail: string | null
+  /** Which level the image came from, so a caller can caption it honestly. */
+  image_source: "variant" | "product" | null
+  /**
+   * What the piece is made to — FACTS only, never the made-to-order choices.
+   * Null when the product has no spec, which is the normal state.
+   */
+  spec: QuoteLineSpec | null
   quantity: number
   position: number
   note: string | null
@@ -150,6 +173,11 @@ export type QuoteView = {
     company: string | null
     partner_note: string | null
   }
+  /**
+   * The producing partner, when the viewer is NOT on that partner's own
+   * storefront. Null means "say nothing", never "unknown producer".
+   */
+  producer: QuoteProducer | null
   expires_in_days: number | null
   /** Set when the live half could not be built, so callers can say why. */
   live_error: string | null
@@ -169,6 +197,35 @@ export function pickFreightOption(
     .filter((o) => Number.isFinite(Number(o?.amount)))
     .sort((a, b) => Number(a.amount) - Number(b.amount))
   return all[0] ?? null
+}
+
+/**
+ * PURE: the one image for a quoted line — variant first, product thumbnail
+ * second, nothing third (#1428).
+ *
+ * 🔴 Never a placeholder and never "any image on the product". A buyer signing
+ * off a seven-figure consignment is agreeing to *that* item, so a plausible
+ * wrong picture is more damaging than an empty cell. Where the image came from
+ * travels with it, the same way `weight_source` does, because a PRODUCT
+ * thumbnail on a variant-specific line is a weaker claim than the variant's
+ * own photo.
+ */
+export function pickLineImage(identity: any): {
+  thumbnail: string | null
+  image_source: "variant" | "product" | null
+} {
+  const images = ((identity?.images ?? []) as any[]).filter((i) => i?.url)
+  if (images.length) {
+    // `rank` is the merchandiser's ordering; fall back to array order when a
+    // row predates it rather than dropping to the product thumbnail.
+    const first = [...images].sort(
+      (a, b) => Number(a?.rank ?? 0) - Number(b?.rank ?? 0)
+    )[0]
+    if (first?.url) return { thumbnail: String(first.url), image_source: "variant" }
+  }
+  const productThumb = identity?.product?.thumbnail
+  if (productThumb) return { thumbnail: String(productThumb), image_source: "product" }
+  return { thumbnail: null, image_source: null }
 }
 
 /**
@@ -275,7 +332,18 @@ export async function buildQuoteView(
   // just without a price they cannot act on.
   const { data: variants } = await query.graph({
     entity: "variant",
-    fields: ["id", "title", "product.id", "product.title", "product.handle"],
+    fields: [
+      "id",
+      "title",
+      // #1428: the buyer was looking at a spreadsheet. Variant images first —
+      // the product thumbnail is the fallback, not the answer.
+      "images.url",
+      "images.rank",
+      "product.id",
+      "product.title",
+      "product.handle",
+      "product.thumbnail",
+    ],
     filters: { id: effectiveLines.map((l) => l.variant_id) },
   })
   const identityById = new Map<string, any>(
@@ -394,6 +462,15 @@ export async function buildQuoteView(
     }
   }
 
+  // Both of these are enrichment, resolved after the money and deliberately
+  // unable to fail the view.
+  const specByProduct = await resolveQuoteSpecs(
+    scope,
+    effectiveLines
+      .map((l) => identityById.get(l.variant_id)?.product?.id)
+      .filter(Boolean)
+  )
+
   const lines: QuoteViewLine[] = effectiveLines.map((line, index) => {
     const identity = identityById.get(line.variant_id)
     const frozen = frozenByVariant.get(line.variant_id)
@@ -406,6 +483,8 @@ export async function buildQuoteView(
       product_id: identity.product?.id ?? null,
       product_title: identity.product?.title ?? null,
       product_handle: identity.product?.handle ?? null,
+      ...pickLineImage(identity),
+      spec: specByProduct.get(identity.product?.id) ?? null,
       quantity: line.quantity,
       position: line.position ?? frozen?.position ?? index,
       note: line.note ?? frozen?.note ?? null,
@@ -423,6 +502,14 @@ export async function buildQuoteView(
         weight?.unit_weight_grams ?? frozen?.quoted_unit_weight_grams ?? null,
       weight_source: weight?.weight_source ?? frozen?.quoted_weight_source ?? null,
     }
+  })
+
+  // Resolved AFTER the money, and deliberately unable to fail the view: a
+  // credit line is not worth a buyer's 500. Returns null whenever we cannot
+  // positively tell that the viewer is off the partner's own storefront.
+  const producer = await resolveQuoteProducer(scope, {
+    partner_id: input.partner_id ?? null,
+    viewer_sales_channel_ids: input.viewer_sales_channel_ids ?? null,
   })
 
   const compare = compareQuote({
@@ -454,6 +541,7 @@ export async function buildQuoteView(
       company: input.quote?.recipient_company ?? null,
       partner_note: input.quote?.partner_note ?? null,
     },
+    producer,
     expires_in_days: input.quote ? daysUntilExpiry(lifecycle, input.now) : null,
     live_error: liveError,
   }

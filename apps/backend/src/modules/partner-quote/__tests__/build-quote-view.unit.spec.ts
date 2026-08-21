@@ -1,5 +1,6 @@
 import {
   buildQuoteView,
+  pickLineImage,
   buyerChangedInputs,
   composeQuoteMoney,
   frozenMoney,
@@ -23,13 +24,33 @@ const VARIANTS = [
     id: "var_a",
     title: "Plain / Natural",
     weight: 105,
-    product: { id: "prod_a", title: "Pashmina Plain", handle: "pashmina-plain", weight: 115 },
+    // Deliberately out of rank order, and the product carries a DIFFERENT
+    // thumbnail — so "took the variant image" and "took the first row" and
+    // "fell back to the product" are three distinguishable outcomes.
+    images: [
+      { url: "https://cdn/var-a-2.jpg", rank: 1 },
+      { url: "https://cdn/var-a-1.jpg", rank: 0 },
+    ],
+    product: {
+      id: "prod_a",
+      title: "Pashmina Plain",
+      handle: "pashmina-plain",
+      weight: 115,
+      thumbnail: "https://cdn/prod-a.jpg",
+    },
   },
   {
     id: "var_b",
     title: "Striped / Indigo",
     weight: null,
-    product: { id: "prod_b", title: "Pashmina Striped", handle: "pashmina-striped", weight: 200 },
+    images: [],
+    product: {
+      id: "prod_b",
+      title: "Pashmina Striped",
+      handle: "pashmina-striped",
+      weight: 200,
+      thumbnail: "https://cdn/prod-b.jpg",
+    },
   },
 ]
 
@@ -326,6 +347,55 @@ describe("pure helpers", () => {
 
     expect(money?.landed_total).toBe(423_900)
     expect(money?.unit_amount).toBeCloseTo(807.69, 2)
+  })
+})
+
+describe("the line image (#1428)", () => {
+  it("prefers the variant's own image over the product thumbnail", async () => {
+    const captured: Captured = { contexts: [], rateWeights: [] }
+    const view = await buildQuoteView(
+      scopeWith(captured) as any,
+      baseInput({
+        lines: [
+          { variant_id: "var_a", quantity: 500 },
+          { variant_id: "var_b", quantity: 20 },
+        ],
+      })
+    )
+
+    const a = view.lines.find((l) => l.variant_id === "var_a")
+    // Rank 0, not the first row of the array — the merchandiser's ordering
+    // decides which photo the buyer sees.
+    expect(a?.thumbnail).toBe("https://cdn/var-a-1.jpg")
+    expect(a?.image_source).toBe("variant")
+    // prod_a also has a thumbnail; taking it would have been the bug.
+    expect(a?.thumbnail).not.toBe("https://cdn/prod-a.jpg")
+
+    const b = view.lines.find((l) => l.variant_id === "var_b")
+    expect(b?.thumbnail).toBe("https://cdn/prod-b.jpg")
+    expect(b?.image_source).toBe("product")
+  })
+
+  it("says nothing when neither level has an image", () => {
+    // A plausible WRONG image on a quote is worse than an empty cell — the
+    // buyer is agreeing to *that* item.
+    expect(pickLineImage({ images: [], product: {} })).toEqual({
+      thumbnail: null,
+      image_source: null,
+    })
+    expect(pickLineImage(undefined)).toEqual({
+      thumbnail: null,
+      image_source: null,
+    })
+  })
+
+  it("ignores image rows that carry no url", () => {
+    expect(
+      pickLineImage({
+        images: [{ url: null, rank: 0 }],
+        product: { thumbnail: "https://cdn/p.jpg" },
+      })
+    ).toEqual({ thumbnail: "https://cdn/p.jpg", image_source: "product" })
   })
 })
 
