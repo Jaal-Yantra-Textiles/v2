@@ -24,12 +24,56 @@ export type QuoteMoney = {
   landed_total: number
 }
 
+/** One labelled fact about how the piece is made. #1428 */
+export type QuoteSpecRow = {
+  key: string
+  label: string
+  value: string
+  unit: string | null
+  /** A glyph NAME from the backend's weaving-technique registry, not an asset. */
+  icon: string
+}
+
+/**
+ * What the piece is made to.
+ *
+ * 🔑 FACTS only. The made-to-order choices — the palette, the option groups —
+ * are deliberately absent from this payload: a quote is frozen against
+ * specific variants at specific prices, and a configurator the buyer cannot
+ * act on is worse than no configurator.
+ */
+export type QuoteLineSpec = {
+  weave_label: string | null
+  rows: QuoteSpecRow[]
+  finishes: string[]
+}
+
+/** The producing partner, when the buyer is NOT on that partner's own shop. */
+export type QuoteProducer = {
+  id: string
+  name: string | null
+  handle: string | null
+  logo: string | null
+  country_code: string | null
+  is_verified: boolean
+  /** The partner's own shop. Null when they have no verified/provisioned host. */
+  url: string | null
+}
+
 export type QuoteViewLine = {
   variant_id: string
   variant_title: string | null
   product_id: string | null
   product_title: string | null
   product_handle: string | null
+  /**
+   * The variant's own image, else the product thumbnail, else nothing.
+   * 🔴 Never substitute a placeholder photo: the buyer is agreeing to *that*
+   * item, and a plausible wrong picture is worse than an empty cell.
+   */
+  thumbnail: string | null
+  image_source: "variant" | "product" | null
+  spec: QuoteLineSpec | null
   quantity: number
   position: number
   note: string | null
@@ -78,6 +122,12 @@ export type QuoteView = {
     company: string | null
     partner_note: string | null
   }
+  /**
+   * Null means "say nothing", never "unknown producer". The backend decides;
+   * on the partner's own storefront the partner IS the seller and naming them
+   * again is noise.
+   */
+  producer: QuoteProducer | null
   expires_in_days: number | null
   live_error: string | null
 }

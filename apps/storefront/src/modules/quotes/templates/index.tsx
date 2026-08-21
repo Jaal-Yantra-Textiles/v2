@@ -2,6 +2,7 @@ import { Heading, Text } from "@medusajs/ui"
 
 import type { QuoteView } from "@lib/data/quotes"
 import QuoteLines from "../components/quote-lines"
+import QuoteProducerBand from "../components/quote-producer"
 import QuoteSummary from "../components/quote-summary"
 
 /**
@@ -18,7 +19,7 @@ import QuoteSummary from "../components/quote-summary"
  * up contradicting its own header.
  */
 const QuoteTemplate = ({ quote }: { quote: QuoteView }) => {
-  const { compare, recipient } = quote
+  const { compare, recipient, producer } = quote
 
   return (
     <div className="content-container py-12 max-w-4xl">
@@ -47,6 +48,11 @@ const QuoteTemplate = ({ quote }: { quote: QuoteView }) => {
           ) : null}
         </div>
       )}
+
+      {/* Whose hands make this. Rendered only when the backend says so — on the
+          partner's own domain the partner IS the seller and naming them again
+          is noise, so `producer` is null there. */}
+      {producer ? <QuoteProducerBand producer={producer} /> : null}
 
       {/* Amber, and above the prices rather than below them: a buyer who scrolls
           no further still needs to know the clock is running. */}
