@@ -146,6 +146,34 @@ const ContentDetailInner = () => {
           .then(() => setSaveStatus("saved"))
           .catch(() => setSaveStatus("unsaved"))
       }
+      if (data.type === "BLOCK_REORDERED") {
+        const { orderedIds } = data as { orderedIds: string[] }
+        setBlocks((prev) => {
+          const reordered = orderedIds
+            .map((id) => prev.find((b) => b.id === id))
+            .filter(Boolean) as ContentBlock[]
+          return reordered.map((b, idx) => ({ ...b, order: idx }))
+        })
+        setSaveStatus("saving")
+        Promise.all(
+          orderedIds.map((blockId, idx) =>
+            sdk.client.fetch(
+              `/partners/storefront/pages/${pageId}/blocks/${blockId}`,
+              { method: "PUT", body: { order: idx } }
+            )
+          )
+        )
+          .then(() => setSaveStatus("saved"))
+          .catch(() => setSaveStatus("unsaved"))
+        if (iframeRef.current) {
+          setTimeout(() => {
+            if (iframeRef.current) iframeRef.current.src = iframeRef.current.src
+          }, 300)
+        }
+      }
+      if (data.type === "REQUEST_ADD_BLOCK_AT") {
+        setAddBlockOpen(true)
+      }
     }
     window.addEventListener("message", handleMessage)
     return () => window.removeEventListener("message", handleMessage)
