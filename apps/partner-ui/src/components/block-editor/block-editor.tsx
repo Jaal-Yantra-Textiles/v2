@@ -119,6 +119,7 @@ export const BlockEditor = ({
 
   const REPEATABLE_TYPES = new Set([
     "Feature", "Gallery", "Testimonial", "Product", "Section", "Custom",
+    "HeroWithImage", "BentoGrid", "Button",
   ])
 
   const renderTypeSpecificEditor = () => {
@@ -377,6 +378,15 @@ export const BlockEditor = ({
           </>
         )
 
+      case "HeroWithImage":
+        return <HeroWithImageEditor content={content} updateContent={updateContent} />
+
+      case "BentoGrid":
+        return <BentoGridEditor content={content} updateContent={updateContent} />
+
+      case "Button":
+        return <ButtonBlockEditor content={content} updateContent={updateContent} />
+
       case "Custom":
         return (
           <>
@@ -554,12 +564,109 @@ export const BlockEditor = ({
               </div>
 
               <div>
+                <FieldLabel>Text Color</FieldLabel>
+                <div className="flex gap-x-2">
+                  <input
+                    className="flex-1 rounded-md border border-ui-border-base bg-ui-bg-field px-3 py-1.5 text-sm"
+                    value={(block.settings?.textColor as string) || ""}
+                    placeholder="#000000"
+                    onChange={(e) => updateSettings("textColor", e.target.value)}
+                  />
+                  <input
+                    type="color"
+                    value={(block.settings?.textColor as string) || "#000000"}
+                    onChange={(e) => updateSettings("textColor", e.target.value)}
+                    className="w-9 h-9 rounded border border-ui-border-base cursor-pointer"
+                  />
+                </div>
+              </div>
+
+              <div>
                 <FieldLabel>Padding (px)</FieldLabel>
                 <TextInput
                   value={(block.settings?.padding as string) || ""}
                   placeholder="0"
                   onChange={(v) => updateSettings("padding", v)}
                 />
+              </div>
+
+              <div className="grid grid-cols-2 gap-x-2">
+                <div>
+                  <FieldLabel>Pad Top</FieldLabel>
+                  <TextInput
+                    value={(block.settings?.paddingTop as string) || ""}
+                    placeholder="0"
+                    onChange={(v) => updateSettings("paddingTop", v)}
+                  />
+                </div>
+                <div>
+                  <FieldLabel>Pad Bottom</FieldLabel>
+                  <TextInput
+                    value={(block.settings?.paddingBottom as string) || ""}
+                    placeholder="0"
+                    onChange={(v) => updateSettings("paddingBottom", v)}
+                  />
+                </div>
+                <div>
+                  <FieldLabel>Pad Left</FieldLabel>
+                  <TextInput
+                    value={(block.settings?.paddingLeft as string) || ""}
+                    placeholder="0"
+                    onChange={(v) => updateSettings("paddingLeft", v)}
+                  />
+                </div>
+                <div>
+                  <FieldLabel>Pad Right</FieldLabel>
+                  <TextInput
+                    value={(block.settings?.paddingRight as string) || ""}
+                    placeholder="0"
+                    onChange={(v) => updateSettings("paddingRight", v)}
+                  />
+                </div>
+              </div>
+
+              <div>
+                <FieldLabel>Margin (px)</FieldLabel>
+                <TextInput
+                  value={(block.settings?.margin as string) || ""}
+                  placeholder="0"
+                  onChange={(v) => updateSettings("margin", v)}
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-x-2">
+                <div>
+                  <FieldLabel>Margin Top</FieldLabel>
+                  <TextInput
+                    value={(block.settings?.marginTop as string) || ""}
+                    placeholder="0"
+                    onChange={(v) => updateSettings("marginTop", v)}
+                  />
+                </div>
+                <div>
+                  <FieldLabel>Margin Bottom</FieldLabel>
+                  <TextInput
+                    value={(block.settings?.marginBottom as string) || ""}
+                    placeholder="0"
+                    onChange={(v) => updateSettings("marginBottom", v)}
+                  />
+                </div>
+                <div>
+                  <FieldLabel>Margin Left</FieldLabel>
+                  <TextInput
+                    value={(block.settings?.marginLeft as string) || ""}
+                    placeholder="0"
+                    onChange={(v) => updateSettings("marginLeft", v)}
+                  />
+                </div>
+                <div>
+                  <FieldLabel>Margin Right</FieldLabel>
+                  <TextInput
+                    value={(block.settings?.marginRight as string) || ""}
+                    placeholder="0"
+                    onChange={(v) => updateSettings("marginRight", v)}
+                  />
+                </div>
               </div>
 
               <div>
@@ -573,11 +680,78 @@ export const BlockEditor = ({
                   </Select.Trigger>
                   <Select.Content>
                     <Select.Item value="default">Default</Select.Item>
-                    <Select.Item value="narrow">Narrow</Select.Item>
-                    <Select.Item value="wide">Wide</Select.Item>
+                    <Select.Item value="narrow">Narrow (680px)</Select.Item>
+                    <Select.Item value="medium">Medium (960px)</Select.Item>
+                    <Select.Item value="wide">Wide (1200px)</Select.Item>
                     <Select.Item value="full">Full Width</Select.Item>
                   </Select.Content>
                 </Select>
+              </div>
+
+              <div className="grid grid-cols-2 gap-x-2">
+                <div>
+                  <FieldLabel>Width</FieldLabel>
+                  <TextInput
+                    value={(block.settings?.width as string) || ""}
+                    placeholder="auto"
+                    onChange={(v) => updateSettings("width", v)}
+                  />
+                </div>
+                <div>
+                  <FieldLabel>Height</FieldLabel>
+                  <TextInput
+                    value={(block.settings?.height as string) || ""}
+                    placeholder="auto"
+                    onChange={(v) => updateSettings("height", v)}
+                  />
+                </div>
+              </div>
+
+              <div>
+                <FieldLabel>Border Radius (px)</FieldLabel>
+                <TextInput
+                  value={(block.settings?.borderRadius as string) || ""}
+                  placeholder="0"
+                  onChange={(v) => updateSettings("borderRadius", v)}
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-x-2">
+                <div>
+                  <FieldLabel>Border Width</FieldLabel>
+                  <TextInput
+                    value={(block.settings?.borderWidth as string) || ""}
+                    placeholder="0"
+                    onChange={(v) => updateSettings("borderWidth", v)}
+                  />
+                </div>
+                <div>
+                  <FieldLabel>Border Color</FieldLabel>
+                  <input
+                    className="w-full rounded-md border border-ui-border-base bg-ui-bg-field px-3 py-1.5 text-sm"
+                    value={(block.settings?.borderColor as string) || ""}
+                    placeholder="#e5e7eb"
+                    onChange={(e) => updateSettings("borderColor", e.target.value)}
+                  />
+                </div>
+              </div>
+
+              <div>
+                <FieldLabel>Box Shadow</FieldLabel>
+                <TextInput
+                  value={(block.settings?.boxShadow as string) || ""}
+                  placeholder="e.g. 0 4px 6px rgba(0,0,0,0.1)"
+                  onChange={(v) => updateSettings("boxShadow", v)}
+                />
+              </div>
+
+              <div>
+                <FieldLabel>Aspect Ratio</FieldLabel>
+                <TextInput
+                  value={(block.settings?.aspectRatio as string) || ""}
+                  placeholder="e.g. 16/9"
+                  onChange={(v) => updateSettings("aspectRatio", v)}
+                />
               </div>
             </div>
           )}
@@ -748,5 +922,452 @@ const LinksEditor = ({
         </Button>
       </div>
     </div>
+  )
+}
+
+const HeroWithImageEditor = ({
+  content,
+  updateContent,
+}: {
+  content: Record<string, unknown>
+  updateContent: (key: string, value: unknown) => void
+}) => {
+  const buttons = (content.buttons as Array<{ label?: string; href?: string; variant?: string }>) || []
+
+  const updateButtons = (next: Array<{ label?: string; href?: string; variant?: string }>) => {
+    updateContent("buttons", next)
+  }
+
+  return (
+    <>
+      <div>
+        <FieldLabel>Eyebrow Text</FieldLabel>
+        <TextInput
+          value={(content.eyebrow as string) || ""}
+          onChange={(v) => updateContent("eyebrow", v)}
+          placeholder="New Collection"
+        />
+      </div>
+      <div>
+        <FieldLabel>Title</FieldLabel>
+        <TextInput
+          value={(content.title as string) || ""}
+          onChange={(v) => updateContent("title", v)}
+          placeholder="Hero Title"
+        />
+      </div>
+      <div>
+        <FieldLabel>Subtitle</FieldLabel>
+        <TextArea
+          value={(content.subtitle as string) || ""}
+          onChange={(v) => updateContent("subtitle", v)}
+          placeholder="Hero subtitle text"
+        />
+      </div>
+      <div>
+        <FieldLabel>Layout</FieldLabel>
+        <Select
+          value={(content.layout as string) || "image-right"}
+          onValueChange={(v) => updateContent("layout", v)}
+        >
+          <Select.Trigger>
+            <Select.Value placeholder="Image Right" />
+          </Select.Trigger>
+          <Select.Content>
+            <Select.Item value="image-right">Image Right</Select.Item>
+            <Select.Item value="image-left">Image Left</Select.Item>
+          </Select.Content>
+        </Select>
+      </div>
+      <ImageUrlInput
+        label="Image URL"
+        value={(content.image_url as string) || ""}
+        onChange={(v) => updateContent("image_url", v)}
+      />
+      <div>
+        <FieldLabel>Image Alt Text</FieldLabel>
+        <TextInput
+          value={(content.image_alt as string) || ""}
+          onChange={(v) => updateContent("image_alt", v)}
+          placeholder="Describe the image"
+        />
+      </div>
+      <div>
+        <FieldLabel>Buttons</FieldLabel>
+        <div className="space-y-2">
+          {buttons.map((btn, idx) => (
+            <div key={idx} className="rounded-md border border-ui-border-base p-2 space-y-2">
+              <div className="flex gap-x-1">
+                <input
+                  className="flex-1 rounded-md border border-ui-border-base bg-ui-bg-field px-2 py-1 text-sm"
+                  value={btn.label || ""}
+                  placeholder="Label"
+                  onChange={(e) => {
+                    const next = [...buttons]
+                    next[idx] = { ...next[idx], label: e.target.value }
+                    updateButtons(next)
+                  }}
+                />
+                <input
+                  className="flex-1 rounded-md border border-ui-border-base bg-ui-bg-field px-2 py-1 text-sm"
+                  value={btn.href || ""}
+                  placeholder="/link"
+                  onChange={(e) => {
+                    const next = [...buttons]
+                    next[idx] = { ...next[idx], href: e.target.value }
+                    updateButtons(next)
+                  }}
+                />
+                <IconButton
+                  variant="transparent"
+                  size="small"
+                  onClick={() => updateButtons(buttons.filter((_, i) => i !== idx))}
+                >
+                  <Trash />
+                </IconButton>
+              </div>
+              <Select
+                value={btn.variant || "primary"}
+                onValueChange={(v) => {
+                  const next = [...buttons]
+                  next[idx] = { ...next[idx], variant: v }
+                  updateButtons(next)
+                }}
+              >
+                <Select.Trigger>
+                  <Select.Value placeholder="Primary" />
+                </Select.Trigger>
+                <Select.Content>
+                  <Select.Item value="primary">Primary</Select.Item>
+                  <Select.Item value="secondary">Secondary</Select.Item>
+                </Select.Content>
+              </Select>
+            </div>
+          ))}
+          <Button
+            size="small"
+            variant="secondary"
+            onClick={() => updateButtons([...buttons, { label: "", href: "", variant: "primary" }])}
+          >
+            <Plus className="mr-1" />Add Button
+          </Button>
+        </div>
+      </div>
+    </>
+  )
+}
+
+const BentoGridEditor = ({
+  content,
+  updateContent,
+}: {
+  content: Record<string, unknown>
+  updateContent: (key: string, value: unknown) => void
+}) => {
+  const cards = (content.cards as Array<{
+    eyebrow?: string
+    title?: string
+    description?: string
+    image_url?: string
+    col_span?: string
+    row_span?: string
+    bg_color?: string
+    text_color?: string
+  }>) || []
+
+  const updateCards = (next: typeof cards) => {
+    updateContent("cards", next)
+  }
+
+  return (
+    <>
+      <div>
+        <FieldLabel>Title</FieldLabel>
+        <TextInput
+          value={(content.title as string) || ""}
+          onChange={(v) => updateContent("title", v)}
+          placeholder="Bento Grid Title"
+        />
+      </div>
+      <div>
+        <FieldLabel>Subtitle</FieldLabel>
+        <TextInput
+          value={(content.subtitle as string) || ""}
+          onChange={(v) => updateContent("subtitle", v)}
+          placeholder="Optional subtitle"
+        />
+      </div>
+      <div>
+        <FieldLabel>Columns</FieldLabel>
+        <Select
+          value={(content.columns as string) || "3"}
+          onValueChange={(v) => updateContent("columns", v)}
+        >
+          <Select.Trigger>
+            <Select.Value placeholder="3" />
+          </Select.Trigger>
+          <Select.Content>
+            <Select.Item value="2">2 Columns</Select.Item>
+            <Select.Item value="3">3 Columns</Select.Item>
+            <Select.Item value="4">4 Columns</Select.Item>
+          </Select.Content>
+        </Select>
+      </div>
+      <div>
+        <FieldLabel>Cards</FieldLabel>
+        <div className="space-y-3">
+          {cards.map((card, idx) => (
+            <div key={idx} className="rounded-md border border-ui-border-base p-3 space-y-2">
+              <div className="flex items-center justify-between">
+                <Text size="xsmall" className="font-semibold text-ui-fg-muted">
+                  Card {idx + 1}
+                </Text>
+                <IconButton
+                  variant="transparent"
+                  size="small"
+                  onClick={() => updateCards(cards.filter((_, i) => i !== idx))}
+                >
+                  <Trash />
+                </IconButton>
+              </div>
+              <TextInput
+                value={card.eyebrow || ""}
+                onChange={(v) => {
+                  const next = [...cards]
+                  next[idx] = { ...next[idx], eyebrow: v }
+                  updateCards(next)
+                }}
+                placeholder="Eyebrow (small label)"
+              />
+              <TextInput
+                value={card.title || ""}
+                onChange={(v) => {
+                  const next = [...cards]
+                  next[idx] = { ...next[idx], title: v }
+                  updateCards(next)
+                }}
+                placeholder="Card title"
+              />
+              <TextArea
+                value={card.description || ""}
+                onChange={(v) => {
+                  const next = [...cards]
+                  next[idx] = { ...next[idx], description: v }
+                  updateCards(next)
+                }}
+                placeholder="Card description"
+              />
+              <ImageUrlInput
+                label="Image URL"
+                value={card.image_url || ""}
+                onChange={(v) => {
+                  const next = [...cards]
+                  next[idx] = { ...next[idx], image_url: v }
+                  updateCards(next)
+                }}
+              />
+              <div className="grid grid-cols-2 gap-x-2">
+                <div>
+                  <FieldLabel>Col Span</FieldLabel>
+                  <Select
+                    value={card.col_span || "1"}
+                    onValueChange={(v) => {
+                      const next = [...cards]
+                      next[idx] = { ...next[idx], col_span: v }
+                      updateCards(next)
+                    }}
+                  >
+                    <Select.Trigger>
+                      <Select.Value placeholder="1" />
+                    </Select.Trigger>
+                    <Select.Content>
+                      <Select.Item value="1">1</Select.Item>
+                      <Select.Item value="2">2</Select.Item>
+                      <Select.Item value="3">3</Select.Item>
+                      <Select.Item value="4">4</Select.Item>
+                    </Select.Content>
+                  </Select>
+                </div>
+                <div>
+                  <FieldLabel>Row Span</FieldLabel>
+                  <Select
+                    value={card.row_span || "1"}
+                    onValueChange={(v) => {
+                      const next = [...cards]
+                      next[idx] = { ...next[idx], row_span: v }
+                      updateCards(next)
+                    }}
+                  >
+                    <Select.Trigger>
+                      <Select.Value placeholder="1" />
+                    </Select.Trigger>
+                    <Select.Content>
+                      <Select.Item value="1">1</Select.Item>
+                      <Select.Item value="2">2</Select.Item>
+                      <Select.Item value="3">3</Select.Item>
+                    </Select.Content>
+                  </Select>
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-x-2">
+                <div>
+                  <FieldLabel>Card BG</FieldLabel>
+                  <input
+                    className="w-full rounded-md border border-ui-border-base bg-ui-bg-field px-2 py-1 text-sm"
+                    value={card.bg_color || ""}
+                    placeholder="#f5f5f5"
+                    onChange={(e) => {
+                      const next = [...cards]
+                      next[idx] = { ...next[idx], bg_color: e.target.value }
+                      updateCards(next)
+                    }}
+                  />
+                </div>
+                <div>
+                  <FieldLabel>Card Text</FieldLabel>
+                  <input
+                    className="w-full rounded-md border border-ui-border-base bg-ui-bg-field px-2 py-1 text-sm"
+                    value={card.text_color || ""}
+                    placeholder="#000000"
+                    onChange={(e) => {
+                      const next = [...cards]
+                      next[idx] = { ...next[idx], text_color: e.target.value }
+                      updateCards(next)
+                    }}
+                  />
+                </div>
+              </div>
+            </div>
+          ))}
+          <Button
+            size="small"
+            variant="secondary"
+            onClick={() => updateCards([...cards, { eyebrow: "", title: "New Card", description: "", col_span: "1", row_span: "1" }])}
+          >
+            <Plus className="mr-1" />Add Card
+          </Button>
+        </div>
+      </div>
+    </>
+  )
+}
+
+const ButtonBlockEditor = ({
+  content,
+  updateContent,
+}: {
+  content: Record<string, unknown>
+  updateContent: (key: string, value: unknown) => void
+}) => {
+  const buttons = (content.buttons as Array<{
+    label?: string
+    href?: string
+    variant?: string
+    size?: string
+  }>) || []
+
+  const updateButtons = (next: typeof buttons) => {
+    updateContent("buttons", next)
+  }
+
+  return (
+    <>
+      <div>
+        <FieldLabel>Alignment</FieldLabel>
+        <Select
+          value={(content.align as string) || "left"}
+          onValueChange={(v) => updateContent("align", v)}
+        >
+          <Select.Trigger>
+            <Select.Value placeholder="Left" />
+          </Select.Trigger>
+          <Select.Content>
+            <Select.Item value="left">Left</Select.Item>
+            <Select.Item value="center">Center</Select.Item>
+            <Select.Item value="right">Right</Select.Item>
+          </Select.Content>
+        </Select>
+      </div>
+      <div>
+        <FieldLabel>Buttons</FieldLabel>
+        <div className="space-y-2">
+          {buttons.map((btn, idx) => (
+            <div key={idx} className="rounded-md border border-ui-border-base p-2 space-y-2">
+              <div className="flex gap-x-1">
+                <input
+                  className="flex-1 rounded-md border border-ui-border-base bg-ui-bg-field px-2 py-1 text-sm"
+                  value={btn.label || ""}
+                  placeholder="Button Label"
+                  onChange={(e) => {
+                    const next = [...buttons]
+                    next[idx] = { ...next[idx], label: e.target.value }
+                    updateButtons(next)
+                  }}
+                />
+                <IconButton
+                  variant="transparent"
+                  size="small"
+                  onClick={() => updateButtons(buttons.filter((_, i) => i !== idx))}
+                >
+                  <Trash />
+                </IconButton>
+              </div>
+              <TextInput
+                value={btn.href || ""}
+                onChange={(v) => {
+                  const next = [...buttons]
+                  next[idx] = { ...next[idx], href: v }
+                  updateButtons(next)
+                }}
+                placeholder="/link"
+              />
+              <div className="grid grid-cols-2 gap-x-2">
+                <Select
+                  value={btn.variant || "primary"}
+                  onValueChange={(v) => {
+                    const next = [...buttons]
+                    next[idx] = { ...next[idx], variant: v }
+                    updateButtons(next)
+                  }}
+                >
+                  <Select.Trigger>
+                    <Select.Value placeholder="Primary" />
+                  </Select.Trigger>
+                  <Select.Content>
+                    <Select.Item value="primary">Primary</Select.Item>
+                    <Select.Item value="secondary">Secondary</Select.Item>
+                    <Select.Item value="ghost">Ghost</Select.Item>
+                  </Select.Content>
+                </Select>
+                <Select
+                  value={btn.size || "medium"}
+                  onValueChange={(v) => {
+                    const next = [...buttons]
+                    next[idx] = { ...next[idx], size: v }
+                    updateButtons(next)
+                  }}
+                >
+                  <Select.Trigger>
+                    <Select.Value placeholder="Medium" />
+                  </Select.Trigger>
+                  <Select.Content>
+                    <Select.Item value="small">Small</Select.Item>
+                    <Select.Item value="medium">Medium</Select.Item>
+                    <Select.Item value="large">Large</Select.Item>
+                  </Select.Content>
+                </Select>
+              </div>
+            </div>
+          ))}
+          <Button
+            size="small"
+            variant="secondary"
+            onClick={() => updateButtons([...buttons, { label: "", href: "#", variant: "primary", size: "medium" }])}
+          >
+            <Plus className="mr-1" />Add Button
+          </Button>
+        </div>
+      </div>
+    </>
   )
 }

@@ -54,6 +54,9 @@ const BLOCK_TYPES = [
   "Header",
   "Footer",
   "Custom",
+  "HeroWithImage",
+  "BentoGrid",
+  "Button",
 ] as const
 
 const UNIQUE_BLOCK_TYPES = new Set([
@@ -76,6 +79,29 @@ const DEFAULT_CONTENT_FOR_TYPE: Record<string, Record<string, unknown>> = {
   Header: { links: [] },
   Footer: { text: "" },
   Custom: { title: "Custom Block", body: { type: "doc", content: [{ type: "paragraph" }] } },
+  HeroWithImage: {
+    eyebrow: "",
+    title: "New Hero with Image",
+    subtitle: "",
+    layout: "image-right",
+    image_url: "",
+    image_alt: "",
+    buttons: [{ label: "Shop Now", href: "#", variant: "primary" }],
+  },
+  BentoGrid: {
+    title: "Bento Grid",
+    subtitle: "",
+    columns: "3",
+    cards: [
+      { eyebrow: "", title: "Card 1", description: "Description here", col_span: "1", row_span: "1" },
+      { eyebrow: "", title: "Card 2", description: "Description here", col_span: "1", row_span: "1" },
+      { eyebrow: "", title: "Card 3", description: "Description here", col_span: "1", row_span: "1" },
+    ],
+  },
+  Button: {
+    align: "left",
+    buttons: [{ label: "Click Me", href: "#", variant: "primary", size: "medium" }],
+  },
 }
 
 export const ContentDetail = () => {
@@ -616,6 +642,9 @@ const ContentDetailInner = () => {
               {newBlockType === "Header" && "Page header with navigation links."}
               {newBlockType === "Footer" && "Page footer with text and links."}
               {newBlockType === "Custom" && "Custom block with full rich text editor."}
+              {newBlockType === "HeroWithImage" && "Hero section with title, subtitle, side image, and CTA buttons. Choose left/right image layout."}
+              {newBlockType === "BentoGrid" && "Bento grid layout with cards of varying sizes. Each card has eyebrow, title, description, and optional image with col/row span controls."}
+              {newBlockType === "Button" && "Standalone CTA button row. Add multiple buttons with labels, links, variants, and sizes."}
             </Text>
           </div>
         </StackedDrawer.Body>

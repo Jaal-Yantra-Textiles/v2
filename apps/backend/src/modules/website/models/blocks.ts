@@ -15,7 +15,10 @@ const UNIQUE_BLOCKS = [
     "Testimonial",
     "Product",
     "Section",
-    "Custom"
+    "Custom",
+    "HeroWithImage",
+    "BentoGrid",
+    "Button"
   ];
 
 const Block = model.define("block", {

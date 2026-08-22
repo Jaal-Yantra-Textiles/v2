@@ -19,6 +19,9 @@ export const BLOCK_TYPES = [
   "Product",
   "Section",
   "Custom",
+  "HeroWithImage",
+  "BentoGrid",
+  "Button",
 ] as const
 
 export const UNIQUE_BLOCKS = [
@@ -36,6 +39,9 @@ export const REPEATABLE_BLOCKS = [
   "Product",
   "Section",
   "Custom",
+  "HeroWithImage",
+  "BentoGrid",
+  "Button",
 ] as const
 
 export const BLOCK_STATUSES = ["Active", "Inactive", "Draft"] as const
