@@ -1,14 +1,19 @@
 import { useCallback, useState } from "react"
-import { Text, Button, IconButton, Tooltip, Select } from "@medusajs/ui"
-import { Trash, Plus, Images } from "@medusajs/icons"
+import { Text, Button, IconButton, Tooltip, Select, Badge, Label } from "@medusajs/ui"
+import { Trash, Plus, Images, ChevronDown, ChevronRight, CursorArrowRays, ArrowUpMini, ArrowDownMini } from "@medusajs/icons"
 import { ContentBlock } from "../../hooks/api/content"
 import { TipTapEditor } from "../tiptap-editor/tiptap-editor"
 
 
 type BlockEditorProps = {
-  block: ContentBlock 
+  block: ContentBlock
   onUpdate: (blockId: string, updates: Partial<ContentBlock>) => void
   onDelete: (blockId: string) => void
+  onDuplicate?: (blockId: string) => void
+  onMoveUp?: (blockId: string) => void
+  onMoveDown?: (blockId: string) => void
+  canMoveUp?: boolean
+  canMoveDown?: boolean
   saveStatus: "saved" | "saving" | "unsaved"
 }
 
@@ -83,6 +88,11 @@ export const BlockEditor = ({
   block,
   onUpdate,
   onDelete,
+  onDuplicate,
+  onMoveUp,
+  onMoveDown,
+  canMoveUp = true,
+  canMoveDown = true,
   saveStatus,
 }: BlockEditorProps) => {
   const updateContent = useCallback(
@@ -105,6 +115,11 @@ export const BlockEditor = ({
 
   const type = block.type
   const content = block.content || {}
+  const [advancedOpen, setAdvancedOpen] = useState(false)
+
+  const REPEATABLE_TYPES = new Set([
+    "Feature", "Gallery", "Testimonial", "Product", "Section", "Custom",
+  ])
 
   const renderTypeSpecificEditor = () => {
     switch (type) {
@@ -408,11 +423,22 @@ export const BlockEditor = ({
 
   return (
     <div className="w-[340px] border-l border-ui-border-base overflow-y-auto bg-ui-bg-base p-4 shrink-0">
+      {/* Header: type badge + save status + actions */}
       <div className="flex items-center justify-between mb-4">
-        <Text size="small" className="font-semibold">
-          {block.type} Block
-        </Text>
         <div className="flex items-center gap-x-2">
+          <Badge
+            color={
+              block.status === "Active" ? "green" : block.status === "Draft" ? "orange" : "grey"
+            }
+            size="2xsmall"
+          >
+            {block.type}
+          </Badge>
+          <Text size="small" className="font-semibold">
+            {block.name || block.type}
+          </Text>
+        </div>
+        <div className="flex items-center gap-x-1">
           <Text
             size="xsmall"
             className={
@@ -423,22 +449,49 @@ export const BlockEditor = ({
                   : "text-ui-fg-error"
             }
           >
-            {saveStatus === "saved"
-              ? "Saved"
-              : saveStatus === "saving"
-                ? "Saving..."
-                : "Unsaved"}
+            {saveStatus === "saved" ? "Saved" : saveStatus === "saving" ? "Saving..." : "Unsaved"}
           </Text>
-          <Tooltip content="Delete block">
-            <IconButton
-              variant="transparent"
-              size="small"
-              onClick={() => onDelete(block.id)}
-            >
-              <Trash />
+        </div>
+      </div>
+
+      {/* Quick actions */}
+      <div className="flex items-center gap-x-1 mb-4 pb-3 border-b border-ui-border-base">
+        {onMoveUp && (
+          <Tooltip content="Move up">
+            <IconButton variant="transparent" size="small" disabled={!canMoveUp} onClick={() => onMoveUp(block.id)}>
+              <ArrowUpMini />
             </IconButton>
           </Tooltip>
-        </div>
+        )}
+        {onMoveDown && (
+          <Tooltip content="Move down">
+            <IconButton variant="transparent" size="small" disabled={!canMoveDown} onClick={() => onMoveDown(block.id)}>
+              <ArrowDownMini />
+            </IconButton>
+          </Tooltip>
+        )}
+        {onDuplicate && REPEATABLE_TYPES.has(block.type) && (
+          <Tooltip content="Duplicate block">
+            <IconButton variant="transparent" size="small" onClick={() => onDuplicate(block.id)}>
+              <Plus />
+            </IconButton>
+          </Tooltip>
+        )}
+        <div className="flex-1" />
+        <Tooltip content="Delete block">
+          <IconButton variant="transparent" size="small" onClick={() => onDelete(block.id)}>
+            <Trash />
+          </IconButton>
+        </Tooltip>
+      </div>
+
+      {/* Inline editing hint */}
+      <div className="flex items-center gap-x-2 mb-4 rounded-md bg-ui-bg-subtle p-2">
+        <CursorArrowRays className="text-ui-fg-muted opacity-50 w-4 h-4 shrink-0" />
+        <Text size="xsmall" className="text-ui-fg-subtle">
+          Click text on the canvas to edit it inline. Use this panel for
+          settings and complex fields.
+        </Text>
       </div>
 
       <div className="space-y-4">
@@ -469,49 +522,65 @@ export const BlockEditor = ({
 
         {renderTypeSpecificEditor()}
 
+        {/* Advanced settings (collapsible) */}
         <div className="pt-2 border-t border-ui-border-base">
-          <FieldLabel>Background Color</FieldLabel>
-          <div className="flex gap-x-2">
-            <input
-              className="flex-1 rounded-md border border-ui-border-base bg-ui-bg-field px-3 py-1.5 text-sm"
-              value={(block.settings?.backgroundColor as string) || ""}
-              placeholder="#ffffff"
-              onChange={(e) => updateSettings("backgroundColor", e.target.value)}
-            />
-            <input
-              type="color"
-              value={(block.settings?.backgroundColor as string) || "#ffffff"}
-              onChange={(e) => updateSettings("backgroundColor", e.target.value)}
-              className="w-9 h-9 rounded border border-ui-border-base cursor-pointer"
-            />
-          </div>
-        </div>
-
-        <div>
-          <FieldLabel>Padding (px)</FieldLabel>
-          <TextInput
-            value={(block.settings?.padding as string) || ""}
-            placeholder="0"
-            onChange={(v) => updateSettings("padding", v)}
-          />
-        </div>
-
-        <div>
-          <FieldLabel>Max Width</FieldLabel>
-          <Select
-            value={(block.settings?.max_width as string) || "default"}
-            onValueChange={(v) => updateSettings("max_width", v)}
+          <button
+            className="flex items-center gap-x-1 w-full text-left mb-2"
+            onClick={() => setAdvancedOpen((v) => !v)}
           >
-            <Select.Trigger>
-              <Select.Value placeholder="Default" />
-            </Select.Trigger>
-            <Select.Content>
-              <Select.Item value="default">Default</Select.Item>
-              <Select.Item value="narrow">Narrow</Select.Item>
-              <Select.Item value="wide">Wide</Select.Item>
-              <Select.Item value="full">Full Width</Select.Item>
-            </Select.Content>
-          </Select>
+            {advancedOpen ? <ChevronDown className="w-4 h-4 text-ui-fg-muted" /> : <ChevronRight className="w-4 h-4 text-ui-fg-muted" />}
+            <Text size="xsmall" className="text-ui-fg-muted font-semibold uppercase">
+              Advanced Settings
+            </Text>
+          </button>
+          {advancedOpen && (
+            <div className="space-y-3 pl-1">
+              <div>
+                <FieldLabel>Background Color</FieldLabel>
+                <div className="flex gap-x-2">
+                  <input
+                    className="flex-1 rounded-md border border-ui-border-base bg-ui-bg-field px-3 py-1.5 text-sm"
+                    value={(block.settings?.backgroundColor as string) || ""}
+                    placeholder="#ffffff"
+                    onChange={(e) => updateSettings("backgroundColor", e.target.value)}
+                  />
+                  <input
+                    type="color"
+                    value={(block.settings?.backgroundColor as string) || "#ffffff"}
+                    onChange={(e) => updateSettings("backgroundColor", e.target.value)}
+                    className="w-9 h-9 rounded border border-ui-border-base cursor-pointer"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <FieldLabel>Padding (px)</FieldLabel>
+                <TextInput
+                  value={(block.settings?.padding as string) || ""}
+                  placeholder="0"
+                  onChange={(v) => updateSettings("padding", v)}
+                />
+              </div>
+
+              <div>
+                <FieldLabel>Max Width</FieldLabel>
+                <Select
+                  value={(block.settings?.max_width as string) || "default"}
+                  onValueChange={(v) => updateSettings("max_width", v)}
+                >
+                  <Select.Trigger>
+                    <Select.Value placeholder="Default" />
+                  </Select.Trigger>
+                  <Select.Content>
+                    <Select.Item value="default">Default</Select.Item>
+                    <Select.Item value="narrow">Narrow</Select.Item>
+                    <Select.Item value="wide">Wide</Select.Item>
+                    <Select.Item value="full">Full Width</Select.Item>
+                  </Select.Content>
+                </Select>
+              </div>
+            </div>
+          )}
         </div>
       </div>
     </div>

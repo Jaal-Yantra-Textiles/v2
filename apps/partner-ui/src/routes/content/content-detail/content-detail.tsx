@@ -494,6 +494,69 @@ const ContentDetailInner = () => {
               block={selectedBlock}
               onUpdate={handleBlockUpdate}
               onDelete={handleDeleteBlock}
+              onDuplicate={async (blockId) => {
+                const block = blocks.find((b) => b.id === blockId)
+                if (!block) return
+                const maxOrder = blocks.reduce((max, b) => Math.max(max, b.order), -1)
+                try {
+                  const result = await createBlock({
+                    name: `${block.name} (copy)`,
+                    type: block.type,
+                    content: { ...block.content },
+                    settings: block.settings,
+                    order: maxOrder + 1,
+                    status: "Active",
+                  })
+                  const newBlock = result?.blocks?.[0]
+                  if (newBlock) setBlocks((prev) => [...prev, newBlock])
+                  toast.success(`Duplicated "${block.name}"`)
+                  if (iframeRef.current) {
+                    setTimeout(() => {
+                      if (iframeRef.current) iframeRef.current.src = iframeRef.current.src
+                    }, 300)
+                  }
+                } catch {
+                  toast.error("Failed to duplicate block")
+                }
+              }}
+              onMoveUp={(blockId) => {
+                const idx = blocks.findIndex((b) => b.id === blockId)
+                if (idx <= 0) return
+                const reordered = [...blocks]
+                ;[reordered[idx - 1], reordered[idx]] = [reordered[idx], reordered[idx - 1]]
+                setBlocks(reordered.map((b, i) => ({ ...b, order: i })))
+                reordered.forEach((b, i) => {
+                  sdk.client.fetch(
+                    `/partners/storefront/pages/${pageId}/blocks/${b.id}`,
+                    { method: "PUT", body: { order: i } }
+                  )
+                })
+                if (iframeRef.current) {
+                  setTimeout(() => {
+                    if (iframeRef.current) iframeRef.current.src = iframeRef.current.src
+                  }, 300)
+                }
+              }}
+              onMoveDown={(blockId) => {
+                const idx = blocks.findIndex((b) => b.id === blockId)
+                if (idx < 0 || idx >= blocks.length - 1) return
+                const reordered = [...blocks]
+                ;[reordered[idx + 1], reordered[idx]] = [reordered[idx], reordered[idx + 1]]
+                setBlocks(reordered.map((b, i) => ({ ...b, order: i })))
+                reordered.forEach((b, i) => {
+                  sdk.client.fetch(
+                    `/partners/storefront/pages/${pageId}/blocks/${b.id}`,
+                    { method: "PUT", body: { order: i } }
+                  )
+                })
+                if (iframeRef.current) {
+                  setTimeout(() => {
+                    if (iframeRef.current) iframeRef.current.src = iframeRef.current.src
+                  }, 300)
+                }
+              }}
+              canMoveUp={blocks.findIndex((b) => b.id === selectedBlock.id) > 0}
+              canMoveDown={blocks.findIndex((b) => b.id === selectedBlock.id) < blocks.length - 1}
               saveStatus={saveStatus}
             />
           ) : (
