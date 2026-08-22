@@ -67,12 +67,19 @@ setupSharedTestSuite(() => {
     expect(resolvePlatformTaxIdentity("FR", rows)?.brand_code).toBe("KHT")
   })
 
-  it("resolveSellerTaxIdForOrder falls back to the platform ID by country (no partner)", async () => {
+  // ⚠️ The third argument is the SHIP-FROM country, not the consignee's. It is
+  // exercised here as a pure jurisdiction lookup; which country the call site
+  // feeds it is the part that was wrong (#348) and is pinned by the unit tests
+  // in modules/platform-tax-identity/__tests__/resolve-lib.unit.spec.ts.
+  it("resolveSellerTaxIdForOrder falls back to the platform ID by ship-from country (no partner)", async () => {
     await seed()
     const container = getContainer()
     expect(await resolveSellerTaxIdForOrder(container, null, "IN")).toBe(
       "07AAGCJ0494A1ZV"
     )
+    // A France-ORIGIN shipment. Goods never actually leave France today, and
+    // KHT is not VAT-registered, so this row should not be active at all — see
+    // the note in seller-tax-id.ts. The lookup itself is what is asserted here.
     expect(await resolveSellerTaxIdForOrder(container, null, "FR")).toBe(
       "40203579735"
     )

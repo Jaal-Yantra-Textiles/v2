@@ -96,3 +96,45 @@ export function originAddressFromLocation(
     country: String(addr.country_code || "IN").toUpperCase(),
   }
 }
+
+/**
+ * The ship-from COUNTRY for a shipment, read off the fulfillment's stock
+ * location. Upper-case ISO alpha-2, or null when it cannot be read.
+ *
+ * Why this is not just `(await resolveOriginAddress(...))?.country`: that helper
+ * returns undefined unless the address has BOTH a street line and a pincode,
+ * because Blue Dart validates the origin block as a unit and a half-filled one
+ * fails the same 400 as an absent one. A country has no such dependency — a
+ * location with a country and no street still has an unambiguous export
+ * jurisdiction. Reusing the stricter helper would have dropped the seller tax ID
+ * off every label whose origin address is incomplete, which on prod today is the
+ * same class of gap as the 17/22 locations missing a phone (#1236).
+ *
+ * 🔴 Callers must not substitute the destination country when this returns null.
+ * The exporter of record is decided by where the goods LEAVE from; guessing it
+ * from where they arrive is the defect this function exists to end.
+ */
+export async function resolveShipFromCountryCode(
+  container: MedusaContainer,
+  locationId?: string | null
+): Promise<string | null> {
+  if (!locationId) {
+    return null
+  }
+  const query: any = container.resolve(ContainerRegistrationKeys.QUERY)
+  const logger: any = container.resolve(ContainerRegistrationKeys.LOGGER)
+  try {
+    const { data: locs } = await query.graph({
+      entity: "stock_location",
+      fields: ["id", "address.country_code"],
+      filters: { id: locationId },
+    })
+    const code = String(locs?.[0]?.address?.country_code || "").trim()
+    return /^[A-Za-z]{2}$/.test(code) ? code.toUpperCase() : null
+  } catch (e: any) {
+    logger?.warn?.(
+      `[origin-address] could not read the ship-from country for location ${locationId}: ${e?.message}`
+    )
+    return null
+  }
+}
