@@ -294,7 +294,10 @@ export const MintQuoteForm = () => {
       ttl_days: data.ttl_days,
       // Omitted rather than sent empty — the backend's own default is the one
       // thing that should decide what "no choice" means.
-      ...(data.carrier ? { carrier: data.carrier } : {}),
+      // Trimmed: the "type it yourself" branch starts empty, and a stray space
+      // would be sent as a carrier id nothing can resolve — which fails as a
+      // silent fallback to manual rates, not as an error.
+      ...(data.carrier?.trim() ? { carrier: data.carrier.trim() } : {}),
       // The pair travels together or not at all (#1447).
       duties_prepaid: data.duties_prepaid ?? false,
       ...(data.duties_prepaid

@@ -38,7 +38,17 @@ type Props = { form: UseFormReturn<AdminQuoteCreateSchemaType> }
  * must therefore stay selectable, or the wizard could only ever quote people
  * who had already bought.
  */
-/** Sentinel for the "type it yourself" branch — never sent to the API. */
+/**
+ * Sentinels for the carrier picker — neither is ever sent to the API.
+ *
+ * 🔴 `DEFAULT_CARRIER` exists because Radix REFUSES a `Select.Item` with
+ * `value=""`: the empty string is reserved for "cleared, show the placeholder",
+ * so an item claiming it throws and takes the whole step down with it. The
+ * field's own empty value still means "platform default" — the sentinel only
+ * lives inside the picker.
+ */
+const DEFAULT_CARRIER = "__default__"
+/** The "type it yourself" branch, for a carrier registered after this build. */
 const OTHER_CARRIER = "__other__"
 
 export const BuyerStep = ({ form }: Props) => {
@@ -52,10 +62,17 @@ export const BuyerStep = ({ form }: Props) => {
   const dutiesPrepaid = useWatch({ control: form.control, name: "duties_prepaid" })
 
   const knownCarrierIds = useMemo(
-    () => new Set([...carriers.map((c) => c.id), "manual", ""]),
+    () => new Set([...carriers.map((c) => c.id), "manual"]),
     [carriers]
   )
-  const isOtherCarrier = Boolean(carrier) && !knownCarrierIds.has(carrier ?? "")
+  /**
+   * Held in state rather than inferred from the value, because "typing one"
+   * starts from an EMPTY field — inferring would collapse the branch the moment
+   * it opened, before a character was typed.
+   */
+  const [typingCarrier, setTypingCarrier] = useState(false)
+  const isOtherCarrier =
+    typingCarrier || (Boolean(carrier) && !knownCarrierIds.has(carrier ?? ""))
 
   /**
    * 🔴 The one warning worth interrupting for: quoting DDP on a carrier that
@@ -347,19 +364,29 @@ export const BuyerStep = ({ form }: Props) => {
               <Form.Control>
                 <Select
                   value={
-                    field.value && !knownCarrierIds.has(field.value)
+                    isOtherCarrier
                       ? OTHER_CARRIER
-                      : (field.value ?? "")
+                      : field.value
+                        ? field.value
+                        : DEFAULT_CARRIER
                   }
-                  onValueChange={(value) =>
-                    field.onChange(value === OTHER_CARRIER ? " " : value)
-                  }
+                  onValueChange={(value) => {
+                    if (value === OTHER_CARRIER) {
+                      setTypingCarrier(true)
+                      field.onChange("")
+                      return
+                    }
+                    setTypingCarrier(false)
+                    // The FIELD's empty string still means "platform default" —
+                    // only the picker needs a non-empty token for that row.
+                    field.onChange(value === DEFAULT_CARRIER ? "" : value)
+                  }}
                 >
                   <Select.Trigger>
                     <Select.Value placeholder="Platform default (Shiprocket)" />
                   </Select.Trigger>
                   <Select.Content>
-                    <Select.Item value="">
+                    <Select.Item value={DEFAULT_CARRIER}>
                       Platform default (Shiprocket)
                     </Select.Item>
                     {carriers.map((c) => (
@@ -402,8 +429,9 @@ export const BuyerStep = ({ form }: Props) => {
                 <Form.Label>Carrier id</Form.Label>
                 <Form.Control>
                   <Input
+                    autoFocus
                     placeholder="e.g. bluedart"
-                    value={(field.value ?? "").trim()}
+                    value={field.value ?? ""}
                     onChange={(e) => field.onChange(e.target.value)}
                   />
                 </Form.Control>
