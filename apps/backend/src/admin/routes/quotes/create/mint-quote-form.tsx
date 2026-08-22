@@ -1,19 +1,20 @@
+import { zodResolver } from "@hookform/resolvers/zod"
 import {
   Button,
   Heading,
-  Input,
-  Label,
   ProgressStatus,
   ProgressTabs,
   Select,
   Text,
-  Textarea,
   toast,
 } from "@medusajs/ui"
-import { useMemo, useState } from "react"
+import { useState } from "react"
+import { FieldPath, useForm } from "react-hook-form"
 
+import { Form } from "../../../components/common/form"
+import { RouteFocusModal } from "../../../components/modal/route-focus-modal"
+import { KeyboundForm } from "../../../components/utilitites/key-bound-form"
 import { usePartners } from "../../../hooks/api/partners"
-import { useProducts } from "../../../hooks/api/products"
 import {
   QuoteReadiness,
   useAdminQuoteReadiness,
@@ -21,183 +22,241 @@ import {
 } from "../../../hooks/api/quotes"
 import { MintedPanel } from "./minted-panel"
 import { ReadinessPanel } from "./readiness-panel"
+import {
+  AdminQuoteCreateSchema,
+  AdminQuoteCreateSchemaType,
+  QuoteBuyerFields,
+  QuoteBuyerSchema,
+  QuotePartnerFields,
+  QuotePartnerSchema,
+  QuoteProductFields,
+  QuoteProductsSchema,
+} from "./schema"
+import { BuyerStep } from "./steps/buyer-step"
+import { ProductsStep } from "./steps/products-step"
+import { QuantitiesStep } from "./steps/quantities-step"
 
 /**
- * `discount_percent` and `override_unit_amount` are the trade price (#1446),
- * and they are mutually exclusive per line — the backend refuses both together
- * rather than ranking them.
+ * Mint a quote on a partner's behalf (#1419, stepped in #1444, brought to
+ * parity with the partner wizard in #1446).
  *
- * 🔑 The override is a unit price in the PARTNER STORE's default currency, not
- * the quote's. The conversion happens once, at mint, at a rate the quote
- * records; the label says so, because a number typed into a USD quote would
- * otherwise be read as dollars.
- */
-type Line = {
-  variant_id: string
-  quantity: number
-  discount_percent?: number | null
-  override_unit_amount?: number | null
-}
-
-/**
- * Mint a quote on a partner's behalf (#1419, stepped in #1444).
+ * ## Why it looks like the partner's wizard
  *
- * ## Why steps
+ * The two are the same product wearing different chrome, and they had drifted
+ * badly: the partner minted through a focus-modal wizard with a customer
+ * picker, a product table and an editable grid, while the admin filled in a
+ * page-level form with a `<Select>` of every variant in the catalogue and two
+ * free-text boxes for currency and country. Anything learned on one surface was
+ * useless on the other, and the admin one could not be used against a real
+ * catalogue at all.
  *
- * The partner mints through a three-step wizard and the admin filled in one
- * long form; the two are meant to feel like the same product. This mirrors the
- * partner's `ProgressTabs` shape with one extra LEADING step — Partner —
- * because an admin has no partner of their own and every quote is
- * partner-scoped.
+ * This is the partner's shape — `RouteFocusModal.Form` + `ProgressTabs`, one
+ * step per question — with ONE extra leading step. An admin has no partner of
+ * their own, and every quote is partner-scoped: the partner decides which
+ * catalogue the variants come from and which location freight is quoted from,
+ * so choosing products before a partner would build a basket that is then
+ * rejected wholesale.
  *
- * **Partner → Buyer → Lines → Review & mint.**
+ * **Partner → Buyer → Products → Quantities.**
  *
- * 🔑 Ordering is not cosmetic. The partner decides which catalogue the variants
- * come from and which location freight is quoted from, so choosing variants
- * before a partner would let an admin build a basket that is then rejected
- * wholesale. Each step gates the next.
+ * ## The minted panel does not navigate away
  *
- * ⚠️ Deliberately still `useState` rather than a react-hook-form + zod port.
- * The partner wizard uses that stack, but porting the form plumbing here would
- * rewrite every field at the same time as changing the flow, and this surface
- * has never been run through a browser. Steps and gating are the part that was
- * missing; the plumbing can follow once someone has clicked through it.
+ * 🔴 The raw token is returned by the API exactly once and only its sha256 is
+ * stored. A successful mint therefore swaps the modal body for the panel
+ * holding the only copy of the link, and does NOT call `handleSuccess` the way
+ * every other create flow does — that would discard the buyer's link and force
+ * a re-mint.
  */
 
 enum Tab {
   PARTNER = "partner",
   BUYER = "buyer",
-  LINES = "lines",
-  REVIEW = "review",
+  PRODUCTS = "products",
+  QUANTITIES = "quantities",
 }
 
-const tabOrder = [Tab.PARTNER, Tab.BUYER, Tab.LINES, Tab.REVIEW] as const
+const tabOrder = [Tab.PARTNER, Tab.BUYER, Tab.PRODUCTS, Tab.QUANTITIES] as const
+
+type TabState = Record<Tab, ProgressStatus>
+
+const initialTabState: TabState = {
+  [Tab.PARTNER]: "in-progress",
+  [Tab.BUYER]: "not-started",
+  [Tab.PRODUCTS]: "not-started",
+  [Tab.QUANTITIES]: "not-started",
+}
 
 export const MintQuoteForm = () => {
   const [tab, setTab] = useState<Tab>(Tab.PARTNER)
-  const [tabState, setTabState] = useState<Record<Tab, ProgressStatus>>({
-    [Tab.PARTNER]: "in-progress",
-    [Tab.BUYER]: "not-started",
-    [Tab.LINES]: "not-started",
-    [Tab.REVIEW]: "not-started",
-  })
-
-  const [partnerId, setPartnerId] = useState("")
-  const [buyerEmail, setBuyerEmail] = useState("")
-  const [company, setCompany] = useState("")
-  const [name, setName] = useState("")
-  const [note, setNote] = useState("")
-  const [country, setCountry] = useState("in")
-  const [postal, setPostal] = useState("")
-  const [currency, setCurrency] = useState("inr")
-  const [ttlDays, setTtlDays] = useState("14")
-  const [lines, setLines] = useState<Line[]>([])
-  const [readiness, setReadiness] = useState<QuoteReadiness | null>(null)
+  const [tabState, setTabState] = useState<TabState>(initialTabState)
   const [minted, setMinted] = useState<{ token: string; quote: any } | null>(
     null
   )
+  const [readiness, setReadiness] = useState<QuoteReadiness | null>(null)
 
   const { partners } = usePartners({ limit: 200 } as any)
-  const { products } = useProducts({ limit: 100 } as any)
 
-  const variantOptions = useMemo(() => {
-    const out: Array<{ id: string; label: string }> = []
-    for (const p of (products ?? []) as any[]) {
-      for (const v of p.variants ?? []) {
-        out.push({ id: v.id, label: `${p.title} — ${v.title}` })
-      }
-    }
-    return out
-  }, [products])
-
-  const { mutate: mint, isPending } = useMintQuote({
-    onSuccess: (data) => setMinted({ token: data.token, quote: data.quote }),
-    onError: (e: any) => toast.error(e?.message ?? "Could not mint the quote."),
+  const form = useForm<AdminQuoteCreateSchemaType>({
+    defaultValues: {
+      partner_id: "",
+      buyer_email: "",
+      recipient_name: "",
+      recipient_company: "",
+      partner_note: "",
+      region_id: "",
+      currency_code: "",
+      destination_country_code: "",
+      destination_postal_code: "",
+      destination_city: "",
+      ttl_days: 14,
+      product_ids: [],
+      quantities: {},
+      discounts: {},
+      overrides: {},
+    },
+    resolver: zodResolver(AdminQuoteCreateSchema) as any,
   })
 
+  const { mutate: mint, isPending } = useMintQuote({
+    onSuccess: (data: any) => setMinted({ token: data.token, quote: data.quote }),
+    onError: (e: any) => toast.error(e?.message ?? "Could not mint the quote."),
+  })
   const { mutateAsync: checkReadiness, isPending: isChecking } =
     useAdminQuoteReadiness()
 
-  // The panel REPLACES the form rather than sitting beside it. The token is
-  // shown once and never again, so anything that invites navigating away
-  // before copying it is a way to lose a quote.
-  if (minted) {
-    return <MintedPanel token={minted.token} quote={minted.quote} />
+  /**
+   * Validate only the fields belonging to the steps being skipped past.
+   * Same mechanism the partner wizard uses: a tab cannot be reached by
+   * clicking its header while an earlier one is incomplete, and the error is
+   * attached to the field rather than shouted in a toast.
+   */
+  const partialFormValidation = (
+    fields: readonly FieldPath<AdminQuoteCreateSchemaType>[],
+    schema: any
+  ) => {
+    form.clearErrors(fields as any)
+
+    const values = fields.reduce((acc, key) => {
+      acc[key] = form.getValues(key as any)
+      return acc
+    }, {} as Record<string, unknown>)
+
+    const validation = schema.safeParse(values)
+    if (validation.success) return true
+
+    for (const issue of validation.error.issues) {
+      form.setError(issue.path.join(".") as any, {
+        type: issue.code,
+        message: issue.message,
+      })
+    }
+    return false
   }
 
-  const validLines = lines.filter((l) => l.variant_id && l.quantity > 0)
+  const handleChangeTab = (update: Tab) => {
+    if (tab === update) return
 
-  /** What each step needs before the next one is reachable. */
-  const stepComplete: Record<Tab, boolean> = {
-    [Tab.PARTNER]: !!partnerId,
-    [Tab.BUYER]: !!buyerEmail && !!currency && !!country,
-    [Tab.LINES]: validLines.length > 0,
-    [Tab.REVIEW]: true,
-  }
+    // Going back is always allowed — an operator correcting an earlier answer
+    // must not be made to re-pass the steps after it.
+    if (tabOrder.indexOf(update) < tabOrder.indexOf(tab)) {
+      setTabState((prev) => ({ ...prev, [update]: "in-progress" }))
+      setTab(update)
+      return
+    }
 
-  const stepHint: Record<Tab, string> = {
-    [Tab.PARTNER]: "Choose the partner this quote belongs to.",
-    [Tab.BUYER]:
-      "A buyer email, a currency and a destination country are the minimum — the currency and destination decide the price and the freight.",
-    [Tab.LINES]: "Add at least one line with a quantity above zero.",
-    [Tab.REVIEW]: "",
-  }
-
-  const goToTab = (next: Tab) => {
-    const targetIndex = tabOrder.indexOf(next)
-    const currentIndex = tabOrder.indexOf(tab)
-
-    // Going back is always allowed. Going forward validates every step in
-    // between, so a tab cannot be skipped by clicking its header.
-    if (targetIndex > currentIndex) {
-      for (let i = 0; i < targetIndex; i++) {
-        const step = tabOrder[i]
-        if (!stepComplete[step]) {
-          toast.error(stepHint[step])
-          setTab(step)
+    for (const current of tabOrder.slice(0, tabOrder.indexOf(update))) {
+      if (current === Tab.PARTNER) {
+        if (!partialFormValidation(QuotePartnerFields, QuotePartnerSchema)) {
+          setTabState((prev) => ({ ...prev, [current]: "in-progress" }))
+          setTab(current)
+          return
+        }
+      } else if (current === Tab.BUYER) {
+        if (!partialFormValidation(QuoteBuyerFields, QuoteBuyerSchema)) {
+          setTabState((prev) => ({ ...prev, [current]: "in-progress" }))
+          setTab(current)
+          return
+        }
+      } else if (current === Tab.PRODUCTS) {
+        if (!partialFormValidation(QuoteProductFields, QuoteProductsSchema)) {
+          setTabState((prev) => ({ ...prev, [current]: "in-progress" }))
+          setTab(current)
+          return
+        }
+        if (!form.getValues("product_ids").length) {
+          toast.error("Pick at least one product.")
+          setTab(current)
           return
         }
       }
+      setTabState((prev) => ({ ...prev, [current]: "completed" }))
     }
 
-    setTabState((prev) => ({
-      ...prev,
-      ...(targetIndex > currentIndex
-        ? { [tab]: "completed" as ProgressStatus }
-        : {}),
-      [next]: "in-progress" as ProgressStatus,
-    }))
-    setTab(next)
+    setTabState((prev) => ({ ...prev, [update]: "in-progress" }))
+    setTab(update)
   }
 
-  const handleNext = () => {
+  const handleNextTab = () => {
     const i = tabOrder.indexOf(tab)
     if (i === tabOrder.length - 1) return
-    goToTab(tabOrder[i + 1])
+    handleChangeTab(tabOrder[i + 1])
   }
 
-  const payload = () => ({
-    partner_id: partnerId,
-    lines: validLines,
-    destination_country_code: country,
-    destination_postal_code: postal || null,
-    currency_code: currency,
-  })
+  const handleSubmit = form.handleSubmit(async (data) => {
+    /**
+     * A blank or zero quantity means "not in this basket" — dropped, not sent
+     * as a zero. Same for a blank override: sent as 0 it would ask the backend
+     * to mint an ACTIVE price of zero, which it refuses outright.
+     */
+    const lines = Object.entries(data.quantities ?? {})
+      .filter(([, qty]) => typeof qty === "number" && qty > 0)
+      .map(([variant_id, qty], index) => {
+        const discount = data.discounts?.[variant_id]
+        const override = data.overrides?.[variant_id]
+        return {
+          variant_id,
+          quantity: qty as number,
+          position: index,
+          ...(typeof discount === "number" && discount > 0
+            ? { discount_percent: discount }
+            : {}),
+          ...(typeof override === "number" && override > 0
+            ? { override_unit_amount: override }
+            : {}),
+        }
+      })
 
-  /**
-   * The preflight, then the mint (#1445).
-   *
-   * 🔑 Run on submit rather than on every field change: it prices every line
-   * and asks a carrier, which is not a thing to fire per keystroke.
-   *
-   * 🔑 A preflight that cannot RUN does not block the mint. The workflow runs
-   * the same assessor as its first step, so the real gate is there either way,
-   * and failing closed here would turn a network blip into "you cannot quote".
-   */
-  const submit = async () => {
+    if (!lines.length) {
+      toast.error(
+        "Set a quantity on at least one variant — a quote with no lines has nothing to price."
+      )
+      setTab(Tab.QUANTITIES)
+      return
+    }
+
+    /**
+     * The preflight, then the mint (#1445). Run on submit rather than per
+     * keystroke: it prices every line and asks a carrier.
+     *
+     * 🔑 A preflight that cannot RUN does not block the mint — the workflow
+     * runs the same assessor as its first step, so the real gate is there
+     * either way, and failing closed here would turn a network blip into "you
+     * cannot quote".
+     */
     let assessed: QuoteReadiness | null = null
     try {
-      const result = await checkReadiness(payload())
+      const result = await checkReadiness({
+        partner_id: data.partner_id,
+        lines: lines.map((l) => ({
+          variant_id: l.variant_id,
+          quantity: l.quantity,
+        })),
+        destination_country_code: data.destination_country_code,
+        destination_postal_code: data.destination_postal_code || null,
+        destination_city: data.destination_city || null,
+        currency_code: data.currency_code,
+        region_id: data.region_id,
+      } as any)
       assessed = result.readiness
       setReadiness(result.readiness)
     } catch {
@@ -206,342 +265,192 @@ export const MintQuoteForm = () => {
 
     if (assessed && !assessed.ready) {
       toast.error("This quote cannot be minted yet — see the reasons above.")
+      setTab(Tab.QUANTITIES)
       return
     }
 
     mint({
-      partner_id: partnerId,
-      buyer_email: buyerEmail,
-      recipient_company: company || null,
-      recipient_name: name || null,
-      partner_note: note || null,
-      lines: validLines,
-      destination_country_code: country,
-      destination_postal_code: postal || null,
-      currency_code: currency,
-      ttl_days: Number(ttlDays) || undefined,
-    })
+      partner_id: data.partner_id,
+      buyer_email: data.buyer_email,
+      recipient_company: data.recipient_company || null,
+      recipient_name: data.recipient_name || null,
+      partner_note: data.partner_note || null,
+      lines,
+      destination_country_code: data.destination_country_code,
+      destination_postal_code: data.destination_postal_code || null,
+      destination_city: data.destination_city || null,
+      currency_code: data.currency_code,
+      region_id: data.region_id,
+      ttl_days: data.ttl_days,
+    } as any)
+  })
+
+  if (minted) {
+    return (
+      <RouteFocusModal.Body className="flex-1 overflow-y-auto">
+        <MintedPanel token={minted.token} quote={minted.quote} />
+      </RouteFocusModal.Body>
+    )
   }
 
-  const addLine = () =>
-    setLines((prev) => [
-      ...prev,
-      {
-        variant_id: "",
-        quantity: 1,
-        // Undefined, never 0 — a blank field is "no override", and a 0 would
-        // ask the backend to mint an ACTIVE price of zero, which it refuses.
-        discount_percent: undefined,
-        override_unit_amount: undefined,
-      },
-    ])
-
-  const isLast = tab === Tab.REVIEW
-
   return (
-    <div className="flex flex-col">
-      <div className="px-6 pt-6">
-        <Heading>Mint a quote</Heading>
-        <Text size="small" className="text-ui-fg-subtle">
-          The buyer link is shown once and cannot be recovered — you will be
-          asked to copy it before leaving this page.
-        </Text>
-      </div>
-
+    <RouteFocusModal.Form form={form}>
       <ProgressTabs
         value={tab}
-        onValueChange={(v) => goToTab(v as Tab)}
-        className="flex flex-col"
+        onValueChange={(value) => handleChangeTab(value as Tab)}
+        className="flex h-full flex-col overflow-hidden"
       >
-        <div className="border-ui-border-base border-b px-6 py-4">
-          <ProgressTabs.List className="grid w-full max-w-[640px] grid-cols-4">
-            <ProgressTabs.Trigger
-              status={tabState[Tab.PARTNER]}
+        <KeyboundForm onSubmit={handleSubmit} className="flex h-full flex-col">
+          <RouteFocusModal.Header>
+            <div className="-my-2 w-full max-w-[720px] border-l">
+              <ProgressTabs.List className="grid w-full grid-cols-4">
+                <ProgressTabs.Trigger
+                  status={tabState[Tab.PARTNER]}
+                  value={Tab.PARTNER}
+                >
+                  Partner
+                </ProgressTabs.Trigger>
+                <ProgressTabs.Trigger
+                  status={tabState[Tab.BUYER]}
+                  value={Tab.BUYER}
+                >
+                  Buyer
+                </ProgressTabs.Trigger>
+                <ProgressTabs.Trigger
+                  status={tabState[Tab.PRODUCTS]}
+                  value={Tab.PRODUCTS}
+                >
+                  Products
+                </ProgressTabs.Trigger>
+                <ProgressTabs.Trigger
+                  status={tabState[Tab.QUANTITIES]}
+                  value={Tab.QUANTITIES}
+                >
+                  Quantities
+                </ProgressTabs.Trigger>
+              </ProgressTabs.List>
+            </div>
+          </RouteFocusModal.Header>
+
+          {/*
+            ⚠️ `overflow-hidden` here and `overflow-y-auto` on each tab's
+            content, not the other way round: a FocusModal.Body does not scroll
+            on its own, and the grid steps manage their own height.
+          */}
+          <RouteFocusModal.Body className="size-full overflow-hidden">
+            <ProgressTabs.Content
+              className="size-full overflow-y-auto p-16"
               value={Tab.PARTNER}
             >
-              Partner
-            </ProgressTabs.Trigger>
-            <ProgressTabs.Trigger
-              status={tabState[Tab.BUYER]}
+              <div className="flex flex-col gap-y-8">
+                <div className="flex flex-col gap-y-1">
+                  <Heading level="h2">Partner</Heading>
+                  <Text size="small" className="text-ui-fg-subtle">
+                    Prices come from this partner's catalogue and freight from
+                    their location. Variants outside their store are rejected —
+                    that check is why this step comes first.
+                  </Text>
+                </div>
+
+                <Form.Field
+                  control={form.control}
+                  name="partner_id"
+                  render={({ field }) => (
+                    <Form.Item>
+                      <Form.Label>Partner</Form.Label>
+                      <Form.Control>
+                        <Select
+                          value={field.value}
+                          onValueChange={field.onChange}
+                        >
+                          <Select.Trigger>
+                            <Select.Value placeholder="Select a partner" />
+                          </Select.Trigger>
+                          <Select.Content>
+                            {((partners ?? []) as any[]).map((p) => (
+                              <Select.Item key={p.id} value={p.id}>
+                                {p.name || p.id}
+                              </Select.Item>
+                            ))}
+                          </Select.Content>
+                        </Select>
+                      </Form.Control>
+                      <Form.ErrorMessage />
+                    </Form.Item>
+                  )}
+                />
+              </div>
+            </ProgressTabs.Content>
+
+            <ProgressTabs.Content
+              className="size-full overflow-y-auto p-16"
               value={Tab.BUYER}
             >
-              Buyer
-            </ProgressTabs.Trigger>
-            <ProgressTabs.Trigger
-              status={tabState[Tab.LINES]}
-              value={Tab.LINES}
+              <BuyerStep form={form} />
+            </ProgressTabs.Content>
+
+            <ProgressTabs.Content
+              className="size-full overflow-y-auto"
+              value={Tab.PRODUCTS}
             >
-              Lines
-            </ProgressTabs.Trigger>
-            <ProgressTabs.Trigger
-              status={tabState[Tab.REVIEW]}
-              value={Tab.REVIEW}
+              <ProductsStep form={form} />
+            </ProgressTabs.Content>
+
+            <ProgressTabs.Content
+              className="size-full overflow-hidden"
+              value={Tab.QUANTITIES}
             >
-              Review
-            </ProgressTabs.Trigger>
-          </ProgressTabs.List>
-        </div>
-
-        <ProgressTabs.Content value={Tab.PARTNER} className="px-6 py-6">
-          <div className="flex max-w-[640px] flex-col gap-y-2">
-            <Label>Partner</Label>
-            <Select value={partnerId} onValueChange={setPartnerId}>
-              <Select.Trigger>
-                <Select.Value placeholder="Select a partner" />
-              </Select.Trigger>
-              <Select.Content>
-                {((partners ?? []) as any[]).map((p) => (
-                  <Select.Item key={p.id} value={p.id}>
-                    {p.name || p.id}
-                  </Select.Item>
-                ))}
-              </Select.Content>
-            </Select>
-            <Text size="xsmall" className="text-ui-fg-subtle">
-              Prices come from this partner's catalogue and freight from their
-              location. Variants outside their store are rejected — that check
-              is why this step comes first.
-            </Text>
-          </div>
-        </ProgressTabs.Content>
-
-        <ProgressTabs.Content value={Tab.BUYER} className="px-6 py-6">
-          <div className="grid max-w-[860px] grid-cols-1 gap-4 md:grid-cols-2">
-            <div className="flex flex-col gap-y-2">
-              <Label>Buyer email</Label>
-              <Input
-                type="email"
-                value={buyerEmail}
-                onChange={(e) => setBuyerEmail(e.target.value)}
-                placeholder="procurement@example.com"
-              />
-            </div>
-            <div className="flex flex-col gap-y-2">
-              <Label>Company</Label>
-              <Input
-                value={company}
-                onChange={(e) => setCompany(e.target.value)}
-              />
-            </div>
-            <div className="flex flex-col gap-y-2">
-              <Label>Contact name</Label>
-              <Input value={name} onChange={(e) => setName(e.target.value)} />
-            </div>
-            <div className="flex flex-col gap-y-2">
-              <Label>Currency</Label>
-              <Input
-                value={currency}
-                onChange={(e) => setCurrency(e.target.value.toLowerCase())}
-                placeholder="inr"
-              />
-            </div>
-            <div className="flex flex-col gap-y-2">
-              <Label>Destination country (ISO-2)</Label>
-              <Input
-                value={country}
-                onChange={(e) => setCountry(e.target.value.toLowerCase())}
-                placeholder="in"
-              />
-            </div>
-            <div className="flex flex-col gap-y-2">
-              <Label>Destination postcode</Label>
-              <Input
-                value={postal}
-                onChange={(e) => setPostal(e.target.value)}
-              />
-            </div>
-            <div className="flex flex-col gap-y-2">
-              <Label>Valid for (days)</Label>
-              <Input
-                type="number"
-                value={ttlDays}
-                onChange={(e) => setTtlDays(e.target.value)}
-              />
-              <Text size="xsmall" className="text-ui-fg-subtle">
-                Drives the price list's end date, so expiry is enforced by
-                pricing itself rather than by a sweep.
-              </Text>
-            </div>
-          </div>
-        </ProgressTabs.Content>
-
-        <ProgressTabs.Content value={Tab.LINES} className="px-6 py-6">
-          <div className="flex max-w-[860px] flex-col gap-y-3">
-            <div className="flex items-center justify-between">
-              <Label>Lines</Label>
-              <Button variant="secondary" size="small" onClick={addLine}>
-                Add line
-              </Button>
-            </div>
-            {lines.length === 0 ? (
-              <Text size="small" className="text-ui-fg-subtle">
-                A quote is a basket — add at least one line. Multiple lines are
-                quoted as ONE consignment, so freight is charged once.
-              </Text>
-            ) : null}
-            {/* 🔴 Persistent, NOT part of the empty state: this is the note
-                that matters while someone is typing into the fields, and it
-                was briefly rendered only when there were no lines to type
-                into. A number entered in a USD quote is read in the partner
-                store's currency, and a field that does not say so is read as
-                the buyer's. */}
-            <Text size="small" className="text-ui-fg-subtle">
-              Leave the trade-price fields blank to quote at the catalog price.
-              A unit price is read in the partner store's own currency and
-              converted at mint; a discount is a percentage off the tier.
-            </Text>
-            {lines.map((line, i) => (
-              <div key={i} className="flex items-end gap-3">
-                <div className="flex flex-1 flex-col gap-y-2">
-                  <Select
-                    value={line.variant_id}
-                    onValueChange={(v) =>
-                      setLines((prev) =>
-                        prev.map((l, idx) =>
-                          idx === i ? { ...l, variant_id: v } : l
-                        )
-                      )
-                    }
-                  >
-                    <Select.Trigger>
-                      <Select.Value placeholder="Select a variant" />
-                    </Select.Trigger>
-                    <Select.Content>
-                      {variantOptions.map((v) => (
-                        <Select.Item key={v.id} value={v.id}>
-                          {v.label}
-                        </Select.Item>
-                      ))}
-                    </Select.Content>
-                  </Select>
+              <div className="flex h-full flex-col overflow-y-auto">
+                {readiness && (
+                  <div className="px-6 pt-4 md:px-16">
+                    <ReadinessPanel readiness={readiness} />
+                  </div>
+                )}
+                <div className="px-6 pt-4 md:px-16">
+                  <Text size="small" className="text-ui-fg-subtle">
+                    Leave the trade-price fields blank to quote at the catalog
+                    price. A unit price is read in the partner store's own
+                    currency and converted at mint; a discount is a percentage
+                    off the tier.
+                  </Text>
                 </div>
-                <div className="w-24">
-                  <Input
-                    type="number"
-                    min={1}
-                    placeholder="Qty"
-                    value={line.quantity}
-                    onChange={(e) =>
-                      setLines((prev) =>
-                        prev.map((l, idx) =>
-                          idx === i
-                            ? { ...l, quantity: Number(e.target.value) }
-                            : l
-                        )
-                      )
-                    }
-                  />
-                </div>
-                {/* An empty string must clear back to undefined rather than
-                    becoming 0: `Number("")` is 0, and a 0 here is a request to
-                    mint a free line. */}
-                <div className="w-24">
-                  <Input
-                    type="number"
-                    min={0}
-                    max={100}
-                    placeholder="Disc %"
-                    disabled={
-                      line.override_unit_amount !== null &&
-                      line.override_unit_amount !== undefined
-                    }
-                    value={line.discount_percent ?? ""}
-                    onChange={(e) =>
-                      setLines((prev) =>
-                        prev.map((l, idx) =>
-                          idx === i
-                            ? {
-                                ...l,
-                                discount_percent:
-                                  e.target.value === ""
-                                    ? undefined
-                                    : Number(e.target.value),
-                              }
-                            : l
-                        )
-                      )
-                    }
-                  />
-                </div>
-                <div className="w-32">
-                  <Input
-                    type="number"
-                    min={0}
-                    placeholder="Unit price"
-                    disabled={
-                      line.discount_percent !== null &&
-                      line.discount_percent !== undefined
-                    }
-                    value={line.override_unit_amount ?? ""}
-                    onChange={(e) =>
-                      setLines((prev) =>
-                        prev.map((l, idx) =>
-                          idx === i
-                            ? {
-                                ...l,
-                                override_unit_amount:
-                                  e.target.value === ""
-                                    ? undefined
-                                    : Number(e.target.value),
-                              }
-                            : l
-                        )
-                      )
-                    }
-                  />
-                </div>
-                <Button
-                  variant="transparent"
-                  size="small"
-                  onClick={() =>
-                    setLines((prev) => prev.filter((_, idx) => idx !== i))
-                  }
-                >
-                  Remove
-                </Button>
+                <QuantitiesStep form={form} />
               </div>
-            ))}
-          </div>
-        </ProgressTabs.Content>
+            </ProgressTabs.Content>
+          </RouteFocusModal.Body>
 
-        <ProgressTabs.Content value={Tab.REVIEW} className="px-6 py-6">
-          <div className="flex max-w-[860px] flex-col gap-y-4">
-            {readiness && <ReadinessPanel readiness={readiness} />}
-
-            <div className="flex flex-col gap-y-2">
-              <Label>Note to the buyer</Label>
-              <Textarea
-                value={note}
-                onChange={(e) => setNote(e.target.value)}
-              />
+          <RouteFocusModal.Footer>
+            <div className="flex items-center justify-end gap-x-2">
+              <RouteFocusModal.Close asChild>
+                <Button variant="secondary" size="small">
+                  Cancel
+                </Button>
+              </RouteFocusModal.Close>
+              {tab === Tab.QUANTITIES ? (
+                <Button
+                  key="submit"
+                  type="submit"
+                  variant="primary"
+                  size="small"
+                  isLoading={isPending || isChecking}
+                >
+                  Mint quote
+                </Button>
+              ) : (
+                <Button
+                  key="next"
+                  type="button"
+                  variant="primary"
+                  size="small"
+                  onClick={handleNextTab}
+                >
+                  Continue
+                </Button>
+              )}
             </div>
-
-            <Text size="small" className="text-ui-fg-subtle">
-              {validLines.length} line
-              {validLines.length === 1 ? "" : "s"} · {currency.toUpperCase()} ·
-              to {country.toUpperCase()}
-              {postal ? ` ${postal}` : ""}. Minting runs a readiness check
-              first — freight, weights and prices are verified before anything
-              is created.
-            </Text>
-          </div>
-        </ProgressTabs.Content>
+          </RouteFocusModal.Footer>
+        </KeyboundForm>
       </ProgressTabs>
-
-      <div className="border-ui-border-base flex items-center justify-end gap-x-2 border-t px-6 py-4">
-        {isLast ? (
-          <Button
-            onClick={submit}
-            disabled={!validLines.length || isPending || isChecking}
-          >
-            {isChecking ? "Checking…" : isPending ? "Minting…" : "Mint quote"}
-          </Button>
-        ) : (
-          <Button onClick={handleNext} disabled={!stepComplete[tab]}>
-            Continue
-          </Button>
-        )}
-      </div>
-    </div>
+    </RouteFocusModal.Form>
   )
 }
