@@ -174,6 +174,28 @@ const QuoteDetailPage = () => {
                 label: "Freight",
                 value: money(quote.quoted_freight, quote.currency_code),
               },
+              /**
+               * Shown only on a DDP quote, and shown with its basis (#1447).
+               * This is a liability we took on: somebody has to arrange the
+               * clearance and pay this, and until a carrier can do it that
+               * somebody is a person reading this page. A DDP quote whose duty
+               * figure is invisible here is one nobody can honour.
+               */
+              ...(quote.duties_prepaid
+                ? [
+                    {
+                      label: "Duty (we pay)",
+                      value: money(
+                        quote.quoted_duty_total,
+                        quote.currency_code
+                      ),
+                    },
+                    {
+                      label: "Duty basis",
+                      value: quote.quoted_duty_basis || "—",
+                    },
+                  ]
+                : []),
               {
                 label: "Destination",
                 value: `${String(quote.destination_country_code || "").toUpperCase()}${

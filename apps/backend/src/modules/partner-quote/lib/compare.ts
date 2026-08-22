@@ -38,9 +38,20 @@ export type QuoteMoney = {
    */
   tax_total: number | null
   /**
-   * What the buyer actually pays. Equal to `landed_total` when the prices are
-   * tax-inclusive (the tax is already inside them and `tax_total` is the
-   * extracted portion), and `landed_total + tax_total` when they are not.
+   * Customs duty WE undertook to pay, in the quote currency (#1447). Null when
+   * the quote is not DDP or no figure was given; `0` is a real answer (Indian
+   * textiles enter Australia duty-free under AI-ECTA) and reads differently
+   * from null on purpose.
+   *
+   * ⚠️ It is NOT inside `landed_total` and never will be — same argument as
+   * tax: widening `landed_total` would silently restate every frozen
+   * `quoted_landed_total` on disk and every comparison drawn against one.
+   */
+  duty_total: number | null
+  /**
+   * What the buyer actually pays. `landed_total`, plus tax when the prices are
+   * tax-exclusive (when they are inclusive the tax is already inside it and
+   * `tax_total` is the extracted portion), plus any prepaid duty.
    * Null whenever tax is unknown — a gross total we cannot stand behind is
    * worse than none.
    */

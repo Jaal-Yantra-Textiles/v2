@@ -26,8 +26,14 @@ export type QuoteMoney = {
   /** #1439 S8. Null means unknown, never zero. */
   tax_total: number | null
   /**
-   * `landed_total` + tax when the prices are tax-exclusive; equal to
-   * `landed_total` when they are inclusive (the tax is already inside it).
+   * Customs duty WE pay on a DDP quote (#1447). Null = not a DDP quote or no
+   * figure; `0` = duty applies to this lane and is nil (AI-ECTA into AU).
+   * Never inside `landed_total`.
+   */
+  duty_total: number | null
+  /**
+   * `landed_total`, plus tax when the prices are tax-exclusive (when inclusive
+   * the tax is already inside it), plus any prepaid duty.
    * Null whenever `tax_total` is.
    */
   gross_total: number | null
@@ -156,6 +162,16 @@ export type QuoteView = {
   live: QuoteMoney | null
   quoted: QuoteMoney | null
   tax: QuoteTax
+  /**
+   * The DDP undertaking and the duty figure behind it (#1447). `prepaid` with a
+   * null `total` is a legacy row: the promise was made before anything computed
+   * the amount, so the page must not print a confident "nothing further to pay".
+   */
+  duty: {
+    prepaid: boolean
+    total: number | null
+    basis: string | null
+  }
   total_weight_grams: number | null
   freight: {
     chosen: QuoteFreightOption | null

@@ -118,6 +118,31 @@ const PartnerQuote = model.define("partner_quote", {
    * on a shipment nobody arranged clearance for.
    */
   duties_prepaid: model.boolean().nullable(),
+  /**
+   * The customs duty WE undertook to pay on this quote, in the quote currency.
+   *
+   * 🔴 This exists because `duties_prepaid` on its own promised the buyer duty
+   * was covered while adding NOTHING to the price — the partner absorbed an
+   * amount nobody had worked out, silently, out of margin. Deriving it
+   * automatically is blocked (138 HS-code gaps across 65 products, EU 2–14%
+   * with possible GSP relief, and Shiprocket's `tariff` returns 0 pending
+   * CSB-5 KYC), so until a carrier can price it the partner enters the number
+   * and we honour that number by hand.
+   *
+   * Null means no duty figure — either not a DDP quote, or a legacy row minted
+   * before this column. `0` is a real, deliberate answer: AI-ECTA makes Indian
+   * textiles duty-free into Australia, and "we checked, it is nil" is a fact,
+   * not a gap. `quoted_duty_basis` is what tells those two apart to a human,
+   * which is why they freeze together.
+   */
+  quoted_duty_total: model.bigNumber().nullable(),
+  /**
+   * How that number was arrived at — "EU 12% ad valorem, HS 6304.92", "AI-ECTA
+   * duty-free". Evidence, not decoration: it is the only record of WHY we
+   * committed to a figure, and the person who later pays the customs invoice
+   * is not the person who typed it.
+   */
+  quoted_duty_basis: model.text().nullable(),
   quoted_at: model.dateTime().nullable(),
 
   // ===== Buyer identity — the edges this quote's prices hang off ==========

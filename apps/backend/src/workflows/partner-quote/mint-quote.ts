@@ -59,6 +59,17 @@ export type MintQuoteInput = {
   carrier?: string
   /** Quote as DDP — we pay the destination duty and import tax (#1447). */
   duties_prepaid?: boolean
+  /**
+   * The duty amount we are undertaking to pay, in the QUOTE currency, and the
+   * note saying how it was arrived at (#1447).
+   *
+   * Entered by hand because nothing can derive it yet: HS codes are incomplete
+   * and Shiprocket's tariff endpoint is gated on CSB-5 KYC. The validator
+   * refuses `duties_prepaid` without an amount, so no quote can promise duty
+   * cover and add nothing to the price.
+   */
+  duty_total?: number | null
+  duty_basis?: string | null
   ttl_days?: number
   created_by?: string | null
   /** Injected so the whole mint is deterministic under test. */
@@ -256,6 +267,8 @@ const buildAndFreezeStep = createStep(
       // The row does not exist yet, so the undertaking is supplied directly —
       // it changes the disclosure the buyer is shown, which then gets frozen.
       duties_prepaid: input.duties_prepaid ?? false,
+      duty_total: input.duty_total ?? null,
+      duty_basis: input.duty_basis ?? null,
       now: payload.now,
     })
 
@@ -385,11 +398,30 @@ const applyLineOverridesStep = createStep(
     })
 
     const priced = lines.filter((l: any) => l.live_subtotal !== null)
+    /**
+     * 🔴 Tax and duty are carried across the recompose, not dropped.
+     *
+     * This call used to pass subtotals and freight only, so `tax_total`,
+     * `duty_total` and `gross_total` all came back null on any quote with a
+     * trade price — the buyer page showed no total at all, on precisely the
+     * quotes a partner had priced by hand. The freeze reads `view.tax`
+     * separately, so the row was right and only the page was wrong, which is
+     * why it survived.
+     *
+     * ⚠️ The tax AMOUNT here is still the one computed against pre-override
+     * prices, so a discounted quote overstates it. Tracked on #1447 — fixing
+     * it means re-asking the Tax module with the overridden lines, which is a
+     * change to what gets frozen, not to what gets rendered.
+     */
     const live = view?.live
       ? composeQuoteMoney(
           priced.map((l: any) => Number(l.live_subtotal)),
           priced.reduce((sum: number, l: any) => sum + Number(l.quantity), 0),
-          Number(view.live.freight ?? 0)
+          Number(view.live.freight ?? 0),
+          view.tax
+            ? { total: view.tax.total ?? null, inclusive: Boolean(view.tax.inclusive) }
+            : null,
+          view.live.duty_total ?? null
         )
       : view?.live ?? null
 
@@ -704,6 +736,12 @@ const persistQuoteStep = createStep(
       // Frozen with the rest: it is part of what the buyer was promised, and a
       // later page read must show the same undertaking, not re-derive it.
       duties_prepaid: input.mint.duties_prepaid ?? false,
+      // The duty figure freezes with the promise it backs. Read off the VIEW,
+      // which has already refused to carry an amount on a non-DDP quote, so a
+      // stray number in the body cannot be stored against a quote whose buyer
+      // was told duty is theirs to pay.
+      quoted_duty_total: input.view.duty?.total ?? null,
+      quoted_duty_basis: input.view.duty?.basis ?? null,
       quoted_at: new Date(input.now),
       token_hash: hash,
       status: "active",

@@ -324,6 +324,8 @@ setupSharedTestSuite(() => {
         destination_postal_code: "10115",
         destination_city: "Berlin",
         duties_prepaid: true,
+        duty_total: 12_000,
+        duty_basis: "EU 12% ad valorem, HS 6304.92",
       })
 
       const row = await readQuote(minted.quote.id)
@@ -334,9 +336,68 @@ setupSharedTestSuite(() => {
       expect(row.quoted_tax_reason).toMatch(/nothing further to pay on delivery/i)
       expect(row.quoted_tax_reason).not.toMatch(/payable by you/i)
 
-      // And the buyer sees the promise, not the warning.
+      // 🔴 The INSERT is what a unit test cannot reach: a DML `bigNumber` is two
+      // columns, and a missing `raw_quoted_duty_total` fails here and nowhere else.
+      expect(Number(row.quoted_duty_total)).toBe(12_000)
+      expect(row.quoted_duty_basis).toBe("EU 12% ad valorem, HS 6304.92")
+
+      // And the buyer sees the promise, the number behind it, and a total that
+      // actually contains it — the promise used to add nothing to the price.
       const quote = await viewByToken(minted.token)
       expect(quote.tax.reason).toMatch(/nothing further to pay on delivery/i)
+      expect(quote.duty).toEqual({
+        prepaid: true,
+        total: 12_000,
+        basis: "EU 12% ad valorem, HS 6304.92",
+      })
+      expect(quote.quoted.duty_total).toBe(12_000)
+      expect(quote.quoted.gross_total).toBe(
+        quote.quoted.landed_total + 12_000
+      )
+    })
+
+    it("🔴 refuses a DDP promise with no duty figure behind it", async () => {
+      const { api } = getSharedTestEnv()
+
+      // The whole point of the slice: `duties_prepaid` alone told the buyer
+      // "nothing further to pay" and added nothing to the price, so the duty
+      // came out of margin by an amount nobody had computed.
+      await expect(
+        api.post(
+          "/partners/quotes",
+          mintBody(seed, {
+            buyer_email: `buyer-ddp-bare-${seed.unique}@jaalyantra.test`,
+            destination_country_code: "de",
+            destination_postal_code: "10115",
+            destination_city: "Berlin",
+            duties_prepaid: true,
+          }),
+          { headers: seed.headers }
+        )
+      ).rejects.toMatchObject({ response: { status: 400 } })
+    })
+
+    it("accepts a nil duty on a lane that is genuinely duty-free", async () => {
+      // "We checked, it is nil" is a fact and has to be sayable — the live case
+      // is AI-ECTA, under which Indian textiles enter Australia duty-free.
+      // Quoted on the DE lane here because that is the only geo zone this seed
+      // has freight for, and a mint with no quotable lane fails before it ever
+      // reaches the duty rule.
+      const minted = await mintRaw({
+        buyer_email: `buyer-ddp-nil-${seed.unique}@jaalyantra.test`,
+        destination_country_code: "de",
+        destination_postal_code: "10115",
+        destination_city: "Berlin",
+        duties_prepaid: true,
+        duty_total: 0,
+        duty_basis: "GSP relief — 0% on HS 6304.92 for IN origin",
+      })
+
+      const row = await readQuote(minted.quote.id)
+      // 0, not null: the difference between "checked, nil" and "left blank" is
+      // the entire reason the basis column exists.
+      expect(Number(row.quoted_duty_total)).toBe(0)
+      expect(row.quoted_duty_basis).toMatch(/GSP relief/i)
     })
 
     it("🔴 defaults to buyer-pays — an omitted flag is never a promise", async () => {

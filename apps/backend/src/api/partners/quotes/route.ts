@@ -67,6 +67,10 @@ export const POST = async (
       region_id: body.region_id ?? null,
       carrier: body.carrier,
       duties_prepaid: body.duties_prepaid ?? false,
+      // The number behind the promise (#1447). The validator has already
+      // refused one without the other, so these two travel together or not at all.
+      duty_total: body.duty_total ?? null,
+      duty_basis: body.duty_basis ?? null,
       ttl_days: body.ttl_days,
       created_by: req.auth_context?.actor_id ?? null,
     },

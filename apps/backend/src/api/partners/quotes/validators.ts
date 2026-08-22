@@ -45,7 +45,73 @@ const QuoteLine = z
     }
   )
 
-export const PartnerMintQuoteReq = z.object({
+/**
+ * A quote may not promise duty cover without saying how much (#1447).
+ *
+ * 🔴 `duties_prepaid` on its own tells the buyer "import duty is included and
+ * paid by us" and adds NOTHING to the price — the amount comes out of margin,
+ * uncomputed, and nobody downstream learns a figure was ever owed. Nothing can
+ * derive it for us yet (HS codes are incomplete; Shiprocket's tariff endpoint is
+ * gated on CSB-5 KYC), so the number is entered by hand and the schema refuses
+ * the promise without it.
+ *
+ * `0` is accepted and is a real answer — AI-ECTA makes Indian textiles duty-free
+ * into Australia — which is exactly why `duty_basis` is required alongside it:
+ * a bare 0 cannot say whether it means "checked, nil" or "left blank".
+ *
+ * The reverse is refused too. A duty amount on a quote that is NOT DDP would be
+ * added to a total whose buyer was told duty is theirs to pay on arrival —
+ * charging them twice for the same border.
+ *
+ * Shared by all four mint/readiness schemas rather than restated: a preflight
+ * that accepted what the mint rejects would tell a partner their quote is ready
+ * and then refuse it.
+ */
+export const dutyUndertakingRefinement = (
+  body: { duties_prepaid?: boolean | null; duty_total?: number | null; duty_basis?: string | null },
+  ctx: z.RefinementCtx
+) => {
+  const prepaid = Boolean(body.duties_prepaid)
+  const hasAmount = body.duty_total !== null && body.duty_total !== undefined
+
+  if (prepaid && !hasAmount) {
+    ctx.addIssue({
+      code: "custom",
+      message:
+        "A DDP quote must carry duty_total — the amount of destination duty we are undertaking to pay, in the quote currency. " +
+        "Without it the buyer is promised duty cover that adds nothing to the price and is absorbed out of margin. " +
+        "Enter 0 with a duty_basis where the lane is genuinely duty-free (e.g. AI-ECTA into AU).",
+      path: ["duty_total"],
+    })
+  }
+
+  if (prepaid && !String(body.duty_basis ?? "").trim()) {
+    ctx.addIssue({
+      code: "custom",
+      message:
+        "A DDP quote must carry duty_basis — how the figure was arrived at (e.g. \"EU 12% ad valorem, HS 6304.92\", \"AI-ECTA duty-free\"). " +
+        "It is the only record of why we committed to this amount, and whoever meets the customs invoice is not who typed it.",
+      path: ["duty_basis"],
+    })
+  }
+
+  if (!prepaid && hasAmount) {
+    ctx.addIssue({
+      code: "custom",
+      message:
+        "duty_total is only valid with duties_prepaid. On a non-DDP quote the buyer pays duty at their own border, so adding it here charges them twice.",
+      path: ["duty_total"],
+    })
+  }
+}
+
+/**
+ * The mint body's SHAPE, before the cross-field rule.
+ *
+ * Kept as a plain object because the admin twin extends it and the readiness
+ * preflight omits from it — neither survives on a refined schema.
+ */
+export const PartnerMintQuoteShape = z.object({
   buyer_email: z.string().email(),
   recipient_name: z.string().nullish(),
   recipient_company: z.string().nullish(),
@@ -63,6 +129,13 @@ export const PartnerMintQuoteReq = z.object({
    * it must never be a default.
    */
   duties_prepaid: z.boolean().optional(),
+  /**
+   * The duty we undertake to pay, in the QUOTE currency, and how that number
+   * was reached. Required together with `duties_prepaid` — see
+   * `dutyUndertakingRefinement`.
+   */
+  duty_total: z.number().min(0).nullish(),
+  duty_basis: z.string().max(500).nullish(),
 
   currency_code: z.string().min(3),
   region_id: z.string().nullish(),
@@ -71,6 +144,10 @@ export const PartnerMintQuoteReq = z.object({
   /** Drives `price_list.ends_at`, so expiry is native rather than swept. */
   ttl_days: z.number().int().positive().max(365).optional(),
 })
+
+export const PartnerMintQuoteReq = PartnerMintQuoteShape.superRefine(
+  dutyUndertakingRefinement
+)
 
 /**
  * The readiness preflight body (#1445).
@@ -81,12 +158,16 @@ export const PartnerMintQuoteReq = z.object({
  * rejects, which is worse than having no preflight: it would tell a partner
  * their quote is ready and then refuse it.
  */
-export const QuoteReadinessReq = PartnerMintQuoteReq.omit({
+export const QuoteReadinessShape = PartnerMintQuoteShape.omit({
   buyer_email: true,
   recipient_name: true,
   recipient_company: true,
   partner_note: true,
   ttl_days: true,
 })
+
+export const QuoteReadinessReq = QuoteReadinessShape.superRefine(
+  dutyUndertakingRefinement
+)
 
 export type QuoteReadinessReqType = z.infer<typeof QuoteReadinessReq>

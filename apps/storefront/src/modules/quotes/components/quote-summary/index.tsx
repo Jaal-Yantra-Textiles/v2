@@ -52,7 +52,15 @@ const Row = ({
   </div>
 )
 
-/** The tax rows, or nothing when there is no number and no reason to give. */
+/**
+ * The tax row, the duty row and the total — or nothing, when there is no number
+ * to stand behind.
+ *
+ * 🔴 The duty row exists because "we pay the duty" used to add nothing to the
+ * price (#1447). A DDP quote whose total is silently identical to a non-DDP one
+ * is a promise kept out of margin by an amount nobody wrote down; showing it as
+ * its own line is what makes the undertaking legible to the buyer AND to us.
+ */
 const TaxRows = ({
   money,
   tax,
@@ -74,6 +82,14 @@ const TaxRows = ({
         label={tax.inclusive ? `${label} (included)` : label}
         value={convertToLocale({ amount: money.tax_total, currency_code })}
       />
+      {money.duty_total !== null ? (
+        <Row
+          // Named for who pays it, not for what it is: the buyer's question is
+          // "is there a customs bill coming", and the answer here is no.
+          label="Import duty (paid by us)"
+          value={convertToLocale({ amount: money.duty_total, currency_code })}
+        />
+      ) : null}
       <Row
         label="Total"
         value={convertToLocale({ amount: money.gross_total, currency_code })}

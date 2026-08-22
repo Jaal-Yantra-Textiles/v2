@@ -699,3 +699,154 @@ describe("buildQuoteView — provenance", () => {
     expect(view.live?.landed_total).toBeGreaterThan(0)
   })
 })
+
+/**
+ * The manual customs duty (#1447).
+ *
+ * 🔴 The defect these exist to keep dead: `duties_prepaid` told the buyer
+ * "import duty is included and paid by us" while `composeQuoteMoney` was
+ * `subtotal + freight (+ tax)`. The promise added nothing to the price, so the
+ * duty came out of margin by an amount nobody had computed and nothing
+ * downstream ever learned a figure was owed.
+ */
+describe("prepaid duty (#1447)", () => {
+  it("adds the duty to what the buyer pays, and never to landed_total", () => {
+    const money = composeQuoteMoney(
+      [100_000],
+      100,
+      5_000,
+      { total: 0, inclusive: false },
+      12_000
+    )
+
+    // `landed_total` keeps the meaning every frozen row on disk already has.
+    expect(money.landed_total).toBe(105_000)
+    expect(money.duty_total).toBe(12_000)
+    expect(money.gross_total).toBe(117_000)
+  })
+
+  it("adds the duty on tax-INCLUSIVE prices too", () => {
+    // Tax is already inside the prices; duty is a destination-border charge the
+    // line prices know nothing about, so the two are not symmetrical.
+    const money = composeQuoteMoney(
+      [100_000],
+      100,
+      5_000,
+      { total: 16_017, inclusive: true },
+      12_000
+    )
+
+    expect(money.tax_total).toBe(16_017)
+    expect(money.gross_total).toBe(117_000)
+  })
+
+  it("carries no duty figure when none was given — null, not zero", () => {
+    const money = composeQuoteMoney([100_000], 100, 5_000, { total: 0, inclusive: false })
+
+    // Null is "not a DDP quote"; 0 would be "duty applies to this lane and is
+    // nil", which is a claim about AI-ECTA we have not made here.
+    expect(money.duty_total).toBeNull()
+    expect(money.gross_total).toBe(105_000)
+  })
+
+  it("keeps a nil duty distinguishable from no duty", () => {
+    const money = composeQuoteMoney([100_000], 100, 5_000, { total: 0, inclusive: false }, 0)
+
+    expect(money.duty_total).toBe(0)
+    expect(money.gross_total).toBe(105_000)
+  })
+
+  it("reads the frozen duty back onto the quoted half", () => {
+    const money = frozenMoney({
+      quoted_subtotal: 100_000,
+      quoted_freight: 5_000,
+      quoted_landed_total: 105_000,
+      quoted_tax_total: 0,
+      quoted_tax_inclusive: false,
+      quoted_duty_total: 12_000,
+      lines: [{ variant_id: "var_a", quantity: 100 }],
+    })
+
+    expect(money?.duty_total).toBe(12_000)
+    expect(money?.gross_total).toBe(117_000)
+  })
+
+  it("reports no duty figure for a quote minted before the column existed", () => {
+    const money = frozenMoney({
+      quoted_subtotal: 100_000,
+      quoted_freight: 5_000,
+      quoted_landed_total: 105_000,
+      quoted_tax_total: 0,
+      quoted_tax_inclusive: false,
+      lines: [{ variant_id: "var_a", quantity: 100 }],
+    })
+
+    expect(money?.duty_total).toBeNull()
+    // Unchanged for every quote already on disk.
+    expect(money?.gross_total).toBe(105_000)
+  })
+
+  it("surfaces the undertaking, the amount and the basis at mint", async () => {
+    const captured: Captured = { contexts: [], rateWeights: [] }
+    const view = await buildQuoteView(
+      scopeWith(captured) as any,
+      baseInput({
+        duties_prepaid: true,
+        duty_total: 12_000,
+        duty_basis: "EU 12% ad valorem, HS 6304.92",
+      })
+    )
+
+    expect(view.duty.prepaid).toBe(true)
+    expect(view.duty.total).toBe(12_000)
+    expect(view.duty.basis).toBe("EU 12% ad valorem, HS 6304.92")
+    expect(view.live?.duty_total).toBe(12_000)
+  })
+
+  it("refuses to carry a duty amount on a quote that is NOT DDP", async () => {
+    const captured: Captured = { contexts: [], rateWeights: [] }
+    const view = await buildQuoteView(
+      scopeWith(captured) as any,
+      // The API refuses this pairing, but the builder is reached by the admin
+      // twin and the freeze as well. A stray amount here would be added to a
+      // total whose buyer was told duty is theirs to pay on arrival.
+      baseInput({ duties_prepaid: false, duty_total: 12_000, duty_basis: "typo" })
+    )
+
+    expect(view.duty.prepaid).toBe(false)
+    expect(view.duty.total).toBeNull()
+    expect(view.duty.basis).toBeNull()
+    expect(view.live?.duty_total).toBeNull()
+  })
+
+  it("still states the undertaking on a DEAD link", async () => {
+    const captured: Captured = { contexts: [], rateWeights: [] }
+    const view = await buildQuoteView(
+      scopeWith(captured) as any,
+      baseInput({
+        quote: {
+          status: "revoked",
+          duties_prepaid: true,
+          quoted_duty_total: 12_000,
+          quoted_duty_basis: "EU 12% ad valorem, HS 6304.92",
+          quoted_subtotal: 100_000,
+          quoted_freight: 5_000,
+          quoted_landed_total: 105_000,
+          quoted_tax_total: 0,
+          quoted_tax_inclusive: false,
+          lines: [{ variant_id: "var_a", quantity: 100 }],
+        },
+      })
+    )
+
+    // The live half is skipped entirely on a dead link — the same path that
+    // silently dropped the whole tax block until `frozenTaxFallback`. A revoked
+    // quote is the RECORD of what was promised, so the promise has to survive it.
+    expect(view.live).toBeNull()
+    expect(view.duty.prepaid).toBe(true)
+    expect(view.duty.total).toBe(12_000)
+    expect(view.duty.basis).toBe("EU 12% ad valorem, HS 6304.92")
+    expect(view.quoted?.duty_total).toBe(12_000)
+    expect(view.quoted?.gross_total).toBe(117_000)
+  })
+})

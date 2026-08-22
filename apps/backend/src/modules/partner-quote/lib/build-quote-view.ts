@@ -90,6 +90,9 @@ export type QuoteViewQuote = {
   quoted_tax_status?: string | null
   quoted_tax_reason?: string | null
   duties_prepaid?: boolean | null
+  /** #1447. The duty figure we committed to, and how it was arrived at. */
+  quoted_duty_total?: number | null
+  quoted_duty_basis?: string | null
   quoted_at?: Date | string | null
   recipient_name?: string | null
   recipient_company?: string | null
@@ -130,6 +133,16 @@ export type BuildQuoteViewInput = {
    * (the row does not exist yet); afterwards it is read off the frozen quote.
    */
   duties_prepaid?: boolean
+  /**
+   * The duty we are undertaking to pay, in the quote currency, and the note
+   * saying how the partner got there (#1447). Supplied by the mint; afterwards
+   * both are read off the frozen row so a re-read cannot invent a new figure.
+   *
+   * Only meaningful with `duties_prepaid` — the API refuses one without the
+   * other, so a DDP promise always carries a number.
+   */
+  duty_total?: number | null
+  duty_basis?: string | null
   /** Passed in so the whole view is deterministic under test. */
   now: Date
 }
@@ -190,6 +203,26 @@ export type QuoteView = {
    * silence is not an option here the way it is for the producer band.
    */
   tax: QuoteTax
+  /**
+   * The DDP undertaking and the number behind it (#1447).
+   *
+   * `prepaid` without a `total` is the state this slice exists to make
+   * impossible: it is a promise that duty is covered with nothing added to the
+   * price, paid out of margin by an amount nobody worked out. The API refuses
+   * that combination at mint; the block is shaped so a caller can still SEE it
+   * on a legacy row rather than render a confident "nothing further to pay".
+   *
+   * Read from the frozen quote on a dead link, exactly like `tax` — the
+   * undertaking is part of what the buyer was told, and a revoked quote is the
+   * record of it.
+   */
+  duty: {
+    prepaid: boolean
+    /** Quote currency. Null = no figure; 0 = duty applies and is nil. */
+    total: number | null
+    /** "EU 12% ad valorem, HS 6304.92", "AI-ECTA duty-free". */
+    basis: string | null
+  }
   compare: QuoteCompareResult
   recipient: {
     name: string | null
@@ -305,7 +338,13 @@ export function composeQuoteMoney(
    * #1439 S8. Omitted ⇒ tax is UNKNOWN, not zero: `tax_total` and
    * `gross_total` both stay null, and the caller is expected to say why.
    */
-  tax?: { total: number | null; inclusive: boolean } | null
+  tax?: { total: number | null; inclusive: boolean } | null,
+  /**
+   * #1447. The customs duty we undertook to pay, in the quote currency.
+   * Omitted ⇒ not a DDP quote, and no duty row renders. Passing `0` is a
+   * different statement: duty applies to this lane and it is nil.
+   */
+  duty?: number | null
 ): QuoteMoney {
   const subtotal = lineSubtotals.reduce((sum, n) => sum + n, 0)
   const landed = subtotal + freight
@@ -315,12 +354,24 @@ export function composeQuoteMoney(
       ? Number(tax.total)
       : null
 
+  const dutyTotal =
+    duty === null || duty === undefined || !Number.isFinite(Number(duty))
+      ? null
+      : Number(duty)
+
   return {
     unit_amount: totalUnits > 0 ? subtotal / totalUnits : 0,
     subtotal,
     freight,
     landed_total: landed,
     tax_total: taxTotal,
+    /**
+     * 🔴 Duty is ADDED in both bases. Unlike tax it is never "already
+     * inside" the prices: it is a charge at the destination border that the
+     * line prices know nothing about, which is precisely why quoting DDP
+     * without adding it took the amount out of our own margin.
+     */
+    duty_total: dutyTotal,
     /**
      * 🔴 When the prices are tax-INCLUSIVE the tax is already inside
      * `landed_total`, so adding it again would overcharge the buyer by the
@@ -329,7 +380,9 @@ export function composeQuoteMoney(
      * direction on every Indian quote.
      */
     gross_total:
-      taxTotal === null ? null : tax?.inclusive ? landed : landed + taxTotal,
+      taxTotal === null
+        ? null
+        : (tax?.inclusive ? landed : landed + taxTotal) + (dutyTotal ?? 0),
   }
 }
 
@@ -390,6 +443,10 @@ export function frozenMoney(quote?: QuoteViewQuote | null): QuoteMoney | null {
     quote.quoted_tax_total === null || quote.quoted_tax_total === undefined
       ? null
       : Number(quote.quoted_tax_total)
+  const dutyTotal =
+    quote.quoted_duty_total === null || quote.quoted_duty_total === undefined
+      ? null
+      : Number(quote.quoted_duty_total)
   const landed = Number(quote.quoted_landed_total)
 
   return {
@@ -403,12 +460,13 @@ export function frozenMoney(quote?: QuoteViewQuote | null): QuoteMoney | null {
      * retroactively assert that an untaxed quote was tax-free.
      */
     tax_total: taxTotal,
+    /** Same rule, same reason (#1447): null is "no figure", 0 is "nil duty". */
+    duty_total: dutyTotal,
     gross_total:
       taxTotal === null
         ? null
-        : quote.quoted_tax_inclusive
-          ? landed
-          : landed + taxTotal,
+        : (quote.quoted_tax_inclusive ? landed : landed + taxTotal) +
+          (dutyTotal ?? 0),
   }
 }
 
@@ -503,6 +561,31 @@ export async function buildQuoteView(
     (input.quote?.lines || []).map((l) => [l.variant_id, l])
   )
   const quoted = frozenMoney(input.quote)
+
+  /**
+   * The DDP undertaking and its number, resolved ONCE for the whole view.
+   *
+   * At mint the row does not exist yet, so both arrive on the input; on every
+   * later read they come off the frozen quote, which is what stops a re-read
+   * from inventing a duty figure the buyer was never shown.
+   *
+   * 🔴 A duty amount is only ever carried when the quote is actually DDP. A
+   * number left behind on a non-DDP quote would be added to a total the buyer
+   * was told they pay duty on top of — charging them twice for the same border.
+   */
+  const dutiesPrepaid = Boolean(
+    input.duties_prepaid ?? input.quote?.duties_prepaid
+  )
+  const frozenDuty =
+    input.quote?.quoted_duty_total === null ||
+    input.quote?.quoted_duty_total === undefined
+      ? null
+      : Number(input.quote.quoted_duty_total)
+  const dutyTotal = !dutiesPrepaid
+    ? null
+    : input.duty_total === null || input.duty_total === undefined
+      ? frozenDuty
+      : Number(input.duty_total)
 
   let live: QuoteMoney | null = null
   let liveError: string | null = null
@@ -617,9 +700,7 @@ export async function buildQuoteView(
         origin_country_code: originCountry,
         // Mint supplies it directly; a later page read takes it off the frozen
         // row, so the buyer sees the same promise on every visit.
-        duties_prepaid: Boolean(
-          input.duties_prepaid ?? input.quote?.duties_prepaid
-        ),
+        duties_prepaid: dutiesPrepaid,
         destination_country_code: input.destination_country_code,
         destination_postal_code: input.destination_postal_code ?? null,
         lines: effectiveLines.map((l) => ({
@@ -637,7 +718,11 @@ export async function buildQuoteView(
         ),
         effectiveLines.reduce((sum, l) => sum + l.quantity, 0),
         Number(chosen.amount),
-        tax
+        tax,
+        // Not recomputed from the lane: nobody can price this lane's duty yet
+        // (see the model docblock). It is the figure the partner committed to,
+        // carried so the total the buyer pays actually contains the promise.
+        dutyTotal
       )
     } catch (err) {
       // The quoted half — what the partner actually told this buyer — is still
@@ -743,6 +828,15 @@ export async function buildQuoteView(
      * dead link rather than recomputing a number we are no longer offering.
      */
     tax: frozenTaxFallback(tax, input.quote),
+    duty: {
+      prepaid: dutiesPrepaid,
+      total: dutyTotal,
+      // Gated on the undertaking for the same reason the amount is: a basis
+      // note on a quote that is not DDP describes a promise nobody made.
+      basis: dutiesPrepaid
+        ? (input.duty_basis ?? input.quote?.quoted_duty_basis ?? null)
+        : null,
+    },
     compare,
     recipient: {
       name: input.quote?.recipient_name ?? null,
