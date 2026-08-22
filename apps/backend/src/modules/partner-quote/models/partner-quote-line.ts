@@ -45,6 +45,30 @@ const PartnerQuoteLine = model.define("partner_quote_line", {
   quoted_unit_weight_grams: model.number().nullable(),
   quoted_weight_source: model.enum(["variant", "product"]).nullable(),
 
+  // ===== The trade price, and how it was arrived at (#1439 S7) =============
+  /**
+   * A B2B buyer does not pay retail. `quoted_unit_amount` above is the FINAL
+   * number either way — these columns record how it was reached, so the quote
+   * is auditable rather than reverse-engineered later.
+   *
+   * 🔑 `override_input_amount` is what the partner actually TYPED, before any
+   * conversion, and `override_input_currency_code` is the partner store's
+   * default currency — the one they think in. `override_fx_rate` is the rate
+   * applied at mint. Without all three, a quoted number cannot be reproduced
+   * once the rate has moved, and an unreproducible number is not evidence.
+   *
+   * Null on every line that was quoted at its catalog price, which is most of
+   * them.
+   */
+  override_kind: model
+    .enum(["discount_percent", "override_unit_amount"])
+    .nullable(),
+  override_input_amount: model.bigNumber().nullable(),
+  /** Null for a percentage — a percentage has no currency. */
+  override_input_currency_code: model.text().nullable(),
+  /** 1 for a percentage and for a same-currency override. */
+  override_fx_rate: model.float().nullable(),
+
   /** Partner's per-line note to the buyer. Human-entered: render with {{ }}. */
   note: model.text().nullable(),
 

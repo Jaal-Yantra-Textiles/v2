@@ -24,6 +24,10 @@ import {
   quoteExpiryFrom,
   DEFAULT_QUOTE_TTL_DAYS,
 } from "../../modules/partner-quote/lib/token"
+import { composeQuoteMoney } from "../../modules/partner-quote/lib/build-quote-view"
+import { fetchExchangeRate } from "../../lib/fx/exchange-rate"
+import { pickDefaultCurrency } from "../../lib/resolve-store-currency"
+import { needsExchangeRate, resolveLineOverride } from "./lib/line-override"
 import {
   planQuotePrices,
   priceListScopedToGroup,
@@ -42,6 +46,10 @@ export type MintQuoteInput = {
     quantity: number
     position?: number
     note?: string | null
+    /** 0-100, off the live catalog price at this line's quantity (#1439 S7). */
+    discount_percent?: number | null
+    /** A flat unit price, in the PARTNER STORE's default currency. */
+    override_unit_amount?: number | null
   }>
   destination_country_code: string
   destination_postal_code?: string | null
@@ -256,6 +264,131 @@ const buildAndFreezeStep = createStep(
     }
 
     return new StepResponse(view)
+  }
+)
+
+/**
+ * Apply the partner's trade prices, and rewrite the view around them (#1439 S7).
+ *
+ * ## Why this replaces the numbers IN THE VIEW rather than beside them
+ *
+ * The whole point of `build-quote-view.ts` is that ONE builder feeds the page,
+ * the email and the freeze, so no second pricing path can disagree with what
+ * the buyer sees. An override carried alongside the view would create exactly
+ * that second path: the price list would hold the trade price while the frozen
+ * `quoted_subtotal` and the buyer's page still showed retail.
+ *
+ * So the override is folded back in — per line, and then the basket totals are
+ * recomposed from the overridden subtotals with the same `composeQuoteMoney`
+ * the builder used. Downstream, nothing knows an override happened; there is
+ * still exactly one number per line.
+ *
+ * Freight is untouched. A trade price is a discount on goods, not on shipping,
+ * and the consignment costs what it costs.
+ *
+ * ## FX is fetched at most once, and only when it is actually needed
+ *
+ * A same-currency mint — the overwhelming majority — never touches the
+ * network, so an FX outage cannot block one. When a rate IS needed and cannot
+ * be had, the mint FAILS: `fetchExchangeRate` throws and nothing here catches
+ * it. A conversion that silently falls back to 1 does not fail, it quotes
+ * 60,000 INR as 60,000 USD.
+ */
+const applyLineOverridesStep = createStep(
+  "apply-quote-line-overrides-step",
+  async (
+    payload: { mint: MintQuoteInput; view: any },
+    { container }
+  ) => {
+    const input = payload.mint
+    const view = payload.view
+    const overrideByVariant = new Map(
+      (input.lines ?? []).map((l) => [l.variant_id, l])
+    )
+
+    const anyOverride = (input.lines ?? []).some(
+      (l) =>
+        (l.discount_percent !== null && l.discount_percent !== undefined) ||
+        (l.override_unit_amount !== null && l.override_unit_amount !== undefined)
+    )
+    if (!anyOverride) {
+      // Nothing to do, and — importantly — no store read and no FX call on the
+      // path every ordinary quote takes.
+      return new StepResponse(view)
+    }
+
+    // ---- The currency the partner typed in ------------------------------
+    // Shaped by the same helper every other currency decision uses (#485), but
+    // with an EMPTY fallback rather than its default "inr": `resolveStoreCurrency`
+    // never throws and always returns a usable code, which is right for
+    // stamping a work order and wrong here. Guessing a currency for a number
+    // someone typed is how a rupee price gets quoted as dollars.
+    const query: any = container.resolve(ContainerRegistrationKeys.QUERY)
+    let storeCurrency = ""
+    try {
+      const { data: stores } = await query.graph({
+        entity: "store",
+        // `supported_currencies.*` MUST be expanded or the default flag is
+        // absent and every currency reads as "not default".
+        fields: ["id", "supported_currencies.*"],
+        filters: { id: input.store.id },
+      })
+      storeCurrency = pickDefaultCurrency((stores ?? [])[0], "")
+    } catch {
+      storeCurrency = ""
+    }
+
+    if (!storeCurrency) {
+      // 🔴 Never fall back to the quote currency. The override is a number in
+      // the partner's own currency; assuming it is already in the buyer's is
+      // how a rupee price gets quoted as dollars.
+      throw new MedusaError(
+        MedusaError.Types.INVALID_DATA,
+        "This store has no default currency, so a per-line override has no currency to be read in. " +
+          "Nothing was written."
+      )
+    }
+
+    const rate = needsExchangeRate(
+      input.lines ?? [],
+      storeCurrency,
+      input.currency_code
+    )
+      ? await fetchExchangeRate(storeCurrency, input.currency_code)
+      : 1
+
+    const lines = (view?.lines ?? []).map((l: any) => {
+      const requested = overrideByVariant.get(l.variant_id)
+      const resolved = resolveLineOverride({
+        live_unit_amount: l.live_unit_amount ?? null,
+        discount_percent: requested?.discount_percent ?? null,
+        override_unit_amount: requested?.override_unit_amount ?? null,
+        fx_rate: rate,
+        store_currency_code: storeCurrency,
+        quote_currency_code: input.currency_code,
+      })
+
+      return {
+        ...l,
+        live_unit_amount: resolved.unit_amount,
+        live_subtotal:
+          resolved.unit_amount === null
+            ? null
+            : resolved.unit_amount * Number(l.quantity),
+        override: resolved.override,
+      }
+    })
+
+    const priced = lines.filter((l: any) => l.live_subtotal !== null)
+    const live = view?.live
+      ? composeQuoteMoney(
+          priced.map((l: any) => Number(l.live_subtotal)),
+          priced.reduce((sum: number, l: any) => sum + Number(l.quantity), 0),
+          Number(view.live.freight ?? 0)
+        )
+      : view?.live ?? null
+
+    return new StepResponse({ ...view, lines, live })
   }
 )
 
@@ -574,6 +707,14 @@ const persistQuoteStep = createStep(
         quoted_unit_weight_grams: l.unit_weight_grams ?? null,
         quoted_weight_source: l.weight_source ?? null,
         note: l.note ?? null,
+        // #1439 S7 — HOW the price above was reached. Null on a line quoted at
+        // its catalog price, which is most of them. The three override fields
+        // travel together: without the input amount and the rate, a converted
+        // number cannot be reproduced once FX has moved.
+        override_kind: l.override?.kind ?? null,
+        override_input_amount: l.override?.input_amount ?? null,
+        override_input_currency_code: l.override?.input_currency_code ?? null,
+        override_fx_rate: l.override?.fx_rate ?? null,
       }))
     )
 
@@ -605,7 +746,19 @@ export const mintQuoteWorkflow = createWorkflow(
     validateQuoteReadinessStep(input)
 
     const buyer = resolveQuoteBuyerStep(input)
-    const view = buildAndFreezeStep({ mint: input, now: timing.now } as any)
+    const catalogView = buildAndFreezeStep({ mint: input, now: timing.now } as any)
+
+    /**
+     * The trade price (#1439 S7). Returns the SAME view with the overridden
+     * numbers folded in, so every consumer below — the price list, the frozen
+     * row, the basket totals — reads one number and no second pricing path
+     * exists. A basket with no overrides passes straight through, untouched
+     * and without a store read or an FX call.
+     */
+    const view = applyLineOverridesStep({
+      mint: input,
+      view: catalogView,
+    } as any)
 
     /**
      * 🔴 The amount to freeze is the LIVE one.

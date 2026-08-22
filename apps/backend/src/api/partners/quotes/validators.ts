@@ -1,11 +1,49 @@
 import { z } from "@medusajs/framework/zod"
 
-const QuoteLine = z.object({
-  variant_id: z.string().min(1),
-  quantity: z.number().int().positive(),
-  position: z.number().int().nonnegative().optional(),
-  note: z.string().nullish(),
-})
+/**
+ * One line of the basket, with its optional trade price (#1439 S7).
+ *
+ * 🔑 `override_unit_amount` is entered in the PARTNER STORE's default
+ * currency, not the quote's. A partner negotiating in Mumbai thinks in rupees
+ * whatever currency the buyer is being quoted in, so the number they type is
+ * authoritative and the conversion happens once, at mint, at a rate persisted
+ * beside the result.
+ *
+ * The two forms are mutually exclusive by construction. "Which one wins" is
+ * not a question that should have an answer, so the schema refuses both rather
+ * than ranking them — and `resolveLineOverride` refuses them again, because the
+ * admin twin and any future caller reach the pure function too.
+ *
+ * 🔴 A resolved price of zero is refused downstream, not here. `0` is a valid
+ * number and a plausible typo, and an ACTIVE price of zero is one the cart
+ * cheerfully charges — see the note in `lib/line-override.ts`.
+ */
+const QuoteLine = z
+  .object({
+    variant_id: z.string().min(1),
+    quantity: z.number().int().positive(),
+    position: z.number().int().nonnegative().optional(),
+    note: z.string().nullish(),
+
+    /** 0-100, off the live catalog price at this line's quantity. */
+    discount_percent: z.number().min(0).max(100).nullish(),
+    /** A flat unit price, in the partner store's default currency. */
+    override_unit_amount: z.number().positive().nullish(),
+  })
+  .refine(
+    (l) =>
+      !(
+        l.discount_percent !== null &&
+        l.discount_percent !== undefined &&
+        l.override_unit_amount !== null &&
+        l.override_unit_amount !== undefined
+      ),
+    {
+      message:
+        "A line takes either a discount_percent or an override_unit_amount, never both.",
+      path: ["override_unit_amount"],
+    }
+  )
 
 export const PartnerMintQuoteReq = z.object({
   buyer_email: z.string().email(),

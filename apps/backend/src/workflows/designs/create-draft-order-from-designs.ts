@@ -7,6 +7,7 @@ import {
 import { ContainerRegistrationKeys, Modules } from "@medusajs/framework/utils"
 import { DESIGN_MODULE } from "../../modules/designs"
 import { pickDefaultCurrency } from "../../lib/resolve-store-currency"
+import { applyRate, fetchExchangeRate } from "../../lib/fx/exchange-rate"
 import {
   estimateDesignCostWorkflow,
   EstimateCostOutput,
@@ -99,51 +100,6 @@ const estimateDesignCostsStep = createStep(
 // Handles two source currencies:
 //   - Estimated prices: assumed to be in store default currency
 //   - Manual overrides: in override_currency (if provided), else store default
-
-type FrankfurterResponse = {
-  base: string
-  date: string
-  rates: Record<string, number>
-}
-
-const frankfurterCache = new Map<string, { rate: number; fetchedAt: number }>()
-const CACHE_TTL_MS = 60 * 60 * 1000
-
-async function fetchExchangeRate(from: string, to: string): Promise<number> {
-  const fromUpper = from.toUpperCase()
-  const toUpper = to.toUpperCase()
-
-  if (fromUpper === toUpper) return 1
-
-  const cacheKey = `${fromUpper}_${toUpper}`
-  const cached = frankfurterCache.get(cacheKey)
-  if (cached && Date.now() - cached.fetchedAt < CACHE_TTL_MS) {
-    return cached.rate
-  }
-
-  const url = `https://api.frankfurter.app/latest?from=${fromUpper}&to=${toUpper}`
-  const res = await fetch(url)
-
-  if (!res.ok) {
-    throw new Error(
-      `Failed to fetch exchange rate ${fromUpper}→${toUpper}: ${res.status} ${res.statusText}`
-    )
-  }
-
-  const data: FrankfurterResponse = await res.json()
-  const rate = data.rates[toUpper]
-
-  if (rate == null) {
-    throw new Error(`Exchange rate not available for ${fromUpper}→${toUpper}`)
-  }
-
-  frankfurterCache.set(cacheKey, { rate, fetchedAt: Date.now() })
-  return rate
-}
-
-function applyRate(amount: number, rate: number): number {
-  return Math.round(amount * rate * 100) / 100
-}
 
 const convertEstimateCurrencyStep = createStep(
   "convert-estimate-currency-step",
@@ -414,4 +370,9 @@ export default createDraftOrderFromDesignsWorkflow
 
 // ─── Exported for use in store checkout route ────────────────────────────────
 
+/**
+ * Kept as a re-export: the implementation moved to `lib/fx/exchange-rate.ts`
+ * when the B2B quote line override became its second caller (#1439 S7). A
+ * quote path must not import a designs workflow to convert a currency.
+ */
 export { fetchExchangeRate, applyRate }
