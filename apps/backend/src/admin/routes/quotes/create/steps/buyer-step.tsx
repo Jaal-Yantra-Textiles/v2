@@ -57,8 +57,12 @@ export const BuyerStep = ({ form }: Props) => {
   const { options: buyers } = useQuoteBuyerOptions(search)
 
   const partnerId = useWatch({ control: form.control, name: "partner_id" })
-  const { options: carriers } = useQuoteCarriers(partnerId)
+  const { options: carriers, originCountryCode } = useQuoteCarriers(partnerId)
   const carrier = useWatch({ control: form.control, name: "carrier" })
+  const destinationCountry = useWatch({
+    control: form.control,
+    name: "destination_country_code",
+  })
   const dutiesPrepaid = useWatch({ control: form.control, name: "duties_prepaid" })
 
   const knownCarrierIds = useMemo(
@@ -81,6 +85,28 @@ export const BuyerStep = ({ form }: Props) => {
    * is otherwise silent until the buyer meets a customs bill we said would not
    * come. Today only Blue Dart's payload carries an incoterm at all.
    */
+  /**
+   * DDP only means something across a border (#1447).
+   *
+   * On a domestic lane there is no import duty and no import tax to prepay, so
+   * the section is hidden rather than shown-and-ignored: an operator who ticks
+   * it on a Mumbai→Delhi quote would add charges for a customs event that never
+   * happens. The mint refuses it too — hiding a field is a UI convention, and
+   * the API is reachable without one.
+   *
+   * Unknown origin keeps the section VISIBLE. The cost of asking about duty on
+   * a domestic quote is a moment's confusion; the cost of hiding it on a real
+   * export is a buyer meeting a customs bill we said would not come.
+   */
+  const isDomesticLane = useMemo(() => {
+    const origin = String(originCountryCode || "").toUpperCase()
+    const destination = String(destinationCountry || "").toUpperCase()
+    if (!/^[A-Z]{2}$/.test(origin) || !/^[A-Z]{2}$/.test(destination)) {
+      return false
+    }
+    return origin === destination
+  }, [originCountryCode, destinationCountry])
+
   const ddpWarning = useMemo(() => {
     if (!dutiesPrepaid) return null
     const picked = carriers.find((c) => c.id === carrier)
@@ -447,7 +473,15 @@ export const BuyerStep = ({ form }: Props) => {
         ) : null}
       </div>
 
-      <div className="flex flex-col gap-y-1">
+      {isDomesticLane ? (
+        <Text size="small" className="text-ui-fg-muted">
+          This quote ships within{" "}
+          {String(destinationCountry || "").toUpperCase()}, so there is no
+          import duty or tax to prepay — the DDP options do not apply.
+        </Text>
+      ) : null}
+
+      <div className={isDomesticLane ? "hidden" : "flex flex-col gap-y-1"}>
         <Heading level="h2">Import duty (DDP)</Heading>
         <Text size="small" className="text-ui-fg-subtle">
           Only meaningful on an export. With this on the buyer is told there is
@@ -457,6 +491,7 @@ export const BuyerStep = ({ form }: Props) => {
         </Text>
       </div>
 
+      {isDomesticLane ? null : (
       <Form.Field
         control={form.control}
         name="duties_prepaid"
@@ -498,8 +533,9 @@ export const BuyerStep = ({ form }: Props) => {
           </Form.Item>
         )}
       />
+      )}
 
-      {form.watch("duties_prepaid") ? (
+      {!isDomesticLane && form.watch("duties_prepaid") ? (
         <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
           <Form.Field
             control={form.control}

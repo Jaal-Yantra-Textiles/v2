@@ -12,6 +12,8 @@ import { QuoteCreateSchemaType } from "./schema"
 type QuoteBuyerFormProps = {
   form: UseFormReturn<QuoteCreateSchemaType>
   currencies: string[]
+  /** ISO-2 of the store's dispatch country, or null when unknown (#1447). */
+  originCountryCode?: string | null
 }
 
 /**
@@ -23,8 +25,31 @@ type QuoteBuyerFormProps = {
  * the address matches an existing customer instead of creating a near-duplicate
  * on a typo.
  */
-export const QuoteBuyerForm = ({ form, currencies }: QuoteBuyerFormProps) => {
+export const QuoteBuyerForm = ({
+  form,
+  currencies,
+  originCountryCode,
+}: QuoteBuyerFormProps) => {
   const { t } = useTranslation()
+
+  const destinationCountry = form.watch("destination_country_code")
+  /**
+   * DDP only means something across a border (#1447). On a domestic lane there
+   * is no import duty and no import tax to prepay, and the charges would be
+   * ADDED to the buyer's total — billing them for a customs event that never
+   * happens. The mint refuses it as well; hiding a field is a UI convention and
+   * the API is reachable without one.
+   *
+   * 🔴 Unknown origin keeps the section visible. Asking about duty on a
+   * domestic quote costs a moment; hiding it on a real export costs the buyer a
+   * customs bill they were told would not come.
+   */
+  const origin = String(originCountryCode || "").toUpperCase()
+  const destination = String(destinationCountry || "").toUpperCase()
+  const isDomesticLane =
+    /^[A-Z]{2}$/.test(origin) &&
+    /^[A-Z]{2}$/.test(destination) &&
+    origin === destination
 
   const customers = useComboboxData({
     queryFn: (params) =>
@@ -242,7 +267,17 @@ export const QuoteBuyerForm = ({ form, currencies }: QuoteBuyerFormProps) => {
         />
       </div>
 
-      <div className="flex flex-col gap-y-1">
+      {isDomesticLane ? (
+        <Text size="small" className="text-ui-fg-muted">
+          {t("quotes.duty.domestic", {
+            defaultValue:
+              "This quote ships within {{country}}, so there is no import duty or tax to prepay.",
+            country: destination,
+          })}
+        </Text>
+      ) : null}
+
+      <div className={isDomesticLane ? "hidden" : "flex flex-col gap-y-1"}>
         <Heading level="h2">
           {t("quotes.duty.header", "Import duty (DDP)")}
         </Heading>
@@ -254,6 +289,7 @@ export const QuoteBuyerForm = ({ form, currencies }: QuoteBuyerFormProps) => {
         </Text>
       </div>
 
+      {isDomesticLane ? null : (
       <Form.Field
         control={form.control}
         name="duties_prepaid"
@@ -305,7 +341,9 @@ export const QuoteBuyerForm = ({ form, currencies }: QuoteBuyerFormProps) => {
         )}
       />
 
-      {form.watch("duties_prepaid") ? (
+      )}
+
+      {!isDomesticLane && form.watch("duties_prepaid") ? (
         <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
           <Form.Field
             control={form.control}

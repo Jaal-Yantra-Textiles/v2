@@ -17,6 +17,11 @@ import {
 import { resolveQuoteProducer, type QuoteProducer } from "./quote-producer"
 import { resolveQuoteTax, type QuoteTax } from "./quote-tax"
 import { computeDdpCharges, describeDdpBasis } from "./ddp-charges"
+import {
+  pickRatingCarrier,
+  readEnabledCarrierIds,
+} from "../../shipping-providers/rating-carrier"
+import { classifyQuoteJurisdiction } from "./quote-tax"
 import { resolveQuoteSpecs, type QuoteLineSpec } from "./quote-spec"
 import { daysUntilExpiry, quoteUnusableReason } from "./token"
 
@@ -218,6 +223,13 @@ export type QuoteView = {
     chosen: ShippingEstimateOption | null
     options: ShippingEstimateOption[]
     error: string | null
+    /**
+     * Which carrier was ASKED for the live rates (#1447). Null when nobody was
+     * — a manual-only lane, or a dead link. Surfaced because "a partner shipping
+     * Delhivery was quoted by Shiprocket" is invisible in a number that looks
+     * perfectly reasonable.
+     */
+    rated_by: string | null
   }
   /**
    * Tax on this quote (#1439 S8), and — when there is no number — the reason,
@@ -274,6 +286,12 @@ export type QuoteView = {
    */
   provenance: Provenance | null
   expires_in_days: number | null
+  /**
+   * Where the goods dispatch from, ISO-2 upper-case (#1447). Null when it could
+   * not be read — and null means UNKNOWN, never domestic: assuming would let a
+   * DDP undertaking be refused on a real export.
+   */
+  origin_country_code: string | null
   /** Set when the live half could not be built, so callers can say why. */
   live_error: string | null
 }
@@ -671,6 +689,8 @@ export async function buildQuoteView(
   let chosen: ShippingEstimateOption | null = null
   let options: ShippingEstimateOption[] = []
   let freightError: string | null = null
+  /** Set once the lane's rating carrier is resolved; null on a manual-only lane. */
+  let ratedBy: string | null = null
   /**
    * Unknown until proven otherwise, and unknown is what a dead or unpriceable
    * link keeps: there is no basket to tax, and a 0 would read as "no tax due".
@@ -687,6 +707,18 @@ export async function buildQuoteView(
     string,
     { unit_weight_grams: number; weight_source: "variant" | "product" }
   >()
+
+  /**
+   * Where the goods dispatch FROM, resolved before anything is priced.
+   *
+   * It decides three things that used to be decided separately and could
+   * therefore disagree: which carrier rates the lane, whether the sale is an
+   * export for tax, and whether a DDP undertaking is even meaningful. S6 makes
+   * the location blocking at mint, so by then there is always one to read.
+   */
+  const originCountry = unusableReason
+    ? null
+    : await resolveStoreOriginCountry(scope, input.store?.default_location_id)
 
   if (!unusableReason) {
     try {
@@ -720,6 +752,36 @@ export async function buildQuoteView(
         liveUnitByVariant.set(line.variant_id, unitAmount)
       }
 
+      // ---- Who rates this lane -------------------------------------------
+      // 🔴 The estimate used to default to Shiprocket for every partner quote
+      // ever minted, so a partner who ships Delhivery was quoted freight by a
+      // company they do not use. The number was plausible — a real rate, real
+      // lane, wrong carrier — which is why it survived. Their enabled carriers
+      // are the location's provider links, the same fact core reads at
+      // fulfilment time.
+      const enabledCarrierIds = await readEnabledCarrierIds(
+        scope,
+        input.store?.default_location_id
+      )
+      const ratingCarrier =
+        pickRatingCarrier({
+          explicit: input.carrier,
+          enabledCarrierIds,
+          lane:
+            classifyQuoteJurisdiction(
+              originCountry,
+              input.destination_country_code
+            ) === "domestic"
+              ? "domestic"
+              : "international",
+        }) ?? undefined
+      ratedBy =
+        ratingCarrier && ratingCarrier !== "manual" && ratingCarrier !== "none"
+          ? ratingCarrier
+          : ratingCarrier
+            ? null
+            : "shiprocket"
+
       // ---- Freight: ONE consignment, summed weight -----------------------
       const estimate = await buildShippingEstimate(scope, {
         lines: effectiveLines.map((l) => ({
@@ -732,7 +794,7 @@ export async function buildQuoteView(
         // the cheapest NUMBER wins regardless of unit — a 10 AUD European
         // option beat a rupee rate on a live Mumbai quote.
         currency_code: input.currency_code,
-        carrier: input.carrier,
+        carrier: ratingCarrier,
         store: input.store,
       })
       totalWeightGrams = estimate.total_weight_grams
@@ -761,17 +823,11 @@ export async function buildQuoteView(
       }
 
       // Tax LAST, because it is a function of the priced lines and the chosen
-      // freight leg — both of which only exist at this point. It never
-      // throws; an unresolvable rate lands on `status: "unknown"` with a
-      // reason rather than on a zero.
-      // Where the goods dispatch from. Read off the same stock location the
-      // freight leg was quoted against, so the tax treatment and the shipment
-      // cannot describe two different journeys. S6 makes this location blocking
-      // at mint, so by the time tax runs there is always one to read.
-      const originCountry = await resolveStoreOriginCountry(
-        scope,
-        input.store?.default_location_id
-      )
+      // freight leg — both of which only exist at this point. It never throws;
+      // an unresolvable rate lands on `status: "unknown"` with a reason rather
+      // than on a zero. The origin was read above, off the same stock location
+      // the freight leg was quoted against, so the tax treatment and the
+      // shipment cannot describe two different journeys.
 
       tax = await resolveQuoteTax(scope, {
         region_id: input.region_id ?? null,
@@ -923,7 +979,12 @@ export async function buildQuoteView(
     quoted,
     total_weight_grams:
       totalWeightGrams ?? input.quote?.quoted_weight_grams ?? null,
-    freight: { chosen, options, error: freightError },
+    freight: {
+      chosen,
+      options,
+      error: freightError,
+      rated_by: ratedBy,
+    },
     /**
      * Live tax where there is one; the FROZEN tax on a dead link.
      *
@@ -967,6 +1028,7 @@ export async function buildQuoteView(
     producer,
     provenance,
     expires_in_days: input.quote ? daysUntilExpiry(lifecycle, input.now) : null,
+    origin_country_code: originCountry,
     live_error: liveError,
   }
 }

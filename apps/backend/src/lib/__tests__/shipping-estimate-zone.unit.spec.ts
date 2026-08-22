@@ -1,4 +1,7 @@
-import { zoneCoversDestination } from "../shipping-estimate"
+import {
+  isQuotableShippingOption,
+  zoneCoversDestination,
+} from "../shipping-estimate"
 import { pickFreightOption } from "../../modules/partner-quote/lib/build-quote-view"
 
 /**
@@ -14,6 +17,55 @@ import { pickFreightOption } from "../../modules/partner-quote/lib/build-quote-v
  * `pickFreightOption` sorts on the raw `amount`. So 10 AUD beat a rupee rate on
  * the number alone, and was then rendered as Rs 10.
  */
+
+describe("isQuotableShippingOption — the return row that won by being cheap", () => {
+  it("🔴 refuses a RETURN option", () => {
+    // `create-store-with-defaults` gives every store a flat "Return Shipping"
+    // option at ₹100 against a ₹200 base. The picker sorts on the raw amount,
+    // so it became the cheapest offer on every domestic Indian lane and quotes
+    // were freighted at the return-pickup rate.
+    expect(
+      isQuotableShippingOption({
+        name: "Return Shipping",
+        rules: [
+          { attribute: "enabled_in_store", value: "true", operator: "eq" },
+          { attribute: "is_return", value: "true", operator: "eq" },
+        ],
+      })
+    ).toBe(false)
+  })
+
+  it("refuses one typed as a return even without the rule", () => {
+    expect(
+      isQuotableShippingOption({ name: "Returns", type: { code: "return" } })
+    ).toBe(false)
+  })
+
+  it("refuses an option the store has switched off", () => {
+    expect(
+      isQuotableShippingOption({
+        name: "Seasonal",
+        rules: [{ attribute: "enabled_in_store", value: "false", operator: "eq" }],
+      })
+    ).toBe(false)
+  })
+
+  it("keeps an ordinary outbound option", () => {
+    expect(
+      isQuotableShippingOption({
+        name: "Standard",
+        rules: [{ attribute: "enabled_in_store", value: "true", operator: "eq" }],
+      })
+    ).toBe(true)
+  })
+
+  it("keeps an option with no rules — absence is not a prohibition", () => {
+    // Most hand-made options carry none, and dropping those would empty the
+    // lane entirely, which is a worse failure than the one being fixed.
+    expect(isQuotableShippingOption({ name: "Flat rate" })).toBe(true)
+    expect(isQuotableShippingOption({ name: "Flat rate", rules: [] })).toBe(true)
+  })
+})
 
 describe("zoneCoversDestination", () => {
   it("rejects a zone that does not cover the destination", () => {

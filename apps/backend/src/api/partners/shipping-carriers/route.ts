@@ -46,20 +46,35 @@ export const GET = async (req: AuthenticatedMedusaRequest, res: MedusaResponse) 
       ? query
           .graph({
             entity: "stock_locations",
-            fields: ["id", "fulfillment_providers.id"],
+            // `address.country_code` rides along because the caller that needs
+            // the carriers is usually the same one that needs to know whether
+            // this lane even CROSSES a border (#1447): DDP is meaningless on a
+            // domestic quote, and the origin is not derivable from the
+            // destination or the currency.
+            fields: [
+              "id",
+              "fulfillment_providers.id",
+              "address.country_code",
+            ],
             filters: { id: locationId },
           })
-          .then(({ data }: any) =>
-            ((data?.[0]?.fulfillment_providers ?? []) as any[]).map((p) => p.id)
-          )
-      : Promise.resolve([]),
+          .then(({ data }: any) => ({
+            providerIds: ((data?.[0]?.fulfillment_providers ?? []) as any[]).map(
+              (p) => p.id
+            ),
+            countryCode:
+              String(data?.[0]?.address?.country_code || "")
+                .trim()
+                .toUpperCase() || null,
+          }))
+      : Promise.resolve({ providerIds: [], countryCode: null }),
   ])
 
   const availability = buildCarrierAvailability({
     registeredProviderIds: (providers ?? [])
       .filter((p: any) => p.is_enabled !== false)
       .map((p: any) => p.id),
-    linkedProviderIds: linked,
+    linkedProviderIds: linked.providerIds,
   })
 
   res.json({
@@ -68,6 +83,12 @@ export const GET = async (req: AuthenticatedMedusaRequest, res: MedusaResponse) 
     // "finish setting up your location first" rather than showing every carrier
     // as switchable against nothing.
     location_id: locationId ?? null,
+    /**
+     * Where the goods dispatch FROM. Null when there is no location or its
+     * address carries no country — and null must read as "unknown", never as
+     * "domestic": assuming would hide the DDP question on a real export.
+     */
+    origin_country_code: linked.countryCode,
     store_id: store?.id ?? null,
   })
 }

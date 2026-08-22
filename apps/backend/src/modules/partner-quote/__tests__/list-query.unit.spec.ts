@@ -73,6 +73,9 @@ describe("buildQuoteListQuery", () => {
       skip: 0,
       take: QUOTE_DEFAULT_LIMIT,
       order: { created_at: "DESC" },
+      // Both list tables render "N lines · M units" off the basket. Without the
+      // relation the field is absent and every row reads "0 lines · 0 units".
+      relations: ["lines"],
     })
     expect(filters).toEqual({})
   })
@@ -132,6 +135,11 @@ describe("buildQuoteListQuery", () => {
     )
     expect(filters.partner_id).toBe("part_mine")
     expect((filters as any).$or).toHaveLength(3)
-    expect(config).toEqual({ skip: 20, take: 10, order: { expires_at: "ASC" } })
+    expect(config).toEqual({
+      skip: 20,
+      take: 10,
+      order: { expires_at: "ASC" },
+      relations: ["lines"],
+    })
   })
 })

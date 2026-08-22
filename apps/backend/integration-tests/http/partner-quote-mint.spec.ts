@@ -6,6 +6,8 @@ import {
   mintBody,
   type QuoteFixture,
   FLAT_FREIGHT_AMOUNT,
+  PROVISIONED_RETURN_FREIGHT_INR,
+  PROVISIONED_STANDARD_FREIGHT_INR,
   VARIANT_A_PRICE,
   VARIANT_A_TIER_PRICE,
   VARIANT_A_WEIGHT,
@@ -238,9 +240,19 @@ setupSharedTestSuite(() => {
       expect(Number(quote.quoted_landed_total)).toBe(
         Number(quote.quoted_subtotal) + Number(quote.quoted_freight)
       )
-      // The fixture's one flat option — freight is quoted ONCE for the
-      // consignment, not per line.
-      expect(Number(quote.quoted_freight)).toBe(FLAT_FREIGHT_AMOUNT)
+      // Freight is quoted ONCE for the consignment, not per line — and it is
+      // the cheapest GENUINE offer on the lane, which is the store's
+      // provisioned standard rate rather than the fixture's own flat option.
+      expect(Number(quote.quoted_freight)).toBe(PROVISIONED_STANDARD_FREIGHT_INR)
+
+      // 🔴 And explicitly NOT the return-pickup rate. `create-store-with-defaults`
+      // prices "Return Shipping" below the outbound base and marks it with an
+      // option-level rule `is_return = true`; the estimate read price rules and
+      // never option rules, so it was offered as ordinary freight and won every
+      // domestic Indian lane by being the cheapest number in the list. This is
+      // the FOURTH blindness on that picker — zone, currency, price-rule, and
+      // now the kind of option it is.
+      expect(Number(quote.quoted_freight)).not.toBe(PROVISIONED_RETURN_FREIGHT_INR)
     })
 
     it("writes NOTHING when the lines cannot be priced — every step reverses", async () => {
@@ -535,6 +547,18 @@ setupSharedTestSuite(() => {
       )
       expect(searched.data.count).toBe(1)
       expect(searched.data.quotes[0].recipient_company).toBe(`Findable ${tag}`)
+
+      // 🔴 The BASKET comes back with the row. Both list tables render
+      // "N lines · M units" straight off `lines`, and the relation was never
+      // requested — so every quote read "0 lines · 0 units" on the one screen a
+      // partner uses to check what they sent. A list test that only asserts
+      // paging and search cannot see this; the field is simply absent.
+      const listed = searched.data.quotes[0]
+      expect(Array.isArray(listed.lines)).toBe(true)
+      expect(listed.lines.length).toBeGreaterThan(0)
+      expect(
+        listed.lines.reduce((sum: number, l: any) => sum + Number(l.quantity), 0)
+      ).toBeGreaterThan(0)
 
       // Sort is honoured, and an unknown sort field falls back rather than 500s.
       const sorted = await loud("list-sorted", () =>
