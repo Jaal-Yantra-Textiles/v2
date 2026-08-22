@@ -1,15 +1,11 @@
-import {
-  Button,
-  Container,
-  Heading,
-  Prompt,
-  StatusBadge,
-  Text,
-  toast,
-} from "@medusajs/ui"
+import { Container, Heading, Prompt, StatusBadge, Text, toast } from "@medusajs/ui"
+import { XCircle } from "@medusajs/icons"
 import { useState } from "react"
 import { useParams } from "react-router-dom"
 
+import { CommonSection } from "../../../components/common/section-views"
+import { TwoColumnPage } from "../../../components/pages/two-column-pages"
+import { TwoColumnPageSkeleton } from "../../../components/table/skeleton"
 import { useQuote, useRevokeQuote } from "../../../hooks/api/quotes"
 
 const money = (amount?: number | null, currency?: string) =>
@@ -19,15 +15,6 @@ const money = (amount?: number | null, currency?: string) =>
         style: "currency",
         currency: (currency || "usd").toUpperCase(),
       }).format(amount)
-
-const Field = ({ label, value }: { label: string; value: React.ReactNode }) => (
-  <div className="flex items-start justify-between gap-4 px-6 py-3">
-    <Text size="small" className="text-ui-fg-subtle">
-      {label}
-    </Text>
-    <div className="text-right">{value}</div>
-  </div>
-)
 
 /**
  * The activity timeline.
@@ -58,7 +45,10 @@ const Timeline = ({ events }: { events: any[] }) => {
   return (
     <ul className="px-6 py-4">
       {events.map((e) => (
-        <li key={e.id} className="flex gap-3 border-l border-ui-border-base pl-4 pb-4 last:pb-0">
+        <li
+          key={e.id}
+          className="flex gap-3 border-l border-ui-border-base pb-4 pl-4 last:pb-0"
+        >
           <div className="flex flex-col">
             <div className="flex items-center gap-2">
               <Text size="small" weight="plus">
@@ -97,116 +87,160 @@ const QuoteDetailPage = () => {
       )
       setConfirmOpen(false)
     },
-    onError: (e: any) => toast.error(e?.message ?? "Could not revoke the quote."),
+    onError: (e: any) =>
+      toast.error(e?.message ?? "Could not revoke the quote."),
   })
 
-  if (isLoading || !quote) {
+  if (isLoading) {
+    return (
+      <TwoColumnPageSkeleton mainSections={2} sidebarSections={2} showJSON />
+    )
+  }
+
+  if (!quote) {
     return (
       <Container>
         <Text size="small" className="text-ui-fg-subtle">
-          {isLoading ? "Loading…" : "Quote not found."}
+          Quote not found.
         </Text>
       </Container>
     )
   }
 
   const isRevoked = quote.status === "revoked"
-  // A newer quote for this buyer expired this one's price list (#1435). It is
-  // not revocable any more — there is nothing left to delete — but it is also
-  // not a withdrawal, so it must not read as one.
+  /**
+   * A newer quote for this buyer expired this one's price list (#1435). It is
+   * not revocable any more — there is nothing left to delete — but it is also
+   * not a withdrawal, so it must not read as one.
+   */
   const isSuperseded = quote.status === "superseded"
+  const isDead = isRevoked || isSuperseded
+
+  const statusColor: "green" | "red" | "orange" = isRevoked
+    ? "red"
+    : isSuperseded
+      ? "orange"
+      : "green"
+  const statusLabel = isRevoked
+    ? "Revoked"
+    : isSuperseded
+      ? "Superseded"
+      : "Active"
+
+  /**
+   * 🔴 Revoke is the only action, and it is destructive: it DELETES the price
+   * list behind the quote, so the buyer loses the quoted prices in any cart as
+   * well as the link. It stays behind a `Prompt`, and it is omitted entirely on
+   * a quote that is already dead rather than shown disabled — an action that
+   * cannot do anything invites an operator to hunt for why.
+   */
+  const actionGroups = isDead
+    ? undefined
+    : [
+        {
+          actions: [
+            {
+              icon: <XCircle />,
+              label: "Revoke quote",
+              onClick: () => setConfirmOpen(true),
+            },
+          ],
+        },
+      ]
 
   return (
-    <div className="flex flex-col gap-y-3">
-      <Container className="divide-y p-0">
-        <div className="flex items-center justify-between px-6 py-4">
-          <div>
-            <Heading>{quote.recipient_company || quote.recipient_name || "Quote"}</Heading>
-            <Text size="small" className="text-ui-fg-subtle">
-              {quote.email_sent_to}
-            </Text>
-          </div>
-          <div className="flex items-center gap-3">
-            <StatusBadge
-              color={isRevoked ? "red" : isSuperseded ? "orange" : "green"}
-            >
-              {isRevoked ? "Revoked" : isSuperseded ? "Superseded" : "Active"}
-            </StatusBadge>
-            {!isRevoked && !isSuperseded && (
-              <Button
-                variant="danger"
-                size="small"
-                onClick={() => setConfirmOpen(true)}
-                disabled={isPending}
-              >
-                Revoke
-              </Button>
-            )}
-          </div>
-        </div>
+    <>
+      <TwoColumnPage
+        data={quote as any}
+        showJSON
+        showMetadata
+        hasOutlet={false}
+      >
+        <TwoColumnPage.Main>
+          <CommonSection
+            title={quote.recipient_company || quote.recipient_name || "Quote"}
+            description={quote.email_sent_to ?? undefined}
+            actionGroups={actionGroups}
+            fields={[
+              {
+                label: "Status",
+                badge: { value: statusLabel, color: statusColor },
+              },
+              {
+                label: "Landed total",
+                value: money(quote.quoted_landed_total, quote.currency_code),
+              },
+              {
+                label: "Freight",
+                value: money(quote.quoted_freight, quote.currency_code),
+              },
+              {
+                label: "Destination",
+                value: `${String(quote.destination_country_code || "").toUpperCase()}${
+                  quote.destination_postal_code
+                    ? ` ${quote.destination_postal_code}`
+                    : ""
+                }`,
+              },
+            ]}
+          />
 
-        <Field
-          label="Landed total"
-          value={
-            <Text size="small" weight="plus">
-              {money(quote.quoted_landed_total, quote.currency_code)}
-            </Text>
-          }
-        />
-        <Field
-          label="Freight"
-          value={<Text size="small">{money(quote.quoted_freight, quote.currency_code)}</Text>}
-        />
-        <Field
-          label="Destination"
-          value={
-            <Text size="small">
-              {String(quote.destination_country_code || "").toUpperCase()}
-              {quote.destination_postal_code ? ` ${quote.destination_postal_code}` : ""}
-            </Text>
-          }
-        />
-        <Field
-          label="Expires"
-          value={
-            <Text size="small">
-              {quote.expires_at ? new Date(quote.expires_at).toLocaleString() : "—"}
-            </Text>
-          }
-        />
-        <Field
-          label="Viewed"
-          value={
-            <Text size="small">
-              {Number(quote.view_count || 0) === 0
-                ? "Not yet"
-                : `${quote.view_count}×${
-                    quote.last_viewed_at
-                      ? ` · last ${new Date(quote.last_viewed_at).toLocaleString()}`
-                      : ""
-                  }`}
-            </Text>
-          }
-        />
-        {/* 🔴 Stated, not implied. The raw token is returned once at mint and
-            only its sha256 is stored, so no read can rebuild the link. Offering
-            a "copy link" button here would be a button that cannot work. */}
-        <Field
-          label="Buyer link"
-          value={
-            <Text size="small" className="text-ui-fg-subtle">
-              Shown once at mint and not recoverable. Re-mint to issue a new one.
-            </Text>
-          }
-        />
-      </Container>
+          <Container className="divide-y p-0">
+            <div className="px-6 py-4">
+              <Heading level="h2">Activity</Heading>
+              <Text size="small" className="text-ui-fg-subtle">
+                Who did what to this quote, and when.
+              </Text>
+            </div>
+            <Timeline events={(quote as any).events ?? []} />
+          </Container>
+        </TwoColumnPage.Main>
 
-      <Container className="divide-y p-0">
-        <div className="px-6 py-4">
-          <Heading level="h2">Activity</Heading>
-        </div>
-        <Timeline events={quote.events ?? []} />
-      </Container>
+        <TwoColumnPage.Sidebar>
+          <CommonSection
+            title="Engagement"
+            description="Whether the buyer has actually opened it."
+            fields={[
+              {
+                label: "Viewed",
+                value:
+                  Number(quote.view_count || 0) === 0
+                    ? "Not yet"
+                    : `${quote.view_count}×`,
+              },
+              {
+                label: "Last viewed",
+                value: quote.last_viewed_at
+                  ? new Date(quote.last_viewed_at).toLocaleString()
+                  : "—",
+              },
+              {
+                label: "Expires",
+                value: quote.expires_at
+                  ? new Date(quote.expires_at).toLocaleString()
+                  : "—",
+              },
+            ]}
+          />
+
+          <CommonSection
+            title="Buyer link"
+            description="The token is the credential."
+            fields={[
+              {
+                /**
+                 * 🔴 Stated, not implied. The raw token is returned once at
+                 * mint and only its sha256 is stored, so no read can rebuild
+                 * the link. A "copy link" button here would be a button that
+                 * cannot work — the UI says so rather than offering one.
+                 */
+                label: "Recoverable",
+                value: "No. Shown once at mint; re-mint to issue a new one.",
+              },
+            ]}
+          />
+        </TwoColumnPage.Sidebar>
+      </TwoColumnPage>
 
       <Prompt open={confirmOpen} onOpenChange={setConfirmOpen}>
         <Prompt.Content>
@@ -226,7 +260,7 @@ const QuoteDetailPage = () => {
           </Prompt.Footer>
         </Prompt.Content>
       </Prompt>
-    </div>
+    </>
   )
 }
 
