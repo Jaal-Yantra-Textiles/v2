@@ -66,6 +66,7 @@ export const POST = async (
       currency_code: body.currency_code,
       region_id: body.region_id ?? null,
       carrier: body.carrier,
+      duties_prepaid: body.duties_prepaid ?? false,
       ttl_days: body.ttl_days,
       created_by: req.auth_context?.actor_id ?? null,
     },

@@ -57,6 +57,8 @@ export type MintQuoteInput = {
   currency_code: string
   region_id?: string | null
   carrier?: string
+  /** Quote as DDP — we pay the destination duty and import tax (#1447). */
+  duties_prepaid?: boolean
   ttl_days?: number
   created_by?: string | null
   /** Injected so the whole mint is deterministic under test. */
@@ -251,6 +253,9 @@ const buildAndFreezeStep = createStep(
       region_id: input.region_id ?? null,
       store: input.store,
       carrier: input.carrier,
+      // The row does not exist yet, so the undertaking is supplied directly —
+      // it changes the disclosure the buyer is shown, which then gets frozen.
+      duties_prepaid: input.duties_prepaid ?? false,
       now: payload.now,
     })
 
@@ -696,6 +701,9 @@ const persistQuoteStep = createStep(
       quoted_tax_inclusive: input.view.tax?.inclusive ?? null,
       quoted_tax_status: input.view.tax?.status ?? null,
       quoted_tax_reason: input.view.tax?.reason ?? null,
+      // Frozen with the rest: it is part of what the buyer was promised, and a
+      // later page read must show the same undertaking, not re-derive it.
+      duties_prepaid: input.mint.duties_prepaid ?? false,
       quoted_at: new Date(input.now),
       token_hash: hash,
       status: "active",

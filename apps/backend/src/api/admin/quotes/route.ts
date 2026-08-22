@@ -109,6 +109,7 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
       currency_code: body.currency_code,
       region_id: body.region_id ?? null,
       carrier: body.carrier,
+      duties_prepaid: body.duties_prepaid ?? false,
       ttl_days: body.ttl_days,
       // Stamped with the ADMIN's actor id, not the partner's — otherwise an
       // admin-minted quote is indistinguishable from one the partner made

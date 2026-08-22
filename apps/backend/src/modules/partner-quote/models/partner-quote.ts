@@ -108,6 +108,16 @@ const PartnerQuote = model.define("partner_quote", {
   quoted_tax_inclusive: model.boolean().nullable(),
   quoted_tax_status: model.text().nullable(),
   quoted_tax_reason: model.text().nullable(),
+  /**
+   * The partner undertook to pay destination duty and import tax on this quote.
+   *
+   * 🔴 Per-quote, frozen, and never defaulted true. It is the one promise on
+   * the buyer's page that software alone cannot keep: the shipment has to
+   * actually clear DDP — by a carrier that supports it, or arranged by hand
+   * until one does. A global setting would tell a buyer there is nothing to pay
+   * on a shipment nobody arranged clearance for.
+   */
+  duties_prepaid: model.boolean().nullable(),
   quoted_at: model.dateTime().nullable(),
 
   // ===== Buyer identity — the edges this quote's prices hang off ==========

@@ -306,3 +306,37 @@ describe("frozenTaxFallback", () => {
     expect(asExport.status).not.toBe(asUnknown.status)
   })
 })
+
+/**
+ * DDP — the partner absorbs destination duty (#1447).
+ *
+ * 🔴 The sentence this produces is a PROMISE, and the only one on the page that
+ * software alone cannot keep: the shipment has to actually clear DDP. Shiprocket
+ * reports `ddp_tag: false` on every lane today, so until a carrier supports it
+ * this is honoured by hand. That is exactly why it is per-quote and frozen — a
+ * global default would tell a buyer there is nothing to pay on a shipment
+ * nobody arranged clearance for, and they would meet a customs bill anyway.
+ */
+describe("exportDisclosureReason — duties prepaid", () => {
+  it("still says zero-rated, because the export treatment is unchanged", () => {
+    // DDP is who pays the DESTINATION's duty. It has no bearing on whether the
+    // origin zero-rates the export.
+    expect(exportDisclosureReason("in", "de", true)).toMatch(/zero-rated/)
+  })
+
+  it("promises nothing further on delivery, and drops the buyer-pays wording", () => {
+    const r = exportDisclosureReason("in", "de", true)
+    expect(r).toMatch(/included in this price/i)
+    expect(r).toMatch(/nothing further to pay on delivery/i)
+    // The two must never coexist — a page saying both is a page saying neither.
+    expect(r).not.toMatch(/payable by you/i)
+    expect(r).not.toMatch(/NOT included/)
+  })
+
+  it("defaults to buyer-pays when the flag is absent", () => {
+    // 🔑 The safe direction. An omitted flag must never be read as a promise:
+    // over-warning costs a conversation, under-warning costs the customs bill.
+    expect(exportDisclosureReason("in", "de")).toMatch(/payable by you/i)
+    expect(exportDisclosureReason("in", "de", false)).toMatch(/payable by you/i)
+  })
+})

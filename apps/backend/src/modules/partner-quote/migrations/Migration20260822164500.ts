@@ -40,6 +40,8 @@ export class Migration20260822164500 extends Migration {
     this.addSql(`alter table if exists "partner_quote" add column if not exists "quoted_tax_inclusive" boolean null;`);
     this.addSql(`alter table if exists "partner_quote" add column if not exists "quoted_tax_status" text null;`);
     this.addSql(`alter table if exists "partner_quote" add column if not exists "quoted_tax_reason" text null;`);
+    // The partner's DDP undertaking, frozen with the rest of what was promised.
+    this.addSql(`alter table if exists "partner_quote" add column if not exists "duties_prepaid" boolean null;`);
 
     // Mirrors the QuoteTax union. A status outside it means something wrote a
     // value the renderer has no branch for, which would surface as a silently
@@ -55,6 +57,7 @@ export class Migration20260822164500 extends Migration {
     this.addSql(`alter table if exists "partner_quote" drop column if exists "quoted_tax_inclusive";`);
     this.addSql(`alter table if exists "partner_quote" drop column if exists "quoted_tax_status";`);
     this.addSql(`alter table if exists "partner_quote" drop column if exists "quoted_tax_reason";`);
+    this.addSql(`alter table if exists "partner_quote" drop column if exists "duties_prepaid";`);
   }
 
 }

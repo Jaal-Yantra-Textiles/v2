@@ -316,5 +316,42 @@ setupSharedTestSuite(() => {
       expect(quote.tax.status).toBe("zero_rated_export")
       expect(quote.tax.reason).toMatch(/payable by you/i)
     })
+
+    it("quotes DDP when the partner absorbs the duty, and freezes the undertaking", async () => {
+      const minted = await mintRaw({
+        buyer_email: `buyer-ddp-${seed.unique}@jaalyantra.test`,
+        destination_country_code: "de",
+        destination_postal_code: "10115",
+        destination_city: "Berlin",
+        duties_prepaid: true,
+      })
+
+      const row = await readQuote(minted.quote.id)
+      expect(row.duties_prepaid).toBe(true)
+      // Still a zero-rated export — DDP is about the DESTINATION's duty and has
+      // no bearing on how the origin treats the export.
+      expect(row.quoted_tax_status).toBe("zero_rated_export")
+      expect(row.quoted_tax_reason).toMatch(/nothing further to pay on delivery/i)
+      expect(row.quoted_tax_reason).not.toMatch(/payable by you/i)
+
+      // And the buyer sees the promise, not the warning.
+      const quote = await viewByToken(minted.token)
+      expect(quote.tax.reason).toMatch(/nothing further to pay on delivery/i)
+    })
+
+    it("🔴 defaults to buyer-pays — an omitted flag is never a promise", async () => {
+      const minted = await mintRaw({
+        buyer_email: `buyer-noddp-${seed.unique}@jaalyantra.test`,
+        destination_country_code: "de",
+        destination_postal_code: "10115",
+        destination_city: "Berlin",
+      })
+
+      const row = await readQuote(minted.quote.id)
+      expect(row.duties_prepaid).toBe(false)
+      // Over-warning costs a conversation; under-warning costs the buyer a
+      // customs bill they were told would not come.
+      expect(row.quoted_tax_reason).toMatch(/payable by you/i)
+    })
   })
 })

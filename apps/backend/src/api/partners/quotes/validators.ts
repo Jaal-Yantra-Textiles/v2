@@ -57,6 +57,12 @@ export const PartnerMintQuoteReq = z.object({
   destination_country_code: z.string().min(2),
   destination_postal_code: z.string().nullish(),
   destination_city: z.string().nullish(),
+  /**
+   * Quote this as DDP: we pay the destination duty and import tax, the buyer
+   * pays nothing on arrival. Opt-in per quote — see the model docblock for why
+   * it must never be a default.
+   */
+  duties_prepaid: z.boolean().optional(),
 
   currency_code: z.string().min(3),
   region_id: z.string().nullish(),

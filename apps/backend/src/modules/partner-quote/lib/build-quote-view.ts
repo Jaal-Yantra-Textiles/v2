@@ -89,6 +89,7 @@ export type QuoteViewQuote = {
   /** #1439 S8 tail. Frozen so a dead link can still say WHY the tax is what it is. */
   quoted_tax_status?: string | null
   quoted_tax_reason?: string | null
+  duties_prepaid?: boolean | null
   quoted_at?: Date | string | null
   recipient_name?: string | null
   recipient_company?: string | null
@@ -124,6 +125,11 @@ export type BuildQuoteViewInput = {
    */
   viewer_sales_channel_ids?: string[] | null
   carrier?: string
+  /**
+   * Quote as DDP — we pay destination duty and import tax. Supplied by the mint
+   * (the row does not exist yet); afterwards it is read off the frozen quote.
+   */
+  duties_prepaid?: boolean
   /** Passed in so the whole view is deterministic under test. */
   now: Date
 }
@@ -609,6 +615,11 @@ export async function buildQuoteView(
       tax = await resolveQuoteTax(scope, {
         region_id: input.region_id ?? null,
         origin_country_code: originCountry,
+        // Mint supplies it directly; a later page read takes it off the frozen
+        // row, so the buyer sees the same promise on every visit.
+        duties_prepaid: Boolean(
+          input.duties_prepaid ?? input.quote?.duties_prepaid
+        ),
         destination_country_code: input.destination_country_code,
         destination_postal_code: input.destination_postal_code ?? null,
         lines: effectiveLines.map((l) => ({

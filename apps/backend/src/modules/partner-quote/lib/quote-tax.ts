@@ -84,6 +84,15 @@ export type QuoteTaxInput = {
    * that got as far as tax always has one.
    */
   origin_country_code?: string | null
+  /**
+   * The partner has undertaken to pay the destination duty and import tax on
+   * this quote (DDP), so the buyer owes nothing on arrival.
+   *
+   * Per-quote and never a default: it is a promise that only holds if the
+   * shipment actually clears DDP — by the carrier when one supports it, or
+   * arranged by hand until then.
+   */
+  duties_prepaid?: boolean
   destination_country_code: string
   destination_postal_code?: string | null
   destination_province_code?: string | null
@@ -221,13 +230,30 @@ export function classifyQuoteJurisdiction(
  */
 export function exportDisclosureReason(
   originCountryCode: string,
-  destinationCountryCode: string
+  destinationCountryCode: string,
+  dutiesPrepaid = false
 ): string {
   const from = String(originCountryCode || "").toUpperCase()
   const to = String(destinationCountryCode || "").toUpperCase()
-  return (
+  const zeroRated =
     `This is an export from ${from} to ${to}, so it is zero-rated and no ` +
-    `seller tax is charged. Import duty and import VAT/GST are payable by you ` +
+    `seller tax is charged.`
+
+  if (dutiesPrepaid) {
+    // 🔴 This sentence is a PROMISE, and it is the only one on the page we
+    // cannot keep from software alone: the shipment has to actually clear DDP,
+    // by the carrier or by hand. It is therefore per-quote and frozen, never a
+    // global setting — a default that silently applied to a quote nobody
+    // arranged clearance for would tell a buyer there is nothing to pay and
+    // then hand them a customs bill.
+    return (
+      `${zeroRated} Import duty and taxes are included in this price and are ` +
+      `paid by us — there is nothing further to pay on delivery.`
+    )
+  }
+
+  return (
+    `${zeroRated} Import duty and import VAT/GST are payable by you ` +
     `to ${to} customs on arrival and are NOT included in this total.`
   )
 }
@@ -309,7 +335,8 @@ export async function resolveQuoteTax(
       rates: [],
       reason: exportDisclosureReason(
         String(input.origin_country_code || ""),
-        country
+        country,
+        Boolean(input.duties_prepaid)
       ),
     }
   }
