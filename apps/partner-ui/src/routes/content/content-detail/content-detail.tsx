@@ -125,15 +125,46 @@ const ContentDetailInner = () => {
           if (iframeRef.current) iframeRef.current.src = iframeRef.current.src
         }, 200)
       }
+      if (data.type === "BLOCK_FIELD_EDITED") {
+        const { blockId, field, value } = data
+        setBlocks((prev) =>
+          prev.map((b) =>
+            b.id === blockId
+              ? { ...b, content: { ...b.content, [field]: value } }
+              : b
+          )
+        )
+        setSaveStatus("saving")
+        sdk.client
+          .fetch(
+            `/partners/storefront/pages/${pageId}/blocks/${blockId}`,
+            {
+              method: "PUT",
+              body: { content: { [field]: value } },
+            }
+          )
+          .then(() => setSaveStatus("saved"))
+          .catch(() => setSaveStatus("unsaved"))
+      }
     }
     window.addEventListener("message", handleMessage)
     return () => window.removeEventListener("message", handleMessage)
-  }, [])
+  }, [pageId])
 
   useEffect(() => {
     if (iframeReady && selectedBlockId && iframeRef.current?.contentWindow) {
       iframeRef.current.contentWindow.postMessage(
         { type: "SELECT_BLOCK", blockId: selectedBlockId },
+        "*"
+      )
+      iframeRef.current.contentWindow.postMessage(
+        { type: "ENABLE_INLINE_EDITING", blockId: selectedBlockId },
+        "*"
+      )
+    }
+    if (iframeReady && !selectedBlockId && iframeRef.current?.contentWindow) {
+      iframeRef.current.contentWindow.postMessage(
+        { type: "DISABLE_INLINE_EDITING" },
         "*"
       )
     }
