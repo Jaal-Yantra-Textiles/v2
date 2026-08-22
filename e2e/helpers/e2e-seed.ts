@@ -878,6 +878,7 @@ async function seedContentEditorPartner(
     content: "Test content for visual editor",
     page_type: "Custom",
     status: "Published",
+    last_modified: new Date(),
   })
 
   // Seed blocks: one Hero (unique) + one Feature (repeatable)
