@@ -60,7 +60,12 @@ export type QuoteListQuery = {
 
 export type BuiltQuoteListQuery = {
   filters: Record<string, unknown>
-  config: { skip: number; take: number; order: Record<string, "ASC" | "DESC"> }
+  config: {
+    skip: number
+    take: number
+    order: Record<string, "ASC" | "DESC">
+    relations: string[]
+  }
 }
 
 function clampInt(raw: unknown, fallback: number, min: number, max: number) {
@@ -152,5 +157,23 @@ export function buildQuoteListQuery(
   const search = buildQuoteSearchFilter(query.q)
   if (search) Object.assign(filters, search)
 
-  return { filters, config: { skip, take, order: parseQuoteOrder(query.order) } }
+  return {
+    filters,
+    config: {
+      skip,
+      take,
+      order: parseQuoteOrder(query.order),
+      /**
+       * 🔴 The lines are the basket, and both list tables render "N lines · M
+       * units" from them. Without this relation the field is simply absent, so
+       * every row read "0 lines · 0 units" — a quote that looks empty, on the
+       * one screen a partner uses to check what they sent.
+       *
+       * It is a join over one page of rows, not a per-row query. The alternative
+       * — counting server-side into two scalars — hides the basket from every
+       * other consumer of this list to save bytes nobody is short of.
+       */
+      relations: ["lines"],
+    },
+  }
 }
