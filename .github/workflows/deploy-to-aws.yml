@@ -87,6 +87,10 @@ jobs:
       image_ref: ${{ steps.image-vars.outputs.ghcr_image }}:${{ steps.image-vars.outputs.image_tag }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          # Full history: the cache-export decision below diffs against the
+          # pushed-from sha.
+          fetch-depth: 0
 
       - uses: docker/setup-buildx-action@v3
 
@@ -139,6 +143,35 @@ jobs:
             type=sha,format=long,prefix=sha-,priority=1000
             type=raw,value=latest,enable={{is_default_branch}}
 
+      - name: Decide whether to re-export the build cache
+        id: cache-mode
+        run: |
+          set -euo pipefail
+          # A dispatch has no `before`, and a first/force push gives the zero
+          # sha — in both cases refresh the cache rather than guess.
+          BEFORE="${{ github.event.before }}"
+          REFRESH=1
+          if [ -n "$BEFORE" ] && [ "$BEFORE" != "0000000000000000000000000000000000000000" ] \
+             && git cat-file -e "${BEFORE}^{commit}" 2>/dev/null; then
+            CHANGED=$(git diff --name-only "$BEFORE" "${{ github.sha }}" || true)
+            # The inputs to the ONE layer that ever gets a cache hit
+            # (`pnpm fetch`), plus the Dockerfile itself, which invalidates
+            # everything below it.
+            if echo "$CHANGED" | grep -qE '^(pnpm-lock\.yaml|pnpm-workspace\.yaml|\.npmrc)$|^apps/backend/Dockerfile$'; then
+              echo "→ dependency graph or Dockerfile moved — refreshing the cache"
+            else
+              REFRESH=0
+              echo "→ source-only change — reusing the existing cache, not re-exporting it"
+            fi
+          else
+            echo "→ no usable base sha — refreshing the cache to be safe"
+          fi
+          if [ "$REFRESH" = "1" ]; then
+            echo "cache_to=type=gha,mode=max" >> "$GITHUB_OUTPUT"
+          else
+            echo "cache_to=" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Build and push (GHCR + ECR)
         uses: docker/build-push-action@v6
         with:
@@ -154,7 +187,26 @@ jobs:
             VITE_MEDIA_GALLERY_BASE_URL=${{ vars.VITE_MEDIA_GALLERY_BASE_URL }}
             VITE_STOREFRONT_URL=${{ vars.VITE_STOREFRONT_URL }}
           cache-from: type=gha
-          cache-to: type=gha,mode=max
+          # 🔴 Exported ONLY when the dependency graph moved. `mode=max` writes
+          # every intermediate builder layer to the GitHub Actions cache, and
+          # that export measured 240-376s on EVERY deploy — 4-6 minutes, a
+          # third of the whole build job, spent re-uploading layers that were
+          # byte-identical to the ones already there.
+          #
+          # 🔑 Only ONE layer is ever a cache HIT: `pnpm fetch`, which is keyed
+          # on the lockfile. The install / build / prod-deploy layers rebuild on
+          # every push by construction, because the layer above them is
+          # `COPY . .`. So re-exporting on a source-only push buys nothing and
+          # costs minutes. When the lockfile, the workspace or the Dockerfile
+          # DOES move, the export runs and refreshes the entry.
+          #
+          # GitHub evicts a cache entry after 7 days of no ACCESS, and
+          # `cache-from` above reads it on every run — so a long run of
+          # source-only pushes cannot age the entry out.
+          cache-to: ${{ steps.cache-mode.outputs.cache_to }}
+          # No provenance/SBOM attestation: it adds a second manifest and an
+          # extra export pass to both registries, and nothing consumes it.
+          provenance: false
 
       - name: Build summary
         run: |
@@ -201,9 +253,21 @@ jobs:
     name: Migrate DB
     runs-on: ubuntu-latest
     needs: [build-and-push]
-    # Same gate as the deploy jobs: only migrate when we're actually deploying
-    # services (push to main, or an explicit deploy_services dispatch).
-    if: github.event_name == 'push' || inputs.deploy_services == true
+    # Push to main, an explicit deploy_services dispatch — or force_migrate on
+    # its own.
+    #
+    # 🔴 That last clause is the fix for a recovery path that could not work.
+    # `force_migrate` is evaluated by the gate STEP inside this job, so with the
+    # job itself gated on `deploy_services` a dispatch of
+    # `force_migrate=true, deploy_services=false` (the default) skipped the whole
+    # job before the force was ever read — and the run still reported `success`.
+    # That is exactly what happened recovering the stranded S1 migration on
+    # 22 Aug: the dispatch was green, the Migrate DB job was SKIPPED, and prod
+    # kept 500ing on a column that did not exist.
+    if: >-
+      github.event_name == 'push'
+      || inputs.deploy_services == true
+      || inputs.force_migrate == true
     steps:
       - uses: actions/checkout@v4
         with:
@@ -212,17 +276,74 @@ jobs:
 
       - name: Decide whether migrations are needed
         id: gate
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
           # Manual force always runs.
           if [ "${{ github.event_name }}" = "workflow_dispatch" ] && [ "${{ inputs.force_migrate }}" = "true" ]; then
             echo "run=true" >> "$GITHUB_OUTPUT"; echo "→ force_migrate"; exit 0
           fi
-          BEFORE="${{ github.event.before }}"
-          # No usable base sha (first push / force-push / dispatch) → run to be safe.
-          if [ -z "$BEFORE" ] || [ "$BEFORE" = "0000000000000000000000000000000000000000" ]; then
+          # 🔴 The base is the last sha that actually REACHED PROD — not
+          # `github.event.before` (#1464).
+          #
+          # The gate is per-PUSH; the deploy is per-TREE. Merge two PRs back to
+          # back and the first run is cancelled as superseded, so its migration
+          # never runs — while the surviving run's push contains no migration
+          # files, the gate correctly reports "no schema changes", and the
+          # image it deploys carries all the new code anyway. The migration is
+          # then stranded PERMANENTLY and every job in the chain says `success`.
+          # That took prod's quote mint down on 22 Aug.
+          #
+          # Diffing from the last successfully DEPLOYED commit closes it: a
+          # cancelled run's migration stays inside the diff until some run
+          # actually applies it.
+          #
+          # 🔑 Every failure to determine that commit falls through to
+          # run=true. Running a migration that was already applied costs ~2
+          # minutes and is a no-op; SKIPPING one costs an outage. The asymmetry
+          # decides every branch here.
+          BEFORE=""
+          CANDIDATES=$(gh api \
+            "repos/${{ github.repository }}/actions/workflows/deploy-to-aws.yml/runs?branch=${{ github.ref_name }}&status=success&per_page=20" \
+            --jq '.workflow_runs[] | select(.id != ${{ github.run_id }}) | .id' 2>/dev/null || true)
+          for RUN_ID in $CANDIDATES; do
+            # 🔴 "Last DEPLOYED" is NOT the anchor — "last MIGRATED" is.
+            #
+            # A run deploys the tree and skips the migration all the time; that
+            # is the normal, correct path for a source-only push. Anchoring on
+            # the last deploy would therefore walk the base straight PAST a
+            # stranded migration and skip it forever — the same outage in a new
+            # place. Anchoring on the last run that actually APPLIED migrations
+            # means everything since is still in the diff, and the anchor only
+            # advances when a migration genuinely ran.
+            #
+            # The job's CONCLUSION cannot tell the two apart: a gate that
+            # decides "no schema changes" still leaves the job green. The STEP
+            # can — it is `skipped` when the gate said no. Read the step, never
+            # the job; that is the same lesson as #1464 itself.
+            MIGRATED=$(gh api "repos/${{ github.repository }}/actions/runs/${RUN_ID}/jobs" \
+              --jq '[.jobs[] | select(.name == "Migrate DB") | .steps[]?
+                     | select(.name == "Run migrations (gated one-off task)")
+                     | .conclusion] | first // ""' 2>/dev/null || true)
+            if [ "$MIGRATED" = "success" ]; then
+              BEFORE=$(gh api "repos/${{ github.repository }}/actions/runs/${RUN_ID}" --jq '.head_sha' 2>/dev/null || true)
+              echo "→ base = last MIGRATED sha ${BEFORE} (run ${RUN_ID})"
+              break
+            fi
+          done
+
+          if [ -z "$BEFORE" ]; then
+            echo "run=true" >> "$GITHUB_OUTPUT"
+            echo "→ no run in recent history applied migrations — running to be safe"
+            exit 0
+          fi
+          if [ "$BEFORE" = "0000000000000000000000000000000000000000" ]; then
             echo "run=true" >> "$GITHUB_OUTPUT"; echo "→ no base sha, running"; exit 0
           fi
+          # The deployed sha can be older than this clone's history depth, or
+          # gone after a force-push.
+          git fetch --quiet origin "$BEFORE" 2>/dev/null || true
           if ! git cat-file -e "${BEFORE}^{commit}" 2>/dev/null; then
             echo "run=true" >> "$GITHUB_OUTPUT"; echo "→ base sha not fetched, running"; exit 0
           fi
@@ -276,7 +397,11 @@ jobs:
 
       - name: Skipped
         if: steps.gate.outputs.run != 'true'
-        run: echo "Migration task skipped — no schema-affecting changes in this push."
+        # Names the base it compared against: "skipped" is only trustworthy if
+        # you can see what it was measured from (#1464 read as `success` for
+        # days precisely because it could not be).
+        run: |
+          echo "Migration task skipped — no schema-affecting changes since the last DEPLOYED commit."
 
   # ─────────────────────────────────────────────────────────────────────────
   # 3. Deploy server + worker in parallel via Copilot. Each deploy is its

@@ -13,14 +13,25 @@ http:
   healthcheck:
     path: '/health'
     healthy_threshold: 2
-    unhealthy_threshold: 5  # 3 → 5: gives 150s of mid-run slack so a slow
-                            # workflow tick doesn't kill an otherwise-healthy task.
-    interval: 30s
+    # 5 → 10 and 30s → 15s, together and deliberately: the product is what
+    # matters, and it is UNCHANGED at 10 × 15s = 150s of mid-run slack, so a
+    # slow workflow tick still cannot kill an otherwise-healthy task (the
+    # reason 3 → 5 happened in the first place).
+    #
+    # 🔑 What halves is how long a HEALTHY new task waits to be discovered:
+    # 2 × 30s = up to 60s became 2 × 15s = up to 30s. Measured on the 22 Aug
+    # deploy, each task was serving 35-60s after start and the rollout then sat
+    # for ~2 more minutes — a third of a six-minute deploy is the ALB simply
+    # not having looked yet. Doubling the polls is free; the tasks answer
+    # /health in single-digit ms.
+    unhealthy_threshold: 10
+    interval: 15s
     timeout: 5s
     grace_period: 240s      # 90s → 240s. Medusa logs "Server is ready" before
                             # finishing module linking + workflow engine resume.
                             # Per Railway behavior, full readiness takes 3-4 min;
-                            # 240s grace + 5×30s threshold = 390s kill window.
+                            # 240s grace + the 150s threshold window above =
+                            # a 390s kill window, unchanged by the 15s retune.
 
 image:
   # ECR location wins; the CI workflow updates :latest before `svc deploy`.
