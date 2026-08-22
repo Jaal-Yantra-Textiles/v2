@@ -28,6 +28,43 @@ import {
 import { StackedDrawer } from "../../../components/modals/stacked-drawer"
 import { Skeleton } from "../../../components/common/skeleton"
 import { BlockEditor } from "../../../components/block-editor/block-editor"
+
+const UNSAFE_PROPS = new Set(["__proto__", "constructor", "prototype"])
+
+function isSafeFieldPart(part: string): boolean {
+  return !UNSAFE_PROPS.has(part)
+}
+
+function setNestedValue(
+  content: Record<string, unknown>,
+  field: string,
+  value: unknown
+): Record<string, unknown> {
+  const contentCopy: Record<string, unknown> = JSON.parse(
+    JSON.stringify(content || {})
+  )
+  const parts = field.split(".")
+  if (!parts.every(isSafeFieldPart)) {
+    return contentCopy
+  }
+  let obj: Record<string, unknown> = contentCopy
+  for (let i = 0; i < parts.length - 1; i++) {
+    const idx = parseInt(parts[i], 10)
+    if (!isNaN(idx)) {
+      if (!obj[parts[i]]) {
+        obj[parts[i]] = []
+      }
+      obj = obj[parts[i]] as Record<string, unknown>
+    } else {
+      if (!obj[parts[i]]) {
+        obj[parts[i]] = {}
+      }
+      obj = obj[parts[i]] as Record<string, unknown>
+    }
+  }
+  obj[parts[parts.length - 1]] = value
+  return contentCopy
+}
 import { TipTapEditor } from "../../../components/tiptap-editor/tiptap-editor"
 import {
   useContentPage,
@@ -180,25 +217,7 @@ const ContentDetailInner = () => {
           prev.map((b) => {
             if (b.id !== blockId) return b
             if (isNested) {
-              const parts = field.split(".")
-              const contentCopy = JSON.parse(JSON.stringify(b.content || {}))
-              let obj = contentCopy
-              for (let i = 0; i < parts.length - 1; i++) {
-                const idx = parseInt(parts[i], 10)
-                if (!isNaN(idx)) {
-                  obj = obj[parts[i]] = obj[parts[i]] || []
-                } else {
-                  obj = obj[parts[i]] = obj[parts[i]] || {}
-                }
-              }
-              const lastKey = parts[parts.length - 1]
-              const lastIdx = parseInt(lastKey, 10)
-              if (!isNaN(lastIdx)) {
-                obj[lastKey] = value
-              } else {
-                obj[lastKey] = value
-              }
-              return { ...b, content: contentCopy }
+              return { ...b, content: setNestedValue(b.content, field, value) }
             }
             return { ...b, content: { ...b.content, [field]: value } }
           })
@@ -206,16 +225,9 @@ const ContentDetailInner = () => {
         setSaveStatus("saving")
         const contentUpdate = (() => {
           if (isNested) {
-            const parts = field.split(".")
             const block = blocks.find((b) => b.id === blockId)
             if (!block) return {}
-            const contentCopy = JSON.parse(JSON.stringify(block.content || {}))
-            let obj = contentCopy
-            for (let i = 0; i < parts.length - 1; i++) {
-              obj = obj[parts[i]] = obj[parts[i]] || []
-            }
-            obj[parts[parts.length - 1]] = value
-            return { content: contentCopy }
+            return { content: setNestedValue(block.content, field, value) }
           }
           return { content: { [field]: value } }
         })()
@@ -285,7 +297,9 @@ const ContentDetailInner = () => {
           addVideo: () => actions?.addVideo(),
           triggerUpload: () => actions?.triggerUpload(),
         }
-        const fn = cmdMap[command]
+        const fn = Object.prototype.hasOwnProperty.call(cmdMap, command)
+          ? cmdMap[command]
+          : undefined
         if (fn) fn()
       }
     }
