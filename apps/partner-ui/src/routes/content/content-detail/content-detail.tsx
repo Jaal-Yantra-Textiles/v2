@@ -31,10 +31,6 @@ import { BlockEditor } from "../../../components/block-editor/block-editor"
 
 const UNSAFE_PROPS = new Set(["__proto__", "constructor", "prototype"])
 
-function isSafeFieldPart(part: string): boolean {
-  return !UNSAFE_PROPS.has(part)
-}
-
 function setNestedValue(
   content: Record<string, unknown>,
   field: string,
@@ -44,25 +40,26 @@ function setNestedValue(
     JSON.stringify(content || {})
   )
   const parts = field.split(".")
-  if (!parts.every(isSafeFieldPart)) {
-    return contentCopy
-  }
   let obj: Record<string, unknown> = contentCopy
   for (let i = 0; i < parts.length - 1; i++) {
-    const idx = parseInt(parts[i], 10)
+    const part = parts[i]
+    if (UNSAFE_PROPS.has(part)) return contentCopy
+    const idx = parseInt(part, 10)
     if (!isNaN(idx)) {
-      if (!obj[parts[i]]) {
-        obj[parts[i]] = []
+      if (!obj[part]) {
+        obj[part] = []
       }
-      obj = obj[parts[i]] as Record<string, unknown>
+      obj = obj[part] as Record<string, unknown>
     } else {
-      if (!obj[parts[i]]) {
-        obj[parts[i]] = {}
+      if (!obj[part]) {
+        obj[part] = {}
       }
-      obj = obj[parts[i]] as Record<string, unknown>
+      obj = obj[part] as Record<string, unknown>
     }
   }
-  obj[parts[parts.length - 1]] = value
+  const lastPart = parts[parts.length - 1]
+  if (UNSAFE_PROPS.has(lastPart)) return contentCopy
+  obj[lastPart] = value
   return contentCopy
 }
 import { TipTapEditor } from "../../../components/tiptap-editor/tiptap-editor"
@@ -273,34 +270,66 @@ const ContentDetailInner = () => {
         toolbarFileInputRef.current?.click()
       }
       if (data.type === "TOOLBAR_COMMAND") {
-        const { command } = data as any
+        const { command } = data as { command?: string }
         const editor = tiptapEditorRef.current
         const actions = tiptapActionsRef.current
-        if (!editor) return
+        if (!editor || !command) return
 
-        const cmdMap: Record<string, () => void> = {
-          toggleBold: () => editor.chain().focus().toggleBold().run(),
-          toggleItalic: () => editor.chain().focus().toggleItalic().run(),
-          toggleUnderline: () => editor.chain().focus().toggleUnderline().run(),
-          toggleHeading1: () => editor.chain().focus().toggleHeading({ level: 1 }).run(),
-          toggleHeading2: () => editor.chain().focus().toggleHeading({ level: 2 }).run(),
-          toggleHeading3: () => editor.chain().focus().toggleHeading({ level: 3 }).run(),
-          toggleBulletList: () => editor.chain().focus().toggleBulletList().run(),
-          toggleOrderedList: () => editor.chain().focus().toggleOrderedList().run(),
-          toggleBlockquote: () => editor.chain().focus().toggleBlockquote().run(),
-          toggleCodeBlock: () => editor.chain().focus().toggleCodeBlock().run(),
-          alignLeft: () => editor.chain().focus().setTextAlign("left").run(),
-          alignCenter: () => editor.chain().focus().setTextAlign("center").run(),
-          alignRight: () => editor.chain().focus().setTextAlign("right").run(),
-          setLink: () => actions?.setLink(),
-          addImage: () => actions?.addImage(),
-          addVideo: () => actions?.addVideo(),
-          triggerUpload: () => actions?.triggerUpload(),
+        switch (command) {
+          case "toggleBold":
+            editor.chain().focus().toggleBold().run()
+            break
+          case "toggleItalic":
+            editor.chain().focus().toggleItalic().run()
+            break
+          case "toggleUnderline":
+            editor.chain().focus().toggleUnderline().run()
+            break
+          case "toggleHeading1":
+            editor.chain().focus().toggleHeading({ level: 1 }).run()
+            break
+          case "toggleHeading2":
+            editor.chain().focus().toggleHeading({ level: 2 }).run()
+            break
+          case "toggleHeading3":
+            editor.chain().focus().toggleHeading({ level: 3 }).run()
+            break
+          case "toggleBulletList":
+            editor.chain().focus().toggleBulletList().run()
+            break
+          case "toggleOrderedList":
+            editor.chain().focus().toggleOrderedList().run()
+            break
+          case "toggleBlockquote":
+            editor.chain().focus().toggleBlockquote().run()
+            break
+          case "toggleCodeBlock":
+            editor.chain().focus().toggleCodeBlock().run()
+            break
+          case "alignLeft":
+            editor.chain().focus().setTextAlign("left").run()
+            break
+          case "alignCenter":
+            editor.chain().focus().setTextAlign("center").run()
+            break
+          case "alignRight":
+            editor.chain().focus().setTextAlign("right").run()
+            break
+          case "setLink":
+            actions?.setLink()
+            break
+          case "addImage":
+            actions?.addImage()
+            break
+          case "addVideo":
+            actions?.addVideo()
+            break
+          case "triggerUpload":
+            actions?.triggerUpload()
+            break
+          default:
+            break
         }
-        const fn = Object.prototype.hasOwnProperty.call(cmdMap, command)
-          ? cmdMap[command]
-          : undefined
-        if (fn) fn()
       }
     }
     window.addEventListener("message", handleMessage)
