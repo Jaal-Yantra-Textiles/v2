@@ -175,6 +175,42 @@ export const POST = async (
 
   const s3Config = getS3ImageConfig()
 
+  // Dev bypass: skip Vercel/hosting provider — just set storefront_domain so
+  // the partner UI can create websites and edit content locally.
+  const STOREFRONT_LOCAL_URL =
+    process.env.STOREFRONT_LOCAL_URL || "http://localhost:8000"
+
+  if (process.env.NODE_ENV !== "production") {
+    const localDomain = new URL(STOREFRONT_LOCAL_URL).hostname
+
+    // Check if already provisioned in dev
+    if (partnerData.storefront_domain || partnerData.metadata?.storefront_domain) {
+      throw new MedusaError(
+        MedusaError.Types.INVALID_DATA,
+        "Storefront already provisioned (dev mode). Remove it first to re-provision."
+      )
+    }
+
+    await updatePartnerWorkflow(req.scope).run({
+      input: {
+        id: partner.id,
+        data: {
+          storefront_domain: localDomain,
+          metadata: {
+            ...(partnerData.metadata || {}),
+            storefront_provisioned_at: new Date().toISOString(),
+          },
+        },
+      },
+    })
+
+    return res.status(201).json({
+      message: "Storefront provisioned (dev mode — no hosting provider)",
+      storefront_url: STOREFRONT_LOCAL_URL,
+      domain: localDomain,
+    })
+  }
+
   // Partner-level overrides take precedence over env fallbacks so each
   // partner can BYO repo/branch/root later without code changes.
   const storefrontRepo = partnerData.storefront_repo || STOREFRONT_REPO_ENV

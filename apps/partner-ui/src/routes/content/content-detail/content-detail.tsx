@@ -10,7 +10,6 @@ import {
   IconButton,
   Select,
   Label,
-  Drawer,
   Input,
 } from "@medusajs/ui"
 import {
@@ -24,7 +23,9 @@ import {
 import {
   RouteFocusModal,
   useRouteModal,
+  useStackedModal,
 } from "../../../components/modals"
+import { StackedDrawer } from "../../../components/modals/stacked-drawer"
 import { Skeleton } from "../../../components/common/skeleton"
 import { BlockEditor } from "../../../components/block-editor/block-editor"
 import {
@@ -105,11 +106,12 @@ const ContentDetailInner = () => {
   const [selectedBlockId, setSelectedBlockId] = useState<string | null>(null)
   const [saveStatus, setSaveStatus] = useState<"saved" | "saving" | "unsaved">("saved")
   const [iframeReady, setIframeReady] = useState(false)
-  const [addBlockOpen, setAddBlockOpen] = useState(false)
+  const { setIsOpen: setStackedOpen } = useStackedModal()
+  const ADD_BLOCK_ID = "add-block"
   const [newBlockType, setNewBlockType] = useState<string>("MainContent")
   const [newBlockName, setNewBlockName] = useState("")
 
-  const domain = storefrontStatus?.domain
+  const storefrontUrl = storefrontStatus?.storefront_url
 
   useEffect(() => {
     if (initialBlocks?.length) {
@@ -164,7 +166,7 @@ const ContentDetailInner = () => {
         }
       }
       if (data.type === "REQUEST_ADD_BLOCK_AT") {
-        setAddBlockOpen(true)
+        setStackedOpen(ADD_BLOCK_ID, true)
       }
     }
     window.addEventListener("message", handleMessage)
@@ -259,7 +261,7 @@ const ContentDetailInner = () => {
         setBlocks((prev) => [...prev, newBlock])
         setSelectedBlockId(newBlock.id)
       }
-      setAddBlockOpen(false)
+      setStackedOpen(ADD_BLOCK_ID, false)
       setNewBlockName("")
       toast.success(`Added "${name}" block`)
       if (iframeRef.current) {
@@ -319,8 +321,8 @@ const ContentDetailInner = () => {
   }
 
   const countryCode = "in"
-  const previewUrl = domain
-    ? `https://${domain}/${countryCode}/pages/${page?.slug || ""}?visual_editor=true`
+  const previewUrl = storefrontUrl
+    ? `${storefrontUrl}/${countryCode}/pages/${page?.slug || ""}?visual_editor=true`
     : `http://localhost:8000/${countryCode}/pages/${page?.slug || ""}?visual_editor=true`
 
   const isPublished = page?.status === "Published"
@@ -427,7 +429,7 @@ const ContentDetailInner = () => {
                     (t) => !usedUniqueTypes.has(t)
                   )
                   if (available) setNewBlockType(available)
-                  setAddBlockOpen(true)
+                  setStackedOpen(ADD_BLOCK_ID, true)
                 }}
               >
                 <Plus className="mr-1" />Add
@@ -555,11 +557,12 @@ const ContentDetailInner = () => {
       </RouteFocusModal.Body>
 
       {/* Add Block Drawer */}
-      <Drawer open={addBlockOpen} onOpenChange={setAddBlockOpen}>
-        <Drawer.Header>
-          <Drawer.Title>Add New Block</Drawer.Title>
-        </Drawer.Header>
-        <Drawer.Body className="space-y-4">
+      <StackedDrawer id={ADD_BLOCK_ID}>
+        <StackedDrawer.Content>
+        <StackedDrawer.Header>
+          <StackedDrawer.Title>Add New Block</StackedDrawer.Title>
+        </StackedDrawer.Header>
+        <StackedDrawer.Body className="space-y-4">
           <div>
             <Label>Block Type</Label>
             <Select value={newBlockType} onValueChange={setNewBlockType}>
@@ -615,16 +618,17 @@ const ContentDetailInner = () => {
               {newBlockType === "Custom" && "Custom block with full rich text editor."}
             </Text>
           </div>
-        </Drawer.Body>
-        <Drawer.Footer>
-          <Button variant="secondary" onClick={() => setAddBlockOpen(false)}>
+        </StackedDrawer.Body>
+        <StackedDrawer.Footer>
+          <Button variant="secondary" onClick={() => setStackedOpen(ADD_BLOCK_ID, false)}>
             Cancel
           </Button>
           <Button onClick={handleAddBlock} disabled={isCreatingBlock}>
             <Plus className="mr-1.5" />Add Block
           </Button>
-        </Drawer.Footer>
-      </Drawer>
+        </StackedDrawer.Footer>
+        </StackedDrawer.Content>
+      </StackedDrawer>
     </>
   )
 }

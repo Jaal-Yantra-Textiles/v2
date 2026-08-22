@@ -55,6 +55,8 @@ function hostingProviderLabel(provider: string | undefined): string {
       return "Netlify"
     case "render":
       return "Render"
+    case "local":
+      return "Local Dev"
     default:
       return "—"
   }
@@ -675,6 +677,7 @@ const CustomDomainSection = () => {
 const StorefrontDomainWrapper = () => {
   const { data: status, isPending } = useStorefrontStatus()
   if (isPending || !status?.provisioned) return null
+  if (status.provider === "local") return null
   return <CustomDomainSection />
 }
 
