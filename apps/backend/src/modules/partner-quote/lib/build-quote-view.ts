@@ -15,6 +15,7 @@ import {
   type QuoteMoney,
 } from "./compare"
 import { resolveQuoteProducer, type QuoteProducer } from "./quote-producer"
+import { resolveQuoteTax, type QuoteTax } from "./quote-tax"
 import { resolveQuoteSpecs, type QuoteLineSpec } from "./quote-spec"
 import { daysUntilExpiry, quoteUnusableReason } from "./token"
 
@@ -82,6 +83,9 @@ export type QuoteViewQuote = {
   quoted_freight?: number | null
   quoted_landed_total?: number | null
   quoted_weight_grams?: number | null
+  /** #1439 S8. Null on every quote minted before tax existed. */
+  quoted_tax_total?: number | null
+  quoted_tax_inclusive?: boolean | null
   quoted_at?: Date | string | null
   recipient_name?: string | null
   recipient_company?: string | null
@@ -171,6 +175,12 @@ export type QuoteView = {
     options: ShippingEstimateOption[]
     error: string | null
   }
+  /**
+   * Tax on this quote (#1439 S8), and — when there is no number — the reason,
+   * which the page RENDERS. A missing tax block reads as "no tax due", so
+   * silence is not an option here the way it is for the producer band.
+   */
+  tax: QuoteTax
   compare: QuoteCompareResult
   recipient: {
     name: string | null
@@ -247,17 +257,70 @@ export function pickLineImage(identity: any): {
  * for a real basket it is the blended per-unit figure, which is why the lines
  * carry their own and this is only ever the summary row.
  */
+/**
+ * The country the partner store dispatches from, or null.
+ *
+ * Reads `stock_location.address.country_code` directly rather than going through
+ * the shipping module's origin-address helper, which returns undefined unless
+ * the address also has a street line and a pincode (Blue Dart validates that
+ * block as a unit). A country has no such dependency, and a quote must not lose
+ * its tax treatment because a warehouse is missing a postcode.
+ *
+ * Never throws — a null lands the quote on `status: "unknown"` WITH a reason,
+ * which is the honest degradation. It must not become an assumed "domestic".
+ */
+async function resolveStoreOriginCountry(
+  scope: any,
+  locationId?: string | null
+): Promise<string | null> {
+  if (!locationId) return null
+  try {
+    const query: any = scope.resolve(ContainerRegistrationKeys.QUERY)
+    const { data: locs } = await query.graph({
+      entity: "stock_location",
+      fields: ["id", "address.country_code"],
+      filters: { id: locationId },
+    })
+    const code = String((locs ?? [])[0]?.address?.country_code || "").trim()
+    return /^[A-Za-z]{2}$/.test(code) ? code.toUpperCase() : null
+  } catch {
+    return null
+  }
+}
+
 export function composeQuoteMoney(
   lineSubtotals: number[],
   totalUnits: number,
-  freight: number
+  freight: number,
+  /**
+   * #1439 S8. Omitted ⇒ tax is UNKNOWN, not zero: `tax_total` and
+   * `gross_total` both stay null, and the caller is expected to say why.
+   */
+  tax?: { total: number | null; inclusive: boolean } | null
 ): QuoteMoney {
   const subtotal = lineSubtotals.reduce((sum, n) => sum + n, 0)
+  const landed = subtotal + freight
+
+  const taxTotal =
+    tax && tax.total !== null && tax.total !== undefined
+      ? Number(tax.total)
+      : null
+
   return {
     unit_amount: totalUnits > 0 ? subtotal / totalUnits : 0,
     subtotal,
     freight,
-    landed_total: subtotal + freight,
+    landed_total: landed,
+    tax_total: taxTotal,
+    /**
+     * 🔴 When the prices are tax-INCLUSIVE the tax is already inside
+     * `landed_total`, so adding it again would overcharge the buyer by the
+     * tax. `tax_total` is then the extracted portion — a disclosure, not an
+     * addition. Getting this backwards is an 18% error in the confident
+     * direction on every Indian quote.
+     */
+    gross_total:
+      taxTotal === null ? null : tax?.inclusive ? landed : landed + taxTotal,
   }
 }
 
@@ -275,11 +338,29 @@ export function frozenMoney(quote?: QuoteViewQuote | null): QuoteMoney | null {
     0
   )
   const subtotal = Number(quote.quoted_subtotal ?? 0)
+  const taxTotal =
+    quote.quoted_tax_total === null || quote.quoted_tax_total === undefined
+      ? null
+      : Number(quote.quoted_tax_total)
+  const landed = Number(quote.quoted_landed_total)
+
   return {
     unit_amount: totalUnits > 0 ? subtotal / totalUnits : 0,
     subtotal,
     freight: Number(quote.quoted_freight ?? 0),
-    landed_total: Number(quote.quoted_landed_total),
+    landed_total: landed,
+    /**
+     * Null on every quote minted before S8, and that is the honest answer for
+     * them: those rows genuinely have no tax figure. Defaulting to 0 would
+     * retroactively assert that an untaxed quote was tax-free.
+     */
+    tax_total: taxTotal,
+    gross_total:
+      taxTotal === null
+        ? null
+        : quote.quoted_tax_inclusive
+          ? landed
+          : landed + taxTotal,
   }
 }
 
@@ -381,6 +462,17 @@ export async function buildQuoteView(
   let chosen: ShippingEstimateOption | null = null
   let options: ShippingEstimateOption[] = []
   let freightError: string | null = null
+  /**
+   * Unknown until proven otherwise, and unknown is what a dead or unpriceable
+   * link keeps: there is no basket to tax, and a 0 would read as "no tax due".
+   */
+  let tax: QuoteTax = {
+    status: "unknown",
+    total: null,
+    inclusive: false,
+    rates: [],
+    reason: null,
+  }
   let liveUnitByVariant = new Map<string, number>()
   let weightByVariant = new Map<
     string,
@@ -459,12 +551,40 @@ export async function buildQuoteView(
         )
       }
 
+      // Tax LAST, because it is a function of the priced lines and the chosen
+      // freight leg — both of which only exist at this point. It never
+      // throws; an unresolvable rate lands on `status: "unknown"` with a
+      // reason rather than on a zero.
+      // Where the goods dispatch from. Read off the same stock location the
+      // freight leg was quoted against, so the tax treatment and the shipment
+      // cannot describe two different journeys. S6 makes this location blocking
+      // at mint, so by the time tax runs there is always one to read.
+      const originCountry = await resolveStoreOriginCountry(
+        scope,
+        input.store?.default_location_id
+      )
+
+      tax = await resolveQuoteTax(scope, {
+        region_id: input.region_id ?? null,
+        origin_country_code: originCountry,
+        destination_country_code: input.destination_country_code,
+        destination_postal_code: input.destination_postal_code ?? null,
+        lines: effectiveLines.map((l) => ({
+          variant_id: l.variant_id,
+          product_id: identityById.get(l.variant_id)?.product?.id ?? null,
+          unit_amount: liveUnitByVariant.get(l.variant_id) ?? 0,
+          quantity: l.quantity,
+        })),
+        freight: { amount: Number(chosen.amount), option_id: (chosen as any)?.id ?? null },
+      })
+
       live = composeQuoteMoney(
         effectiveLines.map(
           (l) => (liveUnitByVariant.get(l.variant_id) ?? 0) * l.quantity
         ),
         effectiveLines.reduce((sum, l) => sum + l.quantity, 0),
-        Number(chosen.amount)
+        Number(chosen.amount),
+        tax
       )
     } catch (err) {
       // The quoted half — what the partner actually told this buyer — is still
@@ -554,6 +674,7 @@ export async function buildQuoteView(
     total_weight_grams:
       totalWeightGrams ?? input.quote?.quoted_weight_grams ?? null,
     freight: { chosen, options, error: freightError },
+    tax,
     compare,
     recipient: {
       name: input.quote?.recipient_name ?? null,

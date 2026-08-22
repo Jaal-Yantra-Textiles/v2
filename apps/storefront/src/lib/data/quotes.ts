@@ -21,7 +21,37 @@ export type QuoteMoney = {
   unit_amount: number
   subtotal: number
   freight: number
+  /** Goods + freight. NOT a customs-landed cost — see `QuoteTax`. */
   landed_total: number
+  /** #1439 S8. Null means unknown, never zero. */
+  tax_total: number | null
+  /**
+   * `landed_total` + tax when the prices are tax-exclusive; equal to
+   * `landed_total` when they are inclusive (the tax is already inside it).
+   * Null whenever `tax_total` is.
+   */
+  gross_total: number | null
+}
+
+/**
+ * How tax was resolved for this quote (#1439 S8).
+ *
+ * 🔴 `reason` is rendered verbatim whenever `status` is not `calculated`. A tax
+ * block that silently disappears reads as "no tax due", which is a claim; on a
+ * `zero_rated_export` the zero is real but duty and import VAT still fall on the
+ * buyer at their border, and that sentence is the only place they are told.
+ */
+export type QuoteTax = {
+  status: "calculated" | "zero_rated_export" | "not_applicable" | "unknown"
+  total: number | null
+  inclusive: boolean
+  rates: Array<{
+    code: string | null
+    name: string
+    rate: number
+    on: "goods" | "freight"
+  }>
+  reason: string | null
 }
 
 /** One labelled fact about how the piece is made. #1428 */
@@ -125,6 +155,7 @@ export type QuoteView = {
   destination_postal_code: string | null
   live: QuoteMoney | null
   quoted: QuoteMoney | null
+  tax: QuoteTax
   total_weight_grams: number | null
   freight: {
     chosen: QuoteFreightOption | null

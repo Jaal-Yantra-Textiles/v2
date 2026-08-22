@@ -22,7 +22,29 @@ export type QuoteMoney = {
   unit_amount: number
   subtotal: number
   freight: number
+  /**
+   * Goods plus freight, BEFORE tax when the prices are tax-exclusive.
+   *
+   * ⚠️ Kept meaning exactly what it always meant. Widening it to include tax
+   * would silently change every frozen `quoted_landed_total` already on disk
+   * and every comparison drawn against one, so the taxed figure is a new field
+   * instead — see `gross_total`.
+   */
   landed_total: number
+  /**
+   * Tax on goods and freight (#1439 S8). Null when it could not be
+   * determined, and NEVER 0 as a stand-in for that: zero is a claim. The
+   * quote's `tax.reason` says why, and the page renders it.
+   */
+  tax_total: number | null
+  /**
+   * What the buyer actually pays. Equal to `landed_total` when the prices are
+   * tax-inclusive (the tax is already inside them and `tax_total` is the
+   * extracted portion), and `landed_total + tax_total` when they are not.
+   * Null whenever tax is unknown — a gross total we cannot stand behind is
+   * worse than none.
+   */
+  gross_total: number | null
 }
 
 export type QuoteCompareInput = {
