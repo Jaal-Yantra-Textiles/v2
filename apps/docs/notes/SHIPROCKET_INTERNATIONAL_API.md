@@ -102,6 +102,20 @@ Aramex International | ddp_tag=false  ddp_vcn=false  ddp_inclusive_vcn=false
                      | is_active=false
 ```
 
+**Accepting the DDP agreement in the dashboard changed none of this.** Re-rated
+immediately afterwards: `ddp_tag`, `ddp_vcn`, `ddp_inclusive_vcn`,
+`csb5_seller_kyc` and `is_active` all still `false`. And it is not
+destination-specific — the same flags come back `false` on NL, DE, FR, GB, CA,
+AU and AE alike, so whatever gates DDP is account-level, not a per-lane or
+per-region entitlement. (The US lane answers *"No serviceable couriers available
+for given weight"* at both 0.5 kg and 2 kg — that lane appears to be off
+entirely rather than weight-capped. DE and FR return two Aramex variants;
+everywhere else returns one.)
+
+🔑 So the panel's DDP toggle is **not** the switch. On the evidence,
+`csb5_seller_kyc: false` is the gate — it is the one flag that is false
+everywhere and that plausibly blocks a commercial-export route.
+
 Two blockers, both account-side rather than code:
 
 - **`csb5_seller_kyc: false`** while CSB-4's is true. CSB-5 is the commercial
