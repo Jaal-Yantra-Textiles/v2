@@ -58,11 +58,20 @@ type Captured = { contexts: any[]; rateWeights: number[] }
 
 const scopeWith = (
   captured: Captured,
-  over: { manual?: any[]; noOriginPostalCode?: boolean } = {}
+  over: {
+    manual?: any[]
+    noOriginPostalCode?: boolean
+    partner?: any
+    profile?: any
+    artisanDetail?: any
+  } = {}
 ) => {
   const manualOptions = over.manual ?? []
   return {
     resolve: (key: string) => {
+      if (String(key) === "partner_onboarding_profile") {
+        return { findByPartner: async () => over.profile ?? null }
+      }
       if (String(key).includes("cach")) {
         return { get: async () => null, set: async () => {} }
       }
@@ -92,6 +101,16 @@ const scopeWith = (
           if (args.entity === "variant") {
             const ids = Array.isArray(args.filters.id) ? args.filters.id : [args.filters.id]
             return { data: VARIANTS.filter((v) => ids.includes(v.id)) }
+          }
+          if (args.entity === "partners") {
+            return { data: over.partner ? [over.partner] : [] }
+          }
+          if (args.entity === "product") {
+            return {
+              data: over.artisanDetail
+                ? [{ id: "prod_a", artisan_product_detail: over.artisanDetail }]
+                : [],
+            }
           }
           if (args.entity === "stock_locations") {
             if (args.fields.some((f: string) => f.includes("fulfillment_sets"))) {
@@ -637,5 +656,46 @@ describe("buyerChangedInputs", () => {
         destination_postal_code: "400001",
       })
     ).toBe(true)
+  })
+})
+
+/**
+ * #1439 S9 — the maker section. The shaper and its resolver have their own
+ * suites; what matters HERE is only that the view carries the section and that
+ * a partner we cannot resolve costs a credit line rather than the whole page.
+ */
+describe("buildQuoteView — provenance", () => {
+  it("carries the maker section for a quote with a partner", async () => {
+    const captured: Captured = { contexts: [], rateWeights: [] }
+    const view = await buildQuoteView(
+      scopeWith(captured, {
+        partner: {
+          id: "part_1",
+          name: "Unique Pashmina",
+          country_code: "IN",
+          is_verified: true,
+          status: "active",
+        },
+        profile: { person_type: "artisan", does_weaving: true },
+        artisanDetail: { maker_story: "Woven on pit looms.", lead_time_days: 21 },
+      }) as any,
+      baseInput({ partner_id: "part_1" })
+    )
+
+    expect(view.provenance?.maker_name).toBe("Unique Pashmina")
+    expect(view.provenance?.maker_story).toBe("Woven on pit looms.")
+    expect(view.provenance?.rows.map((r) => r.key)).toContain("weaving")
+  })
+
+  it("prices the quote regardless of whether provenance resolves", async () => {
+    const captured: Captured = { contexts: [], rateWeights: [] }
+    const view = await buildQuoteView(
+      scopeWith(captured) as any,
+      baseInput({ partner_id: "part_missing" })
+    )
+
+    // Null is "say nothing", and the money is untouched by it.
+    expect(view.provenance).toBeNull()
+    expect(view.live?.landed_total).toBeGreaterThan(0)
   })
 })

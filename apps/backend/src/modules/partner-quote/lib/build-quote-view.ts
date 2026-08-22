@@ -1,6 +1,10 @@
 import { ContainerRegistrationKeys, MedusaError, QueryContext } from "@medusajs/framework/utils"
 
 import {
+  resolveQuoteProvenance,
+} from "../../../lib/provenance/resolve-provenance"
+import type { Provenance } from "../../../lib/provenance/build-provenance"
+import {
   buildShippingEstimate,
   type ShippingEstimate,
   type ShippingEstimateOption,
@@ -178,6 +182,14 @@ export type QuoteView = {
    * storefront. Null means "say nothing", never "unknown producer".
    */
   producer: QuoteProducer | null
+  /**
+   * Who made this and how — the partner's public-safe credentials plus the
+   * product facts the whole basket agrees on (#1439 S9). Null means "say
+   * nothing": a thin partner profile degrades to silence, never to a grid of
+   * blanks. Rendered by the buyer page; the shaper's exclusion list is what
+   * keeps commercial terms off it.
+   */
+  provenance: Provenance | null
   expires_in_days: number | null
   /** Set when the live half could not be built, so callers can say why. */
   live_error: string | null
@@ -512,6 +524,13 @@ export async function buildQuoteView(
     viewer_sales_channel_ids: input.viewer_sales_channel_ids ?? null,
   })
 
+  // Same contract as the producer band: resolved after the money and unable to
+  // fail the view. A maker credit is not worth a buyer's 500.
+  const provenance = await resolveQuoteProvenance(scope, {
+    partner_id: input.partner_id ?? null,
+    product_ids: lines.map((l) => l.product_id),
+  })
+
   const compare = compareQuote({
     quoted,
     live,
@@ -542,6 +561,7 @@ export async function buildQuoteView(
       partner_note: input.quote?.partner_note ?? null,
     },
     producer,
+    provenance,
     expires_in_days: input.quote ? daysUntilExpiry(lifecycle, input.now) : null,
     live_error: liveError,
   }

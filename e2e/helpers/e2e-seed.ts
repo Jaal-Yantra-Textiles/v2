@@ -322,6 +322,122 @@ async function seedProvenanceProductRun(container: any): Promise<string> {
 }
 
 /**
+ * #1439 S3/S4 — two quotes on one partner, so the admin quote surface can be
+ * driven in a browser (#1463 shipped without ever having been).
+ *
+ * Written straight through the module service rather than by driving a real
+ * mint: the mint needs a partner store with a priced product and a quotable
+ * freight lane, and the fixture only needs the END state the surface renders.
+ * The mint path itself is covered against a real container by
+ * `integration-tests/http/partner-quote-mint.spec.ts`.
+ *
+ * 🔑 TWO quotes, and the second is `superseded` on purpose. Active-only
+ * fixtures would let the surface treat every dead quote as a revocation, and
+ * "the partner withdrew this offer" is a different and wrong story to tell an
+ * operator about a quote that was simply re-issued (#1435).
+ *
+ * `token_hash` is random rather than a hash of a known token: the raw token is
+ * never persisted, and a fixture that pretended otherwise would model a
+ * recoverable link, which is exactly what the detail page states cannot exist.
+ */
+async function seedAdminQuotes(container: any): Promise<{
+  partnerId: string
+  partnerName: string
+  activeQuoteId: string
+  activeQuoteCompany: string
+  supersededQuoteId: string
+  supersededQuoteCompany: string
+}> {
+  const partnerModule: any = container.resolve("partner")
+  const quoteService: any = container.resolve("partner_quote")
+
+  const stamp = Date.now()
+
+  const createdPartner = await partnerModule.createPartners({
+    name: `E2E Quote Partner ${stamp}`,
+    handle: `e2e-quote-${stamp}`,
+    status: "active",
+    is_verified: true,
+  })
+  const partner = Array.isArray(createdPartner) ? createdPartner[0] : createdPartner
+
+  // Stamped company names: the spec SEARCHES for these, and the search reaches
+  // the server (#1461), so a duplicate from a previous seed would make a
+  // one-row assertion flap.
+  const activeCompany = `E2E Active Buyer ${stamp} Pvt Ltd`
+  const supersededCompany = `E2E Superseded Buyer ${stamp} Pvt Ltd`
+
+  const mkQuote = async (suffix: string, over: Record<string, any>) => {
+    const created = await quoteService.createPartnerQuotes({
+      partner_id: partner.id,
+      destination_country_code: "in",
+      destination_postal_code: "400001",
+      destination_city: "Mumbai",
+      currency_code: "inr",
+      quoted_subtotal: 800000,
+      quoted_freight: 15000,
+      quoted_landed_total: 815000,
+      quoted_weight_grams: 11800,
+      quoted_at: new Date(),
+      // 32 random hex chars — shaped like the sha256 the mint stores, and
+      // unique because the column is.
+      token_hash: `e2e${stamp}${Math.random().toString(16).slice(2)}${suffix}`,
+      expires_at: new Date(Date.now() + 7 * 24 * 3600 * 1000),
+      ...over,
+    })
+    const row = Array.isArray(created) ? created[0] : created
+
+    await quoteService.createPartnerQuoteLines([
+      {
+        quote_id: row.id,
+        variant_id: `variant_e2e_${stamp}_${suffix}`,
+        quantity: 25,
+        position: 0,
+        quoted_unit_amount: 28000,
+        quoted_subtotal: 700000,
+        quoted_unit_weight_grams: 400,
+        quoted_weight_source: "variant",
+      },
+    ])
+
+    return row.id as string
+  }
+
+  const activeQuoteId = await mkQuote("a", {
+    recipient_name: "Priya Menon",
+    recipient_company: activeCompany,
+    email_sent_to: `e2e-active-${stamp}@buyer.test`,
+    status: "active",
+  })
+
+  const supersededQuoteId = await mkQuote("s", {
+    recipient_name: "Rahul Iyer",
+    recipient_company: supersededCompany,
+    email_sent_to: `e2e-superseded-${stamp}@buyer.test`,
+    status: "superseded",
+  })
+
+  // One activity row, so the timeline renders its real shape rather than its
+  // "no activity recorded yet" fallback — the actor badge is the thing an
+  // operator reads first when a buyer challenges a price.
+  await quoteService.recordEvent({
+    quote_id: activeQuoteId,
+    type: "minted",
+    actor_type: "admin",
+    message: "Quote minted on the partner's behalf.",
+  })
+
+  return {
+    partnerId: partner.id as string,
+    partnerName: partner.name as string,
+    activeQuoteId,
+    activeQuoteCompany: activeCompany,
+    supersededQuoteId,
+    supersededQuoteCompany: supersededCompany,
+  }
+}
+
+/**
  * #1228 — a production run parked in `awaiting_reassignment`, plus the two
  * partners the reassign drawer picks between: the one that let it lapse
  * (`previous_partner_id`, the "same partner again" option) and a fresh one.
@@ -1082,6 +1198,9 @@ export default async function e2eSeed({ container }: ExecArgs) {
     gate.currencyCode
   )
 
+  logger.info("E2E seed: creating the #1439 admin quote fixtures (active + superseded)...")
+  const adminQuotes = await seedAdminQuotes(container)
+
   logger.info("E2E seed: creating the CRM contact + one logged activity...")
   const crmContact = await seedCrmContact(container)
 
@@ -1143,6 +1262,15 @@ export default async function e2eSeed({ container }: ExecArgs) {
     allocationMaterialCLabel: allocation.materialCLabel,
     allocationMaterialAId: allocation.materialAId,
     allocationMaterialCId: allocation.materialCId,
+    // #1439 S3/S4 admin quote surface — consumed by admin-quote-surface.spec.ts
+    // (admin, CI). NOT single-use: the spec cancels out of the revoke prompt
+    // rather than confirming it, so a re-run finds the same active quote.
+    quotePartnerId: adminQuotes.partnerId,
+    quotePartnerName: adminQuotes.partnerName,
+    activeQuoteId: adminQuotes.activeQuoteId,
+    activeQuoteCompany: adminQuotes.activeQuoteCompany,
+    supersededQuoteId: adminQuotes.supersededQuoteId,
+    supersededQuoteCompany: adminQuotes.supersededQuoteCompany,
   }
 
   fs.writeFileSync(SEED_FILE, JSON.stringify(seedData, null, 2))

@@ -60,6 +60,30 @@ export type QuoteProducer = {
   url: string | null
 }
 
+/** One labelled, public-safe fact about the maker. #1439 S9 */
+export type ProvenanceRow = {
+  /** Stable machine key, so a renderer can style or reorder without parsing labels. */
+  key: string
+  label: string
+  value: string
+  /** Which record the fact came from — an unattributed fact is a claim. */
+  source: "partner" | "partner-onboarding-profile" | "artisan-product-detail"
+}
+
+/**
+ * Who made this, and how.
+ *
+ * 🔑 The backend OMITS a row whose fact is absent rather than em-dashing it, and
+ * excludes every commercial term. Render `rows` as given — never add a
+ * placeholder value, and never widen this shape client-side.
+ */
+export type Provenance = {
+  maker_name: string | null
+  /** Free prose, rendered as a paragraph rather than a row. */
+  maker_story: string | null
+  rows: ProvenanceRow[]
+}
+
 export type QuoteViewLine = {
   variant_id: string
   variant_title: string | null
@@ -128,6 +152,11 @@ export type QuoteView = {
    * again is noise.
    */
   producer: QuoteProducer | null
+  /**
+   * The maker section. Null means "say nothing" — a partner with a thin profile
+   * degrades to fewer rows, and one we know nothing about to no section at all.
+   */
+  provenance: Provenance | null
   expires_in_days: number | null
   live_error: string | null
 }
