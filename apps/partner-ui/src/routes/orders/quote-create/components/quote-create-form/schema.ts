@@ -36,6 +36,23 @@ export const QuoteProductsSchema = z.object({
  */
 export const QuoteQuantitiesSchema = z.object({
   quantities: z.record(z.string(), z.number().nullish()),
+
+  /**
+   * The trade price, per variant (#1446). Both are optional and mutually
+   * exclusive per line — the backend refuses both together rather than ranking
+   * them, so "which wins" has no answer to get wrong here either.
+   *
+   * 🔑 `overrides` is a unit price in the PARTNER STORE's default currency, not
+   * the quote's. A partner negotiating in Mumbai thinks in rupees whatever the
+   * buyer is being quoted in; the conversion happens once, at mint, at a rate
+   * the quote records.
+   *
+   * A blank cell is not a zero. Same rule as the quantity above: it means "no
+   * override", and it is dropped rather than sent — a 0 would ask the backend
+   * to mint an ACTIVE price of zero, which it refuses outright.
+   */
+  discounts: z.record(z.string(), z.number().nullish()),
+  overrides: z.record(z.string(), z.number().nullish()),
 })
 
 export const QuoteCreateSchema = QuoteBuyerSchema.merge(
@@ -57,4 +74,8 @@ export const QuoteBuyerFields = [
 ] as const
 
 export const QuoteProductFields = ["product_ids"] as const
-export const QuoteQuantityFields = ["quantities"] as const
+export const QuoteQuantityFields = [
+  "quantities",
+  "discounts",
+  "overrides",
+] as const
