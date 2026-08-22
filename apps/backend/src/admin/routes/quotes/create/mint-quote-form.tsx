@@ -376,11 +376,20 @@ export const MintQuoteForm = () => {
             {lines.length === 0 ? (
               <Text size="small" className="text-ui-fg-subtle">
                 A quote is a basket — add at least one line. Multiple lines are
-                quoted as ONE consignment, so freight is charged once. Leave the
-                trade-price fields blank to quote at the catalog price; the unit
-                price is read in the partner store's own currency.
+                quoted as ONE consignment, so freight is charged once.
               </Text>
             ) : null}
+            {/* 🔴 Persistent, NOT part of the empty state: this is the note
+                that matters while someone is typing into the fields, and it
+                was briefly rendered only when there were no lines to type
+                into. A number entered in a USD quote is read in the partner
+                store's currency, and a field that does not say so is read as
+                the buyer's. */}
+            <Text size="small" className="text-ui-fg-subtle">
+              Leave the trade-price fields blank to quote at the catalog price.
+              A unit price is read in the partner store's own currency and
+              converted at mint; a discount is a percentage off the tier.
+            </Text>
             {lines.map((line, i) => (
               <div key={i} className="flex items-end gap-3">
                 <div className="flex flex-1 flex-col gap-y-2">
