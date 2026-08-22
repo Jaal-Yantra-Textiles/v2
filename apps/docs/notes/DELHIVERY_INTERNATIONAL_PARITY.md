@@ -79,3 +79,39 @@ international orders.
 
 Real Delhivery cross-border. It needs the service activated, full seller
 KYC/IEC/AD-code onboarding, and a spec from Delhivery. That belongs under #649.
+
+## DDP on Delhivery — support's answer, 2026-08-22
+
+Delhivery support, verbatim:
+
+> For sample shipment you can select the **Free on domicile** option for DDP mode.
+>
+> For Commercial please select the **DDP mode from incoterm**.
+
+So **yes, Delhivery can do DDP** — and it lands exactly where this audit already
+put it: on **Cross Border**, whose order object carries "INCO Terms" (see the
+table above). Both are selections made on that product, not on the Express API
+this integration drives. `POST /api/cmu/create.json` has no incoterm field at
+all, and the 18-API doc set behind the Delhivery MCP returns **zero** matches for
+"incoterm", "DDP", "duty" or "customs".
+
+**What that means for us today:**
+
+- We cannot set it from code. Nothing in the API surface we hold can declare a
+  shipment DDP on Delhivery. `carrier_capabilities.can_declare_ddp` is therefore
+  `false` for Delhivery — the flag describes what the ADAPTER can say, not what
+  the carrier can do.
+- The blocker is the same one as everywhere else on this lane: **Cross Border
+  activation + seller KYC**, listed above as mandatory before order creation.
+- 🔑 Note the shape of the correction. This is the second carrier where the
+  capability existed and the docs we could reach did not mention it — Shiprocket
+  was the first (`ddp_tag`/`ioss_fee`/`tariff` are on the serviceability
+  response and absent from the 2 MB collection). Twice now, reading the
+  documentation produced a confident "this carrier cannot do DDP" and the
+  carrier's own people said otherwise. **Ask the carrier before concluding from
+  the docs.**
+
+Blue Dart is currently the only adapter that can declare it: its international
+services block carries `IncotermCode`, which was hardcoded `"DAP"` (duty
+UNPAID) until #1447 and now follows the sale. Declaring it is not the same as
+being billed for it — that is a commercial arrangement per account.

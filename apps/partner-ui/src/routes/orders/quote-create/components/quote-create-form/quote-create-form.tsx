@@ -86,6 +86,11 @@ export const QuoteCreateForm = ({
       quantities: {},
       discounts: {},
       overrides: {},
+      // Never defaulted on: a DDP promise applied by default would tell a buyer
+      // there is nothing to pay on a shipment nobody arranged clearance for.
+      duties_prepaid: false,
+      duty_total: null,
+      duty_basis: null,
     },
     resolver: zodResolver(QuoteCreateSchema),
   })
@@ -193,6 +198,15 @@ export const QuoteCreateForm = ({
         destination_city: data.destination_city || null,
         currency_code: data.currency_code,
         ttl_days: data.ttl_days,
+        // Sent as a pair or not at all — the backend refuses the promise
+        // without its number, and the number without the promise (#1447).
+        duties_prepaid: data.duties_prepaid ?? false,
+        ...(data.duties_prepaid
+          ? {
+              duty_total: data.duty_total ?? null,
+              duty_basis: data.duty_basis || null,
+            }
+          : {}),
       },
       {
         onSuccess: (result) => {

@@ -1,4 +1,4 @@
-import { Heading, Input, Select, Text, Textarea } from "@medusajs/ui"
+import { Heading, Input, Select, Switch, Text, Textarea } from "@medusajs/ui"
 import { useMemo, useState } from "react"
 import { UseFormReturn, useWatch } from "react-hook-form"
 
@@ -294,6 +294,108 @@ export const BuyerStep = ({ form }: Props) => {
           </Form.Item>
         )}
       />
+
+      <div className="flex flex-col gap-y-1">
+        <Heading level="h2">Import duty (DDP)</Heading>
+        <Text size="small" className="text-ui-fg-subtle">
+          Only meaningful on an export. With this on the buyer is told there is
+          nothing further to pay on delivery — which means we pay their customs
+          bill, and until a carrier can price and clear it DDP, somebody
+          arranges that by hand.
+        </Text>
+      </div>
+
+      <Form.Field
+        control={form.control}
+        name="duties_prepaid"
+        render={({ field: { value, onChange, ...rest } }) => (
+          <Form.Item>
+            <div className="flex items-start justify-between gap-4 rounded-lg border border-ui-border-base p-4">
+              <div className="flex flex-col gap-y-1">
+                <Form.Label>We pay the import duty</Form.Label>
+                <Form.Hint>
+                  Off means the buyer is importer of record: duty and import VAT
+                  are theirs, and the quote says so in as many words.
+                </Form.Hint>
+              </div>
+              <Form.Control>
+                <Switch
+                  checked={Boolean(value)}
+                  onCheckedChange={(checked) => {
+                    onChange(checked)
+                    if (!checked) {
+                      // A stray amount on a non-DDP quote would be added to a
+                      // total whose buyer was told duty is theirs to pay.
+                      form.setValue("duty_total", null)
+                      form.setValue("duty_basis", null)
+                      form.clearErrors(["duty_total", "duty_basis"])
+                    }
+                  }}
+                  {...rest}
+                />
+              </Form.Control>
+            </div>
+            <Form.ErrorMessage />
+          </Form.Item>
+        )}
+      />
+
+      {form.watch("duties_prepaid") ? (
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+          <Form.Field
+            control={form.control}
+            name="duty_total"
+            render={({ field }) => (
+              <Form.Item>
+                <Form.Label>Duty we absorb</Form.Label>
+                <Form.Control>
+                  <Input
+                    type="number"
+                    min={0}
+                    step="0.01"
+                    placeholder="0.00"
+                    value={field.value ?? ""}
+                    onChange={(e) =>
+                      field.onChange(
+                        e.target.value === "" ? null : Number(e.target.value)
+                      )
+                    }
+                  />
+                </Form.Control>
+                <Form.Hint>
+                  In the quote's currency, added to the buyer's total. Nothing
+                  derives it — HS codes are incomplete and the carrier tariff
+                  APIs are gated — so this figure is what we commit to.
+                </Form.Hint>
+                <Form.ErrorMessage />
+              </Form.Item>
+            )}
+          />
+
+          <Form.Field
+            control={form.control}
+            name="duty_basis"
+            render={({ field }) => (
+              <Form.Item>
+                <Form.Label>How you got there</Form.Label>
+                <Form.Control>
+                  <Input
+                    placeholder="EU 12% ad valorem, HS 6304.92"
+                    {...field}
+                    value={field.value ?? ""}
+                  />
+                </Form.Control>
+                <Form.Hint>
+                  A nil duty is a real answer — say why (AI-ECTA makes Indian
+                  textiles duty-free into AU). A bare 0 cannot tell "checked"
+                  from "left blank".
+                </Form.Hint>
+                <Form.ErrorMessage />
+              </Form.Item>
+            )}
+          />
+        </div>
+      ) : null}
     </div>
   )
 }

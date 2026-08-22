@@ -1,6 +1,7 @@
 import {
   CARRIER_CAPABILITIES,
   capabilitiesCoverSupportedCarriers,
+  carrierCanDeclareDdp,
   findCarrierCapability,
   groupCarriersByLane,
 } from "../carrier-capabilities"
@@ -84,5 +85,33 @@ describe("buildCarrierAvailability", () => {
     expect(delhivery.enabled).toBe(false)
     // Registered means selectable — the partner simply has not switched it on.
     expect(delhivery.blocked_reason).toBeNull()
+  })
+})
+
+/**
+ * DDP by carrier (#1447).
+ *
+ * 🔴 The distinction this pins down: DECLARING a shipment DDP is code, being
+ * BILLED the duty is a commercial arrangement. A quote sold DDP that ships on a
+ * carrier we cannot declare it to is a promise someone keeps by hand — and the
+ * failure mode is silent, landing on the buyer at their own border weeks after
+ * they paid.
+ */
+describe("who can be told a shipment is DDP", () => {
+  it("says only Blue Dart today — it is the one payload with an incoterm", () => {
+    expect(carrierCanDeclareDdp("bluedart")).toBe(true)
+    // Shiprocket's DDP is real but gated on CSB-5 seller KYC; every lane
+    // reports ddp_tag: false. Delhivery's lives on Cross Border, which is a
+    // panel selection on a service we hold no API for.
+    expect(carrierCanDeclareDdp("shiprocket")).toBe(false)
+    expect(carrierCanDeclareDdp("delhivery")).toBe(false)
+  })
+
+  it("🔴 answers FALSE for a carrier it does not know", () => {
+    // The safe answer routes the promise to a human. Guessing true would let a
+    // DDP sale ship duty-unpaid without anyone noticing.
+    expect(carrierCanDeclareDdp("dhl")).toBe(false)
+    expect(carrierCanDeclareDdp(null)).toBe(false)
+    expect(carrierCanDeclareDdp(undefined)).toBe(false)
   })
 })

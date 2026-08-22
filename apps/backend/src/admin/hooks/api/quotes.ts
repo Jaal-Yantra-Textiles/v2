@@ -72,6 +72,10 @@ export type AdminMintQuotePayload = {
   currency_code: string
   carrier?: string
   ttl_days?: number
+  /** DDP (#1447): the undertaking, the amount absorbed, and how it was reached. */
+  duties_prepaid?: boolean
+  duty_total?: number | null
+  duty_basis?: string | null
 }
 
 /**

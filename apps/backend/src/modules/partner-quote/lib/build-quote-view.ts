@@ -311,7 +311,7 @@ export function pickLineImage(identity: any): {
  * Never throws — a null lands the quote on `status: "unknown"` WITH a reason,
  * which is the honest degradation. It must not become an assumed "domestic".
  */
-async function resolveStoreOriginCountry(
+export async function resolveStoreOriginCountry(
   scope: any,
   locationId?: string | null
 ): Promise<string | null> {

@@ -104,6 +104,13 @@ export type MintPartnerQuotePayload = {
   region_id?: string | null
   carrier?: string
   ttl_days?: number
+  /**
+   * DDP (#1447): we pay the destination duty, and the amount we are absorbing
+   * plus how it was reached. The backend refuses the flag without the pair.
+   */
+  duties_prepaid?: boolean
+  duty_total?: number | null
+  duty_basis?: string | null
 }
 
 export type ListPartnerQuotesParams = {

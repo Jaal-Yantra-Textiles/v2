@@ -17,7 +17,10 @@ import {
 } from "@medusajs/medusa/core-flows"
 
 import { PARTNER_QUOTE_MODULE } from "../../modules/partner-quote"
-import { buildQuoteView } from "../../modules/partner-quote/lib/build-quote-view"
+import {
+  buildQuoteView,
+  resolveStoreOriginCountry,
+} from "../../modules/partner-quote/lib/build-quote-view"
 import { assessQuoteReadiness } from "../../modules/partner-quote/lib/quote-readiness"
 import {
   generateQuoteToken,
@@ -25,6 +28,7 @@ import {
   DEFAULT_QUOTE_TTL_DAYS,
 } from "../../modules/partner-quote/lib/token"
 import { composeQuoteMoney } from "../../modules/partner-quote/lib/build-quote-view"
+import { resolveQuoteTax } from "../../modules/partner-quote/lib/quote-tax"
 import { fetchExchangeRate } from "../../lib/fx/exchange-rate"
 import { pickDefaultCurrency } from "../../lib/resolve-store-currency"
 import { needsExchangeRate, resolveLineOverride } from "./lib/line-override"
@@ -398,6 +402,50 @@ const applyLineOverridesStep = createStep(
     })
 
     const priced = lines.filter((l: any) => l.live_subtotal !== null)
+
+    /**
+     * 🔴 Tax is RE-ASKED against the overridden prices, not carried over.
+     *
+     * `buildQuoteView` computed it from the catalogue prices, before this step
+     * existed to discount them. A 20% trade price on a domestic quote therefore
+     * froze 18% GST on the RETAIL subtotal — tax on money the buyer was never
+     * asked for, in the confident direction, on exactly the quotes a partner
+     * had negotiated. The number that gets frozen is `view.tax`, so this was
+     * wrong in the row as well as on the page.
+     *
+     * Same module, same inputs, one different set of line amounts — so the
+     * quote and the cart that later prices itself still cannot disagree.
+     * `resolveQuoteTax` never throws: an unresolvable rate lands on `unknown`
+     * WITH a reason, which is what the page renders.
+     */
+    const originCountry = await resolveStoreOriginCountry(
+      container,
+      input.store?.default_location_id
+    )
+    const chosenFreight = view?.freight?.chosen ?? null
+    const tax =
+      view?.live && chosenFreight
+        ? await resolveQuoteTax(container, {
+            region_id: input.region_id ?? null,
+            origin_country_code: originCountry,
+            duties_prepaid: Boolean(input.duties_prepaid),
+            destination_country_code: input.destination_country_code,
+            destination_postal_code: input.destination_postal_code ?? null,
+            lines: priced.map((l: any) => ({
+              variant_id: l.variant_id,
+              product_id: l.product_id ?? null,
+              // The OVERRIDDEN unit price. Passing the catalogue one here is
+              // the whole defect this re-ask exists to remove.
+              unit_amount: Number(l.live_unit_amount ?? 0),
+              quantity: Number(l.quantity ?? 0),
+            })),
+            freight: {
+              amount: Number(chosenFreight.amount ?? 0),
+              option_id: (chosenFreight as any)?.id ?? null,
+            },
+          })
+        : view?.tax
+
     /**
      * 🔴 Tax and duty are carried across the recompose, not dropped.
      *
@@ -407,25 +455,20 @@ const applyLineOverridesStep = createStep(
      * quotes a partner had priced by hand. The freeze reads `view.tax`
      * separately, so the row was right and only the page was wrong, which is
      * why it survived.
-     *
-     * ⚠️ The tax AMOUNT here is still the one computed against pre-override
-     * prices, so a discounted quote overstates it. Tracked on #1447 — fixing
-     * it means re-asking the Tax module with the overridden lines, which is a
-     * change to what gets frozen, not to what gets rendered.
      */
     const live = view?.live
       ? composeQuoteMoney(
           priced.map((l: any) => Number(l.live_subtotal)),
           priced.reduce((sum: number, l: any) => sum + Number(l.quantity), 0),
           Number(view.live.freight ?? 0),
-          view.tax
-            ? { total: view.tax.total ?? null, inclusive: Boolean(view.tax.inclusive) }
+          tax
+            ? { total: tax.total ?? null, inclusive: Boolean(tax.inclusive) }
             : null,
           view.live.duty_total ?? null
         )
       : view?.live ?? null
 
-    return new StepResponse({ ...view, lines, live })
+    return new StepResponse({ ...view, lines, live, tax })
   }
 )
 
