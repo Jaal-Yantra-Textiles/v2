@@ -230,7 +230,10 @@ export const useCreateContentBlock = (pageId: string) => {
       order?: number
       status?: string
     }) =>
-      sdk.client.fetch<{ blocks: ContentBlock[] }>(
+      sdk.client.fetch<{
+        blocks: ContentBlock[]
+        errors?: Array<{ type: string; page_id: string; error: string }>
+      }>(
         `/partners/storefront/pages/${pageId}/blocks`,
         { method: "POST", body: { blocks: [payload] } }
       ),

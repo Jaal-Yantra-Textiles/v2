@@ -21,6 +21,23 @@ export const BLOCK_TYPES = [
   "Custom",
 ] as const
 
+export const UNIQUE_BLOCKS = [
+  "Hero",
+  "Header",
+  "Footer",
+  "MainContent",
+  "ContactForm",
+] as const
+
+export const REPEATABLE_BLOCKS = [
+  "Feature",
+  "Gallery",
+  "Testimonial",
+  "Product",
+  "Section",
+  "Custom",
+] as const
+
 export const BLOCK_STATUSES = ["Active", "Inactive", "Draft"] as const
 
 const blockBaseSchema = z.object({

@@ -38,6 +38,7 @@ import {
 } from "../../../hooks/api/content"
 import { useStorefrontStatus } from "../../../hooks/api/storefront"
 import { sdk } from "../../../lib/client"
+import { FetchError } from "@medusajs/js-sdk"
 
 const BLOCK_TYPES = [
   "Hero",
@@ -52,6 +53,14 @@ const BLOCK_TYPES = [
   "Footer",
   "Custom",
 ] as const
+
+const UNIQUE_BLOCK_TYPES = new Set([
+  "Hero",
+  "Header",
+  "Footer",
+  "MainContent",
+  "ContactForm",
+])
 
 const DEFAULT_CONTENT_FOR_TYPE: Record<string, Record<string, unknown>> = {
   Hero: { title: "New Hero", subtitle: "", align: "center" },
@@ -175,6 +184,12 @@ const ContentDetailInner = () => {
     [blocks, selectedBlockId, deleteBlock, initialBlocks]
   )
 
+  const usedUniqueTypes = new Set(
+    blocks
+      .filter((b) => UNIQUE_BLOCK_TYPES.has(b.type))
+      .map((b) => b.type)
+  )
+
   const handleAddBlock = useCallback(async () => {
     const name = newBlockName.trim() || newBlockType
     const maxOrder = blocks.reduce((max, b) => Math.max(max, b.order), -1)
@@ -194,8 +209,31 @@ const ContentDetailInner = () => {
       setAddBlockOpen(false)
       setNewBlockName("")
       toast.success(`Added "${name}" block`)
-    } catch {
-      toast.error("Failed to add block")
+      if (iframeRef.current) {
+        setTimeout(() => {
+          if (iframeRef.current) iframeRef.current.src = iframeRef.current.src
+        }, 300)
+      }
+    } catch (err: unknown) {
+      let msg = "Failed to add block"
+      if (err instanceof FetchError) {
+        try {
+          const body = (err as any).json ?? await err.json?.().catch(() => null)
+          const firstError = body?.errors?.[0]?.error
+          if (firstError && typeof firstError === "string") {
+            if (firstError.includes("unique") || firstError.includes("already exists")) {
+              msg = `A ${newBlockType} block already exists on this page. Only one ${newBlockType} is allowed per page.`
+            } else {
+              msg = firstError
+            }
+          } else if (typeof (err as any).message === "string" && (err as any).message.includes("unique")) {
+            msg = `A ${newBlockType} block already exists on this page. Only one ${newBlockType} is allowed per page.`
+          }
+        } catch {}
+      } else if (err instanceof Error && err.message) {
+        msg = err.message
+      }
+      toast.error(msg)
     }
   }, [newBlockName, newBlockType, blocks, createBlock])
 
@@ -331,7 +369,13 @@ const ContentDetailInner = () => {
               <Button
                 size="small"
                 variant="secondary"
-                onClick={() => setAddBlockOpen(true)}
+                onClick={() => {
+                  const available = BLOCK_TYPES.find(
+                    (t) => !usedUniqueTypes.has(t)
+                  )
+                  if (available) setNewBlockType(available)
+                  setAddBlockOpen(true)
+                }}
               >
                 <Plus className="mr-1" />Add
               </Button>
@@ -415,9 +459,19 @@ const ContentDetailInner = () => {
                 <Select.Value placeholder="Select block type" />
               </Select.Trigger>
               <Select.Content>
-                {BLOCK_TYPES.map((t) => (
-                  <Select.Item key={t} value={t}>{t}</Select.Item>
-                ))}
+                {BLOCK_TYPES.map((t) => {
+                  const alreadyUsed = usedUniqueTypes.has(t)
+                  return (
+                    <Select.Item
+                      key={t}
+                      value={t}
+                      disabled={alreadyUsed}
+                    >
+                      {t}
+                      {alreadyUsed && " (already added)"}
+                    </Select.Item>
+                  )
+                })}
               </Select.Content>
             </Select>
           </div>
@@ -429,6 +483,15 @@ const ContentDetailInner = () => {
               placeholder={`My ${newBlockType}`}
             />
           </div>
+          {UNIQUE_BLOCK_TYPES.has(newBlockType) && (
+            <div className="rounded-md bg-ui-bg-info p-3 border border-ui-border-base">
+              <Text size="xsmall" className="text-ui-fg-subtle">
+                <strong>{newBlockType}</strong> is a unique block type — only one
+                is allowed per page. Types like Feature, Gallery, Testimonial,
+                Product, Section, and Custom can be added multiple times.
+              </Text>
+            </div>
+          )}
           <div className="rounded-md bg-ui-bg-subtle p-3">
             <Text size="xsmall" className="text-ui-fg-muted">
               {newBlockType === "MainContent" && "Rich text content block with TipTap editor — perfect for page body text, headings, lists, and images."}

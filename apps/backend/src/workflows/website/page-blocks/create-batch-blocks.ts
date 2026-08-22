@@ -10,6 +10,14 @@ import WebsiteService from "../../../modules/website/service";
 
 import { CreateBlockStepInput } from "./create-block";
 
+const UNIQUE_BLOCK_TYPES = [
+  "Hero",
+  "Header",
+  "Footer",
+  "MainContent",
+  "ContactForm",
+];
+
 type Block = {
   id: string;
   name: string;
@@ -55,15 +63,42 @@ export const createBatchBlocksStep = createStep(
           continue;
         }
 
+        // Fetch existing blocks for this page so we can pre-check unique types
+        const [existingBlocks] = await websiteService.listAndCountBlocks({
+          page_id: pageId,
+        });
+        const existingUniqueTypes = new Set(
+          (existingBlocks || [])
+            .filter((b: any) =>
+              UNIQUE_BLOCK_TYPES.includes(b.type)
+            )
+            .map((b: any) => b.type)
+        );
+
         // Process each block for this page
         for (const block of blocks) {
+          // Pre-check: reject duplicate unique block types with a friendly message
+          if (
+            UNIQUE_BLOCK_TYPES.includes(block.type) &&
+            existingUniqueTypes.has(block.type)
+          ) {
+            errors.push({
+              type: block.type,
+              page_id: pageId,
+              error: `A ${block.type} block already exists on this page. Only one ${block.type} is allowed per page.`
+            });
+            continue;
+          }
+
           try {
-            // Create the block - any uniqueness violations will be caught by database constraints
             const newBlock = await websiteService.createBlocks({
               ...block
             });
 
             createdBlocks.push(newBlock);
+            if (UNIQUE_BLOCK_TYPES.includes(block.type)) {
+              existingUniqueTypes.add(block.type);
+            }
           } catch (error) {
             errors.push({
               type: block.type,

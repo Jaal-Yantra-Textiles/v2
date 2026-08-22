@@ -24,7 +24,7 @@ const Block = model.define("block", {
   type: model.enum([
     ...UNIQUE_BLOCKS,
     ...REPEATABLE_BLOCKS
-  ]).default("Content"),
+  ]).default("Custom"),
   content: model.json(), // Flexible JSON structure for different block types
   settings: model.json().nullable(), // Block-specific settings (e.g., layout, styling)
   order: model.number().default(0), // For arranging blocks in order
