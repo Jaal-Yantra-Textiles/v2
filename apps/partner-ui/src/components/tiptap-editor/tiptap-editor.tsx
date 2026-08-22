@@ -6,7 +6,7 @@ import Link from "@tiptap/extension-link"
 import Image from "@tiptap/extension-image"
 import Placeholder from "@tiptap/extension-placeholder"
 import { useCallback, useState } from "react"
-import { Button, Dialog, Input, Label, Checkbox } from "@medusajs/ui"
+import { Button, Drawer, Input, Label, Checkbox } from "@medusajs/ui"
 
 type TipTapEditorProps = {
   content?: Record<string, unknown>
@@ -208,12 +208,12 @@ export const TipTapEditor = ({
         </div>
       </div>
 
-      <Dialog open={linkOpen} onOpenChange={setLinkOpen}>
-        <Dialog.Content>
-          <Dialog.Header>
-            <Dialog.Title>Insert Link</Dialog.Title>
-          </Dialog.Header>
-          <div className="space-y-4 py-4">
+      <Drawer open={linkOpen} onOpenChange={setLinkOpen}>
+        <Drawer.Content>
+          <Drawer.Header>
+            <Drawer.Title>Insert Link</Drawer.Title>
+          </Drawer.Header>
+          <Drawer.Body className="space-y-4">
             <div>
               <Label>URL</Label>
               <Input
@@ -232,24 +232,24 @@ export const TipTapEditor = ({
                 Open in new tab
               </Label>
             </div>
-          </div>
-          <Dialog.Footer>
+          </Drawer.Body>
+          <Drawer.Footer>
             <Button variant="secondary" onClick={() => setLinkOpen(false)}>
               Cancel
             </Button>
             <Button onClick={confirmSetLink}>
               {linkUrl.trim() ? "Apply" : "Remove link"}
             </Button>
-          </Dialog.Footer>
-        </Dialog.Content>
-      </Dialog>
+          </Drawer.Footer>
+        </Drawer.Content>
+      </Drawer>
 
-      <Dialog open={imageOpen} onOpenChange={setImageOpen}>
-        <Dialog.Content>
-          <Dialog.Header>
-            <Dialog.Title>Insert Image</Dialog.Title>
-          </Dialog.Header>
-          <div className="space-y-4 py-4">
+      <Drawer open={imageOpen} onOpenChange={setImageOpen}>
+        <Drawer.Content>
+          <Drawer.Header>
+            <Drawer.Title>Insert Image</Drawer.Title>
+          </Drawer.Header>
+          <Drawer.Body className="space-y-4">
             <div>
               <Label>Image URL</Label>
               <Input
@@ -271,17 +271,17 @@ export const TipTapEditor = ({
                 </div>
               ) : null
             })()}
-          </div>
-          <Dialog.Footer>
+          </Drawer.Body>
+          <Drawer.Footer>
             <Button variant="secondary" onClick={() => setImageOpen(false)}>
               Cancel
             </Button>
             <Button onClick={confirmAddImage} disabled={!sanitizeUrl(imageUrl)}>
               Insert
             </Button>
-          </Dialog.Footer>
-        </Dialog.Content>
-      </Dialog>
+          </Drawer.Footer>
+        </Drawer.Content>
+      </Drawer>
     </>
   )
 }
