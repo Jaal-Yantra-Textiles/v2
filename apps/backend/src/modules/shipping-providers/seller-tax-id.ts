@@ -12,8 +12,16 @@ import {
  * (#348 slice B).
  *
  * Precedence (locked on #348): the order's partner's OWN `tax_id` wins; otherwise
- * the admin-managed platform fallback for the ship-from country (IN→JYT GSTIN,
- * EU→KHT VAT) read from the `platform_tax_identity` table; otherwise none.
+ * the admin-managed platform fallback for the ship-from country (IN→JYT GSTIN)
+ * read from the `platform_tax_identity` table; otherwise none.
+ *
+ * ⚠️ The original note here said "EU→KHT VAT". KHT (Kind Health Tech SIA) is
+ * NOT VAT-registered — it is below the Latvian threshold — and it never ships
+ * anything: it invoices and collects on JYT's behalf while the goods go direct
+ * from India. Its row therefore has no business answering a label lookup at all,
+ * and `resolvePlatformTaxIdString` returns `tax_id` WITHOUT looking at
+ * `tax_id_type`, so mislabelling the row cannot make it safe — only
+ * `is_active: false` (or dropping its country codes) takes it out of this path.
  *
  * I/O lives here (container + the partner↔order link + the platform table); the
  * fallback math is the pure `resolvePlatformTaxIdString`
@@ -98,13 +106,24 @@ async function resolvePartnerOwnTaxId(
 }
 
 /**
- * Resolve the seller tax ID for an order: partner-own → platform-by-country →
+ * Resolve the seller tax ID for an order: partner-own → platform-by-ship-from →
  * undefined.
+ *
+ * 🔴 `shipFromCountryCode` is the country the goods LEAVE from, not the
+ * consignee's. The only caller passed the destination for a year; it read as
+ * correct because every sale was India→India, so the two were the same value.
+ * They diverge the instant a second identity row exists — the KHT row covers all
+ * 27 EU member states, so a destination-keyed lookup answered a shipment to
+ * Germany with a Latvian company number and stamped it on an India-origin export
+ * declaration. Named explicitly so the next caller has to say which one it means.
+ *
+ * Pass null rather than a guess when the origin is unreadable: an absent
+ * platform ID is a blank field, a wrong one is a false declaration.
  */
 export async function resolveSellerTaxIdForOrder(
   container: MedusaContainer,
   orderId: string | null | undefined,
-  countryCode: string | null | undefined
+  shipFromCountryCode: string | null | undefined
 ): Promise<string | undefined> {
   const query: any = container.resolve(ContainerRegistrationKeys.QUERY)
 
@@ -114,7 +133,7 @@ export async function resolveSellerTaxIdForOrder(
   }
 
   const identities = await loadActiveIdentities(container)
-  return resolvePlatformTaxIdString(countryCode, identities)
+  return resolvePlatformTaxIdString(shipFromCountryCode, identities)
 }
 
 /**

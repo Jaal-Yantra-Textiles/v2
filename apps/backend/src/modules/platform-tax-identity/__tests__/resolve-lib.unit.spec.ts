@@ -97,3 +97,72 @@ describe("EU_VAT_COUNTRY_CODES", () => {
     expect(new Set(EU_VAT_COUNTRY_CODES).size).toBe(27)
   })
 })
+
+/**
+ * Ship-from vs ship-to (#348 regression).
+ *
+ * These are the two rows that were live on prod. While JYT/IN was the only one,
+ * keying the lookup on the CONSIGNEE country was indistinguishable from keying
+ * it on the origin — every sale was India→India. Adding KHT, whose row covers
+ * all 27 EU member states, made the two answers differ: a Shiprocket shipment to
+ * Germany resolved a Latvian company number and stamped it into the shipment's
+ * `tax_id`, which travels next to `customs` on an India-origin export.
+ *
+ * The goods always leave India. These tests pin the direction so the call site
+ * cannot quietly flip back.
+ */
+const PROD_IDENTITIES = [
+  {
+    brand_code: "JYT",
+    legal_name: "Jaal Yantra Textiles Private Limited",
+    tax_id: "07AAGCJ0494A1ZV",
+    tax_id_type: "gstin",
+    country_codes: ["IN"],
+    is_active: true,
+  },
+  {
+    brand_code: "KHT",
+    legal_name: "Kind Health Tech SIA",
+    tax_id: "40203579735",
+    tax_id_type: "eu_vat",
+    country_codes: ["DE", "LV", "FR"],
+    is_active: true,
+  },
+]
+
+describe("ship-from keying (#348)", () => {
+  it("stamps the Indian GSTIN on an India-origin export to Germany", () => {
+    expect(resolvePlatformTaxIdString("IN", PROD_IDENTITIES)).toBe(
+      "07AAGCJ0494A1ZV"
+    )
+  })
+
+  it("would have stamped a Latvian company number if keyed on the destination", () => {
+    // Documents the defect rather than the fix: this is what the call site
+    // produced, and it is why the parameter is now named `shipFromCountryCode`.
+    expect(resolvePlatformTaxIdString("DE", PROD_IDENTITIES)).toBe(
+      "40203579735"
+    )
+  })
+
+  it("returns undefined rather than a guess when the origin is unknown", () => {
+    // The call site must pass null, never the destination, when it cannot read
+    // the stock location's country. A blank field beats a false declaration.
+    expect(resolvePlatformTaxIdString(null, PROD_IDENTITIES)).toBeUndefined()
+  })
+
+  it("ignores tax_id_type — deactivating is the only way to retire a row", () => {
+    // `resolvePlatformTaxIdString` returns `tax_id` without reading the type, so
+    // relabelling KHT's row from `eu_vat` to a registration number does NOT stop
+    // the number reaching a label. Only `is_active: false` does.
+    const relabelled = PROD_IDENTITIES.map((r) =>
+      r.brand_code === "KHT" ? { ...r, tax_id_type: "lv_reg_no" } : r
+    )
+    expect(resolvePlatformTaxIdString("DE", relabelled)).toBe("40203579735")
+
+    const deactivated = PROD_IDENTITIES.map((r) =>
+      r.brand_code === "KHT" ? { ...r, is_active: false } : r
+    )
+    expect(resolvePlatformTaxIdString("DE", deactivated)).toBeUndefined()
+  })
+})

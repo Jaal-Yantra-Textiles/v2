@@ -117,6 +117,7 @@ import { resendShipmentEmailJob } from "./resend-shipment-email-job"
 import { backfillProductShippingProfilesJob } from "./backfill-product-shipping-profiles-job"
 import { normalizeArtisanProductsJob } from "./normalize-artisan-products-job"
 import { linkArtisanDetailRowsJob } from "./link-artisan-detail-rows-job"
+import { setPlatformTaxIdentityActiveJob } from "./set-platform-tax-identity-active-job"
 import { backfillFulfilledRetailRunsJob } from "./backfill-fulfilled-retail-runs-job"
 import {
   sweepAiPlatformsByCategory,
@@ -5805,6 +5806,7 @@ export const MAINTENANCE_JOBS: MaintenanceJob[] = [
   backfillProductShippingProfilesJob,
   normalizeArtisanProductsJob,
   linkArtisanDetailRowsJob,
+  setPlatformTaxIdentityActiveJob,
   backfillFulfilledRetailRunsJob,
   seedInvestorPanelsJob,
   seedGoodsTransferTaskTemplateJob,
