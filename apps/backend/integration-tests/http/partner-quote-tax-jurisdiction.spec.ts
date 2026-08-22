@@ -5,6 +5,7 @@ import {
   createShippingOptionsWorkflow,
   createTaxRegionsWorkflow,
 } from "@medusajs/medusa/core-flows"
+import { PARTNER_QUOTE_MODULE } from "../../src/modules/partner-quote"
 import {
   setupQuoteFixture,
   mintBody,
@@ -231,6 +232,89 @@ setupSharedTestSuite(() => {
       // vacuously true and this test would pass on a broken lane.
       expect(money.freight).toBeGreaterThan(0)
       expect(quote.tax.total).toBe(0)
+    })
+
+    /** The frozen row, straight off the module service. */
+    const readQuote = async (quoteId: string) => {
+      const service: any = getSharedTestEnv().getContainer().resolve(PARTNER_QUOTE_MODULE)
+      const rows = await service.listPartnerQuotes({ id: quoteId })
+      return rows?.[0]
+    }
+
+    const mintRaw = async (overrides: Record<string, any>) => {
+      const { api } = getSharedTestEnv()
+      const res = await loud("mint", () =>
+        api.post("/partners/quotes", mintBody(seed, overrides), {
+          headers: seed.headers,
+        })
+      )
+      return res.data
+    }
+
+    const viewByToken = async (token: string) => {
+      const { api } = getSharedTestEnv()
+      const res = await loud("view", () =>
+        api.get(`/store/b2b/quotes/${token}`, {
+          headers: { "x-publishable-api-key": seed.publishableKey },
+        })
+      )
+      return res.data.quote
+    }
+
+    it("FREEZES the tax at mint — the INSERT is the thing a unit test cannot reach", async () => {
+      const minted = await mintRaw({
+        buyer_email: `buyer-freeze-${seed.unique}@jaalyantra.test`,
+        destination_country_code: "in",
+        destination_postal_code: "400001",
+      })
+
+      const row = await readQuote(minted.quote.id)
+      // 🔑 Reaching this line at all is the point. `quoted_tax_total` is a DML
+      // bigNumber, which is TWO columns — model, tsc and every unit test pass
+      // with only the numeric one, then the INSERT dies on the missing
+      // `raw_quoted_tax_total`. That is how the S7 pair was caught (#1446).
+      expect(Number(row.quoted_tax_total)).toBeGreaterThan(0)
+      expect(row.quoted_tax_status).toBe("calculated")
+      expect(row.quoted_tax_inclusive).toBe(false)
+      expect(row.quoted_tax_reason).toBeNull()
+    })
+
+    it("freezes a zero-rated export as a REAL zero, with its disclosure", async () => {
+      const minted = await mintRaw({
+        buyer_email: `buyer-freeze-export-${seed.unique}@jaalyantra.test`,
+        destination_country_code: "de",
+        destination_postal_code: "10115",
+        destination_city: "Berlin",
+      })
+
+      const row = await readQuote(minted.quote.id)
+      expect(Number(row.quoted_tax_total)).toBe(0)
+      expect(row.quoted_tax_status).toBe("zero_rated_export")
+      // Frozen because it is evidence: on an export this sentence is the only
+      // place the buyer was told the duty is theirs.
+      expect(row.quoted_tax_reason).toMatch(/payable by you/i)
+    })
+
+    it("🔴 a REVOKED export quote still shows the duty disclosure", async () => {
+      const minted = await mintRaw({
+        buyer_email: `buyer-revoked-${seed.unique}@jaalyantra.test`,
+        destination_country_code: "de",
+        destination_postal_code: "10115",
+        destination_city: "Berlin",
+      })
+
+      const service: any = getSharedTestEnv().getContainer().resolve(PARTNER_QUOTE_MODULE)
+      await service.updatePartnerQuotes({ id: minted.quote.id, status: "revoked" })
+
+      const quote = await viewByToken(minted.token)
+      // buildQuoteView skips its ENTIRE live block once the quote is unusable,
+      // which left tax on {status:"unknown", reason:null}. The storefront only
+      // renders the notice when there is a reason, so before the frozen
+      // fallback this page showed totals and no tax block at all — on exactly
+      // the quotes that exist as a record of what was said.
+      expect(quote.live).toBeNull()
+      expect(quote.tax.status).toBe("zero_rated_export")
+      expect(quote.tax.reason).toMatch(/payable by you/i)
     })
   })
 })

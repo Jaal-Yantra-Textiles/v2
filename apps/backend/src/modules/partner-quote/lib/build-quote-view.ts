@@ -86,6 +86,9 @@ export type QuoteViewQuote = {
   /** #1439 S8. Null on every quote minted before tax existed. */
   quoted_tax_total?: number | null
   quoted_tax_inclusive?: boolean | null
+  /** #1439 S8 tail. Frozen so a dead link can still say WHY the tax is what it is. */
+  quoted_tax_status?: string | null
+  quoted_tax_reason?: string | null
   quoted_at?: Date | string | null
   recipient_name?: string | null
   recipient_company?: string | null
@@ -321,6 +324,45 @@ export function composeQuoteMoney(
      */
     gross_total:
       taxTotal === null ? null : tax?.inclusive ? landed : landed + taxTotal,
+  }
+}
+
+/**
+ * PURE: prefer the live tax, fall back to the frozen one.
+ *
+ * Only substitutes when the live half produced nothing usable — an `unknown`
+ * with no reason, which is the default the builder starts from and the exact
+ * state a dead link leaves it in. A live answer always wins, including a live
+ * `unknown` that carries a reason, because that reason describes the quote as
+ * it stands now.
+ *
+ * Returns the frozen row untouched when there is one, so what renders is what
+ * the buyer was told at mint rather than a reconstruction of it.
+ */
+export function frozenTaxFallback(
+  live: QuoteTax,
+  quote?: QuoteViewQuote | null
+): QuoteTax {
+  const liveIsEmpty = live.status === "unknown" && !live.reason
+  if (!liveIsEmpty) return live
+
+  const status = quote?.quoted_tax_status
+  if (!status) return live
+
+  const total =
+    quote?.quoted_tax_total === null || quote?.quoted_tax_total === undefined
+      ? null
+      : Number(quote.quoted_tax_total)
+
+  return {
+    status: status as QuoteTax["status"],
+    total,
+    inclusive: Boolean(quote?.quoted_tax_inclusive),
+    // Not frozen: a rate BREAKDOWN is a live explanation of a live number, and
+    // reprinting last week's percentages beside a frozen total invites the
+    // reader to re-derive it and find it does not reconcile.
+    rates: [],
+    reason: quote?.quoted_tax_reason ?? null,
   }
 }
 
@@ -674,7 +716,22 @@ export async function buildQuoteView(
     total_weight_grams:
       totalWeightGrams ?? input.quote?.quoted_weight_grams ?? null,
     freight: { chosen, options, error: freightError },
-    tax,
+    /**
+     * Live tax where there is one; the FROZEN tax on a dead link.
+     *
+     * 🔴 The live block is skipped entirely when `unusableReason` is set, which
+     * left `tax` on its `{status:"unknown", reason:null}` default for every
+     * revoked, superseded and expired quote. The page renders its notice only
+     * when there IS a reason, so those quotes showed frozen subtotal and
+     * freight and NO tax block at all — the "a missing tax block reads as no
+     * tax due" failure this module was written to prevent, landing on exactly
+     * the quotes that exist as evidence of what was said.
+     *
+     * Falling back to the frozen row shows what the buyer was actually told,
+     * which is the same reasoning that keeps the frozen totals visible on a
+     * dead link rather than recomputing a number we are no longer offering.
+     */
+    tax: frozenTaxFallback(tax, input.quote),
     compare,
     recipient: {
       name: input.quote?.recipient_name ?? null,

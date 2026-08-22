@@ -85,6 +85,29 @@ const PartnerQuote = model.define("partner_quote", {
   // LEVEL each line's weight came from is on the line, because a basket can
   // mix a variant-weighted item with a product-weighted one.
   quoted_weight_grams: model.number().nullable(),
+  /**
+   * Tax as it stood at mint (#1439 S8).
+   *
+   * 🔴 Without these the tax was recomputed on every page load while the
+   * subtotal and freight beside it stayed frozen, so a rate change moved the
+   * tax on a quote already sent — and the quote silently disagreed with itself.
+   * Freezing it is the same argument that froze the subtotal.
+   *
+   * All four are frozen together on purpose. `quoted_tax_total` alone is
+   * ambiguous: a frozen `0` cannot say whether it means "zero-rated export, no
+   * tax due" or "we could not work it out", and that distinction is the whole
+   * reason `QuoteTax.status` exists. `quoted_tax_reason` preserves the sentence
+   * the buyer was actually shown — on an export that sentence is the only place
+   * they were told duty is theirs, which makes it evidence, not decoration.
+   *
+   * Null on every quote minted before S8. That is the honest answer for them:
+   * those rows have no tax figure, and defaulting to 0 would retroactively
+   * assert they were tax-free.
+   */
+  quoted_tax_total: model.bigNumber().nullable(),
+  quoted_tax_inclusive: model.boolean().nullable(),
+  quoted_tax_status: model.text().nullable(),
+  quoted_tax_reason: model.text().nullable(),
   quoted_at: model.dateTime().nullable(),
 
   // ===== Buyer identity — the edges this quote's prices hang off ==========

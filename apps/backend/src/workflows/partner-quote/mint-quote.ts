@@ -683,6 +683,19 @@ const persistQuoteStep = createStep(
       quoted_freight: input.view.live?.freight ?? null,
       quoted_landed_total: input.view.live?.landed_total ?? null,
       quoted_weight_grams: input.view.total_weight_grams ?? null,
+      // Tax frozen alongside the rest (#1439 S8). Read off `view.tax` rather
+      // than `view.live.tax_total`: the money object carries the NUMBER, and a
+      // number alone cannot distinguish "zero-rated export" from "we could not
+      // work it out" — both are a 0 and only one of them is a fact.
+      //
+      // `?? null` throughout, never `?? 0`. A quote whose tax could not be
+      // resolved must freeze as unknown; writing 0 would turn a gap into a
+      // confident claim of no tax due, which is the failure this whole slice is
+      // built around.
+      quoted_tax_total: input.view.tax?.total ?? null,
+      quoted_tax_inclusive: input.view.tax?.inclusive ?? null,
+      quoted_tax_status: input.view.tax?.status ?? null,
+      quoted_tax_reason: input.view.tax?.reason ?? null,
       quoted_at: new Date(input.now),
       token_hash: hash,
       status: "active",
