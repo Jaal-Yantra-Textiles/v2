@@ -6,7 +6,9 @@ import Link from "@tiptap/extension-link"
 import Image from "@tiptap/extension-image"
 import Placeholder from "@tiptap/extension-placeholder"
 import { useCallback, useState } from "react"
-import { Button, Drawer, Input, Label, Checkbox } from "@medusajs/ui"
+import { Button, Input, Label, Checkbox } from "@medusajs/ui"
+import { StackedDrawer } from "../modals/stacked-drawer"
+import { useStackedModal } from "../modals/stacked-modal-provider"
 
 type TipTapEditorProps = {
   content?: Record<string, unknown>
@@ -19,6 +21,11 @@ export const TipTapEditor = ({
   onChange,
   placeholder = "Start writing...",
 }: TipTapEditorProps) => {
+  const { setIsOpen } = useStackedModal()
+
+  const LINK_DRAWER_ID = "tiptap-link"
+  const IMAGE_DRAWER_ID = "tiptap-image"
+
   const editor = useEditor({
     immediatelyRender: false,
     extensions: [
@@ -44,11 +51,9 @@ export const TipTapEditor = ({
     },
   })
 
-  const [linkOpen, setLinkOpen] = useState(false)
   const [linkUrl, setLinkUrl] = useState("")
   const [linkOpenNewTab, setLinkOpenNewTab] = useState(false)
 
-  const [imageOpen, setImageOpen] = useState(false)
   const [imageUrl, setImageUrl] = useState("")
 
   const sanitizeUrl = useCallback((url: string): string => {
@@ -71,13 +76,13 @@ export const TipTapEditor = ({
     const isOpen = editor.getAttributes("link").target === "_blank"
     setLinkUrl(previousUrl)
     setLinkOpenNewTab(isOpen)
-    setLinkOpen(true)
-  }, [editor])
+    setIsOpen(LINK_DRAWER_ID, true)
+  }, [editor, setIsOpen])
 
   const confirmSetLink = useCallback(() => {
     if (!editor) return
     const url = sanitizeUrl(linkUrl)
-    setLinkOpen(false)
+    setIsOpen(LINK_DRAWER_ID, false)
     if (!url) {
       editor.chain().focus().extendMarkRange("link").unsetLink().run()
       return
@@ -91,21 +96,21 @@ export const TipTapEditor = ({
         target: linkOpenNewTab ? "_blank" : null,
       })
       .run()
-  }, [editor, linkUrl, linkOpenNewTab, sanitizeUrl])
+  }, [editor, linkUrl, linkOpenNewTab, sanitizeUrl, setIsOpen])
 
   const addImage = useCallback(() => {
     if (!editor) return
     setImageUrl("")
-    setImageOpen(true)
-  }, [editor])
+    setIsOpen(IMAGE_DRAWER_ID, true)
+  }, [editor, setIsOpen])
 
   const confirmAddImage = useCallback(() => {
     const url = sanitizeUrl(imageUrl)
-    setImageOpen(false)
+    setIsOpen(IMAGE_DRAWER_ID, false)
     if (url && editor) {
       editor.chain().focus().setImage({ src: url }).run()
     }
-  }, [editor, imageUrl, sanitizeUrl])
+  }, [editor, imageUrl, sanitizeUrl, setIsOpen])
 
   if (!editor) return null
 
@@ -208,12 +213,12 @@ export const TipTapEditor = ({
         </div>
       </div>
 
-      <Drawer open={linkOpen} onOpenChange={setLinkOpen}>
-        <Drawer.Content>
-          <Drawer.Header>
-            <Drawer.Title>Insert Link</Drawer.Title>
-          </Drawer.Header>
-          <Drawer.Body className="space-y-4">
+      <StackedDrawer id={LINK_DRAWER_ID}>
+        <StackedDrawer.Content>
+          <StackedDrawer.Header>
+            <StackedDrawer.Title>Insert Link</StackedDrawer.Title>
+          </StackedDrawer.Header>
+          <StackedDrawer.Body className="space-y-4">
             <div>
               <Label>URL</Label>
               <Input
@@ -232,24 +237,24 @@ export const TipTapEditor = ({
                 Open in new tab
               </Label>
             </div>
-          </Drawer.Body>
-          <Drawer.Footer>
-            <Button variant="secondary" onClick={() => setLinkOpen(false)}>
+          </StackedDrawer.Body>
+          <StackedDrawer.Footer>
+            <Button variant="secondary" onClick={() => setIsOpen(LINK_DRAWER_ID, false)}>
               Cancel
             </Button>
             <Button onClick={confirmSetLink}>
               {linkUrl.trim() ? "Apply" : "Remove link"}
             </Button>
-          </Drawer.Footer>
-        </Drawer.Content>
-      </Drawer>
+          </StackedDrawer.Footer>
+        </StackedDrawer.Content>
+      </StackedDrawer>
 
-      <Drawer open={imageOpen} onOpenChange={setImageOpen}>
-        <Drawer.Content>
-          <Drawer.Header>
-            <Drawer.Title>Insert Image</Drawer.Title>
-          </Drawer.Header>
-          <Drawer.Body className="space-y-4">
+      <StackedDrawer id={IMAGE_DRAWER_ID}>
+        <StackedDrawer.Content>
+          <StackedDrawer.Header>
+            <StackedDrawer.Title>Insert Image</StackedDrawer.Title>
+          </StackedDrawer.Header>
+          <StackedDrawer.Body className="space-y-4">
             <div>
               <Label>Image URL</Label>
               <Input
@@ -271,17 +276,17 @@ export const TipTapEditor = ({
                 </div>
               ) : null
             })()}
-          </Drawer.Body>
-          <Drawer.Footer>
-            <Button variant="secondary" onClick={() => setImageOpen(false)}>
+          </StackedDrawer.Body>
+          <StackedDrawer.Footer>
+            <Button variant="secondary" onClick={() => setIsOpen(IMAGE_DRAWER_ID, false)}>
               Cancel
             </Button>
             <Button onClick={confirmAddImage} disabled={!sanitizeUrl(imageUrl)}>
               Insert
             </Button>
-          </Drawer.Footer>
-        </Drawer.Content>
-      </Drawer>
+          </StackedDrawer.Footer>
+        </StackedDrawer.Content>
+      </StackedDrawer>
     </>
   )
 }

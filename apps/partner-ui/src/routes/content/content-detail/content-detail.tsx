@@ -10,7 +10,6 @@ import {
   IconButton,
   Select,
   Label,
-  Drawer,
   Input,
 } from "@medusajs/ui"
 import {
@@ -25,6 +24,8 @@ import {
   RouteFocusModal,
   useRouteModal,
 } from "../../../components/modals"
+import { StackedDrawer } from "../../../components/modals/stacked-drawer"
+import { useStackedModal } from "../../../components/modals/stacked-modal-provider"
 import { Skeleton } from "../../../components/common/skeleton"
 import { BlockEditor } from "../../../components/block-editor/block-editor"
 import {
@@ -89,7 +90,10 @@ const ContentDetailInner = () => {
   const { id: pageId } = useParams<{ id: string }>()
   const navigate = useNavigate()
   const { handleSuccess } = useRouteModal()
+  const { setIsOpen: setStackedOpen } = useStackedModal()
   const iframeRef = useRef<HTMLIFrameElement>(null)
+
+  const ADD_BLOCK_DRAWER_ID = "add-block"
 
   const { page, isPending: pageLoading } = useContentPage(pageId!)
   const { blocks: initialBlocks, isPending: blocksLoading } = useContentBlocks(pageId!)
@@ -105,7 +109,6 @@ const ContentDetailInner = () => {
   const [selectedBlockId, setSelectedBlockId] = useState<string | null>(null)
   const [saveStatus, setSaveStatus] = useState<"saved" | "saving" | "unsaved">("saved")
   const [iframeReady, setIframeReady] = useState(false)
-  const [addBlockOpen, setAddBlockOpen] = useState(false)
   const [newBlockType, setNewBlockType] = useState<string>("MainContent")
   const [newBlockName, setNewBlockName] = useState("")
 
@@ -164,7 +167,7 @@ const ContentDetailInner = () => {
         }
       }
       if (data.type === "REQUEST_ADD_BLOCK_AT") {
-        setAddBlockOpen(true)
+        setStackedOpen(ADD_BLOCK_DRAWER_ID, true)
       }
     }
     window.addEventListener("message", handleMessage)
@@ -259,7 +262,7 @@ const ContentDetailInner = () => {
         setBlocks((prev) => [...prev, newBlock])
         setSelectedBlockId(newBlock.id)
       }
-      setAddBlockOpen(false)
+      setStackedOpen(ADD_BLOCK_DRAWER_ID, false)
       setNewBlockName("")
       toast.success(`Added "${name}" block`)
       if (iframeRef.current) {
@@ -427,7 +430,7 @@ const ContentDetailInner = () => {
                     (t) => !usedUniqueTypes.has(t)
                   )
                   if (available) setNewBlockType(available)
-                  setAddBlockOpen(true)
+                  setStackedOpen(ADD_BLOCK_DRAWER_ID, true)
                 }}
               >
                 <Plus className="mr-1" />Add
@@ -555,76 +558,78 @@ const ContentDetailInner = () => {
       </RouteFocusModal.Body>
 
       {/* Add Block Drawer */}
-      <Drawer open={addBlockOpen} onOpenChange={setAddBlockOpen}>
-        <Drawer.Header>
-          <Drawer.Title>Add New Block</Drawer.Title>
-        </Drawer.Header>
-        <Drawer.Body className="space-y-4">
-          <div>
-            <Label>Block Type</Label>
-            <Select value={newBlockType} onValueChange={setNewBlockType}>
-              <Select.Trigger>
-                <Select.Value placeholder="Select block type" />
-              </Select.Trigger>
-              <Select.Content>
-                {BLOCK_TYPES.map((t) => {
-                  const alreadyUsed = usedUniqueTypes.has(t)
-                  return (
-                    <Select.Item
-                      key={t}
-                      value={t}
-                      disabled={alreadyUsed}
-                    >
-                      {t}
-                      {alreadyUsed && " (already added)"}
-                    </Select.Item>
-                  )
-                })}
-              </Select.Content>
-            </Select>
-          </div>
-          <div>
-            <Label>Block Name</Label>
-            <Input
-              value={newBlockName}
-              onChange={(e) => setNewBlockName(e.target.value)}
-              placeholder={`My ${newBlockType}`}
-            />
-          </div>
-          {UNIQUE_BLOCK_TYPES.has(newBlockType) && (
-            <div className="rounded-md bg-ui-bg-info p-3 border border-ui-border-base">
-              <Text size="xsmall" className="text-ui-fg-subtle">
-                <strong>{newBlockType}</strong> is a unique block type — only one
-                is allowed per page. Types like Feature, Gallery, Testimonial,
-                Product, Section, and Custom can be added multiple times.
+      <StackedDrawer id={ADD_BLOCK_DRAWER_ID}>
+        <StackedDrawer.Content>
+          <StackedDrawer.Header>
+            <StackedDrawer.Title>Add New Block</StackedDrawer.Title>
+          </StackedDrawer.Header>
+          <StackedDrawer.Body className="space-y-4">
+            <div>
+              <Label>Block Type</Label>
+              <Select value={newBlockType} onValueChange={setNewBlockType}>
+                <Select.Trigger>
+                  <Select.Value placeholder="Select block type" />
+                </Select.Trigger>
+                <Select.Content>
+                  {BLOCK_TYPES.map((t) => {
+                    const alreadyUsed = usedUniqueTypes.has(t)
+                    return (
+                      <Select.Item
+                        key={t}
+                        value={t}
+                        disabled={alreadyUsed}
+                      >
+                        {t}
+                        {alreadyUsed && " (already added)"}
+                      </Select.Item>
+                    )
+                  })}
+                </Select.Content>
+              </Select>
+            </div>
+            <div>
+              <Label>Block Name</Label>
+              <Input
+                value={newBlockName}
+                onChange={(e) => setNewBlockName(e.target.value)}
+                placeholder={`My ${newBlockType}`}
+              />
+            </div>
+            {UNIQUE_BLOCK_TYPES.has(newBlockType) && (
+              <div className="rounded-md bg-ui-bg-info p-3 border border-ui-border-base">
+                <Text size="xsmall" className="text-ui-fg-subtle">
+                  <strong>{newBlockType}</strong> is a unique block type — only one
+                  is allowed per page. Types like Feature, Gallery, Testimonial,
+                  Product, Section, and Custom can be added multiple times.
+                </Text>
+              </div>
+            )}
+            <div className="rounded-md bg-ui-bg-subtle p-3">
+              <Text size="xsmall" className="text-ui-fg-muted">
+                {newBlockType === "MainContent" && "Rich text content block with TipTap editor — perfect for page body text, headings, lists, and images."}
+                {newBlockType === "Hero" && "Large banner section with title, subtitle, background image, and call-to-action."}
+                {newBlockType === "Section" && "Content section with rich text body, optional image, and layout options."}
+                {newBlockType === "Gallery" && "Image gallery grid — add multiple images with alt text."}
+                {newBlockType === "Feature" && "Feature card with title, description, and icon/image."}
+                {newBlockType === "Testimonial" && "Customer testimonial with quote, author, and avatar."}
+                {newBlockType === "Product" && "Featured product showcase with image and link."}
+                {newBlockType === "ContactForm" && "Contact form section with title and description."}
+                {newBlockType === "Header" && "Page header with navigation links."}
+                {newBlockType === "Footer" && "Page footer with text and links."}
+                {newBlockType === "Custom" && "Custom block with full rich text editor."}
               </Text>
             </div>
-          )}
-          <div className="rounded-md bg-ui-bg-subtle p-3">
-            <Text size="xsmall" className="text-ui-fg-muted">
-              {newBlockType === "MainContent" && "Rich text content block with TipTap editor — perfect for page body text, headings, lists, and images."}
-              {newBlockType === "Hero" && "Large banner section with title, subtitle, background image, and call-to-action."}
-              {newBlockType === "Section" && "Content section with rich text body, optional image, and layout options."}
-              {newBlockType === "Gallery" && "Image gallery grid — add multiple images with alt text."}
-              {newBlockType === "Feature" && "Feature card with title, description, and icon/image."}
-              {newBlockType === "Testimonial" && "Customer testimonial with quote, author, and avatar."}
-              {newBlockType === "Product" && "Featured product showcase with image and link."}
-              {newBlockType === "ContactForm" && "Contact form section with title and description."}
-              {newBlockType === "Header" && "Page header with navigation links."}
-              {newBlockType === "Footer" && "Page footer with text and links."}
-              {newBlockType === "Custom" && "Custom block with full rich text editor."}
-            </Text>
-          </div>
-        </Drawer.Body>
-        <Drawer.Footer>
-          <Button variant="secondary" onClick={() => setAddBlockOpen(false)}>
-            Cancel
-          </Button>
-          <Button onClick={handleAddBlock} disabled={isCreatingBlock}>
-            <Plus className="mr-1.5" />Add Block
-          </Button>
-        </Drawer.Footer>
-      </Drawer>
+          </StackedDrawer.Body>
+          <StackedDrawer.Footer>
+            <Button variant="secondary" onClick={() => setStackedOpen(ADD_BLOCK_DRAWER_ID, false)}>
+              Cancel
+            </Button>
+            <Button onClick={handleAddBlock} disabled={isCreatingBlock}>
+              <Plus className="mr-1.5" />Add Block
+            </Button>
+          </StackedDrawer.Footer>
+        </StackedDrawer.Content>
+      </StackedDrawer>
     </>
   )
 }
