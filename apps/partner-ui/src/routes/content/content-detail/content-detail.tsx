@@ -33,11 +33,12 @@ import {
   useUpdateContentPage,
   useDeleteContentPage,
   useCreateContentBlock,
+  useUpdateContentBlock,
+  useReorderBlocks,
   useDeleteContentBlock,
   ContentBlock,
 } from "../../../hooks/api/content"
 import { useStorefrontStatus } from "../../../hooks/api/storefront"
-import { sdk } from "../../../lib/client"
 import { FetchError } from "@medusajs/js-sdk"
 
 const BLOCK_TYPES = [
@@ -96,6 +97,8 @@ const ContentDetailInner = () => {
   const { mutateAsync: updatePage, isPending: isUpdatingPage } = useUpdateContentPage(pageId!)
   const { mutateAsync: deletePage } = useDeleteContentPage(pageId!)
   const { mutateAsync: createBlock, isPending: isCreatingBlock } = useCreateContentBlock(pageId!)
+  const { mutateAsync: updateBlock } = useUpdateContentBlock(pageId!)
+  const { mutateAsync: reorderBlocks } = useReorderBlocks(pageId!)
   const { mutateAsync: deleteBlock } = useDeleteContentBlock(pageId!)
 
   const [blocks, setBlocks] = useState<ContentBlock[]>([])
@@ -135,14 +138,10 @@ const ContentDetailInner = () => {
           )
         )
         setSaveStatus("saving")
-        sdk.client
-          .fetch(
-            `/partners/storefront/pages/${pageId}/blocks/${blockId}`,
-            {
-              method: "PUT",
-              body: { content: { [field]: value } },
-            }
-          )
+        updateBlock({
+          blockId,
+          body: { content: { [field]: value } },
+        })
           .then(() => setSaveStatus("saved"))
           .catch(() => setSaveStatus("unsaved"))
       }
@@ -155,14 +154,7 @@ const ContentDetailInner = () => {
           return reordered.map((b, idx) => ({ ...b, order: idx }))
         })
         setSaveStatus("saving")
-        Promise.all(
-          orderedIds.map((blockId, idx) =>
-            sdk.client.fetch(
-              `/partners/storefront/pages/${pageId}/blocks/${blockId}`,
-              { method: "PUT", body: { order: idx } }
-            )
-          )
-        )
+        reorderBlocks(orderedIds)
           .then(() => setSaveStatus("saved"))
           .catch(() => setSaveStatus("unsaved"))
         if (iframeRef.current) {
@@ -219,10 +211,7 @@ const ContentDetailInner = () => {
       }
 
       try {
-        await sdk.client.fetch(
-          `/partners/storefront/pages/${pageId}/blocks/${blockId}`,
-          { method: "PUT", body: updates }
-        )
+        await updateBlock({ blockId, body: updates })
         setSaveStatus("saved")
       } catch {
         setSaveStatus("unsaved")
@@ -524,13 +513,9 @@ const ContentDetailInner = () => {
                 if (idx <= 0) return
                 const reordered = [...blocks]
                 ;[reordered[idx - 1], reordered[idx]] = [reordered[idx], reordered[idx - 1]]
+                const orderedIds = reordered.map((b) => b.id)
                 setBlocks(reordered.map((b, i) => ({ ...b, order: i })))
-                reordered.forEach((b, i) => {
-                  sdk.client.fetch(
-                    `/partners/storefront/pages/${pageId}/blocks/${b.id}`,
-                    { method: "PUT", body: { order: i } }
-                  )
-                })
+                reorderBlocks(orderedIds)
                 if (iframeRef.current) {
                   setTimeout(() => {
                     if (iframeRef.current) iframeRef.current.src = iframeRef.current.src
@@ -542,13 +527,9 @@ const ContentDetailInner = () => {
                 if (idx < 0 || idx >= blocks.length - 1) return
                 const reordered = [...blocks]
                 ;[reordered[idx + 1], reordered[idx]] = [reordered[idx], reordered[idx + 1]]
+                const orderedIds = reordered.map((b) => b.id)
                 setBlocks(reordered.map((b, i) => ({ ...b, order: i })))
-                reordered.forEach((b, i) => {
-                  sdk.client.fetch(
-                    `/partners/storefront/pages/${pageId}/blocks/${b.id}`,
-                    { method: "PUT", body: { order: i } }
-                  )
-                })
+                reorderBlocks(orderedIds)
                 if (iframeRef.current) {
                   setTimeout(() => {
                     if (iframeRef.current) iframeRef.current.src = iframeRef.current.src
