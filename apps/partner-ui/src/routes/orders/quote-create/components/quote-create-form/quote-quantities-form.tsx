@@ -24,7 +24,7 @@ const isProductRow = (row: Row): row is HttpTypes.AdminProduct =>
 const columnHelper = createDataGridHelper<Row, QuoteCreateSchemaType>()
 
 /**
- * Step 3 — how many of each variant.
+ * Step 3 — how many of each variant, and at what trade price.
  *
  * 🔴 The weight column is not decoration. Freight is quoted against the summed
  * basket weight, and platform-wide most variants carry no weight at either
@@ -97,6 +97,53 @@ const useQuoteGridColumns = (): ColumnDef<Row>[] => {
               )}
             </DataGrid.ReadonlyCell>
           )
+        },
+      }),
+      /**
+       * The trade price (#1446). Two columns and not one, because the two
+       * forms are genuinely different questions — "take 15% off the tier" and
+       * "the price is 19,000" — and collapsing them into one field with a mode
+       * toggle makes the grid guess which the partner meant.
+       *
+       * 🔴 The override is in the STORE's default currency, and the header
+       * says so. A partner typing 19000 into a USD quote means rupees; the
+       * conversion happens at mint, at a rate the quote records. A column that
+       * did not name the currency would be read as the buyer's.
+       */
+      columnHelper.column({
+        id: "discount_percent",
+        name: t("quotes.fields.discountPercent", "Discount %"),
+        header: t("quotes.fields.discountPercent", "Discount %"),
+        field: (context) => {
+          const entity = context.row.original
+          if (isProductRow(entity)) return null
+          return `discounts.${entity.id}` as const
+        },
+        type: "number",
+        cell: (context) => {
+          const entity = context.row.original
+          if (isProductRow(entity)) {
+            return <DataGrid.ReadonlyCell context={context} />
+          }
+          return <DataGrid.NumberCell context={context} min={0} max={100} />
+        },
+      }),
+      columnHelper.column({
+        id: "override_unit_amount",
+        name: t("quotes.fields.overrideUnitAmount", "Unit price"),
+        header: t("quotes.fields.overrideUnitAmount", "Unit price (store currency)"),
+        field: (context) => {
+          const entity = context.row.original
+          if (isProductRow(entity)) return null
+          return `overrides.${entity.id}` as const
+        },
+        type: "number",
+        cell: (context) => {
+          const entity = context.row.original
+          if (isProductRow(entity)) {
+            return <DataGrid.ReadonlyCell context={context} />
+          }
+          return <DataGrid.NumberCell context={context} min={0} />
         },
       }),
       columnHelper.column({

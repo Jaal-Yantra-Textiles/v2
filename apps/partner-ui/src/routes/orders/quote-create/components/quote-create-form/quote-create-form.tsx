@@ -84,6 +84,8 @@ export const QuoteCreateForm = ({
       ttl_days: 14,
       product_ids: [],
       quantities: {},
+      discounts: {},
+      overrides: {},
     },
     resolver: zodResolver(QuoteCreateSchema),
   })
@@ -109,11 +111,28 @@ export const QuoteCreateForm = ({
      */
     const lines = Object.entries(data.quantities ?? {})
       .filter(([, qty]) => typeof qty === "number" && qty > 0)
-      .map(([variant_id, qty], index) => ({
-        variant_id,
-        quantity: qty as number,
-        position: index,
-      }))
+      .map(([variant_id, qty], index) => {
+        /**
+         * A blank override cell is "no override", never a zero (#1446). Sent
+         * as 0 it would ask the backend to mint an ACTIVE price of zero — it
+         * refuses, but the refusal would arrive as a failed mint rather than
+         * as the no-op the partner intended. Dropped here, and only a real
+         * positive number is sent.
+         */
+        const discount = data.discounts?.[variant_id]
+        const override = data.overrides?.[variant_id]
+        return {
+          variant_id,
+          quantity: qty as number,
+          position: index,
+          ...(typeof discount === "number" && discount > 0
+            ? { discount_percent: discount }
+            : {}),
+          ...(typeof override === "number" && override > 0
+            ? { override_unit_amount: override }
+            : {}),
+        }
+      })
 
     if (!lines.length) {
       toast.error(

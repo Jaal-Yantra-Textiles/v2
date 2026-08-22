@@ -22,7 +22,22 @@ import {
 import { MintedPanel } from "./minted-panel"
 import { ReadinessPanel } from "./readiness-panel"
 
-type Line = { variant_id: string; quantity: number }
+/**
+ * `discount_percent` and `override_unit_amount` are the trade price (#1446),
+ * and they are mutually exclusive per line — the backend refuses both together
+ * rather than ranking them.
+ *
+ * 🔑 The override is a unit price in the PARTNER STORE's default currency, not
+ * the quote's. The conversion happens once, at mint, at a rate the quote
+ * records; the label says so, because a number typed into a USD quote would
+ * otherwise be read as dollars.
+ */
+type Line = {
+  variant_id: string
+  quantity: number
+  discount_percent?: number | null
+  override_unit_amount?: number | null
+}
 
 /**
  * Mint a quote on a partner's behalf (#1419, stepped in #1444).
@@ -209,7 +224,17 @@ export const MintQuoteForm = () => {
   }
 
   const addLine = () =>
-    setLines((prev) => [...prev, { variant_id: "", quantity: 1 }])
+    setLines((prev) => [
+      ...prev,
+      {
+        variant_id: "",
+        quantity: 1,
+        // Undefined, never 0 — a blank field is "no override", and a 0 would
+        // ask the backend to mint an ACTIVE price of zero, which it refuses.
+        discount_percent: undefined,
+        override_unit_amount: undefined,
+      },
+    ])
 
   const isLast = tab === Tab.REVIEW
 
@@ -354,6 +379,17 @@ export const MintQuoteForm = () => {
                 quoted as ONE consignment, so freight is charged once.
               </Text>
             ) : null}
+            {/* 🔴 Persistent, NOT part of the empty state: this is the note
+                that matters while someone is typing into the fields, and it
+                was briefly rendered only when there were no lines to type
+                into. A number entered in a USD quote is read in the partner
+                store's currency, and a field that does not say so is read as
+                the buyer's. */}
+            <Text size="small" className="text-ui-fg-subtle">
+              Leave the trade-price fields blank to quote at the catalog price.
+              A unit price is read in the partner store's own currency and
+              converted at mint; a discount is a percentage off the tier.
+            </Text>
             {lines.map((line, i) => (
               <div key={i} className="flex items-end gap-3">
                 <div className="flex flex-1 flex-col gap-y-2">
@@ -379,16 +415,75 @@ export const MintQuoteForm = () => {
                     </Select.Content>
                   </Select>
                 </div>
-                <div className="w-28">
+                <div className="w-24">
                   <Input
                     type="number"
                     min={1}
+                    placeholder="Qty"
                     value={line.quantity}
                     onChange={(e) =>
                       setLines((prev) =>
                         prev.map((l, idx) =>
                           idx === i
                             ? { ...l, quantity: Number(e.target.value) }
+                            : l
+                        )
+                      )
+                    }
+                  />
+                </div>
+                {/* An empty string must clear back to undefined rather than
+                    becoming 0: `Number("")` is 0, and a 0 here is a request to
+                    mint a free line. */}
+                <div className="w-24">
+                  <Input
+                    type="number"
+                    min={0}
+                    max={100}
+                    placeholder="Disc %"
+                    disabled={
+                      line.override_unit_amount !== null &&
+                      line.override_unit_amount !== undefined
+                    }
+                    value={line.discount_percent ?? ""}
+                    onChange={(e) =>
+                      setLines((prev) =>
+                        prev.map((l, idx) =>
+                          idx === i
+                            ? {
+                                ...l,
+                                discount_percent:
+                                  e.target.value === ""
+                                    ? undefined
+                                    : Number(e.target.value),
+                              }
+                            : l
+                        )
+                      )
+                    }
+                  />
+                </div>
+                <div className="w-32">
+                  <Input
+                    type="number"
+                    min={0}
+                    placeholder="Unit price"
+                    disabled={
+                      line.discount_percent !== null &&
+                      line.discount_percent !== undefined
+                    }
+                    value={line.override_unit_amount ?? ""}
+                    onChange={(e) =>
+                      setLines((prev) =>
+                        prev.map((l, idx) =>
+                          idx === i
+                            ? {
+                                ...l,
+                                override_unit_amount:
+                                  e.target.value === ""
+                                    ? undefined
+                                    : Number(e.target.value),
+                              }
                             : l
                         )
                       )
