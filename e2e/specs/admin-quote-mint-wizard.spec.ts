@@ -8,23 +8,23 @@ const SEED_FILE = path.resolve(__dirname, "../../apps/backend/.e2e-seed.json")
  * The admin mint wizard, driven through a browser (#1439 S4 / #1446).
  *
  * 🔑 Why this file exists: the wizard shipped in #1463 and had never been
- * opened in a browser, and #1446 has just added two fields to it that decide
- * what a buyer is charged. tsc sees a component that compiles; only a render
- * shows a step that will not advance, a hook called outside its provider
- * (#1352), or a disabled-state that never actually disables.
+ * opened in a browser. tsc sees a component that compiles; only a render shows
+ * a step that will not advance, a hook called outside its provider (#1352), or
+ * a modal body that does not scroll.
  *
  * ## What this deliberately does NOT do
  *
  * It never completes a mint. A mint needs a partner whose store has a priced
- * product on a quotable freight lane — the preflight (#1462) refuses anything
- * less, correctly — and standing that world up in the e2e seed would duplicate
+ * product on a quotable freight lane — the preflight refuses anything less,
+ * correctly — and standing that world up in the e2e seed would duplicate
  * `integration-tests/helpers/setup-quote-fixture.ts`, which already mints for
  * real against a container on every run. The arithmetic, the price-list rows
  * and the refusals are covered there.
  *
- * What is covered HERE is the half that suite cannot see: the form. Whether
- * the steps gate, whether the two trade-price fields exclude each other, and
- * whether clearing one leaves it EMPTY rather than zero.
+ * What is covered HERE is the half that suite cannot see: that it opens as a
+ * modal at all, that the steps gate, and that picking a region INFERS the
+ * currency instead of leaving two free-text boxes that can contradict each
+ * other.
  */
 test.describe("Admin mint-quote wizard (#1446)", () => {
   let seed: { email: string; password: string; parkedRunFreshPartnerName: string }
@@ -52,85 +52,79 @@ test.describe("Admin mint-quote wizard (#1446)", () => {
     await page.waitForURL(/\/app\/(?!login)/, { timeout: 15000 })
   }
 
-  /** Partner → Buyer → Lines, which is the only way to reach the fields. */
-  const openLinesStep = async (page: any) => {
-    await page.goto("/app/quotes/create")
-    await expect(page.getByRole("heading", { name: "Mint a quote" })).toBeVisible({
+  const openWizard = async (page: any) => {
+    await page.goto("/app/quotes")
+    await expect(page.getByRole("heading", { name: "Quotes" })).toBeVisible({
       timeout: 30000,
     })
-
-    const cont = page.getByRole("button", { name: "Continue" })
-
-    // 🔑 Step one gates step two. Choosing variants before a partner would let
-    // an admin build a basket that is then rejected wholesale, so Continue is
-    // dead until a partner is picked.
-    await expect(cont).toBeDisabled()
-
-    await page.getByText("Select a partner").click()
-    await page.getByRole("option", { name: seed.parkedRunFreshPartnerName }).click()
-    await expect(cont).toBeEnabled()
-    await cont.click()
-
-    await page.getByPlaceholder("procurement@example.com").fill("e2e-buyer@jyt.test")
-    await expect(cont).toBeEnabled()
-    await cont.click()
-
-    await expect(page.getByRole("button", { name: "Add line" })).toBeVisible({
-      timeout: 15000,
-    })
+    await page.getByRole("button", { name: "Mint quote" }).click()
+    // 🔑 A dialog, not a page. It shipped as a plain Container — the one
+    // create flow that navigated away from wherever the operator was.
+    await expect(page.getByRole("dialog")).toBeVisible({ timeout: 30000 })
   }
 
-  test("gates each step, and the trade-price fields appear on a line", async ({
+  test("opens as a focus modal with all four steps", async ({ page }) => {
+    await login(page)
+    await openWizard(page)
+
+    for (const step of ["Partner", "Buyer", "Products", "Quantities"]) {
+      await expect(page.getByRole("tab", { name: step })).toBeVisible()
+    }
+  })
+
+  test("will not leave the Partner step until a partner is chosen", async ({
     page,
   }) => {
     await login(page)
-    await openLinesStep(page)
+    await openWizard(page)
 
-    // An empty basket cannot advance: a quote with no lines has nothing to price.
-    await expect(page.getByRole("button", { name: "Continue" })).toBeDisabled()
+    // Every quote is partner-scoped: the partner decides which catalogue the
+    // variants come from and which location freight is quoted from, so
+    // choosing products first would build a basket rejected wholesale.
+    await page.getByRole("button", { name: "Continue" }).click()
+    await expect(page.getByRole("tab", { name: "Partner" })).toHaveAttribute(
+      "aria-selected",
+      "true"
+    )
 
-    await page.getByRole("button", { name: "Add line" }).click()
+    await page.getByText("Select a partner").click()
+    await page.getByRole("option", { name: seed.parkedRunFreshPartnerName }).click()
+    await page.getByRole("button", { name: "Continue" }).click()
 
-    await expect(page.getByPlaceholder("Qty")).toBeVisible()
-    await expect(page.getByPlaceholder("Disc %")).toBeVisible()
-    await expect(page.getByPlaceholder("Unit price")).toBeVisible()
-
-    // 🔴 The copy must name whose currency the unit price is in. A number typed
-    // into a USD quote means the partner store's currency, and a field that did
-    // not say so would be read as the buyer's.
-    await expect(
-      page.getByText("read in the partner store's own currency", { exact: false })
-    ).toBeVisible()
+    await expect(page.getByRole("tab", { name: "Buyer" })).toHaveAttribute(
+      "aria-selected",
+      "true",
+      { timeout: 15000 }
+    )
   })
 
-  test("🔑 the two trade-price forms exclude each other", async ({ page }) => {
+  test("🔑 picking a region infers the currency and narrows the destinations", async ({
+    page,
+  }) => {
     await login(page)
-    await openLinesStep(page)
-    await page.getByRole("button", { name: "Add line" }).click()
+    await openWizard(page)
 
-    const discount = page.getByPlaceholder("Disc %")
-    const unitPrice = page.getByPlaceholder("Unit price")
+    await page.getByText("Select a partner").click()
+    await page.getByRole("option", { name: seed.parkedRunFreshPartnerName }).click()
+    await page.getByRole("button", { name: "Continue" }).click()
+    await expect(page.getByText("Buyer", { exact: true }).first()).toBeVisible({
+      timeout: 15000,
+    })
 
-    // Both live until one is used — "which wins" is a question that must never
-    // arise, so the UI removes the choice rather than ranking the answers.
-    await expect(discount).toBeEnabled()
-    await expect(unitPrice).toBeEnabled()
+    // Currency and destination used to be two free-text boxes, which let an
+    // operator quote INR to a GB address — a combination no region supports.
+    const currency = page.locator('input[name="currency_code"]')
+    await expect(currency).toBeDisabled()
+    await expect(currency).toHaveValue("")
 
-    await discount.fill("15")
-    await expect(unitPrice).toBeDisabled()
+    // The country list is dead until a region says which countries exist.
+    await expect(page.getByText("Pick a region first")).toBeVisible()
 
-    // 🔴 Clearing returns the field to EMPTY, not 0. `Number("")` is 0, and a
-    // zero is a request to mint a free line — the backend refuses it, but the
-    // refusal would arrive as a failed mint rather than the no-op intended.
-    await discount.fill("")
-    await expect(discount).toHaveValue("")
-    await expect(unitPrice).toBeEnabled()
+    await page.getByText("Select a region").click()
+    await page.getByRole("option").first().click()
 
-    // And the same in the other direction.
-    await unitPrice.fill("19000")
-    await expect(discount).toBeDisabled()
-    await unitPrice.fill("")
-    await expect(unitPrice).toHaveValue("")
-    await expect(discount).toBeEnabled()
+    // The region wrote the currency; nobody typed it.
+    await expect(currency).not.toHaveValue("")
+    await expect(page.getByText("Pick a region first")).toBeHidden()
   })
 })
