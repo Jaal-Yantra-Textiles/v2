@@ -120,6 +120,11 @@ const ContentDetailInner = () => {
       if (!data || typeof data !== "object" || !("type" in data)) return
       if (data.type === "VISUAL_EDITOR_READY") setIframeReady(true)
       if (data.type === "BLOCK_CLICKED") setSelectedBlockId(data.blockId)
+      if (data.type === "BLOCK_PREVIEW_RELOAD_NEEDED" && iframeRef.current) {
+        setTimeout(() => {
+          if (iframeRef.current) iframeRef.current.src = iframeRef.current.src
+        }, 200)
+      }
     }
     window.addEventListener("message", handleMessage)
     return () => window.removeEventListener("message", handleMessage)
