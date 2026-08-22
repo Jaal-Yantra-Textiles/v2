@@ -33,11 +33,13 @@ import {
   useUpdateContentPage,
   useDeleteContentPage,
   useCreateContentBlock,
+  useUpdateContentBlock,
+  useReorderBlocks,
   useDeleteContentBlock,
   ContentBlock,
 } from "../../../hooks/api/content"
 import { useStorefrontStatus } from "../../../hooks/api/storefront"
-import { sdk } from "../../../lib/client"
+import { FetchError } from "@medusajs/js-sdk"
 
 const BLOCK_TYPES = [
   "Hero",
@@ -52,6 +54,14 @@ const BLOCK_TYPES = [
   "Footer",
   "Custom",
 ] as const
+
+const UNIQUE_BLOCK_TYPES = new Set([
+  "Hero",
+  "Header",
+  "Footer",
+  "MainContent",
+  "ContactForm",
+])
 
 const DEFAULT_CONTENT_FOR_TYPE: Record<string, Record<string, unknown>> = {
   Hero: { title: "New Hero", subtitle: "", align: "center" },
@@ -87,6 +97,8 @@ const ContentDetailInner = () => {
   const { mutateAsync: updatePage, isPending: isUpdatingPage } = useUpdateContentPage(pageId!)
   const { mutateAsync: deletePage } = useDeleteContentPage(pageId!)
   const { mutateAsync: createBlock, isPending: isCreatingBlock } = useCreateContentBlock(pageId!)
+  const { mutateAsync: updateBlock } = useUpdateContentBlock(pageId!)
+  const { mutateAsync: reorderBlocks } = useReorderBlocks(pageId!)
   const { mutateAsync: deleteBlock } = useDeleteContentBlock(pageId!)
 
   const [blocks, setBlocks] = useState<ContentBlock[]>([])
@@ -111,15 +123,68 @@ const ContentDetailInner = () => {
       if (!data || typeof data !== "object" || !("type" in data)) return
       if (data.type === "VISUAL_EDITOR_READY") setIframeReady(true)
       if (data.type === "BLOCK_CLICKED") setSelectedBlockId(data.blockId)
+      if (data.type === "BLOCK_PREVIEW_RELOAD_NEEDED" && iframeRef.current) {
+        setTimeout(() => {
+          if (iframeRef.current) iframeRef.current.src = iframeRef.current.src
+        }, 200)
+      }
+      if (data.type === "BLOCK_FIELD_EDITED") {
+        const { blockId, field, value } = data
+        setBlocks((prev) =>
+          prev.map((b) =>
+            b.id === blockId
+              ? { ...b, content: { ...b.content, [field]: value } }
+              : b
+          )
+        )
+        setSaveStatus("saving")
+        updateBlock({
+          blockId,
+          body: { content: { [field]: value } },
+        })
+          .then(() => setSaveStatus("saved"))
+          .catch(() => setSaveStatus("unsaved"))
+      }
+      if (data.type === "BLOCK_REORDERED") {
+        const { orderedIds } = data as { orderedIds: string[] }
+        setBlocks((prev) => {
+          const reordered = orderedIds
+            .map((id) => prev.find((b) => b.id === id))
+            .filter(Boolean) as ContentBlock[]
+          return reordered.map((b, idx) => ({ ...b, order: idx }))
+        })
+        setSaveStatus("saving")
+        reorderBlocks(orderedIds)
+          .then(() => setSaveStatus("saved"))
+          .catch(() => setSaveStatus("unsaved"))
+        if (iframeRef.current) {
+          setTimeout(() => {
+            if (iframeRef.current) iframeRef.current.src = iframeRef.current.src
+          }, 300)
+        }
+      }
+      if (data.type === "REQUEST_ADD_BLOCK_AT") {
+        setAddBlockOpen(true)
+      }
     }
     window.addEventListener("message", handleMessage)
     return () => window.removeEventListener("message", handleMessage)
-  }, [])
+  }, [pageId])
 
   useEffect(() => {
     if (iframeReady && selectedBlockId && iframeRef.current?.contentWindow) {
       iframeRef.current.contentWindow.postMessage(
         { type: "SELECT_BLOCK", blockId: selectedBlockId },
+        "*"
+      )
+      iframeRef.current.contentWindow.postMessage(
+        { type: "ENABLE_INLINE_EDITING", blockId: selectedBlockId },
+        "*"
+      )
+    }
+    if (iframeReady && !selectedBlockId && iframeRef.current?.contentWindow) {
+      iframeRef.current.contentWindow.postMessage(
+        { type: "DISABLE_INLINE_EDITING" },
         "*"
       )
     }
@@ -146,10 +211,7 @@ const ContentDetailInner = () => {
       }
 
       try {
-        await sdk.client.fetch(
-          `/partners/storefront/pages/${pageId}/blocks/${blockId}`,
-          { method: "PUT", body: updates }
-        )
+        await updateBlock({ blockId, body: updates })
         setSaveStatus("saved")
       } catch {
         setSaveStatus("unsaved")
@@ -175,6 +237,12 @@ const ContentDetailInner = () => {
     [blocks, selectedBlockId, deleteBlock, initialBlocks]
   )
 
+  const usedUniqueTypes = new Set(
+    blocks
+      .filter((b) => UNIQUE_BLOCK_TYPES.has(b.type))
+      .map((b) => b.type)
+  )
+
   const handleAddBlock = useCallback(async () => {
     const name = newBlockName.trim() || newBlockType
     const maxOrder = blocks.reduce((max, b) => Math.max(max, b.order), -1)
@@ -194,8 +262,31 @@ const ContentDetailInner = () => {
       setAddBlockOpen(false)
       setNewBlockName("")
       toast.success(`Added "${name}" block`)
-    } catch {
-      toast.error("Failed to add block")
+      if (iframeRef.current) {
+        setTimeout(() => {
+          if (iframeRef.current) iframeRef.current.src = iframeRef.current.src
+        }, 300)
+      }
+    } catch (err: unknown) {
+      let msg = "Failed to add block"
+      if (err instanceof FetchError) {
+        try {
+          const body = (err as any).json ?? await err.json?.().catch(() => null)
+          const firstError = body?.errors?.[0]?.error
+          if (firstError && typeof firstError === "string") {
+            if (firstError.includes("unique") || firstError.includes("already exists")) {
+              msg = `A ${newBlockType} block already exists on this page. Only one ${newBlockType} is allowed per page.`
+            } else {
+              msg = firstError
+            }
+          } else if (typeof (err as any).message === "string" && (err as any).message.includes("unique")) {
+            msg = `A ${newBlockType} block already exists on this page. Only one ${newBlockType} is allowed per page.`
+          }
+        } catch {}
+      } else if (err instanceof Error && err.message) {
+        msg = err.message
+      }
+      toast.error(msg)
     }
   }, [newBlockName, newBlockType, blocks, createBlock])
 
@@ -331,7 +422,13 @@ const ContentDetailInner = () => {
               <Button
                 size="small"
                 variant="secondary"
-                onClick={() => setAddBlockOpen(true)}
+                onClick={() => {
+                  const available = BLOCK_TYPES.find(
+                    (t) => !usedUniqueTypes.has(t)
+                  )
+                  if (available) setNewBlockType(available)
+                  setAddBlockOpen(true)
+                }}
               >
                 <Plus className="mr-1" />Add
               </Button>
@@ -386,6 +483,61 @@ const ContentDetailInner = () => {
               block={selectedBlock}
               onUpdate={handleBlockUpdate}
               onDelete={handleDeleteBlock}
+              onDuplicate={async (blockId) => {
+                const block = blocks.find((b) => b.id === blockId)
+                if (!block) return
+                const maxOrder = blocks.reduce((max, b) => Math.max(max, b.order), -1)
+                try {
+                  const result = await createBlock({
+                    name: `${block.name} (copy)`,
+                    type: block.type,
+                    content: { ...block.content },
+                    settings: block.settings,
+                    order: maxOrder + 1,
+                    status: "Active",
+                  })
+                  const newBlock = result?.blocks?.[0]
+                  if (newBlock) setBlocks((prev) => [...prev, newBlock])
+                  toast.success(`Duplicated "${block.name}"`)
+                  if (iframeRef.current) {
+                    setTimeout(() => {
+                      if (iframeRef.current) iframeRef.current.src = iframeRef.current.src
+                    }, 300)
+                  }
+                } catch {
+                  toast.error("Failed to duplicate block")
+                }
+              }}
+              onMoveUp={(blockId) => {
+                const idx = blocks.findIndex((b) => b.id === blockId)
+                if (idx <= 0) return
+                const reordered = [...blocks]
+                ;[reordered[idx - 1], reordered[idx]] = [reordered[idx], reordered[idx - 1]]
+                const orderedIds = reordered.map((b) => b.id)
+                setBlocks(reordered.map((b, i) => ({ ...b, order: i })))
+                reorderBlocks(orderedIds)
+                if (iframeRef.current) {
+                  setTimeout(() => {
+                    if (iframeRef.current) iframeRef.current.src = iframeRef.current.src
+                  }, 300)
+                }
+              }}
+              onMoveDown={(blockId) => {
+                const idx = blocks.findIndex((b) => b.id === blockId)
+                if (idx < 0 || idx >= blocks.length - 1) return
+                const reordered = [...blocks]
+                ;[reordered[idx + 1], reordered[idx]] = [reordered[idx], reordered[idx + 1]]
+                const orderedIds = reordered.map((b) => b.id)
+                setBlocks(reordered.map((b, i) => ({ ...b, order: i })))
+                reorderBlocks(orderedIds)
+                if (iframeRef.current) {
+                  setTimeout(() => {
+                    if (iframeRef.current) iframeRef.current.src = iframeRef.current.src
+                  }, 300)
+                }
+              }}
+              canMoveUp={blocks.findIndex((b) => b.id === selectedBlock.id) > 0}
+              canMoveDown={blocks.findIndex((b) => b.id === selectedBlock.id) < blocks.length - 1}
               saveStatus={saveStatus}
             />
           ) : (
@@ -415,9 +567,19 @@ const ContentDetailInner = () => {
                 <Select.Value placeholder="Select block type" />
               </Select.Trigger>
               <Select.Content>
-                {BLOCK_TYPES.map((t) => (
-                  <Select.Item key={t} value={t}>{t}</Select.Item>
-                ))}
+                {BLOCK_TYPES.map((t) => {
+                  const alreadyUsed = usedUniqueTypes.has(t)
+                  return (
+                    <Select.Item
+                      key={t}
+                      value={t}
+                      disabled={alreadyUsed}
+                    >
+                      {t}
+                      {alreadyUsed && " (already added)"}
+                    </Select.Item>
+                  )
+                })}
               </Select.Content>
             </Select>
           </div>
@@ -429,6 +591,15 @@ const ContentDetailInner = () => {
               placeholder={`My ${newBlockType}`}
             />
           </div>
+          {UNIQUE_BLOCK_TYPES.has(newBlockType) && (
+            <div className="rounded-md bg-ui-bg-info p-3 border border-ui-border-base">
+              <Text size="xsmall" className="text-ui-fg-subtle">
+                <strong>{newBlockType}</strong> is a unique block type — only one
+                is allowed per page. Types like Feature, Gallery, Testimonial,
+                Product, Section, and Custom can be added multiple times.
+              </Text>
+            </div>
+          )}
           <div className="rounded-md bg-ui-bg-subtle p-3">
             <Text size="xsmall" className="text-ui-fg-muted">
               {newBlockType === "MainContent" && "Rich text content block with TipTap editor — perfect for page body text, headings, lists, and images."}

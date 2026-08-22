@@ -774,6 +774,136 @@ export async function seedShipmentGatePartner(
 }
 
 /**
+ * Seed a partner + website + page + blocks for the visual block editor e2e spec.
+ * Mirrors seedShipmentGatePartner for auth, then creates a website with a page
+ * containing a Hero block and a Feature block so the editor has content to render.
+ */
+async function seedContentEditorPartner(
+  container: any
+): Promise<{
+  email: string
+  password: string
+  partnerId: string
+  pageId: string
+  websiteId: string
+}> {
+  const authModule = container.resolve(Modules.AUTH)
+  const link: any = container.resolve(ContainerRegistrationKeys.LINK)
+  const partnerModule: any = container.resolve("partner")
+  const websiteService = container.resolve("websites")
+  const storeModule: any = container.resolve(Modules.STORE)
+
+  const email = `e2e-content-${Date.now()}@jyt.test`
+
+  // Partner
+  const partner = await partnerModule.createPartners({
+    name: "E2E Content Partner",
+    handle: `e2e-content-${Date.now()}`,
+    status: "active",
+    is_verified: true,
+  })
+  const partnerId = Array.isArray(partner) ? partner[0].id : partner.id
+
+  await partnerModule.createPartnerAdmins({
+    email,
+    first_name: "Content",
+    last_name: "Editor",
+    role: "admin",
+    partner_id: partnerId,
+  })
+
+  // Auth identity + verification
+  const hashConfig = { logN: 15, r: 8, p: 1 }
+  const passwordHash = await Scrypt.kdf(SEED_PASSWORD, hashConfig)
+  const authIdentity: any = await authModule.createAuthIdentities({
+    provider_identities: [
+      {
+        provider: "emailpass",
+        entity_id: email,
+        provider_metadata: { password: passwordHash.toString("base64") },
+      },
+    ],
+    app_metadata: { partner_id: partnerId },
+  })
+  const authIdentityId = Array.isArray(authIdentity)
+    ? authIdentity[0].id
+    : authIdentity.id
+
+  const now = new Date()
+  await authModule.createAuthVerifications([
+    {
+      auth_identity_id: authIdentityId,
+      entity_id: email,
+      entity_type: "email",
+      code_provider: "emailpass",
+      requested_at: now,
+      verified_at: now,
+    },
+  ])
+
+  // Store
+  const createdStore: any = await storeModule.createStores({
+    name: `E2E Content Store ${Date.now()}`,
+  })
+  const storeId = Array.isArray(createdStore)
+    ? createdStore[0].id
+    : createdStore.id
+  await link.create({
+    partner: { partner_id: partnerId },
+    store: { store_id: storeId },
+  })
+
+  // Website
+  const domain = `e2e-content-${Date.now()}.jyt.test`
+  const website = await websiteService.createWebsites({
+    domain,
+    name: "E2E Content Website",
+    status: "Active",
+    primary_language: "en",
+  })
+
+  // Link partner to website
+  await partnerModule.updatePartners({
+    id: partnerId,
+    storefront_domain: domain,
+    website_id: website.id,
+  })
+
+  // Page
+  const pageService = container.resolve("websites")
+  const page = await pageService.createPages({
+    website_id: website.id,
+    title: "E2E Content Page",
+    slug: "e2e-content-page",
+    content: "Test content for visual editor",
+    page_type: "Custom",
+    status: "Published",
+  })
+
+  // Seed blocks: one Hero (unique) + one Feature (repeatable)
+  await websiteService.createBlocks({
+    page_id: page.id,
+    name: "Hero Section",
+    type: "Hero",
+    content: { title: "Welcome to our store", subtitle: "Handcrafted textiles" },
+    settings: { backgroundColor: "#f5f5f5", padding: "40", max_width: "wide" },
+    status: "Active",
+    order: 0,
+  })
+  await websiteService.createBlocks({
+    page_id: page.id,
+    name: "Feature Highlight",
+    type: "Feature",
+    content: { title: "Natural fibers", description: "100% organic cotton" },
+    settings: {},
+    status: "Active",
+    order: 1,
+  })
+
+  return { email, password: SEED_PASSWORD, partnerId, pageId: page.id, websiteId: website.id }
+}
+
+/**
  * One CRM contact with a prior inbound activity, for the contact-detail spec.
  *
  * The CRM lives on a Hyperbee node, not Postgres — the e2e run uses the
@@ -954,6 +1084,9 @@ export default async function e2eSeed({ container }: ExecArgs) {
   logger.info("E2E seed: creating the CRM contact + one logged activity...")
   const crmContact = await seedCrmContact(container)
 
+  logger.info("E2E seed: creating content editor partner + website + page + blocks...")
+  const contentEditor = await seedContentEditorPartner(container)
+
   const seedData = {
     email,
     password: SEED_PASSWORD,
@@ -988,6 +1121,13 @@ export default async function e2eSeed({ container }: ExecArgs) {
     crmPersonId: crmContact.personId,
     crmPersonName: crmContact.personName,
     crmActivityBody: crmContact.activityBody,
+    // Visual block editor fixture — consumed by visual-block-editor.spec.ts
+    // (@partnerui, local only).
+    contentEditorEmail: contentEditor.email,
+    contentEditorPassword: contentEditor.password,
+    contentEditorPartnerId: contentEditor.partnerId,
+    contentEditorPageId: contentEditor.pageId,
+    contentEditorWebsiteId: contentEditor.websiteId,
     // #1363 per-assignment material allocation — consumed by
     // production-run-material-allocation.spec.ts (admin, CI). SINGLE-USE like
     // every other run fixture: the spec approves the run, and an approved run

@@ -230,9 +230,52 @@ export const useCreateContentBlock = (pageId: string) => {
       order?: number
       status?: string
     }) =>
-      sdk.client.fetch<{ blocks: ContentBlock[] }>(
+      sdk.client.fetch<{
+        blocks: ContentBlock[]
+        errors?: Array<{ type: string; page_id: string; error: string }>
+      }>(
         `/partners/storefront/pages/${pageId}/blocks`,
         { method: "POST", body: { blocks: [payload] } }
+      ),
+    onSuccess: () => {
+      queryClient.invalidateQueries({
+        queryKey: contentQueryKeys.list({ type: "blocks", pageId }),
+      })
+    },
+  })
+}
+
+export const useUpdateContentBlock = (pageId: string) => {
+  return useMutation({
+    mutationFn: ({
+      blockId,
+      body,
+    }: {
+      blockId: string
+      body: Partial<ContentBlock>
+    }) =>
+      sdk.client.fetch<{ block: ContentBlock }>(
+        `/partners/storefront/pages/${pageId}/blocks/${blockId}`,
+        { method: "PUT", body }
+      ),
+    onSuccess: () => {
+      queryClient.invalidateQueries({
+        queryKey: contentQueryKeys.list({ type: "blocks", pageId }),
+      })
+    },
+  })
+}
+
+export const useReorderBlocks = (pageId: string) => {
+  return useMutation({
+    mutationFn: (orderedIds: string[]) =>
+      Promise.all(
+        orderedIds.map((blockId, idx) =>
+          sdk.client.fetch(
+            `/partners/storefront/pages/${pageId}/blocks/${blockId}`,
+            { method: "PUT", body: { order: idx } }
+          )
+        )
       ),
     onSuccess: () => {
       queryClient.invalidateQueries({
