@@ -38,9 +38,31 @@ export type QuoteMoney = {
    */
   tax_total: number | null
   /**
-   * What the buyer actually pays. Equal to `landed_total` when the prices are
-   * tax-inclusive (the tax is already inside them and `tax_total` is the
-   * extracted portion), and `landed_total + tax_total` when they are not.
+   * Customs duty WE undertook to pay, in the quote currency (#1447). Null when
+   * the quote is not DDP or no figure was given; `0` is a real answer (Indian
+   * textiles enter Australia duty-free under AI-ECTA) and reads differently
+   * from null on purpose.
+   *
+   * ⚠️ It is NOT inside `landed_total` and never will be — same argument as
+   * tax: widening `landed_total` would silently restate every frozen
+   * `quoted_landed_total` on disk and every comparison drawn against one.
+   */
+  duty_total: number | null
+  /**
+   * Destination VAT/GST we pay on a DDP quote, and the carrier's fee for
+   * advancing the money (#1447). Same null-vs-zero rule as `duty_total`.
+   *
+   * 🔴 `import_tax_total` is typically the LARGEST of the three — 21% of
+   * (goods + freight + duty) dwarfs an 8% duty. Funding only the duty is the
+   * failure this split exists to make impossible.
+   */
+  import_tax_total: number | null
+  ddp_fee_total: number | null
+  /**
+   * What the buyer actually pays. `landed_total`, plus tax when the prices are
+   * tax-exclusive (when they are inclusive the tax is already inside it and
+   * `tax_total` is the extracted portion), plus the whole DDP undertaking —
+   * duty, import tax and the carrier's advance fee.
    * Null whenever tax is unknown — a gross total we cannot stand behind is
    * worse than none.
    */

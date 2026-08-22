@@ -127,3 +127,55 @@ export const useQuoteBuyerOptions = (search: string) => {
     isLoading: customers.isLoading || persons.isLoading,
   }
 }
+
+/**
+ * The carriers this partner can actually be quoted against (#1447).
+ *
+ * 🔑 Reads `/admin/shipping-carriers`, the SAME availability builder the
+ * carrier settings screen uses, rather than a hand-written list. A second list
+ * of "which carriers exist" drifts the first time one gains credentials, and
+ * the drift shows up as a quote priced against a carrier this deployment cannot
+ * call — which fails as a fallback rate, silently, not as an error.
+ *
+ * Gated on `partner_id` because availability is per-partner: it is read from
+ * that partner's stock location links. No partner picked yet ⇒ no query.
+ */
+export type QuoteCarrierOption = {
+  id: string
+  label: string
+  /** Selectable — integrated, registered on this deployment, linked here. */
+  available: boolean
+  /** Why not, when it is not. Rendered so a disabled row explains itself. */
+  blocked_reason: string | null
+  /** Can this carrier be TOLD the shipment is DDP (#1447)? */
+  can_declare_ddp: boolean
+}
+
+export const useQuoteCarriers = (partnerId?: string | null) => {
+  const { data, ...rest } = useQuery<{ carriers: any[] }, FetchError>({
+    queryFn: () =>
+      sdk.client.fetch<{ carriers: any[] }>("/admin/shipping-carriers", {
+        method: "GET",
+        query: { partner_id: partnerId },
+      }),
+    queryKey: ["quote-wizard-carriers", partnerId],
+    enabled: Boolean(partnerId),
+    placeholderData: keepPreviousData,
+  })
+
+  const options: QuoteCarrierOption[] = (data?.carriers ?? [])
+    .filter((c: any) => c?.integrated)
+    .map((c: any) => ({
+      id: String(c.id),
+      label: String(c.label ?? c.id),
+      // `enabled` is the location link — the partner's own selection. A
+      // registered-but-unlinked carrier is deliberately still offered here:
+      // a quote is not a shipment, and refusing to PRICE against a carrier
+      // someone is about to link is a worse failure than an unusual pick.
+      available: Boolean(c.registered),
+      blocked_reason: c.blocked_reason ?? null,
+      can_declare_ddp: Boolean(c.can_declare_ddp),
+    }))
+
+  return { options, ...rest }
+}

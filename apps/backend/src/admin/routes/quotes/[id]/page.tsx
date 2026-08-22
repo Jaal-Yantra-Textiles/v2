@@ -174,6 +174,58 @@ const QuoteDetailPage = () => {
                 label: "Freight",
                 value: money(quote.quoted_freight, quote.currency_code),
               },
+              /**
+               * Shown only on a DDP quote, and shown with its basis (#1447).
+               * This is a liability we took on: somebody has to arrange the
+               * clearance and pay this, and until a carrier can do it that
+               * somebody is a person reading this page. A DDP quote whose duty
+               * figure is invisible here is one nobody can honour.
+               */
+              ...(quote.duties_prepaid
+                ? [
+                    {
+                      label: "Duty (we pay)",
+                      value: money(
+                        quote.quoted_duty_total,
+                        quote.currency_code
+                      ),
+                    },
+                    {
+                      // 🔴 Listed separately and NOT folded into the duty: on
+                      // an EU lane this is the larger number by roughly 3×, and
+                      // a lump sum cannot be reconciled against a carrier's
+                      // itemised invoice months later.
+                      label: "Import tax (we pay)",
+                      value: money(
+                        quote.quoted_import_tax_total,
+                        quote.currency_code
+                      ),
+                    },
+                    {
+                      label: "Clearance fee",
+                      value: money(
+                        quote.quoted_ddp_fee_total,
+                        quote.currency_code
+                      ),
+                    },
+                    {
+                      label: "Duty basis",
+                      value: [
+                        quote.quoted_duty_rate !== null &&
+                        quote.quoted_duty_rate !== undefined
+                          ? `${quote.quoted_duty_rate}% duty`
+                          : null,
+                        quote.quoted_import_tax_rate !== null &&
+                        quote.quoted_import_tax_rate !== undefined
+                          ? `${quote.quoted_import_tax_rate}% import tax`
+                          : null,
+                        quote.quoted_duty_basis || null,
+                      ]
+                        .filter(Boolean)
+                        .join(" · ") || "—",
+                    },
+                  ]
+                : []),
               {
                 label: "Destination",
                 value: `${String(quote.destination_country_code || "").toUpperCase()}${

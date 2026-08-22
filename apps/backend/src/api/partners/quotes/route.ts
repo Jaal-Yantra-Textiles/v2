@@ -66,6 +66,17 @@ export const POST = async (
       currency_code: body.currency_code,
       region_id: body.region_id ?? null,
       carrier: body.carrier,
+      duties_prepaid: body.duties_prepaid ?? false,
+      // The number behind the promise (#1447). The validator has already
+      // refused one without the other, so these two travel together or not at all.
+      duty_total: body.duty_total ?? null,
+      duty_basis: body.duty_basis ?? null,
+      // The rate form is the normal one; the AMOUNTS are computed by the view
+      // against the basket it actually priced, never taken from the client.
+      duty_rate_percent: body.duty_rate_percent ?? null,
+      import_tax_rate_percent: body.import_tax_rate_percent ?? null,
+      import_tax_total: body.import_tax_total ?? null,
+      ddp_fee_total: body.ddp_fee_total ?? null,
       ttl_days: body.ttl_days,
       created_by: req.auth_context?.actor_id ?? null,
     },

@@ -68,8 +68,31 @@ export type CustomsDeclaration = {
   reason_of_export?: 0 | 1 | 2 | 3
   /** 0 gift · 1 sample · 2 commercial. Default 2. */
   purpose_of_shipment?: 0 | 1 | 2
-  /** Incoterms on the commercial invoice. Default "FOB". */
+  /**
+   * The invoice VALUATION basis. Default "FOB".
+   *
+   * ⚠️ Not an incoterm in the "who pays duty" sense, despite the name and
+   * despite Shiprocket calling its field `Terms_Of_Invoice`. It says whether
+   * the declared value includes freight and insurance. Reading it as the
+   * delivery term is how a DDP sale ends up declared duty-unpaid.
+   */
   terms_of_invoice?: "FOB" | "CIF"
+  /**
+   * Who clears and pays destination duty (#1447).
+   *
+   * · `DAP` — delivered at place, duty UNPAID: the consignee is importer of
+   *   record and meets the customs bill. This is the default and was, until
+   *   this field existed, the only thing any adapter could say.
+   * · `DDP` — delivered duty paid: WE clear and pay. Only send this when the
+   *   sale was actually made DDP (`partner_quote.duties_prepaid`) and the
+   *   carrier can honour it — see `can_declare_ddp` in `carrier-capabilities`.
+   *
+   * 🔴 A DDP sale shipped as DAP hands the buyer the customs bill we promised
+   * they would not get, weeks after they paid, with our invoice as the
+   * evidence they were told otherwise. Blue Dart's adapter hardcoded `"DAP"`
+   * before this.
+   */
+  incoterm?: "DAP" | "DDP"
   /** IGST: A not-applicable · B LUT/Export-under-Bond · C against IGST payment. Default "A". */
   igst_payment_status?: "A" | "B" | "C"
   /** Whether the order is a commodity. Default true. */

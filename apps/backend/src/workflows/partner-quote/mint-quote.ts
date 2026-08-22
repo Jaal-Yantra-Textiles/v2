@@ -17,7 +17,10 @@ import {
 } from "@medusajs/medusa/core-flows"
 
 import { PARTNER_QUOTE_MODULE } from "../../modules/partner-quote"
-import { buildQuoteView } from "../../modules/partner-quote/lib/build-quote-view"
+import {
+  buildQuoteView,
+  resolveStoreOriginCountry,
+} from "../../modules/partner-quote/lib/build-quote-view"
 import { assessQuoteReadiness } from "../../modules/partner-quote/lib/quote-readiness"
 import {
   generateQuoteToken,
@@ -25,6 +28,7 @@ import {
   DEFAULT_QUOTE_TTL_DAYS,
 } from "../../modules/partner-quote/lib/token"
 import { composeQuoteMoney } from "../../modules/partner-quote/lib/build-quote-view"
+import { resolveQuoteTax } from "../../modules/partner-quote/lib/quote-tax"
 import { fetchExchangeRate } from "../../lib/fx/exchange-rate"
 import { pickDefaultCurrency } from "../../lib/resolve-store-currency"
 import { needsExchangeRate, resolveLineOverride } from "./lib/line-override"
@@ -57,6 +61,29 @@ export type MintQuoteInput = {
   currency_code: string
   region_id?: string | null
   carrier?: string
+  /** Quote as DDP — we pay the destination duty and import tax (#1447). */
+  duties_prepaid?: boolean
+  /**
+   * The duty amount we are undertaking to pay, in the QUOTE currency, and the
+   * note saying how it was arrived at (#1447).
+   *
+   * Entered by hand because nothing can derive it yet: HS codes are incomplete
+   * and Shiprocket's tariff endpoint is gated on CSB-5 KYC. The validator
+   * refuses `duties_prepaid` without an amount, so no quote can promise duty
+   * cover and add nothing to the price.
+   */
+  duty_total?: number | null
+  duty_basis?: string | null
+  /**
+   * The rate form, and the normal one. The amounts are computed by
+   * `buildQuoteView` against the basket it actually priced — duty on
+   * goods + freight, import tax on goods + freight + duty.
+   */
+  duty_rate_percent?: number | null
+  import_tax_rate_percent?: number | null
+  import_tax_total?: number | null
+  /** The carrier's fee for advancing duty and tax. Always an amount. */
+  ddp_fee_total?: number | null
   ttl_days?: number
   created_by?: string | null
   /** Injected so the whole mint is deterministic under test. */
@@ -251,6 +278,15 @@ const buildAndFreezeStep = createStep(
       region_id: input.region_id ?? null,
       store: input.store,
       carrier: input.carrier,
+      // The row does not exist yet, so the undertaking is supplied directly —
+      // it changes the disclosure the buyer is shown, which then gets frozen.
+      duties_prepaid: input.duties_prepaid ?? false,
+      duty_total: input.duty_total ?? null,
+      duty_basis: input.duty_basis ?? null,
+      duty_rate_percent: input.duty_rate_percent ?? null,
+      import_tax_rate_percent: input.import_tax_rate_percent ?? null,
+      import_tax_total: input.import_tax_total ?? null,
+      ddp_fee_total: input.ddp_fee_total ?? null,
       now: payload.now,
     })
 
@@ -380,15 +416,73 @@ const applyLineOverridesStep = createStep(
     })
 
     const priced = lines.filter((l: any) => l.live_subtotal !== null)
+
+    /**
+     * 🔴 Tax is RE-ASKED against the overridden prices, not carried over.
+     *
+     * `buildQuoteView` computed it from the catalogue prices, before this step
+     * existed to discount them. A 20% trade price on a domestic quote therefore
+     * froze 18% GST on the RETAIL subtotal — tax on money the buyer was never
+     * asked for, in the confident direction, on exactly the quotes a partner
+     * had negotiated. The number that gets frozen is `view.tax`, so this was
+     * wrong in the row as well as on the page.
+     *
+     * Same module, same inputs, one different set of line amounts — so the
+     * quote and the cart that later prices itself still cannot disagree.
+     * `resolveQuoteTax` never throws: an unresolvable rate lands on `unknown`
+     * WITH a reason, which is what the page renders.
+     */
+    const originCountry = await resolveStoreOriginCountry(
+      container,
+      input.store?.default_location_id
+    )
+    const chosenFreight = view?.freight?.chosen ?? null
+    const tax =
+      view?.live && chosenFreight
+        ? await resolveQuoteTax(container, {
+            region_id: input.region_id ?? null,
+            origin_country_code: originCountry,
+            duties_prepaid: Boolean(input.duties_prepaid),
+            destination_country_code: input.destination_country_code,
+            destination_postal_code: input.destination_postal_code ?? null,
+            lines: priced.map((l: any) => ({
+              variant_id: l.variant_id,
+              product_id: l.product_id ?? null,
+              // The OVERRIDDEN unit price. Passing the catalogue one here is
+              // the whole defect this re-ask exists to remove.
+              unit_amount: Number(l.live_unit_amount ?? 0),
+              quantity: Number(l.quantity ?? 0),
+            })),
+            freight: {
+              amount: Number(chosenFreight.amount ?? 0),
+              option_id: (chosenFreight as any)?.id ?? null,
+            },
+          })
+        : view?.tax
+
+    /**
+     * 🔴 Tax and duty are carried across the recompose, not dropped.
+     *
+     * This call used to pass subtotals and freight only, so `tax_total`,
+     * `duty_total` and `gross_total` all came back null on any quote with a
+     * trade price — the buyer page showed no total at all, on precisely the
+     * quotes a partner had priced by hand. The freeze reads `view.tax`
+     * separately, so the row was right and only the page was wrong, which is
+     * why it survived.
+     */
     const live = view?.live
       ? composeQuoteMoney(
           priced.map((l: any) => Number(l.live_subtotal)),
           priced.reduce((sum: number, l: any) => sum + Number(l.quantity), 0),
-          Number(view.live.freight ?? 0)
+          Number(view.live.freight ?? 0),
+          tax
+            ? { total: tax.total ?? null, inclusive: Boolean(tax.inclusive) }
+            : null,
+          view.live.duty_total ?? null
         )
       : view?.live ?? null
 
-    return new StepResponse({ ...view, lines, live })
+    return new StepResponse({ ...view, lines, live, tax })
   }
 )
 
@@ -683,6 +777,37 @@ const persistQuoteStep = createStep(
       quoted_freight: input.view.live?.freight ?? null,
       quoted_landed_total: input.view.live?.landed_total ?? null,
       quoted_weight_grams: input.view.total_weight_grams ?? null,
+      // Tax frozen alongside the rest (#1439 S8). Read off `view.tax` rather
+      // than `view.live.tax_total`: the money object carries the NUMBER, and a
+      // number alone cannot distinguish "zero-rated export" from "we could not
+      // work it out" — both are a 0 and only one of them is a fact.
+      //
+      // `?? null` throughout, never `?? 0`. A quote whose tax could not be
+      // resolved must freeze as unknown; writing 0 would turn a gap into a
+      // confident claim of no tax due, which is the failure this whole slice is
+      // built around.
+      quoted_tax_total: input.view.tax?.total ?? null,
+      quoted_tax_inclusive: input.view.tax?.inclusive ?? null,
+      quoted_tax_status: input.view.tax?.status ?? null,
+      quoted_tax_reason: input.view.tax?.reason ?? null,
+      // Frozen with the rest: it is part of what the buyer was promised, and a
+      // later page read must show the same undertaking, not re-derive it.
+      duties_prepaid: input.mint.duties_prepaid ?? false,
+      // The duty figure freezes with the promise it backs. Read off the VIEW,
+      // which has already refused to carry an amount on a non-DDP quote, so a
+      // stray number in the body cannot be stored against a quote whose buyer
+      // was told duty is theirs to pay.
+      quoted_duty_total: input.view.duty?.total ?? null,
+      // The other two thirds. Duty alone funds ~a quarter of a real EU
+      // undertaking — the import tax is the big one and the carrier charges a
+      // fee for advancing both.
+      quoted_import_tax_total: input.view.duty?.import_tax ?? null,
+      quoted_ddp_fee_total: input.view.duty?.carrier_fee ?? null,
+      // Frozen so the amounts can be re-derived against a carrier invoice
+      // months later rather than merely believed.
+      quoted_duty_rate: input.view.duty?.duty_rate_percent ?? null,
+      quoted_import_tax_rate: input.view.duty?.import_tax_rate_percent ?? null,
+      quoted_duty_basis: input.view.duty?.basis ?? null,
       quoted_at: new Date(input.now),
       token_hash: hash,
       status: "active",

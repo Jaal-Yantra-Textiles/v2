@@ -1,4 +1,4 @@
-import { Heading, Input, Select, Text, Textarea } from "@medusajs/ui"
+import { Heading, Input, Select, Switch, Text, Textarea } from "@medusajs/ui"
 import { useMemo, useState } from "react"
 import { UseFormReturn, useWatch } from "react-hook-form"
 
@@ -6,6 +6,7 @@ import { Form } from "../../../../components/common/form"
 import { Combobox } from "../../../../components/inputs/combobox/combobox"
 import {
   useQuoteBuyerOptions,
+  useQuoteCarriers,
   useQuoteRegions,
 } from "../../../../hooks/api/quote-buyer-sources"
 import { AdminQuoteCreateSchemaType } from "../schema"
@@ -37,10 +38,42 @@ type Props = { form: UseFormReturn<AdminQuoteCreateSchemaType> }
  * must therefore stay selectable, or the wizard could only ever quote people
  * who had already bought.
  */
+/** Sentinel for the "type it yourself" branch — never sent to the API. */
+const OTHER_CARRIER = "__other__"
+
 export const BuyerStep = ({ form }: Props) => {
   const [search, setSearch] = useState("")
   const { regions } = useQuoteRegions()
   const { options: buyers } = useQuoteBuyerOptions(search)
+
+  const partnerId = useWatch({ control: form.control, name: "partner_id" })
+  const { options: carriers } = useQuoteCarriers(partnerId)
+  const carrier = useWatch({ control: form.control, name: "carrier" })
+  const dutiesPrepaid = useWatch({ control: form.control, name: "duties_prepaid" })
+
+  const knownCarrierIds = useMemo(
+    () => new Set([...carriers.map((c) => c.id), "manual", ""]),
+    [carriers]
+  )
+  const isOtherCarrier = Boolean(carrier) && !knownCarrierIds.has(carrier ?? "")
+
+  /**
+   * 🔴 The one warning worth interrupting for: quoting DDP on a carrier that
+   * cannot be TOLD the shipment is DDP. The promise is still keepable — someone
+   * arranges clearance by hand — but it stops being automatic, and the failure
+   * is otherwise silent until the buyer meets a customs bill we said would not
+   * come. Today only Blue Dart's payload carries an incoterm at all.
+   */
+  const ddpWarning = useMemo(() => {
+    if (!dutiesPrepaid) return null
+    const picked = carriers.find((c) => c.id === carrier)
+    if (!picked) {
+      return "This quote promises DDP. Nothing on the default rate source can declare a shipment duty-paid, so clearance has to be arranged by hand."
+    }
+    return picked.can_declare_ddp
+      ? `${picked.label} can be told the shipment is DDP — the incoterm follows the sale.`
+      : `${picked.label} cannot declare a shipment DDP, so the duty we promised has to be arranged with the carrier by hand.`
+  }, [carrier, carriers, dutiesPrepaid])
 
   const regionId = useWatch({ control: form.control, name: "region_id" })
   const region = useMemo(
@@ -294,6 +327,268 @@ export const BuyerStep = ({ form }: Props) => {
           </Form.Item>
         )}
       />
+
+      <div className="flex flex-col gap-y-1">
+        <Heading level="h2">Freight source</Heading>
+        <Text size="small" className="text-ui-fg-subtle">
+          Which carrier is asked for a live rate on this lane. Manual and flat
+          shipping options are always included whatever is picked here, so a
+          lane no carrier will quote still prices.
+        </Text>
+      </div>
+
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+        <Form.Field
+          control={form.control}
+          name="carrier"
+          render={({ field }) => (
+            <Form.Item>
+              <Form.Label optional>Carrier</Form.Label>
+              <Form.Control>
+                <Select
+                  value={
+                    field.value && !knownCarrierIds.has(field.value)
+                      ? OTHER_CARRIER
+                      : (field.value ?? "")
+                  }
+                  onValueChange={(value) =>
+                    field.onChange(value === OTHER_CARRIER ? " " : value)
+                  }
+                >
+                  <Select.Trigger>
+                    <Select.Value placeholder="Platform default (Shiprocket)" />
+                  </Select.Trigger>
+                  <Select.Content>
+                    <Select.Item value="">
+                      Platform default (Shiprocket)
+                    </Select.Item>
+                    {carriers.map((c) => (
+                      <Select.Item
+                        key={c.id}
+                        value={c.id}
+                        disabled={!c.available}
+                      >
+                        {c.label}
+                        {c.can_declare_ddp ? " · can ship DDP" : ""}
+                        {c.available ? "" : ` · ${c.blocked_reason ?? "unavailable"}`}
+                      </Select.Item>
+                    ))}
+                    {/* A lane priced entirely by the partner's own manual
+                        tiers — no carrier is called at all. */}
+                    <Select.Item value="manual">
+                      Manual rates only — ask no carrier
+                    </Select.Item>
+                    <Select.Item value={OTHER_CARRIER}>
+                      Other — type a carrier id
+                    </Select.Item>
+                  </Select.Content>
+                </Select>
+              </Form.Control>
+              <Form.Hint>
+                {ddpWarning ??
+                  "Leave on the default unless this lane is quoted somewhere else."}
+              </Form.Hint>
+              <Form.ErrorMessage />
+            </Form.Item>
+          )}
+        />
+
+        {isOtherCarrier ? (
+          <Form.Field
+            control={form.control}
+            name="carrier"
+            render={({ field }) => (
+              <Form.Item>
+                <Form.Label>Carrier id</Form.Label>
+                <Form.Control>
+                  <Input
+                    placeholder="e.g. bluedart"
+                    value={(field.value ?? "").trim()}
+                    onChange={(e) => field.onChange(e.target.value)}
+                  />
+                </Form.Control>
+                <Form.Hint>
+                  The id the adapter registers under. A carrier this deployment
+                  has no client for cannot return a rate — the quote falls back
+                  to manual options rather than failing, so check the spelling.
+                </Form.Hint>
+                <Form.ErrorMessage />
+              </Form.Item>
+            )}
+          />
+        ) : null}
+      </div>
+
+      <div className="flex flex-col gap-y-1">
+        <Heading level="h2">Import duty (DDP)</Heading>
+        <Text size="small" className="text-ui-fg-subtle">
+          Only meaningful on an export. With this on the buyer is told there is
+          nothing further to pay on delivery — which means we pay their customs
+          bill, and until a carrier can price and clear it DDP, somebody
+          arranges that by hand.
+        </Text>
+      </div>
+
+      <Form.Field
+        control={form.control}
+        name="duties_prepaid"
+        render={({ field: { value, onChange, ...rest } }) => (
+          <Form.Item>
+            <div className="flex items-start justify-between gap-4 rounded-lg border border-ui-border-base p-4">
+              <div className="flex flex-col gap-y-1">
+                <Form.Label>We pay the import duty</Form.Label>
+                <Form.Hint>
+                  Off means the buyer is importer of record: duty and import VAT
+                  are theirs, and the quote says so in as many words.
+                </Form.Hint>
+              </div>
+              <Form.Control>
+                <Switch
+                  checked={Boolean(value)}
+                  onCheckedChange={(checked) => {
+                    onChange(checked)
+                    if (!checked) {
+                      // A stray amount on a non-DDP quote would be added to a
+                      // total whose buyer was told duty is theirs to pay.
+                      form.setValue("duty_rate_percent", null)
+                      form.setValue("import_tax_rate_percent", null)
+                      form.setValue("ddp_fee_total", null)
+                      form.setValue("duty_basis", null)
+                      form.clearErrors([
+                        "duty_rate_percent",
+                        "import_tax_rate_percent",
+                        "ddp_fee_total",
+                        "duty_basis",
+                      ])
+                    }
+                  }}
+                  {...rest}
+                />
+              </Form.Control>
+            </div>
+            <Form.ErrorMessage />
+          </Form.Item>
+        )}
+      />
+
+      {form.watch("duties_prepaid") ? (
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+          <Form.Field
+            control={form.control}
+            name="duty_rate_percent"
+            render={({ field }) => (
+              <Form.Item>
+                <Form.Label>Duty rate %</Form.Label>
+                <Form.Control>
+                  <Input
+                    type="number"
+                    min={0}
+                    max={100}
+                    step="0.01"
+                    placeholder="8"
+                    value={field.value ?? ""}
+                    onChange={(e) =>
+                      field.onChange(
+                        e.target.value === "" ? null : Number(e.target.value)
+                      )
+                    }
+                  />
+                </Form.Control>
+                <Form.Hint>
+                  Applied to goods + freight. 0% is a real answer — AI-ECTA
+                  makes Indian textiles duty-free into Australia.
+                </Form.Hint>
+                <Form.ErrorMessage />
+              </Form.Item>
+            )}
+          />
+
+          <Form.Field
+            control={form.control}
+            name="import_tax_rate_percent"
+            render={({ field }) => (
+              <Form.Item>
+                <Form.Label>Import VAT / GST %</Form.Label>
+                <Form.Control>
+                  <Input
+                    type="number"
+                    min={0}
+                    max={100}
+                    step="0.01"
+                    placeholder="21"
+                    value={field.value ?? ""}
+                    onChange={(e) =>
+                      field.onChange(
+                        e.target.value === "" ? null : Number(e.target.value)
+                      )
+                    }
+                  />
+                </Form.Control>
+                <Form.Hint>
+                  Charged on goods + freight + duty — a value that already
+                  includes the duty. Usually the largest of the three.
+                </Form.Hint>
+                <Form.ErrorMessage />
+              </Form.Item>
+            )}
+          />
+
+          <Form.Field
+            control={form.control}
+            name="ddp_fee_total"
+            render={({ field }) => (
+              <Form.Item>
+                <Form.Label>Carrier clearance fee</Form.Label>
+                <Form.Control>
+                  <Input
+                    type="number"
+                    min={0}
+                    step="0.01"
+                    placeholder="0.00"
+                    value={field.value ?? ""}
+                    onChange={(e) =>
+                      field.onChange(
+                        e.target.value === "" ? null : Number(e.target.value)
+                      )
+                    }
+                  />
+                </Form.Control>
+                <Form.Hint>
+                  What the carrier charges to advance the duty and tax — DHL
+                  calls it duty-tax-paid. In the quote's currency.
+                </Form.Hint>
+                <Form.ErrorMessage />
+              </Form.Item>
+            )}
+          />
+
+          <div className="md:col-span-3">
+            <Form.Field
+              control={form.control}
+              name="duty_basis"
+              render={({ field }) => (
+                <Form.Item>
+                  <Form.Label>How you got these rates</Form.Label>
+                  <Form.Control>
+                    <Input
+                      placeholder="EU: 8% duty, 21% NL VAT, HS 6304.92 — DHL landed-cost planner"
+                      {...field}
+                      value={field.value ?? ""}
+                    />
+                  </Form.Control>
+                  <Form.Hint>
+                    The amounts are computed at mint against the basket that is
+                    actually priced and frozen alongside these rates, so the
+                    figure can be checked against the carrier's invoice later
+                    rather than merely believed.
+                  </Form.Hint>
+                  <Form.ErrorMessage />
+                </Form.Item>
+              )}
+            />
+          </div>
+        </div>
+      ) : null}
     </div>
   )
 }

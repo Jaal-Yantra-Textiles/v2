@@ -239,6 +239,29 @@ describe("BlueDartProviderAdapter.createShipment", () => {
     expect(intlCalls[0].body.Request.Consignee.ConsigneeCountryCode).toBe("IL")
   })
 
+  it("declares DAP by default and DDP only when the sale was made DDP (#1447)", async () => {
+    const intlInput = {
+      ...BASE_INPUT,
+      currency: "USD",
+      to: { ...BASE_INPUT.to, country: "IL", pincode: "9100000", city: "Jerusalem" },
+    }
+
+    const { adapter: dap, calls: dapCalls } = buildAdapter()
+    await dap.createShipment(intlInput)
+    // An ordinary export IS duty-unpaid — the consignee is importer of record.
+    expect(dapCalls[0].body.Request.Services.IncotermCode).toBe("DAP")
+
+    const { adapter: ddp, calls: ddpCalls } = buildAdapter()
+    await ddp.createShipment({
+      ...intlInput,
+      customs: { ...(intlInput as any).customs, incoterm: "DDP" as const },
+    })
+    // 🔴 This was hardcoded "DAP". A quote sold DDP shipped duty-unpaid hands
+    // the buyer the customs bill we promised would not come — weeks after they
+    // paid, with our own invoice as the evidence they were told otherwise.
+    expect(ddpCalls[0].body.Request.Services.IncotermCode).toBe("DDP")
+  })
+
   it("collects nothing at the door on a prepaid order", async () => {
     const { adapter, calls } = buildAdapter()
     await adapter.createShipment(BASE_INPUT)

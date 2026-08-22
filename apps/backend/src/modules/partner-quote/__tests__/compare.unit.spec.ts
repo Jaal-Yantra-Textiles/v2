@@ -10,6 +10,11 @@ const money = (over: Partial<QuoteMoney> = {}): QuoteMoney => ({
   // does not typecheck. Null, not 0: the comparison cases here are about goods
   // and freight, and a 0 would assert a tax answer none of them make.
   tax_total: null,
+  // #1447 added `duty_total` the same way, and this fixture is where the
+  // omission shows up: red on `check:prod-build`, green on jest.
+  duty_total: null,
+  import_tax_total: null,
+  ddp_fee_total: null,
   gross_total: null,
   ...over,
 })

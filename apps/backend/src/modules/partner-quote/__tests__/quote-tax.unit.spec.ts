@@ -1,4 +1,8 @@
-import { composeQuoteMoney, frozenMoney } from "../lib/build-quote-view"
+import {
+  composeQuoteMoney,
+  frozenMoney,
+  frozenTaxFallback,
+} from "../lib/build-quote-view"
 import {
   classifyQuoteJurisdiction,
   exportDisclosureReason,
@@ -210,5 +214,129 @@ describe("export and unknown-origin wording", () => {
     expect(reason).toMatch(/could not establish/i)
     expect(reason).toMatch(/DE/)
     expect(reason).not.toMatch(/zero-rated/)
+  })
+})
+
+/**
+ * Freezing the tax (#1439 S8 tail).
+ *
+ * S8 computed tax only at READ time, so a rate change moved the tax on a quote
+ * already sent while the subtotal and freight frozen beside it stayed put — the
+ * quote silently disagreed with itself.
+ *
+ * The sharper bug the fallback fixes: `buildQuoteView` skips its whole live
+ * block when the quote is revoked/superseded/expired, leaving `tax` on its
+ * `{status:"unknown", reason:null}` default. The page renders its notice only
+ * when there IS a reason, so a dead link showed frozen totals and NO tax block
+ * — "a missing tax block reads as no tax due", landing on precisely the quotes
+ * that exist as a record of what was said.
+ */
+describe("frozenTaxFallback", () => {
+  const liveUnknownEmpty = {
+    status: "unknown" as const,
+    total: null,
+    inclusive: false,
+    rates: [],
+    reason: null,
+  }
+
+  const frozenExport = {
+    quoted_tax_total: 0,
+    quoted_tax_inclusive: false,
+    quoted_tax_status: "zero_rated_export",
+    quoted_tax_reason:
+      "This is an export from IN to DE, so it is zero-rated and no seller tax is charged. Import duty and import VAT/GST are payable by you to DE customs on arrival and are NOT included in this total.",
+  }
+
+  it("shows what the buyer was told when the live half produced nothing", () => {
+    const r = frozenTaxFallback(liveUnknownEmpty, frozenExport)
+    expect(r.status).toBe("zero_rated_export")
+    expect(r.total).toBe(0)
+    // The half that matters on a dead export quote.
+    expect(r.reason).toMatch(/payable by you/i)
+  })
+
+  it("a LIVE answer always wins, including a live unknown that has a reason", () => {
+    // That reason describes the quote as it stands now; the frozen one does not.
+    const liveWithReason = {
+      ...liveUnknownEmpty,
+      reason: "No tax rate is configured for DE.",
+    }
+    expect(frozenTaxFallback(liveWithReason, frozenExport).reason).toBe(
+      "No tax rate is configured for DE."
+    )
+
+    const liveCalculated = {
+      status: "calculated" as const,
+      total: 18,
+      inclusive: false,
+      rates: [],
+      reason: null,
+    }
+    expect(frozenTaxFallback(liveCalculated, frozenExport).status).toBe(
+      "calculated"
+    )
+  })
+
+  it("stays unknown for a quote minted before tax existed", () => {
+    // No frozen status ⇒ nothing to fall back to. Inventing one would claim a
+    // tax treatment for a row that never had one.
+    expect(frozenTaxFallback(liveUnknownEmpty, {}).status).toBe("unknown")
+    expect(frozenTaxFallback(liveUnknownEmpty, null).reason).toBeNull()
+  })
+
+  it("does not resurrect a rate breakdown alongside a frozen total", () => {
+    // Reprinting last week's percentages next to a frozen number invites the
+    // reader to re-derive it and find it does not reconcile.
+    expect(frozenTaxFallback(liveUnknownEmpty, frozenExport).rates).toEqual([])
+  })
+
+  it("distinguishes a frozen zero-rated export from a frozen unknown", () => {
+    // 🔑 The reason all four columns are frozen rather than just the number: a
+    // bare 0 cannot say which of these it is, and only one is a fact.
+    const asUnknown = frozenTaxFallback(liveUnknownEmpty, {
+      quoted_tax_total: null,
+      quoted_tax_status: "unknown",
+      quoted_tax_reason: "No tax rate is configured for ZZ.",
+    })
+    expect(asUnknown.total).toBeNull()
+
+    const asExport = frozenTaxFallback(liveUnknownEmpty, frozenExport)
+    expect(asExport.total).toBe(0)
+    expect(asExport.status).not.toBe(asUnknown.status)
+  })
+})
+
+/**
+ * DDP — the partner absorbs destination duty (#1447).
+ *
+ * 🔴 The sentence this produces is a PROMISE, and the only one on the page that
+ * software alone cannot keep: the shipment has to actually clear DDP. Shiprocket
+ * reports `ddp_tag: false` on every lane today, so until a carrier supports it
+ * this is honoured by hand. That is exactly why it is per-quote and frozen — a
+ * global default would tell a buyer there is nothing to pay on a shipment
+ * nobody arranged clearance for, and they would meet a customs bill anyway.
+ */
+describe("exportDisclosureReason — duties prepaid", () => {
+  it("still says zero-rated, because the export treatment is unchanged", () => {
+    // DDP is who pays the DESTINATION's duty. It has no bearing on whether the
+    // origin zero-rates the export.
+    expect(exportDisclosureReason("in", "de", true)).toMatch(/zero-rated/)
+  })
+
+  it("promises nothing further on delivery, and drops the buyer-pays wording", () => {
+    const r = exportDisclosureReason("in", "de", true)
+    expect(r).toMatch(/included in this price/i)
+    expect(r).toMatch(/nothing further to pay on delivery/i)
+    // The two must never coexist — a page saying both is a page saying neither.
+    expect(r).not.toMatch(/payable by you/i)
+    expect(r).not.toMatch(/NOT included/)
+  })
+
+  it("defaults to buyer-pays when the flag is absent", () => {
+    // 🔑 The safe direction. An omitted flag must never be read as a promise:
+    // over-warning costs a conversation, under-warning costs the customs bill.
+    expect(exportDisclosureReason("in", "de")).toMatch(/payable by you/i)
+    expect(exportDisclosureReason("in", "de", false)).toMatch(/payable by you/i)
   })
 })

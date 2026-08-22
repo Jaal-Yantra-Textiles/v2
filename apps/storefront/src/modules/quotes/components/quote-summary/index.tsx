@@ -52,7 +52,15 @@ const Row = ({
   </div>
 )
 
-/** The tax rows, or nothing when there is no number and no reason to give. */
+/**
+ * The tax row, the duty row and the total — or nothing, when there is no number
+ * to stand behind.
+ *
+ * 🔴 The duty row exists because "we pay the duty" used to add nothing to the
+ * price (#1447). A DDP quote whose total is silently identical to a non-DDP one
+ * is a promise kept out of margin by an amount nobody wrote down; showing it as
+ * its own line is what makes the undertaking legible to the buyer AND to us.
+ */
 const TaxRows = ({
   money,
   tax,
@@ -68,12 +76,48 @@ const TaxRows = ({
   const label = tax.rates.length
     ? Array.from(new Set(tax.rates.map((r) => r.name))).join(" + ")
     : "Tax"
+
+  /**
+   * One row, three numbers underneath it.
+   *
+   * `null` on every part means "not a DDP quote"; a `0` part is a real answer
+   * and stays in the breakdown, because "duty: nil" is information and a blank
+   * is not.
+   */
+  const ddpParts = [
+    money.duty_total !== null
+      ? `duty ${convertToLocale({ amount: money.duty_total, currency_code })}`
+      : null,
+    money.import_tax_total !== null
+      ? `import tax ${convertToLocale({ amount: money.import_tax_total, currency_code })}`
+      : null,
+    money.ddp_fee_total
+      ? `clearance ${convertToLocale({ amount: money.ddp_fee_total, currency_code })}`
+      : null,
+  ].filter(Boolean) as string[]
+  const ddpTotal = ddpParts.length
+    ? (money.duty_total ?? 0) +
+      (money.import_tax_total ?? 0) +
+      (money.ddp_fee_total ?? 0)
+    : null
+  const ddpBreakdown = ddpParts.length > 1 ? ddpParts.join(" · ") : undefined
   return (
     <>
       <Row
         label={tax.inclusive ? `${label} (included)` : label}
         value={convertToLocale({ amount: money.tax_total, currency_code })}
       />
+      {ddpTotal !== null ? (
+        <Row
+          // Named for who pays it, not for what it is: the buyer's question is
+          // "is there a customs bill coming", and the answer here is no. The
+          // split sits underneath, because a procurement contact reconciling
+          // against their own broker's estimate needs to see the parts.
+          label="Import duty & taxes (paid by us)"
+          value={convertToLocale({ amount: ddpTotal, currency_code })}
+          sub={ddpBreakdown}
+        />
+      ) : null}
       <Row
         label="Total"
         value={convertToLocale({ amount: money.gross_total, currency_code })}

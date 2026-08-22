@@ -5,6 +5,7 @@ import {
   createShippingOptionsWorkflow,
   createTaxRegionsWorkflow,
 } from "@medusajs/medusa/core-flows"
+import { PARTNER_QUOTE_MODULE } from "../../src/modules/partner-quote"
 import {
   setupQuoteFixture,
   mintBody,
@@ -231,6 +232,205 @@ setupSharedTestSuite(() => {
       // vacuously true and this test would pass on a broken lane.
       expect(money.freight).toBeGreaterThan(0)
       expect(quote.tax.total).toBe(0)
+    })
+
+    /** The frozen row, straight off the module service. */
+    const readQuote = async (quoteId: string) => {
+      const service: any = getSharedTestEnv().getContainer().resolve(PARTNER_QUOTE_MODULE)
+      const rows = await service.listPartnerQuotes({ id: quoteId })
+      return rows?.[0]
+    }
+
+    const mintRaw = async (overrides: Record<string, any>) => {
+      const { api } = getSharedTestEnv()
+      const res = await loud("mint", () =>
+        api.post("/partners/quotes", mintBody(seed, overrides), {
+          headers: seed.headers,
+        })
+      )
+      return res.data
+    }
+
+    const viewByToken = async (token: string) => {
+      const { api } = getSharedTestEnv()
+      const res = await loud("view", () =>
+        api.get(`/store/b2b/quotes/${token}`, {
+          headers: { "x-publishable-api-key": seed.publishableKey },
+        })
+      )
+      return res.data.quote
+    }
+
+    it("FREEZES the tax at mint — the INSERT is the thing a unit test cannot reach", async () => {
+      const minted = await mintRaw({
+        buyer_email: `buyer-freeze-${seed.unique}@jaalyantra.test`,
+        destination_country_code: "in",
+        destination_postal_code: "400001",
+      })
+
+      const row = await readQuote(minted.quote.id)
+      // 🔑 Reaching this line at all is the point. `quoted_tax_total` is a DML
+      // bigNumber, which is TWO columns — model, tsc and every unit test pass
+      // with only the numeric one, then the INSERT dies on the missing
+      // `raw_quoted_tax_total`. That is how the S7 pair was caught (#1446).
+      expect(Number(row.quoted_tax_total)).toBeGreaterThan(0)
+      expect(row.quoted_tax_status).toBe("calculated")
+      expect(row.quoted_tax_inclusive).toBe(false)
+      expect(row.quoted_tax_reason).toBeNull()
+    })
+
+    it("freezes a zero-rated export as a REAL zero, with its disclosure", async () => {
+      const minted = await mintRaw({
+        buyer_email: `buyer-freeze-export-${seed.unique}@jaalyantra.test`,
+        destination_country_code: "de",
+        destination_postal_code: "10115",
+        destination_city: "Berlin",
+      })
+
+      const row = await readQuote(minted.quote.id)
+      expect(Number(row.quoted_tax_total)).toBe(0)
+      expect(row.quoted_tax_status).toBe("zero_rated_export")
+      // Frozen because it is evidence: on an export this sentence is the only
+      // place the buyer was told the duty is theirs.
+      expect(row.quoted_tax_reason).toMatch(/payable by you/i)
+    })
+
+    it("🔴 a REVOKED export quote still shows the duty disclosure", async () => {
+      const minted = await mintRaw({
+        buyer_email: `buyer-revoked-${seed.unique}@jaalyantra.test`,
+        destination_country_code: "de",
+        destination_postal_code: "10115",
+        destination_city: "Berlin",
+      })
+
+      const service: any = getSharedTestEnv().getContainer().resolve(PARTNER_QUOTE_MODULE)
+      await service.updatePartnerQuotes({ id: minted.quote.id, status: "revoked" })
+
+      const quote = await viewByToken(minted.token)
+      // buildQuoteView skips its ENTIRE live block once the quote is unusable,
+      // which left tax on {status:"unknown", reason:null}. The storefront only
+      // renders the notice when there is a reason, so before the frozen
+      // fallback this page showed totals and no tax block at all — on exactly
+      // the quotes that exist as a record of what was said.
+      expect(quote.live).toBeNull()
+      expect(quote.tax.status).toBe("zero_rated_export")
+      expect(quote.tax.reason).toMatch(/payable by you/i)
+    })
+
+    it("quotes DDP when the partner absorbs the duty, and freezes the undertaking", async () => {
+      const minted = await mintRaw({
+        buyer_email: `buyer-ddp-${seed.unique}@jaalyantra.test`,
+        destination_country_code: "de",
+        destination_postal_code: "10115",
+        destination_city: "Berlin",
+        duties_prepaid: true,
+        duty_rate_percent: 8,
+        import_tax_rate_percent: 21,
+        ddp_fee_total: 1_981.57,
+        duty_basis: "EU: 8% duty, 21% NL VAT, HS 6304.92",
+      })
+
+      const row = await readQuote(minted.quote.id)
+      expect(row.duties_prepaid).toBe(true)
+      // Still a zero-rated export — DDP is about the DESTINATION's duty and has
+      // no bearing on how the origin treats the export.
+      expect(row.quoted_tax_status).toBe("zero_rated_export")
+      expect(row.quoted_tax_reason).toMatch(/nothing further to pay on delivery/i)
+      expect(row.quoted_tax_reason).not.toMatch(/payable by you/i)
+
+      // 🔴 The INSERT is what a unit test cannot reach: each DML `bigNumber` is
+      // two columns, and a missing `raw_quoted_import_tax_total` fails here and
+      // nowhere else — model, tsc and every unit test pass without it.
+      const dutiable =
+        Number(row.quoted_subtotal) + Number(row.quoted_freight)
+      expect(Number(row.quoted_duty_total)).toBeCloseTo(dutiable * 0.08, 2)
+      expect(Number(row.quoted_import_tax_total)).toBeCloseTo(
+        (dutiable + Number(row.quoted_duty_total)) * 0.21,
+        2
+      )
+      expect(Number(row.quoted_ddp_fee_total)).toBeCloseTo(1_981.57, 2)
+      // The rates freeze too, so the amounts can be checked against a carrier
+      // invoice months later rather than merely believed.
+      expect(Number(row.quoted_duty_rate)).toBe(8)
+      expect(Number(row.quoted_import_tax_rate)).toBe(21)
+      expect(row.quoted_duty_basis).toBe("EU: 8% duty, 21% NL VAT, HS 6304.92")
+
+      // And the buyer sees the promise, the numbers behind it, and a total that
+      // actually contains them — the promise used to add nothing to the price.
+      const quote = await viewByToken(minted.token)
+      expect(quote.tax.reason).toMatch(/nothing further to pay on delivery/i)
+      expect(quote.duty.prepaid).toBe(true)
+      expect(quote.duty.import_tax).toBeGreaterThan(quote.duty.total)
+      expect(quote.quoted.gross_total).toBeCloseTo(
+        quote.quoted.landed_total +
+          quote.quoted.duty_total +
+          quote.quoted.import_tax_total +
+          quote.quoted.ddp_fee_total,
+        2
+      )
+    })
+
+    it("🔴 refuses a DDP promise with no duty figure behind it", async () => {
+      const { api } = getSharedTestEnv()
+
+      // The whole point of the slice: `duties_prepaid` alone told the buyer
+      // "nothing further to pay" and added nothing to the price, so the duty
+      // came out of margin by an amount nobody had computed.
+      await expect(
+        api.post(
+          "/partners/quotes",
+          mintBody(seed, {
+            buyer_email: `buyer-ddp-bare-${seed.unique}@jaalyantra.test`,
+            destination_country_code: "de",
+            destination_postal_code: "10115",
+            destination_city: "Berlin",
+            duties_prepaid: true,
+          }),
+          { headers: seed.headers }
+        )
+      ).rejects.toMatchObject({ response: { status: 400 } })
+    })
+
+    it("accepts a nil duty on a lane that is genuinely duty-free", async () => {
+      // "We checked, it is nil" is a fact and has to be sayable — the live case
+      // is AI-ECTA, under which Indian textiles enter Australia duty-free.
+      // Quoted on the DE lane here because that is the only geo zone this seed
+      // has freight for, and a mint with no quotable lane fails before it ever
+      // reaches the duty rule.
+      const minted = await mintRaw({
+        buyer_email: `buyer-ddp-nil-${seed.unique}@jaalyantra.test`,
+        destination_country_code: "de",
+        destination_postal_code: "10115",
+        destination_city: "Berlin",
+        duties_prepaid: true,
+        duty_rate_percent: 0,
+        import_tax_rate_percent: 0,
+        duty_basis: "GSP relief — 0% on HS 6304.92 for IN origin",
+      })
+
+      const row = await readQuote(minted.quote.id)
+      // 0, not null: the difference between "checked, nil" and "left blank" is
+      // the entire reason the basis column exists.
+      expect(Number(row.quoted_duty_total)).toBe(0)
+      expect(Number(row.quoted_import_tax_total)).toBe(0)
+      // 0 with a rate of 0 recorded beside it — "checked, nil", not "blank".
+      expect(Number(row.quoted_duty_rate)).toBe(0)
+      expect(row.quoted_duty_basis).toMatch(/GSP relief/i)
+    })
+
+    it("🔴 defaults to buyer-pays — an omitted flag is never a promise", async () => {
+      const minted = await mintRaw({
+        buyer_email: `buyer-noddp-${seed.unique}@jaalyantra.test`,
+        destination_country_code: "de",
+        destination_postal_code: "10115",
+        destination_city: "Berlin",
+      })
+
+      const row = await readQuote(minted.quote.id)
+      expect(row.duties_prepaid).toBe(false)
+      // Over-warning costs a conversation; under-warning costs the buyer a
+      // customs bill they were told would not come.
+      expect(row.quoted_tax_reason).toMatch(/payable by you/i)
     })
   })
 })
