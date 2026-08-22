@@ -28,7 +28,10 @@ import {
   DEFAULT_QUOTE_TTL_DAYS,
 } from "../../modules/partner-quote/lib/token"
 import { composeQuoteMoney } from "../../modules/partner-quote/lib/build-quote-view"
-import { resolveQuoteTax } from "../../modules/partner-quote/lib/quote-tax"
+import {
+  classifyQuoteJurisdiction,
+  resolveQuoteTax,
+} from "../../modules/partner-quote/lib/quote-tax"
 import { fetchExchangeRate } from "../../lib/fx/exchange-rate"
 import { pickDefaultCurrency } from "../../lib/resolve-store-currency"
 import { needsExchangeRate, resolveLineOverride } from "./lib/line-override"
@@ -289,6 +292,36 @@ const buildAndFreezeStep = createStep(
       ddp_fee_total: input.ddp_fee_total ?? null,
       now: payload.now,
     })
+
+    /**
+     * 🔴 DDP is meaningless on a domestic lane, and not harmlessly so.
+     *
+     * There is no border, so no duty and no import tax arise — but the charges
+     * are ADDED to the buyer's total, so a mistakenly-ticked flag bills them for
+     * a customs event that will never happen. The wizards hide the section on a
+     * domestic destination; this refuses it, because a hidden field is a UI
+     * convention and the API is reachable without one.
+     *
+     * `unknown_origin` is deliberately allowed through: the tax block already
+     * says the treatment could not be determined, and refusing a promise the
+     * partner may have good reason to make — on evidence we do not have — is
+     * the wrong side to fail on.
+     */
+    if (input.duties_prepaid) {
+      const jurisdiction = classifyQuoteJurisdiction(
+        view.origin_country_code,
+        input.destination_country_code
+      )
+      if (jurisdiction === "domestic") {
+        throw new MedusaError(
+          MedusaError.Types.INVALID_DATA,
+          `This quote ships within ${String(
+            input.destination_country_code || ""
+          ).toUpperCase()}, so no import duty or tax arises and there is nothing to prepay. ` +
+            "Nothing was written — a DDP charge on a domestic lane bills the buyer for a border they never cross."
+        )
+      }
+    }
 
     if (!view.live) {
       throw new MedusaError(

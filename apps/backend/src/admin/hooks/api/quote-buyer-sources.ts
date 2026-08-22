@@ -152,9 +152,12 @@ export type QuoteCarrierOption = {
 }
 
 export const useQuoteCarriers = (partnerId?: string | null) => {
-  const { data, ...rest } = useQuery<{ carriers: any[] }, FetchError>({
+  const { data, ...rest } = useQuery<
+    { carriers: any[]; origin_country_code?: string | null },
+    FetchError
+  >({
     queryFn: () =>
-      sdk.client.fetch<{ carriers: any[] }>("/admin/shipping-carriers", {
+      sdk.client.fetch<{ carriers: any[]; origin_country_code?: string | null }>("/admin/shipping-carriers", {
         method: "GET",
         query: { partner_id: partnerId },
       }),
@@ -177,5 +180,15 @@ export const useQuoteCarriers = (partnerId?: string | null) => {
       can_declare_ddp: Boolean(c.can_declare_ddp),
     }))
 
-  return { options, ...rest }
+  return {
+    options,
+    /**
+     * Where this partner's goods dispatch from (#1447). Null is UNKNOWN, never
+     * "domestic" — treating an unreadable origin as domestic would hide the DDP
+     * question on a real export, which is the direction that costs a buyer a
+     * customs bill they were told would not come.
+     */
+    originCountryCode: data?.origin_country_code ?? null,
+    ...rest,
+  }
 }

@@ -50,11 +50,14 @@ const initialTabState: TabState = {
 type QuoteCreateFormProps = {
   currencies: string[]
   defaultCurrency?: string
+  /** ISO-2 of the store's dispatch country, or null when unknown (#1447). */
+  originCountryCode?: string | null
 }
 
 export const QuoteCreateForm = ({
   currencies,
   defaultCurrency,
+  originCountryCode,
 }: QuoteCreateFormProps) => {
   const [tab, setTab] = useState<Tab>(Tab.BUYER)
   const [tabState, setTabState] = useState<TabState>(initialTabState)
@@ -354,7 +357,11 @@ export const QuoteCreateForm = ({
               className="size-full overflow-y-auto p-16"
               value={Tab.BUYER}
             >
-              <QuoteBuyerForm form={form} currencies={currencies} />
+              <QuoteBuyerForm
+                form={form}
+                currencies={currencies}
+                originCountryCode={originCountryCode}
+              />
             </ProgressTabs.Content>
             <ProgressTabs.Content
               className="size-full overflow-y-auto"
