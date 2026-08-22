@@ -168,3 +168,66 @@ export const useRevokeQuote = (
     ...options,
   })
 }
+
+/** One named reason a basket cannot be quoted (#1445). */
+export type QuoteReadinessIssue = {
+  code: string
+  severity: "blocking" | "warning"
+  /** Written for the operator looking at the wizard, not for a log. */
+  message: string
+  variant_id?: string | null
+  data?: Record<string, unknown>
+}
+
+export type QuoteReadiness = {
+  ready: boolean
+  issues: QuoteReadinessIssue[]
+  blocking_count: number
+  warning_count: number
+  freight: {
+    chosen: { name: string | null; amount: number; currency_code: string } | null
+    total_weight_grams: number | null
+    error: string | null
+  }
+}
+
+export type AdminQuoteReadinessPayload = {
+  partner_id: string
+  lines: Array<{ variant_id: string; quantity: number }>
+  destination_country_code: string
+  destination_postal_code?: string | null
+  destination_city?: string | null
+  currency_code: string
+  region_id?: string | null
+  carrier?: string
+}
+
+/**
+ * The mint preflight (#1445).
+ *
+ * 🔴 On THIS surface the catalogue check is the one that matters. An admin
+ * picks the partner from one dropdown and the variants from another, so the
+ * two can disagree with a single mis-click — and nothing downstream catches it:
+ * the price list is created successfully, its rule assertion passes, and the
+ * buyer gets a working link to prices the partner never agreed to sell at.
+ *
+ * A mutation despite writing nothing: the input is a whole basket, so it is
+ * POSTed, and it must run on demand rather than on every keystroke of a
+ * quantity field. It prices every line and asks a carrier.
+ */
+export const useAdminQuoteReadiness = (
+  options?: UseMutationOptions<
+    { readiness: QuoteReadiness },
+    FetchError,
+    AdminQuoteReadinessPayload
+  >
+) => {
+  return useMutation({
+    mutationFn: async (payload) =>
+      await sdk.client.fetch<{ readiness: QuoteReadiness }>(
+        "/admin/quotes/readiness",
+        { method: "POST", body: payload }
+      ),
+    ...options,
+  })
+}
