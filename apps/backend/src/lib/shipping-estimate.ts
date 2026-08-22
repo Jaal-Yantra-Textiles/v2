@@ -344,6 +344,31 @@ export async function buildShippingEstimate(
 
   // ---- Calculated rates — cached per lane --------------------------------
   const carrier = String(input.carrier || "shiprocket").toLowerCase()
+
+  /**
+   * "manual" is an explicit choice to ask NO carrier (#1447).
+   *
+   * 🔑 Distinct from a carrier that fails: a failure logs, sets
+   * `calculated_error` and warrants an "indicative rate" notice on the buyer's
+   * page. This is someone deciding the lane is priced by hand, so there is
+   * nothing to report and nothing to retry — the manual tiers gathered above
+   * are the whole answer.
+   */
+  if (carrier === "manual" || carrier === "none") {
+    return {
+      lines,
+      total_weight_grams: totalWeightGrams,
+      origin_postal_code: originPostalCode,
+      destination_postal_code: destinationPostalCode,
+      country_code: countryCode,
+      manual,
+      calculated: [],
+      calculated_error: null,
+      cache_hit: false,
+      is_estimate: true,
+    }
+  }
+
   const weightBucket = weightBucketGrams(totalWeightGrams)
   const cacheKey = `shipping-estimate:${carrier}:${originPostalCode}:${destinationPostalCode}:${countryCode}:${weightBucket}`
 

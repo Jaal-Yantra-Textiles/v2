@@ -89,7 +89,9 @@ export const QuoteCreateForm = ({
       // Never defaulted on: a DDP promise applied by default would tell a buyer
       // there is nothing to pay on a shipment nobody arranged clearance for.
       duties_prepaid: false,
-      duty_total: null,
+      duty_rate_percent: null,
+      import_tax_rate_percent: null,
+      ddp_fee_total: null,
       duty_basis: null,
     },
     resolver: zodResolver(QuoteCreateSchema),
@@ -203,7 +205,12 @@ export const QuoteCreateForm = ({
         duties_prepaid: data.duties_prepaid ?? false,
         ...(data.duties_prepaid
           ? {
-              duty_total: data.duty_total ?? null,
+              // Rates, not money: the mint computes the amounts against the
+              // basket it actually prices. This form knows neither the tiered
+              // subtotal nor the freight until then.
+              duty_rate_percent: data.duty_rate_percent ?? null,
+              import_tax_rate_percent: data.import_tax_rate_percent ?? null,
+              ddp_fee_total: data.ddp_fee_total ?? null,
               duty_basis: data.duty_basis || null,
             }
           : {}),

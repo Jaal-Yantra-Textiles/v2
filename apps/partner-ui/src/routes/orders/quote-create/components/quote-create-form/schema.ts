@@ -25,38 +25,52 @@ import { z } from "@medusajs/framework/zod"
 export const dutyUndertakingRefinement = (
   value: {
     duties_prepaid?: boolean
+    duty_rate_percent?: number | null
+    import_tax_rate_percent?: number | null
     duty_total?: number | null
+    import_tax_total?: number | null
+    ddp_fee_total?: number | null
     duty_basis?: string | null
   },
   ctx: z.RefinementCtx
 ) => {
   const prepaid = Boolean(value.duties_prepaid)
-  const hasAmount = value.duty_total !== null && value.duty_total !== undefined
+  const given = (v: unknown) => v !== null && v !== undefined
+  const hasDuty = given(value.duty_rate_percent) || given(value.duty_total)
+  const hasImportTax =
+    given(value.import_tax_rate_percent) || given(value.import_tax_total)
 
-  if (prepaid && !hasAmount) {
+  if (prepaid && !hasDuty) {
+    ctx.addIssue({
+      code: "custom",
+      message: "Enter the duty rate for this destination — 0% is fine where the lane is duty-free.",
+      path: ["duty_rate_percent"],
+    })
+  }
+
+  if (prepaid && !hasImportTax) {
     ctx.addIssue({
       code: "custom",
       message:
-        "Enter the duty we are absorbing on this quote — 0 is fine where the lane is duty-free.",
-      path: ["duty_total"],
+        "Enter the destination import tax rate. It is usually the biggest of the three — 21% VAT on goods + freight + duty against an 8% duty — so leaving it out under-funds most of the promise.",
+      path: ["import_tax_rate_percent"],
     })
   }
 
   if (prepaid && !String(value.duty_basis ?? "").trim()) {
     ctx.addIssue({
       code: "custom",
-      message:
-        "Say how the figure was reached — whoever pays the customs invoice is not who typed it.",
+      message: "Say how you got these rates — whoever pays the customs invoice is not who typed them.",
       path: ["duty_basis"],
     })
   }
 
-  if (!prepaid && hasAmount) {
+  if (!prepaid && (hasDuty || hasImportTax || given(value.ddp_fee_total))) {
     ctx.addIssue({
       code: "custom",
       message:
-        "A duty amount only applies on a DDP quote. Without it the buyer pays duty at their own border.",
-      path: ["duty_total"],
+        "These only apply on a DDP quote. Without it the buyer pays duty and import tax at their own border.",
+      path: ["duty_rate_percent"],
     })
   }
 }
@@ -81,7 +95,16 @@ export const QuoteBuyerShape = z.object({
    * actually clear DDP, arranged by hand until a carrier can price it.
    */
   duties_prepaid: z.boolean().optional(),
-  duty_total: z.number().min(0).nullish(),
+  /**
+   * Rates, not amounts. The mint computes the money against the basket it
+   * actually prices — duty on goods + freight, import tax on goods + freight +
+   * duty — because this form cannot know either figure before then, and a
+   * client-side estimate frozen as a commitment is worse than no preview.
+   */
+  duty_rate_percent: z.number().min(0).max(100).nullish(),
+  import_tax_rate_percent: z.number().min(0).max(100).nullish(),
+  /** The carrier's charge for advancing duty and tax. An amount, not a rate. */
+  ddp_fee_total: z.number().min(0).nullish(),
   duty_basis: z.string().max(500).nullish(),
 })
 
@@ -143,7 +166,9 @@ export const QuoteBuyerFields = [
   "currency_code",
   "ttl_days",
   "duties_prepaid",
-  "duty_total",
+  "duty_rate_percent",
+  "import_tax_rate_percent",
+  "ddp_fee_total",
   "duty_basis",
 ] as const
 

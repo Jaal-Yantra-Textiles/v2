@@ -109,6 +109,9 @@ export const MintQuoteForm = () => {
       destination_postal_code: "",
       destination_city: "",
       ttl_days: 14,
+      // Empty = the platform default rate source. Never "manual" by default:
+      // that would silently stop asking any carrier for a live rate.
+      carrier: "",
       product_ids: [],
       quantities: {},
       discounts: {},
@@ -116,7 +119,9 @@ export const MintQuoteForm = () => {
       // Never on by default: a DDP promise nobody arranged clearance for tells
       // the buyer there is nothing to pay and then hands them a customs bill.
       duties_prepaid: false,
-      duty_total: null,
+      duty_rate_percent: null,
+      import_tax_rate_percent: null,
+      ddp_fee_total: null,
       duty_basis: null,
     },
     resolver: zodResolver(AdminQuoteCreateSchema) as any,
@@ -287,11 +292,18 @@ export const MintQuoteForm = () => {
       currency_code: data.currency_code,
       region_id: data.region_id,
       ttl_days: data.ttl_days,
+      // Omitted rather than sent empty — the backend's own default is the one
+      // thing that should decide what "no choice" means.
+      ...(data.carrier ? { carrier: data.carrier } : {}),
       // The pair travels together or not at all (#1447).
       duties_prepaid: data.duties_prepaid ?? false,
       ...(data.duties_prepaid
         ? {
-            duty_total: data.duty_total ?? null,
+            // Rates, not money — the mint computes the amounts against the
+            // basket it actually prices.
+            duty_rate_percent: data.duty_rate_percent ?? null,
+            import_tax_rate_percent: data.import_tax_rate_percent ?? null,
+            ddp_fee_total: data.ddp_fee_total ?? null,
             duty_basis: data.duty_basis || null,
           }
         : {}),

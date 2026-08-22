@@ -114,6 +114,12 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
       // refused one without the other, so these two travel together or not at all.
       duty_total: body.duty_total ?? null,
       duty_basis: body.duty_basis ?? null,
+      // The rate form is the normal one; the AMOUNTS are computed by the view
+      // against the basket it actually priced, never taken from the client.
+      duty_rate_percent: body.duty_rate_percent ?? null,
+      import_tax_rate_percent: body.import_tax_rate_percent ?? null,
+      import_tax_total: body.import_tax_total ?? null,
+      ddp_fee_total: body.ddp_fee_total ?? null,
       ttl_days: body.ttl_days,
       // Stamped with the ADMIN's actor id, not the partner's — otherwise an
       // admin-minted quote is indistinguishable from one the partner made

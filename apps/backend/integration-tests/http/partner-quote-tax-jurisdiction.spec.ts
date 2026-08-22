@@ -324,8 +324,10 @@ setupSharedTestSuite(() => {
         destination_postal_code: "10115",
         destination_city: "Berlin",
         duties_prepaid: true,
-        duty_total: 12_000,
-        duty_basis: "EU 12% ad valorem, HS 6304.92",
+        duty_rate_percent: 8,
+        import_tax_rate_percent: 21,
+        ddp_fee_total: 1_981.57,
+        duty_basis: "EU: 8% duty, 21% NL VAT, HS 6304.92",
       })
 
       const row = await readQuote(minted.quote.id)
@@ -336,23 +338,35 @@ setupSharedTestSuite(() => {
       expect(row.quoted_tax_reason).toMatch(/nothing further to pay on delivery/i)
       expect(row.quoted_tax_reason).not.toMatch(/payable by you/i)
 
-      // 🔴 The INSERT is what a unit test cannot reach: a DML `bigNumber` is two
-      // columns, and a missing `raw_quoted_duty_total` fails here and nowhere else.
-      expect(Number(row.quoted_duty_total)).toBe(12_000)
-      expect(row.quoted_duty_basis).toBe("EU 12% ad valorem, HS 6304.92")
+      // 🔴 The INSERT is what a unit test cannot reach: each DML `bigNumber` is
+      // two columns, and a missing `raw_quoted_import_tax_total` fails here and
+      // nowhere else — model, tsc and every unit test pass without it.
+      const dutiable =
+        Number(row.quoted_subtotal) + Number(row.quoted_freight)
+      expect(Number(row.quoted_duty_total)).toBeCloseTo(dutiable * 0.08, 2)
+      expect(Number(row.quoted_import_tax_total)).toBeCloseTo(
+        (dutiable + Number(row.quoted_duty_total)) * 0.21,
+        2
+      )
+      expect(Number(row.quoted_ddp_fee_total)).toBeCloseTo(1_981.57, 2)
+      // The rates freeze too, so the amounts can be checked against a carrier
+      // invoice months later rather than merely believed.
+      expect(Number(row.quoted_duty_rate)).toBe(8)
+      expect(Number(row.quoted_import_tax_rate)).toBe(21)
+      expect(row.quoted_duty_basis).toBe("EU: 8% duty, 21% NL VAT, HS 6304.92")
 
-      // And the buyer sees the promise, the number behind it, and a total that
-      // actually contains it — the promise used to add nothing to the price.
+      // And the buyer sees the promise, the numbers behind it, and a total that
+      // actually contains them — the promise used to add nothing to the price.
       const quote = await viewByToken(minted.token)
       expect(quote.tax.reason).toMatch(/nothing further to pay on delivery/i)
-      expect(quote.duty).toEqual({
-        prepaid: true,
-        total: 12_000,
-        basis: "EU 12% ad valorem, HS 6304.92",
-      })
-      expect(quote.quoted.duty_total).toBe(12_000)
-      expect(quote.quoted.gross_total).toBe(
-        quote.quoted.landed_total + 12_000
+      expect(quote.duty.prepaid).toBe(true)
+      expect(quote.duty.import_tax).toBeGreaterThan(quote.duty.total)
+      expect(quote.quoted.gross_total).toBeCloseTo(
+        quote.quoted.landed_total +
+          quote.quoted.duty_total +
+          quote.quoted.import_tax_total +
+          quote.quoted.ddp_fee_total,
+        2
       )
     })
 
@@ -389,7 +403,8 @@ setupSharedTestSuite(() => {
         destination_postal_code: "10115",
         destination_city: "Berlin",
         duties_prepaid: true,
-        duty_total: 0,
+        duty_rate_percent: 0,
+        import_tax_rate_percent: 0,
         duty_basis: "GSP relief — 0% on HS 6304.92 for IN origin",
       })
 
@@ -397,6 +412,9 @@ setupSharedTestSuite(() => {
       // 0, not null: the difference between "checked, nil" and "left blank" is
       // the entire reason the basis column exists.
       expect(Number(row.quoted_duty_total)).toBe(0)
+      expect(Number(row.quoted_import_tax_total)).toBe(0)
+      // 0 with a rate of 0 recorded beside it — "checked, nil", not "blank".
+      expect(Number(row.quoted_duty_rate)).toBe(0)
       expect(row.quoted_duty_basis).toMatch(/GSP relief/i)
     })
 

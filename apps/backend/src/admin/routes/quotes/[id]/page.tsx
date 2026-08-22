@@ -191,8 +191,38 @@ const QuoteDetailPage = () => {
                       ),
                     },
                     {
+                      // 🔴 Listed separately and NOT folded into the duty: on
+                      // an EU lane this is the larger number by roughly 3×, and
+                      // a lump sum cannot be reconciled against a carrier's
+                      // itemised invoice months later.
+                      label: "Import tax (we pay)",
+                      value: money(
+                        quote.quoted_import_tax_total,
+                        quote.currency_code
+                      ),
+                    },
+                    {
+                      label: "Clearance fee",
+                      value: money(
+                        quote.quoted_ddp_fee_total,
+                        quote.currency_code
+                      ),
+                    },
+                    {
                       label: "Duty basis",
-                      value: quote.quoted_duty_basis || "—",
+                      value: [
+                        quote.quoted_duty_rate !== null &&
+                        quote.quoted_duty_rate !== undefined
+                          ? `${quote.quoted_duty_rate}% duty`
+                          : null,
+                        quote.quoted_import_tax_rate !== null &&
+                        quote.quoted_import_tax_rate !== undefined
+                          ? `${quote.quoted_import_tax_rate}% import tax`
+                          : null,
+                        quote.quoted_duty_basis || null,
+                      ]
+                        .filter(Boolean)
+                        .join(" · ") || "—",
                     },
                   ]
                 : []),

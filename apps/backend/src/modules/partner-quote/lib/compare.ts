@@ -49,9 +49,20 @@ export type QuoteMoney = {
    */
   duty_total: number | null
   /**
+   * Destination VAT/GST we pay on a DDP quote, and the carrier's fee for
+   * advancing the money (#1447). Same null-vs-zero rule as `duty_total`.
+   *
+   * 🔴 `import_tax_total` is typically the LARGEST of the three — 21% of
+   * (goods + freight + duty) dwarfs an 8% duty. Funding only the duty is the
+   * failure this split exists to make impossible.
+   */
+  import_tax_total: number | null
+  ddp_fee_total: number | null
+  /**
    * What the buyer actually pays. `landed_total`, plus tax when the prices are
    * tax-exclusive (when they are inclusive the tax is already inside it and
-   * `tax_total` is the extracted portion), plus any prepaid duty.
+   * `tax_total` is the extracted portion), plus the whole DDP undertaking —
+   * duty, import tax and the carrier's advance fee.
    * Null whenever tax is unknown — a gross total we cannot stand behind is
    * worse than none.
    */

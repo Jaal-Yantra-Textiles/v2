@@ -143,6 +143,28 @@ const PartnerQuote = model.define("partner_quote", {
    * is not the person who typed it.
    */
   quoted_duty_basis: model.text().nullable(),
+  /**
+   * The other two thirds of a DDP undertaking.
+   *
+   * 🔴 Duty is the SMALL half. DHL's landed-cost planner on a 70,000 INR
+   * consignment to NL: duty 6,143 (8% of goods + freight), import VAT 17,416
+   * (21% of goods + freight + duty), carrier duty-tax-paid fee 1,982. A partner
+   * who reads "duty" and funds only the duty under-writes the promise by
+   * roughly 19,400 — and the buyer never finds out, because we eat it.
+   *
+   * Three columns rather than one lump because a carrier's invoice arrives
+   * months later itemised, and "which of the three was wrong" is the only
+   * question worth being able to answer against it.
+   */
+  quoted_import_tax_total: model.bigNumber().nullable(),
+  quoted_ddp_fee_total: model.bigNumber().nullable(),
+  /**
+   * The rates the amounts were derived from, frozen so the figure can be
+   * re-derived rather than merely believed. Null on a lane priced by a flat
+   * amount — a specific duty is charged per kilo and no percentage says it.
+   */
+  quoted_duty_rate: model.number().nullable(),
+  quoted_import_tax_rate: model.number().nullable(),
   quoted_at: model.dateTime().nullable(),
 
   // ===== Buyer identity — the edges this quote's prices hang off ==========

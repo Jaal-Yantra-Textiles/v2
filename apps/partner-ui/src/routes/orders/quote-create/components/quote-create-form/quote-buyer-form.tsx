@@ -284,9 +284,16 @@ export const QuoteBuyerForm = ({ form, currencies }: QuoteBuyerFormProps) => {
                        * it would be added to a total whose buyer was told duty
                        * is theirs to pay on arrival.
                        */
-                      form.setValue("duty_total", null)
+                      form.setValue("duty_rate_percent", null)
+                      form.setValue("import_tax_rate_percent", null)
+                      form.setValue("ddp_fee_total", null)
                       form.setValue("duty_basis", null)
-                      form.clearErrors(["duty_total", "duty_basis"])
+                      form.clearErrors([
+                        "duty_rate_percent",
+                        "import_tax_rate_percent",
+                        "ddp_fee_total",
+                        "duty_basis",
+                      ])
                     }
                   }}
                   {...rest}
@@ -299,14 +306,82 @@ export const QuoteBuyerForm = ({ form, currencies }: QuoteBuyerFormProps) => {
       />
 
       {form.watch("duties_prepaid") ? (
-        <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
           <Form.Field
             control={form.control}
-            name="duty_total"
+            name="duty_rate_percent"
             render={({ field: { onChange, value, ...rest } }) => (
               <Form.Item>
                 <Form.Label>
-                  {t("quotes.fields.dutyTotal", "Duty we absorb")}
+                  {t("quotes.fields.dutyRate", "Duty rate %")}
+                </Form.Label>
+                <Form.Control>
+                  <Input
+                    type="number"
+                    min={0}
+                    max={100}
+                    step="0.01"
+                    placeholder="8"
+                    value={value ?? ""}
+                    onChange={(e) => {
+                      const next = e.target.value
+                      onChange(next === "" ? null : Number(next))
+                    }}
+                    {...rest}
+                  />
+                </Form.Control>
+                <Form.Hint>
+                  {t(
+                    "quotes.fields.dutyRateHint",
+                    "Applied to goods + freight. 0% is a real answer — AI-ECTA makes Indian textiles duty-free into Australia."
+                  )}
+                </Form.Hint>
+                <Form.ErrorMessage />
+              </Form.Item>
+            )}
+          />
+
+          <Form.Field
+            control={form.control}
+            name="import_tax_rate_percent"
+            render={({ field: { onChange, value, ...rest } }) => (
+              <Form.Item>
+                <Form.Label>
+                  {t("quotes.fields.importTaxRate", "Import VAT / GST %")}
+                </Form.Label>
+                <Form.Control>
+                  <Input
+                    type="number"
+                    min={0}
+                    max={100}
+                    step="0.01"
+                    placeholder="21"
+                    value={value ?? ""}
+                    onChange={(e) => {
+                      const next = e.target.value
+                      onChange(next === "" ? null : Number(next))
+                    }}
+                    {...rest}
+                  />
+                </Form.Control>
+                <Form.Hint>
+                  {t(
+                    "quotes.fields.importTaxRateHint",
+                    "Applied to goods + freight + duty — it is charged on a value that already includes the duty, and it is usually the largest of the three."
+                  )}
+                </Form.Hint>
+                <Form.ErrorMessage />
+              </Form.Item>
+            )}
+          />
+
+          <Form.Field
+            control={form.control}
+            name="ddp_fee_total"
+            render={({ field: { onChange, value, ...rest } }) => (
+              <Form.Item>
+                <Form.Label optional>
+                  {t("quotes.fields.ddpFee", "Carrier clearance fee")}
                 </Form.Label>
                 <Form.Control>
                   <Input
@@ -324,8 +399,8 @@ export const QuoteBuyerForm = ({ form, currencies }: QuoteBuyerFormProps) => {
                 </Form.Control>
                 <Form.Hint>
                   {t(
-                    "quotes.fields.dutyTotalHint",
-                    "In the quote's currency. It is added to the buyer's total — nothing derives it, so this figure is the one we are committing to."
+                    "quotes.fields.ddpFeeHint",
+                    "What the carrier charges for advancing the duty and tax (DHL calls it duty-tax-paid). In the quote's currency."
                   )}
                 </Form.Hint>
                 <Form.ErrorMessage />
@@ -333,31 +408,33 @@ export const QuoteBuyerForm = ({ form, currencies }: QuoteBuyerFormProps) => {
             )}
           />
 
-          <Form.Field
-            control={form.control}
-            name="duty_basis"
-            render={({ field }) => (
-              <Form.Item>
-                <Form.Label>
-                  {t("quotes.fields.dutyBasis", "How you got there")}
-                </Form.Label>
-                <Form.Control>
-                  <Input
-                    placeholder="EU 12% ad valorem, HS 6304.92"
-                    {...field}
-                    value={field.value ?? ""}
-                  />
-                </Form.Control>
-                <Form.Hint>
-                  {t(
-                    "quotes.fields.dutyBasisHint",
-                    "A nil duty is a real answer — say why (e.g. AI-ECTA: Indian textiles enter Australia duty-free). A bare 0 cannot tell 'checked' from 'left blank'."
-                  )}
-                </Form.Hint>
-                <Form.ErrorMessage />
-              </Form.Item>
-            )}
-          />
+          <div className="md:col-span-3">
+            <Form.Field
+              control={form.control}
+              name="duty_basis"
+              render={({ field }) => (
+                <Form.Item>
+                  <Form.Label>
+                    {t("quotes.fields.dutyBasis", "How you got these rates")}
+                  </Form.Label>
+                  <Form.Control>
+                    <Input
+                      placeholder="EU: 8% duty, 21% NL VAT, HS 6304.92 — DHL landed-cost planner"
+                      {...field}
+                      value={field.value ?? ""}
+                    />
+                  </Form.Control>
+                  <Form.Hint>
+                    {t(
+                      "quotes.fields.dutyBasisHint",
+                      "The amounts are computed at mint against the basket that is actually priced, and frozen with these rates — so the figure can be checked against the carrier's invoice later instead of merely believed."
+                    )}
+                  </Form.Hint>
+                  <Form.ErrorMessage />
+                </Form.Item>
+              )}
+            />
+          </div>
         </div>
       ) : null}
     </div>

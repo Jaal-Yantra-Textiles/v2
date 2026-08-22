@@ -16,6 +16,7 @@ import {
 } from "./compare"
 import { resolveQuoteProducer, type QuoteProducer } from "./quote-producer"
 import { resolveQuoteTax, type QuoteTax } from "./quote-tax"
+import { computeDdpCharges, describeDdpBasis } from "./ddp-charges"
 import { resolveQuoteSpecs, type QuoteLineSpec } from "./quote-spec"
 import { daysUntilExpiry, quoteUnusableReason } from "./token"
 
@@ -90,8 +91,12 @@ export type QuoteViewQuote = {
   quoted_tax_status?: string | null
   quoted_tax_reason?: string | null
   duties_prepaid?: boolean | null
-  /** #1447. The duty figure we committed to, and how it was arrived at. */
+  /** #1447. The DDP charges we committed to, and how they were arrived at. */
   quoted_duty_total?: number | null
+  quoted_import_tax_total?: number | null
+  quoted_ddp_fee_total?: number | null
+  quoted_duty_rate?: number | null
+  quoted_import_tax_rate?: number | null
   quoted_duty_basis?: string | null
   quoted_at?: Date | string | null
   recipient_name?: string | null
@@ -143,6 +148,23 @@ export type BuildQuoteViewInput = {
    */
   duty_total?: number | null
   duty_basis?: string | null
+  /**
+   * The rate form (#1447), and the preferred one. The wizard collects the two
+   * percentages and the AMOUNTS ARE COMPUTED HERE, against the quote's own
+   * subtotal and freight — the wizard cannot know those before the mint prices
+   * the basket, so a client-computed amount would be an estimate frozen as a
+   * commitment.
+   *
+   * Duty is assessed on goods + freight; import tax on goods + freight + duty.
+   * The cascade is the part people get wrong by hand, always in the direction
+   * that under-funds the promise.
+   */
+  duty_rate_percent?: number | null
+  import_tax_rate_percent?: number | null
+  /** A flat import tax, where a rate does not express the lane. */
+  import_tax_total?: number | null
+  /** The carrier's charge for advancing duty and tax. Always an amount. */
+  ddp_fee_total?: number | null
   /** Passed in so the whole view is deterministic under test. */
   now: Date
 }
@@ -218,8 +240,17 @@ export type QuoteView = {
    */
   duty: {
     prepaid: boolean
-    /** Quote currency. Null = no figure; 0 = duty applies and is nil. */
+    /** Customs duty. Quote currency. Null = no figure; 0 = applies and is nil. */
     total: number | null
+    /** Destination VAT/GST we also pay — usually the LARGEST of the three. */
+    import_tax: number | null
+    /** The carrier's fee for advancing duty and tax on our behalf. */
+    carrier_fee: number | null
+    /** What the undertaking adds to the buyer's total: the three summed. */
+    combined_total: number | null
+    /** The rates applied, so the figures can be re-derived, not just believed. */
+    duty_rate_percent: number | null
+    import_tax_rate_percent: number | null
     /** "EU 12% ad valorem, HS 6304.92", "AI-ECTA duty-free". */
     basis: string | null
   }
@@ -340,11 +371,12 @@ export function composeQuoteMoney(
    */
   tax?: { total: number | null; inclusive: boolean } | null,
   /**
-   * #1447. The customs duty we undertook to pay, in the quote currency.
-   * Omitted ⇒ not a DDP quote, and no duty row renders. Passing `0` is a
-   * different statement: duty applies to this lane and it is nil.
+   * #1447. The DDP undertaking, in the quote currency: customs duty, the
+   * destination import tax we also pay, and the carrier's fee for advancing
+   * them. Omitted ⇒ not a DDP quote, and no duty rows render. A `0` is a
+   * different statement: the charge applies to this lane and it is nil.
    */
-  duty?: number | null
+  ddp?: { duty?: number | null; import_tax?: number | null; fee?: number | null } | null
 ): QuoteMoney {
   const subtotal = lineSubtotals.reduce((sum, n) => sum + n, 0)
   const landed = subtotal + freight
@@ -354,10 +386,19 @@ export function composeQuoteMoney(
       ? Number(tax.total)
       : null
 
-  const dutyTotal =
-    duty === null || duty === undefined || !Number.isFinite(Number(duty))
+  const num = (v: unknown): number | null =>
+    v === null || v === undefined || !Number.isFinite(Number(v))
       ? null
-      : Number(duty)
+      : Number(v)
+
+  const dutyTotal = num(ddp?.duty)
+  const importTaxTotal = num(ddp?.import_tax)
+  const ddpFeeTotal = num(ddp?.fee)
+  // What the undertaking adds to the buyer's total. Absent parts count as 0
+  // here — but only after each has been recorded as null above, so "nil duty"
+  // and "no duty figure" stay distinguishable in what gets frozen and shown.
+  const ddpTotal =
+    (dutyTotal ?? 0) + (importTaxTotal ?? 0) + (ddpFeeTotal ?? 0)
 
   return {
     unit_amount: totalUnits > 0 ? subtotal / totalUnits : 0,
@@ -372,6 +413,8 @@ export function composeQuoteMoney(
      * without adding it took the amount out of our own margin.
      */
     duty_total: dutyTotal,
+    import_tax_total: importTaxTotal,
+    ddp_fee_total: ddpFeeTotal,
     /**
      * 🔴 When the prices are tax-INCLUSIVE the tax is already inside
      * `landed_total`, so adding it again would overcharge the buyer by the
@@ -382,7 +425,7 @@ export function composeQuoteMoney(
     gross_total:
       taxTotal === null
         ? null
-        : (tax?.inclusive ? landed : landed + taxTotal) + (dutyTotal ?? 0),
+        : (tax?.inclusive ? landed : landed + taxTotal) + ddpTotal,
   }
 }
 
@@ -443,10 +486,13 @@ export function frozenMoney(quote?: QuoteViewQuote | null): QuoteMoney | null {
     quote.quoted_tax_total === null || quote.quoted_tax_total === undefined
       ? null
       : Number(quote.quoted_tax_total)
-  const dutyTotal =
-    quote.quoted_duty_total === null || quote.quoted_duty_total === undefined
-      ? null
-      : Number(quote.quoted_duty_total)
+  const frozenNumber = (v: unknown): number | null =>
+    v === null || v === undefined ? null : Number(v)
+  const dutyTotal = frozenNumber(quote.quoted_duty_total)
+  const importTaxTotal = frozenNumber(quote.quoted_import_tax_total)
+  const ddpFeeTotal = frozenNumber(quote.quoted_ddp_fee_total)
+  const ddpTotal =
+    (dutyTotal ?? 0) + (importTaxTotal ?? 0) + (ddpFeeTotal ?? 0)
   const landed = Number(quote.quoted_landed_total)
 
   return {
@@ -462,11 +508,12 @@ export function frozenMoney(quote?: QuoteViewQuote | null): QuoteMoney | null {
     tax_total: taxTotal,
     /** Same rule, same reason (#1447): null is "no figure", 0 is "nil duty". */
     duty_total: dutyTotal,
+    import_tax_total: importTaxTotal,
+    ddp_fee_total: ddpFeeTotal,
     gross_total:
       taxTotal === null
         ? null
-        : (quote.quoted_tax_inclusive ? landed : landed + taxTotal) +
-          (dutyTotal ?? 0),
+        : (quote.quoted_tax_inclusive ? landed : landed + taxTotal) + ddpTotal,
   }
 }
 
@@ -576,16 +623,47 @@ export async function buildQuoteView(
   const dutiesPrepaid = Boolean(
     input.duties_prepaid ?? input.quote?.duties_prepaid
   )
-  const frozenDuty =
-    input.quote?.quoted_duty_total === null ||
-    input.quote?.quoted_duty_total === undefined
-      ? null
-      : Number(input.quote.quoted_duty_total)
-  const dutyTotal = !dutiesPrepaid
-    ? null
-    : input.duty_total === null || input.duty_total === undefined
-      ? frozenDuty
-      : Number(input.duty_total)
+  const frozen = (v: unknown): number | null =>
+    v === null || v === undefined ? null : Number(v)
+
+  /**
+   * Rates win over amounts, and the INPUT wins over the frozen row.
+   *
+   * The rates are what make the live column internally consistent: if the buyer
+   * moves a quantity, the duty moves with the subtotal it is assessed on. The
+   * frozen amounts are never recomputed — `frozenMoney` reads the columns — so
+   * "what you were quoted" stays what was quoted.
+   */
+  const ddpRates = {
+    duty_rate_percent:
+      input.duty_rate_percent ?? frozen(input.quote?.quoted_duty_rate),
+    import_tax_rate_percent:
+      input.import_tax_rate_percent ??
+      frozen(input.quote?.quoted_import_tax_rate),
+  }
+  const ddpAmounts = {
+    duty_total: input.duty_total ?? frozen(input.quote?.quoted_duty_total),
+    import_tax_total:
+      input.import_tax_total ?? frozen(input.quote?.quoted_import_tax_total),
+    ddp_fee_total:
+      input.ddp_fee_total ?? frozen(input.quote?.quoted_ddp_fee_total),
+  }
+  /** Filled once the live basket is priced; falls back to the frozen figures. */
+  let ddpCharges = dutiesPrepaid
+    ? {
+        duty: ddpAmounts.duty_total,
+        import_tax: ddpAmounts.import_tax_total,
+        carrier_fee: ddpAmounts.ddp_fee_total,
+        duty_rate_percent: ddpRates.duty_rate_percent,
+        import_tax_rate_percent: ddpRates.import_tax_rate_percent,
+      }
+    : {
+        duty: null as number | null,
+        import_tax: null as number | null,
+        carrier_fee: null as number | null,
+        duty_rate_percent: null as number | null,
+        import_tax_rate_percent: null as number | null,
+      }
 
   let live: QuoteMoney | null = null
   let liveError: string | null = null
@@ -712,17 +790,51 @@ export async function buildQuoteView(
         freight: { amount: Number(chosen.amount), option_id: (chosen as any)?.id ?? null },
       })
 
+      const liveSubtotals = effectiveLines.map(
+        (l) => (liveUnitByVariant.get(l.variant_id) ?? 0) * l.quantity
+      )
+
+      if (dutiesPrepaid) {
+        /**
+         * 🔴 The amounts are computed HERE, from the basket that was actually
+         * priced — never taken from the client. A wizard can only estimate the
+         * subtotal and cannot know the freight at all before this runs, so a
+         * client-computed figure would be a guess frozen as a commitment.
+         *
+         * Duty on goods + freight; import tax on goods + freight + duty. The
+         * cascade is the arithmetic people get wrong by hand, and the error
+         * always lands the same way: under-funding a promise we then eat.
+         */
+        const charges = computeDdpCharges({
+          subtotal: liveSubtotals.reduce((sum, n) => sum + n, 0),
+          freight: Number(chosen.amount),
+          ...ddpRates,
+          ...ddpAmounts,
+        })
+        ddpCharges = {
+          duty: charges.duty,
+          import_tax: charges.import_tax,
+          carrier_fee: charges.carrier_fee,
+          duty_rate_percent: charges.duty_rate_percent,
+          import_tax_rate_percent: charges.import_tax_rate_percent,
+        }
+      }
+
       live = composeQuoteMoney(
-        effectiveLines.map(
-          (l) => (liveUnitByVariant.get(l.variant_id) ?? 0) * l.quantity
-        ),
+        liveSubtotals,
         effectiveLines.reduce((sum, l) => sum + l.quantity, 0),
         Number(chosen.amount),
         tax,
-        // Not recomputed from the lane: nobody can price this lane's duty yet
-        // (see the model docblock). It is the figure the partner committed to,
-        // carried so the total the buyer pays actually contains the promise.
-        dutyTotal
+        // Nobody can price this lane's duty from a carrier API yet (see the
+        // model docblock), so these are the partner's rates applied to the real
+        // basket — carried into the total so the promise is actually funded.
+        dutiesPrepaid
+          ? {
+              duty: ddpCharges.duty,
+              import_tax: ddpCharges.import_tax,
+              fee: ddpCharges.carrier_fee,
+            }
+          : null
       )
     } catch (err) {
       // The quoted half — what the partner actually told this buyer — is still
@@ -830,7 +942,16 @@ export async function buildQuoteView(
     tax: frozenTaxFallback(tax, input.quote),
     duty: {
       prepaid: dutiesPrepaid,
-      total: dutyTotal,
+      total: ddpCharges.duty,
+      import_tax: ddpCharges.import_tax,
+      carrier_fee: ddpCharges.carrier_fee,
+      combined_total: dutiesPrepaid
+        ? (ddpCharges.duty ?? 0) +
+          (ddpCharges.import_tax ?? 0) +
+          (ddpCharges.carrier_fee ?? 0)
+        : null,
+      duty_rate_percent: ddpCharges.duty_rate_percent,
+      import_tax_rate_percent: ddpCharges.import_tax_rate_percent,
       // Gated on the undertaking for the same reason the amount is: a basis
       // note on a quote that is not DDP describes a promise nobody made.
       basis: dutiesPrepaid

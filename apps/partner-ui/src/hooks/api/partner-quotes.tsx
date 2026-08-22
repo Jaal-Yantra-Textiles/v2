@@ -109,7 +109,11 @@ export type MintPartnerQuotePayload = {
    * plus how it was reached. The backend refuses the flag without the pair.
    */
   duties_prepaid?: boolean
+  duty_rate_percent?: number | null
+  import_tax_rate_percent?: number | null
   duty_total?: number | null
+  import_tax_total?: number | null
+  ddp_fee_total?: number | null
   duty_basis?: string | null
 }
 

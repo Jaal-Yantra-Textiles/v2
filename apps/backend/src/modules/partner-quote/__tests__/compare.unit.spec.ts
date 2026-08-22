@@ -13,6 +13,8 @@ const money = (over: Partial<QuoteMoney> = {}): QuoteMoney => ({
   // #1447 added `duty_total` the same way, and this fixture is where the
   // omission shows up: red on `check:prod-build`, green on jest.
   duty_total: null,
+  import_tax_total: null,
+  ddp_fee_total: null,
   gross_total: null,
   ...over,
 })

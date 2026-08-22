@@ -74,6 +74,16 @@ export type MintQuoteInput = {
    */
   duty_total?: number | null
   duty_basis?: string | null
+  /**
+   * The rate form, and the normal one. The amounts are computed by
+   * `buildQuoteView` against the basket it actually priced — duty on
+   * goods + freight, import tax on goods + freight + duty.
+   */
+  duty_rate_percent?: number | null
+  import_tax_rate_percent?: number | null
+  import_tax_total?: number | null
+  /** The carrier's fee for advancing duty and tax. Always an amount. */
+  ddp_fee_total?: number | null
   ttl_days?: number
   created_by?: string | null
   /** Injected so the whole mint is deterministic under test. */
@@ -273,6 +283,10 @@ const buildAndFreezeStep = createStep(
       duties_prepaid: input.duties_prepaid ?? false,
       duty_total: input.duty_total ?? null,
       duty_basis: input.duty_basis ?? null,
+      duty_rate_percent: input.duty_rate_percent ?? null,
+      import_tax_rate_percent: input.import_tax_rate_percent ?? null,
+      import_tax_total: input.import_tax_total ?? null,
+      ddp_fee_total: input.ddp_fee_total ?? null,
       now: payload.now,
     })
 
@@ -784,6 +798,15 @@ const persistQuoteStep = createStep(
       // stray number in the body cannot be stored against a quote whose buyer
       // was told duty is theirs to pay.
       quoted_duty_total: input.view.duty?.total ?? null,
+      // The other two thirds. Duty alone funds ~a quarter of a real EU
+      // undertaking — the import tax is the big one and the carrier charges a
+      // fee for advancing both.
+      quoted_import_tax_total: input.view.duty?.import_tax ?? null,
+      quoted_ddp_fee_total: input.view.duty?.carrier_fee ?? null,
+      // Frozen so the amounts can be re-derived against a carrier invoice
+      // months later rather than merely believed.
+      quoted_duty_rate: input.view.duty?.duty_rate_percent ?? null,
+      quoted_import_tax_rate: input.view.duty?.import_tax_rate_percent ?? null,
       quoted_duty_basis: input.view.duty?.basis ?? null,
       quoted_at: new Date(input.now),
       token_hash: hash,

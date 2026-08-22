@@ -26,11 +26,17 @@ export type QuoteMoney = {
   /** #1439 S8. Null means unknown, never zero. */
   tax_total: number | null
   /**
-   * Customs duty WE pay on a DDP quote (#1447). Null = not a DDP quote or no
-   * figure; `0` = duty applies to this lane and is nil (AI-ECTA into AU).
-   * Never inside `landed_total`.
+   * The DDP undertaking, split (#1447). Null = not a DDP quote or no figure;
+   * `0` = the charge applies to this lane and is nil (AI-ECTA into AU).
+   * None of them is inside `landed_total`.
+   *
+   * 🔴 `import_tax_total` is usually the LARGEST: 21% of goods + freight + duty
+   * against an 8% duty. `ddp_fee_total` is the carrier's charge for advancing
+   * the money.
    */
   duty_total: number | null
+  import_tax_total: number | null
+  ddp_fee_total: number | null
   /**
    * `landed_total`, plus tax when the prices are tax-exclusive (when inclusive
    * the tax is already inside it), plus any prepaid duty.
@@ -169,7 +175,16 @@ export type QuoteView = {
    */
   duty: {
     prepaid: boolean
+    /** Customs duty. */
     total: number | null
+    /** Destination VAT/GST we also pay. */
+    import_tax: number | null
+    /** The carrier's fee for advancing duty and tax. */
+    carrier_fee: number | null
+    /** The three summed — what the undertaking adds to the buyer's total. */
+    combined_total: number | null
+    duty_rate_percent: number | null
+    import_tax_rate_percent: number | null
     basis: string | null
   }
   total_weight_grams: number | null

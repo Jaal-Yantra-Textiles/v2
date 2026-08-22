@@ -27,6 +27,10 @@ export type AdminQuote = Record<string, any> & {
   /** #1447 — the DDP undertaking and the duty figure frozen behind it. */
   duties_prepaid?: boolean | null
   quoted_duty_total?: number | null
+  quoted_import_tax_total?: number | null
+  quoted_ddp_fee_total?: number | null
+  quoted_duty_rate?: number | null
+  quoted_import_tax_rate?: number | null
   quoted_duty_basis?: string | null
   status?: "active" | "revoked" | "superseded"
   expires_at?: string | null
@@ -74,7 +78,11 @@ export type AdminMintQuotePayload = {
   ttl_days?: number
   /** DDP (#1447): the undertaking, the amount absorbed, and how it was reached. */
   duties_prepaid?: boolean
+  duty_rate_percent?: number | null
+  import_tax_rate_percent?: number | null
   duty_total?: number | null
+  import_tax_total?: number | null
+  ddp_fee_total?: number | null
   duty_basis?: string | null
 }
 
