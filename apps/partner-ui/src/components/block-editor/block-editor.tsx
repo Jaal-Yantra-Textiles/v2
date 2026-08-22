@@ -1,8 +1,8 @@
 import { useCallback, useState } from "react"
 import { Text, Button, IconButton, Tooltip, Select, Badge, Label } from "@medusajs/ui"
-import { Trash, Plus, Images, ChevronDown, ChevronRight, CursorArrowRays, ArrowUpMini, ArrowDownMini } from "@medusajs/icons"
+import { Trash, Plus, Images, ChevronDown, ChevronRight, CursorArrowRays, ArrowUpMini, ArrowDownMini, ArrowsPointingOut } from "@medusajs/icons"
 import { ContentBlock } from "../../hooks/api/content"
-import { TipTapEditor } from "../tiptap-editor/tiptap-editor"
+import { TipTapEditor, type TipTapActions } from "../tiptap-editor/tiptap-editor"
 
 
 type BlockEditorProps = {
@@ -15,6 +15,7 @@ type BlockEditorProps = {
   canMoveUp?: boolean
   canMoveDown?: boolean
   saveStatus: "saved" | "saving" | "unsaved"
+  onEditorReady?: (editor: any, actions: TipTapActions) => void
 }
 
 const FieldLabel = ({ children }: { children: React.ReactNode }) => (
@@ -94,6 +95,7 @@ export const BlockEditor = ({
   canMoveUp = true,
   canMoveDown = true,
   saveStatus,
+  onEditorReady,
 }: BlockEditorProps) => {
   const updateContent = useCallback(
     (key: string, value: unknown) => {
@@ -199,6 +201,7 @@ export const BlockEditor = ({
                 content={(content.body as Record<string, unknown>) || undefined}
                 onChange={(json) => updateContent("body", json)}
                 placeholder="Write your page content here..."
+                onEditorReady={onEditorReady}
               />
             </div>
           </>
@@ -221,6 +224,7 @@ export const BlockEditor = ({
                 content={(content.body as Record<string, unknown>) || undefined}
                 onChange={(json) => updateContent("body", json)}
                 placeholder="Write section content..."
+                onEditorReady={onEditorReady}
               />
             </div>
             <div>
@@ -403,6 +407,7 @@ export const BlockEditor = ({
                 content={(content.body as Record<string, unknown>) || undefined}
                 onChange={(json) => updateContent("body", json)}
                 placeholder="Write custom content..."
+                onEditorReady={onEditorReady}
               />
             </div>
           </>
@@ -424,6 +429,7 @@ export const BlockEditor = ({
                 content={(content.body as Record<string, unknown>) || undefined}
                 onChange={(json) => updateContent("body", json)}
                 placeholder="Write content..."
+                onEditorReady={onEditorReady}
               />
             </div>
           </>
@@ -581,93 +587,33 @@ export const BlockEditor = ({
                 </div>
               </div>
 
-              <div>
-                <FieldLabel>Padding (px)</FieldLabel>
-                <TextInput
-                  value={(block.settings?.padding as string) || ""}
-                  placeholder="0"
-                  onChange={(v) => updateSettings("padding", v)}
-                />
-              </div>
+              <SpacingControl
+                label="Padding"
+                value={(block.settings?.padding as string) || ""}
+                top={(block.settings?.paddingTop as string) || ""}
+                right={(block.settings?.paddingRight as string) || ""}
+                bottom={(block.settings?.paddingBottom as string) || ""}
+                left={(block.settings?.paddingLeft as string) || ""}
+                onChangeAll={(v) => updateSettings("padding", v)}
+                onChangeTop={(v) => updateSettings("paddingTop", v)}
+                onChangeRight={(v) => updateSettings("paddingRight", v)}
+                onChangeBottom={(v) => updateSettings("paddingBottom", v)}
+                onChangeLeft={(v) => updateSettings("paddingLeft", v)}
+              />
 
-              <div className="grid grid-cols-2 gap-x-2">
-                <div>
-                  <FieldLabel>Pad Top</FieldLabel>
-                  <TextInput
-                    value={(block.settings?.paddingTop as string) || ""}
-                    placeholder="0"
-                    onChange={(v) => updateSettings("paddingTop", v)}
-                  />
-                </div>
-                <div>
-                  <FieldLabel>Pad Bottom</FieldLabel>
-                  <TextInput
-                    value={(block.settings?.paddingBottom as string) || ""}
-                    placeholder="0"
-                    onChange={(v) => updateSettings("paddingBottom", v)}
-                  />
-                </div>
-                <div>
-                  <FieldLabel>Pad Left</FieldLabel>
-                  <TextInput
-                    value={(block.settings?.paddingLeft as string) || ""}
-                    placeholder="0"
-                    onChange={(v) => updateSettings("paddingLeft", v)}
-                  />
-                </div>
-                <div>
-                  <FieldLabel>Pad Right</FieldLabel>
-                  <TextInput
-                    value={(block.settings?.paddingRight as string) || ""}
-                    placeholder="0"
-                    onChange={(v) => updateSettings("paddingRight", v)}
-                  />
-                </div>
-              </div>
-
-              <div>
-                <FieldLabel>Margin (px)</FieldLabel>
-                <TextInput
-                  value={(block.settings?.margin as string) || ""}
-                  placeholder="0"
-                  onChange={(v) => updateSettings("margin", v)}
-                />
-              </div>
-
-              <div className="grid grid-cols-2 gap-x-2">
-                <div>
-                  <FieldLabel>Margin Top</FieldLabel>
-                  <TextInput
-                    value={(block.settings?.marginTop as string) || ""}
-                    placeholder="0"
-                    onChange={(v) => updateSettings("marginTop", v)}
-                  />
-                </div>
-                <div>
-                  <FieldLabel>Margin Bottom</FieldLabel>
-                  <TextInput
-                    value={(block.settings?.marginBottom as string) || ""}
-                    placeholder="0"
-                    onChange={(v) => updateSettings("marginBottom", v)}
-                  />
-                </div>
-                <div>
-                  <FieldLabel>Margin Left</FieldLabel>
-                  <TextInput
-                    value={(block.settings?.marginLeft as string) || ""}
-                    placeholder="0"
-                    onChange={(v) => updateSettings("marginLeft", v)}
-                  />
-                </div>
-                <div>
-                  <FieldLabel>Margin Right</FieldLabel>
-                  <TextInput
-                    value={(block.settings?.marginRight as string) || ""}
-                    placeholder="0"
-                    onChange={(v) => updateSettings("marginRight", v)}
-                  />
-                </div>
-              </div>
+              <SpacingControl
+                label="Margin"
+                value={(block.settings?.margin as string) || ""}
+                top={(block.settings?.marginTop as string) || ""}
+                right={(block.settings?.marginRight as string) || ""}
+                bottom={(block.settings?.marginBottom as string) || ""}
+                left={(block.settings?.marginLeft as string) || ""}
+                onChangeAll={(v) => updateSettings("margin", v)}
+                onChangeTop={(v) => updateSettings("marginTop", v)}
+                onChangeRight={(v) => updateSettings("marginRight", v)}
+                onChangeBottom={(v) => updateSettings("marginBottom", v)}
+                onChangeLeft={(v) => updateSettings("marginLeft", v)}
+              />
 
               <div>
                 <FieldLabel>Max Width</FieldLabel>
@@ -690,7 +636,7 @@ export const BlockEditor = ({
 
               <div className="grid grid-cols-2 gap-x-2">
                 <div>
-                  <FieldLabel>Width</FieldLabel>
+                  <FieldLabel>Width (px)</FieldLabel>
                   <TextInput
                     value={(block.settings?.width as string) || ""}
                     placeholder="auto"
@@ -698,7 +644,7 @@ export const BlockEditor = ({
                   />
                 </div>
                 <div>
-                  <FieldLabel>Height</FieldLabel>
+                  <FieldLabel>Height (px)</FieldLabel>
                   <TextInput
                     value={(block.settings?.height as string) || ""}
                     placeholder="auto"
@@ -709,11 +655,17 @@ export const BlockEditor = ({
 
               <div>
                 <FieldLabel>Border Radius (px)</FieldLabel>
-                <TextInput
-                  value={(block.settings?.borderRadius as string) || ""}
-                  placeholder="0"
-                  onChange={(v) => updateSettings("borderRadius", v)}
+                <input
+                  type="range"
+                  min="0"
+                  max="32"
+                  value={Number((block.settings?.borderRadius as string) || "0")}
+                  onChange={(e) => updateSettings("borderRadius", e.target.value)}
+                  className="w-full"
                 />
+                <Text size="xsmall" className="text-ui-fg-muted">
+                  {((block.settings?.borderRadius as string) || "0")}px
+                </Text>
               </div>
 
               <div className="grid grid-cols-2 gap-x-2">
@@ -1369,5 +1321,106 @@ const ButtonBlockEditor = ({
         </div>
       </div>
     </>
+  )
+}
+
+const SpacingControl = ({
+  label,
+  value,
+  top,
+  right,
+  bottom,
+  left,
+  onChangeAll,
+  onChangeTop,
+  onChangeRight,
+  onChangeBottom,
+  onChangeLeft,
+}: {
+  label: string
+  value: string
+  top: string
+  right: string
+  bottom: string
+  left: string
+  onChangeAll: (v: string) => void
+  onChangeTop: (v: string) => void
+  onChangeRight: (v: string) => void
+  onChangeBottom: (v: string) => void
+  onChangeLeft: (v: string) => void
+}) => {
+  const [expanded, setExpanded] = useState(false)
+  const hasPerSide = top || right || bottom || left
+  const sliderVal = value ? Number(value) : 0
+
+  return (
+    <div>
+      <div className="flex items-center justify-between mb-1">
+        <FieldLabel>{label}</FieldLabel>
+        <button
+          onClick={() => setExpanded((v) => !v)}
+          className="flex items-center gap-x-0.5 text-ui-fg-muted hover:text-ui-fg-base"
+        >
+          <ArrowsPointingOut className="w-3.5 h-3.5" />
+          <Text size="xsmall" className="text-ui-fg-muted">
+            {expanded ? "Simple" : "Per side"}
+          </Text>
+        </button>
+      </div>
+      {expanded ? (
+        <div className="grid grid-cols-2 gap-1">
+          <div className="flex items-center gap-x-1">
+            <Text size="xsmall" className="text-ui-fg-muted w-4">T</Text>
+            <input
+              className="flex-1 rounded-md border border-ui-border-base bg-ui-bg-field px-2 py-1 text-sm w-full"
+              value={top}
+              placeholder="0"
+              onChange={(e) => onChangeTop(e.target.value)}
+            />
+          </div>
+          <div className="flex items-center gap-x-1">
+            <Text size="xsmall" className="text-ui-fg-muted w-4">B</Text>
+            <input
+              className="flex-1 rounded-md border border-ui-border-base bg-ui-bg-field px-2 py-1 text-sm w-full"
+              value={bottom}
+              placeholder="0"
+              onChange={(e) => onChangeBottom(e.target.value)}
+            />
+          </div>
+          <div className="flex items-center gap-x-1">
+            <Text size="xsmall" className="text-ui-fg-muted w-4">L</Text>
+            <input
+              className="flex-1 rounded-md border border-ui-border-base bg-ui-bg-field px-2 py-1 text-sm w-full"
+              value={left}
+              placeholder="0"
+              onChange={(e) => onChangeLeft(e.target.value)}
+            />
+          </div>
+          <div className="flex items-center gap-x-1">
+            <Text size="xsmall" className="text-ui-fg-muted w-4">R</Text>
+            <input
+              className="flex-1 rounded-md border border-ui-border-base bg-ui-bg-field px-2 py-1 text-sm w-full"
+              value={right}
+              placeholder="0"
+              onChange={(e) => onChangeRight(e.target.value)}
+            />
+          </div>
+        </div>
+      ) : (
+        <div className="flex items-center gap-x-2">
+          <input
+            type="range"
+            min="0"
+            max="80"
+            value={sliderVal}
+            onChange={(e) => onChangeAll(e.target.value)}
+            className="flex-1"
+          />
+          <Text size="small" className="text-ui-fg-muted w-10 text-right">
+            {value || (hasPerSide ? "mixed" : "0")}px
+          </Text>
+        </div>
+      )}
+    </div>
   )
 }

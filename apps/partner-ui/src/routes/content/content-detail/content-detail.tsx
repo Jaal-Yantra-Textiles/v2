@@ -28,6 +28,7 @@ import {
 import { StackedDrawer } from "../../../components/modals/stacked-drawer"
 import { Skeleton } from "../../../components/common/skeleton"
 import { BlockEditor } from "../../../components/block-editor/block-editor"
+import { TipTapEditor } from "../../../components/tiptap-editor/tiptap-editor"
 import {
   useContentPage,
   useContentBlocks,
@@ -41,6 +42,7 @@ import {
 } from "../../../hooks/api/content"
 import { useStorefrontStatus } from "../../../hooks/api/storefront"
 import { FetchError } from "@medusajs/js-sdk"
+import { usePartnerUpload } from "../../../hooks/api/uploads"
 
 const BLOCK_TYPES = [
   "Hero",
@@ -117,6 +119,16 @@ const ContentDetailInner = () => {
   const navigate = useNavigate()
   const { handleSuccess } = useRouteModal()
   const iframeRef = useRef<HTMLIFrameElement>(null)
+  const toolbarFileInputRef = useRef<HTMLInputElement>(null)
+  const toolbarUploadBlockIdRef = useRef<string | null>(null)
+  const tiptapEditorRef = useRef<any>(null)
+  const tiptapActionsRef = useRef<any>(null)
+  const { mutateAsync: uploadFile } = usePartnerUpload()
+
+  const handleEditorReady = useCallback((editor: any, actions: any) => {
+    tiptapEditorRef.current = editor
+    tiptapActionsRef.current = actions
+  }, [])
 
   const { page, isPending: pageLoading } = useContentPage(pageId!)
   const { blocks: initialBlocks, isPending: blocksLoading } = useContentBlocks(pageId!)
@@ -134,8 +146,12 @@ const ContentDetailInner = () => {
   const [iframeReady, setIframeReady] = useState(false)
   const { setIsOpen: setStackedOpen } = useStackedModal()
   const ADD_BLOCK_ID = "add-block"
+  const BODY_EDITOR_ID = "body-editor"
   const [newBlockType, setNewBlockType] = useState<string>("MainContent")
   const [newBlockName, setNewBlockName] = useState("")
+  const [bodyEditorBlockId, setBodyEditorBlockId] = useState<string | null>(null)
+  const [bodyEditorField, setBodyEditorField] = useState<string>("body")
+  const [bodyEditorContent, setBodyEditorContent] = useState<Record<string, unknown> | null>(null)
 
   const storefrontUrl = storefrontStatus?.storefront_url
 
@@ -157,18 +173,55 @@ const ContentDetailInner = () => {
         }, 200)
       }
       if (data.type === "BLOCK_FIELD_EDITED") {
-        const { blockId, field, value } = data
+        const { blockId, field, value, isHtml } = data as any
+        const isNested = field.includes(".")
+
         setBlocks((prev) =>
-          prev.map((b) =>
-            b.id === blockId
-              ? { ...b, content: { ...b.content, [field]: value } }
-              : b
-          )
+          prev.map((b) => {
+            if (b.id !== blockId) return b
+            if (isNested) {
+              const parts = field.split(".")
+              const contentCopy = JSON.parse(JSON.stringify(b.content || {}))
+              let obj = contentCopy
+              for (let i = 0; i < parts.length - 1; i++) {
+                const idx = parseInt(parts[i], 10)
+                if (!isNaN(idx)) {
+                  obj = obj[parts[i]] = obj[parts[i]] || []
+                } else {
+                  obj = obj[parts[i]] = obj[parts[i]] || {}
+                }
+              }
+              const lastKey = parts[parts.length - 1]
+              const lastIdx = parseInt(lastKey, 10)
+              if (!isNaN(lastIdx)) {
+                obj[lastKey] = value
+              } else {
+                obj[lastKey] = value
+              }
+              return { ...b, content: contentCopy }
+            }
+            return { ...b, content: { ...b.content, [field]: value } }
+          })
         )
         setSaveStatus("saving")
+        const contentUpdate = (() => {
+          if (isNested) {
+            const parts = field.split(".")
+            const block = blocks.find((b) => b.id === blockId)
+            if (!block) return {}
+            const contentCopy = JSON.parse(JSON.stringify(block.content || {}))
+            let obj = contentCopy
+            for (let i = 0; i < parts.length - 1; i++) {
+              obj = obj[parts[i]] = obj[parts[i]] || []
+            }
+            obj[parts[parts.length - 1]] = value
+            return { content: contentCopy }
+          }
+          return { content: { [field]: value } }
+        })()
         updateBlock({
           blockId,
-          body: { content: { [field]: value } },
+          body: contentUpdate,
         })
           .then(() => setSaveStatus("saved"))
           .catch(() => setSaveStatus("unsaved"))
@@ -193,6 +246,47 @@ const ContentDetailInner = () => {
       }
       if (data.type === "REQUEST_ADD_BLOCK_AT") {
         setStackedOpen(ADD_BLOCK_ID, true)
+      }
+      if (data.type === "OPEN_BODY_EDITOR") {
+        const { blockId, field } = data as any
+        const block = blocks.find((b) => b.id === blockId)
+        if (!block) return
+        setBodyEditorBlockId(blockId)
+        setBodyEditorField(field)
+        setBodyEditorContent((block.content[field] as Record<string, unknown>) || null)
+        setStackedOpen(BODY_EDITOR_ID, true)
+      }
+      if (data.type === "REQUEST_IMAGE_UPLOAD") {
+        toolbarUploadBlockIdRef.current = (data as any).blockId
+        toolbarFileInputRef.current?.click()
+      }
+      if (data.type === "TOOLBAR_COMMAND") {
+        const { command } = data as any
+        const editor = tiptapEditorRef.current
+        const actions = tiptapActionsRef.current
+        if (!editor) return
+
+        const cmdMap: Record<string, () => void> = {
+          toggleBold: () => editor.chain().focus().toggleBold().run(),
+          toggleItalic: () => editor.chain().focus().toggleItalic().run(),
+          toggleUnderline: () => editor.chain().focus().toggleUnderline().run(),
+          toggleHeading1: () => editor.chain().focus().toggleHeading({ level: 1 }).run(),
+          toggleHeading2: () => editor.chain().focus().toggleHeading({ level: 2 }).run(),
+          toggleHeading3: () => editor.chain().focus().toggleHeading({ level: 3 }).run(),
+          toggleBulletList: () => editor.chain().focus().toggleBulletList().run(),
+          toggleOrderedList: () => editor.chain().focus().toggleOrderedList().run(),
+          toggleBlockquote: () => editor.chain().focus().toggleBlockquote().run(),
+          toggleCodeBlock: () => editor.chain().focus().toggleCodeBlock().run(),
+          alignLeft: () => editor.chain().focus().setTextAlign("left").run(),
+          alignCenter: () => editor.chain().focus().setTextAlign("center").run(),
+          alignRight: () => editor.chain().focus().setTextAlign("right").run(),
+          setLink: () => actions?.setLink(),
+          addImage: () => actions?.addImage(),
+          addVideo: () => actions?.addVideo(),
+          triggerUpload: () => actions?.triggerUpload(),
+        }
+        const fn = cmdMap[command]
+        if (fn) fn()
       }
     }
     window.addEventListener("message", handleMessage)
@@ -500,9 +594,33 @@ const ContentDetailInner = () => {
                 ref={iframeRef}
                 src={previewUrl}
                 className="w-full h-full border-0"
-                sandbox="allow-scripts allow-same-origin allow-forms"
+                sandbox="allow-scripts allow-same-origin allow-forms allow-modals"
               />
             </div>
+            <input
+              ref={toolbarFileInputRef}
+              type="file"
+              accept="image/*"
+              className="hidden"
+              onChange={async (e) => {
+                const file = e.target.files?.[0]
+                if (!file || !toolbarUploadBlockIdRef.current) return
+                try {
+                  const result = await uploadFile(file)
+                  const imageUrl = result.url || result.id
+                  if (iframeRef.current?.contentWindow) {
+                    iframeRef.current.contentWindow.postMessage(
+                      { type: "INSERT_IMAGE_AT_CURSOR", imageUrl },
+                      "*"
+                    )
+                  }
+                  toast.success("Image uploaded")
+                } catch {
+                  toast.error("Upload failed")
+                }
+                if (toolbarFileInputRef.current) toolbarFileInputRef.current.value = ""
+              }}
+            />
           </div>
 
           {/* Property panel */}
@@ -567,6 +685,7 @@ const ContentDetailInner = () => {
               canMoveUp={blocks.findIndex((b) => b.id === selectedBlock.id) > 0}
               canMoveDown={blocks.findIndex((b) => b.id === selectedBlock.id) < blocks.length - 1}
               saveStatus={saveStatus}
+              onEditorReady={handleEditorReady}
             />
           ) : (
             <div className="w-[340px] border-l border-ui-border-base flex flex-col items-center justify-center p-6 text-center shrink-0">
@@ -656,6 +775,63 @@ const ContentDetailInner = () => {
             <Plus className="mr-1.5" />Add Block
           </Button>
         </StackedDrawer.Footer>
+        </StackedDrawer.Content>
+      </StackedDrawer>
+
+      {/* Body Editor Drawer */}
+      <StackedDrawer id={BODY_EDITOR_ID}>
+        <StackedDrawer.Content>
+          <StackedDrawer.Header>
+            <StackedDrawer.Title>Rich Text Editor</StackedDrawer.Title>
+          </StackedDrawer.Header>
+          <StackedDrawer.Body>
+            {bodyEditorBlockId && (
+              <TipTapEditor
+                key={bodyEditorBlockId + "-" + bodyEditorField}
+                content={bodyEditorContent || undefined}
+                onChange={(json) => setBodyEditorContent(json)}
+                placeholder="Start writing..."
+                onEditorReady={handleEditorReady}
+              />
+            )}
+          </StackedDrawer.Body>
+          <StackedDrawer.Footer>
+            <Button
+              variant="secondary"
+              onClick={() => setStackedOpen(BODY_EDITOR_ID, false)}
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={() => {
+                if (!bodyEditorBlockId) return
+                setBlocks((prev) =>
+                  prev.map((b) =>
+                    b.id === bodyEditorBlockId
+                      ? { ...b, content: { ...b.content, [bodyEditorField]: bodyEditorContent } }
+                      : b
+                  )
+                )
+                setSaveStatus("saving")
+                updateBlock({
+                  blockId: bodyEditorBlockId,
+                  body: { content: { [bodyEditorField]: bodyEditorContent } },
+                })
+                  .then(() => {
+                    setSaveStatus("saved")
+                    setStackedOpen(BODY_EDITOR_ID, false)
+                    if (iframeRef.current) {
+                      setTimeout(() => {
+                        if (iframeRef.current) iframeRef.current.src = iframeRef.current.src
+                      }, 300)
+                    }
+                  })
+                  .catch(() => setSaveStatus("unsaved"))
+              }}
+            >
+              Save & Close
+            </Button>
+          </StackedDrawer.Footer>
         </StackedDrawer.Content>
       </StackedDrawer>
     </>

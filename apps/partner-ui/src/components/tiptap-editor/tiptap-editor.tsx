@@ -1,11 +1,11 @@
-import { useEditor, EditorContent } from "@tiptap/react"
+import { useEditor, EditorContent, type Editor } from "@tiptap/react"
 import StarterKit from "@tiptap/starter-kit"
 import Underline from "@tiptap/extension-underline"
 import TextAlign from "@tiptap/extension-text-align"
 import Link from "@tiptap/extension-link"
 import Image from "@tiptap/extension-image"
 import Placeholder from "@tiptap/extension-placeholder"
-import { useCallback, useState, useRef } from "react"
+import { useCallback, useState, useRef, useEffect } from "react"
 import { Button, Input, Label, Checkbox, Text } from "@medusajs/ui"
 import { StackedDrawer } from "../modals/stacked-drawer"
 import { useStackedModal } from "../modals/stacked-modal-provider"
@@ -15,12 +15,21 @@ type TipTapEditorProps = {
   content?: Record<string, unknown>
   onChange?: (json: Record<string, unknown>) => void
   placeholder?: string
+  onEditorReady?: (editor: Editor, actions: TipTapActions) => void
+}
+
+export type TipTapActions = {
+  setLink: () => void
+  addImage: () => void
+  addVideo: () => void
+  triggerUpload: () => void
 }
 
 export const TipTapEditor = ({
   content,
   onChange,
   placeholder = "Start writing...",
+  onEditorReady,
 }: TipTapEditorProps) => {
   const editor = useEditor({
     immediatelyRender: false,
@@ -183,6 +192,34 @@ export const TipTapEditor = ({
       }).run()
     }
   }, [editor, videoUrl, parseVideoUrl, setStackedOpen])
+
+  const actionsRef = useRef<TipTapActions | null>(null)
+
+  useEffect(() => {
+    if (editor && onEditorReady) {
+      const actions: TipTapActions = {
+        setLink: () => {
+          const prev = editor.getAttributes("link").href || ""
+          setLinkUrl(prev)
+          setLinkOpenNewTab(editor.getAttributes("link").target === "_blank")
+          setStackedOpen(LINK_MODAL_ID, true)
+        },
+        addImage: () => {
+          setImageUrl("")
+          setStackedOpen(IMAGE_MODAL_ID, true)
+        },
+        addVideo: () => {
+          setVideoUrl("")
+          setStackedOpen(VIDEO_MODAL_ID, true)
+        },
+        triggerUpload: () => {
+          fileInputRef.current?.click()
+        },
+      }
+      actionsRef.current = actions
+      onEditorReady(editor, actions)
+    }
+  }, [editor, onEditorReady])
 
   if (!editor) return null
 
