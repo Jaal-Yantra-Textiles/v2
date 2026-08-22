@@ -236,12 +236,28 @@ describe("resolveQuoteProvenance", () => {
     expect(res?.rows.map((r) => r.key)).toEqual(["maker", "country", "verified"])
   })
 
-  it("says nothing for an inactive partner", async () => {
+  it("says nothing for an INACTIVE partner — their credentials are withdrawn", async () => {
     const res = await resolveQuoteProvenance(
-      scopeWith({ partners: [{ ...PARTNER, status: "suspended" }] }) as any,
+      scopeWith({ partners: [{ ...PARTNER, status: "inactive" }] }) as any,
       { partner_id: "part_1", product_ids: ["prod_a"] }
     )
     expect(res).toBeNull()
+  })
+
+  it("🔑 still speaks for a PENDING partner — that is the default status", async () => {
+    // Every partner the registration route creates is `pending`, and nothing
+    // about minting a quote requires an admin to have flipped it. Refusing
+    // pending would render this section for almost nobody.
+    const res = await resolveQuoteProvenance(
+      scopeWith({
+        partners: [{ ...PARTNER, status: "pending", is_verified: false }],
+        products: [{ id: "prod_a", artisan_product_detail: DETAIL_A }],
+      }) as any,
+      { partner_id: "part_1", product_ids: ["prod_a"] }
+    )
+    expect(res?.maker_name).toBe("Unique Pashmina")
+    // …but the one row that is a CLAIM stays gated on is_verified.
+    expect(res?.rows.map((r) => r.key)).not.toContain("verified")
   })
 
   it("says nothing when the quote has no partner", async () => {

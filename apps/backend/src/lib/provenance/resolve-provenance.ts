@@ -109,9 +109,23 @@ export async function resolveQuoteProvenance(
     })
 
     const partner = ((partners ?? []) as any[])[0]
-    // An inactive partner's credentials are not a thing to show a buyer —
-    // same rule as the producer band.
-    if (!partner || (partner.status && partner.status !== "active")) return null
+    /**
+     * Only `inactive` is silent — deliberately NOT the producer band's
+     * "active or nothing" rule.
+     *
+     * 🔑 `pending` is the DEFAULT status of every partner the registration
+     * route creates, and nothing about minting a quote requires an admin to
+     * have flipped it. Refusing pending would have made this section render
+     * for almost nobody — a feature that is present, green and invisible,
+     * which is the exact condition #1448 exists to end. Caught by the
+     * integration run: the fixture partner mints a perfectly good quote and
+     * lands on `pending`.
+     *
+     * A disabled partner is different: their credentials are withdrawn, so
+     * they are not shown. And the one row that is an actual CLAIM — "Verified
+     * supplier" — is gated on `is_verified` inside the shaper, never on this.
+     */
+    if (!partner || partner.status === "inactive") return null
 
     let profile: any = null
     try {
