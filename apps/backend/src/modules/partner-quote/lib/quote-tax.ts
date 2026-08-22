@@ -50,12 +50,17 @@ export type QuoteTaxRate = {
 export type QuoteTax = {
   /**
    * - `calculated`: `total` is real.
+   * - `zero_rated_export`: the goods leave the seller's jurisdiction, so the
+   *   seller charges no tax. `total` is a REAL 0, not a missing number — but
+   *   duty and import tax fall on the buyer at their border and are not in it,
+   *   which is why `reason` is still populated and still has to be rendered.
    * - `not_applicable`: the region does not calculate tax automatically, so
    *   neither does the cart. Nothing is owed HERE, which is different from
    *   nothing being owed at all.
-   * - `unknown`: no rate is configured for this destination. Say so.
+   * - `unknown`: no rate is configured, or the origin could not be established.
+   *   Say so.
    */
-  status: "calculated" | "not_applicable" | "unknown"
+  status: "calculated" | "zero_rated_export" | "not_applicable" | "unknown"
   /** Null unless `calculated`. Never 0 as a stand-in for "we do not know". */
   total: number | null
   /**
@@ -70,6 +75,15 @@ export type QuoteTax = {
 
 export type QuoteTaxInput = {
   region_id?: string | null
+  /**
+   * Where the goods DISPATCH from — the partner store's default stock location
+   * country. Required to decide domestic vs export; without it the answer is
+   * `unknown`, never a destination-rate guess.
+   *
+   * S6's readiness gate makes `store.default_location_id` blocking, so a quote
+   * that got as far as tax always has one.
+   */
+  origin_country_code?: string | null
   destination_country_code: string
   destination_postal_code?: string | null
   destination_province_code?: string | null
@@ -159,6 +173,75 @@ export function foldTaxLines(
   return { total: Math.round(total * 100) / 100, rates }
 }
 
+/**
+ * PURE: domestic supply, cross-border export, or not enough information.
+ *
+ * ## Why the seller's jurisdiction decides this and the buyer's does not
+ *
+ * The first cut of this file asked the Tax module using the DESTINATION country
+ * alone, which quietly assumed the seller is registered wherever the buyer
+ * happens to be. On this platform the goods always dispatch from India, so a
+ * German buyer was being shown 19% German VAT on an Indian export invoice — a
+ * fifth added to the headline number, on every EU quote. It over-quoted rather
+ * than under-quoted, so it lost deals instead of money, but it was never right.
+ *
+ * The structure it has to model: JYT (India) is the supplier and the shipper.
+ * Kind Health Tech SIA invoices and collects on JYT's behalf for non-Indian
+ * buyers, which makes it a disclosed agent, not a second seller — the supply is
+ * still JYT's, still dispatched from India. KHT is also not VAT-registered
+ * (below the Latvian threshold), so no EU VAT arises through it either. An
+ * export is therefore zero-rated at origin whatever route the invoice takes.
+ *
+ * `unknown_origin` is deliberately NOT "assume domestic". Assuming would put a
+ * confident 18% on a quote we cannot place, which is the same failure as the
+ * confident zero this module was written to stop — only in the other direction.
+ */
+export function classifyQuoteJurisdiction(
+  originCountryCode?: string | null,
+  destinationCountryCode?: string | null
+): "domestic" | "export" | "unknown_origin" {
+  const origin = String(originCountryCode || "").trim().toUpperCase()
+  const destination = String(destinationCountryCode || "").trim().toUpperCase()
+  if (!/^[A-Z]{2}$/.test(origin) || !/^[A-Z]{2}$/.test(destination)) {
+    return "unknown_origin"
+  }
+  return origin === destination ? "domestic" : "export"
+}
+
+/**
+ * PURE: the wording on a zero-rated export.
+ *
+ * 🔴 The zero here is real and the sentence after it is the important half. The
+ * buyer is importer of record: their customs authority will charge import VAT
+ * and duty before the goods are released, neither of which is in this total.
+ * Import VAT a business reclaims; duty it does not. A procurement contact who
+ * budgets against a number labelled "landed" and then meets a customs bill has
+ * been misled by us, which is #1430's shape exactly — a confident figure that
+ * omits a real charge.
+ */
+export function exportDisclosureReason(
+  originCountryCode: string,
+  destinationCountryCode: string
+): string {
+  const from = String(originCountryCode || "").toUpperCase()
+  const to = String(destinationCountryCode || "").toUpperCase()
+  return (
+    `This is an export from ${from} to ${to}, so it is zero-rated and no ` +
+    `seller tax is charged. Import duty and import VAT/GST are payable by you ` +
+    `to ${to} customs on arrival and are NOT included in this total.`
+  )
+}
+
+/** PURE: the wording when the goods' origin cannot be established. */
+export function unknownOriginReason(destinationCountryCode: string): string {
+  const to = String(destinationCountryCode || "").toUpperCase()
+  return (
+    `We could not establish which country these goods ship from, so the tax ` +
+    `treatment for ${to || "this destination"} cannot be determined. This ` +
+    `total excludes tax, duty and import charges.`
+  )
+}
+
 /** PURE: the wording a buyer sees when there is no number to show them. */
 export function unknownTaxReason(countryCode: string): string {
   const cc = String(countryCode || "").toUpperCase()
@@ -195,6 +278,41 @@ export async function resolveQuoteTax(
   }
 
   if (!country) return base
+
+  // ---- Whose tax is it, before asking how much ---------------------------
+  // Jurisdiction first, because the Tax module cannot answer this: it maps an
+  // address to a configured rate and has no opinion about who is selling. Ask
+  // it about a German address and it will happily hand back 19%, which is the
+  // right rate for a German seller and the wrong one for an Indian exporter.
+  const jurisdiction = classifyQuoteJurisdiction(
+    input.origin_country_code,
+    country
+  )
+
+  if (jurisdiction === "unknown_origin") {
+    return {
+      status: "unknown",
+      total: null,
+      inclusive: false,
+      rates: [],
+      reason: unknownOriginReason(country),
+    }
+  }
+
+  if (jurisdiction === "export") {
+    return {
+      // A real zero, not a missing number — and `reason` still has to render,
+      // because duty and import VAT land on the buyer and are not in it.
+      status: "zero_rated_export",
+      total: 0,
+      inclusive: false,
+      rates: [],
+      reason: exportDisclosureReason(
+        String(input.origin_country_code || ""),
+        country
+      ),
+    }
+  }
 
   try {
     const query: any = scope.resolve(ContainerRegistrationKeys.QUERY)

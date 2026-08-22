@@ -257,6 +257,37 @@ export function pickLineImage(identity: any): {
  * for a real basket it is the blended per-unit figure, which is why the lines
  * carry their own and this is only ever the summary row.
  */
+/**
+ * The country the partner store dispatches from, or null.
+ *
+ * Reads `stock_location.address.country_code` directly rather than going through
+ * the shipping module's origin-address helper, which returns undefined unless
+ * the address also has a street line and a pincode (Blue Dart validates that
+ * block as a unit). A country has no such dependency, and a quote must not lose
+ * its tax treatment because a warehouse is missing a postcode.
+ *
+ * Never throws — a null lands the quote on `status: "unknown"` WITH a reason,
+ * which is the honest degradation. It must not become an assumed "domestic".
+ */
+async function resolveStoreOriginCountry(
+  scope: any,
+  locationId?: string | null
+): Promise<string | null> {
+  if (!locationId) return null
+  try {
+    const query: any = scope.resolve(ContainerRegistrationKeys.QUERY)
+    const { data: locs } = await query.graph({
+      entity: "stock_location",
+      fields: ["id", "address.country_code"],
+      filters: { id: locationId },
+    })
+    const code = String((locs ?? [])[0]?.address?.country_code || "").trim()
+    return /^[A-Za-z]{2}$/.test(code) ? code.toUpperCase() : null
+  } catch {
+    return null
+  }
+}
+
 export function composeQuoteMoney(
   lineSubtotals: number[],
   totalUnits: number,
@@ -524,8 +555,18 @@ export async function buildQuoteView(
       // freight leg — both of which only exist at this point. It never
       // throws; an unresolvable rate lands on `status: "unknown"` with a
       // reason rather than on a zero.
+      // Where the goods dispatch from. Read off the same stock location the
+      // freight leg was quoted against, so the tax treatment and the shipment
+      // cannot describe two different journeys. S6 makes this location blocking
+      // at mint, so by the time tax runs there is always one to read.
+      const originCountry = await resolveStoreOriginCountry(
+        scope,
+        input.store?.default_location_id
+      )
+
       tax = await resolveQuoteTax(scope, {
         region_id: input.region_id ?? null,
+        origin_country_code: originCountry,
         destination_country_code: input.destination_country_code,
         destination_postal_code: input.destination_postal_code ?? null,
         lines: effectiveLines.map((l) => ({

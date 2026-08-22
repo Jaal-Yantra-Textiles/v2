@@ -5,6 +5,12 @@ const money = (over: Partial<QuoteMoney> = {}): QuoteMoney => ({
   subtotal: 600_000,
   freight: 21_000,
   landed_total: 621_000,
+  // S8 added these as REQUIRED fields and this fixture was not updated, so the
+  // branch was red on `check:prod-build` while every unit test passed — jest
+  // does not typecheck. Null, not 0: the comparison cases here are about goods
+  // and freight, and a 0 would assert a tax answer none of them make.
+  tax_total: null,
+  gross_total: null,
   ...over,
 })
 

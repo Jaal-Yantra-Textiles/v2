@@ -1,5 +1,11 @@
 import { composeQuoteMoney, frozenMoney } from "../lib/build-quote-view"
-import { foldTaxLines, unknownTaxReason } from "../lib/quote-tax"
+import {
+  classifyQuoteJurisdiction,
+  exportDisclosureReason,
+  foldTaxLines,
+  unknownOriginReason,
+  unknownTaxReason,
+} from "../lib/quote-tax"
 
 /**
  * Tax on a quote (#1439 S8).
@@ -149,5 +155,60 @@ describe("frozenMoney with tax", () => {
       quoted_tax_inclusive: true,
     } as any)
     expect(inclusive?.gross_total).toBe(1200)
+  })
+})
+
+/**
+ * Jurisdiction (#1447 / #1439 S8).
+ *
+ * The first cut asked the Tax module using the destination country alone, which
+ * assumes the seller is registered wherever the buyer is. Goods on this platform
+ * always dispatch from India, so that put 19% German VAT on an Indian export —
+ * a fifth added to the headline number of every EU quote.
+ */
+describe("classifyQuoteJurisdiction", () => {
+  it("is domestic when the goods do not cross a border", () => {
+    expect(classifyQuoteJurisdiction("IN", "IN")).toBe("domestic")
+  })
+
+  it("is an export whenever origin and destination differ", () => {
+    expect(classifyQuoteJurisdiction("IN", "DE")).toBe("export")
+    expect(classifyQuoteJurisdiction("IN", "GB")).toBe("export")
+    // Latvia is not special. KHT invoices as JYT's disclosed agent and is not
+    // VAT-registered, so an LV buyer is still an Indian export.
+    expect(classifyQuoteJurisdiction("IN", "LV")).toBe("export")
+  })
+
+  it("normalises case and whitespace on both sides", () => {
+    expect(classifyQuoteJurisdiction(" in ", "In")).toBe("domestic")
+    expect(classifyQuoteJurisdiction("in", "de")).toBe("export")
+  })
+
+  it("refuses to guess rather than assuming domestic", () => {
+    // Assuming domestic would put a confident 18% on a quote we cannot place —
+    // the same failure as a confident zero, in the other direction.
+    expect(classifyQuoteJurisdiction(null, "DE")).toBe("unknown_origin")
+    expect(classifyQuoteJurisdiction("", "DE")).toBe("unknown_origin")
+    expect(classifyQuoteJurisdiction("IND", "DE")).toBe("unknown_origin")
+    expect(classifyQuoteJurisdiction("IN", "")).toBe("unknown_origin")
+  })
+})
+
+describe("export and unknown-origin wording", () => {
+  it("names both countries and puts duty on the buyer, explicitly", () => {
+    const reason = exportDisclosureReason("in", "de")
+    expect(reason).toMatch(/export from IN to DE/)
+    expect(reason).toMatch(/zero-rated/)
+    // The half that matters: the zero is real, the omission is not.
+    expect(reason).toMatch(/duty/i)
+    expect(reason).toMatch(/payable by you/i)
+    expect(reason).toMatch(/NOT included/)
+  })
+
+  it("says the origin is unknown rather than implying no tax is due", () => {
+    const reason = unknownOriginReason("de")
+    expect(reason).toMatch(/could not establish/i)
+    expect(reason).toMatch(/DE/)
+    expect(reason).not.toMatch(/zero-rated/)
   })
 })
