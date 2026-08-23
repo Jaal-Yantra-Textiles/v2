@@ -329,10 +329,31 @@ export const QuoteBuyerForm = ({
                   {...rest}
                 />
               </Form.Control>
+              {/**
+               * 🔴 The currency is NAMED, not implied.
+               *
+               * This field is taken as-is, while the per-line
+               * `override_unit_amount` in the next step is in the STORE's
+               * currency and gets FX-converted. Two "type a price by hand"
+               * fields meaning two different currencies is a trap, and the
+               * realistic mistake is expensive: a partner on an INR store
+               * looking up a rupee freight quote for a EUR lane types 4000 and
+               * offers €4,000 of shipping.
+               *
+               * Nothing downstream catches it — readiness stamps the override
+               * with the quote currency BY CONSTRUCTION, so the
+               * currency-mismatch guard cannot fire on it. Naming the code is
+               * the whole defence.
+               */}
               <Form.Hint>
                 {t(
                   "quotes.fields.freightOverrideHint",
-                  "In the quote's currency. Use it when no carrier will rate the lane, or when the stored tier is wrong for this weight. Leave blank to use the rate."
+                  "In {{currency}} — the quote's currency, not your store's. Use it when no carrier will rate the lane, or when the stored tier is wrong for this weight. Leave blank to use the rate.",
+                  {
+                    currency: String(
+                      form.watch("currency_code") || "the quote's currency"
+                    ).toUpperCase(),
+                  }
                 )}
               </Form.Hint>
               <Form.ErrorMessage />
