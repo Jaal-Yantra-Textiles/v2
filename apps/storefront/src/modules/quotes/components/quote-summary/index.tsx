@@ -240,10 +240,26 @@ const QuoteSummary = ({ quote }: { quote: QuoteView }) => {
         </Text>
       ) : null}
 
-      {/* Freight is an ESTIMATE and says so. Carrier rates move, and the manual
-          tier is a placeholder the partner is expected to edit — presenting it
-          as final would be the one number on this page we cannot stand behind. */}
-      {freight.error ? (
+      {/**
+       * What kind of number the freight is — and the two cases are not the
+       * same sentence.
+       *
+       * 🔴 `error` used to decide this alone, so a rate a person looked up in a
+       * carrier's tariff and typed in still told the buyer it "could not be
+       * quoted live … indicative". That reads as guesswork about the one line a
+       * human had actually verified, and on cross-border lanes — where the
+       * carrier essentially always refuses — it was the wording every buyer got.
+       *
+       * `overridden` wins over `error` because it is the stronger fact: the
+       * carrier failing says nothing once somebody has supplied the real
+       * figure.
+       */}
+      {freight.overridden ? (
+        <Text className="txt-small text-ui-fg-muted">
+          Freight for this lane was quoted by hand against a carrier&apos;s
+          tariff rather than rated automatically.
+        </Text>
+      ) : freight.error ? (
         <Text className="txt-small text-ui-fg-muted">
           Freight could not be quoted live for this lane, so the figure above is
           an indicative rate.

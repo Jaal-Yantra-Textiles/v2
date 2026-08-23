@@ -297,6 +297,18 @@ export type QuoteView = {
     chosen: QuoteFreightOption | null
     options: QuoteFreightOption[]
     error: string | null
+    /**
+     * A person named this freight rather than a carrier rating it.
+     *
+     * 🔴 Load-bearing for what the buyer is TOLD. `error` alone used to decide
+     * the wording, so a hand-typed DHL tariff on a lane no carrier will rate
+     * still read "could not be quoted live … indicative rate" — undercutting a
+     * real, looked-up number as guesswork. The two facts are independent: the
+     * carrier can fail AND a human can have supplied the true figure.
+     */
+    overridden?: boolean
+    /** The carrier that produced the rate, when one did. */
+    rated_by?: string | null
   }
   compare: {
     state: string

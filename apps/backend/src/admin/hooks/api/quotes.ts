@@ -54,6 +54,26 @@ export type AdminQuote = Record<string, any> & {
   /** `manual` when a person named the freight, `estimated` when it was rated. */
   quoted_freight_source?: "estimated" | "manual" | null
   quoted_freight_basis?: string | null
+  /**
+   * The tax the BUYER is being shown (#1439 S8, #1447).
+   *
+   * 🔴 Separate from the DDP fields below, which are what WE undertake to pay
+   * at the destination border. These are the seller-jurisdiction tax on the
+   * quote itself — the GST on a domestic supply, or a real zero on an export.
+   *
+   * `quoted_tax_total` is null whenever the status is not `calculated`, so a
+   * missing rate can never be rendered as a confident zero.
+   */
+  quoted_tax_total?: number | null
+  quoted_tax_status?:
+    | "calculated"
+    | "zero_rated_export"
+    | "not_applicable"
+    | "unknown"
+    | null
+  /** True when the tax is already INSIDE the prices, so it is disclosed rather than added. */
+  quoted_tax_inclusive?: boolean | null
+  quoted_tax_reason?: string | null
   /** #1447 — the DDP undertaking and the duty figure frozen behind it. */
   duties_prepaid?: boolean | null
   quoted_duty_total?: number | null

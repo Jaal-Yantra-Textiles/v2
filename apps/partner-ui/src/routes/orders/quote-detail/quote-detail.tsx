@@ -182,6 +182,65 @@ export const QuoteDetail = () => {
             }
           />
         ) : null}
+        {/**
+         * 🔴 The tax the BUYER is being shown, which this page never displayed.
+         *
+         * A quote went out taxed at 5% while the cart it becomes charged 18%.
+         * Both numbers were on the row the whole time and neither was on any
+         * screen a person looks at, so the first sign of trouble was a buyer
+         * unable to accept.
+         *
+         * Shown with its STATUS, never as a bare amount: "zero-rated export"
+         * and "we could not work it out" both display as no tax charged and
+         * mean completely different things.
+         */}
+        {(quote as any).quoted_tax_status ? (
+          <>
+            <Field
+              label={
+                (quote as any).quoted_tax_inclusive
+                  ? t("quotes.tax.includedLabel", "Tax (included in price)")
+                  : t("fields.tax", "Tax")
+              }
+              value={
+                <div className="flex items-center justify-end gap-x-2">
+                  <Text size="small">
+                    {money(
+                      (quote as any).quoted_tax_total,
+                      (quote as any).currency_code
+                    )}
+                  </Text>
+                  <StatusBadge
+                    color={
+                      (quote as any).quoted_tax_status === "unknown"
+                        ? "orange"
+                        : (quote as any).quoted_tax_status === "not_applicable"
+                          ? "grey"
+                          : "green"
+                    }
+                  >
+                    {t(
+                      `quotes.tax.status.${(quote as any).quoted_tax_status}`,
+                      String((quote as any).quoted_tax_status).replace(/_/g, " ")
+                    )}
+                  </StatusBadge>
+                </div>
+              }
+            />
+            {(quote as any).quoted_tax_reason ? (
+              <Field
+                label={t("quotes.tax.basis", "Tax basis")}
+                value={
+                  // The frozen sentence the buyer is reading, verbatim — so the
+                  // partner and the buyer can never be told different stories.
+                  <Text size="small" className="text-ui-fg-subtle">
+                    {(quote as any).quoted_tax_reason}
+                  </Text>
+                }
+              />
+            ) : null}
+          </>
+        ) : null}
         <Field
           label={t("quotes.fields.depositTerms", "Deposit terms")}
           value={

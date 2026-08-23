@@ -17,6 +17,74 @@ const money = (amount?: number | null, currency?: string) =>
       }).format(amount)
 
 /**
+ * How each tax verdict reads to a person, and how much to trust the number
+ * beside it.
+ *
+ * 🔑 `unknown` is not "no tax". It means no rate could be resolved for this
+ * destination, and the amount is deliberately null so nobody can add it to
+ * anything. Colouring it like a settled zero is the whole failure this
+ * vocabulary exists to prevent.
+ */
+const TAX_STATUS: Record<
+  string,
+  { label: string; color: "green" | "grey" | "orange"; hint: string }
+> = {
+  calculated: {
+    label: "Calculated",
+    color: "green",
+    hint: "A real rate, resolved from the same tax module the cart will use.",
+  },
+  zero_rated_export: {
+    label: "Zero-rated export",
+    color: "green",
+    hint: "The goods leave the seller's jurisdiction, so no seller tax is charged. Duty and import VAT still fall on the buyer at their border.",
+  },
+  not_applicable: {
+    label: "Not applicable",
+    color: "grey",
+    hint: "This region does not calculate tax automatically, so neither will the cart.",
+  },
+  unknown: {
+    label: "Unknown",
+    color: "orange",
+    hint: "No rate could be resolved. This is NOT a zero — the buyer is told the figure is missing.",
+  },
+}
+
+/**
+ * The tax rows, or nothing at all on a quote minted before tax existed.
+ *
+ * Kept as a function rather than inline so the partner detail page can be held
+ * to the same shape: the two surfaces showing different tax facts about one
+ * quote is how a partner and an admin end up arguing about a number that is
+ * the same in the database.
+ */
+const taxFields = (quote: any) => {
+  const status = quote.quoted_tax_status as string | null | undefined
+  if (!status) return []
+
+  const meta = TAX_STATUS[status] ?? TAX_STATUS.unknown
+
+  return [
+    {
+      label: quote.quoted_tax_inclusive ? "Tax (included in price)" : "Tax",
+      value: (
+        <span className="flex items-center gap-2">
+          {money(quote.quoted_tax_total, quote.currency_code)}
+          <StatusBadge color={meta.color}>{meta.label}</StatusBadge>
+        </span>
+      ),
+    },
+    {
+      label: "Tax basis",
+      // The frozen reason when there is one — it is the exact sentence the
+      // buyer is reading, so the two can never tell different stories.
+      value: String(quote.quoted_tax_reason || meta.hint),
+    },
+  ]
+}
+
+/**
  * The activity timeline.
  *
  * 🔑 `actor_type` is rendered, not hidden. An admin-minted quote must never
@@ -215,6 +283,21 @@ const QuoteDetailPage = () => {
                     },
                   ]
                 : []),
+              /**
+               * 🔴 The tax the BUYER is being shown — which nothing on this
+               * page displayed until now.
+               *
+               * A quote went out taxed at 5% while the cart it turns into
+               * charged 18%, because the quote never resolved the
+               * product-type-scoped rate. Both numbers were frozen on this
+               * row the whole time and neither was on screen, so the only way
+               * anyone found out was a buyer failing to accept.
+               *
+               * Rendered with its STATUS, never as a bare amount: `unknown`
+               * and `zero_rated_export` both produce "no tax charged" and mean
+               * entirely different things. A blank here would read as nil due.
+               */
+              ...taxFields(quote),
               /**
                * Shown only on a DDP quote, and shown with its basis (#1447).
                * This is a liability we took on: somebody has to arrange the
