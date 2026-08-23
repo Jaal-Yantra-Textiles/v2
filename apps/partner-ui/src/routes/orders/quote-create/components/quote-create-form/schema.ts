@@ -79,6 +79,16 @@ export const QuoteBuyerShape = z.object({
   buyer_email: z.string().email(),
   recipient_name: z.string().optional(),
   recipient_company: z.string().optional(),
+  /**
+   * The buyer's own tax registration, for the quote document.
+   *
+   * 🔴 No format check, mirroring the backend. A regex per scheme would refuse
+   * valid registrations from countries the list has not caught up with, and
+   * this number changes NOTHING about the price or the tax — quote tax follows
+   * the seller's jurisdiction (#1447).
+   */
+  buyer_tax_id: z.string().optional(),
+  buyer_tax_id_type: z.string().optional(),
   partner_note: z.string().optional(),
 
   destination_country_code: z.string().min(2),
@@ -88,6 +98,26 @@ export const QuoteBuyerShape = z.object({
   currency_code: z.string().min(3),
   /** Drives `price_list.ends_at`, so expiry is native rather than swept. */
   ttl_days: z.number().int().positive().max(365).optional(),
+
+  /**
+   * The deposit share of this deal, 0-100 (#1439 S11).
+   *
+   * Left blank means "no terms named", and the split falls through to the
+   * platform's 30% at accept time. `0` is a real answer — invoice the lot
+   * later — so the field must be able to hold a zero without it reading as
+   * empty, which is why nothing here coerces falsy to undefined.
+   */
+  deposit_pct: z.number().min(0).max(100).optional(),
+
+  /**
+   * Freight named by hand, in the QUOTE currency (#1439 S12).
+   *
+   * 🔴 Positive, never 0 — a zero is free international shipping typed by
+   * accident, and this system has already shipped bulk orders free once from a
+   * rule-gated `0 INR` row (#1430).
+   */
+  freight_override_amount: z.number().positive().optional(),
+  freight_basis: z.string().max(500).optional(),
 
   /**
    * DDP (#1447) — we pay the destination duty and import tax, and the buyer
@@ -142,6 +172,16 @@ export const QuoteQuantitiesSchema = z.object({
    */
   discounts: z.record(z.string(), z.number().nullish()),
   overrides: z.record(z.string(), z.number().nullish()),
+
+  /**
+   * variant_id → design_id, for lines the partner picked as a DESIGN (#1486).
+   *
+   * 🔑 Keyed by variant because that is what the basket is keyed by everywhere
+   * else — quantities, discounts and overrides all are. A parallel list of
+   * design lines would be a second basket to keep in step, and the first thing
+   * to fall out of step would be a quantity.
+   */
+  design_by_variant: z.record(z.string(), z.string()).optional(),
 })
 
 /**
@@ -159,12 +199,17 @@ export const QuoteBuyerFields = [
   "buyer_email",
   "recipient_name",
   "recipient_company",
+  "buyer_tax_id",
+  "buyer_tax_id_type",
   "partner_note",
   "destination_country_code",
   "destination_postal_code",
   "destination_city",
   "currency_code",
   "ttl_days",
+  "deposit_pct",
+  "freight_override_amount",
+  "freight_basis",
   "duties_prepaid",
   "duty_rate_percent",
   "import_tax_rate_percent",
@@ -172,7 +217,7 @@ export const QuoteBuyerFields = [
   "duty_basis",
 ] as const
 
-export const QuoteProductFields = ["product_ids"] as const
+export const QuoteProductFields = ["product_ids", "design_by_variant"] as const
 export const QuoteQuantityFields = [
   "quantities",
   "discounts",

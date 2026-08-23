@@ -16,7 +16,9 @@ import { useProductTableColumns } from "../../../../../hooks/table/columns/use-p
 import { useProductTableFilters } from "../../../../../hooks/table/filters/use-product-table-filters"
 import { useProductTableQuery } from "../../../../../hooks/table/query/use-product-table-query"
 import { useDataTable } from "../../../../../hooks/use-data-table"
+import { QuoteDesignsPanel } from "./quote-designs-panel"
 import { QuoteCreateSchemaType } from "./schema"
+import type { QuotableDesign } from "../../../../../hooks/api/partner-quotes"
 
 type QuoteProductsFormProps = {
   form: UseFormReturn<QuoteCreateSchemaType>
@@ -45,6 +47,7 @@ export const QuoteProductsForm = ({ form }: QuoteProductsFormProps) => {
 
   const selectedIds = useWatch({ control, name: "product_ids" })
   const quantities = useWatch({ control, name: "quantities" })
+  const designByVariant = useWatch({ control, name: "design_by_variant" })
 
   const [rowSelection, setRowSelection] = useState<RowSelectionState>(
     getInitialSelection(selectedIds)
@@ -92,7 +95,74 @@ export const QuoteProductsForm = ({ form }: QuoteProductsFormProps) => {
       shouldTouch: true,
     })
 
+    // #1486 — and the design mapping with it, by the SAME rule the quantities
+    // use: keep it while its product is still selected.
+    //
+    // 🔴 Not "keep it if it has a quantity". A design is picked before any
+    // quantity is typed, so that rule would silently drop every design mapping
+    // the moment the partner touched another row — and the quote would mint
+    // correctly priced with the provenance gone.
+    const keptDesigns = Object.entries(designByVariant ?? {}).reduce(
+      (acc, [variantId, designId]) => {
+        const owner = (products || []).find((p: any) =>
+          (p.variants ?? []).some((v: any) => v.id === variantId)
+        )
+        if (!owner || stillSelected.has(owner.id)) {
+          acc[variantId] = designId
+        }
+        return acc
+      },
+      {} as Record<string, string>
+    )
+    setValue("design_by_variant", keptDesigns, { shouldDirty: true })
+
     setRowSelection(state)
+  }
+
+  /**
+   * #1486 — picking a design selects the PRODUCT behind it, so its variant
+   * shows up in the quantities step exactly like any other, and records which
+   * design it was so the mint can carry the provenance.
+   *
+   * 🔑 `product_ids` is the source of truth for the next step; `rowSelection`
+   * is only the table's tick marks, and the product may not even be on the
+   * current page. Both are set, but they are not the same fact.
+   */
+  const toggleDesign = (design: QuotableDesign, selected: boolean) => {
+    if (!design.variant_id || !design.product_id) return
+
+    const nextMap = { ...(designByVariant ?? {}) }
+    const currentIds = (selectedIds ?? []).map((p) => p.id)
+
+    if (selected) {
+      nextMap[design.variant_id] = design.id
+      if (!currentIds.includes(design.product_id)) {
+        setValue("product_ids", [...(selectedIds ?? []), { id: design.product_id }], {
+          shouldDirty: true,
+          shouldTouch: true,
+        })
+        setRowSelection((prev) => ({ ...prev, [design.product_id as string]: true }))
+      }
+    } else {
+      delete nextMap[design.variant_id]
+      setValue(
+        "product_ids",
+        (selectedIds ?? []).filter((p) => p.id !== design.product_id),
+        { shouldDirty: true, shouldTouch: true }
+      )
+      setRowSelection((prev) => {
+        const next = { ...prev }
+        delete next[design.product_id as string]
+        return next
+      })
+      // The quantity has to go with it — a line the partner just removed must
+      // not still be sent, and a quantity is a real price on a real price list.
+      const nextQuantities = { ...(quantities ?? {}) }
+      delete nextQuantities[design.variant_id]
+      setValue("quantities", nextQuantities, { shouldDirty: true })
+    }
+
+    setValue("design_by_variant", nextMap, { shouldDirty: true })
   }
 
   const columns = useColumns()
@@ -115,7 +185,11 @@ export const QuoteProductsForm = ({ form }: QuoteProductsFormProps) => {
   }
 
   return (
-    <div className="flex size-full flex-col">
+    <div className="flex size-full flex-col gap-y-3">
+      <QuoteDesignsPanel
+        designByVariant={(designByVariant ?? {}) as Record<string, string>}
+        onToggle={toggleDesign}
+      />
       <_DataTable
         table={table}
         columns={columns}

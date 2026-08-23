@@ -2,6 +2,7 @@ import { AuthenticatedMedusaRequest, MedusaResponse } from "@medusajs/framework/
 import { MedusaError } from "@medusajs/framework/utils"
 
 import { PARTNER_QUOTE_MODULE } from "../../../../modules/partner-quote"
+import { loadScheduleForQuote } from "../../../../modules/payment_schedule/lib/for-quote"
 import { getPartnerFromAuthContext } from "../../helpers"
 
 /**
@@ -33,10 +34,13 @@ export const GET = async (req: AuthenticatedMedusaRequest, res: MedusaResponse) 
     throw new MedusaError(MedusaError.Types.NOT_FOUND, "Quote not found")
   }
 
-  const [lines, events] = await Promise.all([
+  const [lines, events, payment_schedule] = await Promise.all([
     service.listPartnerQuoteLines({ quote_id: quote.id }),
     service.listEvents(quote.id),
+    // What the buyer still owes, once they have accepted (#1439 S11). Null on
+    // every quote nobody has accepted, which is most of them.
+    loadScheduleForQuote(req.scope, quote),
   ])
 
-  res.json({ quote: { ...quote, lines, events } })
+  res.json({ quote: { ...quote, lines, events, payment_schedule } })
 }

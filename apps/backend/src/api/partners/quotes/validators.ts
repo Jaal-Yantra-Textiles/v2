@@ -20,7 +20,19 @@ import { z } from "@medusajs/framework/zod"
  */
 const QuoteLine = z
   .object({
-    variant_id: z.string().min(1),
+    /**
+     * Optional ONLY because a line may name a `design_id` instead — see the
+     * refinement below. An explicit variant always wins: it is how a design
+     * sold as several variants gets quoted at all.
+     */
+    variant_id: z.string().min(1).nullish(),
+    /**
+     * Quote this design (#1486). The server resolves it to the variant the
+     * design is sold through and refuses when that is not decidable — a design
+     * with no product behind it has nothing to price, and one sold as several
+     * variants must not be quoted as whichever came back first.
+     */
+    design_id: z.string().min(1).nullish(),
     quantity: z.number().int().positive(),
     position: z.number().int().nonnegative().optional(),
     note: z.string().nullish(),
@@ -29,6 +41,10 @@ const QuoteLine = z
     discount_percent: z.number().min(0).max(100).nullish(),
     /** A flat unit price, in the partner store's default currency. */
     override_unit_amount: z.number().positive().nullish(),
+  })
+  .refine((l) => Boolean(l.variant_id) || Boolean(l.design_id), {
+    message: "A line must name either a variant_id or a design_id.",
+    path: ["variant_id"],
   })
   .refine(
     (l) =>
@@ -168,6 +184,18 @@ export const PartnerMintQuoteShape = z.object({
   buyer_email: z.string().email(),
   recipient_name: z.string().nullish(),
   recipient_company: z.string().nullish(),
+  /**
+   * The buyer's own tax registration, as they stated it.
+   *
+   * 🔴 No format check, deliberately. A regex per scheme would refuse valid
+   * registrations from countries the list has not caught up with, and this
+   * number changes NOTHING about the price or the tax — quote tax follows the
+   * seller's jurisdiction (#1447). It is a line on a document. Refusing a real
+   * buyer's real number to enforce a pattern nobody validates against would be
+   * a cost with no benefit.
+   */
+  buyer_tax_id: z.string().max(64).nullish(),
+  buyer_tax_id_type: z.string().max(32).nullish(),
   partner_note: z.string().nullish(),
 
   /** A quote is a basket. A single-product quote is a one-line quote. */
@@ -201,12 +229,43 @@ export const PartnerMintQuoteShape = z.object({
   /** The carrier's advance/disbursement fee. An amount, never a rate. */
   ddp_fee_total: z.number().min(0).nullish(),
 
+  /**
+   * Freight named by hand, in the QUOTE currency (#1439 S12).
+   *
+   * 🔴 `.positive()`, not `.min(0)`. A zero here would be free international
+   * shipping typed by accident, and this system has already shipped bulk orders
+   * free once from a rule-gated `0 INR` row (#1430). Free freight, if it is
+   * ever a real offer, should be a deliberate feature and not a slip of a
+   * numeric field.
+   *
+   * Not required, and it must never become required: on a rateable lane the
+   * estimate is the better answer, because nobody has to keep it current.
+   */
+  freight_override_amount: z.number().positive().nullish(),
+  /** Who quoted it and on what basis. Evidence, like `duty_basis`. */
+  freight_basis: z.string().max(500).nullish(),
+
   currency_code: z.string().min(3),
   region_id: z.string().nullish(),
   carrier: z.string().optional(),
 
   /** Drives `price_list.ends_at`, so expiry is native rather than swept. */
   ttl_days: z.number().int().positive().max(365).optional(),
+
+  /**
+   * The deposit share of this deal, 0-100 (#1439 S11).
+   *
+   * Omitted — or null — means the partner did not name terms, and the split
+   * falls through to their house default and then the platform's 30%. `0` is a
+   * real answer meaning "invoice the lot later", so the resolver checks for
+   * null rather than falsiness. 100 is equally real and means paid up front.
+   *
+   * ⚠️ It must be listed HERE to exist at all. `zodValidator` forces `.strict()`
+   * on the body, so a field the schema does not name is not merely ignored —
+   * it never reaches the workflow, and the deal silently takes the default
+   * terms while the wizard shows the number the partner typed.
+   */
+  deposit_pct: z.number().min(0).max(100).nullish(),
 })
 
 export const PartnerMintQuoteReq = PartnerMintQuoteShape.superRefine(
@@ -226,8 +285,20 @@ export const QuoteReadinessShape = PartnerMintQuoteShape.omit({
   buyer_email: true,
   recipient_name: true,
   recipient_company: true,
+  // The buyer's registration is part of who they are, not of what the basket
+  // costs — omitted for the same reason their email is.
+  buyer_tax_id: true,
+  buyer_tax_id_type: true,
   partner_note: true,
   ttl_days: true,
+  // A dry run prices a basket; how it will be PAID for changes none of those
+  // numbers. Omitted for the same reason the buyer's identity is.
+  deposit_pct: true,
+  // 🔑 `freight_override_amount` is deliberately KEPT — it decides whether the
+  // lane has to be rateable, so a preflight without it would refuse exactly the
+  // cross-border quotes an override exists to unblock. Only the basis is
+  // dropped: it is evidence for the frozen row, and a dry run freezes nothing.
+  freight_basis: true,
 })
 
 export const QuoteReadinessReq = QuoteReadinessShape.superRefine(

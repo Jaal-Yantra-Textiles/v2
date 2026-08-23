@@ -1,6 +1,7 @@
 "use server"
 
 import { sdk } from "@lib/config"
+import { setCartId } from "@lib/data/cookies"
 
 /**
  * The buyer's quote (#1389 S4).
@@ -100,6 +101,14 @@ export type QuoteProducer = {
   is_verified: boolean
   /** The partner's own shop. Null when they have no verified/provisioned host. */
   url: string | null
+  /**
+   * The maker's own words (#1428). ⚠️ Sourced from the PRODUCT's artisan
+   * detail — neither the partner model nor `partner_onboarding_profile` carries
+   * prose, so a maker with no artisan detail has no story and this is null.
+   */
+  story: string | null
+  /** Scannable facts and the catalogue's own words. Facts only, never adjectives. */
+  tags: string[]
 }
 
 /** One labelled, public-safe fact about the maker. #1439 S9 */
@@ -149,6 +158,10 @@ export type QuoteViewLine = {
   quoted_subtotal: number | null
   unit_weight_grams: number | null
   weight_source: "variant" | "product" | null
+  /** The catalogue's own merchandising words. Empty, never null. */
+  product_tags?: string[]
+  product_type?: string | null
+  product_collection?: string | null
 }
 
 export type QuoteFreightOption = {
@@ -160,7 +173,99 @@ export type QuoteFreightOption = {
   source: "manual" | "calculated"
 }
 
+/** Who is selling and who is buying, for the document header (#1486). */
+export type QuoteParties = {
+  seller: {
+    legal_name: string | null
+    tax_id: string | null
+    tax_id_type: string | null
+    source: "partner" | "platform" | null
+    origin_country_code: string | null
+  }
+  buyer: {
+    company: string | null
+    contact_name: string | null
+    tax_id: string | null
+    tax_id_type: string | null
+    /**
+     * 🔴 Always false. Nothing checks the buyer's number against VIES or the
+     * GST portal, and no label on this page may imply otherwise.
+     */
+    tax_id_verified: boolean
+  }
+}
+
+/** What pressing Accept would do, and whether it can (#1439 S11). */
+export type QuoteAcceptance = {
+  accepted: boolean
+  accepted_cart_id: string | null
+  /** False ⇒ render `blocked_reason`, never a button that will fail. */
+  can_accept: boolean
+  blocked_reason: string | null
+  currency_code: string
+  /** What the cart will charge in total, tax included. */
+  total_due: number | null
+  deposit_pct: number
+  deposit_amount: number | null
+  balance_amount: number | null
+}
+
+/** One line of the reseller block (#1428 follow-up). */
+export type QuoteRetailLine = {
+  variant_id: string
+  product_title: string | null
+  quantity: number
+  /** What this buyer pays per unit. */
+  unit_amount: number
+  /** What the shop sells one at. Null when it could not be priced. */
+  list_unit_amount: number | null
+  /** Null unless there is a POSITIVE spread — never a zero presented as a fact. */
+  unit_margin: number | null
+  margin_pct: number | null
+}
+
+export type QuoteRetail = {
+  currency_code: string
+  lines: QuoteRetailLine[]
+  total_at_list: number | null
+  total_at_your_price: number
+  total_margin: number | null
+  margin_pct: number | null
+  tags: string[]
+}
+/** One gated reason to buy here (#1428 follow-up). Facts only. */
+export type QuoteAssurancePoint = {
+  key: "artisanal" | "verified" | "direct" | "held"
+  title: string
+  body: string
+}
+
+export type QuoteAssuranceCharge = {
+  key: string
+  label: string
+  /** Null when there is no amount to state — the note carries the fact. */
+  amount: number | null
+  note: string
+  /** False ⇒ the buyer pays this SEPARATELY. Render it so it cannot be missed. */
+  included: boolean
+}
+
+export type QuoteAssurance = {
+  maker_name: string | null
+  verified: boolean
+  points: QuoteAssurancePoint[]
+  charges: QuoteAssuranceCharge[]
+  currency_code: string
+  /** True ONLY when nothing beyond the shown total is payable. */
+  no_further_charges: boolean
+}
+
 export type QuoteView = {
+  assurance?: QuoteAssurance | null
+  /** What the same goods list at, and the spread. Null when there is none. */
+  retail?: QuoteRetail | null
+  parties?: QuoteParties | null
+  acceptance?: QuoteAcceptance | null
   lines: QuoteViewLine[]
   currency_code: string
   destination_country_code: string
@@ -264,5 +369,59 @@ export const retrieveQuote = async (
         `status=${e?.status ?? "n/a"} message=${e?.message ?? String(e)}`
     )
     return null
+  }
+}
+
+/**
+ * Accept the quote and take the buyer to checkout (#1439 S11).
+ *
+ * ## The conventional route, deliberately
+ *
+ * The backend builds a real Medusa cart — the buyer's own customer, their
+ * price list, a freight option minted in the lane the quote was rated in. This
+ * action does nothing clever with it: it writes the standard `_medusa_cart_id`
+ * cookie and hands the buyer to the normal checkout. Every payment provider,
+ * every totals rule and every completion path is then the one the storefront
+ * already uses.
+ *
+ * 🔴 The cookie is what makes the cart REAL to the browser. A 201 from the
+ * accept route is not a cart the storefront can see — the same trap as
+ * add-to-cart, where the cookie is set inside the server action's response and
+ * a caller that navigates before it lands finds an empty cart.
+ *
+ * Idempotent by construction: `accepted_cart_id` is the quote's own key, so a
+ * buyer who presses twice, or returns to the link a day later, lands on the
+ * same cart rather than a second one priced against a superseded list.
+ */
+export const acceptQuote = async (
+  token: string
+): Promise<{ cart_id: string | null; error: string | null }> => {
+  try {
+    const { acceptance } = await sdk.client.fetch<{
+      acceptance: { cart_id: string; already_accepted?: boolean }
+    }>(`/store/b2b/quotes/${encodeURIComponent(token)}/accept`, {
+      method: "POST",
+      body: {},
+      cache: "no-store",
+    })
+
+    const cartId = acceptance?.cart_id ?? null
+    if (!cartId) {
+      return { cart_id: null, error: "The order could not be started. Please reply to this quote." }
+    }
+
+    await setCartId(cartId)
+    return { cart_id: cartId, error: null }
+  } catch (e: any) {
+    // Same rule as the read: log the LENGTH, never the token.
+    console.error(
+      `[quotes] acceptQuote failed: token_len=${token?.length ?? 0} ` +
+        `status=${e?.status ?? "n/a"} message=${e?.message ?? String(e)}`
+    )
+    return {
+      cart_id: null,
+      error:
+        "The order could not be started just now. Please try again, or reply to this quote.",
+    }
   }
 }

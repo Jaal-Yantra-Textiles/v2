@@ -1,4 +1,5 @@
 import {
+  composeProducerTags,
   producerStorefrontUrl,
   resolveQuoteProducer,
   shouldNameProducer,
@@ -34,6 +35,7 @@ const PARTNER = {
   country_code: "IN",
   is_verified: true,
   status: "active",
+  workspace_type: "manufacturer",
   custom_domain: "uniquepashmina.com",
   custom_domain_verified: true,
   storefront_domain: "unique-pashmina.jaalyantra.com",
@@ -75,6 +77,7 @@ describe("resolveQuoteProducer", () => {
     const producer = await resolveQuoteProducer(scopeWith([PARTNER]) as any, {
       partner_id: "part_1",
       viewer_sales_channel_ids: ["sc_jyt"],
+      product_tags: ["handloom", "Pashmina"],
     })
 
     expect(producer).toEqual({
@@ -85,6 +88,11 @@ describe("resolveQuoteProducer", () => {
       country_code: "IN",
       is_verified: true,
       url: "https://uniquepashmina.com",
+      tags: ["Manufacturer", "Verified maker", "IN", "handloom", "Pashmina"],
+      // 🔑 Null here, ALWAYS. The story lives on the product's artisan detail
+      // and is attached by `buildQuoteView`, which holds the provenance. A
+      // value resolved here would be a second answer to one question.
+      story: null,
     })
   })
 
@@ -158,5 +166,37 @@ describe("producerStorefrontUrl", () => {
     expect(
       producerStorefrontUrl({ storefront_domain: "https://Already.com" })
     ).toBe("https://already.com")
+  })
+})
+
+describe("composeProducerTags", () => {
+  it("puts the workshop facts first, then the catalogue's words", () => {
+    expect(
+      composeProducerTags({
+        workspace_type: "manufacturer",
+        is_verified: true,
+        country_code: "in",
+        product_tags: ["handloom"],
+      })
+    ).toEqual(["Manufacturer", "Verified maker", "IN", "handloom"])
+  })
+
+  it("🔑 never claims verified when the partner is not", () => {
+    // The one tag here that is a CLAIM rather than a description. An unverified
+    // maker badged as verified is a lie told on our letterhead.
+    expect(
+      composeProducerTags({ workspace_type: "individual", is_verified: false })
+    ).toEqual(["Individual"])
+  })
+
+  it("dedupes case-insensitively", () => {
+    // "Handloom" and "handloom" as two chips reads as a data problem.
+    expect(
+      composeProducerTags({ product_tags: ["Handloom", "handloom", "  ", "Silk"] })
+    ).toEqual(["Handloom", "Silk"])
+  })
+
+  it("returns an empty list, never a placeholder tag", () => {
+    expect(composeProducerTags({})).toEqual([])
   })
 })

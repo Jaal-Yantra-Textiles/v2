@@ -3,6 +3,8 @@ import { ContainerRegistrationKeys, MedusaError } from "@medusajs/framework/util
 
 import { PARTNER_QUOTE_MODULE } from "../../../modules/partner-quote"
 import { buildQuoteListQuery } from "../../../modules/partner-quote/lib/list-query"
+import { resolveQuoteDesignLines } from "../../../modules/partner-quote/lib/design-lines"
+import { deliverQuoteEmail } from "../../../workflows/partner-quote/deliver-quote-email"
 import { mintQuoteWorkflow } from "../../../workflows/partner-quote/mint-quote"
 import { assertVariantsInStore } from "./lib/assert-variants-in-store"
 
@@ -84,12 +86,27 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
     )
   }
 
+  /**
+   * #1486 — resolve design lines to variants BEFORE the catalogue assertion
+   * below, which reads `variant_id` off every line and would otherwise assert
+   * `undefined` into a pass.
+   *
+   * 🔑 Unscoped by partner, unlike the partner surface: an admin legitimately
+   * quotes a design the producing partner does not own. The guard that matters
+   * on this route is the next one — the resolved variant still has to be in
+   * that partner's sales channel.
+   */
+  const lines = await resolveQuoteDesignLines(req.scope, {
+    lines: body.lines,
+    partner_id: null,
+  })
+
   // 🔴 An admin picks the partner from one dropdown and the variants from
   // another; a single mis-click freezes one partner's prices onto another
   // partner's customer group, and NOTHING downstream catches it. The partner
   // surface cannot make this mistake, so the guard lives here.
   await assertVariantsInStore(req.scope, {
-    variantIds: (body.lines ?? []).map((l: any) => l.variant_id),
+    variantIds: (lines ?? []).map((l: any) => l.variant_id),
     salesChannelId: store.default_sales_channel_id,
     partnerLabel: partner.name || partnerId,
   })
@@ -101,8 +118,12 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
       buyer_email: body.buyer_email,
       recipient_name: body.recipient_name ?? null,
       recipient_company: body.recipient_company ?? null,
+      // The buyer's own registration, for the document header. It changes no
+      // number on the quote — tax follows the seller's jurisdiction (#1447).
+      buyer_tax_id: body.buyer_tax_id ?? null,
+      buyer_tax_id_type: body.buyer_tax_id_type ?? null,
       partner_note: body.partner_note ?? null,
-      lines: body.lines,
+      lines: lines as any,
       destination_country_code: body.destination_country_code,
       destination_postal_code: body.destination_postal_code ?? null,
       destination_city: body.destination_city ?? null,
@@ -120,7 +141,17 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
       import_tax_rate_percent: body.import_tax_rate_percent ?? null,
       import_tax_total: body.import_tax_total ?? null,
       ddp_fee_total: body.ddp_fee_total ?? null,
+      // #1439 S12 — freight the partner named, and why. Replaces the
+      // picked option's amount; the lane and the consignment weight are
+      // still computed, because they are what make the number checkable.
+      freight_override_amount: body.freight_override_amount ?? null,
+      freight_basis: body.freight_basis ?? null,
       ttl_days: body.ttl_days,
+      // The agreed deposit share (#1439 S11). `?? null` and never `?? 30`:
+      // the fallback chain lives in one place (`resolveDepositPct`), and a
+      // default applied here would freeze 30 onto the quote as though the
+      // partner had chosen it.
+      deposit_pct: body.deposit_pct ?? null,
       // Stamped with the ADMIN's actor id, not the partner's — otherwise an
       // admin-minted quote is indistinguishable from one the partner made
       // themselves, and "who quoted this price" is exactly the question asked
@@ -149,9 +180,26 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
     `[quote] admin minted quote=${(result as any)?.quote?.id} for partner=${partner.id} lines=${body.lines.length}`
   )
 
+  // #1420 — the same send as the partner route, from the same function. An
+  // admin mint is where this matters most: the admin panel composed the buyer
+  // link from `quote.storefront_domain`, a field the quote does not have, so
+  // an admin has never been able to copy a working link at all.
+  const email = await deliverQuoteEmail(req.scope, {
+    quote: (result as any)?.quote,
+    token: (result as any)?.token,
+    partnerName: partner?.name ?? null,
+    lineCount: body.lines.length,
+    actorType: "admin",
+    actorId: (req as any).auth_context?.actor_id ?? null,
+  })
+
   res.status(201).json({
     quote: (result as any)?.quote,
     /** Once. Never retrievable again. */
     token: (result as any)?.token,
+    /** Composed server-side (#1420) — see the partner route. */
+    buyer_url: email.buyer_url,
+    /** Whether the buyer actually has it. `sent: false` is a call to action. */
+    email,
   })
 }

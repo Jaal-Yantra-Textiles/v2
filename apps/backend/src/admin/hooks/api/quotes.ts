@@ -13,6 +13,33 @@ import { queryKeysFactory } from "../../lib/query-key-factory"
 const QUOTES_QUERY_KEY = "quotes" as const
 export const quoteQueryKeys = queryKeysFactory(QUOTES_QUERY_KEY)
 
+/**
+ * What the buyer still owes on an accepted quote (#1439 S11).
+ *
+ * Deposit now, balance on a production/delivery event — both rails work this
+ * way. Stripe's docs point at charging a saved payment method later rather
+ * than holding an authorisation, since a card hold lasts 7 days and a
+ * made-to-order lead time does not.
+ */
+export type AdminPaymentSchedule = {
+  id: string
+  cart_id?: string | null
+  order_id?: string | null
+  currency_code: string
+  total_due: number
+  deposit_pct: number
+  deposit_amount: number
+  /** `waived` is a partner taking a buyer on account — not money received. */
+  deposit_status: "pending" | "paid" | "failed" | "waived"
+  deposit_paid_at?: string | null
+  balance_amount: number
+  /** `not_due` until the goods exist; raising it earlier demands money for nothing. */
+  balance_status: "not_due" | "due" | "paid" | "failed" | "waived"
+  balance_paid_at?: string | null
+  balance_due_at?: string | null
+  rail: "payu" | "stripe" | "manual"
+}
+
 export type AdminQuote = Record<string, any> & {
   id: string
   partner_id: string
@@ -24,6 +51,9 @@ export type AdminQuote = Record<string, any> & {
   destination_country_code?: string
   quoted_landed_total?: number | null
   quoted_freight?: number | null
+  /** `manual` when a person named the freight, `estimated` when it was rated. */
+  quoted_freight_source?: "estimated" | "manual" | null
+  quoted_freight_basis?: string | null
   /** #1447 — the DDP undertaking and the duty figure frozen behind it. */
   duties_prepaid?: boolean | null
   quoted_duty_total?: number | null
@@ -34,6 +64,15 @@ export type AdminQuote = Record<string, any> & {
   quoted_duty_basis?: string | null
   status?: "active" | "revoked" | "superseded"
   expires_at?: string | null
+  /**
+   * Terms and acceptance (#1439 S11). `deposit_pct` is null when nobody named
+   * terms, which is NOT the same as 0. `payment_schedule` arrives on the
+   * detail read only, and only once accepted.
+   */
+  deposit_pct?: number | null
+  accepted_cart_id?: string | null
+  accepted_at?: string | null
+  payment_schedule?: AdminPaymentSchedule | null
   view_count?: number
   last_viewed_at?: string | null
   created_at?: string
@@ -68,14 +107,31 @@ export type AdminMintQuotePayload = {
   buyer_email: string
   recipient_name?: string | null
   recipient_company?: string | null
+  /** The buyer's stated registration. Recorded on the document, never verified. */
+  buyer_tax_id?: string | null
+  buyer_tax_id_type?: string | null
   partner_note?: string | null
-  lines: Array<{ variant_id: string; quantity: number; note?: string | null }>
+  lines: Array<{
+    variant_id: string
+    /** Which design this was picked as (#1486). Alongside the variant, not instead. */
+    design_id?: string | null
+    quantity: number
+    note?: string | null
+  }>
   destination_country_code: string
   destination_postal_code?: string | null
   destination_city?: string | null
   currency_code: string
   carrier?: string
   ttl_days?: number
+  /**
+   * The deposit share, 0-100 (#1439 S11). `null` means no terms were named and
+   * the backend applies its default; `0` means take nothing up front.
+   */
+  deposit_pct?: number | null
+  /** Freight named by hand, in the quote currency, and where it came from. */
+  freight_override_amount?: number | null
+  freight_basis?: string | null
   /** DDP (#1447): the undertaking, the amount absorbed, and how it was reached. */
   duties_prepaid?: boolean
   duty_rate_percent?: number | null
@@ -246,4 +302,64 @@ export const useAdminQuoteReadiness = (
       ),
     ...options,
   })
+}
+
+/** One row of the design picker (#1486). */
+export type QuotableDesign = {
+  id: string
+  name: string | null
+  thumbnail_url: string | null
+  product_type: string | null
+  status: string | null
+  /** True when exactly one variant backs it, so a line can be built. */
+  quotable: boolean
+  variant_id: string | null
+  product_id: string | null
+  candidates: Array<{
+    variant_id: string
+    title: string | null
+    sku: string | null
+    product_id: string | null
+    product_title: string | null
+  }>
+  /** Why it cannot be quoted. Null when `quotable`. */
+  reason: string | null
+}
+
+export type QuotableDesignsResponse = {
+  designs: QuotableDesign[]
+  count: number
+  limit: number
+  offset: number
+}
+
+/**
+ * The designs an admin can quote (#1486).
+ *
+ * `partner_id` narrows the list to the partner already chosen in the wizard. It
+ * is a FILTER, not a permission — an admin legitimately quotes a design the
+ * producing partner does not own, and the guard that matters runs at mint,
+ * where the resolved variant must be in that partner's sales channel.
+ *
+ * Returns unquotable designs too, with their reason. Hiding them would leave an
+ * admin unable to learn why a design they can see is not offered.
+ */
+export const useQuotableDesigns = (
+  query?: { partner_id?: string | null; q?: string; limit?: number; offset?: number },
+  options?: Omit<
+    UseQueryOptions<QuotableDesignsResponse, FetchError, QuotableDesignsResponse, any>,
+    "queryFn" | "queryKey"
+  >
+) => {
+  const { data, ...rest } = useQuery({
+    queryKey: [...quoteQueryKeys.all, "quotable-designs", query],
+    queryFn: async () =>
+      sdk.client.fetch<QuotableDesignsResponse>("/admin/quotes/designs", {
+        method: "GET",
+        query: query as any,
+      }),
+    ...options,
+  })
+
+  return { designs: data?.designs ?? [], count: data?.count ?? 0, ...rest }
 }

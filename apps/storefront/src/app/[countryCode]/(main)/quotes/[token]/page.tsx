@@ -39,7 +39,7 @@ export const metadata: Metadata = {
 export const dynamic = "force-dynamic"
 
 export default async function QuotePage({ params }: Props) {
-  const { token } = await params
+  const { token, countryCode } = await params
   const quote = await retrieveQuote(token)
 
   // An unknown token and a revoked one are indistinguishable by design — the
@@ -48,5 +48,8 @@ export default async function QuotePage({ params }: Props) {
     notFound()
   }
 
-  return <QuoteTemplate quote={quote} />
+  // 🔑 `countryCode` comes from the route segment, not from the quote. The
+  // storefront routes every page under it, so a checkout link built from the
+  // quote's DESTINATION would leave the locale the buyer is actually browsing.
+  return <QuoteTemplate quote={quote} token={token} countryCode={countryCode} />
 }

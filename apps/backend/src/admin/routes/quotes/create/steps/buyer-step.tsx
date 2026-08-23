@@ -218,6 +218,45 @@ export const BuyerStep = ({ form }: Props) => {
           )}
         />
 
+        {/*
+          The buyer's registration, for the document header (#1486).
+
+          🔑 Nothing checks it against VIES or the GST portal, and the hint says
+          so — a field that reads as verified invites a reverse-charge
+          assumption nobody is entitled to make.
+        */}
+        <div className="grid grid-cols-2 gap-x-3">
+          <Form.Field
+            control={form.control}
+            name="buyer_tax_id"
+            render={({ field }) => (
+              <Form.Item>
+                <Form.Label optional>VAT / tax number</Form.Label>
+                <Form.Control>
+                  <Input {...field} value={field.value ?? ""} placeholder="DE123456789" />
+                </Form.Control>
+                <Form.Hint>
+                  As the buyer gave it. Shown on the quote; it does not change
+                  the price or the tax.
+                </Form.Hint>
+              </Form.Item>
+            )}
+          />
+
+          <Form.Field
+            control={form.control}
+            name="buyer_tax_id_type"
+            render={({ field }) => (
+              <Form.Item>
+                <Form.Label optional>Scheme</Form.Label>
+                <Form.Control>
+                  <Input {...field} value={field.value ?? ""} placeholder="eu_vat" />
+                </Form.Control>
+              </Form.Item>
+            )}
+          />
+        </div>
+
         <Form.Field
           control={form.control}
           name="recipient_name"
@@ -356,6 +395,44 @@ export const BuyerStep = ({ form }: Props) => {
             </Form.Item>
           )}
         />
+        <Form.Field
+          control={form.control}
+          name="deposit_pct"
+          render={({ field: { onChange, value, ...rest } }) => (
+            <Form.Item>
+              <Form.Label optional>Deposit (%)</Form.Label>
+              <Form.Control>
+                <Input
+                  type="number"
+                  min={0}
+                  max={100}
+                  placeholder="30"
+                  // 🔑 `...rest` carries `name`, `ref` and `onBlur` from
+                  // react-hook-form onto the element. Reading `field.value` and
+                  // `field.onChange` alone renders an input with NO name
+                  // attribute — it looks and behaves right, and is invisible to
+                  // anything selecting the form by field name. Caught by the
+                  // e2e spec, not by tsc, which sees a perfectly typed prop.
+                  {...rest}
+                  value={value ?? ""}
+                  onChange={(e) =>
+                    // Only an EMPTY string is "unset". `Number("0")` is 0 and
+                    // has to survive as 0 — taking nothing up front is a real
+                    // term, and losing it hands the buyer a 30% demand nobody
+                    // agreed to.
+                    onChange(
+                      e.target.value === "" ? undefined : Number(e.target.value)
+                    )
+                  }
+                />
+              </Form.Control>
+              <Form.Hint>
+                What the buyer pays on accepting; the rest is invoiced when the
+                goods are ready. Blank uses the default 30%.
+              </Form.Hint>
+            </Form.Item>
+          )}
+        />
       </div>
 
       <Form.Field
@@ -471,6 +548,61 @@ export const BuyerStep = ({ form }: Props) => {
             )}
           />
         ) : null}
+      </div>
+
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+        <Form.Field
+          control={form.control}
+          name="freight_override_amount"
+          render={({ field: { onChange, value, ...rest } }) => (
+            <Form.Item>
+              <Form.Label optional>Freight, quoted by hand</Form.Label>
+              <Form.Control>
+                <Input
+                  type="number"
+                  min={0}
+                  step="0.01"
+                  placeholder="e.g. 250"
+                  {...rest}
+                  value={value ?? ""}
+                  onChange={(e) =>
+                    onChange(
+                      e.target.value === "" ? undefined : Number(e.target.value)
+                    )
+                  }
+                />
+              </Form.Control>
+              <Form.Hint>
+                In the quote's currency. Overrides whatever the lane rates at —
+                use it when no carrier will quote the lane, or when the stored
+                tier is wrong for this weight. Leave blank to use the rate.
+              </Form.Hint>
+              <Form.ErrorMessage />
+            </Form.Item>
+          )}
+        />
+
+        <Form.Field
+          control={form.control}
+          name="freight_basis"
+          render={({ field }) => (
+            <Form.Item>
+              <Form.Label optional>Where that figure came from</Form.Label>
+              <Form.Control>
+                <Input
+                  placeholder="DHL rate card 12 Aug, 22 kg to DE"
+                  {...field}
+                  value={field.value ?? ""}
+                />
+              </Form.Control>
+              <Form.Hint>
+                Evidence, not decoration: whoever meets the forwarder's invoice
+                is not who typed the number.
+              </Form.Hint>
+              <Form.ErrorMessage />
+            </Form.Item>
+          )}
+        />
       </div>
 
       {isDomesticLane ? (

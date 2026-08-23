@@ -112,6 +112,21 @@ const DesignPreviewPage = () => {
           </div>
           <div className="divide-y">
             <DetailRow label="Description" value={design.description || "-"} />
+            {/* Two different questions: what the thing IS versus how original
+                it is. Both, in that order — the garment type is what anyone
+                scanning a preview is actually looking for. */}
+            <DetailRow
+              label="Garment Type"
+              value={
+                (design as any).product_type
+                  ? `${(design as any).product_type}${
+                      (design as any).product_type_source === "inferred"
+                        ? " (inferred)"
+                        : ""
+                    }`
+                  : "-"
+              }
+            />
             <DetailRow label="Design Type" value={design.design_type || "-"} />
             <DetailRow
               label="Target Date"

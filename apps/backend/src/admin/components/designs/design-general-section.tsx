@@ -252,6 +252,35 @@ export const DesignGeneralSection = ({ design }: DesignGeneralSectionProps) => {
             </div>
           )}
 
+          {/* Garment type (#938).
+
+              🔑 Shown BESIDE design type, not instead of it: they answer
+              different questions. `design_type` is how original the work is
+              (Original / Derivative); `product_type` is what the thing IS
+              (a stole, a kurta). Until this row existed the value could be
+              edited in the drawer and never seen anywhere, which is half a
+              feature.
+
+              An inferred type is badged as such. A model's guess and a
+              designer's decision must never look alike — the guess is
+              provisional and is what a human correction overwrites. */}
+          <div className="text-ui-fg-subtle grid grid-cols-2 items-center px-6 py-4">
+            <Text size="small" leading="compact" weight="plus">
+              {t("Garment Type")}
+            </Text>
+            <div className="flex items-center gap-x-2">
+              <Text size="small" leading="compact">
+                {(design as any).product_type || "-"}
+              </Text>
+              {(design as any).product_type &&
+              (design as any).product_type_source === "inferred" ? (
+                <Badge color="orange" size="2xsmall">
+                  {t("Inferred")}
+                </Badge>
+              ) : null}
+            </div>
+          </div>
+
           {/* Design Type */}
           <div className="text-ui-fg-subtle grid grid-cols-2 items-center px-6 py-4">
             <Text size="small" leading="compact" weight="plus">

@@ -15,6 +15,8 @@ import {
   type QuoteMoney,
 } from "./compare"
 import { resolveQuoteProducer, type QuoteProducer } from "./quote-producer"
+import { composeQuoteAssurance, type QuoteAssurance } from "./quote-assurance"
+import { composeQuoteRetail, type QuoteRetail } from "./quote-retail"
 import { resolveQuoteTax, type QuoteTax } from "./quote-tax"
 import { computeDdpCharges, describeDdpBasis } from "./ddp-charges"
 import {
@@ -24,6 +26,14 @@ import {
 import { classifyQuoteJurisdiction } from "./quote-tax"
 import { resolveQuoteSpecs, type QuoteLineSpec } from "./quote-spec"
 import { daysUntilExpiry, quoteUnusableReason } from "./token"
+/**
+ * Imported, never restated. `customer.groups.id` vs `customer_group_id` is the
+ * exact pair that made the first minted quote price nothing at all (#1389), and
+ * a second copy of the string is how that comes back.
+ *
+ * `plan-quote-prices` imports nothing, so this cannot cycle.
+ */
+import { QUOTE_GROUP_RULE_ATTRIBUTE } from "../../../workflows/partner-quote/lib/plan-quote-prices"
 
 /**
  * The one builder, so the page and the email cannot drift (#1389 S2).
@@ -70,6 +80,8 @@ import { daysUntilExpiry, quoteUnusableReason } from "./token"
 
 export type QuoteViewLineRow = {
   variant_id: string
+  /** The design this line was picked as (#1486). Provenance, never pricing. */
+  design_id?: string | null
   quantity?: number
   position?: number
   note?: string | null
@@ -113,6 +125,8 @@ export type QuoteViewQuote = {
 /** One line as the buyer is currently looking at it. */
 export type BuildQuoteViewLine = {
   variant_id: string
+  /** The design this line was picked as (#1486). Provenance, never pricing. */
+  design_id?: string | null
   quantity: number
   position?: number
   note?: string | null
@@ -121,6 +135,16 @@ export type BuildQuoteViewLine = {
 export type BuildQuoteViewInput = {
   /** The persisted row. Null at mint, when there is nothing frozen yet. */
   quote?: QuoteViewQuote | null
+  /**
+   * The buyer's customer group, so the LIVE re-price sees the price list that
+   * was minted for them (#1389 S3).
+   *
+   * 🔴 Set on a READ, never at mint. At mint there is no list yet, and the
+   * buyer's group may still carry the PREVIOUS quote's list — `supersede` runs
+   * after the freeze. Passing it there would price a re-quote off the quote it
+   * is replacing, and two active lists on one group tie-break CHEAPEST (#1435).
+   */
+  customer_group_id?: string | null
   /** Effective basket — the buyer's dial positions, or the quoted ones. */
   lines: BuildQuoteViewLine[]
   destination_country_code: string
@@ -170,12 +194,58 @@ export type BuildQuoteViewInput = {
   import_tax_total?: number | null
   /** The carrier's charge for advancing duty and tax. Always an amount. */
   ddp_fee_total?: number | null
+  /**
+   * Freight the partner is naming BY HAND, in the quote currency (#1439 S12).
+   *
+   * ## Why this exists
+   *
+   * 🔴 The stored international option is a **flat amount at any weight** — 35
+   * EUR whether the consignment is 5.5 kg or 22 kg — and the obvious fix is
+   * closed: the estimator deliberately skips every rule-bound price row, which
+   * is the #1430 fix that stopped a rule-gated `0 INR` shipping bulk orders
+   * free. Meanwhile the live cross-border leg answers `No serviceable couriers
+   * available for given weight`, so a real rate is not available either.
+   *
+   * Until the carriers answer, the honest number is the one the partner has in
+   * front of them from a forwarder. Naming it beats quoting a flat tier that is
+   * wrong in the direction nobody complains about.
+   *
+   * ## What it does
+   *
+   * It REPLACES the picked option's amount and nothing else. The consignment
+   * weight, the option list and the lane are still computed, because they are
+   * what makes the number checkable — and tax, duty and the landed total are
+   * all derived from this freight exactly as they would be from a rated one.
+   *
+   * 🔑 In the QUOTE currency, unlike an S7 line override which is in the
+   * partner store's currency. Deliberate: a line override is compared against a
+   * catalogue price that has a currency of its own, whereas freight sits beside
+   * `duty_total`, `import_tax_total` and `ddp_fee_total` in both the wizard and
+   * this type — all of which are quote-currency amounts. One rule for the
+   * numbers that appear together.
+   */
+  freight_override_amount?: number | null
+  /**
+   * Who quoted that number and on what basis — "DHL rate card 12 Aug, 22 kg to
+   * DE", "Blue Dart forwarder quote".
+   *
+   * Evidence, not decoration, and the same argument as `duty_basis`: this is
+   * the only record of why we committed to a freight figure, and the person who
+   * later pays the forwarder's invoice is not the person who typed it.
+   */
+  freight_basis?: string | null
   /** Passed in so the whole view is deterministic under test. */
   now: Date
 }
 
 export type QuoteViewLine = {
   variant_id: string
+  /** The design this line was picked as (#1486). Provenance, never pricing. */
+  design_id?: string | null
+  /** The catalogue's own merchandising words. Empty, never null. */
+  product_tags: string[]
+  product_type: string | null
+  product_collection: string | null
   variant_title: string | null
   product_id: string | null
   product_title: string | null
@@ -223,6 +293,13 @@ export type QuoteView = {
     chosen: ShippingEstimateOption | null
     options: ShippingEstimateOption[]
     error: string | null
+    /**
+     * True when a person named the amount rather than a rate producing it
+     * (#1439 S12). Distinct from `chosen.source`, which says whether the figure
+     * came from a stored option or a live carrier call — a different question
+     * with the same word for one of its answers.
+     */
+    overridden: boolean
     /**
      * Which carrier was ASKED for the live rates (#1447). Null when nobody was
      * — a manual-only lane, or a dead link. Surfaced because "a partner shipping
@@ -277,6 +354,17 @@ export type QuoteView = {
    * storefront. Null means "say nothing", never "unknown producer".
    */
   producer: QuoteProducer | null
+  /**
+   * What the same goods sell for on the shop, and the spread (#1428).
+   * Null when there is no spread to report — see `quote-retail.ts`.
+   */
+  retail: QuoteRetail | null
+  /**
+   * Why buy here, and the full composition of what the buyer pays.
+   * Every point is gated on a fact; the partner's commercial terms are NOT in
+   * it — see `quote-assurance.ts`.
+   */
+  assurance: QuoteAssurance
   /**
    * Who made this and how — the partner's public-safe credentials plus the
    * product facts the whole basket agrees on (#1439 S9). Null means "say
@@ -607,6 +695,12 @@ export async function buildQuoteView(
       "product.title",
       "product.handle",
       "product.thumbnail",
+      // What the piece IS, for a buyer deciding whether it fits their shelf
+      // (#1428 follow-up). Tags are the merchandising vocabulary the catalogue
+      // already uses, so they need no new field and cannot drift from it.
+      "product.tags.value",
+      "product.type.value",
+      "product.collection.title",
     ],
     filters: { id: effectiveLines.map((l) => l.variant_id) },
   })
@@ -687,6 +781,18 @@ export async function buildQuoteView(
   let liveError: string | null = null
   let totalWeightGrams: number | null = null
   let chosen: ShippingEstimateOption | null = null
+  /**
+   * Did a PERSON name this freight? (#1439 S12)
+   *
+   * 🔴 A separate flag, and not `chosen.source === "manual"`, because that word
+   * is already taken: on a `ShippingEstimateOption`, `source: "manual"` means
+   * "a stored flat option" as opposed to `"calculated"`, a live carrier rate.
+   * Deriving provenance from it stamped EVERY quote priced off a stored tier —
+   * which is most of them, and every cross-border one — as a human's figure.
+   * Caught by the control case in the mint integration suite, not by tsc: both
+   * readings are the same string.
+   */
+  let freightOverridden = false
   let options: ShippingEstimateOption[] = []
   let freightError: string | null = null
   /** Set once the lane's rating carrier is resolved; null on a manual-only lane. */
@@ -737,6 +843,26 @@ export async function buildQuoteView(
               ...(input.region_id ? { region_id: input.region_id } : {}),
               currency_code: input.currency_code,
               quantity: line.quantity,
+              /**
+               * 🔴 THE buyer's group, under the attribute a cart actually
+               * carries. Without it `calculated_price` answers with the
+               * CATALOGUE price and never sees the price list minted for this
+               * buyer — so a quote with a negotiated trade price rendered its
+               * own retail number as "what it costs today", told the buyer
+               * pricing had moved, and showed a delta of the entire discount.
+               * Minutes after minting, with nothing having moved.
+               *
+               * Invisible on a quote priced at catalogue, where live and quoted
+               * agree by coincidence — i.e. on every quote except the B2B ones
+               * this whole epic exists for.
+               *
+               * `customer.groups.id`, not `customer_group_id`: the latter
+               * matches nothing, which is the #1389 defect that made the first
+               * minted quote price nothing at all.
+               */
+              ...(input.customer_group_id
+                ? { [QUOTE_GROUP_RULE_ATTRIBUTE]: [input.customer_group_id] }
+                : {}),
             }),
           },
         })
@@ -811,14 +937,56 @@ export async function buildQuoteView(
         ])
       )
 
+      /**
+       * A hand-named freight amount wins over whatever the picker found
+       * (#1439 S12).
+       *
+       * 🔑 It REPLACES the amount and keeps everything else. The lane, the
+       * consignment weight and the option list are still computed and still
+       * shown, because they are what lets a human check the typed number — an
+       * override rendered with no context is a figure nobody can challenge.
+       *
+       * 🔴 It also satisfies the "no freight option" refusal below. That
+       * refusal exists so a landed total can never be missing its freight leg;
+       * an override is freight, so the reason for refusing is gone. This is the
+       * half that unblocks the lanes where the carrier answers "no serviceable
+       * couriers" — today, that is every cross-border lane.
+       */
+      const overrideAmount =
+        input.freight_override_amount === null ||
+        input.freight_override_amount === undefined ||
+        !Number.isFinite(Number(input.freight_override_amount))
+          ? null
+          : Number(input.freight_override_amount)
+
+      if (overrideAmount !== null) {
+        freightOverridden = true
+        chosen = {
+          // Named for what it is. A buyer reading "International Shipping" on a
+          // number a person typed would reasonably think a carrier quoted it.
+          name: "Freight (quoted by hand)",
+          amount: overrideAmount,
+          currency_code: input.currency_code,
+          source: "manual",
+          // Deliberately carried over: the accepted cart builds its freight
+          // option in the service zone of the option this quote was rated
+          // against (#1439 S11), and an overridden amount still ships on that
+          // lane. Null when nothing was quotable, which acceptance refuses —
+          // see the watch-out on #1450.
+          shipping_option_id: chosen?.shipping_option_id,
+        } as typeof chosen
+      }
+
       if (!chosen) {
         // A landed total with no freight in it is a wrong number wearing a
         // confident label. Better to have no live half at all.
         throw new MedusaError(
           MedusaError.Types.INVALID_DATA,
           freightError
-            ? `No freight option could be quoted for this lane: ${freightError}`
-            : "No freight option could be quoted for this lane."
+            ? `No freight option could be quoted for this lane: ${freightError}. ` +
+                `Name the freight by hand to quote it anyway.`
+            : "No freight option could be quoted for this lane. " +
+                "Name the freight by hand to quote it anyway."
         )
       }
 
@@ -843,7 +1011,7 @@ export async function buildQuoteView(
           unit_amount: liveUnitByVariant.get(l.variant_id) ?? 0,
           quantity: l.quantity,
         })),
-        freight: { amount: Number(chosen.amount), option_id: (chosen as any)?.id ?? null },
+        freight: { amount: Number(chosen.amount), option_id: chosen.shipping_option_id ?? null },
       })
 
       const liveSubtotals = effectiveLines.map(
@@ -923,9 +1091,18 @@ export async function buildQuoteView(
       product_handle: identity.product?.handle ?? null,
       ...pickLineImage(identity),
       spec: specByProduct.get(identity.product?.id) ?? null,
+      product_tags: ((identity.product?.tags ?? []) as any[])
+        .map((t) => t?.value)
+        .filter((v: any): v is string => typeof v === "string" && v.length > 0),
+      product_type: identity.product?.type?.value ?? null,
+      product_collection: identity.product?.collection?.title ?? null,
       quantity: line.quantity,
       position: line.position ?? frozen?.position ?? index,
       note: line.note ?? frozen?.note ?? null,
+      // #1486 — carried through so the frozen row, both partner UIs and the
+      // buyer's page can say "this is your Kashida Shawl" rather than showing
+      // a SKU for a piece the buyer knows by name. It prices nothing.
+      design_id: line.design_id ?? frozen?.design_id ?? null,
       live_unit_amount: liveUnit,
       live_subtotal: liveUnit === null ? null : liveUnit * line.quantity,
       quoted_unit_amount:
@@ -945,9 +1122,16 @@ export async function buildQuoteView(
   // Resolved AFTER the money, and deliberately unable to fail the view: a
   // credit line is not worth a buyer's 500. Returns null whenever we cannot
   // positively tell that the viewer is off the partner's own storefront.
+  // The catalogue's own words for what is in this basket, deduped once and
+  // shared by the producer band and the reseller block.
+  const basketTags = Array.from(
+    new Set(lines.flatMap((l) => l.product_tags ?? []))
+  ).sort((a, b) => a.localeCompare(b))
+
   const producer = await resolveQuoteProducer(scope, {
     partner_id: input.partner_id ?? null,
     viewer_sales_channel_ids: input.viewer_sales_channel_ids ?? null,
+    product_tags: basketTags,
   })
 
   // Same contract as the producer band: resolved after the money and unable to
@@ -955,6 +1139,105 @@ export async function buildQuoteView(
   const provenance = await resolveQuoteProvenance(scope, {
     partner_id: input.partner_id ?? null,
     product_ids: lines.map((l) => l.product_id),
+  })
+
+  /**
+   * The reseller's view: the shop's own price beside the buyer's.
+   *
+   * 🔴 Priced WITHOUT the customer group, deliberately — that is the whole
+   * difference between "what you pay" and "what it lists at". Best-effort per
+   * line: a list price we cannot resolve is simply absent, never zero, and the
+   * block disappears entirely rather than reporting a margin of nothing.
+   *
+   * Only attempted on a read (`customer_group_id` present). At mint there is no
+   * group and the two prices are the same number, so there is nothing to say.
+   */
+  const listPrices = new Map<string, number>()
+  if (!unusableReason && input.customer_group_id) {
+    for (const line of effectiveLines) {
+      try {
+        const { data: listed } = await query.graph({
+          entity: "variant",
+          fields: ["id", "calculated_price.*"],
+          filters: { id: line.variant_id },
+          context: {
+            calculated_price: QueryContext({
+              ...(input.region_id ? { region_id: input.region_id } : {}),
+              currency_code: input.currency_code,
+              // Quantity 1: a list price is what ONE costs a walk-up buyer.
+              // Passing the quoted quantity would hand back a bulk tier and
+              // quietly understate the spread the buyer is actually getting.
+              quantity: 1,
+            }),
+          },
+        })
+        const amount = Number(
+          (listed?.[0] as any)?.calculated_price?.calculated_amount
+        )
+        if (Number.isFinite(amount)) listPrices.set(line.variant_id, amount)
+      } catch {
+        // A missing list price costs the buyer nothing. It must never cost
+        // them the page.
+      }
+    }
+  }
+
+  const retail = composeQuoteRetail({
+    currency_code: input.currency_code,
+    lines: lines.map((l) => ({
+      variant_id: l.variant_id,
+      product_title: l.product_title,
+      quantity: l.quantity,
+      unit_amount: l.live_unit_amount ?? l.quoted_unit_amount,
+      product_tags: l.product_tags,
+    })),
+    listPrices,
+  })
+
+  /**
+   * The maker's own words, attached to the band that names them.
+   *
+   * 🔑 Read off the provenance rather than resolved again — `maker_story` comes
+   * from the product's `artisan_product_detail`, and asking twice is how one
+   * question gets two answers. ⚠️ Neither the partner model nor
+   * `partner_onboarding_profile` carries prose; the profile is structured facts
+   * and those are already the provenance ROWS. A maker with no artisan detail
+   * therefore has no story, and the band shows tags alone rather than a
+   * paragraph assembled out of their team size.
+   */
+  const producerWithStory = producer
+    ? { ...producer, story: provenance?.maker_story ?? null }
+    : null
+
+  /**
+   * The assurance block. Built from what has already been resolved above —
+   * producer, provenance, the money, the tax verdict and the duty undertaking
+   * — so it cannot disagree with the numbers it sits beside.
+   *
+   * 🔴 `cross_border` decides whether import duty is even mentioned, and it is
+   * the ORIGIN against the DESTINATION. Getting this from the buyer's country
+   * alone would tell a Mumbai buyer on an Indian lane that duty is payable on
+   * arrival, which is both false and alarming.
+   */
+  const assurance = composeQuoteAssurance({
+    currency_code: input.currency_code,
+    producer: producerWithStory,
+    provenance,
+    money: live ?? quoted,
+    tax: frozenTaxFallback(tax, input.quote),
+    duty: {
+      prepaid: dutiesPrepaid,
+      total: ddpCharges.duty,
+      import_tax: ddpCharges.import_tax,
+      carrier_fee: ddpCharges.carrier_fee,
+    },
+    cross_border: Boolean(
+      originCountry &&
+        input.destination_country_code &&
+        originCountry.toUpperCase() !==
+          String(input.destination_country_code).toUpperCase()
+    ),
+    expires_in_days: input.quote ? daysUntilExpiry(lifecycle, input.now) : null,
   })
 
   const compare = compareQuote({
@@ -984,6 +1267,7 @@ export async function buildQuoteView(
       options,
       error: freightError,
       rated_by: ratedBy,
+      overridden: freightOverridden,
     },
     /**
      * Live tax where there is one; the FROZEN tax on a dead link.
@@ -1025,8 +1309,10 @@ export async function buildQuoteView(
       company: input.quote?.recipient_company ?? null,
       partner_note: input.quote?.partner_note ?? null,
     },
-    producer,
+    producer: producerWithStory,
     provenance,
+    retail,
+    assurance,
     expires_in_days: input.quote ? daysUntilExpiry(lifecycle, input.now) : null,
     origin_country_code: originCountry,
     live_error: liveError,

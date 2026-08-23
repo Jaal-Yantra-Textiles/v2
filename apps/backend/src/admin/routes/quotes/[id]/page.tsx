@@ -107,6 +107,22 @@ const QuoteDetailPage = () => {
     )
   }
 
+  /**
+   * 🔑 `waived` is amber, never green. A partner taking a trusted buyer on
+   * account is a decision worth seeing; painting it like money that arrived is
+   * how a receivable goes missing.
+   */
+  const payTone = (
+    s?: string
+  ): "green" | "orange" | "red" | "grey" =>
+    s === "paid"
+      ? "green"
+      : s === "waived" || s === "due"
+        ? "orange"
+        : s === "failed"
+          ? "red"
+          : "grey"
+
   const isRevoked = quote.status === "revoked"
   /**
    * A newer quote for this buyer expired this one's price list (#1435). It is
@@ -121,11 +137,18 @@ const QuoteDetailPage = () => {
     : isSuperseded
       ? "orange"
       : "green"
+  /**
+   * Acceptance does not replace the status — an accepted quote is still active
+   * until it is paid, and collapsing the two hides which of them the buyer is
+   * in. It is appended, not substituted.
+   */
   const statusLabel = isRevoked
     ? "Revoked"
     : isSuperseded
       ? "Superseded"
-      : "Active"
+      : quote.accepted_at
+        ? "Active · Accepted"
+        : "Active"
 
   /**
    * 🔴 Revoke is the only action, and it is destructive: it DELETES the price
@@ -172,8 +195,26 @@ const QuoteDetailPage = () => {
               },
               {
                 label: "Freight",
-                value: money(quote.quoted_freight, quote.currency_code),
+                value: (
+                  <span className="flex items-center gap-2">
+                    {money(quote.quoted_freight, quote.currency_code)}
+                    {/* 🔑 A number a person typed and one a carrier returned
+                        carry different confidence; rendering them identically
+                        launders one into the other. */}
+                    {quote.quoted_freight_source === "manual" ? (
+                      <StatusBadge color="orange">By hand</StatusBadge>
+                    ) : null}
+                  </span>
+                ),
               },
+              ...(quote.quoted_freight_basis
+                ? [
+                    {
+                      label: "Freight basis",
+                      value: String(quote.quoted_freight_basis),
+                    },
+                  ]
+                : []),
               /**
                * Shown only on a DDP quote, and shown with its basis (#1447).
                * This is a liability we took on: somebody has to arrange the
@@ -227,6 +268,19 @@ const QuoteDetailPage = () => {
                   ]
                 : []),
               {
+                /**
+                 * 🔑 Null and 0 are different answers and are shown as such.
+                 * Null means nobody named terms and the platform default
+                 * applies at acceptance; 0 means this buyer pays nothing up
+                 * front. Rendering both as "0%" would misstate one of them.
+                 */
+                label: "Deposit terms",
+                value:
+                  quote.deposit_pct === null || quote.deposit_pct === undefined
+                    ? "Default (30%)"
+                    : `${quote.deposit_pct}%`,
+              },
+              {
                 label: "Destination",
                 value: `${String(quote.destination_country_code || "").toUpperCase()}${
                   quote.destination_postal_code
@@ -249,6 +303,90 @@ const QuoteDetailPage = () => {
         </TwoColumnPage.Main>
 
         <TwoColumnPage.Sidebar>
+          {/* Rendered only once accepted. An empty "0 paid" panel on every
+              unaccepted quote reads as a buyer who has failed to pay rather
+              than one who has not yet been asked. */}
+          {quote.accepted_at ? (
+            <CommonSection
+              title="Payment"
+              description={`Accepted ${new Date(quote.accepted_at).toLocaleString()}`}
+              fields={
+                quote.payment_schedule
+                  ? [
+                      {
+                        label: "Total",
+                        value: money(
+                          quote.payment_schedule.total_due,
+                          quote.payment_schedule.currency_code
+                        ),
+                      },
+                      {
+                        // 🔑 Amount and status in ONE value, because
+                        // `CommonField` is a union — a field carries a value or
+                        // a badge, never both. Split across two rows, "300 INR"
+                        // and "pending" drift apart the moment the layout wraps,
+                        // and money beside the wrong state is worse than either.
+                        label: `Deposit (${quote.payment_schedule.deposit_pct}%)`,
+                        value: (
+                          <span className="flex items-center gap-2">
+                            {money(
+                              quote.payment_schedule.deposit_amount,
+                              quote.payment_schedule.currency_code
+                            )}
+                            <StatusBadge
+                              color={payTone(
+                                quote.payment_schedule.deposit_status
+                              )}
+                            >
+                              {quote.payment_schedule.deposit_status}
+                            </StatusBadge>
+                          </span>
+                        ),
+                      },
+                      {
+                        label: "Balance",
+                        value: (
+                          <span className="flex items-center gap-2">
+                            {money(
+                              quote.payment_schedule.balance_amount,
+                              quote.payment_schedule.currency_code
+                            )}
+                            <StatusBadge
+                              color={payTone(
+                                quote.payment_schedule.balance_status
+                              )}
+                            >
+                              {quote.payment_schedule.balance_status.replace(
+                                "_",
+                                " "
+                              )}
+                            </StatusBadge>
+                          </span>
+                        ),
+                      },
+                      {
+                        label: "Collected via",
+                        value:
+                          quote.payment_schedule.rail === "manual"
+                            ? "Off-platform"
+                            : quote.payment_schedule.rail === "payu"
+                              ? "PayU"
+                              : "Stripe",
+                      },
+                    ]
+                  : [
+                      {
+                        // Said out loud rather than left blank: acceptance got
+                        // as far as a cart and no further, and nothing has been
+                        // charged. That is a state someone has to go and look at.
+                        label: "Schedule",
+                        value: "Missing — acceptance did not finish",
+                      },
+                    ]
+              }
+            />
+          ) : null}
+
           <CommonSection
             title="Engagement"
             description="Whether the buyer has actually opened it."

@@ -5624,6 +5624,17 @@ export default defineMiddlewares({
         validateAndTransformBody(wrapSchema(QuoteReadinessReq)),
       ],
     },
+    // The design picker (#1486). Registered BEFORE /partners/quotes/:id, for
+    // the same reason `readiness` is: a static segment that lands after the
+    // parameterised route is matched as a quote id and 404s.
+    {
+      matcher: "/partners/quotes/designs",
+      method: "GET",
+      middlewares: [
+        createCorsPartnerMiddleware(),
+        authenticate("partner", ["session", "bearer"]),
+      ],
+    },
     // Admin quotes (#1389 S5). Same capability as the partner surface, but the
     // owning partner must be named — an admin has none of their own.
     {

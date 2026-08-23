@@ -41,6 +41,58 @@ export type QuoteProducer = {
   is_verified: boolean
   /** The partner's own shop, or null when they have no reachable domain. */
   url: string | null
+  /**
+   * The maker's own words, when there are any (#1428).
+   *
+   * ⚠️ Sourced from `provenance.maker_story`, which reads the PRODUCT's
+   * `artisan_product_detail`. Neither the partner model nor
+   * `partner_onboarding_profile` has a prose field — the profile is structured
+   * facts (team size, weaving, price range), which is what the provenance rows
+   * are built from. So a partner with no artisan detail on any quoted product
+   * has no story to tell, and this is null rather than a paragraph invented
+   * from their facts.
+   */
+  story: string | null
+  /**
+   * Short facts a buyer can scan: what kind of workshop, verified, where, and
+   * the catalogue's own words for what is in the basket.
+   *
+   * 🔑 Every tag is a FACT we hold, never a marketing adjective. Nothing here
+   * invents a claim about someone else's workshop.
+   */
+  tags: string[]
+}
+
+/** PURE: the scannable facts, deduped and ordered, with nothing invented. */
+export function composeProducerTags(input: {
+  workspace_type?: string | null
+  is_verified?: boolean
+  country_code?: string | null
+  product_tags?: string[] | null
+}): string[] {
+  const tags: string[] = []
+
+  if (input.workspace_type) {
+    const t = String(input.workspace_type)
+    tags.push(t.charAt(0).toUpperCase() + t.slice(1))
+  }
+  if (input.is_verified) tags.push("Verified maker")
+  if (input.country_code) tags.push(String(input.country_code).toUpperCase())
+
+  for (const tag of input.product_tags ?? []) {
+    const clean = String(tag ?? "").trim()
+    if (clean) tags.push(clean)
+  }
+
+  // Deduped case-insensitively — "Handloom" and "handloom" are one tag, and a
+  // band showing both reads as a data problem to whoever is looking at it.
+  const seen = new Set<string>()
+  return tags.filter((t) => {
+    const key = t.toLowerCase()
+    if (seen.has(key)) return false
+    seen.add(key)
+    return true
+  })
 }
 
 /**
@@ -93,6 +145,8 @@ export async function resolveQuoteProducer(
   input: {
     partner_id?: string | null
     viewer_sales_channel_ids?: string[] | null
+    /** The catalogue's words for what is in this basket. */
+    product_tags?: string[] | null
   }
 ): Promise<QuoteProducer | null> {
   if (!input.partner_id) return null
@@ -112,6 +166,7 @@ export async function resolveQuoteProducer(
         "country_code",
         "is_verified",
         "status",
+        "workspace_type",
         "custom_domain",
         "custom_domain_verified",
         "storefront_domain",
@@ -141,6 +196,16 @@ export async function resolveQuoteProducer(
       country_code: partner.country_code ?? null,
       is_verified: Boolean(partner.is_verified),
       url: producerStorefrontUrl(partner),
+      // Filled by the caller: the story lives in the provenance resolver, and
+      // resolving it a second time here would be a second answer to one
+      // question. Null until then, never a placeholder.
+      story: null,
+      tags: composeProducerTags({
+        workspace_type: partner.workspace_type ?? null,
+        is_verified: Boolean(partner.is_verified),
+        country_code: partner.country_code ?? null,
+        product_tags: input.product_tags ?? null,
+      }),
     }
   } catch {
     return null

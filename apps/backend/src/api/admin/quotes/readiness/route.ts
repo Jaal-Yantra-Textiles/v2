@@ -1,6 +1,10 @@
 import { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
 import { ContainerRegistrationKeys, MedusaError } from "@medusajs/framework/utils"
 
+import {
+  resolveDesignLinesForReadiness,
+  withDesignIssues,
+} from "../../../../modules/partner-quote/lib/design-lines"
 import { assessQuoteReadiness } from "../../../../modules/partner-quote/lib/quote-readiness"
 
 /**
@@ -64,8 +68,16 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
     })
   }
 
-  const readiness = await assessQuoteReadiness(req.scope, {
+  // #1486 — unscoped by partner, like the admin mint: an admin legitimately
+  // quotes a design the producing partner does not own, and the resolved
+  // variant is still checked against that partner's catalogue below.
+  const designs = await resolveDesignLinesForReadiness(req.scope, {
     lines: body.lines,
+    partner_id: null,
+  })
+
+  const readiness = await assessQuoteReadiness(req.scope, {
+    lines: designs.lines as any,
     store: {
       id: store.id,
       default_location_id: store.default_location_id,
@@ -74,11 +86,13 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
     destination_country_code: body.destination_country_code,
     destination_postal_code: body.destination_postal_code ?? null,
     currency_code: body.currency_code,
+    // #1439 S12 — a hand-named freight makes an unrateable lane assessable.
+    freight_override_amount: body.freight_override_amount ?? null,
     region_id: body.region_id ?? null,
     carrier: body.carrier,
     partner_label: partner.name || partnerId,
     check_catalogue: true,
   })
 
-  res.json({ readiness })
+  res.json({ readiness: withDesignIssues(readiness, designs.issues) })
 }

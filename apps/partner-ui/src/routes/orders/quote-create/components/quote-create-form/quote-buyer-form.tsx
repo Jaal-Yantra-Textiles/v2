@@ -123,6 +123,61 @@ export const QuoteBuyerForm = ({
           )}
         />
 
+        {/*
+          The buyer's registration, for the document header (#1486).
+
+          🔑 Labelled "as provided" and nothing more. Nothing checks it against
+          VIES or the GST portal, and a field that reads as verified invites a
+          reverse-charge assumption nobody is entitled to make.
+        */}
+        <div className="grid grid-cols-2 gap-x-3">
+          <Form.Field
+            control={form.control}
+            name="buyer_tax_id"
+            render={({ field }) => (
+              <Form.Item>
+                <Form.Label optional>
+                  {t("fields.buyerTaxId", "VAT / tax number")}
+                </Form.Label>
+                <Form.Control>
+                  <Input
+                    {...field}
+                    value={field.value ?? ""}
+                    placeholder="DE123456789"
+                  />
+                </Form.Control>
+                <Form.Hint>
+                  {t(
+                    "quotes.create.buyer.taxIdHint",
+                    "As the buyer gave it. Shown on the quote; it does not change the price or the tax."
+                  )}
+                </Form.Hint>
+                <Form.ErrorMessage />
+              </Form.Item>
+            )}
+          />
+
+          <Form.Field
+            control={form.control}
+            name="buyer_tax_id_type"
+            render={({ field }) => (
+              <Form.Item>
+                <Form.Label optional>
+                  {t("fields.buyerTaxIdType", "Scheme")}
+                </Form.Label>
+                <Form.Control>
+                  <Input
+                    {...field}
+                    value={field.value ?? ""}
+                    placeholder="eu_vat"
+                  />
+                </Form.Control>
+                <Form.ErrorMessage />
+              </Form.Item>
+            )}
+          />
+        </div>
+
         <Form.Field
           control={form.control}
           name="recipient_name"
@@ -245,6 +300,102 @@ export const QuoteBuyerForm = ({
                 {t(
                   "quotes.fields.ttlHint",
                   "Sets the price list's end date, so the quote expires on its own — nothing has to sweep it."
+                )}
+              </Form.Hint>
+              <Form.ErrorMessage />
+            </Form.Item>
+          )}
+        />
+
+        <Form.Field
+          control={form.control}
+          name="freight_override_amount"
+          render={({ field: { onChange, value, ...rest } }) => (
+            <Form.Item>
+              <Form.Label optional>
+                {t("quotes.fields.freightOverride", "Freight, quoted by hand")}
+              </Form.Label>
+              <Form.Control>
+                <Input
+                  type="number"
+                  min={0}
+                  step="0.01"
+                  placeholder="250"
+                  value={value ?? ""}
+                  onChange={(e) => {
+                    const next = e.target.value
+                    onChange(next === "" ? undefined : Number(next))
+                  }}
+                  {...rest}
+                />
+              </Form.Control>
+              <Form.Hint>
+                {t(
+                  "quotes.fields.freightOverrideHint",
+                  "In the quote's currency. Use it when no carrier will rate the lane, or when the stored tier is wrong for this weight. Leave blank to use the rate."
+                )}
+              </Form.Hint>
+              <Form.ErrorMessage />
+            </Form.Item>
+          )}
+        />
+
+        <Form.Field
+          control={form.control}
+          name="freight_basis"
+          render={({ field }) => (
+            <Form.Item>
+              <Form.Label optional>
+                {t("quotes.fields.freightBasis", "Where that figure came from")}
+              </Form.Label>
+              <Form.Control>
+                <Input
+                  placeholder="DHL rate card 12 Aug, 22 kg to DE"
+                  {...field}
+                  value={field.value ?? ""}
+                />
+              </Form.Control>
+              <Form.Hint>
+                {t(
+                  "quotes.fields.freightBasisHint",
+                  "Evidence, not decoration: whoever meets the forwarder's invoice is not who typed the number."
+                )}
+              </Form.Hint>
+              <Form.ErrorMessage />
+            </Form.Item>
+          )}
+        />
+
+        <Form.Field
+          control={form.control}
+          name="deposit_pct"
+          render={({ field: { onChange, value, ...rest } }) => (
+            <Form.Item>
+              <Form.Label optional>
+                {t("quotes.fields.depositPct", "Deposit (%)")}
+              </Form.Label>
+              <Form.Control>
+                <Input
+                  type="number"
+                  min={0}
+                  max={100}
+                  placeholder="30"
+                  value={value ?? ""}
+                  onChange={(e) => {
+                    const next = e.target.value
+                    // 🔑 Only an EMPTY string is "unset". `Number("0")` is 0 and
+                    // must survive as 0 — a partner taking nothing up front
+                    // means it, and turning that into "unset" would hand the
+                    // buyer a 30% demand nobody agreed to.
+                    onChange(next === "" ? undefined : Number(next))
+                  }}
+                  {...rest}
+                />
+              </Form.Control>
+              <Form.Hint>
+                {t(
+                  "quotes.fields.depositHint",
+                  "What the buyer pays up front when they accept; the rest is invoiced when the goods are ready. Leave blank for the default 30%."
                 )}
               </Form.Hint>
               <Form.ErrorMessage />

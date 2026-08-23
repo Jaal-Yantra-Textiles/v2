@@ -255,6 +255,73 @@ setupSharedTestSuite(() => {
       expect(Number(quote.quoted_freight)).not.toBe(PROVISIONED_RETURN_FREIGHT_INR)
     })
 
+    it("🔑 freight named by hand replaces the rated one, and is recorded as such", async () => {
+      const { api } = getSharedTestEnv()
+
+      /**
+       * #1439 S12. The lane here IS rateable, which is the point: an override
+       * has to beat a live answer, not merely fill a hole. In production the
+       * hole is the common case — the stored international option is a FLAT
+       * amount at any weight (35 EUR at 5.5 kg and at 22 kg alike) and the
+       * cross-border carrier leg answers "no serviceable couriers available for
+       * given weight" — but a test that only covers the hole would not catch an
+       * override being silently ignored wherever a rate exists.
+       */
+      const BY_HAND = 4321
+
+      const res = await loud("mint", () => api.post(
+        "/partners/quotes",
+        mintBody(seed, {
+          buyer_email: `buyer-freight-manual-${seed.unique}@jaalyantra.test`,
+          freight_override_amount: BY_HAND,
+          freight_basis: "Forwarder quote 23 Aug, 11.8 kg",
+        }),
+        { headers: seed.headers }
+      ))
+      expect(res.status).toBe(201)
+
+      const quote = res.data.quote
+      expect(Number(quote.quoted_freight)).toBe(BY_HAND)
+      // Not the rate it would otherwise have taken.
+      expect(Number(quote.quoted_freight)).not.toBe(PROVISIONED_STANDARD_FREIGHT_INR)
+
+      // 🔑 Recorded as a human's number, not a carrier's. Rendering the two
+      // identically launders one into the other, and the badge on both detail
+      // pages reads this column.
+      expect(quote.quoted_freight_source).toBe("manual")
+      expect(quote.quoted_freight_basis).toBe("Forwarder quote 23 Aug, 11.8 kg")
+
+      // And it is the freight the LANDED TOTAL was built from — an override
+      // that changed the displayed freight without moving the total would be
+      // the worst of both.
+      expect(Number(quote.quoted_landed_total)).toBe(
+        Number(quote.quoted_subtotal) + BY_HAND
+      )
+
+      // The consignment weight is still computed. The override replaces the
+      // amount and nothing else — the weight is what makes the typed number
+      // checkable by a human later.
+      expect(Number(quote.quoted_weight_grams)).toBe(
+        25 * VARIANT_A_WEIGHT + 4 * VARIANT_B_WEIGHT
+      )
+    })
+
+    it("records a rated freight as estimated, not as a human's figure", async () => {
+      const { api } = getSharedTestEnv()
+      const res = await loud("mint", () => api.post(
+        "/partners/quotes",
+        mintBody(seed, {
+          buyer_email: `buyer-freight-rated-${seed.unique}@jaalyantra.test`,
+        }),
+        { headers: seed.headers }
+      ))
+      expect(res.status).toBe(201)
+      // The other half of the badge: without this, `manual` could be written on
+      // every quote and the first test would still pass.
+      expect(res.data.quote.quoted_freight_source).toBe("estimated")
+      expect(res.data.quote.quoted_freight_basis).toBeNull()
+    })
+
     it("writes NOTHING when the lines cannot be priced — every step reverses", async () => {
       const { api, getContainer } = getSharedTestEnv()
       const container = getContainer()

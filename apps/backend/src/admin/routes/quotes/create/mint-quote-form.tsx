@@ -20,7 +20,7 @@ import {
   useAdminQuoteReadiness,
   useMintQuote,
 } from "../../../hooks/api/quotes"
-import { MintedPanel } from "./minted-panel"
+import { MintedPanel, type MintedQuoteResult } from "./minted-panel"
 import { ReadinessPanel } from "./readiness-panel"
 import {
   AdminQuoteCreateSchema,
@@ -89,7 +89,7 @@ const initialTabState: TabState = {
 export const MintQuoteForm = () => {
   const [tab, setTab] = useState<Tab>(Tab.PARTNER)
   const [tabState, setTabState] = useState<TabState>(initialTabState)
-  const [minted, setMinted] = useState<{ token: string; quote: any } | null>(
+  const [minted, setMinted] = useState<MintedQuoteResult | null>(
     null
   )
   const [readiness, setReadiness] = useState<QuoteReadiness | null>(null)
@@ -102,6 +102,8 @@ export const MintQuoteForm = () => {
       buyer_email: "",
       recipient_name: "",
       recipient_company: "",
+      buyer_tax_id: "",
+      buyer_tax_id_type: "",
       partner_note: "",
       region_id: "",
       currency_code: "",
@@ -116,6 +118,7 @@ export const MintQuoteForm = () => {
       quantities: {},
       discounts: {},
       overrides: {},
+      design_by_variant: {},
       // Never on by default: a DDP promise nobody arranged clearance for tells
       // the buyer there is nothing to pay and then hands them a customs bill.
       duties_prepaid: false,
@@ -128,7 +131,9 @@ export const MintQuoteForm = () => {
   })
 
   const { mutate: mint, isPending } = useMintQuote({
-    onSuccess: (data: any) => setMinted({ token: data.token, quote: data.quote }),
+    // The whole response, not two fields off it: `buyer_url` and the
+    // delivery verdict are what the panel has to show (#1420).
+    onSuccess: (data: any) => setMinted(data as MintedQuoteResult),
     onError: (e: any) => toast.error(e?.message ?? "Could not mint the quote."),
   })
   const { mutateAsync: checkReadiness, isPending: isChecking } =
@@ -223,10 +228,13 @@ export const MintQuoteForm = () => {
       .map(([variant_id, qty], index) => {
         const discount = data.discounts?.[variant_id]
         const override = data.overrides?.[variant_id]
+        // #1486 — alongside the variant, never instead of it.
+        const designId = data.design_by_variant?.[variant_id]
         return {
           variant_id,
           quantity: qty as number,
           position: index,
+          ...(designId ? { design_id: designId } : {}),
           ...(typeof discount === "number" && discount > 0
             ? { discount_percent: discount }
             : {}),
@@ -283,6 +291,9 @@ export const MintQuoteForm = () => {
       partner_id: data.partner_id,
       buyer_email: data.buyer_email,
       recipient_company: data.recipient_company || null,
+      // Empty means "none given", never an empty registration.
+      buyer_tax_id: data.buyer_tax_id?.trim() || null,
+      buyer_tax_id_type: data.buyer_tax_id_type?.trim() || null,
       recipient_name: data.recipient_name || null,
       partner_note: data.partner_note || null,
       lines,
@@ -292,6 +303,14 @@ export const MintQuoteForm = () => {
       currency_code: data.currency_code,
       region_id: data.region_id,
       ttl_days: data.ttl_days,
+      // 🔑 `?? null`, never `|| null`: a 0% deposit is a real term and
+      // `||` would send it as "unset", which the backend resolves to 30%.
+      deposit_pct: data.deposit_pct ?? null,
+      // #1439 S12 — freight the partner named, and why. Sent as a pair or
+      // not at all; the amount without its basis is a number nobody can
+      // account for later.
+      freight_override_amount: data.freight_override_amount ?? null,
+      freight_basis: data.freight_basis || null,
       // Omitted rather than sent empty — the backend's own default is the one
       // thing that should decide what "no choice" means.
       // Trimmed: the "type it yourself" branch starts empty, and a stray space
@@ -316,7 +335,7 @@ export const MintQuoteForm = () => {
   if (minted) {
     return (
       <RouteFocusModal.Body className="flex-1 overflow-y-auto">
-        <MintedPanel token={minted.token} quote={minted.quote} />
+        <MintedPanel result={minted} />
       </RouteFocusModal.Body>
     )
   }

@@ -4,7 +4,6 @@ import { useTranslation } from "react-i18next"
 
 import { RouteFocusModal, useRouteModal } from "../../../../../components/modals"
 import { MintPartnerQuoteResponse } from "../../../../../hooks/api/partner-quotes"
-import { usePartnerSettings } from "../../../../../hooks/api/partner-settings"
 
 type QuoteMintedPanelProps = {
   result: MintPartnerQuoteResponse
@@ -17,27 +16,23 @@ type QuoteMintedPanelProps = {
  * sha256, so no later read can reconstruct a working link. That is why this is
  * a panel rather than a toast-and-navigate — closing without copying means the
  * quote has to be re-minted.
+ *
+ * ## The link is no longer built here (#1420)
+ *
+ * This panel used to compose `https://<domain>/<cc>/quotes/<token>` from the
+ * partner settings, and the admin panel composed it from the quote — a field
+ * the quote does not have, so an admin never got a link at all. The rule also
+ * has to refuse an UNVERIFIED custom domain, and neither copy did. The server
+ * composes it once now and both panels read `buyer_url`.
  */
 export const QuoteMintedPanel = ({ result }: QuoteMintedPanelProps) => {
   const { t } = useTranslation()
   const { handleSuccess } = useRouteModal()
-  const { partner } = usePartnerSettings()
 
-  const domain =
-    (partner as any)?.custom_domain || (partner as any)?.storefront_domain
-
-  // Both storefronts route every page under `app/[countryCode]/`, so a link
-  // without that segment 404s. It does not need a new field: the quote already
-  // carries a REQUIRED `destination_country_code`, so the segment is inferred
-  // from the buyer's own destination rather than guessed or defaulted.
-  const countryCode = String(
-    (result as any)?.quote?.destination_country_code || ""
-  ).toLowerCase()
-
-  const link =
-    domain && countryCode
-      ? `https://${domain}/${countryCode}/quotes/${result.token}`
-      : null
+  const link = result.buyer_url
+  // 🔴 `sent: false` is not a warning, it is a task: the buyer has no other
+  // copy of this link, so somebody has to send it before this panel closes.
+  const emailSent = Boolean(result.email?.sent)
 
   const copy = async (value: string, label: string) => {
     try {
@@ -63,10 +58,26 @@ export const QuoteMintedPanel = ({ result }: QuoteMintedPanelProps) => {
 
       <RouteFocusModal.Body className="flex-1 overflow-y-auto p-16">
         <div className="mx-auto flex w-full max-w-[720px] flex-col gap-y-6">
+          {emailSent ? (
+            <Alert variant="success">
+              {t("quotes.minted.emailed", "Sent to {{to}}. They have the link.", {
+                to: result.email?.to ?? "",
+              })}
+            </Alert>
+          ) : (
+            <Alert variant="error">
+              {t(
+                "quotes.minted.emailFailed",
+                "The quote was NOT emailed — {{reason}} Copy the link below and send it yourself before you close this: it is shown once and cannot be recovered.",
+                { reason: result.email?.reason ?? "the send did not go through." }
+              )}
+            </Alert>
+          )}
+
           <Alert variant="warning">
             {t(
               "quotes.minted.onceWarning",
-              "This link is shown once. Only its hash is stored, so it cannot be recovered later — copy it before you close this."
+              "This link is shown once. Only its hash is stored, so it cannot be recovered later — if you lose it, mint the quote again."
             )}
           </Alert>
 
@@ -107,13 +118,6 @@ export const QuoteMintedPanel = ({ result }: QuoteMintedPanelProps) => {
             )}
           </div>
 
-          <Alert variant="info">
-            {t(
-              "quotes.minted.pageNotLive",
-              "The buyer-facing quote page is not deployed yet (#1389 step 4). The quote and its prices are real — the buyer's price list is already active — but this link will not render until that page ships."
-            )}
-          </Alert>
-
           <div className="text-ui-fg-subtle flex items-start gap-x-2">
             <ExclamationCircle className="mt-0.5 shrink-0" />
             <Text size="small">
@@ -133,7 +137,9 @@ export const QuoteMintedPanel = ({ result }: QuoteMintedPanelProps) => {
             size="small"
             onClick={() => handleSuccess("/orders/quotes")}
           >
-            {t("quotes.minted.done", "I've copied the link")}
+            {emailSent
+              ? t("quotes.minted.doneSent", "Done")
+              : t("quotes.minted.done", "I've copied the link")}
           </Button>
         </div>
       </RouteFocusModal.Footer>

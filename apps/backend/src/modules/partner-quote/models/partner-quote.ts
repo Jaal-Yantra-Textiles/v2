@@ -70,7 +70,36 @@ const PartnerQuote = model.define("partner_quote", {
   // ===== Recipient (human-entered, so render with {{ }}, never {{{ }}}) ====
   recipient_name: model.text().nullable(),
   recipient_company: model.text().nullable(),
+
+  /**
+   * The buyer's own tax registration, as THEY gave it (#1486 B2B details).
+   *
+   * 🔴 Recorded, never verified. Nothing checks this against VIES or the GST
+   * portal, so no surface may render it in a way that implies we did — a
+   * number under a heading that reads as checked invites a reverse-charge
+   * assumption nobody is entitled to make.
+   *
+   * 🔑 It does NOT change the tax on the quote. Quote tax follows the SELLER's
+   * jurisdiction (#1447), and letting a buyer-supplied string move the rate is
+   * the exact defect that put 19% German VAT on an Indian export.
+   *
+   * Stored normalised (uppercased, whitespace stripped) so two spellings of the
+   * same registration compare equal — see `normaliseTaxId`.
+   */
+  buyer_tax_id: model.text().nullable(),
+  /** The scheme: "eu_vat", "gstin", "abn", "uk_vat"… Free text, like the platform row's. */
+  buyer_tax_id_type: model.text().nullable(),
+  /**
+   * Who the quote was ADDRESSED to. Written at mint, before anything is sent —
+   * this is intent, not delivery. See `email_sent_at`.
+   */
   email_sent_to: model.text().nullable(),
+  /**
+   * When a provider accepted the message (#1420). Null means the buyer link
+   * never left the building, and since the raw token is returned once and only
+   * its sha256 stored, that quote is unreachable until it is minted again.
+   */
+  email_sent_at: model.dateTime().nullable(),
   partner_note: model.text().nullable(),
 
   // ===== Frozen at mint: evidence, never an input to pricing ==============
@@ -80,6 +109,30 @@ const PartnerQuote = model.define("partner_quote", {
   // the frozen line subtotals, the ONE freight leg, and the landed total.
   quoted_subtotal: model.bigNumber().nullable(),
   quoted_freight: model.bigNumber().nullable(),
+  /**
+   * Where the frozen freight came from (#1439 S12).
+   *
+   * `estimated` — a stored option or a live carrier rate priced it.
+   * `manual` — a person named the amount, because nothing could price the lane
+   * honestly: the stored international option is FLAT at any weight (35 EUR at
+   * 5.5 kg and at 22 kg alike) and the cross-border carrier leg answers "no
+   * serviceable couriers available for given weight".
+   *
+   * 🔑 Recorded for the same reason `product_type_source` and
+   * `quoted_weight_source` are: a number a human typed and a number a carrier
+   * returned carry different confidence, and a page that renders them
+   * identically launders one into the other. Null on every quote minted before
+   * this column, which is the honest answer for them — nobody can now say which
+   * of the two those were.
+   */
+  quoted_freight_source: model.text().nullable(),
+  /**
+   * Who quoted that freight and on what basis — "DHL rate card 12 Aug, 22 kg to
+   * DE". Evidence: the only record of why we committed to the figure, and
+   * whoever meets the forwarder's invoice is not who typed it. Same argument as
+   * `quoted_duty_basis`, which it sits beside.
+   */
+  quoted_freight_basis: model.text().nullable(),
   quoted_landed_total: model.bigNumber().nullable(),
   // Total consignment weight the frozen freight was quoted against. Which
   // LEVEL each line's weight came from is on the line, because a basket can
@@ -166,6 +219,41 @@ const PartnerQuote = model.define("partner_quote", {
   quoted_duty_rate: model.number().nullable(),
   quoted_import_tax_rate: model.number().nullable(),
   quoted_at: model.dateTime().nullable(),
+  /**
+   * The shipping option the frozen freight was quoted FROM (#1439 S11).
+   *
+   * 🔴 Not decoration, and not for display. On acceptance the cart has to be
+   * charged `quoted_freight` — and core will not let a caller hand it an
+   * amount: `refreshCartShippingMethodsWorkflow` overwrites every shipping
+   * method's amount with its option's `calculated_price` on the next cart
+   * update, and DELETES the method if the option no longer prices for the
+   * cart. So a hand-written amount survives exactly until the buyer changes
+   * their address. The accepted cart therefore gets its own flat option priced
+   * at the frozen number, and this column is what says which service zone and
+   * shipping profile to build it in — the ones the quote was actually rated
+   * against, rather than whichever zone a fresh lookup happens to pick.
+   *
+   * Null on every quote minted before S11, and on any quote whose freight came
+   * from a live carrier rate rather than a stored option.
+   */
+  quoted_shipping_option_id: model.text().nullable(),
+  /**
+   * The deposit share of this deal, 0–100, frozen at mint (#1439 S11).
+   *
+   * Per quote because B2B terms are negotiated per deal — a first order from an
+   * unknown buyer is not the same risk as the fourth from a regular. Null means
+   * "nobody said", and the resolution order is deal → partner's house terms →
+   * 30%. `0` is a real answer meaning invoice the lot later, which is why the
+   * resolver checks for null rather than falsiness.
+   */
+  deposit_pct: model.number().nullable(),
+  /**
+   * Set when the buyer accepts. It is the accepted cart, and it is also the
+   * idempotency key: a second accept on the same quote returns THIS cart
+   * instead of minting a second one against the same price list.
+   */
+  accepted_cart_id: model.text().nullable(),
+  accepted_at: model.dateTime().nullable(),
 
   // ===== Buyer identity — the edges this quote's prices hang off ==========
   /**

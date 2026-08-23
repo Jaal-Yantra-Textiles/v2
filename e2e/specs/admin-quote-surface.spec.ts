@@ -124,7 +124,17 @@ test.describe("Admin quote surface (#1439 S3/S4)", () => {
 
     await expect(page.getByText("Landed total")).toBeVisible({ timeout: 30000 })
 
-    await page.getByRole("button", { name: /revoke quote/i }).first().click()
+    // 🔑 Revoke lives behind the section's overflow menu, not on the surface.
+    // The spec used to click it directly and timed out waiting for a button
+    // that is only rendered once the menu opens — which nobody noticed, because
+    // the whole suite has been failing at the seed since 22 Aug. That it is
+    // one level down is the point: the action DELETES the price list behind the
+    // quote, so it should take an intent to reach.
+    await page
+      .getByRole("button", { name: /open actions menu/i })
+      .first()
+      .click()
+    await page.getByRole("menuitem", { name: /revoke quote/i }).click()
     await expect(page.getByText("Revoke this quote?")).toBeVisible({
       timeout: 15000,
     })

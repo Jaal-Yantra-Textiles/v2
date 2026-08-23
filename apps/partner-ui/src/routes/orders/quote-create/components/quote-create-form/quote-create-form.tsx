@@ -79,6 +79,8 @@ export const QuoteCreateForm = ({
       buyer_email: "",
       recipient_name: "",
       recipient_company: "",
+      buyer_tax_id: "",
+      buyer_tax_id_type: "",
       partner_note: "",
       destination_country_code: "in",
       destination_postal_code: "",
@@ -89,6 +91,7 @@ export const QuoteCreateForm = ({
       quantities: {},
       discounts: {},
       overrides: {},
+      design_by_variant: {},
       // Never defaulted on: a DDP promise applied by default would tell a buyer
       // there is nothing to pay on a shipment nobody arranged clearance for.
       duties_prepaid: false,
@@ -131,10 +134,15 @@ export const QuoteCreateForm = ({
          */
         const discount = data.discounts?.[variant_id]
         const override = data.overrides?.[variant_id]
+        // #1486 — sent alongside the variant, never instead of it. The wizard
+        // already resolved which variant the design is sold through, so the
+        // backend has nothing left to guess.
+        const designId = data.design_by_variant?.[variant_id]
         return {
           variant_id,
           quantity: qty as number,
           position: index,
+          ...(designId ? { design_id: designId } : {}),
           ...(typeof discount === "number" && discount > 0
             ? { discount_percent: discount }
             : {}),
@@ -196,6 +204,9 @@ export const QuoteCreateForm = ({
         buyer_email: data.buyer_email,
         recipient_name: data.recipient_name || null,
         recipient_company: data.recipient_company || null,
+        // Empty means "none given", never an empty registration.
+        buyer_tax_id: data.buyer_tax_id?.trim() || null,
+        buyer_tax_id_type: data.buyer_tax_id_type?.trim() || null,
         partner_note: data.partner_note || null,
         lines,
         destination_country_code: data.destination_country_code,
@@ -203,6 +214,16 @@ export const QuoteCreateForm = ({
         destination_city: data.destination_city || null,
         currency_code: data.currency_code,
         ttl_days: data.ttl_days,
+        // 🔑 `?? null`, never `|| null`: a 0% deposit is a real term —
+        // invoice the lot later — and `||` would send it as "unset", which
+        // the backend resolves to 30%. The partner would then have agreed to
+        // nothing up front and be asked for a third.
+        deposit_pct: data.deposit_pct ?? null,
+        // #1439 S12 — freight named by hand, and where it came from. Sent
+        // together: an amount with no basis is a number nobody can account
+        // for once the forwarder's invoice arrives.
+        freight_override_amount: data.freight_override_amount ?? null,
+        freight_basis: data.freight_basis || null,
         // Sent as a pair or not at all — the backend refuses the promise
         // without its number, and the number without the promise (#1447).
         duties_prepaid: data.duties_prepaid ?? false,

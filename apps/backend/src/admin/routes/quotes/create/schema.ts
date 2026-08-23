@@ -78,6 +78,13 @@ export const QuoteBuyerShape = z.object({
   buyer_email: z.string().email(),
   recipient_name: z.string().optional(),
   recipient_company: z.string().optional(),
+  /**
+   * The buyer's own registration, for the document header. No format check,
+   * mirroring the backend — it changes no number on the quote, and a per-scheme
+   * regex would refuse valid registrations nobody validates against anyway.
+   */
+  buyer_tax_id: z.string().optional(),
+  buyer_tax_id_type: z.string().optional(),
   partner_note: z.string().optional(),
 
   /**
@@ -96,6 +103,25 @@ export const QuoteBuyerShape = z.object({
 
   /** Drives `price_list.ends_at`, so expiry is native rather than swept. */
   ttl_days: z.number().int().positive().max(365).optional(),
+
+  /**
+   * The deposit share of this deal, 0-100 (#1439 S11).
+   *
+   * Blank means no terms were named and the platform's 30% applies at
+   * acceptance. `0` is a real answer — invoice the lot later — so nothing on
+   * this field may coerce a falsy value to undefined.
+   */
+  deposit_pct: z.number().min(0).max(100).optional(),
+
+  /**
+   * Freight named by hand, in the QUOTE currency (#1439 S12).
+   *
+   * 🔴 Positive, never 0 — a zero here is free international shipping typed by
+   * accident, and this system has already shipped bulk orders free once from a
+   * rule-gated `0 INR` row (#1430).
+   */
+  freight_override_amount: z.number().positive().optional(),
+  freight_basis: z.string().max(500).optional(),
 
   /**
    * Which carrier is asked for live rates on this quote.
@@ -146,6 +172,13 @@ export const QuoteQuantitiesSchema = z.object({
   quantities: z.record(z.string(), z.number().nullish()),
   discounts: z.record(z.string(), z.number().nullish()),
   overrides: z.record(z.string(), z.number().nullish()),
+
+  /**
+   * variant_id → design_id, for lines picked as a DESIGN (#1486). Keyed by
+   * variant like every other per-line map here, so there is one basket rather
+   * than two that have to be kept in step.
+   */
+  design_by_variant: z.record(z.string(), z.string()).optional(),
 })
 
 /**
@@ -164,6 +197,8 @@ export const QuoteBuyerFields = [
   "buyer_email",
   "recipient_name",
   "recipient_company",
+  "buyer_tax_id",
+  "buyer_tax_id_type",
   "partner_note",
   "region_id",
   "currency_code",
@@ -171,11 +206,14 @@ export const QuoteBuyerFields = [
   "destination_postal_code",
   "destination_city",
   "ttl_days",
+  "deposit_pct",
   "carrier",
+  "freight_override_amount",
+  "freight_basis",
   "duties_prepaid",
   "duty_rate_percent",
   "import_tax_rate_percent",
   "ddp_fee_total",
   "duty_basis",
 ] as const
-export const QuoteProductFields = ["product_ids"] as const
+export const QuoteProductFields = ["product_ids", "design_by_variant"] as const

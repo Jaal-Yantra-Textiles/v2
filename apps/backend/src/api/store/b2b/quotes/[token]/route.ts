@@ -3,6 +3,8 @@ import { ContainerRegistrationKeys, MedusaError } from "@medusajs/framework/util
 
 import { PARTNER_QUOTE_MODULE } from "../../../../../modules/partner-quote"
 import { buildQuoteView } from "../../../../../modules/partner-quote/lib/build-quote-view"
+import { composeQuoteAcceptance } from "../../../../../modules/partner-quote/lib/quote-acceptance-view"
+import { resolveQuoteParties } from "../../../../../modules/partner-quote/lib/quote-parties"
 import { hashQuoteToken } from "../../../../../modules/partner-quote/lib/token"
 
 /**
@@ -92,6 +94,15 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
     },
     partner_id: quote.partner_id ?? null,
     /**
+     * 🔴 The buyer's group, so the LIVE half re-prices through the price list
+     * minted FOR them rather than off the catalogue. Without it a quote with a
+     * negotiated trade price showed its own retail number as "what it costs
+     * today" and told the buyer pricing had moved — minutes after minting.
+     *
+     * Safe here and only here: the list exists by the time anything reads this.
+     */
+    customer_group_id: quote.customer_group_id ?? null,
+    /**
      * #1428 — whose storefront is serving this page.
      *
      * 🔑 NOT `quote.store_id`. Both mint paths resolve the store FROM the
@@ -103,12 +114,58 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
      */
     viewer_sales_channel_ids:
       (req as any).publishable_key_context?.sales_channel_ids ?? null,
+    /**
+     * 🔴 A hand-named freight has to be re-supplied on every read (#1439 S12).
+     *
+     * The LIVE half of this page re-runs the estimate. Without this, a quote
+     * whose freight a person named would render its live freight from the flat
+     * stored tier — so the page would show, say, 35 EUR live beside 250 EUR
+     * frozen, and the quote would visibly disagree with itself. That is exactly
+     * the defect S8 fixed for tax, in the same place, for the same reason.
+     *
+     * Read off the FROZEN row and only when the row says the freight was
+     * manual, so a re-read cannot invent an override on a rated quote.
+     */
+    freight_override_amount:
+      quote.quoted_freight_source === "manual"
+        ? Number(quote.quoted_freight ?? 0) || null
+        : null,
+    freight_basis: quote.quoted_freight_basis ?? null,
     now: new Date(),
+  })
+
+  /**
+   * Who is selling and who is buying — the document header.
+   *
+   * 🔴 Keyed on `origin_country_code`, the country the goods LEAVE from, never
+   * on the buyer's. A seller identity resolved from the consignee put a Latvian
+   * company number on an India-origin declaration (#348), and a tax rate
+   * resolved from the consignee put 19% German VAT on an Indian export (#1447).
+   * Same shape, twice. The view has already worked out the origin.
+   */
+  const parties = await resolveQuoteParties(req.scope, {
+    quote,
+    partner_id: quote.partner_id ?? null,
+    origin_country_code: (view as any)?.origin_country_code ?? null,
   })
 
   // Fire-and-forget by contract: view tracking has no business turning a
   // buyer's quote page into a 500.
   service.recordView(quote.id, new Date()).catch(() => {})
 
-  res.json({ quote: view })
+  /**
+   * What pressing Accept would do, and whether it can (#1439 S11).
+   *
+   * The GROSS total: the deposit is a share of what the cart actually charges,
+   * and the cart charges tax. Live first — it is what the cart will use — and
+   * the frozen figure only when the live half could not be computed.
+   */
+  const acceptance = composeQuoteAcceptance({
+    quote,
+    gross_total:
+      (view as any)?.live?.gross_total ?? (view as any)?.quoted?.gross_total ?? null,
+    unusable_reason: (view as any)?.live_error ?? null,
+  })
+
+  res.json({ quote: { ...view, parties, acceptance } })
 }

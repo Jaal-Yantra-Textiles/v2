@@ -21,6 +21,7 @@ import {
   buildQuoteView,
   resolveStoreOriginCountry,
 } from "../../modules/partner-quote/lib/build-quote-view"
+import { normaliseTaxId } from "../../modules/partner-quote/lib/quote-parties"
 import { assessQuoteReadiness } from "../../modules/partner-quote/lib/quote-readiness"
 import {
   generateQuoteToken,
@@ -47,9 +48,18 @@ export type MintQuoteInput = {
   buyer_email: string
   recipient_name?: string | null
   recipient_company?: string | null
+  /** The buyer's own registration, as stated. Recorded, never verified. */
+  buyer_tax_id?: string | null
+  buyer_tax_id_type?: string | null
   partner_note?: string | null
   lines: Array<{
     variant_id: string
+    /**
+     * The design this line was picked as (#1486). Already resolved to
+     * `variant_id` by the route — carried here only so the frozen line can
+     * record which design the partner chose. It prices nothing.
+     */
+    design_id?: string | null
     quantity: number
     position?: number
     note?: string | null
@@ -87,7 +97,24 @@ export type MintQuoteInput = {
   import_tax_total?: number | null
   /** The carrier's fee for advancing duty and tax. Always an amount. */
   ddp_fee_total?: number | null
+  /**
+   * Freight named by hand, in the QUOTE currency (#1439 S12).
+   *
+   * Replaces whatever the picker found, and satisfies the "no freight option"
+   * refusal — which is what makes a cross-border lane quotable at all today,
+   * since the carrier answers "no serviceable couriers available for given
+   * weight" and the stored option is flat at any weight.
+   */
+  freight_override_amount?: number | null
+  /** Who quoted it and on what basis. Evidence, like `duty_basis`. */
+  freight_basis?: string | null
   ttl_days?: number
+  /**
+   * The deposit share of this deal, 0-100 (#1439 S11). Omit — or pass null —
+   * to fall through to the partner's house terms and then the platform's 30%.
+   * `0` is a real answer and is NOT treated as absent.
+   */
+  deposit_pct?: number | null
   created_by?: string | null
   /** Injected so the whole mint is deterministic under test. */
   now?: Date
@@ -290,6 +317,11 @@ const buildAndFreezeStep = createStep(
       import_tax_rate_percent: input.import_tax_rate_percent ?? null,
       import_tax_total: input.import_tax_total ?? null,
       ddp_fee_total: input.ddp_fee_total ?? null,
+      // #1439 S12 — freight the partner named. Passed like the DDP figures and
+      // for the same reason: the row does not exist yet, so what the buyer is
+      // shown has to be supplied here before it is frozen.
+      freight_override_amount: input.freight_override_amount ?? null,
+      freight_basis: input.freight_basis ?? null,
       now: payload.now,
     })
 
@@ -488,7 +520,7 @@ const applyLineOverridesStep = createStep(
             })),
             freight: {
               amount: Number(chosenFreight.amount ?? 0),
-              option_id: (chosenFreight as any)?.id ?? null,
+              option_id: chosenFreight.shipping_option_id ?? null,
             },
           })
         : view?.tax
@@ -804,6 +836,11 @@ const persistQuoteStep = createStep(
       region_id: input.mint.region_id ?? null,
       recipient_name: input.mint.recipient_name ?? null,
       recipient_company: input.mint.recipient_company ?? null,
+      // Normalised on write so two spellings of one registration compare equal.
+      // `?? null` and never `?? ""` — a blank string on a tax document reads as
+      // "registered, number withheld" rather than "none given".
+      buyer_tax_id: normaliseTaxId(input.mint.buyer_tax_id ?? null),
+      buyer_tax_id_type: input.mint.buyer_tax_id_type ?? null,
       email_sent_to: input.mint.buyer_email,
       partner_note: input.mint.partner_note ?? null,
       quoted_subtotal: input.view.live?.subtotal ?? null,
@@ -842,6 +879,28 @@ const persistQuoteStep = createStep(
       quoted_import_tax_rate: input.view.duty?.import_tax_rate_percent ?? null,
       quoted_duty_basis: input.view.duty?.basis ?? null,
       quoted_at: new Date(input.now),
+      // #1439 S11 — which option the frozen freight was rated against. The
+      // accepted cart's freight option is built in this option's service zone
+      // and shipping profile, so the number the buyer pays and the number they
+      // were quoted come from the same lane rather than from two lookups that
+      // can disagree.
+      quoted_shipping_option_id: input.view.freight?.chosen?.shipping_option_id ?? null,
+      // #1439 S12 — where the frozen freight came from, read off the VIEW's
+      // own decision rather than off the request, so this cannot claim "manual"
+      // on a quote that was actually rated, or the reverse.
+      //
+      // 🔴 NOT `chosen.source`. That field already answers a different
+      // question — stored option vs live carrier rate — and one of its answers
+      // is also the word "manual". Reading it stamped every quote priced off a
+      // stored tier as a human's figure.
+      quoted_freight_source: input.view.freight?.overridden ? "manual" : "estimated",
+      quoted_freight_basis: input.mint.freight_basis ?? null,
+      // The agreed deposit share. Null when the partner did not name one, which
+      // is not the same as 0 — see `resolveDepositPct`.
+      deposit_pct:
+        input.mint.deposit_pct === null || input.mint.deposit_pct === undefined
+          ? null
+          : Number(input.mint.deposit_pct),
       token_hash: hash,
       status: "active",
       expires_at: new Date(input.expires_at),
@@ -858,6 +917,8 @@ const persistQuoteStep = createStep(
         quote_id: quote.id,
         variant_id: l.variant_id,
         product_id: l.product_id ?? null,
+        // #1486 — which design this was picked as, or null for a product line.
+        design_id: l.design_id ?? null,
         quantity: l.quantity,
         position: l.position ?? i,
         quoted_unit_amount: l.live_unit_amount ?? null,

@@ -46,8 +46,25 @@ export type QuoteLifecycle = {
  */
 export function quoteUnusableReason(
   quote: QuoteLifecycle,
-  now: Date
+  /**
+   * 🔴 `Date | string | number`, not `Date`.
+   *
+   * A workflow step's input AND output are serialized across the step
+   * boundary, so a `Date` handed from one step to the next arrives as an ISO
+   * STRING. `accept-quote` did exactly that and every acceptance died on
+   * `now.getTime is not a function` — a 500 the buyer saw as "Accept and order
+   * does not work". tsc could not see it: the declared step types describe the
+   * workflow GRAPH, not the runtime payload, so the call site type-checked
+   * against a `Date` that never arrives.
+   *
+   * The same trap already cost the mint a 100% failure rate
+   * (`mintPriceListStep`, where `.toISOString()` threw). Normalising HERE, in
+   * the one helper both the buyer page and the accept path call, is what stops
+   * a third caller finding it a third time.
+   */
+  now: Date | string | number
 ): "revoked" | "superseded" | "expired" | null {
+  const nowMs = new Date(now as any).getTime()
   if (quote.status === "revoked") return "revoked"
   // Checked before expiry: a superseded quote is usually still inside its own
   // TTL, and "a newer quote replaced this" is the more useful thing to say than
@@ -55,23 +72,36 @@ export function quoteUnusableReason(
   if (quote.status === "superseded") return "superseded"
   if (
     quote.expires_at &&
-    new Date(quote.expires_at).getTime() <= now.getTime()
+    Number.isFinite(nowMs) &&
+    new Date(quote.expires_at).getTime() <= nowMs
   ) {
     return "expired"
   }
   return null
 }
 
-export function isQuoteUsable(quote: QuoteLifecycle, now: Date): boolean {
+export function isQuoteUsable(
+  quote: QuoteLifecycle,
+  now: Date | string | number
+): boolean {
   return quoteUnusableReason(quote, now) === null
 }
 
-/** Whole days until expiry, floored at 0. Drives the amber "expiring" state. */
+/**
+ * Whole days until expiry, floored at 0. Drives the amber "expiring" state.
+ *
+ * Same widened `now` as its sibling, and for the same reason: these three
+ * helpers are the lifecycle vocabulary, they are called from both a request
+ * handler (where `now` is a real Date) and from inside workflow steps (where
+ * it has been through JSON), and one of them being strict is all it takes.
+ */
 export function daysUntilExpiry(
   quote: QuoteLifecycle,
-  now: Date
+  now: Date | string | number
 ): number | null {
   if (!quote.expires_at) return null
-  const ms = new Date(quote.expires_at).getTime() - now.getTime()
+  const nowMs = new Date(now as any).getTime()
+  if (!Number.isFinite(nowMs)) return null
+  const ms = new Date(quote.expires_at).getTime() - nowMs
   return Math.max(0, Math.ceil(ms / (24 * 60 * 60 * 1000)))
 }
