@@ -2,6 +2,7 @@ import { ContainerRegistrationKeys, Modules } from "@medusajs/framework/utils"
 
 import { BOT_SUPPRESSED_SEND_ID } from "../../lib/bot-recipients"
 import { PARTNER_QUOTE_MODULE } from "../../modules/partner-quote"
+import { PARTNER_QUOTE_EVENTS } from "../../modules/partner-quote/events"
 import { buildQuoteEmailData } from "../../modules/partner-quote/lib/quote-email"
 import { resolveQuoteBuyerLink } from "../../modules/partner-quote/lib/quote-link"
 import { sendQuoteEmailWorkflow } from "../email/workflows/send-quote-email"
@@ -89,7 +90,7 @@ export async function deliverQuoteEmail(
   try {
     const eventBus: any = scope.resolve(Modules.EVENT_BUS)
     await eventBus.emit({
-      name: "partner_quote.minted",
+      name: PARTNER_QUOTE_EVENTS.MINTED,
       data: {
         id: quote?.id,
         quote_id: quote?.id,

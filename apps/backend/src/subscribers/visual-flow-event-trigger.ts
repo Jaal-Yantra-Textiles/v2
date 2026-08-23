@@ -12,10 +12,16 @@ import { executeVisualFlowWorkflow } from "../workflows/visual-flows"
  * This allows users to create event-triggered flows without needing to
  * manually create subscriber files.
  * 
- * Note: The event list below includes common events. The Event Bus dynamically
- * registers events as modules are loaded, so this list covers the most common
- * use cases. For custom events, users can emit them and they will be matched
- * if a flow is configured to listen for them.
+ * 🔴 The list in `config.event` below is an ALLOWLIST, and it is the whole
+ * story. This note used to say that custom events "can be emitted and they will
+ * be matched if a flow is configured to listen for them" — they will not.
+ * Medusa delivers a subscriber only the events it names, so an event missing
+ * from that array reaches no flow, matches nothing, and reports no error.
+ *
+ * The failure is quiet in the worst way: the event is emitted, an active flow
+ * names it as its trigger, executing that flow BY HAND works perfectly, and
+ * nothing whatsoever happens in production. Adding a trigger event therefore
+ * means editing this array — a flow alone is never enough.
  */
 export default async function visualFlowEventTriggerHandler({
   event,
@@ -236,7 +242,24 @@ export const config: SubscriberConfig = {
     "partner_product.proposed",
     "partner_product.approved",
     "partner_product.rejected",
-    
+
+    /**
+     * B2B quotes (#1439). `minted` carries the buyer's link, so a flow can
+     * introduce the maker before the quote lands; `accepted` fires once, on the
+     * fresh acceptance only, so a re-click cannot mail anyone twice.
+     *
+     * 🔴 This list is an ALLOWLIST, not documentation. The header above says
+     * custom events "will be matched if a flow is configured to listen for
+     * them" — that is not true, and cost a real debugging pass: the events were
+     * emitted, an active flow named `partner_quote.minted` as its trigger, the
+     * flow executed correctly when fired by hand, and three real mints
+     * triggered nothing at all. Medusa only delivers what is named here, so an
+     * event absent from this array reaches no flow and reports no error.
+     */
+    "partner_quote.minted",
+    "partner_quote.accepted",
+
+
     // Tasks
     "tasks.task.created",
     "tasks.task.updated",
