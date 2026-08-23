@@ -7,6 +7,7 @@ import {
   classifyQuoteJurisdiction,
   exportDisclosureReason,
   foldTaxLines,
+  resolveQuoteTax,
   unknownOriginReason,
   unknownTaxReason,
 } from "../lib/quote-tax"
@@ -338,5 +339,141 @@ describe("exportDisclosureReason — duties prepaid", () => {
     // over-warning costs a conversation, under-warning costs the customs bill.
     expect(exportDisclosureReason("in", "de")).toMatch(/payable by you/i)
     expect(exportDisclosureReason("in", "de", false)).toMatch(/payable by you/i)
+  })
+})
+
+/**
+ * `resolveQuoteTax` itself — the function, not just the pure helpers around it.
+ *
+ * ## Why this block exists
+ *
+ * Everything above tests the arithmetic and the wording; nothing tested the
+ * function that decides what to ASK. Both halves of a prod blocker lived in
+ * that gap, and both produced a plausible number rather than an error:
+ *
+ * 1. **Inclusivity was read off the region**, which on prod is `null` on every
+ *    region while every calculated price reports `is_calculated_price_tax_inclusive:
+ *    true`. So the quote added tax on top of a price that already contained it.
+ * 2. **`product_type_id` was never sent to the tax module**, so a rate scoped
+ *    by product type could not match and every quote quietly fell through to
+ *    the region default — 5% quoted where the cart charged 18%.
+ *
+ * 🔑 Neither is visible downstream: both yield a confident total. They only
+ * surfaced when a real buyer tried to accept and the cart disagreed.
+ */
+describe("resolveQuoteTax — what it asks the tax module", () => {
+  const GOODS_RATE = { rate: 18, name: "IN GST 18", code: "IN-GST-OVER-2500" }
+
+  const makeScope = (opts: { regionInclusive?: boolean | null } = {}) => {
+    const getTaxLines = jest.fn(async (items: any[]) =>
+      items.map((i) => ({
+        line_item_id: i.shipping_option_id === undefined ? i.id : undefined,
+        shipping_line_id: i.shipping_option_id !== undefined ? i.id : undefined,
+        ...GOODS_RATE,
+      }))
+    )
+
+    const scope = {
+      resolve: (key: string) => {
+        if (key === "tax") return { getTaxLines }
+        return {
+          graph: async () => ({
+            data: [
+              {
+                id: "reg_1",
+                automatic_taxes: true,
+                is_tax_inclusive: opts.regionInclusive ?? null,
+              },
+            ],
+          }),
+        }
+      },
+    }
+
+    return { scope, getTaxLines }
+  }
+
+  const input = {
+    region_id: "reg_1",
+    origin_country_code: "in",
+    destination_country_code: "in",
+    lines: [
+      {
+        variant_id: "var_a",
+        product_id: "prod_a",
+        product_type_id: "ptyp_textile",
+        unit_amount: 18000,
+        quantity: 5,
+      },
+    ],
+    freight: null,
+  }
+
+  it("🔴 forwards product_type_id, or a type-scoped rate can never match", async () => {
+    const { scope, getTaxLines } = makeScope()
+
+    await resolveQuoteTax(scope as any, input as any)
+
+    const [items] = getTaxLines.mock.calls[0] as any[]
+    expect(items[0].product_type_id).toBe("ptyp_textile")
+  })
+
+  it("omits product_type_id entirely when there is none, rather than sending an empty one", async () => {
+    const { scope, getTaxLines } = makeScope()
+
+    await resolveQuoteTax(scope as any, {
+      ...input,
+      lines: [{ ...input.lines[0], product_type_id: null }],
+    } as any)
+
+    const [items] = getTaxLines.mock.calls[0] as any[]
+    // An empty string matches nothing and reads exactly like "no rule matched",
+    // which is the failure the field exists to end.
+    expect("product_type_id" in items[0]).toBe(false)
+  })
+
+  /**
+   * 🔑 The price is the fact; the region flag is a guess. On prod they
+   * disagree, and the price is what the cart will actually charge against.
+   */
+  it("🔴 takes inclusivity from the PRICES, overriding a region that says otherwise", async () => {
+    const { scope } = makeScope({ regionInclusive: null })
+
+    const result = await resolveQuoteTax(scope as any, {
+      ...input,
+      prices_tax_inclusive: true,
+    } as any)
+
+    expect(result.inclusive).toBe(true)
+    // Carved OUT of 90,000, not added on top of it: 90000 - 90000/1.18.
+    expect(result.total).toBeCloseTo(13728.81, 1)
+  })
+
+  it("adds on top when the prices genuinely exclude tax", async () => {
+    const { scope } = makeScope({ regionInclusive: null })
+
+    const result = await resolveQuoteTax(scope as any, {
+      ...input,
+      prices_tax_inclusive: false,
+    } as any)
+
+    expect(result.inclusive).toBe(false)
+    expect(result.total).toBeCloseTo(16200, 1)
+  })
+
+  /**
+   * Absent means "not established", not "exclusive" — callers that price
+   * nothing keep the old region-driven behaviour rather than silently
+   * switching basis.
+   */
+  it("falls back to the region flag when the prices have no opinion", async () => {
+    const { scope } = makeScope({ regionInclusive: true })
+
+    const result = await resolveQuoteTax(scope as any, {
+      ...input,
+      prices_tax_inclusive: null,
+    } as any)
+
+    expect(result.inclusive).toBe(true)
   })
 })
