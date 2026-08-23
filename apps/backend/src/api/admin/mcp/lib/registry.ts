@@ -2838,6 +2838,7 @@ export const ADMIN_MCP_TOOLS: AdminMcpToolDef[] = [
       "name",
       "description",
       "design_type",
+      "product_type",
       "status",
       "priority",
       "target_completion_date",
@@ -2859,6 +2860,9 @@ export const ADMIN_MCP_TOOLS: AdminMcpToolDef[] = [
         // name-only draft is legal again — still worth sending when known.
         description: STR("Design description. Optional; defaults to empty."),
         design_type: STR("'Original' | 'Derivative' | 'Custom' | 'Collaboration'."),
+        product_type: STR(
+          "What the design IS — the garment category ('trousers', 'saree', 'kurta'). Distinct from design_type, which is how ORIGINAL the design is. Normalised server-side; setting it marks the type as human-set so AI inference will not overwrite it. Send null to clear it and let inference suggest one."
+        ),
         status: STR(
           "'Conceptual' | 'In_Development' | 'Technical_Review' | 'Sample_Production' | 'Revision' | 'Approved' | 'Rejected' | 'On_Hold' | 'Commerce_Ready' | 'Superseded'."
         ),
@@ -2921,6 +2925,7 @@ export const ADMIN_MCP_TOOLS: AdminMcpToolDef[] = [
       "name",
       "description",
       "design_type",
+      "product_type",
       "status",
       "priority",
       "target_completion_date",
@@ -2940,6 +2945,9 @@ export const ADMIN_MCP_TOOLS: AdminMcpToolDef[] = [
         name: STR("New name."),
         description: STR("New description."),
         design_type: STR("'Original' | 'Derivative' | 'Custom' | 'Collaboration'."),
+        product_type: STR(
+          "What the design IS — the garment category ('trousers', 'saree', 'kurta'). Distinct from design_type, which is how ORIGINAL the design is. Normalised server-side; setting it marks the type as human-set so AI inference will not overwrite it. Send null to clear it and let inference suggest one."
+        ),
         status: STR(
           "'Conceptual' | 'In_Development' | 'Technical_Review' | 'Sample_Production' | 'Revision' | 'Approved' | 'Rejected' | 'On_Hold' | 'Commerce_Ready' | 'Superseded'."
         ),

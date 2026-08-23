@@ -12,6 +12,7 @@ import {
   MAX_RETRY_DELAY_MS,
 } from "../../agents/textileExtractionAgent";
 import { PinoLogger } from "@mastra/loggers";
+import { readModelJsonOrThrow } from "../../../lib/ai/model-json";
 
 const logger = new PinoLogger();
 
@@ -270,28 +271,15 @@ Return ONLY a valid JSON object. Do not include markdown, commentary, or any tex
             output: textileProductSchema,
           } as any);
 
-          let parsed: TextileProductExtractionOutput;
-
-          if (response.object) {
-            parsed = response.object as TextileProductExtractionOutput;
-          } else {
-            const text = response.text?.trim() || "";
-            try {
-              parsed = JSON.parse(text);
-            } catch {
-              const jsonMatch = text.match(/```(?:json)?\s*([\s\S]*?)```/);
-              if (jsonMatch) {
-                parsed = JSON.parse(jsonMatch[1].trim());
-              } else {
-                const objectMatch = text.match(/\{[\s\S]*?"title"[\s\S]*?\}/);
-                if (objectMatch) {
-                  parsed = JSON.parse(objectMatch[0]);
-                } else {
-                  throw new Error(`Could not parse JSON from response: ${text.substring(0, 200)}...`);
-                }
-              }
-            }
-          }
+          // Was a hand-rolled ladder here — the same problem three other
+          // workflows also hit. Its last resort, /\{[\s\S]*?"title"[\s\S]*?\}/,
+          // is lazy: on a response whose title is followed by any nested object
+          // it stops at the first "}" and parses a TRUNCATED product. The shared
+          // reader brace-matches and is string-literal aware.
+          const parsed = readModelJsonOrThrow(
+            response,
+            `textileProductExtraction(${currentModel})`
+          ) as TextileProductExtractionOutput;
 
           logger.info(`[TextileExtraction] Successfully extracted with model: ${currentModel}`);
           return parsed;

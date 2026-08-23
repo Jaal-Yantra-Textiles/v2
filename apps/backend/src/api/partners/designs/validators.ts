@@ -48,6 +48,10 @@ export const PartnerCreateDesignReq = z.object({
   design_type: z
     .enum(["Original", "Derivative", "Custom", "Collaboration"])
     .optional(),
+  // #938 — WHAT the design is, as opposed to `design_type` above (how original
+  // it is). Free text; normalised server-side. Setting it marks the type as
+  // human-set so AI inference will not overwrite it; null clears it.
+  product_type: z.string().max(120).optional().nullable(),
   status: z
     .enum([
       "Conceptual",

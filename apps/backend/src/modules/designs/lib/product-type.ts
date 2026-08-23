@@ -56,6 +56,8 @@ export function mayInferOver(
   return currentSource !== "manual"
 }
 
+import { readModelJson } from "../../../lib/ai/model-json"
+
 export type InferredProductType = {
   product_type: string
   confidence: number
@@ -92,7 +94,7 @@ export function parseInferredProductType(raw: {
   const text = typeof raw?.text === "string" ? raw.text : ""
   if (!text.trim()) return null
 
-  const fromJson = coerce(extractJson(text))
+  const fromJson = coerce(readModelJson({ text }))
   if (fromJson) return fromJson
 
   return coerce(extractLabelled(text))
@@ -112,31 +114,6 @@ function coerce(value: unknown): InferredProductType | null {
   const reasoning = typeof v.reasoning === "string" ? v.reasoning.trim() : ""
 
   return { product_type: productType, confidence, reasoning: reasoning || null }
-}
-
-/** First balanced `{...}` in the text, fences stripped. */
-function extractJson(text: string): unknown {
-  const unfenced = text.replace(/```(?:json)?/gi, "")
-  const start = unfenced.indexOf("{")
-  if (start === -1) return null
-
-  // Scan for the matching brace rather than regexing — a nested object in the
-  // reasoning string would truncate a lazy match and produce invalid JSON.
-  let depth = 0
-  for (let i = start; i < unfenced.length; i++) {
-    if (unfenced[i] === "{") depth++
-    else if (unfenced[i] === "}") {
-      depth--
-      if (depth === 0) {
-        try {
-          return JSON.parse(unfenced.slice(start, i + 1))
-        } catch {
-          return null
-        }
-      }
-    }
-  }
-  return null
 }
 
 /**
