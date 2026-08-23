@@ -52,8 +52,26 @@ const PREFIX_DOMAINS: ReadonlyArray<readonly [string, AdminToolDomain]> = [
   ["/admin/ops", "observability"],
   ["/admin/orders", "orders"],
   ["/admin/order-edits", "orders"],
+  // B2B quotes (#1439). Pre-order rather than post-purchase, but this is the
+  // sales slice — a quote is what becomes the cart, and the same conversation
+  // covers both.
+  ["/admin/quotes", "orders"],
   ["/admin/products", "catalog"],
   ["/admin/stores", "catalog"],
+  /**
+   * Taxonomy. Categories and collections are how the catalogue is ORGANISED,
+   * so they ride with it — an operator filing a product is having a catalogue
+   * conversation, not a separate one.
+   *
+   * ⚠️ These two families were unclassified on `main` before #1439's quote rows
+   * were added: the tools were registered without a prefix entry, which makes
+   * them unreachable from any sliced ask (the slice is what the model is given,
+   * so an unclassified tool may as well not exist). The same twelve rows were
+   * also undeclared in `route-validator-field-coverage`'s unbound list. Both
+   * gaps are the same unfinished registry addition, fixed in passing.
+   */
+  ["/admin/product-categories", "catalog"],
+  ["/admin/collections", "catalog"],
   // Customs/HS-code tooling operates on the catalogue, so it belongs to the
   // catalog slice. Without this entry the tools classify as undefined and never
   // light up for a customs question.
@@ -125,6 +143,9 @@ const DOMAIN_KEYWORDS: Record<Exclude<AdminToolDomain, "core">, string[]> = {
     "ship", "shipped", "shipping", "shipment", "deliver", "delivered",
     "delivery", "courier", "awb", "waybill", "label", "tracking", "cancel",
     "refund", "return", "line item", "line items", "checkout", "purchase",
+    // B2B quotes (#1439) — the ask that reaches `mint_quote` and its preflight.
+    "quote", "quotes", "quoted", "quotation", "rfq", "mint a quote",
+    "deposit", "moq", "bulk order", "wholesale",
   ],
   catalog: [
     "product", "products", "variant", "variants", "sku", "catalog",

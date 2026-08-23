@@ -221,3 +221,46 @@ export const quoteMintSchemaProps = () => ({
       "Where the hand-typed freight came from, e.g. 'DHL Express Worldwide, Srinagar to Berlin, 3.05 kg, quoted 24 Aug'. Always send it with `freight_override_amount`.",
   },
 })
+
+/**
+ * Fields the readiness preflight has no use for (#1445).
+ *
+ * 🔑 This list mirrors `QuoteReadinessShape.omit({...})` in the partner
+ * validator, and `quote-tool-field-coverage.unit.spec.ts` asserts the two agree
+ * by importing that schema. Restating it is safe only because the restatement
+ * is checked — if the validator drops or keeps a field and this does not, the
+ * test fails rather than the preflight silently validating a shape the mint
+ * rejects.
+ *
+ * The reasoning behind each: the buyer's identity and note are who they are,
+ * not what the basket costs; `ttl_days` and `deposit_pct` are terms, and a dry
+ * run freezes nothing to apply them to; `freight_basis` is evidence for a
+ * frozen row. `freight_override_amount` is deliberately NOT here — it decides
+ * whether the lane has to be rateable, so a preflight without it would refuse
+ * exactly the cross-border quotes an override exists to unblock.
+ */
+export const QUOTE_READINESS_OMITTED_PARAMS = [
+  "buyer_email",
+  "recipient_name",
+  "recipient_company",
+  "buyer_tax_id",
+  "buyer_tax_id_type",
+  "partner_note",
+  "ttl_days",
+  "deposit_pct",
+  "freight_basis",
+] as const
+
+/** The preflight body, DERIVED from the mint body so a new field reaches both. */
+export const QUOTE_MINT_READINESS_BODY_PARAMS = QUOTE_MINT_BODY_PARAMS.filter(
+  (k) => !(QUOTE_READINESS_OMITTED_PARAMS as readonly string[]).includes(k)
+)
+
+/** The preflight's schema properties, derived the same way for the same reason. */
+export const quoteReadinessSchemaProps = () => {
+  const props: Record<string, any> = quoteMintSchemaProps()
+  for (const key of QUOTE_READINESS_OMITTED_PARAMS) {
+    delete props[key]
+  }
+  return props
+}

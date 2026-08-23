@@ -66,6 +66,11 @@ const PREFIX_DOMAINS: ReadonlyArray<readonly [string, PartnerToolDomain]> = [
   // operator creating a return needs the reason slug, so they ride together.
   ["/partners/refund-reasons", "orders"],
   ["/partners/return-reasons", "orders"],
+  // B2B quotes (#1439). Pre-order rather than post-purchase, but this is the
+  // sales slice and it is where the partner UI puts them too — a partner
+  // quoting a buyer and a partner fulfilling that buyer's order are one
+  // conversation, and the quote is what becomes the cart.
+  ["/partners/quotes", "orders"],
 
   // ---- catalog: the partner's own product record + taxonomy ----
   ["/partners/products", "catalog"],
@@ -184,6 +189,9 @@ const DOMAIN_KEYWORDS: Record<Exclude<PartnerToolDomain, "core">, string[]> = {
     "refund", "return", "returns", "claim", "claims", "exchange", "exchanges",
     "line item", "line items", "mark as delivered", "mark delivered",
     "order edit", "order edits", "edit order", "request edit", "confirm edit",
+    // B2B quotes (#1439) — the ask that reaches `mint_quote` and its preflight.
+    "quote", "quotes", "quoted", "quotation", "rfq", "mint a quote",
+    "deposit", "moq", "bulk order", "wholesale",
   ],
   catalog: [
     "product", "products", "variant", "variants", "sku", "catalog",
