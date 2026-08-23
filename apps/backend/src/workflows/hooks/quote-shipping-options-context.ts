@@ -1,3 +1,4 @@
+import { StepResponse } from "@medusajs/framework/workflows-sdk"
 import {
   listShippingOptionsForCartWorkflow,
   listShippingOptionsForCartWithPricingWorkflow,
@@ -54,6 +55,23 @@ import { PARTNER_QUOTE_MODULE } from "../../modules/partner-quote"
  * One indexed read per shipping-option listing; a non-quote cart matches
  * nothing and costs an empty index probe.
  *
+ * ## 🔴 The return MUST be a `StepResponse`
+ *
+ * A hook handler is invoked as a workflow STEP, so core reads its value through
+ * `getResult()`. Returning a plain object yields `undefined` there, the spread
+ * into `QueryContext` contributes nothing, and `isContextValid` then compares
+ * the literal string `"undefined"` against the rule value.
+ *
+ * The effect is silent and total: the quote's freight option is invisible to
+ * the ONE cart it was minted for, and `addShippingMethodToCart` answers
+ * "Shipping Options are invalid for cart" — so no quote could ever be
+ * accepted. Nothing catches it, because a hook that returns the wrong shape is
+ * not an error, it is a hook that appears to run. The log even showed it
+ * resolving the correct quote id, on its way to throwing that value away.
+ *
+ * Core's own docblock example returns `new StepResponse({ customer_id })`. This
+ * one did not.
+ *
  * ⚠️ Registered on BOTH list workflows, as core's own docs instruct. The
  * pricing variant backs `addShippingMethodToCart` and every cart refresh; the
  * plain variant backs the storefront's option list. Wiring only one produces a
@@ -65,7 +83,7 @@ const setQuoteShippingContext = async (
 ) => {
   const cartId = cart?.id
   if (!cartId) {
-    return { quote_id: "none" }
+    return new StepResponse({ quote_id: "none" })
   }
 
   try {
@@ -77,12 +95,12 @@ const setQuoteShippingContext = async (
     const quoteId = rows?.[0]?.id
     // The literal "none" matters: the rule compares `${contextValue}` against
     // its value, so this is simply a string no quote id can equal.
-    return { quote_id: quoteId ? String(quoteId) : "none" }
+    return new StepResponse({ quote_id: quoteId ? String(quoteId) : "none" })
   } catch {
     // Shipping options must not 500 because a lookup failed. Falling back to
     // "none" hides the quote option, which fails toward showing the buyer
     // fewer options rather than toward offering someone else's freight.
-    return { quote_id: "none" }
+    return new StepResponse({ quote_id: "none" })
   }
 }
 
