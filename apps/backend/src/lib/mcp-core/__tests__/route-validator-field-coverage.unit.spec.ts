@@ -68,11 +68,37 @@ import { buildToolInputSchema } from "../schema"
  * A tool landing here is NOT proven safe. It is proven unchecked-by-this-file.
  */
 const NO_ROUTE_VALIDATOR = new Set<string>([
+  /**
+   * The revoke route takes NO body — it works entirely off the `:id` in the
+   * path. Nothing to bind, and nothing advertised: the tool declares no
+   * `bodyParams`, because a field the route never reads would be accepted,
+   * reported `ok: true` and dropped (#1348). Verified by reading the handler,
+   * not inferred from the absence of a matcher.
+   */
+  "admin:revoke_quote",
   // Core routes: core registers its own validator, so it never appears in this
   // repo's middlewares config. The four product/variant ones are contract-
   // checked against core's imported validators in the sibling spec.
   "admin:create_product",
   "admin:update_product",
+  /**
+   * Category and collection tools wrap core's own `/admin/product-categories`
+   * and `/admin/collections` routes, so core registers the validators and they
+   * never appear in this repo's middlewares config — the same reason as the
+   * product rows above.
+   *
+   * ⚠️ These six were failing this test on `main` before #1439's quote rows
+   * were added: they were registered without being declared here, which is
+   * exactly the "small commitment" this list exists to force. Declared rather
+   * than deleted, because the tools work — what was missing was the note
+   * saying nobody had bound them.
+   */
+  "admin:create_product_category",
+  "admin:update_product_category",
+  "admin:set_category_products",
+  "admin:create_product_collection",
+  "admin:update_product_collection",
+  "admin:set_collection_products",
   "admin:update_product_variant",
   "admin:create_product_for_partner",
   "admin:update_customer",

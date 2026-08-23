@@ -153,7 +153,14 @@ export const isMcpMachinePrincipal = (principal: McpPrincipal): boolean =>
  *   - `/admin/assistant/vision` is a POST that only looks at an already-stored
  *     image (`read_image`). It is POST because the image reference goes in the
  *     body, not because anything changes.
+ *   - `/admin/quotes/readiness` is the quote preflight (`check_quote_readiness`,
+ *     #1445). POST because a basket does not fit in a query string; it freezes
+ *     no prices, emails nobody and stores nothing. Reachable by a read-scoped
+ *     credential on purpose — that caller is exactly the one who should be able
+ *     to check a quote before asking a human to mint it. ⚠️ It is not free: it
+ *     prices live and asks a carrier to rate the lane, so it costs a rate call.
  *
+
  * An invariant test asserts every non-GET tool that is not flagged `write` has
  * its path listed here — so a future read-only POST tool fails the suite instead
  * of silently 403ing for read-only credentials.
@@ -162,6 +169,7 @@ export const MCP_SCOPE_EXEMPT_ADMIN_PATHS: readonly string[] = [
   "/admin/mcp",
   "/admin/mcp/resolve-query",
   "/admin/assistant/vision",
+  "/admin/quotes/readiness",
 ]
 
 export type ResolvedMcpScope = {

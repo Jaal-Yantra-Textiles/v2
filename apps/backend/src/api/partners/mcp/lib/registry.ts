@@ -31,6 +31,20 @@ import {
   PRODUCT_SPEC_WRITE_GUIDANCE,
   productSpecSchemaProps,
 } from "../../../../modules/product-spec/tool-schema"
+/**
+ * The quote vocabulary is shared with the admin surface (#1439). Both surfaces
+ * mint, and a body list written out twice is one edit away from the two
+ * assistants believing different things about what a quote is — the shape of
+ * #1348, where an MCP row and its route validator disagreed and the field was
+ * dropped in silence.
+ */
+import {
+  QUOTE_MINT_BODY_PARAMS,
+  QUOTE_MINT_READINESS_BODY_PARAMS,
+  QUOTE_MINT_WRITE_GUIDANCE,
+  quoteMintSchemaProps,
+  quoteReadinessSchemaProps,
+} from "../../../../modules/partner-quote/tool-schema"
 // The page + block vocabulary comes from the validator that enforces it, never a copy.
 import {
   PAGE_STATUSES,
@@ -3300,5 +3314,92 @@ export const PARTNER_MCP_TOOLS: PartnerMcpToolDef[] = [
       },
       ["order_id", "items"]
     ),
+  },
+  // ===== B2B quotes (#1439) =================================================
+  //
+  // 🔑 `mint_quote` is the only tool on this surface that freezes prices into a
+  // real price list, emails a buyer and hands them something they can pay a
+  // deposit against. It is `sensitive` for that reason and not because it is
+  // hard to undo — revoking works — but because the buyer has already been
+  // told a number by the time anyone notices.
+  {
+    name: "list_quotes",
+    description:
+      "List the partner's B2B quotes (status, buyer, totals, expiry, whether the buyer has viewed or accepted). Read.",
+    method: "GET",
+    path: "/partners/quotes",
+    queryParams: ["limit", "offset", "q", "status"],
+    inputSchema: obj({
+      ...PAGINATION,
+      status: STR(
+        "Filter by status: 'active' | 'accepted' | 'revoked' | 'superseded' | 'expired'."
+      ),
+    }),
+  },
+  {
+    name: "get_quote",
+    description:
+      "Get one B2B quote in full: its lines and frozen prices, freight, tax, any DDP undertaking, and the buyer's view/acceptance state. Read.",
+    method: "GET",
+    path: "/partners/quotes/:id",
+    pathParams: ["id"],
+    inputSchema: obj({ id: STR("Quote id, e.g. 'quo_...' / '01M0...'.") }, ["id"]),
+  },
+  {
+    name: "list_quotable_designs",
+    description:
+      "List the designs this partner may quote, with the variant each one is sold through. Use it to turn a design the partner names in conversation into a line — a design that resolves to no single variant cannot be quoted and is reported here rather than at mint. Read.",
+    method: "GET",
+    path: "/partners/quotes/designs",
+    queryParams: ["limit", "offset", "q"],
+    inputSchema: obj({ ...PAGINATION }),
+  },
+  {
+    name: "check_quote_readiness",
+    description:
+      "Dry-run a quote: price the basket, rate the freight, resolve the tax, and report EVERY blocking problem at once — without minting anything, emailing anyone or freezing a price. Always call this before `mint_quote`.",
+    method: "POST",
+    path: "/partners/quotes/readiness",
+    /**
+     * 🔑 A POST that is not a write, declared the same way `resolve_admin_query`
+     * is: no `write` flag. The verb is a POST only because a basket does not fit
+     * in a query string — the route freezes nothing, sends nothing and stores
+     * nothing.
+     *
+     * That matters beyond tidiness. Flagging it `write` would put the rehearsal
+     * behind the write gate and the confirm rail, which is how an assistant
+     * ends up skipping the preflight and minting blind — and would deny it
+     * outright to a read-scoped credential, which is precisely the caller who
+     * most needs to check a quote before asking a human to mint it.
+     */
+    bodyParams: QUOTE_MINT_READINESS_BODY_PARAMS,
+    inputSchema: obj(quoteReadinessSchemaProps(), [
+      "lines",
+      "destination_country_code",
+      "currency_code",
+    ]),
+    sideEffects:
+      "Writes nothing and sends nothing. Prices the basket live and rates freight with the carrier, so it can be slow and it does consume a carrier rate call.",
+    nextSteps: ["mint_quote"],
+  },
+  {
+    name: "mint_quote",
+    description:
+      "Mint a B2B quote: freeze prices into a price list scoped to this buyer, and email them a link they can accept and pay a deposit against. " +
+      QUOTE_MINT_WRITE_GUIDANCE,
+    method: "POST",
+    path: "/partners/quotes",
+    write: true,
+    sensitive: true,
+    bodyParams: QUOTE_MINT_BODY_PARAMS,
+    inputSchema: obj(quoteMintSchemaProps(), [
+      "buyer_email",
+      "lines",
+      "destination_country_code",
+      "currency_code",
+    ]),
+    sideEffects:
+      "Creates a customer-group-scoped price list with a real expiry, sends the buyer an email containing the only copy of the quote link, and makes the quote acceptable into a cart. Re-quoting the same buyer STACKS price lists — the cheapest active one wins (#1435), so revoke the old quote first.",
+    nextSteps: ["get_quote", "list_quotes"],
   },
 ]

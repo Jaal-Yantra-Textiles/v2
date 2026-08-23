@@ -359,6 +359,10 @@ describe("partner-mcp per-ask tool slicing", () => {
       "/partners/payment-collections": "mark this payment collection as paid",
       "/partners/stores/:id/payment-providers":
         "which payment providers are enabled for my store",
+      // B2B quotes (#1439). Phrased as a partner would actually ask it, not as
+      // a keyword list — the point of this table is that the real sentence
+      // reaches the tools.
+      "/partners/quotes": "send this buyer a quote for 200 shawls",
     }
 
     const familiesInRegistry = [

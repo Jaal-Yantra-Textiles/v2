@@ -27,6 +27,18 @@
  * size is a per-request token cost.
  */
 import type { McpToolDef } from "../../../../lib/mcp-core"
+/**
+ * The quote vocabulary, shared with the partner surface (#1439). Both surfaces
+ * mint; a body list written out twice is one edit away from the two assistants
+ * believing different things about what a quote is (#1348).
+ */
+import {
+  QUOTE_MINT_BODY_PARAMS,
+  QUOTE_MINT_READINESS_BODY_PARAMS,
+  QUOTE_MINT_WRITE_GUIDANCE,
+  quoteMintSchemaProps,
+  quoteReadinessSchemaProps,
+} from "../../../../modules/partner-quote/tool-schema"
 import {
   PHYSICAL_AND_CUSTOMS_BODY_PARAMS,
   physicalAndCustomsSchemaProps,
@@ -4137,5 +4149,113 @@ export const ADMIN_MCP_TOOLS: AdminMcpToolDef[] = [
     ),
     sideEffects:
       "Also recomputes the contact's engagement_state, which is what visual flows select on. Logging an activity with kind 'opt_out' makes the contact permanently do_not_contact.",
+  },
+  // ===== B2B quotes (#1389 S5, #1439) =======================================
+  //
+  // 🔑 `partner_id` is the whole difference from the partner surface. An admin
+  // has no partner of their own, so the one being quoted FOR must be named —
+  // and it is exactly what the catalogue and price checks validate against. It
+  // is declared here and deliberately absent from the shared vocabulary,
+  // because on the partner surface a caller naming another partner's id is the
+  // one field that would let them freeze prices onto someone else's customers.
+  {
+    name: "list_quotes",
+    description:
+      "List B2B quotes across the platform (status, partner, buyer, totals, expiry, whether the buyer has viewed or accepted). Read.",
+    method: "GET",
+    path: "/admin/quotes",
+    queryParams: ["limit", "offset", "q", "status", "partner_id"],
+    inputSchema: obj({
+      ...PAGINATION,
+      status: STR(
+        "Filter by status: 'active' | 'accepted' | 'revoked' | 'superseded' | 'expired'."
+      ),
+      partner_id: STR("Only quotes minted for this partner."),
+    }),
+  },
+  {
+    name: "get_quote",
+    description:
+      "Get one B2B quote in full: its lines and frozen prices, freight, tax, any DDP undertaking, and the buyer's view/acceptance state. Read.",
+    method: "GET",
+    path: "/admin/quotes/:id",
+    pathParams: ["id"],
+    inputSchema: obj({ id: STR("Quote id.") }, ["id"]),
+  },
+  {
+    name: "check_quote_readiness",
+    description:
+      "Dry-run a quote for a partner: price the basket, rate the freight, resolve the tax, and report EVERY blocking problem at once — without minting anything, emailing anyone or freezing a price. Always call this before `mint_quote`.",
+    method: "POST",
+    path: "/admin/quotes/readiness",
+    /**
+     * 🔑 A POST that is not a write, declared the same way `resolve_admin_query`
+     * is: no `write` flag. The verb is a POST only because a basket does not fit
+     * in a query string — the route freezes nothing and sends nothing.
+     *
+     * On this surface every write is `sensitive` by invariant, so flagging it
+     * would put the rehearsal behind the confirm rail — which is how an
+     * assistant ends up skipping the preflight and minting blind.
+     */
+    bodyParams: [...QUOTE_MINT_READINESS_BODY_PARAMS, "partner_id"],
+    inputSchema: obj(
+      {
+        ...quoteReadinessSchemaProps(),
+        partner_id: STR("The partner being quoted for. Required on this surface."),
+      },
+      ["partner_id", "lines", "destination_country_code", "currency_code"]
+    ),
+    sideEffects:
+      "Writes nothing and sends nothing. Prices the basket live and rates freight with the carrier, so it can be slow and it does consume a carrier rate call.",
+    nextSteps: ["mint_quote"],
+  },
+  {
+    name: "mint_quote",
+    description:
+      "Mint a B2B quote on a partner's behalf: freeze prices into a price list scoped to this buyer, and email them a link they can accept and pay a deposit against. " +
+      QUOTE_MINT_WRITE_GUIDANCE,
+    method: "POST",
+    path: "/admin/quotes",
+    write: true,
+    sensitive: true,
+    bodyParams: [...QUOTE_MINT_BODY_PARAMS, "partner_id"],
+    inputSchema: obj(
+      {
+        ...quoteMintSchemaProps(),
+        partner_id: STR(
+          "The partner this quote is minted FOR. Their catalogue, their store, their carrier, their prices — required on this surface."
+        ),
+      },
+      [
+        "partner_id",
+        "buyer_email",
+        "lines",
+        "destination_country_code",
+        "currency_code",
+      ]
+    ),
+    sideEffects:
+      "Creates a customer-group-scoped price list with a real expiry, sends the buyer an email containing the only copy of the quote link, and makes the quote acceptable into a cart. Re-quoting the same buyer STACKS price lists — the cheapest active one wins (#1435), so revoke the old quote first.",
+    nextSteps: ["get_quote", "revoke_quote"],
+  },
+  {
+    name: "revoke_quote",
+    description:
+      "Revoke a quote: expire its price list and make the buyer's link 404. Use it before re-quoting the same buyer, because two active lists on one customer group tie-break to the CHEAPEST and a re-quote at a higher price would hand them the old one (#1435).",
+    method: "POST",
+    path: "/admin/quotes/:id/revoke",
+    pathParams: ["id"],
+    write: true,
+    sensitive: true,
+    /**
+     * 🔴 No `bodyParams`, and no `reason` field — the route reads no body at
+     * all. Advertising one would be the #1348 defect exactly: the dispatcher's
+     * body assembly is an allowlist walk, so the model would supply a reason,
+     * get `ok: true`, and the reason would reach nothing. Better to offer
+     * nothing than to offer something that goes nowhere.
+     */
+    inputSchema: obj({ id: STR("Quote to revoke.") }, ["id"]),
+    sideEffects:
+      "The buyer's link stops working immediately and is indistinguishable from an unknown token — they are NOT told. Tell them yourself if they have already been sent it. An already-accepted quote keeps its cart.",
   },
 ]
