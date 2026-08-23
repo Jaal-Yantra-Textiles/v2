@@ -3268,14 +3268,14 @@
         "type": "id",
         "required": true,
         "placeholder": "{{ $last.source_price_id }}",
-        "description": "Workflow: fanout-prices-from-source When a partner sets a manual price on a variant, this workflow creates auto-converted price rows in the partner's other supported currencies using FX rates from the fx_rates module. Algorithm: 1. Resolve the source price. 2. Recursion guard: query for the link `price ↔ fx_price_meta`. If the source already has an `fx_price_meta` row, fanout was the thing that created it — skip, otherwise the price.created event would trigger an infinite re-emit loop. 3. Resolve price_set → variant → product → first sales_channel → store. Skip if the chain breaks. 4. Read store.supported_currencies — these are the currencies the partner is willing to display prices in. 5. For each currency in supported_currencies that the price_set doesn't already have a row for, compute the converted amount via FX and call `addPrices` to attach a new price row to the price_set. 6. For each newly created price, create an `fx_price_meta` row (base_currency, base_amount, fx_rate, source_price_id) and a Medusa link between `price.id` and `fx_price_meta.id`. The link is the discriminator the recursion guard, UI badge, strip-on-edit, and daily re-rate all read. Why a separate fx_price_meta table: Medusa's `Price` model has no `metadata` column (verified). An earlier draft tried to stash the FX audit fields in `metadata` and it silently dropped — discovered when the recursion guard never fired. See apps/docs/notes/FX_AUTO_CONVERSION.md. Failure semantics: Per-currency errors during rate lookup are logged + counted but never abort the whole fanout. If `addPrices` itself fails the step throws so the workflow reports failure to the subscriber. / export type FanoutPricesInput = { /** Source price id (the one the partner just set)."
+        "description": "Workflow: fanout-prices-from-source When a partner sets a manual price on a variant, this workflow creates auto-converted price rows in the partner's other supported currencies using FX rates from the fx_rates module. Algorithm: 1. Resolve the source price. 2. Recursion guard: query for the link `price ↔ fx_price_meta`. If the source already has an `fx_price_meta` row, fanout was the thing that created it — skip, otherwise the price.created event would trigger an infinite re-emit loop. 3. Resolve price_set → variant → product → first sales_channel → store. Skip if the chain breaks. 4. Read store.supported_currencies — these are the currencies the partner is willing to display prices in. 5. For each currency in supported_currencies that the price_set doesn't already have a row for, compute the converted amount via FX and call `addPrices` to attach a new price row to the price_set. 6. For each newly created price, create an `fx_price_meta` row (base_currency, base_amount, fx_rate, source_price_id) and a Medusa link between `price.id` and `fx_price_meta.id`. The link is the discriminator the recursion guard, UI badge, strip-on-edit, and daily re-rate all read. Why a separate fx_price_meta table: Medusa's `Price` model has no `metadata` column (verified). An earlier draft tried to stash the FX audit fields in `metadata` and it silently dropped — discovered when the recursion guard never fired. See apps/docs/notes/FX_AUTO_CONVERSION.md. Failure semantics: Per-currency errors during rate lookup are logged + counted but never abort the whole fanout. If `addPrices` itself fails the step throws so the workflow reports failure to the subscriber. / /** Identity of a price WITHIN a price set: currency plus its quantity bounds. Bounds arrive as BigNumberValue — a string from `query.graph`, a number when we set it ourselves — so `50` and `\"50\"` must collapse to the same key or a tier is re-created on every fanout. `null`/`undefined` (an unbounded price) normalises to the empty string, which is distinct from any numeric bound. / export const tierKey = (currency: string, min: any, max: any): string => { const norm = (v: any) => v === null || v === undefined || v === \"\" ? \"\" : String(Number(v)) return `${String(currency).toLowerCase()}|${norm(min)}|${norm(max)}` } export type FanoutPricesInput = { /** Source price id (the one the partner just set)."
       },
       {
         "name": "store_id",
         "type": "id",
         "required": false,
         "placeholder": "{{ $last.store_id }}",
-        "description": "Workflow: fanout-prices-from-source When a partner sets a manual price on a variant, this workflow creates auto-converted price rows in the partner's other supported currencies using FX rates from the fx_rates module. Algorithm: 1. Resolve the source price. 2. Recursion guard: query for the link `price ↔ fx_price_meta`. If the source already has an `fx_price_meta` row, fanout was the thing that created it — skip, otherwise the price.created event would trigger an infinite re-emit loop. 3. Resolve price_set → variant → product → first sales_channel → store. Skip if the chain breaks. 4. Read store.supported_currencies — these are the currencies the partner is willing to display prices in. 5. For each currency in supported_currencies that the price_set doesn't already have a row for, compute the converted amount via FX and call `addPrices` to attach a new price row to the price_set. 6. For each newly created price, create an `fx_price_meta` row (base_currency, base_amount, fx_rate, source_price_id) and a Medusa link between `price.id` and `fx_price_meta.id`. The link is the discriminator the recursion guard, UI badge, strip-on-edit, and daily re-rate all read. Why a separate fx_price_meta table: Medusa's `Price` model has no `metadata` column (verified). An earlier draft tried to stash the FX audit fields in `metadata` and it silently dropped — discovered when the recursion guard never fired. See apps/docs/notes/FX_AUTO_CONVERSION.md. Failure semantics: Per-currency errors during rate lookup are logged + counted but never abort the whole fanout. If `addPrices` itself fails the step throws so the workflow reports failure to the subscriber. / export type FanoutPricesInput = { /** Source price id (the one the partner just set). */ source_price_id: string /** Optional: the store whose supported_currencies drive the fanout. Pass this from contexts where you already know the store (partner routes, scripts). When omitted, the workflow derives it by walking price_set → variant → product → sales_channel and looking up the store where `default_sales_channel_id` matches — useful as a fallback but slower and dependent on the product being linked to a sales_channel that's the default for exactly one store."
+        "description": "Workflow: fanout-prices-from-source When a partner sets a manual price on a variant, this workflow creates auto-converted price rows in the partner's other supported currencies using FX rates from the fx_rates module. Algorithm: 1. Resolve the source price. 2. Recursion guard: query for the link `price ↔ fx_price_meta`. If the source already has an `fx_price_meta` row, fanout was the thing that created it — skip, otherwise the price.created event would trigger an infinite re-emit loop. 3. Resolve price_set → variant → product → first sales_channel → store. Skip if the chain breaks. 4. Read store.supported_currencies — these are the currencies the partner is willing to display prices in. 5. For each currency in supported_currencies that the price_set doesn't already have a row for, compute the converted amount via FX and call `addPrices` to attach a new price row to the price_set. 6. For each newly created price, create an `fx_price_meta` row (base_currency, base_amount, fx_rate, source_price_id) and a Medusa link between `price.id` and `fx_price_meta.id`. The link is the discriminator the recursion guard, UI badge, strip-on-edit, and daily re-rate all read. Why a separate fx_price_meta table: Medusa's `Price` model has no `metadata` column (verified). An earlier draft tried to stash the FX audit fields in `metadata` and it silently dropped — discovered when the recursion guard never fired. See apps/docs/notes/FX_AUTO_CONVERSION.md. Failure semantics: Per-currency errors during rate lookup are logged + counted but never abort the whole fanout. If `addPrices` itself fails the step throws so the workflow reports failure to the subscriber. / /** Identity of a price WITHIN a price set: currency plus its quantity bounds. Bounds arrive as BigNumberValue — a string from `query.graph`, a number when we set it ourselves — so `50` and `\"50\"` must collapse to the same key or a tier is re-created on every fanout. `null`/`undefined` (an unbounded price) normalises to the empty string, which is distinct from any numeric bound. / export const tierKey = (currency: string, min: any, max: any): string => { const norm = (v: any) => v === null || v === undefined || v === \"\" ? \"\" : String(Number(v)) return `${String(currency).toLowerCase()}|${norm(min)}|${norm(max)}` } export type FanoutPricesInput = { /** Source price id (the one the partner just set). */ source_price_id: string /** Optional: the store whose supported_currencies drive the fanout. Pass this from contexts where you already know the store (partner routes, scripts). When omitted, the workflow derives it by walking price_set → variant → product → sales_channel and looking up the store where `default_sales_channel_id` matches — useful as a fallback but slower and dependent on the product being linked to a sales_channel that's the default for exactly one store."
       }
     ],
     "source": "custom_ts",
@@ -5208,6 +5208,103 @@
     "source": "custom_ts",
     "sourceFile": "src/workflows/partner/list-partner-people.ts"
   },
+  "mint-partner-quote": {
+    "fields": [
+      {
+        "name": "partner_id",
+        "type": "id",
+        "required": true,
+        "placeholder": "{{ $last.partner_id }}"
+      },
+      {
+        "name": "store",
+        "type": "object",
+        "required": true,
+        "placeholder": "{}"
+      },
+      {
+        "name": "buyer_email",
+        "type": "string",
+        "required": true,
+        "placeholder": "{{ $last.buyer_email }}"
+      },
+      {
+        "name": "recipient_name",
+        "type": "string",
+        "required": false,
+        "placeholder": "{{ $last.recipient_name }}"
+      },
+      {
+        "name": "recipient_company",
+        "type": "string",
+        "required": false,
+        "placeholder": "{{ $last.recipient_company }}"
+      },
+      {
+        "name": "partner_note",
+        "type": "string",
+        "required": false,
+        "placeholder": "{{ $last.partner_note }}"
+      },
+      {
+        "name": "destination_country_code",
+        "type": "string",
+        "required": true,
+        "placeholder": "{{ $last.destination_country_code }}"
+      },
+      {
+        "name": "destination_postal_code",
+        "type": "string",
+        "required": false,
+        "placeholder": "{{ $last.destination_postal_code }}"
+      },
+      {
+        "name": "destination_city",
+        "type": "string",
+        "required": false,
+        "placeholder": "{{ $last.destination_city }}"
+      },
+      {
+        "name": "currency_code",
+        "type": "string",
+        "required": true,
+        "placeholder": "{{ $last.currency_code }}"
+      },
+      {
+        "name": "region_id",
+        "type": "id",
+        "required": false,
+        "placeholder": "{{ $last.region_id }}"
+      },
+      {
+        "name": "carrier",
+        "type": "string",
+        "required": false,
+        "placeholder": "{{ $last.carrier }}"
+      },
+      {
+        "name": "ttl_days",
+        "type": "number",
+        "required": false,
+        "placeholder": "0"
+      },
+      {
+        "name": "created_by",
+        "type": "string",
+        "required": false,
+        "placeholder": "{{ $last.created_by }}"
+      },
+      {
+        "name": "now",
+        "type": "date",
+        "required": false,
+        "placeholder": "{{ $trigger.now }}",
+        "description": "Injected so the whole mint is deterministic under test."
+      }
+    ],
+    "source": "custom_ts",
+    "sourceFile": "src/workflows/partner-quote/mint-quote.ts"
+  },
   "cancel-partner-subscription": {
     "fields": [
       {
@@ -5306,6 +5403,13 @@
         "type": "id",
         "required": true,
         "placeholder": "{{ $last.id }}"
+      },
+      {
+        "name": "force",
+        "type": "boolean",
+        "required": false,
+        "placeholder": "false",
+        "description": "Delete even though orders are still in flight. See the planner's docs."
       }
     ],
     "source": "custom_ts",
@@ -6022,6 +6126,24 @@
     "source": "custom_ts",
     "sourceFile": "src/workflows/production-runs/accept-production-run.ts"
   },
+  "admin-accept-production-run": {
+    "fields": [
+      {
+        "name": "id",
+        "type": "id",
+        "required": false,
+        "placeholder": "{{ $last.id }}"
+      },
+      {
+        "name": "data",
+        "type": "object",
+        "required": false,
+        "placeholder": "{}"
+      }
+    ],
+    "source": "inferred",
+    "sourceFile": "src/workflows/production-runs/admin-accept-production-run.ts"
+  },
   "admin-complete-production-run": {
     "fields": [
       {
@@ -6046,6 +6168,42 @@
     ],
     "source": "custom_ts",
     "sourceFile": "src/workflows/production-runs/admin-complete-production-run.ts"
+  },
+  "admin-finish-production-run": {
+    "fields": [
+      {
+        "name": "id",
+        "type": "id",
+        "required": false,
+        "placeholder": "{{ $last.id }}"
+      },
+      {
+        "name": "data",
+        "type": "object",
+        "required": false,
+        "placeholder": "{}"
+      }
+    ],
+    "source": "inferred",
+    "sourceFile": "src/workflows/production-runs/admin-finish-production-run.ts"
+  },
+  "admin-start-production-run": {
+    "fields": [
+      {
+        "name": "id",
+        "type": "id",
+        "required": false,
+        "placeholder": "{{ $last.id }}"
+      },
+      {
+        "name": "data",
+        "type": "object",
+        "required": false,
+        "placeholder": "{}"
+      }
+    ],
+    "source": "inferred",
+    "sourceFile": "src/workflows/production-runs/admin-start-production-run.ts"
   },
   "approve-production-run": {
     "fields": [
@@ -6095,6 +6253,54 @@
     ],
     "source": "custom_ts",
     "sourceFile": "src/workflows/production-runs/assign-production-run-partner.ts"
+  },
+  "attach-media-to-production-run": {
+    "fields": [
+      {
+        "name": "production_run_id",
+        "type": "id",
+        "required": true,
+        "placeholder": "{{ $last.production_run_id }}"
+      },
+      {
+        "name": "media_url",
+        "type": "string",
+        "required": true,
+        "placeholder": "{{ $last.media_url }}"
+      },
+      {
+        "name": "media_mime_type",
+        "type": "string",
+        "required": false,
+        "placeholder": "{{ $last.media_mime_type }}"
+      },
+      {
+        "name": "filename",
+        "type": "string",
+        "required": false,
+        "placeholder": "{{ $last.filename }}"
+      },
+      {
+        "name": "message_id",
+        "type": "id",
+        "required": false,
+        "placeholder": "{{ $last.message_id }}"
+      },
+      {
+        "name": "conversation_id",
+        "type": "id",
+        "required": false,
+        "placeholder": "{{ $last.conversation_id }}"
+      },
+      {
+        "name": "actor_id",
+        "type": "id",
+        "required": false,
+        "placeholder": "{{ $last.actor_id }}"
+      }
+    ],
+    "source": "custom_ts",
+    "sourceFile": "src/workflows/production-runs/attach-media-to-production-run.ts"
   },
   "complete-production-run": {
     "fields": [

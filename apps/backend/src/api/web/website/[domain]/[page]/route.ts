@@ -33,6 +33,7 @@ export const GET = async (
         name: block.name,
         type: block.type,
         content: block.content,
+        settings: block.settings,
         order: block.order,
       })) || [],
     };

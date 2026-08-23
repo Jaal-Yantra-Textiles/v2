@@ -26,7 +26,7 @@ const invalidateStorefrontQueries = () => {
   queryClient.invalidateQueries({ queryKey: domainQueryKeys.detail("me") })
 }
 
-export type HostingProvider = "vercel" | "cloudflare" | "render" | "netlify"
+export type HostingProvider = "vercel" | "cloudflare" | "render" | "netlify" | "local"
 
 export interface StorefrontStatus {
   provisioned: boolean

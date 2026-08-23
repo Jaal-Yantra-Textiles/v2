@@ -124,6 +124,32 @@ export const DELETE = async (
   const projectRef = refs.projectRef
   const storefrontDomain = refs.storefrontDomain
 
+  // Dev bypass: no hosting project to delete — just clear storefront metadata.
+  if (process.env.NODE_ENV !== "production" && !projectRef && storefrontDomain) {
+    await updatePartnerWorkflow(req.scope).run({
+      input: {
+        id: partner.id,
+        data: {
+          metadata: stripStorefrontKeys(partner.metadata),
+          storefront_domain: null,
+          hosting_provider: null,
+          deployment_account_id: null,
+          deployment_project_id: null,
+          deployment_project_name: null,
+          vercel_project_id: null,
+          vercel_project_name: null,
+          vercel_last_deployment_id: null,
+          vercel_linked: false,
+        },
+      },
+    })
+
+    return res.json({
+      message: "Storefront removed (dev mode)",
+      results: { metadata: { action: "cleared" } },
+    })
+  }
+
   if (!projectRef) {
     throw new MedusaError(
       MedusaError.Types.NOT_FOUND,

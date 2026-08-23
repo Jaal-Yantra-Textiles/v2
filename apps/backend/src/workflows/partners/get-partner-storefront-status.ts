@@ -62,6 +62,30 @@ export const resolvePartnerStorefrontStatusStep = createStep(
     const refs = getStorefrontRefs(partner)
 
     if (!refs.projectRef) {
+      // Dev bypass: if storefront_domain is set but no hosting project ref,
+      // report as provisioned so the partner UI can create websites and
+      // edit content without a real hosting provider deployment.
+      if (
+        process.env.NODE_ENV !== "production" &&
+        refs.storefrontDomain
+      ) {
+        const isLocal = refs.storefrontDomain.startsWith("localhost")
+        const protocol = isLocal ? "http" : "https"
+        const storefrontUrl =
+          isLocal
+            ? (process.env.STOREFRONT_LOCAL_URL || "http://localhost:8000")
+            : `${protocol}://${refs.storefrontDomain}`
+        return new StepResponse({
+          provisioned: true,
+          provider: "local",
+          domain: refs.storefrontDomain,
+          storefront_url: storefrontUrl,
+          provisioned_at: refs.storefrontProvisionedAt,
+          project: { id: null, name: "Local Dev" },
+          latest_deployment: null,
+        } as PartnerStorefrontStatus)
+      }
+
       return new StepResponse({
         provisioned: false,
         provider: refs.providerName,

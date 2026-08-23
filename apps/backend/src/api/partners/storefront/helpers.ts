@@ -214,7 +214,9 @@ export const triggerStorefrontRevalidate = async (
 
   const url = domain.startsWith("http")
     ? `${domain.replace(/\/$/, "")}/api/revalidate`
-    : `https://${domain}/api/revalidate`
+    : domain.startsWith("localhost")
+      ? `${process.env.STOREFRONT_LOCAL_URL || "http://localhost:8000"}/api/revalidate`
+      : `https://${domain}/api/revalidate`
 
   const controller = new AbortController()
   const timer = setTimeout(() => controller.abort(), 5000)
