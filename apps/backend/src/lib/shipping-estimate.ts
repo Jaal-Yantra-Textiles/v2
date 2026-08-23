@@ -129,6 +129,48 @@ export function resolveUnitWeight(variant: {
 }
 
 /**
+ * PURE: may this shipping option be OFFERED as outbound freight?
+ *
+ * 🔴 The fourth blindness on this picker, and the same shape as the other
+ * three: it sorts on the raw amount, so any row that does not belong on the
+ * lane wins by being small.
+ *
+ * `create-store-with-defaults` gives every store a **"Return Shipping"** option
+ * — flat, untiered, and deliberately cheap (₹100 against a ₹200 base) — carrying
+ * an option-level rule `is_return = true`. The estimate read PRICE rules (#1430)
+ * and never option rules, so the return row was pushed as an ordinary offer and
+ * became the cheapest option on every domestic Indian lane. Quotes were being
+ * freighted at the return-pickup rate.
+ *
+ * `enabled_in_store: "false"` is refused for the same reason a revoked quote is
+ * not re-priced: an option the store has switched off is not an offer we may
+ * make on its behalf. An option with no rules at all is allowed — absence is
+ * not a prohibition, and most hand-made options carry none.
+ */
+export function isQuotableShippingOption(shippingOption: any): boolean {
+  const rules = (shippingOption?.rules ?? []) as Array<{
+    attribute?: string
+    value?: unknown
+    operator?: string
+  }>
+
+  for (const rule of rules) {
+    const attribute = String(rule?.attribute || "").trim()
+    const value = String(rule?.value ?? "").trim().toLowerCase()
+
+    if (attribute === "is_return" && value === "true") return false
+    if (attribute === "enabled_in_store" && value === "false") return false
+  }
+
+  // Belt and braces: a return option created by hand — or by core's own return
+  // flows — may carry the type without the rule.
+  const typeCode = String(shippingOption?.type?.code || "").toLowerCase()
+  if (typeCode === "return") return false
+
+  return true
+}
+
+/**
  * PURE: does this service zone actually cover the destination country?
  *
  * A shipping option is an offer to carry a parcel to the zone it belongs to.
@@ -281,6 +323,9 @@ export async function buildShippingEstimate(
       // Needed to SKIP conditional prices — see the rule check below. Without
       // this relation the rows arrive looking unconditional.
       "fulfillment_sets.service_zones.shipping_options.prices.price_rules.*",
+      // OPTION-level rules, which are a different thing from price rules and
+      // were never read. See `isQuotableShippingOption`.
+      "fulfillment_sets.service_zones.shipping_options.rules.*",
     ],
     filters: { id: input.store.default_location_id },
   })
@@ -297,6 +342,8 @@ export async function buildShippingEstimate(
 
       for (const so of zone?.shipping_options || []) {
         if (so?.price_type === "calculated") continue
+        // 🔴 A RETURN option is not an outbound offer. See below.
+        if (!isQuotableShippingOption(so)) continue
         for (const price of so?.prices || []) {
           // Only currency-scoped flat prices are meaningful without a cart;
           // region-scoped ones need a region the estimate does not have.
@@ -344,6 +391,31 @@ export async function buildShippingEstimate(
 
   // ---- Calculated rates — cached per lane --------------------------------
   const carrier = String(input.carrier || "shiprocket").toLowerCase()
+
+  /**
+   * "manual" is an explicit choice to ask NO carrier (#1447).
+   *
+   * 🔑 Distinct from a carrier that fails: a failure logs, sets
+   * `calculated_error` and warrants an "indicative rate" notice on the buyer's
+   * page. This is someone deciding the lane is priced by hand, so there is
+   * nothing to report and nothing to retry — the manual tiers gathered above
+   * are the whole answer.
+   */
+  if (carrier === "manual" || carrier === "none") {
+    return {
+      lines,
+      total_weight_grams: totalWeightGrams,
+      origin_postal_code: originPostalCode,
+      destination_postal_code: destinationPostalCode,
+      country_code: countryCode,
+      manual,
+      calculated: [],
+      calculated_error: null,
+      cache_hit: false,
+      is_estimate: true,
+    }
+  }
+
   const weightBucket = weightBucketGrams(totalWeightGrams)
   const cacheKey = `shipping-estimate:${carrier}:${originPostalCode}:${destinationPostalCode}:${countryCode}:${weightBucket}`
 

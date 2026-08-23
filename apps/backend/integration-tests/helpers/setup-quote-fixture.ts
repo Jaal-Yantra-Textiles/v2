@@ -7,6 +7,28 @@ export const QUOTE_FIXTURE_CURRENCY = "inr"
 /** Flat freight for the whole consignment, in the smallest unit. */
 export const FLAT_FREIGHT_AMOUNT = 15000
 
+/**
+ * What `create-store-with-defaults` ALSO puts on an Indian store's lane, which
+ * the fixture does not own and cannot suppress (#1447).
+ *
+ * 🔴 `RETURN` is the one that mattered: a flat "Return Shipping" option, priced
+ * deliberately below the outbound base, carrying an option-level rule
+ * `is_return = true`. The estimate read PRICE rules and never OPTION rules, so
+ * it was offered as ordinary freight — and the picker sorts on the raw amount,
+ * so it won every domestic Indian lane. Quotes were being freighted at the
+ * return-pickup rate.
+ *
+ * `STANDARD` is the legitimate cheapest offer on this lane once the return row
+ * is gone, which is why the fixture's own 15,000 does not win: provisioning
+ * creates real options, and the cheapest genuine one is the honest answer.
+ *
+ * Mirrors the `pricingByRegion` table in `create-store-with-defaults.ts`. If
+ * that changes, this fails loudly rather than silently asserting the wrong
+ * number.
+ */
+export const PROVISIONED_STANDARD_FREIGHT_INR = 200
+export const PROVISIONED_RETURN_FREIGHT_INR = 100
+
 export const VARIANT_A_PRICE = 35000
 /**
  * The volume tier on variant A, and the quantity it starts at.

@@ -21,7 +21,49 @@ export type QuoteMoney = {
   unit_amount: number
   subtotal: number
   freight: number
+  /** Goods + freight. NOT a customs-landed cost — see `QuoteTax`. */
   landed_total: number
+  /** #1439 S8. Null means unknown, never zero. */
+  tax_total: number | null
+  /**
+   * The DDP undertaking, split (#1447). Null = not a DDP quote or no figure;
+   * `0` = the charge applies to this lane and is nil (AI-ECTA into AU).
+   * None of them is inside `landed_total`.
+   *
+   * 🔴 `import_tax_total` is usually the LARGEST: 21% of goods + freight + duty
+   * against an 8% duty. `ddp_fee_total` is the carrier's charge for advancing
+   * the money.
+   */
+  duty_total: number | null
+  import_tax_total: number | null
+  ddp_fee_total: number | null
+  /**
+   * `landed_total`, plus tax when the prices are tax-exclusive (when inclusive
+   * the tax is already inside it), plus any prepaid duty.
+   * Null whenever `tax_total` is.
+   */
+  gross_total: number | null
+}
+
+/**
+ * How tax was resolved for this quote (#1439 S8).
+ *
+ * 🔴 `reason` is rendered verbatim whenever `status` is not `calculated`. A tax
+ * block that silently disappears reads as "no tax due", which is a claim; on a
+ * `zero_rated_export` the zero is real but duty and import VAT still fall on the
+ * buyer at their border, and that sentence is the only place they are told.
+ */
+export type QuoteTax = {
+  status: "calculated" | "zero_rated_export" | "not_applicable" | "unknown"
+  total: number | null
+  inclusive: boolean
+  rates: Array<{
+    code: string | null
+    name: string
+    rate: number
+    on: "goods" | "freight"
+  }>
+  reason: string | null
 }
 
 /** One labelled fact about how the piece is made. #1428 */
@@ -58,6 +100,30 @@ export type QuoteProducer = {
   is_verified: boolean
   /** The partner's own shop. Null when they have no verified/provisioned host. */
   url: string | null
+}
+
+/** One labelled, public-safe fact about the maker. #1439 S9 */
+export type ProvenanceRow = {
+  /** Stable machine key, so a renderer can style or reorder without parsing labels. */
+  key: string
+  label: string
+  value: string
+  /** Which record the fact came from — an unattributed fact is a claim. */
+  source: "partner" | "partner-onboarding-profile" | "artisan-product-detail"
+}
+
+/**
+ * Who made this, and how.
+ *
+ * 🔑 The backend OMITS a row whose fact is absent rather than em-dashing it, and
+ * excludes every commercial term. Render `rows` as given — never add a
+ * placeholder value, and never widen this shape client-side.
+ */
+export type Provenance = {
+  maker_name: string | null
+  /** Free prose, rendered as a paragraph rather than a row. */
+  maker_story: string | null
+  rows: ProvenanceRow[]
 }
 
 export type QuoteViewLine = {
@@ -101,6 +167,26 @@ export type QuoteView = {
   destination_postal_code: string | null
   live: QuoteMoney | null
   quoted: QuoteMoney | null
+  tax: QuoteTax
+  /**
+   * The DDP undertaking and the duty figure behind it (#1447). `prepaid` with a
+   * null `total` is a legacy row: the promise was made before anything computed
+   * the amount, so the page must not print a confident "nothing further to pay".
+   */
+  duty: {
+    prepaid: boolean
+    /** Customs duty. */
+    total: number | null
+    /** Destination VAT/GST we also pay. */
+    import_tax: number | null
+    /** The carrier's fee for advancing duty and tax. */
+    carrier_fee: number | null
+    /** The three summed — what the undertaking adds to the buyer's total. */
+    combined_total: number | null
+    duty_rate_percent: number | null
+    import_tax_rate_percent: number | null
+    basis: string | null
+  }
   total_weight_grams: number | null
   freight: {
     chosen: QuoteFreightOption | null
@@ -128,6 +214,11 @@ export type QuoteView = {
    * again is noise.
    */
   producer: QuoteProducer | null
+  /**
+   * The maker section. Null means "say nothing" — a partner with a thin profile
+   * degrades to fewer rows, and one we know nothing about to no section at all.
+   */
+  provenance: Provenance | null
   expires_in_days: number | null
   live_error: string | null
 }

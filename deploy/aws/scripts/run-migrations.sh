@@ -161,13 +161,48 @@ for _ in $(seq 1 15); do
       --region "$AWS_REGION" \
       --query "logStreams[?logStreamName=='$STREAM'] | length(@)" \
       --output text 2>/dev/null | grep -q "^1$"; then
-    aws logs get-log-events \
-      --log-group-name "$LOG_GROUP" \
-      --log-stream-name "$STREAM" \
-      --region "$AWS_REGION" \
-      --start-from-head --limit 500 \
-      --query 'events[*].message' --output text 2>/dev/null \
-      | tr '\t' '\n'
+    # 🔴 PAGE THROUGH. This used to be a single call with `--limit 500`, and
+    # the run reports ~4 lines per module across 120+ modules — so the output
+    # stopped mid-alphabet, EVERY TIME, with no marker saying it had.
+    #
+    # That is not cosmetic. On 22 Aug a module's migration status was read as
+    # "never ran" purely because its MODULE line fell past event 500, and an
+    # hour went into recovering a migration that had already been applied. A
+    # truncated log that does not admit it is worse than no log: it reads as
+    # evidence of absence.
+    NEXT_TOKEN=""
+    PAGES=0
+    while [ "$PAGES" -lt 50 ]; do
+      if [ -z "$NEXT_TOKEN" ]; then
+        PAGE=$(aws logs get-log-events \
+          --log-group-name "$LOG_GROUP" --log-stream-name "$STREAM" \
+          --region "$AWS_REGION" --start-from-head --limit 1000 --output json 2>/dev/null || echo '{}')
+      else
+        PAGE=$(aws logs get-log-events \
+          --log-group-name "$LOG_GROUP" --log-stream-name "$STREAM" \
+          --region "$AWS_REGION" --start-from-head --limit 1000 \
+          --next-token "$NEXT_TOKEN" --output json 2>/dev/null || echo '{}')
+      fi
+      COUNT=$(echo "$PAGE" | python3 -c "import json,sys; print(len(json.load(sys.stdin).get('events',[])))" 2>/dev/null || echo 0)
+      echo "$PAGE" | python3 -c "
+import json, sys
+for e in json.load(sys.stdin).get('events', []):
+    print(e.get('message', ''))
+" 2>/dev/null || true
+      NEW_TOKEN=$(echo "$PAGE" | python3 -c "import json,sys; print(json.load(sys.stdin).get('nextForwardToken',''))" 2>/dev/null || echo "")
+      # ⚠️ if-blocks, never `[ x ] && break` as the last line of the body: under
+      # `set -e` a false test IS the body's exit status and kills the script.
+      # That exact shape silently broke the migrate gate once already — see the
+      # note in deploy-to-aws.yml.
+      #
+      # get-log-events returns the SAME forward token once the stream is
+      # exhausted; that repeat, not an empty page, is the end marker.
+      if [ "$COUNT" = "0" ]; then break; fi
+      if [ -z "$NEW_TOKEN" ]; then break; fi
+      if [ "$NEW_TOKEN" = "$NEXT_TOKEN" ]; then break; fi
+      NEXT_TOKEN="$NEW_TOKEN"
+      PAGES=$((PAGES + 1))
+    done
     LOGS_PRINTED=1
     break
   fi

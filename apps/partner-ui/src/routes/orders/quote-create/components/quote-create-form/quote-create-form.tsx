@@ -50,11 +50,14 @@ const initialTabState: TabState = {
 type QuoteCreateFormProps = {
   currencies: string[]
   defaultCurrency?: string
+  /** ISO-2 of the store's dispatch country, or null when unknown (#1447). */
+  originCountryCode?: string | null
 }
 
 export const QuoteCreateForm = ({
   currencies,
   defaultCurrency,
+  originCountryCode,
 }: QuoteCreateFormProps) => {
   const [tab, setTab] = useState<Tab>(Tab.BUYER)
   const [tabState, setTabState] = useState<TabState>(initialTabState)
@@ -84,6 +87,15 @@ export const QuoteCreateForm = ({
       ttl_days: 14,
       product_ids: [],
       quantities: {},
+      discounts: {},
+      overrides: {},
+      // Never defaulted on: a DDP promise applied by default would tell a buyer
+      // there is nothing to pay on a shipment nobody arranged clearance for.
+      duties_prepaid: false,
+      duty_rate_percent: null,
+      import_tax_rate_percent: null,
+      ddp_fee_total: null,
+      duty_basis: null,
     },
     resolver: zodResolver(QuoteCreateSchema),
   })
@@ -109,11 +121,28 @@ export const QuoteCreateForm = ({
      */
     const lines = Object.entries(data.quantities ?? {})
       .filter(([, qty]) => typeof qty === "number" && qty > 0)
-      .map(([variant_id, qty], index) => ({
-        variant_id,
-        quantity: qty as number,
-        position: index,
-      }))
+      .map(([variant_id, qty], index) => {
+        /**
+         * A blank override cell is "no override", never a zero (#1446). Sent
+         * as 0 it would ask the backend to mint an ACTIVE price of zero — it
+         * refuses, but the refusal would arrive as a failed mint rather than
+         * as the no-op the partner intended. Dropped here, and only a real
+         * positive number is sent.
+         */
+        const discount = data.discounts?.[variant_id]
+        const override = data.overrides?.[variant_id]
+        return {
+          variant_id,
+          quantity: qty as number,
+          position: index,
+          ...(typeof discount === "number" && discount > 0
+            ? { discount_percent: discount }
+            : {}),
+          ...(typeof override === "number" && override > 0
+            ? { override_unit_amount: override }
+            : {}),
+        }
+      })
 
     if (!lines.length) {
       toast.error(
@@ -174,6 +203,20 @@ export const QuoteCreateForm = ({
         destination_city: data.destination_city || null,
         currency_code: data.currency_code,
         ttl_days: data.ttl_days,
+        // Sent as a pair or not at all — the backend refuses the promise
+        // without its number, and the number without the promise (#1447).
+        duties_prepaid: data.duties_prepaid ?? false,
+        ...(data.duties_prepaid
+          ? {
+              // Rates, not money: the mint computes the amounts against the
+              // basket it actually prices. This form knows neither the tiered
+              // subtotal nor the freight until then.
+              duty_rate_percent: data.duty_rate_percent ?? null,
+              import_tax_rate_percent: data.import_tax_rate_percent ?? null,
+              ddp_fee_total: data.ddp_fee_total ?? null,
+              duty_basis: data.duty_basis || null,
+            }
+          : {}),
       },
       {
         onSuccess: (result) => {
@@ -314,7 +357,11 @@ export const QuoteCreateForm = ({
               className="size-full overflow-y-auto p-16"
               value={Tab.BUYER}
             >
-              <QuoteBuyerForm form={form} currencies={currencies} />
+              <QuoteBuyerForm
+                form={form}
+                currencies={currencies}
+                originCountryCode={originCountryCode}
+              />
             </ProgressTabs.Content>
             <ProgressTabs.Content
               className="size-full overflow-y-auto"

@@ -304,7 +304,15 @@ export class BlueDartProviderAdapter implements ShippingProviderClient {
     return {
       CurrencyCode: (input.currency || "INR").toUpperCase(),
       IsCommercialShipment: input.customs?.commodity !== false,
-      IncotermCode: "DAP",
+      /**
+       * 🔴 Was hardcoded "DAP" — delivered at place, duty UNPAID. On a sale
+       * made DDP that declaration is the opposite of what the buyer was told,
+       * and the correction arrives as a customs bill weeks after they paid.
+       *
+       * Defaults to DAP still, because duty-unpaid is what an ordinary export
+       * is; DDP is only sent when the sale actually carried the undertaking.
+       */
+      IncotermCode: input.customs?.incoterm === "DDP" ? "DDP" : "DAP",
       TermsOfTrade: input.customs?.terms_of_invoice === "CIF" ? "CIF" : "FOB",
       ExportReason:
         input.customs?.reason_of_export === 2 ? "Gift" : "Sale of Goods",

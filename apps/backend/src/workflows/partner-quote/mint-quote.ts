@@ -17,13 +17,24 @@ import {
 } from "@medusajs/medusa/core-flows"
 
 import { PARTNER_QUOTE_MODULE } from "../../modules/partner-quote"
-import { buildQuoteView } from "../../modules/partner-quote/lib/build-quote-view"
+import {
+  buildQuoteView,
+  resolveStoreOriginCountry,
+} from "../../modules/partner-quote/lib/build-quote-view"
 import { assessQuoteReadiness } from "../../modules/partner-quote/lib/quote-readiness"
 import {
   generateQuoteToken,
   quoteExpiryFrom,
   DEFAULT_QUOTE_TTL_DAYS,
 } from "../../modules/partner-quote/lib/token"
+import { composeQuoteMoney } from "../../modules/partner-quote/lib/build-quote-view"
+import {
+  classifyQuoteJurisdiction,
+  resolveQuoteTax,
+} from "../../modules/partner-quote/lib/quote-tax"
+import { fetchExchangeRate } from "../../lib/fx/exchange-rate"
+import { pickDefaultCurrency } from "../../lib/resolve-store-currency"
+import { needsExchangeRate, resolveLineOverride } from "./lib/line-override"
 import {
   planQuotePrices,
   priceListScopedToGroup,
@@ -42,6 +53,10 @@ export type MintQuoteInput = {
     quantity: number
     position?: number
     note?: string | null
+    /** 0-100, off the live catalog price at this line's quantity (#1439 S7). */
+    discount_percent?: number | null
+    /** A flat unit price, in the PARTNER STORE's default currency. */
+    override_unit_amount?: number | null
   }>
   destination_country_code: string
   destination_postal_code?: string | null
@@ -49,6 +64,29 @@ export type MintQuoteInput = {
   currency_code: string
   region_id?: string | null
   carrier?: string
+  /** Quote as DDP — we pay the destination duty and import tax (#1447). */
+  duties_prepaid?: boolean
+  /**
+   * The duty amount we are undertaking to pay, in the QUOTE currency, and the
+   * note saying how it was arrived at (#1447).
+   *
+   * Entered by hand because nothing can derive it yet: HS codes are incomplete
+   * and Shiprocket's tariff endpoint is gated on CSB-5 KYC. The validator
+   * refuses `duties_prepaid` without an amount, so no quote can promise duty
+   * cover and add nothing to the price.
+   */
+  duty_total?: number | null
+  duty_basis?: string | null
+  /**
+   * The rate form, and the normal one. The amounts are computed by
+   * `buildQuoteView` against the basket it actually priced — duty on
+   * goods + freight, import tax on goods + freight + duty.
+   */
+  duty_rate_percent?: number | null
+  import_tax_rate_percent?: number | null
+  import_tax_total?: number | null
+  /** The carrier's fee for advancing duty and tax. Always an amount. */
+  ddp_fee_total?: number | null
   ttl_days?: number
   created_by?: string | null
   /** Injected so the whole mint is deterministic under test. */
@@ -243,8 +281,47 @@ const buildAndFreezeStep = createStep(
       region_id: input.region_id ?? null,
       store: input.store,
       carrier: input.carrier,
+      // The row does not exist yet, so the undertaking is supplied directly —
+      // it changes the disclosure the buyer is shown, which then gets frozen.
+      duties_prepaid: input.duties_prepaid ?? false,
+      duty_total: input.duty_total ?? null,
+      duty_basis: input.duty_basis ?? null,
+      duty_rate_percent: input.duty_rate_percent ?? null,
+      import_tax_rate_percent: input.import_tax_rate_percent ?? null,
+      import_tax_total: input.import_tax_total ?? null,
+      ddp_fee_total: input.ddp_fee_total ?? null,
       now: payload.now,
     })
+
+    /**
+     * 🔴 DDP is meaningless on a domestic lane, and not harmlessly so.
+     *
+     * There is no border, so no duty and no import tax arise — but the charges
+     * are ADDED to the buyer's total, so a mistakenly-ticked flag bills them for
+     * a customs event that will never happen. The wizards hide the section on a
+     * domestic destination; this refuses it, because a hidden field is a UI
+     * convention and the API is reachable without one.
+     *
+     * `unknown_origin` is deliberately allowed through: the tax block already
+     * says the treatment could not be determined, and refusing a promise the
+     * partner may have good reason to make — on evidence we do not have — is
+     * the wrong side to fail on.
+     */
+    if (input.duties_prepaid) {
+      const jurisdiction = classifyQuoteJurisdiction(
+        view.origin_country_code,
+        input.destination_country_code
+      )
+      if (jurisdiction === "domestic") {
+        throw new MedusaError(
+          MedusaError.Types.INVALID_DATA,
+          `This quote ships within ${String(
+            input.destination_country_code || ""
+          ).toUpperCase()}, so no import duty or tax arises and there is nothing to prepay. ` +
+            "Nothing was written — a DDP charge on a domestic lane bills the buyer for a border they never cross."
+        )
+      }
+    }
 
     if (!view.live) {
       throw new MedusaError(
@@ -256,6 +333,189 @@ const buildAndFreezeStep = createStep(
     }
 
     return new StepResponse(view)
+  }
+)
+
+/**
+ * Apply the partner's trade prices, and rewrite the view around them (#1439 S7).
+ *
+ * ## Why this replaces the numbers IN THE VIEW rather than beside them
+ *
+ * The whole point of `build-quote-view.ts` is that ONE builder feeds the page,
+ * the email and the freeze, so no second pricing path can disagree with what
+ * the buyer sees. An override carried alongside the view would create exactly
+ * that second path: the price list would hold the trade price while the frozen
+ * `quoted_subtotal` and the buyer's page still showed retail.
+ *
+ * So the override is folded back in — per line, and then the basket totals are
+ * recomposed from the overridden subtotals with the same `composeQuoteMoney`
+ * the builder used. Downstream, nothing knows an override happened; there is
+ * still exactly one number per line.
+ *
+ * Freight is untouched. A trade price is a discount on goods, not on shipping,
+ * and the consignment costs what it costs.
+ *
+ * ## FX is fetched at most once, and only when it is actually needed
+ *
+ * A same-currency mint — the overwhelming majority — never touches the
+ * network, so an FX outage cannot block one. When a rate IS needed and cannot
+ * be had, the mint FAILS: `fetchExchangeRate` throws and nothing here catches
+ * it. A conversion that silently falls back to 1 does not fail, it quotes
+ * 60,000 INR as 60,000 USD.
+ */
+const applyLineOverridesStep = createStep(
+  "apply-quote-line-overrides-step",
+  async (
+    payload: { mint: MintQuoteInput; view: any },
+    { container }
+  ) => {
+    const input = payload.mint
+    const view = payload.view
+    const overrideByVariant = new Map(
+      (input.lines ?? []).map((l) => [l.variant_id, l])
+    )
+
+    const anyOverride = (input.lines ?? []).some(
+      (l) =>
+        (l.discount_percent !== null && l.discount_percent !== undefined) ||
+        (l.override_unit_amount !== null && l.override_unit_amount !== undefined)
+    )
+    if (!anyOverride) {
+      // Nothing to do, and — importantly — no store read and no FX call on the
+      // path every ordinary quote takes.
+      return new StepResponse(view)
+    }
+
+    // ---- The currency the partner typed in ------------------------------
+    // Shaped by the same helper every other currency decision uses (#485), but
+    // with an EMPTY fallback rather than its default "inr": `resolveStoreCurrency`
+    // never throws and always returns a usable code, which is right for
+    // stamping a work order and wrong here. Guessing a currency for a number
+    // someone typed is how a rupee price gets quoted as dollars.
+    const query: any = container.resolve(ContainerRegistrationKeys.QUERY)
+    let storeCurrency = ""
+    try {
+      const { data: stores } = await query.graph({
+        entity: "store",
+        // `supported_currencies.*` MUST be expanded or the default flag is
+        // absent and every currency reads as "not default".
+        fields: ["id", "supported_currencies.*"],
+        filters: { id: input.store.id },
+      })
+      storeCurrency = pickDefaultCurrency((stores ?? [])[0], "")
+    } catch {
+      storeCurrency = ""
+    }
+
+    if (!storeCurrency) {
+      // 🔴 Never fall back to the quote currency. The override is a number in
+      // the partner's own currency; assuming it is already in the buyer's is
+      // how a rupee price gets quoted as dollars.
+      throw new MedusaError(
+        MedusaError.Types.INVALID_DATA,
+        "This store has no default currency, so a per-line override has no currency to be read in. " +
+          "Nothing was written."
+      )
+    }
+
+    const rate = needsExchangeRate(
+      input.lines ?? [],
+      storeCurrency,
+      input.currency_code
+    )
+      ? await fetchExchangeRate(storeCurrency, input.currency_code)
+      : 1
+
+    const lines = (view?.lines ?? []).map((l: any) => {
+      const requested = overrideByVariant.get(l.variant_id)
+      const resolved = resolveLineOverride({
+        live_unit_amount: l.live_unit_amount ?? null,
+        discount_percent: requested?.discount_percent ?? null,
+        override_unit_amount: requested?.override_unit_amount ?? null,
+        fx_rate: rate,
+        store_currency_code: storeCurrency,
+        quote_currency_code: input.currency_code,
+      })
+
+      return {
+        ...l,
+        live_unit_amount: resolved.unit_amount,
+        live_subtotal:
+          resolved.unit_amount === null
+            ? null
+            : resolved.unit_amount * Number(l.quantity),
+        override: resolved.override,
+      }
+    })
+
+    const priced = lines.filter((l: any) => l.live_subtotal !== null)
+
+    /**
+     * 🔴 Tax is RE-ASKED against the overridden prices, not carried over.
+     *
+     * `buildQuoteView` computed it from the catalogue prices, before this step
+     * existed to discount them. A 20% trade price on a domestic quote therefore
+     * froze 18% GST on the RETAIL subtotal — tax on money the buyer was never
+     * asked for, in the confident direction, on exactly the quotes a partner
+     * had negotiated. The number that gets frozen is `view.tax`, so this was
+     * wrong in the row as well as on the page.
+     *
+     * Same module, same inputs, one different set of line amounts — so the
+     * quote and the cart that later prices itself still cannot disagree.
+     * `resolveQuoteTax` never throws: an unresolvable rate lands on `unknown`
+     * WITH a reason, which is what the page renders.
+     */
+    const originCountry = await resolveStoreOriginCountry(
+      container,
+      input.store?.default_location_id
+    )
+    const chosenFreight = view?.freight?.chosen ?? null
+    const tax =
+      view?.live && chosenFreight
+        ? await resolveQuoteTax(container, {
+            region_id: input.region_id ?? null,
+            origin_country_code: originCountry,
+            duties_prepaid: Boolean(input.duties_prepaid),
+            destination_country_code: input.destination_country_code,
+            destination_postal_code: input.destination_postal_code ?? null,
+            lines: priced.map((l: any) => ({
+              variant_id: l.variant_id,
+              product_id: l.product_id ?? null,
+              // The OVERRIDDEN unit price. Passing the catalogue one here is
+              // the whole defect this re-ask exists to remove.
+              unit_amount: Number(l.live_unit_amount ?? 0),
+              quantity: Number(l.quantity ?? 0),
+            })),
+            freight: {
+              amount: Number(chosenFreight.amount ?? 0),
+              option_id: (chosenFreight as any)?.id ?? null,
+            },
+          })
+        : view?.tax
+
+    /**
+     * 🔴 Tax and duty are carried across the recompose, not dropped.
+     *
+     * This call used to pass subtotals and freight only, so `tax_total`,
+     * `duty_total` and `gross_total` all came back null on any quote with a
+     * trade price — the buyer page showed no total at all, on precisely the
+     * quotes a partner had priced by hand. The freeze reads `view.tax`
+     * separately, so the row was right and only the page was wrong, which is
+     * why it survived.
+     */
+    const live = view?.live
+      ? composeQuoteMoney(
+          priced.map((l: any) => Number(l.live_subtotal)),
+          priced.reduce((sum: number, l: any) => sum + Number(l.quantity), 0),
+          Number(view.live.freight ?? 0),
+          tax
+            ? { total: tax.total ?? null, inclusive: Boolean(tax.inclusive) }
+            : null,
+          view.live.duty_total ?? null
+        )
+      : view?.live ?? null
+
+    return new StepResponse({ ...view, lines, live, tax })
   }
 )
 
@@ -550,6 +810,37 @@ const persistQuoteStep = createStep(
       quoted_freight: input.view.live?.freight ?? null,
       quoted_landed_total: input.view.live?.landed_total ?? null,
       quoted_weight_grams: input.view.total_weight_grams ?? null,
+      // Tax frozen alongside the rest (#1439 S8). Read off `view.tax` rather
+      // than `view.live.tax_total`: the money object carries the NUMBER, and a
+      // number alone cannot distinguish "zero-rated export" from "we could not
+      // work it out" — both are a 0 and only one of them is a fact.
+      //
+      // `?? null` throughout, never `?? 0`. A quote whose tax could not be
+      // resolved must freeze as unknown; writing 0 would turn a gap into a
+      // confident claim of no tax due, which is the failure this whole slice is
+      // built around.
+      quoted_tax_total: input.view.tax?.total ?? null,
+      quoted_tax_inclusive: input.view.tax?.inclusive ?? null,
+      quoted_tax_status: input.view.tax?.status ?? null,
+      quoted_tax_reason: input.view.tax?.reason ?? null,
+      // Frozen with the rest: it is part of what the buyer was promised, and a
+      // later page read must show the same undertaking, not re-derive it.
+      duties_prepaid: input.mint.duties_prepaid ?? false,
+      // The duty figure freezes with the promise it backs. Read off the VIEW,
+      // which has already refused to carry an amount on a non-DDP quote, so a
+      // stray number in the body cannot be stored against a quote whose buyer
+      // was told duty is theirs to pay.
+      quoted_duty_total: input.view.duty?.total ?? null,
+      // The other two thirds. Duty alone funds ~a quarter of a real EU
+      // undertaking — the import tax is the big one and the carrier charges a
+      // fee for advancing both.
+      quoted_import_tax_total: input.view.duty?.import_tax ?? null,
+      quoted_ddp_fee_total: input.view.duty?.carrier_fee ?? null,
+      // Frozen so the amounts can be re-derived against a carrier invoice
+      // months later rather than merely believed.
+      quoted_duty_rate: input.view.duty?.duty_rate_percent ?? null,
+      quoted_import_tax_rate: input.view.duty?.import_tax_rate_percent ?? null,
+      quoted_duty_basis: input.view.duty?.basis ?? null,
       quoted_at: new Date(input.now),
       token_hash: hash,
       status: "active",
@@ -574,6 +865,14 @@ const persistQuoteStep = createStep(
         quoted_unit_weight_grams: l.unit_weight_grams ?? null,
         quoted_weight_source: l.weight_source ?? null,
         note: l.note ?? null,
+        // #1439 S7 — HOW the price above was reached. Null on a line quoted at
+        // its catalog price, which is most of them. The three override fields
+        // travel together: without the input amount and the rate, a converted
+        // number cannot be reproduced once FX has moved.
+        override_kind: l.override?.kind ?? null,
+        override_input_amount: l.override?.input_amount ?? null,
+        override_input_currency_code: l.override?.input_currency_code ?? null,
+        override_fx_rate: l.override?.fx_rate ?? null,
       }))
     )
 
@@ -605,7 +904,19 @@ export const mintQuoteWorkflow = createWorkflow(
     validateQuoteReadinessStep(input)
 
     const buyer = resolveQuoteBuyerStep(input)
-    const view = buildAndFreezeStep({ mint: input, now: timing.now } as any)
+    const catalogView = buildAndFreezeStep({ mint: input, now: timing.now } as any)
+
+    /**
+     * The trade price (#1439 S7). Returns the SAME view with the overridden
+     * numbers folded in, so every consumer below — the price list, the frozen
+     * row, the basket totals — reads one number and no second pricing path
+     * exists. A basket with no overrides passes straight through, untouched
+     * and without a store read or an FX call.
+     */
+    const view = applyLineOverridesStep({
+      mint: input,
+      view: catalogView,
+    } as any)
 
     /**
      * 🔴 The amount to freeze is the LIVE one.

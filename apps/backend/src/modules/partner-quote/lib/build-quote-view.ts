@@ -1,6 +1,10 @@
 import { ContainerRegistrationKeys, MedusaError, QueryContext } from "@medusajs/framework/utils"
 
 import {
+  resolveQuoteProvenance,
+} from "../../../lib/provenance/resolve-provenance"
+import type { Provenance } from "../../../lib/provenance/build-provenance"
+import {
   buildShippingEstimate,
   type ShippingEstimate,
   type ShippingEstimateOption,
@@ -11,6 +15,13 @@ import {
   type QuoteMoney,
 } from "./compare"
 import { resolveQuoteProducer, type QuoteProducer } from "./quote-producer"
+import { resolveQuoteTax, type QuoteTax } from "./quote-tax"
+import { computeDdpCharges, describeDdpBasis } from "./ddp-charges"
+import {
+  pickRatingCarrier,
+  readEnabledCarrierIds,
+} from "../../shipping-providers/rating-carrier"
+import { classifyQuoteJurisdiction } from "./quote-tax"
 import { resolveQuoteSpecs, type QuoteLineSpec } from "./quote-spec"
 import { daysUntilExpiry, quoteUnusableReason } from "./token"
 
@@ -78,6 +89,20 @@ export type QuoteViewQuote = {
   quoted_freight?: number | null
   quoted_landed_total?: number | null
   quoted_weight_grams?: number | null
+  /** #1439 S8. Null on every quote minted before tax existed. */
+  quoted_tax_total?: number | null
+  quoted_tax_inclusive?: boolean | null
+  /** #1439 S8 tail. Frozen so a dead link can still say WHY the tax is what it is. */
+  quoted_tax_status?: string | null
+  quoted_tax_reason?: string | null
+  duties_prepaid?: boolean | null
+  /** #1447. The DDP charges we committed to, and how they were arrived at. */
+  quoted_duty_total?: number | null
+  quoted_import_tax_total?: number | null
+  quoted_ddp_fee_total?: number | null
+  quoted_duty_rate?: number | null
+  quoted_import_tax_rate?: number | null
+  quoted_duty_basis?: string | null
   quoted_at?: Date | string | null
   recipient_name?: string | null
   recipient_company?: string | null
@@ -113,6 +138,38 @@ export type BuildQuoteViewInput = {
    */
   viewer_sales_channel_ids?: string[] | null
   carrier?: string
+  /**
+   * Quote as DDP — we pay destination duty and import tax. Supplied by the mint
+   * (the row does not exist yet); afterwards it is read off the frozen quote.
+   */
+  duties_prepaid?: boolean
+  /**
+   * The duty we are undertaking to pay, in the quote currency, and the note
+   * saying how the partner got there (#1447). Supplied by the mint; afterwards
+   * both are read off the frozen row so a re-read cannot invent a new figure.
+   *
+   * Only meaningful with `duties_prepaid` — the API refuses one without the
+   * other, so a DDP promise always carries a number.
+   */
+  duty_total?: number | null
+  duty_basis?: string | null
+  /**
+   * The rate form (#1447), and the preferred one. The wizard collects the two
+   * percentages and the AMOUNTS ARE COMPUTED HERE, against the quote's own
+   * subtotal and freight — the wizard cannot know those before the mint prices
+   * the basket, so a client-computed amount would be an estimate frozen as a
+   * commitment.
+   *
+   * Duty is assessed on goods + freight; import tax on goods + freight + duty.
+   * The cascade is the part people get wrong by hand, always in the direction
+   * that under-funds the promise.
+   */
+  duty_rate_percent?: number | null
+  import_tax_rate_percent?: number | null
+  /** A flat import tax, where a rate does not express the lane. */
+  import_tax_total?: number | null
+  /** The carrier's charge for advancing duty and tax. Always an amount. */
+  ddp_fee_total?: number | null
   /** Passed in so the whole view is deterministic under test. */
   now: Date
 }
@@ -166,6 +223,48 @@ export type QuoteView = {
     chosen: ShippingEstimateOption | null
     options: ShippingEstimateOption[]
     error: string | null
+    /**
+     * Which carrier was ASKED for the live rates (#1447). Null when nobody was
+     * — a manual-only lane, or a dead link. Surfaced because "a partner shipping
+     * Delhivery was quoted by Shiprocket" is invisible in a number that looks
+     * perfectly reasonable.
+     */
+    rated_by: string | null
+  }
+  /**
+   * Tax on this quote (#1439 S8), and — when there is no number — the reason,
+   * which the page RENDERS. A missing tax block reads as "no tax due", so
+   * silence is not an option here the way it is for the producer band.
+   */
+  tax: QuoteTax
+  /**
+   * The DDP undertaking and the number behind it (#1447).
+   *
+   * `prepaid` without a `total` is the state this slice exists to make
+   * impossible: it is a promise that duty is covered with nothing added to the
+   * price, paid out of margin by an amount nobody worked out. The API refuses
+   * that combination at mint; the block is shaped so a caller can still SEE it
+   * on a legacy row rather than render a confident "nothing further to pay".
+   *
+   * Read from the frozen quote on a dead link, exactly like `tax` — the
+   * undertaking is part of what the buyer was told, and a revoked quote is the
+   * record of it.
+   */
+  duty: {
+    prepaid: boolean
+    /** Customs duty. Quote currency. Null = no figure; 0 = applies and is nil. */
+    total: number | null
+    /** Destination VAT/GST we also pay — usually the LARGEST of the three. */
+    import_tax: number | null
+    /** The carrier's fee for advancing duty and tax on our behalf. */
+    carrier_fee: number | null
+    /** What the undertaking adds to the buyer's total: the three summed. */
+    combined_total: number | null
+    /** The rates applied, so the figures can be re-derived, not just believed. */
+    duty_rate_percent: number | null
+    import_tax_rate_percent: number | null
+    /** "EU 12% ad valorem, HS 6304.92", "AI-ECTA duty-free". */
+    basis: string | null
   }
   compare: QuoteCompareResult
   recipient: {
@@ -178,7 +277,21 @@ export type QuoteView = {
    * storefront. Null means "say nothing", never "unknown producer".
    */
   producer: QuoteProducer | null
+  /**
+   * Who made this and how — the partner's public-safe credentials plus the
+   * product facts the whole basket agrees on (#1439 S9). Null means "say
+   * nothing": a thin partner profile degrades to silence, never to a grid of
+   * blanks. Rendered by the buyer page; the shaper's exclusion list is what
+   * keeps commercial terms off it.
+   */
+  provenance: Provenance | null
   expires_in_days: number | null
+  /**
+   * Where the goods dispatch from, ISO-2 upper-case (#1447). Null when it could
+   * not be read — and null means UNKNOWN, never domestic: assuming would let a
+   * DDP undertaking be refused on a real export.
+   */
+  origin_country_code: string | null
   /** Set when the live half could not be built, so callers can say why. */
   live_error: string | null
 }
@@ -235,17 +348,141 @@ export function pickLineImage(identity: any): {
  * for a real basket it is the blended per-unit figure, which is why the lines
  * carry their own and this is only ever the summary row.
  */
+/**
+ * The country the partner store dispatches from, or null.
+ *
+ * Reads `stock_location.address.country_code` directly rather than going through
+ * the shipping module's origin-address helper, which returns undefined unless
+ * the address also has a street line and a pincode (Blue Dart validates that
+ * block as a unit). A country has no such dependency, and a quote must not lose
+ * its tax treatment because a warehouse is missing a postcode.
+ *
+ * Never throws — a null lands the quote on `status: "unknown"` WITH a reason,
+ * which is the honest degradation. It must not become an assumed "domestic".
+ */
+export async function resolveStoreOriginCountry(
+  scope: any,
+  locationId?: string | null
+): Promise<string | null> {
+  if (!locationId) return null
+  try {
+    const query: any = scope.resolve(ContainerRegistrationKeys.QUERY)
+    const { data: locs } = await query.graph({
+      entity: "stock_location",
+      fields: ["id", "address.country_code"],
+      filters: { id: locationId },
+    })
+    const code = String((locs ?? [])[0]?.address?.country_code || "").trim()
+    return /^[A-Za-z]{2}$/.test(code) ? code.toUpperCase() : null
+  } catch {
+    return null
+  }
+}
+
 export function composeQuoteMoney(
   lineSubtotals: number[],
   totalUnits: number,
-  freight: number
+  freight: number,
+  /**
+   * #1439 S8. Omitted ⇒ tax is UNKNOWN, not zero: `tax_total` and
+   * `gross_total` both stay null, and the caller is expected to say why.
+   */
+  tax?: { total: number | null; inclusive: boolean } | null,
+  /**
+   * #1447. The DDP undertaking, in the quote currency: customs duty, the
+   * destination import tax we also pay, and the carrier's fee for advancing
+   * them. Omitted ⇒ not a DDP quote, and no duty rows render. A `0` is a
+   * different statement: the charge applies to this lane and it is nil.
+   */
+  ddp?: { duty?: number | null; import_tax?: number | null; fee?: number | null } | null
 ): QuoteMoney {
   const subtotal = lineSubtotals.reduce((sum, n) => sum + n, 0)
+  const landed = subtotal + freight
+
+  const taxTotal =
+    tax && tax.total !== null && tax.total !== undefined
+      ? Number(tax.total)
+      : null
+
+  const num = (v: unknown): number | null =>
+    v === null || v === undefined || !Number.isFinite(Number(v))
+      ? null
+      : Number(v)
+
+  const dutyTotal = num(ddp?.duty)
+  const importTaxTotal = num(ddp?.import_tax)
+  const ddpFeeTotal = num(ddp?.fee)
+  // What the undertaking adds to the buyer's total. Absent parts count as 0
+  // here — but only after each has been recorded as null above, so "nil duty"
+  // and "no duty figure" stay distinguishable in what gets frozen and shown.
+  const ddpTotal =
+    (dutyTotal ?? 0) + (importTaxTotal ?? 0) + (ddpFeeTotal ?? 0)
+
   return {
     unit_amount: totalUnits > 0 ? subtotal / totalUnits : 0,
     subtotal,
     freight,
-    landed_total: subtotal + freight,
+    landed_total: landed,
+    tax_total: taxTotal,
+    /**
+     * 🔴 Duty is ADDED in both bases. Unlike tax it is never "already
+     * inside" the prices: it is a charge at the destination border that the
+     * line prices know nothing about, which is precisely why quoting DDP
+     * without adding it took the amount out of our own margin.
+     */
+    duty_total: dutyTotal,
+    import_tax_total: importTaxTotal,
+    ddp_fee_total: ddpFeeTotal,
+    /**
+     * 🔴 When the prices are tax-INCLUSIVE the tax is already inside
+     * `landed_total`, so adding it again would overcharge the buyer by the
+     * tax. `tax_total` is then the extracted portion — a disclosure, not an
+     * addition. Getting this backwards is an 18% error in the confident
+     * direction on every Indian quote.
+     */
+    gross_total:
+      taxTotal === null
+        ? null
+        : (tax?.inclusive ? landed : landed + taxTotal) + ddpTotal,
+  }
+}
+
+/**
+ * PURE: prefer the live tax, fall back to the frozen one.
+ *
+ * Only substitutes when the live half produced nothing usable — an `unknown`
+ * with no reason, which is the default the builder starts from and the exact
+ * state a dead link leaves it in. A live answer always wins, including a live
+ * `unknown` that carries a reason, because that reason describes the quote as
+ * it stands now.
+ *
+ * Returns the frozen row untouched when there is one, so what renders is what
+ * the buyer was told at mint rather than a reconstruction of it.
+ */
+export function frozenTaxFallback(
+  live: QuoteTax,
+  quote?: QuoteViewQuote | null
+): QuoteTax {
+  const liveIsEmpty = live.status === "unknown" && !live.reason
+  if (!liveIsEmpty) return live
+
+  const status = quote?.quoted_tax_status
+  if (!status) return live
+
+  const total =
+    quote?.quoted_tax_total === null || quote?.quoted_tax_total === undefined
+      ? null
+      : Number(quote.quoted_tax_total)
+
+  return {
+    status: status as QuoteTax["status"],
+    total,
+    inclusive: Boolean(quote?.quoted_tax_inclusive),
+    // Not frozen: a rate BREAKDOWN is a live explanation of a live number, and
+    // reprinting last week's percentages beside a frozen total invites the
+    // reader to re-derive it and find it does not reconcile.
+    rates: [],
+    reason: quote?.quoted_tax_reason ?? null,
   }
 }
 
@@ -263,11 +500,38 @@ export function frozenMoney(quote?: QuoteViewQuote | null): QuoteMoney | null {
     0
   )
   const subtotal = Number(quote.quoted_subtotal ?? 0)
+  const taxTotal =
+    quote.quoted_tax_total === null || quote.quoted_tax_total === undefined
+      ? null
+      : Number(quote.quoted_tax_total)
+  const frozenNumber = (v: unknown): number | null =>
+    v === null || v === undefined ? null : Number(v)
+  const dutyTotal = frozenNumber(quote.quoted_duty_total)
+  const importTaxTotal = frozenNumber(quote.quoted_import_tax_total)
+  const ddpFeeTotal = frozenNumber(quote.quoted_ddp_fee_total)
+  const ddpTotal =
+    (dutyTotal ?? 0) + (importTaxTotal ?? 0) + (ddpFeeTotal ?? 0)
+  const landed = Number(quote.quoted_landed_total)
+
   return {
     unit_amount: totalUnits > 0 ? subtotal / totalUnits : 0,
     subtotal,
     freight: Number(quote.quoted_freight ?? 0),
-    landed_total: Number(quote.quoted_landed_total),
+    landed_total: landed,
+    /**
+     * Null on every quote minted before S8, and that is the honest answer for
+     * them: those rows genuinely have no tax figure. Defaulting to 0 would
+     * retroactively assert that an untaxed quote was tax-free.
+     */
+    tax_total: taxTotal,
+    /** Same rule, same reason (#1447): null is "no figure", 0 is "nil duty". */
+    duty_total: dutyTotal,
+    import_tax_total: importTaxTotal,
+    ddp_fee_total: ddpFeeTotal,
+    gross_total:
+      taxTotal === null
+        ? null
+        : (quote.quoted_tax_inclusive ? landed : landed + taxTotal) + ddpTotal,
   }
 }
 
@@ -363,17 +627,98 @@ export async function buildQuoteView(
   )
   const quoted = frozenMoney(input.quote)
 
+  /**
+   * The DDP undertaking and its number, resolved ONCE for the whole view.
+   *
+   * At mint the row does not exist yet, so both arrive on the input; on every
+   * later read they come off the frozen quote, which is what stops a re-read
+   * from inventing a duty figure the buyer was never shown.
+   *
+   * 🔴 A duty amount is only ever carried when the quote is actually DDP. A
+   * number left behind on a non-DDP quote would be added to a total the buyer
+   * was told they pay duty on top of — charging them twice for the same border.
+   */
+  const dutiesPrepaid = Boolean(
+    input.duties_prepaid ?? input.quote?.duties_prepaid
+  )
+  const frozen = (v: unknown): number | null =>
+    v === null || v === undefined ? null : Number(v)
+
+  /**
+   * Rates win over amounts, and the INPUT wins over the frozen row.
+   *
+   * The rates are what make the live column internally consistent: if the buyer
+   * moves a quantity, the duty moves with the subtotal it is assessed on. The
+   * frozen amounts are never recomputed — `frozenMoney` reads the columns — so
+   * "what you were quoted" stays what was quoted.
+   */
+  const ddpRates = {
+    duty_rate_percent:
+      input.duty_rate_percent ?? frozen(input.quote?.quoted_duty_rate),
+    import_tax_rate_percent:
+      input.import_tax_rate_percent ??
+      frozen(input.quote?.quoted_import_tax_rate),
+  }
+  const ddpAmounts = {
+    duty_total: input.duty_total ?? frozen(input.quote?.quoted_duty_total),
+    import_tax_total:
+      input.import_tax_total ?? frozen(input.quote?.quoted_import_tax_total),
+    ddp_fee_total:
+      input.ddp_fee_total ?? frozen(input.quote?.quoted_ddp_fee_total),
+  }
+  /** Filled once the live basket is priced; falls back to the frozen figures. */
+  let ddpCharges = dutiesPrepaid
+    ? {
+        duty: ddpAmounts.duty_total,
+        import_tax: ddpAmounts.import_tax_total,
+        carrier_fee: ddpAmounts.ddp_fee_total,
+        duty_rate_percent: ddpRates.duty_rate_percent,
+        import_tax_rate_percent: ddpRates.import_tax_rate_percent,
+      }
+    : {
+        duty: null as number | null,
+        import_tax: null as number | null,
+        carrier_fee: null as number | null,
+        duty_rate_percent: null as number | null,
+        import_tax_rate_percent: null as number | null,
+      }
+
   let live: QuoteMoney | null = null
   let liveError: string | null = null
   let totalWeightGrams: number | null = null
   let chosen: ShippingEstimateOption | null = null
   let options: ShippingEstimateOption[] = []
   let freightError: string | null = null
+  /** Set once the lane's rating carrier is resolved; null on a manual-only lane. */
+  let ratedBy: string | null = null
+  /**
+   * Unknown until proven otherwise, and unknown is what a dead or unpriceable
+   * link keeps: there is no basket to tax, and a 0 would read as "no tax due".
+   */
+  let tax: QuoteTax = {
+    status: "unknown",
+    total: null,
+    inclusive: false,
+    rates: [],
+    reason: null,
+  }
   let liveUnitByVariant = new Map<string, number>()
   let weightByVariant = new Map<
     string,
     { unit_weight_grams: number; weight_source: "variant" | "product" }
   >()
+
+  /**
+   * Where the goods dispatch FROM, resolved before anything is priced.
+   *
+   * It decides three things that used to be decided separately and could
+   * therefore disagree: which carrier rates the lane, whether the sale is an
+   * export for tax, and whether a DDP undertaking is even meaningful. S6 makes
+   * the location blocking at mint, so by then there is always one to read.
+   */
+  const originCountry = unusableReason
+    ? null
+    : await resolveStoreOriginCountry(scope, input.store?.default_location_id)
 
   if (!unusableReason) {
     try {
@@ -407,6 +752,36 @@ export async function buildQuoteView(
         liveUnitByVariant.set(line.variant_id, unitAmount)
       }
 
+      // ---- Who rates this lane -------------------------------------------
+      // 🔴 The estimate used to default to Shiprocket for every partner quote
+      // ever minted, so a partner who ships Delhivery was quoted freight by a
+      // company they do not use. The number was plausible — a real rate, real
+      // lane, wrong carrier — which is why it survived. Their enabled carriers
+      // are the location's provider links, the same fact core reads at
+      // fulfilment time.
+      const enabledCarrierIds = await readEnabledCarrierIds(
+        scope,
+        input.store?.default_location_id
+      )
+      const ratingCarrier =
+        pickRatingCarrier({
+          explicit: input.carrier,
+          enabledCarrierIds,
+          lane:
+            classifyQuoteJurisdiction(
+              originCountry,
+              input.destination_country_code
+            ) === "domestic"
+              ? "domestic"
+              : "international",
+        }) ?? undefined
+      ratedBy =
+        ratingCarrier && ratingCarrier !== "manual" && ratingCarrier !== "none"
+          ? ratingCarrier
+          : ratingCarrier
+            ? null
+            : "shiprocket"
+
       // ---- Freight: ONE consignment, summed weight -----------------------
       const estimate = await buildShippingEstimate(scope, {
         lines: effectiveLines.map((l) => ({
@@ -419,7 +794,7 @@ export async function buildQuoteView(
         // the cheapest NUMBER wins regardless of unit — a 10 AUD European
         // option beat a rupee rate on a live Mumbai quote.
         currency_code: input.currency_code,
-        carrier: input.carrier,
+        carrier: ratingCarrier,
         store: input.store,
       })
       totalWeightGrams = estimate.total_weight_grams
@@ -447,12 +822,75 @@ export async function buildQuoteView(
         )
       }
 
+      // Tax LAST, because it is a function of the priced lines and the chosen
+      // freight leg — both of which only exist at this point. It never throws;
+      // an unresolvable rate lands on `status: "unknown"` with a reason rather
+      // than on a zero. The origin was read above, off the same stock location
+      // the freight leg was quoted against, so the tax treatment and the
+      // shipment cannot describe two different journeys.
+
+      tax = await resolveQuoteTax(scope, {
+        region_id: input.region_id ?? null,
+        origin_country_code: originCountry,
+        // Mint supplies it directly; a later page read takes it off the frozen
+        // row, so the buyer sees the same promise on every visit.
+        duties_prepaid: dutiesPrepaid,
+        destination_country_code: input.destination_country_code,
+        destination_postal_code: input.destination_postal_code ?? null,
+        lines: effectiveLines.map((l) => ({
+          variant_id: l.variant_id,
+          product_id: identityById.get(l.variant_id)?.product?.id ?? null,
+          unit_amount: liveUnitByVariant.get(l.variant_id) ?? 0,
+          quantity: l.quantity,
+        })),
+        freight: { amount: Number(chosen.amount), option_id: (chosen as any)?.id ?? null },
+      })
+
+      const liveSubtotals = effectiveLines.map(
+        (l) => (liveUnitByVariant.get(l.variant_id) ?? 0) * l.quantity
+      )
+
+      if (dutiesPrepaid) {
+        /**
+         * 🔴 The amounts are computed HERE, from the basket that was actually
+         * priced — never taken from the client. A wizard can only estimate the
+         * subtotal and cannot know the freight at all before this runs, so a
+         * client-computed figure would be a guess frozen as a commitment.
+         *
+         * Duty on goods + freight; import tax on goods + freight + duty. The
+         * cascade is the arithmetic people get wrong by hand, and the error
+         * always lands the same way: under-funding a promise we then eat.
+         */
+        const charges = computeDdpCharges({
+          subtotal: liveSubtotals.reduce((sum, n) => sum + n, 0),
+          freight: Number(chosen.amount),
+          ...ddpRates,
+          ...ddpAmounts,
+        })
+        ddpCharges = {
+          duty: charges.duty,
+          import_tax: charges.import_tax,
+          carrier_fee: charges.carrier_fee,
+          duty_rate_percent: charges.duty_rate_percent,
+          import_tax_rate_percent: charges.import_tax_rate_percent,
+        }
+      }
+
       live = composeQuoteMoney(
-        effectiveLines.map(
-          (l) => (liveUnitByVariant.get(l.variant_id) ?? 0) * l.quantity
-        ),
+        liveSubtotals,
         effectiveLines.reduce((sum, l) => sum + l.quantity, 0),
-        Number(chosen.amount)
+        Number(chosen.amount),
+        tax,
+        // Nobody can price this lane's duty from a carrier API yet (see the
+        // model docblock), so these are the partner's rates applied to the real
+        // basket — carried into the total so the promise is actually funded.
+        dutiesPrepaid
+          ? {
+              duty: ddpCharges.duty,
+              import_tax: ddpCharges.import_tax,
+              fee: ddpCharges.carrier_fee,
+            }
+          : null
       )
     } catch (err) {
       // The quoted half — what the partner actually told this buyer — is still
@@ -512,6 +950,13 @@ export async function buildQuoteView(
     viewer_sales_channel_ids: input.viewer_sales_channel_ids ?? null,
   })
 
+  // Same contract as the producer band: resolved after the money and unable to
+  // fail the view. A maker credit is not worth a buyer's 500.
+  const provenance = await resolveQuoteProvenance(scope, {
+    partner_id: input.partner_id ?? null,
+    product_ids: lines.map((l) => l.product_id),
+  })
+
   const compare = compareQuote({
     quoted,
     live,
@@ -534,7 +979,46 @@ export async function buildQuoteView(
     quoted,
     total_weight_grams:
       totalWeightGrams ?? input.quote?.quoted_weight_grams ?? null,
-    freight: { chosen, options, error: freightError },
+    freight: {
+      chosen,
+      options,
+      error: freightError,
+      rated_by: ratedBy,
+    },
+    /**
+     * Live tax where there is one; the FROZEN tax on a dead link.
+     *
+     * 🔴 The live block is skipped entirely when `unusableReason` is set, which
+     * left `tax` on its `{status:"unknown", reason:null}` default for every
+     * revoked, superseded and expired quote. The page renders its notice only
+     * when there IS a reason, so those quotes showed frozen subtotal and
+     * freight and NO tax block at all — the "a missing tax block reads as no
+     * tax due" failure this module was written to prevent, landing on exactly
+     * the quotes that exist as evidence of what was said.
+     *
+     * Falling back to the frozen row shows what the buyer was actually told,
+     * which is the same reasoning that keeps the frozen totals visible on a
+     * dead link rather than recomputing a number we are no longer offering.
+     */
+    tax: frozenTaxFallback(tax, input.quote),
+    duty: {
+      prepaid: dutiesPrepaid,
+      total: ddpCharges.duty,
+      import_tax: ddpCharges.import_tax,
+      carrier_fee: ddpCharges.carrier_fee,
+      combined_total: dutiesPrepaid
+        ? (ddpCharges.duty ?? 0) +
+          (ddpCharges.import_tax ?? 0) +
+          (ddpCharges.carrier_fee ?? 0)
+        : null,
+      duty_rate_percent: ddpCharges.duty_rate_percent,
+      import_tax_rate_percent: ddpCharges.import_tax_rate_percent,
+      // Gated on the undertaking for the same reason the amount is: a basis
+      // note on a quote that is not DDP describes a promise nobody made.
+      basis: dutiesPrepaid
+        ? (input.duty_basis ?? input.quote?.quoted_duty_basis ?? null)
+        : null,
+    },
     compare,
     recipient: {
       name: input.quote?.recipient_name ?? null,
@@ -542,7 +1026,9 @@ export async function buildQuoteView(
       partner_note: input.quote?.partner_note ?? null,
     },
     producer,
+    provenance,
     expires_in_days: input.quote ? daysUntilExpiry(lifecycle, input.now) : null,
+    origin_country_code: originCountry,
     live_error: liveError,
   }
 }

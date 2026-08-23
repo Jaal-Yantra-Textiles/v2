@@ -20,12 +20,25 @@ export const QuoteCreate = () => {
     (c: { is_default?: boolean }) => c.is_default
   )?.currency_code
 
+  /**
+   * Where this store's goods dispatch from (#1447). Decides whether the DDP
+   * section means anything: on a domestic lane there is no border, so no import
+   * duty or tax to prepay.
+   *
+   * 🔴 Null is UNKNOWN, never "domestic". Hiding the question on a real export
+   * is the failure that costs a buyer a customs bill we told them would not
+   * come; asking it on a domestic quote costs a moment's confusion.
+   */
+  const originCountryCode =
+    store?.location?.address?.country_code?.toUpperCase() || null
+
   return (
     <RouteFocusModal>
       {!isPending && (
         <QuoteCreateForm
           currencies={supported}
           defaultCurrency={defaultCurrency}
+          originCountryCode={originCountryCode}
         />
       )}
     </RouteFocusModal>

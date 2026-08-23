@@ -3,6 +3,7 @@ import { Heading, Text } from "@medusajs/ui"
 import type { QuoteView } from "@lib/data/quotes"
 import QuoteLines from "../components/quote-lines"
 import QuoteProducerBand from "../components/quote-producer"
+import QuoteProvenanceSection from "../components/quote-provenance"
 import QuoteSummary from "../components/quote-summary"
 
 /**
@@ -19,7 +20,7 @@ import QuoteSummary from "../components/quote-summary"
  * up contradicting its own header.
  */
 const QuoteTemplate = ({ quote }: { quote: QuoteView }) => {
-  const { compare, recipient, producer } = quote
+  const { compare, recipient, producer, provenance } = quote
 
   return (
     <div className="content-container py-12 max-w-4xl">
@@ -74,6 +75,11 @@ const QuoteTemplate = ({ quote }: { quote: QuoteView }) => {
       <div className="mt-10">
         <QuoteSummary quote={quote} />
       </div>
+
+      {/* Who made this, and how. Below the money because it is the reason to
+          say yes rather than part of the offer, and rendered only when the
+          backend has something true to say. */}
+      {provenance ? <QuoteProvenanceSection provenance={provenance} /> : null}
 
       {compare.disclaimer ? (
         <div className="mt-10 border-t border-ui-border-base pt-6">

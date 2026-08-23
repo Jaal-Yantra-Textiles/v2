@@ -13,7 +13,10 @@ import type {
   ShipmentItem,
   ShipmentResult,
 } from "../../modules/shipping-providers/provider-interface"
-import { resolveOriginAddress } from "../../modules/shipping-providers/origin-address"
+import {
+  resolveOriginAddress,
+  resolveShipFromCountryCode,
+} from "../../modules/shipping-providers/origin-address"
 import { resolveExportIgstForCountry } from "../../modules/shipping-providers/export-igst"
 import {
   SHIPROCKET_PICKUP_METADATA_KEY,
@@ -495,11 +498,33 @@ export async function createShiprocketShipmentForFulfillment(
     )
   }
 
-  // Seller tax/GST ID (#348): partner-own → platform-by-country fallback.
+  // Seller tax/GST ID (#348): partner-own → platform-by-SHIP-FROM-country.
+  //
+  // 🔴 This passed `shipping_address.country_code` — the CONSIGNEE — while
+  // seller-tax-id.ts documented the fallback as keyed on ship-from. The two
+  // agreed for as long as every sale was India→India, and stopped agreeing the
+  // moment a second identity row existed: the KHT row covers all 27 EU member
+  // states, so a shipment to Germany resolved a Latvian company number and put
+  // it in `tax_id`, which rides next to `customs` on an INDIA-origin export
+  // declaration. The exporter of record is where the goods LEAVE from, never
+  // where they arrive.
+  const shipFromCountry = await resolveShipFromCountryCode(
+    container,
+    fulfillment.location_id
+  )
+  if (!shipFromCountry) {
+    // Deliberately NOT falling back to the destination — that is the bug. A
+    // missing platform tax ID is a blank field the carrier accepts; a wrong one
+    // is a false declaration on customs paperwork. A partner's own tax ID is
+    // resolved before this and is unaffected.
+    logger.warn(
+      `[shiprocket] no ship-from country for fulfillment ${fulfillment.id} (location ${fulfillment.location_id}); skipping the platform seller tax ID rather than guessing it from the destination`
+    )
+  }
   const taxId = await resolveSellerTaxIdForOrder(
     container,
     order.id,
-    (order as any)?.shipping_address?.country_code
+    shipFromCountry
   )
 
   // Declare the fulfillment's own lines, not the order's. `fulfillment.items`

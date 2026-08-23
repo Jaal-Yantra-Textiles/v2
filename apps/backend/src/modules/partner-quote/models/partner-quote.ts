@@ -85,6 +85,86 @@ const PartnerQuote = model.define("partner_quote", {
   // LEVEL each line's weight came from is on the line, because a basket can
   // mix a variant-weighted item with a product-weighted one.
   quoted_weight_grams: model.number().nullable(),
+  /**
+   * Tax as it stood at mint (#1439 S8).
+   *
+   * 🔴 Without these the tax was recomputed on every page load while the
+   * subtotal and freight beside it stayed frozen, so a rate change moved the
+   * tax on a quote already sent — and the quote silently disagreed with itself.
+   * Freezing it is the same argument that froze the subtotal.
+   *
+   * All four are frozen together on purpose. `quoted_tax_total` alone is
+   * ambiguous: a frozen `0` cannot say whether it means "zero-rated export, no
+   * tax due" or "we could not work it out", and that distinction is the whole
+   * reason `QuoteTax.status` exists. `quoted_tax_reason` preserves the sentence
+   * the buyer was actually shown — on an export that sentence is the only place
+   * they were told duty is theirs, which makes it evidence, not decoration.
+   *
+   * Null on every quote minted before S8. That is the honest answer for them:
+   * those rows have no tax figure, and defaulting to 0 would retroactively
+   * assert they were tax-free.
+   */
+  quoted_tax_total: model.bigNumber().nullable(),
+  quoted_tax_inclusive: model.boolean().nullable(),
+  quoted_tax_status: model.text().nullable(),
+  quoted_tax_reason: model.text().nullable(),
+  /**
+   * The partner undertook to pay destination duty and import tax on this quote.
+   *
+   * 🔴 Per-quote, frozen, and never defaulted true. It is the one promise on
+   * the buyer's page that software alone cannot keep: the shipment has to
+   * actually clear DDP — by a carrier that supports it, or arranged by hand
+   * until one does. A global setting would tell a buyer there is nothing to pay
+   * on a shipment nobody arranged clearance for.
+   */
+  duties_prepaid: model.boolean().nullable(),
+  /**
+   * The customs duty WE undertook to pay on this quote, in the quote currency.
+   *
+   * 🔴 This exists because `duties_prepaid` on its own promised the buyer duty
+   * was covered while adding NOTHING to the price — the partner absorbed an
+   * amount nobody had worked out, silently, out of margin. Deriving it
+   * automatically is blocked (138 HS-code gaps across 65 products, EU 2–14%
+   * with possible GSP relief, and Shiprocket's `tariff` returns 0 pending
+   * CSB-5 KYC), so until a carrier can price it the partner enters the number
+   * and we honour that number by hand.
+   *
+   * Null means no duty figure — either not a DDP quote, or a legacy row minted
+   * before this column. `0` is a real, deliberate answer: AI-ECTA makes Indian
+   * textiles duty-free into Australia, and "we checked, it is nil" is a fact,
+   * not a gap. `quoted_duty_basis` is what tells those two apart to a human,
+   * which is why they freeze together.
+   */
+  quoted_duty_total: model.bigNumber().nullable(),
+  /**
+   * How that number was arrived at — "EU 12% ad valorem, HS 6304.92", "AI-ECTA
+   * duty-free". Evidence, not decoration: it is the only record of WHY we
+   * committed to a figure, and the person who later pays the customs invoice
+   * is not the person who typed it.
+   */
+  quoted_duty_basis: model.text().nullable(),
+  /**
+   * The other two thirds of a DDP undertaking.
+   *
+   * 🔴 Duty is the SMALL half. DHL's landed-cost planner on a 70,000 INR
+   * consignment to NL: duty 6,143 (8% of goods + freight), import VAT 17,416
+   * (21% of goods + freight + duty), carrier duty-tax-paid fee 1,982. A partner
+   * who reads "duty" and funds only the duty under-writes the promise by
+   * roughly 19,400 — and the buyer never finds out, because we eat it.
+   *
+   * Three columns rather than one lump because a carrier's invoice arrives
+   * months later itemised, and "which of the three was wrong" is the only
+   * question worth being able to answer against it.
+   */
+  quoted_import_tax_total: model.bigNumber().nullable(),
+  quoted_ddp_fee_total: model.bigNumber().nullable(),
+  /**
+   * The rates the amounts were derived from, frozen so the figure can be
+   * re-derived rather than merely believed. Null on a lane priced by a flat
+   * amount — a specific duty is charged per kilo and no percentage says it.
+   */
+  quoted_duty_rate: model.number().nullable(),
+  quoted_import_tax_rate: model.number().nullable(),
   quoted_at: model.dateTime().nullable(),
 
   // ===== Buyer identity — the edges this quote's prices hang off ==========
