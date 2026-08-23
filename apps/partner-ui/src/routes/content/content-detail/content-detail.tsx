@@ -40,22 +40,19 @@ function setNestedValue(
     JSON.stringify(content || {})
   )
   const parts = field.split(".")
+  const isIndex = (p: string) => /^\d+$/.test(p)
   let obj: Record<string, unknown> = contentCopy
   for (let i = 0; i < parts.length - 1; i++) {
     const part = parts[i]
     if (UNSAFE_PROPS.has(part)) return contentCopy
-    const idx = parseInt(part, 10)
-    if (!isNaN(idx)) {
-      if (!obj[part]) {
-        obj[part] = []
-      }
-      obj = obj[part] as Record<string, unknown>
-    } else {
-      if (!obj[part]) {
-        obj[part] = {}
-      }
-      obj = obj[part] as Record<string, unknown>
+    if (obj[part] === undefined || obj[part] === null) {
+      // The container to create is decided by the NEXT segment, not this one:
+      // in `cards.0.title`, `cards` must become an array because `0` follows it.
+      // Deciding from the current segment produced `{ cards: { "0": {...} } }`,
+      // which every `cards.map(...)` renderer then choked on.
+      obj[part] = isIndex(parts[i + 1]) ? [] : {}
     }
+    obj = obj[part] as Record<string, unknown>
   }
   const lastPart = parts[parts.length - 1]
   if (UNSAFE_PROPS.has(lastPart)) return contentCopy
@@ -160,6 +157,15 @@ const ContentDetailInner = () => {
   const { mutateAsync: uploadFile } = usePartnerUpload()
 
   const handleEditorReady = useCallback((editor: any, actions: any) => {
+    // Called with null on unmount (see TipTapEditor) so a closed body-editor
+    // drawer does not leave a destroyed editor behind in the ref.
+    if (!editor) {
+      if (tiptapActionsRef.current === actions) {
+        tiptapEditorRef.current = null
+        tiptapActionsRef.current = null
+      }
+      return
+    }
     tiptapEditorRef.current = editor
     tiptapActionsRef.current = actions
   }, [])
@@ -175,6 +181,13 @@ const ContentDetailInner = () => {
   const { mutateAsync: deleteBlock } = useDeleteContentBlock(pageId!)
 
   const [blocks, setBlocks] = useState<ContentBlock[]>([])
+  // The postMessage handler below is registered once per pageId, so it closes
+  // over the `blocks` value from that render (always `[]`, since blocks load
+  // async). Mirror the state into a ref so the handler reads it live —
+  // without this, OPEN_BODY_EDITOR never finds its block (drawer never opens)
+  // and nested BLOCK_FIELD_EDITED sends an empty body (edit never persists).
+  const blocksRef = useRef<ContentBlock[]>([])
+  blocksRef.current = blocks
   const [selectedBlockId, setSelectedBlockId] = useState<string | null>(null)
   const [saveStatus, setSaveStatus] = useState<"saved" | "saving" | "unsaved">("saved")
   const [iframeReady, setIframeReady] = useState(false)
@@ -222,7 +235,7 @@ const ContentDetailInner = () => {
         setSaveStatus("saving")
         const contentUpdate = (() => {
           if (isNested) {
-            const block = blocks.find((b) => b.id === blockId)
+            const block = blocksRef.current.find((b) => b.id === blockId)
             if (!block) return {}
             return { content: setNestedValue(block.content, field, value) }
           }
@@ -258,7 +271,7 @@ const ContentDetailInner = () => {
       }
       if (data.type === "OPEN_BODY_EDITOR") {
         const { blockId, field } = data as any
-        const block = blocks.find((b) => b.id === blockId)
+        const block = blocksRef.current.find((b) => b.id === blockId)
         if (!block) return
         setBodyEditorBlockId(blockId)
         setBodyEditorField(field)
@@ -273,7 +286,7 @@ const ContentDetailInner = () => {
         const { command } = data as { command?: string }
         const editor = tiptapEditorRef.current
         const actions = tiptapActionsRef.current
-        if (!editor || !command) return
+        if (!editor || editor.isDestroyed || !command) return
 
         switch (command) {
           case "toggleBold":

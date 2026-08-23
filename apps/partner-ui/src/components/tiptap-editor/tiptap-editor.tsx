@@ -5,6 +5,7 @@ import TextAlign from "@tiptap/extension-text-align"
 import Link from "@tiptap/extension-link"
 import Image from "@tiptap/extension-image"
 import Placeholder from "@tiptap/extension-placeholder"
+import { Embed, VideoFile } from "./embed-extension"
 import { useCallback, useState, useRef, useEffect } from "react"
 import { Button, Input, Label, Checkbox, Text } from "@medusajs/ui"
 import { StackedDrawer } from "../modals/stacked-drawer"
@@ -49,6 +50,8 @@ export const TipTapEditor = ({
         HTMLAttributes: { class: "tiptap-image" },
       }),
       Placeholder.configure({ placeholder }),
+      Embed,
+      VideoFile,
     ],
     content: content || { type: "doc", content: [{ type: "paragraph" }] },
     onUpdate: ({ editor }) => {
@@ -61,6 +64,7 @@ export const TipTapEditor = ({
   const [imageUrl, setImageUrl] = useState("")
   const [videoUrl, setVideoUrl] = useState("")
   const [isUploading, setIsUploading] = useState(false)
+  const [uploadError, setUploadError] = useState<string | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const { setIsOpen: setStackedOpen } = useStackedModal()
   const { mutateAsync: uploadFiles } = usePartnerUpload()
@@ -127,6 +131,7 @@ export const TipTapEditor = ({
 
   const handleFileUpload = useCallback(async (files: FileList | null) => {
     if (!files || files.length === 0) return
+    setUploadError(null)
     setIsUploading(true)
     try {
       const result = await uploadFiles(Array.from(files))
@@ -134,13 +139,16 @@ export const TipTapEditor = ({
       if (uploadedUrl && editor) {
         editor.chain().focus().setImage({ src: uploadedUrl }).run()
       }
-    } catch {
-      // Fallback: show error in the image modal
-      const errUrl = ""
-      setImageUrl(errUrl)
+      setStackedOpen(IMAGE_MODAL_ID, false)
+    } catch (e) {
+      // Surface the failure in the image modal rather than closing it — the
+      // upload can be triggered without the modal ever being open, so open it.
+      setUploadError(
+        e instanceof Error ? e.message : "Upload failed. Please try again."
+      )
+      setStackedOpen(IMAGE_MODAL_ID, true)
     } finally {
       setIsUploading(false)
-      setStackedOpen(IMAGE_MODAL_ID, false)
     }
   }, [editor, uploadFiles, setStackedOpen])
 
@@ -150,6 +158,8 @@ export const TipTapEditor = ({
     setStackedOpen(VIDEO_MODAL_ID, true)
   }, [editor])
 
+  // `type` must be a node name registered above (`embed` or `video`), not a
+  // provider name — ProseMirror rejects a node type absent from the schema.
   const parseVideoUrl = useCallback((url: string): { src: string; type: string } | null => {
     const trimmed = url.trim()
     if (!trimmed) return null
@@ -161,17 +171,17 @@ export const TipTapEditor = ({
           ? parsed.pathname.slice(1)
           : parsed.searchParams.get("v") || parsed.pathname.split("/").pop()
         if (videoId) {
-          return { src: `https://www.youtube.com/embed/${videoId}`, type: "youtube" }
+          return { src: `https://www.youtube.com/embed/${videoId}`, type: "embed" }
         }
       }
       if (host === "vimeo.com") {
         const videoId = parsed.pathname.split("/").pop()
         if (videoId) {
-          return { src: `https://player.vimeo.com/video/${videoId}`, type: "vimeo" }
+          return { src: `https://player.vimeo.com/video/${videoId}`, type: "embed" }
         }
       }
       if (host === "player.vimeo.com") {
-        return { src: trimmed, type: "vimeo" }
+        return { src: trimmed, type: "embed" }
       }
       if (trimmed.match(/\.(mp4|webm|ogg)$/)) {
         return { src: trimmed, type: "video" }
@@ -192,8 +202,6 @@ export const TipTapEditor = ({
       }).run()
     }
   }, [editor, videoUrl, parseVideoUrl, setStackedOpen])
-
-  const actionsRef = useRef<TipTapActions | null>(null)
 
   useEffect(() => {
     if (editor && onEditorReady) {
@@ -216,8 +224,11 @@ export const TipTapEditor = ({
           fileInputRef.current?.click()
         },
       }
-      actionsRef.current = actions
       onEditorReady(editor, actions)
+      // On unmount the editor is destroyed, but the parent still holds this
+      // instance in a ref. Hand back null so the floating toolbar stops
+      // dispatching commands into a dead editor (it silently no-ops otherwise).
+      return () => onEditorReady(null as unknown as Editor, actions)
     }
   }, [editor, onEditorReady])
 
@@ -301,7 +312,12 @@ export const TipTapEditor = ({
           />
           <ToolbarButton label="Link" onClick={setLink} isActive={editor.isActive("link")} />
           <ToolbarButton label="Image" onClick={addImage} />
-          <ToolbarButton label="Upload" onClick={() => fileInputRef.current?.click()} />
+          <ToolbarButton
+            label={isUploading ? "Uploading…" : "Upload"}
+            onClick={() => {
+              if (!isUploading) fileInputRef.current?.click()
+            }}
+          />
           <ToolbarButton label="Video" onClick={addVideo} />
           <ToolbarButton
             label="Left"
@@ -387,6 +403,16 @@ export const TipTapEditor = ({
                 </div>
               ) : null
             })()}
+            {isUploading ? (
+              <Text size="xsmall" className="text-ui-fg-muted">
+                Uploading…
+              </Text>
+            ) : null}
+            {uploadError ? (
+              <Text size="xsmall" className="text-ui-fg-error">
+                {uploadError}
+              </Text>
+            ) : null}
           </StackedDrawer.Body>
           <StackedDrawer.Footer>
             <Button variant="secondary" onClick={() => setStackedOpen(IMAGE_MODAL_ID, false)}>
@@ -405,7 +431,12 @@ export const TipTapEditor = ({
         accept="image/*"
         multiple={false}
         style={{ display: "none" }}
-        onChange={(e) => handleFileUpload(e.target.files)}
+        onChange={(e) => {
+          const { files } = e.target
+          // Clear the value so picking the SAME file again still fires onChange.
+          e.target.value = ""
+          handleFileUpload(files)
+        }}
       />
 
       <StackedDrawer id={VIDEO_MODAL_ID}>
