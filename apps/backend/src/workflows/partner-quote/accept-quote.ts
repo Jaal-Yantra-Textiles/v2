@@ -20,6 +20,7 @@ import {
 } from "@medusajs/medusa/core-flows"
 
 import { PARTNER_QUOTE_MODULE } from "../../modules/partner-quote"
+import { PARTNER_QUOTE_EVENTS } from "../../modules/partner-quote/events"
 import { PAYMENT_SCHEDULE_MODULE } from "../../modules/payment_schedule"
 import { quoteUnusableReason } from "../../modules/partner-quote/lib/token"
 
@@ -704,7 +705,7 @@ export const acceptQuoteWorkflow = createWorkflow(
        * per page refresh.
        */
       emitEventStep({
-        eventName: "partner_quote.accepted",
+        eventName: PARTNER_QUOTE_EVENTS.ACCEPTED,
         data: {
           id: input.quote_id,
           quote_id: input.quote_id,
