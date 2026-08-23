@@ -70,6 +70,7 @@ setupSharedTestSuite(() => {
           "currency_code",
           "items.id",
           "items.variant_id",
+          "items.quantity",
           "items.unit_price",
           "shipping_methods.id",
           "shipping_methods.amount",
@@ -151,6 +152,84 @@ setupSharedTestSuite(() => {
 
       expect(row.accepted_cart_id).toBeTruthy()
       expect(row.accepted_at).toBeTruthy()
+    })
+
+    /**
+     * The buyer's dial has to survive acceptance (#1439 S13).
+     *
+     * 🔴 The page has let a buyer move quantities since #1389 — `?lines=`
+     * re-prices the whole view — while acceptance built the cart from the
+     * QUOTED quantities and said nothing. A buyer who dialled up, watched the
+     * total rise, and pressed accept got a cart for the original amount. Both
+     * numbers were "correct"; they were answers to different questions.
+     */
+    it("🔴 builds the cart from the quantities the buyer dialled", async () => {
+      const minted = await mint({
+        buyer_email: `dial-${seed.unique}@jaalyantra.test`,
+      })
+      // From the fixture's own basket — the mint response does not embed lines.
+      const variantId = seed.variantA.id
+      const quotedQty = 25
+      const dialled = quotedQty + 3
+
+      const res = await getSharedTestEnv().api.post(
+        `/store/b2b/quotes/${minted.token}/accept`,
+        { lines: [{ variant_id: variantId, quantity: dialled }] },
+        { headers: storeHeaders }
+      )
+
+      expect(res.status).toBe(201)
+      const cart = await readCart(res.data.acceptance.cart_id)
+
+      const line = (cart.items ?? []).find(
+        (i: any) => i.variant_id === variantId
+      )
+      // THE assertion: the cart holds what the buyer asked for, not what the
+      // quote was minted with.
+      expect(Number(line?.quantity)).toBe(dialled)
+      expect(Number(line?.quantity)).not.toBe(quotedQty)
+    })
+
+    /**
+     * 🔑 The dial is a quantity control, never a way into the catalogue. The
+     * minted price list is scoped to this buyer and priced for THIS basket, so
+     * a variant nobody quoted has no frozen price to stand behind — it would be
+     * sold at whatever the catalogue says, which is a price this buyer was
+     * never offered.
+     */
+    it("refuses a variant that was never quoted", async () => {
+      const minted = await mint({
+        buyer_email: `dial-foreign-${seed.unique}@jaalyantra.test`,
+      })
+
+      const err = await getSharedTestEnv()
+        .api.post(
+          `/store/b2b/quotes/${minted.token}/accept`,
+          { lines: [{ variant_id: "variant_not_on_this_quote", quantity: 5 }] },
+          { headers: storeHeaders }
+        )
+        .catch((e: any) => e.response)
+
+      expect(err.status).toBe(400)
+      expect(String(err.data?.message)).toContain("not on this quote")
+    })
+
+    it("still accepts the quoted basket when no dial is sent", async () => {
+      const minted = await mint({
+        buyer_email: `dial-absent-${seed.unique}@jaalyantra.test`,
+      })
+      const res = await getSharedTestEnv().api.post(
+        `/store/b2b/quotes/${minted.token}/accept`,
+        {},
+        { headers: storeHeaders }
+      )
+
+      expect(res.status).toBe(201)
+      const cart = await readCart(res.data.acceptance.cart_id)
+      const line = (cart.items ?? []).find(
+        (i: any) => i.variant_id === seed.variantA.id
+      )
+      expect(Number(line?.quantity)).toBe(25)
     })
 
     it("404s an unknown token, indistinguishably from a revoked one", async () => {

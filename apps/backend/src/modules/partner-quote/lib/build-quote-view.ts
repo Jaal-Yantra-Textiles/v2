@@ -17,7 +17,12 @@ import {
 import { resolveQuoteProducer, type QuoteProducer } from "./quote-producer"
 import { composeQuoteAssurance, type QuoteAssurance } from "./quote-assurance"
 import { composeQuoteRetail, type QuoteRetail } from "./quote-retail"
-import { resolveQuoteTax, type QuoteTax } from "./quote-tax"
+import {
+  resolveBuyerImportEstimate,
+  resolveQuoteTax,
+  type QuoteImportEstimate,
+  type QuoteTax,
+} from "./quote-tax"
 import { computeDdpCharges, describeDdpBasis } from "./ddp-charges"
 import {
   pickRatingCarrier,
@@ -325,6 +330,16 @@ export type QuoteView = {
    * exactly the divergence that made every quote unacceptable.
    */
   prices_tax_inclusive: boolean | null
+  /**
+   * Indicative destination charges the BUYER settles at their own border
+   * (#1447 tail). Null on a domestic supply, on a DDP quote, and wherever no
+   * destination rate is configured.
+   *
+   * 🔴 Never part of `live` or `quoted`. It is not ours to charge and not ours
+   * to collect; folding it into a total would restate the exact error we just
+   * removed from the cart.
+   */
+  import_estimate: QuoteImportEstimate | null
   /**
    * The DDP undertaking and the number behind it (#1447).
    *
@@ -831,6 +846,8 @@ export async function buildQuoteView(
    */
   const priceInclusiveByVariant = new Map<string, boolean>()
   let pricesTaxInclusive: boolean | null = null
+  /** Indicative destination charges the BUYER pays. Never part of a total. */
+  let importEstimate: QuoteImportEstimate | null = null
   let weightByVariant = new Map<
     string,
     { unit_weight_grams: number; weight_source: "variant" | "product" }
@@ -1067,6 +1084,25 @@ export async function buildQuoteView(
       const liveSubtotals = effectiveLines.map(
         (l) => (liveUnitByVariant.get(l.variant_id) ?? 0) * l.quantity
       )
+
+      /**
+       * What the buyer will meet at their own border. Computed here because
+       * the priced lines and the chosen freight both exist by now, and
+       * deliberately AFTER `liveSubtotals` so the basis is the same goods total
+       * the buyer is looking at.
+       *
+       * 🔑 Never folded into `live` or `quoted`. It is not ours to charge and
+       * not ours to collect — putting it in a total would restate the exact
+       * error we just removed from the cart.
+       */
+      importEstimate = await resolveBuyerImportEstimate(scope, {
+        origin_country_code: originCountry,
+        destination_country_code: input.destination_country_code,
+        destination_postal_code: input.destination_postal_code ?? null,
+        duties_prepaid: dutiesPrepaid,
+        subtotal: liveSubtotals.reduce((sum, n) => sum + n, 0),
+        freight: Number(chosen.amount),
+      })
 
       if (dutiesPrepaid) {
         /**
@@ -1337,6 +1373,7 @@ export async function buildQuoteView(
      */
     tax: frozenTaxFallback(tax, input.quote),
     prices_tax_inclusive: pricesTaxInclusive,
+    import_estimate: importEstimate,
     duty: {
       prepaid: dutiesPrepaid,
       total: ddpCharges.duty,

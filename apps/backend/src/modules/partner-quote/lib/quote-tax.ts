@@ -493,3 +493,111 @@ export async function resolveQuoteTax(
     return base
   }
 }
+
+/**
+ * What the OVERSEAS buyer will be charged at their own border (#1447 tail).
+ *
+ * ## Why this exists
+ *
+ * On an export we correctly charge no seller tax, and the buyer page says so —
+ * "import duty and import VAT/GST are payable by you to DE customs on arrival
+ * and are NOT included in this total". True, and useless for budgeting: a
+ * procurement contact comparing suppliers has a number from everyone else and
+ * a sentence from us.
+ *
+ * So we show the number, OUTSIDE the total, marked as theirs to pay. It is
+ * never added to anything and never frozen on the row — it is a courtesy
+ * calculation, not part of the offer.
+ *
+ * ## Import VAT is estimable. Duty is not, and is not guessed.
+ *
+ * The destination's standard VAT/GST rate is a fact we already hold: the tax
+ * module has a configured region and rate for every country we sell into
+ * (19% DE, 21% NL, 10% AU …). That is the same rate the cart used to charge
+ * before we stopped collecting tax we are not registered for — so the figure
+ * is real, it has simply moved from "what we take" to "what to expect".
+ *
+ * 🔴 Duty is deliberately NOT estimated. It is a function of the HS code, those
+ * are still incomplete across the catalogue, and a duty percentage invented
+ * here would be indistinguishable from one someone had checked. `duty_unknown`
+ * says so out loud, because a total that silently omits duty is exactly the
+ * #1430 shape — a confident figure missing a real charge.
+ *
+ * Returns null when there is nothing honest to say: a domestic supply (no
+ * border), a DDP quote (we are paying it, and it is already a line), or a
+ * destination we hold no rate for.
+ */
+export type QuoteImportEstimate = {
+  /** Indicative import VAT/GST, in the quote currency. Never added to a total. */
+  import_tax: number
+  /** The rate applied, so the buyer can check it against their own broker. */
+  rate_percent: number
+  /** Goods + freight — the value the destination assesses. */
+  basis: number
+  /** True whenever duty is additionally payable and we will not guess it. */
+  duty_unknown: boolean
+}
+
+export async function resolveBuyerImportEstimate(
+  scope: any,
+  input: {
+    origin_country_code?: string | null
+    destination_country_code: string
+    destination_postal_code?: string | null
+    destination_province_code?: string | null
+    duties_prepaid?: boolean
+    subtotal: number
+    freight: number
+  }
+): Promise<QuoteImportEstimate | null> {
+  // We are paying it — it belongs in the total as a DDP line, not here as a
+  // warning to the buyer.
+  if (input.duties_prepaid) return null
+
+  const country = String(input.destination_country_code || "").toLowerCase()
+  if (!country) return null
+
+  // Only across a border. A domestic buyer has already been shown their tax.
+  if (
+    classifyQuoteJurisdiction(input.origin_country_code, country) !== "export"
+  ) {
+    return null
+  }
+
+  const basis = Number(input.subtotal) + Number(input.freight)
+  if (!Number.isFinite(basis) || basis <= 0) return null
+
+  try {
+    const taxService: any = scope.resolve(Modules.TAX)
+
+    /**
+     * One synthetic line for the whole consignment. The destination assesses
+     * the shipment, not our basket structure, and asking per line would invite
+     * a per-line rate that no customs authority applies.
+     */
+    const lines: RawTaxLine[] = await taxService.getTaxLines(
+      [{ id: "import-estimate", product_id: "import-estimate", unit_price: basis, quantity: 1 }],
+      {
+        address: {
+          country_code: country,
+          province_code: input.destination_province_code ?? null,
+          postal_code: input.destination_postal_code ?? undefined,
+        },
+      }
+    )
+
+    const rate = Number(lines?.[0]?.rate ?? NaN)
+    // A destination we hold no rate for gets silence, not a zero — "no import
+    // VAT due" is a claim, and a wrong one nearly everywhere.
+    if (!Number.isFinite(rate) || rate <= 0) return null
+
+    return {
+      import_tax: Math.round(basis * (rate / 100) * 100) / 100,
+      rate_percent: rate,
+      basis: Math.round(basis * 100) / 100,
+      duty_unknown: true,
+    }
+  } catch {
+    return null
+  }
+}

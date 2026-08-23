@@ -241,6 +241,57 @@ const QuoteSummary = ({ quote }: { quote: QuoteView }) => {
       ) : null}
 
       {/**
+       * 🔴 What the buyer pays at their OWN border — a number, not just a
+       * warning.
+       *
+       * The sentence above is true and useless for budgeting: a procurement
+       * contact comparing suppliers gets a figure from everyone else and a
+       * caveat from us. So the import VAT is shown, at the destination's own
+       * standard rate, which is a fact we already hold.
+       *
+       * Rendered OUTSIDE the total and styled as an aside, never as a row in
+       * the table above. The moment it looks like a line item somebody adds it
+       * up, and we are back to charging tax we are not registered to collect.
+       *
+       * Duty is named as missing rather than estimated. It depends on the HS
+       * code, those are incomplete across the catalogue, and an invented duty
+       * percentage would be indistinguishable from a checked one — the #1430
+       * shape exactly.
+       */}
+      {quote.import_estimate ? (
+        <div
+          className="rounded-lg border border-dashed border-ui-border-strong p-3"
+          data-testid="quote-import-estimate"
+        >
+          <Text className="txt-small-plus text-ui-fg-base">
+            Payable by you on arrival — not included above
+          </Text>
+          <Text className="txt-small text-ui-fg-subtle mt-1">
+            Import VAT/GST at {quote.import_estimate.rate_percent}% on{" "}
+            {convertToLocale({
+              amount: quote.import_estimate.basis,
+              currency_code,
+            })}{" "}
+            (goods + freight) is about{" "}
+            <strong>
+              {convertToLocale({
+                amount: quote.import_estimate.import_tax,
+                currency_code,
+              })}
+            </strong>
+            .
+            {quote.import_estimate.duty_unknown
+              ? " Customs duty is payable in addition and depends on the tariff classification, so it is not estimated here."
+              : ""}
+          </Text>
+          <Text className="txt-small text-ui-fg-muted mt-1">
+            An estimate to help you budget, collected by your customs authority
+            and not by us.
+          </Text>
+        </div>
+      ) : null}
+
+      {/**
        * What kind of number the freight is — and the two cases are not the
        * same sentence.
        *
