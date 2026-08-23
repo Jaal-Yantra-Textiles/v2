@@ -103,7 +103,10 @@ const QuoteTemplate = ({
         <Heading level="h2" className="text-xl-semi text-ui-fg-base mb-2">
           Your basket
         </Heading>
-        <QuoteLines quote={quote} />
+        {/* The buyer may move quantities here; every number that follows is
+            re-computed by the SERVER from what they dial (#1439 S13), which is
+            why the control is two links and a URL rather than client state. */}
+        <QuoteLines quote={quote} token={token} countryCode={countryCode} />
       </div>
 
       <div className="mt-10">
@@ -118,6 +121,15 @@ const QuoteTemplate = ({
           token={token}
           acceptance={acceptance}
           countryCode={countryCode}
+          /* 🔴 The basket AS PRICED ABOVE, not the quoted one. `quote.lines`
+             already carries the buyer's dial — the backend re-priced the whole
+             document through it — so handing these straight to the accept call
+             is what stops a cart being built for quantities the buyer moved
+             away from and never saw again. */
+          lines={quote.lines.map((l) => ({
+            variant_id: l.variant_id,
+            quantity: l.quantity,
+          }))}
         />
       ) : null}
 

@@ -149,7 +149,17 @@ export type QuoteViewLine = {
   thumbnail: string | null
   image_source: "variant" | "product" | null
   spec: QuoteLineSpec | null
+  /** The EFFECTIVE quantity — the buyer's dial position, or the quoted one. */
   quantity: number
+  /**
+   * What the partner actually quoted this line at (#1439 S13). Null on a line
+   * with no frozen row behind it.
+   *
+   * 🔑 The page needs BOTH numbers the moment the buyer can move quantities:
+   * a dialled document that says nothing about the dial is indistinguishable
+   * from the one the partner sent, and the header still calls it "your quote".
+   */
+  quoted_quantity?: number | null
   position: number
   note: string | null
   live_unit_amount: number | null
@@ -423,14 +433,28 @@ export const retrieveQuote = async (
  * same cart rather than a second one priced against a superseded list.
  */
 export const acceptQuote = async (
-  token: string
+  token: string,
+  lines?: Array<{ variant_id: string; quantity: number }>
 ): Promise<{ cart_id: string | null; error: string | null }> => {
   try {
     const { acceptance } = await sdk.client.fetch<{
       acceptance: { cart_id: string; already_accepted?: boolean }
     }>(`/store/b2b/quotes/${encodeURIComponent(token)}/accept`, {
       method: "POST",
-      body: {},
+      /**
+       * 🔴 The basket AS RENDERED, or the cart quietly reverts to the quoted
+       * quantities (#1439 S13). The page has always let a buyer move
+       * quantities and re-priced the whole document through them — but
+       * acceptance ignored the dial entirely, so someone who moved 29 up to 40,
+       * read the new total and pressed Accept got a cart for 29. Nothing said
+       * so, on the page or at checkout.
+       *
+       * Sent from the lines the SERVER priced rather than from the URL: the
+       * rendered document is what the buyer agreed to, and the backend refuses
+       * any variant not already on the quote — so a stale query string must
+       * never be the thing that reaches the cart.
+       */
+      body: lines?.length ? { lines } : {},
       cache: "no-store",
     })
 
