@@ -15,6 +15,43 @@ const Design = model.define("design", {
     "Custom",
     "Collaboration"
   ]).default("Original"),
+
+  /**
+   * WHAT the design is — the garment category ("trousers", "saree", "shirt").
+   *
+   * 🔑 Deliberately NOT folded into `design_type` above, which answers a
+   * different question entirely: how ORIGINAL the design is (Original /
+   * Derivative / Custom / Collaboration). Overloading that enum would have
+   * silently changed what "Custom" means in `promote-design-to-product`, which
+   * already reads it.
+   *
+   * Free text rather than an enum: the catalogue is textile-wide and a garment
+   * vocabulary that lives in a migration is one that is always one word behind
+   * the thing a designer just drew. Normalised on write (lowercased, trimmed,
+   * spaces to underscores) so two spellings of "kurta" compare equal — the same
+   * reason `ProductSpecField.key` is normalised.
+   *
+   * Load-bearing (#938): the type is what makes a production spec derivable,
+   * and therefore what a design costs. That is why it is a typed column and not
+   * a metadata key — see the `business_description` lesson on #1486, where the
+   * copy existed on prod for months and nothing could read it.
+   */
+  product_type: model.text().nullable(),
+
+  /**
+   * Whether `product_type` was typed by a human or inferred by a model.
+   *
+   * 🔴 The reason this exists: an inferred type that silently changes between
+   * two reads changes the production spec, and therefore the cost, and
+   * therefore the quote — with nothing in the record to explain why the same
+   * design costs two different amounts. Storing the provenance means an
+   * inferred value can be shown as provisional and corrected, and a human
+   * correction is never re-inferred over. Same discipline as `origin_source`.
+   */
+  product_type_source: model.enum([
+    "manual",
+    "inferred",
+  ]).nullable(),
   status: model.enum([
     "Conceptual",
     "In_Development",

@@ -3,6 +3,7 @@ import { Mastra } from "@mastra/core/mastra";
 import { PostgresStore } from "@mastra/pg";
 import { seoWorkflow } from "./workflows/seo";
 import designValidationWorkflow from './workflows/designValidator';
+import { designProductTypeWorkflow } from './workflows/designProductType';
 import productDescriptionWorkflow from './workflows/productDescription';
 import { imageExtractionWorkflow } from './workflows/imageExtraction';
 import { visualFlowCodegenWorkflow } from "./workflows/visualFlowCodegen";
@@ -40,6 +41,7 @@ export const mastra = new Mastra({
     workflows: {
         seoWorkflow,
         designValidationWorkflow,
+        designProductTypeWorkflow,
         productDescriptionWorkflow,
         imageExtractionWorkflow,
         aiChatWorkflow,
