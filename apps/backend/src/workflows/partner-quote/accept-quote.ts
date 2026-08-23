@@ -110,7 +110,12 @@ const loadQuoteForAcceptStep = createStep(
       throw new MedusaError(MedusaError.Types.NOT_FOUND, "Quote not found")
     }
 
-    if (quote.accepted_cart_id) {
+    // 🔑 BOTH, not just the cart id. `accepted_cart_id` is written early now,
+    // so the freight option can be seen by the cart that earned it (see
+    // `linkQuoteCartStep`); `accepted_at` is what says the acceptance actually
+    // finished. Reading the pointer alone would make a half-finished run look
+    // like a completed one and hand the buyer a cart with no freight.
+    if (quote.accepted_cart_id && quote.accepted_at) {
       // Idempotent: this is a repeat submit, not a second deal.
       return new StepResponse({ quote, lines: [], store: null, existing_cart_id: quote.accepted_cart_id })
     }
@@ -485,6 +490,55 @@ const openPaymentScheduleStep = createStep(
  * a failed acceptance would leave a quote pointing at a cart that prices
  * nothing and can never be accepted again.
  */
+/**
+ * Point the quote at its cart, BEFORE the freight option has to be visible.
+ *
+ * ## 🔴 The contradiction this resolves
+ *
+ * The minted freight option carries a rule `quote_id eq <quote>`, and the hook
+ * that puts `quote_id` into the matching context resolves it by looking the
+ * quote up **by `accepted_cart_id`**. That column was written by
+ * `markQuoteAcceptedStep`, which runs LAST — after `addQuoteFreightStep`. So at
+ * the moment the option had to be visible it never was, the rule failed, and
+ * core answered "Shipping Options are invalid for cart".
+ *
+ * Acceptance could therefore never complete. It was not a rare edge: every
+ * single acceptance died there, and nothing caught it because the two halves
+ * are correct in isolation — the hook's own docblock even predicts this exact
+ * error message for a related mistake.
+ *
+ * ## Why this is not simply "move the mark earlier"
+ *
+ * `accepted_cart_id` is also the IDEMPOTENCY key: a set value makes the next
+ * POST return the existing cart instead of minting a second one. Writing the
+ * full acceptance early would mean a half-finished run whose compensation also
+ * failed leaves a quote that reports itself accepted while pointing at a cart
+ * with no freight and no payment schedule — permanently unacceptable, which is
+ * exactly what the original ordering was protecting against.
+ *
+ * So the two facts are separated. This step writes only the POINTER, and
+ * `accepted_at` remains the mark of a completed acceptance. The idempotency
+ * check requires BOTH, so a partial run is retried rather than resurrected.
+ */
+const linkQuoteCartStep = createStep(
+  "link-quote-cart-step",
+  async (input: { quote_id: string; cart_id: string }, { container }) => {
+    const service: any = container.resolve(PARTNER_QUOTE_MODULE)
+    await service.updatePartnerQuotes({
+      id: input.quote_id,
+      accepted_cart_id: input.cart_id,
+    })
+    return new StepResponse({ ok: true }, { quote_id: input.quote_id })
+  },
+  async (undo, { container }) => {
+    if (!undo?.quote_id) return
+    const service: any = container.resolve(PARTNER_QUOTE_MODULE)
+    await service
+      .updatePartnerQuotes({ id: undo.quote_id, accepted_cart_id: null })
+      .catch(() => {})
+  }
+)
+
 const markQuoteAcceptedStep = createStep(
   "mark-quote-accepted-step",
   async (
@@ -580,6 +634,14 @@ export const acceptQuoteWorkflow = createWorkflow(
         lines: loaded.lines,
         store: loaded.store,
         shipping_address: input.shipping_address,
+      })
+
+      // BEFORE the freight. The option is ruled to this quote and the context
+      // hook resolves that rule by `accepted_cart_id`, so the pointer has to
+      // exist by the time core validates the option against the cart.
+      linkQuoteCartStep({
+        quote_id: input.quote_id,
+        cart_id: cart.cart_id,
       })
 
       addQuoteFreightStep({

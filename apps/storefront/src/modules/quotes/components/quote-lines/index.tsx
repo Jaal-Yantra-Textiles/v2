@@ -1,8 +1,8 @@
 import { Text } from "@medusajs/ui"
-import Image from "next/image"
 
 import { convertToLocale } from "@lib/util/money"
 import type { QuoteView, QuoteViewLine } from "@lib/data/quotes"
+import QuoteLineImage from "../quote-image"
 import QuoteLineSpecRows from "../quote-line-spec"
 
 /**
@@ -38,16 +38,14 @@ const LineRow = ({
             than an empty cell — the buyer is agreeing to *that* item. The box
             is reserved either way so the rows stay aligned. */}
         {line.thumbnail ? (
-          <div className="relative h-16 w-16 shrink-0 overflow-hidden rounded-md bg-ui-bg-subtle">
-            <Image
-              src={line.thumbnail}
-              alt={line.product_title ?? "Quoted item"}
-              fill
-              sizes="64px"
-              quality={60}
-              className="object-cover object-center"
-            />
-          </div>
+          <QuoteLineImage
+            src={line.thumbnail}
+            alt={line.product_title ?? "Quoted item"}
+            caption={
+              [line.product_title, line.variant_title].filter(Boolean).join(" — ") ||
+              null
+            }
+          />
         ) : null}
         <div className="min-w-0">
           <Text className="txt-medium-plus text-ui-fg-base">

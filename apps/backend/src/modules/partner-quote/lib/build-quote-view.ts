@@ -15,6 +15,8 @@ import {
   type QuoteMoney,
 } from "./compare"
 import { resolveQuoteProducer, type QuoteProducer } from "./quote-producer"
+import { composeQuoteAssurance, type QuoteAssurance } from "./quote-assurance"
+import { composeQuoteRetail, type QuoteRetail } from "./quote-retail"
 import { resolveQuoteTax, type QuoteTax } from "./quote-tax"
 import { computeDdpCharges, describeDdpBasis } from "./ddp-charges"
 import {
@@ -240,6 +242,10 @@ export type QuoteViewLine = {
   variant_id: string
   /** The design this line was picked as (#1486). Provenance, never pricing. */
   design_id?: string | null
+  /** The catalogue's own merchandising words. Empty, never null. */
+  product_tags: string[]
+  product_type: string | null
+  product_collection: string | null
   variant_title: string | null
   product_id: string | null
   product_title: string | null
@@ -348,6 +354,17 @@ export type QuoteView = {
    * storefront. Null means "say nothing", never "unknown producer".
    */
   producer: QuoteProducer | null
+  /**
+   * What the same goods sell for on the shop, and the spread (#1428).
+   * Null when there is no spread to report — see `quote-retail.ts`.
+   */
+  retail: QuoteRetail | null
+  /**
+   * Why buy here, and the full composition of what the buyer pays.
+   * Every point is gated on a fact; the partner's commercial terms are NOT in
+   * it — see `quote-assurance.ts`.
+   */
+  assurance: QuoteAssurance
   /**
    * Who made this and how — the partner's public-safe credentials plus the
    * product facts the whole basket agrees on (#1439 S9). Null means "say
@@ -678,6 +695,12 @@ export async function buildQuoteView(
       "product.title",
       "product.handle",
       "product.thumbnail",
+      // What the piece IS, for a buyer deciding whether it fits their shelf
+      // (#1428 follow-up). Tags are the merchandising vocabulary the catalogue
+      // already uses, so they need no new field and cannot drift from it.
+      "product.tags.value",
+      "product.type.value",
+      "product.collection.title",
     ],
     filters: { id: effectiveLines.map((l) => l.variant_id) },
   })
@@ -1068,6 +1091,11 @@ export async function buildQuoteView(
       product_handle: identity.product?.handle ?? null,
       ...pickLineImage(identity),
       spec: specByProduct.get(identity.product?.id) ?? null,
+      product_tags: ((identity.product?.tags ?? []) as any[])
+        .map((t) => t?.value)
+        .filter((v: any): v is string => typeof v === "string" && v.length > 0),
+      product_type: identity.product?.type?.value ?? null,
+      product_collection: identity.product?.collection?.title ?? null,
       quantity: line.quantity,
       position: line.position ?? frozen?.position ?? index,
       note: line.note ?? frozen?.note ?? null,
@@ -1094,9 +1122,16 @@ export async function buildQuoteView(
   // Resolved AFTER the money, and deliberately unable to fail the view: a
   // credit line is not worth a buyer's 500. Returns null whenever we cannot
   // positively tell that the viewer is off the partner's own storefront.
+  // The catalogue's own words for what is in this basket, deduped once and
+  // shared by the producer band and the reseller block.
+  const basketTags = Array.from(
+    new Set(lines.flatMap((l) => l.product_tags ?? []))
+  ).sort((a, b) => a.localeCompare(b))
+
   const producer = await resolveQuoteProducer(scope, {
     partner_id: input.partner_id ?? null,
     viewer_sales_channel_ids: input.viewer_sales_channel_ids ?? null,
+    product_tags: basketTags,
   })
 
   // Same contract as the producer band: resolved after the money and unable to
@@ -1104,6 +1139,105 @@ export async function buildQuoteView(
   const provenance = await resolveQuoteProvenance(scope, {
     partner_id: input.partner_id ?? null,
     product_ids: lines.map((l) => l.product_id),
+  })
+
+  /**
+   * The reseller's view: the shop's own price beside the buyer's.
+   *
+   * 🔴 Priced WITHOUT the customer group, deliberately — that is the whole
+   * difference between "what you pay" and "what it lists at". Best-effort per
+   * line: a list price we cannot resolve is simply absent, never zero, and the
+   * block disappears entirely rather than reporting a margin of nothing.
+   *
+   * Only attempted on a read (`customer_group_id` present). At mint there is no
+   * group and the two prices are the same number, so there is nothing to say.
+   */
+  const listPrices = new Map<string, number>()
+  if (!unusableReason && input.customer_group_id) {
+    for (const line of effectiveLines) {
+      try {
+        const { data: listed } = await query.graph({
+          entity: "variant",
+          fields: ["id", "calculated_price.*"],
+          filters: { id: line.variant_id },
+          context: {
+            calculated_price: QueryContext({
+              ...(input.region_id ? { region_id: input.region_id } : {}),
+              currency_code: input.currency_code,
+              // Quantity 1: a list price is what ONE costs a walk-up buyer.
+              // Passing the quoted quantity would hand back a bulk tier and
+              // quietly understate the spread the buyer is actually getting.
+              quantity: 1,
+            }),
+          },
+        })
+        const amount = Number(
+          (listed?.[0] as any)?.calculated_price?.calculated_amount
+        )
+        if (Number.isFinite(amount)) listPrices.set(line.variant_id, amount)
+      } catch {
+        // A missing list price costs the buyer nothing. It must never cost
+        // them the page.
+      }
+    }
+  }
+
+  const retail = composeQuoteRetail({
+    currency_code: input.currency_code,
+    lines: lines.map((l) => ({
+      variant_id: l.variant_id,
+      product_title: l.product_title,
+      quantity: l.quantity,
+      unit_amount: l.live_unit_amount ?? l.quoted_unit_amount,
+      product_tags: l.product_tags,
+    })),
+    listPrices,
+  })
+
+  /**
+   * The maker's own words, attached to the band that names them.
+   *
+   * 🔑 Read off the provenance rather than resolved again — `maker_story` comes
+   * from the product's `artisan_product_detail`, and asking twice is how one
+   * question gets two answers. ⚠️ Neither the partner model nor
+   * `partner_onboarding_profile` carries prose; the profile is structured facts
+   * and those are already the provenance ROWS. A maker with no artisan detail
+   * therefore has no story, and the band shows tags alone rather than a
+   * paragraph assembled out of their team size.
+   */
+  const producerWithStory = producer
+    ? { ...producer, story: provenance?.maker_story ?? null }
+    : null
+
+  /**
+   * The assurance block. Built from what has already been resolved above —
+   * producer, provenance, the money, the tax verdict and the duty undertaking
+   * — so it cannot disagree with the numbers it sits beside.
+   *
+   * 🔴 `cross_border` decides whether import duty is even mentioned, and it is
+   * the ORIGIN against the DESTINATION. Getting this from the buyer's country
+   * alone would tell a Mumbai buyer on an Indian lane that duty is payable on
+   * arrival, which is both false and alarming.
+   */
+  const assurance = composeQuoteAssurance({
+    currency_code: input.currency_code,
+    producer: producerWithStory,
+    provenance,
+    money: live ?? quoted,
+    tax: frozenTaxFallback(tax, input.quote),
+    duty: {
+      prepaid: dutiesPrepaid,
+      total: ddpCharges.duty,
+      import_tax: ddpCharges.import_tax,
+      carrier_fee: ddpCharges.carrier_fee,
+    },
+    cross_border: Boolean(
+      originCountry &&
+        input.destination_country_code &&
+        originCountry.toUpperCase() !==
+          String(input.destination_country_code).toUpperCase()
+    ),
+    expires_in_days: input.quote ? daysUntilExpiry(lifecycle, input.now) : null,
   })
 
   const compare = compareQuote({
@@ -1175,8 +1309,10 @@ export async function buildQuoteView(
       company: input.quote?.recipient_company ?? null,
       partner_note: input.quote?.partner_note ?? null,
     },
-    producer,
+    producer: producerWithStory,
     provenance,
+    retail,
+    assurance,
     expires_in_days: input.quote ? daysUntilExpiry(lifecycle, input.now) : null,
     origin_country_code: originCountry,
     live_error: liveError,
