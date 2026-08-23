@@ -32,6 +32,20 @@ const PartnerQuoteLine = model.define("partner_quote_line", {
 
   variant_id: model.text(),
   product_id: model.text().nullable(),
+
+  /**
+   * The design this line was picked as (#1486). Provenance, not pricing.
+   *
+   * 🔑 The line is still priced through `variant_id` — a design's
+   * `estimated_cost` / `production_cost` are what the work COSTS us, with no
+   * margin, tier or FX, and quoting off them would be a second way to arrive at
+   * a number the buyer pays. This column records that the partner chose a
+   * design and the server resolved the variant, so the quote can say so rather
+   * than showing a bare SKU for a piece the buyer knows by name.
+   *
+   * Null on every line picked as a product, which is most of them.
+   */
+  design_id: model.text().nullable(),
   quantity: model.number(),
 
   /** Basket order as the partner arranged it. Presentation, not identity. */

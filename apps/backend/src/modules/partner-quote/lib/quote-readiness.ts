@@ -47,6 +47,8 @@ export type QuoteReadinessCode =
   | "store_location_missing"
   | "store_sales_channel_missing"
   | "variant_missing"
+  /** A line named a design that cannot be resolved to one variant (#1486). */
+  | "design_unresolved"
   | "variant_not_in_catalogue"
   | "line_unpriced"
   | "weight_missing"
@@ -60,6 +62,8 @@ export type QuoteReadinessIssue = {
   /** Written for the partner staring at the wizard, not for a log. */
   message: string
   variant_id?: string | null
+  /** Set on `design_unresolved`, so the wizard can highlight the right row. */
+  design_id?: string | null
   data?: Record<string, unknown>
 }
 

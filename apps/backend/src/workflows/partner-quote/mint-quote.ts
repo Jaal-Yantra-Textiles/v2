@@ -50,6 +50,12 @@ export type MintQuoteInput = {
   partner_note?: string | null
   lines: Array<{
     variant_id: string
+    /**
+     * The design this line was picked as (#1486). Already resolved to
+     * `variant_id` by the route — carried here only so the frozen line can
+     * record which design the partner chose. It prices nothing.
+     */
+    design_id?: string | null
     quantity: number
     position?: number
     note?: string | null
@@ -902,6 +908,8 @@ const persistQuoteStep = createStep(
         quote_id: quote.id,
         variant_id: l.variant_id,
         product_id: l.product_id ?? null,
+        // #1486 — which design this was picked as, or null for a product line.
+        design_id: l.design_id ?? null,
         quantity: l.quantity,
         position: l.position ?? i,
         quoted_unit_amount: l.live_unit_amount ?? null,

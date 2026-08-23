@@ -4,6 +4,10 @@ import {
 } from "@medusajs/framework/http"
 
 import { getPartnerStore } from "../../helpers"
+import {
+  resolveDesignLinesForReadiness,
+  withDesignIssues,
+} from "../../../../modules/partner-quote/lib/design-lines"
 import { assessQuoteReadiness } from "../../../../modules/partner-quote/lib/quote-readiness"
 
 /**
@@ -29,8 +33,16 @@ export const POST = async (
   const { partner, store } = await getPartnerStore(req.auth_context, req.scope)
   const body = req.validatedBody as any
 
-  const readiness = await assessQuoteReadiness(req.scope, {
+  // #1486 — a design line is resolved to its variant before the basket is
+  // assessed, and an unresolvable one becomes a blocking row rather than a
+  // throw. This endpoint's whole contract is "report, never refuse".
+  const designs = await resolveDesignLinesForReadiness(req.scope, {
     lines: body.lines,
+    partner_id: partner.id,
+  })
+
+  const readiness = await assessQuoteReadiness(req.scope, {
+    lines: designs.lines as any,
     store: {
       id: store.id,
       default_location_id: store.default_location_id,
@@ -49,5 +61,5 @@ export const POST = async (
     check_catalogue: true,
   })
 
-  res.json({ readiness })
+  res.json({ readiness: withDesignIssues(readiness, designs.issues) })
 }

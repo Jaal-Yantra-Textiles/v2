@@ -70,6 +70,8 @@ import { daysUntilExpiry, quoteUnusableReason } from "./token"
 
 export type QuoteViewLineRow = {
   variant_id: string
+  /** The design this line was picked as (#1486). Provenance, never pricing. */
+  design_id?: string | null
   quantity?: number
   position?: number
   note?: string | null
@@ -113,6 +115,8 @@ export type QuoteViewQuote = {
 /** One line as the buyer is currently looking at it. */
 export type BuildQuoteViewLine = {
   variant_id: string
+  /** The design this line was picked as (#1486). Provenance, never pricing. */
+  design_id?: string | null
   quantity: number
   position?: number
   note?: string | null
@@ -216,6 +220,8 @@ export type BuildQuoteViewInput = {
 
 export type QuoteViewLine = {
   variant_id: string
+  /** The design this line was picked as (#1486). Provenance, never pricing. */
+  design_id?: string | null
   variant_title: string | null
   product_id: string | null
   product_title: string | null
@@ -1027,6 +1033,10 @@ export async function buildQuoteView(
       quantity: line.quantity,
       position: line.position ?? frozen?.position ?? index,
       note: line.note ?? frozen?.note ?? null,
+      // #1486 — carried through so the frozen row, both partner UIs and the
+      // buyer's page can say "this is your Kashida Shawl" rather than showing
+      // a SKU for a piece the buyer knows by name. It prices nothing.
+      design_id: line.design_id ?? frozen?.design_id ?? null,
       live_unit_amount: liveUnit,
       live_subtotal: liveUnit === null ? null : liveUnit * line.quantity,
       quoted_unit_amount:

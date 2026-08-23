@@ -2,6 +2,7 @@ import { AuthenticatedMedusaRequest, MedusaResponse } from "@medusajs/framework/
 import { ContainerRegistrationKeys } from "@medusajs/framework/utils"
 
 import { PARTNER_QUOTE_MODULE } from "../../../modules/partner-quote"
+import { resolveQuoteDesignLines } from "../../../modules/partner-quote/lib/design-lines"
 import { buildQuoteListQuery } from "../../../modules/partner-quote/lib/list-query"
 import { deliverQuoteEmail } from "../../../workflows/partner-quote/deliver-quote-email"
 import { mintQuoteWorkflow } from "../../../workflows/partner-quote/mint-quote"
@@ -52,6 +53,19 @@ export const POST = async (
   const { partner, store } = await getPartnerStore(req.auth_context, req.scope)
   const body = req.validatedBody as any
 
+  /**
+   * #1486 — a line may name a design instead of a variant. Resolved HERE, not
+   * in the workflow, because the two surfaces scope it differently: a partner
+   * may only quote designs they own or are assigned to, while an admin quotes
+   * across the platform. Resolution throws before anything is created, so a
+   * design that cannot be priced costs nothing — the same contract as a variant
+   * that does not exist.
+   */
+  const lines = await resolveQuoteDesignLines(req.scope, {
+    lines: body.lines,
+    partner_id: partner.id,
+  })
+
   const { result } = await mintQuoteWorkflow(req.scope).run({
     input: {
       partner_id: partner.id,
@@ -60,7 +74,7 @@ export const POST = async (
       recipient_name: body.recipient_name ?? null,
       recipient_company: body.recipient_company ?? null,
       partner_note: body.partner_note ?? null,
-      lines: body.lines,
+      lines: lines as any,
       destination_country_code: body.destination_country_code,
       destination_postal_code: body.destination_postal_code ?? null,
       destination_city: body.destination_city ?? null,

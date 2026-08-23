@@ -20,7 +20,19 @@ import { z } from "@medusajs/framework/zod"
  */
 const QuoteLine = z
   .object({
-    variant_id: z.string().min(1),
+    /**
+     * Optional ONLY because a line may name a `design_id` instead — see the
+     * refinement below. An explicit variant always wins: it is how a design
+     * sold as several variants gets quoted at all.
+     */
+    variant_id: z.string().min(1).nullish(),
+    /**
+     * Quote this design (#1486). The server resolves it to the variant the
+     * design is sold through and refuses when that is not decidable — a design
+     * with no product behind it has nothing to price, and one sold as several
+     * variants must not be quoted as whichever came back first.
+     */
+    design_id: z.string().min(1).nullish(),
     quantity: z.number().int().positive(),
     position: z.number().int().nonnegative().optional(),
     note: z.string().nullish(),
@@ -29,6 +41,10 @@ const QuoteLine = z
     discount_percent: z.number().min(0).max(100).nullish(),
     /** A flat unit price, in the partner store's default currency. */
     override_unit_amount: z.number().positive().nullish(),
+  })
+  .refine((l) => Boolean(l.variant_id) || Boolean(l.design_id), {
+    message: "A line must name either a variant_id or a design_id.",
+    path: ["variant_id"],
   })
   .refine(
     (l) =>

@@ -3,6 +3,7 @@ import { ContainerRegistrationKeys, MedusaError } from "@medusajs/framework/util
 
 import { PARTNER_QUOTE_MODULE } from "../../../modules/partner-quote"
 import { buildQuoteListQuery } from "../../../modules/partner-quote/lib/list-query"
+import { resolveQuoteDesignLines } from "../../../modules/partner-quote/lib/design-lines"
 import { deliverQuoteEmail } from "../../../workflows/partner-quote/deliver-quote-email"
 import { mintQuoteWorkflow } from "../../../workflows/partner-quote/mint-quote"
 import { assertVariantsInStore } from "./lib/assert-variants-in-store"
@@ -85,12 +86,27 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
     )
   }
 
+  /**
+   * #1486 — resolve design lines to variants BEFORE the catalogue assertion
+   * below, which reads `variant_id` off every line and would otherwise assert
+   * `undefined` into a pass.
+   *
+   * 🔑 Unscoped by partner, unlike the partner surface: an admin legitimately
+   * quotes a design the producing partner does not own. The guard that matters
+   * on this route is the next one — the resolved variant still has to be in
+   * that partner's sales channel.
+   */
+  const lines = await resolveQuoteDesignLines(req.scope, {
+    lines: body.lines,
+    partner_id: null,
+  })
+
   // 🔴 An admin picks the partner from one dropdown and the variants from
   // another; a single mis-click freezes one partner's prices onto another
   // partner's customer group, and NOTHING downstream catches it. The partner
   // surface cannot make this mistake, so the guard lives here.
   await assertVariantsInStore(req.scope, {
-    variantIds: (body.lines ?? []).map((l: any) => l.variant_id),
+    variantIds: (lines ?? []).map((l: any) => l.variant_id),
     salesChannelId: store.default_sales_channel_id,
     partnerLabel: partner.name || partnerId,
   })
@@ -103,7 +119,7 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
       recipient_name: body.recipient_name ?? null,
       recipient_company: body.recipient_company ?? null,
       partner_note: body.partner_note ?? null,
-      lines: body.lines,
+      lines: lines as any,
       destination_country_code: body.destination_country_code,
       destination_postal_code: body.destination_postal_code ?? null,
       destination_city: body.destination_city ?? null,
