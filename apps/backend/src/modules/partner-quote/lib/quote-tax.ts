@@ -96,9 +96,36 @@ export type QuoteTaxInput = {
   destination_country_code: string
   destination_postal_code?: string | null
   destination_province_code?: string | null
+  /**
+   * Whether the PRICES this quote is built from already contain tax, read off
+   * the pricing module's own `is_calculated_price_tax_inclusive`.
+   *
+   * 🔴 This is not the same question as `region.is_tax_inclusive`, which is
+   * what this used to ask. On prod both regions are `null` while every
+   * calculated price answers `true` — so the quote added tax on top of a price
+   * that already contained it, and the cart later extracted it back out. The
+   * two disagreed by the whole tax amount and acceptance was refused outright:
+   * ₹90,000 quoted against a cart subtotal of ₹76,271.19, which is exactly
+   * ₹90,000 / 1.18.
+   *
+   * Null means "not established" and falls back to the region flag, which is
+   * the old behaviour and still right for callers that price nothing.
+   */
+  prices_tax_inclusive?: boolean | null
   lines: Array<{
     variant_id: string
     product_id?: string | null
+    /**
+     * 🔴 The product's TYPE, because that is what tax rules are written
+     * against. Omitting it did not fail — it silently fell through to the
+     * region's default rate, so a prod rate named "India apparel/textile GST
+     * (>₹2,500)" at 18%, scoped by `product_type`, could never match and every
+     * quote was taxed at the 5% default while the cart charged 18%.
+     *
+     * Same shape as #1430: a rule that is never read cannot be seen to be
+     * missing, because the fallback is a plausible number.
+     */
+    product_type_id?: string | null
     unit_amount: number
     quantity: number
   }>
@@ -372,6 +399,18 @@ export async function resolveQuoteTax(
       isTaxInclusive = Boolean(region?.is_tax_inclusive)
     }
 
+    /**
+     * The prices win when they have an opinion.
+     *
+     * The region flag above is a per-region SETTING; this is what the pricing
+     * module actually returned for the rows this quote is built from. When the
+     * two disagree the price is the fact and the setting is the guess — and on
+     * prod they disagree on every quote.
+     */
+    if (input.prices_tax_inclusive !== null && input.prices_tax_inclusive !== undefined) {
+      isTaxInclusive = Boolean(input.prices_tax_inclusive)
+    }
+
     // ---- Ask the same module the cart will ------------------------------
     const taxService: any = scope.resolve(Modules.TAX)
 
@@ -392,6 +431,10 @@ export async function resolveQuoteTax(
     const items = (input.lines || []).map((l) => ({
       id: l.variant_id,
       product_id: l.product_id ?? l.variant_id,
+      // Only when known: an empty string here would be a product type that
+      // matches nothing, which reads identically to "no rule matched" and is
+      // the failure this field exists to end.
+      ...(l.product_type_id ? { product_type_id: l.product_type_id } : {}),
       unit_price: Number(l.unit_amount),
       quantity: Number(l.quantity),
     }))

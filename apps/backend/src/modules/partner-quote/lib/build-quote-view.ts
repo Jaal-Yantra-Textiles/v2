@@ -245,6 +245,8 @@ export type QuoteViewLine = {
   /** The catalogue's own merchandising words. Empty, never null. */
   product_tags: string[]
   product_type: string | null
+  /** The type's ID, carried for TAX RULES — never for display (#1447 tail). */
+  product_type_id: string | null
   product_collection: string | null
   variant_title: string | null
   product_id: string | null
@@ -314,6 +316,15 @@ export type QuoteView = {
    * silence is not an option here the way it is for the producer band.
    */
   tax: QuoteTax
+  /**
+   * Whether the prices this view was built from already contain tax, as the
+   * pricing module reported them. Null when nothing was priced.
+   *
+   * 🔑 Exposed so the mint's tax re-ask can use the SAME answer rather than
+   * asking the region again — the two must never be able to disagree, which is
+   * exactly the divergence that made every quote unacceptable.
+   */
+  prices_tax_inclusive: boolean | null
   /**
    * The DDP undertaking and the number behind it (#1447).
    *
@@ -700,6 +711,11 @@ export async function buildQuoteView(
       // already uses, so they need no new field and cannot drift from it.
       "product.tags.value",
       "product.type.value",
+      // 🔴 The type's ID, not just its label. Tax rules are written against
+      // `product_type` ids, so without this a product-type-scoped rate can
+      // never match and the quote silently falls through to the region
+      // default — 5% quoted against 18% charged, on prod.
+      "product.type.id",
       "product.collection.title",
     ],
     filters: { id: effectiveLines.map((l) => l.variant_id) },
@@ -809,6 +825,12 @@ export async function buildQuoteView(
     reason: null,
   }
   let liveUnitByVariant = new Map<string, number>()
+  /**
+   * Whether each priced line's amount already contains tax, straight from the
+   * pricing module. Folded into ONE answer below — see `pricesTaxInclusive`.
+   */
+  const priceInclusiveByVariant = new Map<string, boolean>()
+  let pricesTaxInclusive: boolean | null = null
   let weightByVariant = new Map<
     string,
     { unit_weight_grams: number; weight_source: "variant" | "product" }
@@ -876,6 +898,13 @@ export async function buildQuoteView(
           )
         }
         liveUnitByVariant.set(line.variant_id, unitAmount)
+        priceInclusiveByVariant.set(
+          line.variant_id,
+          Boolean(
+            (priced?.[0] as any)?.calculated_price
+              ?.is_calculated_price_tax_inclusive
+          )
+        )
       }
 
       // ---- Who rates this lane -------------------------------------------
@@ -997,8 +1026,27 @@ export async function buildQuoteView(
       // the freight leg was quoted against, so the tax treatment and the
       // shipment cannot describe two different journeys.
 
+      /**
+       * ALL, not ANY, and null when nothing was priced.
+       *
+       * 🔑 The two ways to be wrong are not symmetric. Treating inclusive
+       * prices as exclusive OVER-quotes: the buyer sees a bigger number, the
+       * cart disagrees, and acceptance is refused loudly. Treating exclusive
+       * prices as inclusive UNDER-quotes: we extract tax out of a price that
+       * never contained it and are silently underpaid. So a mixed basket —
+       * which should not exist — resolves to exclusive, taking the failure
+       * that shouts over the one that costs money.
+       */
+      const inclusiveFlags = effectiveLines
+        .map((l) => priceInclusiveByVariant.get(l.variant_id))
+        .filter((v): v is boolean => typeof v === "boolean")
+      pricesTaxInclusive = inclusiveFlags.length
+        ? inclusiveFlags.every(Boolean)
+        : null
+
       tax = await resolveQuoteTax(scope, {
         region_id: input.region_id ?? null,
+        prices_tax_inclusive: pricesTaxInclusive,
         origin_country_code: originCountry,
         // Mint supplies it directly; a later page read takes it off the frozen
         // row, so the buyer sees the same promise on every visit.
@@ -1008,6 +1056,8 @@ export async function buildQuoteView(
         lines: effectiveLines.map((l) => ({
           variant_id: l.variant_id,
           product_id: identityById.get(l.variant_id)?.product?.id ?? null,
+          product_type_id:
+            identityById.get(l.variant_id)?.product?.type?.id ?? null,
           unit_amount: liveUnitByVariant.get(l.variant_id) ?? 0,
           quantity: l.quantity,
         })),
@@ -1095,6 +1145,7 @@ export async function buildQuoteView(
         .map((t) => t?.value)
         .filter((v: any): v is string => typeof v === "string" && v.length > 0),
       product_type: identity.product?.type?.value ?? null,
+      product_type_id: identity.product?.type?.id ?? null,
       product_collection: identity.product?.collection?.title ?? null,
       quantity: line.quantity,
       position: line.position ?? frozen?.position ?? index,
@@ -1285,6 +1336,7 @@ export async function buildQuoteView(
      * dead link rather than recomputing a number we are no longer offering.
      */
     tax: frozenTaxFallback(tax, input.quote),
+    prices_tax_inclusive: pricesTaxInclusive,
     duty: {
       prepaid: dutiesPrepaid,
       total: ddpCharges.duty,

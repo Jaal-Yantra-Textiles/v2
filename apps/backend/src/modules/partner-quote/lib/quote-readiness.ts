@@ -53,8 +53,33 @@ export type QuoteReadinessCode =
   | "line_unpriced"
   | "weight_missing"
   | "no_freight_option"
+  /**
+   * The carrier could not rate this lane and nobody typed a rate, so the only
+   * number available is a store-configured flat tier that does not vary with
+   * weight (#1439 S12 tail).
+   */
+  | "freight_needs_manual_rate"
   | "freight_currency_mismatch"
   | "tax_region_missing"
+
+/**
+ * PURE: is the only available freight figure a flat tier standing in for a rate
+ * nobody could get?
+ *
+ * Extracted so it can be tested at all. The branch it guards needs a carrier
+ * that fails AND a store with a manual option configured, which no fixture
+ * reproduces — so left inline it would be behaviour with no coverage, on a
+ * path whose entire history is plausible numbers shipping unnoticed.
+ *
+ * A typed override answers the question outright: someone looked up the real
+ * rate, so there is nothing to refuse.
+ */
+export function needsManualFreightRate(
+  calculatedError: string | null | undefined,
+  override: number | null
+): boolean {
+  return Boolean(calculatedError) && override === null
+}
 
 export type QuoteReadinessIssue = {
   code: QuoteReadinessCode
@@ -333,6 +358,43 @@ export async function assessQuoteReadiness(
             ? `No freight option could be quoted to ${input.destination_country_code.toUpperCase()}: ${estimate.calculated_error}`
             : `No freight option could be quoted to ${input.destination_country_code.toUpperCase()} from this store's location.`,
           data: { country_code: input.destination_country_code },
+        })
+      } else if (needsManualFreightRate(estimate.calculated_error, override)) {
+        /**
+         * 🔴 A FLAT TIER IS NOT A RATE FOR A LANE NOBODY COULD RATE.
+         *
+         * When the carrier refuses — and on cross-border it refuses constantly,
+         * with "No serviceable couriers available for given weight" — the
+         * picker falls through to whatever manual shipping option the store has
+         * configured. On prod that is a flat 35 EUR, and it is 35 EUR at 3 kg
+         * and 35 EUR at 22 kg. Readiness answered `ready: true` and the quote
+         * went out with it.
+         *
+         * That is the shape this epic has already shipped three times: a
+         * plausible number standing in for an unknown one (#1424 zone-blind,
+         * #1430 rule-blind, #1485 the return option). The number is never
+         * absent, so nothing looks broken.
+         *
+         * So: refuse, and name the remedy. S12 exists precisely for this —
+         * `freight_override_amount` lets a partner read the real DHL/carrier
+         * rate and type it, badged "By hand" and recorded with its basis. This
+         * makes an unrateable lane sendable ON PURPOSE rather than by accident,
+         * and it is the only thing standing between a buyer and a freight
+         * figure nobody chose.
+         */
+        issues.push({
+          code: "freight_needs_manual_rate",
+          severity: "blocking",
+          message:
+            `No carrier could rate freight to ${input.destination_country_code.toUpperCase()} ` +
+            `(${estimate.calculated_error}), so the only figure available is a flat rate that does ` +
+            `not change with weight. Look up the real rate (DHL and the like) and type it in — ` +
+            `it will be shown to the buyer as quoted by hand.`,
+          data: {
+            country_code: input.destination_country_code,
+            fallback_amount: chosen.amount,
+            fallback_name: chosen.name ?? null,
+          },
         })
       } else if (
         String(chosen.currency_code).toLowerCase() !==

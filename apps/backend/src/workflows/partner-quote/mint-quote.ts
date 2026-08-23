@@ -506,6 +506,9 @@ const applyLineOverridesStep = createStep(
       view?.live && chosenFreight
         ? await resolveQuoteTax(container, {
             region_id: input.region_id ?? null,
+            // The SAME answer the view reached, never a second read of the
+            // region — see `prices_tax_inclusive` on `QuoteTaxInput`.
+            prices_tax_inclusive: view?.prices_tax_inclusive ?? null,
             origin_country_code: originCountry,
             duties_prepaid: Boolean(input.duties_prepaid),
             destination_country_code: input.destination_country_code,
@@ -513,6 +516,9 @@ const applyLineOverridesStep = createStep(
             lines: priced.map((l: any) => ({
               variant_id: l.variant_id,
               product_id: l.product_id ?? null,
+              // Carried, or the re-ask silently drops back to the region's
+              // default rate and undoes the view's correctly-typed answer.
+              product_type_id: l.product_type_id ?? null,
               // The OVERRIDDEN unit price. Passing the catalogue one here is
               // the whole defect this re-ask exists to remove.
               unit_amount: Number(l.live_unit_amount ?? 0),

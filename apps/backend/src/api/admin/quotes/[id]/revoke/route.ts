@@ -59,7 +59,21 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
     )
   }
 
-  const [updated] = await service.updatePartnerQuotes({
+  /**
+   * 🔴 NOT array-destructured. `updateX` returns whatever the inner service
+   * returns: the `{ selector, data }` bulk form yields an ARRAY, the bare
+   * entity form used here yields a SINGLE OBJECT. Destructuring it threw
+   * `TypeError: (intermediate value) is not iterable` — and it threw *after*
+   * the price list had been deleted and the status written.
+   *
+   * So every revoke on prod did its whole job and then answered 500. That is
+   * the worst possible pairing for a destructive route: the operator sees a
+   * failure and retries an operation that already ran. Found by revoking four
+   * real quotes, not by reading this file — the sibling `already_revoked`
+   * branch returns the row from `listPartnerQuotes` and so has always been
+   * fine, which is exactly why a retry "worked" and hid the defect.
+   */
+  const updated = await service.updatePartnerQuotes({
     id: quote.id,
     status: "revoked",
   })

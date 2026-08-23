@@ -16,6 +16,7 @@ import {
   createCartWorkflow,
   createShippingOptionsWorkflow,
   deleteShippingOptionsWorkflow,
+  emitEventStep,
 } from "@medusajs/medusa/core-flows"
 
 import { PARTNER_QUOTE_MODULE } from "../../modules/partner-quote"
@@ -383,17 +384,37 @@ const assertCartMatchesQuoteStep = createStep(
     const quote = input.quote
     const problems: string[] = []
 
+    /**
+     * 🔴 COMPARE LIKE WITH LIKE.
+     *
+     * `item_subtotal` is the cart's goods EX tax; `item_total` includes it.
+     * When the catalogue's prices are tax-inclusive — which on prod they all
+     * are — the quote's frozen `quoted_subtotal` is a tax-INCLUSIVE number, so
+     * checking it against `item_subtotal` compares ₹90,000 with ₹76,271.19 and
+     * refuses a cart that is in fact exactly right. That ratio is 1.18, the GST
+     * rate, which is what gave the bug away.
+     *
+     * This made acceptance impossible on prod for BOTH lanes, and the message
+     * it produced blamed the price list — the one thing that was working.
+     */
+    const quotedInclusive = Boolean(quote.quoted_tax_inclusive)
+
     const quotedSubtotal = Number(quote.quoted_subtotal ?? 0)
-    const cartSubtotal = Number(cart.item_subtotal ?? cart.item_total ?? 0)
+    const cartSubtotal = quotedInclusive
+      ? Number(cart.item_total ?? cart.item_subtotal ?? 0)
+      : Number(cart.item_subtotal ?? cart.item_total ?? 0)
     if (!near(quotedSubtotal, cartSubtotal)) {
       problems.push(
-        `goods: quoted ${quotedSubtotal} ${quote.currency_code}, cart ${cartSubtotal} — ` +
+        `goods: quoted ${quotedSubtotal} ${quote.currency_code}, cart ${cartSubtotal} ` +
+          `(compared ${quotedInclusive ? "tax-inclusive" : "ex-tax"}) — ` +
           `the price list did not price this cart (is the customer on the quote's group?)`
       )
     }
 
     const quotedFreight = Number(quote.quoted_freight ?? 0)
-    const cartFreight = Number(cart.shipping_subtotal ?? cart.shipping_total ?? 0)
+    const cartFreight = quotedInclusive
+      ? Number(cart.shipping_total ?? cart.shipping_subtotal ?? 0)
+      : Number(cart.shipping_subtotal ?? cart.shipping_total ?? 0)
     if (!near(quotedFreight, cartFreight)) {
       problems.push(
         `freight: quoted ${quotedFreight} ${quote.currency_code}, cart ${cartFreight}`
@@ -671,6 +692,25 @@ export const acceptQuoteWorkflow = createWorkflow(
         quote_id: input.quote_id,
         cart_id: cart.cart_id,
         now: timing.now,
+      })
+
+      /**
+       * Announce it, so a visual flow can act on a buyer saying yes — chase the
+       * deposit, tell the partner, start production paperwork.
+       *
+       * Inside the `when` on purpose: this is the FRESH acceptance branch, so a
+       * second click lands on `already_accepted` and emits nothing. An event
+       * that fired on every re-POST would have a flow mailing the partner once
+       * per page refresh.
+       */
+      emitEventStep({
+        eventName: "partner_quote.accepted",
+        data: {
+          id: input.quote_id,
+          quote_id: input.quote_id,
+          cart_id: cart.cart_id,
+          schedule_id: schedule.schedule_id,
+        },
       })
 
       return transform({ cart, schedule }, ({ cart, schedule }) => ({
