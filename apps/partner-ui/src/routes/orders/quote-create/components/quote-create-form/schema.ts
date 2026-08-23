@@ -162,6 +162,16 @@ export const QuoteQuantitiesSchema = z.object({
    */
   discounts: z.record(z.string(), z.number().nullish()),
   overrides: z.record(z.string(), z.number().nullish()),
+
+  /**
+   * variant_id → design_id, for lines the partner picked as a DESIGN (#1486).
+   *
+   * 🔑 Keyed by variant because that is what the basket is keyed by everywhere
+   * else — quantities, discounts and overrides all are. A parallel list of
+   * design lines would be a second basket to keep in step, and the first thing
+   * to fall out of step would be a quantity.
+   */
+  design_by_variant: z.record(z.string(), z.string()).optional(),
 })
 
 /**
@@ -195,7 +205,7 @@ export const QuoteBuyerFields = [
   "duty_basis",
 ] as const
 
-export const QuoteProductFields = ["product_ids"] as const
+export const QuoteProductFields = ["product_ids", "design_by_variant"] as const
 export const QuoteQuantityFields = [
   "quantities",
   "discounts",

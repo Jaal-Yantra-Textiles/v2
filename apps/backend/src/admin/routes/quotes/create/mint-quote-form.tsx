@@ -116,6 +116,7 @@ export const MintQuoteForm = () => {
       quantities: {},
       discounts: {},
       overrides: {},
+      design_by_variant: {},
       // Never on by default: a DDP promise nobody arranged clearance for tells
       // the buyer there is nothing to pay and then hands them a customs bill.
       duties_prepaid: false,
@@ -225,10 +226,13 @@ export const MintQuoteForm = () => {
       .map(([variant_id, qty], index) => {
         const discount = data.discounts?.[variant_id]
         const override = data.overrides?.[variant_id]
+        // #1486 — alongside the variant, never instead of it.
+        const designId = data.design_by_variant?.[variant_id]
         return {
           variant_id,
           quantity: qty as number,
           position: index,
+          ...(designId ? { design_id: designId } : {}),
           ...(typeof discount === "number" && discount > 0
             ? { discount_percent: discount }
             : {}),

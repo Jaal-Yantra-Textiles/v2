@@ -153,6 +153,13 @@ export type MintPartnerQuotePayload = {
   partner_note?: string | null
   lines: {
     variant_id: string
+    /**
+     * The design this line was picked as (#1486). Sent ALONGSIDE the variant,
+     * not instead of it: the wizard already knows which variant the design
+     * resolves to, and sending both is what lets a design sold as several
+     * variants be quoted at all.
+     */
+    design_id?: string | null
     quantity: number
     position?: number
     note?: string | null
@@ -356,4 +363,69 @@ export const useQuoteReadiness = (
       ),
     ...options,
   })
+}
+
+/** One row of the design picker (#1486). */
+export type QuotableDesign = {
+  id: string
+  name: string | null
+  thumbnail_url: string | null
+  product_type: string | null
+  status: string | null
+  /** True when exactly one variant backs it, so a line can be built. */
+  quotable: boolean
+  variant_id: string | null
+  product_id: string | null
+  candidates: Array<{
+    variant_id: string
+    title: string | null
+    sku: string | null
+    product_id: string | null
+    product_title: string | null
+  }>
+  /** Why it cannot be quoted, in words for a partner. Null when `quotable`. */
+  reason: string | null
+}
+
+export type QuotableDesignsResponse = {
+  designs: QuotableDesign[]
+  count: number
+  limit: number
+  offset: number
+}
+
+/**
+ * The designs this partner can quote (#1486).
+ *
+ * 🔑 Returns the UNQUOTABLE ones too, with their reason. The picker greys them
+ * rather than hiding them — a partner who knows a design exists and cannot find
+ * it has no way to learn that the fix is "create a product from it first".
+ */
+export const usePartnerQuotableDesigns = (
+  params: { q?: string; limit?: number; offset?: number } = {},
+  options?: Omit<
+    UseQueryOptions<
+      QuotableDesignsResponse,
+      FetchError,
+      QuotableDesignsResponse,
+      QueryKey
+    >,
+    "queryFn" | "queryKey"
+  >
+) => {
+  const { data, ...rest } = useQuery({
+    queryKey: [...partnerQuotesQueryKeys.all, "quotable-designs", params],
+    queryFn: async () =>
+      await sdk.client.fetch<QuotableDesignsResponse>(
+        "/partners/quotes/designs",
+        { method: "GET", query: params as any }
+      ),
+    ...options,
+  })
+
+  return {
+    designs: data?.designs ?? [],
+    count: data?.count ?? 0,
+    ...rest,
+  }
 }

@@ -165,6 +165,13 @@ export const QuoteQuantitiesSchema = z.object({
   quantities: z.record(z.string(), z.number().nullish()),
   discounts: z.record(z.string(), z.number().nullish()),
   overrides: z.record(z.string(), z.number().nullish()),
+
+  /**
+   * variant_id → design_id, for lines picked as a DESIGN (#1486). Keyed by
+   * variant like every other per-line map here, so there is one basket rather
+   * than two that have to be kept in step.
+   */
+  design_by_variant: z.record(z.string(), z.string()).optional(),
 })
 
 /**
@@ -200,4 +207,4 @@ export const QuoteBuyerFields = [
   "ddp_fee_total",
   "duty_basis",
 ] as const
-export const QuoteProductFields = ["product_ids"] as const
+export const QuoteProductFields = ["product_ids", "design_by_variant"] as const

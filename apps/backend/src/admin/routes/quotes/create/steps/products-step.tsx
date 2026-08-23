@@ -13,6 +13,8 @@ import { UseFormReturn, useWatch } from "react-hook-form"
 import { Thumbnail } from "../../../../components/common/thumbnail"
 import { useProducts } from "../../../../hooks/api/products"
 import { AdminQuoteCreateSchemaType } from "../schema"
+import { DesignsPanel } from "./designs-panel"
+import type { QuotableDesign } from "../../../../hooks/api/quotes"
 
 type Props = { form: UseFormReturn<AdminQuoteCreateSchemaType> }
 
@@ -40,6 +42,8 @@ export const ProductsStep = ({ form }: Props) => {
   const quantities = useWatch({ control, name: "quantities" })
   const discounts = useWatch({ control, name: "discounts" })
   const overrides = useWatch({ control, name: "overrides" })
+  const designByVariant = useWatch({ control, name: "design_by_variant" })
+  const partnerId = useWatch({ control, name: "partner_id" as any })
 
   const [pagination, setPagination] = useState<DataTablePaginationState>({
     pageIndex: 0,
@@ -92,6 +96,10 @@ export const ProductsStep = ({ form }: Props) => {
       setValue("quantities", prune(quantities), { shouldDirty: true })
       setValue("discounts", prune(discounts), { shouldDirty: true })
       setValue("overrides", prune(overrides), { shouldDirty: true })
+      // #1486 — the fourth per-variant map. A design mapping left behind would
+      // reattach itself the moment the same product is picked again, stamping a
+      // design onto a line nobody chose it for.
+      setValue("design_by_variant", prune(designByVariant), { shouldDirty: true })
     }
   }
 
@@ -146,6 +154,38 @@ export const ProductsStep = ({ form }: Props) => {
     [selectedIds, quantities, discounts, overrides]
   )
 
+  /**
+   * #1486 — picking a design selects the PRODUCT behind it, so its variant
+   * appears in the quantities step like any other, and records which design it
+   * was so the mint carries the provenance.
+   */
+  const toggleDesign = (design: QuotableDesign, selected: boolean) => {
+    if (!design.variant_id || !design.product_id) return
+
+    const nextMap = { ...(designByVariant ?? {}) }
+    const ids = new Set(selectedIds)
+
+    if (selected) {
+      nextMap[design.variant_id] = design.id
+      ids.add(design.product_id)
+    } else {
+      delete nextMap[design.variant_id]
+      ids.delete(design.product_id)
+      // The quantity goes with it, for the same reason deselecting a product
+      // drops one: a line the operator removed must not still be sent.
+      const nextQuantities = { ...(quantities ?? {}) }
+      delete nextQuantities[design.variant_id]
+      setValue("quantities", nextQuantities, { shouldDirty: true })
+    }
+
+    setValue(
+      "product_ids",
+      [...ids].map((id) => ({ id })),
+      { shouldDirty: true, shouldTouch: true }
+    )
+    setValue("design_by_variant", nextMap, { shouldDirty: true })
+  }
+
   const table = useDataTable({
     columns: columns as any,
     data: (products ?? []) as any[],
@@ -172,6 +212,11 @@ export const ProductsStep = ({ form }: Props) => {
           ONE consignment, so freight is charged once across all of it.
         </Text>
       </div>
+      <DesignsPanel
+        partnerId={(partnerId as string) ?? null}
+        designByVariant={(designByVariant ?? {}) as Record<string, string>}
+        onToggle={toggleDesign}
+      />
       <DataTable instance={table}>
         <DataTable.Toolbar className="flex justify-end px-6 py-4">
           <DataTable.Search placeholder="Search products..." />

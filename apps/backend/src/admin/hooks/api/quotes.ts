@@ -294,3 +294,63 @@ export const useAdminQuoteReadiness = (
     ...options,
   })
 }
+
+/** One row of the design picker (#1486). */
+export type QuotableDesign = {
+  id: string
+  name: string | null
+  thumbnail_url: string | null
+  product_type: string | null
+  status: string | null
+  /** True when exactly one variant backs it, so a line can be built. */
+  quotable: boolean
+  variant_id: string | null
+  product_id: string | null
+  candidates: Array<{
+    variant_id: string
+    title: string | null
+    sku: string | null
+    product_id: string | null
+    product_title: string | null
+  }>
+  /** Why it cannot be quoted. Null when `quotable`. */
+  reason: string | null
+}
+
+export type QuotableDesignsResponse = {
+  designs: QuotableDesign[]
+  count: number
+  limit: number
+  offset: number
+}
+
+/**
+ * The designs an admin can quote (#1486).
+ *
+ * `partner_id` narrows the list to the partner already chosen in the wizard. It
+ * is a FILTER, not a permission — an admin legitimately quotes a design the
+ * producing partner does not own, and the guard that matters runs at mint,
+ * where the resolved variant must be in that partner's sales channel.
+ *
+ * Returns unquotable designs too, with their reason. Hiding them would leave an
+ * admin unable to learn why a design they can see is not offered.
+ */
+export const useQuotableDesigns = (
+  query?: { partner_id?: string | null; q?: string; limit?: number; offset?: number },
+  options?: Omit<
+    UseQueryOptions<QuotableDesignsResponse, FetchError, QuotableDesignsResponse, any>,
+    "queryFn" | "queryKey"
+  >
+) => {
+  const { data, ...rest } = useQuery({
+    queryKey: [...quoteQueryKeys.all, "quotable-designs", query],
+    queryFn: async () =>
+      sdk.client.fetch<QuotableDesignsResponse>("/admin/quotes/designs", {
+        method: "GET",
+        query: query as any,
+      }),
+    ...options,
+  })
+
+  return { designs: data?.designs ?? [], count: data?.count ?? 0, ...rest }
+}

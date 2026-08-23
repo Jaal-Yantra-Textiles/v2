@@ -89,6 +89,7 @@ export const QuoteCreateForm = ({
       quantities: {},
       discounts: {},
       overrides: {},
+      design_by_variant: {},
       // Never defaulted on: a DDP promise applied by default would tell a buyer
       // there is nothing to pay on a shipment nobody arranged clearance for.
       duties_prepaid: false,
@@ -131,10 +132,15 @@ export const QuoteCreateForm = ({
          */
         const discount = data.discounts?.[variant_id]
         const override = data.overrides?.[variant_id]
+        // #1486 — sent alongside the variant, never instead of it. The wizard
+        // already resolved which variant the design is sold through, so the
+        // backend has nothing left to guess.
+        const designId = data.design_by_variant?.[variant_id]
         return {
           variant_id,
           quantity: qty as number,
           position: index,
+          ...(designId ? { design_id: designId } : {}),
           ...(typeof discount === "number" && discount > 0
             ? { discount_percent: discount }
             : {}),
