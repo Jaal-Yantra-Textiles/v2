@@ -55,3 +55,110 @@ export function mayInferOver(
   if (force) return true
   return currentSource !== "manual"
 }
+
+export type InferredProductType = {
+  product_type: string
+  confidence: number
+  reasoning: string | null
+}
+
+/**
+ * PURE. Pull a type + confidence out of whatever the model actually returned.
+ *
+ * 🔴 Why this exists, found by running the real thing locally rather than the
+ * test mock: the agent runs on `dynamicFreeTextModel`, which picks a FREE
+ * OpenRouter model, and several of those do not support structured output. On
+ * `stealth/ox-alpha` the answer was perfectly good — "trousers", confidence
+ * 0.97, sound reasoning — but it arrived as **markdown prose in `response.text`
+ * with `response.object` undefined**. Reading `.object` alone threw on every
+ * single call. The integration tests could not have caught it: they short-
+ * circuit the model entirely.
+ *
+ * So three routes are tried, most to least structured:
+ *   1. `object` — a model that honoured the schema.
+ *   2. JSON in the text, with or without code fences.
+ *   3. `**product_type:** trousers` style labelled prose.
+ *
+ * Returns null when none of them yields a usable answer, which the caller
+ * treats as "no type" rather than as a failure worth throwing over.
+ */
+export function parseInferredProductType(raw: {
+  object?: unknown
+  text?: unknown
+}): InferredProductType | null {
+  const fromObject = coerce(raw?.object)
+  if (fromObject) return fromObject
+
+  const text = typeof raw?.text === "string" ? raw.text : ""
+  if (!text.trim()) return null
+
+  const fromJson = coerce(extractJson(text))
+  if (fromJson) return fromJson
+
+  return coerce(extractLabelled(text))
+}
+
+/** Validate and narrow a candidate into the shape the caller needs. */
+function coerce(value: unknown): InferredProductType | null {
+  if (!value || typeof value !== "object") return null
+  const v = value as Record<string, unknown>
+
+  const productType = normalizeProductType(v.product_type)
+  if (!productType) return null
+
+  const confidence = Number(v.confidence)
+  if (!Number.isFinite(confidence) || confidence < 0 || confidence > 1) return null
+
+  const reasoning = typeof v.reasoning === "string" ? v.reasoning.trim() : ""
+
+  return { product_type: productType, confidence, reasoning: reasoning || null }
+}
+
+/** First balanced `{...}` in the text, fences stripped. */
+function extractJson(text: string): unknown {
+  const unfenced = text.replace(/```(?:json)?/gi, "")
+  const start = unfenced.indexOf("{")
+  if (start === -1) return null
+
+  // Scan for the matching brace rather than regexing — a nested object in the
+  // reasoning string would truncate a lazy match and produce invalid JSON.
+  let depth = 0
+  for (let i = start; i < unfenced.length; i++) {
+    if (unfenced[i] === "{") depth++
+    else if (unfenced[i] === "}") {
+      depth--
+      if (depth === 0) {
+        try {
+          return JSON.parse(unfenced.slice(start, i + 1))
+        } catch {
+          return null
+        }
+      }
+    }
+  }
+  return null
+}
+
+/**
+ * `**product_type:** trousers` / `product_type: trousers` — what a model that
+ * cannot emit JSON produces when asked for named fields.
+ */
+function extractLabelled(text: string): unknown {
+  const field = (name: string): string | null => {
+    const re = new RegExp(`\\*{0,2}${name}\\*{0,2}\\s*[:=]\\s*\\*{0,2}\\s*([^\\n*]+)`, "i")
+    const match = text.match(re)
+    return match?.[1]?.trim() ?? null
+  }
+
+  const productType = field("product_type")
+  if (!productType) return null
+
+  return {
+    product_type: productType,
+    // A model that answered in prose but omitted a confidence has still named a
+    // garment. Default to the floor rather than discarding a real answer — but
+    // NOT above it, so an unstated confidence never outranks a stated low one.
+    confidence: Number(field("confidence") ?? "0.6"),
+    reasoning: field("reasoning"),
+  }
+}

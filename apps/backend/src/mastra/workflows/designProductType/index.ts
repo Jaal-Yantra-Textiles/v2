@@ -3,6 +3,7 @@ import { createWorkflow, createStep } from "@mastra/core/workflows";
 import { z } from "zod";
 import { designAgent } from "../../agents";
 import { PinoLogger } from "@mastra/loggers";
+import { parseInferredProductType } from "../../../modules/designs/lib/product-type";
 
 const logger = new PinoLogger();
 
@@ -35,7 +36,7 @@ const productTypeSchema = z.object({
   /** 0-1. Below the caller's floor, the inference is discarded. */
   confidence: z.number().min(0).max(1),
   /** One short line a human can read when checking a provisional type. */
-  reasoning: z.string().optional(),
+  reasoning: z.string().nullable().optional(),
 });
 
 const inferProductType = createStep({
@@ -58,7 +59,12 @@ ${description ? `Description: ${description}` : ""}
 ${tags?.length ? `Tags: ${tags.join(", ")}` : ""}
 ${designer_notes ? `Designer notes: ${designer_notes}` : ""}
 
-Return:
+Reply with ONLY a JSON object and nothing else — no prose, no markdown, no
+code fences:
+
+{"product_type": "...", "confidence": 0.0, "reasoning": "..."}
+
+Fields:
 1. product_type — ONE garment category as a single lowercase noun, using
    underscores for multi-word types. Examples: trousers, shirt, saree, kurta,
    palazzo, dupatta, blouse, jacket, scarf, stole, cushion_cover, table_runner.
@@ -73,7 +79,27 @@ Return:
       { output: productTypeSchema }
     );
 
-    return response.object;
+    // 🔴 Do NOT read `response.object` directly. `designAgent` runs on
+    // `dynamicFreeTextModel`, which picks a FREE OpenRouter model, and several
+    // of those ignore structured output entirely: on `stealth/ox-alpha` the
+    // answer was correct but arrived as markdown prose in `response.text` with
+    // `response.object` UNDEFINED, so `.object.product_type` threw on every
+    // call. Found by running this against the real model — the integration
+    // tests short-circuit it and could never have shown it.
+    const parsed = parseInferredProductType({
+      object: (response as any)?.object,
+      text: (response as any)?.text,
+    });
+
+    if (!parsed) {
+      throw new Error(
+        `Could not read a garment type from the model response: ${String(
+          (response as any)?.text ?? ""
+        ).slice(0, 200)}`
+      );
+    }
+
+    return parsed;
   },
 });
 

@@ -2,6 +2,7 @@ import {
   MAX_PRODUCT_TYPE_LENGTH,
   mayInferOver,
   normalizeProductType,
+  parseInferredProductType,
 } from "../lib/product-type"
 
 describe("normalizeProductType", () => {
@@ -60,5 +61,91 @@ describe("mayInferOver", () => {
 
   it("lets an explicit force override a manual value — that is a person asking", () => {
     expect(mayInferOver("manual", true)).toBe(true)
+  })
+})
+
+describe("parseInferredProductType", () => {
+  it("prefers a structured object when the model honoured the schema", () => {
+    expect(
+      parseInferredProductType({
+        object: { product_type: "Trousers", confidence: 0.9, reasoning: "named" },
+      })
+    ).toEqual({ product_type: "trousers", confidence: 0.9, reasoning: "named" })
+  })
+
+  it("reads markdown prose — the shape that broke this in real life", () => {
+    // Verbatim from `stealth/ox-alpha` via dynamicFreeTextModel: a correct
+    // answer with `response.object` UNDEFINED. Reading `.object` alone threw
+    // on every call, and the mocked integration tests could not see it.
+    const text =
+      '**product_type:** trousers\n\n**confidence:** 0.97\n\n**reasoning:** The design is explicitly named "Summer Trousers".'
+    expect(parseInferredProductType({ text })).toEqual({
+      product_type: "trousers",
+      confidence: 0.97,
+      reasoning: 'The design is explicitly named "Summer Trousers".',
+    })
+  })
+
+  it("reads plain labelled prose without markdown bold", () => {
+    const text = "product_type: cushion_cover\nconfidence: 0.8\nreasoning: stated"
+    expect(parseInferredProductType({ text })?.product_type).toBe("cushion_cover")
+    expect(parseInferredProductType({ text })?.confidence).toBe(0.8)
+  })
+
+  it("reads JSON out of the text, fenced or bare", () => {
+    const fenced =
+      '```json\n{"product_type":"saree","confidence":0.98,"reasoning":"named"}\n```'
+    expect(parseInferredProductType({ text: fenced })).toEqual({
+      product_type: "saree",
+      confidence: 0.98,
+      reasoning: "named",
+    })
+
+    const bare =
+      'Here you go: {"product_type":"kurta","confidence":0.95,"reasoning":"named"} — hope that helps'
+    expect(parseInferredProductType({ text: bare })?.product_type).toBe("kurta")
+  })
+
+  it("finds the matching brace rather than the first one, so nesting does not truncate", () => {
+    const text =
+      '{"product_type":"stole","confidence":0.7,"reasoning":"see {details: here} inline"}'
+    expect(parseInferredProductType({ text })?.product_type).toBe("stole")
+  })
+
+  it("falls back to text when object is present but unusable", () => {
+    // A model can return a malformed `object` AND a good text body.
+    expect(
+      parseInferredProductType({
+        object: { product_type: "", confidence: 0.9 },
+        text: '{"product_type":"blouse","confidence":0.9}',
+      })?.product_type
+    ).toBe("blouse")
+  })
+
+  it("returns null rather than a guess when nothing usable is there", () => {
+    expect(parseInferredProductType({})).toBeNull()
+    expect(parseInferredProductType({ text: "" })).toBeNull()
+    expect(parseInferredProductType({ text: "I am not sure what this is." })).toBeNull()
+    expect(parseInferredProductType({ text: "confidence: 0.9" })).toBeNull()
+  })
+
+  it("rejects a confidence outside 0-1 instead of storing a bent number", () => {
+    expect(
+      parseInferredProductType({ object: { product_type: "shirt", confidence: 7 } })
+    ).toBeNull()
+    expect(
+      parseInferredProductType({ object: { product_type: "shirt", confidence: -1 } })
+    ).toBeNull()
+    expect(
+      parseInferredProductType({ object: { product_type: "shirt", confidence: "high" } })
+    ).toBeNull()
+  })
+
+  it("defaults an unstated confidence to the floor, never above it", () => {
+    // A prose answer that named a garment but no confidence is still a real
+    // answer — but it must not outrank a model that stated a low one.
+    const parsed = parseInferredProductType({ text: "product_type: jacket" })
+    expect(parsed?.product_type).toBe("jacket")
+    expect(parsed?.confidence).toBe(0.6)
   })
 })
