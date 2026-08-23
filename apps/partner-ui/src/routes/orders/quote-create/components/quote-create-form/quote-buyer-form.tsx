@@ -254,6 +254,43 @@ export const QuoteBuyerForm = ({
 
         <Form.Field
           control={form.control}
+          name="deposit_pct"
+          render={({ field: { onChange, value, ...rest } }) => (
+            <Form.Item>
+              <Form.Label optional>
+                {t("quotes.fields.depositPct", "Deposit (%)")}
+              </Form.Label>
+              <Form.Control>
+                <Input
+                  type="number"
+                  min={0}
+                  max={100}
+                  placeholder="30"
+                  value={value ?? ""}
+                  onChange={(e) => {
+                    const next = e.target.value
+                    // 🔑 Only an EMPTY string is "unset". `Number("0")` is 0 and
+                    // must survive as 0 — a partner taking nothing up front
+                    // means it, and turning that into "unset" would hand the
+                    // buyer a 30% demand nobody agreed to.
+                    onChange(next === "" ? undefined : Number(next))
+                  }}
+                  {...rest}
+                />
+              </Form.Control>
+              <Form.Hint>
+                {t(
+                  "quotes.fields.depositHint",
+                  "What the buyer pays up front when they accept; the rest is invoiced when the goods are ready. Leave blank for the default 30%."
+                )}
+              </Form.Hint>
+              <Form.ErrorMessage />
+            </Form.Item>
+          )}
+        />
+
+        <Form.Field
+          control={form.control}
           name="partner_note"
           render={({ field }) => (
             <Form.Item>

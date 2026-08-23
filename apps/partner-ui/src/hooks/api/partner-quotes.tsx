@@ -34,6 +34,33 @@ export type PartnerQuoteLine = {
   note?: string | null
 }
 
+/**
+ * What the buyer still owes on an accepted quote (#1439 S11).
+ *
+ * Deposit now, balance on a production/delivery event. Both rails work this
+ * way — Stripe's own docs point at charging a saved payment method later
+ * rather than holding an authorisation, since a card hold lasts 7 days and a
+ * made-to-order lead time does not.
+ */
+export type PartnerQuotePaymentSchedule = {
+  id: string
+  cart_id?: string | null
+  order_id?: string | null
+  currency_code: string
+  total_due: number
+  deposit_pct: number
+  deposit_amount: number
+  /** `waived` is a partner taking a trusted buyer on account — not money received. */
+  deposit_status: "pending" | "paid" | "failed" | "waived"
+  deposit_paid_at?: string | null
+  balance_amount: number
+  /** `not_due` until the goods exist; raising it earlier is a demand against nothing. */
+  balance_status: "not_due" | "due" | "paid" | "failed" | "waived"
+  balance_paid_at?: string | null
+  balance_due_at?: string | null
+  rail: "payu" | "stripe" | "manual"
+}
+
 export type PartnerQuote = {
   id: string
   partner_id: string
@@ -60,6 +87,20 @@ export type PartnerQuote = {
 
   status: "active" | "revoked" | "superseded"
   expires_at?: string | null
+
+  /**
+   * Acceptance and terms (#1439 S11).
+   *
+   * `accepted_cart_id` is the acceptance itself, and the idempotency key
+   * behind it — a buyer who double-submits gets the same cart, not a second
+   * one priced against the same price list. `deposit_pct` is null when the
+   * partner named no terms, which is NOT the same as 0.
+   */
+  deposit_pct?: number | null
+  accepted_cart_id?: string | null
+  accepted_at?: string | null
+  /** Present only on the detail read, and only once accepted. */
+  payment_schedule?: PartnerQuotePaymentSchedule | null
 
   viewed_at?: string | null
   last_viewed_at?: string | null
@@ -104,6 +145,11 @@ export type MintPartnerQuotePayload = {
   region_id?: string | null
   carrier?: string
   ttl_days?: number
+  /**
+   * The deposit share, 0-100 (#1439 S11). `null` means no terms were named and
+   * the backend falls through to its default; `0` means take nothing up front.
+   */
+  deposit_pct?: number | null
   /**
    * DDP (#1447): we pay the destination duty, and the amount we are absorbing
    * plus how it was reached. The backend refuses the flag without the pair.

@@ -98,6 +98,15 @@ export const QuoteBuyerShape = z.object({
   ttl_days: z.number().int().positive().max(365).optional(),
 
   /**
+   * The deposit share of this deal, 0-100 (#1439 S11).
+   *
+   * Blank means no terms were named and the platform's 30% applies at
+   * acceptance. `0` is a real answer — invoice the lot later — so nothing on
+   * this field may coerce a falsy value to undefined.
+   */
+  deposit_pct: z.number().min(0).max(100).optional(),
+
+  /**
    * Which carrier is asked for live rates on this quote.
    *
    * 🔑 Empty means the platform default (Shiprocket), which is what every quote
@@ -171,6 +180,7 @@ export const QuoteBuyerFields = [
   "destination_postal_code",
   "destination_city",
   "ttl_days",
+  "deposit_pct",
   "carrier",
   "duties_prepaid",
   "duty_rate_percent",

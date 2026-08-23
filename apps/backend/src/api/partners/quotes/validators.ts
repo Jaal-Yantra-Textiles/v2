@@ -207,6 +207,21 @@ export const PartnerMintQuoteShape = z.object({
 
   /** Drives `price_list.ends_at`, so expiry is native rather than swept. */
   ttl_days: z.number().int().positive().max(365).optional(),
+
+  /**
+   * The deposit share of this deal, 0-100 (#1439 S11).
+   *
+   * Omitted — or null — means the partner did not name terms, and the split
+   * falls through to their house default and then the platform's 30%. `0` is a
+   * real answer meaning "invoice the lot later", so the resolver checks for
+   * null rather than falsiness. 100 is equally real and means paid up front.
+   *
+   * ⚠️ It must be listed HERE to exist at all. `zodValidator` forces `.strict()`
+   * on the body, so a field the schema does not name is not merely ignored —
+   * it never reaches the workflow, and the deal silently takes the default
+   * terms while the wizard shows the number the partner typed.
+   */
+  deposit_pct: z.number().min(0).max(100).nullish(),
 })
 
 export const PartnerMintQuoteReq = PartnerMintQuoteShape.superRefine(
@@ -228,6 +243,9 @@ export const QuoteReadinessShape = PartnerMintQuoteShape.omit({
   recipient_company: true,
   partner_note: true,
   ttl_days: true,
+  // A dry run prices a basket; how it will be PAID for changes none of those
+  // numbers. Omitted for the same reason the buyer's identity is.
+  deposit_pct: true,
 })
 
 export const QuoteReadinessReq = QuoteReadinessShape.superRefine(

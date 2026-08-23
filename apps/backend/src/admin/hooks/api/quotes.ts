@@ -13,6 +13,33 @@ import { queryKeysFactory } from "../../lib/query-key-factory"
 const QUOTES_QUERY_KEY = "quotes" as const
 export const quoteQueryKeys = queryKeysFactory(QUOTES_QUERY_KEY)
 
+/**
+ * What the buyer still owes on an accepted quote (#1439 S11).
+ *
+ * Deposit now, balance on a production/delivery event — both rails work this
+ * way. Stripe's docs point at charging a saved payment method later rather
+ * than holding an authorisation, since a card hold lasts 7 days and a
+ * made-to-order lead time does not.
+ */
+export type AdminPaymentSchedule = {
+  id: string
+  cart_id?: string | null
+  order_id?: string | null
+  currency_code: string
+  total_due: number
+  deposit_pct: number
+  deposit_amount: number
+  /** `waived` is a partner taking a buyer on account — not money received. */
+  deposit_status: "pending" | "paid" | "failed" | "waived"
+  deposit_paid_at?: string | null
+  balance_amount: number
+  /** `not_due` until the goods exist; raising it earlier demands money for nothing. */
+  balance_status: "not_due" | "due" | "paid" | "failed" | "waived"
+  balance_paid_at?: string | null
+  balance_due_at?: string | null
+  rail: "payu" | "stripe" | "manual"
+}
+
 export type AdminQuote = Record<string, any> & {
   id: string
   partner_id: string
@@ -34,6 +61,15 @@ export type AdminQuote = Record<string, any> & {
   quoted_duty_basis?: string | null
   status?: "active" | "revoked" | "superseded"
   expires_at?: string | null
+  /**
+   * Terms and acceptance (#1439 S11). `deposit_pct` is null when nobody named
+   * terms, which is NOT the same as 0. `payment_schedule` arrives on the
+   * detail read only, and only once accepted.
+   */
+  deposit_pct?: number | null
+  accepted_cart_id?: string | null
+  accepted_at?: string | null
+  payment_schedule?: AdminPaymentSchedule | null
   view_count?: number
   last_viewed_at?: string | null
   created_at?: string
@@ -76,6 +112,11 @@ export type AdminMintQuotePayload = {
   currency_code: string
   carrier?: string
   ttl_days?: number
+  /**
+   * The deposit share, 0-100 (#1439 S11). `null` means no terms were named and
+   * the backend applies its default; `0` means take nothing up front.
+   */
+  deposit_pct?: number | null
   /** DDP (#1447): the undertaking, the amount absorbed, and how it was reached. */
   duties_prepaid?: boolean
   duty_rate_percent?: number | null

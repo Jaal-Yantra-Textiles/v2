@@ -6,6 +6,7 @@ import {
   usePartnerQuote,
   type PartnerQuoteEvent,
 } from "../../../hooks/api/partner-quotes"
+import { PaymentSchedulePanel } from "./components/payment-schedule-panel"
 
 /**
  * A partner's own quote, in detail (#1389 S5).
@@ -124,11 +125,21 @@ export const QuoteDetail = () => {
               {(quote as any).email_sent_to}
             </Text>
           </div>
-          <StatusBadge color={isRevoked ? "red" : "green"}>
-            {isRevoked
-              ? t("quotes.status.revoked", "Revoked")
-              : t("quotes.status.active", "Active")}
-          </StatusBadge>
+          <div className="flex items-center gap-2">
+            {/* Acceptance is its own badge, not a replacement for the status.
+                An accepted quote is still an active one until it is paid, and
+                collapsing the two would hide which of them a buyer is in. */}
+            {(quote as any).accepted_at ? (
+              <StatusBadge color="blue">
+                {t("quotes.status.accepted", "Accepted")}
+              </StatusBadge>
+            ) : null}
+            <StatusBadge color={isRevoked ? "red" : "green"}>
+              {isRevoked
+                ? t("quotes.status.revoked", "Revoked")
+                : t("quotes.status.active", "Active")}
+            </StatusBadge>
+          </div>
         </div>
 
         <Field
@@ -147,6 +158,21 @@ export const QuoteDetail = () => {
           value={
             <Text size="small">
               {money((quote as any).quoted_freight, (quote as any).currency_code)}
+            </Text>
+          }
+        />
+        <Field
+          label={t("quotes.fields.depositTerms", "Deposit terms")}
+          value={
+            <Text size="small">
+              {/* 🔑 null and 0 are different answers and are shown as such.
+                  Null means no terms were named and the platform default
+                  applies at acceptance; 0 means this buyer pays nothing up
+                  front. Rendering both as "0%" would misstate one of them. */}
+              {(quote as any).deposit_pct === null ||
+              (quote as any).deposit_pct === undefined
+                ? t("quotes.fields.depositDefault", "Default (30%)")
+                : `${(quote as any).deposit_pct}%`}
             </Text>
           }
         />
@@ -196,6 +222,25 @@ export const QuoteDetail = () => {
           }
         />
       </Container>
+
+      {(quote as any).accepted_at ? (
+        <Container className="divide-y p-0">
+          <div className="flex items-center justify-between px-6 py-4">
+            <Heading level="h2">
+              {t("quotes.payment.title", "Payment")}
+            </Heading>
+            <Text size="small" className="text-ui-fg-subtle">
+              {t("quotes.payment.acceptedOn", "Accepted {{when}}", {
+                when: new Date((quote as any).accepted_at).toLocaleString(),
+              })}
+            </Text>
+          </div>
+          <PaymentSchedulePanel
+            schedule={(quote as any).payment_schedule}
+            acceptedAt={(quote as any).accepted_at}
+          />
+        </Container>
+      ) : null}
 
       <Container className="divide-y p-0">
         <div className="px-6 py-4">

@@ -292,6 +292,9 @@ export const MintQuoteForm = () => {
       currency_code: data.currency_code,
       region_id: data.region_id,
       ttl_days: data.ttl_days,
+      // 🔑 `?? null`, never `|| null`: a 0% deposit is a real term and
+      // `||` would send it as "unset", which the backend resolves to 30%.
+      deposit_pct: data.deposit_pct ?? null,
       // Omitted rather than sent empty — the backend's own default is the one
       // thing that should decide what "no choice" means.
       // Trimmed: the "type it yourself" branch starts empty, and a stray space

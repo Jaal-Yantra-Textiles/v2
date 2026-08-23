@@ -321,6 +321,30 @@ export const DesignDetail = ({ designId }: DesignDetailProps = {}) => {
             <Heading level="h2">General</Heading>
           </div>
           <SectionRow title="Name" value={design?.name || "-"} />
+          {/* Garment type (#938) — what the thing IS. Distinct from "Type"
+              below, which says how original the work is. An inferred value is
+              badged as provisional: a model's guess and a designer's decision
+              must not look alike, because the guess is the one a human
+              correction overwrites. */}
+          <SectionRow
+            title="Garment type"
+            value={
+              (design as any)?.product_type ? (
+                <div className="flex items-center gap-x-2">
+                  <Badge size="2xsmall" color="grey">
+                    {String((design as any).product_type)}
+                  </Badge>
+                  {(design as any).product_type_source === "inferred" ? (
+                    <Badge size="2xsmall" color="orange">
+                      Inferred
+                    </Badge>
+                  ) : null}
+                </div>
+              ) : (
+                "-"
+              )
+            }
+          />
           <SectionRow
             title="Type"
             value={

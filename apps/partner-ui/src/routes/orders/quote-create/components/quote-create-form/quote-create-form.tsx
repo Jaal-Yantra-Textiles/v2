@@ -203,6 +203,11 @@ export const QuoteCreateForm = ({
         destination_city: data.destination_city || null,
         currency_code: data.currency_code,
         ttl_days: data.ttl_days,
+        // 🔑 `?? null`, never `|| null`: a 0% deposit is a real term —
+        // invoice the lot later — and `||` would send it as "unset", which
+        // the backend resolves to 30%. The partner would then have agreed to
+        // nothing up front and be asked for a third.
+        deposit_pct: data.deposit_pct ?? null,
         // Sent as a pair or not at all — the backend refuses the promise
         // without its number, and the number without the promise (#1447).
         duties_prepaid: data.duties_prepaid ?? false,

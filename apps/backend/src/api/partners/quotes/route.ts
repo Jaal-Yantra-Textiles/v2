@@ -78,6 +78,11 @@ export const POST = async (
       import_tax_total: body.import_tax_total ?? null,
       ddp_fee_total: body.ddp_fee_total ?? null,
       ttl_days: body.ttl_days,
+      // The agreed deposit share (#1439 S11). `?? null` and never `?? 30`:
+      // the fallback chain lives in one place (`resolveDepositPct`), and a
+      // default applied here would freeze 30 onto the quote as though the
+      // partner had chosen it.
+      deposit_pct: body.deposit_pct ?? null,
       created_by: req.auth_context?.actor_id ?? null,
     },
   })

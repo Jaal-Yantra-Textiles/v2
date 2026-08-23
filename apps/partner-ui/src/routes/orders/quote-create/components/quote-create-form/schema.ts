@@ -90,6 +90,16 @@ export const QuoteBuyerShape = z.object({
   ttl_days: z.number().int().positive().max(365).optional(),
 
   /**
+   * The deposit share of this deal, 0-100 (#1439 S11).
+   *
+   * Left blank means "no terms named", and the split falls through to the
+   * platform's 30% at accept time. `0` is a real answer — invoice the lot
+   * later — so the field must be able to hold a zero without it reading as
+   * empty, which is why nothing here coerces falsy to undefined.
+   */
+  deposit_pct: z.number().min(0).max(100).optional(),
+
+  /**
    * DDP (#1447) — we pay the destination duty and import tax, and the buyer
    * pays nothing on arrival. Per quote, never a default: the shipment has to
    * actually clear DDP, arranged by hand until a carrier can price it.
@@ -165,6 +175,7 @@ export const QuoteBuyerFields = [
   "destination_city",
   "currency_code",
   "ttl_days",
+  "deposit_pct",
   "duties_prepaid",
   "duty_rate_percent",
   "import_tax_rate_percent",

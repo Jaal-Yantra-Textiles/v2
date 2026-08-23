@@ -356,6 +356,37 @@ export const BuyerStep = ({ form }: Props) => {
             </Form.Item>
           )}
         />
+        <Form.Field
+          control={form.control}
+          name="deposit_pct"
+          render={({ field }) => (
+            <Form.Item>
+              <Form.Label optional>Deposit (%)</Form.Label>
+              <Form.Control>
+                <Input
+                  type="number"
+                  min={0}
+                  max={100}
+                  placeholder="30"
+                  value={field.value ?? ""}
+                  onChange={(e) =>
+                    // Only an EMPTY string is "unset". `Number("0")` is 0 and
+                    // has to survive as 0 — taking nothing up front is a real
+                    // term, and losing it hands the buyer a 30% demand nobody
+                    // agreed to.
+                    field.onChange(
+                      e.target.value === "" ? undefined : Number(e.target.value)
+                    )
+                  }
+                />
+              </Form.Control>
+              <Form.Hint>
+                What the buyer pays on accepting; the rest is invoiced when the
+                goods are ready. Blank uses the default 30%.
+              </Form.Hint>
+            </Form.Item>
+          )}
+        />
       </div>
 
       <Form.Field
