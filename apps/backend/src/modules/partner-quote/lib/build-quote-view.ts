@@ -270,6 +270,19 @@ export type QuoteViewLine = {
    * Null when the product has no spec, which is the normal state.
    */
   spec: QuoteLineSpec | null
+  /**
+   * Every image on this variant, merchandiser-ordered (#1439 S14). Empty when
+   * the variant has none of its own — `thumbnail` may still be the product's.
+   */
+  images: string[]
+  /**
+   * The product's other variants, for information only (#1439 S14).
+   *
+   * 🔴 Not a picker. The quote is frozen against THIS variant at THIS price;
+   * the only thing a buyer can do with a different one is ask for a new quote,
+   * and any UI implying otherwise is lying about what has been agreed.
+   */
+  other_variants: Array<{ id: string; title: string | null }>
   /** The EFFECTIVE quantity — the buyer's dial position, or the quoted one. */
   quantity: number
   /**
@@ -449,6 +462,27 @@ export function pickFreightOption(
  * thumbnail on a variant-specific line is a weaker claim than the variant's
  * own photo.
  */
+/**
+ * Every image on the quoted variant, in the merchandiser's order (#1439 S14).
+ *
+ * The identity query has always fetched all of them; `pickLineImage` took the
+ * first and the rest were thrown away. A buyer approving 500 units of a weave
+ * wants the drape and the selvedge, not one crop of it.
+ *
+ * 🔴 The product thumbnail is deliberately NOT appended as a fallback. It is
+ * already what `thumbnail` degrades to, and mixing a product-level photo into
+ * a variant's gallery would present a weaker claim as if it were one of this
+ * colourway's own shots — the same reason `image_source` exists at all.
+ * Returns `[]` rather than a one-item array in that case, so a caller can tell
+ * "no gallery" from "a gallery of one".
+ */
+export function lineImages(identity: any): string[] {
+  return ((identity?.images ?? []) as any[])
+    .filter((i) => i?.url)
+    .sort((a, b) => Number(a?.rank ?? 0) - Number(b?.rank ?? 0))
+    .map((i) => String(i.url))
+}
+
 export function pickLineImage(identity: any): {
   thumbnail: string | null
   image_source: "variant" | "product" | null
@@ -1168,6 +1202,60 @@ export async function buildQuoteView(
 
   // Both of these are enrichment, resolved after the money and deliberately
   // unable to fail the view.
+  /**
+   * The product's OTHER colourways/sizes, for the buyer's information only
+   * (#1439 S14).
+   *
+   * 🔴 Deliberately NOT a configurator, and it must never become one. A quote
+   * is frozen against specific variants at specific prices, so a picker the
+   * buyer cannot act on is worse than no picker — the same reasoning that keeps
+   * option groups out of `spec`. This states what the maker also weaves,
+   * answering "can I get this in indigo?" with a fact instead of a round trip,
+   * and the only action it implies is replying to the partner.
+   *
+   * 🔑 A SEPARATE query on purpose. `product.variants.id` requested from the
+   * `variant` entity resolves to nothing — the back-reference does not traverse
+   * that way — and it fails by returning an empty array, not by erroring, so
+   * the badges would simply never have rendered and nothing would have said
+   * why. Caught by `partner-quote-line-imagery.spec.ts`.
+   *
+   * Enrichment, like the specs below it: a failure here must not cost the buyer
+   * their prices.
+   */
+  const productIds = [
+    ...new Set(
+      effectiveLines
+        .map((l) => identityById.get(l.variant_id)?.product?.id)
+        .filter(Boolean)
+    ),
+  ]
+  const siblingsByProduct = new Map<string, Array<{ id: string; title: string | null }>>()
+  if (productIds.length) {
+    try {
+      const { data: products } = await query.graph({
+        entity: "product",
+        fields: ["id", "variants.id", "variants.title"],
+        filters: { id: productIds },
+      })
+      for (const product of (products ?? []) as any[]) {
+        siblingsByProduct.set(
+          product.id,
+          ((product.variants ?? []) as any[])
+            .filter((v) => v?.id)
+            .map((v) => ({ id: String(v.id), title: v.title ?? null }))
+        )
+      }
+    } catch (e: any) {
+      // Enrichment: the badges vanish, the prices do not. Logged so a
+      // permanently-empty sibling list is diagnosable rather than assumed to
+      // mean "this product has one variant".
+      const logger: any = scope.resolve(ContainerRegistrationKeys.LOGGER)
+      logger?.warn?.(
+        `[quote] sibling variants unavailable: ${e?.message ?? String(e)}`
+      )
+    }
+  }
+
   const specByProduct = await resolveQuoteSpecs(
     scope,
     effectiveLines
@@ -1188,6 +1276,13 @@ export async function buildQuoteView(
       product_title: identity.product?.title ?? null,
       product_handle: identity.product?.handle ?? null,
       ...pickLineImage(identity),
+      images: lineImages(identity),
+      other_variants: (siblingsByProduct.get(identity.product?.id) ?? []).filter(
+        // 🔴 The quoted variant is never its own alternative. Listing it beside
+        // the others reads as a choice the buyer still has, when the price is
+        // frozen against exactly this one.
+        (v) => v.id !== line.variant_id
+      ),
       spec: specByProduct.get(identity.product?.id) ?? null,
       product_tags: ((identity.product?.tags ?? []) as any[])
         .map((t) => t?.value)
