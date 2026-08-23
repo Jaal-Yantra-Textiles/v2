@@ -93,6 +93,15 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
     },
     partner_id: quote.partner_id ?? null,
     /**
+     * 🔴 The buyer's group, so the LIVE half re-prices through the price list
+     * minted FOR them rather than off the catalogue. Without it a quote with a
+     * negotiated trade price showed its own retail number as "what it costs
+     * today" and told the buyer pricing had moved — minutes after minting.
+     *
+     * Safe here and only here: the list exists by the time anything reads this.
+     */
+    customer_group_id: quote.customer_group_id ?? null,
+    /**
      * #1428 — whose storefront is serving this page.
      *
      * 🔑 NOT `quote.store_id`. Both mint paths resolve the store FROM the

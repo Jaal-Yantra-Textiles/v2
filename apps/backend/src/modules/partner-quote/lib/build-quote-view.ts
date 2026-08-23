@@ -24,6 +24,14 @@ import {
 import { classifyQuoteJurisdiction } from "./quote-tax"
 import { resolveQuoteSpecs, type QuoteLineSpec } from "./quote-spec"
 import { daysUntilExpiry, quoteUnusableReason } from "./token"
+/**
+ * Imported, never restated. `customer.groups.id` vs `customer_group_id` is the
+ * exact pair that made the first minted quote price nothing at all (#1389), and
+ * a second copy of the string is how that comes back.
+ *
+ * `plan-quote-prices` imports nothing, so this cannot cycle.
+ */
+import { QUOTE_GROUP_RULE_ATTRIBUTE } from "../../../workflows/partner-quote/lib/plan-quote-prices"
 
 /**
  * The one builder, so the page and the email cannot drift (#1389 S2).
@@ -125,6 +133,16 @@ export type BuildQuoteViewLine = {
 export type BuildQuoteViewInput = {
   /** The persisted row. Null at mint, when there is nothing frozen yet. */
   quote?: QuoteViewQuote | null
+  /**
+   * The buyer's customer group, so the LIVE re-price sees the price list that
+   * was minted for them (#1389 S3).
+   *
+   * 🔴 Set on a READ, never at mint. At mint there is no list yet, and the
+   * buyer's group may still carry the PREVIOUS quote's list — `supersede` runs
+   * after the freeze. Passing it there would price a re-quote off the quote it
+   * is replacing, and two active lists on one group tie-break CHEAPEST (#1435).
+   */
+  customer_group_id?: string | null
   /** Effective basket — the buyer's dial positions, or the quoted ones. */
   lines: BuildQuoteViewLine[]
   destination_country_code: string
@@ -802,6 +820,26 @@ export async function buildQuoteView(
               ...(input.region_id ? { region_id: input.region_id } : {}),
               currency_code: input.currency_code,
               quantity: line.quantity,
+              /**
+               * 🔴 THE buyer's group, under the attribute a cart actually
+               * carries. Without it `calculated_price` answers with the
+               * CATALOGUE price and never sees the price list minted for this
+               * buyer — so a quote with a negotiated trade price rendered its
+               * own retail number as "what it costs today", told the buyer
+               * pricing had moved, and showed a delta of the entire discount.
+               * Minutes after minting, with nothing having moved.
+               *
+               * Invisible on a quote priced at catalogue, where live and quoted
+               * agree by coincidence — i.e. on every quote except the B2B ones
+               * this whole epic exists for.
+               *
+               * `customer.groups.id`, not `customer_group_id`: the latter
+               * matches nothing, which is the #1389 defect that made the first
+               * minted quote price nothing at all.
+               */
+              ...(input.customer_group_id
+                ? { [QUOTE_GROUP_RULE_ATTRIBUTE]: [input.customer_group_id] }
+                : {}),
             }),
           },
         })
