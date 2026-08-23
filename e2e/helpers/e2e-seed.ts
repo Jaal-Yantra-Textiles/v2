@@ -2,6 +2,8 @@ import { ExecArgs } from "@medusajs/framework/types"
 import { Modules, ContainerRegistrationKeys } from "@medusajs/framework/utils"
 import { createOrderFulfillmentWorkflow } from "@medusajs/medusa/core-flows"
 import { ensureOrderFulfillment } from "../../apps/backend/src/workflows/orders/fulfillment-context"
+import { PARTNER_QUOTE_MODULE } from "../../apps/backend/src/modules/partner-quote"
+import { PAYMENT_SCHEDULE_MODULE } from "../../apps/backend/src/modules/payment_schedule"
 import Scrypt from "scrypt-kdf"
 import * as fs from "fs"
 import * as path from "path"
@@ -347,9 +349,23 @@ async function seedAdminQuotes(container: any): Promise<{
   activeQuoteCompany: string
   supersededQuoteId: string
   supersededQuoteCompany: string
+  acceptedQuoteId: string
+  acceptedQuoteCompany: string
+  zeroDepositQuoteId: string
+  zeroDepositQuoteCompany: string
 }> {
   const partnerModule: any = container.resolve("partner")
-  const quoteService: any = container.resolve("partner_quote")
+  // 🔴 `partnerQuote`, camelCase — NOT `partner_quote`.
+  //
+  // The module registers itself as `PARTNER_QUOTE_MODULE = "partnerQuote"`
+  // (`src/modules/partner-quote/index.ts`), while the directory, the table and
+  // every column prefix are snake_case. Resolving the snake_case name threw
+  // `Could not resolve 'partner_quote'` and took the WHOLE e2e suite red from
+  // 22 Aug — the seed dies before any spec runs, so a failure here reads like
+  // "the module is not registered" when it is registered in both configs.
+  // Imported from the module rather than retyped, so the next rename moves it.
+  const quoteService: any = container.resolve(PARTNER_QUOTE_MODULE)
+  const scheduleService: any = container.resolve(PAYMENT_SCHEDULE_MODULE)
 
   const stamp = Date.now()
 
@@ -417,6 +433,56 @@ async function seedAdminQuotes(container: any): Promise<{
     status: "superseded",
   })
 
+  /**
+   * #1439 S11 — the two deposit cases the UI has to tell apart, plus an
+   * acceptance with a real ledger row behind it.
+   *
+   * 🔑 `deposit_pct: 0` is seeded ON PURPOSE and is the whole point of this
+   * fixture. Null means "nobody named terms, the platform's 30% applies at
+   * acceptance"; 0 means "this buyer pays nothing up front". Every `||` on the
+   * path from the form to the column collapses one into the other, and the
+   * collapse is silent — the partner sees the number they typed and the buyer
+   * is asked for a third of the order. A spec can only catch that if a 0
+   * actually exists in the data.
+   */
+  const acceptedCompany = `E2E Accepted Buyer ${stamp} Pvt Ltd`
+  const zeroDepositCompany = `E2E Zero Deposit Buyer ${stamp} Pvt Ltd`
+
+  const acceptedCartId = `cart_e2e_${stamp}`
+  const acceptedQuoteId = await mkQuote("x", {
+    recipient_name: "Anita Rao",
+    recipient_company: acceptedCompany,
+    email_sent_to: `e2e-accepted-${stamp}@buyer.test`,
+    status: "active",
+    deposit_pct: 40,
+    accepted_cart_id: acceptedCartId,
+    accepted_at: new Date(),
+  })
+
+  const zeroDepositQuoteId = await mkQuote("z", {
+    recipient_name: "Vikram Shah",
+    recipient_company: zeroDepositCompany,
+    email_sent_to: `e2e-zero-${stamp}@buyer.test`,
+    status: "active",
+    deposit_pct: 0,
+  })
+
+  /**
+   * The ledger behind the acceptance. Written through `openForCart` rather than
+   * by hand so the fixture cannot disagree with the split the product uses —
+   * a seeded deposit/balance pair that does not add back to the total would
+   * make the panel look right while proving nothing.
+   */
+  await scheduleService.openForCart({
+    cart_id: acceptedCartId,
+    currency_code: "inr",
+    total_due: 815000,
+    source_type: "quote",
+    source_id: acceptedQuoteId,
+    rail: "payu",
+    quote_deposit_pct: 40,
+  })
+
   // One activity row, so the timeline renders its real shape rather than its
   // "no activity recorded yet" fallback — the actor badge is the thing an
   // operator reads first when a buyer challenges a price.
@@ -434,6 +500,10 @@ async function seedAdminQuotes(container: any): Promise<{
     activeQuoteCompany: activeCompany,
     supersededQuoteId,
     supersededQuoteCompany: supersededCompany,
+    acceptedQuoteId,
+    acceptedQuoteCompany: acceptedCompany,
+    zeroDepositQuoteId,
+    zeroDepositQuoteCompany: zeroDepositCompany,
   }
 }
 
@@ -569,6 +639,21 @@ async function seedAllocationDesignRun(container: any): Promise<{
     design_type: "Original",
     status: "Commerce_Ready",
     priority: "Medium",
+    /**
+     * #938 — a garment type that a MODEL supplied, not a designer.
+     *
+     * `product_type` and `design_type` answer different questions and the
+     * fixture carries both so a spec can prove the UI does not conflate them:
+     * this design is an "Original" (how original the work is) that is a
+     * "stole" (what the thing is).
+     *
+     * 🔑 `product_type_source: "inferred"` is the load-bearing half. An
+     * inferred type is provisional — it is what a human correction overwrites
+     * — so it has to be badged, and a fixture where every type looked
+     * designer-authored could never show that the badge appears.
+     */
+    product_type: "stole",
+    product_type_source: "inferred",
   })
   const designId = (Array.isArray(design) ? design[0] : design).id as string
 
@@ -1201,8 +1286,35 @@ export default async function e2eSeed({ container }: ExecArgs) {
   logger.info("E2E seed: creating the #1439 admin quote fixtures (active + superseded)...")
   const adminQuotes = await seedAdminQuotes(container)
 
+  /**
+   * ⚠️ The CRM is an OPTIONAL integration and its absence must not take the
+   * whole suite down.
+   *
+   * The module is gated on `CRM_NODE_URL` (proxy mode) or `CRM_HYPERBEE=true`
+   * (embedded); with neither it registers but its repository does not, so the
+   * first write throws `Could not resolve 'crmPersonService'`. On a developer
+   * box with no CRM configured that killed the seed outright — and a seed that
+   * dies takes every spec with it, including the ones that have nothing to do
+   * with the CRM. The failure then reads as "e2e is broken" rather than "one
+   * optional integration is not wired here".
+   *
+   * Skipping is loud, not silent: the warning names the env vars, and the CRM
+   * spec fails on the missing seed keys rather than passing vacuously.
+   */
   logger.info("E2E seed: creating the CRM contact + one logged activity...")
-  const crmContact = await seedCrmContact(container)
+  let crmContact: {
+    personId: string
+    personName: string
+    activityBody: string
+  } | null = null
+  try {
+    crmContact = await seedCrmContact(container)
+  } catch (e: any) {
+    logger.warn(
+      `E2E seed: CRM fixtures skipped — ${e?.message ?? e}. ` +
+        `Set CRM_NODE_URL (proxy) or CRM_HYPERBEE=true to seed them; the CRM spec will fail without them.`
+    )
+  }
 
   logger.info("E2E seed: creating content editor partner + website + page + blocks...")
   const contentEditor = await seedContentEditorPartner(container)
@@ -1238,9 +1350,12 @@ export default async function e2eSeed({ container }: ExecArgs) {
     parkedRunFreshPartnerName: parkedRun.freshPartnerName,
     // CRM contact fixture — consumed by crm-contact-activity.spec.ts (admin,
     // CI). Requires CRM_HYPERBEE=true so the embedded store is registered.
-    crmPersonId: crmContact.personId,
-    crmPersonName: crmContact.personName,
-    crmActivityBody: crmContact.activityBody,
+    // Absent when the CRM is not wired in this environment — see the skip
+    // above. The spec asserts on these and fails loudly rather than passing
+    // against an undefined it never noticed.
+    crmPersonId: crmContact?.personId ?? null,
+    crmPersonName: crmContact?.personName ?? null,
+    crmActivityBody: crmContact?.activityBody ?? null,
     // Visual block editor fixture — consumed by visual-block-editor.spec.ts
     // (@partnerui, local only).
     contentEditorEmail: contentEditor.email,
@@ -1271,6 +1386,12 @@ export default async function e2eSeed({ container }: ExecArgs) {
     activeQuoteCompany: adminQuotes.activeQuoteCompany,
     supersededQuoteId: adminQuotes.supersededQuoteId,
     supersededQuoteCompany: adminQuotes.supersededQuoteCompany,
+    // #1439 S11 — an accepted quote with a real payment schedule, and one whose
+    // deposit is deliberately 0 rather than absent.
+    acceptedQuoteId: adminQuotes.acceptedQuoteId,
+    acceptedQuoteCompany: adminQuotes.acceptedQuoteCompany,
+    zeroDepositQuoteId: adminQuotes.zeroDepositQuoteId,
+    zeroDepositQuoteCompany: adminQuotes.zeroDepositQuoteCompany,
   }
 
   fs.writeFileSync(SEED_FILE, JSON.stringify(seedData, null, 2))

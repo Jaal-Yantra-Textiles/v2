@@ -21,6 +21,7 @@ import {
 import { Avatar, Divider, DropdownMenu, Kbd, Text, clx } from "@medusajs/ui"
 import { useMemo, useState } from "react"
 import { useTranslation } from "react-i18next"
+import type { TFunction } from "i18next"
 
 import {
   SIDEBAR_ZONE,
@@ -198,6 +199,24 @@ const Header = () => {
 
 type WorkspaceType = "seller" | "manufacturer" | "individual" | "designer"
 
+/**
+ * The sub-items under Orders, in one place (#1389 S3).
+ *
+ * 🔑 This list existed THREE times — once per workspace persona — and Quotes
+ * was added to two of them. The one it was missed on is the DEFAULT branch,
+ * i.e. the sidebar most partners actually get, so the quote list shipped,
+ * shipped again in the nav, and still could not be reached by the people it
+ * was built for. Three copies of a menu is how that happens; one function is
+ * how it stops.
+ */
+const ordersNavItems = (t: TFunction) => [
+  { label: "All", to: "/orders/all" },
+  { label: "Design", to: "/orders/design" },
+  { label: "Inventory", to: "/orders/inventory" },
+  // A sibling of the other order kinds because a quote becomes one.
+  { label: t("app.nav.main.quotes", "Quotes"), to: "/orders/quotes" },
+]
+
 const useCoreRoutes = (
   workspaceType?: WorkspaceType
 ): Omit<INavItem, "pathname">[] => {
@@ -220,16 +239,7 @@ const useCoreRoutes = (
         icon: <ShoppingCart />,
         label: t("app.nav.main.orders"),
         to: "/orders",
-        items: [
-          { label: "All", to: "/orders/all" },
-          { label: "Design", to: "/orders/design" },
-          { label: "Inventory", to: "/orders/inventory" },
-          // #1389 S3. The route has existed since the quote list shipped, but
-          // nothing in the nav pointed at it — a partner could only reach their
-          // own quotes by typing the URL, so in practice the list did not
-          // exist. Sibling of the other order kinds because a quote becomes one.
-          { label: t("app.nav.main.quotes", "Quotes"), to: "/orders/quotes" },
-        ],
+        items: ordersNavItems(t),
       },
       { icon: <CurrencyDollar />, label: t("app.nav.main.paymentSubmissions"), to: "/payment-submissions" },
       { icon: <FolderOpen />, label: t("app.nav.main.sharedFolders"), to: "/shared-folders" },
@@ -282,16 +292,7 @@ const useCoreRoutes = (
         // #342 Chunk 5: the unified order-kind views (formerly an in-page tab
         // strip) now live as nested routes under Orders. The parent `/orders`
         // is Retail; these are the work-order kinds.
-        items: [
-          { label: "All", to: "/orders/all" },
-          { label: "Design", to: "/orders/design" },
-          { label: "Inventory", to: "/orders/inventory" },
-          // #1389 S3. The route has existed since the quote list shipped, but
-          // nothing in the nav pointed at it — a partner could only reach their
-          // own quotes by typing the URL, so in practice the list did not
-          // exist. Sibling of the other order kinds because a quote becomes one.
-          { label: t("app.nav.main.quotes", "Quotes"), to: "/orders/quotes" },
-        ],
+        items: ordersNavItems(t),
       },
       { icon: <Users />, label: t("app.nav.main.customers"), to: "/customers" },
       {
@@ -327,11 +328,7 @@ const useCoreRoutes = (
       // #342 Chunk 5: the unified order-kind views (formerly an in-page tab
       // strip) now live as nested routes under Orders. The parent `/orders`
       // is Retail; these are the work-order kinds.
-      items: [
-        { label: "All", to: "/orders/all" },
-        { label: "Design", to: "/orders/design" },
-        { label: "Inventory", to: "/orders/inventory" },
-      ],
+      items: ordersNavItems(t),
     },
     {
       icon: <PencilSquare />,

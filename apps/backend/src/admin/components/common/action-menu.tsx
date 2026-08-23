@@ -34,7 +34,19 @@ type ActionMenuProps = PropsWithChildren<{
 
 export const ActionMenu = ({ groups, children }: ActionMenuProps) => {
   const inner = children ?? (
-    <IconButton size="small" variant="transparent">
+    /**
+     * 🔑 The trigger needs a NAME. Its only content is an icon, so without
+     * `aria-label` it has no accessible name at all — a screen reader announces
+     * "button", and nothing selecting by role and name can find it. That is not
+     * a test-only problem: this menu is where the destructive actions live
+     * across the whole admin, so the one control that deletes things was the
+     * one control nobody could address by name.
+     */
+    <IconButton
+      size="small"
+      variant="transparent"
+      aria-label="Open actions menu"
+    >
       <EllipsisHorizontal />
     </IconButton>
   );

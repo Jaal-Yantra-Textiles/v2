@@ -359,7 +359,7 @@ export const BuyerStep = ({ form }: Props) => {
         <Form.Field
           control={form.control}
           name="deposit_pct"
-          render={({ field }) => (
+          render={({ field: { onChange, value, ...rest } }) => (
             <Form.Item>
               <Form.Label optional>Deposit (%)</Form.Label>
               <Form.Control>
@@ -368,13 +368,20 @@ export const BuyerStep = ({ form }: Props) => {
                   min={0}
                   max={100}
                   placeholder="30"
-                  value={field.value ?? ""}
+                  // 🔑 `...rest` carries `name`, `ref` and `onBlur` from
+                  // react-hook-form onto the element. Reading `field.value` and
+                  // `field.onChange` alone renders an input with NO name
+                  // attribute — it looks and behaves right, and is invisible to
+                  // anything selecting the form by field name. Caught by the
+                  // e2e spec, not by tsc, which sees a perfectly typed prop.
+                  {...rest}
+                  value={value ?? ""}
                   onChange={(e) =>
                     // Only an EMPTY string is "unset". `Number("0")` is 0 and
                     // has to survive as 0 — taking nothing up front is a real
                     // term, and losing it hands the buyer a 30% demand nobody
                     // agreed to.
-                    field.onChange(
+                    onChange(
                       e.target.value === "" ? undefined : Number(e.target.value)
                     )
                   }
