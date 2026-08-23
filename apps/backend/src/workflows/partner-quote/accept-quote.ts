@@ -16,6 +16,7 @@ import {
   createCartWorkflow,
   createShippingOptionsWorkflow,
   deleteShippingOptionsWorkflow,
+  emitEventStep,
 } from "@medusajs/medusa/core-flows"
 
 import { PARTNER_QUOTE_MODULE } from "../../modules/partner-quote"
@@ -691,6 +692,25 @@ export const acceptQuoteWorkflow = createWorkflow(
         quote_id: input.quote_id,
         cart_id: cart.cart_id,
         now: timing.now,
+      })
+
+      /**
+       * Announce it, so a visual flow can act on a buyer saying yes — chase the
+       * deposit, tell the partner, start production paperwork.
+       *
+       * Inside the `when` on purpose: this is the FRESH acceptance branch, so a
+       * second click lands on `already_accepted` and emits nothing. An event
+       * that fired on every re-POST would have a flow mailing the partner once
+       * per page refresh.
+       */
+      emitEventStep({
+        eventName: "partner_quote.accepted",
+        data: {
+          id: input.quote_id,
+          quote_id: input.quote_id,
+          cart_id: cart.cart_id,
+          schedule_id: schedule.schedule_id,
+        },
       })
 
       return transform({ cart, schedule }, ({ cart, schedule }) => ({

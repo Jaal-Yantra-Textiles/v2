@@ -1,4 +1,4 @@
-import { ContainerRegistrationKeys } from "@medusajs/framework/utils"
+import { ContainerRegistrationKeys, Modules } from "@medusajs/framework/utils"
 
 import { BOT_SUPPRESSED_SEND_ID } from "../../lib/bot-recipients"
 import { PARTNER_QUOTE_MODULE } from "../../modules/partner-quote"
@@ -67,6 +67,50 @@ export async function deliverQuoteEmail(
     destination_country_code: quote?.destination_country_code,
     token: input.token,
   })
+
+  /**
+   * Announce the mint so a VISUAL FLOW can act on it.
+   *
+   * 🔑 The quote path emitted NOTHING, which is why no flow could send an
+   * introduction before the quote: there was no event in the system to trigger
+   * on. A flow can now listen for `partner_quote.minted` and do the sequencing
+   * — introduce the partner, wait, then send the link — without any of that
+   * being hard-coded here.
+   *
+   * Emitted BEFORE the send and regardless of whether it succeeds: a flow is
+   * exactly the right thing to recover a failed delivery, so it must hear
+   * about the quote even when the built-in mail does not go. The payload
+   * carries `buyer_url` because a flow that cannot name the link can send
+   * nothing useful.
+   *
+   * 🔴 Never allowed to fail a mint. A flow is an addition to the quote, not a
+   * precondition for it — the same rule `recordEvent` follows.
+   */
+  try {
+    const eventBus: any = scope.resolve(Modules.EVENT_BUS)
+    await eventBus.emit({
+      name: "partner_quote.minted",
+      data: {
+        id: quote?.id,
+        quote_id: quote?.id,
+        partner_id: quote?.partner_id ?? null,
+        partner_name: input.partnerName ?? null,
+        buyer_email: to,
+        buyer_url: buyerUrl,
+        recipient_name: quote?.recipient_name ?? null,
+        recipient_company: quote?.recipient_company ?? null,
+        currency_code: quote?.currency_code ?? null,
+        total: quote?.quoted_landed_total ?? null,
+        destination_country_code: quote?.destination_country_code ?? null,
+        line_count: input.lineCount,
+        actor_type: input.actorType,
+      },
+    })
+  } catch (e: any) {
+    logger.warn(
+      `[quote] could not emit partner_quote.minted for ${quote?.id}: ${e?.message ?? String(e)}`
+    )
+  }
 
   const fail = async (reason: string, type: string) => {
     // Error, not warn. This is a quote the buyer cannot reach.
