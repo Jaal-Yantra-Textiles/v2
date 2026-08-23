@@ -2,6 +2,7 @@ import { Metadata } from "next"
 import { notFound } from "next/navigation"
 
 import { retrieveQuote } from "@lib/data/quotes"
+import { parseDialledLines } from "@lib/util/quote-lines"
 import QuoteTemplate from "@modules/quotes/templates"
 
 /**
@@ -16,6 +17,18 @@ import QuoteTemplate from "@modules/quotes/templates"
  */
 type Props = {
   params: Promise<{ countryCode: string; token: string }>
+  /**
+   * The buyer's dialled basket (#1439 S13), as `?lines=variant_x:40,variant_y:12`.
+   *
+   * 🔴 A promise too, for the same reason `params` is — and the same trap. See
+   * the note above: this app is on Next 16, `apps/storefront-starter` is on
+   * Next 15, and reading a field off the unawaited promise is `undefined` on
+   * one and a deprecation warning on the other. Here the failure would be
+   * quieter than #1427 was: an un-awaited `searchParams` yields no dial, the
+   * quoted basket renders perfectly, and the buyer's +/− simply stops working
+   * with nothing in any log to say why.
+   */
+  searchParams: Promise<{ lines?: string | string[] }>
 }
 
 /**
@@ -38,9 +51,27 @@ export const metadata: Metadata = {
  */
 export const dynamic = "force-dynamic"
 
-export default async function QuotePage({ params }: Props) {
-  const { token, countryCode } = await params
-  const quote = await retrieveQuote(token)
+export default async function QuotePage({ params, searchParams }: Props) {
+  const [{ token, countryCode }, { lines }] = await Promise.all([
+    params,
+    searchParams,
+  ])
+
+  /**
+   * The quantities the buyer has dialled, if any (#1439 S13).
+   *
+   * 🔑 Handed to the backend, which re-prices the ENTIRE document through them
+   * — line subtotals, the freight the carrier rates for the new weight, the tax
+   * band the new goods value falls in, the deposit. Nothing on this page does
+   * price arithmetic in the browser, because a quantity crossing a price-list
+   * tier, a carrier weight slab or a tax threshold would make it quietly wrong.
+   *
+   * An unparseable dial is dropped rather than 404'd: the quoted basket is
+   * always a correct answer, and a link mangled in an email client should not
+   * cost the buyer their price.
+   */
+  const dialledLines = parseDialledLines(lines)
+  const quote = await retrieveQuote(token, dialledLines)
 
   // An unknown token and a revoked one are indistinguishable by design — the
   // backend 404s both so a prober learns nothing, and this preserves that.

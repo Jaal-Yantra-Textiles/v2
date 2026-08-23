@@ -35,10 +35,18 @@ const QuoteAcceptPanel = ({
   token,
   acceptance,
   countryCode,
+  lines,
 }: {
   token: string
   acceptance: QuoteAcceptance
   countryCode: string
+  /**
+   * The basket as the server priced it, passed straight through to the accept
+   * call (#1439 S13). Not read from the URL and not recomputed here — the
+   * numbers above this button were rendered from these exact lines, so these
+   * are the ones the buyer is agreeing to.
+   */
+  lines: Array<{ variant_id: string; quantity: number }>
 }) => {
   const router = useRouter()
   const [pending, startTransition] = useTransition()
@@ -52,7 +60,7 @@ const QuoteAcceptPanel = ({
   const go = () => {
     setError(null)
     startTransition(async () => {
-      const { cart_id, error } = await acceptQuote(token)
+      const { cart_id, error } = await acceptQuote(token, lines)
       if (!cart_id) {
         setError(error ?? "The order could not be started.")
         return

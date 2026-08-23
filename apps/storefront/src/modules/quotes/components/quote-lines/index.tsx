@@ -1,9 +1,12 @@
 import { Text } from "@medusajs/ui"
 
 import { convertToLocale } from "@lib/util/money"
+import type { DialledLine } from "@lib/util/quote-lines"
+import { buildQuotedHref } from "@lib/util/quote-lines"
 import type { QuoteView, QuoteViewLine } from "@lib/data/quotes"
 import QuoteLineImage from "../quote-image"
 import QuoteLineSpecRows from "../quote-line-spec"
+import QuoteQuantity from "../quote-quantity"
 
 /**
  * The quoted basket, line by line.
@@ -25,11 +28,18 @@ const LineRow = ({
   currency_code,
   showQuoted,
   showLive,
+  dial,
 }: {
   line: QuoteViewLine
   currency_code: string
   showQuoted: boolean
   showLive: boolean
+  /** Absent ⇒ the quantity is stated, not offered. */
+  dial: {
+    token: string
+    countryCode: string
+    lines: DialledLine[]
+  } | null
 }) => (
   <tr className="border-b border-ui-border-base last:border-b-0">
     <td className="py-4 pr-4 align-top">
@@ -77,7 +87,18 @@ const LineRow = ({
       </div>
     </td>
     <td className="py-4 px-4 align-top text-right whitespace-nowrap">
-      <Text className="txt-medium text-ui-fg-base">{line.quantity}</Text>
+      {dial ? (
+        <QuoteQuantity
+          countryCode={dial.countryCode}
+          token={dial.token}
+          lines={dial.lines}
+          variantId={line.variant_id}
+          quantity={line.quantity}
+          quotedQuantity={line.quoted_quantity ?? null}
+        />
+      ) : (
+        <Text className="txt-medium text-ui-fg-base">{line.quantity}</Text>
+      )}
     </td>
     {showQuoted ? (
       <td className="py-4 px-4 align-top text-right whitespace-nowrap">
@@ -102,9 +123,45 @@ const LineRow = ({
   </tr>
 )
 
-const QuoteLines = ({ quote }: { quote: QuoteView }) => {
+const QuoteLines = ({
+  quote,
+  token,
+  countryCode,
+}: {
+  quote: QuoteView
+  token: string
+  countryCode: string
+}) => {
   const { show_quoted: showQuoted, show_live: showLive } = quote.compare
   const lines = [...quote.lines].sort((a, b) => a.position - b.position)
+
+  /**
+   * Quantities are only OFFERED while the quote is still something the buyer
+   * can act on (#1439 S13).
+   *
+   * Once accepted, the cart exists and its quantities are fixed — a stepper
+   * that re-prices this page would show a basket the order will not match, and
+   * the buyer would have no way to tell which of the two was real. A blocked
+   * quote stays dialable on purpose: "what would 400 cost" is exactly the
+   * question that gets answered by replying to the partner.
+   */
+  const dial = quote.acceptance?.accepted
+    ? null
+    : {
+        token,
+        countryCode,
+        lines: lines.map((l) => ({
+          variant_id: l.variant_id,
+          quantity: l.quantity,
+        })),
+      }
+
+  // Whether the buyer has moved anything off the quoted basket. Drives the one
+  // sentence that stops a dialled page passing itself off as the partner's
+  // offer — the totals below it are real, but nobody quoted them.
+  const dialled = lines.some(
+    (l) => l.quoted_quantity !== null && l.quoted_quantity !== undefined && l.quoted_quantity !== l.quantity
+  )
 
   return (
     <div className="overflow-x-auto">
@@ -137,10 +194,31 @@ const QuoteLines = ({ quote }: { quote: QuoteView }) => {
               currency_code={quote.currency_code}
               showQuoted={showQuoted}
               showLive={showLive}
+              dial={dial}
             />
           ))}
         </tbody>
       </table>
+
+      {/* 🔴 Said once, under the lines rather than beside one of them: the
+          document is no longer the one that was sent. The prices are the
+          partner's and the server computed every total on this page from these
+          quantities — but the quantities are the buyer's, and a page headed
+          "your quote" must not let that pass unremarked. */}
+      {dialled ? (
+        <div className="mt-4 flex flex-wrap items-center justify-between gap-x-4 gap-y-2 rounded-md border border-ui-border-base bg-ui-bg-subtle px-4 py-3">
+          <Text className="txt-small text-ui-fg-subtle">
+            You have changed the quantities. These prices are your partner&apos;s,
+            re-applied to the basket above.
+          </Text>
+          <a
+            href={buildQuotedHref({ countryCode, token })}
+            className="txt-small-plus text-ui-fg-interactive hover:text-ui-fg-interactive-hover"
+          >
+            Back to the quoted quantities
+          </a>
+        </div>
+      ) : null}
     </div>
   )
 }

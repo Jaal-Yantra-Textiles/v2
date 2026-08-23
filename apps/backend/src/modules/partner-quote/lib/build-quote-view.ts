@@ -270,7 +270,19 @@ export type QuoteViewLine = {
    * Null when the product has no spec, which is the normal state.
    */
   spec: QuoteLineSpec | null
+  /** The EFFECTIVE quantity — the buyer's dial position, or the quoted one. */
   quantity: number
+  /**
+   * What the partner actually quoted this line at (#1439 S13).
+   *
+   * Carried so a page that lets the buyer move quantities can say which number
+   * is theirs and which is the partner's. Without it a dialled document is
+   * indistinguishable from the one that was sent, while the header still calls
+   * it "your quote" — the buyer's own edit reads as the supplier's offer.
+   *
+   * Null only on a line with no frozen row behind it.
+   */
+  quoted_quantity: number | null
   position: number
   note: string | null
   /** Recomputed now, at THIS line's quantity. Null when the live half failed. */
@@ -1184,6 +1196,10 @@ export async function buildQuoteView(
       product_type_id: identity.product?.type?.id ?? null,
       product_collection: identity.product?.collection?.title ?? null,
       quantity: line.quantity,
+      quoted_quantity:
+        frozen?.quantity === undefined || frozen?.quantity === null
+          ? null
+          : Number(frozen.quantity),
       position: line.position ?? frozen?.position ?? index,
       note: line.note ?? frozen?.note ?? null,
       // #1486 — carried through so the frozen row, both partner UIs and the
