@@ -272,6 +272,24 @@ const validateQuoteReadinessStep = createStep(
       currency_code: input.currency_code,
       region_id: input.region_id,
       carrier: input.carrier,
+      /**
+       * 🔴 The hand-typed freight, or the gate below can never be satisfied.
+       *
+       * This step called the assessor WITHOUT the override while the wizards
+       * called it WITH one, so the two disagreed about the same quote — the
+       * exact split `assessQuoteReadiness` warns about in its own docblock.
+       * It was survivable only while an unrateable lane still produced a
+       * `chosen` freight from a flat manual tier: both sides said "ready", for
+       * different reasons.
+       *
+       * The moment that flat tier stopped counting as a rate, the omission
+       * became fatal — a partner types the DHL rate, the wizard turns green,
+       * and the mint refuses with a message telling them to type the rate they
+       * just typed. Found by minting through the real route on prod; the
+       * wizard's own preflight cannot see it, because the wizard is the half
+       * that was already correct.
+       */
+      freight_override_amount: input.freight_override_amount ?? null,
       check_catalogue: false,
     })
 
