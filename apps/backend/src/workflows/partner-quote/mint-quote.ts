@@ -88,6 +88,12 @@ export type MintQuoteInput = {
   /** The carrier's fee for advancing duty and tax. Always an amount. */
   ddp_fee_total?: number | null
   ttl_days?: number
+  /**
+   * The deposit share of this deal, 0-100 (#1439 S11). Omit — or pass null —
+   * to fall through to the partner's house terms and then the platform's 30%.
+   * `0` is a real answer and is NOT treated as absent.
+   */
+  deposit_pct?: number | null
   created_by?: string | null
   /** Injected so the whole mint is deterministic under test. */
   now?: Date
@@ -488,7 +494,7 @@ const applyLineOverridesStep = createStep(
             })),
             freight: {
               amount: Number(chosenFreight.amount ?? 0),
-              option_id: (chosenFreight as any)?.id ?? null,
+              option_id: chosenFreight.shipping_option_id ?? null,
             },
           })
         : view?.tax
@@ -842,6 +848,18 @@ const persistQuoteStep = createStep(
       quoted_import_tax_rate: input.view.duty?.import_tax_rate_percent ?? null,
       quoted_duty_basis: input.view.duty?.basis ?? null,
       quoted_at: new Date(input.now),
+      // #1439 S11 — which option the frozen freight was rated against. The
+      // accepted cart's freight option is built in this option's service zone
+      // and shipping profile, so the number the buyer pays and the number they
+      // were quoted come from the same lane rather than from two lookups that
+      // can disagree.
+      quoted_shipping_option_id: input.view.freight?.chosen?.shipping_option_id ?? null,
+      // The agreed deposit share. Null when the partner did not name one, which
+      // is not the same as 0 — see `resolveDepositPct`.
+      deposit_pct:
+        input.mint.deposit_pct === null || input.mint.deposit_pct === undefined
+          ? null
+          : Number(input.mint.deposit_pct),
       token_hash: hash,
       status: "active",
       expires_at: new Date(input.expires_at),

@@ -206,6 +206,9 @@ module.exports = defineConfig({
       resolve: "./src/modules/partner-quote",
     },
     {
+      resolve: "./src/modules/payment_schedule",
+    },
+    {
       resolve: "./src/modules/partner_billing",
     },
     {

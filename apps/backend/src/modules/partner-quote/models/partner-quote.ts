@@ -166,6 +166,41 @@ const PartnerQuote = model.define("partner_quote", {
   quoted_duty_rate: model.number().nullable(),
   quoted_import_tax_rate: model.number().nullable(),
   quoted_at: model.dateTime().nullable(),
+  /**
+   * The shipping option the frozen freight was quoted FROM (#1439 S11).
+   *
+   * 🔴 Not decoration, and not for display. On acceptance the cart has to be
+   * charged `quoted_freight` — and core will not let a caller hand it an
+   * amount: `refreshCartShippingMethodsWorkflow` overwrites every shipping
+   * method's amount with its option's `calculated_price` on the next cart
+   * update, and DELETES the method if the option no longer prices for the
+   * cart. So a hand-written amount survives exactly until the buyer changes
+   * their address. The accepted cart therefore gets its own flat option priced
+   * at the frozen number, and this column is what says which service zone and
+   * shipping profile to build it in — the ones the quote was actually rated
+   * against, rather than whichever zone a fresh lookup happens to pick.
+   *
+   * Null on every quote minted before S11, and on any quote whose freight came
+   * from a live carrier rate rather than a stored option.
+   */
+  quoted_shipping_option_id: model.text().nullable(),
+  /**
+   * The deposit share of this deal, 0–100, frozen at mint (#1439 S11).
+   *
+   * Per quote because B2B terms are negotiated per deal — a first order from an
+   * unknown buyer is not the same risk as the fourth from a regular. Null means
+   * "nobody said", and the resolution order is deal → partner's house terms →
+   * 30%. `0` is a real answer meaning invoice the lot later, which is why the
+   * resolver checks for null rather than falsiness.
+   */
+  deposit_pct: model.number().nullable(),
+  /**
+   * Set when the buyer accepts. It is the accepted cart, and it is also the
+   * idempotency key: a second accept on the same quote returns THIS cart
+   * instead of minting a second one against the same price list.
+   */
+  accepted_cart_id: model.text().nullable(),
+  accepted_at: model.dateTime().nullable(),
 
   // ===== Buyer identity — the edges this quote's prices hang off ==========
   /**

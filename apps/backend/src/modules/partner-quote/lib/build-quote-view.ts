@@ -843,7 +843,7 @@ export async function buildQuoteView(
           unit_amount: liveUnitByVariant.get(l.variant_id) ?? 0,
           quantity: l.quantity,
         })),
-        freight: { amount: Number(chosen.amount), option_id: (chosen as any)?.id ?? null },
+        freight: { amount: Number(chosen.amount), option_id: chosen.shipping_option_id ?? null },
       })
 
       const liveSubtotals = effectiveLines.map(
