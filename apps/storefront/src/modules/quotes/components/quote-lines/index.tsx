@@ -50,10 +50,12 @@ const LineRow = ({
         {line.thumbnail ? (
           <QuoteLineImage
             src={line.thumbnail}
+            images={line.images}
             alt={line.product_title ?? "Quoted item"}
             caption={
-              [line.product_title, line.variant_title].filter(Boolean).join(" — ") ||
-              null
+              [line.product_title, line.variant_title]
+                .filter(Boolean)
+                .join(" — ") || null
             }
           />
         ) : null}
@@ -62,10 +64,14 @@ const LineRow = ({
             {line.product_title ?? "Product"}
           </Text>
           {line.variant_title ? (
-            <Text className="txt-small text-ui-fg-subtle">{line.variant_title}</Text>
+            <Text className="txt-small text-ui-fg-subtle">
+              {line.variant_title}
+            </Text>
           ) : null}
           {line.note ? (
-            <Text className="txt-small text-ui-fg-muted italic mt-1">{line.note}</Text>
+            <Text className="txt-small text-ui-fg-muted italic mt-1">
+              {line.note}
+            </Text>
           ) : null}
           {/* A declared PRODUCT weight over-quotes a lighter variant, and at bulk
               quantities that can cross a carrier slab — so where the weight came
@@ -83,6 +89,32 @@ const LineRow = ({
             </Text>
           ) : null}
           {line.spec ? <QuoteLineSpecRows spec={line.spec} /> : null}
+
+          {/* 🔴 What the maker ALSO weaves — a fact, not a picker.
+              The quote is frozen against this variant at this price, so these
+              are deliberately inert: no links, no selection, and a sentence
+              saying the only way to act on one is to ask. A control here would
+              describe an agreement that does not exist, which is the same
+              reason the spec payload carries no option groups. */}
+          {line.other_variants?.length ? (
+            <div className="mt-2 flex flex-wrap items-center gap-1">
+              <Text className="txt-small text-ui-fg-muted mr-1">
+                Also made in:
+              </Text>
+              {line.other_variants.map((v) => (
+                <span
+                  key={v.id}
+                  className="rounded-full border border-ui-border-base px-2 py-0.5 txt-small text-ui-fg-subtle"
+                >
+                  {v.title ?? "Another finish"}
+                </span>
+              ))}
+              <Text className="txt-small text-ui-fg-muted w-full mt-1">
+                Ask your partner to quote one of these — this price covers the
+                weave above.
+              </Text>
+            </div>
+          ) : null}
         </div>
       </div>
     </td>
@@ -160,7 +192,10 @@ const QuoteLines = ({
   // sentence that stops a dialled page passing itself off as the partner's
   // offer — the totals below it are real, but nobody quoted them.
   const dialled = lines.some(
-    (l) => l.quoted_quantity !== null && l.quoted_quantity !== undefined && l.quoted_quantity !== l.quantity
+    (l) =>
+      l.quoted_quantity !== null &&
+      l.quoted_quantity !== undefined &&
+      l.quoted_quantity !== l.quantity
   )
 
   return (
@@ -181,7 +216,9 @@ const QuoteLines = ({
             ) : null}
             {showLive ? (
               <th className="py-3 pl-4 text-right">
-                <Text className="txt-small-plus text-ui-fg-subtle">Current</Text>
+                <Text className="txt-small-plus text-ui-fg-subtle">
+                  Current
+                </Text>
               </th>
             ) : null}
           </tr>
@@ -208,8 +245,8 @@ const QuoteLines = ({
       {dialled ? (
         <div className="mt-4 flex flex-wrap items-center justify-between gap-x-4 gap-y-2 rounded-md border border-ui-border-base bg-ui-bg-subtle px-4 py-3">
           <Text className="txt-small text-ui-fg-subtle">
-            You have changed the quantities. These prices are your partner&apos;s,
-            re-applied to the basket above.
+            You have changed the quantities. These prices are your
+            partner&apos;s, re-applied to the basket above.
           </Text>
           <a
             href={buildQuotedHref({ countryCode, token })}

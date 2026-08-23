@@ -149,6 +149,21 @@ export type QuoteViewLine = {
   thumbnail: string | null
   image_source: "variant" | "product" | null
   spec: QuoteLineSpec | null
+  /**
+   * Every image on this variant, merchandiser-ordered (#1439 S14). Empty when
+   * the variant has none of its own — `thumbnail` may then be the PRODUCT's,
+   * which is a weaker claim and is labelled one via `image_source`.
+   */
+  images?: string[]
+  /**
+   * The product's other colourways/sizes (#1439 S14).
+   *
+   * 🔴 Information, never a picker. The quote is frozen against THIS variant at
+   * THIS price; the only thing a buyer can do with a different one is ask for a
+   * new quote, and any UI implying otherwise describes an agreement that does
+   * not exist. Render it as a statement of what the maker also weaves.
+   */
+  other_variants?: Array<{ id: string; title: string | null }>
   /** The EFFECTIVE quantity — the buyer's dial position, or the quoted one. */
   quantity: number
   /**
@@ -370,10 +385,14 @@ export type QuoteView = {
 /**
  * Fetch a quote by token.
  *
- * Returns null on ANY failure rather than throwing. An unknown token and a
- * revoked one are both 404 by design — a prober must not be able to tell them
- * apart — and the page turns either into the same not-found. Letting the error
- * bubble would render a stack-shaped 500 that says more than the 404 does.
+ * Returns null on ANY failure rather than throwing, and the page turns that
+ * into a not-found. Letting the error bubble would render a stack-shaped 500
+ * that says more than a 404 does.
+ *
+ * ⚠️ Only an UNKNOWN token 404s. A REVOKED one answers 200 with a `dead_link`
+ * document — withdrawn headline, no price columns, acceptance refused — so it
+ * never reaches this fallback. Comments elsewhere in this feature claim the two
+ * are indistinguishable; they are not. Checked against a real revoked quote.
  */
 export const retrieveQuote = async (
   token: string,

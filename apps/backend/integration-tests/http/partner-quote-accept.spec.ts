@@ -1,4 +1,5 @@
-import { ContainerRegistrationKeys } from "@medusajs/framework/utils"
+import { createTaxRegionsWorkflow } from "@medusajs/medusa/core-flows"
+import { ContainerRegistrationKeys, Modules } from "@medusajs/framework/utils"
 
 import { createAdminUser } from "../helpers/create-admin-user"
 import {
@@ -188,6 +189,84 @@ setupSharedTestSuite(() => {
       // quote was minted with.
       expect(Number(line?.quantity)).toBe(dialled)
       expect(Number(line?.quantity)).not.toBe(quotedQty)
+    })
+
+    /**
+     * 🔴 …and the totals guard has to move with it, ON A LANE THAT IS TAXED.
+     *
+     * The test above passes without this one and proves less than it looks. The
+     * fixture region carries no tax rate, so the quote's frozen `quoted_tax_total`
+     * and the cart's tax are both 0 and agree by coincidence — the assertion is
+     * vacuous exactly where the bug lives.
+     *
+     * With real tax the guard rebuilt the expected SUBTOTAL for the dialled
+     * basket and left the expected TAX frozen at the minted quantity, so every
+     * dialled acceptance was refused:
+     *
+     *   tax: quoted 250.25 inr, cart 875.25
+     *
+     * That is the whole quantity control unusable across all of India. Found by
+     * minting a real quote against a real region and pressing the button, not
+     * by any suite — so this test creates the tax region the fixture lacks and
+     * asserts the acceptance survives it.
+     */
+    it("🔴 accepts a dialled basket on a TAXED lane — the guard must re-price the tax too", async () => {
+      const { getContainer } = getSharedTestEnv()
+      const container = getContainer()
+
+      // Same setup as the tax-jurisdiction spec: through the workflow and WITH
+      // a provider, or the first request for tax lines throws deep inside
+      // `TaxProviderService` and the quote merely reads as untaxed.
+      const tax: any = container.resolve(Modules.TAX)
+      const existing = await tax.listTaxRegions({ country_code: "in" })
+      if (!existing.length) {
+        await createTaxRegionsWorkflow(container).run({
+          input: [
+            {
+              country_code: "in",
+              provider_id: "tp_system",
+              default_tax_rate: {
+                name: "India GST (standard)",
+                code: "IN-GST",
+                rate: 18,
+              },
+            } as any,
+          ],
+        })
+      }
+
+      const minted = await mint({
+        buyer_email: `dial-taxed-${seed.unique}@jaalyantra.test`,
+      })
+      const variantId = seed.variantA.id
+      const dialled = 25 + 5
+
+      const res = await getSharedTestEnv().api.post(
+        `/store/b2b/quotes/${minted.token}/accept`,
+        { lines: [{ variant_id: variantId, quantity: dialled }] },
+        { headers: storeHeaders }
+      )
+
+      // The refusal this guards against is a 400 naming a tax mismatch.
+      expect(res.status).toBe(201)
+
+      const cart = await readCart(res.data.acceptance.cart_id)
+      const line = (cart.items ?? []).find((i: any) => i.variant_id === variantId)
+      expect(Number(line?.quantity)).toBe(dialled)
+
+      /**
+       * Totals come from the STORE endpoint, not `readCart` — that helper
+       * projects only ids and quantities, so `cart.tax_total` off it is
+       * `undefined` and any assertion on it silently passes as 0. This is the
+       * same read the browser does.
+       */
+      const totals = await getSharedTestEnv().api.get(
+        `/store/carts/${res.data.acceptance.cart_id}`,
+        { headers: storeHeaders }
+      )
+      // 🔑 The tax really must be non-zero, or this test has quietly rejoined
+      // the vacuous one above and proves nothing about the guard.
+      expect(Number(totals.data.cart.tax_total ?? 0)).toBeGreaterThan(0)
     })
 
     /**

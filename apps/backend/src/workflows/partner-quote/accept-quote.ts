@@ -522,6 +522,26 @@ const assertCartMatchesQuoteStep = createStep(
      * then complain the cart disagreed with it.
      */
     let expectedSubtotal = Number(quote.quoted_subtotal ?? 0)
+    /**
+     * 🔴 The TAX expectation has to move with the basket too (#1439 S13).
+     *
+     * The subtotal was rebuilt for a dialled basket below and the tax was not,
+     * so it kept comparing the cart against `quoted_tax_total` — the figure
+     * frozen at mint, for the quantity the buyer just changed. On any taxed
+     * lane that is a guaranteed mismatch: a quote minted at 2 units and dialled
+     * to 7 offered `quoted 250.25, cart 875.25` and refused, which is the whole
+     * S13 feature made unusable across all of India.
+     *
+     * 🔑 Invisible to the accept suite, which passes 7/7. Its fixture region
+     * carries no tax, so quoted and cart tax are both 0 and agree by
+     * coincidence — a constant that makes the assertion vacuous exactly where
+     * it matters. Found by minting a real quote against a real region and
+     * pressing accept.
+     */
+    let expectedTax =
+      quote.quoted_tax_total === null || quote.quoted_tax_total === undefined
+        ? null
+        : Number(quote.quoted_tax_total)
     if (input.dialled) {
       const view = await buildQuoteView(container, {
         quote: null,
@@ -545,6 +565,13 @@ const assertCartMatchesQuoteStep = createStep(
         now: input.now ? new Date(input.now) : new Date(),
       })
       expectedSubtotal = Number(view?.live?.subtotal ?? view?.quoted?.subtotal ?? 0)
+      // Same builder, same price list, same frozen freight — so the tax is the
+      // one the buyer was shown for the basket they actually dialled. Left
+      // alone when the view cannot resolve one, so an unknown tax still falls
+      // back to the frozen figure rather than silently becoming "no tax".
+      if (view?.tax?.total !== null && view?.tax?.total !== undefined) {
+        expectedTax = Number(view.tax.total)
+      }
     }
 
     const quotedSubtotal = expectedSubtotal
@@ -570,10 +597,7 @@ const assertCartMatchesQuoteStep = createStep(
     }
 
     let taxDivergence: number | null = null
-    const quotedTax =
-      quote.quoted_tax_total === null || quote.quoted_tax_total === undefined
-        ? null
-        : Number(quote.quoted_tax_total)
+    const quotedTax = expectedTax
     const cartTax = Number(cart.tax_total ?? 0)
     if (quotedTax !== null && !near(quotedTax, cartTax)) {
       taxDivergence = Number((cartTax - quotedTax).toFixed(2))

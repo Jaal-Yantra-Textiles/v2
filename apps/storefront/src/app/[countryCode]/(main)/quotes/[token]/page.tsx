@@ -73,8 +73,18 @@ export default async function QuotePage({ params, searchParams }: Props) {
   const dialledLines = parseDialledLines(lines)
   const quote = await retrieveQuote(token, dialledLines)
 
-  // An unknown token and a revoked one are indistinguishable by design — the
-  // backend 404s both so a prober learns nothing, and this preserves that.
+  /**
+   * ⚠️ An UNKNOWN token 404s. A REVOKED one does not — verified against a real
+   * revoked quote, which returns 200 with a `dead_link` document: the headline
+   * says the partner withdrew it, `show_quoted` and `show_live` are both false
+   * so no price is rendered, and acceptance is refused. That is deliberate and
+   * kinder than a 404, but the two are therefore NOT indistinguishable to a
+   * prober, which several comments in this feature still claim. Nothing
+   * actionable leaks either way; the tokens are high-entropy, so the
+   * distinguishability is a curiosity rather than a hole.
+   *
+   * This branch is only ever the unknown-token case.
+   */
   if (!quote) {
     notFound()
   }

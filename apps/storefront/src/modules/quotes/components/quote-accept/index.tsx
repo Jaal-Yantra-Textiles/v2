@@ -1,6 +1,6 @@
 "use client"
 
-import { Button, Text } from "@medusajs/ui"
+import { Button, Text, clx } from "@medusajs/ui"
 import { useRouter } from "next/navigation"
 import { useState, useTransition } from "react"
 
@@ -36,10 +36,20 @@ const QuoteAcceptPanel = ({
   acceptance,
   countryCode,
   lines,
+  className,
 }: {
   token: string
   acceptance: QuoteAcceptance
   countryCode: string
+  /**
+   * Outer spacing, owned by the LAYOUT rather than by this panel (#1439 S14).
+   *
+   * It used to hardcode `mt-10`, which is right when it sits under the totals
+   * in a single column and wrong in the sticky right rail, where that margin
+   * pushes it away from the top the rail is pinned to. The panel should not
+   * have an opinion about where the page puts it.
+   */
+  className?: string
   /**
    * The basket as the server priced it, passed straight through to the accept
    * call (#1439 S13). Not read from the URL and not recomputed here — the
@@ -51,6 +61,12 @@ const QuoteAcceptPanel = ({
   const router = useRouter()
   const [pending, startTransition] = useTransition()
   const [error, setError] = useState<string | null>(null)
+
+  // `mt-10` only when the caller has no opinion — the single-column fallback.
+  const wrapper = clx(
+    "rounded-lg border border-ui-border-base p-6",
+    className ?? "mt-10"
+  )
 
   const money = (amount: number | null) =>
     amount === null
@@ -74,7 +90,7 @@ const QuoteAcceptPanel = ({
 
   if (acceptance.accepted) {
     return (
-      <div className="mt-10 rounded-lg border border-ui-border-base bg-ui-bg-subtle p-6">
+      <div className={clx(wrapper, "bg-ui-bg-subtle")}>
         <Text className="txt-medium-plus text-ui-fg-base">
           You have accepted this quote
         </Text>
@@ -95,7 +111,7 @@ const QuoteAcceptPanel = ({
 
   if (!acceptance.can_accept) {
     return (
-      <div className="mt-10 rounded-lg border border-ui-border-base bg-ui-bg-subtle p-6">
+      <div className={clx(wrapper, "bg-ui-bg-subtle")}>
         <Text className="txt-medium-plus text-ui-fg-base">
           This quote cannot be ordered online
         </Text>
@@ -107,7 +123,7 @@ const QuoteAcceptPanel = ({
   }
 
   return (
-    <div className="mt-10 rounded-lg border border-ui-border-base p-6">
+    <div className={wrapper}>
       <Text className="txt-medium-plus text-ui-fg-base">Ready to order?</Text>
 
       {/* The split is stated BEFORE the button, not on the next screen. The one
@@ -123,7 +139,9 @@ const QuoteAcceptPanel = ({
           </dd>
         </div>
         <div className="flex items-center justify-between">
-          <dt className="txt-small text-ui-fg-subtle">Balance, before dispatch</dt>
+          <dt className="txt-small text-ui-fg-subtle">
+            Balance, before dispatch
+          </dt>
           <dd className="txt-medium text-ui-fg-subtle">
             {money(acceptance.balance_amount)}
           </dd>
