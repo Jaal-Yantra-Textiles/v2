@@ -78,6 +78,9 @@ export type AiRole =
   // provider from the admin-configured External Platform; falls back to the
   // auto-rotating OpenRouter free models. The model drives the Partner API via
   // a tool registry — see api/partners/mcp/lib/registry.ts.
+  // Garment-type classification on a design (#938/#1486). One small
+  // classification call; a cheap model configured here is the right answer.
+  | "ai_design_product_type"
   | "ai_partner_assistant"
   // Admin agentic assistant chat (#1092). Resolves the assistant provider from
   // the admin-configured External Platform; falls back to the auto-rotating
@@ -723,7 +726,13 @@ export const AI_ROLES: AiRole[] = [
   "ai_digest_summary",
   "ai_newsletter_drafter",
   "ai_image_extraction",
+  // Present in the AiRole union and LIVE on prod (an OpenRouter platform is
+  // tagged with it) but was missing from this array — anything that iterates
+  // AI_ROLES (role pickers, the audit job) could not see a role that is
+  // actually serving traffic. Found by listing category=ai on prod.
+  "ai_theme_editor",
   "ai_redesign",
+  "ai_design_product_type",
   "ai_partner_assistant",
   "ai_admin_assistant",
 ]

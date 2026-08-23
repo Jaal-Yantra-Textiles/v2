@@ -11,8 +11,9 @@ import DesignService from "../../modules/designs/service"
 import {
   mayInferOver,
   normalizeProductType,
+  parseInferredProductType,
 } from "../../modules/designs/lib/product-type"
-import { mastra } from "../../mastra"
+import { makeRoleAiGenerate } from "../../mastra/services/ai-platforms"
 
 /**
  * Infer and store a design's garment type (#938).
@@ -111,7 +112,7 @@ export const inferDesignProductTypeStep = createStep<
 
     let inferred: { product_type?: unknown; confidence?: unknown } | null = null
     try {
-      inferred = await runInference(design)
+      inferred = await runInference(design, container)
     } catch (err) {
       // 🔑 Never rethrow: this runs inside design creation, and a model outage
       // must not be able to stop a designer saving their work.
@@ -174,39 +175,87 @@ export const inferDesignProductTypeStep = createStep<
 )
 
 /**
- * The model call, isolated so the step above stays readable and the test path
- * is one obvious branch.
+ * The model call.
+ *
+ * 🔑 Goes through `makeRoleAiGenerate`, which the AI-platforms service
+ * documents as "the single entry point every text AI feature should use". That
+ * means the provider and model come from the **admin-configured External
+ * Platform** tagged `ai_design_product_type` (category `ai`), falling back to
+ * the auto-rotating OpenRouter free pool when no platform is tagged. So an
+ * operator can point this at Cloudflare Workers AI, a Vercel AI Gateway, or
+ * anything OpenAI-compatible without touching code.
+ *
+ * It returns TEXT, never throws, and yields "" on failure — which suits this
+ * caller exactly, since an inference must never fail the design that triggered
+ * it. It also logs provider/model/tokens per call via `logAiUsage`.
+ *
+ * 🔴 The text is then read by `parseInferredProductType` rather than trusted as
+ * JSON. Free models routinely ignore a schema: `stealth/ox-alpha` returned a
+ * correct answer as markdown prose with `response.object` undefined, which threw
+ * on every call until the parser existed. A model's advertised `response_format`
+ * support is a claim, not a guarantee — that same model advertises it.
  *
  * The `NODE_ENV === "test"` short-circuit follows `create-design-from-llm` and
  * `gen-ai-desc`: integration tests exercise the wiring, the normalisation and
  * the precedence rules — which is where the bugs live — without a network call
  * whose answer would differ run to run.
  */
-async function runInference(design: any) {
+async function runInference(design: any, container: any) {
   if (process.env.NODE_ENV === "test") {
     return { product_type: mockTypeFor(design), confidence: 0.9 }
   }
 
-  const run = await mastra.getWorkflow("designProductTypeWorkflow").createRun()
-  const result: any = await run.start({
-    inputData: {
-      name: design.name,
-      description: design.description ?? undefined,
-      tags: Array.isArray(design.tags) ? design.tags.map(String) : undefined,
-      designer_notes:
-        typeof design.designer_notes === "string"
-          ? design.designer_notes
-          : undefined,
-    },
-  })
+  const generate = makeRoleAiGenerate(
+    container,
+    "ai_design_product_type",
+    "designs/product_type",
+    { maxOutputTokens: 300 }
+  )
 
-  const step = result?.steps?.inferProductType
-  if (step?.status !== "success") {
+  const text = await generate(buildPrompt(design))
+  if (!text) throw new Error("model returned no text")
+
+  const parsed = parseInferredProductType({ text })
+  if (!parsed) {
     throw new Error(
-      `designProductTypeWorkflow did not succeed: ${step?.status ?? "unknown"}`
+      `could not read a garment type from the response: ${text.slice(0, 200)}`
     )
   }
-  return step.output
+  return parsed
+}
+
+/** PURE. The classification prompt. */
+export function buildPrompt(design: {
+  name?: string
+  description?: string | null
+  tags?: unknown
+  designer_notes?: unknown
+}): string {
+  const tags = Array.isArray(design?.tags) ? design.tags.map(String) : []
+  const notes =
+    typeof design?.designer_notes === "string" ? design.designer_notes : ""
+
+  return `Classify this textile design into a single garment type.
+
+Design name: ${design?.name ?? ""}
+${design?.description ? `Description: ${design.description}` : ""}
+${tags.length ? `Tags: ${tags.join(", ")}` : ""}
+${notes ? `Designer notes: ${notes}` : ""}
+
+Reply with ONLY a JSON object and nothing else — no prose, no markdown, no code fences:
+
+{"product_type": "...", "confidence": 0.0, "reasoning": "..."}
+
+Fields:
+1. product_type — ONE garment category as a single lowercase noun, using
+   underscores for multi-word types. Examples: trousers, shirt, saree, kurta,
+   palazzo, dupatta, blouse, jacket, scarf, stole, cushion_cover, table_runner.
+   Name the garment, not the fabric, the technique, or the collection: a
+   "handwoven pashmina stole" is a "stole", not "pashmina" and not "handloom".
+2. confidence — 0 to 1, how certain you are. Be honest and use low values: if
+   the text describes fabric or motif without saying what is made from it, you
+   do not know, and a confident wrong type is worse than none.
+3. reasoning — one short sentence naming the words you classified from.`
 }
 
 /**
