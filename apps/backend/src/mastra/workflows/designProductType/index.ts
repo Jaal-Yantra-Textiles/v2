@@ -4,6 +4,10 @@ import { z } from "zod";
 import { designAgent } from "../../agents";
 import { PinoLogger } from "@mastra/loggers";
 import { parseInferredProductType } from "../../../modules/designs/lib/product-type";
+import {
+  generateStructuredWithCloudflare,
+  isCloudflareAiConfigured,
+} from "../../../lib/ai/cloudflare-structured";
 
 const logger = new PinoLogger();
 
@@ -48,11 +52,7 @@ const inferProductType = createStep({
 
     logger.info(`Inferring garment type for design: ${name}`);
 
-    const response = await designAgent.generate(
-      [
-        {
-          role: "user",
-          content: `Classify this textile design into a single garment type.
+    const prompt = `Classify this textile design into a single garment type.
 
 Design name: ${name}
 ${description ? `Description: ${description}` : ""}
@@ -73,9 +73,48 @@ Fields:
 2. confidence — 0 to 1, how certain you are. Be honest and use low values: if
    the text describes fabric or motif without saying what is made from it, you
    do not know, and a confident wrong type is worse than none.
-3. reasoning — one short sentence naming the words you classified from.`,
+3. reasoning — one short sentence naming the words you classified from.`;
+
+    // ── Tier 1: Cloudflare Workers AI ───────────────────────────────────
+    // Measured, not assumed: four Workers AI models were probed and all four
+    // returned clean schema-conforming JSON, where the OpenRouter free pool
+    // returned prose. Classification is exactly what a small model is for, so
+    // this is both the more reliable and the cheaper answer.
+    if (isCloudflareAiConfigured()) {
+      const cf = await generateStructuredWithCloudflare({
+        prompt,
+        schema: {
+          type: "object",
+          properties: {
+            product_type: { type: "string" },
+            confidence: { type: "number" },
+            reasoning: { type: "string" },
+          },
+          required: ["product_type", "confidence"],
         },
-      ],
+        logger,
+      });
+
+      if (cf) {
+        // Still routed through the tolerant parser rather than trusted whole:
+        // a model that answers in prose despite a schema is precisely the
+        // failure this whole path exists to survive.
+        const parsed = parseInferredProductType(
+          typeof cf.value === "string"
+            ? { text: cf.value }
+            : { object: cf.value }
+        );
+        if (parsed) {
+          logger.info(`Garment type via Cloudflare (${cf.model}): ${parsed.product_type}`);
+          return parsed;
+        }
+        logger.warn(`Cloudflare (${cf.model}) gave no usable type; falling back to the agent`);
+      }
+    }
+
+    // ── Tier 2: the Mastra agent on the free OpenRouter pool ─────────────
+    const response = await designAgent.generate(
+      [{ role: "user", content: prompt }],
       { output: productTypeSchema }
     );
 
