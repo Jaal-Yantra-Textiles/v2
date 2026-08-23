@@ -3,6 +3,7 @@ import { ContainerRegistrationKeys, MedusaError } from "@medusajs/framework/util
 
 import { PARTNER_QUOTE_MODULE } from "../../../../../modules/partner-quote"
 import { buildQuoteView } from "../../../../../modules/partner-quote/lib/build-quote-view"
+import { composeQuoteAcceptance } from "../../../../../modules/partner-quote/lib/quote-acceptance-view"
 import { resolveQuoteParties } from "../../../../../modules/partner-quote/lib/quote-parties"
 import { hashQuoteToken } from "../../../../../modules/partner-quote/lib/token"
 
@@ -152,5 +153,19 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
   // buyer's quote page into a 500.
   service.recordView(quote.id, new Date()).catch(() => {})
 
-  res.json({ quote: { ...view, parties } })
+  /**
+   * What pressing Accept would do, and whether it can (#1439 S11).
+   *
+   * The GROSS total: the deposit is a share of what the cart actually charges,
+   * and the cart charges tax. Live first — it is what the cart will use — and
+   * the frozen figure only when the live half could not be computed.
+   */
+  const acceptance = composeQuoteAcceptance({
+    quote,
+    gross_total:
+      (view as any)?.live?.gross_total ?? (view as any)?.quoted?.gross_total ?? null,
+    unusable_reason: (view as any)?.live_error ?? null,
+  })
+
+  res.json({ quote: { ...view, parties, acceptance } })
 }
