@@ -184,6 +184,18 @@ export const PartnerMintQuoteShape = z.object({
   buyer_email: z.string().email(),
   recipient_name: z.string().nullish(),
   recipient_company: z.string().nullish(),
+  /**
+   * The buyer's own tax registration, as they stated it.
+   *
+   * 🔴 No format check, deliberately. A regex per scheme would refuse valid
+   * registrations from countries the list has not caught up with, and this
+   * number changes NOTHING about the price or the tax — quote tax follows the
+   * seller's jurisdiction (#1447). It is a line on a document. Refusing a real
+   * buyer's real number to enforce a pattern nobody validates against would be
+   * a cost with no benefit.
+   */
+  buyer_tax_id: z.string().max(64).nullish(),
+  buyer_tax_id_type: z.string().max(32).nullish(),
   partner_note: z.string().nullish(),
 
   /** A quote is a basket. A single-product quote is a one-line quote. */
@@ -273,6 +285,10 @@ export const QuoteReadinessShape = PartnerMintQuoteShape.omit({
   buyer_email: true,
   recipient_name: true,
   recipient_company: true,
+  // The buyer's registration is part of who they are, not of what the basket
+  // costs — omitted for the same reason their email is.
+  buyer_tax_id: true,
+  buyer_tax_id_type: true,
   partner_note: true,
   ttl_days: true,
   // A dry run prices a basket; how it will be PAID for changes none of those

@@ -21,6 +21,7 @@ import {
   buildQuoteView,
   resolveStoreOriginCountry,
 } from "../../modules/partner-quote/lib/build-quote-view"
+import { normaliseTaxId } from "../../modules/partner-quote/lib/quote-parties"
 import { assessQuoteReadiness } from "../../modules/partner-quote/lib/quote-readiness"
 import {
   generateQuoteToken,
@@ -47,6 +48,9 @@ export type MintQuoteInput = {
   buyer_email: string
   recipient_name?: string | null
   recipient_company?: string | null
+  /** The buyer's own registration, as stated. Recorded, never verified. */
+  buyer_tax_id?: string | null
+  buyer_tax_id_type?: string | null
   partner_note?: string | null
   lines: Array<{
     variant_id: string
@@ -832,6 +836,11 @@ const persistQuoteStep = createStep(
       region_id: input.mint.region_id ?? null,
       recipient_name: input.mint.recipient_name ?? null,
       recipient_company: input.mint.recipient_company ?? null,
+      // Normalised on write so two spellings of one registration compare equal.
+      // `?? null` and never `?? ""` — a blank string on a tax document reads as
+      // "registered, number withheld" rather than "none given".
+      buyer_tax_id: normaliseTaxId(input.mint.buyer_tax_id ?? null),
+      buyer_tax_id_type: input.mint.buyer_tax_id_type ?? null,
       email_sent_to: input.mint.buyer_email,
       partner_note: input.mint.partner_note ?? null,
       quoted_subtotal: input.view.live?.subtotal ?? null,

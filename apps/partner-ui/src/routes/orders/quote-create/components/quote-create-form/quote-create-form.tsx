@@ -79,6 +79,8 @@ export const QuoteCreateForm = ({
       buyer_email: "",
       recipient_name: "",
       recipient_company: "",
+      buyer_tax_id: "",
+      buyer_tax_id_type: "",
       partner_note: "",
       destination_country_code: "in",
       destination_postal_code: "",
@@ -202,6 +204,9 @@ export const QuoteCreateForm = ({
         buyer_email: data.buyer_email,
         recipient_name: data.recipient_name || null,
         recipient_company: data.recipient_company || null,
+        // Empty means "none given", never an empty registration.
+        buyer_tax_id: data.buyer_tax_id?.trim() || null,
+        buyer_tax_id_type: data.buyer_tax_id_type?.trim() || null,
         partner_note: data.partner_note || null,
         lines,
         destination_country_code: data.destination_country_code,

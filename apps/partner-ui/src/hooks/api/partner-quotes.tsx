@@ -149,6 +149,9 @@ export type MintPartnerQuoteResponse = {
 export type MintPartnerQuotePayload = {
   buyer_email: string
   recipient_name?: string | null
+  /** The buyer's stated registration. Recorded on the document, never verified. */
+  buyer_tax_id?: string | null
+  buyer_tax_id_type?: string | null
   recipient_company?: string | null
   partner_note?: string | null
   lines: {

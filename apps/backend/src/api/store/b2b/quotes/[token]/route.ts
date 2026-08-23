@@ -3,6 +3,7 @@ import { ContainerRegistrationKeys, MedusaError } from "@medusajs/framework/util
 
 import { PARTNER_QUOTE_MODULE } from "../../../../../modules/partner-quote"
 import { buildQuoteView } from "../../../../../modules/partner-quote/lib/build-quote-view"
+import { resolveQuoteParties } from "../../../../../modules/partner-quote/lib/quote-parties"
 import { hashQuoteToken } from "../../../../../modules/partner-quote/lib/token"
 
 /**
@@ -123,9 +124,24 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
     now: new Date(),
   })
 
+  /**
+   * Who is selling and who is buying — the document header.
+   *
+   * 🔴 Keyed on `origin_country_code`, the country the goods LEAVE from, never
+   * on the buyer's. A seller identity resolved from the consignee put a Latvian
+   * company number on an India-origin declaration (#348), and a tax rate
+   * resolved from the consignee put 19% German VAT on an Indian export (#1447).
+   * Same shape, twice. The view has already worked out the origin.
+   */
+  const parties = await resolveQuoteParties(req.scope, {
+    quote,
+    partner_id: quote.partner_id ?? null,
+    origin_country_code: (view as any)?.origin_country_code ?? null,
+  })
+
   // Fire-and-forget by contract: view tracking has no business turning a
   // buyer's quote page into a 500.
   service.recordView(quote.id, new Date()).catch(() => {})
 
-  res.json({ quote: view })
+  res.json({ quote: { ...view, parties } })
 }

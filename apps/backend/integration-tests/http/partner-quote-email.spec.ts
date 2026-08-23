@@ -115,42 +115,78 @@ setupSharedTestSuite(() => {
       expect(events.map((e: any) => e.type)).toContain("emailed")
     })
 
-    it("🔴 still returns 201 and the token when the send CANNOT happen", async () => {
-      // THE test. A partner with no storefront domain has no buyer link, so
-      // there is nothing to email — but the price list is already live and the
-      // token in this response is its only key. A throw here, or a 500, would
-      // strand a real buyer's prices behind a link nobody can ever reconstruct.
+    it("falls back to the house storefront when the partner has no domain", async () => {
+      // #1420 — an admin quoting for a domainless partner used to get nothing
+      // to send. The house storefront (ROOT_DOMAIN) is the LAST resort, never
+      // preferred over the partner's own shop.
       const { api } = getSharedTestEnv()
       await seedTemplate()
       await setPartnerDomain(null)
 
-      const res = await api.post(
-        "/partners/quotes",
-        mintBody(seed, { buyer_email: `unsent-${seed.unique}@jaalyantra.test` }),
-        { headers: seed.headers }
-      )
+      const prevRoot = process.env.ROOT_DOMAIN
+      process.env.ROOT_DOMAIN = "cicilabel.test"
+      try {
+        const res = await api.post(
+          "/partners/quotes",
+          mintBody(seed, { buyer_email: `house-${seed.unique}@jaalyantra.test` }),
+          { headers: seed.headers }
+        )
 
-      expect(res.status).toBe(201)
-      expect(typeof res.data.token).toBe("string")
-      expect(res.data.token.length).toBeGreaterThan(20)
-      expect(res.data.quote?.price_list_id).toBeTruthy()
+        expect(res.status).toBe(201)
+        const country = String(res.data.quote.destination_country_code).toLowerCase()
+        expect(res.data.buyer_url).toBe(
+          `https://cicilabel.test/${country}/quotes/${res.data.token}`
+        )
+        expect(res.data.email?.sent).toBe(true)
+      } finally {
+        if (prevRoot === undefined) delete process.env.ROOT_DOMAIN
+        else process.env.ROOT_DOMAIN = prevRoot
+      }
+    })
 
-      // Reported, loudly and in words a human can act on — not swallowed.
-      expect(res.data.buyer_url).toBeNull()
-      expect(res.data.email?.sent).toBe(false)
-      expect(res.data.email?.reason).toContain("storefront domain")
+    it("🔴 still returns 201 and the token when there is nowhere to point the buyer", async () => {
+      // THE test. The price list is already live and the token in this response
+      // is its only key — a throw here, or a 500, would strand a real buyer's
+      // prices behind a link nobody can ever reconstruct.
+      const { api } = getSharedTestEnv()
+      await seedTemplate()
+      await setPartnerDomain(null)
 
-      // And nothing claims delivery.
-      const row = await readQuote(res.data.quote.id)
-      expect(row.email_sent_at).toBeFalsy()
-      // `email_sent_to` is written at mint from `buyer_email` regardless — it
-      // is the intended recipient, which is exactly why it cannot be read as
-      // proof of delivery.
-      expect(row.email_sent_to).toBe(`unsent-${seed.unique}@jaalyantra.test`)
+      const prevRoot = process.env.ROOT_DOMAIN
+      const prevFront = process.env.FRONTEND_URL
+      delete process.env.ROOT_DOMAIN
+      delete process.env.FRONTEND_URL
+      try {
+        const res = await api.post(
+          "/partners/quotes",
+          mintBody(seed, { buyer_email: `unsent-${seed.unique}@jaalyantra.test` }),
+          { headers: seed.headers }
+        )
 
-      const events = await readEvents(res.data.quote.id)
-      expect(events.map((e: any) => e.type)).toContain("email_skipped")
-      expect(events.map((e: any) => e.type)).not.toContain("emailed")
+        expect(res.status).toBe(201)
+        expect(typeof res.data.token).toBe("string")
+        expect(res.data.token.length).toBeGreaterThan(20)
+        expect(res.data.quote?.price_list_id).toBeTruthy()
+
+        // Reported in words a human can act on — not swallowed.
+        expect(res.data.buyer_url).toBeNull()
+        expect(res.data.email?.sent).toBe(false)
+        expect(res.data.email?.reason).toContain("storefront domain")
+
+        const row = await readQuote(res.data.quote.id)
+        expect(row.email_sent_at).toBeFalsy()
+        // `email_sent_to` is written at mint from `buyer_email` regardless — it
+        // is the intended recipient, which is exactly why it cannot be read as
+        // proof of delivery.
+        expect(row.email_sent_to).toBe(`unsent-${seed.unique}@jaalyantra.test`)
+
+        const events = await readEvents(res.data.quote.id)
+        expect(events.map((e: any) => e.type)).toContain("email_skipped")
+        expect(events.map((e: any) => e.type)).not.toContain("emailed")
+      } finally {
+        if (prevRoot !== undefined) process.env.ROOT_DOMAIN = prevRoot
+        if (prevFront !== undefined) process.env.FRONTEND_URL = prevFront
+      }
     })
 
     it("does not report a send when the template is missing", async () => {

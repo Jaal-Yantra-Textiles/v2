@@ -118,6 +118,10 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
       buyer_email: body.buyer_email,
       recipient_name: body.recipient_name ?? null,
       recipient_company: body.recipient_company ?? null,
+      // The buyer's own registration, for the document header. It changes no
+      // number on the quote — tax follows the seller's jurisdiction (#1447).
+      buyer_tax_id: body.buyer_tax_id ?? null,
+      buyer_tax_id_type: body.buyer_tax_id_type ?? null,
       partner_note: body.partner_note ?? null,
       lines: lines as any,
       destination_country_code: body.destination_country_code,

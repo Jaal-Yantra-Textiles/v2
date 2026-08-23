@@ -1,4 +1,8 @@
-import { buildQuoteBuyerUrl, resolveQuoteBuyerLink } from "../lib/quote-link"
+import {
+  buildQuoteBuyerUrl,
+  houseStorefrontOrigin,
+  resolveQuoteBuyerLink,
+} from "../lib/quote-link"
 
 /**
  * The buyer link (#1420).
@@ -68,7 +72,63 @@ describe("buildQuoteBuyerUrl", () => {
   })
 })
 
+describe("houseStorefrontOrigin", () => {
+  it("schemes a bare ROOT_DOMAIN", () => {
+    expect(houseStorefrontOrigin({ ROOT_DOMAIN: "cicilabel.com" })).toBe(
+      "https://cicilabel.com"
+    )
+  })
+
+  it("prefers ROOT_DOMAIN over FRONTEND_URL and passes a full URL through", () => {
+    expect(
+      houseStorefrontOrigin({
+        ROOT_DOMAIN: "cicilabel.com",
+        FRONTEND_URL: "https://jaalyantra.com",
+      })
+    ).toBe("https://cicilabel.com")
+    expect(houseStorefrontOrigin({ FRONTEND_URL: "https://jaalyantra.com" })).toBe(
+      "https://jaalyantra.com"
+    )
+  })
+
+  it("returns null when neither is configured, rather than a broken host", () => {
+    expect(houseStorefrontOrigin({})).toBeNull()
+    expect(houseStorefrontOrigin({ ROOT_DOMAIN: "   " })).toBeNull()
+  })
+})
+
 describe("resolveQuoteBuyerLink", () => {
+  const HOUSE = { ROOT_DOMAIN: "cicilabel.com" }
+  /**
+   * ⚠️ `await` INSIDE the try, not around the helper. `resolveQuoteBuyerLink`
+   * reads `process.env` after its own await, so a synchronous helper restores
+   * the environment before the value under test is ever read — and the test
+   * passes or fails on whatever the ambient .env happens to hold.
+   */
+  const withHouse = async <T>(fn: () => Promise<T>): Promise<T> => {
+    const prev = process.env.ROOT_DOMAIN
+    process.env.ROOT_DOMAIN = HOUSE.ROOT_DOMAIN
+    try {
+      return await fn()
+    } finally {
+      if (prev === undefined) delete process.env.ROOT_DOMAIN
+      else process.env.ROOT_DOMAIN = prev
+    }
+  }
+
+  const noHouse = async <T>(fn: () => Promise<T>): Promise<T> => {
+    const prevRoot = process.env.ROOT_DOMAIN
+    const prevFront = process.env.FRONTEND_URL
+    delete process.env.ROOT_DOMAIN
+    delete process.env.FRONTEND_URL
+    try {
+      return await fn()
+    } finally {
+      if (prevRoot !== undefined) process.env.ROOT_DOMAIN = prevRoot
+      if (prevFront !== undefined) process.env.FRONTEND_URL = prevFront
+    }
+  }
+
   const base = {
     partner_id: "part_1",
     destination_country_code: "DE",
@@ -108,25 +168,61 @@ describe("resolveQuoteBuyerLink", () => {
     )
   })
 
-  it("returns null — never throws — when the partner has no domain at all", async () => {
+  it("🔑 the house domain is the LAST resort, never preferred over the partner's", async () => {
+    // Preferring it would quietly move every partner's buyer onto our shop —
+    // off the page that names the producer and prices their catalogue.
+    const scope = scopeWith([
+      {
+        id: "part_1",
+        custom_domain: null,
+        custom_domain_verified: false,
+        storefront_domain: "unique-pashmina.jaalyantra.com",
+      },
+    ])
+
+    await expect(
+      withHouse(() => resolveQuoteBuyerLink(scope, base))
+    ).resolves.toBe("https://unique-pashmina.jaalyantra.com/de/quotes/tok_abc")
+  })
+
+  it("falls back to the house storefront when the partner has no domain at all", async () => {
     const scope = scopeWith([
       { id: "part_1", custom_domain: null, custom_domain_verified: false, storefront_domain: null },
     ])
-    await expect(resolveQuoteBuyerLink(scope, base)).resolves.toBeNull()
+
+    await expect(
+      withHouse(() => resolveQuoteBuyerLink(scope, base))
+    ).resolves.toBe("https://cicilabel.com/de/quotes/tok_abc")
   })
 
-  it("returns null when the partner read falls over, rather than failing the mint", async () => {
-    const scope = scopeWith([], { throws: true })
-    await expect(resolveQuoteBuyerLink(scope, base)).resolves.toBeNull()
-  })
-
-  it("does not read the partner at all without an id or a token", async () => {
+  it("uses the house storefront for a quote with no partner at all", async () => {
     const scope = { resolve: () => ({ graph: async () => { throw new Error("must not be called") } }) }
     await expect(
-      resolveQuoteBuyerLink(scope, { ...base, partner_id: null })
-    ).resolves.toBeNull()
+      withHouse(() => resolveQuoteBuyerLink(scope, { ...base, partner_id: null }))
+    ).resolves.toBe("https://cicilabel.com/de/quotes/tok_abc")
+  })
+
+  it("🔴 falls back to the house link when the partner read FALLS OVER", async () => {
+    // A query that failed is not evidence the partner has no shop, and the link
+    // is the only copy of the token: a reachable page on our own domain beats
+    // no email at all.
+    const scope = scopeWith([], { throws: true })
     await expect(
-      resolveQuoteBuyerLink(scope, { ...base, token: null })
+      withHouse(() => resolveQuoteBuyerLink(scope, base))
+    ).resolves.toBe("https://cicilabel.com/de/quotes/tok_abc")
+  })
+
+  it("still returns null when there is no partner domain AND no house domain", async () => {
+    const scope = scopeWith([
+      { id: "part_1", custom_domain: null, custom_domain_verified: false, storefront_domain: null },
+    ])
+    await expect(noHouse(() => resolveQuoteBuyerLink(scope, base))).resolves.toBeNull()
+  })
+
+  it("never builds a link without a token, house domain or not", async () => {
+    const scope = { resolve: () => ({ graph: async () => { throw new Error("must not be called") } }) }
+    await expect(
+      withHouse(() => resolveQuoteBuyerLink(scope, { ...base, token: null }))
     ).resolves.toBeNull()
   })
 })

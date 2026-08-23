@@ -78,6 +78,13 @@ export const QuoteBuyerShape = z.object({
   buyer_email: z.string().email(),
   recipient_name: z.string().optional(),
   recipient_company: z.string().optional(),
+  /**
+   * The buyer's own registration, for the document header. No format check,
+   * mirroring the backend — it changes no number on the quote, and a per-scheme
+   * regex would refuse valid registrations nobody validates against anyway.
+   */
+  buyer_tax_id: z.string().optional(),
+  buyer_tax_id_type: z.string().optional(),
   partner_note: z.string().optional(),
 
   /**
@@ -190,6 +197,8 @@ export const QuoteBuyerFields = [
   "buyer_email",
   "recipient_name",
   "recipient_company",
+  "buyer_tax_id",
+  "buyer_tax_id_type",
   "partner_note",
   "region_id",
   "currency_code",

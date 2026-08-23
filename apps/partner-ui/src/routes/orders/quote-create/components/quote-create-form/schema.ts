@@ -79,6 +79,16 @@ export const QuoteBuyerShape = z.object({
   buyer_email: z.string().email(),
   recipient_name: z.string().optional(),
   recipient_company: z.string().optional(),
+  /**
+   * The buyer's own tax registration, for the quote document.
+   *
+   * 🔴 No format check, mirroring the backend. A regex per scheme would refuse
+   * valid registrations from countries the list has not caught up with, and
+   * this number changes NOTHING about the price or the tax — quote tax follows
+   * the seller's jurisdiction (#1447).
+   */
+  buyer_tax_id: z.string().optional(),
+  buyer_tax_id_type: z.string().optional(),
   partner_note: z.string().optional(),
 
   destination_country_code: z.string().min(2),
@@ -189,6 +199,8 @@ export const QuoteBuyerFields = [
   "buyer_email",
   "recipient_name",
   "recipient_company",
+  "buyer_tax_id",
+  "buyer_tax_id_type",
   "partner_note",
   "destination_country_code",
   "destination_postal_code",

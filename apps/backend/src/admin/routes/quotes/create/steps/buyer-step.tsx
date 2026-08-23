@@ -218,6 +218,45 @@ export const BuyerStep = ({ form }: Props) => {
           )}
         />
 
+        {/*
+          The buyer's registration, for the document header (#1486).
+
+          🔑 Nothing checks it against VIES or the GST portal, and the hint says
+          so — a field that reads as verified invites a reverse-charge
+          assumption nobody is entitled to make.
+        */}
+        <div className="grid grid-cols-2 gap-x-3">
+          <Form.Field
+            control={form.control}
+            name="buyer_tax_id"
+            render={({ field }) => (
+              <Form.Item>
+                <Form.Label optional>VAT / tax number</Form.Label>
+                <Form.Control>
+                  <Input {...field} value={field.value ?? ""} placeholder="DE123456789" />
+                </Form.Control>
+                <Form.Hint>
+                  As the buyer gave it. Shown on the quote; it does not change
+                  the price or the tax.
+                </Form.Hint>
+              </Form.Item>
+            )}
+          />
+
+          <Form.Field
+            control={form.control}
+            name="buyer_tax_id_type"
+            render={({ field }) => (
+              <Form.Item>
+                <Form.Label optional>Scheme</Form.Label>
+                <Form.Control>
+                  <Input {...field} value={field.value ?? ""} placeholder="eu_vat" />
+                </Form.Control>
+              </Form.Item>
+            )}
+          />
+        </div>
+
         <Form.Field
           control={form.control}
           name="recipient_name"

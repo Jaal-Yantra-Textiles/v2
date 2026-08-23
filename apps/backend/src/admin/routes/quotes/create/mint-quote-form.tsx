@@ -102,6 +102,8 @@ export const MintQuoteForm = () => {
       buyer_email: "",
       recipient_name: "",
       recipient_company: "",
+      buyer_tax_id: "",
+      buyer_tax_id_type: "",
       partner_note: "",
       region_id: "",
       currency_code: "",
@@ -289,6 +291,9 @@ export const MintQuoteForm = () => {
       partner_id: data.partner_id,
       buyer_email: data.buyer_email,
       recipient_company: data.recipient_company || null,
+      // Empty means "none given", never an empty registration.
+      buyer_tax_id: data.buyer_tax_id?.trim() || null,
+      buyer_tax_id_type: data.buyer_tax_id_type?.trim() || null,
       recipient_name: data.recipient_name || null,
       partner_note: data.partner_note || null,
       lines,

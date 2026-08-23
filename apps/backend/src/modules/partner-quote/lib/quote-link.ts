@@ -26,6 +26,19 @@ import { producerStorefrontUrl } from "./quote-producer"
  * 🔑 The host rule is NOT re-implemented here — `producerStorefrontUrl` already
  * owns "which host is this partner reachable on", including the refusal to link
  * an unverified custom domain, and it is already under test.
+ *
+ * ## The house fallback
+ *
+ * A quote minted by an admin for a partner with no domain — and, once #1486's
+ * no-partner branch lands, a house quote with no partner at all — has no
+ * partner host to use. It falls back to the platform storefront, from
+ * `ROOT_DOMAIN` (cicilabel.com) with `FRONTEND_URL` as the second choice.
+ *
+ * 🔑 The fallback is the LAST resort, never the first. A partner's buyer must
+ * land on the partner's own shop: the quote page names the producer, prices
+ * against their catalogue and, once accepted, builds a cart in their sales
+ * channel. Preferring the house domain would quietly move every partner's
+ * buyer onto ours.
  */
 
 /**
@@ -58,6 +71,26 @@ export function buildQuoteBuyerUrl(input: {
  * turned into a 500 by a failed domain lookup. A null link is recoverable — the
  * caller still holds the token — and is reported rather than swallowed.
  */
+export function houseStorefrontOrigin(
+  env: Record<string, string | undefined> = process.env
+): string | null {
+  // A bare host in ROOT_DOMAIN; a full URL in FRONTEND_URL. Both are handled,
+  // because both are what is actually in the environment.
+  const root = String(env.ROOT_DOMAIN ?? "").trim().toLowerCase()
+  if (root) {
+    return root.startsWith("http://") || root.startsWith("https://")
+      ? root
+      : `https://${root}`
+  }
+
+  const frontend = String(env.FRONTEND_URL ?? "").trim().toLowerCase()
+  if (frontend) {
+    return frontend.startsWith("http") ? frontend : `https://${frontend}`
+  }
+
+  return null
+}
+
 export async function resolveQuoteBuyerLink(
   scope: any,
   input: {
@@ -66,7 +99,17 @@ export async function resolveQuoteBuyerLink(
     token: string | null | undefined
   }
 ): Promise<string | null> {
-  if (!input.partner_id || !input.token) return null
+  if (!input.token) return null
+
+  const houseLink = () =>
+    buildQuoteBuyerUrl({
+      origin: houseStorefrontOrigin(),
+      countryCode: input.destination_country_code,
+      token: input.token,
+    })
+
+  // No partner at all — a house quote. Nothing to look up.
+  if (!input.partner_id) return houseLink()
 
   try {
     const query: any = scope.resolve(ContainerRegistrationKeys.QUERY)
@@ -84,14 +127,19 @@ export async function resolveQuoteBuyerLink(
     })
 
     const partner = ((partners ?? []) as any[])[0]
-    if (!partner) return null
+    if (!partner) return houseLink()
 
-    return buildQuoteBuyerUrl({
-      origin: producerStorefrontUrl(partner),
-      countryCode: input.destination_country_code,
-      token: input.token,
-    })
+    return (
+      buildQuoteBuyerUrl({
+        origin: producerStorefrontUrl(partner),
+        countryCode: input.destination_country_code,
+        token: input.token,
+      }) ?? houseLink()
+    )
   } catch {
-    return null
+    // 🔴 The house link, not null. A partner lookup that fell over is not
+    // evidence the partner has no shop, and the buyer link is the only copy of
+    // the token — a reachable page on our own domain beats no email at all.
+    return houseLink()
   }
 }

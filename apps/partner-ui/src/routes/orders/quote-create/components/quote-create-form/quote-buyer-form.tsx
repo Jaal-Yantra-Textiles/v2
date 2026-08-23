@@ -123,6 +123,61 @@ export const QuoteBuyerForm = ({
           )}
         />
 
+        {/*
+          The buyer's registration, for the document header (#1486).
+
+          🔑 Labelled "as provided" and nothing more. Nothing checks it against
+          VIES or the GST portal, and a field that reads as verified invites a
+          reverse-charge assumption nobody is entitled to make.
+        */}
+        <div className="grid grid-cols-2 gap-x-3">
+          <Form.Field
+            control={form.control}
+            name="buyer_tax_id"
+            render={({ field }) => (
+              <Form.Item>
+                <Form.Label optional>
+                  {t("fields.buyerTaxId", "VAT / tax number")}
+                </Form.Label>
+                <Form.Control>
+                  <Input
+                    {...field}
+                    value={field.value ?? ""}
+                    placeholder="DE123456789"
+                  />
+                </Form.Control>
+                <Form.Hint>
+                  {t(
+                    "quotes.create.buyer.taxIdHint",
+                    "As the buyer gave it. Shown on the quote; it does not change the price or the tax."
+                  )}
+                </Form.Hint>
+                <Form.ErrorMessage />
+              </Form.Item>
+            )}
+          />
+
+          <Form.Field
+            control={form.control}
+            name="buyer_tax_id_type"
+            render={({ field }) => (
+              <Form.Item>
+                <Form.Label optional>
+                  {t("fields.buyerTaxIdType", "Scheme")}
+                </Form.Label>
+                <Form.Control>
+                  <Input
+                    {...field}
+                    value={field.value ?? ""}
+                    placeholder="eu_vat"
+                  />
+                </Form.Control>
+                <Form.ErrorMessage />
+              </Form.Item>
+            )}
+          />
+        </div>
+
         <Form.Field
           control={form.control}
           name="recipient_name"

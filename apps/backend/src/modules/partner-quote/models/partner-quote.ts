@@ -70,6 +70,25 @@ const PartnerQuote = model.define("partner_quote", {
   // ===== Recipient (human-entered, so render with {{ }}, never {{{ }}}) ====
   recipient_name: model.text().nullable(),
   recipient_company: model.text().nullable(),
+
+  /**
+   * The buyer's own tax registration, as THEY gave it (#1486 B2B details).
+   *
+   * 🔴 Recorded, never verified. Nothing checks this against VIES or the GST
+   * portal, so no surface may render it in a way that implies we did — a
+   * number under a heading that reads as checked invites a reverse-charge
+   * assumption nobody is entitled to make.
+   *
+   * 🔑 It does NOT change the tax on the quote. Quote tax follows the SELLER's
+   * jurisdiction (#1447), and letting a buyer-supplied string move the rate is
+   * the exact defect that put 19% German VAT on an Indian export.
+   *
+   * Stored normalised (uppercased, whitespace stripped) so two spellings of the
+   * same registration compare equal — see `normaliseTaxId`.
+   */
+  buyer_tax_id: model.text().nullable(),
+  /** The scheme: "eu_vat", "gstin", "abn", "uk_vat"… Free text, like the platform row's. */
+  buyer_tax_id_type: model.text().nullable(),
   /**
    * Who the quote was ADDRESSED to. Written at mint, before anything is sent —
    * this is intent, not delivery. See `email_sent_at`.

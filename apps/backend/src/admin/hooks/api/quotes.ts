@@ -107,8 +107,17 @@ export type AdminMintQuotePayload = {
   buyer_email: string
   recipient_name?: string | null
   recipient_company?: string | null
+  /** The buyer's stated registration. Recorded on the document, never verified. */
+  buyer_tax_id?: string | null
+  buyer_tax_id_type?: string | null
   partner_note?: string | null
-  lines: Array<{ variant_id: string; quantity: number; note?: string | null }>
+  lines: Array<{
+    variant_id: string
+    /** Which design this was picked as (#1486). Alongside the variant, not instead. */
+    design_id?: string | null
+    quantity: number
+    note?: string | null
+  }>
   destination_country_code: string
   destination_postal_code?: string | null
   destination_city?: string | null
