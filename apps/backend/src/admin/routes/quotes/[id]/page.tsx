@@ -195,8 +195,26 @@ const QuoteDetailPage = () => {
               },
               {
                 label: "Freight",
-                value: money(quote.quoted_freight, quote.currency_code),
+                value: (
+                  <span className="flex items-center gap-2">
+                    {money(quote.quoted_freight, quote.currency_code)}
+                    {/* 🔑 A number a person typed and one a carrier returned
+                        carry different confidence; rendering them identically
+                        launders one into the other. */}
+                    {quote.quoted_freight_source === "manual" ? (
+                      <StatusBadge color="orange">By hand</StatusBadge>
+                    ) : null}
+                  </span>
+                ),
               },
+              ...(quote.quoted_freight_basis
+                ? [
+                    {
+                      label: "Freight basis",
+                      value: String(quote.quoted_freight_basis),
+                    },
+                  ]
+                : []),
               /**
                * Shown only on a DDP quote, and shown with its basis (#1447).
                * This is a liability we took on: somebody has to arrange the

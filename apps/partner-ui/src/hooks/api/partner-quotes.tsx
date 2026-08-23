@@ -81,6 +81,9 @@ export type PartnerQuote = {
 
   quoted_subtotal?: number | null
   quoted_freight?: number | null
+  /** `manual` when a person named the freight, `estimated` when it was rated. */
+  quoted_freight_source?: "estimated" | "manual" | null
+  quoted_freight_basis?: string | null
   quoted_landed_total?: number | null
   quoted_weight_grams?: number | null
   quoted_at?: string | null
@@ -150,6 +153,13 @@ export type MintPartnerQuotePayload = {
    * the backend falls through to its default; `0` means take nothing up front.
    */
   deposit_pct?: number | null
+  /**
+   * Freight named by hand, in the quote currency, and where it came from
+   * (#1439 S12). Used when no carrier will rate the lane, or when the stored
+   * tier is wrong for this weight — it is flat at any weight today.
+   */
+  freight_override_amount?: number | null
+  freight_basis?: string | null
   /**
    * DDP (#1447): we pay the destination duty, and the amount we are absorbing
    * plus how it was reached. The backend refuses the flag without the pair.

@@ -103,6 +103,23 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
      */
     viewer_sales_channel_ids:
       (req as any).publishable_key_context?.sales_channel_ids ?? null,
+    /**
+     * 🔴 A hand-named freight has to be re-supplied on every read (#1439 S12).
+     *
+     * The LIVE half of this page re-runs the estimate. Without this, a quote
+     * whose freight a person named would render its live freight from the flat
+     * stored tier — so the page would show, say, 35 EUR live beside 250 EUR
+     * frozen, and the quote would visibly disagree with itself. That is exactly
+     * the defect S8 fixed for tax, in the same place, for the same reason.
+     *
+     * Read off the FROZEN row and only when the row says the freight was
+     * manual, so a re-read cannot invent an override on a rated quote.
+     */
+    freight_override_amount:
+      quote.quoted_freight_source === "manual"
+        ? Number(quote.quoted_freight ?? 0) || null
+        : null,
+    freight_basis: quote.quoted_freight_basis ?? null,
     now: new Date(),
   })
 

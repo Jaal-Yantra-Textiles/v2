@@ -51,6 +51,9 @@ export type AdminQuote = Record<string, any> & {
   destination_country_code?: string
   quoted_landed_total?: number | null
   quoted_freight?: number | null
+  /** `manual` when a person named the freight, `estimated` when it was rated. */
+  quoted_freight_source?: "estimated" | "manual" | null
+  quoted_freight_basis?: string | null
   /** #1447 — the DDP undertaking and the duty figure frozen behind it. */
   duties_prepaid?: boolean | null
   quoted_duty_total?: number | null
@@ -117,6 +120,9 @@ export type AdminMintQuotePayload = {
    * the backend applies its default; `0` means take nothing up front.
    */
   deposit_pct?: number | null
+  /** Freight named by hand, in the quote currency, and where it came from. */
+  freight_override_amount?: number | null
+  freight_basis?: string | null
   /** DDP (#1447): the undertaking, the amount absorbed, and how it was reached. */
   duties_prepaid?: boolean
   duty_rate_percent?: number | null

@@ -97,6 +97,14 @@ export type QuoteReadinessInput = {
    * freezes one partner's prices onto another's customer group.
    */
   check_catalogue?: boolean
+  /**
+   * Freight the partner is naming by hand, in the quote currency (#1439 S12).
+   *
+   * Present ⇒ the lane no longer has to be rateable for the quote to be ready.
+   * Mirrors `buildQuoteView`; if the two ever disagree, the preflight would
+   * pass a body the mint rejects, which is worse than having no preflight.
+   */
+  freight_override_amount?: number | null
 }
 
 export async function assessQuoteReadiness(
@@ -269,7 +277,38 @@ export async function assessQuoteReadiness(
         store: input.store as any,
       })
 
-      const chosen = pickFreightOption(estimate)
+      const rated = pickFreightOption(estimate)
+
+      /**
+       * Freight the partner named by hand (#1439 S12).
+       *
+       * 🔑 The preflight has to agree with the mint or it is worse than
+       * useless — it would tell a partner their quote is not ready and then the
+       * mint would accept it, or the reverse. `buildQuoteView` lets an override
+       * stand in for a picked option, so this must too.
+       *
+       * It is also what makes today's cross-border lanes assessable at all: the
+       * carrier answers "no serviceable couriers available for given weight",
+       * so `rated` is frequently null on exactly the quotes we most want to
+       * send.
+       */
+      const override =
+        input.freight_override_amount === null ||
+        input.freight_override_amount === undefined ||
+        !Number.isFinite(Number(input.freight_override_amount))
+          ? null
+          : Number(input.freight_override_amount)
+
+      const chosen = override !== null
+        ? {
+            name: "Freight (quoted by hand)",
+            amount: override,
+            // By construction, not by luck: an override is stated in the quote
+            // currency, so the mismatch check below cannot fire on it.
+            currency_code: input.currency_code,
+          }
+        : rated
+
       freight = {
         chosen: chosen
           ? {

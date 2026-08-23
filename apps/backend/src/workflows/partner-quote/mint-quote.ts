@@ -87,6 +87,17 @@ export type MintQuoteInput = {
   import_tax_total?: number | null
   /** The carrier's fee for advancing duty and tax. Always an amount. */
   ddp_fee_total?: number | null
+  /**
+   * Freight named by hand, in the QUOTE currency (#1439 S12).
+   *
+   * Replaces whatever the picker found, and satisfies the "no freight option"
+   * refusal — which is what makes a cross-border lane quotable at all today,
+   * since the carrier answers "no serviceable couriers available for given
+   * weight" and the stored option is flat at any weight.
+   */
+  freight_override_amount?: number | null
+  /** Who quoted it and on what basis. Evidence, like `duty_basis`. */
+  freight_basis?: string | null
   ttl_days?: number
   /**
    * The deposit share of this deal, 0-100 (#1439 S11). Omit — or pass null —
@@ -296,6 +307,11 @@ const buildAndFreezeStep = createStep(
       import_tax_rate_percent: input.import_tax_rate_percent ?? null,
       import_tax_total: input.import_tax_total ?? null,
       ddp_fee_total: input.ddp_fee_total ?? null,
+      // #1439 S12 — freight the partner named. Passed like the DDP figures and
+      // for the same reason: the row does not exist yet, so what the buyer is
+      // shown has to be supplied here before it is frozen.
+      freight_override_amount: input.freight_override_amount ?? null,
+      freight_basis: input.freight_basis ?? null,
       now: payload.now,
     })
 
@@ -854,6 +870,16 @@ const persistQuoteStep = createStep(
       // were quoted come from the same lane rather than from two lookups that
       // can disagree.
       quoted_shipping_option_id: input.view.freight?.chosen?.shipping_option_id ?? null,
+      // #1439 S12 — where the frozen freight came from, read off the VIEW's
+      // own decision rather than off the request, so this cannot claim "manual"
+      // on a quote that was actually rated, or the reverse.
+      //
+      // 🔴 NOT `chosen.source`. That field already answers a different
+      // question — stored option vs live carrier rate — and one of its answers
+      // is also the word "manual". Reading it stamped every quote priced off a
+      // stored tier as a human's figure.
+      quoted_freight_source: input.view.freight?.overridden ? "manual" : "estimated",
+      quoted_freight_basis: input.mint.freight_basis ?? null,
       // The agreed deposit share. Null when the partner did not name one, which
       // is not the same as 0 — see `resolveDepositPct`.
       deposit_pct:

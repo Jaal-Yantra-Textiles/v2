@@ -254,6 +254,65 @@ export const QuoteBuyerForm = ({
 
         <Form.Field
           control={form.control}
+          name="freight_override_amount"
+          render={({ field: { onChange, value, ...rest } }) => (
+            <Form.Item>
+              <Form.Label optional>
+                {t("quotes.fields.freightOverride", "Freight, quoted by hand")}
+              </Form.Label>
+              <Form.Control>
+                <Input
+                  type="number"
+                  min={0}
+                  step="0.01"
+                  placeholder="250"
+                  value={value ?? ""}
+                  onChange={(e) => {
+                    const next = e.target.value
+                    onChange(next === "" ? undefined : Number(next))
+                  }}
+                  {...rest}
+                />
+              </Form.Control>
+              <Form.Hint>
+                {t(
+                  "quotes.fields.freightOverrideHint",
+                  "In the quote's currency. Use it when no carrier will rate the lane, or when the stored tier is wrong for this weight. Leave blank to use the rate."
+                )}
+              </Form.Hint>
+              <Form.ErrorMessage />
+            </Form.Item>
+          )}
+        />
+
+        <Form.Field
+          control={form.control}
+          name="freight_basis"
+          render={({ field }) => (
+            <Form.Item>
+              <Form.Label optional>
+                {t("quotes.fields.freightBasis", "Where that figure came from")}
+              </Form.Label>
+              <Form.Control>
+                <Input
+                  placeholder="DHL rate card 12 Aug, 22 kg to DE"
+                  {...field}
+                  value={field.value ?? ""}
+                />
+              </Form.Control>
+              <Form.Hint>
+                {t(
+                  "quotes.fields.freightBasisHint",
+                  "Evidence, not decoration: whoever meets the forwarder's invoice is not who typed the number."
+                )}
+              </Form.Hint>
+              <Form.ErrorMessage />
+            </Form.Item>
+          )}
+        />
+
+        <Form.Field
+          control={form.control}
           name="deposit_pct"
           render={({ field: { onChange, value, ...rest } }) => (
             <Form.Item>

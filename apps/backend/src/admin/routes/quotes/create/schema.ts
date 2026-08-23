@@ -107,6 +107,16 @@ export const QuoteBuyerShape = z.object({
   deposit_pct: z.number().min(0).max(100).optional(),
 
   /**
+   * Freight named by hand, in the QUOTE currency (#1439 S12).
+   *
+   * 🔴 Positive, never 0 — a zero here is free international shipping typed by
+   * accident, and this system has already shipped bulk orders free once from a
+   * rule-gated `0 INR` row (#1430).
+   */
+  freight_override_amount: z.number().positive().optional(),
+  freight_basis: z.string().max(500).optional(),
+
+  /**
    * Which carrier is asked for live rates on this quote.
    *
    * 🔑 Empty means the platform default (Shiprocket), which is what every quote
@@ -182,6 +192,8 @@ export const QuoteBuyerFields = [
   "ttl_days",
   "deposit_pct",
   "carrier",
+  "freight_override_amount",
+  "freight_basis",
   "duties_prepaid",
   "duty_rate_percent",
   "import_tax_rate_percent",

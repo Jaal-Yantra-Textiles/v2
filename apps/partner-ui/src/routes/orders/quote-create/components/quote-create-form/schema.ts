@@ -100,6 +100,16 @@ export const QuoteBuyerShape = z.object({
   deposit_pct: z.number().min(0).max(100).optional(),
 
   /**
+   * Freight named by hand, in the QUOTE currency (#1439 S12).
+   *
+   * 🔴 Positive, never 0 — a zero is free international shipping typed by
+   * accident, and this system has already shipped bulk orders free once from a
+   * rule-gated `0 INR` row (#1430).
+   */
+  freight_override_amount: z.number().positive().optional(),
+  freight_basis: z.string().max(500).optional(),
+
+  /**
    * DDP (#1447) — we pay the destination duty and import tax, and the buyer
    * pays nothing on arrival. Per quote, never a default: the shipment has to
    * actually clear DDP, arranged by hand until a carrier can price it.
@@ -176,6 +186,8 @@ export const QuoteBuyerFields = [
   "currency_code",
   "ttl_days",
   "deposit_pct",
+  "freight_override_amount",
+  "freight_basis",
   "duties_prepaid",
   "duty_rate_percent",
   "import_tax_rate_percent",

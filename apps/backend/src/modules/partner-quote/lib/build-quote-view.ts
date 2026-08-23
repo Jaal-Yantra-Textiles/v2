@@ -170,6 +170,46 @@ export type BuildQuoteViewInput = {
   import_tax_total?: number | null
   /** The carrier's charge for advancing duty and tax. Always an amount. */
   ddp_fee_total?: number | null
+  /**
+   * Freight the partner is naming BY HAND, in the quote currency (#1439 S12).
+   *
+   * ## Why this exists
+   *
+   * 🔴 The stored international option is a **flat amount at any weight** — 35
+   * EUR whether the consignment is 5.5 kg or 22 kg — and the obvious fix is
+   * closed: the estimator deliberately skips every rule-bound price row, which
+   * is the #1430 fix that stopped a rule-gated `0 INR` shipping bulk orders
+   * free. Meanwhile the live cross-border leg answers `No serviceable couriers
+   * available for given weight`, so a real rate is not available either.
+   *
+   * Until the carriers answer, the honest number is the one the partner has in
+   * front of them from a forwarder. Naming it beats quoting a flat tier that is
+   * wrong in the direction nobody complains about.
+   *
+   * ## What it does
+   *
+   * It REPLACES the picked option's amount and nothing else. The consignment
+   * weight, the option list and the lane are still computed, because they are
+   * what makes the number checkable — and tax, duty and the landed total are
+   * all derived from this freight exactly as they would be from a rated one.
+   *
+   * 🔑 In the QUOTE currency, unlike an S7 line override which is in the
+   * partner store's currency. Deliberate: a line override is compared against a
+   * catalogue price that has a currency of its own, whereas freight sits beside
+   * `duty_total`, `import_tax_total` and `ddp_fee_total` in both the wizard and
+   * this type — all of which are quote-currency amounts. One rule for the
+   * numbers that appear together.
+   */
+  freight_override_amount?: number | null
+  /**
+   * Who quoted that number and on what basis — "DHL rate card 12 Aug, 22 kg to
+   * DE", "Blue Dart forwarder quote".
+   *
+   * Evidence, not decoration, and the same argument as `duty_basis`: this is
+   * the only record of why we committed to a freight figure, and the person who
+   * later pays the forwarder's invoice is not the person who typed it.
+   */
+  freight_basis?: string | null
   /** Passed in so the whole view is deterministic under test. */
   now: Date
 }
@@ -223,6 +263,13 @@ export type QuoteView = {
     chosen: ShippingEstimateOption | null
     options: ShippingEstimateOption[]
     error: string | null
+    /**
+     * True when a person named the amount rather than a rate producing it
+     * (#1439 S12). Distinct from `chosen.source`, which says whether the figure
+     * came from a stored option or a live carrier call — a different question
+     * with the same word for one of its answers.
+     */
+    overridden: boolean
     /**
      * Which carrier was ASKED for the live rates (#1447). Null when nobody was
      * — a manual-only lane, or a dead link. Surfaced because "a partner shipping
@@ -687,6 +734,18 @@ export async function buildQuoteView(
   let liveError: string | null = null
   let totalWeightGrams: number | null = null
   let chosen: ShippingEstimateOption | null = null
+  /**
+   * Did a PERSON name this freight? (#1439 S12)
+   *
+   * 🔴 A separate flag, and not `chosen.source === "manual"`, because that word
+   * is already taken: on a `ShippingEstimateOption`, `source: "manual"` means
+   * "a stored flat option" as opposed to `"calculated"`, a live carrier rate.
+   * Deriving provenance from it stamped EVERY quote priced off a stored tier —
+   * which is most of them, and every cross-border one — as a human's figure.
+   * Caught by the control case in the mint integration suite, not by tsc: both
+   * readings are the same string.
+   */
+  let freightOverridden = false
   let options: ShippingEstimateOption[] = []
   let freightError: string | null = null
   /** Set once the lane's rating carrier is resolved; null on a manual-only lane. */
@@ -811,14 +870,56 @@ export async function buildQuoteView(
         ])
       )
 
+      /**
+       * A hand-named freight amount wins over whatever the picker found
+       * (#1439 S12).
+       *
+       * 🔑 It REPLACES the amount and keeps everything else. The lane, the
+       * consignment weight and the option list are still computed and still
+       * shown, because they are what lets a human check the typed number — an
+       * override rendered with no context is a figure nobody can challenge.
+       *
+       * 🔴 It also satisfies the "no freight option" refusal below. That
+       * refusal exists so a landed total can never be missing its freight leg;
+       * an override is freight, so the reason for refusing is gone. This is the
+       * half that unblocks the lanes where the carrier answers "no serviceable
+       * couriers" — today, that is every cross-border lane.
+       */
+      const overrideAmount =
+        input.freight_override_amount === null ||
+        input.freight_override_amount === undefined ||
+        !Number.isFinite(Number(input.freight_override_amount))
+          ? null
+          : Number(input.freight_override_amount)
+
+      if (overrideAmount !== null) {
+        freightOverridden = true
+        chosen = {
+          // Named for what it is. A buyer reading "International Shipping" on a
+          // number a person typed would reasonably think a carrier quoted it.
+          name: "Freight (quoted by hand)",
+          amount: overrideAmount,
+          currency_code: input.currency_code,
+          source: "manual",
+          // Deliberately carried over: the accepted cart builds its freight
+          // option in the service zone of the option this quote was rated
+          // against (#1439 S11), and an overridden amount still ships on that
+          // lane. Null when nothing was quotable, which acceptance refuses —
+          // see the watch-out on #1450.
+          shipping_option_id: chosen?.shipping_option_id,
+        } as typeof chosen
+      }
+
       if (!chosen) {
         // A landed total with no freight in it is a wrong number wearing a
         // confident label. Better to have no live half at all.
         throw new MedusaError(
           MedusaError.Types.INVALID_DATA,
           freightError
-            ? `No freight option could be quoted for this lane: ${freightError}`
-            : "No freight option could be quoted for this lane."
+            ? `No freight option could be quoted for this lane: ${freightError}. ` +
+                `Name the freight by hand to quote it anyway.`
+            : "No freight option could be quoted for this lane. " +
+                "Name the freight by hand to quote it anyway."
         )
       }
 
@@ -984,6 +1085,7 @@ export async function buildQuoteView(
       options,
       error: freightError,
       rated_by: ratedBy,
+      overridden: freightOverridden,
     },
     /**
      * Live tax where there is one; the FROZEN tax on a dead link.

@@ -208,6 +208,11 @@ export const QuoteCreateForm = ({
         // the backend resolves to 30%. The partner would then have agreed to
         // nothing up front and be asked for a third.
         deposit_pct: data.deposit_pct ?? null,
+        // #1439 S12 — freight named by hand, and where it came from. Sent
+        // together: an amount with no basis is a number nobody can account
+        // for once the forwarder's invoice arrives.
+        freight_override_amount: data.freight_override_amount ?? null,
+        freight_basis: data.freight_basis || null,
         // Sent as a pair or not at all — the backend refuses the promise
         // without its number, and the number without the promise (#1447).
         duties_prepaid: data.duties_prepaid ?? false,

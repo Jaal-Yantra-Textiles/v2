@@ -201,6 +201,22 @@ export const PartnerMintQuoteShape = z.object({
   /** The carrier's advance/disbursement fee. An amount, never a rate. */
   ddp_fee_total: z.number().min(0).nullish(),
 
+  /**
+   * Freight named by hand, in the QUOTE currency (#1439 S12).
+   *
+   * 🔴 `.positive()`, not `.min(0)`. A zero here would be free international
+   * shipping typed by accident, and this system has already shipped bulk orders
+   * free once from a rule-gated `0 INR` row (#1430). Free freight, if it is
+   * ever a real offer, should be a deliberate feature and not a slip of a
+   * numeric field.
+   *
+   * Not required, and it must never become required: on a rateable lane the
+   * estimate is the better answer, because nobody has to keep it current.
+   */
+  freight_override_amount: z.number().positive().nullish(),
+  /** Who quoted it and on what basis. Evidence, like `duty_basis`. */
+  freight_basis: z.string().max(500).nullish(),
+
   currency_code: z.string().min(3),
   region_id: z.string().nullish(),
   carrier: z.string().optional(),
@@ -246,6 +262,11 @@ export const QuoteReadinessShape = PartnerMintQuoteShape.omit({
   // A dry run prices a basket; how it will be PAID for changes none of those
   // numbers. Omitted for the same reason the buyer's identity is.
   deposit_pct: true,
+  // 🔑 `freight_override_amount` is deliberately KEPT — it decides whether the
+  // lane has to be rateable, so a preflight without it would refuse exactly the
+  // cross-border quotes an override exists to unblock. Only the basis is
+  // dropped: it is evidence for the frozen row, and a dry run freezes nothing.
+  freight_basis: true,
 })
 
 export const QuoteReadinessReq = QuoteReadinessShape.superRefine(

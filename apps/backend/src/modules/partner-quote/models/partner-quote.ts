@@ -80,6 +80,30 @@ const PartnerQuote = model.define("partner_quote", {
   // the frozen line subtotals, the ONE freight leg, and the landed total.
   quoted_subtotal: model.bigNumber().nullable(),
   quoted_freight: model.bigNumber().nullable(),
+  /**
+   * Where the frozen freight came from (#1439 S12).
+   *
+   * `estimated` — a stored option or a live carrier rate priced it.
+   * `manual` — a person named the amount, because nothing could price the lane
+   * honestly: the stored international option is FLAT at any weight (35 EUR at
+   * 5.5 kg and at 22 kg alike) and the cross-border carrier leg answers "no
+   * serviceable couriers available for given weight".
+   *
+   * 🔑 Recorded for the same reason `product_type_source` and
+   * `quoted_weight_source` are: a number a human typed and a number a carrier
+   * returned carry different confidence, and a page that renders them
+   * identically launders one into the other. Null on every quote minted before
+   * this column, which is the honest answer for them — nobody can now say which
+   * of the two those were.
+   */
+  quoted_freight_source: model.text().nullable(),
+  /**
+   * Who quoted that freight and on what basis — "DHL rate card 12 Aug, 22 kg to
+   * DE". Evidence: the only record of why we committed to the figure, and
+   * whoever meets the forwarder's invoice is not who typed it. Same argument as
+   * `quoted_duty_basis`, which it sits beside.
+   */
+  quoted_freight_basis: model.text().nullable(),
   quoted_landed_total: model.bigNumber().nullable(),
   // Total consignment weight the frozen freight was quoted against. Which
   // LEVEL each line's weight came from is on the line, because a basket can

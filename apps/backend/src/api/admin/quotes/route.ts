@@ -120,6 +120,11 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
       import_tax_rate_percent: body.import_tax_rate_percent ?? null,
       import_tax_total: body.import_tax_total ?? null,
       ddp_fee_total: body.ddp_fee_total ?? null,
+      // #1439 S12 — freight the partner named, and why. Replaces the
+      // picked option's amount; the lane and the consignment weight are
+      // still computed, because they are what make the number checkable.
+      freight_override_amount: body.freight_override_amount ?? null,
+      freight_basis: body.freight_basis ?? null,
       ttl_days: body.ttl_days,
       // The agreed deposit share (#1439 S11). `?? null` and never `?? 30`:
       // the fallback chain lives in one place (`resolveDepositPct`), and a

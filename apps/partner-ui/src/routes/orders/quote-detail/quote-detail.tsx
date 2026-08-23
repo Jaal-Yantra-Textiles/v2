@@ -156,11 +156,32 @@ export const QuoteDetail = () => {
         <Field
           label={t("fields.freight", "Freight")}
           value={
-            <Text size="small">
-              {money((quote as any).quoted_freight, (quote as any).currency_code)}
-            </Text>
+            <div className="flex items-center justify-end gap-x-2">
+              <Text size="small">
+                {money((quote as any).quoted_freight, (quote as any).currency_code)}
+              </Text>
+              {/* 🔑 A number a person typed and a number a carrier returned
+                  carry different confidence. Rendering them identically
+                  launders one into the other — the same argument as the
+                  inferred-garment-type badge. */}
+              {(quote as any).quoted_freight_source === "manual" ? (
+                <StatusBadge color="orange">
+                  {t("quotes.freight.byHand", "By hand")}
+                </StatusBadge>
+              ) : null}
+            </div>
           }
         />
+        {(quote as any).quoted_freight_basis ? (
+          <Field
+            label={t("quotes.freight.basis", "Freight basis")}
+            value={
+              <Text size="small" className="text-ui-fg-subtle">
+                {(quote as any).quoted_freight_basis}
+              </Text>
+            }
+          />
+        ) : null}
         <Field
           label={t("quotes.fields.depositTerms", "Deposit terms")}
           value={

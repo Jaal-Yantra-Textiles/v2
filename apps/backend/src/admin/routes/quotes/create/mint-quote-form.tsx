@@ -295,6 +295,11 @@ export const MintQuoteForm = () => {
       // 🔑 `?? null`, never `|| null`: a 0% deposit is a real term and
       // `||` would send it as "unset", which the backend resolves to 30%.
       deposit_pct: data.deposit_pct ?? null,
+      // #1439 S12 — freight the partner named, and why. Sent as a pair or
+      // not at all; the amount without its basis is a number nobody can
+      // account for later.
+      freight_override_amount: data.freight_override_amount ?? null,
+      freight_basis: data.freight_basis || null,
       // Omitted rather than sent empty — the backend's own default is the one
       // thing that should decide what "no choice" means.
       // Trimmed: the "type it yourself" branch starts empty, and a stray space

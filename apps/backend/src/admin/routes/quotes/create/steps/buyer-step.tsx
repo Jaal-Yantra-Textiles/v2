@@ -511,6 +511,61 @@ export const BuyerStep = ({ form }: Props) => {
         ) : null}
       </div>
 
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+        <Form.Field
+          control={form.control}
+          name="freight_override_amount"
+          render={({ field: { onChange, value, ...rest } }) => (
+            <Form.Item>
+              <Form.Label optional>Freight, quoted by hand</Form.Label>
+              <Form.Control>
+                <Input
+                  type="number"
+                  min={0}
+                  step="0.01"
+                  placeholder="e.g. 250"
+                  {...rest}
+                  value={value ?? ""}
+                  onChange={(e) =>
+                    onChange(
+                      e.target.value === "" ? undefined : Number(e.target.value)
+                    )
+                  }
+                />
+              </Form.Control>
+              <Form.Hint>
+                In the quote's currency. Overrides whatever the lane rates at —
+                use it when no carrier will quote the lane, or when the stored
+                tier is wrong for this weight. Leave blank to use the rate.
+              </Form.Hint>
+              <Form.ErrorMessage />
+            </Form.Item>
+          )}
+        />
+
+        <Form.Field
+          control={form.control}
+          name="freight_basis"
+          render={({ field }) => (
+            <Form.Item>
+              <Form.Label optional>Where that figure came from</Form.Label>
+              <Form.Control>
+                <Input
+                  placeholder="DHL rate card 12 Aug, 22 kg to DE"
+                  {...field}
+                  value={field.value ?? ""}
+                />
+              </Form.Control>
+              <Form.Hint>
+                Evidence, not decoration: whoever meets the forwarder's invoice
+                is not who typed the number.
+              </Form.Hint>
+              <Form.ErrorMessage />
+            </Form.Item>
+          )}
+        />
+      </div>
+
       {isDomesticLane ? (
         <Text size="small" className="text-ui-fg-muted">
           This quote ships within{" "}

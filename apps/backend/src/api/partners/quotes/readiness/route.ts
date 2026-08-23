@@ -39,6 +39,8 @@ export const POST = async (
     destination_country_code: body.destination_country_code,
     destination_postal_code: body.destination_postal_code ?? null,
     currency_code: body.currency_code,
+    // #1439 S12 — a hand-named freight makes an unrateable lane assessable.
+    freight_override_amount: body.freight_override_amount ?? null,
     region_id: body.region_id ?? null,
     carrier: body.carrier,
     partner_label: partner.name || partner.id,
