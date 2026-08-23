@@ -70,7 +70,17 @@ const PartnerQuote = model.define("partner_quote", {
   // ===== Recipient (human-entered, so render with {{ }}, never {{{ }}}) ====
   recipient_name: model.text().nullable(),
   recipient_company: model.text().nullable(),
+  /**
+   * Who the quote was ADDRESSED to. Written at mint, before anything is sent —
+   * this is intent, not delivery. See `email_sent_at`.
+   */
   email_sent_to: model.text().nullable(),
+  /**
+   * When a provider accepted the message (#1420). Null means the buyer link
+   * never left the building, and since the raw token is returned once and only
+   * its sha256 stored, that quote is unreachable until it is minted again.
+   */
+  email_sent_at: model.dateTime().nullable(),
   partner_note: model.text().nullable(),
 
   // ===== Frozen at mint: evidence, never an input to pricing ==============

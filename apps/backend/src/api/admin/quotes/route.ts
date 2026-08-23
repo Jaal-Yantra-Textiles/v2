@@ -3,6 +3,7 @@ import { ContainerRegistrationKeys, MedusaError } from "@medusajs/framework/util
 
 import { PARTNER_QUOTE_MODULE } from "../../../modules/partner-quote"
 import { buildQuoteListQuery } from "../../../modules/partner-quote/lib/list-query"
+import { deliverQuoteEmail } from "../../../workflows/partner-quote/deliver-quote-email"
 import { mintQuoteWorkflow } from "../../../workflows/partner-quote/mint-quote"
 import { assertVariantsInStore } from "./lib/assert-variants-in-store"
 
@@ -159,9 +160,26 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
     `[quote] admin minted quote=${(result as any)?.quote?.id} for partner=${partner.id} lines=${body.lines.length}`
   )
 
+  // #1420 — the same send as the partner route, from the same function. An
+  // admin mint is where this matters most: the admin panel composed the buyer
+  // link from `quote.storefront_domain`, a field the quote does not have, so
+  // an admin has never been able to copy a working link at all.
+  const email = await deliverQuoteEmail(req.scope, {
+    quote: (result as any)?.quote,
+    token: (result as any)?.token,
+    partnerName: partner?.name ?? null,
+    lineCount: body.lines.length,
+    actorType: "admin",
+    actorId: (req as any).auth_context?.actor_id ?? null,
+  })
+
   res.status(201).json({
     quote: (result as any)?.quote,
     /** Once. Never retrievable again. */
     token: (result as any)?.token,
+    /** Composed server-side (#1420) — see the partner route. */
+    buyer_url: email.buyer_url,
+    /** Whether the buyer actually has it. `sent: false` is a call to action. */
+    email,
   })
 }

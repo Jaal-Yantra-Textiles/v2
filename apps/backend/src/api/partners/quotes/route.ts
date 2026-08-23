@@ -3,6 +3,7 @@ import { ContainerRegistrationKeys } from "@medusajs/framework/utils"
 
 import { PARTNER_QUOTE_MODULE } from "../../../modules/partner-quote"
 import { buildQuoteListQuery } from "../../../modules/partner-quote/lib/list-query"
+import { deliverQuoteEmail } from "../../../workflows/partner-quote/deliver-quote-email"
 import { mintQuoteWorkflow } from "../../../workflows/partner-quote/mint-quote"
 import { getPartnerStore, tryGetPartnerStore } from "../helpers"
 
@@ -112,9 +113,29 @@ export const POST = async (
     `[quote] partner=${partner.id} minted quote=${(result as any)?.quote?.id} lines=${body.lines.length}`
   )
 
+  // #1420 — send the link rather than making the partner copy it out. Awaited,
+  // not queued: the response has to be able to say whether it went, because if
+  // it did not, the token in this body is the only copy left.
+  const email = await deliverQuoteEmail(req.scope, {
+    quote: (result as any)?.quote,
+    token: (result as any)?.token,
+    partnerName: partner?.name ?? null,
+    lineCount: body.lines.length,
+    actorType: "partner",
+    actorId: partner.id,
+  })
+
   res.status(201).json({
     quote: (result as any)?.quote,
     /** Once. Never retrievable again. */
     token: (result as any)?.token,
+    /**
+     * Composed server-side (#1420). Both UIs used to assemble this themselves
+     * and disagreed; the admin one read fields the quote does not have and so
+     * never produced a link at all.
+     */
+    buyer_url: email.buyer_url,
+    /** Whether the buyer actually has it. `sent: false` is a call to action. */
+    email,
   })
 }

@@ -20,7 +20,7 @@ import {
   useAdminQuoteReadiness,
   useMintQuote,
 } from "../../../hooks/api/quotes"
-import { MintedPanel } from "./minted-panel"
+import { MintedPanel, type MintedQuoteResult } from "./minted-panel"
 import { ReadinessPanel } from "./readiness-panel"
 import {
   AdminQuoteCreateSchema,
@@ -89,7 +89,7 @@ const initialTabState: TabState = {
 export const MintQuoteForm = () => {
   const [tab, setTab] = useState<Tab>(Tab.PARTNER)
   const [tabState, setTabState] = useState<TabState>(initialTabState)
-  const [minted, setMinted] = useState<{ token: string; quote: any } | null>(
+  const [minted, setMinted] = useState<MintedQuoteResult | null>(
     null
   )
   const [readiness, setReadiness] = useState<QuoteReadiness | null>(null)
@@ -128,7 +128,9 @@ export const MintQuoteForm = () => {
   })
 
   const { mutate: mint, isPending } = useMintQuote({
-    onSuccess: (data: any) => setMinted({ token: data.token, quote: data.quote }),
+    // The whole response, not two fields off it: `buyer_url` and the
+    // delivery verdict are what the panel has to show (#1420).
+    onSuccess: (data: any) => setMinted(data as MintedQuoteResult),
     onError: (e: any) => toast.error(e?.message ?? "Could not mint the quote."),
   })
   const { mutateAsync: checkReadiness, isPending: isChecking } =
@@ -324,7 +326,7 @@ export const MintQuoteForm = () => {
   if (minted) {
     return (
       <RouteFocusModal.Body className="flex-1 overflow-y-auto">
-        <MintedPanel token={minted.token} quote={minted.quote} />
+        <MintedPanel result={minted} />
       </RouteFocusModal.Body>
     )
   }

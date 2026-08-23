@@ -125,9 +125,25 @@ export type PartnerQuoteListResponse = {
  * that calls this owns the only copy; if it navigates away without surfacing
  * it, the quote has to be re-minted.
  */
+/** What the buyer link's delivery actually did (#1420). */
+export type QuoteEmailDelivery = {
+  sent: boolean
+  to: string | null
+  buyer_url: string | null
+  /** Plain words, meant to be shown to the partner. Null on success. */
+  reason: string | null
+}
+
 export type MintPartnerQuoteResponse = {
   quote: PartnerQuote
   token: string
+  /**
+   * Composed SERVER-side (#1420). Do not rebuild this in the UI: the rule
+   * includes refusing an unverified custom domain, and the two panels that
+   * each had their own copy of it disagreed with each other.
+   */
+  buyer_url: string | null
+  email: QuoteEmailDelivery
 }
 
 export type MintPartnerQuotePayload = {
