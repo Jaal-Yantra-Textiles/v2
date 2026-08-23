@@ -40,6 +40,23 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
       // could accept someone else's.
       quote_id: quote.id,
       shipping_address: body.shipping_address ?? null,
+      /**
+       * The basket as dialled on the page (#1439 S13).
+       *
+       * Normalised HERE rather than trusted: the workflow refuses a variant
+       * that is not already on the quote, but a malformed array should not
+       * reach it as an exception from deep inside a step. Shape only — every
+       * decision about what a dial is ALLOWED to do stays in the workflow,
+       * where the quote's own lines are in hand.
+       */
+      dialled_lines: Array.isArray(body.lines)
+        ? body.lines
+            .filter((l: any) => l && typeof l.variant_id === "string")
+            .map((l: any) => ({
+              variant_id: String(l.variant_id),
+              quantity: Number(l.quantity),
+            }))
+        : null,
       // Deliberately NOT exposed to the buyer. A tax divergence means the cart
       // would charge something other than what this buyer was promised, and the
       // person who gets to say "take it anyway" is the partner, not the person

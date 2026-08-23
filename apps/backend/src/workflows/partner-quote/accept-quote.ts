@@ -23,6 +23,7 @@ import { PARTNER_QUOTE_MODULE } from "../../modules/partner-quote"
 import { PARTNER_QUOTE_EVENTS } from "../../modules/partner-quote/events"
 import { PAYMENT_SCHEDULE_MODULE } from "../../modules/payment_schedule"
 import { quoteUnusableReason } from "../../modules/partner-quote/lib/token"
+import { buildQuoteView } from "../../modules/partner-quote/lib/build-quote-view"
 
 /**
  * Accepting a quote (#1439 S11).
@@ -84,6 +85,20 @@ export type AcceptQuoteInput = {
    * knowingly, and it is recorded on the schedule when they do.
    */
   allow_tax_divergence?: boolean
+  /**
+   * The basket as the buyer actually dialled it (#1439 S13).
+   *
+   * The quote page has always let a buyer move quantities — `GET
+   * /store/b2b/quotes/:token?lines=` re-prices the whole view through them —
+   * but acceptance ignored this entirely and built the cart from the QUOTED
+   * quantities. A buyer who dialled 40 up from 29, saw the new total, and
+   * pressed accept got a cart for 29. Nothing anywhere said so.
+   *
+   * 🔑 Only quantities move. A variant not already on the quote is refused: the
+   * price list was minted for THIS basket, and a line nobody quoted has no
+   * frozen price to stand behind.
+   */
+  dialled_lines?: Array<{ variant_id: string; quantity: number }> | null
   /** Injected so acceptance is deterministic under test. */
   now?: Date
 }
@@ -103,7 +118,14 @@ const near = (a: number, b: number): boolean => Math.abs(a - b) <= MONEY_EPSILON
  */
 const loadQuoteForAcceptStep = createStep(
   "load-quote-for-accept-step",
-  async (input: { quote_id: string; now: Date }, { container }) => {
+  async (
+    input: {
+      quote_id: string
+      now: Date
+      dialled_lines?: AcceptQuoteInput["dialled_lines"]
+    },
+    { container }
+  ) => {
     const service: any = container.resolve(PARTNER_QUOTE_MODULE)
     const query: any = container.resolve(ContainerRegistrationKeys.QUERY)
 
@@ -119,7 +141,7 @@ const loadQuoteForAcceptStep = createStep(
     // like a completed one and hand the buyer a cart with no freight.
     if (quote.accepted_cart_id && quote.accepted_at) {
       // Idempotent: this is a repeat submit, not a second deal.
-      return new StepResponse({ quote, lines: [], store: null, existing_cart_id: quote.accepted_cart_id })
+      return new StepResponse({ quote, lines: [], store: null, dialled: false, existing_cart_id: quote.accepted_cart_id })
     }
 
     // The same reason the buyer's own page renders, from the same helper —
@@ -143,13 +165,76 @@ const loadQuoteForAcceptStep = createStep(
       )
     }
 
-    const lines = await service.listPartnerQuoteLines({ quote_id: quote.id } as any)
-    if (!lines?.length) {
+    const quotedLines = await service.listPartnerQuoteLines({ quote_id: quote.id } as any)
+    if (!quotedLines?.length) {
       throw new MedusaError(
         MedusaError.Types.INVALID_DATA,
         `Quote ${quote.id} has no lines`
       )
     }
+
+    /**
+     * Apply the buyer's dial (#1439 S13), refusing anything that is not purely
+     * a quantity change.
+     *
+     * 🔴 The variant allowlist is the security boundary, not a nicety. The
+     * minted price list is scoped to this buyer's group and priced for THIS
+     * basket; a variant nobody quoted has no frozen price behind it, so
+     * accepting one would build a cart at whatever the catalogue happens to
+     * say — a price this buyer was never offered and nobody agreed.
+     *
+     * A quantity of 0 removes the line rather than erroring: a buyer taking one
+     * product out of a multi-line quote is an ordinary thing to do, and the
+     * remaining lines are still priced by the same list.
+     */
+    const dial = new Map(
+      (input.dialled_lines ?? [])
+        .filter((l) => l && typeof l.variant_id === "string")
+        .map((l) => [l.variant_id, Number(l.quantity)])
+    )
+
+    if (dial.size) {
+      const quoted = new Set(quotedLines.map((l: any) => l.variant_id))
+      for (const [variantId, quantity] of dial) {
+        if (!quoted.has(variantId)) {
+          throw new MedusaError(
+            MedusaError.Types.INVALID_DATA,
+            `Variant ${variantId} is not on this quote, so it has no quoted price and cannot be added at acceptance.`
+          )
+        }
+        if (!Number.isInteger(quantity) || quantity < 0) {
+          throw new MedusaError(
+            MedusaError.Types.INVALID_DATA,
+            `Quantity for ${variantId} must be a whole number of units, not ${quantity}.`
+          )
+        }
+      }
+    }
+
+    const lines = quotedLines
+      .map((l: any) =>
+        dial.has(l.variant_id)
+          ? { ...l, quantity: dial.get(l.variant_id) }
+          : l
+      )
+      .filter((l: any) => Number(l.quantity) > 0)
+
+    if (!lines.length) {
+      throw new MedusaError(
+        MedusaError.Types.INVALID_DATA,
+        "Every line was dialled to zero, so there is nothing to order."
+      )
+    }
+
+    /**
+     * Whether the basket actually moved. Carried so the totals check knows the
+     * frozen columns no longer describe what is being bought — see
+     * `assertCartMatchesQuoteStep`.
+     */
+    const dialled = lines.some(
+      (l: any, i: number) =>
+        Number(l.quantity) !== Number(quotedLines[i]?.quantity)
+    ) || lines.length !== quotedLines.length
 
     // 🔑 Filtered by id, never a bare list. `filters: { id: undefined }` is NO
     // filter (#1433) — the same read on the public quote page once collected
@@ -167,7 +252,7 @@ const loadQuoteForAcceptStep = createStep(
       )
     }
 
-    return new StepResponse({ quote, lines, store, existing_cart_id: null })
+    return new StepResponse({ quote, lines, store, dialled, existing_cart_id: null })
   }
 )
 
@@ -359,7 +444,23 @@ const addQuoteFreightStep = createStep(
 const assertCartMatchesQuoteStep = createStep(
   "assert-cart-matches-quote-step",
   async (
-    input: { cart_id: string; quote: any; allow_tax_divergence: boolean },
+    input: {
+      cart_id: string
+      quote: any
+      allow_tax_divergence: boolean
+      /** The basket actually being bought — the dial applied, or the quoted one. */
+      lines?: any[]
+      store?: any
+      /** True when the buyer moved quantities, so the frozen columns are stale. */
+      dialled?: boolean
+      /**
+       * ⚠️ Typed loosely on purpose. Step input is SERIALIZED, so a `Date`
+       * handed between steps arrives here as an ISO string — that exact
+       * assumption threw on every acceptance in S11. It is re-wrapped in
+       * `new Date(...)` at the point of use rather than trusted.
+       */
+      now?: Date | string
+    },
     { container }
   ) => {
     const query: any = container.resolve(ContainerRegistrationKeys.QUERY)
@@ -400,7 +501,53 @@ const assertCartMatchesQuoteStep = createStep(
      */
     const quotedInclusive = Boolean(quote.quoted_tax_inclusive)
 
-    const quotedSubtotal = Number(quote.quoted_subtotal ?? 0)
+    /**
+     * 🔴 What the buyer is owed a match against, once they have moved the dial.
+     *
+     * The frozen `quoted_*` columns describe the basket as MINTED. The moment a
+     * buyer changes a quantity those numbers describe something nobody is
+     * buying, and comparing against them would refuse every dialled
+     * acceptance — the same class of error as comparing a tax-inclusive total
+     * against an ex-tax one.
+     *
+     * So the expectation is rebuilt from `buildQuoteView` with the dialled
+     * lines: the SAME builder, the same price list, the same customer group
+     * that produced the number on the buyer's screen. The contract is unchanged
+     * and still the one that matters — the cart must cost what the page said —
+     * it is simply asked of the basket actually being bought.
+     *
+     * Freight is NOT rebuilt. The cart charges the flat option minted from the
+     * frozen freight, so the frozen figure remains the right expectation even
+     * when the weight moves; re-rating here would invent a second number and
+     * then complain the cart disagreed with it.
+     */
+    let expectedSubtotal = Number(quote.quoted_subtotal ?? 0)
+    if (input.dialled) {
+      const view = await buildQuoteView(container, {
+        quote: null,
+        lines: (input.lines ?? []).map((l: any) => ({
+          variant_id: l.variant_id,
+          quantity: Number(l.quantity),
+        })),
+        customer_group_id: quote.customer_group_id,
+        destination_country_code: quote.destination_country_code,
+        destination_postal_code: quote.destination_postal_code ?? null,
+        currency_code: quote.currency_code,
+        region_id: quote.region_id ?? null,
+        store: {
+          id: quote.store_id ?? undefined,
+          default_location_id: input.store?.default_location_id ?? null,
+        },
+        partner_id: quote.partner_id ?? null,
+        // The frozen freight stands in, so the view cannot re-rate the lane and
+        // disagree with the option the cart is actually charged.
+        freight_override_amount: Number(quote.quoted_freight ?? 0) || null,
+        now: input.now ? new Date(input.now) : new Date(),
+      })
+      expectedSubtotal = Number(view?.live?.subtotal ?? view?.quoted?.subtotal ?? 0)
+    }
+
+    const quotedSubtotal = expectedSubtotal
     const cartSubtotal = quotedInclusive
       ? Number(cart.item_total ?? cart.item_subtotal ?? 0)
       : Number(cart.item_subtotal ?? cart.item_total ?? 0)
@@ -631,6 +778,7 @@ export const acceptQuoteWorkflow = createWorkflow(
     const loaded = loadQuoteForAcceptStep({
       quote_id: input.quote_id,
       now: timing.now,
+      dialled_lines: input.dialled_lines ?? null,
     })
 
     // Already accepted → read it back, write nothing.
@@ -675,6 +823,10 @@ export const acceptQuoteWorkflow = createWorkflow(
         cart_id: cart.cart_id,
         quote: loaded.quote,
         allow_tax_divergence: input.allow_tax_divergence as unknown as boolean,
+        lines: loaded.lines,
+        store: loaded.store,
+        dialled: loaded.dialled,
+        now: timing.now,
       })
 
       const schedule = openPaymentScheduleStep({

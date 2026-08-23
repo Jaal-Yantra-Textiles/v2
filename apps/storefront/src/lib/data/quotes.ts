@@ -297,7 +297,36 @@ export type QuoteView = {
     chosen: QuoteFreightOption | null
     options: QuoteFreightOption[]
     error: string | null
+    /**
+     * A person named this freight rather than a carrier rating it.
+     *
+     * 🔴 Load-bearing for what the buyer is TOLD. `error` alone used to decide
+     * the wording, so a hand-typed DHL tariff on a lane no carrier will rate
+     * still read "could not be quoted live … indicative rate" — undercutting a
+     * real, looked-up number as guesswork. The two facts are independent: the
+     * carrier can fail AND a human can have supplied the true figure.
+     */
+    overridden?: boolean
+    /** The carrier that produced the rate, when one did. */
+    rated_by?: string | null
   }
+  /**
+   * What the buyer settles at their OWN border (#1447 tail). Null on a domestic
+   * supply, on a DDP quote (we are paying it, and it is already a line), and
+   * wherever no destination rate is configured.
+   *
+   * 🔴 Deliberately outside every total. It is not ours to charge and not ours
+   * to collect — folding it in would restate the exact error just removed from
+   * the cart, where an Indian export was being charged 19% German VAT.
+   */
+  import_estimate: {
+    import_tax: number
+    rate_percent: number
+    /** Goods + freight — the value the destination assesses. */
+    basis: number
+    /** Duty is additionally payable and is NOT estimated. Never guessed. */
+    duty_unknown: boolean
+  } | null
   compare: {
     state: string
     show_quoted: boolean

@@ -64,6 +64,8 @@ export const BuyerStep = ({ form }: Props) => {
     name: "destination_country_code",
   })
   const dutiesPrepaid = useWatch({ control: form.control, name: "duties_prepaid" })
+  /** Named in the freight-override hint, so "the quote's currency" is not a guess. */
+  const watchedCurrency = useWatch({ control: form.control, name: "currency_code" })
 
   const knownCarrierIds = useMemo(
     () => new Set([...carriers.map((c) => c.id), "manual"]),
@@ -572,10 +574,27 @@ export const BuyerStep = ({ form }: Props) => {
                   }
                 />
               </Form.Control>
+              {/**
+               * 🔴 The currency is NAMED, not implied.
+               *
+               * This field is taken as-is; the per-line `override_unit_amount`
+               * beside it is in the STORE's currency and gets FX-converted. Two
+               * adjacent "type a price by hand" fields that mean two different
+               * currencies is a trap, and the realistic mistake is expensive: a
+               * partner on an INR store looking up a rupee freight quote for a
+               * EUR lane types 4000 and offers €4,000 of shipping.
+               *
+               * Nothing downstream can catch it — readiness stamps the override
+               * with the quote currency BY CONSTRUCTION, so the
+               * currency-mismatch guard cannot fire on it. Saying the actual
+               * code is the whole defence.
+               */}
               <Form.Hint>
-                In the quote's currency. Overrides whatever the lane rates at —
-                use it when no carrier will quote the lane, or when the stored
-                tier is wrong for this weight. Leave blank to use the rate.
+                In {String(watchedCurrency || "the quote's currency").toUpperCase()} —
+                the quote's currency, not your store's. Overrides whatever the
+                lane rates at: use it when no carrier will quote the lane, or
+                when the stored tier is wrong for this weight. Leave blank to
+                use the rate.
               </Form.Hint>
               <Form.ErrorMessage />
             </Form.Item>
