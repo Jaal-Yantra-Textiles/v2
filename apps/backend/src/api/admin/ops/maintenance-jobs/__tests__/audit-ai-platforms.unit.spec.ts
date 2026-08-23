@@ -1,4 +1,5 @@
 import { auditAiPlatformsJob, MAINTENANCE_JOBS } from "../registry"
+import { AI_ROLES } from "../../../../../mastra/services/ai-platforms"
 
 /**
  * #756 — job-level tests for the AI-platform coverage audit. The pure
@@ -59,8 +60,13 @@ describe("auditAiPlatformsJob", () => {
     expect(updates).toHaveLength(0)
     expect(res.applied).toBe(false)
     expect(res.summary).toContain("known AI roles configured")
-    // one coverage row per known role (7)
-    expect(res.changes.filter((c) => c.field === "coverage")).toHaveLength(7)
+    // One coverage row per known role. Asserted against AI_ROLES itself, not a
+    // literal: this was hardcoded to 7 and had been RED since the list grew to
+    // 10 — a stale number that fails on every future role instead of checking
+    // the property that actually matters.
+    expect(res.changes.filter((c) => c.field === "coverage")).toHaveLength(
+      AI_ROLES.length
+    )
     // no secret leaked into the coverage payload
     expect(JSON.stringify(res.changes)).not.toContain("sk-secret")
   })

@@ -550,6 +550,7 @@ export const PARTNER_MCP_TOOLS: PartnerMcpToolDef[] = [
       "name",
       "description",
       "design_type",
+      "product_type",
       "status",
       "priority",
       "target_completion_date",
@@ -565,6 +566,9 @@ export const PARTNER_MCP_TOOLS: PartnerMcpToolDef[] = [
           type: "string",
           enum: ["Original", "Derivative", "Custom", "Collaboration"],
         },
+        product_type: STR(
+          "What the design IS — the garment category ('trousers', 'saree', 'kurta'). Distinct from design_type, which is how ORIGINAL the design is. Normalised server-side; setting it marks the type as human-set so AI inference will not overwrite it. Send null to clear it and let inference suggest one."
+        ),
         status: {
           type: "string",
           enum: [

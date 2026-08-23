@@ -54,6 +54,10 @@ export interface AdminDesign {
   description?: string;
   inspiration_sources?: string[];
   design_type?: "Original" | "Derivative" | "Custom" | "Collaboration";
+  /** #938 — WHAT the design is ("trousers"), vs `design_type` = how original. */
+  product_type?: string | null;
+  /** Whether a human or a model set `product_type`. Drives the badge. */
+  product_type_source?: "manual" | "inferred" | null;
   status?: "Conceptual" | "In_Development" | "Technical_Review" | "Sample_Production" | "Revision" | "Approved" | "Rejected" | "On_Hold" | "Commerce_Ready" | "Superseded";
   priority?: "Low" | "Medium" | "High" | "Urgent";
   revised_from_id?: string | null;
@@ -100,6 +104,8 @@ export interface AdminDesignsQuery {
   limit?: number;
   name?: string;
   design_type?: AdminDesign["design_type"];
+  /** null clears the type and hands it back to inference. */
+  product_type?: string | null;
   status?: AdminDesign["status"];
   priority?: AdminDesign["priority"];
   tags?: string[];
@@ -555,6 +561,49 @@ export const useApproveDesign = (
       sdk.client.fetch<ApproveDesignResponse>(
         `/admin/designs/${designId}/approve`,
         { method: "POST", body: {} }
+      ),
+    onSuccess: (data, variables, _mutateResult, context) => {
+      queryClient.invalidateQueries({ queryKey: designQueryKeys.lists() });
+      queryClient.invalidateQueries({ queryKey: designQueryKeys.detail(designId) });
+      options?.onSuccess?.(data, variables, _mutateResult, context);
+    },
+    ...options,
+  });
+};
+
+/**
+ * Ask the model to (re-)infer a design's garment type (#938).
+ *
+ * `force` is what lets this overwrite a type a human typed. Without it the
+ * server refuses and reports `skip_reason: "manually_set"` — a designer's
+ * correction moves the production spec, and therefore the cost, so it is not
+ * something a model gets to undo on its own.
+ */
+export type InferProductTypeResponse = {
+  design: AdminDesign;
+  inference: {
+    design_id: string;
+    product_type: string | null;
+    skipped: boolean;
+    skip_reason: string | null;
+    confidence: number | null;
+  };
+};
+
+export const useInferDesignProductType = (
+  designId: string,
+  options?: UseMutationOptions<
+    InferProductTypeResponse,
+    FetchError,
+    { force?: boolean } | void
+  >
+) => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (variables) =>
+      sdk.client.fetch<InferProductTypeResponse>(
+        `/admin/designs/${designId}/product-type`,
+        { method: "POST", body: { force: Boolean((variables as any)?.force) } }
       ),
     onSuccess: (data, variables, _mutateResult, context) => {
       queryClient.invalidateQueries({ queryKey: designQueryKeys.lists() });

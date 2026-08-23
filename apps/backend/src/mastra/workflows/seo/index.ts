@@ -2,6 +2,7 @@
 import { createWorkflow, createStep } from "@mastra/core/workflows";
 import { z } from "zod";
 import { seoAgent } from "../../agents";
+import { readModelJsonOrThrow } from "../../../lib/ai/model-json";
 
 // Define our schemas
 const triggerSchema = z.object({
@@ -45,7 +46,9 @@ Page context: ${JSON.stringify(inputData)}`
       }],
       { output: metadataSchema }
     );
-    return response.object;
+    // See designValidator — the free model pool does not reliably honour a
+    // schema, so the response is read tolerantly rather than trusted.
+    return readModelJsonOrThrow(response, "seo.generateMetadata");
   }
 });
 

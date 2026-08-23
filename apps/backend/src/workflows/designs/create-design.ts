@@ -13,6 +13,8 @@ import {
   convertColorPaletteToColors,
   convertCustomSizesToSizeSets,
 } from "./helpers/size-set-utils";
+import { normalizeProductType } from "../../modules/designs/lib/product-type";
+import { inferDesignProductTypeStep } from "./infer-design-product-type";
 import type { Link } from "@medusajs/modules-sdk";
 import type { IEventBusModuleService } from "@medusajs/types";
 
@@ -43,6 +45,12 @@ type CreateDesignStepInput = {
   // New structured fields (optional)
   colors?: Array<{ name: string; hex_code: string; usage_notes?: string; order?: number }>;
   size_sets?: Array<{ size_label: string; measurements: Record<string, number> }>;
+  /**
+   * The garment this design is (#938) — "trousers", "saree". Normalised on
+   * write. When omitted, the workflow infers it; when given, it is treated as
+   * MANUAL and no model may overwrite it.
+   */
+  product_type?: string | null;
   origin_source?: "manual" | "ai-mistral" | "ai-other";
   customer_id_for_link?: string;
   // Roadmap #6: set when a partner creates the design for their own
@@ -58,6 +66,7 @@ export const createDesignStep = createStep(
       input.size_sets?.length ? input.size_sets : convertCustomSizesToSizeSets(input.custom_sizes);
     const normalizedColors =
       input.colors?.length ? input.colors : convertColorPaletteToColors(input.color_palette);
+    const normalizedProductType = normalizeProductType(input.product_type);
 
     // Create the design record first
     // Note: media_files is typed as json() in the model, so we cast the array to the expected type
@@ -83,6 +92,12 @@ export const createDesignStep = createStep(
       moodboard: input.moodboard,
       origin_source: input.origin_source,
       owner_partner_id: input.owner_partner_id ?? null,
+      // A type supplied by the caller is a HUMAN's word, so it is stamped
+      // `manual` and inference will refuse to overwrite it (see
+      // mayInferOver). An unusable string normalises to null rather than
+      // being stored bent, and the inference step then fills it in.
+      product_type: normalizedProductType,
+      product_type_source: normalizedProductType ? "manual" : null,
     });
     // Persist structured colors if provided
     if (normalizedColors?.length) {
@@ -155,6 +170,23 @@ const emitDesignAssignedStep = createStep(
   }
 )
 
+/**
+ * Re-read the design after inference so the CREATE response tells the truth.
+ *
+ * `createDesignStep` returns the row as it was BEFORE the type was inferred, so
+ * without this a caller creating a design gets back `product_type: null` for a
+ * design that has one — an API that lies about what it just did, and a test
+ * that would pass while it lied.
+ */
+const readDesignStep = createStep(
+  "read-design-after-create-step",
+  async (input: { design_id: string }, { container }) => {
+    const designService: DesignService = container.resolve(DESIGN_MODULE);
+    const design = await designService.retrieveDesign(input.design_id);
+    return new StepResponse(design);
+  }
+);
+
 export const createDesignWorkflow = createWorkflow(
   "create-design",
   (input: CreateDesignWorkFlowInput) => {
@@ -178,7 +210,21 @@ export const createDesignWorkflow = createWorkflow(
       }
     );
 
-    return new WorkflowResponse(design);
+    // #938 — a design with no type cannot have a production spec derived, and
+    // therefore cannot become a draft product (#939). Infer one when the caller
+    // did not supply it.
+    //
+    // 🔑 The step swallows every failure and reports `skipped` instead of
+    // throwing, so a model outage cannot stop a designer saving their work. It
+    // is placed AFTER the customer link deliberately: the cheap, certain writes
+    // land first, and the uncertain one is last.
+    when({ input, design }, ({ input }) =>
+      !normalizeProductType(input.product_type)
+    ).then(() => {
+      inferDesignProductTypeStep({ design_id: design.id })
+    });
+
+    return new WorkflowResponse(readDesignStep({ design_id: design.id }));
   },
 );
 

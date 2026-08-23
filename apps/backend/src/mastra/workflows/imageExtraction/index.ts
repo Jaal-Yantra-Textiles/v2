@@ -2,6 +2,7 @@
 import { createWorkflow, createStep } from "@mastra/core/workflows";
 import { z } from "zod";
 import { createImageExtractionAgent, takeExtractionAgentForRun } from "../../agents";
+import { readModelJson } from "../../../lib/ai/model-json";
 
 // Trigger: image to analyze and optional entity type
 export const triggerSchema = z.object({
@@ -142,7 +143,10 @@ const extractItems = createStep({
     )
 
     // Widen and normalize possible shapes
-    const raw: any = response.object || {}
+    // `response.object || {}` turned a model that answered in prose into a
+    // silently EMPTY extraction — indistinguishable downstream from "the image
+    // contained nothing". Read the text too before concluding that.
+    const raw: any = readModelJson(response) ?? {}
     const candidateLists = [
       raw.items,
       raw.list,

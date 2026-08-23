@@ -3,6 +3,7 @@ import { createWorkflow, createStep } from "@mastra/core/workflows";
 import { z } from "zod";
 import { designAgent } from "../../agents";
 import { PinoLogger } from "@mastra/loggers";
+import { readModelJsonOrThrow } from "../../../lib/ai/model-json";
 const logger = new PinoLogger()
 
 // Schema definitions for design validation
@@ -109,7 +110,11 @@ const generateDesignData = createStep({
       { output: designSchema }
     );
 
-    return response.object;
+    // 🔴 Not `response.object` — this agent runs on the free/rotating model
+    // pool and several of those ignore structured output entirely, returning a
+    // correct answer as prose with `object` UNDEFINED. Reading `.object` alone
+    // made every call on such a model return undefined. See lib/ai/model-json.
+    return readModelJsonOrThrow(response, "designValidator.generateDesignData");
   }
 });
 

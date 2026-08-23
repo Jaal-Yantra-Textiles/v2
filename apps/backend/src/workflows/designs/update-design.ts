@@ -10,6 +10,7 @@ import {
   convertColorPaletteToColors,
   convertCustomSizesToSizeSets,
 } from "./helpers/size-set-utils";
+import { normalizeProductType } from "../../modules/designs/lib/product-type";
 
 type DesignType = "Original" | "Derivative" | "Custom" | "Collaboration";
 type DesignStatus = "Conceptual" | "In_Development" | "Technical_Review" | "Sample_Production" | "Revision" | "Approved" | "Rejected" | "On_Hold";
@@ -39,6 +40,12 @@ type UpdateDesignStepInput = {
   // New structured fields (optional)
   colors?: Array<{ name: string; hex_code: string; usage_notes?: string; order?: number }>;
   size_sets?: Array<{ size_label: string; measurements: Record<string, number> }>;
+  /**
+   * #938. Setting this through the API is a HUMAN naming the garment, so it is
+   * stamped `manual` and inference will not overwrite it afterwards. Pass null
+   * to clear the type and hand it back to inference.
+   */
+  product_type?: string | null;
 };
 
 export const updateDesignStep = createStep(
@@ -54,6 +61,7 @@ export const updateDesignStep = createStep(
       size_sets,
       custom_sizes,
       color_palette,
+      product_type,
       ...designFields
     } = input;
 
@@ -87,6 +95,23 @@ export const updateDesignStep = createStep(
       updateData.color_palette = null;
     } else if (typeof color_palette !== "undefined") {
       updateData.color_palette = color_palette;
+    }
+
+    // #938 — normalise the garment type and record that a human set it, so the
+    // inference step refuses to overwrite it later (see mayInferOver). Pulled
+    // out of the generic spread above on purpose: passed straight through it
+    // would be stored exactly as typed, and "Kurta " and "kurta" would be two
+    // types to everything that groups by it. An explicit null clears both
+    // columns and hands the design back to inference.
+    if (typeof product_type !== "undefined") {
+      if (product_type === null) {
+        updateData.product_type = null;
+        updateData.product_type_source = null;
+      } else {
+        const normalized = normalizeProductType(product_type);
+        updateData.product_type = normalized;
+        updateData.product_type_source = normalized ? "manual" : null;
+      }
     }
 
     const design = await designService.updateDesigns({

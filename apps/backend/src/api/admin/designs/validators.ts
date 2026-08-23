@@ -36,6 +36,10 @@ export const designSchema = z.object({
   description: z.string().optional(),
   inspiration_sources: z.array(z.string()).optional(),
   design_type: z.enum(["Original", "Derivative", "Custom", "Collaboration"]).optional(),
+  // #938 — WHAT the design is, as opposed to `design_type` above (how original
+  // it is). Free text, normalised server-side; see modules/designs/lib/
+  // product-type.ts for why this is not an enum.
+  product_type: z.string().max(120).optional().nullable(),
   status: z.enum([
     "Conceptual",
     "In_Development",

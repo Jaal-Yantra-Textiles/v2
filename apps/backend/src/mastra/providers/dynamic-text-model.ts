@@ -5,9 +5,24 @@
  * 1. Dynamically selects the best available free model from OpenRouter (realtime API lookup)
  * 2. Detects "free period has ended" errors and permanently evicts the expired model,
  *    then retries with the next available model — no human intervention needed.
- * 3. Falls back to the cheapest Vercel AI Gateway text model when all OpenRouter
- *    free models are exhausted or the API is unreachable.
- * 4. As a last resort, uses a static fallback list of known free models.
+ * 3. Falls back to a static list of known free models when the OpenRouter API
+ *    is unreachable.
+ *
+ * ⚠️ This docblock previously claimed a fourth step — "falls back to the
+ * cheapest Vercel AI Gateway text model when all OpenRouter free models are
+ * exhausted". **No such code has ever existed here**: `resolveModel()` goes
+ * live-list → static list and stops. Corrected rather than implemented, because
+ * a hardcoded gateway fallback would now duplicate a better mechanism —
+ * `mastra/services/ai-platforms.ts` resolves an admin-configured provider
+ * (Cloudflare / Vercel AI Gateway / DashScope / OpenRouter) per AI role from
+ * encrypted credentials, and `resolveRoleTextModel` is documented as the single
+ * entry point every text feature should use. THIS model is only the free
+ * fallback for when no platform is configured for a role.
+ *
+ * 🔑 Consequence worth knowing: because this pool is ranked by context length
+ * and filtered only for text output, it will happily pick a model that does not
+ * honour structured output. Anything asking for a schema must read the response
+ * through `lib/ai/model-json.ts` rather than trusting `response.object`.
  *
  * Uses wrapLanguageModel so Mastra recognises it as a proper AI SDK v5 model.
  * The placeholder model passed to wrapLanguageModel is never actually called —
