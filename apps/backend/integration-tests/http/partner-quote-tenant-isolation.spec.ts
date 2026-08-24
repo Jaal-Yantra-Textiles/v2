@@ -1,4 +1,4 @@
-import { createAdminUser } from "../helpers/create-admin-user"
+import { createAdminUser, getAuthHeaders } from "../helpers/create-admin-user"
 import {
   mintBody,
   setupQuoteFixture,
@@ -27,24 +27,27 @@ jest.setTimeout(240 * 1000)
  * not why it would be safe: these links are forwarded to procurement, pasted
  * into purchase orders and quoted back in support threads.
  *
- * ## What this does NOT assert
+ * ## It fails CLOSED, and these tests are what say so
  *
- * The guard refuses only a PROVEN mismatch — both sides resolvable and
- * different. It deliberately allows (and logs) the unresolvable cases, because
- * 24 of 28 stores carry no `default_sales_channel_id` and 12 of 16 existing
- * quotes have no `store_id`, so failing closed would take the buyer page down
- * for most tenants. Those two backfills are what turns this into a real
- * boundary; see `quote-tenant-guard.ts`.
+ * S15 shipped this refusing only a PROVEN mismatch — both sides resolvable and
+ * different — and allowing every unresolvable case, sized off dev-database
+ * counts that turned out to be e2e detritus. Measured on prod 2026-08-24:
+ * 8 of 8 quotes carry a `store_id`, 0 of 13 stores lack
+ * `default_sales_channel_id`, and all 14 publishable keys resolve to a store.
+ * Nothing was relying on the gap, so each escape hatch is now a refusal and
+ * each has a test below. See `quote-tenant-guard.ts`.
  */
 setupSharedTestSuite(() => {
   describe("GET/POST /store/b2b/quotes/:token — tenant isolation (#1439 S15)", () => {
     let seedA: QuoteFixture
     let seedB: QuoteFixture
     let token: string
+    let adminConfig: any
 
     beforeAll(async () => {
       const { api, getContainer } = getSharedTestEnv()
       await createAdminUser(getContainer())
+      adminConfig = await getAuthHeaders(api)
 
       // Two independent tenants. The fixture provisions its own store, sales
       // channel and publishable key each time, which is exactly the shape of
@@ -101,6 +104,74 @@ setupSharedTestSuite(() => {
           {},
           { headers: { "x-publishable-api-key": seedB.publishableKey } }
         )
+        .catch((e: any) => e)
+
+      expect(err?.response?.status).toBe(404)
+    })
+
+    it("🔴 404s a quote that carries no store_id at all", async () => {
+      // The first escape hatch S15 left open. A pre-S15 row (or a mint path
+      // that drops the column) is a document no storefront can be shown to
+      // own — it used to render on every one of them.
+      //
+      // 🔑 This mints its own quote and strips the column rather than reusing
+      // the shared one, so it cannot disturb the acceptance test below.
+      const { api, getContainer } = getSharedTestEnv()
+      const mint = await api.post(
+        "/partners/quotes",
+        mintBody(seedA, {
+          buyer_email: `untagged-${seedA.unique}@jaalyantra.test`,
+        }),
+        { headers: seedA.headers }
+      )
+      const orphanToken = mint.data.token
+
+      // The control: it renders on its own storefront while tagged.
+      const before = await api.get(`/store/b2b/quotes/${orphanToken}`, {
+        headers: { "x-publishable-api-key": seedA.publishableKey },
+      })
+      expect(before.status).toBe(200)
+
+      const service: any = getContainer().resolve("partnerQuote")
+      // The entity form returns an object, not an array — do not destructure.
+      await service.updatePartnerQuotes({ id: mint.data.quote.id, store_id: null })
+
+      const err = await api
+        .get(`/store/b2b/quotes/${orphanToken}`, {
+          headers: { "x-publishable-api-key": seedA.publishableKey },
+        })
+        .catch((e: any) => e)
+
+      expect(err?.response?.status).toBe(404)
+    })
+
+    it("🔴 404s when the calling key resolves to no store", async () => {
+      // The second and third hatches, which are one situation in practice: a
+      // key whose sales channel is nobody's default (the #1397 dangling key)
+      // leaves the caller unidentifiable. Unidentifiable is not permission.
+      const { api } = getSharedTestEnv()
+      const orphanKey = await api.post(
+        "/admin/api-keys",
+        { title: `Orphan ${seedA.unique}`, type: "publishable" },
+        adminConfig
+      )
+      const channel = await api.post(
+        "/admin/sales-channels",
+        { name: `Orphan channel ${seedA.unique}` },
+        adminConfig
+      )
+      // Linked to a channel that is no store's default_sales_channel_id, so
+      // `getStoreFromPublishableKey` returns null.
+      await api.post(
+        `/admin/api-keys/${orphanKey.data.api_key.id}/sales-channels`,
+        { add: [channel.data.sales_channel.id] },
+        adminConfig
+      )
+
+      const err = await api
+        .get(`/store/b2b/quotes/${token}`, {
+          headers: { "x-publishable-api-key": orphanKey.data.api_key.token },
+        })
         .catch((e: any) => e)
 
       expect(err?.response?.status).toBe(404)

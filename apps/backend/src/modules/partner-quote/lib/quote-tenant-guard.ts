@@ -22,30 +22,33 @@ import { getStoreFromPublishableKey } from "../../../api/store/helpers"
  * token being high-entropy is a reason it is unlikely to be *found*, never a
  * reason it is safe once forwarded, logged, or pasted into a support thread.
  *
- * ## Why it refuses only a PROVEN mismatch
+ * ## It now FAILS CLOSED — and here is the evidence that made that safe
  *
- * 🔴 Failing closed on "cannot tell" would take the feature down for most
- * tenants, which is the actual #1397 outcome and worse than the leak. The data
- * says so plainly: **24 of 28 stores carry no `default_sales_channel_id`**, and
- * that column is the only path from a publishable key back to a store — so the
- * caller is unresolvable most of the time. **12 of 16 existing quotes have a
- * null `store_id`**, because the column postdates them.
+ * S15 shipped this guard refusing only a *proven* mismatch: where either side
+ * was unresolvable it allowed the read and logged, because failing closed on
+ * "cannot tell" is the #1397 outcome — the buyer page down for whole tenants,
+ * a certain loss traded against a possible leak. That sizing came off a dev
+ * database and was wrong: the counts were dominated by e2e detritus.
  *
- * So the rule is: refuse when both sides resolve AND disagree. Otherwise allow
- * and log, because a buyer who cannot open the quote they were sent is a
- * certain loss while this leak is a possible one.
+ * Measured against **prod** on 2026-08-24 (`backfill-quote-tenancy`, dry run,
+ * plus a key/store cross-check):
  *
- * That is a deliberate half-measure and it should not stay one. It becomes a
- * real boundary once both backfills are done:
- *   1. `store_id` on every `partner_quote` row, and
- *   2. `default_sales_channel_id` on every `store`.
- * Then flip the two `return`s below to throws. The warnings exist to tell you
- * when that is safe — a clean log means nothing is relying on the gap.
+ *   - **8 of 8** `partner_quote` rows carry a `store_id`. Nothing to backfill.
+ *   - **0 of 13** stores lack `default_sales_channel_id`.
+ *   - **14 of 14** publishable keys carry exactly one sales channel, and every
+ *     one of those channels is some store's default — so every live caller
+ *     resolves.
+ *
+ * So none of the three escape hatches has anything real behind it, and each is
+ * now a refusal. Re-run that job before assuming this still holds: a new store
+ * created without a default sales channel would lock its own buyers out, which
+ * is why `check_quote_readiness` and the job both report the count.
  *
  * ## Why 404 and not 403
  *
  * The same reason an unknown token 404s: a prober must not learn that a token
- * is real by being told they are on the wrong shop.
+ * is real by being told they are on the wrong shop. Every refusal below is the
+ * same body a nonexistent token gets.
  */
 export async function assertQuoteVisibleToCaller(
   req: any,
@@ -54,40 +57,37 @@ export async function assertQuoteVisibleToCaller(
   const logger: any = req.scope.resolve(ContainerRegistrationKeys.LOGGER)
   const quoteStoreId = quote?.store_id ?? null
 
+  const refuse = (why: string): never => {
+    // Logged as a refusal, not an error: the common cause is a link forwarded
+    // to the wrong shop, not an attack. It still must not render.
+    logger?.warn?.(`[quote] read REFUSED for ${quote?.id}: ${why}`)
+    throw new MedusaError(MedusaError.Types.NOT_FOUND, "Quote not found")
+  }
+
   if (!quoteStoreId) {
-    logger?.warn?.(
-      `[quote] tenant check SKIPPED for ${quote?.id}: the quote has no store_id ` +
-        `(minted before the column). It will render on any storefront.`
-    )
-    return
+    // Pre-S15 rows had no store_id. Prod has none left; one appearing again
+    // means a mint path is dropping the column, not that a buyer is stuck.
+    refuse("the quote carries no store_id, so no storefront can own it")
   }
 
   const ctx = (req as any).publishable_key_context
   if (!ctx?.sales_channel_ids?.length) {
-    logger?.warn?.(
-      `[quote] tenant check SKIPPED for ${quote?.id}: the request carries no ` +
-        `publishable-key sales channels, so the calling store is unknown.`
-    )
-    return
+    // Core rejects a *missing* x-publishable-api-key with a 400 before the
+    // route runs, so reaching here means the key exists and resolves to no
+    // sales channel — the dangling key of #1397.
+    refuse("the calling key resolves to no sales channel, so the store is unknown")
   }
 
   const store = await getStoreFromPublishableKey(ctx, req.scope)
   if (!store?.id) {
-    logger?.warn?.(
-      `[quote] tenant check SKIPPED for ${quote?.id}: no store resolves from the ` +
-        `calling key's sales channels (${ctx.sales_channel_ids.join(",")}) — ` +
-        `the store is probably missing default_sales_channel_id.`
+    refuse(
+      `no store resolves from the calling key's sales channels ` +
+        `(${ctx.sales_channel_ids.join(",")}) — the store is probably missing ` +
+        `default_sales_channel_id`
     )
-    return
   }
 
   if (store.id !== quoteStoreId) {
-    // Logged as a refusal, not an error: the common cause is a link forwarded
-    // to the wrong shop, not an attack. It still must not render.
-    logger?.warn?.(
-      `[quote] cross-tenant read REFUSED: quote ${quote?.id} belongs to ` +
-        `${quoteStoreId}, requested through store ${store.id}.`
-    )
-    throw new MedusaError(MedusaError.Types.NOT_FOUND, "Quote not found")
+    refuse(`it belongs to ${quoteStoreId}, requested through store ${store.id}`)
   }
 }
