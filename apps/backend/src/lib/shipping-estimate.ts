@@ -1,5 +1,11 @@
 import { ContainerRegistrationKeys, MedusaError, Modules } from "@medusajs/framework/utils"
 
+import { isInternationalDestination } from "../modules/shipping-providers/destination"
+import {
+  parseExportOrigins,
+  rateWithOriginFallback,
+  type ExportOrigin,
+} from "../modules/shipping-providers/export-origins"
 import { resolveShippingProvider } from "../modules/shipping-providers/resolver"
 
 /**
@@ -61,6 +67,13 @@ export type ShippingEstimateInput = {
    */
   currency_code?: string
   carrier?: string
+  /**
+   * Override the configured HQ export origins (#1498). Omit in production —
+   * they come from `EXPORT_FALLBACK_ORIGINS` so a partner whose own pin
+   * becomes export-enabled starts winning with no deploy.
+   */
+  export_fallback_origins?: ExportOrigin[]
+
   /** The store whose default stock location is the origin. */
   store: { id?: string; default_location_id?: string | null }
 }
@@ -75,6 +88,24 @@ export type ShippingEstimateOption = {
   estimated_days?: number | null
   is_recommended?: boolean
   source: "manual" | "calculated"
+  /**
+   * How this number was actually routed (#1498). Present only on a relay —
+   * absent means the partner's own pin exported it directly.
+   *
+   * 🔑 It travels with the amount rather than being logged, because a landed
+   * price that is silently two legs is unauditable: nobody can later say why a
+   * Srinagar quote carries a Delhi courier or where the extra ₹206 came from,
+   * and the margin cannot be checked.
+   */
+  route?: {
+    via_hq: boolean
+    origin_pincode: string
+    origin_label: string | null
+    export_leg_amount: number
+    domestic_leg_amount: number | null
+    /** The relay is real but its first leg has no price — an under-quote. */
+    domestic_leg_unrated: boolean
+  }
 }
 
 export type ShippingEstimateLine = {
@@ -417,57 +448,130 @@ export async function buildShippingEstimate(
   }
 
   const weightBucket = weightBucketGrams(totalWeightGrams)
-  const cacheKey = `shipping-estimate:${carrier}:${originPostalCode}:${destinationPostalCode}:${countryCode}:${weightBucket}`
 
-  // 🔑 Carrier rates do NOT depend on the quote currency — the carrier answers
-  // in its own — so the cache holds them UNFILTERED and the currency guard is
-  // applied on both the hit and the miss path. Caching the filtered list under
-  // a key with no currency in it would serve an INR quote's survivors to a EUR
-  // one, which is the bug the guard exists to prevent, reintroduced through the
-  // cache.
+  /**
+   * 🔑 The origin is no longer necessarily the partner's pin (#1498).
+   *
+   * A partner in Srinagar cannot export: 190001 → NL is a 400, *no serviceable
+   * couriers*, so the lane dropped to the flat fallback — which is one number
+   * whatever the parcel weighs. That is the whole reason international freight
+   * read flat at any weight. Delhi HQ rates the same parcel at ₹1,276 across 8
+   * couriers, and the goods route through a warehouse anyway.
+   *
+   * The loop lives ABOVE the provider on purpose: "retry from an HQ origin" is
+   * a fact about how we move goods, not about Shiprocket, and Blue Dart / DTDC
+   * / DHL slot into the same call as each gains a rate API. See
+   * `shipping-providers/export-origins.ts` for the two traps it is built around.
+   *
+   * Exports only. Relaying a Srinagar → Mumbai parcel through Delhi is not
+   * something we do, and asking would spend carrier calls to learn it.
+   */
+  const hqOrigins = isInternationalDestination(countryCode)
+    ? input.export_fallback_origins ??
+      parseExportOrigins(process.env.EXPORT_FALLBACK_ORIGINS)
+    : []
+
   let rawCalculated: ShippingEstimateOption[] = []
   let calculatedError: string | null = null
   let cacheHit = false
 
   const cacheService: any = scope.resolve(Modules.CACHE)
-  const cached = await cacheService.get(cacheKey).catch(() => null)
-  if (cached) {
-    rawCalculated = cached as ShippingEstimateOption[]
-    cacheHit = true
-  } else {
-    try {
-      const provider = await resolveShippingProvider(scope, carrier)
-      if (!provider.getRates) {
-        throw new MedusaError(
-          MedusaError.Types.NOT_ALLOWED,
-          `${carrier} does not support rate quotes`
-        )
-      }
-      const rates = await provider.getRates({
-        origin_pincode: originPostalCode,
-        destination_pincode: destinationPostalCode,
-        destination_country: countryCode,
-        weight_grams: weightBucket,
-      })
-      rawCalculated = (rates || [])
-        .map((r: any) => ({
-          courier_id: r.courier_id ?? null,
-          courier_name: r.courier_name ?? null,
-          amount: Number(r.amount),
-          currency_code: String(r.currency_code || "inr").toLowerCase(),
-          estimated_days: r.estimated_days ?? null,
-          is_recommended: !!r.is_recommended,
-          source: "calculated" as const,
-        }))
-      await cacheService.set(cacheKey, rawCalculated, 900).catch(() => {})
-    } catch (err) {
-      // A carrier that will not quote must not blank the whole estimate — the
-      // manual options are still a real, quotable answer.
-      calculatedError = err instanceof Error ? err.message : String(err)
-      logger?.warn?.(
-        `[shipping-estimate] ${carrier} rates failed for ${originPostalCode}->${destinationPostalCode}: ${calculatedError}`
+
+  /**
+   * One carrier call per LEG, cached per leg.
+   *
+   * 🔑 Per-leg rather than per-quote: `110032 → NL at 1.2 kg` is the same
+   * question for every partner on the platform, so the second partner to quote
+   * that lane pays nothing for it. A cache keyed on the whole route would miss
+   * every time the first leg differed.
+   *
+   * 🔑 Held UNFILTERED by currency — the carrier answers in its own, and the
+   * guard is applied on both the hit and the miss path. Caching the filtered
+   * list under a key with no currency in it would serve an INR quote's
+   * survivors to a EUR one, which is the bug the guard exists to prevent,
+   * reintroduced through the cache.
+   */
+  const rateLeg = async (q: {
+    origin_pincode: string
+    destination_pincode: string
+    destination_country?: string
+    weight_grams: number
+  }): Promise<any[]> => {
+    const legKey =
+      `shipping-estimate:${carrier}:${q.origin_pincode}:` +
+      `${q.destination_pincode}:${q.destination_country || ""}:${q.weight_grams}`
+    const hit = await cacheService.get(legKey).catch(() => null)
+    if (hit) {
+      cacheHit = true
+      return hit as any[]
+    }
+    const provider = await resolveShippingProvider(scope, carrier)
+    if (!provider.getRates) {
+      throw new MedusaError(
+        MedusaError.Types.NOT_ALLOWED,
+        `${carrier} does not support rate quotes`
       )
     }
+    const rates = (await provider.getRates(q)) || []
+    await cacheService.set(legKey, rates, 900).catch(() => {})
+    return rates
+  }
+
+  try {
+    const routes = await rateWithOriginFallback({
+      partnerOrigin: originPostalCode,
+      hqOrigins,
+      destinationPincode: destinationPostalCode,
+      destinationCountry: countryCode,
+      weightGrams: weightBucket,
+      rate: rateLeg,
+      // Filtered downstream against the quote currency, so the fallback keeps
+      // every currency and lets the existing guard do the dropping and the
+      // logging in one place.
+      currencyCode: null,
+      chargeDomesticLeg: process.env.EXPORT_FIRST_LEG_IS_SUNK !== "true",
+      logger,
+    })
+
+    if (!routes.length && hqOrigins.length) {
+      // Distinguishable in the log from "we never tried": an operator needs to
+      // know the relay was attempted and refused, not that it is unconfigured.
+      logger?.warn?.(
+        `[shipping-estimate] no origin could rate ${originPostalCode} -> ` +
+          `${countryCode}, including ${hqOrigins.length} HQ pin(s).`
+      )
+    }
+
+    rawCalculated = routes.map((r) => ({
+      courier_id: r.courier_id,
+      courier_name: r.courier_name,
+      amount: r.total_amount,
+      currency_code: r.currency_code,
+      estimated_days: r.estimated_days,
+      is_recommended: r.is_recommended,
+      source: "calculated" as const,
+      // 🔑 The route travels WITH the number. A landed price that is silently
+      // two legs is unauditable: nobody can later say why a Srinagar quote
+      // carries a Delhi courier, or where the extra ₹206 came from.
+      route:
+        r.via_hq || r.domestic_leg
+          ? {
+              via_hq: r.via_hq,
+              origin_pincode: r.origin_pincode,
+              origin_label: r.origin_label,
+              export_leg_amount: r.export_leg.amount,
+              domestic_leg_amount: r.domestic_leg?.amount ?? null,
+              domestic_leg_unrated: r.domestic_leg_unrated,
+            }
+          : undefined,
+    }))
+  } catch (err) {
+    // A carrier that will not quote must not blank the whole estimate — the
+    // manual options are still a real, quotable answer.
+    calculatedError = err instanceof Error ? err.message : String(err)
+    logger?.warn?.(
+      `[shipping-estimate] ${carrier} rates failed for ${originPostalCode}->${destinationPostalCode}: ${calculatedError}`
+    )
   }
 
   /**
