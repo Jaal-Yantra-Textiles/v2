@@ -290,6 +290,21 @@ const PartnerQuote = model.define("partner_quote", {
    */
   status: model.enum(["active", "revoked", "superseded"]).default("active"),
   expires_at: model.dateTime().nullable(),
+  /**
+   * When this quote was last corrected in place, or null if never.
+   *
+   * 🔑 Deliberately NOT a status. An adjusted quote is still `active` — that is
+   * the entire point of adjusting rather than re-minting. A new enum value
+   * would need a migration AND would make every existing `status=active`
+   * filter silently stop seeing corrected quotes, which is the opposite of
+   * what an operator wants.
+   *
+   * Before this existed, correcting a mis-quoted freight meant revoke +
+   * re-mint: the buyer got an email with a NEW quote number for what was only
+   * ever a correction to the one they were already reading. The link is stable
+   * across an adjustment.
+   */
+  adjusted_at: model.dateTime().nullable(),
 
   // ===== Engagement (fire-and-forget; tracking must never 500 a buyer) =====
   viewed_at: model.dateTime().nullable(),
