@@ -661,13 +661,21 @@ async function initPartner() {
 
 function updateLogoPreview(url) {
   const img = $("pt-logo-preview");
-  if (url && /^https?:\/\//.test(url)) {
-    img.src = url;
-    img.hidden = false;
-    img.onerror = () => { img.hidden = true; };
-  } else {
-    img.hidden = true;
+  const value = (url || "").trim();
+
+  try {
+    const parsed = new URL(value);
+    if (parsed.protocol === "http:" || parsed.protocol === "https:") {
+      img.src = parsed.href;
+      img.hidden = false;
+      img.onerror = () => { img.hidden = true; };
+      return;
+    }
+  } catch (_) {
+    // Invalid URL; fall through to hide preview.
   }
+
+  img.hidden = true;
 }
 
 // ── Boot ─────────────────────────────────────────────────────────────────────
