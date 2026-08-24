@@ -9,6 +9,7 @@ import { DataGridNumberCell } from "../../../../components/data-grid/components/
 import { DataGridReadonlyCell } from "../../../../components/data-grid/components/data-grid-readonly-cell"
 import { createDataGridHelper } from "../../../../components/data-grid/helpers/create-data-grid-column-helper"
 import { useProducts } from "../../../../hooks/api/products"
+import { AdminLineDesignsPanel } from "../line-designs-panel"
 import { AdminQuoteCreateSchemaType } from "../schema"
 
 type Props = { form: UseFormReturn<AdminQuoteCreateSchemaType> }
@@ -239,6 +240,13 @@ export const QuantitiesStep = ({ form }: Props) => {
         }
         state={form}
       />
+
+      {/*
+        Below the grid, not inside it (#1501): a design is picked from hundreds
+        by NAME, which is a search, and the grid is a numeric keyboard surface
+        whose arrow-key navigation a combobox would fight.
+      */}
+      <AdminLineDesignsPanel form={form} products={selected} />
     </div>
   )
 }

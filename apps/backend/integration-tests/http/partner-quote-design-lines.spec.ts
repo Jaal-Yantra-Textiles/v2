@@ -151,6 +151,95 @@ setupSharedTestSuite(() => {
       expect(String(err.data?.message ?? "")).toContain("does not exist")
     })
 
+
+    it("🔴 attaches a design to a line picked as a PRODUCT (#1501)", async () => {
+      // The other half of #1486. `design_by_variant` has always been frozen
+      // onto the line, but only the design PICKER could write it — a line found
+      // the ordinary way, in the product table, could never be told what it was
+      // made to. Both ids on one line: the variant prices it, the design says
+      // what it is.
+      const { api } = getSharedTestEnv()
+      const res = await api.post(
+        "/partners/quotes",
+        mintBody(seed, {
+          buyer_email: `attach-${seed.unique}@jaalyantra.test`,
+          lines: [
+            { variant_id: seed.variantB.id, design_id: sketchDesignId, quantity: 10 },
+          ],
+        }),
+        { headers: seed.headers }
+      )
+
+      expect(res.status).toBe(201)
+
+      const query: any = container().resolve(ContainerRegistrationKeys.QUERY)
+      const { data } = await query.graph({
+        entity: "partner_quote",
+        fields: ["id", "lines.variant_id", "lines.design_id"],
+        filters: { id: res.data.quote.id },
+      })
+      const line = ((data?.[0] as any)?.lines ?? [])[0]
+
+      // 🔑 The variant is NOT moved to whatever the design resolves to.
+      expect(line.variant_id).toBe(seed.variantB.id)
+      expect(line.design_id).toBe(sketchDesignId)
+    })
+
+    it("accepts an UNBACKED design as provenance — visibility, not resolvability", async () => {
+      // `sketchDesignId` has no product behind it, so quoting it ALONE is
+      // refused two tests above. Once the variant is chosen, "which design is
+      // this" has a perfectly good answer, and refusing it would block the
+      // ordinary case of recording the sketch a catalogue product was made
+      // from. Covered by the test above; this pins the asymmetry explicitly.
+      const { api } = getSharedTestEnv()
+      const err = await api
+        .post(
+          "/partners/quotes",
+          mintBody(seed, {
+            buyer_email: `sketch-alone-${seed.unique}@jaalyantra.test`,
+            lines: [{ design_id: sketchDesignId, quantity: 10 }],
+          }),
+          { headers: seed.headers }
+        )
+        .catch((e: any) => e.response)
+
+      expect(err.status).toBe(400)
+      expect(String(err.data?.message ?? "")).toContain("no product behind it")
+    })
+
+    it("🔴 refuses ANOTHER partner's design even on a line that names its variant (#1501)", async () => {
+      // The hole. A line with a variant skipped design resolution entirely, so
+      // any string at all could be frozen onto a commercial document as its
+      // design — including another partner's design id. Nothing renders it
+      // today, which is the only reason it was not a leak; an unchecked foreign
+      // id on a signed document is the #1496 family.
+      const { api } = getSharedTestEnv()
+      const service: any = container().resolve(DESIGN_MODULE)
+      const other = await service.createDesigns({
+        name: "Not ours either",
+        description: "owned by another partner",
+        owner_partner_id: "part_also_not_ours",
+      })
+      const otherId = (Array.isArray(other) ? other[0] : other).id
+
+      const err = await api
+        .post(
+          "/partners/quotes",
+          mintBody(seed, {
+            buyer_email: `foreign-attach-${seed.unique}@jaalyantra.test`,
+            lines: [
+              { variant_id: seed.variantA.id, design_id: otherId, quantity: 10 },
+            ],
+          }),
+          { headers: seed.headers }
+        )
+        .catch((e: any) => e.response)
+
+      expect(err.status).toBe(400)
+      // The same words a missing design gets, so an id cannot be probed for
+      // existence by attaching it to a line that already has its variant.
+      expect(String(err.data?.message ?? "")).toContain("does not exist")
+    })
     it("the readiness preflight REPORTS an unquotable design instead of throwing", async () => {
       const { api } = getSharedTestEnv()
       const body = mintBody(seed, {

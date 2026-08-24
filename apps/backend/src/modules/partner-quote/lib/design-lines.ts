@@ -44,6 +44,15 @@ export type DesignVariantCandidate = {
 export type DesignResolution = {
   design_id: string
   design_name: string | null
+  /**
+   * The design is real AND this caller may quote it. False answers "not yours"
+   * and "not there" identically, deliberately, so an id cannot be probed.
+   *
+   * 🔑 Distinct from `variant_id`: a design can be perfectly visible and still
+   * not resolvable (no product behind it, or sold as several variants). A line
+   * that already names its variant needs only the first fact.
+   */
+  visible: boolean
   /** The one variant to quote through, or null when that is not decidable. */
   variant_id: string | null
   /** Everything it COULD be quoted through. One entry means resolved. */
@@ -114,6 +123,7 @@ export async function resolveDesignVariants(
       out.set(designId, {
         design_id: designId,
         design_name: null,
+        visible: false,
         variant_id: null,
         candidates: [],
         reason: `Design ${designId} does not exist.`,
@@ -126,6 +136,7 @@ export async function resolveDesignVariants(
     out.set(designId, {
       design_id: designId,
       design_name: design.name ?? null,
+      visible: true,
       variant_id: candidates.length === 1 ? candidates[0].variant_id : null,
       candidates,
       reason:
@@ -278,14 +289,35 @@ export function applyDesignResolutions(
     const designId = line.design_id ? String(line.design_id) : null
     if (!designId) return line
 
-    if (line.variant_id) {
-      // Both given — the design is provenance, the variant is the choice.
-      return line
-    }
-
     const resolution = resolutions.get(designId)
     if (!resolution) {
       errors.push(`Design ${designId} could not be looked up.`)
+      return line
+    }
+
+    if (line.variant_id) {
+      /**
+       * Both given — the design is provenance, the variant is the choice
+       * (#1501). The variant is NEVER overwritten: attaching a design to a
+       * line the partner already chose must not silently move the line to a
+       * different SKU.
+       *
+       * 🔴 But it is still asserted VISIBLE, which it was not before. A line
+       * that named its own variant skipped design resolution entirely, so any
+       * string at all could be frozen onto a commercial document as its
+       * design — including another partner's design id. Nothing rendered it,
+       * which is the only reason it was not a leak; an unchecked foreign id on
+       * a signed document is the #1496 family and does not get to wait for a
+       * renderer to make it real.
+       *
+       * Visibility, not resolvability: a design with no product behind it, or
+       * one sold as several variants, is a perfectly good ANSWER to "which
+       * design is this" once the variant is already chosen. Only the resolving
+       * path needs it narrowed to one.
+       */
+      if (!resolution.visible) {
+        errors.push(resolution.reason ?? `Design ${designId} does not exist.`)
+      }
       return line
     }
 
@@ -311,7 +343,10 @@ export async function resolveQuoteDesignLines(
   input: { lines: QuoteLineInput[]; partner_id?: string | null }
 ): Promise<QuoteLineInput[]> {
   const designIds = (input.lines ?? [])
-    .filter((l) => l?.design_id && !l?.variant_id)
+    // EVERY design named, not only the ones being resolved TO a variant: a
+    // line that already has its variant still has to prove the design it
+    // claims is one this caller may quote (#1501).
+    .filter((l) => l?.design_id)
     .map((l) => String(l.design_id))
 
   if (!designIds.length) return input.lines ?? []
@@ -357,7 +392,10 @@ export async function resolveDesignLinesForReadiness(
   }>
 }> {
   const designIds = (input.lines ?? [])
-    .filter((l) => l?.design_id && !l?.variant_id)
+    // EVERY design named, not only the ones being resolved TO a variant: a
+    // line that already has its variant still has to prove the design it
+    // claims is one this caller may quote (#1501).
+    .filter((l) => l?.design_id)
     .map((l) => String(l.design_id))
 
   if (!designIds.length) return { lines: input.lines ?? [], issues: [] }
@@ -369,9 +407,28 @@ export async function resolveDesignLinesForReadiness(
 
   const { lines } = applyDesignResolutions(input.lines, resolutions)
 
+  /**
+   * Two different questions, so two different tests (#1501).
+   *
+   * A design on a line with NO variant must resolve to exactly one — that is
+   * the whole job. A design attached to a line that already names its variant
+   * only has to be one this caller may quote: "sold as 3 variants" is a fine
+   * answer to "which design is this" when the variant is already chosen, and
+   * reporting it as blocking would invent a problem the partner cannot fix
+   * and did not have.
+   */
+  const resolvingIds = new Set(
+    (input.lines ?? [])
+      .filter((l) => l?.design_id && !l?.variant_id)
+      .map((l) => String(l.design_id))
+  )
+
   const issues = designIds
     .map((id) => resolutions.get(id))
-    .filter((r): r is DesignResolution => Boolean(r) && !r!.variant_id)
+    .filter((r): r is DesignResolution => {
+      if (!r) return false
+      return resolvingIds.has(r.design_id) ? !r.variant_id : !r.visible
+    })
     .map((r) => ({
       code: "design_unresolved" as const,
       severity: "blocking" as const,
