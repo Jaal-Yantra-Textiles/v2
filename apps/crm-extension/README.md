@@ -1,6 +1,8 @@
 # JYT CRM Capture — Chrome extension
 
-Capture a contact from any web page into the JYT CRM in two clicks.
+Capture a contact from any web page into the JYT CRM in two clicks, or inject
+inspiration images from any page (Pinterest, fabric sites, lookbooks) directly
+into a design's Excalidraw moodboard.
 
 No build step, no dependencies, no bundler. It is plain ES modules that Chrome
 loads directly, so what you read here is exactly what runs.
@@ -69,6 +71,8 @@ capture-only credential. Both are follow-ups, not v0.1.
 
 ## Endpoints used
 
+### Contact capture
+
 - `POST /admin/crm/people` — creates the contact
 - `POST /admin/crm/notes` — attaches the note (best-effort; a failed note never
   reads as a failed capture)
@@ -76,6 +80,23 @@ capture-only credential. Both are follow-ups, not v0.1.
 Contacts are stamped `metadata.source = "extension"` with the page URL and
 title, so a captured contact is traceable to where it came from — the same way
 an imported ad-lead carries its campaign.
+
+### Moodboard inject
+
+- `GET /admin/designs` — list designs (paginated, searchable) for the table
+- `POST /admin/medias` — multipart upload: creates a folder named
+  `Design: <name> — moodboard` and uploads the selected images into it
+- `POST /admin/designs/:id/link-media-folder` — links the new folder to the
+  design (best-effort; the injection still succeeds if this fails)
+- `GET /admin/designs/:id?fields=moodboard` — reads the current Excalidraw
+  scene
+- `PUT /admin/designs/:id` — saves the updated moodboard with new image
+  elements appended to the right of existing elements
+
+Images are uploaded through the backend (multipart), so the S3 host never
+needs to be in the manifest's `host_permissions`. The Excalidraw scene gets a
+new `files[fileId]` entry per image (with `dataURL` set to the uploaded CDN URL)
+and a matching `image` element with `status: "saved"`.
 
 ## Safari
 
@@ -97,3 +118,10 @@ a paid Apple Developer account, which is why Chrome ships first.
   extension does not warn you in advance.
 - Chrome refuses script injection on `chrome://` pages, the Web Store and PDFs.
   The popup says so rather than failing silently.
+- Moodboard inject fetches images from the page context. Cross-origin images
+  without CORS headers (rare for CDNs like `i.pinimg.com` which send them) fall
+  back to a canvas draw; if that also fails the image is skipped.
+- New moodboard images are appended to the right of existing elements at a
+  fixed 300px width. Resizing and positioning happen in the admin editor.
+- No duplicate image detection — if you inject the same image twice it appears
+  twice. The folder upload itself does dedupe by filename though.
