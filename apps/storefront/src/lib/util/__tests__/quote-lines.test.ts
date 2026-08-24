@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest"
 import {
   buildDialHref,
   buildQuotedHref,
+  otherVariantLabel,
   parseDialledLines,
   serialiseDialledLines,
 } from "../quote-lines"
@@ -113,5 +114,52 @@ describe("buildQuotedHref", () => {
     expect(buildQuotedHref({ countryCode: "in", token: "tok_abc" })).toBe(
       "/in/quotes/tok_abc"
     )
+  })
+})
+
+/**
+ * "Also made in" pills.
+ *
+ * The label is the only part of a sibling variant that is not already true of
+ * the quoted one. Tested because the failure is silent in both directions: too
+ * eager and the pill says nothing the buyer can act on, too shy and five
+ * 45-character titles wrap to one per line and the difference is off the end of
+ * each.
+ */
+describe("otherVariantLabel", () => {
+  const QUOTED = "Pattern 1 - Blue/Mustard/Cream/Grey / HandSpun"
+
+  it("keeps only the option that differs", () => {
+    expect(
+      otherVariantLabel(QUOTED, "Pattern 1 - Blue/Mustard/Cream/Grey / MilSpun")
+    ).toBe("MilSpun")
+  })
+
+  it("keeps the pattern when that is what changed", () => {
+    expect(
+      otherVariantLabel(QUOTED, "Pattern 2 - Mustard/Dusty Blue/Grey / HandSpun")
+    ).toBe("Pattern 2 - Mustard/Dusty Blue/Grey")
+  })
+
+  it("keeps both segments when both differ", () => {
+    expect(
+      otherVariantLabel(QUOTED, "Pattern 3 - Blue/Yellow/Grey/Cream / MilSpun")
+    ).toBe("Pattern 3 - Blue/Yellow/Grey/Cream / MilSpun")
+  })
+
+  it("does not split on a slash inside one option value", () => {
+    expect(otherVariantLabel("Red/Blue", "Green/Blue")).toBe("Green/Blue")
+  })
+
+  it("🔴 falls back to the whole title rather than rendering an empty pill", () => {
+    // Same title, different variant: they differ on something this string does
+    // not spell out. An empty pill would read as a rendering fault.
+    expect(otherVariantLabel(QUOTED, QUOTED)).toBe(QUOTED)
+  })
+
+  it("survives a line with no variant title at all", () => {
+    expect(otherVariantLabel(null, "HandSpun")).toBe("HandSpun")
+    expect(otherVariantLabel(QUOTED, null)).toBe("Another finish")
+    expect(otherVariantLabel(QUOTED, "   ")).toBe("Another finish")
   })
 })

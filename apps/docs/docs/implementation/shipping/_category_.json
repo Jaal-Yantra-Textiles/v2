@@ -1,0 +1,8 @@
+{
+  "label": "Shipping & Freight",
+  "position": 12,
+  "link": {
+    "type": "generated-index",
+    "description": "How a freight number is produced: which origin is rated, which options survive, and what currency the buyer is shown."
+  }
+}

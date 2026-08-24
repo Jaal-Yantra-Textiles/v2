@@ -33,6 +33,54 @@
 
 export type DialledLine = { variant_id: string; quantity: number }
 
+/** How Medusa joins option values into a variant title. */
+const VARIANT_OPTION_SEPARATOR = " / "
+
+/**
+ * The part of a sibling variant's title that is not already true of the quoted
+ * one — the label for an "Also made in" pill.
+ *
+ * On a real catalogue these titles are option joins that agree for most of
+ * their length: `Pattern 1 - Blue/Mustard/Cream/Grey / HandSpun` beside
+ * `Pattern 1 - Blue/Mustard/Cream/Grey / MilSpun`. Rendered whole they are ~45
+ * characters each, so five of them wrap to one per line inside a table cell —
+ * a vertical column of boxes — and the single word that distinguishes them sits
+ * at the far end of each, past where the eye stops.
+ *
+ * So the segments the quoted variant already carries are dropped and what is
+ * left is shown. The pill then says the only thing it is on the page to say.
+ *
+ * 🔑 Never returns empty. Two variants can differ on an option the title does
+ * not spell out, and an empty pill would read as a rendering fault while
+ * hiding a genuine alternative — so the full title is the fallback.
+ */
+export const otherVariantLabel = (
+  quotedTitle: string | null | undefined,
+  otherTitle: string | null | undefined
+): string => {
+  const other = String(otherTitle ?? "").trim()
+  if (!other) {
+    return "Another finish"
+  }
+
+  const quotedSegments = new Set(
+    String(quotedTitle ?? "")
+      .split(VARIANT_OPTION_SEPARATOR)
+      .map((segment) => segment.trim())
+      .filter(Boolean)
+  )
+
+  const distinguishing = other
+    .split(VARIANT_OPTION_SEPARATOR)
+    .map((segment) => segment.trim())
+    .filter(Boolean)
+    .filter((segment) => !quotedSegments.has(segment))
+
+  return distinguishing.length
+    ? distinguishing.join(VARIANT_OPTION_SEPARATOR)
+    : other
+}
+
 /**
  * Read the dial out of a search param.
  *
