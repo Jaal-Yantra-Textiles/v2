@@ -71,7 +71,7 @@ describe("weightBucketGrams", () => {
   })
 })
 
-describe("convertCalculatedRates — the drop that guaranteed flat freight (#1502)", () => {
+describe("convertCalculatedRates — the drop that guaranteed flat freight (#1498)", () => {
   const inr = (amount: number) => ({
     courier_name: "SRX",
     amount,

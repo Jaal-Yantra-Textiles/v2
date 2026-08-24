@@ -196,7 +196,24 @@ export async function resolveCoreExportOrigins(scope: any): Promise<ExportOrigin
     })
 
     return coreOriginsFromLocations((locations ?? []) as any[])
-  } catch {
+  } catch (e: any) {
+    // 🔴 Logged, never silent. A swallowed lookup failure here degrades to
+    // "no fallback available", which looks EXACTLY like "correctly configured
+    // and not needed" — so the one signal that the feature is broken would be
+    // the absence of a signal.
+    try {
+      const { ContainerRegistrationKeys } = await import(
+        "@medusajs/framework/utils"
+      )
+      scope
+        .resolve(ContainerRegistrationKeys.LOGGER)
+        ?.warn?.(
+          `[export-origins] could not read owned locations (${e?.message ?? e}); ` +
+            `no export fallback will be offered on this quote.`
+        )
+    } catch {
+      /* the logger itself is unavailable — nothing further to do */
+    }
     return []
   }
 }

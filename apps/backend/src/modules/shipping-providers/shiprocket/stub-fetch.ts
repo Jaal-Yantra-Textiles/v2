@@ -67,19 +67,78 @@ export function createShiprocketStubFetch(): FetchLike {
       return json({ order_id: 9101, shipment_id: 8101 })
     }
 
-    // International courier serviceability (#1111) — recommend an intl courier.
+    /**
+     * International courier serviceability (#1111), in the shape the LIVE API
+     * actually returns (#1498).
+     *
+     * 🔴 `rate` is an OBJECT — `{ rate, currency, extra_info: { edd } }` — not a
+     * number. This stub used to return a bare number, which meant no test could
+     * ever have caught the defect that made every international quote come out
+     * `0`: `Number({...})` is NaN. A fixture that is easier to read than the
+     * thing it stands for is a fixture that certifies the wrong code.
+     *
+     * 🔑 ORIGIN-SENSITIVE, because that is the whole subject of #1498. A pin
+     * that cannot export answers 200 with an empty list and a message, exactly
+     * as Shiprocket does — it is a refusal wearing a success code, which is why
+     * it was once read as "free shipping".
+     *
+     * The numbers are the live probe of 24 Aug 2026, 1.2 kg to NL:
+     *   190001 / 190003 Srinagar : no serviceable couriers
+     *   110096 JYT HQ Delhi      : 1276  (8 couriers live; 2 here)
+     *   176215 Dharamshala       : 2916  (1 courier)
+     *   anything else            : 1450  (the pre-existing default)
+     */
     if (url.includes("/international/courier/serviceability")) {
+      const origin = new URL(url, "https://stub.local").searchParams.get(
+        "pickup_postcode"
+      )
+
+      if (origin === "190001" || origin === "190003") {
+        return json({
+          message: "No serviceable couriers available for given weight.",
+          data: { available_courier_companies: [] },
+        })
+      }
+
+      const intlRate = (id: number, name: string, amount: number) => ({
+        courier_company_id: id,
+        courier_name: name,
+        rate: {
+          rate: amount,
+          currency: "INR",
+          zone: "default",
+          extra_info: { edd: { from: 4, to: 6 } },
+        },
+      })
+
+      if (origin === "110096") {
+        return json({
+          data: {
+            recommended_courier_company_id: 326,
+            available_courier_companies: [
+              intlRate(326, "India Post EMS Merchandise", 1276),
+              intlRate(35, "Aramex International", 2916),
+            ],
+          },
+        })
+      }
+
+      if (origin === "176215") {
+        return json({
+          data: {
+            recommended_courier_company_id: 35,
+            available_courier_companies: [
+              intlRate(35, "Aramex International", 2916),
+            ],
+          },
+        })
+      }
+
       return json({
         data: {
           recommended_courier_company_id: 301,
           available_courier_companies: [
-            {
-              courier_company_id: 301,
-              courier_name: "DHL Express Intl",
-              rate: 1450,
-              currency: "INR",
-              estimated_delivery_days: "6",
-            },
+            intlRate(301, "DHL Express Intl", 1450),
           ],
         },
       })
