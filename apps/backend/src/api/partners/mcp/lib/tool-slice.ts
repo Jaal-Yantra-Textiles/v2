@@ -79,6 +79,9 @@ const PREFIX_DOMAINS: ReadonlyArray<readonly [string, PartnerToolDomain]> = [
   ["/partners/product-tags", "catalog"],
   ["/partners/product-types", "catalog"],
   ["/partners/price-preferences", "catalog"],
+  // The curated colour palette is the vocabulary for add_product_option, so it
+  // has to be loaded on the same turn the model reaches for that tool.
+  ["/partners/option-palettes", "catalog"],
   // discover = "copy a product from another store into mine" — it operates on
   // the partner's catalog, so it belongs here next to create_product.
   ["/partners/discover", "catalog"],
