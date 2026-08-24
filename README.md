@@ -130,6 +130,9 @@ We love contributions! Here's how:
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
 
+By participating in this project, you agree to abide by our
+[Code of Conduct](CODE_OF_CONDUCT.md).
+
 ---
 
 ## License
