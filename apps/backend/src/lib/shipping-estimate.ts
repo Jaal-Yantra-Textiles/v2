@@ -1,5 +1,6 @@
 import { ContainerRegistrationKeys, MedusaError, Modules } from "@medusajs/framework/utils"
 
+import { planShippingFxConversion } from "../modules/partner_billing/shipping-ledger"
 import { isInternationalDestination } from "../modules/shipping-providers/destination"
 import {
   rateWithOriginFallback,
@@ -88,6 +89,21 @@ export type ShippingEstimateOption = {
   estimated_days?: number | null
   is_recommended?: boolean
   source: "manual" | "calculated"
+  /**
+   * Set when this amount was CONVERTED from the carrier's own currency (#1502).
+   *
+   * 🔑 The rate travels with the number rather than being logged. A converted
+   * price that records only its result cannot be reproduced once FX has moved,
+   * so nobody can later check whether a quote was priced honestly — which is
+   * the whole objection that kept these rates being dropped instead.
+   */
+  fx?: {
+    original_amount: number
+    original_currency_code: string
+    fx_rate: number
+    fx_source: "operator" | "fx_rates"
+    converted_at: string
+  }
   /**
    * How this number was actually routed (#1498). Present only on a relay —
    * absent means the partner's own pin exported it directly.
@@ -224,6 +240,82 @@ export function zoneCoversDestination(
   return zones.some(
     (g) => String(g?.country_code || "").toLowerCase() === target
   )
+}
+
+/**
+ * PURE (given a rate lookup): put every CALCULATED rate into the quote's
+ * currency, or drop the ones that cannot get there (#1502).
+ *
+ * Split out of `buildShippingEstimate` because this is the rule that decides a
+ * buyer's freight number, and a rule that can only be exercised through a
+ * container, a cache and a live carrier is a rule nothing checks.
+ *
+ * The `lookup` is injected for the same reason `resolveShippingFx` resolves the
+ * rate at the container edge: under module isolation the arithmetic and the
+ * rate cannot live in the same place, so the rate arrives as a finished fact.
+ */
+export async function convertCalculatedRates(args: {
+  rates: ShippingEstimateOption[]
+  /** The quote's currency, lower-case. Empty means "no target" — pass through. */
+  quoteCurrency: string
+  /** from-currency → rate, or null when no path exists. Called once per currency. */
+  lookup: (fromCurrency: string) => Promise<number | null>
+  convertedAt: string
+  logger?: { warn?: (m: string) => void }
+  /** Only for the log line. */
+  carrier?: string
+}): Promise<ShippingEstimateOption[]> {
+  const { rates, quoteCurrency, lookup, convertedAt, logger } = args
+  const out: ShippingEstimateOption[] = []
+  const cache = new Map<string, number | null>()
+
+  for (const r of rates ?? []) {
+    // No target currency means nothing to convert TO. Pass through rather than
+    // invent one — this is the `/store/shipping-estimate` single-currency case.
+    if (!quoteCurrency || r.currency_code === quoteCurrency) {
+      out.push(r)
+      continue
+    }
+
+    if (!cache.has(r.currency_code)) {
+      cache.set(r.currency_code, await lookup(r.currency_code))
+    }
+
+    const planned = planShippingFxConversion({
+      amount: r.amount,
+      currency_code: r.currency_code,
+      orderCurrency: quoteCurrency,
+      rate: cache.get(r.currency_code) ?? null,
+      source: "fx_rates",
+      convertedAt,
+    })
+
+    // 🔴 Still dropped when there is no rate. A cold FX cache must not become a
+    // guess: that is the one thing the original #1424 drop got right.
+    if (!planned) {
+      logger?.warn?.(
+        `[shipping-estimate] dropped ${args.carrier ?? "carrier"} rate ${r.amount} ` +
+          `${r.currency_code} — no rate to ${quoteCurrency}, and mixing currencies ` +
+          `would corrupt the landed total`
+      )
+      continue
+    }
+
+    out.push({
+      ...r,
+      amount: planned.amount,
+      currency_code: planned.currency_code.toLowerCase(),
+      fx: {
+        original_amount: planned.fx.original_amount,
+        original_currency_code: planned.fx.original_currency_code.toLowerCase(),
+        fx_rate: planned.fx.fx_rate,
+        fx_source: planned.fx.fx_source,
+        converted_at: planned.fx.converted_at,
+      },
+    })
+  }
+
+  return out
 }
 
 /**
@@ -579,32 +671,72 @@ export async function buildShippingEstimate(
   }
 
   /**
-   * 🔴 #1424's currency guard, which only ever covered the MANUAL branch.
+   * 🔴 #1424's currency guard — now a CONVERSION, not a drop (#1502).
    *
-   * Carriers quote in their OWN currency — an Indian carrier answers in INR
+   * ## What the guard was right about
+   *
+   * Carriers quote in their OWN currency: an Indian carrier answers in INR
    * whatever the buyer is being billed in. `pickFreightOption` sorts on the raw
    * `amount` and `composeQuoteMoney` adds it straight to the subtotal, so an
-   * INR rate on a EUR quote is not merely irrelevant: it silently WINS whenever
-   * its number is smaller, and is then added to a EUR total and rendered with a
-   * € sign.
+   * INR rate on a EUR quote is not merely irrelevant — it silently WINS
+   * whenever its number is smaller, and is then added to a EUR total and
+   * rendered with a € sign. Seen live: Srinagar → Berlin answered ₹3,788 /
+   * ₹5,232 / ₹14,436 alongside a €35 flat, and €35 "won" only because 35 is the
+   * smallest number.
    *
-   * Seen on the first live international quote (Srinagar → Berlin, 3 kg, EUR):
-   * Shiprocket answered ₹3,788 / ₹5,232.50 / ₹14,436 alongside a €35 flat.
-   * €35 won ONLY because 35 is the smallest number — take the flat option away
-   * and the buyer's landed total becomes €4,718 + 3,788 = €8,506.
+   * ## Why dropping them was not the end of it
    *
-   * Dropped rather than converted: converting needs an FX rate this function
-   * does not have, and a wrong rate is a wrong price wearing a confident label.
-   * Cross-border live rates in the buyer's own currency are a real gap, but a
-   * gap is recoverable and a mispriced consignment is not.
+   * The guard shipped as a drop, on the reasoning that converting needs an FX
+   * rate this function does not have and a wrong rate is a wrong price wearing
+   * a confident label. That was right about the danger and wrong about the
+   * remedy, and #1498 made the cost obvious:
+   *
+   * Every carrier rate for an export lane is in INR, so on a EUR quote the
+   * calculated list is ALWAYS empty and the flat manual row wins by WALKOVER —
+   * not by being cheaper, but by being the only survivor. That row is €35 at
+   * 3 kg and €35 at 22 kg. The measured cost of the same 3 kg lane is ₹4,057
+   * landed (≈ €43), and it rises with weight while €35 never moves. So the
+   * drop was quietly guaranteeing the "international freight is flat at any
+   * weight" defect it looked unrelated to.
+   *
+   * ## The rate comes from outside, and travels with the number
+   *
+   * Same shape as `resolveShippingFx` already uses for order freight, and the
+   * same pure `planShippingFxConversion` does the arithmetic and the
+   * minor-unit rounding — one FX path, not a second one to disagree with it.
+   * The rate, its source and the original amount are recorded on the option, so
+   * a converted price can be reproduced after FX has moved. That is what
+   * removes the "confident label" problem: the label now shows its working.
+   *
+   * 🔑 A rate that CANNOT be converted is still dropped, exactly as before. A
+   * cold FX cache must not become a guess.
+   *
+   * ⚠️ CALCULATED rates only. A manual option priced in another currency is a
+   * different offer the partner made to buyers billed in that currency;
+   * converting it would invent an offer nobody published. Those are filtered
+   * out further up, on the currency check beside the zone and rule checks.
    */
-  const calculated = rawCalculated.filter((r) => {
-    if (!quoteCurrency) return true
-    if (r.currency_code === quoteCurrency) return true
-    logger?.warn?.(
-      `[shipping-estimate] dropped ${carrier} rate ${r.amount} ${r.currency_code} — quote is in ${quoteCurrency}, and mixing currencies would corrupt the landed total`
-    )
-    return false
+  const calculated = await convertCalculatedRates({
+    rates: rawCalculated,
+    quoteCurrency,
+    convertedAt: new Date().toISOString(),
+    carrier,
+    logger,
+    lookup: async (from) => {
+      try {
+        const fx: any = scope.resolve("fx_rates")
+        const r = Number(await fx.getRate(from, quoteCurrency))
+        return Number.isFinite(r) && r > 0 ? r : null
+      } catch (e: any) {
+        // `getRate` throws NOT_FOUND when the cache has no path between the two
+        // currencies — a cold cache, or one the provider does not quote.
+        logger?.warn?.(
+          `[shipping-estimate] no ${from}->${quoteCurrency} rate (${e?.message}); ` +
+            `carrier rates in ${from} will be dropped rather than guessed.`
+        )
+        return null
+      }
+    },
   })
 
   return {
