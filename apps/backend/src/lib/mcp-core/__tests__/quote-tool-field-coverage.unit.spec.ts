@@ -184,11 +184,30 @@ describe("quote MCP tools — the body vocabulary matches its validators (#1439)
     })
   })
 
-  it("only the admin surface can revoke", () => {
-    // Revocation reaches across partners; it is not a partner's own tool.
-    expect(find(ADMIN_MCP_TOOLS as McpToolDef[], "revoke_quote").sensitive).toBe(true)
-    expect(
-      (PARTNER_MCP_TOOLS as McpToolDef[]).find((t) => t.name === "revoke_quote")
-    ).toBeUndefined()
+  /**
+   * This assertion used to read "only the admin surface can revoke", on the
+   * reasoning that revocation reaches across partners. That conflated the
+   * ADMIN ROUTE's reach with the capability: a partner withdrawing their OWN
+   * quote reaches nobody else, and denying it meant a mis-quote could only be
+   * corrected by re-minting — which emails the buyer a second number — or by
+   * waiting for expiry. #1517 built the route; the tool follows it.
+   */
+  it("both surfaces can revoke, and both treat it as sensitive", () => {
+    for (const tools of [ADMIN_MCP_TOOLS, PARTNER_MCP_TOOLS] as McpToolDef[][]) {
+      const tool = find(tools, "revoke_quote")
+      expect(tool.write).toBe(true)
+      // The buyer has already been told a number by the time anyone revokes.
+      expect(tool.sensitive).toBe(true)
+      // 🔴 No body on either. The dispatcher's body assembly is an allowlist
+      // walk, so a `reason` field the route never reads would be accepted,
+      // reported `ok: true`, and dropped in silence (#1348).
+      expect(tool.bodyParams).toBeUndefined()
+    }
+  })
+
+  it("the partner's revoke names no partner_id — it is scoped by the caller", () => {
+    // The single field that would let a partner reach another partner's quote.
+    const tool = find(PARTNER_MCP_TOOLS as McpToolDef[], "revoke_quote")
+    expect(Object.keys((tool.inputSchema as any).properties)).toEqual(["id"])
   })
 })

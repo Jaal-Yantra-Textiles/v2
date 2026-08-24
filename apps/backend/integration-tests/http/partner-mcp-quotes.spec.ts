@@ -110,6 +110,9 @@ setupSharedTestSuite(() => {
         "list_quotable_designs",
         "check_quote_readiness",
         "mint_quote",
+        // #1517: the withdraw half of the mint. Its absence is what made
+        // `mint_quote`'s guidance unexecutable.
+        "revoke_quote",
       ]) {
         expect(names).toContain(name)
       }
@@ -242,6 +245,45 @@ setupSharedTestSuite(() => {
       const byCompany = await call("list_quotes", { q: "MCP Buyer Pvt Ltd", limit: 50 })
       expect(byCompany.ok).toBe(true)
       expect((byCompany.data.quotes as any[]).some((q) => q.id === quote.id)).toBe(true)
+    })
+
+    /**
+     * 🔴 Mint then revoke in ONE test — same snapshot rule as the mint above.
+     *
+     * This is the tool #1452 asked for and #1517 built the route under. Its
+     * absence is why `mint_quote` shipped guidance telling the model to
+     * "revoke the old quote first": a prescribed action no tool on this
+     * surface could perform, which is #1394's shape exactly.
+     */
+    it("🔴 revoke_quote EXECUTES — the confirm rail fires, then the quote is revoked", async () => {
+      const minted = await call("mint_quote", {
+        ...basket({ buyer_email: `mcp-revoke-${seed.unique}@jaalyantra.test` }),
+        confirm: true,
+      })
+      expect(minted.ok).toBe(true)
+      const quoteId = minted.data?.quote?.id
+      expect(quoteId).toBeTruthy()
+
+      // `sensitive: true`: the buyer has already been told a number, and this
+      // deletes the price list behind it.
+      const gated = await call("revoke_quote", { id: quoteId })
+      expect(gated.requires_confirmation).toBe(true)
+      expect(gated.plan?.method).toBe("POST")
+      expect(gated.plan?.path).toBe(`/partners/quotes/${quoteId}/revoke`)
+
+      // Rehearsal only — nothing happened yet.
+      const stillActive = await call("get_quote", { id: quoteId })
+      expect(stillActive.data.quote.status).toBe("active")
+
+      const done = await call("revoke_quote", { id: quoteId, confirm: true })
+      expect(done.ok).toBe(true)
+      expect(done.data?.price_list_deleted).toBe(true)
+
+      // Asserted through the tool a model would actually read it back with,
+      // not on the revoke's own response — the route could report a revoke it
+      // did not persist and nothing here would differ.
+      const after = await call("get_quote", { id: quoteId })
+      expect(after.data.quote.status).toBe("revoked")
     })
 
     it("list_quotable_designs answers, so a design named in conversation can become a line", async () => {

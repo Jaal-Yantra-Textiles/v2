@@ -5649,6 +5649,20 @@ export default defineMiddlewares({
         validateAndTransformBody(wrapSchema(AdminQuoteReadinessReq)),
       ],
     },
+    // A partner withdraws their own quote (#1517). Registered BEFORE
+    // /partners/quotes/:id for the same reason `readiness` and `designs` are:
+    // this file's ordering is the contract, and a route that lands after the
+    // parameterised one is a support ticket waiting to be filed.
+    //
+    // No body validator: the route reads none, exactly as the admin twin does.
+    {
+      matcher: "/partners/quotes/:id/revoke",
+      method: "POST",
+      middlewares: [
+        createCorsPartnerMiddleware(),
+        authenticate("partner", ["session", "bearer"]),
+      ],
+    },
     {
       matcher: "/partners/quotes/:id",
       method: "GET",
