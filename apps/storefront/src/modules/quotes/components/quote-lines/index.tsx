@@ -1,8 +1,8 @@
-import { Text } from "@medusajs/ui"
+import { Badge, Text } from "@medusajs/ui"
 
 import { convertToLocale } from "@lib/util/money"
 import type { DialledLine } from "@lib/util/quote-lines"
-import { buildQuotedHref } from "@lib/util/quote-lines"
+import { buildQuotedHref, otherVariantLabel } from "@lib/util/quote-lines"
 import type { QuoteView, QuoteViewLine } from "@lib/data/quotes"
 import QuoteLineImage from "../quote-image"
 import QuoteLineSpecRows from "../quote-line-spec"
@@ -102,12 +102,17 @@ const LineRow = ({
                 Also made in:
               </Text>
               {line.other_variants.map((v) => (
-                <span
+                <Badge
                   key={v.id}
-                  className="rounded-full border border-ui-border-base px-2 py-0.5 txt-small text-ui-fg-subtle"
+                  size="2xsmall"
+                  className="whitespace-nowrap"
+                  /* The full title on hover: the label is deliberately only
+                     the difference, and a buyer comparing two finishes may
+                     want the whole name it belongs to. */
+                  title={v.title ?? undefined}
                 >
-                  {v.title ?? "Another finish"}
-                </span>
+                  {otherVariantLabel(line.variant_title, v.title)}
+                </Badge>
               ))}
               <Text className="txt-small text-ui-fg-muted w-full mt-1">
                 Ask your partner to quote one of these — this price covers the
