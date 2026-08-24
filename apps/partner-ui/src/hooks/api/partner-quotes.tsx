@@ -469,7 +469,10 @@ export const useRevokePartnerQuote = (
         `/partners/quotes/${id}/revoke`,
         { method: "POST" }
       ),
-    onSuccess: async (data, variables, context) => {
+    // Forwarded by spread rather than by naming three params: react-query's
+    // `onSuccess` takes four, and naming a subset is a type error the rest of
+    // this file already carries. Spreading passes whatever arity it has.
+    onSuccess: async (...args) => {
       await Promise.all([
         queryClient.invalidateQueries({
           queryKey: partnerQuotesQueryKeys.lists(),
@@ -478,7 +481,7 @@ export const useRevokePartnerQuote = (
           queryKey: partnerQuotesQueryKeys.detail(id),
         }),
       ])
-      options?.onSuccess?.(data, variables, context)
+      options?.onSuccess?.(...args)
     },
     ...options,
   })

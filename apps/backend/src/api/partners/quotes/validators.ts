@@ -268,6 +268,45 @@ export const PartnerMintQuoteShape = z.object({
   deposit_pct: z.number().min(0).max(100).nullish(),
 })
 
+/**
+ * Correct a quote in place, before the buyer accepts (adjustment).
+ *
+ * 🔑 Deliberately NOT the mint shape minus fields. An adjustment may only touch
+ * what lives on the quote ROW; the basket and its prices live in a minted price
+ * list guarded by the mint's re-read assertion, and a second way to write them
+ * is a second way to cut prices platform-wide. See `adjust-quote.ts`.
+ *
+ * ⚠️ `zodValidator` forces `.strict()`, so a field absent here does not merely
+ * get ignored — it never reaches the handler. Anything adjustable must be named.
+ */
+export const AdjustQuoteShape = z.object({
+  /**
+   * 🔴 `.positive()`, never `.min(0)`. A zero here is free international
+   * shipping typed by accident, and this system has already shipped bulk orders
+   * free once from a rule-gated `0` row (#1430). Send `null` to mean "leave it".
+   */
+  freight_amount: z.number().positive().nullish(),
+  /** Who quoted it and on what basis — evidence, like `duty_basis`. */
+  freight_basis: z.string().max(500).nullish(),
+  partner_note: z.string().max(5000).nullish(),
+  /** Absolute, not a delta. Moves the price list's `ends_at` with it. */
+  expires_at: z.coerce.date().nullish(),
+})
+
+export const AdjustQuoteReq = AdjustQuoteShape.refine(
+  (b) =>
+    b.freight_amount !== undefined ||
+    b.freight_basis !== undefined ||
+    b.partner_note !== undefined ||
+    b.expires_at !== undefined,
+  {
+    message:
+      "An adjustment must change something — send freight_amount, freight_basis, partner_note or expires_at.",
+  }
+)
+
+export type AdjustQuoteReqType = z.infer<typeof AdjustQuoteShape>
+
 export const PartnerMintQuoteReq = PartnerMintQuoteShape.superRefine(
   dutyUndertakingRefinement
 )

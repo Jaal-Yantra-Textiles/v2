@@ -306,7 +306,7 @@ import { BulkImportSchema } from "./admin/inventory-items/bulk-import/validators
 import { PartnerCreateStoreReq } from "./partners/stores/validators";
 import { PartnerCreateProductReq, PartnerArtisanProductDetailReq, PartnerProductSpecReq, PartnerStoreCreateProductReq, PartnerQuickCreateProductReq } from "./partners/products/validators";
 import { PartnerCreatePriceListReq, PartnerUpdatePriceListReq } from "./partners/price-lists/validators";
-import { PartnerMintQuoteReq, QuoteReadinessReq } from "./partners/quotes/validators";
+import { AdjustQuoteReq, PartnerMintQuoteReq, QuoteReadinessReq } from "./partners/quotes/validators";
 import { AdminMintQuoteReq, AdminQuoteReadinessReq } from "./admin/quotes/validators";
 import { BATCH_VARIANT_FIELDS } from "../workflows/partner/batch-partner-variants";
 import { StoreMadeToSpecReq } from "./store/carts/[id]/made-to-spec/validators";
@@ -5649,6 +5649,13 @@ export default defineMiddlewares({
         validateAndTransformBody(wrapSchema(AdminQuoteReadinessReq)),
       ],
     },
+    // An admin corrects any quote in place, before acceptance. Same body as the
+    // partner surface — the refusals live in `adjustQuote` so they cannot drift.
+    {
+      matcher: "/admin/quotes/:id/adjust",
+      method: "POST",
+      middlewares: [validateAndTransformBody(wrapSchema(AdjustQuoteReq))],
+    },
     // A partner withdraws their own quote (#1517). Registered BEFORE
     // /partners/quotes/:id for the same reason `readiness` and `designs` are:
     // this file's ordering is the contract, and a route that lands after the
@@ -5661,6 +5668,18 @@ export default defineMiddlewares({
       middlewares: [
         createCorsPartnerMiddleware(),
         authenticate("partner", ["session", "bearer"]),
+      ],
+    },
+    // A partner corrects their own quote in place, before acceptance.
+    // Registered BEFORE /partners/quotes/:id for the same ordering reason as
+    // revoke above — this file's order is the contract.
+    {
+      matcher: "/partners/quotes/:id/adjust",
+      method: "POST",
+      middlewares: [
+        createCorsPartnerMiddleware(),
+        authenticate("partner", ["session", "bearer"]),
+        validateAndTransformBody(wrapSchema(AdjustQuoteReq)),
       ],
     },
     {
