@@ -4241,7 +4241,7 @@ export const ADMIN_MCP_TOOLS: AdminMcpToolDef[] = [
   {
     name: "revoke_quote",
     description:
-      "Revoke a quote: expire its price list and make the buyer's link 404. Use it before re-quoting the same buyer, because two active lists on one customer group tie-break to the CHEAPEST and a re-quote at a higher price would hand them the old one (#1435).",
+      "Revoke a quote: delete its frozen price list and make the buyer's link 404. Use it to WITHDRAW a quote that should not stand — a wrong price, a wrong buyer, a wrong lane. It is no longer needed before re-quoting the same buyer: the mint supersedes their previous quote itself, which is what #1435 fixed. Re-minting to kill a quote emails the buyer a second number they never asked for; revoking does not.",
     method: "POST",
     path: "/admin/quotes/:id/revoke",
     pathParams: ["id"],

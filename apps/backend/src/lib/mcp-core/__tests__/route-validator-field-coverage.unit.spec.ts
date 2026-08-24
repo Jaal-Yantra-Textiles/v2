@@ -76,6 +76,14 @@ const NO_ROUTE_VALIDATOR = new Set<string>([
    * not inferred from the absence of a matcher.
    */
   "admin:revoke_quote",
+  /**
+   * The partner twin (#1517), for the same reason and verified the same way:
+   * the handler reads `req.params.id` and nothing else. Its ownership check is
+   * on the auth context rather than the body, so there is no body contract to
+   * bind here — `partner-mcp-quotes.spec.ts` proves the tool reaches the route,
+   * and `partner-quote-revoke.spec.ts` proves another partner's id 404s.
+   */
+  "partner:revoke_quote",
   // Core routes: core registers its own validator, so it never appears in this
   // repo's middlewares config. The four product/variant ones are contract-
   // checked against core's imported validators in the sibling spec.

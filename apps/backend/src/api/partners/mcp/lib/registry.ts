@@ -3400,6 +3400,27 @@ export const PARTNER_MCP_TOOLS: PartnerMcpToolDef[] = [
     ]),
     sideEffects:
       "Creates a customer-group-scoped price list with a real expiry, sends the buyer an email containing the only copy of the quote link, and makes the quote acceptable into a cart. Re-quoting the same buyer SUPERSEDES their previous quote: its price list is expired and its status becomes 'superseded', so the newest quote is the one that prices their cart. The buyer's older link stops working — do not re-mint to 'correct' a quote the buyer is mid-conversation about without telling them.",
+    nextSteps: ["get_quote", "list_quotes", "revoke_quote"],
+  },
+  {
+    name: "revoke_quote",
+    description:
+      "Withdraw a quote the partner should not have sent: delete its frozen price list and make the buyer's link 404. Use it to CORRECT a mistake — a wrong price, a wrong buyer, a wrong lane — rather than re-minting, because re-minting emails the buyer a second number they never asked for. Not needed merely to re-quote the same buyer: minting already supersedes their previous quote. Sensitive.",
+    method: "POST",
+    path: "/partners/quotes/:id/revoke",
+    pathParams: ["id"],
+    write: true,
+    sensitive: true,
+    /**
+     * 🔴 No `bodyParams`, and no `reason` field — the route reads no body at
+     * all. Advertising one would be the #1348 defect exactly: the dispatcher's
+     * body assembly is an allowlist walk, so the model would supply a reason,
+     * get `ok: true`, and the reason would reach nothing. Better to offer
+     * nothing than to offer something that goes nowhere.
+     */
+    inputSchema: obj({ id: STR("Quote id, e.g. 'quo_...' / '01M0...'.") }, ["id"]),
+    sideEffects:
+      "Deletes the price list this quote froze, so the buyer stops getting the quoted prices in any cart, and their link 404s from then on. Not reversible: re-offering the same terms means minting a new quote, which emails them again. An ALREADY-ACCEPTED quote is refused here — the accepted cart is priced from it, so unwinding a live deal is an operator's call, not this tool's.",
     nextSteps: ["get_quote", "list_quotes"],
   },
 ]

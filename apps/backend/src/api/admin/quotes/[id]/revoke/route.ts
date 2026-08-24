@@ -1,29 +1,23 @@
 import { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
-import { ContainerRegistrationKeys, MedusaError } from "@medusajs/framework/utils"
-import { deletePriceListsWorkflow } from "@medusajs/medusa/core-flows"
+import { MedusaError } from "@medusajs/framework/utils"
 
 import { PARTNER_QUOTE_MODULE } from "../../../../../modules/partner-quote"
+import { revokeQuote } from "../../../../../modules/partner-quote/lib/revoke-quote"
 
 /**
  * Revoke a quote (#1389 S5).
  *
- * 🔴 Flipping `status` alone is NOT a revoke. The quote's prices live in a real,
- * active price list scoped to the buyer's customer group — if that list survives,
- * the buyer keeps the quoted prices in any cart they build, whatever the quote
- * row says. The link dies and the discount does not.
- *
- * So this deletes the price list FIRST and only then marks the row. Doing it in
- * that order means a failure leaves a quote that still says "active" alongside a
- * list that is already gone — visibly inconsistent and safe. The reverse order
- * would leave a revoked-looking quote still quietly pricing carts, which is the
- * failure nobody would notice.
+ * An admin may revoke any quote — they have no partner of their own, so there
+ * is nothing to scope the lookup to. The partner twin at
+ * `/partners/quotes/:id/revoke` (#1517) scopes by the auth context instead;
+ * everything after the lookup is shared, in `lib/revoke-quote.ts`, including
+ * the reason the price list must die before the status is written.
  *
  * The buyer's page 404s either way: an unknown token and a revoked one are
  * deliberately indistinguishable to a prober.
  */
 export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
   const service: any = req.scope.resolve(PARTNER_QUOTE_MODULE)
-  const logger: any = req.scope.resolve(ContainerRegistrationKeys.LOGGER)
 
   const quotes = await service.listPartnerQuotes({ id: req.params.id })
   const quote = quotes?.[0]
@@ -31,68 +25,10 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
     throw new MedusaError(MedusaError.Types.NOT_FOUND, "Quote not found")
   }
 
-  if (quote.status === "revoked") {
-    // Idempotent: re-revoking is a no-op, not an error. An operator hitting the
-    // button twice must not see a failure that suggests the first one did not
-    // take.
-    return res.json({ quote, already_revoked: true })
-  }
-
-  /**
-   * #1440 moved this off `metadata` and onto a column. The metadata fallback
-   * stays for rows minted before that migration ran — the backfill covers them,
-   * but a revoke that silently skipped a live price list because a backfill was
-   * missed is the exact failure this route exists to prevent.
-   */
-  const priceListId =
-    (quote as any)?.price_list_id ?? (quote.metadata as any)?.price_list_id
-  if (priceListId) {
-    await deletePriceListsWorkflow(req.scope).run({
-      input: { ids: [priceListId] },
-    })
-    logger.info(`[quote] revoke ${quote.id} deleted price list ${priceListId}`)
-  } else {
-    // A quote with no recorded price list either never froze or was minted
-    // before the id was stored. Say so rather than reporting a clean revoke.
-    logger.warn(
-      `[quote] revoke ${quote.id} had no price_list_id recorded — nothing to delete`
-    )
-  }
-
-  /**
-   * 🔴 NOT array-destructured. `updateX` returns whatever the inner service
-   * returns: the `{ selector, data }` bulk form yields an ARRAY, the bare
-   * entity form used here yields a SINGLE OBJECT. Destructuring it threw
-   * `TypeError: (intermediate value) is not iterable` — and it threw *after*
-   * the price list had been deleted and the status written.
-   *
-   * So every revoke on prod did its whole job and then answered 500. That is
-   * the worst possible pairing for a destructive route: the operator sees a
-   * failure and retries an operation that already ran. Found by revoking four
-   * real quotes, not by reading this file — the sibling `already_revoked`
-   * branch returns the row from `listPartnerQuotes` and so has always been
-   * fine, which is exactly why a retry "worked" and hid the defect.
-   */
-  const updated = await service.updatePartnerQuotes({
-    id: quote.id,
-    status: "revoked",
+  const result = await revokeQuote(req.scope, quote, {
+    type: "admin",
+    id: (req as any).auth_context?.actor_id ?? null,
   })
 
-  await service
-    .recordEvent({
-      quote_id: quote.id,
-      type: "revoked",
-      actor_type: "admin",
-      actor_id: (req as any).auth_context?.actor_id ?? null,
-      message: priceListId
-        ? "Revoked by an admin; the quoted price list was deleted."
-        : "Revoked by an admin. No price list was recorded on the quote, so none was deleted.",
-      data: { price_list_id: priceListId ?? null },
-    })
-    .catch(() => {})
-
-  res.json({
-    quote: updated ?? { ...quote, status: "revoked" },
-    price_list_deleted: !!priceListId,
-  })
+  res.json(result)
 }
