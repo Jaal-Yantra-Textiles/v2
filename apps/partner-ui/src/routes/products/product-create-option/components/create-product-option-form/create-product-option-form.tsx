@@ -9,15 +9,29 @@ import { Form } from "../../../../../components/common/form"
 import { ChipInput } from "../../../../../components/inputs/chip-input"
 import { RouteDrawer, useRouteModal } from "../../../../../components/modals"
 import { KeyboundForm } from "../../../../../components/utilities/keybound-form"
-import { useCreateProductOption } from "../../../../../hooks/api/products"
+import {
+  useCreateProductOption,
+  usePaletteForTitle,
+} from "../../../../../hooks/api/products"
+import { ColourPicker } from "../../../../../components/inputs/colour-picker"
 
 type EditProductOptionsFormProps = {
   product: HttpTypes.AdminProduct
 }
 
+// A colour the partner adds arrives as { value, hex } — the backend needs the
+// hex to store a swatch, and a plain string would be refused as "not in the
+// palette". Existing values stay plain strings.
 const CreateProductOptionSchema = z.object({
   title: z.string().min(1),
-  values: z.array(z.string()).optional(),
+  values: z
+    .array(
+      z.union([
+        z.string(),
+        z.object({ value: z.string(), hex: z.string() }),
+      ])
+    )
+    .optional(),
 })
 
 export const CreateProductOptionForm = ({
@@ -33,6 +47,10 @@ export const CreateProductOptionForm = ({
     },
     resolver: zodResolver(CreateProductOptionSchema),
   })
+
+  // Watch the title so typing "Colour" swaps the chip list for the palette.
+  const titleValue = form.watch("title")
+  const { palette } = usePaletteForTitle(titleValue)
 
   const { mutateAsync, isPending } = useCreateProductOption(product.id)
 
@@ -91,12 +109,24 @@ export const CreateProductOptionForm = ({
                     {t("products.fields.options.variations")}
                   </Form.Label>
                   <Form.Control>
-                    <ChipInput
-                      {...field}
-                      placeholder={t(
-                        "products.fields.options.variantionsPlaceholder"
-                      )}
-                    />
+                    {/* Colour is a shared vocabulary, so it gets swatches
+                        rather than free text — a typed "teal" would be a
+                        colour with no hex, which renders as nothing on the
+                        storefront. Any other option stays a plain chip list. */}
+                    {palette ? (
+                      <ColourPicker
+                        palette={palette.values}
+                        value={field.value}
+                        onChange={field.onChange}
+                      />
+                    ) : (
+                      <ChipInput
+                        {...field}
+                        placeholder={t(
+                          "products.fields.options.variantionsPlaceholder"
+                        )}
+                      />
+                    )}
                   </Form.Control>
                   <Form.ErrorMessage />
                 </Form.Item>
