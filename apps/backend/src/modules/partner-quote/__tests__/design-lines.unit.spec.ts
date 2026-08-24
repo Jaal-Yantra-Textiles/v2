@@ -18,6 +18,7 @@ import { toQuotableDesign } from "../lib/quotable-designs"
 const resolved = (designId: string, variantId: string): DesignResolution => ({
   design_id: designId,
   design_name: "Kashida Shawl",
+  visible: true,
   variant_id: variantId,
   candidates: [
     { variant_id: variantId, title: "One size", sku: "KAS-1", product_id: "prod_1", product_title: "Kashida Shawl" },
@@ -28,6 +29,7 @@ const resolved = (designId: string, variantId: string): DesignResolution => ({
 const ambiguous = (designId: string): DesignResolution => ({
   design_id: designId,
   design_name: "Kashida Shawl",
+  visible: true,
   variant_id: null,
   candidates: [
     { variant_id: "var_s", title: "S", sku: "KAS-S", product_id: "prod_1", product_title: "Kashida Shawl" },
@@ -39,9 +41,25 @@ const ambiguous = (designId: string): DesignResolution => ({
 const unbacked = (designId: string): DesignResolution => ({
   design_id: designId,
   design_name: "Sketch only",
+  visible: true,
   variant_id: null,
   candidates: [],
   reason: '"Sketch only" has no product behind it yet, so there is nothing to price. Create a product from the design first.',
+})
+
+/**
+ * A design that is not this caller's to quote — or does not exist.
+ *
+ * 🔑 The two answer IDENTICALLY on purpose, so an id cannot be probed for
+ * existence by attaching it to a quote line.
+ */
+const invisible = (designId: string): DesignResolution => ({
+  design_id: designId,
+  design_name: null,
+  visible: false,
+  variant_id: null,
+  candidates: [],
+  reason: `Design ${designId} does not exist.`,
 })
 
 describe("applyDesignResolutions", () => {
@@ -102,6 +120,56 @@ describe("applyDesignResolutions", () => {
     )
 
     expect(errors).toHaveLength(2)
+  })
+
+  it("🔴 refuses a design this caller may not quote, even on a line that names its variant", () => {
+    // The hole #1501 closes. A line with a variant skipped design resolution
+    // ENTIRELY, so any string at all — including another partner's design id —
+    // was frozen onto the quote as its design. Nothing renders it today, which
+    // is the only reason it was not a leak.
+    const { errors } = applyDesignResolutions(
+      [{ variant_id: "var_mine", design_id: "des_theirs", quantity: 50 }],
+      new Map([["des_theirs", invisible("des_theirs")]])
+    )
+
+    expect(errors).toHaveLength(1)
+    // The same words a design that does not exist gets, so an id cannot be
+    // probed for existence by attaching it to a line.
+    expect(errors[0]).toContain("does not exist")
+  })
+
+  it("does NOT move the line to the design's own variant", () => {
+    // Attaching a design to a line the partner already chose must never
+    // silently re-point it at a different SKU — that would change what is being
+    // sold as a side effect of recording what it was made from.
+    const { lines, errors } = applyDesignResolutions(
+      [{ variant_id: "var_chosen", design_id: "des_1", quantity: 50 }],
+      new Map([["des_1", resolved("des_1", "var_other")]])
+    )
+
+    expect(errors).toEqual([])
+    expect(lines[0].variant_id).toBe("var_chosen")
+    expect(lines[0].design_id).toBe("des_1")
+  })
+
+  it("accepts an UNBACKED design as provenance once the variant is chosen", () => {
+    // Visibility, not resolvability. "No product behind it" is a perfectly good
+    // answer to "which design is this" when the buyer is being sold a variant
+    // that already exists — refusing it would block the ordinary case of
+    // recording the sketch a catalogue product was made from.
+    const { errors } = applyDesignResolutions(
+      [{ variant_id: "var_chosen", design_id: "des_2", quantity: 50 }],
+      new Map([["des_2", unbacked("des_2")]])
+    )
+    expect(errors).toEqual([])
+  })
+
+  it("accepts an AMBIGUOUS design as provenance too", () => {
+    const { errors } = applyDesignResolutions(
+      [{ variant_id: "var_m", design_id: "des_1", quantity: 50 }],
+      new Map([["des_1", ambiguous("des_1")]])
+    )
+    expect(errors).toEqual([])
   })
 
   it("leaves a plain product line completely alone", () => {

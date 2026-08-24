@@ -11,6 +11,7 @@ import {
 } from "../../../../../components/data-grid"
 import { useProducts } from "../../../../../hooks/api/products"
 import { QuoteCreateSchemaType } from "./schema"
+import { QuoteLineDesignsPanel } from "./quote-line-designs-panel"
 
 type QuoteQuantitiesFormProps = {
   form: UseFormReturn<QuoteCreateSchemaType>
@@ -197,11 +198,22 @@ export const QuoteQuantitiesForm = ({ form }: QuoteQuantitiesFormProps) => {
   }
 
   return (
-    <DataGrid
-      columns={columns}
-      data={selected}
-      getSubRows={(row) => (isProductRow(row) ? row.variants ?? [] : undefined)}
-      state={form}
-    />
+    <div className="flex size-full flex-col gap-y-4 overflow-y-auto">
+      <DataGrid
+        columns={columns}
+        data={selected}
+        getSubRows={(row) => (isProductRow(row) ? row.variants ?? [] : undefined)}
+        state={form}
+      />
+      {/*
+        Below the grid, not inside it (#1501): a design is picked from hundreds
+        by NAME, which is a search, and the grid is a numeric keyboard surface
+        whose arrow-key navigation a combobox would fight.
+      */}
+      <QuoteLineDesignsPanel
+        form={form}
+        products={selected.filter(isProductRow)}
+      />
+    </div>
   )
 }
