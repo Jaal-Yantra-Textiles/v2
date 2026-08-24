@@ -148,8 +148,34 @@ const prepareTimingStep = createStep(
  * their second quote replaces their prices rather than stacking a second list
  * that core would tie-break against the first on `amount ASC`.
  *
+ * 🔑 The buyer is resolved in THREE steps, in order (#1507). Core's unique
+ * index is on `(email, has_account)` platform-wide, so a store-scoped lookup
+ * on its own is unsatisfiable: a buyer who already exists on ANY other store
+ * is invisible to it, and the create that follows collides with the very row
+ * it could not see. That 400 bit precisely the highest-value case — an
+ * existing customer of one store asking a partner for a bulk price. So:
+ *
+ *   1. this store's own customers — a buyer already ours stays ours;
+ *   2. failing that, the platform-wide row for that address, ADOPTED into this
+ *      store by a link. Quoting someone is a deliberate act that names their
+ *      address, so this CREATES the relationship rather than discovering one:
+ *      a partner still cannot reach a buyer whose address they did not type;
+ *   3. failing that, create, as before.
+ *
+ * ⚠️ Adoption is a real disclosure: that customer then appears on
+ * `GET /partners/customers` carrying whatever profile another store collected
+ * — name, phone, addresses. That is the trade, taken deliberately, because the
+ * alternative is that the buyer cannot be quoted at all.
+ *
+ * ⚠️ A registered account OUTRANKS a guest row with the same address. Both can
+ * exist, since the index is on the pair — and attaching the quote to the guest
+ * would price a session the buyer never signs into. The group carries the
+ * price list, so whichever identity we pick here is the identity that gets the
+ * price.
+ *
  * Compensation deletes only what THIS run created — never the customer, who
- * may have orders, and never a group that already existed.
+ * may have orders, and never a group that already existed. An adoption link is
+ * dismissed without touching the customer behind it.
  */
 const resolveQuoteBuyerStep = createStep(
   "resolve-quote-buyer-step",
@@ -160,9 +186,9 @@ const resolveQuoteBuyerStep = createStep(
 
     const email = input.buyer_email.trim().toLowerCase()
 
-    // Scoped to the store: another partner's customer with the same email is
-    // not this partner's buyer, and reusing them would leak a customer across
-    // tenants and hand them someone else's price list.
+    // Scoped to the store first: a buyer this partner has already dealt with
+    // is theirs, and must keep the one identity their earlier price lists and
+    // orders hang off.
     const { data: storeRows } = await query.graph({
       entity: "stores",
       fields: ["customers.id", "customers.email", "customer_groups.id", "customer_groups.name"],
@@ -174,16 +200,38 @@ const resolveQuoteBuyerStep = createStep(
       (c) => String(c?.email ?? "").toLowerCase() === email
     )
     let createdCustomerId: string | null = null
+    let linkedCustomerId: string | null = null
     if (!customer) {
-      customer = await customerService.createCustomers({
-        email,
-        company_name: input.recipient_company ?? undefined,
-      })
-      createdCustomerId = customer.id
+      /**
+       * #1507. Exact match on the normalised address, deliberately: core's
+       * unique index compares the stored string, so an exact lookup covers
+       * exactly the set of rows a create could collide with — no more, no
+       * fewer. Anything looser would adopt a customer core would have let us
+       * create alongside.
+       */
+      const existing: any[] = await customerService
+        .listCustomers({ email }, { take: 10 })
+        .catch(() => [])
+
+      customer = existing.find((c) => c?.has_account) ?? existing[0]
+
+      if (!customer) {
+        customer = await customerService.createCustomers({
+          email,
+          company_name: input.recipient_company ?? undefined,
+        })
+        createdCustomerId = customer.id
+      }
+
+      // Adopted or created, the buyer belongs to this store from here on.
+      // ⚠️ Nothing on an ADOPTED customer's profile is overwritten —
+      // `recipient_company` names the consignee on THIS quote, not who they
+      // are everywhere else.
       await link.create({
         [Modules.STORE]: { store_id: input.store.id },
         [Modules.CUSTOMER]: { customer_id: customer.id },
       })
+      linkedCustomerId = customer.id
     }
 
     const groupName = `Quote buyer — ${email}`
@@ -209,7 +257,7 @@ const resolveQuoteBuyerStep = createStep(
 
     return new StepResponse(
       { customer_id: customer.id, customer_group_id: group.id },
-      { createdCustomerId, createdGroupId, storeId: input.store.id }
+      { createdCustomerId, linkedCustomerId, createdGroupId, storeId: input.store.id }
     )
   },
   async (undo, { container }) => {
@@ -228,13 +276,18 @@ const resolveQuoteBuyerStep = createStep(
         .deleteCustomerGroups([undo.createdGroupId])
         .catch(() => {})
     }
-    if (undo.createdCustomerId) {
+    // Dismiss whichever link THIS run made — adoption included. Deleting the
+    // customer is a separate, narrower question: only a customer this run
+    // brought into existence may go, never one we merely adopted.
+    if (undo.linkedCustomerId) {
       await link
         .dismiss({
           [Modules.STORE]: { store_id: undo.storeId },
-          [Modules.CUSTOMER]: { customer_id: undo.createdCustomerId },
+          [Modules.CUSTOMER]: { customer_id: undo.linkedCustomerId },
         })
         .catch(() => {})
+    }
+    if (undo.createdCustomerId) {
       await customerService
         .deleteCustomers([undo.createdCustomerId])
         .catch(() => {})
