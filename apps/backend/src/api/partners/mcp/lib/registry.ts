@@ -3399,7 +3399,7 @@ export const PARTNER_MCP_TOOLS: PartnerMcpToolDef[] = [
       "currency_code",
     ]),
     sideEffects:
-      "Creates a customer-group-scoped price list with a real expiry, sends the buyer an email containing the only copy of the quote link, and makes the quote acceptable into a cart. Re-quoting the same buyer STACKS price lists — the cheapest active one wins (#1435), so revoke the old quote first.",
+      "Creates a customer-group-scoped price list with a real expiry, sends the buyer an email containing the only copy of the quote link, and makes the quote acceptable into a cart. Re-quoting the same buyer SUPERSEDES their previous quote: its price list is expired and its status becomes 'superseded', so the newest quote is the one that prices their cart. The buyer's older link stops working — do not re-mint to 'correct' a quote the buyer is mid-conversation about without telling them.",
     nextSteps: ["get_quote", "list_quotes"],
   },
 ]
