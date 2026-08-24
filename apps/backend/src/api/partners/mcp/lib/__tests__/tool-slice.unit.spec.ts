@@ -336,6 +336,10 @@ describe("partner-mcp per-ask tool slicing", () => {
       "/partners/product-tags": "list my product tags",
       "/partners/product-types": "create a product type",
       "/partners/price-preferences": "set a price preference",
+      // Phrased the way a partner actually asks — in colour words, not in
+      // "option palette" ones. The palette is the vocabulary
+      // `add_product_option` must be called with, so this ask has to load it.
+      "/partners/option-palettes": "what colours can I offer on this product",
       "/partners/discover": "discover products I can copy into my catalogue",
       "/partners/stores/:id/products": "update the price of my product to 2400",
       "/partners/stores/:id/product-variants": "list my product variants",
