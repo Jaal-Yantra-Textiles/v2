@@ -59,6 +59,7 @@ export const PARTNER_PRODUCTION_RUN_LIST_FIELDS = [
   "rejection_reason",
   "rejection_notes",
   "depends_on_run_ids",
+  "depends_on_inventory_order_ids",
   // #1228 — how the run got here. `previous_partner_id` is set when a run was
   // taken off a partner who didn't accept it, and survives the re-dispatch to
   // whoever holds it now; `reassign_retry_count` counts the times THIS partner

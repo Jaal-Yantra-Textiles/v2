@@ -4,9 +4,7 @@ import type { IEventBusModuleService, Logger } from "@medusajs/types"
 
 import { PRODUCTION_RUNS_MODULE } from "../modules/production_runs"
 import type ProductionRunService from "../modules/production_runs/service"
-import {
-  sendProductionRunToProductionWorkflow,
-} from "../workflows/production-runs/send-production-run-to-production"
+import { releaseRunIfReady } from "../workflows/production-runs/lib/release-dependent-runs"
 import { mirrorRunStatusToUnifiedOrder } from "../workflows/production-runs/dual-write-unified-run-order"
 
 export default async function productionRunTaskUpdatedHandler({
@@ -165,35 +163,35 @@ export default async function productionRunTaskUpdatedHandler({
         if (!depIds.includes(String(productionRunId))) continue
         if (String((sibling as any).status) !== "approved") continue
 
-        // Check if ALL dependencies are completed
-        const depRuns = await Promise.all(
-          depIds.map((id) =>
-            productionRunService.retrieveProductionRun(id).catch(() => null)
-          )
-        )
-        const allDepsCompleted = depRuns.every(
-          (r) => r && String((r as any).status) === "completed"
-        )
+        // Are ALL of this sibling's dependencies met? Both kinds count — a
+        // stage can wait on another partner's run AND on goods being supplied
+        // to it (#1529) — and the answer comes from the same helper the
+        // dispatch guard uses, so a run released here is never bounced there.
+        const outcome = await releaseRunIfReady(container, sibling)
 
-        if (!allDepsCompleted) continue
-
-        // Auto-dispatch: use template_names from metadata if available
-        const templateNames = (sibling as any).dispatch_template_names as string[] | undefined
-
-        if (templateNames?.length) {
-          logger.info(
-            `[tasks.task.updated] Auto-dispatching dependent run ${(sibling as any).id} with templates: ${templateNames.join(", ")}`
-          )
-          await sendProductionRunToProductionWorkflow(container).run({
-            input: {
-              production_run_id: String((sibling as any).id),
-              template_names: templateNames,
-            },
-          })
-        } else {
-          logger.info(
-            `[tasks.task.updated] Dependent run ${(sibling as any).id} is ready for dispatch but has no pre-configured templates. Manual dispatch required.`
-          )
+        switch (outcome.result) {
+          case "dispatched":
+            logger.info(
+              `[tasks.task.updated] Auto-dispatched dependent run ${outcome.run_id} after ${productionRunId} completed`
+            )
+            break
+          case "waiting":
+            // Not ready yet — another upstream edge is outstanding. It will be
+            // reconsidered when that one lands.
+            break
+          case "no_templates":
+            logger.info(
+              `[tasks.task.updated] Dependent run ${outcome.run_id} is ready for dispatch but has no pre-configured templates. Manual dispatch required.`
+            )
+            break
+          case "failed":
+            // #1268's lesson, applied to the cascade: one child failing to
+            // dispatch must not stop the siblings behind it, and the reason has
+            // to be recoverable from the log.
+            logger.error(
+              `[tasks.task.updated] Dependent run ${outcome.run_id} failed to dispatch: ${outcome.message}`
+            )
+            break
         }
       }
     } catch (e: any) {

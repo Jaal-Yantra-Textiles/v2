@@ -1,4 +1,8 @@
 import { sendProductionRunToProductionWorkflow } from "../../../workflows/production-runs/send-production-run-to-production"
+import {
+  selectDispatchInput,
+  type DispatchSelection,
+} from "../../../workflows/production-runs/lib/dispatch-selection"
 
 /**
  * Auto-dispatch of the children an approval just created (#1268).
@@ -26,12 +30,8 @@ export type AutoDispatchChild = {
   dispatch_template_ids?: string[] | null
   dispatch_template_names?: string[] | null
   depends_on_run_ids?: string[] | null
+  depends_on_inventory_order_ids?: string[] | null
 }
-
-export type DispatchSelection =
-  | { template_ids: string[] }
-  | { template_names: string[] }
-  | null
 
 export type AutoDispatchReport = {
   /** Runs that dispatched cleanly. */
@@ -47,42 +47,36 @@ export type AutoDispatchReport = {
   deferred_for_ordering: boolean
 }
 
+/**
+ * Re-exported so existing importers of this module keep working; the
+ * implementation moved to `workflows/production-runs/lib/dispatch-selection`
+ * once the chain subscribers came to need the same choice (#1529).
+ */
+export { selectDispatchInput }
+export type { DispatchSelection }
+
 const clean = (values: unknown): string[] =>
   (Array.isArray(values) ? values : []).filter(
     (v): v is string => typeof v === "string" && v.length > 0
   )
 
 /**
- * What to dispatch a child with, preferring identity over label.
+ * Ordering means the admin drives dispatch sequencing themselves via
+ * start-dispatch/resume-dispatch, and the release subscribers cascade the rest
+ * as dependencies are met. Auto-dispatching here would start work out of order.
  *
- * Ids win outright: a name may match two templates that are different process
- * steps sharing one label (#1261), and dispatch refuses such a name rather than
- * guessing. Returns null when the approval named nothing — that run is meant to
- * be dispatched later, by hand.
- */
-export const selectDispatchInput = (
-  child: AutoDispatchChild
-): DispatchSelection => {
-  const ids = clean(child?.dispatch_template_ids)
-  if (ids.length) {
-    return { template_ids: ids }
-  }
-
-  const names = clean(child?.dispatch_template_names)
-  if (names.length) {
-    return { template_names: names }
-  }
-
-  return null
-}
-
-/**
- * Cross-run ordering means the admin drives dispatch sequencing themselves via
- * start-dispatch/resume-dispatch, and the task subscriber cascades the rest as
- * dependencies complete. Auto-dispatching here would start work out of order.
+ * Waiting on GOODS counts as ordering just as much as waiting on another run
+ * (#1529). A stage-0 supplier is usually an inventory order rather than a run,
+ * so a child with only that edge has an empty `depends_on_run_ids` — and
+ * reading run edges alone would have auto-dispatched it at approval, sending a
+ * partner work whose materials had not been ordered yet, let alone delivered.
  */
 export const hasCrossRunOrdering = (children: AutoDispatchChild[]): boolean =>
-  (children || []).some((c) => clean(c?.depends_on_run_ids).length > 0)
+  (children || []).some(
+    (c) =>
+      clean(c?.depends_on_run_ids).length > 0 ||
+      clean(c?.depends_on_inventory_order_ids).length > 0
+  )
 
 export const autoDispatchApprovedChildren = async (
   scope: any,

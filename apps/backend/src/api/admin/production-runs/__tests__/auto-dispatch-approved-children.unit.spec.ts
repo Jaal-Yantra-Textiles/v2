@@ -71,6 +71,18 @@ describe("hasCrossRunOrdering", () => {
   it("is false for an empty dependency list", () => {
     expect(hasCrossRunOrdering([{ id: "a", depends_on_run_ids: [] }])).toBe(false)
   })
+
+  it("treats waiting on GOODS as ordering too (#1529)", () => {
+    // A stage-0 supplier is an inventory order, not a run, so such a child has
+    // NO run edges. Reading run edges alone auto-dispatched it at approval —
+    // sending a partner work whose materials had not even been shipped.
+    expect(
+      hasCrossRunOrdering([
+        { id: "a" },
+        { id: "b", depends_on_inventory_order_ids: ["inv_1"] },
+      ])
+    ).toBe(true)
+  })
 })
 
 describe("autoDispatchApprovedChildren", () => {
