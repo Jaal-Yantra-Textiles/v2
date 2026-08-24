@@ -38,6 +38,9 @@ const EMPTY: ProductSpecPayload = {
   weave_technique: null,
   weave_label: null,
   params: null,
+  finished_length_cm: null,
+  finished_width_cm: null,
+  size_label: null,
   finishes: [],
   notes: null,
   accepting_custom_orders: false,
@@ -68,6 +71,9 @@ const ProductSpecEditor = ({ id }: { id: string }) => {
       weave_technique: spec.weave_technique ?? null,
       weave_label: spec.weave_label ?? null,
       params: spec.params ?? null,
+      finished_length_cm: spec.finished_length_cm ?? null,
+      finished_width_cm: spec.finished_width_cm ?? null,
+      size_label: spec.size_label ?? null,
       finishes: spec.finishes ?? [],
       notes: spec.notes ?? null,
       accepting_custom_orders: !!spec.accepting_custom_orders,
@@ -106,6 +112,9 @@ const ProductSpecEditor = ({ id }: { id: string }) => {
     const payload: ProductSpecPayload = {
       ...value,
       weave_label: value.weave_label?.trim() ? value.weave_label.trim() : null,
+      // An emptied box means "no size", not an empty string every surface then
+      // renders as a blank "Size:" line.
+      size_label: value.size_label?.trim() ? value.size_label.trim() : null,
       notes: value.notes?.trim() ? value.notes.trim() : null,
       colors: (value.colors ?? []).filter((c) => c.name.trim()),
       fields: (value.fields ?? []).filter((f) => (f.label ?? f.key).trim()),

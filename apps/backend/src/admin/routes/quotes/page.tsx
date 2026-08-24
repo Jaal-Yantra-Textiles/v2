@@ -44,19 +44,30 @@ const money = (amount?: number | null, currency?: string) =>
  * Colouring it like a revocation would tell an operator the partner pulled the
  * offer, which is a different and wrong story.
  */
+const STATUS_LABELS: Record<string, string> = {
+  active: "Active",
+  expired: "Expired",
+  superseded: "Superseded",
+  revoked: "Revoked",
+}
+
+/**
+ * 🔴 `expired` is not red either, and for the same reason as `superseded`:
+ * nothing went wrong, the offer simply ran out its clock. Grey says "over"
+ * without saying "withdrawn".
+ */
+const STATUS_COLORS: Record<string, "green" | "orange" | "red" | "grey"> = {
+  active: "green",
+  expired: "grey",
+  superseded: "orange",
+  revoked: "red",
+}
+
 const StatusCell = ({ status }: { status?: string }) => {
   const value = String(status || "active")
   return (
-    <StatusBadge
-      color={
-        value === "active" ? "green" : value === "superseded" ? "orange" : "red"
-      }
-    >
-      {value === "active"
-        ? "Active"
-        : value === "superseded"
-          ? "Superseded"
-          : "Revoked"}
+    <StatusBadge color={STATUS_COLORS[value] ?? "red"}>
+      {STATUS_LABELS[value] ?? value}
     </StatusBadge>
   )
 }
@@ -140,8 +151,16 @@ const QuotesPage = () => {
       }),
       columnHelper.accessor("status", {
         header: "Status",
+        // Sorts on the STORED column, because that is the one the database can
+        // order by. The badge shows the effective word (#1510).
         enableSorting: true,
-        cell: ({ getValue }) => <StatusCell status={getValue() as string} />,
+        cell: ({ row }) => (
+          <StatusCell
+            status={
+              (row.original as any).status_effective ?? row.original.status
+            }
+          />
+        ),
       }),
       columnHelper.accessor("expires_at", {
         header: "Expires",
@@ -171,7 +190,9 @@ const QuotesPage = () => {
                   // DELETES a live price list, and a one-click destructive
                   // action in a row menu is how that gets done by accident.
                   to: (quote: AdminQuote) => `/quotes/${quote.id}`,
-                  disabled: row.original.status !== "active",
+                  disabled:
+                    ((row.original as any).status_effective ??
+                      row.original.status) !== "active",
                   disabledTooltip:
                     "Only an active quote can be revoked — this one is already dead.",
                 },
@@ -191,6 +212,9 @@ const QuotesPage = () => {
         label: "Status",
         options: [
           { label: "Active", value: "active" },
+          // #1510 — `expired` is not a stored status; the list route translates
+          // it into "active, and the date has passed".
+          { label: "Expired", value: "expired" },
           { label: "Superseded", value: "superseded" },
           { label: "Revoked", value: "revoked" },
         ],

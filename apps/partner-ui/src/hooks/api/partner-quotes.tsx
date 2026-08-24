@@ -88,7 +88,14 @@ export type PartnerQuote = {
   quoted_weight_grams?: number | null
   quoted_at?: string | null
 
+  /** The STORED column. `expired` is never one of its values — see below. */
   status: "active" | "revoked" | "superseded"
+  /**
+   * What `status` means today (#1510). Computed server-side from `status` and
+   * `expires_at` by the same helper the buyer's quote page uses, so an expired
+   * quote stops reading `active` on every screen that shows the word.
+   */
+  status_effective?: "active" | "expired" | "revoked" | "superseded"
   expires_at?: string | null
 
   /**
@@ -431,4 +438,48 @@ export const usePartnerQuotableDesigns = (
     count: data?.count ?? 0,
     ...rest,
   }
+}
+
+/** What the revoke route answers with. */
+export type RevokePartnerQuoteResponse = {
+  quote: PartnerQuote
+  /** Whether the minted price list was actually deleted, for the toast. */
+  price_list_deleted?: boolean
+}
+
+/**
+ * A partner withdraws their own quote (#1517).
+ *
+ * 🔴 DESTRUCTIVE. It deletes the price list behind the quote, so the buyer
+ * loses the quoted prices in any cart they have built as well as the link.
+ * The caller must put it behind a confirm — a one-click revoke in a row menu is
+ * how that gets done by accident.
+ *
+ * Invalidates the DETAIL as well as the list: the page the partner is standing
+ * on is the one whose badge has just changed, and leaving it stale shows
+ * "Active" beside a toast that says it was revoked.
+ */
+export const useRevokePartnerQuote = (
+  id: string,
+  options?: UseMutationOptions<RevokePartnerQuoteResponse, FetchError, void>
+) => {
+  return useMutation({
+    mutationFn: async () =>
+      await sdk.client.fetch<RevokePartnerQuoteResponse>(
+        `/partners/quotes/${id}/revoke`,
+        { method: "POST" }
+      ),
+    onSuccess: async (data, variables, context) => {
+      await Promise.all([
+        queryClient.invalidateQueries({
+          queryKey: partnerQuotesQueryKeys.lists(),
+        }),
+        queryClient.invalidateQueries({
+          queryKey: partnerQuotesQueryKeys.detail(id),
+        }),
+      ])
+      options?.onSuccess?.(data, variables, context)
+    },
+    ...options,
+  })
 }

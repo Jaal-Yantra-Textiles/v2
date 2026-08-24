@@ -89,6 +89,20 @@ export type QuoteLineSpec = {
   weave_label: string | null
   rows: QuoteSpecRow[]
   finishes: string[]
+  /** The spec's own answer to "how big". The LINE may have a stronger one. */
+  size: string | null
+}
+
+/**
+ * The finished piece's size, and which source stated it.
+ *
+ * `variant` is the SKU being quoted and is the strongest claim; `product` is
+ * the catalogue's dimensions and is the weakest, so the page says so — the
+ * same treatment `image_source` and `weight_source` get.
+ */
+export type QuoteLineSize = {
+  label: string
+  source: "variant" | "spec" | "product"
 }
 
 /** The producing partner, when the buyer is NOT on that partner's own shop. */
@@ -149,6 +163,8 @@ export type QuoteViewLine = {
   thumbnail: string | null
   image_source: "variant" | "product" | null
   spec: QuoteLineSpec | null
+  /** "How big is it" — the question that comes before any weave number. */
+  size?: QuoteLineSize | null
   /**
    * Every image on this variant, merchandiser-ordered (#1439 S14). Empty when
    * the variant has none of its own — `thumbnail` may then be the PRODUCT's,

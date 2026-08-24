@@ -16,12 +16,26 @@ const PAGE_SIZE = 20
 const columnHelper = createDataTableColumnHelper<PartnerQuote>()
 
 /**
- * A quote is expired when its own `expires_at` has passed. Core enforces this
- * natively on the minted price list (`ends_at`), so this is presentation only —
- * the buyer's prices stop applying whether or not this badge renders.
+ * The word to put on the badge (#1510).
+ *
+ * 🔑 The SERVER decides. `status_effective` is computed by the list route from
+ * the same helper the buyer page uses, so the table, the detail page and the
+ * quote link cannot form three opinions about whether an offer still stands.
+ * This table used to derive expiry itself — with `<` where the server uses
+ * `<=`, which is exactly how two surfaces start disagreeing on the boundary.
+ *
+ * The local derivation survives only as a rollout bridge: partner-ui deploys
+ * separately from the backend, and a UI that got there first must not put
+ * "Active" on a dead quote for the length of one deploy.
  */
-const isExpired = (quote: PartnerQuote) =>
-  !!quote.expires_at && new Date(quote.expires_at).getTime() < Date.now()
+const effectiveStatus = (quote: PartnerQuote) => {
+  if (quote.status_effective) return quote.status_effective
+  if (quote.status !== "active") return quote.status
+  return quote.expires_at &&
+    new Date(quote.expires_at).getTime() <= Date.now()
+    ? "expired"
+    : "active"
+}
 
 const useColumns = () => {
   const { t } = useTranslation()
@@ -100,16 +114,16 @@ const useColumns = () => {
       columnHelper.accessor("status", {
         header: t("fields.status", "Status"),
         cell: ({ row }) => {
-          const quote = row.original
-          if (quote.status === "revoked") {
+          const status = effectiveStatus(row.original)
+          if (status === "revoked") {
             return <StatusBadge color="red">Revoked</StatusBadge>
           }
           // A newer quote for the same buyer expired this one's price list
           // (#1435). Not a withdrawal, so not red.
-          if (quote.status === "superseded") {
+          if (status === "superseded") {
             return <StatusBadge color="orange">Superseded</StatusBadge>
           }
-          if (isExpired(quote)) {
+          if (status === "expired") {
             return <StatusBadge color="grey">Expired</StatusBadge>
           }
           return <StatusBadge color="green">Active</StatusBadge>

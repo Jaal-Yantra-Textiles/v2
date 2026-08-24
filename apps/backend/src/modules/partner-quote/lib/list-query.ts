@@ -58,6 +58,42 @@ export type QuoteListQuery = {
   partner_id?: unknown
 }
 
+/**
+ * The stored `status` clause for a requested EFFECTIVE status (#1510).
+ *
+ * `expired` is not a value of `PartnerQuote.status` — it is `active` plus a
+ * date that has passed — so a list cannot simply pass the word through. It has
+ * to be translated into a predicate, and it has to be translated HERE rather
+ * than filtered out of the page afterwards: `count`, the pager and the filter
+ * must all describe the same set. Post-filtering a page would give a table that
+ * says "20 of 34" over eleven visible rows.
+ *
+ * 🔴 The expiry predicate is nested under `$and` rather than written as a
+ * top-level `$or`, because the free-text search already owns `$or` and the two
+ * would trample each other on `Object.assign` — silently, and in favour of
+ * whichever ran last. Same pattern as `/admin/abandoned-carts`.
+ *
+ * A NULL `expires_at` is active forever, matching `quoteUnusableReason`, which
+ * only calls a quote expired when it has a date AND that date has passed.
+ */
+export function buildQuoteStatusFilter(
+  status: string,
+  now: Date
+): Record<string, unknown> {
+  if (status === "expired") {
+    return { status: "active", $and: [{ expires_at: { $lte: now } }] }
+  }
+
+  if (status === "active") {
+    return {
+      status: "active",
+      $and: [{ $or: [{ expires_at: null }, { expires_at: { $gt: now } }] }],
+    }
+  }
+
+  return { status }
+}
+
 export type BuiltQuoteListQuery = {
   filters: Record<string, unknown>
   config: {
@@ -137,7 +173,9 @@ export function buildQuoteSearchFilter(raw: unknown): Record<string, unknown> | 
 export function buildQuoteListQuery(
   query: QuoteListQuery,
   /** Filters the caller pins and the client cannot override — e.g. the partner's own id. */
-  scoped: Record<string, unknown> = {}
+  scoped: Record<string, unknown> = {},
+  /** Passed in so `status=active|expired` stays deterministic under test. */
+  now: Date = new Date()
 ): BuiltQuoteListQuery {
   const take = clampInt(query.limit, QUOTE_DEFAULT_LIMIT, 1, QUOTE_MAX_LIMIT)
   const skip = clampInt(query.offset, 0, 0, Number.MAX_SAFE_INTEGER)
@@ -145,7 +183,16 @@ export function buildQuoteListQuery(
   const filters: Record<string, unknown> = { ...scoped }
 
   const status = String(query.status ?? "").trim()
-  if (status) filters.status = status
+  if (status) {
+    const clause = buildQuoteStatusFilter(status, now)
+    // `$and` may already be pinned by the caller; intersect rather than replace.
+    const and = clause.$and as unknown[] | undefined
+    delete clause.$and
+    Object.assign(filters, clause)
+    if (and) {
+      filters.$and = [...((filters.$and as unknown[]) ?? []), ...and]
+    }
+  }
 
   // Only honoured when the caller did not already pin it. A partner listing
   // their own quotes must never be able to widen the scope by query string.

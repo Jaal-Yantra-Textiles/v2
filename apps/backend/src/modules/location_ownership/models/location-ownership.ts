@@ -22,6 +22,23 @@ const LocationOwnership = model.define("location_ownership", {
   stock_location_id: model.text().unique(),
   /** True when we own the stock held here and may deduct consumption from it. */
   is_core: model.boolean().default(false),
+  /**
+   * Whether an export may LEAVE from here (#1498).
+   *
+   * 🔴 Split from `is_core` on purpose. `is_core` answers "may we deduct
+   * consumption from this stock"; the freight relay was reading it as "may we
+   * export from here", and the two are not the same question. Prod has exactly
+   * two `is_core` locations and one of them is **Dharamshala**, which is not an
+   * export hub — a shipment relayed there to be exported would be relayed to
+   * the wrong place, and priced as though it worked.
+   *
+   * 🔑 NULLABLE, and null is not false. A row written before this column
+   * existed has no opinion, and the resolver falls back to `is_core` for the
+   * whole set in that case — so nothing changes until an operator states the
+   * first explicit answer, and the day they do, the inference stops entirely.
+   * A `false` here is a decision; a null is the absence of one.
+   */
+  is_export_origin: model.boolean().nullable(),
   /** Why it was marked this way — free text for the operator who set it. */
   note: model.text().nullable(),
 })

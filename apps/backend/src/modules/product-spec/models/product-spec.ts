@@ -44,6 +44,36 @@ const ProductSpec = model.define("product_spec", {
   // "dry flat"). Seeded from the technique, then edited freely.
   finishes: model.json().nullable(),
 
+  /**
+   * The FINISHED piece's size (#1510 follow-up — "which size am I buying?").
+   *
+   * 🔴 Not a weave param. `validateWeaveParams` rejects any key the chosen
+   * technique does not list and refuses params outright without a technique, so
+   * a shared "size" param would either have to be bolted onto all eleven
+   * techniques or would be unavailable to every product that has no weave at
+   * all. Size belongs to the piece, not to how it was woven.
+   *
+   * Centimetres, always, because a quote crosses borders and a unitless number
+   * beside a price is how a buyer orders the wrong thing. The storefront
+   * converts for display if it ever needs to; the stored fact does not move.
+   *
+   * `loom_width_cm` is a different measurement and must not be confused with
+   * this one: that is the width of the cloth ON the loom, before it is cut,
+   * hemmed and washed.
+   */
+  finished_length_cm: model.number().nullable(),
+  finished_width_cm: model.number().nullable(),
+
+  /**
+   * What the partner CALLS that size — "Stole", "Full shawl", "King".
+   *
+   * Mirrors `weave_label` over `weave_technique`: the name the trade uses,
+   * shown alongside the measurement rather than instead of it. A buyer who
+   * knows "Stole" does not want to decode 200 × 70, and a buyer who does not
+   * know the word needs the numbers.
+   */
+  size_label: model.text().nullable(),
+
   // Free-form notes for the workshop — anything that is guidance rather than
   // data ("warp tension eases in monsoon; allow an extra day").
   notes: model.text().nullable(),

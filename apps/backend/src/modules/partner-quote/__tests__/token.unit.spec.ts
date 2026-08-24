@@ -1,11 +1,13 @@
 import {
   DEFAULT_QUOTE_TTL_DAYS,
   daysUntilExpiry,
+  effectiveQuoteStatus,
   generateQuoteToken,
   hashQuoteToken,
   isQuoteUsable,
   quoteExpiryFrom,
   quoteUnusableReason,
+  withEffectiveStatus,
 } from "../lib/token"
 
 const NOW = new Date("2026-08-21T12:00:00.000Z")
@@ -122,5 +124,84 @@ describe("partner-quote token", () => {
         daysUntilExpiry({ status: "active", expires_at: null }, NOW)
       ).toBeNull()
     })
+  })
+})
+
+/**
+ * #1510 — the word an operator reads to answer "is this offer still standing".
+ */
+describe("effectiveQuoteStatus", () => {
+  it("is `active` while the quote is inside its own TTL", () => {
+    expect(
+      effectiveQuoteStatus({ status: "active", expires_at: days(7) }, NOW)
+    ).toBe("active")
+  })
+
+  it("🔴 is `expired` once the date has passed, though the column says active", () => {
+    // The whole defect: the stored enum has no `expired`, so this row read
+    // `active` on every list while the buyer page refused to price its link.
+    expect(
+      effectiveQuoteStatus({ status: "active", expires_at: days(-1) }, NOW)
+    ).toBe("expired")
+  })
+
+  it("keeps `revoked` and `superseded` ahead of expiry", () => {
+    // A superseded quote is usually still inside its TTL, and "a newer quote
+    // replaced this" is the more useful thing to say. Precedence is decided
+    // once, in `quoteUnusableReason` — this only proves it is not re-decided.
+    expect(
+      effectiveQuoteStatus({ status: "superseded", expires_at: days(-1) }, NOW)
+    ).toBe("superseded")
+    expect(
+      effectiveQuoteStatus({ status: "revoked", expires_at: days(-1) }, NOW)
+    ).toBe("revoked")
+  })
+
+  it("never expires a quote with no expiry", () => {
+    expect(
+      effectiveQuoteStatus({ status: "active", expires_at: null }, NOW)
+    ).toBe("active")
+  })
+
+  it("agrees with the buyer page, by construction", () => {
+    // Not a tautology worth skipping: the list and the buyer page forming two
+    // opinions is the failure the issue asks to avoid, and this is the
+    // assertion that breaks if someone re-derives expiry here later.
+    for (const q of [
+      { status: "active", expires_at: days(-1) },
+      { status: "active", expires_at: days(1) },
+      { status: "revoked", expires_at: days(1) },
+      { status: "superseded", expires_at: days(-1) },
+    ]) {
+      expect(effectiveQuoteStatus(q, NOW)).toBe(
+        quoteUnusableReason(q, NOW) ?? "active"
+      )
+    }
+  })
+
+  it("survives a `now` that has been through JSON", () => {
+    // Same trap `quoteUnusableReason` documents: a Date crossing a workflow
+    // step boundary arrives as an ISO string.
+    expect(
+      effectiveQuoteStatus(
+        { status: "active", expires_at: days(-1) },
+        NOW.toISOString()
+      )
+    ).toBe("expired")
+  })
+})
+
+describe("withEffectiveStatus", () => {
+  it("adds the computed word WITHOUT replacing the stored one", () => {
+    // Both travel: a superseded quote and an expired one are different
+    // conversations, and overwriting `status` would make the API disagree with
+    // the column it is named after.
+    const stamped = withEffectiveStatus(
+      { id: "pq_1", status: "active", expires_at: days(-1) },
+      NOW
+    )
+    expect(stamped.status).toBe("active")
+    expect(stamped.status_effective).toBe("expired")
+    expect(stamped.id).toBe("pq_1")
   })
 })

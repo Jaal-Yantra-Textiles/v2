@@ -105,3 +105,61 @@ export function daysUntilExpiry(
   const ms = new Date(quote.expires_at).getTime() - nowMs
   return Math.max(0, Math.ceil(ms / (24 * 60 * 60 * 1000)))
 }
+
+/**
+ * The four words an operator may read on a quote.
+ *
+ * `expired` is deliberately NOT in `PartnerQuote.status` — see below.
+ */
+export const EFFECTIVE_QUOTE_STATUSES = [
+  "active",
+  "expired",
+  "revoked",
+  "superseded",
+] as const
+
+export type EffectiveQuoteStatus = (typeof EFFECTIVE_QUOTE_STATUSES)[number]
+
+/**
+ * What the quote's status ACTUALLY is, now (#1510).
+ *
+ * `PartnerQuote.status` is `active | revoked | superseded` and nothing moves a
+ * row out of `active` when `expires_at` passes — so every list filtered to
+ * `status=active` counted dead quotes as live, while the buyer page (which
+ * derives expiry at read time) correctly refused to price the very same link.
+ * The defect was never a mispriced quote: it was that `active` did not mean
+ * active, on the one word an operator reads to answer "is this offer still
+ * standing".
+ *
+ * 🔑 Derived, not swept. A cron that flipped rows would mutate a partner's
+ * record behind their back and would need a migration to widen the enum; this
+ * keeps `status` as the stored FACT and adds the computed one beside it. The
+ * model's docblock has said "expiry is derived at read time" since S3 — this
+ * is the list half of that promise, which was simply never written.
+ *
+ * 🔴 Built on `quoteUnusableReason` rather than re-deriving expiry, so the list
+ * and the buyer page cannot form two opinions about the same row. That is the
+ * exact failure the issue asks to avoid, and it is also why the precedence
+ * (revoked → superseded → expired) is stated in one place only.
+ */
+export function effectiveQuoteStatus(
+  quote: QuoteLifecycle,
+  now: Date | string | number
+): EffectiveQuoteStatus {
+  return quoteUnusableReason(quote, now) ?? "active"
+}
+
+/**
+ * A quote row with `status_effective` beside its stored `status`.
+ *
+ * Both fields travel, always. Dropping `status` would hide the fact an
+ * operator may need — a superseded quote and an expired one are different
+ * conversations — and replacing it in place would make the API disagree with
+ * the column it is named after.
+ */
+export function withEffectiveStatus<T extends QuoteLifecycle>(
+  quote: T,
+  now: Date | string | number
+): T & { status_effective: EffectiveQuoteStatus } {
+  return { ...quote, status_effective: effectiveQuoteStatus(quote, now) }
+}

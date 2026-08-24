@@ -2,6 +2,7 @@ import { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
 import { MedusaError } from "@medusajs/framework/utils"
 
 import { PARTNER_QUOTE_MODULE } from "../../../../modules/partner-quote"
+import { withEffectiveStatus } from "../../../../modules/partner-quote/lib/token"
 import { loadScheduleForQuote } from "../../../../modules/payment_schedule/lib/for-quote"
 
 /**
@@ -29,5 +30,12 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
     loadScheduleForQuote(req.scope, quote),
   ])
 
-  res.json({ quote: { ...quote, lines, events, payment_schedule } })
+  // #1510 — `status` is the stored fact; `status_effective` is what it means
+  // today. The detail page reads the same word as the list it was opened from.
+  res.json({
+    quote: withEffectiveStatus(
+      { ...quote, lines, events, payment_schedule },
+      new Date()
+    ),
+  })
 }

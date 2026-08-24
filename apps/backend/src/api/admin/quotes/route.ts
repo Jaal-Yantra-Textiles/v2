@@ -3,6 +3,7 @@ import { ContainerRegistrationKeys, MedusaError } from "@medusajs/framework/util
 
 import { PARTNER_QUOTE_MODULE } from "../../../modules/partner-quote"
 import { buildQuoteListQuery } from "../../../modules/partner-quote/lib/list-query"
+import { withEffectiveStatus } from "../../../modules/partner-quote/lib/token"
 import { resolveQuoteDesignLines } from "../../../modules/partner-quote/lib/design-lines"
 import { deliverQuoteEmail } from "../../../workflows/partner-quote/deliver-quote-email"
 import { mintQuoteWorkflow } from "../../../workflows/partner-quote/mint-quote"
@@ -35,14 +36,22 @@ import { assertVariantsInStore } from "./lib/assert-variants-in-store"
 export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
   const service: any = req.scope.resolve(PARTNER_QUOTE_MODULE)
 
-  const { filters, config } = buildQuoteListQuery(req.query as any)
+  // 🔑 ONE `now` for the filter and the stamp (#1510), so a row cannot be
+  // selected as active and then labelled expired in the same response.
+  const now = new Date()
+  const { filters, config } = buildQuoteListQuery(req.query as any, {}, now)
 
   const [quotes, count] = await service.listAndCountPartnerQuotes(
     filters,
     config
   )
 
-  res.json({ quotes, count, limit: config.take, offset: config.skip })
+  res.json({
+    quotes: (quotes ?? []).map((q: any) => withEffectiveStatus(q, now)),
+    count,
+    limit: config.take,
+    offset: config.skip,
+  })
 }
 
 /**

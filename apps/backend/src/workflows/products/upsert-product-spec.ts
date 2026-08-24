@@ -48,6 +48,10 @@ export type ProductSpecInput = {
   weave_technique?: string | null
   weave_label?: string | null
   params?: Record<string, number> | null
+  /** The FINISHED piece, in centimetres. Not a weave param — see the model. */
+  finished_length_cm?: number | null
+  finished_width_cm?: number | null
+  size_label?: string | null
   finishes?: string[] | null
   notes?: string | null
   accepting_custom_orders?: boolean

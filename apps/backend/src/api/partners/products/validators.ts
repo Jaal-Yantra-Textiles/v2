@@ -105,6 +105,16 @@ export const PartnerProductSpecReq = z
     // Values are numbers per the catalog's param defs; ranges checked in the
     // workflow against the technique that was actually chosen.
     params: z.record(z.string(), z.number()).nullable().optional(),
+    /**
+     * The FINISHED piece, in centimetres — what a buyer means by "size".
+     *
+     * Bounded at 2000 cm to catch the typo (a 20-metre shawl), not to tell a
+     * weaver what is possible; the same posture as the param ranges. Integers,
+     * because the column is one and a half centimetre on a shawl is noise.
+     */
+    finished_length_cm: z.number().int().min(1).max(2000).nullable().optional(),
+    finished_width_cm: z.number().int().min(1).max(2000).nullable().optional(),
+    size_label: z.string().trim().max(80).nullable().optional(),
     finishes: z.array(z.string().trim().min(1).max(120)).max(20).nullable().optional(),
     notes: z.string().trim().max(5000).nullable().optional(),
     accepting_custom_orders: z.boolean().optional(),

@@ -102,6 +102,14 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
       weave_technique: spec.weave_technique ?? null,
       weave_label: spec.weave_label ?? null,
       params: spec.params ?? null,
+      /**
+       * The FINISHED piece's size — what a buyer means when they ask "how big
+       * is it". Deliberately not folded into `params`: those are keyed to the
+       * weave technique, and a product with no technique still has a size.
+       */
+      finished_length_cm: spec.finished_length_cm ?? null,
+      finished_width_cm: spec.finished_width_cm ?? null,
+      size_label: spec.size_label ?? null,
       finishes: spec.finishes ?? [],
       accepting_custom_orders: !!spec.accepting_custom_orders,
       custom_order_lead_time_days: spec.custom_order_lead_time_days ?? null,

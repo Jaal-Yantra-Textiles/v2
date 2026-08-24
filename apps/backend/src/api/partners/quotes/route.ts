@@ -4,6 +4,7 @@ import { ContainerRegistrationKeys } from "@medusajs/framework/utils"
 import { PARTNER_QUOTE_MODULE } from "../../../modules/partner-quote"
 import { resolveQuoteDesignLines } from "../../../modules/partner-quote/lib/design-lines"
 import { buildQuoteListQuery } from "../../../modules/partner-quote/lib/list-query"
+import { withEffectiveStatus } from "../../../modules/partner-quote/lib/token"
 import { deliverQuoteEmail } from "../../../workflows/partner-quote/deliver-quote-email"
 import { mintQuoteWorkflow } from "../../../workflows/partner-quote/mint-quote"
 import { getPartnerStore, tryGetPartnerStore } from "../helpers"
@@ -27,16 +28,27 @@ export const GET = async (
   }
 
   const service: any = req.scope.resolve(PARTNER_QUOTE_MODULE)
-  const { filters, config } = buildQuoteListQuery(req.query as any, {
-    partner_id: partner.id,
-  })
+  // 🔑 ONE `now` for the filter and the stamp (#1510). Two calls to `new Date()`
+  // could straddle an `expires_at`, and a row would be selected as active and
+  // then labelled expired in the same response.
+  const now = new Date()
+  const { filters, config } = buildQuoteListQuery(
+    req.query as any,
+    { partner_id: partner.id },
+    now
+  )
 
   const [quotes, count] = await service.listAndCountPartnerQuotes(
     filters,
     config
   )
 
-  res.json({ quotes, count, limit: config.take, offset: config.skip })
+  res.json({
+    quotes: (quotes ?? []).map((q: any) => withEffectiveStatus(q, now)),
+    count,
+    limit: config.take,
+    offset: config.skip,
+  })
 }
 
 /**

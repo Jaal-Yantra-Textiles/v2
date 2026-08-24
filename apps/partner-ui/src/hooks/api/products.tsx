@@ -850,6 +850,15 @@ export type ProductSpec = {
   weave_technique?: string | null
   weave_label?: string | null
   params?: Record<string, number> | null
+  /**
+   * The FINISHED piece, in centimetres. NOT a weave param — those are keyed to
+   * the chosen technique and rejected without one; a size belongs to the
+   * article and survives a product that has no weave at all.
+   */
+  finished_length_cm?: number | null
+  finished_width_cm?: number | null
+  /** What the trade calls that size — "Stole", "Full shawl". */
+  size_label?: string | null
   finishes?: string[] | null
   notes?: string | null
   accepting_custom_orders?: boolean | null
