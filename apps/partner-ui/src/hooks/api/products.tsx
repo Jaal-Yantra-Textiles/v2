@@ -983,3 +983,66 @@ export const useUpsertProductSpecFor = (
     ...options,
   })
 }
+
+const OPTION_PALETTES_QUERY_KEY = "option_palettes" as const
+export const optionPalettesQueryKeys = queryKeysFactory(
+  OPTION_PALETTES_QUERY_KEY
+)
+
+export type PaletteValue = {
+  id: string
+  value: string
+  hex: string | null
+  custom: boolean
+}
+
+export type OptionPalette = {
+  id: string
+  title: string
+  values: PaletteValue[]
+}
+
+/**
+ * The curated option vocabularies — Colour and its palette today.
+ *
+ * The backend returns the shared values plus THIS partner's own additions and
+ * nobody else's, so the list can be rendered as-is. Values carry their hex, so
+ * a swatch needs no second request.
+ */
+export const useOptionPalettes = (
+  options?: Omit<
+    UseQueryOptions<
+      { palettes: OptionPalette[] },
+      FetchError,
+      { palettes: OptionPalette[] },
+      QueryKey
+    >,
+    "queryFn" | "queryKey"
+  >
+) => {
+  const { data, ...rest } = useQuery({
+    queryKey: optionPalettesQueryKeys.lists(),
+    queryFn: () =>
+      sdk.client.fetch<{ palettes: OptionPalette[] }>(
+        "/partners/option-palettes",
+        { method: "GET" }
+      ),
+    staleTime: 5 * 60 * 1000,
+    ...options,
+  })
+
+  return { ...data, ...rest }
+}
+
+/**
+ * The palette for a given option title, or null when the partner is authoring
+ * an option of their own (Material, Spin Type) and should get a free-text list.
+ */
+export const usePaletteForTitle = (title?: string) => {
+  const { palettes, isPending } = useOptionPalettes()
+  const normalized = (title ?? "").trim().toLowerCase()
+  const palette =
+    (palettes ?? []).find((p) => p.title.trim().toLowerCase() === normalized) ??
+    null
+  return { palette, isPending }
+}

@@ -270,9 +270,12 @@ export const ClaimOutboundSection = ({
         .filter(Boolean)
 
       const variants = (
-        await sdk.client.fetch<any>("/partners/product-variants", { method: "GET", query: {
-          id: variantIds,
-          fields: "*inventory.location_levels",
+        await sdk.client.fetch<any>("/partners/product-variants", {
+          method: "GET",
+          query: {
+            id: variantIds,
+            fields: "*inventory.location_levels",
+          },
         })
       ).variants
 

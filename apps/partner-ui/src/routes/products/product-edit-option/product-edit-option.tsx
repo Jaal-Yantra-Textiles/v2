@@ -29,7 +29,12 @@ export const ProductEditOption = () => {
       <RouteDrawer.Header>
         <Heading>{t("products.options.edit.header")}</Heading>
       </RouteDrawer.Header>
-      {option && <CreateProductOptionForm option={option} />}
+      {option && (
+        // Pass the product id from the route: `option.product_id` is null on
+        // every option since 2.16 made options global, so the form cannot get
+        // it from the option itself.
+        <CreateProductOptionForm option={option} productId={id!} />
+      )}
     </RouteDrawer>
   )
 }
