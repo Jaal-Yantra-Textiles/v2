@@ -1,8 +1,9 @@
 # JYT CRM Capture — Chrome extension
 
-Capture a contact from any web page into the JYT CRM in two clicks, or inject
+Capture a contact from any web page into the JYT CRM in two clicks, inject
 inspiration images from any page (Pinterest, fabric sites, lookbooks) directly
-into a design's Excalidraw moodboard.
+into a design's Excalidraw moodboard, or create a partner from a company's
+website.
 
 No build step, no dependencies, no bundler. It is plain ES modules that Chrome
 loads directly, so what you read here is exactly what runs.
@@ -80,6 +81,15 @@ capture-only credential. Both are follow-ups, not v0.1.
 Contacts are stamped `metadata.source = "extension"` with the page URL and
 title, so a captured contact is traceable to where it came from — the same way
 an imported ad-lead carries its campaign.
+
+### Partner capture
+
+- `POST /admin/partners` — creates the partner with its primary admin
+
+Extracts from the page (in trust order): JSON-LD Organization → Open Graph →
+`<h1>`/`<title>` for the name; JSON-LD logo → `og:image` → `<img class*="logo">`
+→ apple-touch-icon → favicon for the logo URL; `mailto:` links + page text regex
+for the admin email. Everything is pre-filled and editable before you save.
 
 ### Moodboard inject
 

@@ -1,5 +1,6 @@
 import { extractFromPage } from "./extract.js";
 import { extractImages, fetchImageDataUrls } from "./extract-images.js";
+import { extractPartner } from "./extract-partner.js";
 import {
   getSettings,
   splitName,
@@ -12,6 +13,7 @@ import {
   uploadToExistingFolder,
   linkMediaFolder,
   listFolders,
+  createPartner,
 } from "./api.js";
 
 const $ = (id) => document.getElementById(id);
@@ -27,6 +29,7 @@ tabs.forEach((btn) => {
     tabs.forEach((b) => b.classList.toggle("active", b === btn));
     panels.forEach((p) => p.classList.toggle("active", p.id === `panel-${name}`));
     if (name === "moodboard") initMoodboard();
+    if (name === "partner") initPartner();
   });
 });
 
@@ -540,6 +543,131 @@ function dataUrlToBlob(dataUrl) {
   const arr = new Uint8Array(bytes.length);
   for (let i = 0; i < bytes.length; i++) arr[i] = bytes.charCodeAt(i);
   return new Blob([arr], { type: mime });
+}
+
+// ── Partner tab ────────────────────────────────────────────────────────────────
+
+const ptStatus = (msg, kind) => {
+  const el = $("pt-status");
+  el.textContent = msg;
+  el.className = kind || "";
+};
+
+let ptInitialised = false;
+
+async function initPartner() {
+  const settings = await getSettings();
+  if (!settings.baseUrl || !settings.token) {
+    $("pt-setup").hidden = false;
+    $("pt-content").hidden = true;
+    $("pt-open-options").addEventListener("click", () => chrome.runtime.openOptionsPage());
+    return;
+  }
+
+  $("pt-setup").hidden = true;
+  $("pt-content").hidden = false;
+
+  if (ptInitialised) return;
+  ptInitialised = true;
+
+  const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+  if (!tab || !tab.id) {
+    ptStatus("No active tab to read.", "err");
+    return;
+  }
+
+  $("pt-page-url").textContent = tab.url || "";
+
+  let info;
+  try {
+    const [result] = await chrome.scripting.executeScript({
+      target: { tabId: tab.id },
+      func: extractPartner,
+    });
+    info = result && result.result;
+  } catch (e) {
+    ptStatus(`Cannot read this page (${e.message}). Try a normal web page.`, "err");
+    return;
+  }
+
+  if (!info) {
+    ptStatus("Nothing could be read from this page.", "err");
+    return;
+  }
+
+  // Pre-fill partner fields.
+  $("pt-name").value = info.name || "";
+  $("pt-handle").value = (info.handle || info.hostname || "").replace(/^www\./, "");
+  $("pt-logo").value = info.logo || "";
+  updateLogoPreview(info.logo);
+
+  $("pt-logo").addEventListener("input", () => updateLogoPreview($("pt-logo").value.trim()));
+
+  // Pre-fill admin contact fields.
+  $("pt-email").value = info.emails[0] || "";
+  if (info.emails.length > 1) {
+    const pick = $("pt-email-pick");
+    pick.hidden = false;
+    pick.innerHTML = info.emails.map((e) => `<option value="${e}">${e}</option>`).join("");
+    pick.addEventListener("change", () => { $("pt-email").value = pick.value; });
+  }
+
+  const { first, last } = splitName(info.contact_name || info.name);
+  $("pt-first-name").value = first || "";
+  $("pt-last-name").value = last || "";
+  $("pt-phone").value = info.phones[0] || "";
+
+  // Wire up the create button.
+  $("pt-create").addEventListener("click", async () => {
+    const name = $("pt-name").value.trim();
+    const email = $("pt-email").value.trim().toLowerCase();
+    const first_name = $("pt-first-name").value.trim();
+    const last_name = $("pt-last-name").value.trim();
+
+    if (!name) return ptStatus("A partner name is required.", "err");
+    if (!email) return ptStatus("An admin email is required.", "err");
+    if (!first_name) return ptStatus("An admin first name is required.", "err");
+    if (!last_name) return ptStatus("An admin last name is required.", "err");
+
+    $("pt-create").disabled = true;
+    ptStatus("Creating partner…");
+
+    const body = {
+      partner: {
+        name,
+        handle: $("pt-handle").value.trim() || undefined,
+        logo: $("pt-logo").value.trim() || undefined,
+        workspace_type: $("pt-workspace-type").value,
+      },
+      admin: {
+        email,
+        first_name,
+        last_name,
+        phone: $("pt-phone").value.trim() || undefined,
+      },
+    };
+
+    try {
+      const res = await createPartner(settings, body);
+      const partnerId = res?.partner?.id || res?.id || "unknown";
+      ptStatus(`Created partner ${partnerId}`, "ok");
+      $("pt-create").textContent = "Created";
+    } catch (e) {
+      $("pt-create").disabled = false;
+      ptStatus(e.message, "err");
+    }
+  });
+}
+
+function updateLogoPreview(url) {
+  const img = $("pt-logo-preview");
+  if (url && /^https?:\/\//.test(url)) {
+    img.src = url;
+    img.hidden = false;
+    img.onerror = () => { img.hidden = true; };
+  } else {
+    img.hidden = true;
+  }
 }
 
 // ── Boot ─────────────────────────────────────────────────────────────────────

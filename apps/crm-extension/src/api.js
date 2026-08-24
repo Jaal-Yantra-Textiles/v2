@@ -181,3 +181,13 @@ export async function listFolders(settings) {
 export async function linkMediaFolder(settings, designId, folderId) {
   return request(settings, `/admin/designs/${designId}/link-media-folder`, { folder_id: folderId });
 }
+
+// ── Partners ──────────────────────────────────────────────────────────────────
+
+/**
+ * Create a partner with its primary admin.
+ * `input` is { partner: { name, handle?, logo?, workspace_type? }, admin: { email, first_name, last_name, phone?, role? } }.
+ */
+export async function createPartner(settings, input) {
+  return request(settings, "/admin/partners", input);
+}

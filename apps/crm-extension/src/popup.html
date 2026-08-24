@@ -177,6 +177,22 @@
 
       .loading { text-align: center; padding: 20px; color: var(--muted); font-size: 12px; }
       .empty { text-align: center; padding: 16px; color: var(--muted); font-size: 12px; }
+
+      /* Partner tab */
+      .logo-preview {
+        display: block;
+        max-width: 120px;
+        max-height: 60px;
+        margin: 6px 0;
+        border-radius: 6px;
+        border: 1px solid var(--border);
+        object-fit: contain;
+      }
+      .sep {
+        border: 0;
+        border-top: 1px solid var(--border);
+        margin: 14px 0;
+      }
     </style>
   </head>
   <body>
@@ -184,6 +200,7 @@
     <div class="tabs">
       <button class="tab-btn active" data-tab="contact">Capture Contact</button>
       <button class="tab-btn" data-tab="moodboard">Moodboard</button>
+      <button class="tab-btn" data-tab="partner">Partner</button>
     </div>
 
     <!-- Contact tab -->
@@ -257,6 +274,62 @@
       </div>
 
       <div id="mb-status"></div>
+    </div>
+
+    <!-- Partner tab -->
+    <div class="tab-panel" id="panel-partner">
+      <h1>Create partner from page</h1>
+      <div class="sub" id="pt-page-url">Reading page…</div>
+
+      <div id="pt-setup" hidden>
+        <p>No backend credentials set yet.</p>
+        <button id="pt-open-options">Open settings</button>
+      </div>
+
+      <div id="pt-content" hidden>
+        <label for="pt-name">Partner name *</label>
+        <input id="pt-name" autocomplete="off" />
+
+        <label for="pt-handle">Handle</label>
+        <input id="pt-handle" autocomplete="off" />
+        <div class="hint">Auto-generated from the hostname. Must be unique.</div>
+
+        <label for="pt-logo">Logo URL</label>
+        <input id="pt-logo" type="url" autocomplete="off" />
+        <img id="pt-logo-preview" class="logo-preview" hidden />
+
+        <label for="pt-workspace-type">Workspace type</label>
+        <select id="pt-workspace-type">
+          <option value="manufacturer">Manufacturer</option>
+          <option value="seller">Seller</option>
+          <option value="designer">Designer</option>
+          <option value="individual">Individual</option>
+        </select>
+
+        <hr class="sep" />
+
+        <label for="pt-email">Admin email *</label>
+        <select id="pt-email-pick" hidden></select>
+        <input id="pt-email" type="email" autocomplete="off" />
+
+        <div class="row">
+          <div>
+            <label for="pt-first-name">Admin first name *</label>
+            <input id="pt-first-name" autocomplete="off" />
+          </div>
+          <div>
+            <label for="pt-last-name">Admin last name *</label>
+            <input id="pt-last-name" autocomplete="off" />
+          </div>
+        </div>
+
+        <label for="pt-phone">Admin phone</label>
+        <input id="pt-phone" autocomplete="off" />
+
+        <button id="pt-create">Create partner</button>
+      </div>
+
+      <div id="pt-status"></div>
     </div>
 
     <script type="module" src="popup.js"></script>
