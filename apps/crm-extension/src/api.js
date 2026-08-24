@@ -50,17 +50,22 @@ export function splitName(full) {
   return { first: parts[0], last: parts.slice(1).join(" ") };
 }
 
-async function request(settings, path, body) {
+async function request(settings, path, body, opts = {}) {
+  const method = opts.method || "POST";
+  const isForm = opts.formData !== undefined;
+
+  const headers = {
+    // btoa is fine here: an API key is ASCII by construction.
+    authorization: `Basic ${btoa(`${settings.token}:`)}`,
+  };
+  if (!isForm) headers["content-type"] = "application/json";
+
   let res;
   try {
     res = await fetch(`${settings.baseUrl}${path}`, {
-      method: "POST",
-      headers: {
-        "content-type": "application/json",
-        // btoa is fine here: an API key is ASCII by construction.
-        authorization: `Basic ${btoa(`${settings.token}:`)}`,
-      },
-      body: JSON.stringify(body),
+      method,
+      headers,
+      body: isForm ? opts.formData : body !== undefined ? JSON.stringify(body) : undefined,
     });
   } catch {
     throw new Error(
@@ -77,15 +82,11 @@ async function request(settings, path, body) {
   try {
     data = text ? JSON.parse(text) : {};
   } catch {
-    // A non-JSON body on an error status is usually a proxy or WAF page; the
-    // status is the only trustworthy part of it.
     throw new Error(`Unexpected response (HTTP ${res.status}).`);
   }
 
   if (!res.ok) {
-    // Surface what the server said. A duplicate email is the common case and
-    // the message names it, which is far more useful than "save failed".
-    throw new Error(data.message || `Save failed (HTTP ${res.status}).`);
+    throw new Error(data.message || `Request failed (HTTP ${res.status}).`);
   }
   return data;
 }
@@ -99,4 +100,94 @@ export async function createContact(settings, contact) {
 
 export async function logNote(settings, note) {
   return request(settings, "/admin/crm/notes", note);
+}
+
+// ── Designs ──────────────────────────────────────────────────────────────────
+
+/**
+ * List designs, paginated. Returns { designs, count, offset, limit }.
+ */
+export async function listDesigns(settings, { q, limit = 50, offset = 0 } = {}) {
+  const params = new URLSearchParams();
+  params.set("limit", String(limit));
+  params.set("offset", String(offset));
+  if (q) params.set("q", q);
+  return request(settings, `/admin/designs?${params}`, undefined, { method: "GET" });
+}
+
+/**
+ * Get a single design, requesting the moodboard and linked folder.
+ * Returns the design object; moodboard is at .moodboard (may be null),
+ * linked folder (if any) at .folder.id.
+ */
+export async function getDesignMoodboard(settings, designId) {
+  return request(settings, `/admin/designs/${designId}?fields=moodboard,folder.id`, undefined, {
+    method: "GET",
+  });
+}
+
+/**
+ * Update a design's moodboard via the general PUT /admin/designs/:id route.
+ */
+export async function updateDesignMoodboard(settings, designId, moodboard) {
+  return request(settings, `/admin/designs/${designId}`, { moodboard }, { method: "PUT" });
+}
+
+// ── Media ─────────────────────────────────────────────────────────────────────
+
+/**
+ * Create a folder and upload files in one request.
+ * `files` is an array of { blob, filename, mimeType }.
+ * Returns { message, result: { folder, mediaFiles, uploadedFileCount } }.
+ */
+export async function uploadMediaToFolder(settings, files, folderName) {
+  const form = new FormData();
+  for (const f of files) {
+    form.append("files", f.blob, f.filename);
+  }
+  form.append(
+    "folder",
+    JSON.stringify({ name: folderName, description: "Moodboard inspiration captured by extension" })
+  );
+  form.append("metadata", JSON.stringify({ source: "extension" }));
+  return request(settings, "/admin/medias", undefined, { method: "POST", formData: form });
+}
+
+/**
+ * Upload files into an EXISTING folder by id.
+ * Returns { result: { uploaded: [...] } }.
+ */
+export async function uploadToExistingFolder(settings, folderId, files) {
+  const form = new FormData();
+  for (const f of files) {
+    form.append("files", f.blob, f.filename);
+  }
+  return request(settings, `/admin/medias/folder/${folderId}/upload`, undefined, {
+    method: "POST",
+    formData: form,
+  });
+}
+
+/**
+ * List all media folders (lightweight). Returns { folders, count }.
+ */
+export async function listFolders(settings) {
+  return request(settings, "/admin/medias/folders", undefined, { method: "GET" });
+}
+
+/**
+ * Link a media folder to a design (one-to-one, replaces existing).
+ */
+export async function linkMediaFolder(settings, designId, folderId) {
+  return request(settings, `/admin/designs/${designId}/link-media-folder`, { folder_id: folderId });
+}
+
+// ── Partners ──────────────────────────────────────────────────────────────────
+
+/**
+ * Create a partner with its primary admin.
+ * `input` is { partner: { name, handle?, logo?, workspace_type? }, admin: { email, first_name, last_name, phone?, role? } }.
+ */
+export async function createPartner(settings, input) {
+  return request(settings, "/admin/partners", input);
 }

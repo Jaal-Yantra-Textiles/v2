@@ -2,7 +2,7 @@
 <html lang="en">
   <head>
     <meta charset="utf-8" />
-    <title>Capture to JYT CRM</title>
+    <title>JYT CRM</title>
     <style>
       :root {
         color-scheme: light dark;
@@ -14,6 +14,7 @@
         --accent-fg: #ffffff;
         --ok: #15803d;
         --err: #b91c1c;
+        --tab-bg: #f4f4f5;
       }
       @media (prefers-color-scheme: dark) {
         :root {
@@ -25,17 +26,50 @@
           --accent-fg: #18181b;
           --ok: #4ade80;
           --err: #f87171;
+          --tab-bg: #27272a;
         }
       }
       * { box-sizing: border-box; }
       body {
-        width: 360px;
+        width: 480px;
+        max-height: 600px;
+        overflow-y: auto;
         margin: 0;
-        padding: 14px;
+        padding: 0;
         font: 13px/1.45 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
         background: var(--bg);
         color: var(--fg);
       }
+      /* Tab bar */
+      .tabs {
+        display: flex;
+        border-bottom: 1px solid var(--border);
+        position: sticky;
+        top: 0;
+        background: var(--bg);
+        z-index: 1;
+      }
+      .tab-btn {
+        flex: 1;
+        padding: 10px 0;
+        font: inherit;
+        font-weight: 600;
+        text-align: center;
+        border: 0;
+        background: none;
+        color: var(--muted);
+        cursor: pointer;
+        border-bottom: 2px solid transparent;
+        margin: 0;
+        border-radius: 0;
+      }
+      .tab-btn.active {
+        color: var(--fg);
+        border-bottom-color: var(--accent);
+      }
+      .tab-panel { display: none; padding: 14px; }
+      .tab-panel.active { display: block; }
+
       h1 { font-size: 13px; margin: 0 0 2px; }
       .sub { color: var(--muted); font-size: 11px; margin-bottom: 12px; word-break: break-all; }
       label { display: block; font-size: 11px; color: var(--muted); margin: 9px 0 3px; }
@@ -64,56 +98,239 @@
         cursor: pointer;
       }
       button:disabled { opacity: 0.5; cursor: default; }
-      #status { margin-top: 10px; font-size: 11px; min-height: 15px; }
-      #status.ok { color: var(--ok); }
-      #status.err { color: var(--err); }
+      #status, #mb-status { margin-top: 10px; font-size: 11px; min-height: 15px; }
+      .ok { color: var(--ok); }
+      .err { color: var(--err); }
       .hint { font-size: 11px; color: var(--muted); margin-top: 4px; }
       a { color: inherit; }
+
+      /* Moodboard tab */
+      .img-grid {
+        display: grid;
+        grid-template-columns: repeat(4, 1fr);
+        gap: 6px;
+        margin: 8px 0;
+      }
+      .img-cell {
+        position: relative;
+        cursor: pointer;
+        border: 2px solid transparent;
+        border-radius: 6px;
+        overflow: hidden;
+        aspect-ratio: 1;
+      }
+      .img-cell img {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+        display: block;
+      }
+      .img-cell.selected { border-color: var(--accent); }
+      .img-cell .check {
+        position: absolute;
+        top: 3px;
+        right: 3px;
+        width: 18px;
+        height: 18px;
+        border-radius: 50%;
+        background: var(--accent);
+        color: var(--accent-fg);
+        font-size: 11px;
+        display: none;
+        align-items: center;
+        justify-content: center;
+      }
+      .img-cell.selected .check { display: flex; }
+
+      .design-search { margin-bottom: 8px; }
+
+      .design-list {
+        max-height: 220px;
+        overflow-y: auto;
+        border: 1px solid var(--border);
+        border-radius: 6px;
+      }
+      .design-row {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 7px 10px;
+        border-bottom: 1px solid var(--border);
+        cursor: pointer;
+      }
+      .design-row:last-child { border-bottom: 0; }
+      .design-row:hover { background: var(--tab-bg); }
+      .design-row.selected { background: var(--tab-bg); }
+      .design-row input { width: auto; }
+      .design-thumb {
+        width: 32px;
+        height: 32px;
+        border-radius: 4px;
+        object-fit: cover;
+        flex-shrink: 0;
+        background: var(--tab-bg);
+      }
+      .design-name { font-weight: 600; font-size: 12px; }
+      .design-status { font-size: 10px; color: var(--muted); }
+      .design-meta { flex: 1; min-width: 0; }
+      .design-meta .design-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+      .loading { text-align: center; padding: 20px; color: var(--muted); font-size: 12px; }
+      .empty { text-align: center; padding: 16px; color: var(--muted); font-size: 12px; }
+
+      /* Partner tab */
+      .logo-preview {
+        display: block;
+        max-width: 120px;
+        max-height: 60px;
+        margin: 6px 0;
+        border-radius: 6px;
+        border: 1px solid var(--border);
+        object-fit: contain;
+      }
+      .sep {
+        border: 0;
+        border-top: 1px solid var(--border);
+        margin: 14px 0;
+      }
     </style>
   </head>
   <body>
-    <h1>Capture to JYT CRM</h1>
-    <div class="sub" id="page-url">Reading page…</div>
+    <!-- Tab bar -->
+    <div class="tabs">
+      <button class="tab-btn active" data-tab="contact">Capture Contact</button>
+      <button class="tab-btn" data-tab="moodboard">Moodboard</button>
+      <button class="tab-btn" data-tab="partner">Partner</button>
+    </div>
 
-    <div id="form" hidden>
-      <div class="row">
-        <div>
-          <label for="first_name">First name *</label>
-          <input id="first_name" autocomplete="off" />
+    <!-- Contact tab -->
+    <div class="tab-panel active" id="panel-contact">
+      <h1>Capture to JYT CRM</h1>
+      <div class="sub" id="page-url">Reading page…</div>
+
+      <div id="form" hidden>
+        <div class="row">
+          <div>
+            <label for="first_name">First name *</label>
+            <input id="first_name" autocomplete="off" />
+          </div>
+          <div>
+            <label for="last_name">Last name</label>
+            <input id="last_name" autocomplete="off" />
+          </div>
         </div>
-        <div>
-          <label for="last_name">Last name</label>
-          <input id="last_name" autocomplete="off" />
-        </div>
+
+        <label for="email">Email *</label>
+        <select id="email-pick" hidden></select>
+        <input id="email" type="email" autocomplete="off" />
+        <div class="hint">The CRM keys contacts on email — it must be unique.</div>
+
+        <label for="phone">Phone</label>
+        <input id="phone" autocomplete="off" />
+
+        <label for="title">Job title</label>
+        <input id="title" autocomplete="off" />
+
+        <label for="company">Company</label>
+        <input id="company" autocomplete="off" />
+        <div class="hint">Saved as a note — companies are linked in the admin.</div>
+
+        <label for="note">Note</label>
+        <textarea id="note"></textarea>
+
+        <button id="save">Save to CRM</button>
       </div>
 
-      <label for="email">Email *</label>
-      <select id="email-pick" hidden></select>
-      <input id="email" type="email" autocomplete="off" />
-      <div class="hint">The CRM keys contacts on email — it must be unique.</div>
+      <div id="setup" hidden>
+        <p>No backend credentials set yet.</p>
+        <button id="open-options">Open settings</button>
+      </div>
 
-      <label for="phone">Phone</label>
-      <input id="phone" autocomplete="off" />
-
-      <label for="title">Job title</label>
-      <input id="title" autocomplete="off" />
-
-      <label for="company">Company</label>
-      <input id="company" autocomplete="off" />
-      <div class="hint">Saved as a note — companies are linked in the admin.</div>
-
-      <label for="note">Note</label>
-      <textarea id="note"></textarea>
-
-      <button id="save">Save to CRM</button>
+      <div id="status"></div>
     </div>
 
-    <div id="setup" hidden>
-      <p>No backend credentials set yet.</p>
-      <button id="open-options">Open settings</button>
+    <!-- Moodboard tab -->
+    <div class="tab-panel" id="panel-moodboard">
+      <h1>Inject into moodboard</h1>
+      <div class="sub" id="mb-page-url">Reading page…</div>
+
+      <div id="mb-setup" hidden>
+        <p>No backend credentials set yet.</p>
+        <button id="mb-open-options">Open settings</button>
+      </div>
+
+      <div id="mb-content" hidden>
+        <label>Images on this page</label>
+        <div class="hint">Click to select the photos you want in the moodboard.</div>
+        <div id="img-grid" class="img-grid"></div>
+
+        <label for="design-search-input">Pick a design</label>
+        <input id="design-search-input" class="design-search" placeholder="Search designs…" autocomplete="off" />
+        <div id="design-list" class="design-list">
+          <div class="loading">Loading designs…</div>
+        </div>
+
+        <button id="mb-inject" disabled>Add to moodboard</button>
+      </div>
+
+      <div id="mb-status"></div>
     </div>
 
-    <div id="status"></div>
+    <!-- Partner tab -->
+    <div class="tab-panel" id="panel-partner">
+      <h1>Create partner from page</h1>
+      <div class="sub" id="pt-page-url">Reading page…</div>
+
+      <div id="pt-setup" hidden>
+        <p>No backend credentials set yet.</p>
+        <button id="pt-open-options">Open settings</button>
+      </div>
+
+      <div id="pt-content" hidden>
+        <label for="pt-name">Partner name *</label>
+        <input id="pt-name" autocomplete="off" />
+
+        <label for="pt-handle">Handle</label>
+        <input id="pt-handle" autocomplete="off" />
+        <div class="hint">Auto-generated from the hostname. Must be unique.</div>
+
+        <label for="pt-logo">Logo URL</label>
+        <input id="pt-logo" type="url" autocomplete="off" />
+        <img id="pt-logo-preview" class="logo-preview" hidden />
+
+        <label for="pt-workspace-type">Workspace type</label>
+        <select id="pt-workspace-type">
+          <option value="manufacturer">Manufacturer</option>
+          <option value="seller">Seller</option>
+          <option value="designer">Designer</option>
+          <option value="individual">Individual</option>
+        </select>
+
+        <hr class="sep" />
+
+        <label for="pt-email">Admin email *</label>
+        <select id="pt-email-pick" hidden></select>
+        <input id="pt-email" type="email" autocomplete="off" />
+
+        <div class="row">
+          <div>
+            <label for="pt-first-name">Admin first name *</label>
+            <input id="pt-first-name" autocomplete="off" />
+          </div>
+          <div>
+            <label for="pt-last-name">Admin last name *</label>
+            <input id="pt-last-name" autocomplete="off" />
+          </div>
+        </div>
+
+        <label for="pt-phone">Admin phone</label>
+        <input id="pt-phone" autocomplete="off" />
+
+        <button id="pt-create">Create partner</button>
+      </div>
+
+      <div id="pt-status"></div>
+    </div>
 
     <script type="module" src="popup.js"></script>
   </body>
