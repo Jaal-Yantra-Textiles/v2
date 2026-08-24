@@ -272,14 +272,22 @@ product_page: show_related_products (boolean), related_heading, show_breadcrumbs
 product_page.detail_band: { enabled (boolean), heading, layout, blocks[] }
   - layout: "grid-2" | "grid-3" | "rows" | "tabs" | "accordion"
   - blocks[]: { source, label, body, enabled (boolean) } — at most 8
-  - source (required, one of): "spec" (weave/params/finishes, shown with icons)
+  - source (required, one of): "spec" (weave/params/finishes and the
+      made-to-order option groups, shown with icons)
     | "spec_fields" (the partner's own named fields on that product)
+    | "colors" (the made-to-order colourways, drawn as swatches from each
+      colour's hex — the right block for a product sold in many colours)
     | "attributes" (material, origin, type, weight, dimensions)
     | "maker" (the artisan story) | "care" | "shipping"
   - "body" applies ONLY to "care" and "shipping", which are the same copy on
     every product. The other sources read the product itself — do NOT write a
     body for them, it is ignored. A block whose product has nothing to show is
     hidden automatically, so it is safe to list one every product may not have.
+  - ⚠️ That hiding is also why a band can look broken: if EVERY block reads the
+    product and the products have no spec, no fields, no colourways and no
+    maker story, the whole band renders nothing and the page looks unchanged.
+    When a partner says the band is not appearing, check what the products
+    actually carry before touching the theme — the theme is usually fine.
 
 ## Cart
 cart: heading, empty_message, empty_cta_text, checkout_button_text, show_free_shipping_bar (boolean)

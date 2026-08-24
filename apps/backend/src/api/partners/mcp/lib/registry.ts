@@ -1996,7 +1996,7 @@ export const PARTNER_MCP_TOOLS: PartnerMcpToolDef[] = [
   {
     name: "add_product_variant",
     description:
-      "Add a variant to an existing product. `options` maps each product option to a value, e.g. { Size: 'M', Color: 'Red' }. Provide `prices` as [{ amount, currency_code }]. Creates an inventory item — seed its stock with set_inventory_level afterward.",
+      "Add a variant to an existing product. `options` maps each product option to a value, e.g. { Size: 'M', Colour: 'Ivory' }. Provide `prices` as [{ amount, currency_code }]. Creates an inventory item — seed its stock with set_inventory_level afterward. A variant needs a value for EVERY option the product has, so adding an option to a product that already has variants leaves those variants incomplete — add the option first, then fix or replace the variants. ⚠️ Do NOT create a variant per colour to cover a palette: with 2 options that is options×colours variants, each carrying a price in every currency, and it is almost never what the partner wants. A colour a partner offers made-to-order belongs in the production spec's palette (set_product_spec `colors`), not in a variant. Make a colour a variant ONLY when that exact colour is separately stocked or separately priced.",
     method: "POST",
     path: "/partners/stores/:id/products/:productId/variants",
     pathParams: ["id", "productId"],

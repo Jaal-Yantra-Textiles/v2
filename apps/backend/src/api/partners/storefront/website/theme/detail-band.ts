@@ -49,6 +49,14 @@ export const DETAIL_BLOCK_SOURCES = [
   "spec",
   /** The partner's own named spec fields — per-product free text. */
   "spec_fields",
+  /**
+   * The made-to-order colourways, drawn as swatches from each colour's hex.
+   *
+   * Its own source rather than part of `spec`: a palette is a row of colour,
+   * not a label/value pair, and a partner may well want it beside the weave
+   * rather than buried under it.
+   */
+  "colors",
   /** Material, origin, type, weight, dimensions — the old hardcoded tab. */
   "attributes",
   /** The maker/artisan story, when the product has one. */
@@ -93,6 +101,7 @@ export type DetailBand = z.infer<typeof detailBandSchema>
 export const DEFAULT_BLOCK_LABELS: Record<DetailBlockSource, string> = {
   spec: "Made to",
   spec_fields: "Details",
+  colors: "Colours",
   attributes: "Product information",
   maker: "Made by",
   care: "Care",

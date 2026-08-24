@@ -202,6 +202,11 @@ const DOMAIN_KEYWORDS: Record<Exclude<PartnerToolDomain, "core">, string[]> = {
     "tag", "tags", "product type", "product types", "price", "prices",
     "pricing", "price preference", "price preferences", "price list",
     "discover", "copy product", "artisan", "artisan detail", "resubmit",
+    // A partner asks about colour in colour words, never in "option" ones, and
+    // the palette is what `add_product_option` has to be called with — so the
+    // ask that means "add a colour" must load both.
+    "option", "options", "colour", "colours", "color", "colors", "palette",
+    "swatch", "swatches", "shade", "shades", "colourway", "colourways",
     // Store product listings classify here (see PREFIX_DOMAINS), so the
     // listing vocabulary belongs with them.
     "store product", "product listing", "product listings",
