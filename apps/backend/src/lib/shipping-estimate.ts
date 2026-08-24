@@ -90,7 +90,7 @@ export type ShippingEstimateOption = {
   is_recommended?: boolean
   source: "manual" | "calculated"
   /**
-   * Set when this amount was CONVERTED from the carrier's own currency (#1502).
+   * Set when this amount was CONVERTED from the carrier's own currency (#1498).
    *
    * 🔑 The rate travels with the number rather than being logged. A converted
    * price that records only its result cannot be reproduced once FX has moved,
@@ -244,7 +244,7 @@ export function zoneCoversDestination(
 
 /**
  * PURE (given a rate lookup): put every CALCULATED rate into the quote's
- * currency, or drop the ones that cannot get there (#1502).
+ * currency, or drop the ones that cannot get there (#1498).
  *
  * Split out of `buildShippingEstimate` because this is the rule that decides a
  * buyer's freight number, and a rule that can only be exercised through a
@@ -671,7 +671,7 @@ export async function buildShippingEstimate(
   }
 
   /**
-   * 🔴 #1424's currency guard — now a CONVERSION, not a drop (#1502).
+   * 🔴 #1424's currency guard — now a CONVERSION, not a drop (#1498).
    *
    * ## What the guard was right about
    *
