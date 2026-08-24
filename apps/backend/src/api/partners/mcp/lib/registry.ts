@@ -1949,9 +1949,17 @@ export const PARTNER_MCP_TOOLS: PartnerMcpToolDef[] = [
   // (add a colour/size, fix a price, remove a variant). Options must exist
   // before variants can reference them. Routine writes except DELETE.
   {
+    name: "list_option_palettes",
+    description:
+      "List the curated option vocabularies (e.g. Colour) with their allowed values and hex codes. Call this BEFORE add_product_option whenever the option is a colour — the palette is the vocabulary, and a value outside it is refused unless you supply a hex for it.",
+    method: "GET",
+    path: "/partners/option-palettes",
+    inputSchema: obj({}, []),
+  },
+  {
     name: "add_product_option",
     description:
-      "Add an option (e.g. Size, Color) with its values to a product. Options must exist before variants can reference them via `options`.",
+      "Add an option (e.g. Size, Colour) with its values to a product. Add every option a variant will name BEFORE calling add_product_variant, or it fails on the option count. Safe to call again for an option the product already has — the new values are merged into it. Colour is a CURATED option shared by every partner: pass values from list_option_palettes, and to use a colour that is not in the palette pass an object with a hex, e.g. { value: 'Sea Green', hex: '#2E8B57' }.",
     method: "POST",
     path: "/partners/stores/:id/products/:productId/options",
     pathParams: ["id", "productId"],
@@ -1961,11 +1969,25 @@ export const PARTNER_MCP_TOOLS: PartnerMcpToolDef[] = [
       {
         id: STR("Store id."),
         productId: STR("Product id."),
-        title: STR("Option name, e.g. 'Size'."),
+        title: STR("Option name, e.g. 'Size' or 'Colour'."),
         values: {
           type: "array",
-          description: "Option values, e.g. ['S','M','L'].",
-          items: { type: "string" },
+          description:
+            "Option values. Strings for existing values, e.g. ['S','M','L'] or ['Ivory','Terracotta']. For a colour outside the curated palette, an object: { value: 'Sea Green', hex: '#2E8B57' }.",
+          items: {
+            anyOf: [
+              { type: "string" },
+              {
+                type: "object",
+                properties: {
+                  value: STR("The value's name, e.g. 'Sea Green'."),
+                  hex: STR("6-digit hex for a new colour, e.g. '#2E8B57'."),
+                },
+                required: ["value"],
+                additionalProperties: true,
+              },
+            ],
+          },
         },
       },
       ["id", "productId", "title", "values"]

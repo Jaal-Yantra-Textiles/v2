@@ -553,18 +553,153 @@ setupSharedTestSuite(() => {
     })
 
     describe("Product Option Management", () => {
-      it("creates a new option for the product", async () => {
+      // 🔑 The assertion this suite shipped with checked the 201 and the title
+      // in the RESPONSE, and never re-read the product. Product options went
+      // global in 2.16 — the route wrote `product_id`, which is a no-op — so it
+      // stayed green for months while every partner attempt to add an option
+      // changed nothing. Every test here re-reads the product.
+      const readOptions = async () => {
+        const res = await api.get(
+          `/partners/stores/${partner.storeId}/products/${partner.productId}`,
+          { headers: partner.headers }
+        )
+        return (res.data.product.options || []) as any[]
+      }
+
+      // ⚠️ One test, not three. The runner restores a snapshot before every
+      // test, so a chain split across `it`s reads as a convincing false
+      // "the option vanished" bug.
+      it("adds an option, merges a re-add, and saves an edited value", async () => {
+        // 1. Create — and the product must actually carry it.
+        const created = await api.post(
+          `/partners/stores/${partner.storeId}/products/${partner.productId}/options`,
+          { title: "Material", values: ["Cotton", "Polyester"] },
+          { headers: partner.headers }
+        )
+        expect(created.status).toBe(201)
+        expect(created.data.product_option.title).toBe("Material")
+
+        let onProduct = (await readOptions()).find((o) => o.title === "Material")
+        expect(onProduct).toBeDefined()
+        expect((onProduct.values || []).map((v: any) => v.value).sort()).toEqual(
+          ["Cotton", "Polyester"]
+        )
+
+        // 2. Re-adding the same title merges instead of colliding. On the old
+        // route this hit the global unique title index and answered 400, which
+        // is what pushed the assistant into add_product_variant instead.
+        const reused = await api.post(
+          `/partners/stores/${partner.storeId}/products/${partner.productId}/options`,
+          { title: "Material", values: ["Cotton", "Silk"] },
+          { headers: partner.headers }
+        )
+        expect(reused.status).toBe(200)
+        expect(reused.data.reused).toBe(true)
+
+        onProduct = (await readOptions()).find((o) => o.title === "Material")
+        expect((onProduct.values || []).map((v: any) => v.value).sort()).toEqual(
+          ["Cotton", "Polyester", "Silk"]
+        )
+
+        // 3. Editing values changes what the PRODUCT carries. The old route
+        // answered 200 with the new value in the body while the product still
+        // listed the old ones — the partner's "save button does nothing".
+        const saved = await api.post(
+          `/partners/stores/${partner.storeId}/products/${partner.productId}/options/${onProduct.id}`,
+          { title: "Material", values: ["Cotton", "Polyester", "Silk", "Linen"] },
+          { headers: partner.headers }
+        )
+        expect(saved.status).toBe(200)
+
+        onProduct = (await readOptions()).find((o) => o.title === "Material")
+        expect((onProduct.values || []).map((v: any) => v.value).sort()).toEqual(
+          ["Cotton", "Linen", "Polyester", "Silk"]
+        )
+      })
+
+      // Colour is ONE shared row every partner links, with a per-product value
+      // subset. Again one test: the runner rolls the DB back between them.
+      it("links the curated Colour palette with only the chosen subset", async () => {
+        const productService: any = getSharedTestEnv()
+          .getContainer()
+          .resolve("product")
+
+        await productService.createProductOptions({
+          title: "Colour",
+          is_exclusive: false,
+          values: [
+            { value: "Ivory", metadata: { hex: "#FAF8EF" } },
+            { value: "Terracotta", metadata: { hex: "#BF7B61" } },
+            { value: "Emerald", metadata: { hex: "#0EA347" } },
+          ],
+        })
+
         const res = await api.post(
           `/partners/stores/${partner.storeId}/products/${partner.productId}/options`,
-          {
-            title: "Material",
-            values: ["Cotton", "Polyester"],
-          },
+          { title: "Colour", values: ["Ivory", "Terracotta"] },
           { headers: partner.headers }
         )
         expect(res.status).toBe(201)
-        expect(res.data.product_option).toBeDefined()
-        expect(res.data.product_option.title).toBe("Material")
+
+        // ⚠️ Omitting the value-id subset links ALL of the option's values.
+        // The product asked for two of three and must get exactly two.
+        const onProduct = (await readOptions()).find((o) => o.title === "Colour")
+        expect((onProduct.values || []).map((v: any) => v.value).sort()).toEqual(
+          ["Ivory", "Terracotta"]
+        )
+        expect(
+          (onProduct.values || []).find((v: any) => v.value === "Ivory")
+            ?.metadata?.hex
+        ).toBe("#FAF8EF")
+
+        // A colour outside the palette is refused — with the vocabulary named.
+        const refused = await api.post(
+          `/partners/stores/${partner.storeId}/products/${partner.productId}/options`,
+          { title: "Colour", values: ["Neon Lime"] },
+          { headers: partner.headers, validateStatus: () => true }
+        )
+        expect(refused.status).toBe(400)
+        expect(refused.data.message).toContain("Neon Lime")
+
+        // ...unless the partner supplies a hex, which is the escape hatch.
+        const added = await api.post(
+          `/partners/stores/${partner.storeId}/products/${partner.productId}/options`,
+          {
+            title: "Colour",
+            values: [{ value: "Sea Green", hex: "#2E8B57" }],
+          },
+          { headers: partner.headers }
+        )
+        expect(added.status).toBe(200)
+
+        const withCustom = (await readOptions()).find(
+          (o) => o.title === "Colour"
+        )
+        const seaGreen = (withCustom.values || []).find(
+          (v: any) => v.value === "Sea Green"
+        )
+        // The hex must survive: core's add path reads only `value` and drops
+        // metadata, so this only passes because it is set in a second write.
+        expect(seaGreen?.metadata?.hex).toBe("#2E8B57")
+        expect(seaGreen?.metadata?.custom).toBe(true)
+
+        // A shared option must not be renamable from one partner's product.
+        const rename = await api.post(
+          `/partners/stores/${partner.storeId}/products/${partner.productId}/options/${withCustom.id}`,
+          { title: "Colours" },
+          { headers: partner.headers, validateStatus: () => true }
+        )
+        expect(rename.status).toBe(400)
+      })
+
+      it("refuses to write an option that belongs to another product", async () => {
+        const other = await createPartnerWithStoreAndProduct(api, adminHeaders)
+        const res = await api.post(
+          `/partners/stores/${partner.storeId}/products/${partner.productId}/options/${other.optionIds[0]}`,
+          { title: "Hijacked" },
+          { headers: partner.headers, validateStatus: () => true }
+        )
+        expect([400, 404]).toContain(res.status)
       })
     })
 
