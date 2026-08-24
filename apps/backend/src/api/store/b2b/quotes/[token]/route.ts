@@ -5,6 +5,7 @@ import { PARTNER_QUOTE_MODULE } from "../../../../../modules/partner-quote"
 import { buildQuoteView } from "../../../../../modules/partner-quote/lib/build-quote-view"
 import { composeQuoteAcceptance } from "../../../../../modules/partner-quote/lib/quote-acceptance-view"
 import { resolveQuoteParties } from "../../../../../modules/partner-quote/lib/quote-parties"
+import { assertQuoteVisibleToCaller } from "../../../../../modules/partner-quote/lib/quote-tenant-guard"
 import { hashQuoteToken } from "../../../../../modules/partner-quote/lib/token"
 
 /**
@@ -27,6 +28,16 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
   if (!quote) {
     throw new MedusaError(MedusaError.Types.NOT_FOUND, "Quote not found")
   }
+
+  /**
+   * 🔴 One partner's quote must not render on another partner's storefront
+   * (#1439 S15). Reproduced: three different stores' publishable keys all
+   * returned 200 for the same token, exposing the buyer, both tax
+   * registrations and the negotiated prices to a competitor's shop.
+   *
+   * Throws the same 404 as an unknown token, so a prober learns nothing.
+   */
+  await assertQuoteVisibleToCaller(req, quote)
 
   const lines = await service.listPartnerQuoteLines({ quote_id: quote.id })
 

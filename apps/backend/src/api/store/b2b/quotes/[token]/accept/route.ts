@@ -3,6 +3,7 @@ import { MedusaError } from "@medusajs/framework/utils"
 
 import { PARTNER_QUOTE_MODULE } from "../../../../../../modules/partner-quote"
 import { hashQuoteToken } from "../../../../../../modules/partner-quote/lib/token"
+import { assertQuoteVisibleToCaller } from "../../../../../../modules/partner-quote/lib/quote-tenant-guard"
 import { acceptQuoteWorkflow } from "../../../../../../workflows/partner-quote/accept-quote"
 
 /**
@@ -31,6 +32,14 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
   if (!quote) {
     throw new MedusaError(MedusaError.Types.NOT_FOUND, "Quote not found")
   }
+
+  /**
+   * 🔴 The tenant boundary matters MORE here than on the read (#1439 S15).
+   * This route builds a real cart bound to the quote's own customer and its
+   * minted price list — so without the check, the wrong storefront could start
+   * an order against another partner's frozen prices.
+   */
+  await assertQuoteVisibleToCaller(req, quote)
 
   const body = (req.validatedBody ?? req.body ?? {}) as Record<string, any>
 
