@@ -1,6 +1,6 @@
 import { getSharedTestEnv, setupSharedTestSuite } from "./shared-test-setup"
 import { createAdminUser } from "../helpers/create-admin-user"
-import { ContainerRegistrationKeys } from "@medusajs/framework/utils"
+import { ContainerRegistrationKeys, Modules } from "@medusajs/framework/utils"
 import {
   setupQuoteFixture,
   mintBody,
@@ -436,6 +436,99 @@ setupSharedTestSuite(() => {
         })
       )
       expect(currentQuote.data.quote.status).toBe("active")
+    })
+
+    /**
+     * #1507 — the buyer who already exists somewhere else on the platform.
+     *
+     * 🔑 This is the case that cannot be reached by typing a fresh address
+     * into the wizard, which is why it survived every green suite: every test
+     * above mints to `...-${seed.unique}@jaalyantra.test`, an address that has
+     * never existed. Only a buyer who is ALREADY a customer — of another
+     * store, or of the core store — hits it, and that is the buyer worth the
+     * most: an existing customer asking a partner for a bulk price.
+     *
+     * The two rules that collided: the lookup was scoped to the store, so the
+     * row was invisible; `customer.email` is unique platform-wide, so the
+     * create that followed hit the row it could not see. A flat 400 naming
+     * another store's data, with no path around it in the UI.
+     */
+    describe("a buyer who already exists off this store (#1507)", () => {
+      /** Straight at the module, so the row exists with NO link to any store. */
+      const createUnlinkedCustomer = async (
+        email: string,
+        extra: Record<string, any> = {}
+      ) => {
+        const container = getSharedTestEnv().getContainer()
+        const customerService: any = container.resolve(Modules.CUSTOMER)
+        return await customerService.createCustomers({ email, ...extra })
+      }
+
+      /** The store's own customers, straight from the link — not from a route. */
+      const storeCustomerIds = async (): Promise<string[]> => {
+        const container = getSharedTestEnv().getContainer()
+        const query: any = container.resolve(ContainerRegistrationKeys.QUERY)
+        const { data } = await query.graph({
+          entity: "stores",
+          fields: ["customers.id"],
+          filters: { id: seed.storeId },
+        })
+        return (((data ?? [])[0]?.customers ?? []) as any[]).map((c) => c.id)
+      }
+
+      it("🔴 quotes them — adopting the existing customer instead of colliding with them", async () => {
+        const { api } = getSharedTestEnv()
+        const email = `buyer-elsewhere-${seed.unique}@jaalyantra.test`
+        const stranger = await createUnlinkedCustomer(email)
+
+        expect(await storeCustomerIds()).not.toContain(stranger.id)
+
+        // 🔴 On the old code this is the 400: "Customer with email: ...,
+        // has_account: false, already exists."
+        const minted = await loud("mint-existing-buyer", () =>
+          api.post("/partners/quotes", mintBody(seed, { buyer_email: email }), {
+            headers: seed.headers,
+          })
+        )
+
+        expect(minted.status).toBe(201)
+
+        // 🔑 The SAME person, not a second row wearing their address. A quote
+        // minted to a duplicate identity would price a buyer who does not
+        // exist — the `+tag` workaround in prose form.
+        expect(minted.data.quote.customer_id).toBe(stranger.id)
+
+        // And they are this partner's buyer from here on, which is what makes
+        // the group, the price list and the acceptance resolve.
+        expect(await storeCustomerIds()).toContain(stranger.id)
+      })
+
+      it("attaches the quote to the real account, not the guest row with the same address", async () => {
+        const { api } = getSharedTestEnv()
+        const email = `buyer-account-${seed.unique}@jaalyantra.test`
+
+        // Core's unique index is on the PAIR `(email, has_account)`, so both
+        // of these are legal and both are the same human being.
+        const guest = await createUnlinkedCustomer(email)
+        const account = await createUnlinkedCustomer(email, { has_account: true })
+        expect(account.id).not.toBe(guest.id)
+
+        const minted = await loud("mint-account-buyer", () =>
+          api.post("/partners/quotes", mintBody(seed, { buyer_email: email }), {
+            headers: seed.headers,
+          })
+        )
+
+        expect(minted.status).toBe(201)
+
+        /**
+         * 🔑 The group carries the price list, so whichever identity is picked
+         * here is the identity that gets the price. Picking the guest would
+         * mint a quote the buyer cannot see once they sign in — priced,
+         * delivered, and inert.
+         */
+        expect(minted.data.quote.customer_id).toBe(account.id)
+      })
     })
 
     describe("the readiness preflight (#1445)", () => {
