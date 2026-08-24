@@ -82,7 +82,14 @@ export type AdminQuote = Record<string, any> & {
   quoted_duty_rate?: number | null
   quoted_import_tax_rate?: number | null
   quoted_duty_basis?: string | null
+  /** The STORED column. `expired` is never one of its values — see below. */
   status?: "active" | "revoked" | "superseded"
+  /**
+   * What `status` means today (#1510). Computed by the route from `status` and
+   * `expires_at`, so an expired quote stops reading `active` on every screen
+   * that shows the word. Render this; keep `status` for what the row stores.
+   */
+  status_effective?: "active" | "expired" | "revoked" | "superseded"
   expires_at?: string | null
   /**
    * Terms and acceptance (#1439 S11). `deposit_pct` is null when nobody named

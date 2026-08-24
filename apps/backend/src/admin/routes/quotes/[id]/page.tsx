@@ -191,20 +191,35 @@ const QuoteDetailPage = () => {
           ? "red"
           : "grey"
 
-  const isRevoked = quote.status === "revoked"
+  /**
+   * #1510 — the EFFECTIVE status, so this page and the list it was opened from
+   * read the same word. `status` alone said "active" on a quote whose link the
+   * buyer page was already refusing to price.
+   */
+  const effectiveStatus = quote.status_effective ?? quote.status
+
+  const isRevoked = effectiveStatus === "revoked"
   /**
    * A newer quote for this buyer expired this one's price list (#1435). It is
    * not revocable any more — there is nothing left to delete — but it is also
    * not a withdrawal, so it must not read as one.
    */
-  const isSuperseded = quote.status === "superseded"
-  const isDead = isRevoked || isSuperseded
+  const isSuperseded = effectiveStatus === "superseded"
+  /**
+   * Its clock ran out. Like `superseded`, nothing went wrong and nobody pulled
+   * it — but the price list carries a native `ends_at`, so there is likewise
+   * nothing left for Revoke to do.
+   */
+  const isExpired = effectiveStatus === "expired"
+  const isDead = isRevoked || isSuperseded || isExpired
 
-  const statusColor: "green" | "red" | "orange" = isRevoked
+  const statusColor: "green" | "red" | "orange" | "grey" = isRevoked
     ? "red"
     : isSuperseded
       ? "orange"
-      : "green"
+      : isExpired
+        ? "grey"
+        : "green"
   /**
    * Acceptance does not replace the status — an accepted quote is still active
    * until it is paid, and collapsing the two hides which of them the buyer is
@@ -214,9 +229,11 @@ const QuoteDetailPage = () => {
     ? "Revoked"
     : isSuperseded
       ? "Superseded"
-      : quote.accepted_at
-        ? "Active · Accepted"
-        : "Active"
+      : isExpired
+        ? "Expired"
+        : quote.accepted_at
+          ? "Active · Accepted"
+          : "Active"
 
   /**
    * 🔴 Revoke is the only action, and it is destructive: it DELETES the price

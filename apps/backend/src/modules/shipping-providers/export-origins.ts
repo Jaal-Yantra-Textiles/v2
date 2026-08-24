@@ -53,11 +53,18 @@
  *
  * ## Where the origins come from
  *
- * `location_ownership.is_core` — the warehouses we already record as ours. Not
- * an environment variable: that made the whole feature inert until somebody
- * remembered to set it, and made "we opened a warehouse" a deploy. A partner
- * who later gets their own pin export-enabled needs no change at all, because
- * a rateable partner origin means the relay never runs.
+ * `location_ownership.is_export_origin` — the hubs an operator has marked as
+ * places an export may leave from. Not an environment variable: that made the
+ * whole feature inert until somebody remembered to set it, and made "we opened
+ * a warehouse" a deploy. A partner who later gets their own pin export-enabled
+ * needs no change at all, because a rateable partner origin means the relay
+ * never runs.
+ *
+ * 🔴 Until an operator states the first one, this falls back to `is_core` —
+ * the behaviour that shipped first, and a documented conflation: `is_core`
+ * means "we own the stock here", not "we can export from here". Prod's two
+ * core locations include Dharamshala, which is not a hub. See
+ * `exportOriginRows` for why the fallback is all-or-nothing.
  *
  * ## 🔴 What it will not do
  *
@@ -143,20 +150,54 @@ export function coreOriginsFromLocations(
 }
 
 /**
- * The export origins available to fall back on — our OWN warehouses.
+ * PURE: which ownership rows may be exported FROM.
+ *
+ * ## The split (#1498)
+ *
+ * `is_core` answers "may we deduct consumption from this stock". This function
+ * answers "may an export leave from here", and they are not the same question:
+ * prod has exactly two `is_core` locations and one is **Dharamshala**, which
+ * holds our stock and is not an export hub. Reading one as the other relayed
+ * shipments to a warehouse that cannot export them and priced the result as
+ * though it worked.
+ *
+ * 🔑 The fallback is ALL-OR-NOTHING, and that is the whole design.
+ *
+ * - If ANY row states `is_export_origin`, only the rows that state `true` are
+ *   origins. The inference stops the moment there is a real answer, including
+ *   for the rows that still say nothing — otherwise marking Delhi `true` would
+ *   leave Dharamshala quietly exporting on the old rule, which is the exact bug
+ *   this splits apart.
+ * - If NO row states anything, every `is_core` row is an origin — today's
+ *   behaviour, unchanged, so this ships inert until an operator decides.
+ *
+ * 🔴 A per-row `?? is_core` fallback would look kinder and be wrong for that
+ * reason: it makes the first correct answer a no-op.
+ */
+export function exportOriginRows<T extends { is_core?: boolean; is_export_origin?: boolean | null }>(
+  rows: T[]
+): T[] {
+  const stated = (rows ?? []).filter(
+    (r) => r?.is_export_origin === true || r?.is_export_origin === false
+  )
+  if (stated.length) return stated.filter((r) => r.is_export_origin === true)
+  return (rows ?? []).filter((r) => r?.is_core === true)
+}
+
+/**
+ * The export origins available to fall back on — our OWN export hubs.
  *
  * ## Why ownership, and not configuration
  *
  * An earlier cut read these from `EXPORT_FALLBACK_ORIGINS`. That made the whole
  * feature inert until somebody remembered to set an environment variable, and
- * made "we opened a warehouse" a deploy. `location_ownership.is_core` already
- * records the exact fact this needs — *we own the stock here* — it is set from
- * the ops UI, and a new hub starts winning the moment it is marked.
+ * made "we opened a warehouse" a deploy. `location_ownership` already records
+ * the facts this needs, it is set from the ops UI, and a new hub starts winning
+ * the moment it is marked.
  *
- * ⚠️ It is a deliberate CONFLATION: `is_core` was written to answer "may we
- * deduct consumption from this stock", and this reads it as "may we export from
- * here". Those are the same set today (our warehouses) and there is no second
- * table to disagree with. If they ever diverge, this is the line to split.
+ * ⚠️ It USED to read `is_core` and call that "may we export from here" — a
+ * conflation this file documented and #1498 has now split. See
+ * `exportOriginRows` for what replaced it and why the fallback is all-or-nothing.
  *
  * 🔴 A location with NO ownership row is not an origin. The model treats an
  * unrecorded location as not-ours precisely so an unknown location cannot be
@@ -176,10 +217,17 @@ export async function resolveCoreExportOrigins(scope: any): Promise<ExportOrigin
     const { ContainerRegistrationKeys } = await import("@medusajs/framework/utils")
     const ownership: any = scope.resolve("location_ownership")
 
-    const rows = await ownership.listLocationOwnerships(
-      { is_core: true },
-      { take: null }
-    )
+    /**
+     * 🔴 Read ALL rows, not `{ is_core: true }`.
+     *
+     * The all-or-nothing rule needs to know whether ANY row has stated an
+     * export opinion, and a filtered read cannot see a row that says
+     * `is_export_origin: false` on a non-core location. The table is one row
+     * per stock location — tens, not thousands — so this is a cheap full read
+     * and the alternative is a wrong answer.
+     */
+    const allRows = await ownership.listLocationOwnerships({}, { take: null })
+    const rows = exportOriginRows((allRows ?? []) as any[])
     const ids = ((rows ?? []) as any[])
       .map((r) => r?.stock_location_id)
       .filter(Boolean)

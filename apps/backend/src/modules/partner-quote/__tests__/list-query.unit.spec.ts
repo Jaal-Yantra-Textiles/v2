@@ -1,6 +1,7 @@
 import {
   buildQuoteListQuery,
   buildQuoteSearchFilter,
+  buildQuoteStatusFilter,
   parseQuoteOrder,
   QUOTE_DEFAULT_LIMIT,
   QUOTE_MAX_LIMIT,
@@ -141,5 +142,80 @@ describe("buildQuoteListQuery", () => {
       order: { expires_at: "ASC" },
       relations: ["lines"],
     })
+  })
+})
+
+/**
+ * #1510 — `active` did not mean active.
+ *
+ * `partner_quote.status` has no `expired` value and nothing moves a row out of
+ * `active` when its date passes, so every list filtered to `status=active`
+ * counted dead quotes as live while the buyer page refused to price the very
+ * same link. The translation has to happen in the FILTER rather than over the
+ * page, or `count` and the pager describe a different set from the rows.
+ */
+describe("buildQuoteStatusFilter", () => {
+  const NOW = new Date("2026-08-24T12:00:00.000Z")
+
+  it("passes a real stored status straight through", () => {
+    expect(buildQuoteStatusFilter("revoked", NOW)).toEqual({ status: "revoked" })
+    expect(buildQuoteStatusFilter("superseded", NOW)).toEqual({
+      status: "superseded",
+    })
+  })
+
+  it("translates `expired` into 'stored active, and the date has passed'", () => {
+    expect(buildQuoteStatusFilter("expired", NOW)).toEqual({
+      status: "active",
+      $and: [{ expires_at: { $lte: NOW } }],
+    })
+  })
+
+  it("narrows `active` to rows whose date has NOT passed", () => {
+    expect(buildQuoteStatusFilter("active", NOW)).toEqual({
+      status: "active",
+      $and: [{ $or: [{ expires_at: null }, { expires_at: { $gt: NOW } }] }],
+    })
+  })
+
+  it("keeps a quote with no expiry in `active` forever", () => {
+    // Matches `quoteUnusableReason`, which only calls a quote expired when it
+    // has a date AND that date has passed. A null here must not vanish from
+    // both lists at once.
+    const clause: any = buildQuoteStatusFilter("active", NOW)
+    expect(clause.$and[0].$or).toContainEqual({ expires_at: null })
+  })
+})
+
+describe("buildQuoteListQuery — effective status (#1510)", () => {
+  const NOW = new Date("2026-08-24T12:00:00.000Z")
+
+  it("applies the expiry predicate to the filters", () => {
+    const { filters } = buildQuoteListQuery({ status: "expired" }, {}, NOW)
+    expect(filters).toMatchObject({ status: "active" })
+    expect((filters as any).$and).toEqual([{ expires_at: { $lte: NOW } }])
+  })
+
+  it("🔴 does not let the expiry clause trample the free-text search", () => {
+    // Both wanted `$or`, and `Object.assign` would have kept whichever ran
+    // last — silently turning "active quotes for Acme" into one or the other.
+    const { filters } = buildQuoteListQuery(
+      { status: "active", q: "acme" },
+      { partner_id: "part_mine" },
+      NOW
+    )
+    expect((filters as any).$or).toHaveLength(3)
+    expect((filters as any).$and).toHaveLength(1)
+    expect(filters.partner_id).toBe("part_mine")
+  })
+
+  it("intersects with an `$and` the caller already pinned", () => {
+    const { filters } = buildQuoteListQuery(
+      { status: "active" },
+      { $and: [{ store_id: "store_1" }] },
+      NOW
+    )
+    expect((filters as any).$and).toHaveLength(2)
+    expect((filters as any).$and[0]).toEqual({ store_id: "store_1" })
   })
 })

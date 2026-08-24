@@ -68,6 +68,14 @@ const LineRow = ({
               {line.variant_title}
             </Text>
           ) : null}
+          {/* How big it is, directly under what it is — the question a buyer
+              approving a consignment asks before any weave number. A quote used
+              to state the ends-per-inch and never the size of the piece. */}
+          {line.size ? (
+            <Text className="txt-small text-ui-fg-subtle">
+              Size: {line.size.label}
+            </Text>
+          ) : null}
           {line.note ? (
             <Text className="txt-small text-ui-fg-muted italic mt-1">
               {line.note}
@@ -86,6 +94,14 @@ const LineRow = ({
           {line.image_source === "product" ? (
             <Text className="txt-small text-ui-fg-muted mt-1">
               Image shows the product; this variant may differ.
+            </Text>
+          ) : null}
+          {/* A PRODUCT-level size on a variant-specific line is the same weaker
+              claim as a product thumbnail, and gets the same caveat rather than
+              being passed off as the variant's own measurement. */}
+          {line.size?.source === "product" ? (
+            <Text className="txt-small text-ui-fg-muted mt-1">
+              Size is the product&apos;s; this variant may differ.
             </Text>
           ) : null}
           {line.spec ? <QuoteLineSpecRows spec={line.spec} /> : null}

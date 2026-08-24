@@ -234,6 +234,76 @@ export const ProductSpecForm = ({
           </div>
         </div>
 
+        {/* The FINISHED piece.
+            🔴 Outside the technique block on purpose: size is a property of the
+            article, not of how it was woven, so a product with no technique
+            still has one. `loom_width_cm` below is a different measurement —
+            the cloth ON the loom, before it is cut, hemmed and washed. */}
+        <div className="grid gap-4 md:grid-cols-3">
+          <div className="flex flex-col gap-y-2">
+            <Label size="small" weight="plus">
+              Size name
+            </Label>
+            <Input
+              placeholder="Stole"
+              value={value.size_label ?? ""}
+              onChange={(e) => patch({ size_label: e.target.value })}
+            />
+          </div>
+          <div className="flex flex-col gap-y-2">
+            <Label size="small" weight="plus">
+              Finished length
+            </Label>
+            <div className="flex items-center gap-x-2">
+              <Input
+                type="number"
+                min={1}
+                max={2000}
+                placeholder="200"
+                value={value.finished_length_cm ?? ""}
+                onChange={(e) =>
+                  patch({
+                    finished_length_cm: e.target.value
+                      ? Number(e.target.value)
+                      : null,
+                  })
+                }
+              />
+              <Text size="xsmall" className="text-ui-fg-muted">
+                cm
+              </Text>
+            </div>
+          </div>
+          <div className="flex flex-col gap-y-2">
+            <Label size="small" weight="plus">
+              Finished width
+            </Label>
+            <div className="flex items-center gap-x-2">
+              <Input
+                type="number"
+                min={1}
+                max={2000}
+                placeholder="70"
+                value={value.finished_width_cm ?? ""}
+                onChange={(e) =>
+                  patch({
+                    finished_width_cm: e.target.value
+                      ? Number(e.target.value)
+                      : null,
+                  })
+                }
+              />
+              <Text size="xsmall" className="text-ui-fg-muted">
+                cm
+              </Text>
+            </div>
+          </div>
+          <Text size="xsmall" className="text-ui-fg-muted md:col-span-3">
+            Shown on the product page and on every quote for this product. A
+            buyer approving a consignment asks this before anything else.
+          </Text>
+        </div>
+
         {!!technique?.presets.length && (
           <div className="flex flex-wrap items-center gap-2">
             <Text size="xsmall" className="text-ui-fg-muted">

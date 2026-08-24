@@ -1,9 +1,18 @@
-import { Container, Heading, StatusBadge, Text } from "@medusajs/ui"
+import {
+  Button,
+  Container,
+  Heading,
+  StatusBadge,
+  Text,
+  toast,
+  usePrompt,
+} from "@medusajs/ui"
 import { useTranslation } from "react-i18next"
 import { useParams } from "react-router-dom"
 
 import {
   usePartnerQuote,
+  useRevokePartnerQuote,
   type PartnerQuoteEvent,
 } from "../../../hooks/api/partner-quotes"
 import { PaymentSchedulePanel } from "./components/payment-schedule-panel"
@@ -96,6 +105,44 @@ export const QuoteDetail = () => {
   // branch resolve to whichever matched last.
   const { quoteId } = useParams()
   const { quote, isLoading } = usePartnerQuote(quoteId!)
+  const prompt = usePrompt()
+  const revoke = useRevokePartnerQuote(quoteId!)
+
+  const handleRevoke = async () => {
+    /**
+     * 🔴 Behind a confirm, and the confirm says what is actually lost.
+     *
+     * Revoking DELETES the price list behind the quote, so a buyer who has
+     * already built a cart at these prices loses them too — not just the link.
+     * A partner who reads "revoke this quote?" does not know that; the sentence
+     * has to say it.
+     */
+    const confirmed = await prompt({
+      title: t("quotes.revoke.title", "Withdraw this quote?"),
+      description: t(
+        "quotes.revoke.description",
+        "The buyer's link stops working immediately and the prices frozen for them are deleted — including in any cart they have already built. This cannot be undone; a corrected quote has to be minted fresh, which sends them a new number."
+      ),
+      confirmText: t("quotes.revoke.confirm", "Withdraw"),
+      cancelText: t("general.cancel", "Cancel"),
+      variant: "danger",
+    })
+    if (!confirmed) return
+
+    try {
+      await revoke.mutateAsync()
+      toast.success(
+        t("quotes.revoke.success", "Quote withdrawn. The buyer's link is dead.")
+      )
+    } catch (e: any) {
+      // The route's refusals are written for the partner reading them — an
+      // accepted quote names who can unwind it — so show the message rather
+      // than a generic failure.
+      toast.error(
+        e?.message ?? t("quotes.revoke.error", "Could not withdraw the quote.")
+      )
+    }
+  }
 
   if (isLoading || !quote) {
     return (
@@ -109,7 +156,39 @@ export const QuoteDetail = () => {
     )
   }
 
-  const isRevoked = (quote as any).status === "revoked"
+  /**
+   * #1510 — the EFFECTIVE status. `status` alone read "Active" on a quote whose
+   * link the buyer page was already refusing to price.
+   */
+  const status =
+    (quote as any).status_effective ?? (quote as any).status ?? "active"
+  const isAccepted = !!(quote as any).accepted_at
+  /**
+   * Revoke is offered only while there is something to revoke.
+   *
+   * An accepted quote is deliberately NOT the partner's to withdraw — the
+   * buyer built a cart at these prices and may have paid a deposit against it,
+   * so unwinding is an operator's decision with a conversation attached. The
+   * route refuses it; this hides the button rather than letting a partner press
+   * it and read an error to find out.
+   */
+  const canRevoke = status === "active" && !isAccepted
+
+  const STATUS_BADGE: Record<
+    string,
+    { color: "green" | "red" | "orange" | "grey"; label: string }
+  > = {
+    active: { color: "green", label: t("quotes.status.active", "Active") },
+    // Not red: nothing went wrong, the offer simply ran out its clock.
+    expired: { color: "grey", label: t("quotes.status.expired", "Expired") },
+    // Not red either: a newer quote replaced this one; nobody withdrew it.
+    superseded: {
+      color: "orange",
+      label: t("quotes.status.superseded", "Superseded"),
+    },
+    revoked: { color: "red", label: t("quotes.status.revoked", "Revoked") },
+  }
+  const badge = STATUS_BADGE[status] ?? STATUS_BADGE.active
 
   return (
     <div className="flex flex-col gap-y-3">
@@ -134,11 +213,20 @@ export const QuoteDetail = () => {
                 {t("quotes.status.accepted", "Accepted")}
               </StatusBadge>
             ) : null}
-            <StatusBadge color={isRevoked ? "red" : "green"}>
-              {isRevoked
-                ? t("quotes.status.revoked", "Revoked")
-                : t("quotes.status.active", "Active")}
-            </StatusBadge>
+            <StatusBadge color={badge.color}>{badge.label}</StatusBadge>
+            {/* #1517 — a partner can withdraw their own mis-quote rather than
+                asking an operator, or re-minting and emailing the buyer a new
+                number they never asked for. */}
+            {canRevoke ? (
+              <Button
+                size="small"
+                variant="secondary"
+                onClick={handleRevoke}
+                isLoading={revoke.isPending}
+              >
+                {t("quotes.revoke.action", "Withdraw")}
+              </Button>
+            ) : null}
           </div>
         </div>
 

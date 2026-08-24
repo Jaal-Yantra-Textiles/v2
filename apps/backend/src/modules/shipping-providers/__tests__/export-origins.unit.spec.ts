@@ -1,5 +1,6 @@
 import {
   coreOriginsFromLocations,
+  exportOriginRows,
   rateWithOriginFallback,
 } from "../export-origins"
 
@@ -383,5 +384,66 @@ describe("rateWithOriginFallback", () => {
     })
     // The caller falls back to its flat rate — this must not manufacture one.
     expect(routes).toEqual([])
+  })
+})
+
+/**
+ * #1498 — "we own the stock here" is not "an export may leave from here".
+ *
+ * The relay read `is_core` as both. Prod has exactly two `is_core` locations
+ * and one is Dharamshala, which holds stock and is not an export hub, so a
+ * shipment could be relayed somewhere it cannot be exported from — and priced
+ * as though it had worked.
+ */
+describe("exportOriginRows", () => {
+  const DELHI = { stock_location_id: "sloc_delhi", is_core: true }
+  const DHARAMSHALA = { stock_location_id: "sloc_dh", is_core: true }
+  const PARTNER = { stock_location_id: "sloc_partner", is_core: false }
+
+  it("falls back to `is_core` while NOBODY has answered", () => {
+    // Today's behaviour, unchanged: this ships inert until an operator decides.
+    const rows = exportOriginRows([DELHI, DHARAMSHALA, PARTNER])
+    expect(rows.map((r) => r.stock_location_id)).toEqual([
+      "sloc_delhi",
+      "sloc_dh",
+    ])
+  })
+
+  it("🔴 stops inferring ENTIRELY once any row states an answer", () => {
+    // The all-or-nothing rule. A per-row `?? is_core` fallback would leave
+    // Dharamshala exporting on the old rule the moment Delhi was marked — so
+    // the first correct answer would have changed nothing.
+    const rows = exportOriginRows([
+      { ...DELHI, is_export_origin: true },
+      DHARAMSHALA,
+      PARTNER,
+    ])
+    expect(rows.map((r) => r.stock_location_id)).toEqual(["sloc_delhi"])
+  })
+
+  it("treats an explicit `false` as an answer, not as silence", () => {
+    // Marking the NON-hub is the other way an operator may state it, and it
+    // must switch the inference off just as firmly.
+    const rows = exportOriginRows([
+      DELHI,
+      { ...DHARAMSHALA, is_export_origin: false },
+    ])
+    expect(rows).toEqual([])
+  })
+
+  it("does not require a hub to be core", () => {
+    // A bonded warehouse we export from but hold no stock in is a real shape,
+    // and it is the reason these are two columns rather than one.
+    const rows = exportOriginRows([
+      { ...PARTNER, is_export_origin: true },
+      DHARAMSHALA,
+    ])
+    expect(rows.map((r) => r.stock_location_id)).toEqual(["sloc_partner"])
+  })
+
+  it("is empty rather than everything on no rows at all", () => {
+    // `filters: { id: undefined }` is NO filter (#1433). An empty origin set
+    // must degrade to "no relay available", never to "every location".
+    expect(exportOriginRows([])).toEqual([])
   })
 })

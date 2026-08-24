@@ -24,7 +24,7 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
  * rather than toggling anything inferred.
  */
 export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
-  const { stock_location_id, is_core, note } =
+  const { stock_location_id, is_core, is_export_origin, note } =
     req.validatedBody as AdminPostLocationOwnershipReq
 
   const service: any = req.scope.resolve(LOCATION_OWNERSHIP_MODULE)
@@ -37,11 +37,15 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
     ? await service.updateLocationOwnerships({
         id: existing.id,
         is_core,
+        // Omitted means "leave the stored answer alone"; an explicit null
+        // clears it back to undecided. See the validator.
+        ...(is_export_origin !== undefined ? { is_export_origin } : {}),
         ...(note !== undefined ? { note } : {}),
       })
     : await service.createLocationOwnerships({
         stock_location_id,
         is_core,
+        is_export_origin: is_export_origin ?? null,
         note: note ?? null,
       })
 

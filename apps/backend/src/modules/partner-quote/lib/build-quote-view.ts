@@ -30,6 +30,7 @@ import {
 } from "../../shipping-providers/rating-carrier"
 import { classifyQuoteJurisdiction } from "./quote-tax"
 import { resolveQuoteSpecs, type QuoteLineSpec } from "./quote-spec"
+import { resolveLineSize, type QuoteLineSize } from "./quote-size"
 import { daysUntilExpiry, quoteUnusableReason } from "./token"
 /**
  * Imported, never restated. `customer.groups.id` vs `customer_group_id` is the
@@ -270,6 +271,8 @@ export type QuoteViewLine = {
    * Null when the product has no spec, which is the normal state.
    */
   spec: QuoteLineSpec | null
+  /** The finished piece's size, and which source stated it. Null when nobody did. */
+  size: QuoteLineSize | null
   /**
    * Every image on this variant, merchandiser-ordered (#1439 S14). Empty when
    * the variant has none of its own — `thumbnail` may still be the product's.
@@ -794,6 +797,19 @@ export async function buildQuoteView(
       "product.title",
       "product.handle",
       "product.thumbnail",
+      /**
+       * Size, from the two places a partner may have stated it.
+       *
+       * The variant's own option value is the strongest claim — it is the SKU
+       * being quoted — and the product's catalogue dimensions are the weakest
+       * but cost nothing, since they are already filled in for the "Product
+       * information" tab. The middle source is the production spec, resolved
+       * separately below. See `quote-size.ts` for the ordering.
+       */
+      "options.value",
+      "options.option.title",
+      "product.length",
+      "product.width",
       // What the piece IS, for a buyer deciding whether it fits their shelf
       // (#1428 follow-up). Tags are the merchandising vocabulary the catalogue
       // already uses, so they need no new field and cannot drift from it.
@@ -1311,6 +1327,17 @@ export async function buildQuoteView(
         (v) => v.id !== line.variant_id
       ),
       spec: specByProduct.get(identity.product?.id) ?? null,
+      /**
+       * "How big is it" — the question a buyer approving a consignment asks
+       * before any of the weave numbers. Resolved from the strongest source
+       * that has an answer, and the source travels with it so the page can
+       * caveat a product-level claim on a variant-specific line.
+       */
+      size: resolveLineSize({
+        variant: identity,
+        spec_size: specByProduct.get(identity.product?.id)?.size ?? null,
+        product: identity.product,
+      }),
       product_tags: ((identity.product?.tags ?? []) as any[])
         .map((t) => t?.value)
         .filter((v: any): v is string => typeof v === "string" && v.length > 0),

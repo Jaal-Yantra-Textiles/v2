@@ -1,5 +1,6 @@
 import { PRODUCT_SPEC_MODULE } from "../../product-spec"
 import { WEAVE_TECHNIQUES } from "../../product-spec/weaving-techniques"
+import { sizeFromSpec } from "./quote-size"
 
 /**
  * "What the piece is made to", on the quote (#1428).
@@ -39,6 +40,17 @@ export type QuoteLineSpec = {
   weave_label: string | null
   rows: QuoteSpecRow[]
   finishes: string[]
+  /**
+   * The FINISHED piece, as one ready-to-render line ("Stole · 200 × 70 cm").
+   *
+   * Kept out of `rows` on purpose. The rows are the weave — a wall of
+   * comparable numbers a buyer skims — and the size is the one measurement they
+   * came looking for. Burying it between the yarn counts is how it goes unread.
+   *
+   * 🔴 This is the spec's answer, not the line's. The line resolves a stronger
+   * one from the variant when size is a product option; see `quote-size.ts`.
+   */
+  size: string | null
 }
 
 /** `ends_per_inch` → `Ends per inch`. Only ever a fallback for an unknown key. */
@@ -100,10 +112,14 @@ export function composeLineSpec(spec: any): QuoteLineSpec | null {
     .map(String)
 
   const weaveLabel = spec.weave_label || technique?.label || null
+  const size = sizeFromSpec(spec)
 
-  if (!rows.length && !finishes.length && !weaveLabel) return null
+  // 🔴 `size` counts. A spec carrying ONLY a finished size used to compose to
+  // null and take the whole block with it — the same shape as #1524, where
+  // "nothing to show" was measured too narrowly and a configured band vanished.
+  if (!rows.length && !finishes.length && !weaveLabel && !size) return null
 
-  return { weave_label: weaveLabel, rows, finishes }
+  return { weave_label: weaveLabel, rows, finishes, size }
 }
 
 /**

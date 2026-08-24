@@ -18,6 +18,9 @@ export const PRODUCT_SPEC_BODY_PARAMS = [
   "weave_technique",
   "weave_label",
   "params",
+  "finished_length_cm",
+  "finished_width_cm",
+  "size_label",
   "finishes",
   "notes",
   "accepting_custom_orders",
@@ -49,6 +52,21 @@ export const productSpecSchemaProps = () => ({
     description:
       "Measured parameters keyed by the catalog's param keys (gsm, ends_per_inch, picks_per_inch, warp_yarn_count, weft_yarn_count, loom_width_cm, plus technique-specific ones). Values are numbers and are REJECTED if outside the chosen technique's min/max — call get_spec_catalog first to see the ranges.",
     additionalProperties: { type: "number" },
+  },
+  finished_length_cm: {
+    type: "integer",
+    description:
+      "The FINISHED piece's length in centimetres, 1-2000. NOT a weave param and NOT loom_width_cm — that is the cloth on the loom, before it is cut, hemmed and washed. A product with no weave technique still has a size.",
+  },
+  finished_width_cm: {
+    type: "integer",
+    description:
+      "The FINISHED piece's width in centimetres, 1-2000. See finished_length_cm.",
+  },
+  size_label: {
+    type: "string",
+    description:
+      "What the trade calls that size — 'Stole', 'Full shawl', 'King' (≤ 80 chars). Shown alongside the measurement, not instead of it.",
   },
   finishes: {
     type: "array",
