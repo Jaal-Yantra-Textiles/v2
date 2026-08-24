@@ -51,13 +51,13 @@
  * Shiprocket is the only live international rate source, so day one is a
  * Shiprocket-only capability behind a carrier-agnostic seam.
  *
- * ## Why origins are configuration
+ * ## Where the origins come from
  *
- * `EXPORT_FALLBACK_ORIGINS="110032:Delhi HQ,176215:Himachal HQ"`. A partner who
- * later gets their own pin export-enabled simply starts winning — their origin
- * has no domestic leg to pay for, so it undercuts every HQ route — with no code
- * change and no list to edit. Constants would need a deploy to reflect a fact
- * that changed at the carrier.
+ * `location_ownership.is_core` — the warehouses we already record as ours. Not
+ * an environment variable: that made the whole feature inert until somebody
+ * remembered to set it, and made "we opened a warehouse" a deploy. A partner
+ * who later gets their own pin export-enabled needs no change at all, because
+ * a rateable partner origin means the relay never runs.
  *
  * ## 🔴 What it will not do
  *
@@ -117,48 +117,89 @@ export type RatedRoute = {
 }
 
 /**
- * PURE. Parse the configured HQ origins.
+ * PURE: turn owned stock locations into export origins.
  *
- * Shape: `"110032:Delhi HQ,176215:Himachal HQ"`. A bare pincode is allowed and
- * labels itself. Anything that is not a 6-digit Indian PIN is dropped rather
- * than passed to a carrier that would answer a slower no — but see
- * `parseExportOriginsStrict` if you want the rejects back.
+ * 🔴 A location with no valid 6-digit PIN is DROPPED, not passed through.
+ * Shiprocket's international endpoint 400s the whole request without a usable
+ * `pickup_postcode`, so a half-filled address would not fail politely on its
+ * own row — it would take the retry with it.
+ *
+ * Deduplicated by pincode: two warehouses in the same PIN are one rate query,
+ * not two, and asking twice would just spend a carrier call to learn that.
  */
-export function parseExportOrigins(raw?: string | null): ExportOrigin[] {
-  const { origins } = parseExportOriginsStrict(raw)
-  return origins
-}
-
-/** As above, but also reports what it threw away — for a config-check route. */
-export function parseExportOriginsStrict(raw?: string | null): {
-  origins: ExportOrigin[]
-  rejected: string[]
-} {
-  const origins: ExportOrigin[] = []
-  const rejected: string[] = []
+export function coreOriginsFromLocations(
+  locations: Array<{ id?: string; name?: string | null; address?: any }>
+): ExportOrigin[] {
+  const out: ExportOrigin[] = []
   const seen = new Set<string>()
-
-  for (const entry of String(raw || "").split(",")) {
-    const trimmed = entry.trim()
-    if (!trimmed) continue
-    const [pinPart, ...labelParts] = trimmed.split(":")
-    const pincode = pinPart.trim()
-    if (!/^\d{6}$/.test(pincode)) {
-      rejected.push(trimmed)
-      continue
-    }
-    // A duplicate pin is not a second route, it is the same call twice.
+  for (const loc of locations ?? []) {
+    const pincode = String(loc?.address?.postal_code ?? "").trim()
+    if (!/^\d{6}$/.test(pincode)) continue
     if (seen.has(pincode)) continue
     seen.add(pincode)
-    origins.push({
-      pincode,
-      label: labelParts.join(":").trim() || `HQ ${pincode}`,
-    })
+    out.push({ pincode, label: String(loc?.name || `HQ ${pincode}`) })
   }
-
-  return { origins, rejected }
+  return out
 }
 
+/**
+ * The export origins available to fall back on — our OWN warehouses.
+ *
+ * ## Why ownership, and not configuration
+ *
+ * An earlier cut read these from `EXPORT_FALLBACK_ORIGINS`. That made the whole
+ * feature inert until somebody remembered to set an environment variable, and
+ * made "we opened a warehouse" a deploy. `location_ownership.is_core` already
+ * records the exact fact this needs — *we own the stock here* — it is set from
+ * the ops UI, and a new hub starts winning the moment it is marked.
+ *
+ * ⚠️ It is a deliberate CONFLATION: `is_core` was written to answer "may we
+ * deduct consumption from this stock", and this reads it as "may we export from
+ * here". Those are the same set today (our warehouses) and there is no second
+ * table to disagree with. If they ever diverge, this is the line to split.
+ *
+ * 🔴 A location with NO ownership row is not an origin. The model treats an
+ * unrecorded location as not-ours precisely so an unknown location cannot be
+ * used by default, and that rule matters more here than it does for stock:
+ * `set-location-ownership seed:true` INFERS ownership from partner linkage and
+ * infers it wrongly — it proposes marking partner-adjacent locations core while
+ * leaving the real Delhi warehouse out. Applying that seed would silently turn
+ * a dozen unrelated addresses into export origins. Rows are set one at a time,
+ * on purpose.
+ *
+ * Never throws: an origin lookup that fails means "no fallback available",
+ * which degrades to the behaviour that existed before this feature. Failing the
+ * whole estimate because a query hiccuped would be a far worse trade.
+ */
+export async function resolveCoreExportOrigins(scope: any): Promise<ExportOrigin[]> {
+  try {
+    const { ContainerRegistrationKeys } = await import("@medusajs/framework/utils")
+    const ownership: any = scope.resolve("location_ownership")
+
+    const rows = await ownership.listLocationOwnerships(
+      { is_core: true },
+      { take: null }
+    )
+    const ids = ((rows ?? []) as any[])
+      .map((r) => r?.stock_location_id)
+      .filter(Boolean)
+    if (!ids.length) return []
+
+    const query: any = scope.resolve(ContainerRegistrationKeys.QUERY)
+    // 🔴 Filtered by id. `filters: { id: undefined }` is NO filter rather than
+    // "no rows" (#1433) — an empty list must never become every stock location
+    // on the platform, which here would export from a partner's own address.
+    const { data: locations } = await query.graph({
+      entity: "stock_locations",
+      fields: ["id", "name", "address.postal_code", "address.country_code"],
+      filters: { id: ids },
+    })
+
+    return coreOriginsFromLocations((locations ?? []) as any[])
+  } catch {
+    return []
+  }
+}
 /** What a carrier answered for one lane. `rate` returns [] for "will not carry". */
 export type RateFn = (query: {
   origin_pincode: string
@@ -272,6 +313,20 @@ export async function rateWithOriginFallback(args: {
     }
   }
 
+  /** Currency guard + a stable order. Applied to whichever set we return. */
+  const finish = (found: RatedRoute[]): RatedRoute[] => {
+    const inCurrency = wantCurrency
+      ? found.filter((r) => {
+          if (r.currency_code === wantCurrency) return true
+          logger?.warn?.(
+            `[export-origins] dropped a ${r.currency_code} route (${r.total_amount}) — the quote is in ${wantCurrency}.`
+          )
+          return false
+        })
+      : found
+    return inCurrency.sort(byAmountThenName)
+  }
+
   const routes: RatedRoute[] = []
 
   // ---- The partner's own pin ---------------------------------------------
@@ -296,6 +351,25 @@ export async function rateWithOriginFallback(args: {
       is_recommended: !!r.is_recommended,
     })
   }
+
+  /**
+   * 🔑 The relay is a FALLBACK, not a comparison.
+   *
+   * If the partner's own pin can be rated, that is the answer: the goods
+   * leave from where they are made, nobody trucks them across the country
+   * first, and the quote describes the shipment we would actually book. Only
+   * when the carrier refuses that origin — "No serviceable couriers available
+   * for given weight", which is a 400, not an empty list — is there a question
+   * to ask at all.
+   *
+   * Rating every origin on every quote and taking the cheapest would also have
+   * been defensible, and it is what an earlier cut did. It is wrong for two
+   * reasons: it spends a carrier call per hub on lanes that never needed one,
+   * and it would silently start relaying shipments through Delhi to save a few
+   * hundred rupees on lanes the partner can serve directly — a logistics
+   * decision nobody made, arriving as a pricing change.
+   */
+  if (routes.length) return finish(routes)
 
   // ---- Every configured HQ pin -------------------------------------------
   for (const hq of hqOrigins) {
@@ -378,15 +452,5 @@ export async function rateWithOriginFallback(args: {
     }
   }
 
-  const inCurrency = wantCurrency
-    ? routes.filter((r) => {
-        if (r.currency_code === wantCurrency) return true
-        logger?.warn?.(
-          `[export-origins] dropped a ${r.currency_code} route (${r.total_amount}) — the quote is in ${wantCurrency}.`
-        )
-        return false
-      })
-    : routes
-
-  return inCurrency.sort(byAmountThenName)
+  return finish(routes)
 }

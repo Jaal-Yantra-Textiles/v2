@@ -2,8 +2,8 @@ import { ContainerRegistrationKeys, MedusaError, Modules } from "@medusajs/frame
 
 import { isInternationalDestination } from "../modules/shipping-providers/destination"
 import {
-  parseExportOrigins,
   rateWithOriginFallback,
+  resolveCoreExportOrigins,
   type ExportOrigin,
 } from "../modules/shipping-providers/export-origins"
 import { resolveShippingProvider } from "../modules/shipping-providers/resolver"
@@ -68,9 +68,9 @@ export type ShippingEstimateInput = {
   currency_code?: string
   carrier?: string
   /**
-   * Override the configured HQ export origins (#1498). Omit in production —
-   * they come from `EXPORT_FALLBACK_ORIGINS` so a partner whose own pin
-   * becomes export-enabled starts winning with no deploy.
+   * Override the HQ export origins (#1498). Omit in production — they are
+   * derived from `location_ownership.is_core`, the warehouses already recorded
+   * as ours, so a new hub becomes an origin the moment it is marked.
    */
   export_fallback_origins?: ExportOrigin[]
 
@@ -463,12 +463,16 @@ export async function buildShippingEstimate(
    * / DHL slot into the same call as each gains a rate API. See
    * `shipping-providers/export-origins.ts` for the two traps it is built around.
    *
-   * Exports only. Relaying a Srinagar → Mumbai parcel through Delhi is not
-   * something we do, and asking would spend carrier calls to learn it.
+   * Exports only, and only as a FALLBACK: if the partner's own pin rates, that
+   * is the answer and no hub is asked. Relaying a Srinagar → Mumbai parcel
+   * through Delhi is not something we do either.
+   *
+   * The hubs come from `location_ownership.is_core` — the warehouses already
+   * recorded as ours — not from configuration, so this is live the moment a
+   * warehouse is marked rather than when an env var is remembered.
    */
   const hqOrigins = isInternationalDestination(countryCode)
-    ? input.export_fallback_origins ??
-      parseExportOrigins(process.env.EXPORT_FALLBACK_ORIGINS)
+    ? (input.export_fallback_origins ?? (await resolveCoreExportOrigins(scope)))
     : []
 
   let rawCalculated: ShippingEstimateOption[] = []
