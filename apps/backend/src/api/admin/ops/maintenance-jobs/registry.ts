@@ -79,6 +79,7 @@ import {
 import { seedEmailTemplatesJob } from "./seed-jobs"
 import { seedInvestorPanelsJob } from "./seed-investor-panels-job"
 import { replayFxFanoutJob } from "./fanout-fx-job"
+import { backfillQuoteTenancyJob } from "./backfill-quote-tenancy-job"
 import { backfillStoreCurrenciesJob } from "./backfill-store-currencies-job"
 import { backfillShiprocketShippingOptionsJob } from "./backfill-shiprocket-shipping-options-job"
 import { capFreeShippingBandJob } from "./cap-free-shipping-band-job"
@@ -5772,6 +5773,7 @@ export const MAINTENANCE_JOBS: MaintenanceJob[] = [
   retitleGroupColorNamesJob,
   reconcileInventoryMirrorJob,
   replayFxFanoutJob,
+  backfillQuoteTenancyJob,
   backfillStoreCurrenciesJob,
   backfillShiprocketShippingOptionsJob,
   capFreeShippingBandJob,
