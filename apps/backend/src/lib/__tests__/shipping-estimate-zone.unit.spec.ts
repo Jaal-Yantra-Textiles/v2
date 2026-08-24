@@ -129,3 +129,71 @@ describe("pickFreightOption — the currency trap it cannot see", () => {
     expect(chosen!.amount).toBe(200)
   })
 })
+
+describe("pickFreightOption — a calculated winner still needs a lane (#1498)", () => {
+  it("🔴 borrows the shipping_option_id from a manual option on the lane", () => {
+    // A carrier rate is a courier and a price, not a Medusa shipping option.
+    // Acceptance mints the cart's freight option in the service zone of the
+    // option the quote was rated against and REFUSES when none was frozen — so
+    // without this, every quote won by a live rate priced fine and could not be
+    // bought. It stayed hidden while cross-border lanes fell to the flat
+    // fallback; #1498 makes carrier rates win them for the first time.
+    const chosen = pickFreightOption({
+      manual: [
+        {
+          shipping_option_id: "so_intl",
+          amount: 3500,
+          currency_code: "inr",
+          source: "manual",
+        } as any,
+      ],
+      calculated: [
+        {
+          courier_name: "SRX Economy",
+          amount: 1482,
+          currency_code: "inr",
+          source: "calculated",
+        } as any,
+      ],
+    })
+
+    expect(chosen!.amount).toBe(1482)
+    expect(chosen!.source).toBe("calculated")
+    // The ZONE is borrowed, never the price.
+    expect(chosen!.shipping_option_id).toBe("so_intl")
+  })
+
+  it("leaves the id null when the store has no lane at all, so acceptance can say so", () => {
+    // The honest answer: the store genuinely has no configured option to that
+    // country, which is the refusal #1497 wrote. Inventing an id here would
+    // charge the freight on somebody else's zone.
+    const chosen = pickFreightOption({
+      manual: [],
+      calculated: [
+        { amount: 1482, currency_code: "inr", source: "calculated" } as any,
+      ],
+    })
+    expect(chosen!.shipping_option_id).toBeUndefined()
+  })
+
+  it("does not overwrite an id the winner already has", () => {
+    const chosen = pickFreightOption({
+      manual: [
+        {
+          shipping_option_id: "so_cheap",
+          amount: 200,
+          currency_code: "inr",
+          source: "manual",
+        } as any,
+        {
+          shipping_option_id: "so_other",
+          amount: 900,
+          currency_code: "inr",
+          source: "manual",
+        } as any,
+      ],
+      calculated: [],
+    })
+    expect(chosen!.shipping_option_id).toBe("so_cheap")
+  })
+})

@@ -441,6 +441,28 @@ export type QuoteView = {
  * Cheapest, not "recommended": a recommendation is the carrier's commercial
  * opinion, and a buyer comparing suppliers is comparing the number they would
  * actually pay. Every option is still returned, so the page can show the rest.
+ *
+ * ## 🔴 Why a CALCULATED winner borrows a lane from a manual one (#1498)
+ *
+ * A carrier rate is a courier and a price. It is not a Medusa shipping option,
+ * so it carries no `shipping_option_id` — and acceptance needs one: it mints
+ * the cart's flat freight option in the SAME service zone and shipping profile
+ * as the option the quote was rated against, and refuses outright when the
+ * quote froze none (`create-quote-freight-option-step`).
+ *
+ * So a quote whose freight came from a live rate could never be accepted. That
+ * stayed hidden while cross-border lanes fell to the flat fallback and won on
+ * the manual row; #1498 makes carrier rates win international lanes for the
+ * first time, which would have turned a pricing improvement into "this quote
+ * cannot be bought" — the #1497 failure again, and again discovered by the
+ * buyer at the last step.
+ *
+ * The donor is any manual option still standing, and by this point that list is
+ * already filtered to zones covering the destination, to the quote currency and
+ * to non-return options. Its ZONE is all that is borrowed — never its price.
+ * When there is no manual option at all the id stays null and acceptance
+ * refuses with the message #1497 wrote, which is the honest answer: the store
+ * genuinely has no configured lane to that country.
  */
 export function pickFreightOption(
   estimate: Pick<ShippingEstimate, "manual" | "calculated">
@@ -448,7 +470,12 @@ export function pickFreightOption(
   const all = [...(estimate.calculated || []), ...(estimate.manual || [])]
     .filter((o) => Number.isFinite(Number(o?.amount)))
     .sort((a, b) => Number(a.amount) - Number(b.amount))
-  return all[0] ?? null
+  const winner = all[0] ?? null
+  if (!winner || winner.shipping_option_id) return winner
+
+  const laneOption = (estimate.manual || []).find((o) => o.shipping_option_id)
+  if (!laneOption) return winner
+  return { ...winner, shipping_option_id: laneOption.shipping_option_id }
 }
 
 /**
