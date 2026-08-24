@@ -95,6 +95,89 @@ setupSharedTestSuite(() => {
         expect(res.data.customer.email).toBe(`john-${unique}@example.com`)
       })
 
+      /**
+       * #1515. Core's unique index on `customer` is `(email, has_account)` and
+       * it is PLATFORM-WIDE, so this route's unconditional create turned any
+       * buyer who already existed anywhere into core's raw 400 — a message
+       * naming another store's data, shown verbatim in the partner UI. It bit
+       * the highest-value case: a buyer who already shops somewhere on the
+       * platform is exactly the one a partner wants to add.
+       */
+      it("🔴 ADOPTS a buyer who already exists elsewhere on the platform, and says so", async () => {
+        const unique = `${Date.now()}${Math.random().toString(36).slice(2, 6)}`
+        const email = `adopt-${unique}@example.com`
+
+        // Somebody else's customer, with somebody else's profile on it.
+        const seeded = await api.post(
+          "/admin/customers",
+          { email, first_name: "Original", last_name: "Owner" },
+          adminHeaders
+        )
+        expect(seeded.status).toBe(200)
+
+        const res = await api.post(
+          "/partners/customers",
+          { email, first_name: "Typed", last_name: "ByPartner" },
+          { headers: partner.headers }
+        )
+
+        // 200 and `adopted`, not 201 — the honest description is "you acquired
+        // an existing record", not "you created a customer".
+        expect(res.status).toBe(200)
+        expect(res.data.adopted).toBe(true)
+        expect(res.data.customer.id).toBe(seeded.data.customer.id)
+
+        // 🔑 The partner's typed fields are NOT written onto another store's
+        // profile. Overwriting them would be a silent cross-tenant edit.
+        expect(res.data.customer.first_name).toBe("Original")
+
+        // And they really are this store's customer now — adoption is a link,
+        // not a label.
+        const listed = await api.get("/partners/customers", {
+          headers: partner.headers,
+        })
+        expect(
+          (listed.data.customers as any[]).some(
+            (c) => c.id === seeded.data.customer.id
+          )
+        ).toBe(true)
+      })
+
+      it("answers cleanly when the buyer is already this store's customer", async () => {
+        const unique = `${Date.now()}${Math.random().toString(36).slice(2, 6)}`
+        const email = `mine-${unique}@example.com`
+
+        const first = await api.post(
+          "/partners/customers",
+          { email, first_name: "Mine" },
+          { headers: partner.headers }
+        )
+        expect(first.status).toBe(201)
+
+        const second = await api.post(
+          "/partners/customers",
+          { email, first_name: "Mine" },
+          { headers: partner.headers }
+        )
+
+        // Not a 400, and not a duplicate row.
+        expect(second.status).toBe(200)
+        expect(second.data.already_in_store).toBe(true)
+        expect(second.data.adopted).toBe(false)
+        expect(second.data.customer.id).toBe(first.data.customer.id)
+      })
+
+      it("names the missing field rather than letting core refuse obscurely", async () => {
+        const err = await api
+          .post("/partners/customers", { first_name: "No Email" }, {
+            headers: partner.headers,
+          })
+          .catch((e: any) => e.response)
+
+        expect(err.status).toBe(400)
+        expect(String(err.data.message)).toContain("email")
+      })
+
       it("should show created customer in the list", async () => {
         const unique = Date.now()
         await api.post(

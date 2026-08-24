@@ -47,12 +47,30 @@ export const CreateCustomerForm = () => {
         phone: data.phone || undefined,
       },
       {
-        onSuccess: ({ customer }) => {
-          toast.success(
-            t("customers.create.successToast", {
-              email: customer.email,
-            })
-          )
+        onSuccess: ({ customer, adopted, already_in_store }) => {
+          /**
+           * 🔑 Say which of the three things happened (#1515).
+           *
+           * A buyer who already exists anywhere on the platform is ADOPTED
+           * into this store rather than created — the row that comes back is
+           * the one another store built, and the names typed above were not
+           * written onto it. Reporting that as "customer created" would leave
+           * the partner believing the profile in front of them is the one they
+           * just entered.
+           */
+          if (already_in_store) {
+            toast.info(`${customer.email} is already one of your customers.`)
+          } else if (adopted) {
+            toast.success(
+              `${customer.email} already had an account on the platform and has been added to your store. Their existing profile is shown — the details you typed were not applied.`
+            )
+          } else {
+            toast.success(
+              t("customers.create.successToast", {
+                email: customer.email,
+              })
+            )
+          }
           handleSuccess(`/customers/${customer.id}`)
         },
         onError: (error) => {

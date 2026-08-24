@@ -69,16 +69,32 @@ export const useCustomers = (
   return { ...data, ...rest }
 }
 
+/**
+ * 🔑 The response carries more than a customer (#1515).
+ *
+ * A buyer who already exists ANYWHERE on the platform cannot be created again
+ * — core's unique index on `(email, has_account)` is platform-wide — so the
+ * route adopts the existing row into this store instead of refusing. When it
+ * does, `adopted` is true and the returned profile is the one ANOTHER store
+ * collected: the fields just typed into this form were deliberately not
+ * written over it. Callers must say so rather than reporting a create.
+ */
+export type PartnerCustomerCreateResponse = {
+  customer: HttpTypes.AdminCustomer
+  adopted?: boolean
+  already_in_store?: boolean
+}
+
 export const useCreateCustomer = (
   options?: UseMutationOptions<
-    { customer: HttpTypes.AdminCustomer },
+    PartnerCustomerCreateResponse,
     FetchError,
     HttpTypes.AdminCreateCustomer
   >
 ) => {
   return useMutation({
     mutationFn: (payload) =>
-      sdk.client.fetch<{ customer: HttpTypes.AdminCustomer }>(
+      sdk.client.fetch<PartnerCustomerCreateResponse>(
         "/partners/customers",
         { method: "POST", body: payload }
       ),
