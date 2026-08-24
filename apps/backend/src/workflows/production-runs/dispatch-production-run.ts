@@ -14,6 +14,11 @@ import type ProductionRunService from "../../modules/production_runs/service"
 import { PRODUCTION_POLICY_MODULE } from "../../modules/production_policy"
 import type ProductionPolicyService from "../../modules/production_policy/service"
 import {
+  describeUnmet,
+  hasUnmet,
+  resolveUnmetDependencies,
+} from "./lib/run-dependencies"
+import {
   sendProductionRunToProductionWorkflow,
 } from "./send-production-run-to-production"
 
@@ -60,24 +65,16 @@ const retrieveProductionRunForDispatchStep = createStep(
 
     await productionPolicyService.assertCanStartDispatch(run)
 
-    // Check cross-run dependencies
-    const dependsOnRunIds = (run as any).depends_on_run_ids as string[] | null
-    if (dependsOnRunIds?.length) {
-      const depRuns = await Promise.all(
-        dependsOnRunIds.map((id) =>
-          productionRunService.retrieveProductionRun(id).catch(() => null)
-        )
+    // Check upstream dependencies — other partners' runs AND goods being
+    // supplied to this one (#1529). Both kinds are resolved by the shared
+    // helper the release subscribers use, so the guard and the releaser cannot
+    // hold different opinions about whether this run is ready.
+    const unmet = await resolveUnmetDependencies(container, run as any)
+    if (hasUnmet(unmet)) {
+      throw new MedusaError(
+        MedusaError.Types.NOT_ALLOWED,
+        `Cannot dispatch: waiting for ${describeUnmet(unmet)}`
       )
-      const unmet = depRuns.filter(
-        (r) => r && String((r as any).status) !== "completed"
-      )
-      if (unmet.length) {
-        const unmetIds = unmet.map((r) => (r as any).id).join(", ")
-        throw new MedusaError(
-          MedusaError.Types.NOT_ALLOWED,
-          `Cannot dispatch: waiting for dependent runs to complete (${unmetIds})`
-        )
-      }
     }
 
     return new StepResponse(run)

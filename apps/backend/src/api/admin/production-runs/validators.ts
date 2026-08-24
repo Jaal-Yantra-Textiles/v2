@@ -42,6 +42,14 @@ const AssignmentSchema = z.object({
    * child run carries the whole BOM, exactly as before this field existed.
    */
   materials: z.array(RunMaterialSchema).nullish(),
+  /**
+   * #1529 — inventory orders whose goods this stage waits on. Lets a chain open
+   * with a supplier rather than a maker: the stage stays undispatchable until
+   * every one of them is `Delivered`, then releases itself. Same `.nullish()`
+   * tolerance as the template fields, for the same reason — the admin UI sends
+   * null for a toggle that is on with nothing picked.
+   */
+  depends_on_inventory_order_ids: z.array(z.string().min(1)).nullish(),
 })
 
 export const AdminCreateProductionRunReq = z.object({

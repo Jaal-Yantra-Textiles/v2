@@ -49,6 +49,19 @@ export type ProductionRunAssignment = {
    * is why absence has to keep meaning "unconstrained" rather than "nothing".
    */
   materials?: RunMaterialInput[]
+  /**
+   * Inventory orders this partner's stage waits on (#1529) — the goods being
+   * supplied to them before they can start.
+   *
+   * This is what lets a chain OPEN with a supplier rather than a maker: the
+   * weaver is sent an inventory order, and the partner who works that cloth
+   * names it here. The stage stays undispatchable until every one of them
+   * reaches `Delivered`, and is then released automatically.
+   *
+   * Independent of `order`: a stage may wait on goods, on the previous stage,
+   * or on both, and the two edges are checked together.
+   */
+  depends_on_inventory_order_ids?: string[]
 }
 
 export type ApproveProductionRunInput = {
@@ -205,6 +218,9 @@ const approveProductionRunStep = createStep(
         // the names stay so an older reader still sees what was asked for.
         dispatch_template_names: a.template_names?.length ? a.template_names : null,
         dispatch_template_ids: a.template_ids?.length ? a.template_ids : null,
+        depends_on_inventory_order_ids: a.depends_on_inventory_order_ids?.length
+          ? a.depends_on_inventory_order_ids
+          : null,
         metadata: Object.keys(inheritedMetadata).length ? inheritedMetadata : null,
       }
     })

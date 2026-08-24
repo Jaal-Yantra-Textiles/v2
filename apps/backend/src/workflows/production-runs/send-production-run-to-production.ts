@@ -16,6 +16,11 @@ import type ProductionRunService from "../../modules/production_runs/service"
 
 import { PRODUCTION_POLICY_MODULE } from "../../modules/production_policy"
 import type ProductionPolicyService from "../../modules/production_policy/service"
+import {
+  describeUnmet,
+  hasUnmet,
+  resolveUnmetDependencies,
+} from "./lib/run-dependencies"
 
 import { TASKS_MODULE } from "../../modules/tasks"
 import type TaskService from "../../modules/tasks/service"
@@ -217,6 +222,21 @@ const createTasksForProductionRunStep = createStep(
     const templates = input.templates || []
 
     await productionPolicyService.assertCanSendToProduction(run)
+
+    // The chain's ordering rule, enforced where every dispatch path passes
+    // (#1529). It used to live only in `dispatch-production-run`, so the paths
+    // that call this workflow directly — approval-time auto-dispatch, the
+    // release subscribers — were each responsible for remembering it. One of
+    // them checking only run edges is precisely how a stage could be sent to a
+    // partner before the goods it needs were delivered. A caller that has
+    // already checked pays one cheap re-read; a caller that forgot is refused.
+    const unmet = await resolveUnmetDependencies(container, run)
+    if (hasUnmet(unmet)) {
+      throw new MedusaError(
+        MedusaError.Types.NOT_ALLOWED,
+        `Cannot dispatch run ${run.id}: waiting for ${describeUnmet(unmet)}. Nothing was dispatched.`
+      )
+    }
 
     if (!templates.length) {
       throw new MedusaError(

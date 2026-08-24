@@ -111,6 +111,24 @@ const ProductionRun = model.define("production_runs", {
   captured_at: model.dateTime(),
   depends_on_run_ids: model.json().nullable(),
 
+  /**
+   * Stage-0 dependencies that are NOT production runs (#1529).
+   *
+   * A chain often starts with someone SUPPLYING rather than making: a weaver
+   * receives an inventory order, and the designer who works that cloth cannot
+   * begin until it is physically with them. That edge could not be expressed
+   * before — `depends_on_run_ids` only ever points at production runs — so the
+   * supplying stage sat outside the graph entirely and the stage after it had
+   * to be released by hand.
+   *
+   * Held to the same rule as the run edge and deliberately the STRICTER reading
+   * of it: an inventory order counts as met at `Delivered`, not at `Shipped`.
+   * `Shipped` only says the goods left the supplier; the partner downstream
+   * needs them in hand, and releasing a stage whose materials are still in
+   * transit makes a run look startable when nothing can be started.
+   */
+  depends_on_inventory_order_ids: model.json().nullable(),
+
   // Lifecycle workflow transaction ID — used to signal async steps
   lifecycle_transaction_id: model.text().nullable(),
 
