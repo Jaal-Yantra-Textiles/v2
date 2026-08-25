@@ -2,7 +2,10 @@ import type { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
 import { ContainerRegistrationKeys, MedusaError, Modules } from "@medusajs/framework/utils"
 import type { ConfigModule } from "@medusajs/framework/types"
 import jwt from "jsonwebtoken"
-import { verifyPartnerDeeplink } from "../../../modules/social-provider/whatsapp-deeplink"
+import {
+  partnerDeeplinkPath,
+  verifyPartnerDeeplink,
+} from "../../../modules/social-provider/whatsapp-deeplink"
 import { PARTNER_MODULE } from "../../../modules/partner"
 
 /**
@@ -110,17 +113,23 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
     { expiresIn },
   )
 
-  // 4. Build the post-login redirect path. The deep-link's `run_id` may
-  //    carry a synthetic ":reminder:YYYY-MM-DD" suffix used as a dedup
-  //    key — strip it so the partner-ui's /production-runs/:id route
-  //    sees the addressable resource id.
+  /**
+   * 4. Build the post-login redirect path.
+   *
+   * 🔴 Via the SAME function `generatePartnerDeeplink` used to build the URL.
+   * This was an independent `if/else` chain, and the two had to agree or the
+   * partner is authenticated and then dropped somewhere else. Adding a type to
+   * one and forgetting the other yields a link that works and lands on the
+   * portal home — nothing errors, and the partner never learns there was
+   * something to see. That is the #1529 shape; two places that must agree will
+   * drift unless they call the same function.
+   *
+   * The deep-link's `run_id` may carry a synthetic ":reminder:YYYY-MM-DD"
+   * dedup suffix; `partnerDeeplinkPath` strips it, which is why the local
+   * `stripDedupSuffix` is only still used for the echoed `run_id` below.
+   */
   const cleanRunId = stripDedupSuffix(payload.runId)
-  let redirectPath = "/"
-  if (payload.type === "production_run" && cleanRunId) {
-    redirectPath = `/production-runs/${cleanRunId}`
-  } else if (payload.type === "design" && cleanRunId) {
-    redirectPath = `/designs/${cleanRunId}`
-  }
+  const redirectPath = partnerDeeplinkPath(payload.type, cleanRunId)
 
   return res.json({
     token: sessionToken,

@@ -1,7 +1,10 @@
 import { z } from "@medusajs/framework/zod"
 import { OperationDefinition, OperationContext, OperationResult } from "./types"
 import { interpolateString } from "./utils"
-import { generatePartnerDeeplink } from "../../social-provider/whatsapp-deeplink"
+import {
+  generatePartnerDeeplink,
+  type PartnerDeeplinkType,
+} from "../../social-provider/whatsapp-deeplink"
 
 /**
  * Generate a short-lived signed URL that a partner can tap from WhatsApp to
@@ -34,10 +37,15 @@ export const generatePartnerDeeplinkOperation: OperationDefinition = {
       .string()
       .optional()
       .describe(
-        'Optional run / design ID to deep-link into. Ignored when type="portal".'
+        'Optional run / design / inquiry ID to deep-link into. Ignored when type="portal".'
       ),
     type: z
-      .enum(["production_run", "design", "portal"])
+      // ⚠️ This enum, `PartnerDeeplinkType` and `partnerDeeplinkPath` must
+      // agree. The path function is the one that decides where a tap lands;
+      // a type missing HERE simply cannot be chosen in a flow, which is a
+      // visible failure — unlike a type missing from the path function, which
+      // silently lands the partner on the portal home (#1531 slice 3).
+      .enum(["production_run", "design", "portal", "inquiry"])
       .default("production_run")
       .describe("Deep-link type. Controls the landing route."),
     base_url: z
@@ -67,10 +75,8 @@ export const generatePartnerDeeplinkOperation: OperationDefinition = {
       const runId = options.run_id
         ? interpolateString(options.run_id, context.dataChain).trim() || undefined
         : undefined
-      const type = (options.type || "production_run") as
-        | "production_run"
-        | "design"
-        | "portal"
+      const type = (options.type ||
+        "production_run") as PartnerDeeplinkType
 
       const baseUrl =
         (options.base_url
