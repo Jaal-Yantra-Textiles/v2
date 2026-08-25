@@ -398,6 +398,121 @@ describe("buildQuoteView — the free-shipping row that quoted every bulk consig
   })
 })
 
+/**
+ * 🔴 THE QUOTE-ONLY WEIGHT TIER, END TO END.
+ *
+ * The store's retail flat row and the B2B tier are two different offers on the
+ * same lane. The retail row (`enabled_in_store: "true"`) is priced for a
+ * shopper buying one or two pieces; using it for a 22 kg consignment is what
+ * produced a ₹99 freight figure, and raising it to suit B2B would raise it for
+ * every shopper too.
+ *
+ * This walks the whole builder rather than the pure resolver, because the part
+ * that has actually broken before is the WIRING: an option marked quote-only
+ * carries `enabled_in_store: "false"`, which the estimate refuses on entirely
+ * correct reasoning. Get the interaction wrong and the option is provisioned,
+ * priced, and never once used — with nothing failing.
+ */
+describe("buildQuoteView — the quote-only weight tier", () => {
+  const QUOTE_TIER = {
+    id: "so_quote_tier",
+    name: "Quote Freight — tiered",
+    price_type: "flat",
+    // Priced from `data`, never from these rows.
+    prices: [{ amount: 59, currency_code: "inr", price_rules: [] }],
+    data: {
+      quote_weight_tiers: [
+        { max_weight_grams: 5000, amounts: { inr: 5400 } },
+        { max_weight_grams: null, amounts: { inr: 9200 } },
+      ],
+    },
+    rules: [
+      { attribute: "enabled_in_store", value: "false", operator: "eq" },
+      { attribute: "quote_only", value: "true", operator: "eq" },
+    ],
+  }
+
+  const RETAIL_FLAT = {
+    id: "so_retail",
+    name: "Domestic Shipping",
+    price_type: "flat",
+    prices: [{ amount: 99, currency_code: "inr", price_rules: [] }],
+    rules: [{ attribute: "enabled_in_store", value: "true", operator: "eq" }],
+  }
+
+  it("🔴 is collected despite enabled_in_store being false", async () => {
+    const captured: Captured = { contexts: [], rateWeights: [] }
+    const view = await buildQuoteView(
+      scopeWith(captured, { manual: [QUOTE_TIER] }) as any,
+      baseInput()
+    )
+
+    // 500 × 105 g = 52.5 kg → the open-ended tier.
+    expect(view.freight.options.map((o) => o.amount)).toContain(9200)
+  })
+
+  it("prices by CONSIGNMENT WEIGHT, not from its price rows", async () => {
+    const captured: Captured = { contexts: [], rateWeights: [] }
+    const view = await buildQuoteView(
+      scopeWith(captured, { manual: [QUOTE_TIER] }) as any,
+      // 10 × 105 g = 1050 g → the light tier.
+      baseInput({ lines: [{ variant_id: "var_a", quantity: 10 }] })
+    )
+
+    const tier = view.freight.options.find((o) => o.name?.includes("Quote Freight"))
+    expect(tier?.amount).toBe(5400)
+    // 59 is the row price and must never surface — it exists only because an
+    // option needs one to be created at all.
+    expect(view.freight.options.map((o) => o.amount)).not.toContain(59)
+  })
+
+  /**
+   * 🔑 It is the FALLBACK, not the price. A live carrier rate still wins — the
+   * tier is what stands behind the carrier, not what competes with it.
+   */
+  it("🔑 still loses to a live carrier rate", async () => {
+    const captured: Captured = { contexts: [], rateWeights: [] }
+    const view = await buildQuoteView(
+      scopeWith(captured, { manual: [QUOTE_TIER, RETAIL_FLAT] }) as any,
+      baseInput()
+    )
+
+    // 3900 is the cheaper of the two stubbed carrier rates.
+    expect(view.freight.chosen?.amount).toBe(3900)
+  })
+
+  /**
+   * 🔴 And when it does stand in, it must beat the RETAIL row rather than the
+   * other way round — otherwise the whole exercise changes nothing and a 52 kg
+   * consignment still ships at the shopper's ₹99.
+   */
+  it("🔴 outranks the retail flat when no carrier rated the lane", async () => {
+    const captured: Captured = { contexts: [], rateWeights: [] }
+    const view = await buildQuoteView(
+      scopeWith(captured, { manual: [QUOTE_TIER, RETAIL_FLAT] }) as any,
+      // "manual" asks NO carrier (#1447), so the manual pool is the whole
+      // answer — exactly the state a carrier outage produces.
+      baseInput({ carrier: "manual" })
+    )
+
+    expect(view.freight.chosen?.amount).toBe(9200)
+    expect(view.freight.chosen?.name).toContain("Quote Freight")
+  })
+
+  it("provides a lane for acceptance to borrow", async () => {
+    const captured: Captured = { contexts: [], rateWeights: [] }
+    const view = await buildQuoteView(
+      scopeWith(captured, { manual: [QUOTE_TIER] }) as any,
+      baseInput()
+    )
+
+    // A carrier rate carries no option id of its own; without a donor the quote
+    // mints and cannot be bought (#1497). The tier supplies the lane.
+    expect(view.freight.chosen?.source).toBe("calculated")
+    expect(view.freight.chosen?.shipping_option_id).toBe("so_quote_tier")
+  })
+})
+
 describe("buildQuoteView — the missing pickup location that read every tenant", () => {
   /**
    * Found on the SECOND live prod mint. The public `/store/b2b/quotes/:token`

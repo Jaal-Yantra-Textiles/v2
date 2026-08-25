@@ -8,6 +8,10 @@ import {
   type ExportOrigin,
 } from "../modules/shipping-providers/export-origins"
 import { resolveShippingProvider } from "../modules/shipping-providers/resolver"
+import {
+  isQuoteOnlyOption,
+  resolveQuoteTierAmount,
+} from "./quote-freight-tiers"
 
 /**
  * The freight estimate, as a function rather than an HTTP route (#1389 S2).
@@ -89,6 +93,12 @@ export type ShippingEstimateOption = {
   estimated_days?: number | null
   is_recommended?: boolean
   source: "manual" | "calculated"
+  /**
+   * A quote-only weight tier (see `quote-freight-tiers.ts`). It sits in the
+   * manual pool but is NOT the same kind of answer as a retail flat row, and
+   * `pickFreightOption` ranks it above one.
+   */
+  quote_only?: boolean
   /**
    * Set when this amount was CONVERTED from the carrier's own currency (#1498).
    *
@@ -252,6 +262,15 @@ export function resolveUnitWeight(variant: {
  * alive.
  */
 export function isQuotableShippingOption(shippingOption: any): boolean {
+  /**
+   * 🔑 A quote-only option is deliberately NOT for the shop, which is a
+   * different thing from a store having switched an option off. It carries
+   * `enabled_in_store: "false"` so core's rule engine hides it from every cart,
+   * and that would otherwise trip the refusal below — so the positive marker is
+   * checked first. See `quote-freight-tiers.ts`.
+   */
+  if (isQuoteOnlyOption(shippingOption)) return true
+
   const rules = (shippingOption?.rules ?? []) as Array<{
     attribute?: string
     value?: unknown
@@ -519,6 +538,12 @@ export async function buildShippingEstimate(
       // and braces, and went unfetched until #1527 — so it checked a field
       // that could never arrive. Proven path: `/partners/stores/:id/shipping-options`.
       "fulfillment_sets.service_zones.shipping_options.type.*",
+      // The quote-only weight tiers live here, the same lever
+      // `flat_fallback_amount` uses. Unfetched, `isQuoteOnlyOption` would mark
+      // an option quote-only and the resolver would find no table — a guard
+      // reading a field the query never asked for, which is how the type-code
+      // check sat dead from #1485 to #1527.
+      "fulfillment_sets.service_zones.shipping_options.data",
     ],
     filters: { id: input.store.default_location_id },
   })
@@ -567,6 +592,37 @@ export async function buildShippingEstimate(
         if (so?.price_type === "calculated") continue
         // 🔴 A RETURN option is not an outbound offer. See below.
         if (!isQuotableShippingOption(so)) continue
+
+        /**
+         * A quote-only tiered option is priced by CONSIGNMENT WEIGHT, not from
+         * its price rows — the whole point of it is that one number cannot
+         * serve a 2 kg parcel and a 22 kg pallet. See `quote-freight-tiers.ts`.
+         *
+         * 🔑 `continue` either way. A null means the table does not price this
+         * weight or this currency, and the option is then simply not offered —
+         * which lets `needsManualFreightRate` refuse rather than letting some
+         * other row stand in. Falling through to the price rows would quote the
+         * retail number under a quote-only label, which is the worst of both.
+         */
+        if (isQuoteOnlyOption(so)) {
+          const tiered = resolveQuoteTierAmount(
+            (so as any)?.data?.quote_weight_tiers,
+            totalWeightGrams,
+            quoteCurrency
+          )
+          if (tiered !== null) {
+            manual.push({
+              shipping_option_id: so.id,
+              name: so.name,
+              amount: tiered,
+              currency_code: quoteCurrency,
+              source: "manual",
+              quote_only: true,
+            })
+          }
+          continue
+        }
+
         for (const price of so?.prices || []) {
           // Only currency-scoped flat prices are meaningful without a cart;
           // region-scoped ones need a region the estimate does not have.

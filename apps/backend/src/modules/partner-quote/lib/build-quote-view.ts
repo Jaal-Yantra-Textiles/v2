@@ -513,9 +513,29 @@ export function pickFreightOption(
       .sort((a, b) => Number(a.amount) - Number(b.amount))
 
   const rated = priced(estimate.calculated)
-  // 🔴 The carrier pool is not merged with the manual one. A live rate wins by
-  // BEING a live rate, not by being small — see the header.
-  const winner = rated[0] ?? priced(estimate.manual)[0] ?? null
+  const manual = priced(estimate.manual)
+
+  /**
+   * 🔴 THREE kinds of answer, in order of authority — never one price race.
+   *
+   *   1. a live carrier rate      — what the lane actually costs today
+   *   2. a quote-only weight tier — OUR B2B price for a consignment this heavy
+   *   3. a retail flat row        — a shopper's postage, priced for one piece
+   *
+   * A test caught the missing middle rung: with the carrier down, a 52 kg
+   * consignment fell straight past the ₹9200 tier to the retail ₹99, because
+   * within the manual pool the smaller number still won. That is the same
+   * defect one level down, and it would have shipped looking fixed.
+   *
+   * The retail row is not a cheaper offer for a pallet; it is an offer for a
+   * different parcel entirely. It stays in the pool only as a last resort and
+   * as a lane donor.
+   */
+  const winner =
+    rated[0] ??
+    manual.find((o) => o.quote_only) ??
+    manual[0] ??
+    null
   if (!winner || winner.shipping_option_id) return winner
 
   const donorId =
