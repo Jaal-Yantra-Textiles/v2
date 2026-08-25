@@ -31,8 +31,21 @@ export default defineLink(
   {
     database: {
       extraColumns: {
-        /** How much of this item the run was allocated. Null = unspecified. */
-        planned_quantity: { type: "decimal", nullable: true },
+        /**
+         * How much of this item the run was allocated. Null = unspecified.
+         *
+         * 🔴 `type: "decimal"` alone lands as `numeric(10,0)` — scale ZERO. A
+         * partner issued 2.5 kg of warp had 3 recorded, silently, with the
+         * picker offering `step="0.01"` the whole time. Half a metre of silk is
+         * an ordinary quantity here, so the default is simply wrong for this
+         * column; the explicit columnType is what makes the stored number the
+         * number that was typed.
+         */
+        planned_quantity: {
+          type: "decimal",
+          nullable: true,
+          options: { columnType: "numeric(20,6)" },
+        },
         /** Where the material is issued FROM, when it differs from the design's. */
         location_id: { type: "text", nullable: true },
         /**

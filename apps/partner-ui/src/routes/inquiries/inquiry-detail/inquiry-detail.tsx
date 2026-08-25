@@ -5,6 +5,7 @@ import {
   Heading,
   Input,
   Label,
+  ProgressStatus,
   ProgressTabs,
   RadioGroup,
   Text,
@@ -202,6 +203,44 @@ export const InquiryDetail = () => {
   const isSummary = stepIndex >= steps.length
   const current = steps[stepIndex]
 
+  /**
+   * Whether a question has anything recorded against it — the same three-way
+   * test the autosave filter uses, because "answered" has to mean the same
+   * thing to the tab strip as it does to the thing that saves.
+   *
+   * 🔑 The sample clause is not optional: a photo question carries NO value
+   * and NO note, so without it the Materials step shows as untouched while
+   * holding the picture that IS the answer.
+   */
+  const isAnswered = (question: InquiryQuestion) => {
+    const value = values[question.id]
+    if (value !== null && value !== undefined && value !== "") return true
+    if (notes[question.id]?.trim()) return true
+    return (samples[question.id]?.length ?? 0) > 0
+  }
+
+  /**
+   * Tab status is DERIVED, never tracked in its own state.
+   *
+   * A parallel `tabState` would be a second copy of "what has been answered"
+   * that drifts the moment a step is revisited and a field cleared — and the
+   * drift shows as a green tick over an empty step, which is the one direction
+   * a progress indicator must never be wrong in.
+   */
+  const stepStatus = (index: number): ProgressStatus => {
+    if (index === stepIndex) return "in-progress"
+    const step = steps[index]
+    if (!step) return "not-started"
+    if (step.questions.every(isAnswered)) return "completed"
+    return "not-started"
+  }
+
+  const summaryStatus: ProgressStatus = isSummary
+    ? "in-progress"
+    : response?.submitted_at
+      ? "completed"
+      : "not-started"
+
   const answersFor = (questionsToSave: InquiryQuestion[]): IncomingAnswer[] =>
     questionsToSave
       .map((question) => ({
@@ -283,11 +322,49 @@ export const InquiryDetail = () => {
 
   return (
     <RouteFocusModal>
-      <RouteFocusModal.Header>
-        <RouteFocusModal.Title asChild>
-          <span className="sr-only">{inquiry?.title ?? "Inquiry"}</span>
-        </RouteFocusModal.Title>
-      </RouteFocusModal.Header>
+      {/* The step strip lives in the HEADER, the way every other stepped
+          surface here does it (quote-create, product-create, price-list-create
+          …). In the body it scrolled away with the questions, so on a phone —
+          which is what this wizard is for — a partner three questions down had
+          no idea how many screens were left or that earlier steps were still
+          reachable. In the header it is pinned, and it doubles as the only
+          affordance for going back to a step already passed. */}
+      <ProgressTabs
+        value={String(Math.min(stepIndex, steps.length))}
+        onValueChange={(value) => goToStep(Number(value))}
+        className="flex h-full flex-col overflow-hidden"
+      >
+        <RouteFocusModal.Header>
+          <RouteFocusModal.Title asChild>
+            <span className="sr-only">{inquiry?.title ?? "Inquiry"}</span>
+          </RouteFocusModal.Title>
+          <div className="flex w-full items-center justify-between gap-x-4">
+            <div className="-my-2 w-full max-w-[600px] border-l">
+              <ProgressTabs.List
+                className="grid w-full"
+                style={{
+                  gridTemplateColumns: `repeat(${steps.length + 1}, minmax(0, 1fr))`,
+                }}
+              >
+                {steps.map((step, index) => (
+                  <ProgressTabs.Trigger
+                    key={step.step}
+                    value={String(index)}
+                    status={stepStatus(index)}
+                  >
+                    {step.step}
+                  </ProgressTabs.Trigger>
+                ))}
+                <ProgressTabs.Trigger
+                  value={String(steps.length)}
+                  status={summaryStatus}
+                >
+                  Your answer
+                </ProgressTabs.Trigger>
+              </ProgressTabs.List>
+            </div>
+          </div>
+        </RouteFocusModal.Header>
 
       {/* 🔴 overflow-y-auto is NOT optional on a FocusModal body. Without it
           the body does not scroll, and on a phone — which is the whole point
@@ -359,28 +436,6 @@ export const InquiryDetail = () => {
             </Text>
           </div>
         )}
-
-        <div className="px-6 py-4">
-          <ProgressTabs value={String(Math.min(stepIndex, steps.length))}>
-            <ProgressTabs.List>
-              {steps.map((step, index) => (
-                <ProgressTabs.Trigger
-                  key={step.step}
-                  value={String(index)}
-                  onClick={() => goToStep(index)}
-                >
-                  {step.step}
-                </ProgressTabs.Trigger>
-              ))}
-              <ProgressTabs.Trigger
-                value={String(steps.length)}
-                onClick={() => goToStep(steps.length)}
-              >
-                Your answer
-              </ProgressTabs.Trigger>
-            </ProgressTabs.List>
-          </ProgressTabs>
-        </div>
 
         <div className="flex flex-col gap-6 px-6 py-6">
           {!isSummary &&
@@ -508,6 +563,7 @@ export const InquiryDetail = () => {
           )}
         </div>
       </RouteFocusModal.Footer>
+      </ProgressTabs>
     </RouteFocusModal>
   )
 }

@@ -367,6 +367,12 @@ describe("partner-mcp per-ask tool slicing", () => {
       // a keyword list — the point of this table is that the real sentence
       // reaches the tools.
       "/partners/quotes": "send this buyer a quote for 200 shawls",
+      // Design inquiries (#1531). A partner NEVER says "inquiry" — they say
+      // what was put to them. If the sentence they would actually type does
+      // not reach these tools, the assistant cannot answer the one thing the
+      // partner opened the chat about.
+      "/partners/inquiries": "they asked if I can make this — what are the questions",
+      "/partners/capabilities": "show the photos of what I have made before",
     }
 
     const familiesInRegistry = [

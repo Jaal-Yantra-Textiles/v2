@@ -115,6 +115,12 @@ const PREFIX_DOMAINS: ReadonlyArray<readonly [string, PartnerToolDomain]> = [
 
   // ---- designs: the design record + cost / consumption / media ----
   ["/partners/designs", "designs"],
+  // #1531 — a design inquiry IS a question about a design ("can you make
+  // this?"), and the capability library is the evidence a partner answers it
+  // with. Both ride the designs slice so one conversation can read the
+  // questions, answer them, and attach the photograph that proves the answer.
+  ["/partners/inquiries", "designs"],
+  ["/partners/capabilities", "designs"],
 
   // ---- production: run lifecycle + run-level cost & consumption + run tasks ----
   // /partners/tasks and /partners/assigned-tasks are the per-task view onto a
@@ -248,6 +254,16 @@ const DOMAIN_KEYWORDS: Record<Exclude<PartnerToolDomain, "core">, string[]> = {
     "colourway", "colorway", "revision", "revisions", "bom",
     "bill of materials", "consumption", "consumption log", "consumption logs",
     "cost", "recalculate", "design media", "reference", "reference image",
+    // #1531 — a partner never says "inquiry". They say what was asked of them:
+    // "can you make this", "they want to know if". Classification without the
+    // words a partner actually types is a tool nobody can reach.
+    "inquiry", "inquiries", "enquiry", "enquiries", "asked me", "asked us",
+    "can you make", "can we make", "can i make", "questionnaire", "questions",
+    "answer the questions", "lead time", "verdict",
+    // The capability library — the photographs a partner answers WITH.
+    "capability", "capabilities", "sample", "samples", "photo", "photos",
+    "photograph", "photographs", "picture", "pictures", "portfolio",
+    "what we can make", "what i can make",
   ],
   production: [
     "production", "production run", "production runs", "run", "runs",

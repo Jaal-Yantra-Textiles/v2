@@ -1,10 +1,36 @@
 import { z } from "@medusajs/framework/zod"
 
+/**
+ * Mirrors `RunMaterialSchema` in production-runs/validators.ts, because it is
+ * the same thing arriving by a different door: this route hands `assignments`
+ * to `approveProductionRunWorkflow` verbatim, and that workflow has understood
+ * `materials` since #1361.
+ *
+ * 🔴 It had to be DECLARED to arrive. The validator is strict, so an
+ * undeclared `materials` is not passed through and not ignored — it is a 400
+ * the operator cannot act on. That is the same defect the `template_names`
+ * note below records: the handler was already right, the schema was the wall.
+ */
+const RunMaterialSchema = z.object({
+  inventory_item_id: z.string().trim().min(1),
+  planned_quantity: z.number().positive().nullish(),
+  location_id: z.string().trim().min(1).nullish(),
+  resolved_raw_material_id: z.string().trim().min(1).nullish(),
+  note: z.string().nullish(),
+  metadata: z.record(z.string(), z.any()).nullish(),
+})
+
 const ProductionAssignmentSchema = z.object({
   partner_id: z.string().min(1),
   role: z.string().optional(),
   quantity: z.number().positive(),
   order: z.number().int().positive().optional(),
+  /**
+   * Which of the design's inventory items THIS partner is sent, and how much.
+   * Omit (or send an empty array) and the assignment is unconstrained — the
+   * child run carries the whole BOM, exactly as before this field existed.
+   */
+  materials: z.array(RunMaterialSchema).nullish(),
   // See production-runs/validators.ts for the rationale. The admin UI's
   // "Send to production" toggle sends `template_names: null` when no
   // templates are picked — `.optional()` alone rejected that with

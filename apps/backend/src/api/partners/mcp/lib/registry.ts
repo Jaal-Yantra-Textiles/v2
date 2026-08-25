@@ -3445,4 +3445,239 @@ export const PARTNER_MCP_TOOLS: PartnerMcpToolDef[] = [
       "Deletes the price list this quote froze, so the buyer stops getting the quoted prices in any cart, and their link 404s from then on. Not reversible: re-offering the same terms means minting a new quote, which emails them again. An ALREADY-ACCEPTED quote is refused here — the accepted cart is priced from it, so unwinding a live deal is an operator's call, not this tool's.",
     nextSteps: ["get_quote", "list_quotes"],
   },
+
+  // ===== Design inquiries (#1531 / #1543) ===================================
+  //
+  // "Can you make this?" — a designer's spec turned into questions, asked of
+  // several partners at once. The wizard in partner-ui walks a partner through
+  // them a screen at a time; these tools let the ASSISTANT do the same walk in
+  // conversation, which is the point: the questions arrive on WhatsApp, and a
+  // partner standing at a loom answers in a sentence, not in a form.
+  //
+  // 🔑 The assistant must ASK, not answer. `get_design_inquiry` returns the
+  // questions with their `kind` and `options`; the model's job is to put them
+  // to the partner in their own words and record what comes back verbatim.
+  // Inventing a lead time or a price from context would put a number in front
+  // of a designer that no maker ever said.
+  //
+  // 🔴 What is deliberately absent: no tool here can see another partner's
+  // answers. Several partners are asked the same questions and their lead
+  // times and prices are the most commercially sensitive thing either of them
+  // says. The routes refuse to serve them; these tools do not ask.
+  {
+    name: "list_design_inquiries",
+    description:
+      "List the design inquiries this partner has been asked — 'can you make this?', one per design. Shows which are still open and which have already been answered. Read.",
+    method: "GET",
+    path: "/partners/inquiries",
+    queryParams: ["status", "limit", "offset"],
+    inputSchema: obj({
+      status: STR("Filter by 'open' or 'closed'. Omit for both."),
+      limit: INT("Max results (default 20)."),
+      offset: INT("Pagination offset."),
+    }),
+    nextSteps: ["get_design_inquiry"],
+  },
+  {
+    name: "get_design_inquiry",
+    description:
+      "Get one design inquiry in full: the design and its reference images, EVERY question with its kind and allowed values, and whatever the partner has answered so far. Call this before answering anything — the questions are generated from the designer's spec and are not guessable. Read.",
+    method: "GET",
+    path: "/partners/inquiries/:inquiryId",
+    pathParams: ["inquiryId"],
+    inputSchema: obj(
+      { inquiryId: STR("Inquiry id, e.g. 'dsgn_inq_...' / '01M0...'.") },
+      ["inquiryId"]
+    ),
+    sideEffects:
+      "Read-only. `questions[].kind` decides what a valid answer looks like: 'yes_no' takes a boolean, 'number' a number, 'colour_select'/'select' one of the listed options, 'text' a string, and 'photo' takes NO value at all — the photograph IS the answer, attached via capability_sample_ids. `questions[].step` is the spec category the question came from (Materials, Measurements, Construction, Colours): ask a step at a time and save it before moving on, the way the wizard does — a partner answering on a phone at a loom abandons a twenty-question run and finishes a three-question one. `answers` is what has been recorded so far, so a half-finished inquiry resumes rather than restarts.",
+    nextSteps: [
+      "answer_design_inquiry",
+      "list_capability_samples",
+      "submit_design_inquiry",
+    ],
+  },
+  {
+    name: "answer_design_inquiry",
+    description:
+      "Record answers to a design inquiry's questions, without submitting. Save as you go — a partner who drops off mid-conversation keeps what they already said, and nothing is shown to the designer as a reply until `submit_design_inquiry` runs. Answer in the partner's own words: `note` carries the sentence after the answer, which is usually the useful part ('not in that GSM, but I can do 90').",
+    method: "POST",
+    path: "/partners/inquiries/:inquiryId/answers",
+    pathParams: ["inquiryId"],
+    write: true,
+    bodyParams: ["answers"],
+    previewPath: "/partners/inquiries/:inquiryId",
+    inputSchema: obj(
+      {
+        inquiryId: STR("Inquiry id the answers belong to."),
+        answers: {
+          type: "array",
+          description:
+            "One entry per question answered. Send only the questions actually answered — an untouched question must be left out, because 'not answered yet' and 'answered with nothing' are different things and only one of them is worth showing the designer.",
+          items: {
+            type: "object",
+            properties: {
+              question_id: STR(
+                "The question's id, from `get_design_inquiry`. Not its text."
+              ),
+              value: {
+                description:
+                  "The answer, shaped by the question's `kind`: boolean for 'yes_no', number for 'number', one of the listed options for a select, string for 'text'. Omit entirely for a 'photo' question.",
+              },
+              note: STR(
+                "The partner's own words about this answer. Send it on a yes as readily as on a no — 'yes, but only in cotton' is an answer a bare true throws away."
+              ),
+              capability_sample_ids: {
+                type: "array",
+                items: { type: "string" },
+                description:
+                  "Capability samples evidencing this answer — the photographs. Get ids from `list_capability_samples` or `create_capability_sample`. This is the ONLY answer a 'photo' question has.",
+              },
+            },
+            required: ["question_id"],
+          },
+        },
+      },
+      ["inquiryId", "answers"]
+    ),
+    sideEffects:
+      "Saves the answers and NOTHING else: the response carries no verdict until it is submitted, so a half-filled inquiry still reads as silence to the designer rather than as a reply. Re-sending the same question_id overwrites that answer. Refused once the inquiry is closed.",
+    nextSteps: ["submit_design_inquiry", "get_design_inquiry"],
+  },
+  {
+    name: "submit_design_inquiry",
+    description:
+      "Send the partner's answer to the designer: the verdict, and optionally a lead time, an indicative price and a closing note. 'with_changes' is the most useful verdict and the one a yes/no would throw away — use it whenever the partner can make something CLOSE to what was asked, and say what would have to change. Sensitive: this is what the designer reads.",
+    method: "POST",
+    path: "/partners/inquiries/:inquiryId/submit",
+    pathParams: ["inquiryId"],
+    write: true,
+    sensitive: true,
+    /**
+     * 🔴 Every key here exists on `PartnerPostInquirySubmitReq`, and every key
+     * on that schema that a conversation can fill is here. The dispatcher
+     * assembles the body by walking THIS allowlist, so a field the model is
+     * offered but that is missing from this array is accepted, reported `ok`,
+     * and dropped in silence — #1348 exactly. Keep the two in step.
+     */
+    bodyParams: [
+      "verdict",
+      "lead_time_days",
+      "indicative_price",
+      "currency_code",
+      "notes",
+      "answers",
+    ],
+    previewPath: "/partners/inquiries/:inquiryId",
+    inputSchema: obj(
+      {
+        inquiryId: STR("Inquiry id being answered."),
+        verdict: {
+          type: "string",
+          enum: ["can_make", "cannot_make", "with_changes"],
+          description:
+            "'can_make' = as specified, with what they have. 'with_changes' = yes, but something must change — say what in `notes`. 'cannot_make' = no, which costs nothing to say and saves everyone a week. Never infer this: it is the one thing the inquiry is asking for.",
+        },
+        lead_time_days: INT(
+          "Working days from order to ready, as the partner states it. Leave out rather than guessing."
+        ),
+        indicative_price: {
+          type: "number",
+          description:
+            "A rough price per piece. It is NOT a quote and nothing is ordered from it — but it is shown to the designer, so it must be a number the partner actually said.",
+        },
+        currency_code: STR(
+          "ISO-3 currency of `indicative_price`, e.g. 'inr'. Send it whenever a price is sent."
+        ),
+        notes: STR(
+          "Anything else the designer should know. On 'with_changes' this is where the answer actually lives."
+        ),
+        answers: {
+          type: "array",
+          description:
+            "A last batch of answers, saved with the verdict in one round trip so a submit cannot half-land. Same shape as `answer_design_inquiry`.",
+          items: {
+            type: "object",
+            properties: {
+              question_id: STR("The question's id."),
+              value: { description: "Shaped by the question's kind." },
+              note: STR("The partner's own words."),
+              capability_sample_ids: {
+                type: "array",
+                items: { type: "string" },
+                description: "Capability samples evidencing this answer.",
+              },
+            },
+            required: ["question_id"],
+          },
+        },
+      },
+      ["inquiryId", "verdict"]
+    ),
+    sideEffects:
+      "Stamps the response as submitted and makes it visible to the designer beside every other partner's. Re-running updates the answer rather than sending a second one. Refused once the inquiry is closed.",
+    nextSteps: ["get_design_inquiry", "list_design_inquiries"],
+  },
+
+  // ---- The capability library: the photographs a partner answers WITH ------
+  //
+  // A sample OUTLIVES the inquiry that produced it, which is why attaching one
+  // is two steps and not one: the partner may point at something they made
+  // last year instead of taking a new photograph. Always LIST before offering
+  // to create.
+  {
+    name: "list_capability_samples",
+    description:
+      "List the partner's capability samples — photographs of things they have actually made, with the technique and material beside each. Search these BEFORE asking for a new photograph: the partner has usually already shown you the thing they are being asked about. Read.",
+    method: "GET",
+    path: "/partners/capabilities",
+    queryParams: ["q", "technique", "material", "limit", "offset"],
+    inputSchema: obj({
+      q: STR("Free-text search over title and notes."),
+      technique: STR("Filter by technique, e.g. 'jamawar', 'block print'."),
+      material: STR("Filter by material, e.g. 'pashmina', 'cotton'."),
+      limit: INT("Max results (default 20)."),
+      offset: INT("Pagination offset."),
+    }),
+    sideEffects:
+      "Read-only. Each sample carries a renderable `media` array — render from THAT, never from `media_file_ids`. An id is not a URL: a surface that reaches for the ids shows the photo it just uploaded and empty squares after every reload.",
+    nextSteps: ["answer_design_inquiry", "create_capability_sample"],
+  },
+  {
+    name: "create_capability_sample",
+    description:
+      "Record a capability sample: a photograph of something the partner has made, with the textile facts beside it. The photograph itself must be UPLOADED FIRST — this tool takes the resulting media ids, it cannot receive a file. Ask the partner to attach the photo in the chat composer (or send it on WhatsApp), then pass the ids it returns as `media_file_ids`.",
+    method: "POST",
+    path: "/partners/capabilities",
+    write: true,
+    bodyParams: [
+      "title",
+      "technique",
+      "material",
+      "media_file_ids",
+      "notes",
+      "captured_at",
+    ],
+    inputSchema: obj(
+      {
+        title: STR("What the thing is, in the partner's words."),
+        technique: STR("How it was made, e.g. 'kani weave', 'sozni'."),
+        material: STR("What it is made of, e.g. 'pashmina', 'mulberry silk'."),
+        media_file_ids: {
+          type: "array",
+          items: { type: "string" },
+          description:
+            "Ids of already-uploaded photographs. 🔴 There is no way to pass a file through this tool — uploading is a multipart request the composer makes (`POST /partners/capabilities/uploads`, images only, max 10). Without ids the sample is a title with no evidence, which is exactly what the library exists to stop.",
+        },
+        notes: STR("Anything worth saying about it."),
+        captured_at: STR(
+          "ISO date the photograph was TAKEN. Ask — do not default it silently. A photo typed up three weeks later describes a capability that may already be gone, and the library is only trustworthy if it says how stale it is. When it is omitted the route defaults it to now and says so in `captured_at_defaulted`."
+        ),
+      },
+      ["title"]
+    ),
+    sideEffects:
+      "Adds a permanent sample to the partner's library — it outlives the inquiry that prompted it and can be attached to later answers. Does NOT attach itself to anything: pass the returned sample id as `capability_sample_ids` on `answer_design_inquiry` to make it the answer to a question.",
+    nextSteps: ["answer_design_inquiry", "list_capability_samples"],
+  },
 ]
