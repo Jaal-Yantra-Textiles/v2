@@ -86,6 +86,29 @@ export function getPartnerRouteMap(): RouteObject[] {
               lazy: () => import("../../routes/home/home-verification"),
             },
             {
+              // #1531 slice 2 — "what can you make?", generated from a
+              // design's own specification.
+              path: "/inquiries",
+              errorElement: <ErrorBoundary />,
+              handle: {
+                breadcrumb: () => "Inquiries",
+              },
+              children: [
+                {
+                  path: "",
+                  lazy: () => import("../../routes/inquiries/inquiry-list"),
+                },
+                {
+                  path: ":id",
+                  handle: {
+                    breadcrumb: (match?: UIMatch) =>
+                      match?.params?.id || "Inquiry",
+                  },
+                  lazy: () => import("../../routes/inquiries/inquiry-detail"),
+                },
+              ],
+            },
+            {
               path: "/designs",
               errorElement: <ErrorBoundary />,
               handle: {
