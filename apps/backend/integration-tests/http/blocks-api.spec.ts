@@ -100,7 +100,11 @@ setupSharedTestSuite(() => {
           
           expect(duplicateResponse.status).toBe(400);
          
-          expect(duplicateResponse.data.errors[0].error).toContain("Hero, already exists");
+          // #1472 rewrote the refusal to say what to do about it. The rule it
+          // names is the assertion; the wording is not.
+          expect(duplicateResponse.data.errors[0].error).toMatch(
+            /Hero block already exists on this page/i
+          );
         });
 
         it("should create multiple repeatable blocks", async () => {

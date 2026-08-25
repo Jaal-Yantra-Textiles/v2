@@ -422,8 +422,12 @@ export const DELETE = async (
 
   if (store.default_region_id === regionId) {
     const storeService = req.scope.resolve(Modules.STORE) as any
-    await storeService.updateStores({
-      id: store.id,
+    // (id, data) — NOT one merged object. `updateStores` has no entity form:
+    // a single object is read as the SELECTOR with `data` undefined, so it
+    // matches nothing, writes nothing and returns `[]` without erroring. This
+    // clear-the-default was a silent no-op, leaving the store pointing at a
+    // region that had just been deleted.
+    await storeService.updateStores(store.id, {
       default_region_id: null,
     })
   }
