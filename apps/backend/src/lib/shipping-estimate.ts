@@ -146,6 +146,30 @@ export type ShippingEstimate = {
   manual: ShippingEstimateOption[]
   calculated: ShippingEstimateOption[]
   calculated_error: string | null
+  /**
+   * Was a carrier actually asked to rate this lane? (#1528)
+   *
+   * 🔴 An empty `calculated` list means two completely different things, and
+   * the estimate was the only place that could still tell them apart:
+   *
+   * - `carrier === "manual" | "none"` — a deliberate decision to ask NOBODY.
+   *   The store's flat tiers ARE the whole answer, and there is nothing to
+   *   report.
+   * - a carrier that was asked and returned nothing — no rates, and no error
+   *   either. `calculated_error` stays null, so downstream the two are
+   *   indistinguishable, and readiness read the silence as "the carrier rated
+   *   the lane and the flat tier won".
+   *
+   * It did not. On 25 Aug a real Amsterdam quote (1080 g, EUR) went out on a
+   * flat €35 at `ready: true`, hours after the same lane returned seven
+   * carrier options with the cheapest at €36.42. The guard written to stop a
+   * flat tier standing in for an unknown rate was blind to the case where the
+   * carrier says nothing at all.
+   *
+   * So the fact is recorded here rather than re-derived. See
+   * `needsManualFreightRate`.
+   */
+  carrier_consulted: boolean
   cache_hit: boolean
   is_estimate: true
 }
@@ -193,6 +217,31 @@ export function resolveUnitWeight(variant: {
  * not re-priced: an option the store has switched off is not an offer we may
  * make on its behalf. An option with no rules at all is allowed — absence is
  * not a prohibition, and most hand-made options carry none.
+ *
+ * ## 🔴 A `quote_id` rule means the option belongs to ONE buyer (#1527)
+ *
+ * Accepting a quote mints a flat option priced at that quote's frozen freight,
+ * carrying `quote_id eq <id>` so it is invisible to every other CART. That
+ * hiding is done by core's rule engine, via
+ * `hooks/quote-shipping-options-context.ts` — and this estimate never goes
+ * through core's rule engine. It reads the zone's options straight out of
+ * `query.graph`, so every per-quote option ever minted stood as an ordinary
+ * candidate here, for unrelated quotes, priced at whatever one buyer once
+ * negotiated.
+ *
+ * Live on prod 25 Aug: a `99 INR` row from a revoked test quote. The picker
+ * sorts on the raw amount, so it would have won **any** INR quote by being the
+ * smallest number — regardless of weight, lane or destination. The fourth time
+ * this exact shape has shipped (#1424 zone-blind, #1430 rule-blind, #1485 the
+ * return option): a row nobody chose for *this* shipment winning it by being
+ * small.
+ *
+ * 🔑 The refusal lives HERE, in the callee, and not only in the teardown that
+ * deletes the option on revoke (`revokeQuote`). Teardown alone would leave a
+ * *live* quote's negotiated freight standing as a candidate for the next
+ * buyer, and would depend on every future path that kills a quote remembering
+ * to clean up. One buyer's freight is never an offer to another, dead or
+ * alive.
  */
 export function isQuotableShippingOption(shippingOption: any): boolean {
   const rules = (shippingOption?.rules ?? []) as Array<{
@@ -207,12 +256,21 @@ export function isQuotableShippingOption(shippingOption: any): boolean {
 
     if (attribute === "is_return" && value === "true") return false
     if (attribute === "enabled_in_store" && value === "false") return false
+    // 🔴 Scoped to one quote's cart — see the header. Not ours to offer.
+    if (attribute === "quote_id") return false
   }
 
   // Belt and braces: a return option created by hand — or by core's own return
-  // flows — may carry the type without the rule.
+  // flows — may carry the type without the rule. Likewise a per-quote option,
+  // whose type code acceptance sets deliberately (`quoted-freight`).
+  //
+  // ⚠️ This read was DEAD until #1527: the estimate's own query never asked for
+  // `shipping_options.type`, so `type` arrived undefined on every option and
+  // both belts checked a field that was always absent. Absence in the
+  // instrument, not in the world — the same reading error as #1528. The field
+  // is fetched now.
   const typeCode = String(shippingOption?.type?.code || "").toLowerCase()
-  if (typeCode === "return") return false
+  if (typeCode === "return" || typeCode === "quoted-freight") return false
 
   return true
 }
@@ -449,6 +507,10 @@ export async function buildShippingEstimate(
       // OPTION-level rules, which are a different thing from price rules and
       // were never read. See `isQuotableShippingOption`.
       "fulfillment_sets.service_zones.shipping_options.rules.*",
+      // The type code is the second half of `isQuotableShippingOption`'s belt
+      // and braces, and went unfetched until #1527 — so it checked a field
+      // that could never arrive. Proven path: `/partners/stores/:id/shipping-options`.
+      "fulfillment_sets.service_zones.shipping_options.type.*",
     ],
     filters: { id: input.store.default_location_id },
   })
@@ -534,6 +596,9 @@ export async function buildShippingEstimate(
       manual,
       calculated: [],
       calculated_error: null,
+      // Nobody was asked, on purpose. This is what stops the empty list above
+      // being read as a carrier that failed silently (#1528).
+      carrier_consulted: false,
       cache_hit: false,
       is_estimate: true,
     }
@@ -748,6 +813,9 @@ export async function buildShippingEstimate(
     manual,
     calculated,
     calculated_error: calculatedError,
+    // A carrier WAS asked on this path, whatever it answered — including
+    // nothing at all, which is the case #1528 was blind to.
+    carrier_consulted: true,
     cache_hit: cacheHit,
     // Never present these as a final price: carrier rates move, and the manual
     // tier is a placeholder the partner is expected to edit.

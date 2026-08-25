@@ -73,12 +73,66 @@ export type QuoteReadinessCode =
  *
  * A typed override answers the question outright: someone looked up the real
  * rate, so there is nothing to refuse.
+ *
+ * ## 🔴 Why this asks "did a carrier rate it?" and not "did a carrier error?"
+ *
+ * It used to be `Boolean(calculatedError) && override === null` — it fired only
+ * when the carrier *raised* something. A carrier that returns an EMPTY LIST
+ * without erroring leaves `calculated_error` null, so the guard stayed silent,
+ * readiness answered `ready: true`, and the quote went out on the flat tier
+ * (#1528).
+ *
+ * That happened, on a real customer quote to Amsterdam: `ready=true`,
+ * `blocking=0`, `error=null`, freight €35 flat — hours after the same lane had
+ * returned seven carrier options with the cheapest at €36.42. I read the
+ * guard's silence as evidence the carrier had rated the lane and told the
+ * founder so. It was absence in my instrument, not in the world.
+ *
+ * The bitter part is that this guard's own docblock says it exists because
+ * *"the number is never absent, so nothing looks broken"* — and it reproduced
+ * that failure through itself. So the question it asks is now the one that
+ * actually matters: **is the figure we are about to freeze one a carrier
+ * gave us?** An error, an empty answer and a timeout are all the same thing to
+ * a buyer.
+ *
+ * Three states, not two:
+ *
+ * | carrier | verdict |
+ * |---|---|
+ * | not asked (`carrier: "manual"`/`"none"`) | fine — pricing by hand is the plan |
+ * | asked, errored | refuse |
+ * | asked, returned nothing | refuse |
+ * | asked, rated, and a rated option won | fine |
+ *
+ * 🔑 `carrierConsulted` is the load-bearing input. Without it an empty
+ * `calculated` list cannot be told apart from a deliberate decision to ask
+ * nobody, and refusing THAT would block every hand-priced lane the store has
+ * configured on purpose.
  */
-export function needsManualFreightRate(
-  calculatedError: string | null | undefined,
+export function needsManualFreightRate(input: {
+  /** Whatever the carrier raised, if it raised anything. */
+  calculatedError: string | null | undefined
+  /**
+   * Was a carrier asked at all? `ShippingEstimate.carrier_consulted`. False
+   * means "manual" was chosen deliberately and there is nothing to report.
+   */
+  carrierConsulted: boolean
+  /**
+   * Where the figure about to be frozen came from. `"calculated"` is a real
+   * carrier rate; `"manual"` is a store-configured flat tier that does not
+   * move with weight.
+   */
+  chosenSource: "manual" | "calculated" | null | undefined
+  /** A rate someone looked up and typed. Zero IS an answer. */
   override: number | null
-): boolean {
-  return Boolean(calculatedError) && override === null
+}): boolean {
+  if (input.override !== null) return false
+  // Nobody was asked. The flat tier is the intended answer, not a stand-in.
+  if (!input.carrierConsulted) return false
+  // A carrier rate won: whatever else went wrong, the number is a real quote
+  // for this lane at this weight.
+  if (input.chosenSource === "calculated") return false
+  return true
 }
 
 export type QuoteReadinessIssue = {
@@ -102,6 +156,16 @@ export type QuoteReadinessResult = {
     chosen: { name: string | null; amount: number; currency_code: string } | null
     total_weight_grams: number | null
     error: string | null
+    /**
+     * Whether a carrier was asked, and how many rates came back (#1528).
+     *
+     * 🔑 `error: null` was never enough to conclude the lane had been rated —
+     * a carrier can answer nothing without failing. The count is reported so
+     * the operator reads a fact rather than inferring one from a silence, the
+     * way I did.
+     */
+    carrier_consulted: boolean
+    carrier_rated_count: number
   }
 }
 
@@ -279,6 +343,8 @@ export async function assessQuoteReadiness(
     chosen: null,
     total_weight_grams: null,
     error: null,
+    carrier_consulted: false,
+    carrier_rated_count: 0,
   }
 
   const canEstimate =
@@ -348,6 +414,8 @@ export async function assessQuoteReadiness(
           : null,
         total_weight_grams: estimate.total_weight_grams,
         error: estimate.calculated_error,
+        carrier_consulted: estimate.carrier_consulted,
+        carrier_rated_count: (estimate.calculated ?? []).length,
       }
 
       if (!chosen) {
@@ -359,7 +427,16 @@ export async function assessQuoteReadiness(
             : `No freight option could be quoted to ${input.destination_country_code.toUpperCase()} from this store's location.`,
           data: { country_code: input.destination_country_code },
         })
-      } else if (needsManualFreightRate(estimate.calculated_error, override)) {
+      } else if (
+        needsManualFreightRate({
+          calculatedError: estimate.calculated_error,
+          carrierConsulted: estimate.carrier_consulted,
+          // The override branch above builds `chosen` by hand with no source,
+          // but it also sets `override`, which short-circuits first.
+          chosenSource: (chosen as any)?.source ?? null,
+          override,
+        })
+      ) {
         /**
          * 🔴 A FLAT TIER IS NOT A RATE FOR A LANE NOBODY COULD RATE.
          *
@@ -386,14 +463,22 @@ export async function assessQuoteReadiness(
           code: "freight_needs_manual_rate",
           severity: "blocking",
           message:
-            `No carrier could rate freight to ${input.destination_country_code.toUpperCase()} ` +
-            `(${estimate.calculated_error}), so the only figure available is a flat rate that does ` +
+            `No carrier rated freight to ${input.destination_country_code.toUpperCase()} ` +
+            // 🔴 Say WHICH silence this was. Interpolating a null error read
+            // "(null)" and told the operator nothing — and the empty-answer
+            // case is precisely the one that used to pass unremarked (#1528).
+            (estimate.calculated_error
+              ? `(${estimate.calculated_error})`
+              : `(the carrier was asked and returned no rates at all — no error either)`) +
+            `, so the only figure available is a flat rate that does ` +
             `not change with weight. Look up the real rate (DHL and the like) and type it in — ` +
             `it will be shown to the buyer as quoted by hand.`,
           data: {
             country_code: input.destination_country_code,
             fallback_amount: chosen.amount,
             fallback_name: chosen.name ?? null,
+            carrier_rated_count: (estimate.calculated ?? []).length,
+            carrier_returned_nothing: !estimate.calculated_error,
           },
         })
       } else if (

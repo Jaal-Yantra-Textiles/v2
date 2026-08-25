@@ -3,6 +3,11 @@ import {
   zoneCoversDestination,
 } from "../shipping-estimate"
 import { pickFreightOption } from "../../modules/partner-quote/lib/build-quote-view"
+import {
+  QUOTE_FREIGHT_OPTION_RULE_ATTRIBUTE,
+  QUOTE_FREIGHT_OPTION_TYPE_CODE,
+  quoteFreightOptionName,
+} from "../../modules/partner-quote/lib/quote-freight-option"
 
 /**
  * Found on a LIVE production mint (#1389 S3 verification, 21 Aug):
@@ -64,6 +69,127 @@ describe("isQuotableShippingOption — the return row that won by being cheap", 
     // lane entirely, which is a worse failure than the one being fixed.
     expect(isQuotableShippingOption({ name: "Flat rate" })).toBe(true)
     expect(isQuotableShippingOption({ name: "Flat rate", rules: [] })).toBe(true)
+  })
+})
+
+/**
+ * 🔴 ONE BUYER'S NEGOTIATED FREIGHT IS NEVER AN OFFER TO ANOTHER (#1527).
+ *
+ * Accepting a quote mints a flat option priced at that quote's frozen freight,
+ * ruled `quote_id eq <id>`. That rule hides it from other CARTS — core's rule
+ * engine does the hiding, via `hooks/quote-shipping-options-context.ts`. This
+ * estimate never goes near core's rule engine: it reads a location's options
+ * straight out of `query.graph`. So every per-quote option ever minted stood
+ * here as an ordinary candidate for unrelated quotes.
+ *
+ * Live on prod 25 Aug, in one store:
+ *
+ *   Quoted freight — 01M0Q7T0…   35 eur
+ *   Quoted freight — 01M0QF8C…   99 inr   ← wins ANY inr quote
+ *   Quoted freight — 01M0QGQ4…   48.5 eur
+ *
+ * all three from REVOKED quotes, two already surfaced on a real customer's
+ * quote. `pickFreightOption` sorts on the raw amount, so ₹99 beats every real
+ * rate on every INR lane regardless of weight, lane or destination.
+ *
+ * 🔑 Fourth instance of one shape — zone-blind (#1424), rule-blind (#1430),
+ * the return row (#1485), and now this: a row nobody chose for *this* shipment
+ * winning it by being small.
+ *
+ * The refusal lives in the callee. Deleting the option on revoke (which
+ * `revokeQuote` now also does) would still leave a LIVE quote's freight
+ * standing as a candidate for the next buyer, and would depend on every future
+ * path that kills a quote remembering to clean up.
+ */
+describe("isQuotableShippingOption — one buyer's freight is not another's offer", () => {
+  it("🔴 refuses an option scoped to a quote by its rule", () => {
+    expect(
+      isQuotableShippingOption({
+        name: quoteFreightOptionName("01M0QF8CN2S0TPA0HTKD0YHGJ7"),
+        rules: [
+          { attribute: "enabled_in_store", value: "true", operator: "eq" },
+          {
+            attribute: QUOTE_FREIGHT_OPTION_RULE_ATTRIBUTE,
+            value: "01M0QF8CN2S0TPA0HTKD0YHGJ7",
+            operator: "eq",
+          },
+        ],
+      })
+    ).toBe(false)
+  })
+
+  /**
+   * The rule is refused whatever quote it names and whatever the quote's state
+   * — there is deliberately no "is this quote still alive?" test. A live
+   * quote's freight is exactly as wrong an answer for a different buyer as a
+   * dead one's, and it is the LIVE case a teardown could never reach.
+   */
+  it("🔴 refuses it for a live quote too, not only an abandoned one", () => {
+    expect(
+      isQuotableShippingOption({
+        name: "Quoted freight — some_active_quote",
+        rules: [
+          {
+            attribute: QUOTE_FREIGHT_OPTION_RULE_ATTRIBUTE,
+            value: "some_active_quote",
+            operator: "eq",
+          },
+        ],
+      })
+    ).toBe(false)
+  })
+
+  /**
+   * Belt and braces, and the belt was DEAD until #1527: the estimate's query
+   * never asked for `shipping_options.type`, so this read a field that could
+   * not arrive — on the return check too. Absence in the instrument, not in
+   * the world; the same reading error as #1528. The field is fetched now, so
+   * the type code has to be honoured.
+   */
+  it("refuses one carrying only the quoted-freight type code", () => {
+    expect(
+      isQuotableShippingOption({
+        name: "Quoted freight — x",
+        type: { code: QUOTE_FREIGHT_OPTION_TYPE_CODE },
+      })
+    ).toBe(false)
+  })
+
+  /**
+   * 🔴 The store's OWN flat option must survive. It is the donor lane every
+   * quote to that country is rated against and frozen onto; refusing it would
+   * take the lane down for every quote at once — a far worse failure than the
+   * leak being fixed. Only the `quote_id` rule and the minted type code
+   * disqualify an option, never the word "freight" in its name.
+   */
+  it("keeps the store's own configured option, however it is named", () => {
+    expect(
+      isQuotableShippingOption({
+        name: "International Shipping · 68M3HY2V",
+        rules: [{ attribute: "enabled_in_store", value: "true", operator: "eq" }],
+        type: { code: "international-shipping-68m3hy2v" },
+      })
+    ).toBe(true)
+    // Named confusingly, but carrying neither disqualifier.
+    expect(isQuotableShippingOption({ name: "Freight (quoted)" })).toBe(true)
+  })
+})
+
+/**
+ * The option's name is an IDENTIFIER, not a label (#1527).
+ *
+ * `revokeQuote`'s teardown finds the option by this exact string, so the
+ * minting step and the teardown must never be able to disagree about it — and
+ * a mismatch would be invisible, because a teardown that matches nothing does
+ * not fail. Hence one constructor, pinned here.
+ */
+describe("quoteFreightOptionName", () => {
+  it("is the exact string acceptance mints and revoke looks for", () => {
+    expect(quoteFreightOptionName("01M0QF8CN2S0TPA0HTKD0YHGJ7")).toBe(
+      "Quoted freight — 01M0QF8CN2S0TPA0HTKD0YHGJ7"
+    )
+    // An em dash, not a hyphen. An exact-match filter does not forgive it.
+    expect(quoteFreightOptionName("q_1")).toContain("—")
   })
 })
 

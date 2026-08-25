@@ -19,6 +19,11 @@ import {
   emitEventStep,
 } from "@medusajs/medusa/core-flows"
 
+import {
+  QUOTE_FREIGHT_OPTION_RULE_ATTRIBUTE,
+  QUOTE_FREIGHT_OPTION_TYPE_CODE,
+  quoteFreightOptionName,
+} from "../../modules/partner-quote/lib/quote-freight-option"
 import { PARTNER_QUOTE_MODULE } from "../../modules/partner-quote"
 import { PARTNER_QUOTE_EVENTS } from "../../modules/partner-quote/events"
 import { PAYMENT_SCHEDULE_MODULE } from "../../modules/payment_schedule"
@@ -309,7 +314,10 @@ const createQuoteFreightOptionStep = createStep(
     const { result } = await createShippingOptionsWorkflow(container).run({
       input: [
         {
-          name: `Quoted freight — ${quote.id}`,
+          // 🔑 Constructed in ONE place: `revokeQuote`'s teardown finds this
+          // option by this exact string, so the two must not be able to drift
+          // (#1527). A teardown that matches nothing fails silently.
+          name: quoteFreightOptionName(quote.id),
           service_zone_id: source.service_zone_id,
           shipping_profile_id: source.shipping_profile_id,
           provider_id: source.provider_id,
@@ -321,10 +329,23 @@ const createQuoteFreightOptionStep = createStep(
             // domestic lane in #1485, and the picker now refuses anything whose
             // type code says return. Naming this one carefully keeps it out of
             // that blast radius.
-            code: "quoted-freight",
+            //
+            // ⚠️ Careful naming was NOT enough. This option was still offered
+            // to unrelated quotes, because the estimate reads options straight
+            // out of `query.graph` and evaluates no rules — the `quote_id`
+            // rule below hides it from other CARTS only. `isQuotableShippingOption`
+            // now refuses this type code and this rule attribute outright
+            // (#1527).
+            code: QUOTE_FREIGHT_OPTION_TYPE_CODE,
           },
           prices: [{ currency_code: quote.currency_code, amount: freight }],
-          rules: [{ attribute: "quote_id", operator: "eq", value: String(quote.id) }],
+          rules: [
+            {
+              attribute: QUOTE_FREIGHT_OPTION_RULE_ATTRIBUTE,
+              operator: "eq",
+              value: String(quote.id),
+            },
+          ],
         } as any,
       ],
     })

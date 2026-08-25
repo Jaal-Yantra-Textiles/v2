@@ -2,6 +2,7 @@ import { ContainerRegistrationKeys } from "@medusajs/framework/utils"
 import { deletePriceListsWorkflow } from "@medusajs/medusa/core-flows"
 
 import { PARTNER_QUOTE_MODULE } from ".."
+import { deleteQuoteFreightOptions } from "./quote-freight-option"
 
 /**
  * Revoke one quote (#1389 S5, extracted for the partner surface in #1517).
@@ -16,6 +17,21 @@ import { PARTNER_QUOTE_MODULE } from ".."
  * alongside a list that is already gone — visibly inconsistent and safe. The
  * reverse order would leave a revoked-looking quote still quietly pricing
  * carts, which is the failure nobody would notice.
+ *
+ * ## 🔴 The prices are not the only thing the quote owns (#1527)
+ *
+ * An accepted quote also minted itself a shipping option carrying its frozen
+ * freight. That survived every revoke, and three of them were live on prod on
+ * 25 Aug — including a `99 INR` row that, because the freight picker sorts on
+ * the raw amount, would win **any** INR quote by being the smallest number.
+ * Two had already surfaced as candidates on a real customer's quote.
+ *
+ * A revoke that leaves part of the quote standing is not a revoke, for the
+ * same reason a status flip alone is not one. So the option goes with the
+ * price list. It is torn down AFTER them both, deliberately: unlike the price
+ * list it is no longer dangerous once `isQuotableShippingOption` refuses
+ * anything carrying a `quote_id` rule, so it must never be the thing that
+ * fails a revoke.
  *
  * ## Why this is a function and not two handlers
  *
@@ -41,6 +57,8 @@ export const revokeQuote = async (
 ): Promise<{
   quote: any
   price_list_deleted: boolean
+  /** Which of the quote's OWN freight options were torn down (#1527). */
+  deleted_shipping_option_ids: string[]
   already_revoked?: boolean
 }> => {
   const service: any = scope.resolve(PARTNER_QUOTE_MODULE)
@@ -50,7 +68,12 @@ export const revokeQuote = async (
     // Idempotent: re-revoking is a no-op, not an error. Anyone hitting the
     // button twice must not see a failure that suggests the first one did not
     // take.
-    return { quote, price_list_deleted: false, already_revoked: true }
+    return {
+      quote,
+      price_list_deleted: false,
+      deleted_shipping_option_ids: [],
+      already_revoked: true,
+    }
   }
 
   /**
@@ -91,6 +114,18 @@ export const revokeQuote = async (
     status: "revoked",
   })
 
+  /**
+   * 🔑 After the status is written, and never allowed to throw.
+   *
+   * The option is inert by this point — the estimate refuses any option
+   * carrying a `quote_id` rule — so this is hygiene, and hygiene must not be
+   * able to fail a destructive operation that has already completed. That is
+   * exactly how every revoke on prod once did its whole job and answered 500,
+   * inviting a retry.
+   */
+  const { deleted_shipping_option_ids: deletedOptionIds } =
+    await deleteQuoteFreightOptions(scope, quote)
+
   const by = actor.type === "admin" ? "an admin" : "the partner"
   await service
     .recordEvent({
@@ -101,12 +136,16 @@ export const revokeQuote = async (
       message: priceListId
         ? `Revoked by ${by}; the quoted price list was deleted.`
         : `Revoked by ${by}. No price list was recorded on the quote, so none was deleted.`,
-      data: { price_list_id: priceListId ?? null },
+      data: {
+        price_list_id: priceListId ?? null,
+        deleted_shipping_option_ids: deletedOptionIds,
+      },
     })
     .catch(() => {})
 
   return {
     quote: updated ?? { ...quote, status: "revoked" },
     price_list_deleted: !!priceListId,
+    deleted_shipping_option_ids: deletedOptionIds,
   }
 }
