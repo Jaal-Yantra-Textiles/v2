@@ -36,6 +36,12 @@ const CreateTransferSchema = z.object({
     .optional(),
   preferred_courier_id: z.union([z.string(), z.number()]).optional(),
   notes: z.string().optional(),
+  /**
+   * Re-book a hop the carrier cancelled, keeping the original row (#891
+   * follow-up). Both transfers survive and link to each other; the named one
+   * must be `cancelled`, on this run, or the create is refused.
+   */
+  replaces_transfer_id: z.string().min(1).optional(),
 })
 
 export const POST = async (
@@ -64,6 +70,7 @@ export const POST = async (
     dimensionsCm: body.dimensions_cm as any,
     preferredCourierId: body.preferred_courier_id,
     notes: body.notes,
+    replacesTransferId: body.replaces_transfer_id,
     actingEmail: (req as any).auth_context?.app_metadata?.user_email,
   })
 

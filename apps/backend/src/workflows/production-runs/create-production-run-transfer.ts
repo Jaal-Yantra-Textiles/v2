@@ -63,6 +63,21 @@ export type CreateProductionRunTransferInput = {
   /** Acting user's email recorded on a freshly-registered pickup (#427). */
   actingEmail?: string
   notes?: string
+  /**
+   * The cancelled hop this one replaces (#891 follow-up).
+   *
+   * 🔑 A re-booking is a NEW row, never an edit of the old one. The original
+   * carries an AWB the carrier really issued and really cancelled; rewriting it
+   * would erase the fact that the first attempt happened, and the transfer list
+   * is the only record of what physically moved. So both rows survive and point
+   * at each other — `replaces_transfer_id` here, `replaced_by_transfer_id`
+   * there.
+   *
+   * 🔴 Only a CANCELLED transfer can be replaced. Replacing a live one would
+   * leave two open movements for the same goods, and the second would silently
+   * double-count the moment inventory learns to follow a transfer (S3).
+   */
+  replacesTransferId?: string
   /** Who reads the error — carrier-account failures are not a partner's doing. */
   audience?: "admin" | "partner"
 }
@@ -213,6 +228,38 @@ async function recordTransferActivity(
   }
 }
 
+/**
+ * PURE: may this cancelled hop be replaced by a new one?
+ *
+ * Split out because it is the whole decision, and both wrong answers are
+ * expensive: replacing a transfer on ANOTHER run links two unrelated movements
+ * and misreports where goods are, while replacing a LIVE one leaves two open
+ * movements for the same consignment — which double-counts the moment
+ * inventory learns to follow a transfer (S3). Testable without a container, a
+ * carrier account, or a real waybill.
+ *
+ * Throws rather than returning false: every caller's only sensible response is
+ * to stop, and a boolean invites one of them not to.
+ */
+export function assertReplaceableTransfer(
+  replaced: { id?: string; production_run_id?: string; status?: string } | null,
+  runId: string,
+  requestedId: string
+): void {
+  if (!replaced || replaced.production_run_id !== runId) {
+    throw new MedusaError(
+      MedusaError.Types.NOT_FOUND,
+      `Goods transfer ${requestedId} not found on production run ${runId}, so it cannot be the hop this one replaces.`
+    )
+  }
+  if (replaced.status !== "cancelled") {
+    throw new MedusaError(
+      MedusaError.Types.NOT_ALLOWED,
+      `Transfer ${replaced.id} is "${replaced.status}", not cancelled — replacing a live hop would leave two open movements for the same goods. Cancel it first.`
+    )
+  }
+}
+
 export async function createProductionRunTransfer(
   container: MedusaContainer,
   input: CreateProductionRunTransferInput
@@ -254,6 +301,23 @@ export async function createProductionRunTransfer(
     )
   }
 
+  /**
+   * The hop being re-booked, when this is a replacement.
+   *
+   * Validated BEFORE anything is created: a replacement that names a transfer
+   * on another run, or one that is still live, is a mistake worth refusing
+   * rather than a link worth writing. Checked here rather than in the route so
+   * the partner mirror gets the same guard for free.
+   */
+  let replaced: any = null
+  if (input.replacesTransferId) {
+    replaced = await transferService
+      .retrieveGoodsTransfer(input.replacesTransferId)
+      .catch(() => null)
+
+    assertReplaceableTransfer(replaced, run.id, input.replacesTransferId)
+  }
+
   const quantity = transferQuantity(run, input.quantity)
 
   // The transfer row is created FIRST, before any carrier call. Two reasons:
@@ -270,7 +334,32 @@ export async function createProductionRunTransfer(
     reason: input.reason || "stock",
     status: "draft",
     notes: input.notes ?? null,
+    metadata: replaced ? { replaces_transfer_id: replaced.id } : null,
   })
+
+  /**
+   * Point the cancelled row FORWARD at its replacement.
+   *
+   * Best-effort and merged, never assigned: `metadata` is a shared blob, and
+   * the new transfer already carries the backward link — so a failure here
+   * costs a convenience, not the history. Losing whatever else was in that blob
+   * to a wholesale overwrite would cost real information.
+   */
+  if (replaced) {
+    try {
+      await transferService.updateGoodsTransfers({
+        id: replaced.id,
+        metadata: {
+          ...((replaced.metadata ?? {}) as Record<string, unknown>),
+          replaced_by_transfer_id: transfer.id,
+        },
+      })
+    } catch (e: any) {
+      logger.error(
+        `[goods-transfer] ${transfer.id} replaces ${replaced.id} but the back-link write failed: ${e?.message}`
+      )
+    }
+  }
 
   const base: ProductionRunTransferResult = {
     transfer_id: transfer.id,

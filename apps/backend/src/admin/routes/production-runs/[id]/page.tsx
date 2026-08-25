@@ -33,6 +33,7 @@ import { TwoColumnPage } from "../../../components/pages/two-column-pages"
 import { TwoColumnPageSkeleton } from "../../../components/table/skeleton"
 import { ProductionRunChildrenSection } from "../../../components/production-runs/production-run-children-section"
 import { ProductionRunActivityTimeline } from "../../../components/production-runs/production-run-activity-timeline"
+import { GoodsTransferSection } from "../../../components/production-runs/goods-transfer-section"
 import { productionRunLoader } from "./loader"
 import {
   useAdminAcceptRun,
@@ -500,6 +501,19 @@ const ProductionRunDetailPage = () => {
 
         {/* Children / Sub-runs */}
         {isParent && <ProductionRunChildrenSection parentId={id} />}
+
+        {/*
+          Goods movement (#891). Shown on every run, not only completed ones as
+          the partner surface does: an admin is frequently the person recording
+          a hop after the fact, or correcting one the carrier cancelled, and
+          hiding the list until a status changes would hide exactly the row that
+          needs fixing.
+        */}
+        {!isParent && (
+          <Container className="divide-y p-0">
+            <GoodsTransferSection runId={id} />
+          </Container>
+        )}
 
         {/* Tasks */}
         {!isParent && (
