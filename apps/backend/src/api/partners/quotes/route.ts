@@ -5,6 +5,7 @@ import { PARTNER_QUOTE_MODULE } from "../../../modules/partner-quote"
 import { resolveQuoteDesignLines } from "../../../modules/partner-quote/lib/design-lines"
 import { buildQuoteListQuery } from "../../../modules/partner-quote/lib/list-query"
 import { withEffectiveStatus } from "../../../modules/partner-quote/lib/token"
+import { totalQuotedQuantity } from "../../../modules/partner-quote/lib/quote-email"
 import { deliverQuoteEmail } from "../../../workflows/partner-quote/deliver-quote-email"
 import { mintQuoteWorkflow } from "../../../workflows/partner-quote/mint-quote"
 import { getPartnerStore, tryGetPartnerStore } from "../helpers"
@@ -151,6 +152,7 @@ export const POST = async (
     token: (result as any)?.token,
     partnerName: partner?.name ?? null,
     lineCount: body.lines.length,
+    totalQuantity: totalQuotedQuantity(body.lines),
     actorType: "partner",
     actorId: partner.id,
   })

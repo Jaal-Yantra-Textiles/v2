@@ -54,6 +54,12 @@ export async function deliverQuoteEmail(
     token: string | null | undefined
     partnerName?: string | null
     lineCount: number
+    /**
+     * Pieces across every line. Distinct from `lineCount`, which is how many
+     * ROWS the quote has — the two were conflated in both emails' copy until
+     * a six-line quote for ten pieces introduced itself as "6 item(s)".
+     */
+    totalQuantity: number
     /** Who is being told, for the timeline. */
     actorType: "partner" | "admin"
     actorId?: string | null
@@ -104,6 +110,13 @@ export async function deliverQuoteEmail(
         total: quote?.quoted_landed_total ?? null,
         destination_country_code: quote?.destination_country_code ?? null,
         line_count: input.lineCount,
+        /**
+         * 🔑 The pieces, for any visual flow that renders a number to a buyer.
+         * Without it the introduction email had only `line_count` to reach for
+         * and no way to be right — the payload simply did not carry the
+         * quantity, so no amount of editing the template could have fixed it.
+         */
+        total_quantity: input.totalQuantity,
         actor_type: input.actorType,
       },
     })
@@ -151,6 +164,7 @@ export async function deliverQuoteEmail(
           partnerName: input.partnerName ?? null,
           quoteUrl: buyerUrl,
           lineCount: input.lineCount,
+          totalQuantity: input.totalQuantity,
           now: new Date(),
         }),
       },
