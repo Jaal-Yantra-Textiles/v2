@@ -2598,6 +2598,21 @@ export default defineMiddlewares({
         adaptMulter(mediaUpload.array("files")),
       ],
     },
+    // Capability-sample photographs (#1543). Same multipart shape and the same
+    // reasons: bodyParser OFF because multer owns the body (Medusa already
+    // parses urlencoded on every route, and a second parser on a stream whose
+    // `end` has fired HANGS the request), and disk-backed because a weaver
+    // attaching four phone photos at once is tens of MB.
+    {
+      matcher: "/partners/capabilities/uploads",
+      method: "POST",
+      bodyParser: false,
+      middlewares: [
+        createCorsPartnerMiddleware(),
+        authenticate("partner", ["session", "bearer"]),
+        adaptMulter(mediaUpload.array("files")),
+      ],
+    },
     // Partner assistant context compaction — the client calls this when the
     // chat approaches the model's context window; the route returns a short
     // summary the client stores in place of the older turns.

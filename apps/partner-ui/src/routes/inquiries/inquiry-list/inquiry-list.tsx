@@ -1,5 +1,5 @@
 import { Badge, Button, Container, Heading, StatusBadge, Text } from "@medusajs/ui"
-import { Link } from "react-router-dom"
+import { Link, Outlet } from "react-router-dom"
 
 import { SingleColumnPage } from "../../../components/layout/pages"
 import {
@@ -138,6 +138,16 @@ export const InquiryList = () => {
           )
         })}
       </Container>
+
+      {/* The inquiry itself opens OVER this list (#1543). Nested rather than a
+          sibling route so the list stays visible behind the modal — closing it
+          returns to exactly the row you came from, which matters when a
+          partner has several to work through and is doing it on a phone.
+
+          🔑 It stays a ROUTE, not a piece of list state. The WhatsApp invite
+          deeplinks straight to /inquiries/:id (#1531 S3); a modal that only
+          existed as a `useState` on this page would 404 that link. */}
+      <Outlet />
     </SingleColumnPage>
   )
 }

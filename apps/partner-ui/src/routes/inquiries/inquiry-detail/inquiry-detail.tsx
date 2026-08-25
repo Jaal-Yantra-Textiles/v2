@@ -2,7 +2,6 @@ import {
   Badge,
   Button,
   Checkbox,
-  Container,
   Heading,
   Input,
   Label,
@@ -16,14 +15,18 @@ import {
 import { useEffect, useMemo, useRef, useState } from "react"
 import { useParams } from "react-router-dom"
 
-import { SingleColumnPage } from "../../../components/layout/pages"
+import { RouteFocusModal } from "../../../components/modals"
+import { FileUpload, type FileType } from "../../../components/common/file-upload"
 import {
   IncomingAnswer,
   InquiryQuestion,
   InquiryVerdict,
+  useCreatePartnerCapability,
+  usePartnerCapabilities,
   usePartnerInquiry,
   useSavePartnerInquiryAnswers,
   useSubmitPartnerInquiry,
+  useUploadCapabilityMedia,
 } from "../../../hooks/api/partner-inquiries"
 
 /**
@@ -81,17 +84,24 @@ const VERDICTS: Array<{
 /** The value a question starts from, so a half-finished wizard resumes. */
 const initialValues = (
   questions: InquiryQuestion[],
-  answers: Array<{ question_id: string; value?: unknown; note?: string | null }>
+  answers: Array<{
+    question_id: string
+    value?: unknown
+    note?: string | null
+    capability_sample_ids?: string[] | null
+  }>
 ) => {
   const byQuestion = new Map(answers.map((a) => [a.question_id, a]))
   const values: Record<string, unknown> = {}
   const notes: Record<string, string> = {}
+  const samples: Record<string, string[]> = {}
   for (const question of questions) {
     const existing = byQuestion.get(question.id)
     values[question.id] = existing?.value ?? null
     notes[question.id] = existing?.note ?? ""
+    samples[question.id] = existing?.capability_sample_ids ?? []
   }
-  return { values, notes }
+  return { values, notes, samples }
 }
 
 export const InquiryDetail = () => {
@@ -106,6 +116,8 @@ export const InquiryDetail = () => {
 
   const [values, setValues] = useState<Record<string, unknown>>({})
   const [notes, setNotes] = useState<Record<string, string>>({})
+  /** question_id → capability_sample ids attached to that answer (#1543). */
+  const [samples, setSamples] = useState<Record<string, string[]>>({})
   const [stepIndex, setStepIndex] = useState(0)
   const [verdict, setVerdict] = useState<InquiryVerdict | null>(null)
   const [leadTime, setLeadTime] = useState("")
@@ -137,6 +149,7 @@ export const InquiryDetail = () => {
     const seeded = initialValues(questions, answers ?? [])
     setValues(seeded.values)
     setNotes(seeded.notes)
+    setSamples(seeded.samples)
   }, [questions, answers, inquiryId])
 
   // Same reasoning as the seed above: the summary fields are read once, so a
@@ -195,11 +208,22 @@ export const InquiryDetail = () => {
         question_id: question.id,
         value: values[question.id] ?? null,
         note: notes[question.id]?.trim() ? notes[question.id].trim() : null,
+        capability_sample_ids: samples[question.id] ?? [],
       }))
       // An untouched question is left alone rather than written as an explicit
       // null: "not answered yet" and "answered with nothing" are different
       // things, and only one of them is worth showing in the comparison.
-      .filter((a) => a.value !== null || a.note !== null)
+      //
+      // 🔴 A photo question has NO `value` and NO `note` — the photograph IS
+      // the answer. Without the sample clause here, attaching a picture and
+      // pressing "Save and continue" would filter the answer out and save
+      // nothing, silently, on the one kind of question that cannot be retyped.
+      .filter(
+        (a) =>
+          a.value !== null ||
+          a.note !== null ||
+          (a.capability_sample_ids?.length ?? 0) > 0
+      )
 
   const goToStep = async (next: number) => {
     if (closed) {
@@ -244,19 +268,32 @@ export const InquiryDetail = () => {
 
   if (isLoading) {
     return (
-      <SingleColumnPage widgets={{ before: [], after: [] }}>
-        <Container>
+      <RouteFocusModal>
+        <RouteFocusModal.Header>
+          <RouteFocusModal.Title>Loading…</RouteFocusModal.Title>
+        </RouteFocusModal.Header>
+        <RouteFocusModal.Body className="overflow-y-auto px-6 py-6">
           <Text size="small" className="text-ui-fg-subtle">
             Loading…
           </Text>
-        </Container>
-      </SingleColumnPage>
+        </RouteFocusModal.Body>
+      </RouteFocusModal>
     )
   }
 
   return (
-    <SingleColumnPage widgets={{ before: [], after: [] }}>
-      <Container className="divide-y p-0">
+    <RouteFocusModal>
+      <RouteFocusModal.Header>
+        <RouteFocusModal.Title asChild>
+          <span className="sr-only">{inquiry?.title ?? "Inquiry"}</span>
+        </RouteFocusModal.Title>
+      </RouteFocusModal.Header>
+
+      {/* 🔴 overflow-y-auto is NOT optional on a FocusModal body. Without it
+          the body does not scroll, and on a phone — which is the whole point
+          of this wizard — the questions below the fold are unreachable and the
+          footer buttons sit off-screen. ~98 partner-ui modals still lack it. */}
+      <RouteFocusModal.Body className="flex flex-col divide-y overflow-y-auto p-0">
         <div className="flex items-start gap-4 px-6 py-4">
           {design?.thumbnail_url && (
             <img
@@ -282,6 +319,37 @@ export const InquiryDetail = () => {
             </Badge>
           )}
         </div>
+
+        {/* The moodboard (#1543).
+            🔴 This was returned by the route as bare ids from the day it was
+            written, and nothing rendered them — so a designer attached the
+            references that explain the ask, and the partner was asked "can you
+            make this?" while being shown nothing. Nothing errored: the field
+            was populated and the array was right there in the response. */}
+        {!!inquiry?.reference_media?.length && (
+          <div className="flex flex-col gap-2 px-6 py-4">
+            <Text size="small" weight="plus">
+              What we are after
+            </Text>
+            <div className="flex flex-wrap gap-2">
+              {inquiry.reference_media.map((m) => (
+                <a
+                  key={m.id}
+                  href={m.url}
+                  target="_blank"
+                  rel="noreferrer noopener"
+                  title={m.name ?? "Reference"}
+                >
+                  <img
+                    src={m.url}
+                    alt={m.name ?? ""}
+                    className="size-24 rounded-md border object-cover"
+                  />
+                </a>
+              ))}
+            </div>
+          </div>
+        )}
 
         {closed && (
           <div className="bg-ui-bg-subtle px-6 py-3">
@@ -322,12 +390,16 @@ export const InquiryDetail = () => {
                 question={question}
                 value={values[question.id]}
                 note={notes[question.id] ?? ""}
+                sampleIds={samples[question.id] ?? []}
                 disabled={closed}
                 onValue={(v) =>
                   setValues((prev) => ({ ...prev, [question.id]: v }))
                 }
                 onNote={(v) =>
                   setNotes((prev) => ({ ...prev, [question.id]: v }))
+                }
+                onSampleIds={(ids) =>
+                  setSamples((prev) => ({ ...prev, [question.id]: ids }))
                 }
               />
             ))}
@@ -403,7 +475,10 @@ export const InquiryDetail = () => {
           )}
         </div>
 
-        <div className="flex items-center justify-between px-6 py-4">
+      </RouteFocusModal.Body>
+
+      <RouteFocusModal.Footer>
+        <div className="flex w-full items-center justify-between">
           <Button
             size="small"
             variant="secondary"
@@ -432,8 +507,8 @@ export const InquiryDetail = () => {
             </Button>
           )}
         </div>
-      </Container>
-    </SingleColumnPage>
+      </RouteFocusModal.Footer>
+    </RouteFocusModal>
   )
 }
 
@@ -449,16 +524,20 @@ const QuestionField = ({
   question,
   value,
   note,
+  sampleIds,
   disabled,
   onValue,
   onNote,
+  onSampleIds,
 }: {
   question: InquiryQuestion
   value: unknown
   note: string
+  sampleIds: string[]
   disabled?: boolean
   onValue: (value: unknown) => void
   onNote: (value: string) => void
+  onSampleIds: (ids: string[]) => void
 }) => {
   const selected = Array.isArray(value) ? (value as string[]) : []
 
@@ -551,10 +630,12 @@ const QuestionField = ({
       )}
 
       {question.kind === "photo" && (
-        <Text size="small" className="text-ui-fg-subtle">
-          Send the photo in your reply and we will attach it here. Uploading
-          straight from this page arrives in the next release.
-        </Text>
+        <PhotoAnswer
+          question={question}
+          sampleIds={sampleIds}
+          disabled={disabled}
+          onSampleIds={onSampleIds}
+        />
       )}
 
       <Textarea
@@ -564,6 +645,146 @@ const QuestionField = ({
         value={note}
         onChange={(e) => onNote(e.target.value)}
       />
+    </div>
+  )
+}
+
+/**
+ * The photograph answer (#1543).
+ *
+ * The wizard has always HAD a `photo` question kind, the answer model has
+ * always carried `capability_sample_ids`, and the route has always validated
+ * them — and this rendered a sentence apologising for itself: *"Send the photo
+ * in your reply and we will attach it here."* So the one question whose answer
+ * cannot be typed was the one that sent the partner back to WhatsApp, which is
+ * the loop #1531 exists to close.
+ *
+ * ## Why two calls and not one
+ *
+ * Upload → create sample → attach the sample id. The middle step is not
+ * ceremony: a sample is a LIBRARY entry that outlives this inquiry, which is
+ * what stops the same partner being asked the same question next season. The
+ * inquiry is an event; the library is what it deposits into.
+ *
+ * ## 🔴 The id is attached only after the sample exists
+ *
+ * Not optimistically. `capability_sample_ids` is validated server-side against
+ * the partner's own library, so an id attached before its row existed would
+ * fail the NEXT step's autosave — and it would fail there, on a different
+ * screen, complaining about a question the partner had already left behind.
+ */
+const PhotoAnswer = ({
+  question,
+  sampleIds,
+  disabled,
+  onSampleIds,
+}: {
+  question: InquiryQuestion
+  sampleIds: string[]
+  disabled?: boolean
+  onSampleIds: (ids: string[]) => void
+}) => {
+  const upload = useUploadCapabilityMedia()
+  const createSample = useCreatePartnerCapability()
+
+  /**
+   * The partner's own library, so an attachment can be one they already have.
+   * Filtered to the ids on this answer for rendering; the whole list is what
+   * makes "I photographed this last month" a click rather than a re-shoot.
+   */
+  const { samples } = usePartnerCapabilities({ limit: 50 })
+  const attached = samples.filter((s) => sampleIds.includes(s.id))
+
+  const busy = upload.isPending || createSample.isPending
+
+  const handleFiles = async (files: FileType[]) => {
+    if (!files.length) return
+    try {
+      const { media } = await upload.mutateAsync(files.map((f) => f.file))
+      if (!media?.length) {
+        toast.error("Nothing came back from that upload. Please try again.")
+        return
+      }
+
+      const { sample } = await createSample.mutateAsync({
+        // The prompt is the most honest title available without asking the
+        // partner to name a file — they are photographing an ANSWER to it.
+        title: question.prompt,
+        media_file_ids: media.map((m) => m.id),
+      })
+
+      onSampleIds([...sampleIds, sample.id])
+      toast.success(
+        media.length === 1 ? "Photo attached" : `${media.length} photos attached`
+      )
+    } catch (e: any) {
+      toast.error(e?.message ?? "That photo could not be attached.")
+    }
+  }
+
+  return (
+    <div className="flex flex-col gap-3">
+      {attached.length > 0 && (
+        <div className="flex flex-wrap gap-2">
+          {attached.map((sample) =>
+            (sample.media ?? []).map((m) => (
+              <div key={m.id} className="relative">
+                <img
+                  src={m.url}
+                  alt={m.name ?? ""}
+                  className="size-20 rounded-md border object-cover"
+                />
+              </div>
+            ))
+          )}
+          {/* A sample whose photographs could not be resolved still counts as
+              attached — saying so is better than an empty row that reads as
+              nothing having been sent. */}
+          {attached
+            .filter((s) => !(s.media ?? []).length)
+            .map((s) => (
+              <div
+                key={s.id}
+                className="bg-ui-bg-subtle flex size-20 items-center justify-center rounded-md border p-2"
+              >
+                <Text size="xsmall" className="text-ui-fg-subtle text-center">
+                  Attached
+                </Text>
+              </div>
+            ))}
+        </div>
+      )}
+
+      {!disabled && (
+        <FileUpload
+          label={
+            attached.length ? "Add another photo" : "Take or choose a photo"
+          }
+          hint="A photo of the real thing tells us more than any description. JPG, PNG or HEIC."
+          multiple
+          formats={["image/jpeg", "image/png", "image/webp", "image/heic"]}
+          onUploaded={(files, rejected) => {
+            if (rejected?.length) {
+              toast.error(
+                `${rejected.length} file${rejected.length === 1 ? "" : "s"} could not be used — photos must be under 10MB.`
+              )
+            }
+            void handleFiles(files)
+          }}
+        />
+      )}
+
+      {busy && (
+        <Text size="small" className="text-ui-fg-subtle">
+          Uploading — keep this open until it finishes.
+        </Text>
+      )}
+
+      {disabled && !attached.length && (
+        <Text size="small" className="text-ui-fg-subtle">
+          No photo was attached to this answer.
+        </Text>
+      )}
     </div>
   )
 }
