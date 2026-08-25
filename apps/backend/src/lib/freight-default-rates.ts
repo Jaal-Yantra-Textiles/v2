@@ -47,6 +47,18 @@ export type IntlFlatRate = {
  * not listed here — a real number rather than nothing, because the alternative
  * used to be `DEFAULT_FLAT_FALLBACK` (200), which is an INR-shaped number and
  * charged **€200** on a EUR cart against an intended €35.
+ *
+ * 🔴 The USD fallback is a floor, not a licence to leave a currency out. Taking
+ * the USD row VERBATIM is the same currency-blindness one rung down: an estate
+ * selling in shekels would have been stamped `ils: 39` — ₪39 is about $13
+ * against an intended $39, a third of the intended fallback and, being a
+ * plausible-looking number, nothing to notice. Every currency the estate
+ * actually sells in belongs in this table explicitly (#1538).
+ *
+ * The rows are not an FX conversion of one another — they are retail numbers,
+ * rounded the way a price list rounds — but they do sit in one band: $31–41 at
+ * the rates of 2026-08-24. A new row is placed inside that band and rounded,
+ * NOT computed to the cent, so it reads as the placeholder it is.
  */
 export const INTL_FLAT_RATES: Record<string, IntlFlatRate> = {
   usd: { base: 39, freeAbove: 350 },
@@ -56,6 +68,11 @@ export const INTL_FLAT_RATES: Record<string, IntlFlatRate> = {
   cad: { base: 50, freeAbove: 400 },
   inr: { base: 3200, freeAbove: 25000 },
   idr: { base: 550000, freeAbove: 5000000 },
+  // ≈$40 base / ≈$351 free-above at USD→ILS 2.9922 (ECB via Frankfurter,
+  // 2026-08-24). The handoff's proposed ₪145 was reasoned from a remembered
+  // ~3.7 shekel; the live rate is 2.99, which would have put it at $48 —
+  // a fifth above every other row in the table.
+  ils: { base: 120, freeAbove: 1050 },
 }
 
 /** The rate for a currency, falling back to the USD row. Never undefined. */
@@ -102,11 +119,29 @@ export const QUOTE_TIER_LIGHT_MAX_GRAMS = 5000
 export const DEFAULT_QUOTE_FREIGHT_TIERS: QuoteFreightTier[] = [
   {
     max_weight_grams: QUOTE_TIER_LIGHT_MAX_GRAMS,
-    amounts: { eur: 59, usd: 65, gbp: 52, aud: 95, cad: 88, inr: 5400 },
+    amounts: {
+      eur: 59,
+      usd: 65,
+      gbp: 52,
+      aud: 95,
+      cad: 88,
+      inr: 5400,
+      ils: 195,
+      idr: 1150000,
+    },
   },
   {
     max_weight_grams: null,
-    amounts: { eur: 100, usd: 110, gbp: 88, aud: 160, cad: 150, inr: 9200 },
+    amounts: {
+      eur: 100,
+      usd: 110,
+      gbp: 88,
+      aud: 160,
+      cad: 150,
+      inr: 9200,
+      ils: 330,
+      idr: 1950000,
+    },
   },
 ]
 
@@ -118,6 +153,14 @@ export const DEFAULT_QUOTE_FREIGHT_TIERS: QuoteFreightTier[] = [
  * created. The LIGHT tier is used deliberately: a misconfiguration that fell
  * back to these rows would then charge a parcel rate for a parcel rather than a
  * pallet rate for one.
+ *
+ * ⚠️ The `light["usd"]` fallback is currency-blind in the same way the
+ * `INTL_FLAT_RATES` usd row is — an unlisted currency gets the USD FIGURE, so
+ * a hypothetical `jpy` would carry a ¥65 row. It is inert today (every
+ * currency the estate sells in is now priced above, and `resolveQuoteTierAmount`
+ * returns null for one that is not, so the option is simply not offered), but
+ * it is a lookalike number waiting for a new currency. Add the currency to the
+ * tiers above rather than relying on this.
  */
 export function quoteTierPriceRows(
   currencies: Iterable<string>

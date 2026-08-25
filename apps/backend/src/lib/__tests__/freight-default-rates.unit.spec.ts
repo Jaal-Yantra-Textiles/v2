@@ -67,14 +67,25 @@ describe("DEFAULT_QUOTE_FREIGHT_TIERS", () => {
     expect(resolveQuoteTierAmount(DEFAULT_QUOTE_FREIGHT_TIERS, 5001, "eur")).toBe(100)
   })
 
-  it("is priced in every currency the intl rate table covers except idr", () => {
+  it("prices EVERY currency the intl rate table covers, in every tier", () => {
     // A tier that matches but does not price the cart's currency returns null —
     // the option is simply not offered — so a gap here silently removes the
     // middle rung of the freight ladder rather than mispricing it.
+    //
+    // 🔴 This assertion used to read "…except idr", pinning the gap as correct
+    // (#1538). A test that names the hole is not a test, it is a comment that
+    // fails when somebody fills it in. It is now the invariant: add a currency
+    // to `INTL_FLAT_RATES` and this fails until the tiers price it too.
+    const expected = Object.keys(INTL_FLAT_RATES).sort()
     for (const tier of DEFAULT_QUOTE_FREIGHT_TIERS) {
-      expect(Object.keys(tier.amounts).sort()).toEqual(
-        ["aud", "cad", "eur", "gbp", "inr", "usd"]
-      )
+      expect(Object.keys(tier.amounts).sort()).toEqual(expected)
     }
+  })
+
+  it("prices ils — the currency that would have taken the USD figure verbatim", () => {
+    // ₪39 (the usd row, verbatim) is about $13 against an intended $39.
+    expect(intlFlatRateFor("ils").base).toBe(120)
+    expect(resolveQuoteTierAmount(DEFAULT_QUOTE_FREIGHT_TIERS, 2200, "ils")).toBe(195)
+    expect(resolveQuoteTierAmount(DEFAULT_QUOTE_FREIGHT_TIERS, 22000, "ils")).toBe(330)
   })
 })
