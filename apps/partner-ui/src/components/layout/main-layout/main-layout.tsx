@@ -233,7 +233,11 @@ const useCoreRoutes = (
         icon: <PencilSquare />,
         label: t("app.nav.main.designs"),
         to: "/designs",
-        items: [{ label: t("app.nav.main.tasks"), to: "/tasks" }],
+        items: [
+          { label: t("app.nav.main.tasks"), to: "/tasks" },
+          // #1531 — the sourcing ask, before any order exists.
+          { label: t("app.nav.main.inquiries"), to: "/inquiries" },
+        ],
       },
       {
         icon: <ShoppingCart />,
@@ -338,6 +342,8 @@ const useCoreRoutes = (
       // "Orders › Design" view; the design library keeps only authoring nav.
       items: [
         { label: t("app.nav.main.tasks"), to: "/tasks" },
+        // #1531 — the sourcing ask, before any order exists.
+        { label: t("app.nav.main.inquiries"), to: "/inquiries" },
       ],
     },
     { icon: <CurrencyDollar />, label: t("app.nav.main.paymentSubmissions"), to: "/payment-submissions" },

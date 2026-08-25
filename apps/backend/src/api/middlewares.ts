@@ -308,6 +308,7 @@ import { PartnerCreateStoreReq } from "./partners/stores/validators";
 import { PartnerCreateProductReq, PartnerArtisanProductDetailReq, PartnerProductSpecReq, PartnerStoreCreateProductReq, PartnerQuickCreateProductReq } from "./partners/products/validators";
 import { PartnerCreatePriceListReq, PartnerUpdatePriceListReq } from "./partners/price-lists/validators";
 import { AdjustQuoteReq, PartnerMintQuoteReq, QuoteReadinessReq } from "./partners/quotes/validators";
+import { PartnerPostInquiryAnswersReq, PartnerPostInquirySubmitReq, PartnerListInquiriesQuery, PartnerPostCapabilitySampleReq, PartnerListCapabilitySamplesQuery } from "./partners/inquiries/validators";
 import { AdminMintQuoteReq, AdminQuoteReadinessReq } from "./admin/quotes/validators";
 import { BATCH_VARIANT_FIELDS } from "../workflows/partner/batch-partner-variants";
 import { StoreMadeToSpecReq } from "./store/carts/[id]/made-to-spec/validators";
@@ -5226,6 +5227,62 @@ export default defineMiddlewares({
       matcher: "/partners/designer-invites/:token/accept",
       method: "POST",
       middlewares: [validateAndTransformBody(wrapSchema(AcceptDesignerInviteSchema))],
+    },
+
+    /**
+     * #1531 slice 2 — the partner's half of a design inquiry.
+     *
+     * 🔴 Every one of these authenticates and then re-derives the partner from
+     * the auth context inside the handler. `partner_id` is in NO schema below:
+     * a partner able to name the partner they answer as could answer as a
+     * competitor, and these are competing bids on one design.
+     */
+    {
+      matcher: "/partners/inquiries",
+      method: "GET",
+      middlewares: [
+        authenticate("partner", ["session", "bearer"]),
+        validateAndTransformQuery(wrapSchema(PartnerListInquiriesQuery), {}),
+      ],
+    },
+    {
+      matcher: "/partners/inquiries/:inquiryId",
+      method: "GET",
+      middlewares: [authenticate("partner", ["session", "bearer"])],
+    },
+    {
+      matcher: "/partners/inquiries/:inquiryId/answers",
+      method: "POST",
+      middlewares: [
+        authenticate("partner", ["session", "bearer"]),
+        validateAndTransformBody(wrapSchema(PartnerPostInquiryAnswersReq)),
+      ],
+    },
+    {
+      matcher: "/partners/inquiries/:inquiryId/submit",
+      method: "POST",
+      middlewares: [
+        authenticate("partner", ["session", "bearer"]),
+        validateAndTransformBody(wrapSchema(PartnerPostInquirySubmitReq)),
+      ],
+    },
+
+    // The durable capability library the wizard's photo step deposits into.
+    {
+      matcher: "/partners/capabilities",
+      method: "GET",
+      middlewares: [
+        authenticate("partner", ["session", "bearer"]),
+        validateAndTransformQuery(wrapSchema(PartnerListCapabilitySamplesQuery), {}),
+      ],
+    },
+    {
+      matcher: "/partners/capabilities",
+      method: "POST",
+      middlewares: [
+        authenticate("partner", ["session", "bearer"]),
+        validateAndTransformBody(wrapSchema(PartnerPostCapabilitySampleReq)),
+      ],
     },
 
     // Partner Designs APIs
