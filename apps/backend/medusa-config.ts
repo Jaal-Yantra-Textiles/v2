@@ -203,6 +203,12 @@ module.exports = defineConfig({
       resolve: "./src/modules/designer-invite",
     },
     {
+      resolve: "./src/modules/design_inquiry",
+    },
+    {
+      resolve: "./src/modules/partner_capability",
+    },
+    {
       resolve: "./src/modules/partner-quote",
     },
     {

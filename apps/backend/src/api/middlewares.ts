@@ -180,6 +180,7 @@ import {
 import { createBlocksSchema, ReadBlocksQuerySchema, updateBlockSchema } from "./admin/websites/[id]/pages/[pageId]/blocks/validators";
 import { AdminPostDesignInventoryReq, AdminDeleteDesignInventoryReq } from "./admin/designs/[id]/inventory/validators";
 import { AdminPostConsumptionLogReq, AdminPostCommitConsumptionReq } from "./admin/designs/[id]/consumption-logs/validators";
+import { AdminPostDesignInquiryReq, AdminPostDesignInquiryPreviewReq, AdminPostCloseDesignInquiryReq } from "./admin/designs/[id]/inquiries/validators";
 import { AdminCreateEnergyRateReq, AdminUpdateEnergyRateReq } from "./admin/energy-rates/validators";
 import { partnerSchema, partnerUpdateSchema } from "./partners/validators";
 import { investorSchema, investorUpdateSchema, capTableSchema, capTableUpdateSchema, shareClassSchema, stakeSchema, fundingRoundSchema, pipelineSchema, callForSharesSchema, paymentSchema, documentSchema, companySchema, companyUpdateSchema, investorAdminSchema } from "./investors/validators";
@@ -4349,6 +4350,25 @@ export default defineMiddlewares({
       matcher: "/admin/designs/:id/consumption-logs",
       method: "POST",
       middlewares: [validateAndTransformBody(wrapSchema(AdminPostConsumptionLogReq))],
+    },
+
+    // #1531 — spec-driven capability inquiries.
+    {
+      matcher: "/admin/designs/:id/inquiries",
+      method: "POST",
+      middlewares: [validateAndTransformBody(wrapSchema(AdminPostDesignInquiryReq))],
+    },
+
+    {
+      matcher: "/admin/designs/:id/inquiries/preview",
+      method: "POST",
+      middlewares: [validateAndTransformBody(wrapSchema(AdminPostDesignInquiryPreviewReq))],
+    },
+
+    {
+      matcher: "/admin/designs/:id/inquiries/:inquiryId/close",
+      method: "POST",
+      middlewares: [validateAndTransformBody(wrapSchema(AdminPostCloseDesignInquiryReq))],
     },
 
     {
