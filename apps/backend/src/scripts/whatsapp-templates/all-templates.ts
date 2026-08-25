@@ -7,9 +7,11 @@
 import { PARTNER_RUN_TEMPLATES, type TemplateSpec } from "./partner-run-templates"
 import { PARTNER_PAYMENT_TEMPLATES } from "./partner-payment-templates"
 import { INVENTORY_ORDER_TEMPLATES } from "./inventory-order-templates"
+import { DESIGN_INQUIRY_TEMPLATES } from "./design-inquiry-templates"
 
 export const ALL_WHATSAPP_TEMPLATES: TemplateSpec[] = [
   ...PARTNER_RUN_TEMPLATES,
   ...PARTNER_PAYMENT_TEMPLATES,
   ...INVENTORY_ORDER_TEMPLATES, // #771 inventory-order status notifications
+  ...DESIGN_INQUIRY_TEMPLATES, // #1531 "what can you make?" sourcing invite
 ]

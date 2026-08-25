@@ -16,6 +16,9 @@ import { PARTNER_MODULE } from "../../modules/partner"
 import { DESIGN_INQUIRY_MODULE } from "../../modules/design_inquiry"
 import type DesignInquiryService from "../../modules/design_inquiry/service"
 import designPartnersLink from "../../links/design-partners-link"
+import { SOCIAL_PROVIDER_MODULE } from "../../modules/social-provider"
+import { generatePartnerDeeplink } from "../../modules/social-provider/whatsapp-deeplink"
+import { DESIGN_INQUIRY_TEMPLATE_NAMES } from "../../scripts/whatsapp-templates/design-inquiry-templates"
 import {
   generateInquiryQuestions,
   resolveSpecVersion,
@@ -205,6 +208,158 @@ const grantProspectAccessStep = createStep(
   }
 )
 
+/**
+ * Knock on WhatsApp, once, with a link that lands them in the wizard (#1531
+ * slice 3).
+ *
+ * ## Why this is a template and not a message
+ *
+ * Meta's 24-hour window constrains BUSINESS-initiated messages, and an inquiry
+ * is business-initiated by definition — we are asking about a design they have
+ * never seen, usually weeks since either of us last said anything. A free-form
+ * message would not deliver at all.
+ *
+ * 🔑 Any inbound reply reopens the window for 24 hours, free and with no
+ * template. Only the first knock has to be one.
+ *
+ * ## Why the link carries a token instead of an id
+ *
+ * The approved template's URL is static per Meta, so it cannot name the
+ * inquiry. The `wa_token` does: its claims carry the partner AND the inquiry,
+ * `/partners/wa-auth` exchanges it for a session and returns
+ * `/inquiries/<id>`, and partner-ui navigates there. So a partner who gets
+ * round to it three days later still lands on the right wizard with no
+ * password — which matters more here than anywhere else, because they did not
+ * ask for this and any friction reads as a no.
+ *
+ * ## 🔴 Non-fatal, and it says what it actually did
+ *
+ * The inquiry exists whether or not WhatsApp accepted the message, and losing
+ * a whole sourcing round because one partner's number is stale would be far
+ * worse than an un-notified invite — they can still be told by hand.
+ *
+ * But a swallowed failure here is the worst kind: the invite looks sent, the
+ * partner never hears, and their silence gets read as disinterest. So every
+ * outcome is counted and returned. `jyt_design_inquiry_invite_v1` is also NOT
+ * approved by Meta merely by existing in the spec file — until the sync runs
+ * and Meta approves, EVERY send fails, and `notified: 0` is the only thing
+ * that will say so.
+ */
+const notifyInvitedPartnersStep = createStep(
+  "notify-inquiry-partners",
+  async (
+    input: {
+      inquiry_id: string
+      partner_ids: string[]
+      design_name: string
+      question_count: number
+    },
+    { container }
+  ) => {
+    const logger: any = container.resolve(ContainerRegistrationKeys.LOGGER)
+
+    const result = {
+      notified: 0,
+      no_whatsapp_number: 0,
+      failed: 0,
+      skipped_reason: null as string | null,
+    }
+
+    if (!input.partner_ids?.length) return new StepResponse(result)
+
+    let whatsapp: any
+    try {
+      const socialProvider: any = container.resolve(SOCIAL_PROVIDER_MODULE)
+      whatsapp = socialProvider.getWhatsApp(container as any)
+    } catch (e: any) {
+      // WhatsApp not configured in this environment — a real state locally and
+      // in tests, and not a reason to fail creating an inquiry.
+      result.skipped_reason = `WhatsApp is not configured: ${e?.message ?? String(e)}`
+      logger?.warn?.(`[design-inquiry] ${result.skipped_reason}`)
+      return new StepResponse(result)
+    }
+
+    const partnerService: any = container.resolve(PARTNER_MODULE)
+    const lang = process.env.WHATSAPP_TEMPLATE_LANG || "hi"
+    const base = (
+      process.env.PARTNER_PORTAL_URL || "https://partner.jaalyantra.com"
+    ).replace(/\/$/, "")
+
+    for (const partnerId of input.partner_ids) {
+      let partner: any = null
+      try {
+        partner = await partnerService.retrievePartner(partnerId)
+      } catch {
+        partner = null
+      }
+
+      const phone = partner?.whatsapp_number
+      if (!phone || !partner?.whatsapp_verified) {
+        // Counted, not silent. A partner we cannot reach is a partner whose
+        // silence means nothing, and whoever reads the comparison needs to
+        // know which kind of silence they are looking at.
+        result.no_whatsapp_number++
+        logger?.warn?.(
+          `[design-inquiry] ${input.inquiry_id}: partner ${partnerId} has no verified WhatsApp number — not notified`
+        )
+        continue
+      }
+
+      try {
+        const { token } = generatePartnerDeeplink(
+          {
+            partner_id: partnerId,
+            run_id: input.inquiry_id,
+            type: "inquiry",
+          },
+          base
+        )
+
+        await whatsapp.sendTemplateMessage(
+          phone,
+          DESIGN_INQUIRY_TEMPLATE_NAMES.INQUIRY_INVITE,
+          lang,
+          [
+            {
+              type: "body",
+              parameters: [
+                { type: "text", text: partner?.name || "Partner" },
+                { type: "text", text: input.design_name },
+                { type: "text", text: String(input.question_count) },
+              ],
+            },
+            {
+              // The dynamic URL button's {{1}}. `index` is coerced to a string
+              // at the service boundary, as Meta's wire format requires.
+              type: "button",
+              sub_type: "url",
+              index: 0,
+              parameters: [{ type: "text", text: token }],
+            },
+          ]
+        )
+        result.notified++
+      } catch (e: any) {
+        result.failed++
+        logger?.warn?.(
+          `[design-inquiry] ${input.inquiry_id}: invite to ${partnerId} failed: ${e?.message ?? String(e)}`
+        )
+      }
+    }
+
+    logger?.info?.(
+      `[design-inquiry] ${input.inquiry_id}: notified ${result.notified}, ` +
+        `${result.no_whatsapp_number} without WhatsApp, ${result.failed} failed`
+    )
+
+    return new StepResponse(result)
+  }
+  // 🔑 No compensation. A WhatsApp message cannot be unsent, and pretending
+  // otherwise would be worse than admitting it: if a later step rolls the
+  // inquiry back, the partner has still been asked. That is the argument for
+  // this step running LAST.
+)
+
 export const createDesignInquiryWorkflow = createWorkflow(
   "create-design-inquiry",
   (input: CreateDesignInquiryInput) => {
@@ -234,17 +389,21 @@ export const createDesignInquiryWorkflow = createWorkflow(
         )
       )
 
+      const questions = generateInquiryQuestions({
+        specifications,
+        colours,
+        categories: data.input.categories,
+      })
+
       return {
         partner_ids: partnerIds,
+        design_name: (data.design as any)?.name ?? "a new design",
+        question_count: questions.length,
         title:
           data.input.title?.trim() ||
           `What can you make for ${(data.design as any)?.name ?? "this design"}?`,
         spec_version: resolveSpecVersion(specifications),
-        questions: generateInquiryQuestions({
-          specifications,
-          colours,
-          categories: data.input.categories,
-        }),
+        questions,
       }
     })
 
@@ -264,6 +423,23 @@ export const createDesignInquiryWorkflow = createWorkflow(
       partner_ids: prepared.partner_ids,
     })
 
-    return new WorkflowResponse(created)
+    /**
+     * LAST, deliberately. The grant has to exist before the partner can be
+     * told to go and look — a message arriving before the access it promises
+     * lands the partner on a 404, and they do not knock twice.
+     */
+    const notified = notifyInvitedPartnersStep({
+      inquiry_id: created.inquiry.id,
+      partner_ids: prepared.partner_ids,
+      design_name: prepared.design_name,
+      question_count: prepared.question_count,
+    })
+
+    return new WorkflowResponse(
+      transform({ created, notified }, (data) => ({
+        ...(data.created as any),
+        notifications: data.notified,
+      }))
+    )
   }
 )
