@@ -20,6 +20,13 @@ import type { RemoteQueryFunction } from "@medusajs/types"
 import type { Link } from "@medusajs/modules-sdk"
 import { PARTNER_MODULE } from "../../modules/partner"
 import { registerShiprocketPickup } from "../../modules/shipping-providers/pickup-locations"
+import {
+  DEFAULT_QUOTE_FREIGHT_TIERS,
+  DOMESTIC_FLAT_FALLBACK_AMOUNT,
+  buildIntlFallbackByCurrency,
+  intlFlatRateFor,
+  quoteTierPriceRows,
+} from "../../lib/freight-default-rates"
 
 // Orchestrates creation of a store with its default region, sales channel, and stock location
 // Then updates the store to reference those as defaults
@@ -658,8 +665,10 @@ const autoLinkFulfillmentProvidersStep = createStep(
 
             // The flat rate a lane falls back to, in the store's own price
             // units. One constant so the manual companion option and the
-            // Shiprocket option's `data.flat_fallback_amount` cannot drift.
-            const FLAT_FALLBACK_AMOUNT = 200
+            // Shiprocket option's `data.flat_fallback_amount` cannot drift —
+            // and shared with the #1538 backfill, so a store repaired today and
+            // a store provisioned tomorrow quote the same lane the same way.
+            const FLAT_FALLBACK_AMOUNT = DOMESTIC_FLAT_FALLBACK_AMOUNT
 
             // --- Shiprocket, alongside Delhivery (#1417) ---------------------
             //
@@ -781,17 +790,10 @@ const autoLinkFulfillmentProvidersStep = createStep(
                 })
                 const intlZone = Array.isArray(createdZone) ? createdZone[0] : createdZone
 
-                // Real flat manual rates (major units) with a free-above tier —
-                // editable placeholders; `usd` is the fallback for unlisted ccys.
-                const INTL_RATES: Record<string, { base: number; freeAbove: number }> = {
-                  usd: { base: 39, freeAbove: 350 },
-                  eur: { base: 35, freeAbove: 300 },
-                  gbp: { base: 30, freeAbove: 275 },
-                  aud: { base: 55, freeAbove: 450 },
-                  cad: { base: 50, freeAbove: 400 },
-                  inr: { base: 3200, freeAbove: 25000 },
-                  idr: { base: 550000, freeAbove: 5000000 },
-                }
+                // Real flat manual rates (major units) with a free-above tier.
+                // The table lives in `lib/freight-default-rates` so the #1538
+                // backfill can stamp the SAME numbers onto the stores that
+                // predate it — a copy resembles the original until one is edited.
                 const intlPrices: Array<{
                   currency_code: string
                   amount: number
@@ -801,7 +803,7 @@ const autoLinkFulfillmentProvidersStep = createStep(
                  * The same base rates, keyed by currency, for the CALCULATED
                  * Shiprocket option's fallback.
                  *
-                 * 🔴 Built from `INTL_RATES` rather than restated, exactly as
+                 * 🔴 Built from `INTL_FLAT_RATES` rather than restated, exactly as
                  * the domestic block derives its fallback from the one
                  * `FLAT_FALLBACK_AMOUNT` constant: when the carrier will not
                  * quote a lane, the buyer must be charged the tier we actually
@@ -813,16 +815,15 @@ const autoLinkFulfillmentProvidersStep = createStep(
                  * charged **€200** against an intended €35. Currency-blind in
                  * the #1424/#1434 way, and silent.
                  */
-                const intlFallbackByCurrency: Record<string, number> = {}
+                const intlFallbackByCurrency = buildIntlFallbackByCurrency(intlCurrencies)
                 for (const cur of intlCurrencies) {
-                  const rate = INTL_RATES[cur] ?? INTL_RATES["usd"]
+                  const rate = intlFlatRateFor(cur)
                   intlPrices.push({ currency_code: cur, amount: rate.base })
                   intlPrices.push({
                     currency_code: cur,
                     amount: 0,
                     rules: [{ attribute: "item_total", operator: "gte", value: rate.freeAbove }],
                   })
-                  intlFallbackByCurrency[String(cur).toLowerCase()] = rate.base
                 }
 
                 /**
@@ -845,17 +846,7 @@ const autoLinkFulfillmentProvidersStep = createStep(
                  * stands behind the carrier, and it is the number a buyer sees
                  * only when no courier would quote the lane.
                  */
-                const QUOTE_TIER_LIGHT_MAX_GRAMS = 5000
-                const QUOTE_FREIGHT_TIERS = [
-                  {
-                    max_weight_grams: QUOTE_TIER_LIGHT_MAX_GRAMS,
-                    amounts: { eur: 59, usd: 65, gbp: 52, aud: 95, cad: 88, inr: 5400 },
-                  },
-                  {
-                    max_weight_grams: null,
-                    amounts: { eur: 100, usd: 110, gbp: 88, aud: 160, cad: 150, inr: 9200 },
-                  },
-                ]
+                const QUOTE_FREIGHT_TIERS = DEFAULT_QUOTE_FREIGHT_TIERS
 
                 const dhlEnabled = enabledIds.includes("dhl-express_dhl-express")
 
@@ -910,13 +901,9 @@ const autoLinkFulfillmentProvidersStep = createStep(
                       data: { quote_weight_tiers: QUOTE_FREIGHT_TIERS },
                       // ⚠️ `intlCurrencies` is a Set — every other use here is
                       // `for…of`, which hides that. Jest cannot see it either;
-                      // the prod-build gate caught it.
-                      prices: Array.from(intlCurrencies).map((cur) => ({
-                        currency_code: cur,
-                        amount:
-                          (QUOTE_FREIGHT_TIERS[0].amounts as any)[cur] ??
-                          (QUOTE_FREIGHT_TIERS[0].amounts as any)["usd"],
-                      })),
+                      // the prod-build gate caught it. `quoteTierPriceRows`
+                      // takes an Iterable, so a Set is fine by construction.
+                      prices: quoteTierPriceRows(intlCurrencies),
                       rules: [
                         // 🔴 FALSE, deliberately — see the block above.
                         { attribute: "enabled_in_store", value: "false", operator: "eq" },
