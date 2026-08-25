@@ -198,7 +198,9 @@ export async function handleIncomingMessage(
   })
 
   const conversationId = conversation?.id || null
-  const conversationMeta = conversation?.metadata || {}
+  // `let`: the consent gate below both writes to this and re-reads it in the
+  // same pass (mark pending → decide whether to prompt → collect on consent).
+  let conversationMeta: Record<string, any> = conversation?.metadata || {}
 
   // Create a scoped wrapper that auto-persists outbound bot replies
   // without mutating the shared WhatsAppService instance
@@ -288,8 +290,82 @@ export async function handleIncomingMessage(
 
   // If consent not yet given, send the consent prompt
   if (!consentGiven) {
+    /**
+     * 🔴 Media that arrives before consent must be REMEMBERED, not discarded.
+     *
+     * This gate returns before the media branch below ever runs, so the row
+     * keeps the `lookaside.fbsbx.com` URL it was created with — 401 without a
+     * bearer token, and dead about five minutes later. On 2026-08-25 ten
+     * photographs from Bhagalpur Handloom SHG arrived in a two-second burst
+     * twenty-eight seconds before consent was recorded, and every one became
+     * an unfixable broken thumbnail. Nothing errored.
+     *
+     * The bytes are deliberately NOT fetched here: downloading someone's
+     * photographs before they have agreed that the conversation is recorded is
+     * the exact thing this gate is asking permission for. Marking the row is
+     * enough — Meta holds the media ~30 days, so consent given any time in the
+     * next month still recovers all of it.
+     */
+    if (message.mediaId) {
+      await markMediaPendingConsent(scope, conversationId, message.messageId)
+      conversationMeta = {
+        ...conversationMeta,
+        media_pending_consent: true,
+      }
+      await updateConversationMetadata(scope, conversationId, conversationMeta)
+    }
+
+    /**
+     * 🔑 One prompt per BURST, not one per message.
+     *
+     * The gate fires per message, so those ten photographs produced nine
+     * identical "Welcome to JYT Commerce" prompts in the partner's chat. A
+     * consent request repeated ten times reads as a malfunction, which is a
+     * poor advertisement for the thing being consented to.
+     */
+    const lastPrompt = typeof conversationMeta.consent_prompted_at === "string"
+      ? Date.parse(conversationMeta.consent_prompted_at)
+      : NaN
+    const promptedRecently =
+      !Number.isNaN(lastPrompt) &&
+      Date.now() - lastPrompt < CONSENT_PROMPT_COOLDOWN_MS
+
+    if (promptedRecently) {
+      return { handled: true, action: "consent_already_requested" }
+    }
+
     await sendConsentRequest(whatsapp, message.from, partner.adminName)
+    await updateConversationMetadata(scope, conversationId, {
+      ...conversationMeta,
+      consent_prompted_at: new Date().toISOString(),
+    })
     return { handled: true, action: "consent_requested" }
+  }
+
+  /**
+   * Consent IS given. If anything arrived while it was not, collect it now.
+   *
+   * 🔑 Hung off the marker rather than off the consent-granting code, because
+   * consent is granted in FOUR places — the `consent_agree` button above,
+   * `connect-partner-whatsapp`, and two admin messaging routes — and a
+   * collector wired into one of them would work for that path and silently do
+   * nothing for the other three. This one runs whichever way consent arrived.
+   * (The conversation that exposed the bug was `admin_initiated`, i.e. not the
+   * button.)
+   */
+  if (conversationMeta.media_pending_consent === true) {
+    const collected = await collectMediaPendingConsent(scope, {
+      conversationId,
+      partnerId: partner.partnerId,
+      partnerName: partner.adminName,
+    })
+    if (collected.remaining === 0) {
+      conversationMeta = {
+        ...conversationMeta,
+        media_pending_consent: undefined,
+      }
+      await updateConversationMetadata(scope, conversationId, conversationMeta)
+    }
   }
 
   // If consent given but language not yet selected, prompt for it
@@ -452,16 +528,26 @@ export async function handleIncomingMessage(
         // messaging_message row so the inbox shows which run it belonged to.
         if (saved && conversationId) {
           const messagingService = scope.resolve(MESSAGING_MODULE) as any
-          const [latestMessages] = await messagingService.listAndCountMessagingMessages(
-            { conversation_id: conversationId },
-            { take: 1, order: { created_at: "DESC" } }
+          /**
+           * 🔴 Looked up by `wa_message_id`, NOT by "the newest row in this
+           * conversation".
+           *
+           * The newest-row version was a race that lost photographs silently:
+           * ten arriving in a two-second burst mean the newest row is usually
+           * NOT the one being handled, so the guard failed and the row kept
+           * Meta's `lookaside` URL — which 401s and expires in five minutes.
+           * Nothing threw; the update just quietly did not happen.
+           */
+          const [row] = await messagingService.listMessagingMessages(
+            { wa_message_id: message.messageId },
+            { take: 1 }
           )
-          const lastMsg = latestMessages?.[0]
-          if (lastMsg?.wa_message_id === message.messageId) {
+          if (row) {
             await messagingService.updateMessagingMessages({
-              id: lastMsg.id,
+              id: row.id,
               media_url: saved.fileUrl,
               media_mime_type: saved.mimeType,
+              media_pending_reason: null,
               content: message.text || `[${message.type}]`,
               ...(attachedRunId
                 ? { context_type: "production_run", context_id: attachedRunId }
@@ -1672,6 +1758,15 @@ async function persistInboundMessage(
     status: "delivered",
     media_url: message.mediaUrl || null,
     media_mime_type: message.mediaMimeType || null,
+    /**
+     * 🔴 Stored BECAUSE `media_url` above is Meta's `lookaside.fbsbx.com` URL
+     * at this point, and that URL 401s without a bearer token and expires
+     * about five minutes from now. If the download later in this handler does
+     * not happen, the id is the only thing that can still fetch the bytes —
+     * Meta keeps them ~30 days. Ten photographs were nearly lost for want of
+     * this one column.
+     */
+    media_id: message.mediaId || null,
     reply_to_id: replyToId,
     reply_to_snapshot: replyToSnapshot,
   })
@@ -1882,3 +1977,136 @@ async function handleProductCreateButtonReply(
   return { handled: true, action: "product_create_button_unknown" }
 }
 
+/**
+ * One consent prompt per burst. Ten photographs produced nine identical
+ * prompts; a window this size collapses any realistic burst into one.
+ */
+const CONSENT_PROMPT_COOLDOWN_MS = 10 * 60 * 1000
+
+/** Why a piece of media is sitting undownloaded. One value today. */
+const MEDIA_PENDING_CONSENT = "awaiting_consent"
+
+/**
+ * Mark an inbound media row as "arrived, deliberately not downloaded".
+ *
+ * Matched on `wa_message_id` rather than "the newest row in this conversation".
+ * 🔑 That newest-row shortcut is what the post-download update uses, and it is
+ * a race: ten photographs arriving in two seconds mean the newest row is
+ * frequently NOT the one being handled, so the update lands on the wrong row or
+ * on none. Meta's message id is the only stable handle.
+ */
+async function markMediaPendingConsent(
+  scope: any,
+  conversationId: string | null,
+  waMessageId?: string
+): Promise<void> {
+  if (!conversationId || !waMessageId) return
+  try {
+    const messagingService = scope.resolve(MESSAGING_MODULE) as any
+    const [row] = await messagingService.listMessagingMessages(
+      { wa_message_id: waMessageId },
+      { take: 1 }
+    )
+    if (!row) return
+    await messagingService.updateMessagingMessages({
+      id: row.id,
+      media_pending_reason: MEDIA_PENDING_CONSENT,
+    })
+  } catch (e: any) {
+    const logger: any = scope.resolve(ContainerRegistrationKeys.LOGGER)
+    logger?.warn?.(
+      `[whatsapp] could not mark media pending for ${waMessageId}: ${e?.message ?? e}`
+    )
+  }
+}
+
+/**
+ * Download everything that was held back while consent was outstanding.
+ *
+ * 🔴 The stale `media_url` on the row is NOT passed to the downloader. That URL
+ * is Meta's, it 401s, and its `ext=` expiry is long past — handing it over
+ * would make every recovery fail while looking like it tried. Passing the
+ * `media_id` alone makes the helper mint a FRESH url, which is the entire
+ * reason the id is stored.
+ *
+ * Returns how many are still outstanding so the caller only clears the
+ * conversation marker when the queue is genuinely empty. A partial recovery
+ * that cleared the flag would strand the remainder silently.
+ */
+async function collectMediaPendingConsent(
+  scope: any,
+  input: { conversationId: string | null; partnerId: string; partnerName: string }
+): Promise<{ collected: number; failed: number; remaining: number }> {
+  const logger: any = scope.resolve(ContainerRegistrationKeys.LOGGER)
+  if (!input.conversationId) return { collected: 0, failed: 0, remaining: 0 }
+
+  const messagingService = scope.resolve(MESSAGING_MODULE) as any
+  let pending: any[] = []
+  try {
+    pending = await messagingService.listMessagingMessages(
+      {
+        conversation_id: input.conversationId,
+        media_pending_reason: MEDIA_PENDING_CONSENT,
+      },
+      { take: 50, order: { created_at: "ASC" } }
+    )
+  } catch (e: any) {
+    logger?.warn?.(`[whatsapp] pending-media lookup failed: ${e?.message ?? e}`)
+    return { collected: 0, failed: 0, remaining: 0 }
+  }
+
+  let collected = 0
+  let failed = 0
+
+  for (const row of pending) {
+    if (!row?.media_id) {
+      // Nothing can be done for this one — it predates the id column. Clear
+      // the marker so it stops being retried on every inbound message, and say
+      // so on the row rather than leaving it looking merely un-processed.
+      await messagingService
+        .updateMessagingMessages({
+          id: row.id,
+          media_pending_reason: "unrecoverable_no_media_id",
+        })
+        .catch(() => {})
+      failed++
+      continue
+    }
+
+    try {
+      const saved = await downloadAndSaveWhatsAppMedia(scope, {
+        mediaId: row.media_id,
+        // mediaUrl deliberately omitted — see the header.
+        mimeType: row.media_mime_type || undefined,
+        partnerId: input.partnerId,
+        partnerName: input.partnerName,
+      })
+
+      if (!saved?.fileUrl) {
+        failed++
+        continue
+      }
+
+      await messagingService.updateMessagingMessages({
+        id: row.id,
+        media_url: saved.fileUrl,
+        media_mime_type: saved.mimeType,
+        media_pending_reason: null,
+      })
+      collected++
+    } catch (e: any) {
+      failed++
+      logger?.warn?.(
+        `[whatsapp] could not collect pending media ${row.media_id}: ${e?.message ?? e}`
+      )
+    }
+  }
+
+  if (collected || failed) {
+    logger?.info?.(
+      `[whatsapp] consent-pending media for ${input.conversationId}: collected ${collected}, failed ${failed}`
+    )
+  }
+
+  return { collected, failed, remaining: Math.max(0, pending.length - collected) }
+}

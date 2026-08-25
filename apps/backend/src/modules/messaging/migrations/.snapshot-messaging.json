@@ -121,6 +121,22 @@
           ],
           "mappedType": "enum"
         },
+        "default_sender_platform_id": {
+          "name": "default_sender_platform_id",
+          "type": "text",
+          "unsigned": false,
+          "autoincrement": false,
+          "primary": false,
+          "nullable": true,
+          "unique": false,
+          "length": null,
+          "precision": null,
+          "scale": null,
+          "default": null,
+          "comment": null,
+          "enumItems": [],
+          "mappedType": "text"
+        },
         "metadata": {
           "name": "metadata",
           "type": "jsonb",
@@ -354,7 +370,8 @@
             "sent",
             "delivered",
             "read",
-            "failed"
+            "failed",
+            "queued"
           ],
           "mappedType": "enum"
         },
@@ -438,6 +455,38 @@
           "enumItems": [],
           "mappedType": "text"
         },
+        "media_id": {
+          "name": "media_id",
+          "type": "text",
+          "unsigned": false,
+          "autoincrement": false,
+          "primary": false,
+          "nullable": true,
+          "unique": false,
+          "length": null,
+          "precision": null,
+          "scale": null,
+          "default": null,
+          "comment": null,
+          "enumItems": [],
+          "mappedType": "text"
+        },
+        "media_pending_reason": {
+          "name": "media_pending_reason",
+          "type": "text",
+          "unsigned": false,
+          "autoincrement": false,
+          "primary": false,
+          "nullable": true,
+          "unique": false,
+          "length": null,
+          "precision": null,
+          "scale": null,
+          "default": null,
+          "comment": null,
+          "enumItems": [],
+          "mappedType": "text"
+        },
         "reply_to_id": {
           "name": "reply_to_id",
           "type": "text",
@@ -469,6 +518,22 @@
           "comment": null,
           "enumItems": [],
           "mappedType": "json"
+        },
+        "fail_reason": {
+          "name": "fail_reason",
+          "type": "text",
+          "unsigned": false,
+          "autoincrement": false,
+          "primary": false,
+          "nullable": true,
+          "unique": false,
+          "length": null,
+          "precision": null,
+          "scale": null,
+          "default": null,
+          "comment": null,
+          "enumItems": [],
+          "mappedType": "text"
         },
         "metadata": {
           "name": "metadata",
