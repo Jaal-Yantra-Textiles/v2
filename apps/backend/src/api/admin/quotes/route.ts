@@ -4,6 +4,7 @@ import { ContainerRegistrationKeys, MedusaError } from "@medusajs/framework/util
 import { PARTNER_QUOTE_MODULE } from "../../../modules/partner-quote"
 import { buildQuoteListQuery } from "../../../modules/partner-quote/lib/list-query"
 import { withEffectiveStatus } from "../../../modules/partner-quote/lib/token"
+import { totalQuotedQuantity } from "../../../modules/partner-quote/lib/quote-email"
 import { resolveQuoteDesignLines } from "../../../modules/partner-quote/lib/design-lines"
 import { deliverQuoteEmail } from "../../../workflows/partner-quote/deliver-quote-email"
 import { mintQuoteWorkflow } from "../../../workflows/partner-quote/mint-quote"
@@ -198,6 +199,7 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
     token: (result as any)?.token,
     partnerName: partner?.name ?? null,
     lineCount: body.lines.length,
+    totalQuantity: totalQuotedQuantity(body.lines),
     actorType: "admin",
     actorId: (req as any).auth_context?.actor_id ?? null,
   })

@@ -21,8 +21,42 @@ export type QuoteEmailData = {
   landed_total: string
   destination: string
   line_count: number
+  /**
+   * The number of PIECES quoted, summed across every line (#1538 follow-up).
+   *
+   * 🔴 Added because `line_count` was being rendered as one. Both quote emails
+   * said "your quote for {{line_count}} item(s)", and `line_count` is
+   * `lines.length` — so a single line of 29 scarves announced itself as "1
+   * item(s)", and Marcha's six-line quote of ten pieces as "6". The number was
+   * right for a question nobody asked and wrong for the one the buyer reads.
+   *
+   * Both are kept. A buyer wants the pieces; the line count still says how the
+   * basket is broken up, and templates already reference it.
+   */
+  total_quantity: number
   expires_on: string
   current_year: number
+}
+
+/**
+ * PURE: how many pieces this quote is for.
+ *
+ * 🔑 Non-numeric and negative quantities are SKIPPED rather than coerced. A
+ * `Number(undefined)` is `NaN`, and one bad line would otherwise turn the whole
+ * count into "NaN item(s)" in a buyer's inbox — a wrong number that at least
+ * announces itself, unlike the one this replaces, but still not something to
+ * send. A line we cannot read contributes nothing and the rest still counts.
+ */
+export function totalQuotedQuantity(
+  lines: Array<{ quantity?: unknown }> | null | undefined
+): number {
+  let total = 0
+  for (const line of lines ?? []) {
+    const quantity = Number(line?.quantity)
+    if (!Number.isFinite(quantity) || quantity <= 0) continue
+    total += quantity
+  }
+  return total
 }
 
 /**
@@ -110,6 +144,8 @@ export function buildQuoteEmailData(input: {
   partnerName?: string | null
   quoteUrl: string
   lineCount: number
+  /** Pieces across every line — see `total_quantity` on the payload type. */
+  totalQuantity: number
   now: Date
 }): QuoteEmailData {
   const q = input.quote
@@ -131,6 +167,7 @@ export function buildQuoteEmailData(input: {
       countryCode: q.destination_country_code ?? null,
     }),
     line_count: input.lineCount,
+    total_quantity: input.totalQuantity,
     expires_on: formatQuoteExpiry(q.expires_at ?? null) ?? "the date shown on your quote",
     current_year: input.now.getUTCFullYear(),
   }

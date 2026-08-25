@@ -1,5 +1,6 @@
 import {
   buildQuoteEmailData,
+  totalQuotedQuantity,
   formatQuoteDestination,
   formatQuoteExpiry,
   formatQuoteMoney,
@@ -78,6 +79,30 @@ describe("formatQuoteExpiry", () => {
   })
 })
 
+describe("totalQuotedQuantity", () => {
+  it("counts PIECES, not lines — the whole point", () => {
+    // The defect this replaces: one line of 29 scarves announced itself to the
+    // buyer as "1 item(s)", because `line_count` was rendered as a quantity.
+    expect(totalQuotedQuantity([{ quantity: 29 }])).toBe(29)
+    expect(
+      totalQuotedQuantity([{ quantity: 2 }, { quantity: 2 }, { quantity: 6 }])
+    ).toBe(10)
+  })
+
+  it("skips a line it cannot read rather than poisoning the whole count", () => {
+    // `Number(undefined)` is NaN, and one bad line would otherwise put
+    // "NaN piece(s)" in a buyer's inbox.
+    expect(totalQuotedQuantity([{ quantity: 5 }, {}, { quantity: "x" }])).toBe(5)
+    expect(totalQuotedQuantity([{ quantity: 5 }, { quantity: -3 }])).toBe(5)
+  })
+
+  it("answers 0 for nothing at all, without throwing", () => {
+    expect(totalQuotedQuantity([])).toBe(0)
+    expect(totalQuotedQuantity(null)).toBe(0)
+    expect(totalQuotedQuantity(undefined)).toBe(0)
+  })
+})
+
 describe("buildQuoteEmailData", () => {
   const build = (quote: any) =>
     buildQuoteEmailData({
@@ -85,6 +110,7 @@ describe("buildQuoteEmailData", () => {
       partnerName: "Unique Pashmina",
       quoteUrl: "https://shop.example.com/de/quotes/tok_abc",
       lineCount: 2,
+      totalQuantity: 40,
       now: NOW,
     })
 
@@ -96,6 +122,7 @@ describe("buildQuoteEmailData", () => {
       landed_total: "€4,210.50",
       destination: "Berlin, Germany",
       line_count: 2,
+      total_quantity: 40,
       expires_on: "September 15, 2026",
       current_year: 2026,
     })
@@ -123,6 +150,7 @@ describe("buildQuoteEmailData", () => {
         partnerName: null,
         quoteUrl: "u",
         lineCount: 1,
+        totalQuantity: 1,
         now: NOW,
       }).partner_name
     ).toBe("Jaal Yantra Textiles")
