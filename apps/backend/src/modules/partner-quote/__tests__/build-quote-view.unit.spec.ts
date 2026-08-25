@@ -326,10 +326,24 @@ describe("buildQuoteView — the free-shipping row that quoted every bulk consig
       baseInput()
     )
 
-    // 0 would be the bug. 99 is the unconditional flat, and it is genuinely
-    // cheaper than the 3900 carrier rate, so it is the honest answer here.
-    expect(view.freight.chosen?.amount).toBe(99)
-    expect(view.live?.freight).toBe(99)
+    /**
+     * 🔴 UPDATED: the carrier rate wins, not the flat 99.
+     *
+     * This assertion used to read `toBe(99)`, with a comment calling 99 "the
+     * honest answer" because it was "genuinely cheaper than the 3900 carrier
+     * rate". It was not honest — it was a **₹3801 undercharge per
+     * consignment**, and the test pinned it as correct for months.
+     *
+     * A flat tier does not move with weight, so it is not a cheaper offer for
+     * this parcel; it is a placeholder standing where a real rate exists. The
+     * picker no longer races the two.
+     *
+     * What this test is actually FOR is unchanged and still asserted: a
+     * rule-bound 0 must never reach the options list, because the estimate has
+     * no cart and cannot evaluate `item_total >= 2999` (#1430).
+     */
+    expect(view.freight.chosen?.amount).toBe(3900)
+    expect(view.live?.freight).toBe(3900)
     expect(view.freight.options.map((o) => o.amount)).not.toContain(0)
   })
 
@@ -367,7 +381,7 @@ describe("buildQuoteView — the free-shipping row that quoted every bulk consig
     expect(view.freight.error).toBeNull()
   })
 
-  it("still keeps an ordinary unconditional flat price", async () => {
+  it("still keeps an ordinary unconditional flat price on the lane", async () => {
     const captured: Captured = { contexts: [], rateWeights: [] }
     const view = await buildQuoteView(
       scopeWith(captured, {
@@ -376,7 +390,11 @@ describe("buildQuoteView — the free-shipping row that quoted every bulk consig
       baseInput()
     )
 
-    expect(view.freight.chosen?.amount).toBe(99)
+    // The unconditional flat is still COLLECTED — it is the lane's fallback and
+    // the donor of a `shipping_option_id` for acceptance (#1498). It simply no
+    // longer outranks a live rate.
+    expect(view.freight.options.map((o) => o.amount)).toContain(99)
+    expect(view.freight.chosen?.amount).toBe(3900)
   })
 })
 

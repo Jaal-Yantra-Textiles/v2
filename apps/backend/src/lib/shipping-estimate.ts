@@ -170,6 +170,14 @@ export type ShippingEstimate = {
    * `needsManualFreightRate`.
    */
   carrier_consulted: boolean
+  /**
+   * A shipping option on a zone covering the destination, whatever its price
+   * type. Acceptance borrows its service zone and shipping profile when the
+   * freight came from a live carrier rate, which is not a Medusa option and so
+   * carries no id of its own. Null means the store has no configured lane to
+   * this country at all — the honest reason a quote cannot be accepted.
+   */
+  lane_option_id: string | null
   cache_hit: boolean
   is_estimate: true
 }
@@ -516,6 +524,25 @@ export async function buildShippingEstimate(
   })
 
   const manual: ShippingEstimateOption[] = []
+  /**
+   * An option id on a zone that covers the destination — the LANE, independent
+   * of any price (#1498, widened here).
+   *
+   * 🔴 Acceptance needs a `shipping_option_id` to borrow a service zone and
+   * shipping profile from; a carrier rate is not a Medusa option and carries
+   * none. That donor used to be found among the MANUAL options, which quietly
+   * made a manually-PRICED option a precondition for a quote being acceptable
+   * at all. Remove the flat tiers — which is the whole point of moving to live
+   * rates — and every new quote becomes un-acceptable at the last step, the
+   * #1497 failure again and again discovered by the buyer.
+   *
+   * The zone is a property of the LANE, not of a price. So it is recorded while
+   * walking the zones, from any quotable option, priced or not. A manual option
+   * still wins the donor slot when one exists, purely for continuity with every
+   * quote already minted.
+   */
+  let laneOptionId: string | null = null
+  let manualLaneOptionId: string | null = null
   for (const fs of (optionLocations?.[0] as any)?.fulfillment_sets || []) {
     for (const zone of fs?.service_zones || []) {
       // 🔴 A zone that does not cover the destination must not price it.
@@ -526,6 +553,17 @@ export async function buildShippingEstimate(
       if (!zoneCoversDestination(zone, countryCode)) continue
 
       for (const so of zone?.shipping_options || []) {
+        // 🔴 The lane donor is recorded BEFORE the calculated skip, because a
+        // store moving to live rates may have nothing but calculated options —
+        // and it still has a lane. `isQuotableShippingOption` still gates it:
+        // a return row or another quote's freight is not this lane's donor.
+        if (isQuotableShippingOption(so) && so?.id) {
+          if (!laneOptionId) laneOptionId = String(so.id)
+          if (so.price_type !== "calculated" && !manualLaneOptionId) {
+            manualLaneOptionId = String(so.id)
+          }
+        }
+
         if (so?.price_type === "calculated") continue
         // 🔴 A RETURN option is not an outbound offer. See below.
         if (!isQuotableShippingOption(so)) continue
@@ -599,6 +637,7 @@ export async function buildShippingEstimate(
       // Nobody was asked, on purpose. This is what stops the empty list above
       // being read as a carrier that failed silently (#1528).
       carrier_consulted: false,
+      lane_option_id: manualLaneOptionId ?? laneOptionId,
       cache_hit: false,
       is_estimate: true,
     }
@@ -816,6 +855,7 @@ export async function buildShippingEstimate(
     // A carrier WAS asked on this path, whatever it answered — including
     // nothing at all, which is the case #1528 was blind to.
     carrier_consulted: true,
+    lane_option_id: manualLaneOptionId ?? laneOptionId,
     cache_hit: cacheHit,
     // Never present these as a final price: carrier rates move, and the manual
     // tier is a placeholder the partner is expected to edit.
