@@ -92,9 +92,22 @@ class ShiprocketFulfillmentService extends AbstractFulfillmentProviderService {
     const destinationCountry = String(
       context?.shipping_address?.country_code || ""
     ).toUpperCase()
+    /**
+     * 🔑 `calculated_amount` is denominated in the CART's currency, so the
+     * currency is what decides whether a fallback figure means anything at all.
+     * Read best-effort and threaded through: when it is absent the resolver
+     * skips its per-currency map rather than guessing between €35 and ₹3200.
+     */
+    const currencyCode =
+      context?.currency_code ?? context?.cart?.currency_code ?? null
 
     if (!derived.context) {
-      return this.flatFallback(destinationCountry, derived.reason!, optionData)
+      return this.flatFallback(
+        destinationCountry,
+        derived.reason!,
+        optionData,
+        currencyCode
+      )
     }
 
     const rateContext = derived.context
@@ -120,7 +133,8 @@ class ShiprocketFulfillmentService extends AbstractFulfillmentProviderService {
           `Shiprocket returned no courier for ${rateContext.origin_pincode} → ${
             rateContext.destination_country || rateContext.destination_pincode
           }`,
-          optionData
+          optionData,
+          currencyCode
         )
       }
 
@@ -130,7 +144,12 @@ class ShiprocketFulfillmentService extends AbstractFulfillmentProviderService {
       }
     } catch (e: any) {
       this.logger.error(`Shiprocket calculatePrice error: ${e.message}`)
-      return this.flatFallback(destinationCountry, e.message, optionData)
+      return this.flatFallback(
+        destinationCountry,
+        e.message,
+        optionData,
+        currencyCode
+      )
     }
   }
 
@@ -146,18 +165,26 @@ class ShiprocketFulfillmentService extends AbstractFulfillmentProviderService {
   private flatFallback(
     destinationCountry: string,
     reason: string,
-    optionData?: Record<string, unknown>
+    optionData?: Record<string, unknown>,
+    currencyCode?: string | null
   ): CalculatedShippingOptionPrice {
     const { amount, reason: unconfigured } = resolveFlatFallbackAmount(
       this.fallbackConfig,
       destinationCountry,
-      optionData
+      optionData,
+      currencyCode
     )
 
+    // 🔑 The currency is in the log line because the amount is meaningless
+    // without it: "falling back to 200" reads as fine and is €200. That log is
+    // the only thing separating a defined fallback from a silent wrong number,
+    // so it has to carry enough to spot one.
     this.logger.warn(
-      `[shiprocket] falling back to the flat rate ${amount} for ${
-        destinationCountry || "IN"
-      } — ${reason}${unconfigured ? ` (${unconfigured})` : ""}`
+      `[shiprocket] falling back to the flat rate ${amount} ${
+        currencyCode ? String(currencyCode).toUpperCase() : "(currency unknown)"
+      } for ${destinationCountry || "IN"} — ${reason}${
+        unconfigured ? ` (${unconfigured})` : ""
+      }`
     )
 
     return {

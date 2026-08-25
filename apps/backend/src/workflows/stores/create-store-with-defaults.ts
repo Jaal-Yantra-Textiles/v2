@@ -797,6 +797,23 @@ const autoLinkFulfillmentProvidersStep = createStep(
                   amount: number
                   rules?: Array<{ attribute: string; operator: "gte"; value: number }>
                 }> = []
+                /**
+                 * The same base rates, keyed by currency, for the CALCULATED
+                 * Shiprocket option's fallback.
+                 *
+                 * 🔴 Built from `INTL_RATES` rather than restated, exactly as
+                 * the domestic block derives its fallback from the one
+                 * `FLAT_FALLBACK_AMOUNT` constant: when the carrier will not
+                 * quote a lane, the buyer must be charged the tier we actually
+                 * intended, not a number that merely resembles it.
+                 *
+                 * Before this, the international option carried no `data` at
+                 * all — so an unratable EUR lane fell through to
+                 * `DEFAULT_FLAT_FALLBACK` (200, an INR-shaped number) and
+                 * charged **€200** against an intended €35. Currency-blind in
+                 * the #1424/#1434 way, and silent.
+                 */
+                const intlFallbackByCurrency: Record<string, number> = {}
                 for (const cur of intlCurrencies) {
                   const rate = INTL_RATES[cur] ?? INTL_RATES["usd"]
                   intlPrices.push({ currency_code: cur, amount: rate.base })
@@ -805,6 +822,7 @@ const autoLinkFulfillmentProvidersStep = createStep(
                     amount: 0,
                     rules: [{ attribute: "item_total", operator: "gte", value: rate.freeAbove }],
                   })
+                  intlFallbackByCurrency[String(cur).toLowerCase()] = rate.base
                 }
 
                 const dhlEnabled = enabledIds.includes("dhl-express_dhl-express")
@@ -880,6 +898,13 @@ const autoLinkFulfillmentProvidersStep = createStep(
                         provider_id: "shiprocket_shiprocket",
                         service_zone_id: intlZone.id,
                         shipping_profile_id: profileId,
+                        // What this option charges when Shiprocket will not
+                        // quote the lane — per CURRENCY, because the amount is
+                        // returned in the cart's currency and one number cannot
+                        // serve both €35 and ₹3200. See the map's definition.
+                        data: {
+                          flat_fallback_amounts: intlFallbackByCurrency,
+                        },
                         type: {
                           label: "International",
                           description: "Cross-border delivery via Shiprocket — live rates",

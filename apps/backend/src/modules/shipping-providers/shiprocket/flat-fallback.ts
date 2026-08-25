@@ -32,6 +32,32 @@
  *
  * Amounts are in the store's own price units (rupees for INR), matching what
  * the carrier returns and what the flat companion option is priced in.
+ *
+ * ## 🔴 A bare number has no currency, and that is a bug not a simplification
+ *
+ * `calculated_amount` is returned in the CART's currency, whatever that is.
+ * The lookups below were keyed only on destination COUNTRY, so one number had
+ * to serve every currency the store sells in — and it cannot. On prod today
+ * nothing is configured, so an unratable lane resolves to
+ * `DEFAULT_FLAT_FALLBACK` (200), which means:
+ *
+ *   - a EUR cart to the Netherlands is charged **€200**, against an intended €35
+ *   - an INR cart abroad is charged **₹200**, against an intended ₹3200
+ *
+ * Wrong by ~6× in one direction and ~16× in the other, silently, at checkout —
+ * the currency-blindness of #1424/#1434 arriving through a different door. It
+ * has been unreachable in practice only because international lanes were
+ * falling to the flat MANUAL option; leaning on live international rates is
+ * exactly what makes it reachable.
+ *
+ * So a per-currency map comes first. It is stamped onto the option's own `data`
+ * from the SAME table that prices the manual companion, so the fallback IS the
+ * intended tier rather than a constant that happens to resemble one.
+ *
+ * 🔑 When the currency is unknown the per-currency map is SKIPPED rather than
+ * guessed at. Picking "the first entry" would be a coin-toss between €35 and
+ * ₹3200, and a plausible wrong number is the thing this whole file exists to
+ * stop.
  */
 
 /** Matches the flat companion option provisioned by create-store-with-defaults. */
@@ -43,6 +69,13 @@ export type FlatFallbackConfig = {
   /** Applied when no country-specific amount is configured. */
   flat_fallback_amount?: number
 }
+
+/**
+ * Per-currency amounts stamped on a shipping option's `data`, keyed by ISO-4217
+ * lower-case. The most specific answer available, and the only one that can be
+ * right for a store selling in more than one currency.
+ */
+export type FlatFallbackByCurrency = Record<string, number>
 
 /**
  * PURE: pick the fallback amount for a destination, or explain that none is
@@ -61,8 +94,33 @@ export function resolveFlatFallbackAmount(
    * takes over — not a constant that merely happens to match. An operator
    * editing the flat option's price can edit this alongside it.
    */
-  optionData?: Record<string, unknown>
+  optionData?: Record<string, unknown>,
+  /**
+   * The cart's currency. `calculated_amount` is denominated in it, so it is
+   * what decides which figure is even meaningful. Optional because not every
+   * caller can supply it — and when it is absent the per-currency map is
+   * skipped rather than guessed.
+   */
+  currencyCode?: string | null
 ): { amount?: number; reason?: string } {
+  /**
+   * 🔴 Per-currency FIRST. It is the only lookup here that can be correct for a
+   * store selling in several currencies, and the option-level scalar below it
+   * is by construction a single-currency answer.
+   */
+  const currency = String(currencyCode || "").trim().toLowerCase()
+  const byCurrency = (optionData as any)?.flat_fallback_amounts as
+    | FlatFallbackByCurrency
+    | undefined
+  if (currency && byCurrency && typeof byCurrency === "object") {
+    for (const [key, value] of Object.entries(byCurrency)) {
+      if (String(key).trim().toLowerCase() !== currency) continue
+      // A configured 0 is a real answer — "this lane is free". Only ABSENCE
+      // falls through, hence the validity check rather than truthiness.
+      if (Number.isFinite(Number(value))) return { amount: Number(value) }
+    }
+  }
+
   const fromOption = Number((optionData as any)?.flat_fallback_amount)
   if (Number.isFinite(fromOption)) return { amount: fromOption }
 
@@ -86,7 +144,11 @@ export function resolveFlatFallbackAmount(
   // a default rather than a refusal.
   return {
     amount: DEFAULT_FLAT_FALLBACK,
-    reason: `no flat fallback is configured for ${country}; used the default ${DEFAULT_FLAT_FALLBACK}`,
+    reason:
+      `no flat fallback is configured for ${country}` +
+      (currency ? ` in ${currency.toUpperCase()}` : "") +
+      `; used the default ${DEFAULT_FLAT_FALLBACK}, which is an INR-shaped ` +
+      `number and is almost certainly wrong in any other currency`,
   }
 }
 
