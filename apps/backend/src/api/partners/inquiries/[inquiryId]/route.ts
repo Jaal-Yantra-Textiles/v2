@@ -10,6 +10,7 @@ import {
   loadInquiryForPartner,
 } from "../../../../modules/design_inquiry/lib/partner-inquiry-access"
 import { getPartnerFromAuthContext } from "../../helpers"
+import { resolveMediaFiles } from "../../media-urls"
 
 /**
  * GET /partners/inquiries/:inquiryId — the wizard, as this partner sees it.
@@ -43,9 +44,17 @@ export const GET = async (req: AuthenticatedMedusaRequest, res: MedusaResponse) 
 
   const query: any = req.scope.resolve(ContainerRegistrationKeys.QUERY)
 
-  const [questions, answers] = await Promise.all([
+  const [questions, answers, referenceMedia] = await Promise.all([
     listInquiryQuestions(req.scope, inquiry.id),
     listResponseAnswers(req.scope, response.id),
+    /**
+     * 🔴 The moodboard (#1543). `reference_media_ids` has been returned since
+     * this route was written, as bare ids — so a designer attached the
+     * references that explain what they are asking for, and the partner was
+     * asked "can you make this?" while being shown NOTHING. Nothing errored;
+     * the field was populated and the array was right there in the response.
+     */
+    resolveMediaFiles(req.scope, inquiry.reference_media_ids ?? []),
   ])
 
   let design: any = null
@@ -68,6 +77,8 @@ export const GET = async (req: AuthenticatedMedusaRequest, res: MedusaResponse) 
       title: inquiry.title,
       brief_note: inquiry.brief_note ?? null,
       reference_media_ids: inquiry.reference_media_ids ?? [],
+      /** Render from THIS. The ids above are what is stored, not what is shown. */
+      reference_media: referenceMedia,
       spec_version: inquiry.spec_version ?? null,
       status: inquiry.status,
       created_at: inquiry.created_at,

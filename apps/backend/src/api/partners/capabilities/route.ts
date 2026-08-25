@@ -3,6 +3,7 @@ import { MedusaError } from "@medusajs/framework/utils"
 
 import { PARTNER_CAPABILITY_MODULE } from "../../../modules/partner_capability"
 import { getPartnerFromAuthContext } from "../helpers"
+import { resolveMediaFiles } from "../media-urls"
 import type {
   PartnerListCapabilitySamplesQuery,
   PartnerPostCapabilitySampleReq,
@@ -53,8 +54,33 @@ export const GET = async (req: AuthenticatedMedusaRequest, res: MedusaResponse) 
     }
   )
 
-  return res.json({ samples: samples ?? [], count })
+  const withMedia = await attachMediaUrls(req.scope, samples ?? [])
+
+  return res.json({ samples: withMedia, count })
 }
+
+/**
+ * Attach renderable `media` to each sample.
+ *
+ * 🔴 Without this the library is WRITE-ONLY. The row stores `media_file_ids`,
+ * the wizard gets `{ id, url }` back from its own upload and happily renders
+ * the photo it just chose — and then the partner reloads and every attachment
+ * is an empty square, because an id is not a URL and nothing on the read path
+ * ever turned one into the other. That failure appears only after a refresh,
+ * which is exactly the moment nobody tests.
+ *
+ * See `resolveMediaFiles`: the moodboard had the identical defect.
+ */
+const attachMediaUrls = async (scope: any, samples: any[]): Promise<any[]> =>
+  Promise.all(
+    samples.map(async (s) => ({
+      ...s,
+      media: await resolveMediaFiles(
+        scope,
+        Array.isArray(s?.media_file_ids) ? s.media_file_ids : []
+      ),
+    }))
+  )
 
 /**
  * POST /partners/capabilities — record something they have actually made.
@@ -96,8 +122,14 @@ export const POST = async (
     captured_at: capturedAt,
   } as any)
 
+  // Resolved here too, so a caller rendering from the create response and one
+  // rendering from the listing see the SAME shape. Two shapes for one row is
+  // how a `media` key ends up read as `media_files` on one screen and silently
+  // renders nothing.
+  const [withMedia] = await attachMediaUrls(req.scope, [sample])
+
   return res.status(201).json({
-    sample,
+    sample: withMedia ?? sample,
     captured_at_defaulted: !body.captured_at,
   })
 }

@@ -8,7 +8,7 @@ import {
 } from "@tanstack/react-query"
 import qs from "qs"
 
-import { sdk } from "../../lib/client"
+import { sdk, backendUrl } from "../../lib/client/client"
 import { queryClient } from "../../lib/query-client"
 import { queryKeysFactory } from "../../lib/query-key-factory"
 
@@ -94,6 +94,15 @@ export type PartnerInquiryDetail = {
     title: string
     brief_note?: string | null
     reference_media_ids?: string[]
+    /**
+     * The moodboard, resolved to something renderable (#1543).
+     *
+     * 🔑 Render from THIS, never from `reference_media_ids`. The ids are what
+     * is stored; they were returned by the route from the day it was written
+     * and nothing could show them, so the partner was asked "can you make
+     * this?" while being shown nothing at all.
+     */
+    reference_media?: CapabilityMedia[] | null
     spec_version?: string | null
     status: "open" | "closed"
     created_at?: string
@@ -117,6 +126,14 @@ export type IncomingAnswer = {
   capability_sample_ids?: string[]
 }
 
+/** A photograph on a sample, resolved to something renderable by the route. */
+export type CapabilityMedia = {
+  id: string
+  url: string
+  name?: string | null
+  type?: string | null
+}
+
 export type CapabilitySample = {
   id: string
   partner_id: string
@@ -124,6 +141,13 @@ export type CapabilitySample = {
   technique?: string | null
   material?: string | null
   media_file_ids?: string[] | null
+  /**
+   * 🔑 Render from THIS, never from `media_file_ids`. An id is not a URL —
+   * the ids are what is stored, `media` is what the read path resolves them
+   * to, and a component that reached for the ids would show empty squares
+   * after every reload while looking perfectly correct on the upload itself.
+   */
+  media?: CapabilityMedia[] | null
   notes?: string | null
   source?: string
   captured_at?: string
@@ -314,6 +338,70 @@ export const useCreatePartnerCapability = (
         queryKey: partnerCapabilitiesQueryKeys.lists(),
       })
       options?.onSuccess?.(data, variables, context)
+    },
+    ...options,
+  })
+}
+
+/**
+ * Upload photographs for a capability sample (#1543).
+ *
+ * Two steps, not one: this returns `media` ids and URLs, and the caller then
+ * creates the SAMPLE with those ids. They are separate because a sample
+ * outlives the inquiry that produced it — a partner may attach one they
+ * already have rather than take a new photograph — so "upload a file" and
+ * "record what this proves" are genuinely different acts.
+ *
+ * 🔑 `content-type: null` is deliberate. The SDK sets `application/json` by
+ * default and the browser must be left to write its own multipart boundary;
+ * with the default header the request arrives as a body multer cannot parse
+ * and the route reports "No files were uploaded" about files that were
+ * definitely sent.
+ *
+ * The native-fetch fallback mirrors `usePartnerUpload` — mobile browsers have
+ * failed the SDK path with an opaque "fetch failed", and a weaver on a phone
+ * is exactly who this feature is for.
+ */
+export const useUploadCapabilityMedia = (
+  options?: UseMutationOptions<{ media: CapabilityMedia[] }, FetchError, File[]>
+) => {
+  return useMutation({
+    mutationFn: async (files: File[]) => {
+      const form = new FormData()
+      files.forEach((file) => form.append("files", file))
+
+      try {
+        return await sdk.client.fetch<{ media: CapabilityMedia[] }>(
+          "/partners/capabilities/uploads",
+          {
+            method: "POST",
+            body: form,
+            headers: { "content-type": null } as any,
+          }
+        )
+      } catch (sdkError: any) {
+        const isNetworkError =
+          sdkError?.message === "fetch failed" ||
+          sdkError?.message === "Failed to fetch" ||
+          sdkError?.message?.includes("network")
+        if (!isNetworkError) throw sdkError
+
+        const token = (sdk as any).client?.token || null
+        const headers: Record<string, string> = {}
+        if (token) headers["Authorization"] = `Bearer ${token}`
+
+        const res = await fetch(
+          `${backendUrl.replace(/\/$/, "")}/partners/capabilities/uploads`,
+          { method: "POST", headers, body: form, credentials: "include" }
+        )
+        if (!res.ok) {
+          const body = await res.text().catch(() => "Upload failed")
+          const err: any = new Error(body)
+          err.status = res.status
+          throw err
+        }
+        return res.json() as Promise<{ media: CapabilityMedia[] }>
+      }
     },
     ...options,
   })

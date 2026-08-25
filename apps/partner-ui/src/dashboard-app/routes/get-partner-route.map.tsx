@@ -97,14 +97,20 @@ export function getPartnerRouteMap(): RouteObject[] {
                 {
                   path: "",
                   lazy: () => import("../../routes/inquiries/inquiry-list"),
-                },
-                {
-                  path: ":id",
-                  handle: {
-                    breadcrumb: (match?: UIMatch) =>
-                      match?.params?.id || "Inquiry",
-                  },
-                  lazy: () => import("../../routes/inquiries/inquiry-detail"),
+                  // The wizard renders as a modal in the list's <Outlet/>, so
+                  // the list stays behind it (#1543). Still a real route: the
+                  // WhatsApp invite deeplinks straight here (#1531 S3).
+                  children: [
+                    {
+                      path: ":id",
+                      handle: {
+                        breadcrumb: (match?: UIMatch) =>
+                          match?.params?.id || "Inquiry",
+                      },
+                      lazy: () =>
+                        import("../../routes/inquiries/inquiry-detail"),
+                    },
+                  ],
                 },
               ],
             },
