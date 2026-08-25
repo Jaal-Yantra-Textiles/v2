@@ -56,8 +56,12 @@ setupSharedTestSuite(() => {
 
       const storeService: any = container.resolve("store")
       const [store] = await storeService.listStores({}, { take: 1 })
-      await storeService.updateStores({
-        id: store.id,
+      // `updateStores` has NO single-object entity form — its overloads are
+      // (id, data) and (selector, data). Passing one merged object makes it the
+      // SELECTOR with `data` undefined: it matches no store (nothing has this
+      // default_location_id yet), updates nothing, and returns `[]` without
+      // erroring. The fixture read as if it had set an origin and never had.
+      await storeService.updateStores(store.id, {
         default_location_id: locationId,
       })
 

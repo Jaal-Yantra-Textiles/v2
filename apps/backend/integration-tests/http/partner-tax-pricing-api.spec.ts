@@ -143,22 +143,30 @@ setupSharedTestSuite(() => {
         expect(Array.isArray(res.data.price_preferences)).toBe(true)
       })
 
-      it("POST /partners/price-preferences creates a preference", async () => {
-        const res = await api.post(
-          "/partners/price-preferences",
-          {
-            attribute: "currency_code",
-            // Not `partner.currencyCode`: provisioning the store already
-            // creates a preference for it, and a second one is a 400
-            // "already exists". Use a currency the store did not claim.
-            value: "sek",
-            is_tax_inclusive: true,
-          },
-          { headers: partner.headers }
-        )
-        expect(res.status).toBe(201)
-        expect(res.data.price_preference).toBeDefined()
-        expect(res.data.price_preference.is_tax_inclusive).toBe(true)
+      // #1404 closed this: a price preference on a CURRENCY is global — it
+      // applies to every store pricing in that currency, not just this
+      // partner's — so a partner account may no longer write one. The refusal
+      // is the behaviour under test, and it must name the alternative rather
+      // than just saying no.
+      it("POST /partners/price-preferences refuses a currency-wide preference", async () => {
+        const res = await api
+          .post(
+            "/partners/price-preferences",
+            {
+              attribute: "currency_code",
+              // Not `partner.currencyCode`: provisioning the store already
+              // creates a preference for it, so a second one would fail as
+              // "already exists" and pass this test for the wrong reason.
+              value: "sek",
+              is_tax_inclusive: true,
+            },
+            { headers: partner.headers }
+          )
+          .catch((e: any) => e.response)
+
+        expect(res.status).toBe(400)
+        expect(res.data.message).toMatch(/every store pricing in sek/i)
+        expect(res.data.message).toMatch(/per region/i)
       })
     })
 

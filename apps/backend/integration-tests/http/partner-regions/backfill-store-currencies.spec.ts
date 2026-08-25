@@ -157,8 +157,7 @@ setupSharedTestSuite(() => {
         [Modules.REGION]: { region_id: zarRegionId },
       })
       // Force the legacy state: only the original USD entry on the store.
-      await storeService.updateStores({
-        id: a.storeId,
+      await storeService.updateStores(a.storeId, {
         supported_currencies: [{ currency_code: a.currencyCode, is_default: true }],
       })
 
@@ -207,8 +206,7 @@ setupSharedTestSuite(() => {
         partner: { partner_id: a.partnerId },
         [Modules.REGION]: { region_id: zarRegion.id },
       })
-      await storeService.updateStores({
-        id: a.storeId,
+      await storeService.updateStores(a.storeId, {
         supported_currencies: [{ currency_code: a.currencyCode, is_default: true }],
       })
 
@@ -240,8 +238,7 @@ setupSharedTestSuite(() => {
         partner: { partner_id: a.partnerId },
         [Modules.REGION]: { region_id: zarRegion.id },
       })
-      await storeService.updateStores({
-        id: a.storeId,
+      await storeService.updateStores(a.storeId, {
         supported_currencies: [{ currency_code: a.currencyCode, is_default: true }],
       })
 
@@ -273,8 +270,7 @@ setupSharedTestSuite(() => {
         partner: { partner_id: a.partnerId },
         [Modules.REGION]: { region_id: zarRegion.id },
       })
-      await storeService.updateStores({
-        id: a.storeId,
+      await storeService.updateStores(a.storeId, {
         supported_currencies: [{ currency_code: a.currencyCode, is_default: true }],
       })
 
