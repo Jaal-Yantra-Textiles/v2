@@ -373,6 +373,9 @@ export async function assessQuoteReadiness(
       })
 
       const rated = pickFreightOption(estimate)
+      // How many REAL carrier rates came back. The only honest basis for
+      // saying the carrier returned nothing — see the message below.
+      const ratedCount = (estimate.calculated ?? []).length
 
       /**
        * Freight the partner named by hand (#1439 S12).
@@ -415,7 +418,7 @@ export async function assessQuoteReadiness(
         total_weight_grams: estimate.total_weight_grams,
         error: estimate.calculated_error,
         carrier_consulted: estimate.carrier_consulted,
-        carrier_rated_count: (estimate.calculated ?? []).length,
+        carrier_rated_count: ratedCount,
       }
 
       if (!chosen) {
@@ -462,11 +465,20 @@ export async function assessQuoteReadiness(
         issues.push({
           code: "freight_needs_manual_rate",
           severity: "blocking",
+          /**
+           * 🔴 "Returned nothing" means NO RATES, not "no error".
+           *
+           * The first cut of this derived it from `!calculated_error`, so a
+           * carrier that rated the lane perfectly well was described as having
+           * "returned no rates at all" — in a payload that carried
+           * `carrier_rated_count: 1` two fields later. A message that
+           * contradicts its own data is worse than no message: it sends the
+           * operator to look for a carrier outage that never happened.
+           *
+           * Found by probing prod, not by reading this file.
+           */
           message:
-            `No carrier rated freight to ${input.destination_country_code.toUpperCase()} ` +
-            // 🔴 Say WHICH silence this was. Interpolating a null error read
-            // "(null)" and told the operator nothing — and the empty-answer
-            // case is precisely the one that used to pass unremarked (#1528).
+            `Freight to ${input.destination_country_code.toUpperCase()} could not be priced from a carrier ` +
             (estimate.calculated_error
               ? `(${estimate.calculated_error})`
               : `(the carrier was asked and returned no rates at all — no error either)`) +
@@ -477,8 +489,8 @@ export async function assessQuoteReadiness(
             country_code: input.destination_country_code,
             fallback_amount: chosen.amount,
             fallback_name: chosen.name ?? null,
-            carrier_rated_count: (estimate.calculated ?? []).length,
-            carrier_returned_nothing: !estimate.calculated_error,
+            carrier_rated_count: ratedCount,
+            carrier_returned_nothing: ratedCount === 0,
           },
         })
       } else if (

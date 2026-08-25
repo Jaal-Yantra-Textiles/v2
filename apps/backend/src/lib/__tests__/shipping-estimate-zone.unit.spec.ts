@@ -256,6 +256,136 @@ describe("pickFreightOption — the currency trap it cannot see", () => {
   })
 })
 
+/**
+ * 🔴 A FLAT TIER IS NOT A COMPETITOR TO A LIVE RATE.
+ *
+ * Found by probing prod, not by reading the code:
+ *
+ * ```
+ * 2.2 kg, Mumbai, inr — carrier_consulted: true, carrier_rated_count: 1
+ * chosen: "Domestic Shipping · 68M3HY2V"  ₹99   ← a FLAT tier
+ * ```
+ *
+ * A courier rated that lane. The picker ignored the rate and took ₹99, because
+ * ₹99 was the smaller number. A flat tier does not move with weight, so it
+ * undercuts the real rate on a 2.2 kg parcel and undercuts it enormously on a
+ * 21 kg one — every heavy consignment quoted below cost, with nothing looking
+ * broken because a freight figure was always present.
+ *
+ * 🔑 The direction matters. Every previous defect on this picker
+ * (#1424 zone-blind, #1430 rule-blind, #1485 the return row, #1527 the orphan)
+ * was a row winning by being SMALL. This is the same mechanism turned on the
+ * carrier itself — and unlike the others it costs us money on every quote
+ * rather than occasionally.
+ */
+describe("pickFreightOption — a carrier rate is not in a race with a flat tier", () => {
+  it("🔴 takes the carrier rate even when a flat tier is cheaper", () => {
+    const chosen = pickFreightOption({
+      manual: [
+        { amount: 99, currency_code: "inr", source: "manual", name: "Domestic Shipping · 68M3HY2V", shipping_option_id: "so_flat" } as any,
+      ],
+      calculated: [
+        { amount: 340, currency_code: "inr", source: "calculated", name: "Delhivery Surface" } as any,
+      ],
+    })
+
+    expect(chosen!.amount).toBe(340)
+    expect(chosen!.source).toBe("calculated")
+  })
+
+  it("still compares carriers against each other on price", () => {
+    // Two REAL offers. Cheapest is the right rule here — that has not changed,
+    // and a buyer comparing suppliers compares what they would actually pay.
+    const chosen = pickFreightOption({
+      manual: [{ amount: 99, currency_code: "inr", source: "manual" } as any],
+      calculated: [
+        { amount: 512, currency_code: "inr", source: "calculated", name: "Bluedart" } as any,
+        { amount: 340, currency_code: "inr", source: "calculated", name: "Delhivery" } as any,
+      ],
+    })
+    expect(chosen!.amount).toBe(340)
+  })
+
+  it("falls back to the manual pool only when NO carrier rated", () => {
+    // Which is exactly the state `needsManualFreightRate` then refuses to mint
+    // silently — the two halves have to agree about what "no carrier rate"
+    // means or one blocks what the other allows.
+    const chosen = pickFreightOption({
+      manual: [{ amount: 99, currency_code: "inr", source: "manual" } as any],
+      calculated: [],
+    })
+    expect(chosen!.amount).toBe(99)
+    expect(chosen!.source).toBe("manual")
+  })
+
+  it("ignores an unpriced carrier row rather than treating it as free", () => {
+    const chosen = pickFreightOption({
+      manual: [{ amount: 99, currency_code: "inr", source: "manual" } as any],
+      calculated: [{ amount: NaN, currency_code: "inr", source: "calculated" } as any],
+    })
+    // NaN is not a rate. Falling through to the flat tier is right; treating it
+    // as 0 would be the silent-zero bug this codebase has already shipped once.
+    expect(chosen!.amount).toBe(99)
+  })
+
+  it("returns nothing when the lane has neither", () => {
+    expect(pickFreightOption({ manual: [], calculated: [] })).toBeNull()
+  })
+
+  /**
+   * 🔴 A CARRIER-ONLY STORE MUST STILL PRODUCE AN ACCEPTABLE QUOTE.
+   *
+   * Acceptance mints the cart's frozen freight option in the same service zone
+   * and shipping profile as the option the quote was rated against, and
+   * REFUSES when the quote froze none. The donor used to be found only among
+   * manually-PRICED options — so removing the flat tiers, which is the entire
+   * point of moving to live rates, would have made every new quote
+   * un-acceptable at the last step. The #1497 failure again, discovered by the
+   * buyer.
+   *
+   * A lane is a property of the ZONE, not of a price.
+   */
+  it("🔴 borrows the lane from the zone when the store carries no flat tier", () => {
+    const chosen = pickFreightOption({
+      manual: [],
+      calculated: [
+        { amount: 340, currency_code: "inr", source: "calculated" } as any,
+      ],
+      lane_option_id: "so_calculated_lane",
+    })
+
+    expect(chosen!.amount).toBe(340)
+    // Without this the quote mints and cannot be bought.
+    expect(chosen!.shipping_option_id).toBe("so_calculated_lane")
+  })
+
+  it("prefers a manual donor when one exists, for continuity", () => {
+    const chosen = pickFreightOption({
+      manual: [
+        { amount: 99, currency_code: "inr", source: "manual", shipping_option_id: "so_flat" } as any,
+      ],
+      calculated: [
+        { amount: 340, currency_code: "inr", source: "calculated" } as any,
+      ],
+      lane_option_id: "so_calculated_lane",
+    })
+    expect(chosen!.shipping_option_id).toBe("so_flat")
+  })
+
+  it("leaves the id null when the store has no lane at all", () => {
+    // The honest answer: acceptance refuses and says the store has no
+    // configured lane to that country, rather than minting an unbuyable quote.
+    const chosen = pickFreightOption({
+      manual: [],
+      calculated: [
+        { amount: 340, currency_code: "inr", source: "calculated" } as any,
+      ],
+      lane_option_id: null,
+    })
+    expect(chosen!.shipping_option_id).toBeUndefined()
+  })
+})
+
 describe("pickFreightOption — a calculated winner still needs a lane (#1498)", () => {
   it("🔴 borrows the shipping_option_id from a manual option on the lane", () => {
     // A carrier rate is a courier and a price, not a Medusa shipping option.

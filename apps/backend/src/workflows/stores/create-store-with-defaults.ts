@@ -797,6 +797,23 @@ const autoLinkFulfillmentProvidersStep = createStep(
                   amount: number
                   rules?: Array<{ attribute: string; operator: "gte"; value: number }>
                 }> = []
+                /**
+                 * The same base rates, keyed by currency, for the CALCULATED
+                 * Shiprocket option's fallback.
+                 *
+                 * 🔴 Built from `INTL_RATES` rather than restated, exactly as
+                 * the domestic block derives its fallback from the one
+                 * `FLAT_FALLBACK_AMOUNT` constant: when the carrier will not
+                 * quote a lane, the buyer must be charged the tier we actually
+                 * intended, not a number that merely resembles it.
+                 *
+                 * Before this, the international option carried no `data` at
+                 * all — so an unratable EUR lane fell through to
+                 * `DEFAULT_FLAT_FALLBACK` (200, an INR-shaped number) and
+                 * charged **€200** against an intended €35. Currency-blind in
+                 * the #1424/#1434 way, and silent.
+                 */
+                const intlFallbackByCurrency: Record<string, number> = {}
                 for (const cur of intlCurrencies) {
                   const rate = INTL_RATES[cur] ?? INTL_RATES["usd"]
                   intlPrices.push({ currency_code: cur, amount: rate.base })
@@ -805,7 +822,40 @@ const autoLinkFulfillmentProvidersStep = createStep(
                     amount: 0,
                     rules: [{ attribute: "item_total", operator: "gte", value: rate.freeAbove }],
                   })
+                  intlFallbackByCurrency[String(cur).toLowerCase()] = rate.base
                 }
+
+                /**
+                 * The B2B freight tier, quote-only (#1439 follow-up).
+                 *
+                 * 🔴 A SEPARATE OFFER, not a re-priced retail row. The
+                 * `International Shipping` option above is a RETAIL offer:
+                 * `enabled_in_store: "true"`, shown in a cart, priced for a
+                 * shopper buying one or two pieces. Raising it to suit a 22 kg
+                 * consignment would raise it for every shopper too.
+                 *
+                 * So this is a second option, tiered by consignment weight,
+                 * carrying `enabled_in_store: "false"` so core's rule engine
+                 * keeps it out of every cart, and `quote_only: "true"` so the
+                 * quote estimate can tell "deliberately not for the shop" from
+                 * "the store switched this off" — which it must still refuse.
+                 *
+                 * ⚠️ It is the FALLBACK, not the price: `pickFreightOption`
+                 * takes a live carrier rate whenever there is one. This is what
+                 * stands behind the carrier, and it is the number a buyer sees
+                 * only when no courier would quote the lane.
+                 */
+                const QUOTE_TIER_LIGHT_MAX_GRAMS = 5000
+                const QUOTE_FREIGHT_TIERS = [
+                  {
+                    max_weight_grams: QUOTE_TIER_LIGHT_MAX_GRAMS,
+                    amounts: { eur: 59, usd: 65, gbp: 52, aud: 95, cad: 88, inr: 5400 },
+                  },
+                  {
+                    max_weight_grams: null,
+                    amounts: { eur: 100, usd: 110, gbp: 88, aud: 160, cad: 150, inr: 9200 },
+                  },
+                ]
 
                 const dhlEnabled = enabledIds.includes("dhl-express_dhl-express")
 
@@ -826,6 +876,52 @@ const autoLinkFulfillmentProvidersStep = createStep(
                       rules: [
                         { attribute: "enabled_in_store", value: "true", operator: "eq" },
                         { attribute: "is_return", value: "false", operator: "eq" },
+                      ],
+                    },
+                  ] as any,
+                })
+
+                await createShippingOptionsWorkflow(container).run({
+                  input: [
+                    {
+                      name: `Quote Freight — tiered (${suffix})`,
+                      price_type: "flat",
+                      provider_id: "manual_manual",
+                      service_zone_id: intlZone.id,
+                      shipping_profile_id: profileId,
+                      type: {
+                        label: "Quote freight",
+                        description:
+                          "B2B freight by consignment weight — quotes only, never shown in a cart",
+                        code: `quote-freight-tiered-${suffix}`,
+                      },
+                      /**
+                       * Priced from `data`, not from these rows — Medusa price
+                       * rules have no `weight` in their context and the
+                       * estimate has no cart to build one from. It computes
+                       * `total_weight_grams` for the carrier call anyway, so
+                       * the consignment weight is known there and nowhere else.
+                       *
+                       * A price row is still required for the option to exist
+                       * at all; the LIGHT tier is used so a misconfiguration
+                       * fails toward the smaller number rather than silently
+                       * charging a pallet rate for a parcel.
+                       */
+                      data: { quote_weight_tiers: QUOTE_FREIGHT_TIERS },
+                      // ⚠️ `intlCurrencies` is a Set — every other use here is
+                      // `for…of`, which hides that. Jest cannot see it either;
+                      // the prod-build gate caught it.
+                      prices: Array.from(intlCurrencies).map((cur) => ({
+                        currency_code: cur,
+                        amount:
+                          (QUOTE_FREIGHT_TIERS[0].amounts as any)[cur] ??
+                          (QUOTE_FREIGHT_TIERS[0].amounts as any)["usd"],
+                      })),
+                      rules: [
+                        // 🔴 FALSE, deliberately — see the block above.
+                        { attribute: "enabled_in_store", value: "false", operator: "eq" },
+                        { attribute: "is_return", value: "false", operator: "eq" },
+                        { attribute: "quote_only", value: "true", operator: "eq" },
                       ],
                     },
                   ] as any,
@@ -880,6 +976,13 @@ const autoLinkFulfillmentProvidersStep = createStep(
                         provider_id: "shiprocket_shiprocket",
                         service_zone_id: intlZone.id,
                         shipping_profile_id: profileId,
+                        // What this option charges when Shiprocket will not
+                        // quote the lane — per CURRENCY, because the amount is
+                        // returned in the cart's currency and one number cannot
+                        // serve both €35 and ₹3200. See the map's definition.
+                        data: {
+                          flat_fallback_amounts: intlFallbackByCurrency,
+                        },
                         type: {
                           label: "International",
                           description: "Cross-border delivery via Shiprocket — live rates",

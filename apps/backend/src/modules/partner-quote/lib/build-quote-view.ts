@@ -439,11 +439,42 @@ export type QuoteView = {
 }
 
 /**
- * PURE: the cheapest quotable option on the lane.
+ * PURE: what this lane actually costs — the carrier's rate when there is one.
  *
- * Cheapest, not "recommended": a recommendation is the carrier's commercial
- * opinion, and a buyer comparing suppliers is comparing the number they would
- * actually pay. Every option is still returned, so the page can show the rest.
+ * ## 🔴 A FLAT TIER IS NOT A COMPETITOR TO A LIVE RATE
+ *
+ * This used to take the cheapest row across BOTH pools. That is wrong in a way
+ * that only ever costs us money, and it was live:
+ *
+ * ```
+ * 2.2 kg, Mumbai, inr — carrier_consulted: true, carrier_rated_count: 1
+ * chosen: "Domestic Shipping · 68M3HY2V"  ₹99   ← a FLAT tier
+ * ```
+ *
+ * A courier rated that lane. We ignored the rate and quoted ₹99, because ₹99
+ * happened to be the smaller number. The flat tier does not move with weight,
+ * so on a 2.2 kg parcel it undercuts the real rate and on a 21 kg one it
+ * undercuts it enormously — every heavy consignment quoted below cost, and
+ * nothing anywhere looks broken because a freight figure was always present.
+ *
+ * "Cheapest" is the right rule for choosing between two REAL offers. A flat
+ * tier is not an offer; it is a placeholder for the answer we could not get.
+ * Comparing them on price alone treats a guess and a quote as the same kind of
+ * thing.
+ *
+ * So: a carrier rate wins whenever one exists, and the cheapest carrier rate
+ * wins among carriers — that part is still a comparison between real offers,
+ * and a buyer comparing suppliers is comparing what they would actually pay.
+ * The manual pool is consulted ONLY when no carrier rated the lane, which is
+ * exactly the case `needsManualFreightRate` then refuses to mint silently.
+ *
+ * ⚠️ This can make a quote MORE expensive than it was yesterday, and that is
+ * the point — the old number was not cheaper, it was wrong. It also removes an
+ * accidental cap: a carrier returning an absurd rate is now quoted rather than
+ * being silently replaced by the flat tier. Readiness surfaces the figure and
+ * its source, and `freight_override_amount` is how a human overrules it.
+ *
+ * Every option is still returned, so the page can show the rest.
  *
  * ## 🔴 Why a CALCULATED winner borrows a lane from a manual one (#1498)
  *
@@ -463,22 +494,55 @@ export type QuoteView = {
  * The donor is any manual option still standing, and by this point that list is
  * already filtered to zones covering the destination, to the quote currency and
  * to non-return options. Its ZONE is all that is borrowed — never its price.
- * When there is no manual option at all the id stays null and acceptance
- * refuses with the message #1497 wrote, which is the honest answer: the store
- * genuinely has no configured lane to that country.
+ *
+ * ⚠️ …and when there is none, `estimate.lane_option_id` stands in. That matters
+ * the moment a store stops carrying flat tiers at all: the donor used to be
+ * found only among manually-PRICED options, which made a hardcoded price a
+ * precondition for a quote being acceptable. A lane is a property of the zone,
+ * not of a price. Only when the store has no configured lane to that country
+ * whatsoever does the id stay null, and acceptance then refuses with the
+ * message #1497 wrote — which is the honest answer.
  */
 export function pickFreightOption(
-  estimate: Pick<ShippingEstimate, "manual" | "calculated">
+  estimate: Pick<ShippingEstimate, "manual" | "calculated"> &
+    Partial<Pick<ShippingEstimate, "lane_option_id">>
 ): ShippingEstimateOption | null {
-  const all = [...(estimate.calculated || []), ...(estimate.manual || [])]
-    .filter((o) => Number.isFinite(Number(o?.amount)))
-    .sort((a, b) => Number(a.amount) - Number(b.amount))
-  const winner = all[0] ?? null
+  const priced = (list: ShippingEstimateOption[] | undefined) =>
+    (list || [])
+      .filter((o) => Number.isFinite(Number(o?.amount)))
+      .sort((a, b) => Number(a.amount) - Number(b.amount))
+
+  const rated = priced(estimate.calculated)
+  const manual = priced(estimate.manual)
+
+  /**
+   * 🔴 THREE kinds of answer, in order of authority — never one price race.
+   *
+   *   1. a live carrier rate      — what the lane actually costs today
+   *   2. a quote-only weight tier — OUR B2B price for a consignment this heavy
+   *   3. a retail flat row        — a shopper's postage, priced for one piece
+   *
+   * A test caught the missing middle rung: with the carrier down, a 52 kg
+   * consignment fell straight past the ₹9200 tier to the retail ₹99, because
+   * within the manual pool the smaller number still won. That is the same
+   * defect one level down, and it would have shipped looking fixed.
+   *
+   * The retail row is not a cheaper offer for a pallet; it is an offer for a
+   * different parcel entirely. It stays in the pool only as a last resort and
+   * as a lane donor.
+   */
+  const winner =
+    rated[0] ??
+    manual.find((o) => o.quote_only) ??
+    manual[0] ??
+    null
   if (!winner || winner.shipping_option_id) return winner
 
-  const laneOption = (estimate.manual || []).find((o) => o.shipping_option_id)
-  if (!laneOption) return winner
-  return { ...winner, shipping_option_id: laneOption.shipping_option_id }
+  const donorId =
+    (estimate.manual || []).find((o) => o.shipping_option_id)
+      ?.shipping_option_id ?? estimate.lane_option_id ?? null
+  if (!donorId) return winner
+  return { ...winner, shipping_option_id: donorId }
 }
 
 /**

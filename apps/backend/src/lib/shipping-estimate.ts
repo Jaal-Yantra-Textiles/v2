@@ -8,6 +8,10 @@ import {
   type ExportOrigin,
 } from "../modules/shipping-providers/export-origins"
 import { resolveShippingProvider } from "../modules/shipping-providers/resolver"
+import {
+  isQuoteOnlyOption,
+  resolveQuoteTierAmount,
+} from "./quote-freight-tiers"
 
 /**
  * The freight estimate, as a function rather than an HTTP route (#1389 S2).
@@ -90,6 +94,12 @@ export type ShippingEstimateOption = {
   is_recommended?: boolean
   source: "manual" | "calculated"
   /**
+   * A quote-only weight tier (see `quote-freight-tiers.ts`). It sits in the
+   * manual pool but is NOT the same kind of answer as a retail flat row, and
+   * `pickFreightOption` ranks it above one.
+   */
+  quote_only?: boolean
+  /**
    * Set when this amount was CONVERTED from the carrier's own currency (#1498).
    *
    * 🔑 The rate travels with the number rather than being logged. A converted
@@ -170,6 +180,14 @@ export type ShippingEstimate = {
    * `needsManualFreightRate`.
    */
   carrier_consulted: boolean
+  /**
+   * A shipping option on a zone covering the destination, whatever its price
+   * type. Acceptance borrows its service zone and shipping profile when the
+   * freight came from a live carrier rate, which is not a Medusa option and so
+   * carries no id of its own. Null means the store has no configured lane to
+   * this country at all — the honest reason a quote cannot be accepted.
+   */
+  lane_option_id: string | null
   cache_hit: boolean
   is_estimate: true
 }
@@ -244,6 +262,15 @@ export function resolveUnitWeight(variant: {
  * alive.
  */
 export function isQuotableShippingOption(shippingOption: any): boolean {
+  /**
+   * 🔑 A quote-only option is deliberately NOT for the shop, which is a
+   * different thing from a store having switched an option off. It carries
+   * `enabled_in_store: "false"` so core's rule engine hides it from every cart,
+   * and that would otherwise trip the refusal below — so the positive marker is
+   * checked first. See `quote-freight-tiers.ts`.
+   */
+  if (isQuoteOnlyOption(shippingOption)) return true
+
   const rules = (shippingOption?.rules ?? []) as Array<{
     attribute?: string
     value?: unknown
@@ -511,11 +538,36 @@ export async function buildShippingEstimate(
       // and braces, and went unfetched until #1527 — so it checked a field
       // that could never arrive. Proven path: `/partners/stores/:id/shipping-options`.
       "fulfillment_sets.service_zones.shipping_options.type.*",
+      // The quote-only weight tiers live here, the same lever
+      // `flat_fallback_amount` uses. Unfetched, `isQuoteOnlyOption` would mark
+      // an option quote-only and the resolver would find no table — a guard
+      // reading a field the query never asked for, which is how the type-code
+      // check sat dead from #1485 to #1527.
+      "fulfillment_sets.service_zones.shipping_options.data",
     ],
     filters: { id: input.store.default_location_id },
   })
 
   const manual: ShippingEstimateOption[] = []
+  /**
+   * An option id on a zone that covers the destination — the LANE, independent
+   * of any price (#1498, widened here).
+   *
+   * 🔴 Acceptance needs a `shipping_option_id` to borrow a service zone and
+   * shipping profile from; a carrier rate is not a Medusa option and carries
+   * none. That donor used to be found among the MANUAL options, which quietly
+   * made a manually-PRICED option a precondition for a quote being acceptable
+   * at all. Remove the flat tiers — which is the whole point of moving to live
+   * rates — and every new quote becomes un-acceptable at the last step, the
+   * #1497 failure again and again discovered by the buyer.
+   *
+   * The zone is a property of the LANE, not of a price. So it is recorded while
+   * walking the zones, from any quotable option, priced or not. A manual option
+   * still wins the donor slot when one exists, purely for continuity with every
+   * quote already minted.
+   */
+  let laneOptionId: string | null = null
+  let manualLaneOptionId: string | null = null
   for (const fs of (optionLocations?.[0] as any)?.fulfillment_sets || []) {
     for (const zone of fs?.service_zones || []) {
       // 🔴 A zone that does not cover the destination must not price it.
@@ -526,9 +578,51 @@ export async function buildShippingEstimate(
       if (!zoneCoversDestination(zone, countryCode)) continue
 
       for (const so of zone?.shipping_options || []) {
+        // 🔴 The lane donor is recorded BEFORE the calculated skip, because a
+        // store moving to live rates may have nothing but calculated options —
+        // and it still has a lane. `isQuotableShippingOption` still gates it:
+        // a return row or another quote's freight is not this lane's donor.
+        if (isQuotableShippingOption(so) && so?.id) {
+          if (!laneOptionId) laneOptionId = String(so.id)
+          if (so.price_type !== "calculated" && !manualLaneOptionId) {
+            manualLaneOptionId = String(so.id)
+          }
+        }
+
         if (so?.price_type === "calculated") continue
         // 🔴 A RETURN option is not an outbound offer. See below.
         if (!isQuotableShippingOption(so)) continue
+
+        /**
+         * A quote-only tiered option is priced by CONSIGNMENT WEIGHT, not from
+         * its price rows — the whole point of it is that one number cannot
+         * serve a 2 kg parcel and a 22 kg pallet. See `quote-freight-tiers.ts`.
+         *
+         * 🔑 `continue` either way. A null means the table does not price this
+         * weight or this currency, and the option is then simply not offered —
+         * which lets `needsManualFreightRate` refuse rather than letting some
+         * other row stand in. Falling through to the price rows would quote the
+         * retail number under a quote-only label, which is the worst of both.
+         */
+        if (isQuoteOnlyOption(so)) {
+          const tiered = resolveQuoteTierAmount(
+            (so as any)?.data?.quote_weight_tiers,
+            totalWeightGrams,
+            quoteCurrency
+          )
+          if (tiered !== null) {
+            manual.push({
+              shipping_option_id: so.id,
+              name: so.name,
+              amount: tiered,
+              currency_code: quoteCurrency,
+              source: "manual",
+              quote_only: true,
+            })
+          }
+          continue
+        }
+
         for (const price of so?.prices || []) {
           // Only currency-scoped flat prices are meaningful without a cart;
           // region-scoped ones need a region the estimate does not have.
@@ -599,6 +693,7 @@ export async function buildShippingEstimate(
       // Nobody was asked, on purpose. This is what stops the empty list above
       // being read as a carrier that failed silently (#1528).
       carrier_consulted: false,
+      lane_option_id: manualLaneOptionId ?? laneOptionId,
       cache_hit: false,
       is_estimate: true,
     }
@@ -816,6 +911,7 @@ export async function buildShippingEstimate(
     // A carrier WAS asked on this path, whatever it answered — including
     // nothing at all, which is the case #1528 was blind to.
     carrier_consulted: true,
+    lane_option_id: manualLaneOptionId ?? laneOptionId,
     cache_hit: cacheHit,
     // Never present these as a final price: carrier rates move, and the manual
     // tier is a placeholder the partner is expected to edit.
