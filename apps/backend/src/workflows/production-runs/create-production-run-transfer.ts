@@ -178,7 +178,20 @@ async function recordTransferActivity(
   container: MedusaContainer,
   run: { id: string; partner_id?: string | null },
   transfer: ProductionRunTransferResult,
-  extra: { reason?: string; notes?: string | null }
+  extra: {
+    reason?: string
+    notes?: string | null
+    /**
+     * The cancelled hop this one re-books, when there is one.
+     *
+     * 🔑 It lives on the transfer's metadata already, but the ACTIVITY row is
+     * the permanent record — a transfer can be hard-deleted, and the timeline
+     * is then the only place the chain survives. The admin timeline resolves it
+     * from either source (#1542) so rows written before this stamp still read
+     * as a chain; new rows carry it themselves.
+     */
+    replacesTransferId?: string | null
+  }
 ): Promise<void> {
   const logger: any = container.resolve(ContainerRegistrationKeys.LOGGER)
   try {
@@ -214,6 +227,7 @@ async function recordTransferActivity(
         quantity: transfer.quantity,
         reason: extra.reason ?? null,
         notes: extra.notes ?? null,
+        replaces_transfer_id: extra.replacesTransferId ?? null,
         carrier: transfer.carrier ?? null,
         awb: transfer.awb ?? null,
         tracking_url: transfer.tracking_url ?? null,
@@ -374,6 +388,7 @@ export async function createProductionRunTransfer(
     await recordTransferActivity(container, run, base, {
       reason: input.reason,
       notes: input.notes ?? null,
+      replacesTransferId: replaced?.id ?? null,
     })
     return base
   }
@@ -513,6 +528,7 @@ export async function createProductionRunTransfer(
   await recordTransferActivity(container, run, shipped, {
     reason: input.reason,
     notes: input.notes ?? null,
+    replacesTransferId: replaced?.id ?? null,
   })
 
   return shipped
