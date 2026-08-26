@@ -237,20 +237,25 @@ export const CreatePaymentSubmissionComponent = () => {
     }
 
     try {
-      const metadata: Record<string, any> = {}
-      if (Object.keys(designCostOverrides).length) {
-        metadata.design_cost_overrides = designCostOverrides
-      }
-      if (Object.keys(taskCostOverrides).length) {
-        metadata.task_cost_overrides = taskCostOverrides
-      }
-
+      /**
+       * Typed fields, not `metadata`. These decide what a partner is paid, and
+       * `metadata` is validated as `z.record(z.string(), z.any())` — so a
+       * mistyped key used to validate cleanly and then silently fall through to
+       * the workflow's "absent means 1" default. The route now accepts
+       * `cost_overrides` / `task_cost_overrides` directly and folds them onto
+       * the metadata channel itself.
+       */
       const { payment_submission } = await createSubmission({
         partner_id: partnerId,
         design_ids: Array.from(selectedDesignIds),
         task_ids: Array.from(selectedTaskIds),
         notes: notes || undefined,
-        metadata: Object.keys(metadata).length ? metadata : undefined,
+        cost_overrides: Object.keys(designCostOverrides).length
+          ? designCostOverrides
+          : undefined,
+        task_cost_overrides: Object.keys(taskCostOverrides).length
+          ? taskCostOverrides
+          : undefined,
       })
       toast.success("Payment submission created")
       navigate(`/payment-submissions/${payment_submission.id}`)

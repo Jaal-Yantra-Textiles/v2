@@ -29,8 +29,26 @@ export type ConsumptionApplyLog = {
   quantity: number | string | null
   is_committed: boolean
   location_id: string | null
+  /** Real column since Migration20260826180000 — see `appliedAt`. */
+  inventory_applied_at?: string | Date | null
   metadata: Record<string, any> | null
 }
+
+/**
+ * When this log's deduction was applied, or null.
+ *
+ * Reads the column first and the legacy `metadata` key second. Both are checked
+ * on purpose: the column is authoritative for anything written since
+ * Migration20260826180000, and the metadata key still answers for rows the
+ * backfill has not swept.
+ *
+ * 🔑 The fallback is `??`, not `||` — an empty string is a value somebody wrote,
+ * and treating it as "never applied" would re-deduct the stock.
+ */
+export const appliedAt = (
+  log: Pick<ConsumptionApplyLog, "inventory_applied_at" | "metadata">
+): string | Date | null =>
+  log.inventory_applied_at ?? log.metadata?.[APPLIED_AT_KEY] ?? null
 
 export type ConsumptionApplyPlanInput = {
   /** Default location stock is deducted from, when a log resolves no other. */
@@ -236,8 +254,9 @@ export function planConsumptionApplication(
       skip("not committed")
       continue
     }
-    if (log.metadata?.[APPLIED_AT_KEY]) {
-      skip(`already applied at ${log.metadata[APPLIED_AT_KEY]}`)
+    const alreadyApplied = appliedAt(log)
+    if (alreadyApplied) {
+      skip(`already applied at ${alreadyApplied}`)
       continue
     }
     // Labour (`Hour`) and energy (`kWh`) logs carry a raw_material_id instead —

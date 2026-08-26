@@ -191,6 +191,47 @@ setupSharedTestSuite(() => {
         dbg("admin.log.created", log)
       })
 
+      /**
+       * The inventory-apply stamp lives in its own columns, not in `metadata`.
+       *
+       * 🔴 `inventory_applied_at` is the idempotency guard for stock deduction
+       * — the apply job skips any log carrying it. Inside the `metadata` JSON
+       * blob that guard survived only because every writer remembered to
+       * spread the existing object first, and this codebase already contains
+       * update routes shaped `metadata: body.metadata`. One of those pointed at
+       * a consumption log would have erased the stamp without erroring, and the
+       * next apply run would have taken the same material off the shelf twice.
+       *
+       * This asserts the columns EXIST and start null. A field the schema never
+       * created reads as `undefined`, which the reader resolves to "never
+       * applied" — indistinguishable from a genuinely unapplied log, and the
+       * failure is silent stock loss rather than an error. So the test that
+       * matters is that the key is present and its value is null, which is why
+       * `toBeNull` is used rather than a falsy check.
+       */
+      it("starts with null inventory-applied columns, not metadata keys", async () => {
+        const res = await api.post(
+          `/admin/designs/${designId}/consumption-logs`,
+          {
+            inventoryItemId,
+            quantity: 1.25,
+            unitOfMeasure: "Meter",
+            consumptionType: "sample",
+            locationId: stockLocationId,
+          },
+          adminHeaders
+        )
+
+        expect(res.status).toBe(201)
+        const log = res.data.consumption_log
+
+        // Present-and-null, not merely absent — see the note above.
+        expect(log).toHaveProperty("inventory_applied_at")
+        expect(log).toHaveProperty("inventory_applied_location_id")
+        expect(log.inventory_applied_at).toBeNull()
+        expect(log.inventory_applied_location_id).toBeNull()
+      })
+
       it("should log wastage consumption", async () => {
         const res = await api.post(
           `/admin/designs/${designId}/consumption-logs`,

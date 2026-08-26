@@ -1,5 +1,7 @@
 import { z } from "zod"
 
+import { paymentSubmissionMoneyFields } from "../../../workflows/payment_submissions/lib/money-fields"
+
 export const AdminListPaymentSubmissionsQuerySchema = z.object({
   status: z
     .enum([
@@ -49,6 +51,29 @@ export const CreateAdminPaymentSubmissionSchema = z
         })
       )
       .optional(),
+    /**
+     * The money contract — quantities, per-unit rates and typed totals — as
+     * real fields rather than untyped `metadata` keys. Shared with the partner
+     * route so the two cannot drift. See `paymentSubmissionMoneyFields`.
+     */
+    ...paymentSubmissionMoneyFields,
+    /**
+     * Where the submission lands. The workflow has always accepted this; the
+     * route never forwarded it, so an admin-created submission could only ever
+     * be "Pending" — never the Draft an admin actually wants when preparing a
+     * payout for review.
+     */
+    status: z.enum(["Draft", "Pending"]).optional(),
+    /**
+     * Skip the design-status gate (must be Approved/Commerce_Ready).
+     *
+     * The run-completion auto-draft already passes `false` because its proof of
+     * finished work is the COMPLETED RUN, not the design's review state. An
+     * admin paying out a finished run is in exactly that position, and without
+     * this the only way through was to edit the design's status — changing what
+     * the record asserts about technical review in order to release a payment.
+     */
+    require_design_status: z.boolean().optional(),
     metadata: z.record(z.string(), z.any()).optional(),
   })
   .refine(

@@ -2,6 +2,10 @@ import { MedusaError } from "@medusajs/framework/utils"
 import { z } from "@medusajs/framework/zod"
 
 import { CONSUMPTION_LOG_MODULE } from "../../../../modules/consumption_log"
+import {
+  APPLIED_AT_KEY,
+  appliedAt as resolveAppliedAt,
+} from "../../../../workflows/consumption-logs/lib/apply-to-inventory"
 import type { MaintenanceChange, MaintenanceJob, MaintenanceJobResult } from "./registry"
 
 /**
@@ -42,8 +46,14 @@ const paramsSchema = z
     { message: "nothing to correct — pass at least one set_* parameter" }
   )
 
-/** Stamped by the apply job; its presence means stock already moved. */
-const APPLIED_AT_KEY = "inventory_applied_at"
+/**
+ * Stamped by the apply job; its presence means stock already moved.
+ *
+ * 🔑 IMPORTED, not redeclared. This file used to carry its own copy of the
+ * string, so the vocabulary had two owners and a rename in one would have
+ * quietly stopped this guard from firing — the failure mode being an edit
+ * allowed on a log whose stock had already been deducted.
+ */
 
 /**
  * Diff the requested corrections against the log as it stands.
@@ -132,11 +142,12 @@ export const repairConsumptionLogJob: MaintenanceJob = {
     // the fact would leave the log describing a movement that never happened,
     // and the idempotency stamp means it will never be re-applied to correct
     // itself. Reverse the stock by hand first if this really needs changing.
-    const appliedAt = (log.metadata || {})[APPLIED_AT_KEY]
-    if (appliedAt) {
+    // Column first, legacy metadata key second — see `appliedAt`.
+    const alreadyApplied = resolveAppliedAt(log as any)
+    if (alreadyApplied) {
       throw new MedusaError(
         MedusaError.Types.NOT_ALLOWED,
-        `Consumption log ${logId} was already applied to inventory at ${appliedAt}. Correcting it now would not move the stock back — reverse the level by hand first, clear metadata.${APPLIED_AT_KEY}, then re-run.`
+        `Consumption log ${logId} was already applied to inventory at ${alreadyApplied}. Correcting it now would not move the stock back — reverse the level by hand first, clear inventory_applied_at (and legacy metadata.${APPLIED_AT_KEY}), then re-run.`
       )
     }
 

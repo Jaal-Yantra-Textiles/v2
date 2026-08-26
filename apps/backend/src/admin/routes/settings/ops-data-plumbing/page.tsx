@@ -6,7 +6,6 @@ import {
   Button,
   Input,
   Label,
-  Select,
   Switch,
   DataTable,
   DataTablePaginationState,
@@ -23,6 +22,7 @@ import { createColumnHelper } from "@tanstack/react-table"
 import { useMemo, useState } from "react"
 import { useNavigate } from "react-router-dom"
 
+import { Combobox } from "../../../components/inputs/combobox/combobox"
 import {
   useMaintenanceJobs,
   useMaintenanceRuns,
@@ -106,6 +106,15 @@ const JobRunner = ({ job }: { job: MaintenanceJobSummary }) => {
 
   return (
     <div className="flex flex-col gap-y-4">
+      {/*
+       * The id, not just the prose label: every handoff, issue and runbook
+       * names a job by its id, and it is what you pass to the ops API. The
+       * picker searches on it but cannot display it, so this is the one place
+       * you can read it back and confirm you opened the job you meant.
+       */}
+      <Text size="xsmall" family="mono" className="text-ui-fg-muted">
+        {job.id}
+      </Text>
       <Text size="small" className="text-ui-fg-subtle">
         {job.description}
       </Text>
@@ -188,11 +197,37 @@ const RunJobDrawer = () => {
   const { jobs, isLoading, isError } = useMaintenanceJobs()
   const [open, setOpen] = useState(false)
   const [selectedId, setSelectedId] = useState<string | undefined>(undefined)
+  const [search, setSearch] = useState("")
 
   const selectedJob = useMemo(
     () => jobs.find((j) => j.id === selectedId),
     [jobs, selectedId]
   )
+
+  /**
+   * The registry is 80+ jobs and grows with every backfill we ship, so an
+   * unfiltered dropdown was a scroll. Search covers the id and the description
+   * as well as the label, because those are the handles people actually arrive
+   * with: handoffs, issues and runbooks name a job by its id
+   * (`audit-partner-payout-quantity`) or by the issue number that sits in the
+   * description, never by its prose label.
+   *
+   * 🔑 The search is CONTROLLED, which switches Combobox's own `matchSorter`
+   * off (it keys on `label` alone) and makes the options we pass the list that
+   * renders. Substring rather than fuzzy on purpose: with ids this long, fuzzy
+   * matches "audit" inside half the registry.
+   */
+  const options = useMemo(() => {
+    const all = jobs.map((j) => ({ value: j.id, label: j.label }))
+    const q = search.trim().toLowerCase()
+    if (!q) return all
+    return jobs
+      .filter((j) =>
+        [j.id, j.label, j.description]
+          .some((f) => String(f ?? "").toLowerCase().includes(q))
+      )
+      .map((j) => ({ value: j.id, label: j.label }))
+  }, [jobs, search])
 
   return (
     <Drawer
@@ -223,18 +258,25 @@ const RunJobDrawer = () => {
                 Failed to load jobs.
               </Text>
             ) : (
-              <Select value={selectedId} onValueChange={setSelectedId}>
-                <Select.Trigger>
-                  <Select.Value placeholder="Select a maintenance job…" />
-                </Select.Trigger>
-                <Select.Content>
-                  {jobs.map((j) => (
-                    <Select.Item key={j.id} value={j.id}>
-                      {j.label}
-                    </Select.Item>
-                  ))}
-                </Select.Content>
-              </Select>
+              <Combobox
+                options={options}
+                value={selectedId ?? ""}
+                onChange={(value?: string | string[]) =>
+                  setSelectedId(
+                    typeof value === "string" && value ? value : undefined
+                  )
+                }
+                searchValue={search}
+                onSearchValueChange={setSearch}
+                placeholder="Search jobs by name, id or issue…"
+                noResultsPlaceholder="No job matches that."
+                /**
+                 * The drawer body is `overflow-y-auto`, which is precisely the
+                 * clipped-ancestor case the portal escape hatch exists for —
+                 * without it the options list is trapped inside the scroll box.
+                 */
+                portal
+              />
             )}
           </div>
 

@@ -2,6 +2,7 @@ import type { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
 import { PAYMENT_SUBMISSIONS_MODULE } from "../../../modules/payment_submissions"
 import PaymentSubmissionsService from "../../../modules/payment_submissions/service"
 import { createPaymentSubmissionWorkflow } from "../../../workflows/payment_submissions/create-payment-submission"
+import { foldMoneyFieldsIntoMetadata } from "../../../workflows/payment_submissions/lib/money-fields"
 
 // GET /admin/payment-submissions — list all submissions with filters
 export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
@@ -44,6 +45,10 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
     task_ids?: string[]
     notes?: string
     documents?: Array<{ id?: string; url: string; filename?: string; mimeType?: string }>
+    quantities?: Record<string, number>
+    unit_amounts?: Record<string, number>
+    status?: "Draft" | "Pending"
+    require_design_status?: boolean
     metadata?: Record<string, any>
   }
 
@@ -54,8 +59,13 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
       task_ids: body.task_ids || [],
       notes: body.notes,
       documents: body.documents,
+      status: body.status,
+      require_design_status: body.require_design_status,
       metadata: {
-        ...(body.metadata || {}),
+        // Typed money fields win over the metadata channel and land on it —
+        // see `foldMoneyFieldsIntoMetadata` for why the precedence is per-field
+        // and one-way rather than a per-key merge.
+        ...foldMoneyFieldsIntoMetadata(body),
         // Mark the origin so reviewers can tell admin-created submissions apart
         created_by: "admin",
       },
