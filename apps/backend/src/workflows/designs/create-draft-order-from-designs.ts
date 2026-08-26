@@ -78,6 +78,21 @@ const estimateDesignCostsStep = createStep(
           container
         ).run({ input: { design_id } }) as { result: EstimateCostOutput }
 
+        /**
+         * 🔴 Refuse rather than put a zero on an order line.
+         *
+         * `total_estimated` is null when the estimator had nothing to price
+         * from — no bill of materials, no order history. It used to be 0, which
+         * went onto the draft order as a real unit price and read as a
+         * deliberate freebie. The caller already has the remedy: pass this
+         * design in `overrides` with a price someone actually decided. #1564
+         */
+        if (costEstimate.total_estimated == null) {
+          throw new Error(
+            `Cannot price design "${design.name}" (${design_id}): it has no bill of materials and no cost history. Supply a price for it in overrides.`
+          )
+        }
+
         estimates.push({
           design_id,
           name: design.name,

@@ -79,6 +79,25 @@ export async function POST(
     throw new MedusaError(MedusaError.Types.UNEXPECTED_STATE, "Failed to estimate design cost");
   }
 
+  /**
+   * 🔴 Refuse rather than sell it for nothing.
+   *
+   * There was no check here at all. The estimator reported "no BOM, no order
+   * history, nothing to go on" as `total_estimated: 0`, and this route fed that
+   * straight into `unit_price` with `is_custom_price: true` — so a design
+   * nobody had ever costed went into a customer's cart FREE, with a line item
+   * that looks exactly like a legitimately-priced one.
+   *
+   * A cost of null is not a cheap design; it is an unanswered question, and the
+   * only safe thing to do with an unanswered question at the till is stop. #1564
+   */
+  if (costEstimate.total_estimated == null) {
+    throw new MedusaError(
+      MedusaError.Types.NOT_ALLOWED,
+      "This design cannot be priced automatically yet — it has no bill of materials and no cost history. Please contact us for a quote."
+    );
+  }
+
   const cartService = req.scope.resolve(Modules.CART) as any;
 
   // Determine the cart's currency so we can convert from store default
