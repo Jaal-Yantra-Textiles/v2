@@ -1,3 +1,19 @@
+# [13.114.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.113.0...v13.114.0) (2026-08-26)
+
+
+### Bug Fixes
+
+* **payments:** a per-piece rate was billed once — give a payment line a quantity ([#1554](https://github.com/Jaal-Yantra-Textiles/v2/issues/1554)) ([#1555](https://github.com/Jaal-Yantra-Textiles/v2/issues/1555)) ([db9465c](https://github.com/Jaal-Yantra-Textiles/v2/commit/db9465c180ec2233f0e7fcaff02f41c65340d9e2)), closes [#456](https://github.com/Jaal-Yantra-Textiles/v2/issues/456)
+* **e2e:** disambiguate the Actions selector that has failed on main since 25 Aug ([#1558](https://github.com/Jaal-Yantra-Textiles/v2/issues/1558)) ([9811e91](https://github.com/Jaal-Yantra-Textiles/v2/commit/9811e9166a4444e3b77623feff34c8a24c60857e)), closes [#1488](https://github.com/Jaal-Yantra-Textiles/v2/issues/1488)
+* **test:** main's shard 2 has been red since [#1555](https://github.com/Jaal-Yantra-Textiles/v2/issues/1555) — the payload had two defects ([#1561](https://github.com/Jaal-Yantra-Textiles/v2/issues/1561)) ([fe4dc58](https://github.com/Jaal-Yantra-Textiles/v2/commit/fe4dc58ff20acf85acadd023fc78ebcb21dfc4ed))
+* **payments:** take the money contract out of the metadata blob ([#1556](https://github.com/Jaal-Yantra-Textiles/v2/issues/1556)) ([#1557](https://github.com/Jaal-Yantra-Textiles/v2/issues/1557)) ([f6a852d](https://github.com/Jaal-Yantra-Textiles/v2/commit/f6a852da5faeb4d3b029e1f173e424da1bcf53b9)), closes [#1554](https://github.com/Jaal-Yantra-Textiles/v2/issues/1554)
+* **payments:** the payout screen listed designs — a design is not a payable thing ([#1556](https://github.com/Jaal-Yantra-Textiles/v2/issues/1556)) ([#1560](https://github.com/Jaal-Yantra-Textiles/v2/issues/1560)) ([aee04d4](https://github.com/Jaal-Yantra-Textiles/v2/commit/aee04d47bc11b690582f060cfe37fbc584c362fd)), closes [#1557](https://github.com/Jaal-Yantra-Textiles/v2/issues/1557) [#1557](https://github.com/Jaal-Yantra-Textiles/v2/issues/1557)
+
+
+### Features
+
+* **inquiries,production-runs:** answer an inquiry in conversation, and split a BOM at the moment a run is created ([#1548](https://github.com/Jaal-Yantra-Textiles/v2/issues/1548)) ([649801f](https://github.com/Jaal-Yantra-Textiles/v2/commit/649801fbf35428758bea075d0497d99b641afdcb)), closes [#1394](https://github.com/Jaal-Yantra-Textiles/v2/issues/1394) [#1531](https://github.com/Jaal-Yantra-Textiles/v2/issues/1531) [#1361](https://github.com/Jaal-Yantra-Textiles/v2/issues/1361)
+
 # [13.113.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.112.2...v13.113.0) (2026-08-25)
 
 
