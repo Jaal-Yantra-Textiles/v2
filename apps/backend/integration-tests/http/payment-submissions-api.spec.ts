@@ -1253,6 +1253,118 @@ setupSharedTestSuite(() => {
     })
   })
 
+  /**
+   * Correcting a run must re-price the Draft it pre-filled (#1571).
+   *
+   * 🔴 `auto-draft-payment-submission` writes a Draft at completion using the
+   * figures of that moment. Correcting the run afterwards changed nothing about
+   * it — and no route could fix it either, since `review` refuses anything that
+   * is not Pending or Under_Review. A reviewer would approve a figure that no
+   * longer matches the run it came from. This happened on prod:
+   * `prod_run_01KZWX801S8HBNZ8DYBVNJK5GZ` drafted at 1190 and corrected to 840.
+   */
+  describe("a run correction re-prices its unclaimed Draft", () => {
+    /** A completed run plus the Draft payout the subscriber pre-filled from it. */
+    async function runWithDraft(name: string) {
+      const designId = await createDesign(name, { estimated_cost: 1200 })
+      await linkDesignToPartner(designId, partnerId)
+      const runId = await createCompletedRun(designId, name, {
+        quantity: 1,
+        produced_quantity: 3,
+        partner_cost_estimate: 1190,
+        cost_type: "per_unit",
+      })
+
+      const sub = await api.post(
+        "/admin/payment-submissions",
+        {
+          partner_id: partnerId,
+          design_ids: [designId],
+          quantities: { [designId]: 1 },
+          unit_amounts: { [designId]: 1190 },
+          production_run_ids: { [designId]: [runId] },
+          status: "Draft",
+        },
+        adminHeaders
+      )
+      expect(sub.status).toBe(201)
+      return { designId, runId, submissionId: sub.data.payment_submission.id }
+    }
+
+    it("re-prices the Draft when the run's rate is corrected", async () => {
+      const { runId, submissionId } = await runWithDraft("Stale Draft Design")
+
+      const before = await api.get(
+        `/admin/payment-submissions/${submissionId}`,
+        adminHeaders
+      )
+      expect(Number(before.data.payment_submission.total_amount)).toBe(1190)
+
+      // The correction that used to leave the Draft stale.
+      const corrected = await api.post(
+        `/admin/production-runs/${runId}`,
+        { partner_cost_estimate: 840, cost_type: "total", produced_quantity: 1 },
+        adminHeaders
+      )
+      expect(corrected.status).toBe(200)
+
+      // The EFFECT, re-read rather than taken from the correction's response.
+      const after = await api.get(
+        `/admin/payment-submissions/${submissionId}`,
+        adminHeaders
+      )
+      expect(Number(after.data.payment_submission.total_amount)).toBe(840)
+      expect(Number(after.data.payment_submission.items[0].amount)).toBe(840)
+    })
+
+    /**
+     * ⚠️ Passes on the old code too — it never touched anything. Kept as the
+     * guard that stops this fix over-reaching: the refresh must never widen
+     * from Draft to a live claim.
+     */
+    it("REFUSES to touch a payout somebody has already claimed", async () => {
+      // 🔴 The guard that keeps this from being dangerous. A Pending submission
+      // is a partner saying "pay me this"; silently rewriting it would change
+      // what they are owed without them ever seeing it.
+      const designId = await createDesign("Claimed Payout Design", {
+        estimated_cost: 1200,
+      })
+      await linkDesignToPartner(designId, partnerId)
+      const runId = await createCompletedRun(designId, "Claimed Payout Design", {
+        quantity: 1,
+        produced_quantity: 3,
+        partner_cost_estimate: 1190,
+        cost_type: "per_unit",
+      })
+
+      const sub = await api.post(
+        "/admin/payment-submissions",
+        {
+          partner_id: partnerId,
+          design_ids: [designId],
+          quantities: { [designId]: 1 },
+          unit_amounts: { [designId]: 1190 },
+          production_run_ids: { [designId]: [runId] },
+          // Pending, not Draft — a live claim.
+        },
+        adminHeaders
+      )
+      const submissionId = sub.data.payment_submission.id
+
+      await api.post(
+        `/admin/production-runs/${runId}`,
+        { partner_cost_estimate: 840, cost_type: "total", produced_quantity: 1 },
+        adminHeaders
+      )
+
+      const after = await api.get(
+        `/admin/payment-submissions/${submissionId}`,
+        adminHeaders
+      )
+      expect(Number(after.data.payment_submission.total_amount)).toBe(1190)
+    })
+  })
+
   describe("POST /admin/payment-submissions — run provenance (#1556)", () => {
     it("records which runs a line paid for, and reports them as billed", async () => {
       const d1 = await createDesign("Provenance Design", {
