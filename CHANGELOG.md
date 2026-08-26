@@ -1,3 +1,15 @@
+# [13.115.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.114.3...v13.115.0) (2026-08-26)
+
+
+### Bug Fixes
+
+* **payments:** the money must not silently disagree with itself ([#1571](https://github.com/Jaal-Yantra-Textiles/v2/issues/1571)) ([#1572](https://github.com/Jaal-Yantra-Textiles/v2/issues/1572)) ([2c4b47d](https://github.com/Jaal-Yantra-Textiles/v2/commit/2c4b47dc4af1fc0e2b883b05fa6edef074ecfba9)), closes [#1554](https://github.com/Jaal-Yantra-Textiles/v2/issues/1554) [#1564](https://github.com/Jaal-Yantra-Textiles/v2/issues/1564)
+
+
+### Features
+
+* **ops:** a payment line's run can be corrected by hand ([#1565](https://github.com/Jaal-Yantra-Textiles/v2/issues/1565)) ([#1570](https://github.com/Jaal-Yantra-Textiles/v2/issues/1570)) ([43c8bb7](https://github.com/Jaal-Yantra-Textiles/v2/commit/43c8bb7861411ff023ddf25201ac3f2bce257da7))
+
 ## [13.114.3](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.114.2...v13.114.3) (2026-08-26)
 
 
