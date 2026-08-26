@@ -1124,6 +1124,135 @@ setupSharedTestSuite(() => {
     })
   })
 
+  /**
+   * The typed money fields are the contract; `metadata` is a fallback (#1571).
+   *
+   * 🔴 The workflow used to read the money ONLY off `metadata`, so the typed
+   * fields were a validation façade over an untyped contract — post the blob
+   * directly and every typed guarantee was bypassed.
+   */
+  describe("money travels typed, not through metadata (#1571)", () => {
+    /**
+     * ⚠️ REGRESSION LOCK, not proof of the fix. This already passed before
+     * #1571, because the route's `foldMoneyFieldsIntoMetadata` overwrites the
+     * blob with the typed values on the way in. The workflow-level precedence
+     * added in #1571 is what makes it true for callers that reach the workflow
+     * DIRECTLY — the auto-draft subscriber — where no fold runs.
+     */
+    it("the typed field WINS over a conflicting metadata blob", async () => {
+      const d1 = await createDesign("Typed Wins Design", {
+        estimated_cost: 1200,
+      })
+      await linkDesignToPartner(d1, partnerId)
+
+      const res = await api.post(
+        "/admin/payment-submissions",
+        {
+          partner_id: partnerId,
+          design_ids: [d1],
+          quantities: { [d1]: 4 },
+          unit_amounts: { [d1]: 1200 },
+          // A stale blob claiming something different. The typed field is the
+          // caller's stated intent; an untyped channel must not overrule it.
+          metadata: {
+            design_quantities: { [d1]: 99 },
+            design_unit_amounts: { [d1]: 5 },
+          },
+        },
+        adminHeaders
+      )
+      expect(res.status).toBe(201)
+
+      const detail = await api.get(
+        `/admin/payment-submissions/${res.data.payment_submission.id}`,
+        adminHeaders
+      )
+      const item = detail.data.payment_submission.items[0]
+      expect(Number(item.quantity)).toBe(4)
+      expect(Number(item.unit_amount)).toBe(1200)
+      expect(Number(item.amount)).toBe(4800)
+    })
+
+    /** Also a regression lock: the legacy path must not change at all. */
+    it("still honours a caller that only posts metadata", async () => {
+      // 🔴 The legacy channel is deliberately kept. Dropping it would silently
+      // re-price such a caller's line off the design's stored cost — a money
+      // change nobody asked for is worse than the channel being untyped.
+      const d1 = await createDesign("Legacy Metadata Design", {
+        estimated_cost: 1200,
+      })
+      await linkDesignToPartner(d1, partnerId)
+
+      const res = await api.post(
+        "/admin/payment-submissions",
+        {
+          partner_id: partnerId,
+          design_ids: [d1],
+          metadata: {
+            design_quantities: { [d1]: 3 },
+            design_unit_amounts: { [d1]: 700 },
+          },
+        },
+        adminHeaders
+      )
+      expect(res.status).toBe(201)
+
+      const detail = await api.get(
+        `/admin/payment-submissions/${res.data.payment_submission.id}`,
+        adminHeaders
+      )
+      const item = detail.data.payment_submission.items[0]
+      expect(Number(item.quantity)).toBe(3)
+      expect(Number(item.amount)).toBe(2100)
+    })
+
+    it("REFUSES a misspelt money key instead of ignoring it", async () => {
+      // The #1554 defect, reachable by one letter: `design_quantites` validates
+      // cleanly, is read by nothing, and the line falls through to "absent
+      // means 1" — a per-unit rate billed once. There is no bad VALUE to
+      // reject, only a fact that never arrived, so the boundary is the only
+      // place it can be seen.
+      const d1 = await createDesign("Typo Key Design", { estimated_cost: 1200 })
+      await linkDesignToPartner(d1, partnerId)
+
+      const res = await api
+        .post(
+          "/admin/payment-submissions",
+          {
+            partner_id: partnerId,
+            design_ids: [d1],
+            metadata: { design_quantites: { [d1]: 9 } },
+          },
+          adminHeaders
+        )
+        .catch((e: any) => e.response)
+
+      expect(res.status).toBe(400)
+      expect(String(res.data?.message || "")).toMatch(/design_quantities/)
+    })
+
+    it("refuses the same typo on the partner route", async () => {
+      const d1 = await createDesign("Partner Typo Design", {
+        estimated_cost: 1200,
+      })
+      await linkDesignToPartner(d1, partnerId)
+
+      const res = await api
+        .post(
+          "/partners/payment-submissions",
+          {
+            design_ids: [d1],
+            metadata: { design_cost_override: { [d1]: 900 } },
+          },
+          { headers: partnerHeaders }
+        )
+        .catch((e: any) => e.response)
+
+      expect(res.status).toBe(400)
+      expect(String(res.data?.message || "")).toMatch(/design_cost_overrides/)
+    })
+  })
+
   describe("POST /admin/payment-submissions — run provenance (#1556)", () => {
     it("records which runs a line paid for, and reports them as billed", async () => {
       const d1 = await createDesign("Provenance Design", {

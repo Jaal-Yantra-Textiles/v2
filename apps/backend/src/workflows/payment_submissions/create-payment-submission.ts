@@ -29,7 +29,35 @@ export type CreatePaymentSubmissionInput = {
   task_ids?: string[]
   notes?: string
   documents?: Array<{ id?: string; url: string; filename?: string; mimeType?: string }>
+  /**
+   * ⚠️ Free-form, and NOT where the money lives any more.
+   *
+   * The four fields below used to reach this workflow only through here, and
+   * every route validates `metadata` as `z.record(z.string(), z.any())` — which
+   * accepts anything. `design_quantities` and `design_quantites` both validated
+   * cleanly, and the typo fell through to "absent means 1" and billed a
+   * per-unit rate once (#1554 by spelling mistake, #1557).
+   *
+   * Reading them off `metadata` is kept ONLY as a fallback for callers that
+   * still post that way; the typed fields win outright. See `moneyOf` below.
+   */
   metadata?: Record<string, any>
+  /**
+   * What the caller is asking to be paid, as typed inputs rather than blob keys.
+   *
+   * 🔑 These are the contract now. Each corresponds to a `metadata.design_*`
+   * key the workflow used to read, and an explicit field REPLACES the whole
+   * corresponding map rather than merging key-by-key — a caller that sends
+   * `quantities` must not still be overridden by a stale blob it never wrote.
+   */
+  /** Units billed per design. Absent means 1. */
+  quantities?: Record<string, number>
+  /** Agreed rate per unit, per design. Beats the design's stored cost. */
+  unit_amounts?: Record<string, number>
+  /** Typed line TOTAL per design. Wins outright; never multiplied by quantity. */
+  cost_overrides?: Record<string, number>
+  /** Typed line total per task. */
+  task_cost_overrides?: Record<string, number>
   /**
    * The status the submission lands in. "Pending" (the default) is a partner
    * saying "pay me for this". "Draft" is the system pre-filling one FOR the
@@ -915,14 +943,43 @@ export const createPaymentSubmissionWorkflow = createWorkflow(
   (input: CreatePaymentSubmissionInput) => {
     // The partner UI passes form-entered amounts via metadata so reviewers can
     // see original vs requested; honor them here as the submitted amounts.
-    const costOverrides = transform({ input }, (data) => ({
-      designs: sanitizeCostOverrides(data.input.metadata?.design_cost_overrides),
-      tasks: sanitizeCostOverrides(data.input.metadata?.task_cost_overrides),
-      // Units billed per design. Rides the same metadata channel as the cost
-      // overrides so both ends of the existing partner form keep one shape.
-      designQuantities: sanitizeQuantities(data.input.metadata?.design_quantities),
-      designUnitAmounts: sanitizeCostOverrides(data.input.metadata?.design_unit_amounts),
-    }))
+    /**
+     * The typed field wins; `metadata` is a fallback for callers that have not
+     * moved yet.
+     *
+     * 🔴 The precedence direction matters. `metadata` accepts anything, so a
+     * caller that states its intent in a typed field must not then be
+     * overridden by a blob — that would put the untyped channel back in charge
+     * of the money and hand #1557 its shape back. An explicit field replaces
+     * the WHOLE map rather than merging key-by-key, for the same reason.
+     *
+     * ⚠️ The fallback is deliberately kept rather than deleted. Dropping the
+     * metadata read outright would silently stop honouring any caller still
+     * posting that way — their line would quietly re-price off the design's
+     * stored cost, which is a money change nobody asked for. Near-miss keys are
+     * refused at the route boundary instead, which is what kills the typo class.
+     */
+    const costOverrides = transform({ input }, (data) => {
+      const moneyOf = (
+        typed: Record<string, number> | undefined,
+        legacy: unknown
+      ) => (typed !== undefined ? typed : legacy)
+
+      return {
+        designs: sanitizeCostOverrides(
+          moneyOf(data.input.cost_overrides, data.input.metadata?.design_cost_overrides)
+        ),
+        tasks: sanitizeCostOverrides(
+          moneyOf(data.input.task_cost_overrides, data.input.metadata?.task_cost_overrides)
+        ),
+        designQuantities: sanitizeQuantities(
+          moneyOf(data.input.quantities, data.input.metadata?.design_quantities)
+        ),
+        designUnitAmounts: sanitizeCostOverrides(
+          moneyOf(data.input.unit_amounts, data.input.metadata?.design_unit_amounts)
+        ),
+      }
+    })
 
     const validatedDesigns = validateDesignsForSubmissionStep({
       partner_id: input.partner_id,

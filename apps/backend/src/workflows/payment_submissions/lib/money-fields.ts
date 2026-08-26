@@ -1,6 +1,7 @@
 // Plain "zod", matching both validators that spread this fragment. Mixing zod
 // instances across a spread makes the composed object's types disagree in ways
 // that surface as an unrelated-looking error in the consuming file.
+import { MedusaError } from "@medusajs/framework/utils"
 import { z } from "zod"
 
 /**
@@ -76,20 +77,116 @@ export type PaymentSubmissionMoneyInput = {
 }
 
 /**
- * Fold the typed fields onto the metadata channel the workflow reads.
+ * The `metadata` keys the workflow still reads money from, for callers that
+ * have not moved to the typed fields.
+ */
+export const LEGACY_MONEY_METADATA_KEYS = [
+  "design_cost_overrides",
+  "task_cost_overrides",
+  "design_quantities",
+  "design_unit_amounts",
+] as const
+
+/** Levenshtein distance, capped — we only care about "close". */
+const distance = (a: string, b: string): number => {
+  if (a === b) return 0
+  if (Math.abs(a.length - b.length) > 3) return 99
+  let prev = Array.from({ length: b.length + 1 }, (_, i) => i)
+  for (let i = 1; i <= a.length; i++) {
+    const row = [i]
+    for (let j = 1; j <= b.length; j++) {
+      row[j] = Math.min(
+        prev[j] + 1,
+        row[j - 1] + 1,
+        prev[j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1)
+      )
+    }
+    prev = row
+  }
+  return prev[b.length]
+}
+
+/**
+ * PURE: a `metadata` key that is *almost* one of the money keys.
  *
- * The workflow lifts these off `metadata` (`metadata.design_quantities` and
- * friends), and changing that is a wider blast radius than this fix wants —
- * the partner form posts through metadata today and must keep working. So the
- * typed field is authoritative and lands in metadata on its way through, which
- * is what makes it genuinely take effect rather than being accepted-and-ignored
- * (a whole class of bug this repo has hit before).
+ * 🔴 This is the actual #1554-by-typo defence. The typed fields protect a
+ * caller that uses them; they do nothing for a caller that posts
+ * `metadata.design_quantites` — that key validates cleanly against
+ * `z.record(z.string(), z.any())`, is read by nothing, and the line silently
+ * falls through to the workflow's "absent means 1" default. The result is a
+ * per-unit rate billed once, invisible to tsc, to every test, and to the
+ * reviewer reading the diff.
+ *
+ * Sanitizers cannot catch this: there is no bad VALUE to reject, only a fact
+ * that never arrived. The only place it is visible is the boundary, by noticing
+ * that someone clearly meant a key we know.
+ *
+ * Exact matches are fine (that is the legacy channel, still honoured). Distant
+ * keys are fine (ordinary metadata). Only the near-misses are refused, and the
+ * message names the key they meant.
+ */
+export const nearMissMoneyKey = (
+  metadata: Record<string, unknown> | null | undefined
+): { key: string; meant: string } | null => {
+  for (const key of Object.keys(metadata || {})) {
+    if ((LEGACY_MONEY_METADATA_KEYS as readonly string[]).includes(key)) {
+      continue
+    }
+    for (const canonical of LEGACY_MONEY_METADATA_KEYS) {
+      const d = distance(key.toLowerCase(), canonical)
+      /**
+       * Up to 3 edits: a misspelling, not a different word. `design_quantites`
+       * is 1 away, `design_quantity` (singular) is 3, and `notes` is nowhere
+       * near anything.
+       *
+       * ⚠️ `d === 0` counts too. The exact-match check above already let the
+       * canonical keys through, so reaching here with distance 0 means the key
+       * differs only in CASE — and `metadata` lookups are case-sensitive, so
+       * `Design_Quantities` is read by nothing. That is a typo wearing a
+       * disguise, and the most confusing kind to debug.
+       */
+      if (d <= 3) {
+        return { key, meant: canonical }
+      }
+    }
+  }
+  return null
+}
+
+/**
+ * Refuse a request whose `metadata` misspells a money key.
+ *
+ * Throws rather than warns: the whole point is that the mistake is otherwise
+ * silent and shows up as an underpayment weeks later. A 400 naming the intended
+ * key costs the caller one minute; the alternative cost ₹850 for nine garments.
+ */
+export const assertNoNearMissMoneyKey = (
+  metadata: Record<string, unknown> | null | undefined
+): void => {
+  const miss = nearMissMoneyKey(metadata)
+  if (miss) {
+    throw new MedusaError(
+      MedusaError.Types.INVALID_DATA,
+      `metadata.${miss.key} is not a recognised field — did you mean "${miss.meant}"? A misspelt money key is accepted silently and then ignored, which bills the wrong amount. Prefer the typed fields (quantities / unit_amounts / cost_overrides / task_cost_overrides).`
+    )
+  }
+}
+
+/**
+ * Mirror the typed fields onto `metadata` for READERS, not for the workflow.
+ *
+ * ⚠️ This used to be load-bearing: the workflow read the money only off
+ * `metadata`, so folding was what made a typed field take effect at all. It no
+ * longer is — the workflow reads the typed input and treats metadata as a
+ * fallback (see `moneyOf` in create-payment-submission.ts).
+ *
+ * The fold is kept because the stored submission's `metadata` is what the
+ * review UI and existing consumers read to show "original vs. requested". A
+ * caller that sends nothing gets exactly the old behaviour, byte for byte.
  *
  * 🔑 Precedence is per-FIELD and one-way: an explicit field replaces the whole
- * corresponding map. It is deliberately not a per-key merge — a caller that
- * sends `quantities` would otherwise still be overridden key-by-key by a stale
- * metadata blob it never wrote. A caller that sends nothing gets exactly the
- * old behaviour, byte for byte, so no live caller is re-priced by this change.
+ * corresponding map, never a per-key merge — a caller that sends `quantities`
+ * must not still be overridden key-by-key by a stale blob it never wrote.
  */
 export const foldMoneyFieldsIntoMetadata = (
   body: PaymentSubmissionMoneyInput & { metadata?: Record<string, any> }

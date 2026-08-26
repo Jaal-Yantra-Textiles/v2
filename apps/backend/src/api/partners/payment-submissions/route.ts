@@ -2,7 +2,10 @@ import { AuthenticatedMedusaRequest, MedusaResponse } from "@medusajs/framework"
 import { ContainerRegistrationKeys, MedusaError } from "@medusajs/framework/utils"
 import { getPartnerFromAuthContext } from "../helpers"
 import { createPaymentSubmissionWorkflow } from "../../../workflows/payment_submissions/create-payment-submission"
-import { foldMoneyFieldsIntoMetadata } from "../../../workflows/payment_submissions/lib/money-fields"
+import {
+  assertNoNearMissMoneyKey,
+  foldMoneyFieldsIntoMetadata,
+} from "../../../workflows/payment_submissions/lib/money-fields"
 import submissionPartnerLink from "../../../links/submission-partner-link"
 
 // GET /partners/payment-submissions — list partner's own submissions
@@ -73,6 +76,8 @@ export const POST = async (
 
   const body = req.validatedBody as any
 
+  assertNoNearMissMoneyKey(body.metadata)
+
   const { result } = await createPaymentSubmissionWorkflow(req.scope).run({
     input: {
       partner_id: partner.id,
@@ -82,6 +87,12 @@ export const POST = async (
       documents: body.documents,
       // Typed input, not folded into metadata — see the field's docs.
       production_run_ids: body.production_run_ids,
+      // The money, as typed inputs. The fold below keeps the same values on
+      // `metadata` so reviewers still see original vs. requested.
+      quantities: body.quantities,
+      unit_amounts: body.unit_amounts,
+      cost_overrides: body.cost_overrides,
+      task_cost_overrides: body.task_cost_overrides,
       // Typed money fields win over the metadata channel and land on it.
       metadata: foldMoneyFieldsIntoMetadata(body),
     },
