@@ -254,11 +254,20 @@ setupSharedTestSuite(() => {
 
       // Complete with no yield fields — just like the old API. 3 were ordered
       // and this says nothing about how many were made.
+      //
+      // ⚠️ `cost_type` is sent even though this case is about OUTPUT, because
+      // the route-level cost-type guard (#1555) runs before the workflow's
+      // output check. Without it the payload has TWO defects, the guard refuses
+      // first, and the case passes on the wrong 400 — proving only that some
+      // refusal happened, not the one it names. The cost here is incidental
+      // scenery; it has to be VALID scenery so the missing output is the single
+      // thing under test.
       const completeErr = await api
         .post(
           `/partners/production-runs/${runId}/complete`,
           {
             partner_cost_estimate: 1500,
+            cost_type: "per_unit",
             notes: "Done",
           },
           { headers: partnerHeaders }
