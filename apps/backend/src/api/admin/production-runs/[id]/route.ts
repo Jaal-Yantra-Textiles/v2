@@ -94,10 +94,10 @@ import { ContainerRegistrationKeys, MedusaError } from "@medusajs/framework/util
 import { PRODUCTION_RUNS_MODULE } from "../../../../modules/production_runs"
 import type ProductionRunService from "../../../../modules/production_runs/service"
 import {
-import { costTypeGuardMessage } from "../../../../workflows/production-runs/lib/cost-type-guard"
   readRunAllocation,
   setRunAllocation,
 } from "../../../../lib/production-run-allocation"
+import { costTypeGuardMessage } from "../../../../workflows/production-runs/lib/cost-type-guard"
 
 export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
   const id = req.params.id
