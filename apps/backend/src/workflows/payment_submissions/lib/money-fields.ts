@@ -44,6 +44,26 @@ export const paymentSubmissionMoneyFields = {
   cost_overrides: z.record(z.string(), z.number().positive()).optional(),
   /** Typed line total per task. */
   task_cost_overrides: z.record(z.string(), z.number().positive()).optional(),
+  /**
+   * WHICH completed production runs each design line is paying for, keyed by
+   * design id. An array because a line is keyed by design and one design can
+   * have several completed runs — they collapse into one item whose quantity
+   * is their sum.
+   *
+   * 🔑 Not money, but the PROVENANCE of money, and the thing that decides
+   * whether the same run can be billed twice. It lives beside the money fields
+   * for the same reason they are here: one vocabulary, two importers, no
+   * drift.
+   *
+   * ⚠️ Unlike the four above, this is NOT folded into `metadata` — it is
+   * passed straight through as a typed workflow input. The fold exists only
+   * because the partner form has always posted the money fields through
+   * `metadata` and must keep working; this field has no such legacy caller, so
+   * it never touches the untyped channel at all.
+   */
+  production_run_ids: z
+    .record(z.string(), z.array(z.string().min(1)).min(1))
+    .optional(),
 } as const
 
 export type PaymentSubmissionMoneyInput = {
@@ -51,6 +71,8 @@ export type PaymentSubmissionMoneyInput = {
   unit_amounts?: Record<string, number>
   cost_overrides?: Record<string, number>
   task_cost_overrides?: Record<string, number>
+  /** design id → the completed run ids that line pays for. */
+  production_run_ids?: Record<string, string[]>
 }
 
 /**

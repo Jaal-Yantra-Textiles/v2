@@ -45,6 +45,25 @@ const PaymentSubmissionItem = model.define("payment_submission_item", {
   quantity: model.float().default(1),
   unit_amount: model.bigNumber().nullable(),
   cost_breakdown: model.json().nullable(),
+  /**
+   * The production run(s) this line pays for, as an array of run ids.
+   *
+   * 🔴 A real column, deliberately NOT `metadata.production_run_id`. The
+   * provenance of a payout decides whether the SAME run can be billed twice,
+   * and `metadata` is validated as `z.record(z.string(), z.any())` everywhere
+   * it is accepted — a misspelt key would validate cleanly and leave the
+   * double-pay guard reading nothing. (#1557's lesson, applied to the field
+   * that now guards the money rather than merely describing it.)
+   *
+   * An array rather than a single id because a submission line is keyed by
+   * DESIGN: two completed runs of one design collapse into one item whose
+   * quantity is their sum, and both run ids have to survive that.
+   *
+   * NULL on every row written before this existed, and on any line that was
+   * not sourced from a run (a hand-picked design, a task). Absent means "no
+   * run recorded", never "no run involved".
+   */
+  production_run_ids: model.json().nullable(),
   metadata: model.json().nullable(),
   submission: model.belongsTo(() => PaymentSubmission, {
     mappedBy: "items",

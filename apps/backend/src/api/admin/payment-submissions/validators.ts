@@ -18,6 +18,16 @@ export const AdminListPaymentSubmissionsQuerySchema = z.object({
   offset: z.coerce.number().int().min(0).default(0).optional(),
 })
 
+/**
+ * The payable-runs lookup. `partner_id` is required rather than optional-with-
+ * a-default: this endpoint answers "what can I pay THIS partner for", and a
+ * missing filter would return every completed run on the platform — the shape
+ * that made one dangling key return unfiltered cross-tenant rows (#1397).
+ */
+export const AdminPayableRunsQuerySchema = z.object({
+  partner_id: z.string().min(1, "partner_id is required"),
+})
+
 export const AdminReviewPaymentSubmissionSchema = z.object({
   action: z.enum(["approve", "reject"]),
   rejection_reason: z.string().optional(),

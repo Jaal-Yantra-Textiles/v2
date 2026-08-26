@@ -80,6 +80,8 @@ export const POST = async (
       task_ids: body.task_ids || [],
       notes: body.notes,
       documents: body.documents,
+      // Typed input, not folded into metadata — see the field's docs.
+      production_run_ids: body.production_run_ids,
       // Typed money fields win over the metadata channel and land on it.
       metadata: foldMoneyFieldsIntoMetadata(body),
     },

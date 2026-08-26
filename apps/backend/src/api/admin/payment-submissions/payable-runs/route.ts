@@ -1,0 +1,217 @@
+import type { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
+import { ContainerRegistrationKeys, MedusaError } from "@medusajs/framework/utils"
+
+import { PAYMENT_SUBMISSIONS_MODULE } from "../../../../modules/payment_submissions"
+import PaymentSubmissionsService from "../../../../modules/payment_submissions/service"
+import { runUnitCost } from "../../../../workflows/production-runs/lib/run-payable"
+
+/**
+ * GET /admin/payment-submissions/payable-runs?partner_id=…
+ *
+ * The completed production runs a partner can be paid for, one row per RUN.
+ *
+ * ## Why this exists
+ *
+ * The admin submission screen listed DESIGNS. A design is not a payable thing —
+ * it is a recipe, produced many times, and the money lives on the run: the rate
+ * a partner agreed to (`partner_cost_estimate` + `cost_type`) and how many
+ * finished pieces they actually made (`produced_quantity`). Listing designs
+ * meant the screen had no quantity to show and no rate to show, so it billed
+ * `design.estimated_cost` — a PER-UNIT figure — exactly once. That is #1554,
+ * and it was ₹850 for nine garments.
+ *
+ * Pricing from the design is not a near-miss either: for Bakshi's Design the
+ * design's own cost would have billed 11,530.80 where the run says 7,650, and
+ * Denim Trouser has no design cost at all and would have billed 0.
+ *
+ * ## The quantity this bills
+ *
+ * 🔑 `payable_quantity` is the PRODUCED quantity, not the ordered one — the
+ * founder rule is that a partner is paid for what they made. `runPayableAmount`
+ * (the auto-draft path) still multiplies by `run.quantity`, which is why a run
+ * ordered 9 and produced 4 drafts 9 units' worth unless a caller says
+ * otherwise. This endpoint is that caller: it states produced and ordered
+ * side by side so the screen shows which one it is billing and the reviewer can
+ * see the two disagree.
+ *
+ * Runs with no produced figure fall back to ordered and are flagged
+ * `produced_quantity: null`, so "we never recorded output" is visibly distinct
+ * from "they made zero".
+ *
+ * ## What "already paid for" means
+ *
+ * A run is billed when a payment line records it in `production_run_ids` and
+ * that submission is not Rejected. This is a stronger guard than the existing
+ * "is this design in an OPEN submission" check, which stops being true the
+ * moment a submission is Approved or Paid — after which the same finished run
+ * could be claimed again and the second claim would look exactly as legitimate
+ * as the first.
+ *
+ * ⚠️ Lines written before `production_run_ids` existed record nothing, so a run
+ * paid for by one of them reads `billed: null` here. `design_has_open_submission`
+ * is reported alongside precisely so the screen can still warn: it is the older,
+ * weaker signal, and it is the only one those rows carry.
+ */
+export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
+  const partnerId = String(
+    (req.validatedQuery as any)?.partner_id ?? (req.query as any)?.partner_id ?? ""
+  ).trim()
+
+  if (!partnerId) {
+    throw new MedusaError(
+      MedusaError.Types.INVALID_DATA,
+      "partner_id is required"
+    )
+  }
+
+  const query: any = req.scope.resolve(ContainerRegistrationKeys.QUERY)
+
+  // Completed runs of this partner. A parent run carries `partner_id: null`
+  // (runs come in parent/child pairs — the parent holds the total, the child
+  // holds the partner and the money), so filtering on the partner excludes
+  // parents without needing a second rule for them.
+  const { data: runs } = await query.graph({
+    entity: "production_runs",
+    fields: [
+      "id",
+      "design_id",
+      "partner_id",
+      "status",
+      "quantity",
+      "produced_quantity",
+      "rejected_quantity",
+      "partner_cost_estimate",
+      "cost_type",
+      "completed_at",
+    ],
+    filters: { partner_id: partnerId, status: "completed" },
+  })
+
+  const completedRuns = ((runs || []) as any[]).filter((r) => !!r.design_id)
+
+  if (!completedRuns.length) {
+    return res.status(200).json({ payable_runs: [], count: 0 })
+  }
+
+  const designIds = [
+    ...new Set(completedRuns.map((r) => String(r.design_id))),
+  ]
+
+  const { data: designs } = await query.graph({
+    entity: "designs",
+    fields: ["id", "name", "status", "estimated_cost", "production_cost"],
+    filters: { id: designIds },
+  })
+  const designById = new Map(
+    ((designs || []) as any[]).map((d) => [d.id, d])
+  )
+
+  // Prior payment lines for these designs. Scoped to the designs in play rather
+  // than every line ever written: a run belongs to exactly one design, so a
+  // prior billing of it can only sit on a line for that design.
+  const service: PaymentSubmissionsService = req.scope.resolve(
+    PAYMENT_SUBMISSIONS_MODULE
+  )
+  const priorItems = (await service.listPaymentSubmissionItems(
+    { design_id: designIds },
+    { relations: ["submission"] }
+  )) as any[]
+
+  const billedRuns = new Map<
+    string,
+    { submission_id: string; status: string; quantity: number }
+  >()
+  const designsWithOpenSubmission = new Set<string>()
+  const OPEN_STATUSES = new Set([
+    "Draft",
+    "Pending",
+    "Under_Review",
+  ])
+
+  for (const item of priorItems || []) {
+    const status = String(item.submission?.status || "")
+    // A Rejected submission never paid anyone — its lines release their runs.
+    if (status === "Rejected") continue
+
+    if (OPEN_STATUSES.has(status) && item.design_id) {
+      designsWithOpenSubmission.add(String(item.design_id))
+    }
+
+    for (const runId of (item.production_run_ids || []) as string[]) {
+      if (!billedRuns.has(runId)) {
+        billedRuns.set(runId, {
+          submission_id: String(item.submission?.id || item.submission_id || ""),
+          status,
+          quantity: Number(item.quantity ?? 1),
+        })
+      }
+    }
+  }
+
+  const payable_runs = completedRuns
+    .map((run) => {
+      const design = designById.get(String(run.design_id))
+
+      // The per-unit rate the partner agreed, derived from the run rather than
+      // the design. `runUnitCost` divides a "total" cost_type back out and
+      // takes a "per_unit" one verbatim — one place, one convention.
+      const unit_amount = runUnitCost(run)
+
+      const produced = Number(run.produced_quantity)
+      const hasProduced = Number.isFinite(produced) && produced > 0
+      const ordered = Number(run.quantity)
+      const payable_quantity = hasProduced
+        ? produced
+        : Number.isFinite(ordered) && ordered > 0
+          ? ordered
+          : 1
+
+      return {
+        run_id: String(run.id),
+        design_id: String(run.design_id),
+        design_name: design?.name ?? null,
+        design_status: design?.status ?? null,
+        completed_at: run.completed_at ?? null,
+        ordered_quantity: Number.isFinite(ordered) ? ordered : null,
+        produced_quantity: hasProduced ? produced : null,
+        rejected_quantity:
+          run.rejected_quantity === null || run.rejected_quantity === undefined
+            ? null
+            : Number(run.rejected_quantity),
+        /** What this row bills for: produced, or ordered when output was never recorded. */
+        payable_quantity,
+        quantity_basis: hasProduced ? "produced" : "ordered",
+        unit_amount,
+        amount: Math.round(unit_amount * payable_quantity * 100) / 100,
+        cost_type: run.cost_type ?? null,
+        partner_cost_estimate:
+          run.partner_cost_estimate === null ||
+          run.partner_cost_estimate === undefined
+            ? null
+            : Number(run.partner_cost_estimate),
+        /**
+         * A run with no agreed rate is NOT a zero-value payout — it is a run
+         * whose price hasn't been settled. Surfaced rather than hidden so the
+         * screen can say why it can't be billed.
+         */
+        payable: unit_amount > 0,
+        billed: billedRuns.get(String(run.id)) ?? null,
+        design_has_open_submission: designsWithOpenSubmission.has(
+          String(run.design_id)
+        ),
+      }
+    })
+    .sort((a, b) => {
+      // Unbilled first (that's the work), then newest completion.
+      if (!!a.billed !== !!b.billed) return a.billed ? 1 : -1
+      return (
+        new Date(b.completed_at || 0).getTime() -
+        new Date(a.completed_at || 0).getTime()
+      )
+    })
+
+  return res.status(200).json({
+    payable_runs,
+    count: payable_runs.length,
+  })
+}

@@ -260,6 +260,7 @@ import {
 } from "./partners/payment-submissions/validators";
 import {
   AdminListPaymentSubmissionsQuerySchema,
+  AdminPayableRunsQuerySchema,
   AdminReviewPaymentSubmissionSchema,
   CreateAdminPaymentSubmissionSchema,
 } from "./admin/payment-submissions/validators";
@@ -3599,6 +3600,14 @@ export default defineMiddlewares({
     },
 
     // ── Payment Submissions (Admin) ─────────────────────────────────────────
+    {
+      // Must be declared before "/admin/payment-submissions/:id" — a literal
+      // segment and a param segment both match this path, and the first entry
+      // that matches is the one whose validation runs.
+      matcher: "/admin/payment-submissions/payable-runs",
+      method: "GET",
+      middlewares: [validateAndTransformQuery(wrapSchema(AdminPayableRunsQuerySchema), {})],
+    },
     {
       matcher: "/admin/payment-submissions/:id/review",
       method: "POST",

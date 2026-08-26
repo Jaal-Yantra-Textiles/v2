@@ -722,6 +722,397 @@ setupSharedTestSuite(() => {
 
   // ─── Admin: List Submissions ──────────────────────────────────────────────
 
+  /**
+   * A COMPLETED production run for this partner, written straight through the
+   * module service.
+   *
+   * The fixture only needs the end state, and driving a real dispatch →
+   * accept → complete cycle would drag partner auth and the whole run lifecycle
+   * into a test about payment. Mirrors the shape completion leaves behind,
+   * including the parent/child convention: the partner and the money live on
+   * the CHILD run, and a parent carries `partner_id: null`.
+   */
+  async function createCompletedRun(
+    designId: string,
+    designName: string,
+    overrides: Record<string, any> = {}
+  ) {
+    const container = getContainer()
+    const runService: any = container.resolve("production_runs")
+    const run = await runService.createProductionRuns({
+      design_id: designId,
+      partner_id: partnerId,
+      quantity: 9,
+      produced_quantity: 4,
+      partner_cost_estimate: 1200,
+      cost_type: "per_unit",
+      run_type: "production",
+      status: "completed",
+      completed_at: new Date(),
+      snapshot: { design: { id: designId, name: designName } },
+      captured_at: new Date(),
+      ...overrides,
+    })
+    return (Array.isArray(run) ? run[0] : run).id as string
+  }
+
+  // ─── Payable runs (#1556) ─────────────────────────────────────────────────
+
+  describe("GET /admin/payment-submissions/payable-runs", () => {
+    it("requires partner_id rather than listing every completed run", async () => {
+      // An unfiltered variant would return every partner's runs. That exact
+      // shape — a missing filter reading as "no filter" rather than "no rows" —
+      // is how one dangling key produced unfiltered cross-tenant results.
+      const res = await api
+        .get("/admin/payment-submissions/payable-runs", adminHeaders)
+        .catch((e: any) => e.response)
+
+      expect(res.status).toBe(400)
+    })
+
+    it("prices a run from the run, and bills the PRODUCED quantity", async () => {
+      // The design says 5000/unit; the run says 1200/unit and 4 pieces made.
+      // Pricing off the design here would bill 5000 x 9 = 45,000 for work worth
+      // 4,800 — the two figures are not close, and the run is the agreed one.
+      const d1 = await createDesign("Payable Run Design", {
+        estimated_cost: 5000,
+      })
+      await linkDesignToPartner(d1, partnerId)
+      const runId = await createCompletedRun(d1, "Payable Run Design")
+
+      const res = await api.get(
+        `/admin/payment-submissions/payable-runs?partner_id=${partnerId}`,
+        adminHeaders
+      )
+
+      expect(res.status).toBe(200)
+      const row = res.data.payable_runs.find((r: any) => r.run_id === runId)
+      expect(row).toBeDefined()
+      expect(row.ordered_quantity).toBe(9)
+      expect(row.produced_quantity).toBe(4)
+      // 🔑 The founder rule: pay for what was MADE, not what was ordered.
+      expect(row.payable_quantity).toBe(4)
+      expect(row.quantity_basis).toBe("produced")
+      expect(row.unit_amount).toBe(1200)
+      expect(row.amount).toBe(4800)
+      expect(row.payable).toBe(true)
+      expect(row.billed).toBeNull()
+    })
+
+    it("divides a 'total' cost_type back out to a per-unit rate", async () => {
+      // `partner_cost_estimate` is stored verbatim and paired with `cost_type`;
+      // a "total" of 3600 across 3 ordered pieces is 1200/unit. Reading it as
+      // per-unit would bill 3600 x 3.
+      const d1 = await createDesign("Total Cost Run", { estimated_cost: 100 })
+      await linkDesignToPartner(d1, partnerId)
+      await createCompletedRun(d1, "Total Cost Run", {
+        quantity: 3,
+        produced_quantity: 3,
+        partner_cost_estimate: 3600,
+        cost_type: "total",
+      })
+
+      const res = await api.get(
+        `/admin/payment-submissions/payable-runs?partner_id=${partnerId}`,
+        adminHeaders
+      )
+      const row = res.data.payable_runs[0]
+      expect(row.unit_amount).toBe(1200)
+      expect(row.amount).toBe(3600)
+    })
+
+    it("falls back to the ordered quantity and SAYS SO when output was never recorded", async () => {
+      // "We never recorded output" and "they made zero" must not look alike.
+      const d1 = await createDesign("No Output Run", { estimated_cost: 100 })
+      await linkDesignToPartner(d1, partnerId)
+      await createCompletedRun(d1, "No Output Run", {
+        quantity: 5,
+        produced_quantity: null,
+      })
+
+      const res = await api.get(
+        `/admin/payment-submissions/payable-runs?partner_id=${partnerId}`,
+        adminHeaders
+      )
+      const row = res.data.payable_runs[0]
+      expect(row.produced_quantity).toBeNull()
+      expect(row.payable_quantity).toBe(5)
+      expect(row.quantity_basis).toBe("ordered")
+    })
+
+    it("marks a run with no agreed rate unpayable instead of billing zero", async () => {
+      // A run with no cost is not a zero-value payout — it is a run whose price
+      // has not been settled. Surfaced, not silently dropped.
+      const d1 = await createDesign("Unpriced Run", { estimated_cost: 100 })
+      await linkDesignToPartner(d1, partnerId)
+      await createCompletedRun(d1, "Unpriced Run", {
+        partner_cost_estimate: null,
+      })
+
+      const res = await api.get(
+        `/admin/payment-submissions/payable-runs?partner_id=${partnerId}`,
+        adminHeaders
+      )
+      const row = res.data.payable_runs[0]
+      expect(row.payable).toBe(false)
+      expect(row.unit_amount).toBe(0)
+    })
+
+    it("never returns another partner's runs, nor an unfinished one", async () => {
+      const other = await createPartnerWithAuth(
+        Math.floor(Math.random() * 100000)
+      )
+      const d1 = await createDesign("Other Partner Run", {
+        estimated_cost: 100,
+      })
+      await linkDesignToPartner(d1, other.partnerId)
+      const otherRunId = await createCompletedRun(d1, "Other Partner Run", {
+        partner_id: other.partnerId,
+      })
+
+      const d2 = await createDesign("In Progress Run", { estimated_cost: 100 })
+      await linkDesignToPartner(d2, partnerId)
+      const inProgressId = await createCompletedRun(d2, "In Progress Run", {
+        status: "in_progress",
+      })
+
+      const res = await api.get(
+        `/admin/payment-submissions/payable-runs?partner_id=${partnerId}`,
+        adminHeaders
+      )
+
+      const ids = res.data.payable_runs.map((r: any) => r.run_id)
+      expect(ids).not.toContain(otherRunId)
+      expect(ids).not.toContain(inProgressId)
+    })
+  })
+
+  describe("POST /admin/payment-submissions — run provenance (#1556)", () => {
+    it("records which runs a line paid for, and reports them as billed", async () => {
+      const d1 = await createDesign("Provenance Design", {
+        estimated_cost: 5000,
+      })
+      await linkDesignToPartner(d1, partnerId)
+      const runId = await createCompletedRun(d1, "Provenance Design")
+
+      const res = await api.post(
+        "/admin/payment-submissions",
+        {
+          partner_id: partnerId,
+          design_ids: [d1],
+          quantities: { [d1]: 4 },
+          unit_amounts: { [d1]: 1200 },
+          production_run_ids: { [d1]: [runId] },
+        },
+        adminHeaders
+      )
+      expect(res.status).toBe(201)
+      const submissionId = res.data.payment_submission.id
+
+      const detail = await api.get(
+        `/admin/payment-submissions/${submissionId}`,
+        adminHeaders
+      )
+      const item = detail.data.payment_submission.items[0]
+      // A real column, not a metadata key — this is what the double-pay guard
+      // reads, and a guard reading an untyped blob reads nothing when the key
+      // is misspelt.
+      expect(item.production_run_ids).toEqual([runId])
+
+      const runs = await api.get(
+        `/admin/payment-submissions/payable-runs?partner_id=${partnerId}`,
+        adminHeaders
+      )
+      const row = runs.data.payable_runs.find((r: any) => r.run_id === runId)
+      expect(row.billed).not.toBeNull()
+      expect(row.billed.submission_id).toBe(submissionId)
+      expect(Number(row.billed.quantity)).toBe(4)
+    })
+
+    it("refuses to pay for the same run twice, even after the first payout closed", async () => {
+      // 🔴 The case the design-level guard cannot catch. "Is this design in an
+      // OPEN submission" stops being true the moment the first submission is
+      // Approved or Paid — after which the same finished run can be claimed
+      // again and the second claim looks exactly as legitimate as the first.
+      const d1 = await createDesign("Double Pay Design", {
+        estimated_cost: 5000,
+      })
+      await linkDesignToPartner(d1, partnerId)
+      const runId = await createCompletedRun(d1, "Double Pay Design")
+
+      const first = await api.post(
+        "/admin/payment-submissions",
+        {
+          partner_id: partnerId,
+          design_ids: [d1],
+          quantities: { [d1]: 4 },
+          unit_amounts: { [d1]: 1200 },
+          production_run_ids: { [d1]: [runId] },
+        },
+        adminHeaders
+      )
+      expect(first.status).toBe(201)
+
+      // Close the first payout so the design-level guard is out of the way and
+      // ONLY the run-level guard is under test.
+      const approved = await api.post(
+        `/admin/payment-submissions/${first.data.payment_submission.id}/review`,
+        { action: "approve", paid_to_id: paidToId },
+        adminHeaders
+      )
+      expect(approved.status).toBe(200)
+
+      const second = await api
+        .post(
+          "/admin/payment-submissions",
+          {
+            partner_id: partnerId,
+            design_ids: [d1],
+            quantities: { [d1]: 4 },
+            unit_amounts: { [d1]: 1200 },
+            production_run_ids: { [d1]: [runId] },
+          },
+          adminHeaders
+        )
+        .catch((e: any) => e.response)
+
+      expect(second.status).toBe(400)
+      expect(second.data.message).toContain("already paid for")
+      expect(second.data.message).toContain(runId)
+    })
+
+    it("releases a run when its submission was rejected", async () => {
+      // A Rejected submission never paid anyone. The exact situation the
+      // Shramdaan correction hit: a payout billed the wrong quantity, was
+      // rejected, and the replacement has to be allowed to bill the same run.
+      const d1 = await createDesign("Rejected Release Design", {
+        estimated_cost: 5000,
+      })
+      await linkDesignToPartner(d1, partnerId)
+      const runId = await createCompletedRun(d1, "Rejected Release Design")
+
+      const first = await api.post(
+        "/admin/payment-submissions",
+        {
+          partner_id: partnerId,
+          design_ids: [d1],
+          quantities: { [d1]: 4 },
+          unit_amounts: { [d1]: 1200 },
+          production_run_ids: { [d1]: [runId] },
+        },
+        adminHeaders
+      )
+      await api.post(
+        `/admin/payment-submissions/${first.data.payment_submission.id}/review`,
+        { action: "reject", rejection_reason: "Quantity corrected 4 -> 7" },
+        adminHeaders
+      )
+
+      const replacement = await api.post(
+        "/admin/payment-submissions",
+        {
+          partner_id: partnerId,
+          design_ids: [d1],
+          quantities: { [d1]: 7 },
+          unit_amounts: { [d1]: 1200 },
+          production_run_ids: { [d1]: [runId] },
+        },
+        adminHeaders
+      )
+
+      expect(replacement.status).toBe(201)
+      expect(Number(replacement.data.payment_submission.total_amount)).toBe(8400)
+    })
+
+    it("refuses a run that belongs to another partner", async () => {
+      const other = await createPartnerWithAuth(
+        Math.floor(Math.random() * 100000)
+      )
+      const d1 = await createDesign("Cross Partner Design", {
+        estimated_cost: 5000,
+      })
+      // Linked to BOTH so the ownership check under test is the RUN's, not the
+      // design's — otherwise this passes for the wrong reason.
+      await linkDesignToPartner(d1, partnerId)
+      await linkDesignToPartner(d1, other.partnerId)
+      const foreignRun = await createCompletedRun(d1, "Cross Partner Design", {
+        partner_id: other.partnerId,
+      })
+
+      const res = await api
+        .post(
+          "/admin/payment-submissions",
+          {
+            partner_id: partnerId,
+            design_ids: [d1],
+            quantities: { [d1]: 4 },
+            unit_amounts: { [d1]: 1200 },
+            production_run_ids: { [d1]: [foreignRun] },
+          },
+          adminHeaders
+        )
+        .catch((e: any) => e.response)
+
+      // 400, not 403 — MedusaError.Types.NOT_ALLOWED maps to a 400 here, the
+      // same as the existing "Designs not assigned to this partner" check.
+      // The MESSAGE is what distinguishes the two refusals.
+      expect(res.status).toBe(400)
+      expect(res.data.message).toContain("does not belong to this partner")
+    })
+
+    it("refuses a run that is not completed", async () => {
+      const d1 = await createDesign("Unfinished Design", {
+        estimated_cost: 5000,
+      })
+      await linkDesignToPartner(d1, partnerId)
+      const runId = await createCompletedRun(d1, "Unfinished Design", {
+        status: "in_progress",
+      })
+
+      const res = await api
+        .post(
+          "/admin/payment-submissions",
+          {
+            partner_id: partnerId,
+            design_ids: [d1],
+            quantities: { [d1]: 4 },
+            unit_amounts: { [d1]: 1200 },
+            production_run_ids: { [d1]: [runId] },
+          },
+          adminHeaders
+        )
+        .catch((e: any) => e.response)
+
+      expect(res.status).toBe(400)
+      expect(res.data.message).toContain("not completed")
+    })
+
+    it("refuses a run that belongs to a different design", async () => {
+      const d1 = await createDesign("Claim Design", { estimated_cost: 5000 })
+      const d2 = await createDesign("Actual Design", { estimated_cost: 5000 })
+      await linkDesignToPartner(d1, partnerId)
+      await linkDesignToPartner(d2, partnerId)
+      const runOfD2 = await createCompletedRun(d2, "Actual Design")
+
+      const res = await api
+        .post(
+          "/admin/payment-submissions",
+          {
+            partner_id: partnerId,
+            design_ids: [d1],
+            quantities: { [d1]: 4 },
+            unit_amounts: { [d1]: 1200 },
+            production_run_ids: { [d1]: [runOfD2] },
+          },
+          adminHeaders
+        )
+        .catch((e: any) => e.response)
+
+      expect(res.status).toBe(400)
+      expect(res.data.message).toContain("is not a run of design")
+    })
+  })
+
   describe("GET /admin/payment-submissions", () => {
     it("should list all submissions", async () => {
       const d1 = await createDesign("Admin List Design")

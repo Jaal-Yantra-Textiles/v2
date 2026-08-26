@@ -73,4 +73,22 @@ describe("foldMoneyFieldsIntoMetadata", () => {
     expect(out.source_production_run_id).toBe("prod_run_1")
     expect(out.design_unit_amounts).toEqual({ d1: 1150 })
   })
+
+  it("never folds production_run_ids onto the metadata channel", () => {
+    // 🔴 The four money fields ride metadata because the partner form has
+    // always posted them that way and must keep working. `production_run_ids`
+    // has no such legacy caller, and it is the evidence the double-pay guard
+    // reads — so it goes to the workflow as a TYPED input and must not appear
+    // on the untyped blob at all. Folding it "for consistency" would put the
+    // one field that decides whether someone is paid twice back into the
+    // channel #1557 took the money out of.
+    const out = foldMoneyFieldsIntoMetadata({
+      quantities: { d1: 4 },
+      production_run_ids: { d1: ["prod_run_1"] },
+    } as any)
+
+    expect(out.production_run_ids).toBeUndefined()
+    expect(out.design_production_run_ids).toBeUndefined()
+    expect(Object.keys(out)).toEqual(["design_quantities"])
+  })
 })

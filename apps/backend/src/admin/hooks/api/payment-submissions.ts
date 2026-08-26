@@ -93,7 +93,50 @@ export interface CreateAdminPaymentSubmissionPayload {
    * still in Technical_Review was to edit the design's status.
    */
   require_design_status?: boolean
+  /**
+   * Which completed runs each design line pays for, keyed by design id.
+   *
+   * 🔴 Typed, and deliberately not folded into `metadata` — this is what stops
+   * the same finished run being paid for twice, and a guard reading an untyped
+   * blob is one spelling mistake away from reading nothing.
+   */
+  production_run_ids?: Record<string, string[]>
   metadata?: Record<string, any>
+}
+
+/**
+ * One completed production run a partner can be paid for.
+ *
+ * 🔑 A RUN, not a design. The rate and the piece count live on the run; a
+ * design is a recipe that has been produced many times, and pricing off it
+ * bills a per-unit figure once (#1554).
+ */
+export interface PayableRun {
+  run_id: string
+  design_id: string
+  design_name: string | null
+  design_status: string | null
+  completed_at: string | null
+  ordered_quantity: number | null
+  /** Null when output was never recorded — distinct from "made zero". */
+  produced_quantity: number | null
+  rejected_quantity: number | null
+  /** What this row bills for: produced, falling back to ordered. */
+  payable_quantity: number
+  quantity_basis: "produced" | "ordered"
+  unit_amount: number
+  amount: number
+  cost_type: "per_unit" | "total" | null
+  partner_cost_estimate: number | null
+  /** False when no rate was ever agreed — not a zero-value payout. */
+  payable: boolean
+  billed: { submission_id: string; status: string; quantity: number } | null
+  design_has_open_submission: boolean
+}
+
+export interface PayableRunsResponse {
+  payable_runs: PayableRun[]
+  count: number
 }
 
 // ─── Reconciliation Types ───────────────────────────────────────────────────
@@ -179,6 +222,33 @@ export const usePaymentSubmissions = (
     ...options,
   })
   return { ...data, ...rest }
+}
+
+/**
+ * The completed runs a partner can be paid for.
+ *
+ * Disabled until a partner is chosen — the endpoint REQUIRES `partner_id`
+ * (an unfiltered variant would list every completed run on the platform), so
+ * firing it early is a guaranteed 400 rather than an empty list.
+ */
+export const usePayableRuns = (
+  partnerId: string | undefined,
+  options?: Omit<
+    UseQueryOptions<PayableRunsResponse, FetchError, PayableRunsResponse, QueryKey>,
+    "queryFn" | "queryKey"
+  >
+) => {
+  const { data, ...rest } = useQuery({
+    queryFn: async () =>
+      sdk.client.fetch<PayableRunsResponse>(
+        `/admin/payment-submissions/payable-runs`,
+        { method: "GET", query: { partner_id: partnerId } }
+      ) as Promise<PayableRunsResponse>,
+    queryKey: paymentSubmissionQueryKeys.list({ payable_runs: partnerId }),
+    enabled: !!partnerId,
+    ...options,
+  })
+  return { payable_runs: data?.payable_runs ?? [], count: data?.count ?? 0, ...rest }
 }
 
 export const usePaymentSubmission = (

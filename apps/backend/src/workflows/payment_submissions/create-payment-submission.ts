@@ -49,6 +49,16 @@ export type CreatePaymentSubmissionInput = {
    * does.
    */
   require_design_status?: boolean
+  /**
+   * Which completed production runs each design line pays for, keyed by design
+   * id. Optional — a hand-picked design line has no run behind it and stays
+   * exactly as it is today.
+   *
+   * 🔴 A typed input, never `metadata`. This is what stops the same finished
+   * run being paid for twice, and a guard that reads an untyped blob is one
+   * spelling mistake away from reading nothing at all (#1557).
+   */
+  production_run_ids?: Record<string, string[]>
 }
 
 type ValidatedDesign = {
@@ -64,6 +74,8 @@ type ValidatedDesign = {
    */
   unit_amount: number | null
   cost_breakdown: Record<string, unknown> | null
+  /** The completed run ids this line pays for, or null when it came from none. */
+  production_run_ids: string[] | null
 }
 
 type ValidatedTask = {
@@ -89,6 +101,13 @@ type TaskGraphResult = {
   actual_cost: number | null
   cost_currency: string | null
   cost_type: string | null
+}
+
+type ProductionRunGraphResult = {
+  id: string
+  design_id: string | null
+  partner_id: string | null
+  status: string | null
 }
 
 type DesignPartnerLinkResult = {
@@ -229,6 +248,8 @@ const validateDesignsForSubmissionStep = createStep(
       require_design_status?: boolean
       /** Draft submissions also block a second Draft — see below. */
       status?: "Draft" | "Pending"
+      /** design id → the completed run ids that line pays for. */
+      production_run_ids?: Record<string, string[]>
     },
     { container }
   ) => {
@@ -344,6 +365,104 @@ const validateDesignsForSubmissionStep = createStep(
       )
     }
 
+    /**
+     * 6. The runs a line claims to be paying for must actually be that
+     *    partner's, that design's, finished — and not already paid for.
+     *
+     * 🔴 This is the guard the design-level check in step 5 cannot be. That
+     * one asks "is this design in an OPEN submission", which stops being true
+     * the moment the submission is Approved or Paid. A design is produced many
+     * times, so once the first payout closes, the very same completed run can
+     * be submitted again and the second claim looks identical to the first.
+     * Nothing in the record could tell them apart, because nothing recorded
+     * which run was paid for.
+     *
+     * Scoped to items of the SAME designs rather than every item ever written:
+     * a run belongs to exactly one design, so a prior billing of it can only
+     * live on a line for that design. Exact, and bounded by the request.
+     */
+    const claimedRuns = input.production_run_ids || {}
+    const allClaimedRunIds = [
+      ...new Set(Object.values(claimedRuns).flat().filter(Boolean)),
+    ]
+
+    if (allClaimedRunIds.length) {
+      const { data: runs } = await query.graph({
+        entity: "production_runs",
+        fields: ["id", "design_id", "partner_id", "status"],
+        filters: { id: allClaimedRunIds },
+      })
+      const typedRuns = (runs || []) as unknown as ProductionRunGraphResult[]
+      const runById = new Map(typedRuns.map((r) => [r.id, r]))
+
+      const missing = allClaimedRunIds.filter((id) => !runById.has(id))
+      if (missing.length) {
+        throw new MedusaError(
+          MedusaError.Types.NOT_FOUND,
+          `Production runs not found: ${missing.join(", ")}`
+        )
+      }
+
+      for (const [designId, runIds] of Object.entries(claimedRuns)) {
+        if (!input.design_ids.includes(designId)) {
+          throw new MedusaError(
+            MedusaError.Types.INVALID_DATA,
+            `production_run_ids names design ${designId}, which is not in design_ids`
+          )
+        }
+        for (const runId of runIds) {
+          const run = runById.get(runId)!
+          if (String(run.design_id || "") !== designId) {
+            throw new MedusaError(
+              MedusaError.Types.INVALID_DATA,
+              `Production run ${runId} is not a run of design ${designId}`
+            )
+          }
+          if (String(run.partner_id || "") !== input.partner_id) {
+            throw new MedusaError(
+              MedusaError.Types.NOT_ALLOWED,
+              `Production run ${runId} does not belong to this partner`
+            )
+          }
+          if (String(run.status || "") !== "completed") {
+            throw new MedusaError(
+              MedusaError.Types.INVALID_DATA,
+              `Production run ${runId} is not completed (${run.status})`
+            )
+          }
+        }
+      }
+
+      // Already paid for? A Rejected submission never paid anyone, so its
+      // lines release their runs; everything else — Draft, Pending,
+      // Under_Review, Approved, Paid — is a live claim on that run.
+      const submissionService: PaymentSubmissionsService = container.resolve(
+        PAYMENT_SUBMISSIONS_MODULE
+      )
+      const priorItems = await submissionService.listPaymentSubmissionItems(
+        { design_id: input.design_ids },
+        { relations: ["submission"] }
+      )
+      const billed = new Map<string, string>()
+      for (const item of (priorItems || []) as any[]) {
+        if (item.submission?.status === "Rejected") continue
+        for (const runId of (item.production_run_ids || []) as string[]) {
+          if (!billed.has(runId)) {
+            billed.set(runId, item.submission?.id || item.submission_id)
+          }
+        }
+      }
+      const duplicates = allClaimedRunIds.filter((id) => billed.has(id))
+      if (duplicates.length) {
+        throw new MedusaError(
+          MedusaError.Types.INVALID_DATA,
+          `Production runs already paid for: ${duplicates
+            .map((id) => `${id} (submission ${billed.get(id)})`)
+            .join(", ")}`
+        )
+      }
+    }
+
     const quantities = input.quantities || {}
     const unitAmounts = input.unit_amounts || {}
 
@@ -364,6 +483,9 @@ const validateDesignsForSubmissionStep = createStep(
         quantity: line.quantity,
         unit_amount: line.unit_amount,
         cost_breakdown: d.cost_breakdown,
+        production_run_ids: claimedRuns[d.id]?.length
+          ? [...new Set(claimedRuns[d.id])]
+          : null,
       }
     })
 
@@ -567,6 +689,15 @@ const createSubmissionRecordStep = createStep(
         quantity: design.quantity,
         unit_amount: design.unit_amount,
         cost_breakdown: design.cost_breakdown || null,
+        // Which finished runs this line paid for — the record that lets the
+        // NEXT submission refuse to pay for them again.
+        //
+        // Cast at the service boundary the same way `documents` is: the column
+        // is `model.json()`, which types as an object, and what we store is an
+        // ARRAY of run ids (a design line can pay for several runs at once).
+        production_run_ids: (design.production_run_ids ?? null) as unknown as
+          | Record<string, unknown>
+          | null,
         submission_id: submission.id,
       })
     }
@@ -584,6 +715,8 @@ const createSubmissionRecordStep = createStep(
         // than left to the column default so the row is unambiguous.
         quantity: 1,
         unit_amount: null,
+        // A task is not production output; there is no run behind it.
+        production_run_ids: null as unknown as Record<string, unknown> | null,
         cost_breakdown: task.cost_breakdown || null,
         submission_id: submission.id,
       })
@@ -769,6 +902,9 @@ export const createPaymentSubmissionWorkflow = createWorkflow(
       unit_amounts: costOverrides.designUnitAmounts,
       require_design_status: input.require_design_status,
       status: input.status,
+      // Straight through as a typed input — see the field's docs for why this
+      // one deliberately does not ride the metadata channel.
+      production_run_ids: input.production_run_ids,
     })
 
     const validatedTasks = validateTasksForSubmissionStep({

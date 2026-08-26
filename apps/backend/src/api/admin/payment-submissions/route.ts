@@ -47,6 +47,7 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
     documents?: Array<{ id?: string; url: string; filename?: string; mimeType?: string }>
     quantities?: Record<string, number>
     unit_amounts?: Record<string, number>
+    production_run_ids?: Record<string, string[]>
     status?: "Draft" | "Pending"
     require_design_status?: boolean
     metadata?: Record<string, any>
@@ -61,6 +62,9 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
       documents: body.documents,
       status: body.status,
       require_design_status: body.require_design_status,
+      // Typed input, not folded into metadata — this is the double-pay guard's
+      // evidence, and it must not be reachable by a misspelt JSON key.
+      production_run_ids: body.production_run_ids,
       metadata: {
         // Typed money fields win over the metadata channel and land on it —
         // see `foldMoneyFieldsIntoMetadata` for why the precedence is per-field
