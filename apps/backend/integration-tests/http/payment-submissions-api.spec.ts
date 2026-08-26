@@ -938,6 +938,192 @@ setupSharedTestSuite(() => {
     })
   })
 
+  /**
+   * "We can't tell" must not be spelled the same way as "no" (#1565).
+   *
+   * Every payment line on production recorded no run at all, so the #1556 guard
+   * returned `billed: null` for all 13 submissions — and the screen sorted those
+   * runs to the top as clean, payable work. Absence read as permission.
+   */
+  describe("GET payable-runs — an unrecorded payout is UNKNOWN, not clear (#1565)", () => {
+    it("reports a run as unknown when a live payout for its design names no run", async () => {
+      const d1 = await createDesign("Unrecorded Claim Design", {
+        estimated_cost: 1200,
+      })
+      await linkDesignToPartner(d1, partnerId)
+      const runId = await createCompletedRun(d1, "Unrecorded Claim Design")
+
+      // A payout for the DESIGN with no `production_run_ids` — the shape every
+      // pre-#1556 submission has, and the shape the auto-draft subscriber wrote
+      // for months.
+      const sub = await api.post(
+        "/admin/payment-submissions",
+        {
+          partner_id: partnerId,
+          design_ids: [d1],
+          quantities: { [d1]: 4 },
+          unit_amounts: { [d1]: 1200 },
+        },
+        adminHeaders
+      )
+      expect(sub.status).toBe(201)
+      const submissionId = sub.data.payment_submission.id
+
+      // The line says so about itself rather than leaving a NULL to be
+      // interpreted — three different situations produce that NULL.
+      const detail = await api.get(
+        `/admin/payment-submissions/${submissionId}`,
+        adminHeaders
+      )
+      expect(detail.data.payment_submission.items[0].run_provenance).toBe(
+        "not_recorded"
+      )
+
+      const res = await api.get(
+        `/admin/payment-submissions/payable-runs?partner_id=${partnerId}`,
+        adminHeaders
+      )
+      const row = res.data.payable_runs.find((r: any) => r.run_id === runId)
+
+      // 🔴 The assertion that fails on the old code: `billed` is still null —
+      // no line NAMES this run — but that null is ignorance, not innocence.
+      // This payout may already have covered these very garments.
+      expect(row.billed).toBeNull()
+      expect(row.billing_status).toBe("unknown")
+      expect(row.unrecorded_claims).toHaveLength(1)
+      expect(row.unrecorded_claims[0].submission_id).toBe(submissionId)
+    })
+
+    it("leaves other runs of the design CLEAR when the payout did name its run", async () => {
+      // The counter-case. A `recorded` line is not a source of doubt: it says
+      // exactly what it covered, so the design's OTHER completed run is safe to
+      // bill. Without this, "unknown" would swallow the whole screen and the
+      // guard would be useless in the other direction.
+      const d1 = await createDesign("Recorded Claim Design", {
+        estimated_cost: 1200,
+      })
+      await linkDesignToPartner(d1, partnerId)
+      const paidRun = await createCompletedRun(d1, "Recorded Claim Design")
+      const freshRun = await createCompletedRun(d1, "Recorded Claim Design")
+
+      await api.post(
+        "/admin/payment-submissions",
+        {
+          partner_id: partnerId,
+          design_ids: [d1],
+          quantities: { [d1]: 4 },
+          unit_amounts: { [d1]: 1200 },
+          production_run_ids: { [d1]: [paidRun] },
+        },
+        adminHeaders
+      )
+
+      const res = await api.get(
+        `/admin/payment-submissions/payable-runs?partner_id=${partnerId}`,
+        adminHeaders
+      )
+      const paid = res.data.payable_runs.find((r: any) => r.run_id === paidRun)
+      const fresh = res.data.payable_runs.find((r: any) => r.run_id === freshRun)
+
+      expect(paid.billing_status).toBe("billed")
+      expect(fresh.billing_status).toBe("clear")
+      expect(fresh.unrecorded_claims).toHaveLength(0)
+    })
+
+    it("does not rank an unknown run above genuinely clear work", async () => {
+      // Sorting an unverifiable run alongside unpaid work is precisely how a
+      // second payout for the same garments gets made — the reviewer sees two
+      // rows that look identical and pays both.
+      // 🔴 The clean run is deliberately the OLDER of the two. The tie-break
+      // below `billing_status` is newest-completion-first, so a doubtful run
+      // completed later would sort above it on the old code — which is exactly
+      // the arrangement this test has to rule out. Build the fixture the other
+      // way round and it passes without the fix, proving nothing.
+      const clean = await createDesign("Clean Design", { estimated_cost: 1200 })
+      await linkDesignToPartner(clean, partnerId)
+      const cleanRun = await createCompletedRun(clean, "Clean Design")
+
+      const doubtful = await createDesign("Doubtful Design", {
+        estimated_cost: 1200,
+      })
+      await linkDesignToPartner(doubtful, partnerId)
+      const doubtfulRun = await createCompletedRun(doubtful, "Doubtful Design", {
+        completed_at: new Date(Date.now() + 60_000),
+      })
+      await api.post(
+        "/admin/payment-submissions",
+        {
+          partner_id: partnerId,
+          design_ids: [doubtful],
+          quantities: { [doubtful]: 4 },
+          unit_amounts: { [doubtful]: 1200 },
+        },
+        adminHeaders
+      )
+
+      const res = await api.get(
+        `/admin/payment-submissions/payable-runs?partner_id=${partnerId}`,
+        adminHeaders
+      )
+      const order = res.data.payable_runs.map((r: any) => r.run_id)
+      expect(order.indexOf(cleanRun)).toBeLessThan(order.indexOf(doubtfulRun))
+    })
+
+    it("a task payout casts no doubt — a task never had a run to record", async () => {
+      // `no_run` is the one case where a missing run is an ANSWER. If this
+      // read as "not recorded" too, every partner who was ever paid for a task
+      // would have all of their production runs stuck at `unknown` forever.
+      const d1 = await createDesign("Task Payout Design", {
+        estimated_cost: 1200,
+      })
+      await linkDesignToPartner(d1, partnerId)
+      const runId = await createCompletedRun(d1, "Task Payout Design")
+
+      // A REAL task payout for this partner, not an absent one — otherwise
+      // this test asserts `clear` about a partner with no payouts at all and
+      // would pass just as happily on code that got `no_run` wrong.
+      const container = getContainer()
+      const taskService = container.resolve("tasks") as any
+      const task = await taskService.createTasks({
+        title: "Paid Task Beside A Run",
+        status: "completed",
+        start_date: new Date(),
+      })
+      const remoteLink = container.resolve(
+        ContainerRegistrationKeys.LINK
+      ) as any
+      await remoteLink.create({
+        partner: { partner_id: partnerId },
+        tasks: { task_id: task.id },
+      })
+      const taskSub = await api.post(
+        "/partners/payment-submissions",
+        {
+          task_ids: [task.id],
+          metadata: { task_cost_overrides: { [task.id]: 1500 } },
+        },
+        { headers: partnerHeaders }
+      )
+      expect(taskSub.status).toBe(201)
+      // The partner create response carries no line items, so read the line
+      // back from the admin detail route rather than asserting on undefined.
+      const taskDetail = await api.get(
+        `/admin/payment-submissions/${taskSub.data.payment_submission.id}`,
+        adminHeaders
+      )
+      const taskItem = taskDetail.data.payment_submission.items[0]
+      expect(taskItem.source_type).toBe("task")
+      expect(taskItem.run_provenance).toBe("no_run")
+
+      const res = await api.get(
+        `/admin/payment-submissions/payable-runs?partner_id=${partnerId}`,
+        adminHeaders
+      )
+      const row = res.data.payable_runs.find((r: any) => r.run_id === runId)
+      expect(row.billing_status).toBe("clear")
+    })
+  })
+
   describe("POST /admin/payment-submissions — run provenance (#1556)", () => {
     it("records which runs a line paid for, and reports them as billed", async () => {
       const d1 = await createDesign("Provenance Design", {
