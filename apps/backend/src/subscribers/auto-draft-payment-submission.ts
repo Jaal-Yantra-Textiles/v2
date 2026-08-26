@@ -80,6 +80,19 @@ export default async function autoDraftPaymentSubmissionHandler({
          * readers that already parse it, but it is no longer the record. #1565
          */
         production_run_ids: { [payout.design_id]: [runId] },
+        /**
+         * The money, as typed inputs.
+         *
+         * 🔴 This subscriber was the last caller still stating what a partner
+         * is owed through `metadata` — the untyped channel that made #1554
+         * reachable by a spelling mistake. Both UIs had already moved; this had
+         * not, and it is the path that writes MOST of production's payouts.
+         *
+         * The same values still reach `metadata` (the route's fold does that
+         * for the review UI), but they no longer *depend* on landing there.
+         */
+        unit_amounts: { [payout.design_id]: payout.unit_amount },
+        quantities: { [payout.design_id]: payout.quantity },
         metadata: {
           auto_drafted: true,
           source: "production_run.completed",

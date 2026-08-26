@@ -98,6 +98,7 @@ import {
   setRunAllocation,
 } from "../../../../lib/production-run-allocation"
 import { costTypeGuardMessage } from "../../../../workflows/production-runs/lib/cost-type-guard"
+import { refreshUnclaimedDraftPayouts } from "../../../../workflows/payment_submissions/lib/refresh-draft-payouts"
 
 export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
   const id = req.params.id
@@ -289,6 +290,35 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
   await productionRunService.updateProductionRuns({ id, ...update })
   const updated = await productionRunService.retrieveProductionRun(id)
 
+  /**
+   * A correction to the money must reach the DRAFT payout this run pre-filled.
+   *
+   * 🔴 `auto-draft-payment-submission` writes that Draft at completion using the
+   * figures of the moment. Correcting the run afterwards changed nothing about
+   * it, so the Draft kept the old numbers and went on looking authoritative —
+   * and no route could fix it, since `review` refuses anything that is not
+   * Pending or Under_Review. A reviewer would have approved a figure that no
+   * longer matched the run it came from.
+   *
+   * ⚠️ Draft ONLY. Every other status is a live claim someone has made, and
+   * rewriting one silently would change what a partner is owed without them
+   * seeing it. Best-effort: the correction above is already persisted and must
+   * not be rolled back because a draft could not be re-priced.
+   */
+  let refreshedDrafts: string[] = []
+  const touchesMoney =
+    update.partner_cost_estimate !== undefined ||
+    update.cost_type !== undefined ||
+    update.produced_quantity !== undefined
+  if (touchesMoney) {
+    try {
+      const outcome = await refreshUnclaimedDraftPayouts(req.scope, id)
+      refreshedDrafts = outcome.refreshed
+    } catch {
+      // Non-fatal by design — see above.
+    }
+  }
+
   // Audit the output correction. Best-effort: the correction itself is already
   // persisted and must not be rolled back because the timeline write failed.
   if (producedCorrection !== undefined || rejectedCorrection !== undefined) {
@@ -351,5 +381,11 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
     ...(touchesMaterials
       ? { materials: await readRunAllocation(req.scope, id) }
       : {}),
+    /**
+     * Which unclaimed Draft payouts were re-priced to match this correction.
+     * Stated so the caller can see the money moved with the run rather than
+     * having to go and check. Empty when nothing needed it.
+     */
+    ...(refreshedDrafts.length ? { refreshed_draft_submissions: refreshedDrafts } : {}),
   })
 }

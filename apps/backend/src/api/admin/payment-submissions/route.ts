@@ -2,7 +2,10 @@ import type { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
 import { PAYMENT_SUBMISSIONS_MODULE } from "../../../modules/payment_submissions"
 import PaymentSubmissionsService from "../../../modules/payment_submissions/service"
 import { createPaymentSubmissionWorkflow } from "../../../workflows/payment_submissions/create-payment-submission"
-import { foldMoneyFieldsIntoMetadata } from "../../../workflows/payment_submissions/lib/money-fields"
+import {
+  assertNoNearMissMoneyKey,
+  foldMoneyFieldsIntoMetadata,
+} from "../../../workflows/payment_submissions/lib/money-fields"
 
 // GET /admin/payment-submissions — list all submissions with filters
 export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
@@ -53,6 +56,8 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
     metadata?: Record<string, any>
   }
 
+  assertNoNearMissMoneyKey(body.metadata)
+
   const { result } = await createPaymentSubmissionWorkflow(req.scope).run({
     input: {
       partner_id: body.partner_id,
@@ -65,6 +70,13 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
       // Typed input, not folded into metadata — this is the double-pay guard's
       // evidence, and it must not be reachable by a misspelt JSON key.
       production_run_ids: body.production_run_ids,
+      // The money, as typed inputs. These are the contract; the fold below
+      // keeps the same values on `metadata` so the review UI and any existing
+      // reader still see original vs. requested exactly as before.
+      quantities: body.quantities,
+      unit_amounts: body.unit_amounts,
+      cost_overrides: (body as any).cost_overrides,
+      task_cost_overrides: (body as any).task_cost_overrides,
       metadata: {
         // Typed money fields win over the metadata channel and land on it —
         // see `foldMoneyFieldsIntoMetadata` for why the precedence is per-field
