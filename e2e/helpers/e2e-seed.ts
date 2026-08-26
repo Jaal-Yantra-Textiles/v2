@@ -585,6 +585,127 @@ async function seedParkedProductionRun(container: any): Promise<{
 }
 
 /**
+ * #1556 — a partner with COMPLETED, priced production runs, so the admin
+ * payment-submission screen can be driven through the runs tab.
+ *
+ * The fixture's whole point is the two numbers disagreeing:
+ *
+ *   - ordered 9, produced 4 — the screen must bill 4. Billing the ordered
+ *     figure is what `runPayableAmount` still does on the auto-draft path, so a
+ *     fixture where the two match cannot tell the paths apart.
+ *   - a rate on the RUN (1200/unit) that disagrees with the design's own
+ *     `estimated_cost` (5000). Pricing off the design would bill 45,000 for
+ *     work worth 4,800, and a fixture whose design cost equals the run rate
+ *     would pass whichever one the screen actually used.
+ *
+ * 🔑 The design is left in `Technical_Review` deliberately. That is where run
+ * completion puts a design, and it is NOT one of the statuses the hand-
+ * submission gate accepts — so the spec also proves the screen waives that gate
+ * for run-sourced payouts rather than requiring someone to edit a design's
+ * review status in order to release a payment.
+ *
+ * A second run of the same design is included with NO rate: it must render as
+ * unpayable rather than silently billing zero or vanishing from the list.
+ *
+ * ⚠️ THREE runs, not two, and deliberately so. Creating a submission consumes a
+ * run permanently — the run-level guard is the whole point — so a spec that
+ * billed the same run it also makes read-only assertions about would pass once
+ * and then fail on every re-run and on every CI RETRY. `billableRunId` is the
+ * sacrificial one; `payableRunId` is never billed and stays assertable.
+ */
+async function seedPayableProductionRuns(container: any): Promise<{
+  partnerId: string
+  partnerName: string
+  designId: string
+  designName: string
+  payableRunId: string
+  billableRunId: string
+  unpricedRunId: string
+}> {
+  const partnerModule: any = container.resolve("partner")
+  const designService: any = container.resolve("design")
+  const runService: any = container.resolve("production_runs")
+  const remoteLink: any = container.resolve(ContainerRegistrationKeys.LINK)
+
+  const stamp = Date.now()
+
+  const created = await partnerModule.createPartners({
+    name: `E2E Payout Partner ${stamp}`,
+    handle: `e2e-payout-${stamp}`,
+    status: "active",
+    is_verified: true,
+  })
+  const partner = Array.isArray(created) ? created[0] : created
+
+  const designName = `Payable Run Fixture (e2e ${stamp})`
+  const design = await designService.createDesigns({
+    name: designName,
+    description: "e2e #1556 payable production run fixture",
+    design_type: "Original",
+    // Where run completion leaves a design — see the note above.
+    status: "Technical_Review",
+    priority: "Medium",
+    // Deliberately NOT 1200: if the screen prices off the design instead of the
+    // run, the amount is visibly wrong rather than coincidentally right.
+    estimated_cost: 5000,
+  })
+  const designId = (Array.isArray(design) ? design[0] : design).id as string
+
+  // The submission workflow validates that the design belongs to the partner
+  // through this link, so the fixture is not payable without it.
+  await remoteLink.create({
+    design: { design_id: designId },
+    partner: { partner_id: partner.id },
+  })
+
+  const mkRun = async (overrides: Record<string, any>) => {
+    const run = await runService.createProductionRuns({
+      design_id: designId,
+      partner_id: partner.id,
+      run_type: "production",
+      status: "completed",
+      completed_at: new Date(),
+      snapshot: { design: { id: designId, name: designName } },
+      captured_at: new Date(),
+      ...overrides,
+    })
+    return (Array.isArray(run) ? run[0] : run).id as string
+  }
+
+  const payableRunId = await mkRun({
+    quantity: 9,
+    produced_quantity: 4,
+    partner_cost_estimate: 1200,
+    cost_type: "per_unit",
+  })
+
+  // Identical to `payableRunId`, and consumed by the spec that actually
+  // creates a submission. See the THREE-runs note above.
+  const billableRunId = await mkRun({
+    quantity: 9,
+    produced_quantity: 4,
+    partner_cost_estimate: 1200,
+    cost_type: "per_unit",
+  })
+
+  const unpricedRunId = await mkRun({
+    quantity: 2,
+    produced_quantity: 2,
+    partner_cost_estimate: null,
+  })
+
+  return {
+    partnerId: partner.id as string,
+    partnerName: partner.name as string,
+    designId,
+    designName,
+    payableRunId,
+    billableRunId,
+    unpricedRunId,
+  }
+}
+
+/**
  * #1363 — a design with a MULTI-ITEM bill of materials and an approvable run,
  * so the per-assignment material allocation can be driven through the admin UI.
  *
@@ -1283,6 +1404,9 @@ export default async function e2eSeed({ container }: ExecArgs) {
     gate.currencyCode
   )
 
+  logger.info("E2E seed: creating the #1556 payable production runs + partner...")
+  const payableRuns = await seedPayableProductionRuns(container)
+
   logger.info("E2E seed: creating the #1439 admin quote fixtures (active + superseded)...")
   const adminQuotes = await seedAdminQuotes(container)
 
@@ -1377,6 +1501,21 @@ export default async function e2eSeed({ container }: ExecArgs) {
     allocationMaterialCLabel: allocation.materialCLabel,
     allocationMaterialAId: allocation.materialAId,
     allocationMaterialCId: allocation.materialCId,
+    // #1556 payable production runs — consumed by
+    // payment-submission-payable-runs.spec.ts (admin, CI).
+    //
+    // ⚠️ `billableRunId` is SINGLE-USE: the spec creates a real payment
+    // submission against it, and the run-level guard then refuses to bill that
+    // run again — so that one case needs a fresh seed per suite run (which is
+    // what `pnpm e2e` does). `payableRunId` and `unpricedRunId` are never
+    // billed and survive a re-run.
+    payoutPartnerId: payableRuns.partnerId,
+    payoutPartnerName: payableRuns.partnerName,
+    payoutDesignId: payableRuns.designId,
+    payoutDesignName: payableRuns.designName,
+    payableRunId: payableRuns.payableRunId,
+    billableRunId: payableRuns.billableRunId,
+    unpricedRunId: payableRuns.unpricedRunId,
     // #1439 S3/S4 admin quote surface — consumed by admin-quote-surface.spec.ts
     // (admin, CI). NOT single-use: the spec cancels out of the revoke prompt
     // rather than confirming it, so a re-run finds the same active quote.

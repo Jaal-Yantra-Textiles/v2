@@ -18,7 +18,11 @@ import { RouteFocusModal } from "../modal/route-focus-modal"
 import { useDesigns, type AdminDesign } from "../../hooks/api/designs"
 import { usePartnerTasks, type AdminPartnerTask } from "../../hooks/api/partner-tasks"
 import { usePartners } from "../../hooks/api/partners-admin"
-import { useCreatePaymentSubmission } from "../../hooks/api/payment-submissions"
+import {
+  useCreatePaymentSubmission,
+  usePayableRuns,
+  type PayableRun,
+} from "../../hooks/api/payment-submissions"
 
 const ELIGIBLE_DESIGN_STATUSES = ["Commerce_Ready", "Approved"] as const
 const ELIGIBLE_TASK_STATUSES = ["completed"] as const
@@ -35,16 +39,45 @@ const getTaskCost = (t: AdminPartnerTask): number => {
  * Admin-initiated payment submission flow.
  *
  * 1. Pick a partner (searchable).
- * 2. Once picked, load that partner's eligible designs + tasks.
- * 3. Select items across the two tabs, override costs inline, add notes.
+ * 2. Once picked, load that partner's payable production RUNS, plus the older
+ *    design and task lists.
+ * 3. Select items, adjust quantity/rate inline, add notes.
  * 4. Submit — creates a Pending submission under the partner's name via the
  *    shared createPaymentSubmissionWorkflow.
+ *
+ * ## Why "Runs" is the default tab
+ *
+ * This screen used to open on DESIGNS, and that was the bug. A design is a
+ * recipe — produced many times — and it carries only a PER-UNIT cost. Billing
+ * from it meant billing that per-unit figure exactly once, with no quantity
+ * input anywhere on the screen: ₹850 for nine finished garments (#1554).
+ *
+ * A run is the payable thing. It knows the rate the partner agreed
+ * (`partner_cost_estimate` + `cost_type`) and how many pieces they actually
+ * made (`produced_quantity`), and it is the unit that can be marked as paid so
+ * the next submission refuses to pay for it twice.
+ *
+ * 🔑 The quantity defaults to PRODUCED, not ordered — a partner is paid for
+ * what they made. Where the two disagree the row says so out loud rather than
+ * silently picking one.
+ *
+ * The designs and tasks tabs are kept: work that never had a run (and task
+ * work, which is not production output at all) still has to be payable.
  */
 export const CreatePaymentSubmissionComponent = () => {
   const navigate = useNavigate()
 
   const [partnerId, setPartnerId] = useState<string>("")
-  const [activeTab, setActiveTab] = useState<"designs" | "tasks">("designs")
+  const [activeTab, setActiveTab] = useState<"runs" | "designs" | "tasks">(
+    "runs"
+  )
+  const [selectedRunIds, setSelectedRunIds] = useState<Set<string>>(new Set())
+  const [runQuantityOverrides, setRunQuantityOverrides] = useState<
+    Record<string, number>
+  >({})
+  const [runRateOverrides, setRunRateOverrides] = useState<
+    Record<string, number>
+  >({})
   const [selectedDesignIds, setSelectedDesignIds] = useState<Set<string>>(
     new Set()
   )
@@ -79,6 +112,16 @@ export const CreatePaymentSubmissionComponent = () => {
     enabled: !!partnerId,
   })
 
+  // Payable production runs — the primary source of truth for what to pay.
+  const { payable_runs: payableRuns, isPending: runsLoading } =
+    usePayableRuns(partnerId || undefined)
+
+  /** Runs that can actually be billed now: priced, and not already paid for. */
+  const selectableRuns = useMemo(
+    () => payableRuns.filter((r) => r.payable && !r.billed),
+    [payableRuns]
+  )
+
   const eligibleDesigns = useMemo(
     () =>
       designs.filter((d) =>
@@ -103,6 +146,9 @@ export const CreatePaymentSubmissionComponent = () => {
     useCreatePaymentSubmission()
 
   const resetSelection = () => {
+    setSelectedRunIds(new Set())
+    setRunQuantityOverrides({})
+    setRunRateOverrides({})
     setSelectedDesignIds(new Set())
     setSelectedTaskIds(new Set())
     setDesignCostOverrides({})
@@ -122,6 +168,65 @@ export const CreatePaymentSubmissionComponent = () => {
       return next
     })
   }, [])
+
+  const toggleRun = useCallback((id: string) => {
+    setSelectedRunIds((prev) => {
+      const next = new Set(prev)
+      next.has(id) ? next.delete(id) : next.add(id)
+      return next
+    })
+  }, [])
+
+  const selectAllRuns = useCallback(() => {
+    setSelectedRunIds((prev) =>
+      prev.size === selectableRuns.length
+        ? new Set()
+        : new Set(selectableRuns.map((r) => r.run_id))
+    )
+  }, [selectableRuns])
+
+  /** Units billed for a run — the produced figure unless an admin retyped it. */
+  const getRunQuantity = useCallback(
+    (run: PayableRun): number =>
+      runQuantityOverrides[run.run_id] != null
+        ? runQuantityOverrides[run.run_id]
+        : run.payable_quantity,
+    [runQuantityOverrides]
+  )
+
+  /** The per-unit rate — the run's agreed rate unless an admin retyped it. */
+  const getRunRate = useCallback(
+    (run: PayableRun): number =>
+      runRateOverrides[run.run_id] != null
+        ? runRateOverrides[run.run_id]
+        : run.unit_amount,
+    [runRateOverrides]
+  )
+
+  const getRunAmount = useCallback(
+    (run: PayableRun): number =>
+      Math.round(getRunQuantity(run) * getRunRate(run) * 100) / 100,
+    [getRunQuantity, getRunRate]
+  )
+
+  const handleRunNumberChange = (
+    setter: React.Dispatch<React.SetStateAction<Record<string, number>>>,
+    id: string,
+    value: string
+  ) => {
+    const num = parseFloat(value)
+    // An empty or unparseable box falls back to the run's own figure rather
+    // than to zero — a half-typed number must never silently bill nothing.
+    if (value === "" || isNaN(num)) {
+      setter((prev) => {
+        const next = { ...prev }
+        delete next[id]
+        return next
+      })
+    } else {
+      setter((prev) => ({ ...prev, [id]: num }))
+    }
+  }
 
   const toggleTask = useCallback((id: string) => {
     setSelectedTaskIds((prev) => {
@@ -191,7 +296,63 @@ export const CreatePaymentSubmissionComponent = () => {
   }
 
   // ─── Totals ─────────────────────────────────────────────────────────
-  const totalSelected = selectedDesignIds.size + selectedTaskIds.size
+  const selectedRuns = useMemo(
+    () => selectableRuns.filter((r) => selectedRunIds.has(r.run_id)),
+    [selectableRuns, selectedRunIds]
+  )
+
+  /**
+   * Selected runs folded into the design-keyed shape the workflow bills in.
+   *
+   * A submission line is keyed by DESIGN, so two completed runs of the same
+   * design collapse into one line whose quantity is their sum. Where those runs
+   * were priced at the SAME rate the line keeps that rate and the breakdown
+   * still reads "n × rate". Where the rates DIFFER there is no single honest
+   * rate to state, so the line carries a typed total instead and records no
+   * unit_amount — deriving one by dividing the total back out would invent a
+   * rate nobody agreed to.
+   */
+  const runLinesByDesign = useMemo(() => {
+    const byDesign = new Map<
+      string,
+      { runs: PayableRun[]; quantity: number; amount: number; rates: Set<number> }
+    >()
+
+    for (const run of selectedRuns) {
+      const entry = byDesign.get(run.design_id) ?? {
+        runs: [],
+        quantity: 0,
+        amount: 0,
+        rates: new Set<number>(),
+      }
+      entry.runs.push(run)
+      entry.quantity += getRunQuantity(run)
+      entry.amount = Math.round((entry.amount + getRunAmount(run)) * 100) / 100
+      entry.rates.add(getRunRate(run))
+      byDesign.set(run.design_id, entry)
+    }
+
+    return byDesign
+  }, [selectedRuns, getRunQuantity, getRunAmount, getRunRate])
+
+  const runsTotal = useMemo(
+    () => selectedRuns.reduce((sum, r) => sum + getRunAmount(r), 0),
+    [selectedRuns, getRunAmount]
+  )
+
+  /**
+   * A design cannot be billed twice in one submission — the workflow writes one
+   * line per design, so a design picked in BOTH the runs tab and the designs
+   * tab would silently lose one of the two amounts.
+   */
+  const conflictingDesignIds = useMemo(
+    () =>
+      [...runLinesByDesign.keys()].filter((id) => selectedDesignIds.has(id)),
+    [runLinesByDesign, selectedDesignIds]
+  )
+
+  const totalSelected =
+    selectedRuns.length + selectedDesignIds.size + selectedTaskIds.size
 
   const totalAmount = useMemo(() => {
     const designTotal = eligibleDesigns
@@ -200,8 +361,9 @@ export const CreatePaymentSubmissionComponent = () => {
     const taskTotal = eligibleTasks
       .filter((t) => selectedTaskIds.has(t.id))
       .reduce((sum, t) => sum + getEffectiveTaskCost(t), 0)
-    return designTotal + taskTotal
+    return designTotal + taskTotal + runsTotal
   }, [
+    runsTotal,
     eligibleDesigns,
     selectedDesignIds,
     getEffectiveDesignCost,
@@ -217,7 +379,30 @@ export const CreatePaymentSubmissionComponent = () => {
       return
     }
     if (totalSelected === 0) {
-      toast.error("Select at least one design or task")
+      toast.error("Select at least one run, design or task")
+      return
+    }
+
+    if (conflictingDesignIds.length) {
+      const names = conflictingDesignIds.map(
+        (id) =>
+          runLinesByDesign.get(id)?.runs[0]?.design_name ||
+          eligibleDesigns.find((d) => d.id === id)?.name ||
+          id
+      )
+      toast.error(
+        `Already billed via a production run — deselect it in the Designs tab: ${names.join(", ")}`
+      )
+      return
+    }
+
+    const zeroRateRuns = selectedRuns.filter((r) => getRunAmount(r) <= 0)
+    if (zeroRateRuns.length) {
+      toast.error(
+        `Enter a rate and quantity for: ${zeroRateRuns
+          .map((r) => r.design_name || r.run_id)
+          .join(", ")}`
+      )
       return
     }
 
@@ -245,17 +430,53 @@ export const CreatePaymentSubmissionComponent = () => {
        * `cost_overrides` / `task_cost_overrides` directly and folds them onto
        * the metadata channel itself.
        */
+      // Fold the selected runs into the design-keyed money contract. See
+      // `runLinesByDesign` for why a mixed-rate design becomes a typed total
+      // rather than an invented per-unit rate.
+      const quantities: Record<string, number> = {}
+      const unitAmounts: Record<string, number> = {}
+      const runCostOverrides: Record<string, number> = { ...designCostOverrides }
+      const productionRunIds: Record<string, string[]> = {}
+
+      for (const [designId, line] of runLinesByDesign.entries()) {
+        quantities[designId] = line.quantity
+        productionRunIds[designId] = line.runs.map((r) => r.run_id)
+        if (line.rates.size === 1) {
+          unitAmounts[designId] = [...line.rates][0]
+        } else {
+          runCostOverrides[designId] = line.amount
+        }
+      }
+
+      const runDesignIds = [...runLinesByDesign.keys()]
+
       const { payment_submission } = await createSubmission({
         partner_id: partnerId,
-        design_ids: Array.from(selectedDesignIds),
+        design_ids: [
+          ...new Set([...runDesignIds, ...Array.from(selectedDesignIds)]),
+        ],
         task_ids: Array.from(selectedTaskIds),
         notes: notes || undefined,
-        cost_overrides: Object.keys(designCostOverrides).length
-          ? designCostOverrides
+        quantities: Object.keys(quantities).length ? quantities : undefined,
+        unit_amounts: Object.keys(unitAmounts).length ? unitAmounts : undefined,
+        cost_overrides: Object.keys(runCostOverrides).length
+          ? runCostOverrides
           : undefined,
         task_cost_overrides: Object.keys(taskCostOverrides).length
           ? taskCostOverrides
           : undefined,
+        // The evidence behind the money: which finished runs this pays for, so
+        // the next submission can refuse to pay for them again.
+        production_run_ids: runDesignIds.length ? productionRunIds : undefined,
+        /**
+         * 🔑 Paying out a COMPLETED RUN, whose proof of finished work is the
+         * run itself. Completion moves a design to Technical_Review, so the
+         * design-status gate would reject every run-sourced payout — and the
+         * only way through used to be editing the design's status, i.e.
+         * changing what the record asserts about technical review in order to
+         * release a payment. Only sent when runs are actually being billed.
+         */
+        require_design_status: runDesignIds.length ? false : undefined,
       })
       toast.success("Payment submission created")
       navigate(`/payment-submissions/${payment_submission.id}`)
@@ -284,7 +505,10 @@ export const CreatePaymentSubmissionComponent = () => {
             {totalSelected > 0 && (
               <Text className="text-ui-fg-subtle">
                 {totalSelected} item{totalSelected !== 1 ? "s" : ""} ={" "}
-                <span className="font-semibold text-ui-fg-base">
+                <span
+                  className="font-semibold text-ui-fg-base"
+                  data-testid="submission-total"
+                >
                   INR {totalAmount.toLocaleString()}
                 </span>
               </Text>
@@ -354,15 +578,28 @@ export const CreatePaymentSubmissionComponent = () => {
           {!partnerId ? (
             <Container className="p-8">
               <Text className="text-ui-fg-subtle text-center">
-                Pick a partner to load their eligible designs and tasks.
+                Pick a partner to load their payable production runs.
               </Text>
             </Container>
           ) : (
             <Tabs
               value={activeTab}
-              onValueChange={(v) => setActiveTab(v as "designs" | "tasks")}
+              onValueChange={(v) =>
+                setActiveTab(v as "runs" | "designs" | "tasks")
+              }
             >
               <Tabs.List>
+                <Tabs.Trigger value="runs">
+                  Production runs{" "}
+                  <Badge size="2xsmall" color="grey" className="ml-2">
+                    {selectableRuns.length}
+                  </Badge>
+                  {selectedRunIds.size > 0 && (
+                    <Badge size="2xsmall" color="green" className="ml-1">
+                      {selectedRunIds.size} picked
+                    </Badge>
+                  )}
+                </Tabs.Trigger>
                 <Tabs.Trigger value="designs">
                   Designs{" "}
                   <Badge size="2xsmall" color="grey" className="ml-2">
@@ -386,6 +623,27 @@ export const CreatePaymentSubmissionComponent = () => {
                   )}
                 </Tabs.Trigger>
               </Tabs.List>
+
+              <Tabs.Content value="runs" className="mt-4">
+                <RunsPanel
+                  runs={payableRuns}
+                  isLoading={runsLoading}
+                  selectedIds={selectedRunIds}
+                  onToggle={toggleRun}
+                  onSelectAll={selectAllRuns}
+                  quantityOverrides={runQuantityOverrides}
+                  rateOverrides={runRateOverrides}
+                  onQuantityChange={(id, value) =>
+                    handleRunNumberChange(setRunQuantityOverrides, id, value)
+                  }
+                  onRateChange={(id, value) =>
+                    handleRunNumberChange(setRunRateOverrides, id, value)
+                  }
+                  getQuantity={getRunQuantity}
+                  getRate={getRunRate}
+                  getAmount={getRunAmount}
+                />
+              </Tabs.Content>
 
               <Tabs.Content value="designs" className="mt-4">
                 <DesignsPanel
@@ -417,6 +675,252 @@ export const CreatePaymentSubmissionComponent = () => {
         </div>
       </RouteFocusModal.Body>
     </>
+  )
+}
+
+// ─── Production runs panel ────────────────────────────────────────────
+/**
+ * One row per completed RUN — the thing that actually carries a rate and a
+ * piece count. The screen this replaces listed designs and had no quantity
+ * input at all, which is how a per-unit rate came to be billed once (#1554).
+ *
+ * Rows that cannot be billed are shown rather than filtered away: a run with no
+ * agreed rate, and a run already paid for, are both things an admin looking for
+ * "why isn't this here" needs to SEE. They are visibly non-selectable instead.
+ */
+const RunsPanel = ({
+  runs,
+  isLoading,
+  selectedIds,
+  onToggle,
+  onSelectAll,
+  quantityOverrides,
+  rateOverrides,
+  onQuantityChange,
+  onRateChange,
+  getQuantity,
+  getRate,
+  getAmount,
+}: {
+  runs: PayableRun[]
+  isLoading: boolean
+  selectedIds: Set<string>
+  onToggle: (id: string) => void
+  onSelectAll: () => void
+  quantityOverrides: Record<string, number>
+  rateOverrides: Record<string, number>
+  onQuantityChange: (id: string, value: string) => void
+  onRateChange: (id: string, value: string) => void
+  getQuantity: (run: PayableRun) => number
+  getRate: (run: PayableRun) => number
+  getAmount: (run: PayableRun) => number
+}) => {
+  if (isLoading) {
+    return (
+      <Container className="p-8">
+        <Text className="text-ui-fg-subtle text-center">
+          Loading production runs...
+        </Text>
+      </Container>
+    )
+  }
+
+  if (!runs.length) {
+    return (
+      <Container className="p-8">
+        <Text className="text-ui-fg-subtle text-center">
+          No completed production runs for this partner. A run has to be
+          completed before it can be paid for.
+        </Text>
+      </Container>
+    )
+  }
+
+  const selectable = runs.filter((r) => r.payable && !r.billed)
+
+  return (
+    <div className="flex flex-col gap-y-2">
+      <div className="mb-1 flex items-center justify-between">
+        <Heading level="h3">{selectable.length} payable</Heading>
+        {selectable.length > 0 && (
+          <Button variant="secondary" size="small" onClick={onSelectAll}>
+            {selectedIds.size === selectable.length
+              ? "Deselect All"
+              : "Select All"}
+          </Button>
+        )}
+      </div>
+
+      {runs.map((run) => {
+        const isSelectable = run.payable && !run.billed
+        const isSelected = selectedIds.has(run.run_id)
+        const quantity = getQuantity(run)
+        const rate = getRate(run)
+        const amount = getAmount(run)
+
+        // The two figures disagreeing is the normal case, not an error — it is
+        // the whole reason the basis is stated instead of assumed.
+        const shortfall =
+          run.produced_quantity !== null &&
+          run.ordered_quantity !== null &&
+          run.produced_quantity !== run.ordered_quantity
+
+        return (
+          <Container
+            key={run.run_id}
+            className={`p-4 transition ${
+              isSelected ? "ring-2 ring-ui-border-interactive" : ""
+            } ${isSelectable ? "" : "opacity-60"}`}
+            data-testid="payable-run-row"
+            data-run-id={run.run_id}
+          >
+            <div className="flex items-center gap-3">
+              <div
+                className={isSelectable ? "cursor-pointer" : "cursor-not-allowed"}
+                onClick={() => isSelectable && onToggle(run.run_id)}
+              >
+                <Checkbox checked={isSelected} disabled={!isSelectable} />
+              </div>
+
+              <div
+                className="flex-1 min-w-0"
+                onClick={() => isSelectable && onToggle(run.run_id)}
+              >
+                <div className="flex items-center gap-2">
+                  <Text weight="plus" className="truncate">
+                    {run.design_name || "Unnamed design"}
+                  </Text>
+                  {run.design_status && (
+                    <Badge color="grey" size="2xsmall">
+                      {run.design_status.replace(/_/g, " ")}
+                    </Badge>
+                  )}
+                  {run.billed && (
+                    <Badge color="orange" size="2xsmall">
+                      Already paid — {run.billed.status}
+                    </Badge>
+                  )}
+                  {!run.payable && (
+                    <Badge color="red" size="2xsmall">
+                      No agreed rate
+                    </Badge>
+                  )}
+                </div>
+
+                <div className="mt-1 flex flex-wrap items-center gap-x-4 gap-y-1">
+                  {/* Produced vs ordered, side by side. Which one the amount is
+                      built from is stated, never inferred by the reader. */}
+                  <Text size="small" className="text-ui-fg-subtle">
+                    Produced{" "}
+                    <span className="font-semibold text-ui-fg-base">
+                      {run.produced_quantity ?? "—"}
+                    </span>{" "}
+                    of {run.ordered_quantity ?? "—"} ordered
+                  </Text>
+                  {run.quantity_basis === "ordered" && (
+                    <Text size="small" className="text-ui-fg-warning">
+                      no output recorded — billing the ordered quantity
+                    </Text>
+                  )}
+                  {shortfall && run.quantity_basis === "produced" && (
+                    <Text size="small" className="text-ui-fg-subtle">
+                      paying on produced
+                    </Text>
+                  )}
+                  {run.rejected_quantity ? (
+                    <Text size="small" className="text-ui-fg-subtle">
+                      {run.rejected_quantity} rejected
+                    </Text>
+                  ) : null}
+                  {/*
+                    Long enough to be UNAMBIGUOUS. Runs are created in
+                    parent/child pairs within the same millisecond, so their
+                    ULIDs share a long prefix — prod's own pair differs only at
+                    character 15. A shorter truncation renders two different
+                    runs as the same string.
+                  */}
+                  <Text size="small" className="text-ui-fg-muted font-mono">
+                    {run.run_id.slice(0, 24)}...
+                  </Text>
+                </div>
+
+                {run.billed && (
+                  <Text size="xsmall" className="text-ui-fg-muted mt-1">
+                    Paid for by submission {run.billed.submission_id} (
+                    {run.billed.quantity} unit
+                    {run.billed.quantity === 1 ? "" : "s"})
+                  </Text>
+                )}
+                {!run.billed && run.design_has_open_submission && (
+                  <Text size="xsmall" className="text-ui-fg-warning mt-1">
+                    This design is already in an open submission — creating
+                    another will be refused until that one is resolved.
+                  </Text>
+                )}
+              </div>
+
+              {isSelectable && (
+                <div className="flex items-center gap-2 shrink-0">
+                  <div className="flex flex-col items-end gap-1">
+                    <Text size="xsmall" className="text-ui-fg-muted">
+                      Qty
+                    </Text>
+                    <Input
+                      type="number"
+                      size="small"
+                      className="w-20 text-right"
+                      aria-label={`Quantity for ${run.design_name || run.run_id}`}
+                      value={
+                        quantityOverrides[run.run_id] != null
+                          ? String(quantityOverrides[run.run_id])
+                          : String(run.payable_quantity)
+                      }
+                      onChange={(e) =>
+                        onQuantityChange(run.run_id, e.target.value)
+                      }
+                      onClick={(e) => e.stopPropagation()}
+                    />
+                  </div>
+                  <div className="flex flex-col items-end gap-1">
+                    <Text size="xsmall" className="text-ui-fg-muted">
+                      Rate
+                    </Text>
+                    <Input
+                      type="number"
+                      size="small"
+                      className="w-24 text-right"
+                      aria-label={`Rate for ${run.design_name || run.run_id}`}
+                      value={
+                        rateOverrides[run.run_id] != null
+                          ? String(rateOverrides[run.run_id])
+                          : String(run.unit_amount)
+                      }
+                      onChange={(e) => onRateChange(run.run_id, e.target.value)}
+                      onClick={(e) => e.stopPropagation()}
+                    />
+                  </div>
+                  <div className="flex flex-col items-end gap-1 w-28">
+                    <Text size="xsmall" className="text-ui-fg-muted">
+                      Amount
+                    </Text>
+                    {/* The arithmetic, shown. A partner disputing a payment
+                        reads "7 × 1,200", not a bare 8,400. */}
+                    <Text
+                      weight="plus"
+                      className="text-right"
+                      data-testid={`run-amount-${run.run_id}`}
+                    >
+                      {quantity} × {rate.toLocaleString()} ={" "}
+                      {amount.toLocaleString()}
+                    </Text>
+                  </div>
+                </div>
+              )}
+            </div>
+          </Container>
+        )
+      })}
+    </div>
   )
 }
 
