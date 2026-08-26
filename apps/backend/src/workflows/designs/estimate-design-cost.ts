@@ -21,6 +21,30 @@ import { ContainerRegistrationKeys } from "@medusajs/framework/utils";
  */
 type ConfidenceLevel = "exact" | "estimated" | "guesstimate" | "none";
 
+/**
+ * Which rung of the production-cost waterfall produced the figure.
+ *
+ * Surfaced so a reader can tell a settled price from a borrowed one without
+ * re-deriving the precedence. `sample_run` in particular is a real partner rate
+ * for a PROTOTYPE, which usually costs more per unit than a production batch —
+ * useful, but never to be presented as the production price. #1568
+ */
+export type ProductionCostSource =
+  | "partner_entered"
+  | "actual_run"
+  /**
+   * A sample run's MEASURED consumption, stored on the design as
+   * `cost_breakdown.source === "sample_consumption"`. Distinct from
+   * `sample_run` and genuinely strong: it is what the sample actually used,
+   * not what the partner quoted for it — which is why that path alone keeps
+   * confidence "exact".
+   */
+  | "sample_consumption"
+  | "sample_run"
+  | "admin_estimate"
+  | "similar_designs"
+  | "default_percent";
+
 export type MaterialCostItem = {
   inventory_item_id?: string;
   component_design_id?: string;
@@ -76,6 +100,8 @@ export type EstimateCostOutput = {
     materials: MaterialCostItem[];
     production_percent: number;
     platform_fee_percent: number;
+    /** Where the production half of the total came from. #1568 */
+    production_cost_source: ProductionCostSource;
   };
   similar_designs?: Array<{
     id: string;
@@ -154,6 +180,12 @@ export function computeCostBreakdown(input: {
    */
   actualProductionCost?: number | null;
   /**
+   * Whether `actualProductionCost` came from a SAMPLE run rather than a
+   * production one. A sample is used only when no production run priced the
+   * design, and it caps confidence at "guesstimate" — see #1568.
+   */
+  actualProductionCostFromSample?: boolean;
+  /**
    * Partner-entered production cost per finished unit. Highest precedence — a
    * value the partner typed is authoritative, so it beats even a completed
    * run's actual cost. A value of 0 is respected (explicitly "no production
@@ -185,31 +217,42 @@ export function computeCostBreakdown(input: {
   let productionCost: number;
   let productionPercent: number;
   let productionIsEstimated = true;
+  /** Which rung of the waterfall below actually set `productionCost`. */
+  let productionSource: ProductionCostSource = "default_percent";
 
   if (input.productionCostOverride != null && input.productionCostOverride >= 0) {
     // Partner typed their production cost — authoritative, wins over everything.
     productionCost = input.productionCostOverride;
     productionPercent = materialCost > 0 ? (productionCost / materialCost) * 100 : 0;
+    productionSource = "partner_entered";
     productionIsEstimated = false;
   } else if (input.actualProductionCost != null && input.actualProductionCost > 0) {
     // A real, partner-submitted production cost from a completed run wins.
     productionCost = input.actualProductionCost;
     productionPercent = materialCost > 0 ? (productionCost / materialCost) * 100 : 0;
-    productionIsEstimated = false;
+    productionSource = input.actualProductionCostFromSample
+      ? "sample_run"
+      : "actual_run";
+    // ⚠️ A sample-sourced figure is still an ESTIMATE. Marking it settled would
+    // let confidence reach "exact" on the strength of a prototype's price.
+    productionIsEstimated = !!input.actualProductionCostFromSample;
   } else if (adminEstimate != null && adminEstimate > 0 && materialCost > 0) {
     productionCost = Math.max(0, adminEstimate - materialCost);
     productionPercent = (productionCost / materialCost) * 100;
+    productionSource = "admin_estimate";
     productionIsEstimated = false; // admin set a concrete estimate
   } else if (adminEstimate != null && adminEstimate > 0 && materialCost === 0) {
     const materialShare = adminEstimate / (1 + DEFAULT_PRODUCTION_PERCENT / 100);
     productionCost = adminEstimate - materialShare;
     productionPercent = DEFAULT_PRODUCTION_PERCENT;
+    productionSource = "admin_estimate";
   } else if (similarDesigns.length > 0 && materialCost > 0) {
     const avgSimilarCost =
       similarDesigns.reduce((s, d) => s + d.estimated_cost, 0) / similarDesigns.length;
     const impliedProduction = Math.max(avgSimilarCost - materialCost, materialCost * 0.1);
     productionCost = Math.min(impliedProduction, materialCost * 0.6);
     productionPercent = (productionCost / materialCost) * 100;
+    productionSource = "similar_designs";
   } else {
     productionCost = materialCost * (DEFAULT_PRODUCTION_PERCENT / 100);
     productionPercent = DEFAULT_PRODUCTION_PERCENT;
@@ -262,6 +305,17 @@ export function computeCostBreakdown(input: {
   let confidence: ConfidenceLevel;
   if (!hasPricingSignal) {
     confidence = "none";
+  } else if (productionSource === "sample_run") {
+    /**
+     * 🔴 Capped, whatever the materials look like.
+     *
+     * A sample rate is a real number a partner charged — for ONE PROTOTYPE,
+     * which usually costs more per unit than a production batch. Exact material
+     * costs beside it would otherwise carry the whole estimate to "exact", and
+     * this figure reaches quotes and the storefront. It is the best guess
+     * available, and it must present as a guess. #1568
+     */
+    confidence = "guesstimate";
   } else if (input.hasExactMaterialCosts && !productionIsEstimated) {
     confidence = "exact";
   } else if (hasAnyRealData || similarDesigns.length > 0 || adminEstimate != null) {
@@ -286,6 +340,7 @@ export function computeCostBreakdown(input: {
       materials,
       production_percent: Math.round(productionPercent),
       platform_fee_percent: platformFeePercent,
+      production_cost_source: productionSource,
     },
     similar_designs: similarDesigns.length > 0 ? similarDesigns : undefined,
   };
@@ -604,6 +659,8 @@ const getActualProductionCostStep = createStep(
   "get-actual-production-cost-step",
   async (input: { design_id: string }, { container }) => {
     let perUnit: number | null = null;
+    /** Whether `perUnit` came from a sample rather than a production run. */
+    let fromSample = false;
     try {
       // Resolve by registration key (string) to avoid importing the module
       // entrypoint into this file — its pure functions are unit-tested without
@@ -613,18 +670,62 @@ const getActualProductionCostStep = createStep(
         { design_id: input.design_id, status: "completed" },
         { order: { completed_at: "DESC" }, take: 50 }
       );
+
+      /**
+       * The per-unit cost a completed run says the partner charged, or null if
+       * this run carries no money. A PARENT run never does — runs come in
+       * parent/child pairs and the child holds the partner and the rate — so
+       * the `est <= 0` test also filters parents out without a rule of its own.
+       */
+      const rateOf = (r: any): number | null => {
+        const est = Number(r.partner_cost_estimate);
+        if (!est || est <= 0) return null;
+        const qty = Number(r.produced_quantity) || Number(r.quantity) || 1;
+        return r.cost_type === "per_unit" ? est : qty > 0 ? est / qty : est;
+      };
+
+      // Pass 1 — a real production run. Unchanged, and still wins outright.
       for (const r of runs || []) {
         if (r.run_type === "sample") continue;
-        const est = Number(r.partner_cost_estimate);
-        if (!est || est <= 0) continue;
-        const qty = Number(r.produced_quantity) || Number(r.quantity) || 1;
-        perUnit = r.cost_type === "per_unit" ? est : qty > 0 ? est / qty : est;
+        const rate = rateOf(r);
+        if (rate == null) continue;
+        perUnit = rate;
         break;
+      }
+
+      /**
+       * Pass 2 — a SAMPLE run, only when no production run priced this design.
+       *
+       * 🔴 The sample skip used to be absolute, which meant a design whose only
+       * production is a sample could never be priced by recalculation, ever.
+       * Three designs on prod sat at 0 for exactly this reason while a real
+       * partner rate sat on their sample run: Jacket With Embroidery (1250),
+       * Jaam Dani Modern Touch (1100 over 2), Ketiya Silk (1100).
+       *
+       * ⚠️ It is a weaker figure and is labelled as one — `fromSample` caps
+       * confidence at "guesstimate" and the breakdown records
+       * `production_cost_source: "sample_run"`. Sampling one prototype usually
+       * costs more per unit than a production batch, and this number reaches
+       * quotes and the storefront, so it must never present as a settled price.
+       * A production run, an admin estimate or a partner override all beat it.
+       */
+      if (perUnit == null) {
+        for (const r of runs || []) {
+          if (r.run_type !== "sample") continue;
+          const rate = rateOf(r);
+          if (rate == null) continue;
+          perUnit = rate;
+          fromSample = true;
+          break;
+        }
       }
     } catch {
       // Non-fatal — production runs module may be unavailable or none exist.
     }
-    return new StepResponse({ actualProductionCostPerUnit: perUnit });
+    return new StepResponse({
+      actualProductionCostPerUnit: perUnit,
+      actualProductionCostFromSample: fromSample,
+    });
   }
 );
 
@@ -638,6 +739,7 @@ const calculateTotalCostStep = createStep(
     hasExactMaterialCosts: boolean;
     similarDesigns: Array<{ id: string; name: string; estimated_cost: number }>;
     actualProductionCostPerUnit?: number | null;
+    actualProductionCostFromSample?: boolean;
     productionCostOverride?: number | null;
     platformFeePercent?: number;
     defaultMaterialCost?: number;
@@ -674,6 +776,7 @@ const calculateTotalCostStep = createStep(
         total_estimated: round2(totalEstimated),
         confidence: "exact" as ConfidenceLevel,
         breakdown: {
+          production_cost_source: "sample_consumption" as ProductionCostSource,
           materials: costBreakdown.items || input.materials,
           production_percent: materialCost > 0
             ? Math.round((productionCost / materialCost) * 100)
@@ -694,6 +797,7 @@ const calculateTotalCostStep = createStep(
       hasExactMaterialCosts: input.hasExactMaterialCosts,
       similarDesigns: input.similarDesigns,
       actualProductionCost: input.actualProductionCostPerUnit ?? null,
+      actualProductionCostFromSample: !!input.actualProductionCostFromSample,
       productionCostOverride: input.productionCostOverride ?? null,
       platformFeePercent,
       defaultMaterialCost: input.defaultMaterialCost ?? 0,
@@ -740,6 +844,8 @@ export const estimateDesignCostWorkflow = createWorkflow(
       }>,
       actualProductionCostPerUnit:
         actualCostResult.actualProductionCostPerUnit as unknown as number | null,
+      actualProductionCostFromSample:
+        actualCostResult.actualProductionCostFromSample as unknown as boolean,
       productionCostOverride:
         input.production_cost_override as unknown as number | null,
       platformFeePercent: input.platform_fee_percent as unknown as number,

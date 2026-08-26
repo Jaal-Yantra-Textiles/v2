@@ -212,6 +212,75 @@ describe("computeCostBreakdown", () => {
     })
   })
 
+  /**
+   * A sample run's rate is a price — a weak one (#1568).
+   *
+   * The estimator skipped `run_type: "sample"` outright, so a design whose only
+   * production is a sample could never be priced. Three designs sat at 0 on prod
+   * for exactly this reason while a real partner rate sat on their sample run.
+   */
+  describe("a sample run's cost is used, and labelled (#1568)", () => {
+    it("prices from a sample rate and caps confidence at guesstimate", () => {
+      const result = computeCostBreakdown({
+        ...base,
+        adminEstimate: null,
+        materials: [],
+        actualProductionCost: 1250,
+        actualProductionCostFromSample: true,
+      })
+      expect(result.total_estimated).toBe(1250)
+      // 🔴 Not "exact", not even "estimated". Sampling one prototype usually
+      // costs more per unit than a production batch, and this number reaches
+      // quotes and the storefront — it must present as a guess.
+      expect(result.confidence).toBe("guesstimate")
+      expect(result.breakdown.production_cost_source).toBe("sample_run")
+    })
+
+    it("keeps confidence capped even when the materials are exact", () => {
+      // Exact materials beside a sample-derived production cost would otherwise
+      // carry the whole estimate to "exact" — the production half is still a
+      // prototype's price.
+      const result = computeCostBreakdown({
+        ...base,
+        adminEstimate: null,
+        materials: orderHistoryMaterials,
+        hasExactMaterialCosts: true,
+        actualProductionCost: 1250,
+        actualProductionCostFromSample: true,
+      })
+      expect(result.confidence).toBe("guesstimate")
+      expect(result.breakdown.production_cost_source).toBe("sample_run")
+    })
+
+    it("a real production run still outranks it and reads as an actual run", () => {
+      // The fallback must not weaken the normal path: an actual run's cost is
+      // unchanged in both value and label.
+      const result = computeCostBreakdown({
+        ...base,
+        adminEstimate: null,
+        materials: orderHistoryMaterials,
+        hasExactMaterialCosts: true,
+        actualProductionCost: 40,
+        actualProductionCostFromSample: false,
+      })
+      expect(result.breakdown.production_cost_source).toBe("actual_run")
+      expect(result.confidence).toBe("exact")
+    })
+
+    it("a partner's typed cost still beats a sample", () => {
+      const result = computeCostBreakdown({
+        ...base,
+        adminEstimate: null,
+        materials: [],
+        actualProductionCost: 1250,
+        actualProductionCostFromSample: true,
+        productionCostOverride: 900,
+      })
+      expect(result.production_cost).toBe(900)
+      expect(result.breakdown.production_cost_source).toBe("partner_entered")
+    })
+  })
+
   describe("partner production-cost override", () => {
     it("uses the partner-entered production cost over the 30% default", () => {
       const result = computeCostBreakdown({
