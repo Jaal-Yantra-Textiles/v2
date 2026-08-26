@@ -1,3 +1,10 @@
+## [13.114.3](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.114.2...v13.114.3) (2026-08-26)
+
+
+### Bug Fixes
+
+* **designs:** a sample run's rate is a price — a weak one, not nothing ([#1568](https://github.com/Jaal-Yantra-Textiles/v2/issues/1568)) ([#1569](https://github.com/Jaal-Yantra-Textiles/v2/issues/1569)) ([f0ecdd4](https://github.com/Jaal-Yantra-Textiles/v2/commit/f0ecdd4403b3b39e36b0978ba03383e21832b340)), closes [#1564](https://github.com/Jaal-Yantra-Textiles/v2/issues/1564)
+
 ## [13.114.2](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.114.1...v13.114.2) (2026-08-26)
 
 
