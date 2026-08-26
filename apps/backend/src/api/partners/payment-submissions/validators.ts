@@ -1,5 +1,7 @@
 import { z } from "zod"
 
+import { paymentSubmissionMoneyFields } from "../../../workflows/payment_submissions/lib/money-fields"
+
 /**
  * Partners can bundle any combination of designs and tasks into a single
  * submission. At least one item (from either list) is required.
@@ -19,6 +21,16 @@ export const CreatePaymentSubmissionSchema = z
         })
       )
       .optional(),
+    /**
+     * The money contract as real fields. Same fragment the admin route uses —
+     * one owner, so the two surfaces cannot drift apart on what decides a
+     * payout. See `paymentSubmissionMoneyFields`.
+     *
+     * ⚠️ Deliberately NOT accepting `status` or `require_design_status` here.
+     * A partner may not choose which review state their own claim lands in, and
+     * may not waive the design-eligibility gate on it.
+     */
+    ...paymentSubmissionMoneyFields,
     metadata: z.record(z.string(), z.any()).optional(),
   })
   .refine(

@@ -177,6 +177,10 @@ export const applyCommittedConsumptionJob: MaintenanceJob = {
       quantity: l.quantity ?? null,
       is_committed: Boolean(l.is_committed),
       location_id: l.location_id ?? null,
+      // The idempotency guard. Projected explicitly because a field the query
+      // never fetched reads as `undefined`, which `appliedAt` would resolve to
+      // "never applied" — and the deduction would run a second time.
+      inventory_applied_at: l.inventory_applied_at ?? null,
       metadata: l.metadata ?? null,
     }))
     const considered = [...logs]
@@ -334,6 +338,19 @@ export const applyCommittedConsumptionJob: MaintenanceJob = {
         const existing = logById.get(d.log_id)
         await consumptionService.updateConsumptionLogs({
           id: d.log_id,
+          // The columns are now the authority — readers check them first.
+          inventory_applied_at: appliedAt,
+          inventory_applied_location_id: d.location_id,
+          /**
+           * 🔴 The legacy metadata keys are STILL written, deliberately.
+           *
+           * A code rollback that left the migration in place would put us back
+           * on a reader that only knows the metadata key. A log applied in the
+           * meantime would then look unapplied, and the stock would come off a
+           * second time. Writing both makes the rollback safe in either
+           * direction; the metadata write is retired only once this has been
+           * live long enough that rolling back past it is not a scenario.
+           */
           metadata: {
             ...(existing?.metadata || {}),
             [APPLIED_AT_KEY]: appliedAt,

@@ -72,6 +72,27 @@ export interface CreateAdminPaymentSubmissionPayload {
   task_ids?: string[]
   notes?: string
   documents?: Array<{ id?: string; url: string; filename?: string; mimeType?: string }>
+  /**
+   * The money contract, keyed by design id (or task id for the last one).
+   *
+   * 🔴 Typed fields rather than `metadata` keys: these decide what a partner is
+   * paid, and the route validates `metadata` as `z.record(z.string(), z.any())`
+   * — so a mistyped key validated cleanly, fell through to the workflow's
+   * "absent means 1" default, and billed a per-unit rate once (#1554).
+   */
+  quantities?: Record<string, number>
+  unit_amounts?: Record<string, number>
+  cost_overrides?: Record<string, number>
+  task_cost_overrides?: Record<string, number>
+  /** Admin-only: land the submission as a Draft rather than Pending. */
+  status?: "Draft" | "Pending"
+  /**
+   * Admin-only: waive the design-status gate. The proof of finished work is a
+   * completed run, which is why the run-completion auto-draft already passes
+   * false — without this the only way to pay out a finished run on a design
+   * still in Technical_Review was to edit the design's status.
+   */
+  require_design_status?: boolean
   metadata?: Record<string, any>
 }
 

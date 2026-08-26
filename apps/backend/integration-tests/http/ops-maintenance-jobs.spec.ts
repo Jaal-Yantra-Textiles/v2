@@ -633,5 +633,145 @@ setupSharedTestSuite(() => {
         )
       ).rejects.toMatchObject({ response: { status: 400 } })
     })
+
+    /**
+     * backfill-consumption-applied-columns — the inventory-apply stamp moving
+     * out of `metadata` and into real columns.
+     *
+     * 🔴 That stamp is the idempotency guard on stock deduction. Inside a JSON
+     * blob it survived only by every writer remembering to spread the existing
+     * object, and one wholesale `metadata: body.metadata` write would have
+     * cleared it silently — the next apply run then deducts the same material
+     * twice, with nothing erroring.
+     *
+     * These write logs through the module service rather than the HTTP route
+     * because the route has no way to plant a LEGACY-shaped row (metadata key
+     * set, column null). That shape is the entire point of the job, so it has
+     * to be constructed directly.
+     */
+    describe("backfill-consumption-applied-columns", () => {
+      const APPLIED = "2026-08-15T06:37:24.597Z"
+
+      const createLog = async (metadata: Record<string, any> | null) => {
+        const service: any = getContainer().resolve("consumption_log")
+        const [log] = await service.createConsumptionLogs([
+          {
+            design_id: `des_backfill_${Math.random().toString(36).slice(2, 10)}`,
+            inventory_item_id: `iitem_${Math.random().toString(36).slice(2, 10)}`,
+            quantity: 2.5,
+            unit_of_measure: "Meter",
+            consumption_type: "production",
+            is_committed: true,
+            consumed_by: "admin",
+            consumed_at: new Date(),
+            metadata,
+          },
+        ])
+        return log
+      }
+
+      const run = async (body: Record<string, any>) =>
+        api.post(
+          "/admin/ops/maintenance-jobs/backfill-consumption-applied-columns/run",
+          body,
+          adminHeaders
+        )
+
+      it("is listed in the registry with its params", async () => {
+        // An unregistered job is invisible to the UI and unrunnable — the same
+        // silent-absence class as a job that exists but nothing can reach.
+        const res = await api.get("/admin/ops/maintenance-jobs", adminHeaders)
+        const job = res.data.jobs.find(
+          (j: any) => j.id === "backfill-consumption-applied-columns"
+        )
+        expect(job).toBeDefined()
+        expect(job.params.map((p: any) => p.name).sort()).toEqual([
+          "design_id",
+          "limit",
+          "log_id",
+        ])
+      })
+
+      it("dry-run reports the fill and writes nothing", async () => {
+        const log = await createLog({ inventory_applied_at: APPLIED })
+
+        const res = await run({ dry_run: true, params: { log_id: log.id } })
+        expect(res.status).toBe(200)
+        expect(res.data.result.dry_run).toBe(true)
+        expect(res.data.result.applied).toBe(false)
+        expect(res.data.result.summary).toMatch(/1 to fill/i)
+
+        // The claim that matters: nothing was written.
+        const service: any = getContainer().resolve("consumption_log")
+        const after = await service.retrieveConsumptionLog(log.id)
+        expect(after.inventory_applied_at).toBeNull()
+      })
+
+      it("apply copies the legacy stamp into the column and keeps the metadata key", async () => {
+        const log = await createLog({
+          inventory_applied_at: APPLIED,
+          inventory_applied_location_id: "sloc_legacy",
+        })
+
+        const res = await run({ dry_run: false, params: { log_id: log.id } })
+        expect(res.status).toBe(200)
+        expect(res.data.result.applied).toBe(true)
+
+        const service: any = getContainer().resolve("consumption_log")
+        const after = await service.retrieveConsumptionLog(log.id)
+
+        expect(new Date(after.inventory_applied_at).toISOString()).toBe(APPLIED)
+        expect(after.inventory_applied_location_id).toBe("sloc_legacy")
+
+        // 🔴 The legacy key MUST survive. A code rollback would land on a
+        // reader that only knows metadata; clearing it here would make an
+        // applied log look unapplied and deduct the stock a second time.
+        expect(after.metadata.inventory_applied_at).toBe(APPLIED)
+      })
+
+      it("is idempotent — a second apply changes nothing", async () => {
+        const log = await createLog({ inventory_applied_at: APPLIED })
+
+        await run({ dry_run: false, params: { log_id: log.id } })
+        const second = await run({ dry_run: false, params: { log_id: log.id } })
+
+        expect(second.data.result.summary).toMatch(/0 to fill/i)
+        expect(second.data.result.summary).toMatch(/1 already migrated/i)
+      })
+
+      it("leaves a log that was never applied alone", async () => {
+        const log = await createLog(null)
+
+        const res = await run({ dry_run: true, params: { log_id: log.id } })
+        expect(res.data.result.summary).toMatch(/1 never applied/i)
+        expect(res.data.result.changes).toEqual([])
+      })
+
+      it("reports a column/metadata disagreement as a conflict and never touches it", async () => {
+        // Two claims about when money-equivalent stock moved. Picking one by
+        // rule would be inventing a fact about a warehouse.
+        const log = await createLog({ inventory_applied_at: APPLIED })
+        const service: any = getContainer().resolve("consumption_log")
+        await service.updateConsumptionLogs({
+          id: log.id,
+          inventory_applied_at: new Date("2026-08-16T09:00:00.000Z"),
+        })
+
+        const res = await run({ dry_run: false, params: { log_id: log.id } })
+        expect(res.data.result.summary).toMatch(/1 conflicting/i)
+        expect(res.data.result.applied).toBe(false)
+
+        const after = await service.retrieveConsumptionLog(log.id)
+        expect(new Date(after.inventory_applied_at).toISOString()).toBe(
+          "2026-08-16T09:00:00.000Z"
+        )
+      })
+
+      it("rejects an invalid limit → 400", async () => {
+        await expect(
+          run({ dry_run: true, params: { limit: 0 } })
+        ).rejects.toMatchObject({ response: { status: 400 } })
+      })
+    })
   })
 })

@@ -216,21 +216,24 @@ export const PaymentSubmissionCreate = () => {
     }
 
     try {
-      // Preserve cost overrides as metadata so reviewers can see the
-      // original vs. requested amount.
-      const metadata: Record<string, any> = {}
-      if (Object.keys(designCostOverrides).length) {
-        metadata.design_cost_overrides = designCostOverrides
-      }
-      if (Object.keys(taskCostOverrides).length) {
-        metadata.task_cost_overrides = taskCostOverrides
-      }
-
+      /**
+       * Typed fields rather than `metadata` keys. These are what the partner is
+       * asking to be paid, and the route validated `metadata` as
+       * `z.record(z.string(), z.any())` — a mistyped key validated cleanly and
+       * then silently priced the line off the design's stored cost instead.
+       * The route folds these onto the metadata channel itself, so reviewers
+       * still see original vs. requested exactly as before.
+       */
       await createSubmission({
         design_ids: Array.from(selectedDesignIds),
         task_ids: Array.from(selectedTaskIds),
         notes: notes || undefined,
-        metadata: Object.keys(metadata).length ? metadata : undefined,
+        cost_overrides: Object.keys(designCostOverrides).length
+          ? designCostOverrides
+          : undefined,
+        task_cost_overrides: Object.keys(taskCostOverrides).length
+          ? taskCostOverrides
+          : undefined,
       })
       toast.success("Payment submission created successfully")
       navigate("/payment-submissions")

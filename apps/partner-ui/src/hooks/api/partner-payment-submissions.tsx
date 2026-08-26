@@ -68,6 +68,23 @@ export type CreatePaymentSubmissionPayload = {
   task_ids?: string[]
   notes?: string
   documents?: Array<{ id?: string; url: string; filename?: string; mimeType?: string }>
+  /**
+   * The money contract, keyed by design id (task id for the last one).
+   *
+   * 🔴 Typed fields rather than `metadata` keys: these decide what the partner
+   * is paid, and the route validated `metadata` as
+   * `z.record(z.string(), z.any())` — so a mistyped key validated cleanly and
+   * then silently priced the line off the design's stored cost instead of the
+   * amount actually entered.
+   *
+   * ⚠️ No `status` / `require_design_status` here, unlike the admin payload:
+   * a partner may not choose which review state their own claim lands in, nor
+   * waive the design-eligibility gate on it.
+   */
+  quantities?: Record<string, number>
+  unit_amounts?: Record<string, number>
+  cost_overrides?: Record<string, number>
+  task_cost_overrides?: Record<string, number>
   metadata?: Record<string, any>
 }
 

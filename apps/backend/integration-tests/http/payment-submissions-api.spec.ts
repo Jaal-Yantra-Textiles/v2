@@ -408,6 +408,318 @@ setupSharedTestSuite(() => {
     })
   })
 
+  // ─── Admin: Create Submission (typed money fields) ────────────────────────
+
+  /**
+   * The money contract as REQUEST FIELDS rather than `metadata` keys.
+   *
+   * Every one of these used to travel inside `metadata`, which each route
+   * validates as `z.record(z.string(), z.any())` — a shape that accepts
+   * anything. `design_quantities` and `design_quantites` both validated, and
+   * the typo fell through to the workflow's documented "absent means 1"
+   * default and billed a per-unit rate once (#1554). Nothing could catch that:
+   * not tsc, not a unit test, not a reviewer reading the diff.
+   *
+   * These tests are written against the HTTP surface on purpose. The unit tests
+   * cover the folding function; only an integration test proves the field
+   * survives the validator, the route and the workflow and lands on the money.
+   */
+  describe("POST /admin/payment-submissions — typed money fields", () => {
+    it("bills quantity x unit rate and records the breakdown", async () => {
+      // The live case: a design costed per-unit, produced nine times. Before
+      // the fix this billed 850.
+      const d1 = await createDesign("Admin Qty Design", {
+        estimated_cost: 1281.2,
+      })
+      await linkDesignToPartner(d1, partnerId)
+
+      const res = await api.post(
+        "/admin/payment-submissions",
+        {
+          partner_id: partnerId,
+          design_ids: [d1],
+          quantities: { [d1]: 9 },
+          unit_amounts: { [d1]: 850 },
+        },
+        adminHeaders
+      )
+
+      expect(res.status).toBe(201)
+      expect(Number(res.data.payment_submission.total_amount)).toBe(7650)
+
+      const detail = await api.get(
+        `/admin/payment-submissions/${res.data.payment_submission.id}`,
+        adminHeaders
+      )
+      const item = detail.data.payment_submission.items[0]
+      // The rate must survive as its own field. A reader wanting "9 x 850"
+      // must not have to divide the total by the quantity and hope.
+      expect(Number(item.quantity)).toBe(9)
+      expect(Number(item.unit_amount)).toBe(850)
+    })
+
+    it("prefers the supplied rate over the design's stored cost", async () => {
+      // `partner_cost_estimate` on the run is what was AGREED; the design's
+      // stored estimate routinely disagrees with it. Pricing off the design
+      // would have billed 1281.2 x 9 here instead of 850 x 9.
+      const d1 = await createDesign("Admin Rate Beats Stored", {
+        estimated_cost: 1281.2,
+      })
+      await linkDesignToPartner(d1, partnerId)
+
+      const res = await api.post(
+        "/admin/payment-submissions",
+        {
+          partner_id: partnerId,
+          design_ids: [d1],
+          quantities: { [d1]: 2 },
+          unit_amounts: { [d1]: 1150 },
+        },
+        adminHeaders
+      )
+
+      expect(res.status).toBe(201)
+      expect(Number(res.data.payment_submission.total_amount)).toBe(2300)
+    })
+
+    it("bills a design with no stored cost at all from the supplied rate", async () => {
+      // Denim Trouser on prod: no estimated_cost, no production_cost, and a
+      // real agreed rate on the run. Without a supplied rate this is a
+      // "Designs missing cost" 400.
+      const d1 = await createDesign("Admin No Stored Cost", {
+        estimated_cost: undefined,
+      })
+      await linkDesignToPartner(d1, partnerId)
+
+      const res = await api.post(
+        "/admin/payment-submissions",
+        {
+          partner_id: partnerId,
+          design_ids: [d1],
+          quantities: { [d1]: 2 },
+          unit_amounts: { [d1]: 1150 },
+        },
+        adminHeaders
+      )
+
+      expect(res.status).toBe(201)
+      expect(Number(res.data.payment_submission.total_amount)).toBe(2300)
+    })
+
+    it("leaves the amount unchanged when no quantity is supplied", async () => {
+      // 🔴 The guard against re-pricing live callers. With nothing supplied the
+      // amount must be byte-for-byte what it was before any of this existed.
+      const d1 = await createDesign("Admin No Qty Design", {
+        estimated_cost: 5000,
+      })
+      await linkDesignToPartner(d1, partnerId)
+
+      const res = await api.post(
+        "/admin/payment-submissions",
+        { partner_id: partnerId, design_ids: [d1] },
+        adminHeaders
+      )
+
+      expect(res.status).toBe(201)
+      expect(Number(res.data.payment_submission.total_amount)).toBe(5000)
+    })
+
+    it("still honours the legacy metadata channel", async () => {
+      // The partner form posts through metadata. This must keep working or the
+      // fix breaks the very callers it is protecting.
+      const d1 = await createDesign("Admin Legacy Metadata", {
+        estimated_cost: 300,
+      })
+      await linkDesignToPartner(d1, partnerId)
+
+      const res = await api.post(
+        "/admin/payment-submissions",
+        {
+          partner_id: partnerId,
+          design_ids: [d1],
+          metadata: { design_quantities: { [d1]: 4 } },
+        },
+        adminHeaders
+      )
+
+      expect(res.status).toBe(201)
+      expect(Number(res.data.payment_submission.total_amount)).toBe(1200)
+    })
+
+    it("lets the typed field win over a conflicting metadata key", async () => {
+      const d1 = await createDesign("Admin Precedence Design", {
+        estimated_cost: 100,
+      })
+      await linkDesignToPartner(d1, partnerId)
+
+      const res = await api.post(
+        "/admin/payment-submissions",
+        {
+          partner_id: partnerId,
+          design_ids: [d1],
+          quantities: { [d1]: 3 },
+          metadata: { design_quantities: { [d1]: 9 } },
+        },
+        adminHeaders
+      )
+
+      expect(res.status).toBe(201)
+      // 3, not 9 — the caller that speaks the typed field owns the map.
+      expect(Number(res.data.payment_submission.total_amount)).toBe(300)
+    })
+
+    it("rejects a non-positive quantity at the boundary", async () => {
+      // The workflow's sanitizer DROPS a zero rather than clamping it, so
+      // accepting one here would produce a request that validates and then
+      // quietly bills x1. Refusing it makes the mistake visible to the caller.
+      const d1 = await createDesign("Admin Zero Qty Design")
+      await linkDesignToPartner(d1, partnerId)
+
+      const res = await api
+        .post(
+          "/admin/payment-submissions",
+          {
+            partner_id: partnerId,
+            design_ids: [d1],
+            quantities: { [d1]: 0 },
+          },
+          adminHeaders
+        )
+        .catch((e: any) => e.response)
+
+      expect(res.status).toBe(400)
+    })
+
+    it("can land a submission as Draft", async () => {
+      // 🔴 Fails on the old route, which never forwarded `status` — an
+      // admin-created submission could ONLY ever be Pending.
+      const d1 = await createDesign("Admin Draft Design")
+      await linkDesignToPartner(d1, partnerId)
+
+      const res = await api.post(
+        "/admin/payment-submissions",
+        { partner_id: partnerId, design_ids: [d1], status: "Draft" },
+        adminHeaders
+      )
+
+      expect(res.status).toBe(201)
+      expect(res.data.payment_submission.status).toBe("Draft")
+    })
+
+    it("still defaults to Pending when no status is given", async () => {
+      const d1 = await createDesign("Admin Default Status Design")
+      await linkDesignToPartner(d1, partnerId)
+
+      const res = await api.post(
+        "/admin/payment-submissions",
+        { partner_id: partnerId, design_ids: [d1] },
+        adminHeaders
+      )
+
+      expect(res.status).toBe(201)
+      expect(res.data.payment_submission.status).toBe("Pending")
+    })
+
+    it("refuses an ineligible design by default", async () => {
+      const d1 = await createDesign("Admin Gate Design", {
+        status: "Technical_Review",
+      })
+      await linkDesignToPartner(d1, partnerId)
+
+      const res = await api
+        .post(
+          "/admin/payment-submissions",
+          { partner_id: partnerId, design_ids: [d1] },
+          adminHeaders
+        )
+        .catch((e: any) => e.response)
+
+      expect(res.status).toBe(400)
+      expect(res.data.message).toContain("not eligible for payment")
+    })
+
+    it("pays out an ineligible design when the gate is explicitly waived", async () => {
+      // The real fix for the live case: a COMPLETED run on a design still in
+      // Technical_Review. The only previous way through was to edit the
+      // design's status — changing what the record asserts about technical
+      // review in order to release a payment.
+      const d1 = await createDesign("Admin Waived Gate Design", {
+        status: "Technical_Review",
+        estimated_cost: 1200,
+      })
+      await linkDesignToPartner(d1, partnerId)
+
+      const res = await api.post(
+        "/admin/payment-submissions",
+        {
+          partner_id: partnerId,
+          design_ids: [d1],
+          quantities: { [d1]: 4 },
+          require_design_status: false,
+        },
+        adminHeaders
+      )
+
+      expect(res.status).toBe(201)
+      expect(Number(res.data.payment_submission.total_amount)).toBe(4800)
+    })
+  })
+
+  // ─── Partner: typed money fields ──────────────────────────────────────────
+
+  describe("POST /partners/payment-submissions — typed money fields", () => {
+    it("honours a typed cost override", async () => {
+      const d1 = await createDesign("Partner Typed Override", {
+        estimated_cost: undefined,
+      })
+      await linkDesignToPartner(d1, partnerId)
+
+      const res = await api.post(
+        "/partners/payment-submissions",
+        { design_ids: [d1], cost_overrides: { [d1]: 4200 } },
+        { headers: partnerHeaders }
+      )
+
+      expect(res.status).toBe(201)
+      expect(Number(res.data.payment_submission.total_amount)).toBe(4200)
+    })
+
+    it("refuses to let a partner choose the submission's status", async () => {
+      // 🔑 A partner may not decide which review state their own claim lands
+      // in. The field is absent from the partner schema, and the validator is
+      // strict, so this is a rejection rather than a silently ignored field.
+      const d1 = await createDesign("Partner Status Attempt")
+      await linkDesignToPartner(d1, partnerId)
+
+      const res = await api
+        .post(
+          "/partners/payment-submissions",
+          { design_ids: [d1], status: "Approved" },
+          { headers: partnerHeaders }
+        )
+        .catch((e: any) => e.response)
+
+      expect(res.status).toBe(400)
+    })
+
+    it("refuses to let a partner waive the design-eligibility gate", async () => {
+      const d1 = await createDesign("Partner Gate Attempt", {
+        status: "Technical_Review",
+      })
+      await linkDesignToPartner(d1, partnerId)
+
+      const res = await api
+        .post(
+          "/partners/payment-submissions",
+          { design_ids: [d1], require_design_status: false },
+          { headers: partnerHeaders }
+        )
+        .catch((e: any) => e.response)
+
+      expect(res.status).toBe(400)
+    })
+  })
+
   // ─── Admin: List Submissions ──────────────────────────────────────────────
 
   describe("GET /admin/payment-submissions", () => {

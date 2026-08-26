@@ -109,6 +109,7 @@ import { backfillDispatchedTemplateIdsJob } from "./backfill-dispatched-template
 import { deduplicateTaskTemplateNamesJob } from "./deduplicate-task-template-names-job"
 import { recordManualInventoryCorrectionJob } from "./record-manual-inventory-correction-job"
 import { applyCommittedConsumptionJob } from "./apply-committed-consumption-job"
+import { backfillConsumptionAppliedColumnsJob } from "./backfill-consumption-applied-columns-job"
 import { reconcileConsumptionVsProductionJob } from "./reconcile-consumption-vs-production-job"
 import { backfillGoogleAdsHistoryJob } from "./backfill-google-ads-history-job"
 import { backfillDesignSizeSetsJob } from "./backfill-design-size-sets-job"
@@ -5805,6 +5806,7 @@ export const MAINTENANCE_JOBS: MaintenanceJob[] = [
   backfillDispatchedTemplateIdsJob,
   recordManualInventoryCorrectionJob,
   applyCommittedConsumptionJob,
+  backfillConsumptionAppliedColumnsJob,
   reconcileConsumptionVsProductionJob,
   backfillGoogleAdsHistoryJob,
   backfillDesignSizeSetsJob,

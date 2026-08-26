@@ -2,6 +2,7 @@ import { AuthenticatedMedusaRequest, MedusaResponse } from "@medusajs/framework"
 import { ContainerRegistrationKeys, MedusaError } from "@medusajs/framework/utils"
 import { getPartnerFromAuthContext } from "../helpers"
 import { createPaymentSubmissionWorkflow } from "../../../workflows/payment_submissions/create-payment-submission"
+import { foldMoneyFieldsIntoMetadata } from "../../../workflows/payment_submissions/lib/money-fields"
 import submissionPartnerLink from "../../../links/submission-partner-link"
 
 // GET /partners/payment-submissions — list partner's own submissions
@@ -79,7 +80,8 @@ export const POST = async (
       task_ids: body.task_ids || [],
       notes: body.notes,
       documents: body.documents,
-      metadata: body.metadata,
+      // Typed money fields win over the metadata channel and land on it.
+      metadata: foldMoneyFieldsIntoMetadata(body),
     },
   })
 

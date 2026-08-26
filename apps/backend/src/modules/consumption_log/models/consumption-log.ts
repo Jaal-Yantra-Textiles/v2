@@ -46,6 +46,23 @@ const ConsumptionLog = model.define("consumption_log", {
   consumed_at: model.dateTime(),
   notes: model.text().nullable(),
   location_id: model.text().nullable(),
+  /**
+   * When this log's stock deduction was applied, and to which location.
+   *
+   * 🔴 Real columns, not metadata keys, because `inventory_applied_at` is the
+   * ONLY thing standing between a re-run of the apply job and double-deducting
+   * inventory. As a key inside the `metadata` JSON blob it survived purely by
+   * every writer remembering to spread the existing object — a convention, not
+   * a constraint. One `metadata: body.metadata` on an update route would have
+   * erased the guard silently, and the next apply run would have taken the
+   * stock a second time with nothing failing loudly.
+   *
+   * Legacy rows carry the values under `metadata.inventory_applied_at` /
+   * `metadata.inventory_applied_location_id`; readers fall back to those until
+   * `backfill-consumption-applied-columns` has swept them.
+   */
+  inventory_applied_at: model.dateTime().nullable(),
+  inventory_applied_location_id: model.text().nullable(),
   metadata: model.json().nullable(),
 })
 
