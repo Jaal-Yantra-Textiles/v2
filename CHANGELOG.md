@@ -1,3 +1,10 @@
+## [13.114.1](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.114.0...v13.114.1) (2026-08-26)
+
+
+### Bug Fixes
+
+* **payments:** an unpriced run is a gap in the record, not unpayable work ([#1556](https://github.com/Jaal-Yantra-Textiles/v2/issues/1556)) ([#1562](https://github.com/Jaal-Yantra-Textiles/v2/issues/1562)) ([5ded56d](https://github.com/Jaal-Yantra-Textiles/v2/commit/5ded56da13f6eeda99c952efb3b6c4ea41b9f046)), closes [#1560](https://github.com/Jaal-Yantra-Textiles/v2/issues/1560) [#1554](https://github.com/Jaal-Yantra-Textiles/v2/issues/1554)
+
 # [13.114.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.113.0...v13.114.0) (2026-08-26)
 
 
