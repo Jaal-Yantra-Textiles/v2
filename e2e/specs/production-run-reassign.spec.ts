@@ -101,7 +101,20 @@ test.describe("Production run manual reassignment (#1228)", () => {
     // reassignment source (a plain correction before the partner accepts).
     await page.goto(`/app/production-runs/${seed.parkedRunId}`)
 
-    await page.getByRole("button", { name: "Actions" }).click()
+    /**
+     * `exact: true` — Playwright matches an accessible name by SUBSTRING and
+     * case-insensitively by default, so `{ name: "Actions" }` also matches the
+     * shared ActionMenu's `aria-label="Open actions menu"`. This page carries
+     * both that menu and its own `aria-label="Actions"` IconButton, so the
+     * query resolved to two elements and Playwright refused in strict mode.
+     *
+     * 🔑 The page is not at fault and neither is the assertion — two distinct
+     * menus on one screen is legitimate. The collision appeared when the shared
+     * ActionMenu gained its aria-label in #1488 (836841ffb), which is why a test
+     * nobody touched started failing: the DOM this queries changed underneath a
+     * selector that was only ever unambiguous by luck.
+     */
+    await page.getByRole("button", { name: "Actions", exact: true }).click()
     const differentPartner = page.getByText("Assign a different partner")
     await expect(differentPartner).toBeVisible({ timeout: 10000 })
     await differentPartner.click()
