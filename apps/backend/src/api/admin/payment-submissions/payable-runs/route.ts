@@ -190,11 +190,34 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
             ? null
             : Number(run.partner_cost_estimate),
         /**
-         * A run with no agreed rate is NOT a zero-value payout — it is a run
-         * whose price hasn't been settled. Surfaced rather than hidden so the
-         * screen can say why it can't be billed.
+         * Whether the RUN carries an agreed rate.
+         *
+         * ⚠️ This is NOT "can this be paid". A run with no agreed rate is not a
+         * zero-value payout and it is not unpayable — it is a run whose price
+         * was never written down, and an admin who knows what was agreed must
+         * still be able to pay it by typing the rate. Only `billed` blocks.
          */
         payable: unit_amount > 0,
+        /**
+         * The DESIGN's own cost figures, offered as a starting point when the
+         * run carries no rate.
+         *
+         * 🔴 A suggestion, never a price. `design.estimated_cost` is per
+         * finished unit and routinely disagrees with what was actually agreed —
+         * pricing Bakshi's from the design would bill 11,530.80 against the
+         * run's 7,650. It is returned so the screen can SHOW it next to an
+         * empty rate box; nothing may bill from it without someone typing it in
+         * deliberately. That silent substitution is #1554.
+         */
+        design_estimated_cost:
+          design?.estimated_cost === null || design?.estimated_cost === undefined
+            ? null
+            : Number(design.estimated_cost),
+        design_production_cost:
+          design?.production_cost === null ||
+          design?.production_cost === undefined
+            ? null
+            : Number(design.production_cost),
         billed: billedRuns.get(String(run.id)) ?? null,
         design_has_open_submission: designsWithOpenSubmission.has(
           String(run.design_id)
@@ -202,8 +225,10 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
       }
     })
     .sort((a, b) => {
-      // Unbilled first (that's the work), then newest completion.
+      // Unbilled first (that's the work), then priced before unpriced (those
+      // need a human to type a rate), then newest completion.
       if (!!a.billed !== !!b.billed) return a.billed ? 1 : -1
+      if (a.payable !== b.payable) return a.payable ? -1 : 1
       return (
         new Date(b.completed_at || 0).getTime() -
         new Date(a.completed_at || 0).getTime()

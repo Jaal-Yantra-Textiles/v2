@@ -115,19 +115,43 @@ test.describe("Payment submission from production runs (#1556)", () => {
     ).toContainText("4 × 1,200 = 4,800")
   })
 
-  test("shows an unpriced run as unpayable instead of billing zero for it", async ({
+  test("still lets an unpriced run be paid, by typing the rate", async ({
     page,
   }) => {
     await login(page)
     await openCreateForPartner(page)
 
-    // A run with no agreed rate is not a zero-value payout — it is a run whose
-    // price has not been settled. It has to be visible (an admin looking for it
-    // needs to see WHY it can't be billed) and not selectable.
+    /**
+     * 🔑 A missing rate is a gap in the RECORD, not a statement that the work
+     * was free. On prod 15 of 27 completed runs carry no rate — the partner
+     * finished the job and never entered a price. Blocking those would make
+     * real completed work permanently unpayable through the only screen that
+     * can pay it.
+     *
+     * So the row says a rate is needed, shows no amount until one is given,
+     * and is still selectable.
+     */
     const row = runRow(page, seed.unpricedRunId)
     await expect(row).toBeVisible({ timeout: 15000 })
     await expect(row).toContainText("No agreed rate")
-    await expect(row.getByRole("checkbox")).toBeDisabled()
+    await expect(row.getByRole("checkbox")).toBeEnabled()
+
+    // No amount asserted until someone supplies a rate — a "0" here would read
+    // as an agreed price of zero.
+    await expect(
+      row.getByTestId(`run-amount-${seed.unpricedRunId}`)
+    ).toHaveText("—")
+
+    await row.getByRole("checkbox").click()
+    await row
+      .getByRole("spinbutton", { name: `Rate for ${seed.payoutDesignName}` })
+      .fill("400")
+
+    // 2 produced x 400 typed by hand.
+    await expect(
+      row.getByTestId(`run-amount-${seed.unpricedRunId}`)
+    ).toContainText("2 × 400 = 800")
+    await expect(page.getByTestId("submission-total")).toHaveText("INR 800")
   })
 
   test("bills the quantity an admin types, and creates the submission for it", async ({
