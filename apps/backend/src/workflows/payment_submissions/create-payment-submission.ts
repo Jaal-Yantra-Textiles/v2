@@ -54,7 +54,15 @@ export type CreatePaymentSubmissionInput = {
 type ValidatedDesign = {
   id: string
   name: string
+  /** What this line bills IN TOTAL. Always `unit_amount * quantity` when both are set. */
   estimated_cost: number
+  /** Units billed. 1 unless the caller said otherwise — see `design_quantities`. */
+  quantity: number
+  /**
+   * The per-unit rate the total was built from, or null when the total was
+   * typed directly (a cost override) and there is no recorded rate to show.
+   */
+  unit_amount: number | null
   cost_breakdown: Record<string, unknown> | null
 }
 
@@ -119,6 +127,93 @@ const sanitizeCostOverrides = (raw: unknown): Record<string, number> => {
   return out
 }
 
+/**
+ * Units billed per design (`metadata.design_quantities`).
+ *
+ * 🔴 Why this exists: `design.estimated_cost` / `production_cost` are PER
+ * FINISHED UNIT — `workflows/designs/estimate-design-cost.ts` divides a run
+ * total back to per-unit precisely because that is what the column means. This
+ * workflow used that per-unit figure as the entire line amount, so a design
+ * costed at 850/unit and produced nine times billed 850. (#1554)
+ *
+ * ⚠️ Absent means **1**, never "derive it". Defaulting to a derived quantity
+ * would silently re-price every existing caller, and over-paying a partner is
+ * harder to undo than under-paying them: the caller that knows the run says how
+ * many, and one that does not gets exactly today's behaviour.
+ *
+ * A non-positive or non-finite value is dropped rather than clamped — the same
+ * rule the cost overrides use, so "0" cannot quietly zero a line.
+ */
+export const sanitizeQuantities = (raw: unknown): Record<string, number> => {
+  const out: Record<string, number> = {}
+  if (raw && typeof raw === "object") {
+    for (const [id, value] of Object.entries(raw as Record<string, unknown>)) {
+      const qty = Number(value)
+      if (Number.isFinite(qty) && qty > 0) {
+        out[id] = qty
+      }
+    }
+  }
+  return out
+}
+
+/**
+ * PURE: what one design-sourced line bills, and how it got there.
+ *
+ * Precedence, and the reason for it:
+ *
+ *  - **An override wins outright.** It is a TOTAL somebody typed — the partner
+ *    on the submission form, or the run-completion auto-draft passing
+ *    `runPayableAmount`'s already-multiplied figure. Multiplying it again is
+ *    the #456 defect (850/unit → stored 7650 → shown 7650 x 9 = 68850).
+ *    `unit_amount` is left null: there is no recorded rate behind a typed
+ *    total, and dividing the total by the quantity would invent one.
+ *  - **Otherwise the design's per-unit cost times the quantity.** With no
+ *    quantity supplied this is `cost x 1`, which is byte-for-byte today's
+ *    behaviour — this function cannot change an existing caller's amount.
+ *
+ * Rounded to two decimals: money, not float dust. Mirrors `runPayableAmount`.
+ */
+export const resolveDesignLineAmount = (input: {
+  unit_cost: number
+  quantity?: number | null
+  override?: number | null
+  unit_override?: number | null
+}): { amount: number; quantity: number; unit_amount: number | null } => {
+  const qty =
+    Number.isFinite(Number(input.quantity)) && Number(input.quantity) > 0
+      ? Number(input.quantity)
+      : 1
+
+  const override = Number(input.override)
+  if (Number.isFinite(override) && override > 0) {
+    return { amount: override, quantity: qty, unit_amount: null }
+  }
+
+  // A rate the caller knows better than the design does — the run-completion
+  // auto-draft passing what the partner actually typed at completion, which
+  // may differ from the design's stored estimate and is the agreed price.
+  const unitOverride = Number(input.unit_override)
+  if (Number.isFinite(unitOverride) && unitOverride > 0) {
+    return {
+      amount: Math.round(unitOverride * qty * 100) / 100,
+      quantity: qty,
+      unit_amount: unitOverride,
+    }
+  }
+
+  const unit = Number(input.unit_cost)
+  if (!Number.isFinite(unit) || unit <= 0) {
+    return { amount: 0, quantity: qty, unit_amount: null }
+  }
+
+  return {
+    amount: Math.round(unit * qty * 100) / 100,
+    quantity: qty,
+    unit_amount: unit,
+  }
+}
+
 // Step 1a: Validate all designs for submission eligibility
 const validateDesignsForSubmissionStep = createStep(
   "validate-designs-for-submission",
@@ -127,6 +222,10 @@ const validateDesignsForSubmissionStep = createStep(
       partner_id: string
       design_ids: string[]
       cost_overrides?: Record<string, number>
+      /** Units billed per design. Absent means 1 — see `sanitizeQuantities`. */
+      quantities?: Record<string, number>
+      /** Per-unit rate per design, when the caller knows it better than the design does. */
+      unit_amounts?: Record<string, number>
       require_design_status?: boolean
       /** Draft submissions also block a second Draft — see below. */
       status?: "Draft" | "Pending"
@@ -173,12 +272,14 @@ const validateDesignsForSubmissionStep = createStep(
       }
     }
 
-    // 3. Validate all designs have a cost (estimated_cost, production_cost,
-    // or a partner-entered override)
+    // 3. Validate all designs have a cost (estimated_cost, production_cost, a
+    // partner-entered total override, or a caller-supplied per-unit rate)
     const overrides = input.cost_overrides || {}
+    const suppliedUnitAmounts = input.unit_amounts || {}
     const noCost = typedDesigns.filter(
       (d) =>
         !overrides[d.id] &&
+        !suppliedUnitAmounts[d.id] &&
         (d.estimated_cost === null || d.estimated_cost === undefined) &&
         ((d as any).production_cost === null || (d as any).production_cost === undefined)
     )
@@ -243,14 +344,28 @@ const validateDesignsForSubmissionStep = createStep(
       )
     }
 
-    const validated: ValidatedDesign[] = typedDesigns.map((d) => ({
-      id: d.id,
-      name: d.name,
-      estimated_cost:
-        overrides[d.id] ??
-        Number(d.estimated_cost || (d as any).production_cost || 0),
-      cost_breakdown: d.cost_breakdown,
-    }))
+    const quantities = input.quantities || {}
+    const unitAmounts = input.unit_amounts || {}
+
+    const validated: ValidatedDesign[] = typedDesigns.map((d) => {
+      // `estimated_cost` / `production_cost` are PER FINISHED UNIT. Treating
+      // either as a line total is the #1554 defect this resolver exists to fix.
+      const line = resolveDesignLineAmount({
+        unit_cost: Number(d.estimated_cost || (d as any).production_cost || 0),
+        quantity: quantities[d.id],
+        override: overrides[d.id],
+        unit_override: unitAmounts[d.id],
+      })
+
+      return {
+        id: d.id,
+        name: d.name,
+        estimated_cost: line.amount,
+        quantity: line.quantity,
+        unit_amount: line.unit_amount,
+        cost_breakdown: d.cost_breakdown,
+      }
+    })
 
     return new StepResponse(validated)
   }
@@ -446,6 +561,11 @@ const createSubmissionRecordStep = createStep(
         task_id: null,
         task_name: null,
         amount: design.estimated_cost,
+        // What the total is made of, so a partner disputing a payment reads
+        // "9 x 850" rather than a bare number. `unit_amount` is null when the
+        // total was typed rather than derived — see resolveDesignLineAmount.
+        quantity: design.quantity,
+        unit_amount: design.unit_amount,
         cost_breakdown: design.cost_breakdown || null,
         submission_id: submission.id,
       })
@@ -460,6 +580,10 @@ const createSubmissionRecordStep = createStep(
         task_id: task.id,
         task_name: task.title,
         amount: task.amount,
+        // A task is billed as one piece of work, not per unit. Stated rather
+        // than left to the column default so the row is unambiguous.
+        quantity: 1,
+        unit_amount: null,
         cost_breakdown: task.cost_breakdown || null,
         submission_id: submission.id,
       })
@@ -631,12 +755,18 @@ export const createPaymentSubmissionWorkflow = createWorkflow(
     const costOverrides = transform({ input }, (data) => ({
       designs: sanitizeCostOverrides(data.input.metadata?.design_cost_overrides),
       tasks: sanitizeCostOverrides(data.input.metadata?.task_cost_overrides),
+      // Units billed per design. Rides the same metadata channel as the cost
+      // overrides so both ends of the existing partner form keep one shape.
+      designQuantities: sanitizeQuantities(data.input.metadata?.design_quantities),
+      designUnitAmounts: sanitizeCostOverrides(data.input.metadata?.design_unit_amounts),
     }))
 
     const validatedDesigns = validateDesignsForSubmissionStep({
       partner_id: input.partner_id,
       design_ids: input.design_ids || [],
       cost_overrides: costOverrides.designs,
+      quantities: costOverrides.designQuantities,
+      unit_amounts: costOverrides.designUnitAmounts,
       require_design_status: input.require_design_status,
       status: input.status,
     })

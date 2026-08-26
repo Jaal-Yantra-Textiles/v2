@@ -40,8 +40,48 @@ export const runPayableAmount = (run: RunForPayout | null | undefined): number =
   return Math.round(cost * units * 100) / 100
 }
 
+/**
+ * The PER FINISHED UNIT cost of a run, or 0 when it has no usable cost.
+ *
+ * The inverse of `runPayableAmount`, and the figure `design.production_cost` /
+ * `estimated_cost` are supposed to hold — `workflows/designs/estimate-design-cost.ts`
+ * divides a run total back to per-unit for exactly that reason, and its own
+ * input docs say "per finished unit".
+ *
+ * 🔑 `"per_unit"` is the ONLY value that means per-unit. Everything else,
+ * **including an absent `cost_type`**, is read as a total. That is the
+ * convention `runPayableAmount` and `getActualProductionCostStep` already use;
+ * a second interpretation here would let the design disagree with the estimator
+ * about what the same run cost.
+ */
+export const runUnitCost = (run: RunForPayout | null | undefined): number => {
+  const cost = Number(run?.partner_cost_estimate)
+  if (!Number.isFinite(cost) || cost <= 0) {
+    return 0
+  }
+
+  if (run?.cost_type === "per_unit") {
+    return cost
+  }
+
+  const ordered = Number(run?.quantity)
+  const units = Number.isFinite(ordered) && ordered > 0 ? ordered : 1
+  return Math.round((cost / units) * 100) / 100
+}
+
 export type PayoutEligibility =
-  | { eligible: true; design_id: string; partner_id: string; amount: number }
+  | {
+      eligible: true
+      design_id: string
+      partner_id: string
+      /** What the run is worth in total — already multiplied. */
+      amount: number
+      /** Units the total covers, and the rate per unit, so a payment line can
+       *  say "9 x 850" instead of a bare 7650. Both are derived from the same
+       *  figures `amount` is, so they always reconcile. */
+      quantity: number
+      unit_amount: number
+    }
   | { eligible: false; reason: string }
 
 /**
@@ -73,10 +113,26 @@ export const assessRunPayout = (
     return { eligible: false, reason: "no_cost" }
   }
 
+  // The ordered quantity, matching runPayableAmount's multiplier exactly — a
+  // second, differently-derived quantity here would let the breakdown disagree
+  // with the total it is supposed to explain.
+  const ordered = Number(run.quantity)
+  const quantity = Number.isFinite(ordered) && ordered > 0 ? ordered : 1
+
+  // For a "total" cost_type the rate is the total divided back out; for
+  // "per_unit" it is what the partner typed. Either way unit x quantity
+  // reproduces `amount`.
+  const unit_amount =
+    run.cost_type === "per_unit"
+      ? Number(run.partner_cost_estimate)
+      : Math.round((amount / quantity) * 100) / 100
+
   return {
     eligible: true,
     design_id: String(run.design_id),
     partner_id: String(run.partner_id),
     amount,
+    quantity,
+    unit_amount,
   }
 }

@@ -2466,9 +2466,11 @@ export const ADMIN_MCP_TOOLS: AdminMcpToolDef[] = [
         partner_cost_estimate: {
           type: "number",
           description:
-            "Partner cost estimate. Note: the dispatcher drops null arguments, so this tool can set a cost but not clear one — clear it from the admin UI.",
+            "Partner cost estimate. REQUIRES cost_type alongside it unless the run already carries one — the route refuses a cost with no type, because 'per_unit' and 'total' differ by the run quantity and a per-piece rate stored as a total is paid once. Note: the dispatcher drops null arguments, so this tool can set a cost but not clear one — clear it from the admin UI.",
         },
-        cost_type: STR("'total' | 'per_unit'."),
+        cost_type: STR(
+          "How partner_cost_estimate is expressed: 'per_unit' (a rate per finished piece — multiply by quantity to get the payout) or 'total' (the whole run). Send it whenever you send a cost; there is no safe default, and the run's stored default is 'total'."
+        ),
         materials: {
           ...RUN_MATERIALS_PARAM,
           description:

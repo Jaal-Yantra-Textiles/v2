@@ -1,4 +1,4 @@
-import { assessRunPayout, runPayableAmount } from "../lib/run-payable"
+import { assessRunPayout, runPayableAmount, runUnitCost } from "../lib/run-payable"
 
 describe("runPayableAmount", () => {
   it("multiplies a per-unit cost by the ORDERED quantity", () => {
@@ -69,7 +69,47 @@ describe("assessRunPayout", () => {
       design_id: "des_1",
       partner_id: "part_1",
       amount: 400,
+      quantity: 4,
+      unit_amount: 100,
     })
+  })
+
+  // The breakdown exists so a payment line can say "4 x 100". If it did not
+  // reconcile with the total it would be worse than absent: a partner would be
+  // shown arithmetic that does not produce the number they were paid.
+  it("returns a breakdown that reproduces the total, for both cost types", () => {
+    const perUnit = assessRunPayout(completed)
+    const total = assessRunPayout({
+      ...completed,
+      cost_type: "total",
+      partner_cost_estimate: 400,
+    })
+
+    for (const payout of [perUnit, total]) {
+      if (!payout.eligible) throw new Error("expected an eligible payout")
+      expect(payout.unit_amount * payout.quantity).toBeCloseTo(payout.amount, 2)
+    }
+  })
+
+  it("divides a total back out to a per-unit rate", () => {
+    const payout = assessRunPayout({
+      ...completed,
+      cost_type: "total",
+      quantity: 4,
+      partner_cost_estimate: 7650,
+    })
+    if (!payout.eligible) throw new Error("expected an eligible payout")
+    expect(payout.amount).toBe(7650)
+    expect(payout.unit_amount).toBe(1912.5)
+  })
+
+  // A per-unit run with no quantity bills one unit (runPayableAmount's own
+  // fallback). The breakdown has to agree, or it would claim a quantity the
+  // total was never multiplied by.
+  it("reports one unit when a per-unit run carries no quantity", () => {
+    const payout = assessRunPayout({ ...completed, quantity: null })
+    if (!payout.eligible) throw new Error("expected an eligible payout")
+    expect(payout).toMatchObject({ amount: 100, quantity: 1, unit_amount: 100 })
   })
 
   it("refuses a run that has not completed", () => {
@@ -101,5 +141,53 @@ describe("assessRunPayout", () => {
       eligible: false,
       reason: "run_not_found",
     })
+  })
+})
+
+/**
+ * #1554 — `updateDesignOnCompleteStep` wrote `partner_cost_estimate` RAW into
+ * `design.production_cost` / `estimated_cost`, which are PER FINISHED UNIT
+ * columns. A run of 9 completed at 7650 TOTAL stamped 7650 as the per-unit
+ * cost. Per-unit runs happened to land correctly; total runs did not.
+ *
+ * 🔑 The first two tests fail against the old `cost_value: partner_cost_estimate`.
+ */
+describe("runUnitCost", () => {
+  it("divides a total by the ordered quantity", () => {
+    expect(
+      runUnitCost({ quantity: 9, partner_cost_estimate: 7650, cost_type: "total" })
+    ).toBe(850)
+  })
+
+  it("reads an absent cost_type as a total, like every other reader does", () => {
+    // Matches getActualProductionCostStep: `cost_type === "per_unit" ? est : est / qty`.
+    // Splitting from that convention would make the design disagree with the
+    // estimator about what the same run cost.
+    expect(runUnitCost({ quantity: 4, partner_cost_estimate: 400 })).toBe(100)
+  })
+
+  it("takes a per-unit cost verbatim", () => {
+    expect(
+      runUnitCost({ quantity: 9, partner_cost_estimate: 850, cost_type: "per_unit" })
+    ).toBe(850)
+  })
+
+  it("is the inverse of runPayableAmount", () => {
+    const run = {
+      quantity: 9,
+      partner_cost_estimate: 850,
+      cost_type: "per_unit" as const,
+    }
+    expect(runUnitCost(run) * 9).toBeCloseTo(runPayableAmount(run), 2)
+  })
+
+  it("falls back to one unit when a total run has no quantity", () => {
+    expect(runUnitCost({ partner_cost_estimate: 500, cost_type: "total" })).toBe(500)
+  })
+
+  it("is zero for a run with no usable cost", () => {
+    expect(runUnitCost({ quantity: 5 })).toBe(0)
+    expect(runUnitCost({ partner_cost_estimate: -5 })).toBe(0)
+    expect(runUnitCost(null)).toBe(0)
   })
 })

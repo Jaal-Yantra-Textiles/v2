@@ -5,6 +5,7 @@ import { z } from "@medusajs/framework/zod"
 import { PRODUCTION_RUNS_MODULE } from "../../../../../modules/production_runs"
 import type ProductionRunService from "../../../../../modules/production_runs/service"
 import { completeProductionRunWorkflow } from "../../../../../workflows/production-runs/complete-production-run"
+import { costTypeGuardMessage } from "../../../../../workflows/production-runs/lib/cost-type-guard"
 
 const REJECTION_REASONS = [
   "stitching_defect",
@@ -72,6 +73,13 @@ export async function POST(
   }
 
   const body = parsed.data
+
+  // A per-piece rate stored as a total is paid once — #1554. The amount and
+  // its type travel together or neither is accepted.
+  const costTypeIssue = costTypeGuardMessage(body)
+  if (costTypeIssue) {
+    throw new MedusaError(MedusaError.Types.INVALID_DATA, costTypeIssue)
+  }
 
   const { result, errors } = await completeProductionRunWorkflow(req.scope).run({
     input: {
