@@ -70,10 +70,20 @@ export default async function autoDraftPaymentSubmissionHandler({
           cost_type: run?.cost_type ?? null,
           ordered_quantity: run?.quantity ?? null,
           partner_cost_estimate: run?.partner_cost_estimate ?? null,
-          // Reuse the existing override channel so the amount the partner
-          // entered at completion is what the draft bills, regardless of what
-          // the design's own cost columns say.
-          design_cost_overrides: { [payout.design_id]: payout.amount },
+          /** The total the two fields below are expected to reproduce. */
+          payable_amount: payout.amount,
+          // The rate the partner entered at completion, and how many units it
+          // covers, rather than a single opaque total. The workflow multiplies
+          // them, so the draft bills exactly `runPayableAmount` — and the line
+          // item records the breakdown, so a partner querying the figure sees
+          // "9 x 850" instead of a 7650 they have to take on trust.
+          //
+          // 🔴 Deliberately NOT `design_cost_overrides`. A total override sets
+          // `unit_amount` to null (there is no recorded rate behind a typed
+          // total), which would have thrown away the very breakdown this
+          // subscriber is the one place that actually knows. #1554
+          design_unit_amounts: { [payout.design_id]: payout.unit_amount },
+          design_quantities: { [payout.design_id]: payout.quantity },
         },
       },
     })
@@ -81,7 +91,9 @@ export default async function autoDraftPaymentSubmissionHandler({
     logger.info(
       `[auto-draft-payment-submission] run ${runId}: drafted submission ${
         (result as any)?.submission?.id
-      } for design ${payout.design_id} (${payout.amount})`
+      } for design ${payout.design_id} (${payout.quantity} x ${
+        payout.unit_amount
+      } = ${payout.amount})`
     )
   } catch (e: any) {
     // The commonest "failure" is the design already sitting in an open

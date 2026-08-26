@@ -960,8 +960,17 @@ const CompleteRunForm = ({
    */
   const [shortfallReason, setShortfallReason] = useState("")
 
-  // ── Step 2: Cost ──
-  const [costType, setCostType] = useState<"per_unit" | "total">("total")
+  /**
+   * ── Step 2: Cost ──
+   *
+   * 🔴 Starts UNSET, not "total". It used to default to "total" with that
+   * button highlighted, so a partner typing their PER-PIECE rate produced a run
+   * labelled `cost_type: "total"` — and the payout billed it once: ₹850 for
+   * nine garments, with nothing erroring and the number looking plausible.
+   * The two readings differ by a factor of the run quantity, so there is no
+   * safe default; the backend now refuses a cost with no type. (#1554)
+   */
+  const [costType, setCostType] = useState<"per_unit" | "total" | null>(null)
   const [partnerEstimate, setPartnerEstimate] = useState("")
 
   // ── Step 3: Additional materials ──
@@ -1005,8 +1014,15 @@ const CompleteRunForm = ({
   })
   const unaccounted = outputPlan.unaccounted
   const costValue = parseFloat(partnerEstimate) || 0
-  const totalCost = costType === "per_unit" ? Math.round(costValue * produced * 100) / 100 : costValue
-  const perUnitCost = costType === "total" && produced > 0 ? Math.round(costValue / produced * 100) / 100 : costValue
+  /**
+   * 🔴 The payout multiplier is the ORDERED quantity, not the produced one —
+   * see `runPayableAmount`: correcting a partner's output figure deliberately
+   * does not move the money. This preview used `produced`, so on any run where
+   * the two differed it showed a total the payment would never match.
+   */
+  const costUnits = runQuantity > 0 ? runQuantity : 1
+  const totalCost = costType === "per_unit" ? Math.round(costValue * costUnits * 100) / 100 : costValue
+  const perUnitCost = costType === "total" && costUnits > 0 ? Math.round(costValue / costUnits * 100) / 100 : costValue
 
   const updateConsumption = (idx: number, field: keyof ConsumptionEntry, value: string) => {
     setConsumptions((prev) =>
@@ -1024,6 +1040,14 @@ const CompleteRunForm = ({
         unit_of_measure: c.unit_of_measure,
         notes: c.notes || undefined,
       }))
+
+    // A cost with no type is refused by the backend (#1554) — say so here
+    // rather than letting the partner submit and read a 400. The two readings
+    // differ by the run quantity, so neither can be assumed.
+    if (costValue > 0 && !costType) {
+      toast.error("Choose whether the cost is per piece or for the whole run")
+      return
+    }
 
     const body: any = {
       produced_quantity: produced,
@@ -1285,17 +1309,32 @@ const CompleteRunForm = ({
           </div>
         </div>
 
-        {/* Cost summary */}
-        {costValue > 0 && produced > 0 && (
+        {/* What this run will actually pay.
+            🔴 Stated against the ORDERED quantity, because that is the
+            multiplier the payout uses (`runPayableAmount`). The old line used
+            the produced figure, so on any run where the two differed it
+            previewed a total the payment would never match. */}
+        {costValue > 0 && costType && (
           <div className="flex items-center gap-3 mt-3 pt-3 border-t border-ui-border-base">
             <Text size="xsmall" className="text-ui-fg-muted">
               {(() => {
                 const cur = ((design as any)?.cost_currency || "").toUpperCase()
                 const prefix = cur ? `${cur} ` : ""
                 return costType === "per_unit"
-                  ? `${prefix}${costValue} × ${produced} pieces = ${prefix}${totalCost} total`
-                  : `${prefix}${totalCost} total · ${prefix}${perUnitCost} per piece`
+                  ? `${prefix}${costValue} × ${costUnits} ordered = ${prefix}${totalCost} total`
+                  : `${prefix}${totalCost} total · ${prefix}${perUnitCost} per piece of ${costUnits}`
               })()}
+            </Text>
+          </div>
+        )}
+
+        {/* The unchosen state is a real state, and silence about it is how the
+            per-piece rate got billed once. */}
+        {costValue > 0 && !costType && (
+          <div className="flex items-center gap-3 mt-3 pt-3 border-t border-ui-border-base">
+            <Text size="xsmall" className="text-ui-fg-error">
+              Is that per piece, or for all {costUnits}? The two are paid very
+              differently.
             </Text>
           </div>
         )}

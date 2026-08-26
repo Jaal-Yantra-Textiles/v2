@@ -7,6 +7,7 @@ import { z } from "@medusajs/framework/zod"
 import { PRODUCTION_RUNS_MODULE } from "../../../../../modules/production_runs"
 import type ProductionRunService from "../../../../../modules/production_runs/service"
 import { adminCompleteProductionRunWorkflow } from "../../../../../workflows/production-runs/admin-complete-production-run"
+import { costTypeGuardMessage } from "../../../../../workflows/production-runs/lib/cost-type-guard"
 
 const REJECTION_REASONS = [
   "stitching_defect",
@@ -100,6 +101,13 @@ export const POST = async (
       MedusaError.Types.INVALID_DATA,
       "This production run has no assigned partner and cannot be completed"
     )
+  }
+
+  // A per-piece rate stored as a total is paid once — #1554. The amount and
+  // its type travel together or neither is accepted.
+  const costTypeIssue = costTypeGuardMessage(body)
+  if (costTypeIssue) {
+    throw new MedusaError(MedusaError.Types.INVALID_DATA, costTypeIssue)
   }
 
   const { result, errors } = await adminCompleteProductionRunWorkflow(

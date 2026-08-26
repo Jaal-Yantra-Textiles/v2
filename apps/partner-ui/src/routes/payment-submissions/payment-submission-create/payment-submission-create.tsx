@@ -27,6 +27,22 @@ import { useCreatePartnerPaymentSubmission } from "../../../hooks/api/partner-pa
 const ELIGIBLE_DESIGN_STATUSES = ["Commerce_Ready", "Approved"]
 const ELIGIBLE_TASK_STATUSES = ["completed"]
 
+/**
+ * 🔴 This is a PER FINISHED UNIT figure, not the value of the work.
+ *
+ * `design.estimated_cost` / `production_cost` are per unit — see
+ * `workflows/designs/estimate-design-cost.ts`, which divides a run total back
+ * to per-unit for exactly that reason. The submission then billed it as the
+ * whole line amount, so a design costed at ₹850/unit and produced nine times
+ * asked for ₹850. (#1554)
+ *
+ * ⚠️ The prefilled number is deliberately left as-is rather than quietly
+ * multiplied: this screen does not know how many units the partner is billing
+ * for (it lists designs, not runs), and inventing a quantity would swing a
+ * payment by a factor nobody chose. It is now LABELLED as per-piece so the
+ * partner can type the real total — and the run-completion draft, which does
+ * know the quantity, multiplies correctly on its own.
+ */
 const getDesignCost = (d: any): number =>
   Number(d.estimated_cost || d.production_cost || 0)
 
@@ -618,6 +634,13 @@ const CostInput = ({
       {defaultCost > 0 && effectiveCost !== defaultCost && (
         <Text size="xsmall" className="text-ui-fg-muted">
           was {defaultCost.toLocaleString()}
+        </Text>
+      )}
+      {/* The prefilled figure is the design's PER-PIECE cost. Unlabelled, a
+          partner who made nine of something submitted the price of one. */}
+      {defaultCost > 0 && effectiveCost === defaultCost && (
+        <Text size="xsmall" className="text-ui-fg-subtle">
+          per piece — enter your total
         </Text>
       )}
     </div>

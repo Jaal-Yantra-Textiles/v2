@@ -15,6 +15,7 @@ import {
 import { MedusaError, Modules } from "@medusajs/framework/utils"
 
 import { PRODUCTION_RUNS_MODULE } from "../../modules/production_runs"
+import { runUnitCost } from "./lib/run-payable"
 import type ProductionRunService from "../../modules/production_runs/service"
 import { awaitRunCompleteStepId } from "./run-production-run-lifecycle"
 import { logConsumptionWorkflow } from "../consumption-logs/log-consumption"
@@ -490,10 +491,28 @@ export const completeProductionRunWorkflow = createWorkflow(
     // Complete linked tasks
     completeLinkedTasksStep({ production_run_id: input.production_run_id })
 
-    // Update design cost + status
+    /**
+     * Update design cost + status.
+     *
+     * 🔴 `design.production_cost` / `estimated_cost` are PER FINISHED UNIT —
+     * `workflows/designs/estimate-design-cost.ts` divides a run total back to
+     * per-unit for exactly that reason, and its own input docs say "per
+     * finished unit". This step used to write `partner_cost_estimate` RAW,
+     * ignoring `cost_type` entirely, so a run of 9 completed at 7650 TOTAL
+     * stamped 7650 into a per-unit column. Per-unit runs happened to land
+     * correctly; total runs did not. Neither was systematically right. (#1554)
+     *
+     * ⚠️ Normalise DOWN to per-unit here — never up to a total. Writing a total
+     * into these columns is the #456 defect: every reader multiplies by
+     * quantity for itself, so a stored total gets multiplied a second time.
+     */
     const designUpdateInput = transform({ run, input }, (data) => ({
       design_id: (data.run as any).design_id || null,
-      cost_value: data.input.partner_cost_estimate || 0,
+      cost_value: runUnitCost({
+        partner_cost_estimate: data.input.partner_cost_estimate,
+        cost_type: data.input.cost_type,
+        quantity: (data.run as any).quantity,
+      }),
     }))
 
     updateDesignOnCompleteStep(designUpdateInput)

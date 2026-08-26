@@ -94,6 +94,7 @@ import { ContainerRegistrationKeys, MedusaError } from "@medusajs/framework/util
 import { PRODUCTION_RUNS_MODULE } from "../../../../modules/production_runs"
 import type ProductionRunService from "../../../../modules/production_runs/service"
 import {
+import { costTypeGuardMessage } from "../../../../workflows/production-runs/lib/cost-type-guard"
   readRunAllocation,
   setRunAllocation,
 } from "../../../../lib/production-run-allocation"
@@ -208,6 +209,25 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
       )
     }
     update.cost_type = body.cost_type
+  }
+
+  /**
+   * The run must END UP with an explicit cost_type whenever it carries a cost
+   * — a per-piece rate stored as a total is paid once (#1554).
+   *
+   * Checked against the resulting state rather than the body, because a
+   * correction that only fixes the number on a run already labelled `per_unit`
+   * is legitimate and must keep working. Only a cost arriving with no type
+   * anywhere is refused.
+   */
+  if (update.partner_cost_estimate != null) {
+    const costTypeIssue = costTypeGuardMessage({
+      partner_cost_estimate: update.partner_cost_estimate as number,
+      cost_type: (update.cost_type as string) ?? run?.cost_type,
+    })
+    if (costTypeIssue) {
+      throw new MedusaError(MedusaError.Types.INVALID_DATA, costTypeIssue)
+    }
   }
 
   // Corrections to the partner's self-reported output. `null` clears the field
