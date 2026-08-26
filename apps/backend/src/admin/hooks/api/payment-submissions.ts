@@ -128,8 +128,14 @@ export interface PayableRun {
   amount: number
   cost_type: "per_unit" | "total" | null
   partner_cost_estimate: number | null
-  /** False when no rate was ever agreed — not a zero-value payout. */
+  /**
+   * Whether the RUN carries an agreed rate. NOT "can this be paid" — an
+   * unpriced run is still payable by typing the rate. Only `billed` blocks.
+   */
   payable: boolean
+  /** The design's own cost, offered as a starting point. A suggestion, never a price. */
+  design_estimated_cost: number | null
+  design_production_cost: number | null
   billed: { submission_id: string; status: string; quantity: number } | null
   design_has_open_submission: boolean
 }

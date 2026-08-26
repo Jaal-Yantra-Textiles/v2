@@ -116,10 +116,26 @@ export const CreatePaymentSubmissionComponent = () => {
   const { payable_runs: payableRuns, isPending: runsLoading } =
     usePayableRuns(partnerId || undefined)
 
-  /** Runs that can actually be billed now: priced, and not already paid for. */
+  /**
+   * Runs that can be billed now — everything not already paid for.
+   *
+   * 🔑 A missing rate does NOT disqualify a run. The rate lives on the run
+   * because that is where it SHOULD be recorded, but on prod 15 of 27 completed
+   * runs carry none — the partner completed the work and never entered a price.
+   * That is a gap in the record, not a statement that the work was free, and an
+   * admin who knows what was agreed must be able to pay it by typing the rate.
+   * Blocking here would have made real completed work permanently unpayable
+   * through the only screen that can pay it.
+   */
   const selectableRuns = useMemo(
-    () => payableRuns.filter((r) => r.payable && !r.billed),
+    () => payableRuns.filter((r) => !r.billed),
     [payableRuns]
+  )
+
+  /** Runs already carrying an agreed rate — what "Select All" may safely take. */
+  const pricedSelectableRuns = useMemo(
+    () => selectableRuns.filter((r) => r.payable),
+    [selectableRuns]
   )
 
   const eligibleDesigns = useMemo(
@@ -177,13 +193,19 @@ export const CreatePaymentSubmissionComponent = () => {
     })
   }, [])
 
+  /**
+   * Select All takes only the PRICED runs. Bulk-selecting a run with no rate
+   * would add a line the submit guard then refuses, so the button would appear
+   * to work and then block the whole submission on rows the admin never chose.
+   * An unpriced run is selected deliberately, one at a time, with a rate typed.
+   */
   const selectAllRuns = useCallback(() => {
     setSelectedRunIds((prev) =>
-      prev.size === selectableRuns.length
+      prev.size === pricedSelectableRuns.length
         ? new Set()
-        : new Set(selectableRuns.map((r) => r.run_id))
+        : new Set(pricedSelectableRuns.map((r) => r.run_id))
     )
-  }, [selectableRuns])
+  }, [pricedSelectableRuns])
 
   /** Units billed for a run — the produced figure unless an admin retyped it. */
   const getRunQuantity = useCallback(
@@ -752,7 +774,12 @@ const RunsPanel = ({
       </div>
 
       {runs.map((run) => {
-        const isSelectable = run.payable && !run.billed
+        // Only an existing payout blocks. A missing rate is something to TYPE,
+        // not a reason the work cannot be paid for.
+        const isSelectable = !run.billed
+        const needsRate = !run.payable
+        const suggestion =
+          run.design_estimated_cost ?? run.design_production_cost ?? null
         const isSelected = selectedIds.has(run.run_id)
         const quantity = getQuantity(run)
         const rate = getRate(run)
@@ -800,9 +827,9 @@ const RunsPanel = ({
                       Already paid — {run.billed.status}
                     </Badge>
                   )}
-                  {!run.payable && (
-                    <Badge color="red" size="2xsmall">
-                      No agreed rate
+                  {needsRate && (
+                    <Badge color="orange" size="2xsmall">
+                      No agreed rate — enter one
                     </Badge>
                   )}
                 </div>
@@ -851,6 +878,23 @@ const RunsPanel = ({
                     {run.billed.quantity === 1 ? "" : "s"})
                   </Text>
                 )}
+                {needsRate && suggestion != null && (
+                  <Text size="xsmall" className="text-ui-fg-muted mt-1">
+                    {/* A starting point, explicitly labelled as coming from the
+                        design rather than from what was agreed. The box stays
+                        EMPTY — billing a design cost without someone typing it
+                        is the #1554 substitution. */}
+                    The design estimates {suggestion.toLocaleString()} per unit.
+                    That is the design's figure, not an agreed rate — check it
+                    before using it.
+                  </Text>
+                )}
+                {needsRate && suggestion == null && (
+                  <Text size="xsmall" className="text-ui-fg-muted mt-1">
+                    No cost recorded on the run or the design. Recalculate the
+                    design's cost, or enter the agreed rate here.
+                  </Text>
+                )}
                 {!run.billed && run.design_has_open_submission && (
                   <Text size="xsmall" className="text-ui-fg-warning mt-1">
                     This design is already in an open submission — creating
@@ -890,10 +934,16 @@ const RunsPanel = ({
                       size="small"
                       className="w-24 text-right"
                       aria-label={`Rate for ${run.design_name || run.run_id}`}
+                      // Empty, not "0", when the run carries no rate — a 0 in
+                      // the box reads as an agreed price of zero, and the
+                      // placeholder makes it obvious a number is wanted.
+                      placeholder={needsRate ? "rate" : undefined}
                       value={
                         rateOverrides[run.run_id] != null
                           ? String(rateOverrides[run.run_id])
-                          : String(run.unit_amount)
+                          : run.unit_amount > 0
+                            ? String(run.unit_amount)
+                            : ""
                       }
                       onChange={(e) => onRateChange(run.run_id, e.target.value)}
                       onClick={(e) => e.stopPropagation()}
@@ -910,8 +960,9 @@ const RunsPanel = ({
                       className="text-right"
                       data-testid={`run-amount-${run.run_id}`}
                     >
-                      {quantity} × {rate.toLocaleString()} ={" "}
-                      {amount.toLocaleString()}
+                      {rate > 0
+                        ? `${quantity} × ${rate.toLocaleString()} = ${amount.toLocaleString()}`
+                        : "—"}
                     </Text>
                   </div>
                 </div>
