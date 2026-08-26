@@ -63,6 +63,23 @@ export default async function autoDraftPaymentSubmissionHandler({
         // reject.
         require_design_status: false,
         notes: `Drafted automatically when production run ${runId} completed. Review the amount and submit when you're ready.`,
+        /**
+         * The run this draft pays for, in the column that guards the money.
+         *
+         * 🔴 This subscriber knows the run for certain — it is reacting to that
+         * run completing — and for months recorded it ONLY in `metadata` below.
+         * Every draft it wrote therefore reached the double-pay guard as "no
+         * run recorded", so the guard could never fire on the very rows it was
+         * built for: five of production's thirteen submissions. The admin
+         * screen had meanwhile started writing a SECOND spelling of the same
+         * fact (`metadata.source_production_run_id`), which is the #1557 shape
+         * exactly — one truth, two keys, neither of them load-bearing.
+         *
+         * Passing it here is what makes the line `run_provenance: "recorded"`.
+         * `metadata.production_run_id` stays for backwards compatibility with
+         * readers that already parse it, but it is no longer the record. #1565
+         */
+        production_run_ids: { [payout.design_id]: [runId] },
         metadata: {
           auto_drafted: true,
           source: "production_run.completed",

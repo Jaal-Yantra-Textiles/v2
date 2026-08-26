@@ -106,6 +106,7 @@ import { repairConsumptionLogJob } from "./repair-consumption-log-job"
 import { setLocationOwnershipJob } from "./set-location-ownership-job"
 import { resetNegativeInventoryLevelsJob } from "./reset-negative-inventory-levels-job"
 import { backfillDispatchedTemplateIdsJob } from "./backfill-dispatched-template-ids-job"
+import { backfillPaymentLineRunProvenanceJob } from "./backfill-payment-line-run-provenance-job"
 import { deduplicateTaskTemplateNamesJob } from "./deduplicate-task-template-names-job"
 import { recordManualInventoryCorrectionJob } from "./record-manual-inventory-correction-job"
 import { applyCommittedConsumptionJob } from "./apply-committed-consumption-job"
@@ -5804,6 +5805,7 @@ export const MAINTENANCE_JOBS: MaintenanceJob[] = [
   resetNegativeInventoryLevelsJob,
   deduplicateTaskTemplateNamesJob,
   backfillDispatchedTemplateIdsJob,
+  backfillPaymentLineRunProvenanceJob,
   recordManualInventoryCorrectionJob,
   applyCommittedConsumptionJob,
   backfillConsumptionAppliedColumnsJob,

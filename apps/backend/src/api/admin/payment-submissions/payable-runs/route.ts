@@ -47,10 +47,32 @@ import { runUnitCost } from "../../../../workflows/production-runs/lib/run-payab
  * could be claimed again and the second claim would look exactly as legitimate
  * as the first.
  *
- * ⚠️ Lines written before `production_run_ids` existed record nothing, so a run
- * paid for by one of them reads `billed: null` here. `design_has_open_submission`
- * is reported alongside precisely so the screen can still warn: it is the older,
- * weaker signal, and it is the only one those rows carry.
+ * ## "Not billed" and "we can't tell" are different answers
+ *
+ * 🔴 Every payment line in production recorded no run at all, so this guard was
+ * inert on real data while the screen showed its output as fact: 13 of 13
+ * submissions returned `billed: null`, which the sort then ranked as clean,
+ * payable work. Absence read as permission — #1557's shape, on the field that
+ * decides whether someone is paid twice.
+ *
+ * So a run now reports `billing_status`, not just `billed`:
+ *
+ *   - `clear`   — every live payout for this design names the runs it covered,
+ *                 and this is not one of them.
+ *   - `unknown` — a live payout for this design is `run_provenance:
+ *                 "not_recorded"`: it pays for run work and never said which
+ *                 run. This run may already be inside it. A human has to
+ *                 establish what that payout covered before any money moves.
+ *   - `billed`  — a line names this run.
+ *
+ * A task payout (`run_provenance: "no_run"`) is not a source of doubt: there
+ * was never a run behind it. That distinction is the whole reason provenance is
+ * a stated column rather than something re-derived from a NULL. See
+ * `payment_submission_item.run_provenance` and #1565.
+ *
+ * ⚠️ `design_has_open_submission` remains reported alongside, but it is the
+ * older, weaker signal — it goes false the moment a submission is Approved.
+ * Branch on `billing_status`.
  */
 export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
   const partnerId = String(
@@ -122,6 +144,22 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
     { submission_id: string; status: string; quantity: number }
   >()
   const designsWithOpenSubmission = new Set<string>()
+  /**
+   * Designs carrying a live payout that does not say which run it paid for.
+   *
+   * 🔴 These are the rows that made the guard a fiction. A line with
+   * `run_provenance: "not_recorded"` pays for run work, is not Rejected, and
+   * names no run — so for every completed run of that design, "is this already
+   * paid for?" has no answer. Reporting `billed: null` for those runs said
+   * "no", and the screen sorted them to the top as clean, payable work.
+   *
+   * A `no_run` line (a task payout) is deliberately NOT collected here: that
+   * is the one case where a missing run is an answer rather than a gap.
+   */
+  const designsWithUnrecordedClaims = new Map<
+    string,
+    { submission_id: string; status: string; amount: number }[]
+  >()
   const OPEN_STATUSES = new Set([
     "Draft",
     "Pending",
@@ -135,6 +173,17 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
 
     if (OPEN_STATUSES.has(status) && item.design_id) {
       designsWithOpenSubmission.add(String(item.design_id))
+    }
+
+    if (item.run_provenance === "not_recorded" && item.design_id) {
+      const designId = String(item.design_id)
+      const claims = designsWithUnrecordedClaims.get(designId) || []
+      claims.push({
+        submission_id: String(item.submission?.id || item.submission_id || ""),
+        status,
+        amount: Number(item.amount ?? 0),
+      })
+      designsWithUnrecordedClaims.set(designId, claims)
     }
 
     for (const runId of (item.production_run_ids || []) as string[]) {
@@ -219,15 +268,52 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
             ? null
             : Number(design.production_cost),
         billed: billedRuns.get(String(run.id)) ?? null,
+        /**
+         * Live payouts against this design that never recorded a run.
+         *
+         * ⚠️ Non-empty means `billed: null` is IGNORANCE, not innocence — one
+         * of these may already have paid for this very run. Read with
+         * `billing_status` below rather than on its own.
+         */
+        unrecorded_claims:
+          designsWithUnrecordedClaims.get(String(run.design_id)) ?? [],
         design_has_open_submission: designsWithOpenSubmission.has(
           String(run.design_id)
         ),
       }
     })
+    .map((row) => ({
+      ...row,
+      /**
+       * The single field a caller should branch on, so that "we don't know"
+       * cannot be spelled the same way as "no".
+       *
+       * - `billed`  — a payment line names this run. Do not pay again.
+       * - `unknown` — a live payout for this design records no run, so this
+       *               run may already be inside it. Needs a human before it is
+       *               paid; #1565 is the whole reason this value exists.
+       * - `clear`   — every live payout for this design says which runs it
+       *               covered, and none of them is this one. Safe to bill.
+       */
+      billing_status: row.billed
+        ? ("billed" as const)
+        : row.unrecorded_claims.length
+          ? ("unknown" as const)
+          : ("clear" as const),
+    }))
     .sort((a, b) => {
-      // Unbilled first (that's the work), then priced before unpriced (those
-      // need a human to type a rate), then newest completion.
-      if (!!a.billed !== !!b.billed) return a.billed ? 1 : -1
+      // Clear work first — that is what the screen is for. Then `unknown`,
+      // which needs someone to establish what an old payout covered before any
+      // money moves, then already-billed. Within a bucket: priced before
+      // unpriced (those need a human to type a rate), then newest completion.
+      //
+      // 🔴 `unknown` deliberately does NOT rank with `clear`. Sorting an
+      // unverifiable run to the top next to genuinely unpaid work is precisely
+      // how a second payout for the same garments would get made.
+      const rank = { clear: 0, unknown: 1, billed: 2 }
+      if (rank[a.billing_status] !== rank[b.billing_status]) {
+        return rank[a.billing_status] - rank[b.billing_status]
+      }
       if (a.payable !== b.payable) return a.payable ? -1 : 1
       return (
         new Date(b.completed_at || 0).getTime() -

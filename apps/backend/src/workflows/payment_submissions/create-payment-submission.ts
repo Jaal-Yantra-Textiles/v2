@@ -716,6 +716,15 @@ const createSubmissionRecordStep = createStep(
         production_run_ids: (design.production_run_ids ?? null) as unknown as
           | Record<string, unknown>
           | null,
+        /**
+         * Stated, never inferred later. A design line with no runs named is
+         * `not_recorded` rather than `no_run`: the caller picked a DESIGN, and
+         * a design is produced many times, so we have not been told there is
+         * no run behind this money — only that nobody said which. #1565
+         */
+        run_provenance: design.production_run_ids?.length
+          ? "recorded"
+          : "not_recorded",
         submission_id: submission.id,
       })
     }
@@ -733,8 +742,11 @@ const createSubmissionRecordStep = createStep(
         // than left to the column default so the row is unambiguous.
         quantity: 1,
         unit_amount: null,
-        // A task is not production output; there is no run behind it.
+        // A task is not production output; there is no run behind it. This is
+        // the one case where a missing run is an ANSWER rather than a gap, so
+        // it is the one case that may be read as "nothing billed here". #1565
         production_run_ids: null as unknown as Record<string, unknown> | null,
+        run_provenance: "no_run" as const,
         cost_breakdown: task.cost_breakdown || null,
         submission_id: submission.id,
       })
