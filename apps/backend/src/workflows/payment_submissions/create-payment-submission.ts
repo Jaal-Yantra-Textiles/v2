@@ -293,16 +293,34 @@ const validateDesignsForSubmissionStep = createStep(
       }
     }
 
-    // 3. Validate all designs have a cost (estimated_cost, production_cost, a
-    // partner-entered total override, or a caller-supplied per-unit rate)
+    // 3. Validate all designs have a USABLE cost (estimated_cost,
+    // production_cost, a partner-entered total override, or a caller-supplied
+    // per-unit rate).
+    //
+    // 🔴 "Usable" means POSITIVE, not merely "not null". The guard used to ask
+    // `=== null || === undefined`, so a stored **0** sailed through it — and
+    // `resolveDesignLineAmount` then returns amount 0, creating a payment line
+    // that bills nothing while looking like a real claim.
+    //
+    // That is not hypothetical. `POST /admin/designs/:id/recalculate-cost`
+    // writes `total_estimated: 0` with `confidence: "estimated"` when the
+    // estimator finds no BOM and no inventory history — it reports "I found
+    // nothing" as "this costs nothing". Running it over nine designs on prod
+    // turned four of them from null into 0, which is how this was found. A
+    // design with no cost data must be REFUSED, exactly as it was before
+    // somebody pressed recalculate.
     const overrides = input.cost_overrides || {}
     const suppliedUnitAmounts = input.unit_amounts || {}
+    const isUsableCost = (value: unknown): boolean => {
+      const n = Number(value)
+      return Number.isFinite(n) && n > 0
+    }
     const noCost = typedDesigns.filter(
       (d) =>
         !overrides[d.id] &&
         !suppliedUnitAmounts[d.id] &&
-        (d.estimated_cost === null || d.estimated_cost === undefined) &&
-        ((d as any).production_cost === null || (d as any).production_cost === undefined)
+        !isUsableCost(d.estimated_cost) &&
+        !isUsableCost((d as any).production_cost)
     )
     if (noCost.length) {
       throw new MedusaError(
