@@ -1124,6 +1124,203 @@ setupSharedTestSuite(() => {
     })
   })
 
+  /**
+   * Correcting a payment line's provenance by hand (#1565).
+   *
+   * 🔴 `/admin/payment-submissions/:id` exposes GET and `review` and nothing
+   * else — no route updates a submission or its items. For a line whose run is
+   * named only in free-text notes (which the backfill job refuses to parse),
+   * this job is the ONLY remedy short of rejecting a live payout and recreating
+   * it.
+   */
+  describe("record-payment-line-run maintenance job (#1565)", () => {
+    const RUN = "/admin/ops/maintenance-jobs/record-payment-line-run/run"
+
+    /** A design-sourced line with no run recorded, plus a run it could name. */
+    async function unrecordedLine(designName: string) {
+      const designId = await createDesign(designName, { estimated_cost: 1200 })
+      await linkDesignToPartner(designId, partnerId)
+      const runId = await createCompletedRun(designId, designName)
+
+      const sub = await api.post(
+        "/admin/payment-submissions",
+        {
+          partner_id: partnerId,
+          design_ids: [designId],
+          quantities: { [designId]: 4 },
+          unit_amounts: { [designId]: 1200 },
+        },
+        adminHeaders
+      )
+      expect(sub.status).toBe(201)
+      const detail = await api.get(
+        `/admin/payment-submissions/${sub.data.payment_submission.id}`,
+        adminHeaders
+      )
+      return {
+        designId,
+        runId,
+        itemId: detail.data.payment_submission.items[0].id,
+        submissionId: sub.data.payment_submission.id,
+      }
+    }
+
+    it("records the run an operator supplies, and the line then guards", async () => {
+      const { runId, itemId } = await unrecordedLine("Notes Only Payout")
+
+      const dry = await api.post(
+        RUN,
+        { dry_run: true, params: { payment_submission_item_id: itemId, production_run_id: runId } },
+        adminHeaders
+      )
+      expect(dry.status).toBe(200)
+      expect(dry.data.result.applied).toBe(false)
+      expect(dry.data.result.changes[0].after).toEqual([runId])
+
+      const applied = await api.post(
+        RUN,
+        { dry_run: false, params: { payment_submission_item_id: itemId, production_run_id: runId } },
+        adminHeaders
+      )
+      expect(applied.status).toBe(200)
+      expect(applied.data.result.applied).toBe(true)
+
+      // The EFFECT, not the summary: the run now reads as billed rather than
+      // unknown, which is the whole point of recording it.
+      const runs = await api.get(
+        `/admin/payment-submissions/payable-runs?partner_id=${partnerId}`,
+        adminHeaders
+      )
+      const row = runs.data.payable_runs.find((r: any) => r.run_id === runId)
+      expect(row.billing_status).toBe("billed")
+    })
+
+    it("refuses a run already recorded on another live payout", async () => {
+      // 🔴 Without this the job would be a hole straight through the double-pay
+      // guard it exists to arm: two lines could both claim the same garments.
+      const first = await unrecordedLine("Double Claim Design")
+      await api.post(
+        RUN,
+        {
+          dry_run: false,
+          params: { payment_submission_item_id: first.itemId, production_run_id: first.runId },
+        },
+        adminHeaders
+      )
+
+      // Close the first payout so the design-level "already in an open
+      // submission" guard is out of the way and ONLY the run-level guard is
+      // under test. This is also the realistic case: the run-level guard exists
+      // precisely because the design-level one goes false once a payout closes.
+      const approved = await api.post(
+        `/admin/payment-submissions/${first.submissionId}/review`,
+        { action: "approve", paid_to_id: paidToId },
+        adminHeaders
+      )
+      expect(approved.status).toBe(200)
+
+      // A second payout for the same design, pointed at the same run.
+      const second = await api.post(
+        "/admin/payment-submissions",
+        {
+          partner_id: partnerId,
+          design_ids: [first.designId],
+          quantities: { [first.designId]: 4 },
+          unit_amounts: { [first.designId]: 1200 },
+        },
+        adminHeaders
+      )
+      const secondDetail = await api.get(
+        `/admin/payment-submissions/${second.data.payment_submission.id}`,
+        adminHeaders
+      )
+      const secondItemId = secondDetail.data.payment_submission.items[0].id
+
+      const res = await api
+        .post(
+          RUN,
+          {
+            dry_run: false,
+            params: {
+              payment_submission_item_id: secondItemId,
+              production_run_id: first.runId,
+            },
+          },
+          adminHeaders
+        )
+        .catch((e: any) => e.response)
+
+      expect(res.status).toBeGreaterThanOrEqual(400)
+      expect(String(res.data?.message || "")).toMatch(/already recorded/i)
+    })
+
+    it("refuses a run belonging to a different design", async () => {
+      // An operator-supplied id is a claim, not a fact. A run belongs to exactly
+      // one design, so this one is describing different work entirely.
+      const target = await unrecordedLine("Wrong Design Target")
+      const otherDesign = await createDesign("Unrelated Design", {
+        estimated_cost: 1200,
+      })
+      await linkDesignToPartner(otherDesign, partnerId)
+      const otherRun = await createCompletedRun(otherDesign, "Unrelated Design")
+
+      const res = await api
+        .post(
+          RUN,
+          {
+            dry_run: false,
+            params: {
+              payment_submission_item_id: target.itemId,
+              production_run_id: otherRun,
+            },
+          },
+          adminHeaders
+        )
+        .catch((e: any) => e.response)
+
+      expect(res.status).toBeGreaterThanOrEqual(400)
+      expect(String(res.data?.message || "")).toMatch(/is a run of design/i)
+    })
+
+    it("refuses to overwrite a line that already records its run", async () => {
+      // Provenance written by a real submission path is better evidence than
+      // anything typed afterwards; correcting it is a different decision.
+      const d1 = await createDesign("Already Recorded", { estimated_cost: 1200 })
+      await linkDesignToPartner(d1, partnerId)
+      const runId = await createCompletedRun(d1, "Already Recorded")
+      const sub = await api.post(
+        "/admin/payment-submissions",
+        {
+          partner_id: partnerId,
+          design_ids: [d1],
+          quantities: { [d1]: 4 },
+          unit_amounts: { [d1]: 1200 },
+          production_run_ids: { [d1]: [runId] },
+        },
+        adminHeaders
+      )
+      const detail = await api.get(
+        `/admin/payment-submissions/${sub.data.payment_submission.id}`,
+        adminHeaders
+      )
+      const itemId = detail.data.payment_submission.items[0].id
+
+      const res = await api
+        .post(
+          RUN,
+          {
+            dry_run: false,
+            params: { payment_submission_item_id: itemId, production_run_id: runId },
+          },
+          adminHeaders
+        )
+        .catch((e: any) => e.response)
+
+      expect(res.status).toBeGreaterThanOrEqual(400)
+      expect(String(res.data?.message || "")).toMatch(/already records/i)
+    })
+  })
+
   describe("POST /admin/payment-submissions — run provenance (#1556)", () => {
     it("records which runs a line paid for, and reports them as billed", async () => {
       const d1 = await createDesign("Provenance Design", {
