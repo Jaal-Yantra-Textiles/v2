@@ -1,3 +1,12 @@
+## [13.114.2](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.114.1...v13.114.2) (2026-08-26)
+
+
+### Bug Fixes
+
+* **payments:** "not billed" and "we can't tell" were the same value ([#1565](https://github.com/Jaal-Yantra-Textiles/v2/issues/1565)) ([#1566](https://github.com/Jaal-Yantra-Textiles/v2/issues/1566)) ([54b35a3](https://github.com/Jaal-Yantra-Textiles/v2/commit/54b35a3562fad6bc5c776ead6893b949c74af893)), closes [#1556](https://github.com/Jaal-Yantra-Textiles/v2/issues/1556) [#1557](https://github.com/Jaal-Yantra-Textiles/v2/issues/1557)
+* **payments:** a stored cost of 0 is not a cost — it billed nothing and passed ([#1563](https://github.com/Jaal-Yantra-Textiles/v2/issues/1563)) ([#1563](https://github.com/Jaal-Yantra-Textiles/v2/issues/1563)) ([61e91a0](https://github.com/Jaal-Yantra-Textiles/v2/commit/61e91a00c995fc43d130826718f3d9ff13f24b77))
+* **designs:** the estimator reported "found nothing" as "costs nothing" ([#1564](https://github.com/Jaal-Yantra-Textiles/v2/issues/1564)) ([#1567](https://github.com/Jaal-Yantra-Textiles/v2/issues/1567)) ([c8128a5](https://github.com/Jaal-Yantra-Textiles/v2/commit/c8128a5ddfcc549cd7e66b3bd15e7a2f1f29ea94))
+
 ## [13.114.1](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.114.0...v13.114.1) (2026-08-26)
 
 
