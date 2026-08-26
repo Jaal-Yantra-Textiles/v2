@@ -62,6 +62,7 @@ export const designSchema = z.object({
   custom_sizes: z.record(z.string(), z.any()).optional(),
   color_palette: colorPaletteSchema.optional(),
   tags: z.array(z.string()).optional(),
+  /** Per finished unit. See `UpdateDesignSchema` for why clearing is update-only. */
   estimated_cost: z.number().optional(),
   cost_currency: z.string().optional(),
   designer_notes: z.string().optional(),
@@ -81,7 +82,30 @@ export const designSchema = z.object({
   customer_id_for_link: z.string().optional(),
 });
 
-export const UpdateDesignSchema = designSchema.partial();
+/**
+ * Update accepts everything create does — plus the ability to CLEAR the cost
+ * fields.
+ *
+ * 🔴 `estimated_cost` was `z.number().optional()`: optional but not nullable, so
+ * "no cost recorded" was a state the API could produce but never restore. A
+ * design wrongly given a cost — the recalculation that stored 0 because it had
+ * nothing to estimate from, #1564 — could not be put back to unknown through
+ * any route. Omitting a field leaves it alone; sending null clears it.
+ *
+ * `material_cost` / `production_cost` were not in the schema at ALL, and the
+ * validator is strict, so they were rejected outright. The recalculate routes
+ * write them straight through the service and cost panels read them, which left
+ * two persisted money fields with no way to correct them.
+ *
+ * ⚠️ Nullable only on update, deliberately. On create, null and omitted mean
+ * the same thing, and widening the create input would push a `number | null`
+ * into `CreateDesignStepInput` for no gain.
+ */
+export const UpdateDesignSchema = designSchema.partial().extend({
+  estimated_cost: z.number().nullable().optional(),
+  material_cost: z.number().nullable().optional(),
+  production_cost: z.number().nullable().optional(),
+});
 
 export const ReadDesignsQuerySchema = z.object({
   fields: z.string().optional(),

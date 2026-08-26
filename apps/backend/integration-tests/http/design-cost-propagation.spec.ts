@@ -485,5 +485,101 @@ setupSharedTestSuite(() => {
         confidence: estimate.confidence,
       })
     })
+
+    /**
+     * "Found nothing" must not be persisted, quoted or charged as zero (#1564).
+     *
+     * The estimator reported an empty search as `total_estimated: 0`. The
+     * recalculate route stored it, so designs whose cost was honestly unknown
+     * came out claiming to be free — five of them on production.
+     */
+    describe("a design with nothing to estimate from (#1564)", () => {
+      /**
+       * No bill of materials, no order history, no admin estimate — the exact
+       * state the five production designs were in.
+       *
+       * ⚠️ Created per-test, NOT in a nested `beforeAll`. The runner restores a
+       * DB snapshot before every test, so rows written by a nested `beforeAll`
+       * are gone by the time the test body runs.
+       */
+      async function createBarrenDesign(): Promise<string> {
+        const res: any = await api.post(
+          "/admin/designs",
+          {
+            name: "Barren Design",
+            description: "No BOM, no history — nothing to price from",
+            design_type: "Original",
+            status: "Conceptual",
+            priority: "Low",
+            target_completion_date: new Date().toISOString(),
+          },
+          adminHeaders
+        )
+        expect(res.status).toBe(201)
+        return res.data.design.id
+      }
+
+      it("recalculating reports no estimate and LEAVES THE STORED COST ALONE", async () => {
+        const barrenId = await createBarrenDesign()
+        const res = await api.post(
+          `/admin/designs/${barrenId}/recalculate-cost`,
+          {},
+          adminHeaders
+        )
+
+        expect(res.status).toBe(200)
+        // 🔴 null, not 0. A zero here is a claim that the work is free.
+        expect(res.data.cost_estimate.total_estimated).toBeNull()
+        expect(res.data.cost_estimate.confidence).toBe("none")
+        // A 200 must not be readable as "the design was updated".
+        expect(res.data.persisted).toBe(false)
+
+        // The effect, not the response: the design still has no stored cost.
+        const after = await api.get(`/admin/designs/${barrenId}`, adminHeaders)
+        expect(after.data.design.estimated_cost ?? null).toBeNull()
+      })
+
+      it("the order preview shows it as unpriceable rather than free", async () => {
+        const barrenId = await createBarrenDesign()
+        const res = await api.post(
+          `/admin/customers/${customerId}/design-order/preview`,
+          { design_ids: [barrenId] },
+          adminHeaders
+        )
+
+        expect(res.status).toBe(200)
+        expect(res.data.estimates[0].unit_price).toBeNull()
+        // The total must not silently absorb it as a zero-priced line.
+        expect(res.data.total_is_complete).toBe(false)
+        expect(res.data.unpriceable).toHaveLength(1)
+        expect(res.data.unpriceable[0].design_id).toBe(barrenId)
+      })
+
+      it("a cost can be CLEARED back to unknown once set", async () => {
+        const barrenId = await createBarrenDesign()
+        // 🔴 The repair path. `estimated_cost` was optional-but-not-nullable, so
+        // "no cost recorded" was a state the API could produce and never
+        // restore — the five zeroed production rows were unfixable through any
+        // route. Prove the null actually lands, rather than trusting the 200.
+        const set = await api.put(
+          `/admin/designs/${barrenId}`,
+          { estimated_cost: 999 },
+          adminHeaders
+        )
+        expect(set.status).toBe(200)
+        const midway = await api.get(`/admin/designs/${barrenId}`, adminHeaders)
+        expect(Number(midway.data.design.estimated_cost)).toBe(999)
+
+        const cleared = await api.put(
+          `/admin/designs/${barrenId}`,
+          { estimated_cost: null },
+          adminHeaders
+        )
+        expect(cleared.status).toBe(200)
+
+        const after = await api.get(`/admin/designs/${barrenId}`, adminHeaders)
+        expect(after.data.design.estimated_cost ?? null).toBeNull()
+      })
+    })
   })
 })

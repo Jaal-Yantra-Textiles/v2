@@ -8,7 +8,18 @@ import { ContainerRegistrationKeys } from "@medusajs/framework/utils";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
-type ConfidenceLevel = "exact" | "estimated" | "guesstimate";
+/**
+ * How much the returned figure is worth believing.
+ *
+ * 🔴 `none` is not a weaker estimate — it is the ABSENCE of one, and it is the
+ * only value for which `total_estimated` is null. The estimator used to report
+ * "I found nothing" as `total_estimated: 0` with `confidence: "estimated"`, as
+ * though it had looked and got an answer. `0` is not a small number here; it is
+ * a claim that the work is free, and every downstream reader believed it —
+ * including the storefront checkout, which turned it into a customer-facing
+ * price of zero. #1564
+ */
+type ConfidenceLevel = "exact" | "estimated" | "guesstimate" | "none";
 
 export type MaterialCostItem = {
   inventory_item_id?: string;
@@ -50,7 +61,16 @@ export type EstimateCostOutput = {
   production_cost: number;
   /** JYT platform commission (materialCost × platform_fee_percent). 0 when opted out. */
   platform_fee: number;
-  total_estimated: number;
+  /**
+   * What one finished unit is estimated to cost — or **null** when there was
+   * nothing to estimate from.
+   *
+   * 🔴 Nullable on purpose, so that "we could not price this" cannot be spelled
+   * the same way as "this is free". Every consumer must branch: a pricing path
+   * (checkout, draft order) has to REFUSE, and a persisting path has to skip
+   * the write rather than store a zero. #1564
+   */
+  total_estimated: number | null;
   confidence: ConfidenceLevel;
   breakdown: {
     materials: MaterialCostItem[];
@@ -210,8 +230,39 @@ export function computeCostBreakdown(input: {
       m.cost_source === "consumption_log"
   );
 
+  /**
+   * Did ANY input actually price something?
+   *
+   * 🔴 Note what is deliberately absent from this list: `similarDesigns`.
+   * Comparable designs are a hint for a human, not a price for this one —
+   * pricing from them is the silent substitution that #1554 was. They are still
+   * returned below so the caller can show them; they just do not manufacture a
+   * number. Before this, their mere existence flipped confidence to "estimated"
+   * while the total stayed 0, which is how prod ended up with designs stating
+   * that they cost nothing.
+   */
+  /**
+   * ⚠️ The fallback counts only where it was actually APPLIED, not merely
+   * offered. The partner recalc route always passes `default_material_cost`, so
+   * testing `defaultMaterialCost > 0` would call every partner estimate
+   * "priced" — including one for a design with an empty bill of materials,
+   * where the fallback has no line to attach to and the total is still 0.
+   */
+  const usedDefaultMaterialCost = materials.some(
+    (m) => m.cost_source === "default"
+  );
+
+  const hasPricingSignal =
+    hasAnyRealData ||
+    usedDefaultMaterialCost ||
+    adminEstimate != null ||
+    input.actualProductionCost != null ||
+    input.productionCostOverride != null;
+
   let confidence: ConfidenceLevel;
-  if (input.hasExactMaterialCosts && !productionIsEstimated) {
+  if (!hasPricingSignal) {
+    confidence = "none";
+  } else if (input.hasExactMaterialCosts && !productionIsEstimated) {
     confidence = "exact";
   } else if (hasAnyRealData || similarDesigns.length > 0 || adminEstimate != null) {
     confidence = "estimated";
@@ -224,7 +275,12 @@ export function computeCostBreakdown(input: {
     material_cost: round2(materialCost),
     production_cost: round2(productionCost),
     platform_fee: platformFee,
-    total_estimated: round2(totalEstimated),
+    /**
+     * null, not 0, when nothing priced this. The component figures above stay
+     * numeric — they are genuine sums of nothing — but the field that gets
+     * persisted, quoted and charged has to be able to say "no answer".
+     */
+    total_estimated: hasPricingSignal ? round2(totalEstimated) : null,
     confidence,
     breakdown: {
       materials,

@@ -107,6 +107,7 @@ import { setLocationOwnershipJob } from "./set-location-ownership-job"
 import { resetNegativeInventoryLevelsJob } from "./reset-negative-inventory-levels-job"
 import { backfillDispatchedTemplateIdsJob } from "./backfill-dispatched-template-ids-job"
 import { backfillPaymentLineRunProvenanceJob } from "./backfill-payment-line-run-provenance-job"
+import { clearUnpriceableDesignCostsJob } from "./clear-unpriceable-design-costs-job"
 import { deduplicateTaskTemplateNamesJob } from "./deduplicate-task-template-names-job"
 import { recordManualInventoryCorrectionJob } from "./record-manual-inventory-correction-job"
 import { applyCommittedConsumptionJob } from "./apply-committed-consumption-job"
@@ -222,7 +223,15 @@ export function diffCostFields(
 }
 
 type DesignCostEstimate = {
-  total_estimated: number
+  /**
+   * null when the estimator had nothing to price from.
+   *
+   * ⚠️ This is a hand-written mirror of `EstimateCostOutput`, reached through a
+   * cast — so it does NOT track the workflow's type automatically. When
+   * `total_estimated` became nullable upstream, tsc stayed silent here and this
+   * job carried on persisting zeros. Keep the two in step by hand. #1564
+   */
+  total_estimated: number | null
   material_cost: number
   production_cost: number
   confidence: string
@@ -325,7 +334,29 @@ export const recalculateDesignCostJob: MaintenanceJob = {
     const { design_id } = parsed.data
 
     const { current, result } = await recomputeDesignCost(container, design_id)
-    const changes = diffCostFields(design_id, current, result)
+
+    /**
+     * 🔴 Found nothing ⇒ change nothing.
+     *
+     * This job is how five production designs came to state that they cost 0:
+     * the estimator returned "no BOM, no history" as a zero and this wrote it
+     * over an honest null. A recalculation that learned nothing has no business
+     * editing the record. #1564
+     */
+    if (result.total_estimated == null) {
+      return {
+        job_id: recalculateDesignCostJob.id,
+        dry_run,
+        applied: false,
+        summary: `No cost could be estimated for design ${design_id} — no bill of materials and no cost history. Stored cost left unchanged.`,
+        changes: [],
+      }
+    }
+
+    const changes = diffCostFields(design_id, current, {
+      ...result,
+      total_estimated: result.total_estimated,
+    })
 
     if (!dry_run && changes.length > 0) {
       await persistDesignCost(container, design_id, result)
@@ -442,11 +473,24 @@ export const recalculateDesignCostBulkJob: MaintenanceJob = {
     const changes: MaintenanceChange[] = []
     const errors: Array<{ id: string; message: string }> = []
     const changedDesigns = new Set<string>()
+    /** Designs the estimator could not price. Reported, never written. #1564 */
+    const unpriceable: string[] = []
 
     for (const designId of ids) {
       try {
         const { current, result } = await recomputeDesignCost(container, designId)
-        const designChanges = diffCostFields(designId, current, result)
+
+        // Found nothing ⇒ change nothing. Skipping is what keeps an honest
+        // null from being overwritten with a zero that claims the work is free.
+        if (result.total_estimated == null) {
+          unpriceable.push(designId)
+          continue
+        }
+
+        const designChanges = diffCostFields(designId, current, {
+          ...result,
+          total_estimated: result.total_estimated,
+        })
         if (designChanges.length > 0) {
           changedDesigns.add(designId)
           changes.push(...designChanges)
@@ -463,13 +507,19 @@ export const recalculateDesignCostBulkJob: MaintenanceJob = {
       job_id: recalculateDesignCostBulkJob.id,
       dry_run,
       applied: !dry_run && changes.length > 0,
-      summary: summarizeBulkRecalc(
-        dry_run,
-        ids.length,
-        changedDesigns.size,
-        changes.length,
-        errors.length
-      ),
+      summary:
+        summarizeBulkRecalc(
+          dry_run,
+          ids.length,
+          changedDesigns.size,
+          changes.length,
+          errors.length
+        ) +
+        // Named rather than folded into "no changes": a design nobody can price
+        // is a gap someone has to fill, not a design that is already correct.
+        (unpriceable.length
+          ? `. ${unpriceable.length} design(s) could not be priced (no BOM, no cost history) and were left unchanged: ${unpriceable.join(", ")}`
+          : ""),
       changes,
       errors,
     }
@@ -5806,6 +5856,7 @@ export const MAINTENANCE_JOBS: MaintenanceJob[] = [
   deduplicateTaskTemplateNamesJob,
   backfillDispatchedTemplateIdsJob,
   backfillPaymentLineRunProvenanceJob,
+  clearUnpriceableDesignCostsJob,
   recordManualInventoryCorrectionJob,
   applyCommittedConsumptionJob,
   backfillConsumptionAppliedColumnsJob,

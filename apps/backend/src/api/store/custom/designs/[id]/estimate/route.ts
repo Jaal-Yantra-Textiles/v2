@@ -86,7 +86,10 @@ export async function GET(
     const rate = await fetchExchangeRate(storeCurrency, targetCurrency);
     materialCost = applyRate(materialCost, rate);
     productionCost = applyRate(productionCost, rate);
-    totalEstimated = applyRate(totalEstimated, rate);
+    // A missing estimate stays missing in every currency. Converting null would
+    // produce a very confident 0. #1564
+    totalEstimated =
+      totalEstimated == null ? null : applyRate(totalEstimated, rate);
   }
 
   res.status(200).json({

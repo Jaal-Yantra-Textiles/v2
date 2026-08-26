@@ -61,31 +61,43 @@ export async function POST(
 
   // Persist the estimate so the design carries its latest cost. Mirrors
   // the admin route but stores the fuller breakdown too.
-  try {
-    const designService = req.scope.resolve(DESIGN_MODULE) as any
-    await designService.updateDesigns({
-      id: designId,
-      estimated_cost: result.total_estimated,
-      material_cost: result.material_cost,
-      production_cost: result.production_cost,
-      cost_breakdown: {
-        items: result.breakdown?.materials ?? [],
-        production_percent: result.breakdown?.production_percent,
-        platform_fee: result.platform_fee,
-        platform_fee_percent: result.breakdown?.platform_fee_percent,
-        production_cost_source:
-          productionCostOverride != null ? "partner_entered" : "estimated",
-        confidence: result.confidence,
-        calculated_at: new Date().toISOString(),
-        source: "partner_recalculate",
-      },
-    })
-  } catch {
-    // Non-fatal — the estimate was still computed + returned.
+  //
+  // 🔴 Unless the estimator found nothing to price from, in which case the
+  // stored cost is left exactly as it was. Writing a 0 here would convert an
+  // honest "unknown" into a claim that the partner's work is free. #1564
+  const foundNothing = result.total_estimated == null
+
+  if (!foundNothing) {
+    try {
+      const designService = req.scope.resolve(DESIGN_MODULE) as any
+      await designService.updateDesigns({
+        id: designId,
+        estimated_cost: result.total_estimated,
+        material_cost: result.material_cost,
+        production_cost: result.production_cost,
+        cost_breakdown: {
+          items: result.breakdown?.materials ?? [],
+          production_percent: result.breakdown?.production_percent,
+          platform_fee: result.platform_fee,
+          platform_fee_percent: result.breakdown?.platform_fee_percent,
+          production_cost_source:
+            productionCostOverride != null ? "partner_entered" : "estimated",
+          confidence: result.confidence,
+          calculated_at: new Date().toISOString(),
+          source: "partner_recalculate",
+        },
+      })
+    } catch {
+      // Non-fatal — the estimate was still computed + returned.
+    }
   }
 
   res.status(200).json({
     cost_estimate: result,
-    message: `Cost recalculated: ${result.total_estimated} (${result.confidence})`,
+    /** Stated explicitly so a 200 cannot be read as "the design was updated". */
+    persisted: !foundNothing,
+    message: foundNothing
+      ? "No cost could be estimated — this design has no bill of materials and no cost history. The stored cost was left unchanged."
+      : `Cost recalculated: ${result.total_estimated} (${result.confidence})`,
   })
 }

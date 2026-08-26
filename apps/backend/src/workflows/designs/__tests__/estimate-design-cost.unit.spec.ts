@@ -132,15 +132,83 @@ describe("computeCostBreakdown", () => {
       expect(result.breakdown.production_percent).toBe(30)
     })
 
-    it("returns zero production and zero total when no data at all", () => {
+    /**
+     * 🔴 This test used to assert `total_estimated === 0` and call it correct.
+     * It was describing the defect: "I found nothing" reported as "this is
+     * free". Five production designs carry a stored 0 because of it, and the
+     * storefront checkout turned that 0 into a customer-facing price. #1564
+     */
+    it("returns NO total — not zero — when there is nothing to price from", () => {
       const result = computeCostBreakdown({
         ...base,
         adminEstimate: null,
         materials: [],
       })
+      expect(result.total_estimated).toBeNull()
+      expect(result.confidence).toBe("none")
+      // The component sums stay numeric: they are honest sums of nothing. It is
+      // the field that gets persisted, quoted and charged that must say "no
+      // answer", and null is the only value that cannot be mistaken for money.
       expect(result.material_cost).toBe(0)
       expect(result.production_cost).toBe(0)
-      expect(result.total_estimated).toBe(0)
+    })
+
+    it("does not manufacture a price out of similar designs", () => {
+      // Comparable designs are a hint for a human, not a price for this one.
+      // Before the fix their mere existence flipped confidence to "estimated"
+      // while the total stayed 0 — a confident-looking zero, which is the exact
+      // combination seen on prod. They are still RETURNED, so a caller can show
+      // them; they just do not become the number.
+      const result = computeCostBreakdown({
+        ...base,
+        adminEstimate: null,
+        materials: [],
+        similarDesigns: [
+          { id: "d1", name: "Similar One", estimated_cost: 1200 },
+          { id: "d2", name: "Similar Two", estimated_cost: 1400 },
+        ],
+      })
+      expect(result.total_estimated).toBeNull()
+      expect(result.confidence).toBe("none")
+      expect(result.similar_designs).toHaveLength(2)
+    })
+
+    it("treats a fallback material cost as a price only where it was APPLIED", () => {
+      // The partner recalc route always passes `default_material_cost`, so a
+      // naive "was a default offered?" test would call every partner estimate
+      // priced — including one for a design with an empty bill of materials,
+      // where the fallback has no line to attach to and the total is still 0.
+      const empty = computeCostBreakdown({
+        ...base,
+        adminEstimate: null,
+        materials: [],
+        defaultMaterialCost: 600,
+      })
+      expect(empty.total_estimated).toBeNull()
+      expect(empty.confidence).toBe("none")
+
+      const applied = computeCostBreakdown({
+        ...base,
+        adminEstimate: null,
+        materials: [
+          { id: "m1", name: "Unpriced Fabric", quantity: 2, cost: 0, cost_source: "estimated" } as any,
+        ],
+        defaultMaterialCost: 600,
+      })
+      expect(applied.total_estimated).not.toBeNull()
+      expect(applied.confidence).not.toBe("none")
+    })
+
+    it("still prices normally when there IS a signal", () => {
+      // The guard must not swallow real estimates — an admin figure alone is
+      // enough to price from, with no materials at all.
+      const result = computeCostBreakdown({
+        ...base,
+        adminEstimate: 1000,
+        materials: [],
+      })
+      expect(result.total_estimated).not.toBeNull()
+      expect(result.confidence).not.toBe("none")
     })
   })
 
@@ -264,14 +332,34 @@ describe("computeCostBreakdown", () => {
   })
 
   describe("confidence levels", () => {
-    it("returns guesstimate when no real data", () => {
+    /**
+     * ⚠️ This case used to be `guesstimate` with a total of 0 — i.e. "I priced
+     * it weakly" when the truth was "I could not price it at all". `guesstimate`
+     * now means a real but weak price; the empty case is `none`. #1564
+     */
+    it("returns guesstimate when a price exists but rests on a fallback", () => {
+      const result = computeCostBreakdown({
+        ...base,
+        adminEstimate: null,
+        materials: [
+          { id: "m1", name: "Unpriced Fabric", quantity: 1, cost: 0, cost_source: "estimated" } as any,
+        ],
+        similarDesigns: [],
+        defaultMaterialCost: 600,
+      })
+      expect(result.confidence).toBe("guesstimate")
+      expect(result.total_estimated).not.toBeNull()
+    })
+
+    it("returns none — not guesstimate — when there is no data at all", () => {
       const result = computeCostBreakdown({
         ...base,
         adminEstimate: null,
         materials: [],
         similarDesigns: [],
       })
-      expect(result.confidence).toBe("guesstimate")
+      expect(result.confidence).toBe("none")
+      expect(result.total_estimated).toBeNull()
     })
 
     it("returns estimated when admin estimate is set", () => {
