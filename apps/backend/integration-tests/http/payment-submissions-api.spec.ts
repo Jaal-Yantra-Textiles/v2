@@ -758,6 +758,57 @@ setupSharedTestSuite(() => {
 
   // ─── Payable runs (#1556) ─────────────────────────────────────────────────
 
+  describe("A stored cost of 0 is not a cost (#1563)", () => {
+    it("refuses a design whose stored cost is 0 rather than billing nothing", async () => {
+      // 🔴 `recalculate-cost` writes `total_estimated: 0` with
+      // `confidence: "estimated"` when the estimator finds no BOM and no
+      // inventory history — it reports "I found nothing" as "this costs
+      // nothing". Four prod designs were flipped from null to 0 that way.
+      //
+      // The old guard asked `=== null || === undefined`, so 0 passed it and the
+      // workflow produced a payment line billing 0 that looked like a real
+      // claim. "No cost recorded" must refuse, exactly as it did before anyone
+      // pressed recalculate.
+      const d1 = await createDesign("Zero Cost Design", { estimated_cost: 0 })
+      await linkDesignToPartner(d1, partnerId)
+
+      const res = await api
+        .post(
+          "/admin/payment-submissions",
+          { partner_id: partnerId, design_ids: [d1] },
+          adminHeaders
+        )
+        .catch((e: any) => e.response)
+
+      expect(res.status).toBe(400)
+      expect(res.data.message).toContain("Designs missing cost")
+    })
+
+    it("still bills a 0-cost design when a real rate is supplied", async () => {
+      // The refusal is about the absence of a figure, not a ban on the design.
+      // An admin who knows the agreed rate types it and the payout goes through
+      // — which is the whole point of the run-sourced screen.
+      const d1 = await createDesign("Zero Cost But Priced", {
+        estimated_cost: 0,
+      })
+      await linkDesignToPartner(d1, partnerId)
+
+      const res = await api.post(
+        "/admin/payment-submissions",
+        {
+          partner_id: partnerId,
+          design_ids: [d1],
+          quantities: { [d1]: 3 },
+          unit_amounts: { [d1]: 250 },
+        },
+        adminHeaders
+      )
+
+      expect(res.status).toBe(201)
+      expect(Number(res.data.payment_submission.total_amount)).toBe(750)
+    })
+  })
+
   describe("GET /admin/payment-submissions/payable-runs", () => {
     it("requires partner_id rather than listing every completed run", async () => {
       // An unfiltered variant would return every partner's runs. That exact
