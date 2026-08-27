@@ -340,6 +340,12 @@ export type QuotableDesign = {
   status: string | null
   /** True when exactly one variant backs it, so a line can be built. */
   quotable: boolean
+  /**
+   * True when nothing backs it YET — a custom design whose production run is
+   * in the future. Picking it mints a made-to-order variant priced from what
+   * comparable work has cost. Not a promise that it can be priced.
+   */
+  made_to_order: boolean
   variant_id: string | null
   product_id: string | null
   candidates: Array<{
@@ -371,6 +377,50 @@ export type QuotableDesignsResponse = {
  * Returns unquotable designs too, with their reason. Hiding them would leave an
  * admin unable to learn why a design they can see is not offered.
  */
+export type MintedDesignVariant = {
+  design_id: string
+  variant_id: string | null
+  product_id: string | null
+  minted: boolean
+  unit_price: number | null
+  confidence: string | null
+  basis: string | null
+  reason: string | null
+}
+
+/**
+ * Mint the made-to-order variant a custom design will be quoted through.
+ *
+ * The admin twin of the partner hook. See
+ * `/admin/quotes/designs/:designId/variant` for why minting happens on PICK,
+ * and why a design that cannot be priced answers 422 rather than 200.
+ */
+export const useMintDesignVariant = (
+  options?: UseMutationOptions<
+    { design: MintedDesignVariant },
+    FetchError,
+    { design_id: string; currency_code: string }
+  >
+) => {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: async (payload: { design_id: string; currency_code: string }) =>
+      sdk.client.fetch<{ design: MintedDesignVariant }>(
+        `/admin/quotes/designs/${payload.design_id}/variant`,
+        { method: "POST", body: { currency_code: payload.currency_code } }
+      ),
+    onSuccess: (data, variables, _mutateResult, context) => {
+      // The design now resolves to a variant, so the picker's rows are stale.
+      queryClient.invalidateQueries({
+        queryKey: [...quoteQueryKeys.all, "quotable-designs"],
+      })
+      options?.onSuccess?.(data, variables, _mutateResult, context)
+    },
+    ...options,
+  })
+}
+
 export const useQuotableDesigns = (
   query?: { partner_id?: string | null; q?: string; limit?: number; offset?: number },
   options?: Omit<

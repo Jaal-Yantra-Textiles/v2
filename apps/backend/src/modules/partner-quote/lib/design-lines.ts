@@ -260,6 +260,32 @@ async function describeVariants(
   }))
 }
 
+/**
+ * How this file reaches the made-to-order minter, without importing it.
+ *
+ * 🔑 An injected port rather than a direct call. This module is unit-tested
+ * with no Medusa runtime — `applyDesignResolutions` and friends are pure — and
+ * importing the workflow would drag the workflow SDK, the product-creation core
+ * flow and `model.define()` into that test's module graph. A lazy `await
+ * import()` was the other option and is worse: `--moduleResolution nodenext`
+ * demands a `.js` specifier that the dev transpiler may not resolve back to the
+ * `.ts` file, and a failed import inside quote creation is a 500 on the one
+ * route this feature exists to unblock.
+ *
+ * The routes own the wiring; `makeDesignVariantPort` builds one.
+ */
+export type DesignVariantPort = (input: {
+  design_id: string
+  /** Answer without creating anything. The readiness preflight passes true. */
+  dry_run: boolean
+}) => Promise<{
+  variant_id: string | null
+  unit_price: number | null
+  confidence: string | null
+  basis: string | null
+  reason: string | null
+} | null>
+
 export type QuoteLineInput = {
   variant_id?: string | null
   design_id?: string | null
@@ -332,6 +358,78 @@ export function applyDesignResolutions(
   return { lines: resolved, errors }
 }
 
+
+/**
+ * Mint a made-to-order variant for every design in the basket that has no
+ * product behind it. Returns whether anything was actually created.
+ *
+ * ⚠️ The workflow is imported LAZILY, and that is not a style choice. This file
+ * is unit-tested without a Medusa runtime — `applyDesignResolutions` and
+ * friends are pure — and a top-level import would pull the workflow SDK, the
+ * product-creation core flow and `model.define()` into that test's module
+ * graph. The estimator resolves its own dependency by string key for exactly
+ * the same reason.
+ *
+ * 🔑 Failures are collected per design and left to the resolver to report. A
+ * design that could not be priced comes back with no variant, and
+ * `applyDesignResolutions` already knows how to say so — throwing here would
+ * refuse the whole basket for one unpriceable line, and the promise this file
+ * makes is that a partner sees EVERY problem at once.
+ */
+async function mintMissingDesignVariants(input: {
+  resolutions: Map<string, DesignResolution>
+  lines: QuoteLineInput[]
+  port: DesignVariantPort
+}): Promise<boolean> {
+  const needing = designsNeedingAVariant(input.lines, input.resolutions)
+  if (!needing.length) return false
+
+  let mintedAny = false
+  for (const designId of needing) {
+    try {
+      const result = await input.port({ design_id: designId, dry_run: false })
+      if (result?.variant_id) mintedAny = true
+    } catch {
+      /**
+       * Left unresolved on purpose. A design that could not be minted comes
+       * back with no variant and `applyDesignResolutions` already knows how to
+       * say so — throwing here would refuse the whole basket over one line,
+       * and the promise this file makes is that a partner sees EVERY problem
+       * at once rather than one per round-trip.
+       */
+    }
+  }
+
+  return mintedAny
+}
+
+/**
+ * PURE: which designs in this basket still need a variant minted.
+ *
+ * 🔴 Only lines with no `variant_id` of their own. A line that named its
+ * variant is already answered, and minting for it would attach a SECOND
+ * variant to the design — making it ambiguous, which is the one state that
+ * cannot be quoted at all. The fix would create the bug.
+ *
+ * And only the no-candidate case. "Sold as several variants" is a question for
+ * the partner; a freshly minted sixth variant does not answer it.
+ */
+export function designsNeedingAVariant(
+  lines: QuoteLineInput[],
+  resolutions: Map<string, DesignResolution>
+): string[] {
+  return Array.from(
+    new Set(
+      (lines ?? [])
+        .filter((l) => l?.design_id && !l?.variant_id)
+        .map((l) => String(l.design_id))
+    )
+  ).filter((id) => {
+    const r = resolutions.get(id)
+    return Boolean(r?.visible && !r.variant_id && r.candidates.length === 0)
+  })
+}
+
 /**
  * Resolve a basket's design lines, or refuse the whole basket.
  *
@@ -340,7 +438,24 @@ export function applyDesignResolutions(
  */
 export async function resolveQuoteDesignLines(
   scope: any,
-  input: { lines: QuoteLineInput[]; partner_id?: string | null }
+  input: {
+    lines: QuoteLineInput[]
+    partner_id?: string | null
+    /**
+     * Mints a made-to-order variant for a design that has no product behind
+     * it, instead of the basket being refused.
+     *
+     * This IS the relaxation. A custom design whose production run is in the
+     * future is the normal case for bespoke work, and telling a partner to go
+     * and create a catalogue product for something nobody has bought yet is a
+     * step that existed only because the resolver needed a variant to point
+     * at. Omit the port and the old refusal is exactly what happens.
+     *
+     * Only the no-product case is minted. A design sold as several variants
+     * still makes the partner choose.
+     */
+    variant_port?: DesignVariantPort | null
+  }
 ): Promise<QuoteLineInput[]> {
   const designIds = (input.lines ?? [])
     // EVERY design named, not only the ones being resolved TO a variant: a
@@ -351,10 +466,26 @@ export async function resolveQuoteDesignLines(
 
   if (!designIds.length) return input.lines ?? []
 
-  const resolutions = await resolveDesignVariants(scope, {
+  let resolutions = await resolveDesignVariants(scope, {
     design_ids: designIds,
     partner_id: input.partner_id ?? null,
   })
+
+  if (input.variant_port) {
+    const minted = await mintMissingDesignVariants({
+      resolutions,
+      lines: input.lines,
+      port: input.variant_port,
+    })
+    // Re-resolve rather than patching the map by hand: minting created a link,
+    // and the resolver is the one thing that knows how to read it.
+    if (minted) {
+      resolutions = await resolveDesignVariants(scope, {
+        design_ids: designIds,
+        partner_id: input.partner_id ?? null,
+      })
+    }
+  }
 
   const { lines, errors } = applyDesignResolutions(input.lines, resolutions)
 
@@ -380,12 +511,22 @@ export async function resolveQuoteDesignLines(
  */
 export async function resolveDesignLinesForReadiness(
   scope: any,
-  input: { lines: QuoteLineInput[]; partner_id?: string | null }
+  input: {
+    lines: QuoteLineInput[]
+    partner_id?: string | null
+    /**
+     * Previews what a design with no product would be quoted at. Called with
+     * `dry_run: true`, so asking stays free of consequences.
+     */
+    variant_port?: DesignVariantPort | null
+    /** Only for the message. The port owns the arithmetic. */
+    currency_code?: string | null
+  }
 ): Promise<{
   lines: QuoteLineInput[]
   issues: Array<{
-    code: "design_unresolved"
-    severity: "blocking"
+    code: "design_unresolved" | "design_made_to_order"
+    severity: "blocking" | "warning"
     message: string
     design_id: string | null
     data?: Record<string, unknown>
@@ -423,26 +564,114 @@ export async function resolveDesignLinesForReadiness(
       .map((l) => String(l.design_id))
   )
 
-  const issues = designIds
+  const unresolved = designIds
     .map((id) => resolutions.get(id))
     .filter((r): r is DesignResolution => {
       if (!r) return false
       return resolvingIds.has(r.design_id) ? !r.variant_id : !r.visible
     })
-    .map((r) => ({
+
+  /**
+   * A design with NO product is no longer a problem — it is a made-to-order
+   * line, and the preflight's job is to say so and show the price it would
+   * carry.
+   *
+   * 🔑 Priced with `dry_run`, so opening the wizard creates nothing. The real
+   * mint happens on the create route; if it fails there, the basket is refused
+   * exactly as before.
+   *
+   * A design that STILL cannot be priced stays blocking, with the estimator's
+   * own reason — "no bill of materials, no completed run and no comparable
+   * work" is something a partner can act on; "cannot be quoted" is not.
+   */
+  const mintable = input.variant_port
+    ? await previewMadeToOrderDesigns(unresolved, input.variant_port)
+    : new Map<
+        string,
+        { unit_price: number | null; confidence: string | null; basis: string | null; reason: string | null }
+      >()
+
+  const issues = unresolved.map((r) => {
+    const preview = mintable.get(r.design_id)
+
+    if (preview?.unit_price != null) {
+      return {
+        code: "design_made_to_order" as const,
+        severity: "warning" as const,
+        message:
+          `"${r.design_name ?? r.design_id}" has no product yet, so it will be quoted as made-to-order at ` +
+          `${preview.unit_price} ${String(input.currency_code).toUpperCase()} per unit. ` +
+          `That figure is a ${preview.confidence ?? "guesstimate"} — dial it in if you know better.`,
+        design_id: r.design_id,
+        data: {
+          candidates: r.candidates,
+          unit_price: preview.unit_price,
+          confidence: preview.confidence,
+          basis: preview.basis,
+          made_to_order: true,
+        },
+      }
+    }
+
+    return {
       code: "design_unresolved" as const,
       severity: "blocking" as const,
-      message: r.reason ?? `Design ${r.design_id} cannot be quoted.`,
+      // The estimator's reason when there is one — it names what is missing.
+      message: preview?.reason ?? r.reason ?? `Design ${r.design_id} cannot be quoted.`,
       design_id: r.design_id,
       // The candidate list IS the fix for the ambiguous case — the wizard shows
       // it as a picker rather than making the partner go and look it up.
       data: { candidates: r.candidates },
-    }))
+    }
+  })
 
   return {
     lines: lines.filter((l) => Boolean(l.variant_id)),
     issues,
   }
+}
+
+/**
+ * What each unpriceable-looking design WOULD be quoted at, without creating
+ * anything. Only the no-product case is asked about: "sold as several
+ * variants" is a choice for the partner and minting a sixth would not help.
+ */
+async function previewMadeToOrderDesigns(
+  resolutions: DesignResolution[],
+  port: DesignVariantPort
+): Promise<
+  Map<
+    string,
+    { unit_price: number | null; confidence: string | null; basis: string | null; reason: string | null }
+  >
+> {
+  const out = new Map<
+    string,
+    { unit_price: number | null; confidence: string | null; basis: string | null; reason: string | null }
+  >()
+
+  // Only the no-product case is asked about — see `designsNeedingAVariant`.
+  const candidates = resolutions.filter(
+    (r) => r.visible && !r.variant_id && r.candidates.length === 0
+  )
+  if (!candidates.length) return out
+
+  for (const r of candidates) {
+    try {
+      const result = await port({ design_id: r.design_id, dry_run: true })
+      if (!result) continue
+      out.set(r.design_id, {
+        unit_price: result.unit_price ?? null,
+        confidence: result.confidence ?? null,
+        basis: result.basis ?? null,
+        reason: result.reason ?? null,
+      })
+    } catch {
+      // Falls through to the blocking issue with the resolver's own reason.
+    }
+  }
+
+  return out
 }
 
 /**

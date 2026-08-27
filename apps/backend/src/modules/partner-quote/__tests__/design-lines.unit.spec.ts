@@ -1,5 +1,6 @@
 import {
   applyDesignResolutions,
+  designsNeedingAVariant,
   withDesignIssues,
   type DesignResolution,
 } from "../lib/design-lines"
@@ -204,7 +205,59 @@ describe("toQuotableDesign", () => {
   it("does not claim quotable when nothing resolved it at all", () => {
     const row = toQuotableDesign({ id: "des_9", name: "Unknown" }, undefined)
     expect(row.quotable).toBe(false)
+    expect(row.made_to_order).toBe(false)
     expect(row.candidates).toEqual([])
+  })
+
+  /**
+   * The case this whole change is about. A design with no product used to be
+   * greyed with "create a product from the design first" — a step that only
+   * exists because the resolver needs a variant to point at, and one nobody
+   * should have to do for work that has not been sold yet.
+   */
+  it("reads a design with no product as made-to-order, not as a problem", () => {
+    const row = toQuotableDesign(
+      { id: "des_2", name: "Custom Kurta" },
+      {
+        design_id: "des_2",
+        design_name: "Custom Kurta",
+        visible: true,
+        variant_id: null,
+        candidates: [],
+        reason: "has no product behind it yet",
+      }
+    )
+    expect(row.made_to_order).toBe(true)
+    // Still not `quotable`: it has no variant and no settled price YET. The
+    // two flags mean different things and the UI labels them differently.
+    expect(row.quotable).toBe(false)
+    // 🔴 No reason string. There is nothing wrong with this row, and a reason
+    // renders as a problem in every UI that shows one.
+    expect(row.reason).toBeNull()
+  })
+
+  it("still reports a reason for a design sold as several variants", () => {
+    const row = toQuotableDesign({ id: "des_1", name: "Kashida Shawl" }, ambiguous("des_1"))
+    expect(row.made_to_order).toBe(false)
+    expect(row.reason).toContain("pick the one")
+  })
+
+  it("still says nothing about a design this caller cannot see", () => {
+    const row = toQuotableDesign(
+      { id: "des_3", name: null },
+      {
+        design_id: "des_3",
+        design_name: null,
+        visible: false,
+        variant_id: null,
+        candidates: [],
+        reason: "Design des_3 does not exist.",
+      }
+    )
+    // Invisible must not become made-to-order — that would answer "not yours"
+    // by offering to create something.
+    expect(row.made_to_order).toBe(false)
+    expect(row.reason).toContain("does not exist")
   })
 })
 
@@ -238,5 +291,102 @@ describe("withDesignIssues", () => {
 
   it("returns the readiness untouched when there are no design issues", () => {
     expect(withDesignIssues(clean, [])).toBe(clean)
+  })
+})
+
+/**
+ * Made-to-order: a design with no product is quoted, not refused.
+ *
+ * The gate used to be "has someone created a product from this design", which
+ * is a step that only exists because the resolver needs a variant to point at.
+ * For custom work whose production run is in the FUTURE there is nothing to
+ * create a product from yet, so the answer was always no.
+ */
+describe("designsNeedingAVariant", () => {
+  const resolution = (over: Partial<DesignResolution> = {}): DesignResolution => ({
+    design_id: "d1",
+    design_name: "Custom Kurta",
+    visible: true,
+    variant_id: null,
+    candidates: [],
+    reason: null,
+    ...over,
+  })
+
+  const mapOf = (...rs: DesignResolution[]) =>
+    new Map(rs.map((r) => [r.design_id, r]))
+
+  it("names a visible design with no product at all", () => {
+    const out = designsNeedingAVariant(
+      [{ design_id: "d1", quantity: 10 }],
+      mapOf(resolution())
+    )
+    expect(out).toEqual(["d1"])
+  })
+
+  it("skips a design that already resolves to one variant", () => {
+    const out = designsNeedingAVariant(
+      [{ design_id: "d1", quantity: 10 }],
+      mapOf(
+        resolution({
+          variant_id: "v1",
+          candidates: [
+            { variant_id: "v1", title: null, sku: null, product_id: "p1", product_title: null },
+          ],
+        })
+      )
+    )
+    expect(out).toEqual([])
+  })
+
+  it("skips a design sold as several variants — that is the partner's choice", () => {
+    const out = designsNeedingAVariant(
+      [{ design_id: "d1", quantity: 10 }],
+      mapOf(
+        resolution({
+          candidates: [
+            { variant_id: "v1", title: "S", sku: null, product_id: "p1", product_title: null },
+            { variant_id: "v2", title: "M", sku: null, product_id: "p1", product_title: null },
+          ],
+        })
+      )
+    )
+    // 🔴 Minting a third would not answer "which size" — it would add one.
+    expect(out).toEqual([])
+  })
+
+  it("🔴 skips a line that already NAMES its own variant", () => {
+    const out = designsNeedingAVariant(
+      // The design has no product, but this line chose a variant explicitly.
+      [{ design_id: "d1", variant_id: "v-chosen", quantity: 10 }],
+      mapOf(resolution())
+    )
+    /**
+     * Minting here would attach a SECOND variant to the design, making it
+     * ambiguous — the one state that cannot be quoted at all. The fix would
+     * create the bug it exists to remove.
+     */
+    expect(out).toEqual([])
+  })
+
+  it("skips a design that is not visible to this caller", () => {
+    const out = designsNeedingAVariant(
+      [{ design_id: "d1", quantity: 10 }],
+      mapOf(resolution({ visible: false }))
+    )
+    // "Not yours" must not be answered by creating something.
+    expect(out).toEqual([])
+  })
+
+  it("de-duplicates a design that appears on several lines", () => {
+    const out = designsNeedingAVariant(
+      [
+        { design_id: "d1", quantity: 10 },
+        { design_id: "d1", quantity: 25 },
+      ],
+      mapOf(resolution())
+    )
+    // Two mints would leave the design resolving to two variants.
+    expect(out).toEqual(["d1"])
   })
 })

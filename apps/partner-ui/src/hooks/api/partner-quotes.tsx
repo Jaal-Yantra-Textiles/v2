@@ -304,11 +304,11 @@ export const useMintPartnerQuote = (
         { method: "POST", body: payload }
       )
     },
-    onSuccess: async (data, variables, context) => {
+    onSuccess: async (data, variables, _mutateResult, context) => {
       await queryClient.invalidateQueries({
         queryKey: partnerQuotesQueryKeys.lists(),
       })
-      options?.onSuccess?.(data, variables, context)
+      options?.onSuccess?.(data, variables, _mutateResult, context)
     },
     ...options,
   })
@@ -384,6 +384,12 @@ export type QuotableDesign = {
   status: string | null
   /** True when exactly one variant backs it, so a line can be built. */
   quotable: boolean
+  /**
+   * True when nothing backs it YET — a custom design whose production run is
+   * in the future. Picking it mints a made-to-order variant priced from what
+   * comparable work has cost. Not a promise that it can be priced.
+   */
+  made_to_order: boolean
   variant_id: string | null
   product_id: string | null
   candidates: Array<{
@@ -411,6 +417,58 @@ export type QuotableDesignsResponse = {
  * rather than hiding them — a partner who knows a design exists and cannot find
  * it has no way to learn that the fix is "create a product from it first".
  */
+/**
+ * Mint the made-to-order variant a custom design will be quoted through.
+ *
+ * A design whose production run is in the FUTURE has no product behind it, so
+ * there is no variant for the wizard's basket to hold — the basket is
+ * "products → variants → quantities" all the way down to the accepted cart.
+ * This creates one, priced from what comparable work has cost, and returns it
+ * so the design can be picked like any other.
+ *
+ * 🔑 Idempotent server-side: a design that already resolves to one variant
+ * returns that variant and creates nothing. The picker is a list a partner can
+ * click twice.
+ *
+ * ⚠️ It answers **422** when the design cannot be priced — that is a refusal
+ * to render, not an error to swallow. The body carries the estimator's own
+ * words, which name what is missing.
+ */
+export const usePartnerMintDesignVariant = (
+  options?: UseMutationOptions<
+    { design: MintedDesignVariant },
+    FetchError,
+    { design_id: string; currency_code: string }
+  >
+) => {
+  return useMutation({
+    mutationFn: async (payload: { design_id: string; currency_code: string }) =>
+      await sdk.client.fetch<{ design: MintedDesignVariant }>(
+        `/partners/quotes/designs/${payload.design_id}/variant`,
+        { method: "POST", body: { currency_code: payload.currency_code } }
+      ),
+    onSuccess: (data, variables, _mutateResult, context) => {
+      // The design now resolves to a variant, so the picker's rows are stale.
+      queryClient.invalidateQueries({
+        queryKey: [...partnerQuotesQueryKeys.all, "quotable-designs"],
+      })
+      options?.onSuccess?.(data, variables, _mutateResult, context)
+    },
+    ...options,
+  })
+}
+
+export type MintedDesignVariant = {
+  design_id: string
+  variant_id: string | null
+  product_id: string | null
+  minted: boolean
+  unit_price: number | null
+  confidence: string | null
+  basis: string | null
+  reason: string | null
+}
+
 export const usePartnerQuotableDesigns = (
   params: { q?: string; limit?: number; offset?: number } = {},
   options?: Omit<

@@ -9,6 +9,7 @@ import { totalQuotedQuantity } from "../../../modules/partner-quote/lib/quote-em
 import { deliverQuoteEmail } from "../../../workflows/partner-quote/deliver-quote-email"
 import { mintQuoteWorkflow } from "../../../workflows/partner-quote/mint-quote"
 import { getPartnerStore, tryGetPartnerStore } from "../helpers"
+import { makeDesignVariantPort } from "../../../workflows/partner-quote/ensure-design-quote-variant"
 
 /**
  * The partner's own quotes. Scoped by `partner_id`, never listed globally.
@@ -77,6 +78,17 @@ export const POST = async (
   const lines = await resolveQuoteDesignLines(req.scope, {
     lines: body.lines,
     partner_id: partner.id,
+    /**
+     * A design with no product behind it is minted a made-to-order variant
+     * here rather than refused. The currency is the quote's, because that is
+     * what the variant has to be listed in — the estimate behind it is
+     * denominated in the design's own cost currency and converted on the way
+     * through.
+     */
+    variant_port: makeDesignVariantPort(req.scope, {
+      currency_code: body.currency_code,
+      partner_id: partner.id,
+    }),
   })
 
   const { result } = await mintQuoteWorkflow(req.scope).run({
