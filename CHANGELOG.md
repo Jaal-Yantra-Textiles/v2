@@ -1,3 +1,10 @@
+## [13.117.1](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.117.0...v13.117.1) (2026-08-27)
+
+
+### Bug Fixes
+
+* **quotes:** the mint routes never read their body — every pick 400'd ([#1486](https://github.com/Jaal-Yantra-Textiles/v2/issues/1486)) ([#1599](https://github.com/Jaal-Yantra-Textiles/v2/issues/1599)) ([f0de2ea](https://github.com/Jaal-Yantra-Textiles/v2/commit/f0de2ea9fc10cf1bab8e5783dd925acbe0329e5e))
+
 # [13.117.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.116.0...v13.117.0) (2026-08-27)
 
 
