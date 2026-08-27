@@ -185,12 +185,35 @@ test.describe("Payment submission from production runs (#1556)", () => {
     ).toContainText("7 × 1,200 = 8,400")
     await expect(total).toHaveText("INR 8,400")
 
-    await page.getByRole("button", { name: "Create Submission" }).click()
+    // 🔴 Assert the POST itself, not just where the browser ends up. This case
+    // passed for months while the request came back 400: the create page IS
+    // `/app/payment-submissions/create`, which the detail-page regex below
+    // used to match (`create` is `[^/]+`), so `waitForURL` resolved without a
+    // navigation — and the header total still read 8,400 on the page the test
+    // had never left. It certified the screen's arithmetic and nothing else.
+    const [response] = await Promise.all([
+      page.waitForResponse(
+        (r: any) =>
+          r.url().includes("/admin/payment-submissions") &&
+          r.request().method() === "POST"
+      ),
+      page.getByRole("button", { name: "Create Submission" }).click(),
+    ])
+    expect(response.status()).toBe(201)
 
-    // Lands on the submission detail page for the row it just created.
-    await page.waitForURL(/\/app\/payment-submissions\/[^/]+$/, {
-      timeout: 20000,
-    })
+    // The request the SCREEN built: the runs it is paying for must be named on
+    // it, or the next submission cannot refuse to pay for them again.
+    const sent = JSON.parse(response.request().postData() || "{}")
+    expect(Object.values(sent.production_run_ids || {}).flat()).toContain(
+      seed.billableRunId
+    )
+
+    // Lands on the submission detail page — never `/create`, which is what the
+    // old pattern could not tell apart.
+    await page.waitForURL(
+      /\/app\/payment-submissions\/(?!create$)[^/]+$/,
+      { timeout: 20000 }
+    )
     await expect(page.getByText("8,400").first()).toBeVisible({
       timeout: 15000,
     })

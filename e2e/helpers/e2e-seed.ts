@@ -623,6 +623,7 @@ async function seedPayableProductionRuns(container: any): Promise<{
   billableRunId: string
   unpricedRunId: string
   partnerBillableRunId: string
+  partnerBillableDesignName: string
   partnerSumRunAId: string
   partnerSumRunBId: string
   sumDesignName: string
@@ -747,13 +748,55 @@ async function seedPayableProductionRuns(container: any): Promise<{
    * `billableRunId`, which the admin spec consumes — two specs billing one run
    * would make whichever ran second fail on the double-pay guard, and that
    * failure looks exactly like a real defect.
+   *
+   * 🔴 On its OWN design, and a separate RUN is not enough. Step 5 of
+   * `validateDesignsForSubmissionStep` refuses a DESIGN that already carries a
+   * Pending submission — a guard one level coarser than the run-level one. The
+   * partner spec submits before the admin spec does, so while both billable
+   * runs shared this fixture's design the admin submission was refused with
+   * "Designs already in an active payment submission", which names neither
+   * spec and reads like a product defect. Same reasoning as the sum-run design
+   * below; it was applied there and missed here.
    */
-  const partnerBillableRunId = await mkRun({
+  const partnerBillableDesignName = `Partner Billable Fixture (e2e ${stamp})`
+  const partnerBillableDesign = await designService.createDesigns({
+    name: partnerBillableDesignName,
+    description: "e2e #1571 partner-submitted payout fixture",
+    design_type: "Original",
+    status: "Technical_Review",
+    priority: "Medium",
+    estimated_cost: 5000,
+  })
+  const partnerBillableDesignId = (
+    Array.isArray(partnerBillableDesign)
+      ? partnerBillableDesign[0]
+      : partnerBillableDesign
+  ).id as string
+  await remoteLink.create({
+    design: { design_id: partnerBillableDesignId },
+    partner: { partner_id: partner.id },
+  })
+
+  const partnerBillableRun = await runService.createProductionRuns({
+    design_id: partnerBillableDesignId,
+    partner_id: partner.id,
+    run_type: "production",
+    status: "completed",
+    completed_at: new Date(),
+    snapshot: {
+      design: { id: partnerBillableDesignId, name: partnerBillableDesignName },
+    },
+    captured_at: new Date(),
     quantity: 9,
     produced_quantity: 4,
     partner_cost_estimate: 1200,
     cost_type: "per_unit",
   })
+  const partnerBillableRunId = (
+    Array.isArray(partnerBillableRun)
+      ? partnerBillableRun[0]
+      : partnerBillableRun
+  ).id as string
 
   /**
    * A PAIR of priced runs on the same design, billed together in one
@@ -824,6 +867,7 @@ async function seedPayableProductionRuns(container: any): Promise<{
     billableRunId,
     unpricedRunId,
     partnerBillableRunId,
+    partnerBillableDesignName,
     partnerSumRunAId,
     partnerSumRunBId,
     sumDesignName,
@@ -1640,6 +1684,7 @@ export default async function e2eSeed({ container }: ExecArgs) {
     payoutDesignName: payableRuns.designName,
     payableRunId: payableRuns.payableRunId,
     billableRunId: payableRuns.billableRunId,
+    partnerBillableDesignName: payableRuns.partnerBillableDesignName,
     unpricedRunId: payableRuns.unpricedRunId,
     // #1571 B half — the partner UI signs in as this partner.
     payoutPartnerEmail: payableRuns.partnerEmail,
