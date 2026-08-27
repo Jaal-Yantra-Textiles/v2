@@ -1556,6 +1556,28 @@ export default async function e2eSeed({ container }: ExecArgs) {
   logger.info("E2E seed: creating the #1195 gate partner (partner-UI spec)...")
   const gatePartner = await seedShipmentGatePartner(container, gate.orderId)
 
+  /**
+   * A SECOND gate order, for the carrier modal alone (#1576).
+   *
+   * 🔴 The carrier-modal spec used to share `gate` with
+   * `order-shipment-gate.spec.ts`, which marks that fulfillment shipped. Both
+   * suites now run on CI, so by the time the partner spec pressed "Mark as
+   * shipped" the backend answered `400 Shipment has already been created` —
+   * three times, once per Playwright retry — and the modal correctly stayed
+   * put. It reads exactly like a broken screen, and it is a fixture collision:
+   * a shipment is a once-only act, so one fulfillment cannot serve two specs
+   * that both ship it, and RETRIES cannot work either.
+   *
+   * The order is otherwise identical, so the `requires_shipping=false`
+   * assertion inside the seeder still guards this fixture too.
+   */
+  logger.info("E2E seed: creating the #1576 carrier-modal order (its OWN fulfillment)...")
+  const carrier = await seedShipmentGateOrder(container)
+  await (container.resolve(ContainerRegistrationKeys.LINK) as any).create({
+    partner: { partner_id: gatePartner.partnerId },
+    order: { order_id: carrier.orderId },
+  })
+
   logger.info("E2E seed: creating the HSN-gap product (customs specs)...")
   const hsnGap = await seedHsCodeGapProduct(container)
 
@@ -1624,6 +1646,9 @@ export default async function e2eSeed({ container }: ExecArgs) {
     // and partner-shipment-gate.spec.ts (@partnerui, local).
     gateOrderId: gate.orderId,
     gateFulfillmentId: gate.fulfillmentId,
+    // #1576 — the carrier modal's OWN order, because shipping is once-only.
+    carrierOrderId: carrier.orderId,
+    carrierFulfillmentId: carrier.fulfillmentId,
     gatePartnerEmail: gatePartner.email,
     gatePartnerPassword: gatePartner.password,
     gatePartnerId: gatePartner.partnerId,
