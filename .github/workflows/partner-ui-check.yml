@@ -97,10 +97,54 @@ jobs:
           pnpm --filter @jyt/partner-ui exec vitest --run \
             --exclude 'src/i18n/translations/__tests__/validate-translations.spec.ts'
 
-      # Scoped tsc — see the note above. Only files this PR touched must be
-      # clean; the ~1127 pre-existing errors elsewhere are not this PR's to fix.
+  # ── Type gate, in its OWN job ────────────────────────────────────────────
+  #
+  # A full tsc over this app takes >13 minutes on a runner. Sharing a job with
+  # build+tests meant the whole job hit its 20-minute timeout and was CANCELLED
+  # — build and tests had already passed, and their results were thrown away
+  # with it. A cancelled job is not a failing job and not a passing one; it is
+  # no signal at all, which is the worst of the three.
+  #
+  # Separate job ⇒ build+tests report in ~7 minutes regardless, and this one
+  # gets the time it actually needs. `incremental` + a restored .tsbuildinfo
+  # makes the common case far cheaper than the cold one.
+  type-check:
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # The gate diffs against the base branch, which a depth-1 checkout
+          # has no merge-base for.
+          fetch-depth: 0
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Use Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'pnpm'
+
+      - name: Install dependencies (frozen — package checksum)
+        run: pnpm install --frozen-lockfile
+
+      # Restores the previous run's .tsbuildinfo. A miss just means a cold
+      # (slow) check, never a wrong answer.
+      - name: Restore tsc cache
+        uses: actions/cache@v4
+        with:
+          path: apps/partner-ui/node_modules/.cache
+          key: partner-ui-tsc-${{ github.sha }}
+          restore-keys: |
+            partner-ui-tsc-
+
+      # Scoped tsc — see the note at the top. Only files this PR touched must
+      # be clean; the ~1123 pre-existing errors elsewhere are not this PR's to
+      # fix.
       - name: Type-check changed files
-        if: github.event_name == 'pull_request'
         run: |
           set +e
           pnpm --filter @jyt/partner-ui check > tsc.log 2>&1
