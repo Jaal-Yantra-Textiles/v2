@@ -103,6 +103,7 @@ import { repairInventoryOrderSourceJob } from "./repair-inventory-order-source-j
 import { repairInventoryOrderRouteJob } from "./repair-inventory-order-route-job"
 import { cancelInactiveProductionRunsJob } from "./cancel-inactive-production-runs-job"
 import { warnExpiringProductionRunsJob } from "./warn-expiring-production-runs-job"
+import { remirrorCancelledRunStatusJob } from "./remirror-cancelled-run-status-job"
 import { rewindProductionRunJob } from "./rewind-production-run-job"
 import { repairConsumptionLogJob } from "./repair-consumption-log-job"
 import { setLocationOwnershipJob } from "./set-location-ownership-job"
@@ -5804,6 +5805,7 @@ export const seedGoodsTransferTaskTemplateJob: MaintenanceJob = {
 export const MAINTENANCE_JOBS: MaintenanceJob[] = [
   cancelInactiveProductionRunsJob,
   warnExpiringProductionRunsJob,
+  remirrorCancelledRunStatusJob,
   cleanOrderFulfillmentDataJob,
   sendCourierChangedEmailJob,
   resendShipmentEmailJob,
