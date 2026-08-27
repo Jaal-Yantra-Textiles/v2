@@ -27,6 +27,20 @@ const UnifiedOrderStatus = model.define("unified_order_status", {
     "partial",
     "completed",
     "declined",
+    /**
+     * An admin cancelled every run behind this order.
+     *
+     * Distinct from `declined`, which is a PARTNER refusing the work. Both end
+     * the job; only one of them is the partner's doing, and a partner panel
+     * that showed "declined" for an admin cancel would be accusing them of
+     * something they did not do.
+     *
+     * 🔑 Added because its absence was read as "no value to write". The mirror
+     * only writes truthy values, so an admin cancel left `partner_status` at
+     * whatever it last was — `accepted`, `in_progress`, `finished` — and the
+     * order went on rendering as live work. #1574
+     */
+    "cancelled",
   ]),
 })
 

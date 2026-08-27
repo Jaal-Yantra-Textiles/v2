@@ -309,5 +309,122 @@ setupSharedTestSuite(() => {
         ])
       })
     })
+
+    /**
+     * #1574 — an admin cancels a run and the order goes on rendering as live
+     * work.
+     *
+     * `deriveRunPartnerStatus` returned `undefined` for an admin cancel and the
+     * mirror writes only truthy values, so `partner_status` was never cleared:
+     * it kept `assigned` / `accepted` / `in_progress` forever. The core
+     * `order.status` was always right — it is the sidecar the panels read that
+     * lied, which is why a cancelled order looked half-finished.
+     *
+     * ⚠️ ONE test, walking the whole sequence, deliberately. The runner restores
+     * a DB snapshot before every test, so a fixture built in a nested
+     * `beforeAll` is gone by the time the body runs — and each step here needs
+     * the previous step's cancel to have happened.
+     */
+    it("stops calling an order live once its runs are cancelled (#1574)", async () => {
+      const container = getContainer()
+      const unique = Date.now()
+      const ids: string[] = []
+      for (let i = 0; i < 2; i++) {
+        const res = await api.post(
+          "/admin/designs",
+          {
+            name: `Cancel Fixture Design ${unique}-${i}`,
+            description: "#1574 cancel fixture",
+            design_type: "Original",
+            status: "Approved",
+            priority: "Medium",
+            estimated_cost: 500,
+          },
+          adminHeaders
+        )
+        ids.push(res.data.design.id)
+      }
+
+      const produced = await produceDesignsAsWorkOrder(container, ids, partnerId)
+      const workOrderId = produced.work_order_id!
+      const runIds = produced.run_ids
+      expect(runIds).toHaveLength(2)
+
+      const readWorkOrder = async (qs = "") => {
+        const res = await api.get(
+          `/admin/design-work-orders?limit=100${qs}`,
+          adminHeaders
+        )
+        expect(res.status).toBe(200)
+        return res.data.design_work_orders.find((w: any) => w.id === workOrderId)
+      }
+
+      const readStatuses = async () => {
+        const q = container.resolve(ContainerRegistrationKeys.QUERY) as any
+        const { data } = await q.graph({
+          entity: "orders",
+          fields: ["id", "status", "unified_order_status.partner_status"],
+          filters: { id: workOrderId },
+        })
+        return {
+          core: data?.[0]?.status,
+          partner: data?.[0]?.unified_order_status?.partner_status ?? null,
+        }
+      }
+
+      expect((await readWorkOrder()).design_count).toBe(2)
+
+      // ── Cancel ONE of the two ───────────────────────────────────────────
+      expect(
+        (
+          await api.post(
+            `/admin/production-runs/${runIds[0]}/cancel`,
+            { reason: "test cancel" },
+            adminHeaders
+          )
+        ).status
+      ).toBe(200)
+
+      // 🔴 Fails on the old code: the cancelled run kept rendering as a design
+      // line and `design_count` kept counting it, so an order half called off
+      // still read as work in flight.
+      const afterOne = await readWorkOrder()
+      expect(afterOne.design_count).toBe(1)
+      expect(afterOne.runs.map((r: any) => r.id)).not.toContain(runIds[0])
+
+      // Hidden, not dropped — "what happened to this order" stays answerable.
+      const withCancelled = await readWorkOrder("&include_cancelled=true")
+      expect(withCancelled.design_count).toBe(2)
+      expect(withCancelled.runs.map((r: any) => r.id)).toContain(runIds[0])
+
+      // ⚠️ The counter-case that makes the fix safe to deploy: one cancelled run
+      // among live ones must NOT retire the order. If "cancelled" joined the
+      // progress ordering it would sort below everything and do exactly that.
+      expect((await readStatuses()).partner).toBe("assigned")
+
+      // ── Cancel the other ────────────────────────────────────────────────
+      expect(
+        (
+          await api.post(
+            `/admin/production-runs/${runIds[1]}/cancel`,
+            { reason: "test cancel" },
+            adminHeaders
+          )
+        ).status
+      ).toBe(200)
+
+      const { core, partner } = await readStatuses()
+      // The core status was never the bug — it mapped cancelled correctly all
+      // along. Asserted anyway so a regression names which of the two moved.
+      expect(core).toBe("canceled")
+      // 🔴 The assertion that fails on the old code: still "assigned", because
+      // an admin cancel derived `undefined` and the mirror skipped the write.
+      expect(partner).toBe("cancelled")
+
+      // And the fully-cancelled order leaves the list rather than rendering as
+      // a work-order with no designs left in it.
+      expect(await readWorkOrder()).toBeUndefined()
+      expect(await readWorkOrder("&include_cancelled=true")).toBeDefined()
+    })
   })
 })

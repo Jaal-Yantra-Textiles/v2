@@ -142,8 +142,13 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
     }
   }
 
-  // #342 — best-effort mirror onto the unified orders (admin cancel carries
-  // no partner_status per §5; superseded parent orders are skipped inside)
+  // #342 — best-effort mirror onto the unified orders (superseded parent
+  // orders are skipped inside).
+  //
+  // 🔑 This DOES carry a partner_status now: `cancelled`. It used to carry
+  // none, on the reading that §5 defined no value for an admin cancel — and
+  // because the mirror writes only truthy values, the order kept whatever it
+  // last said and went on rendering as live work. #1574
   for (const runId of [id, ...cancelledChildren, run.parent_run_id].filter(Boolean)) {
     await mirrorRunStatusToUnifiedOrder(req.scope, runId)
   }

@@ -15,6 +15,10 @@ import {
   setUnifiedOrderPartnerStatus,
 } from "../inventory_orders/dual-write-unified-order"
 import { pickDefaultCurrency } from "../../lib/resolve-store-currency"
+import {
+  aggregatePartnerStatus,
+  deriveRunPartnerStatus,
+} from "./lib/run-partner-status"
 
 // #342 T3.2 — best-effort projection of production runs onto the core `order`
 // entity (kind=design = "the order↔production_run link exists"; Chunk 6 retired
@@ -40,36 +44,6 @@ const RUN_TO_CORE_STATUS: Record<string, string> = {
   in_progress: "pending",
   completed: "completed",
   cancelled: "canceled",
-}
-
-// §5 — the shared assigned→accepted→in_progress→finished→completed
-// vocabulary. The legacy run enum collapses accepted/started/finished into
-// one "in_progress" value; the lifecycle timestamps disambiguate. approved/
-// draft/pending_review are absent on purpose (no partner work yet), and
-// cancelled only maps to "declined" when the cancel came from a partner
-// decline — an admin cancel leaves the last value untouched (§5 table
-// defines no value for it).
-const deriveRunPartnerStatus = (
-  run: any,
-  opts: { declined?: boolean } = {}
-): string | undefined => {
-  switch (run.status) {
-    case "sent_to_partner":
-      return "assigned"
-    case "in_progress":
-      if (run.finished_at) return "finished"
-      if (run.started_at) return "in_progress"
-      if (run.accepted_at) return "accepted"
-      // Partner self-serve runs are born in_progress with no lifecycle
-      // timestamps — the partner is already working on it.
-      return "in_progress"
-    case "completed":
-      return "completed"
-    case "cancelled":
-      return opts.declined ? "declined" : undefined
-    default:
-      return undefined
-  }
 }
 
 type ProjectionResult = {
@@ -375,26 +349,6 @@ const aggregateCoreStatus = (runs: any[]): string => {
 // #826 S3a — aggregate partner_status for a collated design work-order: the
 // LEAST-advanced non-empty per-run status along assigned→accepted→in_progress→
 // finished→completed (the order isn't "completed" until every line is).
-const PARTNER_STATUS_ORDER = [
-  "assigned",
-  "accepted",
-  "in_progress",
-  "finished",
-  "completed",
-]
-const aggregatePartnerStatus = (runs: any[]): string | undefined => {
-  const perRun = runs
-    .map((r) => deriveRunPartnerStatus(r))
-    .filter((s): s is string => Boolean(s))
-  if (!perRun.length) return undefined
-  let minIdx = PARTNER_STATUS_ORDER.length - 1
-  for (const s of perRun) {
-    const idx = PARTNER_STATUS_ORDER.indexOf(s)
-    if (idx >= 0 && idx < minIdx) minIdx = idx
-  }
-  return PARTNER_STATUS_ORDER[minIdx]
-}
-
 type CollatedProjectionResult = ProjectionResult & { line_count?: number }
 
 /**
