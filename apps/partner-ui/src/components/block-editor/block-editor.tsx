@@ -1,5 +1,5 @@
 import { useCallback, useState } from "react"
-import { Text, Button, IconButton, Tooltip, Select, Badge, Label } from "@medusajs/ui"
+import { Text, Button, IconButton, Tooltip, Select, Badge } from "@medusajs/ui"
 import { Trash, Plus, Images, ChevronDown, ChevronRight, CursorArrowRays, ArrowUpMini, ArrowDownMini, ArrowsPointingOut } from "@medusajs/icons"
 import { ContentBlock } from "../../hooks/api/content"
 import { TipTapEditor, type TipTapActions } from "../tiptap-editor/tiptap-editor"
