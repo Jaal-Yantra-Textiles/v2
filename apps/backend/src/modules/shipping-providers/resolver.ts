@@ -26,12 +26,14 @@ import { DelhiveryProviderAdapter } from "./delhivery/adapter"
 import { ShiprocketClient } from "./shiprocket/client"
 import { BlueDartProviderAdapter } from "./bluedart/adapter"
 import { DhlUnifiedTrackingClient } from "./dhl-unified-tracking"
+import { DtdcProviderAdapter } from "@jytextiles/medusa-plugin-dtdc-shipping/providers/dtdc/adapter"
 
 /** Carriers `resolveShippingProvider` can return a live client for. */
 export const SUPPORTED_CARRIERS: CarrierId[] = [
   "delhivery",
   "shiprocket",
   "bluedart",
+  "dtdc",
 ]
 
 /**
@@ -247,6 +249,40 @@ export async function resolveShippingProvider(
         ? new DhlUnifiedTrackingClient({ api_key: trackingKey })
         : undefined
     )
+  }
+
+  if (id === "dtdc") {
+    // Two API surfaces with SEPARATE auth, but both are env/plaintext — DTDC
+    // issues the customer_code + api-key pair for booking, and a
+    // username/password (or a pre-minted X-Access-Token) for tracking.
+    const customerCode =
+      cfg.customer_code || process.env.DTDC_CUSTOMER_CODE
+    const apiKey =
+      readSecret(cfg, "api_key", encryption) || process.env.DTDC_API_KEY
+    if (!customerCode || !apiKey) {
+      throw new MedusaError(
+        MedusaError.Types.UNEXPECTED_STATE,
+        "DTDC credentials not configured (no shipping platform record or DTDC_CUSTOMER_CODE + DTDC_API_KEY)"
+      )
+    }
+    return new DtdcProviderAdapter({
+      customer_code: customerCode!,
+      api_key: apiKey!,
+      sandbox:
+        (cfg.mode ? cfg.mode === "test" : undefined) ??
+        process.env.DTDC_SANDBOX === "true",
+      tracking_username:
+        cfg.tracking_username || process.env.DTDC_TRACKING_USERNAME,
+      tracking_password:
+        readSecret(cfg, "tracking_password", encryption) ||
+        process.env.DTDC_TRACKING_PASSWORD,
+      tracking_access_token:
+        readSecret(cfg, "tracking_access_token", encryption) ||
+        process.env.DTDC_TRACKING_ACCESS_TOKEN,
+      default_service_type:
+        (cfg.default_service_type as any) ||
+        process.env.DTDC_DEFAULT_SERVICE_TYPE,
+    } as any) as unknown as ShippingProviderClient
   }
 
   throw new MedusaError(
