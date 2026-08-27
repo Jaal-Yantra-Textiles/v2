@@ -408,6 +408,19 @@ const processReminderStep = createStep(
         // run accepted on their behalf, so production moves instead of waiting
         // on a click that history says isn't coming. Both the policy AND the
         // partner's own opt-in must be true, and only ever on a retry.
+        //
+        // 🔑 THIS IS THE ONLY PLACE ANYTHING AUTO-ACCEPTS, and it is reached
+        // only from the reminder RETRY path. A first dispatch always waits for
+        // a human click — by design, reaffirmed in #1575: the partner setting
+        // reads "Accept re-sent runs for me" and says in as many words that a
+        // first dispatch is never auto-accepted.
+        //
+        // ⚠️ So "auto-accept is on and nothing happens" is EXPECTED on a fresh
+        // dispatch, and is not evidence that either flag is off. #1575 was
+        // opened on exactly that reading, and a stale comment in
+        // `api/partners/details/route.ts` claiming the prod gate was off sent
+        // the first investigation the wrong way. Check which PATH you are on
+        // before you check the flags.
         let autoAccepted = false
         if (reassignmentPolicy.auto_accept_on_retry && run.status === "sent_to_partner") {
           const partnerService: any = container.resolve(PARTNER_MODULE)

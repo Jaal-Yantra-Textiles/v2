@@ -104,11 +104,19 @@ export const GET = async (
     }
 
     // #1228 — the partner's `auto_accept_production_runs` opt-in is gated a
-    // SECOND time by the platform's reassignment policy, and on prod that gate
-    // is off. Without shipping the gate's state the settings switch promises
-    // something the platform will not do: a partner turns it on, is told
-    // re-sent runs will be accepted for them, and they never are. Read-only,
-    // and deliberately just the one flag the partner UI can act on.
+    // SECOND time by the platform's reassignment policy. Without shipping the
+    // gate's state the settings switch can promise something the platform will
+    // not do: a partner turns it on, is told re-sent runs will be accepted for
+    // them, and they never are. Read-only, and deliberately just the one flag
+    // the partner UI can act on.
+    //
+    // ⚠️ This comment used to end "and on prod that gate is off". That was a
+    // STATE, not an invariant, and it drifted — prod reads
+    // `auto_accept_on_retry = true` (probed live, #1575). Someone reading it
+    // reasonably concluded the gate was why auto-accept never fires. It is not:
+    // nothing auto-accepts at DISPATCH at all, only inside the reminder RETRY
+    // branch, which is the agreed behaviour. Do not record a prod value here
+    // again; probe it.
     let productionRunPolicy: { auto_accept_on_retry: boolean } | null = null
     try {
         const policyService: ProductionPolicyService = req.scope.resolve(
