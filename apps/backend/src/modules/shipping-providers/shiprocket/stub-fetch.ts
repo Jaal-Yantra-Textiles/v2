@@ -240,6 +240,55 @@ export function createShiprocketStubFetch(): FetchLike {
       })
     }
 
+    /**
+     * Tracking lookup — `GET /courier/track/awb/:awb` (#1576).
+     *
+     * Without this the stub 404s the lookup, the client throws, and
+     * `attachExistingShiprocketAwb` throws in turn — which is why the two
+     * `partner-shipment-carrier-modal` cases could not pass ANYWHERE. That
+     * route calls `provider.track({ awb })` to validate the waybill belongs to
+     * this account, and an e2e attaches a synthetic `E2E<timestamp>` AWB that
+     * by construction exists on no real Shiprocket account.
+     *
+     * 🔑 It echoes back the AWB it was ASKED about rather than a fixed one, so
+     * a spec that attaches `E2E123` and then asserts `E2E123` is actually
+     * testing the round-trip. A constant would let a route that ignores its
+     * input still pass.
+     *
+     * ⚠️ This makes the shape valid, not the waybill real. It deliberately
+     * does NOT model a rejection, so nothing here covers "Shiprocket refused a
+     * foreign AWB" — that path still has no test.
+     */
+    const trackMatch = url.match(/\/courier\/track\/awb\/([^/?]+)/)
+    if (trackMatch) {
+      const awb = decodeURIComponent(trackMatch[1])
+      return json({
+        tracking_data: {
+          track_status: 1,
+          shipment_status: 6,
+          shipment_track: [
+            {
+              awb,
+              current_status: "IN TRANSIT",
+              shipment_status_id: 6,
+              origin: "Delhi",
+              destination: "Mumbai",
+              etd: null,
+            },
+          ],
+          shipment_track_activities: [
+            {
+              date: "2026-08-27 09:00:00",
+              status: "IN TRANSIT",
+              location: "Delhi Hub",
+              "sr-status": 6,
+              "sr-status-label": "IN TRANSIT",
+            },
+          ],
+        },
+      })
+    }
+
     return json({}, 404)
   }
 }

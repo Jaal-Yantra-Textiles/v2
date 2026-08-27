@@ -24,16 +24,30 @@ const SEED_FILE = path.resolve(__dirname, "../../apps/backend/.e2e-seed.json")
 const PARTNER_UI = process.env.PARTNER_UI_URL || "http://localhost:5173"
 
 type Seed = {
-  gateOrderId: string
-  gateFulfillmentId: string
+  /**
+   * 🔴 The CARRIER order, not the gate order.
+   *
+   * This spec used to point at `gateOrderId`, which it shared with
+   * `order-shipment-gate.spec.ts` — a spec that marks that fulfillment
+   * shipped. Once both suites ran on CI, the backend answered `400 Shipment
+   * has already been created` here, three times over (once per Playwright
+   * retry), and the modal correctly refused to move. It looks precisely like a
+   * broken screen.
+   *
+   * Shipping is a once-only act, so a fulfillment cannot be shared by two
+   * specs that both ship it — and no retry can ever pass on a fixture the
+   * first attempt consumed. This fixture is its own.
+   */
+  carrierOrderId: string
+  carrierFulfillmentId: string
   gatePartnerEmail: string
   gatePartnerPassword: string
 }
 
 const seed: Seed = JSON.parse(fs.readFileSync(SEED_FILE, "utf-8"))
 
-const ORDER_URL = `${PARTNER_UI}/orders/${seed.gateOrderId}`
-const SHIPMENT_URL = `${ORDER_URL}/${seed.gateFulfillmentId}/create-shipment`
+const ORDER_URL = `${PARTNER_UI}/orders/${seed.carrierOrderId}`
+const SHIPMENT_URL = `${ORDER_URL}/${seed.carrierFulfillmentId}/create-shipment`
 
 test.describe("Partner shipment carrier modal @partnerui", () => {
   test.beforeEach(async ({ page }) => {
@@ -59,9 +73,8 @@ test.describe("Partner shipment carrier modal @partnerui", () => {
    * say whether the selector is stale or the screen is broken. `fixme` rather
    * than a silent skip: the report names it every run.
    *
-   * 🔴 #1576 UPDATE — the original diagnosis ("tab stays inactive, selector
-   * may be stale") was wrong on both counts, and the truth is worse: this case
-   * CANNOT PASS ANYWHERE, credentials or not.
+   * 🔴 #1576 — un-parked. The original diagnosis ("tab stays inactive,
+   * selector may be stale") was wrong on both counts. The real cause:
    *
    * `POST /partners/orders/:id/shiprocket-attach-awb` calls
    * `provider.track({ awb })` against the LIVE Shiprocket API, and throws twice
@@ -76,11 +89,16 @@ test.describe("Partner shipment carrier modal @partnerui", () => {
    * "Shipment" and `/^shipment$/i` matches — checked in @medusajs/ui, not
    * assumed. Do not "fix" this by loosening the regex.
    *
-   * To un-park it, one of: stub the shipping provider for e2e, or seed a
-   * known-good AWB on the test Shiprocket account. A tag-and-exclude (the
-   * `@llm` treatment) would only hide it.
+   * Fixed by giving the existing `SHIPROCKET_STUB=1` transport a
+   * `/courier/track/awb/:awb` handler — it had every other endpoint but that
+   * one, so it 404'd the lookup and the client threw exactly as the live API
+   * would. The e2e job now sets it. The stub echoes back the AWB it was asked
+   * about, so this really does test the round-trip.
+   *
+   * ⚠️ What this no longer covers: a waybill Shiprocket REJECTS. The stub
+   * models success only, so "foreign AWB refused" has no test.
    */
-  test.fixme("attaching an AWB in step 1 does not mark the fulfillment shipped", async ({
+  test("attaching an AWB in step 1 does not mark the fulfillment shipped", async ({
     page,
   }) => {
     await page.goto(SHIPMENT_URL)
@@ -106,9 +124,28 @@ test.describe("Partner shipment carrier modal @partnerui", () => {
     )
     await expect(page.getByLabel(/tracking number/i).first()).toHaveValue(awb)
 
-    // Bail out of the modal WITHOUT confirming the shipment.
+    /**
+     * Bail out of the modal WITHOUT confirming the shipment.
+     *
+     * 🔑 Two clicks, not one. The tracking number typed above makes the form
+     * DIRTY, and `RouteFocusModal.Form` installs a `useBlocker` that stops any
+     * path change on a dirty form and raises an unsaved-changes prompt. So
+     * Cancel does not navigate — it opens a dialog, and the URL stays on
+     * `/create-shipment` until that dialog is answered. Asserting the
+     * destination straight after the first click waits 15s on a page that was
+     * never going to move.
+     *
+     * ⚠️ The prompt's own dismiss button is ALSO named "Cancel", so the second
+     * click is scoped to the dialog and asks for Continue — the discard —
+     * rather than matching the button that opened it.
+     */
     await page.getByRole("button", { name: /^cancel$/i }).click()
-    await expect(page).toHaveURL(new RegExp(`orders/${seed.gateOrderId}$`))
+
+    const discardPrompt = page.getByRole("alertdialog")
+    await expect(discardPrompt).toBeVisible({ timeout: 15_000 })
+    await discardPrompt.getByRole("button", { name: /^continue$/i }).click()
+
+    await expect(page).toHaveURL(new RegExp(`orders/${seed.carrierOrderId}$`))
 
     // The whole point: still un-shipped. Assert on the status badge AND on the
     // action still being offered — a fulfillment that had been marked shipped
@@ -128,9 +165,8 @@ test.describe("Partner shipment carrier modal @partnerui", () => {
    * say whether the selector is stale or the screen is broken. `fixme` rather
    * than a silent skip: the report names it every run.
    *
-   * 🔴 #1576 UPDATE — the original diagnosis ("tab stays inactive, selector
-   * may be stale") was wrong on both counts, and the truth is worse: this case
-   * CANNOT PASS ANYWHERE, credentials or not.
+   * 🔴 #1576 — un-parked. The original diagnosis ("tab stays inactive,
+   * selector may be stale") was wrong on both counts. The real cause:
    *
    * `POST /partners/orders/:id/shiprocket-attach-awb` calls
    * `provider.track({ awb })` against the LIVE Shiprocket API, and throws twice
@@ -145,11 +181,16 @@ test.describe("Partner shipment carrier modal @partnerui", () => {
    * "Shipment" and `/^shipment$/i` matches — checked in @medusajs/ui, not
    * assumed. Do not "fix" this by loosening the regex.
    *
-   * To un-park it, one of: stub the shipping provider for e2e, or seed a
-   * known-good AWB on the test Shiprocket account. A tag-and-exclude (the
-   * `@llm` treatment) would only hide it.
+   * Fixed by giving the existing `SHIPROCKET_STUB=1` transport a
+   * `/courier/track/awb/:awb` handler — it had every other endpoint but that
+   * one, so it 404'd the lookup and the client threw exactly as the live API
+   * would. The e2e job now sets it. The stub echoes back the AWB it was asked
+   * about, so this really does test the round-trip.
+   *
+   * ⚠️ What this no longer covers: a waybill Shiprocket REJECTS. The stub
+   * models success only, so "foreign AWB refused" has no test.
    */
-  test.fixme("completing step 2 marks the fulfillment shipped", async ({ page }) => {
+  test("completing step 2 marks the fulfillment shipped", async ({ page }) => {
     await page.goto(SHIPMENT_URL)
 
     // Skip the carrier step — a partner shipping on their own account never
@@ -174,7 +215,7 @@ test.describe("Partner shipment carrier modal @partnerui", () => {
 
     await page.getByRole("button", { name: /mark as shipped/i }).click()
 
-    await expect(page).toHaveURL(new RegExp(`orders/${seed.gateOrderId}$`))
+    await expect(page).toHaveURL(new RegExp(`orders/${seed.carrierOrderId}$`))
     await expect(page.getByText(/^shipped$/i).first()).toBeVisible({
       timeout: 30_000,
     })
