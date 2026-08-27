@@ -1,3 +1,20 @@
+# [13.116.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.115.0...v13.116.0) (2026-08-27)
+
+
+### Bug Fixes
+
+* **orders:** an admin cancel never cleared partner_status, so the order stayed "live" forever ([#1574](https://github.com/Jaal-Yantra-Textiles/v2/issues/1574)) ([#1577](https://github.com/Jaal-Yantra-Textiles/v2/issues/1577)) ([4083b99](https://github.com/Jaal-Yantra-Textiles/v2/commit/4083b99af5c4f8040a6958597f9f6bc5b4cfda9e)), closes [#1565](https://github.com/Jaal-Yantra-Textiles/v2/issues/1565)
+* **partner-ui:** give the block-name field an accessible name, and correct [#1576](https://github.com/Jaal-Yantra-Textiles/v2/issues/1576)'s diagnosis ([#1576](https://github.com/Jaal-Yantra-Textiles/v2/issues/1576)) ([#1584](https://github.com/Jaal-Yantra-Textiles/v2/issues/1584)) ([4025576](https://github.com/Jaal-Yantra-Textiles/v2/commit/40255769c3ee1fa393212b2b259e60c1eb1123df)), closes [#1571](https://github.com/Jaal-Yantra-Textiles/v2/issues/1571)
+* **payments:** put the partner payment screen on RUNS, and make partner-ui fail loudly ([#1571](https://github.com/Jaal-Yantra-Textiles/v2/issues/1571) B half) ([#1573](https://github.com/Jaal-Yantra-Textiles/v2/issues/1573)) ([02155b5](https://github.com/Jaal-Yantra-Textiles/v2/commit/02155b5cf3e14e767b62fab650e0fcb5654fc2e3)), closes [#1565](https://github.com/Jaal-Yantra-Textiles/v2/issues/1565) [#1554](https://github.com/Jaal-Yantra-Textiles/v2/issues/1554) [#1](https://github.com/Jaal-Yantra-Textiles/v2/issues/1) [#1](https://github.com/Jaal-Yantra-Textiles/v2/issues/1) [#1576](https://github.com/Jaal-Yantra-Textiles/v2/issues/1576) [#1576](https://github.com/Jaal-Yantra-Textiles/v2/issues/1576)
+* **production-runs:** the 23-day timeout enforced nothing — recover from it, then cancel at 28 days ([#1574](https://github.com/Jaal-Yantra-Textiles/v2/issues/1574)) ([#1578](https://github.com/Jaal-Yantra-Textiles/v2/issues/1578)) ([e4cd1ff](https://github.com/Jaal-Yantra-Textiles/v2/commit/e4cd1ffc98b9161a35baedc6a15b1cbecfd80100)), closes [#1228](https://github.com/Jaal-Yantra-Textiles/v2/issues/1228)
+
+
+### Features
+
+* **partner-ui:** one table of payable work, and stop offering rows that cannot be submitted ([#1571](https://github.com/Jaal-Yantra-Textiles/v2/issues/1571)) ([#1579](https://github.com/Jaal-Yantra-Textiles/v2/issues/1579)) ([69d50aa](https://github.com/Jaal-Yantra-Textiles/v2/commit/69d50aa0faec399c874a8691a89c31b9613e83bf)), closes [#1554](https://github.com/Jaal-Yantra-Textiles/v2/issues/1554)
+* **ops:** re-mirror cancelled runs whose order still reads as live work ([#1574](https://github.com/Jaal-Yantra-Textiles/v2/issues/1574)) ([#1582](https://github.com/Jaal-Yantra-Textiles/v2/issues/1582)) ([1c9f0aa](https://github.com/Jaal-Yantra-Textiles/v2/commit/1c9f0aa078b76825e5265536c514fda0d584478a)), closes [PRE-#1577](https://github.com/PRE-/issues/1577)
+* **production-runs:** warn the partner before the inactivity sweep cancels their run ([#1574](https://github.com/Jaal-Yantra-Textiles/v2/issues/1574)) ([#1580](https://github.com/Jaal-Yantra-Textiles/v2/issues/1580)) ([c20be2d](https://github.com/Jaal-Yantra-Textiles/v2/commit/c20be2da5abbf5eb7d4f641857e74d7dafee2529)), closes [#1464](https://github.com/Jaal-Yantra-Textiles/v2/issues/1464) [#1577](https://github.com/Jaal-Yantra-Textiles/v2/issues/1577)
+
 # [13.115.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.114.3...v13.115.0) (2026-08-26)
 
 
