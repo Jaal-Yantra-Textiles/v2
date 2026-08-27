@@ -2382,6 +2382,58 @@ setupSharedTestSuite(() => {
       expect(line.production_run_ids).toEqual([runId])
     })
 
+    it("accepts a design in Technical_Review when a verified run backs the claim", async () => {
+      // 🔴 `complete-production-run` sets the design to Technical_Review, which
+      // is NOT one of the statuses the hand-submission gate accepts. So the
+      // design a partner has just finished producing is never Approved at the
+      // moment they bill for it, and the gate rejected precisely the claims it
+      // should wave through — the runs screen could not submit anything.
+      //
+      // The completed run is the proof of finished work, and it is verified
+      // (exists, completed, this partner, this design) before it counts.
+      const d1 = await createDesign("Technical Review Design", {
+        status: "Technical_Review",
+      })
+      await linkDesignToPartner(d1, partnerId)
+      const runId = await createCompletedRun(d1, "Technical Review Design")
+
+      const res = await api.post(
+        "/partners/payment-submissions",
+        {
+          design_ids: [d1],
+          production_run_ids: { [d1]: [runId] },
+          quantities: { [d1]: 4 },
+          unit_amounts: { [d1]: 1200 },
+        },
+        { headers: partnerHeaders }
+      )
+
+      expect(res.status).toBe(201)
+      expect(Number(res.data.payment_submission.total_amount)).toBe(4800)
+    })
+
+    it("still refuses an ineligible design when NO run backs the claim", async () => {
+      // ⚠️ A regression LOCK — this passes on the pre-fix tree too. The waiver
+      // is per-design and only where a run replaces the check, so a hand-picked
+      // design line with no run stays gated exactly as before. Without this,
+      // the exemption above could quietly widen into a blanket waiver.
+      const d1 = await createDesign("Technical Review No Run", {
+        status: "Technical_Review",
+      })
+      await linkDesignToPartner(d1, partnerId)
+
+      const res = await api
+        .post(
+          "/partners/payment-submissions",
+          { design_ids: [d1] },
+          { headers: partnerHeaders }
+        )
+        .catch((e: any) => e.response)
+
+      expect(res.status).toBe(400)
+      expect(String(res.data?.message || "")).toContain("not eligible")
+    })
+
     it("refuses to claim a run a live payout already covers", async () => {
       const d1 = await createDesign("Partner Double Claim Design")
       await linkDesignToPartner(d1, partnerId)

@@ -616,16 +616,21 @@ async function seedParkedProductionRun(container: any): Promise<{
 async function seedPayableProductionRuns(container: any): Promise<{
   partnerId: string
   partnerName: string
+  partnerEmail: string
   designId: string
   designName: string
   payableRunId: string
   billableRunId: string
   unpricedRunId: string
+  partnerBillableRunId: string
+  partnerSumRunAId: string
+  partnerSumRunBId: string
 }> {
   const partnerModule: any = container.resolve("partner")
   const designService: any = container.resolve("design")
   const runService: any = container.resolve("production_runs")
   const remoteLink: any = container.resolve(ContainerRegistrationKeys.LINK)
+  const authModule: any = container.resolve(Modules.AUTH)
 
   const stamp = Date.now()
 
@@ -636,6 +641,48 @@ async function seedPayableProductionRuns(container: any): Promise<{
     is_verified: true,
   })
   const partner = Array.isArray(created) ? created[0] : created
+
+  /**
+   * The payout partner needs a real login: the #1571 B-half spec drives the
+   * PARTNER UI, not the admin app, so it has to sign in as the partner who owns
+   * these runs. Mirrors the gate-partner block below, including the verified
+   * `auth_verification` row — without it login returns
+   * `{ verification_required: true }` with an actorless token that the partner
+   * UI deliberately refuses to persist, and every request 401s.
+   */
+  const partnerEmail = `e2e-payout-${stamp}@jyt.test`
+  await partnerModule.createPartnerAdmins({
+    email: partnerEmail,
+    first_name: "E2E",
+    last_name: "Payout",
+    role: "admin",
+    partner_id: partner.id,
+  })
+  const payoutHash = await Scrypt.kdf(SEED_PASSWORD, { logN: 15, r: 8, p: 1 })
+  const payoutAuth: any = await authModule.createAuthIdentities({
+    provider_identities: [
+      {
+        provider: "emailpass",
+        entity_id: partnerEmail,
+        provider_metadata: { password: payoutHash.toString("base64") },
+      },
+    ],
+    app_metadata: { partner_id: partner.id },
+  })
+  const payoutAuthId = Array.isArray(payoutAuth)
+    ? payoutAuth[0].id
+    : payoutAuth.id
+  const verifiedAt = new Date()
+  await authModule.createAuthVerifications([
+    {
+      auth_identity_id: payoutAuthId,
+      entity_id: partnerEmail,
+      entity_type: "email",
+      code_provider: "emailpass",
+      requested_at: verifiedAt,
+      verified_at: verifiedAt,
+    },
+  ])
 
   const designName = `Payable Run Fixture (e2e ${stamp})`
   const design = await designService.createDesigns({
@@ -694,14 +741,52 @@ async function seedPayableProductionRuns(container: any): Promise<{
     partner_cost_estimate: null,
   })
 
+  /**
+   * Consumed by the PARTNER-UI spec (#1571 B half). Separate from
+   * `billableRunId`, which the admin spec consumes — two specs billing one run
+   * would make whichever ran second fail on the double-pay guard, and that
+   * failure looks exactly like a real defect.
+   */
+  const partnerBillableRunId = await mkRun({
+    quantity: 9,
+    produced_quantity: 4,
+    partner_cost_estimate: 1200,
+    cost_type: "per_unit",
+  })
+
+  /**
+   * A PAIR of priced runs on the same design, billed together in one
+   * submission. A payment line is keyed by design, so both collapse into one
+   * line whose quantity must be the SUM (3 + 5 = 8), not the last one seen.
+   * The two produced figures differ on purpose: if the screen overwrites
+   * instead of summing, the total is 5x1200 or 3x1200 rather than 8x1200, and
+   * the assertion says which.
+   */
+  const partnerSumRunAId = await mkRun({
+    quantity: 3,
+    produced_quantity: 3,
+    partner_cost_estimate: 1200,
+    cost_type: "per_unit",
+  })
+  const partnerSumRunBId = await mkRun({
+    quantity: 5,
+    produced_quantity: 5,
+    partner_cost_estimate: 1200,
+    cost_type: "per_unit",
+  })
+
   return {
     partnerId: partner.id as string,
     partnerName: partner.name as string,
+    partnerEmail,
     designId,
     designName,
     payableRunId,
     billableRunId,
     unpricedRunId,
+    partnerBillableRunId,
+    partnerSumRunAId,
+    partnerSumRunBId,
   }
 }
 
@@ -1516,6 +1601,12 @@ export default async function e2eSeed({ container }: ExecArgs) {
     payableRunId: payableRuns.payableRunId,
     billableRunId: payableRuns.billableRunId,
     unpricedRunId: payableRuns.unpricedRunId,
+    // #1571 B half — the partner UI signs in as this partner.
+    payoutPartnerEmail: payableRuns.partnerEmail,
+    payoutPartnerPassword: SEED_PASSWORD,
+    partnerBillableRunId: payableRuns.partnerBillableRunId,
+    partnerSumRunAId: payableRuns.partnerSumRunAId,
+    partnerSumRunBId: payableRuns.partnerSumRunBId,
     // #1439 S3/S4 admin quote surface — consumed by admin-quote-surface.spec.ts
     // (admin, CI). NOT single-use: the spec cancels out of the revoke prompt
     // rather than confirming it, so a re-run finds the same active quote.

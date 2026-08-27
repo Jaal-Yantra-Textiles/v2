@@ -226,38 +226,71 @@ export const PaymentSubmissionCreate = () => {
     }
 
     try {
-      // Build production_run_ids mapping: design_id -> [run_id, ...]
-      // Group selected runs by design
+      /**
+       * A payment line is keyed by DESIGN, not by run — one design can have
+       * several completed runs, and they collapse into a single line. So the
+       * payload is grouped by design and the quantities SUMMED.
+       *
+       * 🔴 Summing matters. Assigning `quantities[designId]` per run leaves the
+       * last run's figure standing and silently discards every earlier one: a
+       * partner picking runs of 3 and 5 pieces would bill 5. That is #1554's
+       * shape again — units a partner made going missing between the screen and
+       * the money.
+       */
       const productionRunIds: Record<string, string[]> = {}
       const quantities: Record<string, number> = {}
       const unitAmounts: Record<string, number> = {}
+      const costOverrides: Record<string, number> = {}
+      const ratesByDesign: Record<string, Set<number>> = {}
+      const exactTotals: Record<string, number> = {}
 
       for (const run of eligibleRuns) {
-        if (selectedRunIds.has(run.run_id)) {
-          const designId = run.design_id
+        if (!selectedRunIds.has(run.run_id)) continue
+        const designId = run.design_id
+        const qty = getEffectiveRunQuantity(run)
+        const rate = getEffectiveRunUnitAmount(run)
 
-          if (!productionRunIds[designId]) {
-            productionRunIds[designId] = []
-          }
-          productionRunIds[designId].push(run.run_id)
+        ;(productionRunIds[designId] ||= []).push(run.run_id)
+        quantities[designId] = (quantities[designId] ?? 0) + qty
+        exactTotals[designId] = (exactTotals[designId] ?? 0) + qty * rate
+        ;(ratesByDesign[designId] ||= new Set()).add(rate)
+      }
 
-          // Store quantity and unit amount by design (they'll be the same for all runs of one design)
-          quantities[designId] = getEffectiveRunQuantity(run)
-          unitAmounts[designId] = getEffectiveRunUnitAmount(run)
+      for (const [designId, rates] of Object.entries(ratesByDesign)) {
+        if (rates.size === 1) {
+          // One agreed rate across this design's runs — state it per unit, so
+          // the reviewer sees the rate and the quantity that produced the sum.
+          unitAmounts[designId] = [...rates][0]
+        } else {
+          /**
+           * Two runs of one design at DIFFERENT agreed rates. A line carries a
+           * single `unit_amount`, so no per-unit figure is honest here — using
+           * either rate, or an average, misprices the work.
+           *
+           * `cost_overrides` is the line TOTAL and wins outright without being
+           * multiplied by quantity, so the exact sum is billed while
+           * `unit_amount` stays null — which is the truth: there isn't one.
+           */
+          costOverrides[designId] = Math.round(exactTotals[designId] * 100) / 100
         }
       }
 
+      /**
+       * Every design named in `production_run_ids` must also appear in
+       * `design_ids` — the workflow throws otherwise. Omitting it made every
+       * submission from this screen a 400.
+       */
+      const designIds = Object.keys(productionRunIds)
+
       await createSubmission({
+        design_ids: designIds,
         task_ids: Array.from(selectedTaskIds),
         notes: notes || undefined,
-        production_run_ids: Object.keys(productionRunIds).length
-          ? productionRunIds
-          : undefined,
-        quantities: Object.keys(quantities).length
-          ? quantities
-          : undefined,
-        unit_amounts: Object.keys(unitAmounts).length
-          ? unitAmounts
+        production_run_ids: designIds.length ? productionRunIds : undefined,
+        quantities: Object.keys(quantities).length ? quantities : undefined,
+        unit_amounts: Object.keys(unitAmounts).length ? unitAmounts : undefined,
+        cost_overrides: Object.keys(costOverrides).length
+          ? costOverrides
           : undefined,
         task_cost_overrides: Object.keys(taskCostOverrides).length
           ? taskCostOverrides

@@ -1,0 +1,76 @@
+name: Partner UI Check
+
+# `apps/partner-ui` has had NO CI of any kind. Nothing built it, nothing ran its
+# tests — so the only thing between a broken partner app and production was
+# whether somebody happened to run it locally. A partner-facing screen that
+# fails to compile is discovered by a partner.
+#
+# ## What is gated here, and what deliberately is not
+#
+#   build — HARD gate. Verified green on this tree. esbuild does not type-check,
+#           so what this catches is unresolved imports and syntax. That is worth
+#           having on its own: a stale barrel file exporting two modules that no
+#           longer exist sat in `src/routes/tax-regions` until 2026-08-27.
+#
+#   test  — HARD gate, minus ONE spec. `validate-translations.spec.ts` fails on
+#           a clean tree (507 en.json keys absent from the schema) and is
+#           excluded by name so the other 8 files can be a real gate. It is
+#           excluded, not deleted: the i18n drift is a genuine finding and
+#           belongs in its own fix. Remove the exclusion when that lands.
+#
+#   tsc   — NOT gated. The tree carries >1000 type errors, so any pass/fail gate
+#           is red on a clean checkout and gets ignored, and a ratchet on a
+#           four-digit number mostly measures dependency churn. `pnpm --filter
+#           @jyt/partner-ui check` exists for local use. Making tsc meaningful
+#           here needs the error count brought down first — that is real work,
+#           not a CI flag, and pretending otherwise would ship a gate that
+#           certifies nothing.
+#
+# ⚠️ Do not add a step whose command is red on main. A permanently-failing job
+# trains everyone to ignore the job, which is worse than not having it.
+
+on:
+  pull_request:
+    paths:
+      - 'apps/partner-ui/**'
+      - 'pnpm-lock.yaml'
+      - 'pnpm-workspace.yaml'
+      - '.github/workflows/partner-ui-check.yml'
+  push:
+    branches: [ main ]
+    paths:
+      - 'apps/partner-ui/**'
+      - 'pnpm-lock.yaml'
+      - 'pnpm-workspace.yaml'
+      - '.github/workflows/partner-ui-check.yml'
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
+
+jobs:
+  partner-ui:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Use Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'pnpm'
+
+      - name: Install dependencies (frozen — package checksum)
+        run: pnpm install --frozen-lockfile
+
+      - name: Build
+        run: pnpm --filter @jyt/partner-ui build
+
+      # See the note above on why one spec is excluded by name.
+      - name: Unit tests
+        run: |
+          pnpm --filter @jyt/partner-ui exec vitest --run \
+            --exclude 'src/i18n/translations/__tests__/validate-translations.spec.ts'
