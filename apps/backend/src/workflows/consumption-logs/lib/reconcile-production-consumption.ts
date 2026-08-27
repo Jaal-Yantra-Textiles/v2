@@ -26,12 +26,20 @@ export type ReconcileRun = {
   metadata?: Record<string, any> | null
 }
 
+export type ConsumptionBasis = "total" | "per_piece"
+
 export type ReconcileLog = {
   id: string
   design_id?: string | null
   inventory_item_id?: string | null
   production_run_id?: string | null
   quantity?: number | string | null
+  /**
+   * What `quantity` MEASURES. `per_piece` makes it a rate, not a total — the
+   * whole reason this module cannot just sum the column. Null on logs written
+   * before the form asked, and never guessed.
+   */
+  quantity_basis?: ConsumptionBasis | null
   is_committed?: boolean
 }
 
@@ -51,6 +59,14 @@ export type DesignReconciliation = {
   variance: number | null
   /** Committed material logs not attributed to any production run. */
   unattributed_logs: number
+  /**
+   * Committed material logs whose total could NOT be resolved — a null basis
+   * with no assumption supplied, or a per-piece rate with no piece count to
+   * multiply by. Their quantity is absent from `consumed`.
+   */
+  unresolved_logs: number
+  /** The raw, UNRESOLVED `quantity` sum of those logs. Not a total of anything. */
+  unresolved_quantity: number
   flags: ReconcileFlag[]
 }
 
@@ -75,10 +91,19 @@ export type DesignReconciliation = {
  * design" (partner) logs 5 m against 5 pieces, which under the per-piece rule is
  * 25 m of real consumption against 5 m recorded.
  *
- * This module therefore does NOT multiply. Resolving it needs the basis recorded
- * explicitly on the log (`total` vs `per_piece`) plus a run attribution to supply
- * the piece count — most partner logs currently carry neither, and no
- * multiplication is safe until they do.
+ * That is now recorded: `consumption_log.quantity_basis` says which reading was
+ * meant, and this module resolves a `per_piece` log the way
+ * `apply-committed-consumption-to-inventory` does — rate × pieces — before
+ * summing. Summing the raw column instead compared an expected TOTAL against a
+ * RATE and reported a shortfall that did not exist, on every per-piece design
+ * (#1559). On a run of one the two readings coincide, which is how it survived.
+ *
+ * A NULL basis is still never guessed. Those logs are counted as `unresolved`
+ * and excluded from `consumed`, and any verdict that depends on knowing the
+ * total — `produced_without_consumption`, `implausible_rate`, `under_expected` —
+ * is withheld for that design in favour of `unknown_basis`. An operator who
+ * knows how a batch of legacy logs was entered passes `assumeBasisWhenUnknown`,
+ * exactly as the apply job's `assume_basis` works.
  */
 export type ReconcileFlag =
   | "produced_without_consumption"
@@ -86,6 +111,8 @@ export type ReconcileFlag =
   | "implausible_rate"
   | "unattributed_consumption"
   | "under_expected"
+  /** At least one log could not be read as a total — see `unresolved_logs`. */
+  | "unknown_basis"
 
 /**
  * A run minted from retail fulfillment: born terminal, no shop-floor work, no
@@ -131,6 +158,12 @@ export function reconcileDesigns(input: {
   ratePerUnit?: Record<string, number>
   /** Below this implied rate, flag the design. Default 0.5 (metres/piece). */
   implausibleRateBelow?: number
+  /**
+   * How to read logs written before the form recorded a basis. OPT-IN, and
+   * deliberately not defaulted: guessing `total` is what produced the wrong
+   * report in the first place. Omitted, those logs stay unresolved.
+   */
+  assumeBasisWhenUnknown?: ConsumptionBasis
 }): DesignReconciliation[] {
   const implausibleBelow = input.implausibleRateBelow ?? 0.5
   const rates = input.ratePerUnit ?? {}
@@ -141,6 +174,9 @@ export function reconcileDesigns(input: {
 
   const produced: Record<string, number> = {}
   const provenance: Record<string, number> = {}
+  // Pieces per RUN, so a log attributed to one run is multiplied by that run's
+  // own yield rather than by everything the design ever made.
+  const piecesByRun: Record<string, number> = {}
   for (const r of leaves) {
     const d = String(r.design_id)
     // produced_quantity is the reported yield; fall back to the ordered
@@ -149,12 +185,15 @@ export function reconcileDesigns(input: {
     if (isProvenanceRun(r)) {
       provenance[d] = round((provenance[d] ?? 0) + q)
     } else {
+      piecesByRun[String(r.id)] = q
       produced[d] = round((produced[d] ?? 0) + q)
     }
   }
 
   const consumed: Record<string, number> = {}
   const unattributed: Record<string, number> = {}
+  const unresolvedCount: Record<string, number> = {}
+  const unresolvedQty: Record<string, number> = {}
   for (const l of input.logs || []) {
     // Labour (`Hour`) and energy (`kWh`) logs carry a raw_material_id instead of
     // an inventory item; they are not material and must not enter a metres-per-
@@ -163,41 +202,80 @@ export function reconcileDesigns(input: {
       continue
     }
     const d = String(l.design_id)
-    consumed[d] = round((consumed[d] ?? 0) + num(l.quantity))
     if (!l.production_run_id) {
       unattributed[d] = (unattributed[d] ?? 0) + 1
     }
+
+    const raw = num(l.quantity)
+    const unresolved = () => {
+      unresolvedCount[d] = (unresolvedCount[d] ?? 0) + 1
+      unresolvedQty[d] = round((unresolvedQty[d] ?? 0) + raw)
+    }
+
+    const basis = l.quantity_basis ?? input.assumeBasisWhenUnknown
+    if (!basis) {
+      unresolved()
+      continue
+    }
+    if (basis === "total") {
+      consumed[d] = round((consumed[d] ?? 0) + raw)
+      continue
+    }
+    // per_piece: the column is a RATE. Pieces come from the log's own run when
+    // it has one, else from everything the design completed — the same order
+    // the apply job resolves them in, so the two jobs cannot disagree about
+    // what a log means.
+    const pieces =
+      (l.production_run_id ? piecesByRun[String(l.production_run_id)] : undefined) ??
+      produced[d]
+    if (!pieces || pieces <= 0) {
+      unresolved()
+      continue
+    }
+    consumed[d] = round((consumed[d] ?? 0) + raw * pieces)
   }
 
   const designIds = new Set([
     ...Object.keys(produced),
     ...Object.keys(provenance),
     ...Object.keys(consumed),
+    ...Object.keys(unresolvedCount),
   ])
 
   const out: DesignReconciliation[] = []
   for (const design_id of designIds) {
     const p = produced[design_id] ?? 0
     const c = consumed[design_id] ?? 0
+    const unresolved = unresolvedCount[design_id] ?? 0
     const rate = rates[design_id]
     const expected = rate != null && p > 0 ? round(rate * p) : null
+    const implied = p > 0 && c > 0 ? round(c / p) : null
     const flags: ReconcileFlag[] = []
 
-    if (p > 0 && c === 0) {
-      flags.push("produced_without_consumption")
+    // With an unreadable log in the mix, `consumed` is a floor and not a total.
+    // Every verdict below compares against it, so they are withheld rather than
+    // stated against a figure known to be short — a false `under_expected` is
+    // an instruction to "correct" a log that is already right.
+    if (unresolved > 0) {
+      flags.push("unknown_basis")
+    } else {
+      if (p > 0 && c === 0) {
+        flags.push("produced_without_consumption")
+      }
+      if (implied != null && implied < implausibleBelow) {
+        flags.push("implausible_rate")
+      }
+      if (expected != null && c < expected) {
+        flags.push("under_expected")
+      }
     }
+    // Production with no material at all is not in doubt either way: there is
+    // no log to have misread.
     if (p === 0 && c > 0) {
       flags.push("consumption_without_production")
     }
-    const implied = p > 0 && c > 0 ? round(c / p) : null
-    if (implied != null && implied < implausibleBelow) {
-      flags.push("implausible_rate")
-    }
     if ((unattributed[design_id] ?? 0) > 0) {
       flags.push("unattributed_consumption")
-    }
-    if (expected != null && c < expected) {
-      flags.push("under_expected")
     }
 
     out.push({
@@ -209,6 +287,8 @@ export function reconcileDesigns(input: {
       expected,
       variance: expected != null ? round(expected - c) : null,
       unattributed_logs: unattributed[design_id] ?? 0,
+      unresolved_logs: unresolved,
+      unresolved_quantity: unresolvedQty[design_id] ?? 0,
       flags,
     })
   }
