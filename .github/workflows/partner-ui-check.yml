@@ -18,31 +18,25 @@ name: Partner UI Check
 #           excluded, not deleted: the i18n drift is a genuine finding and
 #           belongs in its own fix. Remove the exclusion when that lands.
 #
-#   tsc   — HARD gate, scoped to the files the PR CHANGED.
+#   tsc   — HARD gate on the CHANGED FILES ONLY, and cheap.
 #
-#           The tree carries ~1127 pre-existing errors, so a whole-tree gate is
-#           red on a clean checkout and a four-digit ratchet mostly measures
-#           dependency churn. But "so don't gate tsc" was the wrong conclusion,
-#           and it cost three real bugs in one change: a hook that returned the
-#           raw useQuery result so the screen rendered an empty list forever, a
-#           deleted component still referenced by another panel (a
-#           ReferenceError on render), and an untyped request field on the
-#           payload that decides a payout. esbuild type-checks nothing, so the
-#           build was green through all three. tsc named every one of them.
+#           The tree carries ~1123 pre-existing errors, so a whole-tree gate is
+#           red on a clean checkout and useless. But "so don't gate tsc" was the
+#           wrong conclusion, and it cost three real bugs in one change: a hook
+#           that returned the raw useQuery result so the screen rendered an
+#           empty list forever, a deleted component still referenced by another
+#           panel (a ReferenceError on render), and an untyped request field on
+#           the payload that decides a payout. esbuild type-checks nothing, so
+#           the build was green through all three. tsc named every one.
 #
-#           So the gate asks a narrower question: does this PR leave a type
-#           error in a file it TOUCHED? Errors elsewhere are ignored.
+#           The gate generates a tsconfig listing exactly the changed files.
+#           Their transitive imports still enter the program — that is what
+#           keeps the check correct — but `src` is not walked. Whole-tree took
+#           >13 minutes and overran a 20-minute job; scoped takes ~2 SECONDS.
 #
-#           ⚠️ The real cost, stated plainly: this is ratchet-by-contact. Many
-#           files already carry errors, so editing one for an unrelated reason
-#           means cleaning it first. That is deliberate — it is how 1123 becomes
-#           a smaller number instead of a permanent fixture — but it WILL
-#           occasionally make a one-line change more expensive than it looks.
-#           If that proves too sharp in practice, the honest alternative is a
-#           per-file baseline (fail only when a file's count RISES), which needs
-#           a checked-in baseline and a tsc run against the base branch.
-#           Do NOT "fix" it by deleting the gate: ungated tsc is what let three
-#           real bugs through in the change that added this file.
+#           ⚠️ It reports only on files the PR touched. A pre-existing error in
+#           some file it merely imports is not this PR's to fix, and the output
+#           is filtered accordingly.
 #
 # ⚠️ Do not add a step whose command is red on main. A permanently-failing job
 # trains everyone to ignore the job, which is worse than not having it.
@@ -97,83 +91,74 @@ jobs:
           pnpm --filter @jyt/partner-ui exec vitest --run \
             --exclude 'src/i18n/translations/__tests__/validate-translations.spec.ts'
 
-  # ── Type gate, in its OWN job ────────────────────────────────────────────
-  #
-  # A full tsc over this app takes >13 minutes on a runner. Sharing a job with
-  # build+tests meant the whole job hit its 20-minute timeout and was CANCELLED
-  # — build and tests had already passed, and their results were thrown away
-  # with it. A cancelled job is not a failing job and not a passing one; it is
-  # no signal at all, which is the worst of the three.
-  #
-  # Separate job ⇒ build+tests report in ~7 minutes regardless, and this one
-  # gets the time it actually needs. `incremental` + a restored .tsbuildinfo
-  # makes the common case far cheaper than the cold one.
-  type-check:
-    runs-on: ubuntu-latest
-    if: github.event_name == 'pull_request'
-    timeout-minutes: 45
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          # The gate diffs against the base branch, which a depth-1 checkout
-          # has no merge-base for.
-          fetch-depth: 0
-
-      - name: Install pnpm
-        uses: pnpm/action-setup@v4
-
-      - name: Use Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '22'
-          cache: 'pnpm'
-
-      - name: Install dependencies (frozen — package checksum)
-        run: pnpm install --frozen-lockfile
-
-      # Restores the previous run's .tsbuildinfo. A miss just means a cold
-      # (slow) check, never a wrong answer.
-      - name: Restore tsc cache
-        uses: actions/cache@v4
-        with:
-          path: apps/partner-ui/node_modules/.cache
-          key: partner-ui-tsc-${{ github.sha }}
-          restore-keys: |
-            partner-ui-tsc-
-
-      # Scoped tsc — see the note at the top. Only files this PR touched must
-      # be clean; the ~1123 pre-existing errors elsewhere are not this PR's to
-      # fix.
+      # ── Type gate ──────────────────────────────────────────────────────
+      #
+      # Type-checks ONLY the files this PR changed, by generating a tsconfig
+      # whose `files` are those paths. TypeScript still pulls their transitive
+      # imports into the program (that is what makes the check correct), but it
+      # does not walk all of `src`.
+      #
+      # 🔑 The difference is not marginal: whole-tree is >13 minutes and blew a
+      # 20-minute job budget; scoped is ~2 SECONDS locally. The first version of
+      # this gate ran the full check and then grepped the log for changed files
+      # — the same answer, ~400x the cost.
+      #
+      # Errors are reported for every file in the program, so the output is
+      # filtered back down to the changed files. A pre-existing error in some
+      # imported file is not this PR's to fix.
+      #
+      # ⚠️ The ambient .d.ts files must be listed or every `__BACKEND_URL__`-style
+      # global goes unresolved and the run fills with phantom errors.
       - name: Type-check changed files
+        if: github.event_name == 'pull_request'
         run: |
-          set +e
-          pnpm --filter @jyt/partner-ui check > tsc.log 2>&1
-          set -e
-
           CHANGED=$(git diff --name-only "origin/${{ github.base_ref }}"...HEAD \
-            -- 'apps/partner-ui/src/**' \
+            -- 'apps/partner-ui/src/**/*.ts' 'apps/partner-ui/src/**/*.tsx' \
             | sed 's|^apps/partner-ui/||')
 
-          if [ -z "$CHANGED" ]; then
+          # Deleted files cannot be type-checked.
+          EXISTING=""
+          for f in $CHANGED; do
+            [ -f "apps/partner-ui/$f" ] && EXISTING="$EXISTING $f"
+          done
+
+          if [ -z "$EXISTING" ]; then
             echo "No partner-ui source files changed."
             exit 0
           fi
 
-          echo "Changed files:"; echo "$CHANGED"
+          echo "Type-checking:"; for f in $EXISTING; do echo "  $f"; done
+
+          FILES=$(for f in $EXISTING; do printf '"%s",' "$f"; done)
+          cat > apps/partner-ui/tsconfig.changed.json <<EOF
+          {
+            "extends": "./tsconfig.json",
+            "compilerOptions": { "skipLibCheck": true, "noEmit": true },
+            "include": [],
+            "files": [
+              "src/vite-env.d.ts",
+              "src/module.d.ts",
+              "src/i18next.d.ts",
+              ${FILES%,}
+            ]
+          }
+          EOF
+
+          set +e
+          (cd apps/partner-ui && npx tsc -p tsconfig.changed.json) > tsc.log 2>&1
+          set -e
 
           FAILED=0
-          for f in $CHANGED; do
-            # Deleted files have no errors to report.
-            [ -f "apps/partner-ui/$f" ] || continue
+          for f in $EXISTING; do
             if grep -qF "$f(" tsc.log; then
-              echo "::error file=apps/partner-ui/$f::type errors introduced or left in a file this PR changed"
+              echo "::error file=apps/partner-ui/$f::type errors in a file this PR changed"
               grep -F "$f(" tsc.log
               FAILED=1
             fi
           done
 
           if [ "$FAILED" -eq 1 ]; then
-            echo "Fix the type errors in the files above, or revert them to a clean state."
+            echo "Fix the type errors above, or revert those files to a clean state."
             exit 1
           fi
           echo "All changed partner-ui files are type-clean."

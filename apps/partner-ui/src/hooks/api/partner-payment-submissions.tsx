@@ -185,7 +185,9 @@ export const useCreatePartnerPaymentSubmission = (
     // TS2554 ("expected 4 arguments, but got 3") — a pre-existing error, fixed
     // here because the changed-files type gate requires a file this PR touches
     // to come back clean.
-    onSuccess: (...args: Parameters<NonNullable<typeof options>["onSuccess"]>) => {
+    onSuccess: (
+      ...args: Parameters<NonNullable<NonNullable<typeof options>["onSuccess"]>>
+    ) => {
       queryClient.invalidateQueries({
         queryKey: partnerPaymentSubmissionsQueryKeys.lists(),
       })
