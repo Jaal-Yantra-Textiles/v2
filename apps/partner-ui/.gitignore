@@ -30,3 +30,4 @@ dist-ssr
 
 # What's-new GIF source recordings + harness (raw webm + playwright scripts)
 whats-new-src/
+tsconfig.changed.json

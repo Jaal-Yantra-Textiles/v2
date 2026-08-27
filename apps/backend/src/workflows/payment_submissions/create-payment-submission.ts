@@ -309,9 +309,68 @@ const validateDesignsForSubmissionStep = createStep(
     // Skipped for the run-completion auto-draft, whose proof of finished work
     // is the completed run rather than the design's status.
     const ELIGIBLE_STATUSES = ["Commerce_Ready", "Approved"]
+    /**
+     * The statuses a verified completed run may stand in for.
+     *
+     * An ALLOWLIST, not a denylist, on purpose: a design status added later
+     * lands OUTSIDE it and gets a loud 400 an admin can waive with
+     * `require_design_status: false`, rather than silently becoming payable.
+     *
+     * `Conceptual` is deliberately absent. A design that never left the concept
+     * stage cannot legitimately have a completed production run, so a claim
+     * naming one is data drift, not a payout — and drift that pays out silently
+     * is drift nobody ever fixes. There is exactly one such row on prod, against
+     * 8 `Superseded`, which are ordinary and stay payable: a design revised
+     * AFTER the partner finished producing it is still owed for. The admin
+     * waiver remains for the case where the odd run turns out to be real.
+     */
+    const RUN_BACKED_ELIGIBLE_STATUSES = [
+      "In_Development",
+      "Technical_Review",
+      "Sample_Production",
+      "Revision",
+      "Approved",
+      "Rejected",
+      "On_Hold",
+      "Commerce_Ready",
+      "Superseded",
+    ]
+    /**
+     * A design whose line states the completed run it pays for is exempt.
+     *
+     * 🔴 Without this the partner runs screen (#1571 B half) could not submit
+     * anything at all. `complete-production-run` sets the design to
+     * Technical_Review, so the design a partner has just finished producing is
+     * NEVER Approved/Commerce_Ready at the moment they bill for it — the gate
+     * rejected precisely the claims it should wave through.
+     *
+     * This is the same reasoning the auto-draft already relies on, applied to
+     * the partner's own claim: the proof of finished work is the COMPLETED RUN,
+     * which is strictly stronger evidence than a status field. And it cannot be
+     * forged — the run block below verifies every claimed run exists, is
+     * `completed`, belongs to THIS partner, and is a run of THIS design,
+     * throwing otherwise. A design named here without a run that survives those
+     * checks never reaches the end of this step.
+     *
+     * ⚠️ Deliberately NOT the same as accepting `require_design_status: false`
+     * from a partner. That would let a caller waive the gate on ANY design by
+     * asking, which is why the partner validator refuses the field. This waives
+     * it only where a verified run replaces it, per design; a design with no
+     * claimed run is checked exactly as before.
+     */
+    const runBackedDesignIds = new Set(
+      Object.entries(input.production_run_ids || {})
+        .filter(([, runIds]) => (runIds || []).length > 0)
+        .map(([designId]) => designId)
+    )
     if (input.require_design_status !== false) {
       const ineligible = typedDesigns.filter(
-        (d) => !ELIGIBLE_STATUSES.includes(d.status)
+        (d) =>
+          !ELIGIBLE_STATUSES.includes(d.status) &&
+          !(
+            runBackedDesignIds.has(d.id) &&
+            RUN_BACKED_ELIGIBLE_STATUSES.includes(d.status)
+          )
       )
       if (ineligible.length) {
         throw new MedusaError(

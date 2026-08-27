@@ -2247,12 +2247,288 @@ setupSharedTestSuite(() => {
     })
   })
 
+  // ─── Partner payable runs (#1571 B half) ──────────────────────────────────
+
+  /**
+   * The partner submission screen used to list DESIGNS, so every
+   * partner-created payout recorded no run and the double-pay guard was
+   * structurally blind to it. These exercise the partner-side mirror of
+   * `/admin/payment-submissions/payable-runs` that the rewritten screen reads.
+   *
+   * 🔑 The first test is the one that matters most, and not for its assertions:
+   * it is the only thing in this suite that calls the partner route AT ALL. The
+   * route shipped with no entry in `middlewares.ts`, and since the `/partners*`
+   * wildcard supplies only CORS and locale, `authenticate("partner", …)` never
+   * ran — `req.auth_context` was undefined and every request 401'd. The route
+   * file looked entirely correct. Nothing else in the suite touched it, so a
+   * fully green run said nothing about it.
+   */
+  describe("GET /partners/payment-submissions/payable-runs", () => {
+    it("returns this partner's completed runs, priced from the run and billing PRODUCED", async () => {
+      const d1 = await createDesign("Partner Payable Run Design", {
+        estimated_cost: 5000,
+      })
+      await linkDesignToPartner(d1, partnerId)
+      const runId = await createCompletedRun(d1, "Partner Payable Run Design")
+
+      const res = await api.get(
+        "/partners/payment-submissions/payable-runs",
+        { headers: partnerHeaders }
+      )
+
+      expect(res.status).toBe(200)
+      const row = res.data.payable_runs.find((r: any) => r.run_id === runId)
+      expect(row).toBeDefined()
+      // The design says 5000/unit; the run says 1200/unit for 4 pieces made.
+      // Pricing off the design would bill 45,000 for work worth 4,800 (#1554).
+      expect(row.unit_amount).toBe(1200)
+      expect(row.ordered_quantity).toBe(9)
+      expect(row.produced_quantity).toBe(4)
+      expect(row.payable_quantity).toBe(4)
+      expect(row.quantity_basis).toBe("produced")
+      expect(row.amount).toBe(4800)
+      expect(row.billing_status).toBe("clear")
+    })
+
+    it("never shows one partner the runs of another", async () => {
+      const other = await createPartnerWithAuth(
+        Math.floor(Math.random() * 100000)
+      )
+      const d1 = await createDesign("Cross Tenant Run Design")
+      await linkDesignToPartner(d1, partnerId)
+      const runId = await createCompletedRun(d1, "Cross Tenant Run Design")
+
+      // The OTHER partner asks. The run belongs to `partnerId`.
+      const res = await api.get(
+        "/partners/payment-submissions/payable-runs",
+        { headers: other.partnerHeaders }
+      )
+
+      expect(res.status).toBe(200)
+      expect(
+        res.data.payable_runs.find((r: any) => r.run_id === runId)
+      ).toBeUndefined()
+    })
+
+    it("reports a run already recorded on a live payout as billed, not clear", async () => {
+      const d1 = await createDesign("Partner Billed Run Design")
+      await linkDesignToPartner(d1, partnerId)
+      const runId = await createCompletedRun(d1, "Partner Billed Run Design")
+
+      await api.post(
+        "/partners/payment-submissions",
+        {
+          design_ids: [d1],
+          production_run_ids: { [d1]: [runId] },
+          quantities: { [d1]: 4 },
+          unit_amounts: { [d1]: 1200 },
+        },
+        { headers: partnerHeaders }
+      )
+
+      const res = await api.get(
+        "/partners/payment-submissions/payable-runs",
+        { headers: partnerHeaders }
+      )
+
+      const row = res.data.payable_runs.find((r: any) => r.run_id === runId)
+      expect(row).toBeDefined()
+      expect(row.billing_status).toBe("billed")
+      expect(row.billed).not.toBeNull()
+    })
+  })
+
+  /**
+   * The screen's whole purpose: a partner billing for nine garments must not
+   * be able to state one number and have it read as the line total.
+   *
+   * ⚠️ Both of these PASS on the pre-#1571-B tree. The partner POST route has
+   * accepted `production_run_ids` / `quantities` / `unit_amounts` since the A
+   * half shipped — what changed here is that the SCREEN now sends them. These
+   * are regression LOCKS on the contract the screen depends on, not coverage
+   * of the change. The coverage lives in the `payable-runs` block above, which
+   * 401'd on the old tree.
+   */
+  describe("a partner submission states its runs (#1571 B half)", () => {
+    it("records run provenance, so the double-pay guard can see it", async () => {
+      const d1 = await createDesign("Partner Provenance Design")
+      await linkDesignToPartner(d1, partnerId)
+      const runId = await createCompletedRun(d1, "Partner Provenance Design")
+
+      const res = await api.post(
+        "/partners/payment-submissions",
+        {
+          design_ids: [d1],
+          production_run_ids: { [d1]: [runId] },
+          quantities: { [d1]: 4 },
+          unit_amounts: { [d1]: 1200 },
+        },
+        { headers: partnerHeaders }
+      )
+
+      expect(res.status).toBe(201)
+      // 4 x 1200 — the quantity is applied. Before this change the screen sent
+      // a single `cost_override`, so a claim for four pieces billed one.
+      expect(Number(res.data.payment_submission.total_amount)).toBe(4800)
+
+      const detail = await api.get(
+        `/partners/payment-submissions/${res.data.payment_submission.id}`,
+        { headers: partnerHeaders }
+      )
+      const line = detail.data.payment_submission.items.find(
+        (i: any) => i.design_id === d1
+      )
+      expect(line.run_provenance).toBe("recorded")
+      expect(line.production_run_ids).toEqual([runId])
+    })
+
+    it("accepts a design in Technical_Review when a verified run backs the claim", async () => {
+      // 🔴 `complete-production-run` sets the design to Technical_Review, which
+      // is NOT one of the statuses the hand-submission gate accepts. So the
+      // design a partner has just finished producing is never Approved at the
+      // moment they bill for it, and the gate rejected precisely the claims it
+      // should wave through — the runs screen could not submit anything.
+      //
+      // The completed run is the proof of finished work, and it is verified
+      // (exists, completed, this partner, this design) before it counts.
+      const d1 = await createDesign("Technical Review Design", {
+        status: "Technical_Review",
+      })
+      await linkDesignToPartner(d1, partnerId)
+      const runId = await createCompletedRun(d1, "Technical Review Design")
+
+      const res = await api.post(
+        "/partners/payment-submissions",
+        {
+          design_ids: [d1],
+          production_run_ids: { [d1]: [runId] },
+          quantities: { [d1]: 4 },
+          unit_amounts: { [d1]: 1200 },
+        },
+        { headers: partnerHeaders }
+      )
+
+      expect(res.status).toBe(201)
+      expect(Number(res.data.payment_submission.total_amount)).toBe(4800)
+    })
+
+    it("still refuses an ineligible design when NO run backs the claim", async () => {
+      // ⚠️ A regression LOCK — this passes on the pre-fix tree too. The waiver
+      // is per-design and only where a run replaces the check, so a hand-picked
+      // design line with no run stays gated exactly as before. Without this,
+      // the exemption above could quietly widen into a blanket waiver.
+      const d1 = await createDesign("Technical Review No Run", {
+        status: "Technical_Review",
+      })
+      await linkDesignToPartner(d1, partnerId)
+
+      const res = await api
+        .post(
+          "/partners/payment-submissions",
+          { design_ids: [d1] },
+          { headers: partnerHeaders }
+        )
+        .catch((e: any) => e.response)
+
+      expect(res.status).toBe(400)
+      expect(String(res.data?.message || "")).toContain("not eligible")
+    })
+
+    it("accepts a Superseded design when a verified run backs the claim", async () => {
+      // A design revised AFTER the partner finished producing it goes
+      // Superseded, and the partner is still owed for the work. 8 such rows
+      // exist on prod; without this they are unpayable through the runs screen.
+      const d1 = await createDesign("Superseded Produced Design", {
+        status: "Superseded",
+      })
+      await linkDesignToPartner(d1, partnerId)
+      const runId = await createCompletedRun(d1, "Superseded Produced Design")
+
+      const res = await api.post(
+        "/partners/payment-submissions",
+        {
+          design_ids: [d1],
+          production_run_ids: { [d1]: [runId] },
+          quantities: { [d1]: 3 },
+          unit_amounts: { [d1]: 500 },
+        },
+        { headers: partnerHeaders }
+      )
+
+      expect(res.status).toBe(201)
+      expect(Number(res.data.payment_submission.total_amount)).toBe(1500)
+    })
+
+    it("still refuses a Conceptual design even with a run behind it", async () => {
+      // 🔴 A design that never left the concept stage cannot legitimately have
+      // a completed run — that pairing is data drift, and paying it out
+      // silently is how drift survives. The run-backed waiver is an ALLOWLIST;
+      // Conceptual is outside it, so this 400s and an admin can still waive it
+      // deliberately with `require_design_status: false`.
+      const d1 = await createDesign("Conceptual With Run", {
+        status: "Conceptual",
+      })
+      await linkDesignToPartner(d1, partnerId)
+      const runId = await createCompletedRun(d1, "Conceptual With Run")
+
+      const res = await api
+        .post(
+          "/partners/payment-submissions",
+          {
+            design_ids: [d1],
+            production_run_ids: { [d1]: [runId] },
+            quantities: { [d1]: 3 },
+            unit_amounts: { [d1]: 500 },
+          },
+          { headers: partnerHeaders }
+        )
+        .catch((e: any) => e.response)
+
+      expect(res.status).toBe(400)
+      expect(String(res.data?.message || "")).toContain("not eligible")
+    })
+
+    it("refuses to claim a run a live payout already covers", async () => {
+      const d1 = await createDesign("Partner Double Claim Design")
+      await linkDesignToPartner(d1, partnerId)
+      const runId = await createCompletedRun(d1, "Partner Double Claim Design")
+
+      const first = await api.post(
+        "/partners/payment-submissions",
+        {
+          design_ids: [d1],
+          production_run_ids: { [d1]: [runId] },
+          quantities: { [d1]: 4 },
+          unit_amounts: { [d1]: 1200 },
+        },
+        { headers: partnerHeaders }
+      )
+      expect(first.status).toBe(201)
+
+      const second = await api
+        .post(
+          "/partners/payment-submissions",
+          {
+            design_ids: [d1],
+            production_run_ids: { [d1]: [runId] },
+            quantities: { [d1]: 4 },
+            unit_amounts: { [d1]: 1200 },
+          },
+          { headers: partnerHeaders }
+        )
+        .catch((e: any) => e.response)
+
+      expect(second.status).toBe(400)
+    })
+  })
+
   // ─── Auth Guards ──────────────────────────────────────────────────────────
 
   describe("Auth protection", () => {
     it("should reject unauthenticated partner endpoints", async () => {
       const endpoints = [
         () => api.get("/partners/payment-submissions"),
+        () => api.get("/partners/payment-submissions/payable-runs"),
         () =>
           api.post("/partners/payment-submissions", {
             design_ids: ["fake"],

@@ -1,0 +1,16 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "skipLibCheck": true,
+    "noEmit": true,
+    "isolatedModules": true,
+    /* A full check of this app takes >13 minutes on a CI runner, which
+       overran the job timeout the first time this gate ran. `incremental`
+       lets CI restore a .tsbuildinfo from the previous run and re-check only
+       what changed. The path sits under node_modules/.cache so actions/cache
+       can key it independently of the source tree. */
+    "incremental": true,
+    "tsBuildInfoFile": "./node_modules/.cache/tsc-ci.tsbuildinfo"
+  },
+  "include": ["src"]
+}

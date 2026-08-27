@@ -17,9 +17,12 @@ import { test, expect } from "@playwright/test"
 const PARTNER_EMAIL = "theme-test-1783505047@medusa-test.com"
 const PARTNER_PASSWORD = "supersecret"
 
-// @partnerui — needs the partner-ui dev server (:5173) + a live LLM; runs
-// locally only, excluded from the admin e2e CI job (see playwright.config.ts).
-test.describe("Theme Editor LLM Chat (#339) @partnerui", () => {
+// @partnerui — needs the partner-ui dev server (:5173), which the CI e2e job
+// now boots. @llm is the SECOND requirement and the one CI cannot meet: this
+// spec talks to a live model. The two used to ride on one tag, so the moment
+// `PARTNER_UI=1` opted the partner specs back in, this one came with them and
+// failed for a reason no partner-UI fix could ever address. See #1576.
+test.describe("Theme Editor LLM Chat (#339) @partnerui @llm", () => {
   test.beforeEach(async ({ page }) => {
     // Login via the partner-ui
     await page.goto("http://localhost:5173/login")
