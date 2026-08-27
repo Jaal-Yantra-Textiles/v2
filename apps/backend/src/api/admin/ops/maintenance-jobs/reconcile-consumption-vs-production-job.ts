@@ -50,13 +50,15 @@ const paramsSchema = z.object({
   implausible_rate_below: z.number().positive().optional(),
   /** Only return designs carrying at least one flag. Default true. */
   flagged_only: z.boolean().optional(),
+  /** Basis to assume for legacy logs whose quantity_basis is null. */
+  assume_basis: z.enum(["total", "per_piece"]).optional(),
 })
 
 export const reconcileConsumptionVsProductionJob: MaintenanceJob = {
   id: "reconcile-consumption-vs-production",
   label: "Reconcile consumption against production (report-only)",
   description:
-    "Compare what each design PRODUCED against what it reported CONSUMING. Counts completed leaf runs only (#498) and excludes provenance runs minted from retail fulfillment — those shipped from stock and consumed nothing, so counting them invents material. Flags: production with zero material logged, consumption with no production, implausible metres/piece, and logs not attributed to a production run. Reports an expected/variance figure when a per-unit rate is supplied. NEVER writes — correct the log, then run the apply job.",
+    "Compare what each design PRODUCED against what it reported CONSUMING. Counts completed leaf runs only (#498) and excludes provenance runs minted from retail fulfillment — those shipped from stock and consumed nothing, so counting them invents material. Reads each log's quantity_basis and resolves a per_piece rate against the run's piece count before summing, as the apply job does; a log whose basis is unknown is reported as unknown_basis rather than guessed, and the verdicts that depend on a complete total are withheld for that design. Flags: production with zero material logged, consumption with no production, implausible metres/piece, logs not attributed to a production run, and unreadable logs. Reports an expected/variance figure when a per-unit rate is supplied. NEVER writes — correct the log, then run the apply job.",
   params: [
     {
       name: "design_id",
@@ -83,6 +85,13 @@ export const reconcileConsumptionVsProductionJob: MaintenanceJob = {
       required: false,
       description: "Return only designs with at least one flag (default true)",
     },
+    {
+      name: "assume_basis",
+      type: "string",
+      required: false,
+      description:
+        "total | per_piece — how to read logs written before the form recorded a basis. Omit and those logs are reported as unknown_basis rather than guessed.",
+    },
   ],
   run: async (container, { dry_run, params }): Promise<MaintenanceJobResult> => {
     const parsed = paramsSchema.safeParse(params)
@@ -92,8 +101,13 @@ export const reconcileConsumptionVsProductionJob: MaintenanceJob = {
         parsed.error.issues.map((i) => i.message).join("; ")
       )
     }
-    const { design_id, rate_per_unit, implausible_rate_below, flagged_only } =
-      parsed.data
+    const {
+      design_id,
+      rate_per_unit,
+      implausible_rate_below,
+      flagged_only,
+      assume_basis,
+    } = parsed.data
 
     const runService: any = container.resolve(PRODUCTION_RUNS_MODULE)
     const consumptionService: any = container.resolve(CONSUMPTION_LOG_MODULE)
@@ -128,6 +142,10 @@ export const reconcileConsumptionVsProductionJob: MaintenanceJob = {
       inventory_item_id: l.inventory_item_id ?? null,
       production_run_id: l.production_run_id ?? null,
       quantity: l.quantity ?? null,
+      // Projected explicitly: a field the query never fetched reads as
+      // `undefined`, which resolves to "basis unknown" and would report every
+      // design as unreadable.
+      quantity_basis: l.quantity_basis ?? null,
       is_committed: Boolean(l.is_committed),
     }))
 
@@ -136,6 +154,7 @@ export const reconcileConsumptionVsProductionJob: MaintenanceJob = {
       logs,
       ratePerUnit: rate_per_unit,
       implausibleRateBelow: implausible_rate_below,
+      assumeBasisWhenUnknown: assume_basis,
     })
     const rows = flagged_only === false ? all : all.filter((r) => r.flags.length)
 
@@ -144,7 +163,11 @@ export const reconcileConsumptionVsProductionJob: MaintenanceJob = {
     const changes: MaintenanceChange[] = rows.map((r) => ({
       entity: "design",
       id: r.design_id,
-      field: `produced ${r.produced} / shipped-from-stock ${r.shipped_from_stock} [${r.flags.join(", ")}]`,
+      field: `produced ${r.produced} / shipped-from-stock ${r.shipped_from_stock}${
+        r.unresolved_logs
+          ? ` / ${r.unresolved_logs} log(s) unreadable (raw ${r.unresolved_quantity})`
+          : ""
+      } [${r.flags.join(", ")}]`,
       before: r.expected ?? r.produced,
       after: r.consumed,
     }))
