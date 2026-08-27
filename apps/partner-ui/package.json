@@ -9,6 +9,7 @@
     "vercel-build": "vite build",
     "preview": "vite preview",
     "test": "vitest --run",
+    "check": "tsc -p tsconfig.ci.json",
     "i18n:validate": "node ./scripts/i18n/validate-translation.js",
     "i18n:schema": "node ./scripts/i18n/generate-schema.js",
     "lint": "eslint . --ext ts,tsx --report-unused-disable-directives --max-warnings 0"
