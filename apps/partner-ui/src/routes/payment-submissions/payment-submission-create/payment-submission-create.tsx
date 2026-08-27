@@ -485,6 +485,7 @@ const RunsPanel = ({
         return (
           <Container
             key={run.run_id}
+            data-run-id={run.run_id}
             className={`p-4 transition ${
               isSelected ? "ring-2 ring-ui-border-interactive" : ""
             }`}
@@ -523,7 +524,21 @@ const RunsPanel = ({
                     size="small"
                     className="text-ui-fg-muted font-mono"
                   >
-                    {run.run_id.slice(0, 12)}...
+                    {/*
+                      🔴 The TAIL of the id, not the head. `slice(0, 12)` renders
+                      "prod_run_01K…" for every single run: the `prod_run_`
+                      prefix eats 9 characters and a ULID's leading digits are a
+                      TIMESTAMP, so runs created in the same era are identical
+                      there. A partner with two completed runs of one design saw
+                      two cards bearing the same string — and that is precisely
+                      the case that matters, since runs of one design collapse
+                      into a single payment line whose quantity is their sum.
+
+                      The trailing characters are the random component and
+                      always differ. `title` carries the full id for anyone who
+                      needs to quote it.
+                    */}
+                    <span title={run.run_id}>…{run.run_id.slice(-8)}</span>
                   </Text>
                 </div>
               </div>

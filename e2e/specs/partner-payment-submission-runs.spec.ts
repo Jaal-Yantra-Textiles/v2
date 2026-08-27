@@ -54,9 +54,21 @@ let seed: Seed
 /** Digits only, so assertions don't depend on currency symbol or locale. */
 const digits = (s: string | null) => (s || "").replace(/[^0-9]/g, "")
 
-/** The card for one run, located by the run id the screen renders. */
+/**
+ * The card for one run.
+ *
+ * 🔴 The first version filtered divs by `runId.slice(0, 12)`, which identifies
+ * NOTHING: `prod_run_` is 9 characters and a ULID's leading digits are a
+ * timestamp, so every run on the page rendered the same string. The locator
+ * matched all of them and `.last()` then resolved to whichever inner `<div>`
+ * happened to be last — the metadata row, not the card — so an assertion about
+ * the quantity badge could never pass no matter what the screen showed.
+ *
+ * The card now carries `data-run-id` with the FULL id. Exact, and it does not
+ * depend on how the id is formatted for humans.
+ */
 const runCard = (page: any, runId: string) =>
-  page.locator("div").filter({ hasText: runId.slice(0, 12) }).last()
+  page.locator(`[data-run-id="${runId}"]`)
 
 test.describe("Partner payment submission from runs @partnerui (#1571)", () => {
   test.beforeAll(() => {
