@@ -387,7 +387,7 @@ setupSharedTestSuite(() => {
       expect(childOrder.unified_order_status?.partner_status).not.toBe("declined")
     })
 
-    it("mirrors an admin cancel as canceled without touching partner_status", async () => {
+    it("mirrors an admin cancel as canceled AND says so on the sidecar (#1574)", async () => {
       await createRegion()
       const designId = await createDesign()
 
@@ -410,8 +410,22 @@ setupSharedTestSuite(() => {
 
       const unified = await fetchUnifiedOrder(unifiedOrderId)
       expect(unified.status).toBe("canceled")
-      // §5 defines no partner_status for an admin cancel
-      expect(unified.unified_order_status?.partner_status ?? null).toBeNull()
+
+      // 🔴 This asserted `toBeNull()` until #1577, under the comment "§5
+      // defines no partner_status for an admin cancel" — which is the exact
+      // misreading that WAS the bug, written down as the specification.
+      //
+      // The mirror writes only truthy values, so an `undefined` derivation
+      // meant "don't write" where it needed to mean "say it stopped". The
+      // sidecar kept whatever it last said — `assigned`, `accepted`,
+      // `in_progress`, `finished` — and the order went on rendering as live
+      // production forever. A partner then saw a Finish button on work that
+      // had been called off.
+      //
+      // `cancelled` is distinct from `declined` on purpose: declined is the
+      // PARTNER refusing. Showing "Declined" for an admin cancel accuses them
+      // of something they did not do.
+      expect(unified.unified_order_status?.partner_status).toBe("cancelled")
     })
 
     it("resolves the unified order via the link, not the metadata backref (D5-3)", async () => {
