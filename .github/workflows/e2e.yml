@@ -172,8 +172,16 @@ jobs:
       - name: Run e2e
         working-directory: apps/backend
         # PARTNER_UI opts the @partnerui specs back in — see playwright.config.ts.
+        #
+        # SHIPROCKET_STUB injects the deterministic transport into the backend
+        # this step boots (#1576). Without it the carrier-modal specs call the
+        # LIVE Shiprocket API: `shiprocket-attach-awb` validates the waybill via
+        # `provider.track()` and throws, so those cases could not pass here
+        # whatever the selectors said. Scoped to this step rather than the job,
+        # so nothing else silently acquires a fake carrier.
         env:
           PARTNER_UI: "1"
+          SHIPROCKET_STUB: "1"
         run: pnpm run e2e
 
       - name: Upload Playwright report
