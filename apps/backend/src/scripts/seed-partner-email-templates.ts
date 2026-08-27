@@ -6,8 +6,14 @@
  * `seed-email-templates.ts` (data inlined as a const, not a JSON import, so it
  * survives the prod `medusa build` with no asset-copy dependency).
  *
+ * ⚠️ Creating-only means an EDIT to a body here never reaches an environment
+ * that was already seeded. Push a changed body with:
+ *   TEMPLATE_KEYS=partner-production-run-cancelled DRY_RUN=1 \
+ *     npx medusa exec ./src/scripts/update-email-templates.ts
+ *
  * Covers the templates the merged workflows resolve by key:
- *   - partner-production-run-completed / -cancelled  (#576 slice B, email_partner)
+ *   - partner-production-run-completed / -cancelled / -expiring
+ *                                                    (#576 slice B, #1574, email_partner)
  *   - region-request-admin                           (#576 slice C, email)
  *   - partner-storefront-digest                      (#581, email_partner)
  *
@@ -60,8 +66,42 @@ export const partnerEmailTemplates = [
       notes: "Optional reason",
       run_url: "Link to the run",
       current_year: "Year",
+      // #1574 — present ONLY when the inactivity sweep cancelled the run. An
+      // admin cancel leaves them blank and the block below does not render.
+      inactive_days: "Days the run sat without activity",
+      inactivity_window_days: "The policy window that expired (28)",
+      last_activity_at: "ISO timestamp of the last lifecycle stamp",
     },
-    html_content: `<div style="font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;max-width:560px;margin:0 auto;color:#18181b"><h1 style="font-size:18px;margin:0 0 12px">Hi {{partner_name}},</h1><p style="font-size:14px;line-height:1.6;color:#3f3f46">Production run <strong>{{run_id}}</strong> has been <strong style="color:#dc2626">cancelled</strong>.</p>{{#if notes}}<p style="font-size:13px;color:#71717a;background:#fef2f2;padding:10px 12px;border-radius:8px"><strong>Reason:</strong> {{notes}}</p>{{/if}}<p style="font-size:14px;line-height:1.6;color:#3f3f46">No further action is needed on the run. If this was unexpected, please reach out.</p>{{#if run_url}}<p style="margin:20px 0"><a href="{{run_url}}" style="background:#18181b;color:#fff;text-decoration:none;padding:10px 18px;border-radius:8px;font-size:14px;display:inline-block">View run</a></p>{{/if}}<p style="font-size:12px;color:#a1a1aa;margin-top:24px">Jaal Yantra Textiles · {{current_year}}</p></div>`,
+    html_content: `<div style="font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;max-width:560px;margin:0 auto;color:#18181b"><h1 style="font-size:18px;margin:0 0 12px">Hi {{partner_name}},</h1><p style="font-size:14px;line-height:1.6;color:#3f3f46">Production run <strong>{{run_id}}</strong> has been <strong style="color:#dc2626">cancelled</strong>.</p>{{#if inactive_days}}<p style="font-size:14px;line-height:1.6;color:#3f3f46">This one closed itself. The run had no recorded activity for <strong>{{inactive_days}} days</strong>, past the {{inactivity_window_days}}-day inactivity window, so it was cancelled automatically.</p><table style="width:100%;border-collapse:collapse;font-size:14px;margin:16px 0"><tr><td style="padding:8px 0;border-bottom:1px solid #e4e4e7;color:#71717a">Idle for</td><td style="padding:8px 0;border-bottom:1px solid #e4e4e7;text-align:right;font-weight:600">{{inactive_days}} days</td></tr>{{#if last_activity_at}}<tr><td style="padding:8px 0;border-bottom:1px solid #e4e4e7;color:#71717a">Last activity</td><td style="padding:8px 0;border-bottom:1px solid #e4e4e7;text-align:right">{{last_activity_at}}</td></tr>{{/if}}<tr><td style="padding:8px 0;border-bottom:1px solid #e4e4e7;color:#71717a">Policy window</td><td style="padding:8px 0;border-bottom:1px solid #e4e4e7;text-align:right">{{inactivity_window_days}} days</td></tr></table><p style="font-size:14px;line-height:1.6;color:#3f3f46">Nothing about this counts against you, and no payment already submitted is affected. If the work is still wanted we will re-create and re-assign it — tell us and we will.</p>{{else}}{{#if notes}}<p style="font-size:13px;color:#71717a;background:#fef2f2;padding:10px 12px;border-radius:8px"><strong>Reason:</strong> {{notes}}</p>{{/if}}<p style="font-size:14px;line-height:1.6;color:#3f3f46">No further action is needed on the run. If this was unexpected, please reach out.</p>{{/if}}{{#if run_url}}<p style="margin:20px 0"><a href="{{run_url}}" style="background:#18181b;color:#fff;text-decoration:none;padding:10px 18px;border-radius:8px;font-size:14px;display:inline-block">View run</a></p>{{/if}}<p style="font-size:12px;color:#a1a1aa;margin-top:24px">Jaal Yantra Textiles · {{current_year}}</p></div>`,
+  },
+  {
+    // #1574 — the warning the inactivity sweep sends BEFORE it cancels.
+    //
+    // 🔑 The whole point of this mail is that it is ACTIONABLE: it names the
+    // date, and doing anything at all on the run resets the clock. A partner
+    // whose first news is the cancellation has been given a verdict, not a
+    // chance.
+    template_key: "partner-production-run-expiring",
+    name: "Partner — Production Run Expiring (inactivity)",
+    template_type: "partner",
+    from: "partner@partner.jaalyantra.com",
+    is_active: true,
+    subject:
+      "⏳ Run {{run_id}} will be cancelled in {{days_until_cancel}} days",
+    variables: {
+      partner_name: "Partner display name",
+      run_id: "Production run id",
+      run_status: "Run status (sent_to_partner | in_progress)",
+      run_quantity: "Planned quantity",
+      inactive_days: "Days the run has sat without activity",
+      days_until_cancel: "Days left before the sweep cancels it",
+      cancel_on: "Date (YYYY-MM-DD) it becomes cancellable",
+      inactivity_window_days: "The policy window in days (28)",
+      last_activity_at: "ISO timestamp of the last lifecycle stamp",
+      run_url: "Link to the run",
+      current_year: "Year",
+    },
+    html_content: `<div style="font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;max-width:560px;margin:0 auto;color:#18181b"><h1 style="font-size:18px;margin:0 0 12px">Hi {{partner_name}},</h1><p style="font-size:14px;line-height:1.6;color:#3f3f46">We have not seen any movement on production run <strong>{{run_id}}</strong> for <strong>{{inactive_days}} days</strong>.</p><p style="font-size:14px;line-height:1.6;color:#3f3f46">After {{inactivity_window_days}} days without activity a run is cancelled automatically so the work can be re-assigned. This one is due to be cancelled {{#if cancel_on}}on <strong>{{cancel_on}}</strong>{{else}}shortly{{/if}} — <strong>{{days_until_cancel}} days</strong> from now.</p><table style="width:100%;border-collapse:collapse;font-size:14px;margin:16px 0"><tr><td style="padding:8px 0;border-bottom:1px solid #e4e4e7;color:#71717a">Run</td><td style="padding:8px 0;border-bottom:1px solid #e4e4e7;text-align:right;font-weight:600">{{run_id}}</td></tr>{{#if run_quantity}}<tr><td style="padding:8px 0;border-bottom:1px solid #e4e4e7;color:#71717a">Planned</td><td style="padding:8px 0;border-bottom:1px solid #e4e4e7;text-align:right;font-weight:600">{{run_quantity}}</td></tr>{{/if}}<tr><td style="padding:8px 0;border-bottom:1px solid #e4e4e7;color:#71717a">Idle for</td><td style="padding:8px 0;border-bottom:1px solid #e4e4e7;text-align:right;font-weight:600">{{inactive_days}} days</td></tr>{{#if last_activity_at}}<tr><td style="padding:8px 0;border-bottom:1px solid #e4e4e7;color:#71717a">Last activity</td><td style="padding:8px 0;border-bottom:1px solid #e4e4e7;text-align:right">{{last_activity_at}}</td></tr>{{/if}}{{#if cancel_on}}<tr><td style="padding:8px 0;border-bottom:1px solid #e4e4e7;color:#b45309">Cancels on</td><td style="padding:8px 0;border-bottom:1px solid #e4e4e7;text-align:right;font-weight:600;color:#b45309">{{cancel_on}}</td></tr>{{/if}}</table><p style="font-size:14px;line-height:1.6;color:#3f3f46"><strong>To keep it:</strong> open the run and record progress — accept it, start it, or finish it. Any of those resets the clock. If the work is blocked on us, reply to this email and it will not be cancelled.</p><p style="font-size:13px;color:#71717a;background:#f4f4f5;padding:10px 12px;border-radius:8px">If you would rather not do this run, doing nothing is fine. It will be cancelled on the date above and re-assigned — no penalty.</p>{{#if run_url}}<p style="margin:20px 0"><a href="{{run_url}}" style="background:#18181b;color:#fff;text-decoration:none;padding:10px 18px;border-radius:8px;font-size:14px;display:inline-block">Open run</a></p>{{/if}}<p style="font-size:12px;color:#a1a1aa;margin-top:24px">Jaal Yantra Textiles · {{current_year}}</p></div>`,
   },
   {
     template_key: "region-request-admin",
@@ -179,10 +219,17 @@ export default async function seedPartnerEmailTemplates({ container }: { contain
   let created = 0
   let skipped = 0
   for (const t of partnerEmailTemplates) {
+    // 🔴 NOT getTemplateByKey — it filters `is_active: true` AND `locale: "en"`,
+    // so a row someone deactivated in the admin reads as absent and the seed
+    // creates a SECOND row with the same key. getTemplateByKey then returns
+    // `templates[0]` of an unordered list, and which body a partner receives
+    // becomes a coin flip. Ask the table, not the reader.
     let exists = false
     try {
-      await svc.getTemplateByKey(t.template_key)
-      exists = true
+      const [rows] = await svc.listAndCountEmailTemplates({
+        template_key: t.template_key,
+      })
+      exists = (rows?.length ?? 0) > 0
     } catch {
       exists = false
     }

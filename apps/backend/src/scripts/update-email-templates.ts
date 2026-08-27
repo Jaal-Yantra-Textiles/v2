@@ -2,6 +2,7 @@ import { ContainerRegistrationKeys } from "@medusajs/framework/utils"
 import { ExecArgs } from "@medusajs/framework/types"
 import { EMAIL_TEMPLATES_MODULE } from "../modules/email_templates"
 import { emailTemplatesData } from "./seed-email-templates"
+import { partnerEmailTemplates } from "./seed-partner-email-templates"
 
 /**
  * One-off ops job: UPDATE existing DB email templates in place from the
@@ -13,6 +14,12 @@ import { emailTemplatesData } from "./seed-email-templates"
  * the seed's subject / html_content / from / variables onto the live rows for a
  * chosen set of keys — scoped by TEMPLATE_KEYS so we never touch templates we
  * didn't mean to.
+ *
+ * 🔴 It must see EVERY seed array, not just the customer one. Until #1574 it
+ * read only `seed-email-templates.ts`, which meant no partner template could
+ * ever be updated in a seeded environment by any tool we had — an edit to a
+ * partner body was invisible on prod and silently so, because the seed skips
+ * and this job said "not found in seed data".
  *
  * Motivating case: the `order-placed` customer confirmation shipped as a stub
  * whose payload never matched its variables (empty "Hi ," / "Order #"). The
@@ -44,10 +51,15 @@ export default async function updateEmailTemplates({ container }: ExecArgs) {
   let updated = 0
   let missing = 0
 
+  // Customer + partner seeds are one namespace here: a template key resolves
+  // from whichever array declares it.
+  const allSeedTemplates = [
+    ...(emailTemplatesData as any[]),
+    ...(partnerEmailTemplates as any[]),
+  ]
+
   for (const key of keys) {
-    const def = (emailTemplatesData as any[]).find(
-      (t) => t.template_key === key
-    )
+    const def = allSeedTemplates.find((t) => t.template_key === key)
     if (!def) {
       logger.warn(
         `[update-email-templates] '${key}' not found in seed data — skip`

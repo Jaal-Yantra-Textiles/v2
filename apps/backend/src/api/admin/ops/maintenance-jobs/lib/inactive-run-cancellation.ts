@@ -129,3 +129,82 @@ export const decideInactiveRunCancellations = (
 /** The reason stamped on the run and sent to the partner. */
 export const inactivityCancelReason = (days: number): string =>
   `Cancelled automatically after ${days} days without activity. The work was not started or finished in time — it can be re-created and re-assigned if it is still needed.`
+
+// ---------------------------------------------------------------------------
+// The warning that has to come BEFORE the cancellation (#1574)
+// ---------------------------------------------------------------------------
+
+export type ExpiringRunDecision = InactiveRunDecision & {
+  /** Whole days left before this run reaches the cancellation window. */
+  days_until_cancel: number
+  /** The date (YYYY-MM-DD) it becomes cancellable. */
+  cancel_on: string
+}
+
+/** Default: warn a week out from the 28-day window. */
+export const DEFAULT_WARN_BEFORE_DAYS = 7
+
+/**
+ * The runs that are ABOUT to be cancelled — inactive long enough to be inside
+ * the warning lead-time, but not yet past the window.
+ *
+ * 🔑 The two sets are DISJOINT by construction: a run at or past `days` belongs
+ * to `decideInactiveRunCancellations` and is excluded here. That is what stops
+ * a partner being warned about a run that the very same sweep then cancels —
+ * the warning would arrive after the verdict and read as noise.
+ *
+ * ⚠️ `warnBeforeDays >= days` would make the window start at or before day 0
+ * and warn about work dispatched this morning. It is clamped, not rejected,
+ * because a nonsense lead-time must not silently widen the audience.
+ */
+export const decideExpiringRunWarnings = (
+  runs: RunForInactivity[],
+  opts: { asOf: Date; days: number; warnBeforeDays: number }
+): ExpiringRunDecision[] => {
+  const dayMs = 24 * 60 * 60 * 1000
+  const lead = Math.max(1, Math.min(opts.warnBeforeDays, opts.days - 1))
+  const now = opts.asOf.getTime()
+  // Inactive enough to be inside the lead-time…
+  const warnFrom = now - (opts.days - lead) * dayMs
+  // …but not yet inactive enough to be cancelled.
+  const cancelFrom = now - opts.days * dayMs
+
+  const out: ExpiringRunDecision[] = []
+
+  for (const run of runs || []) {
+    const status = String(run?.status ?? "")
+    if (!PARTNER_HELD_STATUSES.has(status)) continue
+
+    const last = lastActivityOf(run)
+    if (!last) continue
+    if (last.at > warnFrom) continue // too recent to warn about
+    if (last.at <= cancelFrom) continue // already cancellable — not a warning
+
+    const cancelAt = last.at + opts.days * dayMs
+    out.push({
+      id: String(run.id),
+      status,
+      last_activity_at: new Date(last.at).toISOString(),
+      last_activity_field: last.field,
+      inactive_days: Math.floor((now - last.at) / dayMs),
+      // Ceil, so "1 day" never means "in four hours". A warning that expires
+      // sooner than it claims is worse than one that is a few hours generous.
+      days_until_cancel: Math.max(1, Math.ceil((cancelAt - now) / dayMs)),
+      cancel_on: new Date(cancelAt).toISOString().slice(0, 10),
+    })
+  }
+
+  return out.sort((a, b) => a.days_until_cancel - b.days_until_cancel)
+}
+
+/**
+ * The idempotency key for one run's expiry warning.
+ *
+ * Keyed on the CANCEL DATE, not the day it was sent: re-running the sweep
+ * hourly must not re-mail the partner, but a run that is touched and then goes
+ * quiet again has a new cancel date and deserves a fresh warning.
+ */
+export const expiryWarningIdempotencyKey = (
+  runId: string,
+  cancelOn: string
+): string => `partner-run-expiring:${runId}:${cancelOn}`

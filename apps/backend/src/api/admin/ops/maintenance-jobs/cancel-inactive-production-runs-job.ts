@@ -145,16 +145,24 @@ export const cancelInactiveProductionRunsJob: MaintenanceJob = {
       }
     }
 
-    const reason = inactivityCancelReason(days)
     const errors: Array<{ id: string; message: string }> = []
     let cancelled = 0
 
     for (const decision of selected) {
       try {
+        // 🔑 The run's OWN age, not the policy window. Prod carries one 81 days
+        // idle; telling that partner "cancelled after 28 days" reports the rule
+        // instead of what happened, and they cannot reconcile it with the run
+        // in front of them.
         const result = await cancelProductionRunCascade(
           container,
           decision.id,
-          reason
+          inactivityCancelReason(decision.inactive_days),
+          {
+            inactive_days: decision.inactive_days,
+            inactivity_window_days: days,
+            last_activity_at: decision.last_activity_at,
+          }
         )
         if (!result.skipped) cancelled++
       } catch (e: any) {

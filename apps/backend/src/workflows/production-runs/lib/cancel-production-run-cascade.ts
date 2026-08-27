@@ -81,11 +81,17 @@ export const cancelSingleRun = async (
  * admin feed entry — both keyed on `production_run.cancelled`, and both read
  * `notes` for the reason. A cancel that skipped the emit would be silent to
  * everyone it affects.
+ *
+ * `eventData` rides along into that payload. The inactivity sweep uses it to
+ * carry how long the run was actually idle, so the partner's email can say "no
+ * activity for 81 days" rather than restating the 28-day rule at them (#1574).
+ * An admin cancel passes nothing and the mail renders exactly as before.
  */
 export const cancelProductionRunCascade = async (
   container: any,
   runId: string,
-  reason: string
+  reason: string,
+  eventData?: Record<string, unknown>
 ): Promise<CancelRunResult> => {
   const productionRunService: ProductionRunService = container.resolve(
     PRODUCTION_RUNS_MODULE
@@ -181,6 +187,7 @@ export const cancelProductionRunCascade = async (
           production_run_id: runId,
           action: "cancelled",
           notes: reason,
+          ...(eventData || {}),
         },
       },
     ])
