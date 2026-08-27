@@ -18,7 +18,12 @@ jest.mock("@medusajs/framework/utils", () => ({
   ContainerRegistrationKeys: { QUERY: "query" },
 }))
 
-import { computeCostBreakdown, resolveItemCost } from "../estimate-design-cost"
+import {
+  buildHistoricalComparables,
+  computeCostBreakdown,
+  medianOf,
+  resolveItemCost,
+} from "../estimate-design-cost"
 import type { MaterialCostItem } from "../estimate-design-cost"
 
 // ─── Fixtures ─────────────────────────────────────────────────────────────────
@@ -74,16 +79,32 @@ describe("computeCostBreakdown", () => {
       expect(result.total_estimated).toBe(25)    // material only
     })
 
-    it("splits admin estimate at 30% when no material data", () => {
+    /**
+     * 🔴 This test used to assert `total_estimated ≈ 30` for an estimate of
+     * 130 — the undercharge as the specification.
+     *
+     * The split is presentational: 130 becomes a 100 material share and a 30
+     * production share. But the total was assembled from `materialCost`, the
+     * sum of the BOM LINES, which is 0 here — so the 100 was computed, shown
+     * and dropped, and a figure a human typed came back 77% smaller. A design
+     * with no bill of materials is the normal case for custom work, and this
+     * number is persisted, quoted and charged.
+     */
+    it("splits admin estimate at 30% when no material data, and the total still equals it", () => {
       const result = computeCostBreakdown({
         ...base,
         adminEstimate: 130,
         materials: [],
       })
       // materialShare = 130 / 1.3 = 100; productionCost = 30
-      expect(result.material_cost).toBe(0)
+      expect(result.material_cost).toBeCloseTo(100, 1)
       expect(result.production_cost).toBeCloseTo(30, 1)
-      expect(result.total_estimated).toBeCloseTo(30, 1)
+      expect(result.total_estimated).toBeCloseTo(130, 1)
+      // The invariant that makes the breakdown readable at all.
+      expect(result.material_cost + result.production_cost + result.platform_fee)
+        .toBeCloseTo(result.total_estimated!, 1)
+      // No material LINES, which is how a reader tells implied from counted.
+      expect(result.breakdown.materials).toHaveLength(0)
     })
 
     it("uses similar design average for production when no admin estimate", () => {
@@ -684,5 +705,149 @@ describe("resolveItemCost", () => {
     const result = resolveItemCost(item, links)
     expect(result.cost).toBe(8)   // falls back to unit_cost
     expect(result.cost_source).toBe("unit_cost")
+  })
+})
+
+/**
+ * Comparable history as a LABELLED fallback for custom work.
+ *
+ * A design whose production run is in the future has no run, no sample and
+ * usually no bill of materials, so every rung of the waterfall misses and the
+ * honest answer is `total_estimated: null`. That is correct for the storefront
+ * — refusing to price is the whole point of #1564 — and useless for a partner
+ * about to send a quote, who needs a starting figure they can dial.
+ *
+ * So history prices it, but only for a caller that asked, and never quietly.
+ */
+describe("historical comparables (opt-in)", () => {
+  const base = { designId: "d1", similarDesigns: [], hasExactMaterialCosts: false }
+  const history = [
+    { id: "d2", name: "Kurta A", unit_amount: 1000, source: "design_estimate" as const },
+    { id: "d3", name: "Kurta B", unit_amount: 1300, source: "product_price" as const },
+    // An archive piece. The mean would be 3100; the median is 1300.
+    { id: "d4", name: "Heirloom", unit_amount: 7000, source: "product_price" as const },
+  ]
+
+  it("does NOT price from history unless the caller opted in", () => {
+    const result = computeCostBreakdown({
+      ...base,
+      adminEstimate: null,
+      materials: [],
+      historical: history,
+    })
+    // Unchanged for every existing caller: nothing here priced this design.
+    expect(result.total_estimated).toBeNull()
+    expect(result.confidence).toBe("none")
+  })
+
+  it("prices from history when opted in, and the total equals the basis", () => {
+    const result = computeCostBreakdown({
+      ...base,
+      adminEstimate: null,
+      materials: [],
+      historical: history,
+      allowHistoricalBasis: true,
+    })
+    // Median of 1000 / 1300 / 7000 — the outlier does not drag it.
+    expect(result.total_estimated).toBeCloseTo(1300, 1)
+    expect(result.breakdown.production_cost_source).toBe("historical_comparables")
+  })
+
+  it("is never presented as a settled price", () => {
+    const result = computeCostBreakdown({
+      ...base,
+      adminEstimate: null,
+      materials: [],
+      historical: history,
+      allowHistoricalBasis: true,
+    })
+    // Capped, exactly like a sample rate (#1568). This is what OTHER work
+    // cost; nobody has looked at this design.
+    expect(result.confidence).toBe("guesstimate")
+    expect(result.breakdown.historical).toHaveLength(3)
+  })
+
+  it("opting in with no history at all still refuses to price", () => {
+    const result = computeCostBreakdown({
+      ...base,
+      adminEstimate: null,
+      materials: [],
+      historical: [],
+      allowHistoricalBasis: true,
+    })
+    // 🔴 The flag is permission to use evidence, never a substitute for it.
+    expect(result.total_estimated).toBeNull()
+    expect(result.confidence).toBe("none")
+  })
+
+  it("counts real materials and takes only the production half from history", () => {
+    const result = computeCostBreakdown({
+      ...base,
+      adminEstimate: null,
+      materials: orderHistoryMaterials, // material = 25
+      historical: [
+        { id: "d2", name: "A", unit_amount: 40, source: "design_estimate" as const },
+      ],
+      allowHistoricalBasis: true,
+    })
+    // Materials are counted, not guessed: 25 real + (40 - 25) production.
+    expect(result.material_cost).toBe(25)
+    expect(result.production_cost).toBeCloseTo(15, 1)
+    expect(result.total_estimated).toBeCloseTo(40, 1)
+  })
+
+  it("loses to every rung that actually looked at this design", () => {
+    const result = computeCostBreakdown({
+      ...base,
+      adminEstimate: null,
+      materials: orderHistoryMaterials,
+      historical: history,
+      allowHistoricalBasis: true,
+      actualProductionCost: 50, // a real completed run
+    })
+    expect(result.breakdown.production_cost_source).toBe("actual_run")
+    expect(result.production_cost).toBe(50)
+  })
+})
+
+describe("buildHistoricalComparables", () => {
+  it("drops a stored 0, which means 'found nothing' rather than 'free' (#1563)", () => {
+    const out = buildHistoricalComparables({
+      designs: [
+        { id: "d1", name: "Priced", estimated_cost: 900 },
+        { id: "d2", name: "Never priced", estimated_cost: 0 },
+        { id: "d3", name: "Null", estimated_cost: null },
+      ],
+      productPrices: [],
+    })
+    expect(out).toHaveLength(1)
+    expect(out[0].id).toBe("d1")
+  })
+
+  it("drops a variant with no price in the design's currency", () => {
+    const out = buildHistoricalComparables({
+      designs: [],
+      // The step nulls the amount when no row matched the currency.
+      productPrices: [
+        { id: "v1", title: "Matched", amount: 1200 },
+        { id: "v2", title: "Wrong currency", amount: null },
+      ],
+    })
+    expect(out).toHaveLength(1)
+    expect(out[0].source).toBe("product_price")
+  })
+})
+
+describe("medianOf", () => {
+  it("takes the middle of an odd count", () => {
+    expect(medianOf([5, 1, 3])).toBe(3)
+  })
+
+  it("averages the two middles of an even count", () => {
+    expect(medianOf([1, 2, 3, 4])).toBe(2.5)
+  })
+
+  it("is 0 for nothing, so a caller must gate on length rather than value", () => {
+    expect(medianOf([])).toBe(0)
   })
 })

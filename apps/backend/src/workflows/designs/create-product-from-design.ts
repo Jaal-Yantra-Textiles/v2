@@ -28,8 +28,47 @@ import type { Link } from "@medusajs/modules-sdk";
 type CreateProductFromDesignInput = {
   design_id: string;
   estimated_cost: number;
-  customer_id: string;
+  /**
+   * Stamped onto the design↔variant link as provenance. Optional: the quote
+   * path mints a variant for work that has no buyer yet, which is the whole
+   * point of quoting it.
+   */
+  customer_id?: string;
   currency_code?: string;
+  /**
+   * Make this a MADE-TO-ORDER variant: something that will be produced after
+   * it is bought, rather than something sitting on a shelf.
+   *
+   * Two things change, and both are required for the variant to be quotable:
+   *
+   * - `status: "published"` instead of `"draft"`. A draft product's variant is
+   *   not purchasable, so an accepted quote would build a cart that cannot be
+   *   completed — and acceptance is the step where that would first be
+   *   noticed, by the buyer.
+   * - `manage_inventory: false`. The whole premise is that the production run
+   *   is in the FUTURE, so stock is zero and always will be until the run
+   *   happens. A managed variant at zero stock refuses the order.
+   *
+   * Off by default: the approve route creates a catalogue product that is
+   * reviewed before it goes live, and that behaviour is unchanged.
+   */
+  made_to_order?: boolean;
+  /**
+   * The price to list, ALREADY in major units and already in `currency_code`.
+   *
+   * ⚠️ Deliberately separate from `estimated_cost`, which this workflow has
+   * always multiplied by 100 before writing. Every other price in this
+   * codebase is a decimal — `accept-quote` writes `amount: freight` and the
+   * minted price list writes `quoted_unit_amount` raw — so that ×100 looks
+   * like a cent-conversion inherited from Medusa v1 that would make a listed
+   * price a hundred times too dear. Nothing tests it and nothing else reads
+   * it, so it is left exactly as it was rather than "fixed" blind on a live
+   * catalogue path; this input exists so the quote path does not inherit it.
+   *
+   * When given, it is written verbatim. `estimated_cost` is then only used for
+   * the legacy path.
+   */
+  unit_price?: number | null;
 };
 
 type CreateProductFromDesignOutput = {
@@ -49,6 +88,17 @@ const createProductAndVariantStep = createStep(
     const query = container.resolve(ContainerRegistrationKeys.QUERY) as any;
     const remoteLink = container.resolve(ContainerRegistrationKeys.LINK) as Link;
     const currencyCode = input.currency_code || "usd";
+    const madeToOrder = !!input.made_to_order;
+
+    // See `unit_price` above for why these two spellings differ.
+    const priceAmount =
+      input.unit_price != null
+        ? Number(input.unit_price)
+        : Math.round(input.estimated_cost * 100);
+
+    // A made-to-order variant is produced after it is sold, so there is no
+    // stock to manage and never will be before the run.
+    const manageInventory = !madeToOrder;
 
     // Get design with its linked products
     const { data: designs } = await query.graph({
@@ -128,11 +178,11 @@ const createProductAndVariantStep = createStep(
         product_id: product_id,
         title: `Custom - ${design.name}`,
         sku: `CUSTOM-${design.id}-${Date.now()}`,
-        manage_inventory: true,
+        manage_inventory: manageInventory,
         options: variantOptions,
         prices: [
           {
-            amount: Math.round(input.estimated_cost * 100),
+            amount: priceAmount,
             currency_code: currencyCode,
           },
         ],
@@ -175,7 +225,9 @@ const createProductAndVariantStep = createStep(
       const productInput = {
         title: `Custom Design - ${design.name}`,
         description: design.description || `Custom design: ${design.name}`,
-        status: "draft" as const,
+        // Draft is not purchasable. A made-to-order product has to be live for
+        // the cart an accepted quote builds to be completable at all.
+        status: (madeToOrder ? "published" : "draft") as "draft" | "published",
         is_giftcard: false,
         discountable: true,
         thumbnail: design.thumbnail_url,
@@ -198,13 +250,13 @@ const createProductAndVariantStep = createStep(
           {
             title: "Custom Design",
             sku: `CUSTOM-${design.id}`,
-            manage_inventory: true,
+            manage_inventory: manageInventory,
             options: {
               Type: "Custom",
             },
             prices: [
               {
-                amount: Math.round(input.estimated_cost * 100),
+                amount: priceAmount,
                 currency_code: currencyCode,
               },
             ],

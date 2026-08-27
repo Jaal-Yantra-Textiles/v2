@@ -43,6 +43,23 @@ export type ProductionCostSource =
   | "sample_run"
   | "admin_estimate"
   | "similar_designs"
+  /**
+   * Comparable HISTORY priced this design because nothing else could: what
+   * designs of this type have actually settled at, and what products
+   * previously created from designs actually sell for.
+   *
+   * 🔴 Opt-in per caller (`allow_historical_basis`), and never a settled
+   * price. `similar_designs` above is deliberately NOT a pricing signal — see
+   * `hasPricingSignal` — because pricing one design off another's number is
+   * the silent substitution #1554 was. This rung is that same evidence used
+   * DELIBERATELY, by a caller that has no bill of materials to work from and
+   * has asked for a starting figure anyway, and it is labelled and capped at
+   * "guesstimate" exactly like the sample-run fallback (#1568).
+   *
+   * The storefront checkout and draft-order paths do not pass the flag, so
+   * their behaviour is unchanged (#1564).
+   */
+  | "historical_comparables"
   | "default_percent";
 
 export type MaterialCostItem = {
@@ -54,6 +71,21 @@ export type MaterialCostItem = {
   cost_source: "order_history" | "unit_cost" | "component_design" | "consumption_log" | "estimated" | "default";
   /** Per-material commission (line cost × platform_fee_percent). Set when a fee applies. */
   commission?: number;
+};
+
+/**
+ * One piece of evidence about what this KIND of work has cost before.
+ *
+ * `unit_amount` is always per finished unit, in the design's cost currency —
+ * the caller normalises, because a total divided by the wrong quantity is the
+ * #1554 family and must not be re-derived in three places.
+ */
+export type HistoricalComparable = {
+  /** Design id or product id, so a reader can go and look at the evidence. */
+  id: string;
+  name: string | null;
+  unit_amount: number;
+  source: "design_estimate" | "product_price";
 };
 
 type EstimateCostInput = {
@@ -77,6 +109,14 @@ type EstimateCostInput = {
    * unaffected; the partner recalc route passes DEFAULT_MATERIAL_COST.
    */
   default_material_cost?: number;
+  /**
+   * Let comparable history price the design when nothing else can. Opt-in per
+   * caller — defaults to false, so every existing caller is unaffected. The
+   * quote wizard passes it, because a custom design whose production run is in
+   * the future has no run, no sample and often no BOM, and "no answer" is not
+   * a useful thing to show a partner about to send a quote.
+   */
+  allow_historical_basis?: boolean;
 };
 
 export type EstimateCostOutput = {
@@ -102,6 +142,12 @@ export type EstimateCostOutput = {
     platform_fee_percent: number;
     /** Where the production half of the total came from. #1568 */
     production_cost_source: ProductionCostSource;
+    /**
+     * The comparable work the figure was derived from. Present only when
+     * `production_cost_source === "historical_comparables"`, so its presence is
+     * itself the signal that nothing about THIS design priced it.
+     */
+    historical?: HistoricalComparable[];
   };
   similar_designs?: Array<{
     id: string;
@@ -123,6 +169,19 @@ export const DEFAULT_PLATFORM_FEE_PERCENT = 10;
 export const DEFAULT_MATERIAL_COST = 600;
 
 const round2 = (n: number) => Math.round(n * 100) / 100;
+
+/** PURE: the middle value, averaging the two middles for an even count. */
+export function medianOf(values: number[]): number {
+  const sorted = (values ?? [])
+    .map((v) => Number(v))
+    .filter((v) => Number.isFinite(v))
+    .sort((a, b) => a - b);
+  if (!sorted.length) return 0;
+  const mid = Math.floor(sorted.length / 2);
+  return sorted.length % 2 === 1
+    ? sorted[mid]
+    : (sorted[mid - 1] + sorted[mid]) / 2;
+}
 
 // ─── Pure functions (exported for unit testing) ───────────────────────────────
 
@@ -196,10 +255,20 @@ export function computeCostBreakdown(input: {
   platformFeePercent?: number;
   /** Fallback per-unit cost for a material with no resolved cost. Default 0 (off). */
   defaultMaterialCost?: number;
+  /**
+   * What comparable work has actually cost — settled costs of designs of this
+   * type, and prices of products previously created from designs. Gathered
+   * regardless; it only PRICES anything under `allowHistoricalBasis`.
+   */
+  historical?: HistoricalComparable[];
+  /** Opt-in: let `historical` produce a figure when nothing else can. */
+  allowHistoricalBasis?: boolean;
 }): EstimateCostOutput {
   const { adminEstimate, similarDesigns } = input;
   const platformFeePercent = input.platformFeePercent ?? 0;
   const defaultMaterialCost = input.defaultMaterialCost ?? 0;
+  const historical = input.historical ?? [];
+  const allowHistoricalBasis = !!input.allowHistoricalBasis;
 
   // Resolve each BOM material: fall back to defaultMaterialCost when it has no
   // resolved price, and attach the per-material commission (its share of the
@@ -219,6 +288,28 @@ export function computeCostBreakdown(input: {
   let productionIsEstimated = true;
   /** Which rung of the waterfall below actually set `productionCost`. */
   let productionSource: ProductionCostSource = "default_percent";
+
+  /**
+   * The material half of a WHOLE-UNIT figure that did not come from the BOM.
+   *
+   * 🔴 This exists because the total was silently losing it. Some rungs below
+   * know a whole per-unit cost and split it into a material share and a
+   * production share for the breakdown — but the total was assembled as
+   * `materialCost + productionCost`, and `materialCost` is the sum of the BOM
+   * LINES, which is 0 when there is no bill of materials. So the material share
+   * was computed, shown, and then dropped out of the number that gets
+   * persisted, quoted and charged: an admin estimate of 1000 on a design with
+   * no BOM came back as `total_estimated: 230.77`, discarding 77% of the figure
+   * a human had typed in. A design whose production run is in the future is
+   * exactly the no-BOM case, so this had to be fixed before that case could be
+   * priced at all.
+   *
+   * It is folded into `material_cost` on the way out rather than kept separate,
+   * so that `material_cost + production_cost + platform_fee === total_estimated`
+   * stays true — the breakdown's empty `materials` list is what tells a reader
+   * the share was implied rather than counted.
+   */
+  let impliedMaterialCost = 0;
 
   if (input.productionCostOverride != null && input.productionCostOverride >= 0) {
     // Partner typed their production cost — authoritative, wins over everything.
@@ -243,6 +334,7 @@ export function computeCostBreakdown(input: {
     productionIsEstimated = false; // admin set a concrete estimate
   } else if (adminEstimate != null && adminEstimate > 0 && materialCost === 0) {
     const materialShare = adminEstimate / (1 + DEFAULT_PRODUCTION_PERCENT / 100);
+    impliedMaterialCost = materialShare;
     productionCost = adminEstimate - materialShare;
     productionPercent = DEFAULT_PRODUCTION_PERCENT;
     productionSource = "admin_estimate";
@@ -253,6 +345,31 @@ export function computeCostBreakdown(input: {
     productionCost = Math.min(impliedProduction, materialCost * 0.6);
     productionPercent = (productionCost / materialCost) * 100;
     productionSource = "similar_designs";
+  } else if (allowHistoricalBasis && historical.length > 0) {
+    /**
+     * Nothing priced this design, and the caller asked for history anyway.
+     *
+     * The MEDIAN, not the mean: one archive piece or one sample-priced outlier
+     * in a handful of comparables drags an average somewhere no real garment
+     * sits, and this figure is the starting point for a number a buyer signs.
+     *
+     * When there IS a bill of materials, history only supplies the production
+     * half — the materials are counted, not guessed. With no BOM the comparable
+     * is a whole-unit cost, so it is split on the same 30% rule of thumb the
+     * admin-estimate rung uses, with the material share carried in
+     * `impliedMaterialCost` so the total still equals the figure.
+     */
+    const basis = medianOf(historical.map((h) => h.unit_amount));
+    if (materialCost > 0) {
+      productionCost = Math.max(basis - materialCost, materialCost * 0.1);
+      productionPercent = (productionCost / materialCost) * 100;
+    } else {
+      const materialShare = basis / (1 + DEFAULT_PRODUCTION_PERCENT / 100);
+      impliedMaterialCost = materialShare;
+      productionCost = basis - materialShare;
+      productionPercent = DEFAULT_PRODUCTION_PERCENT;
+    }
+    productionSource = "historical_comparables";
   } else {
     productionCost = materialCost * (DEFAULT_PRODUCTION_PERCENT / 100);
     productionPercent = DEFAULT_PRODUCTION_PERCENT;
@@ -263,7 +380,8 @@ export function computeCostBreakdown(input: {
   const platformFee = round2(
     materials.reduce((sum, m) => sum + (m.commission ?? 0), 0)
   );
-  const totalEstimated = materialCost + productionCost + platformFee;
+  const effectiveMaterialCost = materialCost + impliedMaterialCost;
+  const totalEstimated = effectiveMaterialCost + productionCost + platformFee;
 
   const hasAnyRealData = materials.some(
     (m) =>
@@ -295,16 +413,34 @@ export function computeCostBreakdown(input: {
     (m) => m.cost_source === "default"
   );
 
+  /**
+   * ⚠️ `allowHistoricalBasis` is required, not merely `historical.length`.
+   * Comparables are gathered for every caller so the breakdown can show them;
+   * only a caller that has explicitly asked to be priced from history gets a
+   * NUMBER out of them. Without that gate this would quietly re-price the
+   * storefront checkout off other designs — which is #1554 wearing #1564's
+   * clothes.
+   */
+  const hasHistoricalSignal = allowHistoricalBasis && historical.length > 0;
+
   const hasPricingSignal =
     hasAnyRealData ||
     usedDefaultMaterialCost ||
     adminEstimate != null ||
     input.actualProductionCost != null ||
-    input.productionCostOverride != null;
+    input.productionCostOverride != null ||
+    hasHistoricalSignal;
 
   let confidence: ConfidenceLevel;
   if (!hasPricingSignal) {
     confidence = "none";
+  } else if (productionSource === "historical_comparables") {
+    /**
+     * Capped, whatever the materials look like — the same treatment a sample
+     * rate gets (#1568), and for the same reason. This is what OTHER work cost;
+     * nothing here has been priced by anyone who looked at this design.
+     */
+    confidence = "guesstimate";
   } else if (productionSource === "sample_run") {
     /**
      * 🔴 Capped, whatever the materials look like.
@@ -326,7 +462,7 @@ export function computeCostBreakdown(input: {
 
   return {
     design_id: input.designId,
-    material_cost: round2(materialCost),
+    material_cost: round2(effectiveMaterialCost),
     production_cost: round2(productionCost),
     platform_fee: platformFee,
     /**
@@ -341,6 +477,8 @@ export function computeCostBreakdown(input: {
       production_percent: Math.round(productionPercent),
       platform_fee_percent: platformFeePercent,
       production_cost_source: productionSource,
+      /** The evidence, when it is what produced the figure. */
+      historical: productionSource === "historical_comparables" ? historical : undefined,
     },
     similar_designs: similarDesigns.length > 0 ? similarDesigns : undefined,
   };
@@ -363,6 +501,9 @@ const getDesignWithInventoryStep = createStep(
         "estimated_cost",
         "material_cost",
         "production_cost",
+        // Needed to currency-match comparable variant prices — a median over
+        // mixed currencies is not a number.
+        "cost_currency",
         "cost_breakdown",
         "tags",
         "inventory_items.*",
@@ -729,6 +870,145 @@ const getActualProductionCostStep = createStep(
   }
 );
 
+
+// ─── Step 3c: What comparable work has actually cost ──────────────────────────
+
+/**
+ * PURE: fold the two evidence sources into one comparable list.
+ *
+ * 🔑 A design's `estimated_cost` is per finished UNIT (#1554) and a variant
+ * price is per unit by construction, so neither needs dividing — but both are
+ * filtered to strictly positive. A stored `0` on a design means "the estimator
+ * found nothing" (#1563), not "this is free", and averaging it in would drag
+ * every comparable figure toward zero while looking like more evidence.
+ */
+export function buildHistoricalComparables(input: {
+  designs: Array<{ id: string; name?: string | null; estimated_cost?: number | null }>;
+  productPrices: Array<{ id: string; title?: string | null; amount?: number | null }>;
+}): HistoricalComparable[] {
+  const fromDesigns: HistoricalComparable[] = (input.designs ?? [])
+    .filter((d) => d?.id && Number(d.estimated_cost) > 0)
+    .map((d) => ({
+      id: d.id,
+      name: d.name ?? null,
+      unit_amount: Number(d.estimated_cost),
+      source: "design_estimate" as const,
+    }));
+
+  const fromProducts: HistoricalComparable[] = (input.productPrices ?? [])
+    .filter((p) => p?.id && Number(p.amount) > 0)
+    .map((p) => ({
+      id: p.id,
+      name: p.title ?? null,
+      unit_amount: Number(p.amount),
+      source: "product_price" as const,
+    }));
+
+  return [...fromDesigns, ...fromProducts];
+}
+
+/**
+ * Gather what this KIND of work has cost before.
+ *
+ * Two sources, deliberately:
+ * - designs of the same `design_type` that carry a settled cost;
+ * - variants of products PREVIOUSLY CREATED FROM DESIGNS, which is a price a
+ *   buyer has actually been asked to pay rather than an internal cost.
+ *
+ * The second is the one worth having. A design's `estimated_cost` is our own
+ * estimate — averaging our estimates produces a very confident average of
+ * guesses — whereas a product minted from a design was priced, listed and in
+ * some cases sold. It is scoped to design-backed products for exactly that
+ * reason: the catalogue at large includes bought-in goods that say nothing
+ * about what making something costs.
+ */
+const getHistoricalComparablesStep = createStep(
+  "get-historical-comparables-step",
+  async (input: { design: any; currencyCode?: string | null }, { container }) => {
+    const query = container.resolve(ContainerRegistrationKeys.QUERY) as any;
+    const design = input.design;
+
+    let designs: any[] = [];
+    let productPrices: Array<{ id: string; title: string | null; amount: number | null }> = [];
+
+    try {
+      const filters: any = {
+        id: { $ne: design.id },
+        estimated_cost: { $ne: null },
+      };
+      // Same KIND of work, when we know what kind it is. Without this the
+      // comparables are "any design at all", which is not evidence.
+      if (design.design_type) filters.design_type = design.design_type;
+
+      const { data } = await query.graph({
+        entity: "design",
+        filters,
+        fields: ["id", "name", "estimated_cost"],
+        pagination: { take: 10 },
+      });
+      designs = data || [];
+    } catch {
+      // Non-fatal — comparables are a fallback, never a requirement.
+    }
+
+    try {
+      /**
+       * Every design-backed variant, via the same one-to-one link the quote
+       * resolver reads. Two hops rather than one: the link table holds ids
+       * only, so the prices come from a second query over those variants.
+       */
+      const { data: links = [] } = await query.graph({
+        entity: "design_product_variant",
+        fields: ["design_id", "product_variant_id"],
+        pagination: { take: 100 },
+      });
+
+      const variantIds = Array.from(
+        new Set(
+          (links as any[])
+            .filter((l) => l?.product_variant_id && l.design_id !== design.id)
+            .map((l) => String(l.product_variant_id))
+        )
+      ).slice(0, 50);
+
+      if (variantIds.length) {
+        const { data: variants = [] } = await query.graph({
+          entity: "product_variant",
+          fields: ["id", "title", "prices.amount", "prices.currency_code"],
+          filters: { id: variantIds },
+        });
+
+        const wanted = input.currencyCode ? String(input.currencyCode).toLowerCase() : null;
+
+        productPrices = (variants as any[]).map((v) => {
+          const prices = (v?.prices ?? []) as any[];
+          /**
+           * 🔴 Currency-matched, never "the first price". A variant carries a
+           * row per currency, so taking prices[0] mixes 1200 INR with 1200 USD
+           * into one median — the freight picker was wrong in precisely this
+           * way. When the design's currency has no row, the variant simply does
+           * not count as evidence.
+           */
+          const match = wanted
+            ? prices.find((pr) => String(pr?.currency_code ?? "").toLowerCase() === wanted)
+            : null;
+          return {
+            id: v.id,
+            title: v.title ?? null,
+            amount: match?.amount != null ? Number(match.amount) : null,
+          };
+        });
+      }
+    } catch {
+      // Non-fatal.
+    }
+
+    return new StepResponse({
+      historical: buildHistoricalComparables({ designs, productPrices }),
+    });
+  }
+);
+
 // ─── Step 4: Calculate total cost estimate ────────────────────────────────────
 
 const calculateTotalCostStep = createStep(
@@ -743,6 +1023,8 @@ const calculateTotalCostStep = createStep(
     productionCostOverride?: number | null;
     platformFeePercent?: number;
     defaultMaterialCost?: number;
+    historical?: HistoricalComparable[];
+    allowHistoricalBasis?: boolean;
   }) => {
     const design = input.design;
     const platformFeePercent = input.platformFeePercent ?? 0;
@@ -801,6 +1083,8 @@ const calculateTotalCostStep = createStep(
       productionCostOverride: input.productionCostOverride ?? null,
       platformFeePercent,
       defaultMaterialCost: input.defaultMaterialCost ?? 0,
+      historical: input.historical ?? [],
+      allowHistoricalBasis: !!input.allowHistoricalBasis,
     });
     return new StepResponse(result);
   }
@@ -833,6 +1117,11 @@ export const estimateDesignCostWorkflow = createWorkflow(
       design_id: input.design_id,
     });
 
+    const historicalResult = getHistoricalComparablesStep({
+      design: designResult.design,
+      currencyCode: designResult.design.cost_currency,
+    });
+
     const result = calculateTotalCostStep({
       design: designResult.design,
       materials: materialsResult.materials as unknown as MaterialCostItem[],
@@ -850,6 +1139,9 @@ export const estimateDesignCostWorkflow = createWorkflow(
         input.production_cost_override as unknown as number | null,
       platformFeePercent: input.platform_fee_percent as unknown as number,
       defaultMaterialCost: input.default_material_cost as unknown as number,
+      historical: historicalResult.historical as unknown as HistoricalComparable[],
+      allowHistoricalBasis:
+        input.allow_historical_basis as unknown as boolean,
     });
 
     return new WorkflowResponse(result);

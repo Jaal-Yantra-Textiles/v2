@@ -5751,6 +5751,23 @@ export default defineMiddlewares({
         authenticate("partner", ["session", "bearer"]),
       ],
     },
+    /**
+     * Minting the made-to-order variant a custom design is quoted through.
+     *
+     * 🔴 Named explicitly, and it has to be. The `/partners/*` wildcard entry
+     * carries CORS and locale only — authentication is per-route on this
+     * surface — so a route missing from this list authenticates nobody,
+     * `getPartnerFromAuthContext` finds no partner and every call 401s. Both
+     * `tsc` and a green test suite are silent about it (#1571).
+     */
+    {
+      matcher: "/partners/quotes/designs/:designId/variant",
+      method: "POST",
+      middlewares: [
+        createCorsPartnerMiddleware(),
+        authenticate("partner", ["session", "bearer"]),
+      ],
+    },
     // Admin quotes (#1389 S5). Same capability as the partner surface, but the
     // owning partner must be named — an admin has none of their own.
     {
@@ -5764,6 +5781,13 @@ export default defineMiddlewares({
       middlewares: [
         validateAndTransformBody(wrapSchema(AdminQuoteReadinessReq)),
       ],
+    },
+    // The admin twin of the made-to-order mint. No auth entry needed — the
+    // /admin surface authenticates globally, unlike /partners.
+    {
+      matcher: "/admin/quotes/designs/:designId/variant",
+      method: "POST",
+      middlewares: [],
     },
     // An admin corrects any quote in place, before acceptance. Same body as the
     // partner surface — the refusals live in `adjustQuote` so they cannot drift.

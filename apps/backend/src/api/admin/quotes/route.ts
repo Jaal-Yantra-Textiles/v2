@@ -9,6 +9,7 @@ import { resolveQuoteDesignLines } from "../../../modules/partner-quote/lib/desi
 import { deliverQuoteEmail } from "../../../workflows/partner-quote/deliver-quote-email"
 import { mintQuoteWorkflow } from "../../../workflows/partner-quote/mint-quote"
 import { assertVariantsInStore } from "./lib/assert-variants-in-store"
+import { makeDesignVariantPort } from "../../../workflows/partner-quote/ensure-design-quote-variant"
 
 /**
  * Admin quotes (#1389 S5).
@@ -109,6 +110,17 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
   const lines = await resolveQuoteDesignLines(req.scope, {
     lines: body.lines,
     partner_id: null,
+    /**
+     * A design with no product behind it is minted a made-to-order variant
+     * here rather than refused. The currency is the quote's, because that is
+     * what the variant has to be listed in — the estimate behind it is
+     * denominated in the design's own cost currency and converted on the way
+     * through.
+     */
+    variant_port: makeDesignVariantPort(req.scope, {
+      currency_code: body.currency_code,
+      partner_id: null,
+    }),
   })
 
   // 🔴 An admin picks the partner from one dropdown and the variants from

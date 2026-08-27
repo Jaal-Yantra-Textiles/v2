@@ -9,6 +9,7 @@ import {
   withDesignIssues,
 } from "../../../../modules/partner-quote/lib/design-lines"
 import { assessQuoteReadiness } from "../../../../modules/partner-quote/lib/quote-readiness"
+import { makeDesignVariantPort } from "../../../../workflows/partner-quote/ensure-design-quote-variant"
 
 /**
  * Can this basket be quoted? (#1445)
@@ -39,6 +40,14 @@ export const POST = async (
   const designs = await resolveDesignLinesForReadiness(req.scope, {
     lines: body.lines,
     partner_id: partner.id,
+    // Lets a design with no product be previewed as made-to-order rather than
+    // reported as a blocker. Prices nothing and creates nothing — the port is
+    // called with `dry_run: true` from the readiness path.
+    variant_port: makeDesignVariantPort(req.scope, {
+      currency_code: body.currency_code,
+      partner_id: partner.id,
+    }),
+    currency_code: body.currency_code,
   })
 
   const readiness = await assessQuoteReadiness(req.scope, {

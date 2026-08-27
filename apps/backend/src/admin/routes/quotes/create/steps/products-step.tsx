@@ -17,6 +17,7 @@ import { Thumbnail } from "../../../../components/common/thumbnail"
 import { useProducts } from "../../../../hooks/api/products"
 import { AdminQuoteCreateSchemaType } from "../schema"
 import {
+  useMintDesignVariant,
   useQuotableDesigns,
   type QuotableDesign,
 } from "../../../../hooks/api/quotes"
@@ -58,6 +59,14 @@ export const ProductsStep = ({ form }: Props) => {
   const discounts = useWatch({ control, name: "discounts" })
   const overrides = useWatch({ control, name: "overrides" })
   const designByVariant = useWatch({ control, name: "design_by_variant" })
+  // A made-to-order variant is LISTED in the quote's currency, not the
+  // design's cost currency — the estimate is converted on the way through.
+  const watchedCurrency = useWatch({ control, name: "currency_code" })
+
+  /** design_id → why its mint was refused. Cleared when it is retried. */
+  const [mintErrors, setMintErrors] = useState<Record<string, string>>({})
+  const [minting, setMinting] = useState<string | null>(null)
+  const { mutateAsync: mintDesignVariant } = useMintDesignVariant()
 
   /**
    * 🔑 Designs are listed UNSCOPED — every design, not just the chosen
@@ -152,6 +161,47 @@ export const ProductsStep = ({ form }: Props) => {
    * appears in the quantities step like any other, and records which design it
    * was so the mint carries the provenance.
    */
+  /**
+   * A made-to-order design has no variant until one is minted, and the whole
+   * basket below is keyed by variant — so the mint has to happen before the
+   * selection can be recorded.
+   *
+   * Un-ticking never mints, so a design whose mint failed can be un-ticked
+   * without trying again.
+   */
+  const pickDesign = async (design: QuotableDesign, isSelected: boolean) => {
+    if (!isSelected || design.variant_id || !design.made_to_order) {
+      toggleDesign(design, isSelected)
+      return
+    }
+
+    setMinting(design.id)
+    setMintErrors((prev) => {
+      const next = { ...prev }
+      delete next[design.id]
+      return next
+    })
+
+    try {
+      const { design: minted } = await mintDesignVariant({
+        design_id: design.id,
+        currency_code: watchedCurrency as string,
+      })
+      toggleDesign(
+        { ...design, quotable: true, variant_id: minted.variant_id, product_id: minted.product_id },
+        true
+      )
+    } catch (e: any) {
+      // 🔴 Rendered, not swallowed — the message names what is missing.
+      setMintErrors((prev) => ({
+        ...prev,
+        [design.id]: e?.message ?? "This design could not be priced yet.",
+      }))
+    } finally {
+      setMinting(null)
+    }
+  }
+
   const toggleDesign = (design: QuotableDesign, isSelected: boolean) => {
     if (!design.variant_id || !design.product_id) return
 
@@ -241,8 +291,11 @@ export const ProductsStep = ({ form }: Props) => {
             <Checkbox
               checked={pickedDesigns.has(design.id)}
               // Disabled, not hidden — the reason has to be readable.
-              disabled={!design.quotable}
-              onCheckedChange={(value) => toggleDesign(design, !!value)}
+              disabled={
+                (!design.quotable && !design.made_to_order) ||
+                minting === design.id
+              }
+              onCheckedChange={(value) => pickDesign(design, !!value)}
             />
           )
         },
@@ -268,9 +321,21 @@ export const ProductsStep = ({ form }: Props) => {
           const design = row.original as QuotableDesign
           // The reason, in the row, not behind a tooltip: it is the whole
           // instruction for making this design quotable.
-          return design.quotable ? (
-            "Yes"
-          ) : (
+          const mintError = mintErrors[design.id]
+          if (mintError) {
+            return <span className="text-ui-fg-error">{mintError}</span>
+          }
+          if (design.quotable) return "Yes"
+          if (design.made_to_order) {
+            return (
+              <span className="text-ui-fg-subtle">
+                {minting === design.id
+                  ? "Pricing…"
+                  : "Made to order — priced when picked"}
+              </span>
+            )
+          }
+          return (
             <span className="text-ui-fg-muted">
               {design.reason ?? "Cannot quote"}
             </span>
@@ -288,7 +353,7 @@ export const ProductsStep = ({ form }: Props) => {
           ),
       },
     ],
-    [pickedDesigns, selectedIds, quantities]
+    [pickedDesigns, selectedIds, quantities, mintErrors, minting, watchedCurrency]
   )
 
   const table = useDataTable({
@@ -304,8 +369,8 @@ export const ProductsStep = ({ form }: Props) => {
         return
       }
       const design = original as QuotableDesign
-      if (!design.quotable) return
-      toggleDesign(design, !pickedDesigns.has(design.id))
+      if (!design.quotable && !design.made_to_order) return
+      pickDesign(design, !pickedDesigns.has(design.id))
     },
     pagination: { state: pagination, onPaginationChange: setPagination },
     search: {

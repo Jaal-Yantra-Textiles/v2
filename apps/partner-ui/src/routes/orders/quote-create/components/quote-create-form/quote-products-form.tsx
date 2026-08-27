@@ -48,6 +48,8 @@ export const QuoteProductsForm = ({ form }: QuoteProductsFormProps) => {
   const selectedIds = useWatch({ control, name: "product_ids" })
   const quantities = useWatch({ control, name: "quantities" })
   const designByVariant = useWatch({ control, name: "design_by_variant" })
+  // The buyer step sets it; a made-to-order variant has to be listed in it.
+  const watchedCurrency = useWatch({ control, name: "currency_code" })
 
   const [rowSelection, setRowSelection] = useState<RowSelectionState>(
     getInitialSelection(selectedIds)
@@ -189,6 +191,9 @@ export const QuoteProductsForm = ({ form }: QuoteProductsFormProps) => {
       <QuoteDesignsPanel
         designByVariant={(designByVariant ?? {}) as Record<string, string>}
         onToggle={toggleDesign}
+        // A made-to-order variant is listed in the quote's currency, not the
+        // design's — see the panel.
+        currencyCode={watchedCurrency}
       />
       <_DataTable
         table={table}
