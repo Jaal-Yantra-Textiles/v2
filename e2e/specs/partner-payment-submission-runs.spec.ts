@@ -123,7 +123,13 @@ test.describe("Partner payment submission from runs @partnerui (#1571)", () => {
   }) => {
     // One table with an All/Runs/Tasks filter — the per-source tabs are gone
     // (#1571). "Runs" narrows it; "All" (the default) already shows them.
-    const tab = page.getByRole("tab", { name: /^runs$/i })
+    //
+    // 🔴 Addressed by testid, NOT by accessible name. The filter renders a
+    // count badge inside the button, so its name is "Runs 3" and the anchored
+    // `getByRole("tab", { name: /^runs$/i })` this spec first shipped with
+    // matched nothing — all four cases timed out on their first CI run while
+    // the screen itself was correct.
+    const tab = page.getByTestId("work-filter-runs")
     await expect(tab).toBeVisible({ timeout: 30_000 })
     await tab.click()
 
@@ -148,7 +154,7 @@ test.describe("Partner payment submission from runs @partnerui (#1571)", () => {
   test("shows a run with no agreed rate rather than hiding or zero-billing it", async ({
     page,
   }) => {
-    await page.getByRole("tab", { name: /^runs$/i }).click()
+    await page.getByTestId("work-filter-runs").click()
     const card = runCard(page, seed.unpricedRunId)
     await expect(card).toBeVisible({ timeout: 30_000 })
     await expect(card).toContainText("2 made")
@@ -166,7 +172,7 @@ test.describe("Partner payment submission from runs @partnerui (#1571)", () => {
   test("submits a payout that records the run and bills quantity x rate", async ({
     page,
   }) => {
-    await page.getByRole("tab", { name: /^runs$/i }).click()
+    await page.getByTestId("work-filter-runs").click()
     const card = runCard(page, seed.partnerBillableRunId)
     await expect(card).toBeVisible({ timeout: 30_000 })
     await card.getByRole("checkbox").click()
@@ -214,7 +220,7 @@ test.describe("Partner payment submission from runs @partnerui (#1571)", () => {
   test("sums the quantity when two runs of one design are billed together", async ({
     page,
   }) => {
-    await page.getByRole("tab", { name: /^runs$/i }).click()
+    await page.getByTestId("work-filter-runs").click()
 
     const a = runCard(page, seed.partnerSumRunAId)
     await expect(a).toBeVisible({ timeout: 30_000 })

@@ -495,6 +495,12 @@ export const PaymentSubmissionCreate = () => {
                   key={value}
                   type="button"
                   role="tab"
+                  // 🔑 A stable hook, because the accessible NAME of this
+                  // button is "Runs 3" — the count badge is part of it. Any
+                  // selector matching on the name is one dispatched run away
+                  // from breaking, which is exactly what happened to the
+                  // @partnerui payout specs on their first green CI run.
+                  data-testid={`work-filter-${value}`}
                   aria-selected={typeFilter === value}
                   data-state={typeFilter === value ? "active" : "inactive"}
                   onClick={() => setTypeFilter(value)}
