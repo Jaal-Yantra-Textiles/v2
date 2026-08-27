@@ -40,21 +40,21 @@ export const POST = async (
   }
 
   const designId = String(req.params.designId)
-  const currencyCode = String(
-    (req.validatedBody as any)?.currency_code ?? req.query.currency_code ?? ""
-  )
-
-  if (!currencyCode) {
-    return res.status(400).json({
-      error:
-        "currency_code is required — the variant has to be listed in the currency the quote is denominated in.",
-    })
-  }
+  /**
+   * 🔑 `validatedBody`, populated by `validateAndTransformBody` in
+   * `middlewares.ts` — and by nothing else. Both routes were registered
+   * without it, so this read was always undefined, the client's JSON sat in
+   * `req.body` unread, and every pick answered "currency_code is required".
+   * The schema now enforces the requirement, so there is no hand-rolled check
+   * here to drift from it.
+   */
+  const body = req.validatedBody as { currency_code: string; markup_percent?: number }
 
   const { result } = await ensureDesignQuoteVariantWorkflow(req.scope).run({
     input: {
       design_id: designId,
-      currency_code: currencyCode,
+      currency_code: body.currency_code,
+      markup_percent: body.markup_percent,
       // Scoped: a partner may only quote designs they own or are assigned to.
       partner_id: partner.id,
     },

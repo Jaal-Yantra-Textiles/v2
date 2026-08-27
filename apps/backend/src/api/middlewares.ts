@@ -308,7 +308,7 @@ import { BulkImportSchema } from "./admin/inventory-items/bulk-import/validators
 import { PartnerCreateStoreReq } from "./partners/stores/validators";
 import { PartnerCreateProductReq, PartnerArtisanProductDetailReq, PartnerProductSpecReq, PartnerStoreCreateProductReq, PartnerQuickCreateProductReq } from "./partners/products/validators";
 import { PartnerCreatePriceListReq, PartnerUpdatePriceListReq } from "./partners/price-lists/validators";
-import { AdjustQuoteReq, PartnerMintQuoteReq, QuoteReadinessReq } from "./partners/quotes/validators";
+import { AdjustQuoteReq, MintDesignVariantReq, PartnerMintQuoteReq, QuoteReadinessReq } from "./partners/quotes/validators";
 import { PartnerPostInquiryAnswersReq, PartnerPostInquirySubmitReq, PartnerListInquiriesQuery, PartnerPostCapabilitySampleReq, PartnerListCapabilitySamplesQuery } from "./partners/inquiries/validators";
 import { AdminMintQuoteReq, AdminQuoteReadinessReq } from "./admin/quotes/validators";
 import { BATCH_VARIANT_FIELDS } from "../workflows/partner/batch-partner-variants";
@@ -5766,6 +5766,14 @@ export default defineMiddlewares({
       middlewares: [
         createCorsPartnerMiddleware(),
         authenticate("partner", ["session", "bearer"]),
+        /**
+         * 🔴 Without this the route reads NOTHING. `req.validatedBody` is
+         * populated by this middleware and by nothing else, so the client's
+         * JSON sat in `req.body` unread and every pick answered
+         * "currency_code is required" — a message that was true about the
+         * requirement and wrong about the cause.
+         */
+        validateAndTransformBody(wrapSchema(MintDesignVariantReq)),
       ],
     },
     // Admin quotes (#1389 S5). Same capability as the partner surface, but the
@@ -5782,12 +5790,16 @@ export default defineMiddlewares({
         validateAndTransformBody(wrapSchema(AdminQuoteReadinessReq)),
       ],
     },
-    // The admin twin of the made-to-order mint. No auth entry needed — the
-    // /admin surface authenticates globally, unlike /partners.
+    /**
+     * The admin twin of the made-to-order mint. No auth entry needed — the
+     * /admin surface authenticates globally, unlike /partners — but the body
+     * validator is NOT optional: an empty middleware list leaves
+     * `req.validatedBody` undefined and the route reads nothing.
+     */
     {
       matcher: "/admin/quotes/designs/:designId/variant",
       method: "POST",
-      middlewares: [],
+      middlewares: [validateAndTransformBody(wrapSchema(MintDesignVariantReq))],
     },
     // An admin corrects any quote in place, before acceptance. Same body as the
     // partner surface — the refusals live in `adjustQuote` so they cannot drift.
