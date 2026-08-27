@@ -195,6 +195,53 @@ setupSharedTestSuite(() => {
       expect(String(again.data.message || "")).toMatch(/already/i)
     })
 
+    /**
+     * #1574 — every lifecycle await step carries a 23-day timeout
+     * (`LIFECYCLE_TIMEOUT_SECONDS`). A partner who takes longer than that finds
+     * the workflow expired underneath them, and the run is left `in_progress`
+     * with `started_at` set — live by every policy guard, so the screen goes on
+     * offering Finish.
+     *
+     * 🔴 What used to happen then: `signalLifecycleStepStep` rethrew, the whole
+     * finish workflow COMPENSATED, and `finished_at` rolled back to null. The
+     * partner's action was lost, they got a raw framework string carrying an
+     * internal transaction id, and clicking again did the same thing forever.
+     *
+     * The prod case (order_01KVB3FGF448QGZQKWWV0QRN6K) was created 2026-06-17
+     * and finished 2026-08-27 — 71 days, seven weeks past the timeout.
+     *
+     * The fixture stamps a transaction id that resolves to nothing, which is
+     * exactly the state an expiry leaves behind, and does not need 23 days.
+     */
+    it("finishes a run whose lifecycle transaction has expired, instead of losing the work", async () => {
+      const unique = Date.now() + 90
+      const { partnerId, partnerHeaders } = await createPartner(unique)
+      const designId = await createDesign(unique)
+      const runId = await createRunWithStatus(designId, partnerId, "in_progress", {
+        accepted_at: new Date(),
+        started_at: new Date(),
+        lifecycle_transaction_id: "tx_that_no_longer_exists",
+      })
+
+      const finish = await post(
+        `/partners/production-runs/${runId}/finish`,
+        {},
+        partnerHeaders
+      )
+
+      // 🔴 Fails on the old code with 404 "Transaction tx_that_no_longer_exists
+      // could not be found." — an internal id, shown to a partner, for an
+      // action the screen had just offered them.
+      expect(finish.status).toBe(200)
+
+      // And the work is RECORDED. This is the half that made it permanent:
+      // the signal threw, the workflow compensated, and finished_at went back
+      // to null, so the run stayed in_progress and the button stayed live.
+      const runService: any = getContainer().resolve("production_runs")
+      const after: any = await runService.retrieveProductionRun(runId)
+      expect(after.finished_at).toBeTruthy()
+    })
+
     it("walks the happy path: accept → start → finish → complete", async () => {
       const unique = Date.now() + 6
       const { partnerId, partnerHeaders } = await createPartner(unique)
