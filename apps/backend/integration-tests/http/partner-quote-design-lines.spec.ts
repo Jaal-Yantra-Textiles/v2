@@ -287,11 +287,30 @@ setupSharedTestSuite(() => {
       expect(backed?.quotable).toBe(true)
       expect(backed?.variant_id).toBe(seed.variantA.id)
 
-      // The unquotable one is LISTED, not hidden — with the reason on it.
+      /**
+       * A design with no product is LISTED, and it is no longer a problem.
+       *
+       * 🔴 This assertion used to demand the reason "no product behind it yet
+       * … create a product from the design first". That was the contract until
+       * custom designs became quotable: such a design is now MADE TO ORDER —
+       * ticking it mints the variant it will be quoted through, priced from
+       * comparable work.
+       *
+       * So `reason` is deliberately null. A reason string renders as an error
+       * in every UI that shows one, and there is nothing wrong with this row;
+       * the `made_to_order` FLAG is what the picker labels it with. Asserting
+       * the old words here would pin the behaviour the change exists to
+       * remove.
+       *
+       * ⚠️ `quotable` stays FALSE, and that is not a contradiction. It means
+       * "a variant backs this today". The two flags answer different questions
+       * and the picker renders them differently.
+       */
       const sketch = byId.get(sketchDesignId) as any
       expect(sketch).toBeTruthy()
       expect(sketch.quotable).toBe(false)
-      expect(String(sketch.reason)).toContain("no product behind it")
+      expect(sketch.made_to_order).toBe(true)
+      expect(sketch.reason).toBeNull()
     })
 
     const countQuotes = async () => {
