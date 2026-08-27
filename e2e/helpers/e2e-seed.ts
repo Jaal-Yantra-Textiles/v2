@@ -1168,6 +1168,214 @@ export async function seedShipmentGateOrder(container: any): Promise<{
   }
 }
 
+
+/**
+ * #1576 — an order the partner UI can actually SHIP.
+ *
+ * ## Why this could not reuse the #1195 gate fixture
+ *
+ * `seedShipmentGateOrder` is built to be the case where "Mark as shipped" is
+ * SUPPRESSED — its own docblock says the fixture "must stay broken for the
+ * specs to mean anything". Its line item is title-only, so the derivation
+ * stamps `requires_shipping: false`, and core treats a fulfillment that needs
+ * no shipping as already shipped. `POST .../shipment` therefore answers
+ * `400 Shipment has already been created` on the FIRST attempt.
+ *
+ * The carrier-modal spec asserts the opposite — that completing step 2 marks
+ * the fulfillment shipped — so it was asking the one fixture in this repo
+ * built to refuse it. It never passed and could not.
+ *
+ * ## What makes this one shippable, and why each part is load-bearing
+ *
+ * `requires_shipping` is derived as `hasShippingProfile ||
+ * someInventoryRequiresShipping` (core-flows `prepare-line-item-data`), and
+ * `create-fulfillment` then copies the item flag onto the fulfillment. So:
+ *
+ * 1. a REAL variant, not a title-only line — the profile is reached through
+ *    `item.variant.product.shipping_profile`;
+ * 2. its product linked to a shipping profile — 🔴 and to the SAME profile the
+ *    fulfillment's option carries. `create-fulfillment` throws "Shipping
+ *    profile X does not match the shipping profile of the order item Y" when
+ *    they differ, and for a profile-less product that comparison is
+ *    `undefined !== sp_…` — always true. Flipping the flag on a profile-less
+ *    product does not reveal the action, it makes the order UNFULFILLABLE.
+ * 3. `requires_shipping: true` written explicitly on the item, because this
+ *    seeder creates the order through `orderModule.createOrders` rather than
+ *    the workflow (no tax provider on a fresh CI DB), so nothing derives it.
+ *
+ * ⚠️ The assertion at the end is not decoration. If the fulfillment comes back
+ * `requires_shipping: false` the spec would fail 15 minutes later looking like
+ * a broken screen, exactly as it did before this fixture existed. Fail here,
+ * where the message names the cause.
+ */
+export async function seedShippablePartnerOrder(container: any): Promise<{
+  orderId: string
+  fulfillmentId: string
+  currencyCode: string
+}> {
+  const query = container.resolve(ContainerRegistrationKeys.QUERY)
+  const orderModule: any = container.resolve(Modules.ORDER)
+  const productModule: any = container.resolve(Modules.PRODUCT)
+  const link: any = container.resolve(ContainerRegistrationKeys.LINK)
+
+  const { data: regions } = await query.graph({
+    entity: "region",
+    fields: ["id", "currency_code", "countries.iso_2"],
+  })
+  const region = regions?.[0]
+  const { data: channels } = await query.graph({
+    entity: "sales_channel",
+    fields: ["id"],
+  })
+  const salesChannelId = channels?.[0]?.id
+  if (!region || !salesChannelId) {
+    throw new Error(
+      "E2E seed: no region/sales channel found. Run the demo seed first."
+    )
+  }
+  const countryCode = region.countries?.[0]?.iso_2 || "gb"
+
+  /**
+   * The option the fulfillment will use, AND its profile — both, together.
+   * Picking the option here and the profile somewhere else is how they come to
+   * disagree, and a mismatch is a throw at fulfillment time.
+   */
+  const { data: opts } = await query.graph({
+    entity: "shipping_option",
+    fields: [
+      "id",
+      "provider_id",
+      "shipping_profile_id",
+      "service_zone.fulfillment_set.type",
+      "service_zone.fulfillment_set.location.id",
+    ],
+  })
+  const manual = (opts || []).find(
+    (o: any) =>
+      typeof o?.provider_id === "string" &&
+      o.provider_id.startsWith("manual") &&
+      o.service_zone?.fulfillment_set?.location?.id &&
+      o.service_zone?.fulfillment_set?.type !== "pickup" &&
+      o.shipping_profile_id
+  )
+  if (!manual) {
+    throw new Error(
+      "E2E seed: no manual NON-pickup shipping option WITH a shipping profile found. Run the demo seed first."
+    )
+  }
+
+  const stamp = Date.now()
+  const product = await productModule.createProducts({
+    title: `E2E Shippable Stole (#1576) ${stamp}`,
+    status: "published",
+    handle: `e2e-shippable-${stamp}`,
+    options: [{ title: "Size", values: ["One Size"] }],
+    variants: [
+      {
+        title: "One Size",
+        sku: `E2E-SHIP-${stamp}`,
+        // No inventory to manage: the profile alone carries the derivation,
+        // and stock would only add a way for this fixture to fail.
+        manage_inventory: false,
+        options: { Size: "One Size" },
+      },
+    ],
+  })
+  const createdProduct = Array.isArray(product) ? product[0] : product
+  const variantId = createdProduct?.variants?.[0]?.id
+  if (!variantId) {
+    throw new Error("E2E seed: shippable product variant not created")
+  }
+
+  // 🔴 The SAME profile the option carries — see the docblock.
+  await link.create({
+    [Modules.PRODUCT]: { product_id: createdProduct.id },
+    [Modules.FULFILLMENT]: { shipping_profile_id: manual.shipping_profile_id },
+  })
+
+  const created: any = await orderModule.createOrders({
+    status: "pending",
+    region_id: region.id,
+    currency_code: region.currency_code,
+    sales_channel_id: salesChannelId,
+    email: "e2e-carrier@jyt.test",
+    shipping_address: {
+      first_name: "Ravi",
+      last_name: "Kumar",
+      address_1: "12 Carrier Rd",
+      city: "London",
+      postal_code: "EC1A 1BB",
+      country_code: countryCode,
+      phone: "8887776665",
+    },
+    items: [
+      {
+        title: `E2E Shippable Stole (#1576) ${stamp}`,
+        quantity: 1,
+        unit_price: 2500,
+        variant_id: variantId,
+        product_id: createdProduct.id,
+        // Explicit: nothing derives it on this path. See the docblock.
+        requires_shipping: true,
+      },
+    ],
+    metadata: { source: "e2e-carrier-modal" },
+  })
+  const order = Array.isArray(created) ? created[0] : created
+
+  const { data: withItems } = await query.graph({
+    entity: "order",
+    fields: ["items.id"],
+    filters: { id: order.id },
+  })
+  const itemId = withItems?.[0]?.items?.[0]?.id
+  if (!itemId) {
+    throw new Error("E2E seed: shippable order line item not created")
+  }
+
+  await createOrderFulfillmentWorkflow(container).run({
+    input: {
+      order_id: order.id,
+      items: [{ id: itemId, quantity: 1 }],
+      shipping_option_id: manual.id,
+      location_id: manual.service_zone?.fulfillment_set?.location?.id,
+      no_notification: true,
+    } as any,
+  })
+
+  const { data: refetched } = await query.graph({
+    entity: "order",
+    fields: ["fulfillments.id", "fulfillments.requires_shipping", "fulfillments.shipped_at"],
+    filters: { id: order.id },
+  })
+  const fulfillment = refetched?.[0]?.fulfillments?.[0]
+  if (!fulfillment?.id) {
+    throw new Error("E2E seed: shippable fulfillment not created")
+  }
+
+  /**
+   * 🔴 Both assertions, loudly. This fixture exists ONLY to be shippable, and
+   * a silent regression in either direction turns the carrier spec into a
+   * 15-minute failure that reads like a broken screen.
+   */
+  if (fulfillment.requires_shipping !== true) {
+    throw new Error(
+      `E2E seed: shippable fulfillment expected requires_shipping=true, got ${fulfillment.requires_shipping}. The product/option shipping profiles have probably diverged — see seedShippablePartnerOrder.`
+    )
+  }
+  if (fulfillment.shipped_at) {
+    throw new Error(
+      `E2E seed: shippable fulfillment was already shipped at ${fulfillment.shipped_at} — the carrier spec has nothing left to do.`
+    )
+  }
+
+  return {
+    orderId: order.id,
+    fulfillmentId: fulfillment.id,
+    currencyCode: region.currency_code,
+  }
+}
+
 /**
  * #1195 — a partner that can open the gate order in the partner-UI. Mirrors the
  * admin identity seeding above (Scrypt-hashed emailpass identity), then links
@@ -1557,22 +1765,26 @@ export default async function e2eSeed({ container }: ExecArgs) {
   const gatePartner = await seedShipmentGatePartner(container, gate.orderId)
 
   /**
-   * A SECOND gate order, for the carrier modal alone (#1576).
+   * The carrier modal's own order (#1576) — separate, and SHIPPABLE.
    *
-   * 🔴 The carrier-modal spec used to share `gate` with
-   * `order-shipment-gate.spec.ts`, which marks that fulfillment shipped. Both
-   * suites now run on CI, so by the time the partner spec pressed "Mark as
-   * shipped" the backend answered `400 Shipment has already been created` —
-   * three times, once per Playwright retry — and the modal correctly stayed
-   * put. It reads exactly like a broken screen, and it is a fixture collision:
-   * a shipment is a once-only act, so one fulfillment cannot serve two specs
-   * that both ship it, and RETRIES cannot work either.
+   * Two distinct defects made this necessary, and the second hid behind the
+   * first:
    *
-   * The order is otherwise identical, so the `requires_shipping=false`
-   * assertion inside the seeder still guards this fixture too.
+   * 1. It used to share `gate` with `order-shipment-gate.spec.ts`, which marks
+   *    that fulfillment shipped. A shipment is a once-only act, so one
+   *    fulfillment cannot serve two specs that both ship it — and no Playwright
+   *    RETRY can pass on a fixture the first attempt consumed.
+   *
+   * 2. 🔴 Cloning the gate seeder did not fix it, because the gate fixture is
+   *    `requires_shipping: false` BY CONSTRUCTION — it exists to be the case
+   *    where "Mark as shipped" is suppressed, and core treats such a
+   *    fulfillment as already shipped. Every copy of it is equally unshippable.
+   *
+   * So this is a different seeder, whose whole job is to be shippable, and
+   * which asserts that about itself before the specs ever run.
    */
-  logger.info("E2E seed: creating the #1576 carrier-modal order (its OWN fulfillment)...")
-  const carrier = await seedShipmentGateOrder(container)
+  logger.info("E2E seed: creating the #1576 carrier-modal order (SHIPPABLE, its own fulfillment)...")
+  const carrier = await seedShippablePartnerOrder(container)
   await (container.resolve(ContainerRegistrationKeys.LINK) as any).create({
     partner: { partner_id: gatePartner.partnerId },
     order: { order_id: carrier.orderId },
@@ -1646,7 +1858,8 @@ export default async function e2eSeed({ container }: ExecArgs) {
     // and partner-shipment-gate.spec.ts (@partnerui, local).
     gateOrderId: gate.orderId,
     gateFulfillmentId: gate.fulfillmentId,
-    // #1576 — the carrier modal's OWN order, because shipping is once-only.
+    // #1576 — the carrier modal's OWN order, and a SHIPPABLE one: shipping is
+    // once-only, and the #1195 gate fixture cannot be shipped at all.
     carrierOrderId: carrier.orderId,
     carrierFulfillmentId: carrier.fulfillmentId,
     gatePartnerEmail: gatePartner.email,

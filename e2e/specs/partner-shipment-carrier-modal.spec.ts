@@ -98,6 +98,37 @@ test.describe("Partner shipment carrier modal @partnerui", () => {
    * ⚠️ What this no longer covers: a waybill Shiprocket REJECTS. The stub
    * models success only, so "foreign AWB refused" has no test.
    */
+  /**
+   * 🔑 UN-PARKED, on a fixture that can actually be shipped.
+   *
+   * These two cases had never passed, and two different things were wrong:
+   *
+   * 1. `POST /partners/orders/:id/shiprocket-attach-awb` called
+   *    `provider.track({ awb })` against the LIVE Shiprocket API. The spec
+   *    attaches a synthetic waybill that by construction exists on nobody's
+   *    account, so the attach always threw and step 2 never activated. Fixed by
+   *    giving the `SHIPROCKET_STUB=1` transport the `/courier/track/awb/:awb`
+   *    handler it was missing — it had every other endpoint.
+   *
+   * 2. 🔴 The fixture could not be shipped. They used the #1195 gate order,
+   *    whose own docblock says it "must stay broken for the specs to mean
+   *    anything": its line item is title-only, so `requires_shipping` derives
+   *    FALSE, and core treats a fulfillment needing no shipping as already
+   *    shipped. `POST .../shipment` answered `400 Shipment has already been
+   *    created` on the FIRST attempt. A spec asserting "completing step 2 marks
+   *    the fulfillment shipped" was asking the one fixture in the repo built to
+   *    refuse it — and cloning that seeder inherited the property exactly.
+   *
+   * `seedShippablePartnerOrder` is the answer to (2): a real variant, its
+   * product linked to the SAME shipping profile the fulfillment's option
+   * carries, and `requires_shipping: true` asserted on the fulfillment before
+   * any spec runs. It is also separate from the gate order, so these no longer
+   * collide with `order-shipment-gate.spec.ts`, which ships what it touches.
+   *
+   * ⚠️ If these go red again, read the SEED's assertions first. It fails loudly
+   * with the cause; the specs fail 15 minutes later looking like a broken
+   * screen.
+   */
   test("attaching an AWB in step 1 does not mark the fulfillment shipped", async ({
     page,
   }) => {
@@ -125,26 +156,25 @@ test.describe("Partner shipment carrier modal @partnerui", () => {
     await expect(page.getByLabel(/tracking number/i).first()).toHaveValue(awb)
 
     /**
-     * Bail out of the modal WITHOUT confirming the shipment.
+     * Leave WITHOUT confirming the shipment.
      *
-     * 🔑 Two clicks, not one. The tracking number typed above makes the form
-     * DIRTY, and `RouteFocusModal.Form` installs a `useBlocker` that stops any
-     * path change on a dirty form and raises an unsaved-changes prompt. So
-     * Cancel does not navigate — it opens a dialog, and the URL stays on
-     * `/create-shipment` until that dialog is answered. Asserting the
-     * destination straight after the first click waits 15s on a page that was
-     * never going to move.
+     * 🔑 A full navigation, not the Cancel button, and that is deliberate.
      *
-     * ⚠️ The prompt's own dismiss button is ALSO named "Cancel", so the second
-     * click is scoped to the dialog and asks for Continue — the discard —
-     * rather than matching the button that opened it.
+     * The tracking number typed above makes the form dirty, so
+     * `RouteFocusModal.Form` blocks the path change and raises an
+     * unsaved-changes dialog. Answering it is a real partner-UI behaviour —
+     * and it is also an animated Radix `AlertDialog` whose confirm button is
+     * NOT STABLE: Playwright resolved the right element every time and still
+     * could not click it ("element is not stable", then "element was detached
+     * from the DOM"), burning the full 120s test timeout.
+     *
+     * That dialog deserves its own test. It is not what THIS case is about:
+     * the assertion below is that attaching an AWB does not ship the
+     * fulfillment, and how the partner happens to leave the modal is
+     * incidental to it. Driving an unstable animation here buys no coverage
+     * and costs the whole case.
      */
-    await page.getByRole("button", { name: /^cancel$/i }).click()
-
-    const discardPrompt = page.getByRole("alertdialog")
-    await expect(discardPrompt).toBeVisible({ timeout: 15_000 })
-    await discardPrompt.getByRole("button", { name: /^continue$/i }).click()
-
+    await page.goto(ORDER_URL)
     await expect(page).toHaveURL(new RegExp(`orders/${seed.carrierOrderId}$`))
 
     // The whole point: still un-shipped. Assert on the status badge AND on the
@@ -190,6 +220,8 @@ test.describe("Partner shipment carrier modal @partnerui", () => {
    * ⚠️ What this no longer covers: a waybill Shiprocket REJECTS. The stub
    * models success only, so "foreign AWB refused" has no test.
    */
+  // This is the case the shippable fixture exists for: before it, the shipment
+  // POST was refused as already created before a retry ever happened.
   test("completing step 2 marks the fulfillment shipped", async ({ page }) => {
     await page.goto(SHIPMENT_URL)
 

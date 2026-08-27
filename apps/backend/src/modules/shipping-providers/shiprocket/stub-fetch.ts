@@ -258,6 +258,28 @@ export function createShiprocketStubFetch(): FetchLike {
      * ⚠️ This makes the shape valid, not the waybill real. It deliberately
      * does NOT model a rejection, so nothing here covers "Shiprocket refused a
      * foreign AWB" — that path still has no test.
+     *
+     * 🔴 It reports a JUST-ASSIGNED waybill, not one in transit, and that is
+     * the whole behaviour rather than a detail.
+     *
+     * `attachExistingShiprocketAwb` auto-syncs the fulfillment to whatever the
+     * carrier says: `deriveFulfillmentState` maps status code 6 — and the text
+     * "IN TRANSIT" — to "shipped", and the route then runs
+     * `createOrderShipmentWorkflow`, which MARKS THE FULFILLMENT SHIPPED.
+     *
+     * So a stub answering "IN TRANSIT" made attaching an AWB ship the parcel.
+     * That is precisely what `partner-shipment-carrier-modal.spec.ts` asserts
+     * must NOT happen ("attaching an AWB in step 1 does not mark the
+     * fulfillment shipped") — and it also consumed the shipment, so the second
+     * case could never mark it shipped either: `POST .../shipment` answered
+     * `400 Shipment has already been created`.
+     *
+     * A waybill you have just stamped on a parcel is `AWB ASSIGNED`. Nothing
+     * has been picked up. Modelling that is both more truthful and what makes
+     * the two-step modal testable at all: step 1 attaches, step 2 ships.
+     *
+     * ⚠️ Status 6 and the word "transit" are therefore load-bearing by their
+     * ABSENCE here. Re-introducing either would silently re-ship on attach.
      */
     const trackMatch = url.match(/\/courier\/track\/awb\/([^/?]+)/)
     if (trackMatch) {
@@ -265,12 +287,15 @@ export function createShiprocketStubFetch(): FetchLike {
       return json({
         tracking_data: {
           track_status: 1,
-          shipment_status: 6,
+          // Status 5 — AWB assigned, awaiting pickup. NOT 6 (in transit):
+          // see the docblock. `deriveFulfillmentState` returns "pending" for
+          // this, so the attach records the waybill and ships nothing.
+          shipment_status: 5,
           shipment_track: [
             {
               awb,
-              current_status: "IN TRANSIT",
-              shipment_status_id: 6,
+              current_status: "AWB ASSIGNED",
+              shipment_status_id: 5,
               origin: "Delhi",
               destination: "Mumbai",
               etd: null,
@@ -279,10 +304,10 @@ export function createShiprocketStubFetch(): FetchLike {
           shipment_track_activities: [
             {
               date: "2026-08-27 09:00:00",
-              status: "IN TRANSIT",
+              status: "AWB ASSIGNED",
               location: "Delhi Hub",
-              "sr-status": 6,
-              "sr-status-label": "IN TRANSIT",
+              "sr-status": 5,
+              "sr-status-label": "AWB ASSIGNED",
             },
           ],
         },
