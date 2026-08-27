@@ -625,6 +625,7 @@ async function seedPayableProductionRuns(container: any): Promise<{
   partnerBillableRunId: string
   partnerSumRunAId: string
   partnerSumRunBId: string
+  sumDesignName: string
 }> {
   const partnerModule: any = container.resolve("partner")
   const designService: any = container.resolve("design")
@@ -761,14 +762,52 @@ async function seedPayableProductionRuns(container: any): Promise<{
    * The two produced figures differ on purpose: if the screen overwrites
    * instead of summing, the total is 5x1200 or 3x1200 rather than 8x1200, and
    * the assertion says which.
+   *
+   * 🔴 They sit on their OWN design, deliberately. Step 5 of
+   * `validateDesignsForSubmissionStep` refuses a design that already has a
+   * Pending submission ("Designs already in an active payment submission"), and
+   * the submit spec creates exactly that against the main fixture design. Put
+   * these two runs on it and the summing spec fails EVERY time, with a message
+   * about active submissions that says nothing about summing — a fixture
+   * collision wearing the costume of a product bug.
    */
-  const partnerSumRunAId = await mkRun({
+  const sumDesignName = `Sum Run Fixture (e2e ${stamp})`
+  const sumDesign = await designService.createDesigns({
+    name: sumDesignName,
+    description: "e2e #1571 two-runs-one-line fixture",
+    design_type: "Original",
+    status: "Technical_Review",
+    priority: "Medium",
+    estimated_cost: 5000,
+  })
+  const sumDesignId = (Array.isArray(sumDesign) ? sumDesign[0] : sumDesign)
+    .id as string
+  await remoteLink.create({
+    design: { design_id: sumDesignId },
+    partner: { partner_id: partner.id },
+  })
+
+  const mkSumRun = async (overrides: Record<string, any>) => {
+    const run = await runService.createProductionRuns({
+      design_id: sumDesignId,
+      partner_id: partner.id,
+      run_type: "production",
+      status: "completed",
+      completed_at: new Date(),
+      snapshot: { design: { id: sumDesignId, name: sumDesignName } },
+      captured_at: new Date(),
+      ...overrides,
+    })
+    return (Array.isArray(run) ? run[0] : run).id as string
+  }
+
+  const partnerSumRunAId = await mkSumRun({
     quantity: 3,
     produced_quantity: 3,
     partner_cost_estimate: 1200,
     cost_type: "per_unit",
   })
-  const partnerSumRunBId = await mkRun({
+  const partnerSumRunBId = await mkSumRun({
     quantity: 5,
     produced_quantity: 5,
     partner_cost_estimate: 1200,
@@ -787,6 +826,7 @@ async function seedPayableProductionRuns(container: any): Promise<{
     partnerBillableRunId,
     partnerSumRunAId,
     partnerSumRunBId,
+    sumDesignName,
   }
 }
 
@@ -1607,6 +1647,7 @@ export default async function e2eSeed({ container }: ExecArgs) {
     partnerBillableRunId: payableRuns.partnerBillableRunId,
     partnerSumRunAId: payableRuns.partnerSumRunAId,
     partnerSumRunBId: payableRuns.partnerSumRunBId,
+    sumDesignName: payableRuns.sumDesignName,
     // #1439 S3/S4 admin quote surface — consumed by admin-quote-surface.spec.ts
     // (admin, CI). NOT single-use: the spec cancels out of the revoke prompt
     // rather than confirming it, so a re-run finds the same active quote.

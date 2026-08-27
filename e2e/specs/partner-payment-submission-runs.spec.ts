@@ -29,8 +29,18 @@ import * as path from "path"
  * pre-fix tree, and each fails for its OWN reason rather than all four dying at
  * the same 401.
  *
- * @partnerui — needs the partner-UI dev server on :5173, which the e2e config
- * does not boot, so this is excluded on CI via `grepInvert`. Run locally with:
+ * ⚠️ The two submitting cases CONSUME their runs permanently — that is the
+ * double-pay guard working as designed. So a Playwright RETRY of either one
+ * fails with "already recorded on a live payout" no matter why the first
+ * attempt failed, and the retry's message describes the fixture rather than the
+ * defect. **Read attempt #1, never the retries.** For the same reason each
+ * submitting case owns runs nothing else touches, and the summing pair sits on
+ * its OWN design: a design already carrying a Pending submission is refused
+ * outright, so sharing one would make the second submit fail every time with a
+ * message about active submissions that says nothing about summing.
+ *
+ * @partnerui — needs the partner-UI dev server on :5173. The e2e job now boots
+ * it and sets PARTNER_UI=1 to opt these specs in. Run locally with:
  *   (cd apps/partner-ui && pnpm dev) &
  *   pnpm --filter @jyt/backend e2e:test -- partner-payment-submission-runs
  */
