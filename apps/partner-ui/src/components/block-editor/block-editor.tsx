@@ -1,5 +1,5 @@
 import { useCallback, useState } from "react"
-import { Text, Button, IconButton, Tooltip, Select, Badge, Label } from "@medusajs/ui"
+import { Text, Button, IconButton, Tooltip, Select, Badge } from "@medusajs/ui"
 import { Trash, Plus, Images, ChevronDown, ChevronRight, CursorArrowRays, ArrowUpMini, ArrowDownMini, ArrowsPointingOut } from "@medusajs/icons"
 import { ContentBlock } from "../../hooks/api/content"
 import { TipTapEditor, type TipTapActions } from "../tiptap-editor/tiptap-editor"
@@ -28,15 +28,28 @@ const TextInput = ({
   value,
   onChange,
   placeholder,
+  ariaLabel,
 }: {
   value: string
   onChange: (v: string) => void
   placeholder?: string
+  /**
+   * 🔴 Without this the field has NO accessible name at all. `FieldLabel`
+   * renders a <Text> (a styled <span>), not a <label htmlFor>, and this input
+   * carries no id, name or placeholder — so nothing associates the two. A
+   * screen reader announces "edit text, blank", and a test cannot address it
+   * either: the #1576 spec fell back to `locator('input').first()`, which
+   * resolves to a hidden file input somewhere else on the page and asserts
+   * nothing. The unaddressable field and the meaningless selector are the
+   * same defect seen from two sides.
+   */
+  ariaLabel?: string
 }) => (
   <input
     className="w-full rounded-md border border-ui-border-base bg-ui-bg-field px-3 py-1.5 text-sm"
     value={value}
     placeholder={placeholder}
+    aria-label={ariaLabel}
     onChange={(e) => onChange(e.target.value)}
   />
 )
@@ -515,6 +528,7 @@ export const BlockEditor = ({
           <FieldLabel>Block Name</FieldLabel>
           <TextInput
             value={block.name}
+            ariaLabel="Block Name"
             onChange={(v) => onUpdate(block.id, { name: v })}
           />
         </div>
