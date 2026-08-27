@@ -70,7 +70,10 @@ const paramsSchema = z.object({
    * Report every bucket, not just the stale ones. Off by default because a
    * healthy prod would otherwise return hundreds of no-op rows.
    */
-  verbose: z.coerce.boolean().optional(),
+  // 🔴 NOT z.coerce.boolean() — `Boolean("false")` is TRUE, so a param sent
+  // as the string "false" (which is how it arrives over HTTP) would turn
+  // verbose ON. Match the literal, like seed-email-templates' `overwrite`.
+  verbose: z.union([z.boolean(), z.enum(["true", "false"])]).optional(),
 })
 
 const DEFAULT_STATUS = "cancelled"
@@ -156,7 +159,7 @@ export const remirrorCancelledRunStatusJob: MaintenanceJob = {
     const status = parsed.data.status ?? DEFAULT_STATUS
     const limit = parsed.data.limit ?? DEFAULT_LIMIT
     const onlyId = parsed.data.production_run_id
-    const verbose = parsed.data.verbose === true
+    const verbose = parsed.data.verbose === true || parsed.data.verbose === "true"
 
     const query = container.resolve(ContainerRegistrationKeys.QUERY) as any
 
