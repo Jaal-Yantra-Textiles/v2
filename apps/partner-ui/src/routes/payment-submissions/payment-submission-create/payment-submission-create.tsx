@@ -15,70 +15,49 @@ import {
 
 import { RouteFocusModal } from "../../../components/modals"
 import {
-  usePartnerDesigns,
-  type PartnerDesign,
-} from "../../../hooks/api/partner-designs"
-import {
   usePartnerAssignedTasks,
   type PartnerAssignedTask,
 } from "../../../hooks/api/partner-assigned-tasks"
 import { useCreatePartnerPaymentSubmission } from "../../../hooks/api/partner-payment-submissions"
+import {
+  usePartnerPayableRuns,
+  type PayableRun,
+} from "../../../hooks/api/partner-payable-runs"
 
-const ELIGIBLE_DESIGN_STATUSES = ["Commerce_Ready", "Approved"]
 const ELIGIBLE_TASK_STATUSES = ["completed"]
 
-/**
- * 🔴 This is a PER FINISHED UNIT figure, not the value of the work.
- *
- * `design.estimated_cost` / `production_cost` are per unit — see
- * `workflows/designs/estimate-design-cost.ts`, which divides a run total back
- * to per-unit for exactly that reason. The submission then billed it as the
- * whole line amount, so a design costed at ₹850/unit and produced nine times
- * asked for ₹850. (#1554)
- *
- * ⚠️ The prefilled number is deliberately left as-is rather than quietly
- * multiplied: this screen does not know how many units the partner is billing
- * for (it lists designs, not runs), and inventing a quantity would swing a
- * payment by a factor nobody chose. It is now LABELLED as per-piece so the
- * partner can type the real total — and the run-completion draft, which does
- * know the quantity, multiplies correctly on its own.
- */
-const getDesignCost = (d: any): number =>
-  Number(d.estimated_cost || d.production_cost || 0)
+const getRunUnitCost = (run: PayableRun): number => run.unit_amount
 
 const getTaskCost = (t: PartnerAssignedTask): number =>
   Number(t.actual_cost ?? t.estimated_cost ?? 0)
 
 export const PaymentSubmissionCreate = () => {
   const navigate = useNavigate()
-  const [activeTab, setActiveTab] = useState<"designs" | "tasks">("designs")
-  const [selectedDesignIds, setSelectedDesignIds] = useState<Set<string>>(
+  const [activeTab, setActiveTab] = useState<"runs" | "tasks">("runs")
+  const [selectedRunIds, setSelectedRunIds] = useState<Set<string>>(
     new Set()
   )
   const [selectedTaskIds, setSelectedTaskIds] = useState<Set<string>>(
     new Set()
   )
-  const [designCostOverrides, setDesignCostOverrides] = useState<
-    Record<string, number>
-  >({})
+  const [runQuantities, setRunQuantities] = useState<Record<string, number>>({})
+  const [runUnitAmounts, setRunUnitAmounts] = useState<Record<string, number>>({})
   const [taskCostOverrides, setTaskCostOverrides] = useState<
     Record<string, number>
   >({})
   const [notes, setNotes] = useState("")
 
-  // Fetch eligible designs and tasks in parallel
-  const { designs = [], isPending: designsLoading } = usePartnerDesigns({
-    limit: 200,
-    offset: 0,
-  })
+  // Fetch payable runs and tasks in parallel
+  const { payable_runs = [], isPending: runsLoading } = usePartnerPayableRuns()
   const { tasks = [], isPending: tasksLoading } = usePartnerAssignedTasks()
 
-  const eligibleDesigns = useMemo(
+  // Filter to only clear and unknown runs (don't show already-billed)
+  const eligibleRuns = useMemo(
     () =>
-      designs.filter((d: PartnerDesign) =>
-        ELIGIBLE_DESIGN_STATUSES.includes(d.status || "")
+      payable_runs.filter(
+        (r: PayableRun) => r.billing_status === "clear" || r.billing_status === "unknown"
       ),
-    [designs]
+    [payable_runs]
   )
 
   const eligibleTasks = useMemo(
@@ -95,8 +74,8 @@ export const PaymentSubmissionCreate = () => {
     useCreatePartnerPaymentSubmission()
 
   // ─── Selection handlers ─────────────────────────────────────────────
-  const toggleDesign = useCallback((id: string) => {
-    setSelectedDesignIds((prev) => {
+  const toggleRun = useCallback((id: string) => {
+    setSelectedRunIds((prev) => {
       const next = new Set(prev)
       next.has(id) ? next.delete(id) : next.add(id)
       return next
@@ -111,13 +90,13 @@ export const PaymentSubmissionCreate = () => {
     })
   }, [])
 
-  const selectAllDesigns = useCallback(() => {
-    if (selectedDesignIds.size === eligibleDesigns.length) {
-      setSelectedDesignIds(new Set())
+  const selectAllRuns = useCallback(() => {
+    if (selectedRunIds.size === eligibleRuns.length) {
+      setSelectedRunIds(new Set())
     } else {
-      setSelectedDesignIds(new Set(eligibleDesigns.map((d: any) => d.id)))
+      setSelectedRunIds(new Set(eligibleRuns.map((r: PayableRun) => r.run_id)))
     }
-  }, [eligibleDesigns, selectedDesignIds.size])
+  }, [eligibleRuns, selectedRunIds.size])
 
   const selectAllTasks = useCallback(() => {
     if (selectedTaskIds.size === eligibleTasks.length) {
@@ -128,13 +107,29 @@ export const PaymentSubmissionCreate = () => {
   }, [eligibleTasks, selectedTaskIds.size])
 
   // ─── Cost helpers ───────────────────────────────────────────────────
-  const getEffectiveDesignCost = useCallback(
-    (design: any): number => {
-      if (designCostOverrides[design.id] != null)
-        return designCostOverrides[design.id]
-      return getDesignCost(design)
+  const getEffectiveRunQuantity = useCallback(
+    (run: PayableRun): number => {
+      if (runQuantities[run.run_id] != null)
+        return runQuantities[run.run_id]
+      return run.payable_quantity
     },
-    [designCostOverrides]
+    [runQuantities]
+  )
+
+  const getEffectiveRunUnitAmount = useCallback(
+    (run: PayableRun): number => {
+      if (runUnitAmounts[run.run_id] != null)
+        return runUnitAmounts[run.run_id]
+      return getRunUnitCost(run)
+    },
+    [runUnitAmounts]
+  )
+
+  const getEffectiveRunTotal = useCallback(
+    (run: PayableRun): number => {
+      return getEffectiveRunQuantity(run) * getEffectiveRunUnitAmount(run)
+    },
+    [getEffectiveRunQuantity, getEffectiveRunUnitAmount]
   )
 
   const getEffectiveTaskCost = useCallback(
@@ -146,16 +141,29 @@ export const PaymentSubmissionCreate = () => {
     [taskCostOverrides]
   )
 
-  const handleDesignCostChange = (designId: string, value: string) => {
+  const handleRunQuantityChange = (runId: string, value: string) => {
     const num = parseFloat(value)
     if (value === "" || isNaN(num)) {
-      setDesignCostOverrides((prev) => {
+      setRunQuantities((prev) => {
         const next = { ...prev }
-        delete next[designId]
+        delete next[runId]
         return next
       })
     } else {
-      setDesignCostOverrides((prev) => ({ ...prev, [designId]: num }))
+      setRunQuantities((prev) => ({ ...prev, [runId]: num }))
+    }
+  }
+
+  const handleRunUnitAmountChange = (runId: string, value: string) => {
+    const num = parseFloat(value)
+    if (value === "" || isNaN(num)) {
+      setRunUnitAmounts((prev) => {
+        const next = { ...prev }
+        delete next[runId]
+        return next
+      })
+    } else {
+      setRunUnitAmounts((prev) => ({ ...prev, [runId]: num }))
     }
   }
 
@@ -173,20 +181,20 @@ export const PaymentSubmissionCreate = () => {
   }
 
   // ─── Totals ─────────────────────────────────────────────────────────
-  const totalSelected = selectedDesignIds.size + selectedTaskIds.size
+  const totalSelected = selectedRunIds.size + selectedTaskIds.size
 
   const totalAmount = useMemo(() => {
-    const designTotal = eligibleDesigns
-      .filter((d: any) => selectedDesignIds.has(d.id))
-      .reduce((sum: number, d: any) => sum + getEffectiveDesignCost(d), 0)
+    const runTotal = eligibleRuns
+      .filter((r: PayableRun) => selectedRunIds.has(r.run_id))
+      .reduce((sum: number, r: PayableRun) => sum + getEffectiveRunTotal(r), 0)
     const taskTotal = eligibleTasks
       .filter((t) => selectedTaskIds.has(t.id))
       .reduce((sum, t) => sum + getEffectiveTaskCost(t), 0)
-    return designTotal + taskTotal
+    return runTotal + taskTotal
   }, [
-    eligibleDesigns,
-    selectedDesignIds,
-    getEffectiveDesignCost,
+    eligibleRuns,
+    selectedRunIds,
+    getEffectiveRunTotal,
     eligibleTasks,
     selectedTaskIds,
     getEffectiveTaskCost,
@@ -195,41 +203,61 @@ export const PaymentSubmissionCreate = () => {
   // ─── Submit ─────────────────────────────────────────────────────────
   const handleSubmit = async () => {
     if (totalSelected === 0) {
-      toast.error("Select at least one design or task")
+      toast.error("Select at least one run or task")
       return
     }
 
-    const invalidDesigns = eligibleDesigns.filter(
-      (d: any) =>
-        selectedDesignIds.has(d.id) && getEffectiveDesignCost(d) <= 0
+    // Validate runs: all must have a quantity and a unit amount
+    const invalidRuns = eligibleRuns.filter(
+      (r: PayableRun) =>
+        selectedRunIds.has(r.run_id) &&
+        (getEffectiveRunUnitAmount(r) <= 0 || getEffectiveRunQuantity(r) <= 0)
     )
     const invalidTasks = eligibleTasks.filter(
       (t) => selectedTaskIds.has(t.id) && getEffectiveTaskCost(t) <= 0
     )
-    if (invalidDesigns.length || invalidTasks.length) {
+    if (invalidRuns.length || invalidTasks.length) {
       const names = [
-        ...invalidDesigns.map((d: any) => d.name || d.id),
+        ...invalidRuns.map((r: PayableRun) => r.design_name || r.run_id),
         ...invalidTasks.map((t) => t.title || t.id),
       ]
-      toast.error(`Enter a cost for: ${names.join(", ")}`)
+      toast.error(`Enter valid quantity and unit amount for: ${names.join(", ")}`)
       return
     }
 
     try {
-      /**
-       * Typed fields rather than `metadata` keys. These are what the partner is
-       * asking to be paid, and the route validated `metadata` as
-       * `z.record(z.string(), z.any())` — a mistyped key validated cleanly and
-       * then silently priced the line off the design's stored cost instead.
-       * The route folds these onto the metadata channel itself, so reviewers
-       * still see original vs. requested exactly as before.
-       */
+      // Build production_run_ids mapping: design_id -> [run_id, ...]
+      // Group selected runs by design
+      const productionRunIds: Record<string, string[]> = {}
+      const quantities: Record<string, number> = {}
+      const unitAmounts: Record<string, number> = {}
+
+      for (const run of eligibleRuns) {
+        if (selectedRunIds.has(run.run_id)) {
+          const designId = run.design_id
+
+          if (!productionRunIds[designId]) {
+            productionRunIds[designId] = []
+          }
+          productionRunIds[designId].push(run.run_id)
+
+          // Store quantity and unit amount by design (they'll be the same for all runs of one design)
+          quantities[designId] = getEffectiveRunQuantity(run)
+          unitAmounts[designId] = getEffectiveRunUnitAmount(run)
+        }
+      }
+
       await createSubmission({
-        design_ids: Array.from(selectedDesignIds),
         task_ids: Array.from(selectedTaskIds),
         notes: notes || undefined,
-        cost_overrides: Object.keys(designCostOverrides).length
-          ? designCostOverrides
+        production_run_ids: Object.keys(productionRunIds).length
+          ? productionRunIds
+          : undefined,
+        quantities: Object.keys(quantities).length
+          ? quantities
+          : undefined,
+        unit_amounts: Object.keys(unitAmounts).length
+          ? unitAmounts
           : undefined,
         task_cost_overrides: Object.keys(taskCostOverrides).length
           ? taskCostOverrides
@@ -297,17 +325,17 @@ export const PaymentSubmissionCreate = () => {
 
           <Tabs
             value={activeTab}
-            onValueChange={(v) => setActiveTab(v as "designs" | "tasks")}
+            onValueChange={(v) => setActiveTab(v as "runs" | "tasks")}
           >
             <Tabs.List>
-              <Tabs.Trigger value="designs">
-                Designs{" "}
+              <Tabs.Trigger value="runs">
+                Production Runs{" "}
                 <Badge size="2xsmall" color="grey" className="ml-2">
-                  {eligibleDesigns.length}
+                  {eligibleRuns.length}
                 </Badge>
-                {selectedDesignIds.size > 0 && (
+                {selectedRunIds.size > 0 && (
                   <Badge size="2xsmall" color="green" className="ml-1">
-                    {selectedDesignIds.size} picked
+                    {selectedRunIds.size} picked
                   </Badge>
                 )}
               </Tabs.Trigger>
@@ -324,16 +352,19 @@ export const PaymentSubmissionCreate = () => {
               </Tabs.Trigger>
             </Tabs.List>
 
-            <Tabs.Content value="designs" className="mt-4">
-              <DesignsPanel
-                eligibleDesigns={eligibleDesigns}
-                isLoading={designsLoading}
-                selectedIds={selectedDesignIds}
-                onToggle={toggleDesign}
-                onSelectAll={selectAllDesigns}
-                costOverrides={designCostOverrides}
-                onCostChange={handleDesignCostChange}
-                getEffectiveCost={getEffectiveDesignCost}
+            <Tabs.Content value="runs" className="mt-4">
+              <RunsPanel
+                eligibleRuns={eligibleRuns}
+                isLoading={runsLoading}
+                selectedIds={selectedRunIds}
+                onToggle={toggleRun}
+                onSelectAll={selectAllRuns}
+                quantities={runQuantities}
+                onQuantityChange={handleRunQuantityChange}
+                unitAmounts={runUnitAmounts}
+                onUnitAmountChange={handleRunUnitAmountChange}
+                getEffectiveQuantity={getEffectiveRunQuantity}
+                getEffectiveUnitAmount={getEffectiveRunUnitAmount}
               />
             </Tabs.Content>
 
@@ -356,42 +387,48 @@ export const PaymentSubmissionCreate = () => {
   )
 }
 
-// ─── Designs panel ────────────────────────────────────────────────────
-const DesignsPanel = ({
-  eligibleDesigns,
+// ─── Runs panel ───────────────────────────────────────────────────────
+const RunsPanel = ({
+  eligibleRuns,
   isLoading,
   selectedIds,
   onToggle,
   onSelectAll,
-  costOverrides,
-  onCostChange,
-  getEffectiveCost,
+  quantities,
+  onQuantityChange,
+  unitAmounts,
+  onUnitAmountChange,
+  getEffectiveQuantity,
+  getEffectiveUnitAmount,
 }: {
-  eligibleDesigns: any[]
+  eligibleRuns: PayableRun[]
   isLoading: boolean
   selectedIds: Set<string>
   onToggle: (id: string) => void
   onSelectAll: () => void
-  costOverrides: Record<string, number>
-  onCostChange: (id: string, value: string) => void
-  getEffectiveCost: (d: any) => number
+  quantities: Record<string, number>
+  onQuantityChange: (id: string, value: string) => void
+  unitAmounts: Record<string, number>
+  onUnitAmountChange: (id: string, value: string) => void
+  getEffectiveQuantity: (run: PayableRun) => number
+  getEffectiveUnitAmount: (run: PayableRun) => number
 }) => {
   if (isLoading) {
     return (
       <Container className="p-8">
         <Text className="text-ui-fg-subtle text-center">
-          Loading designs...
+          Loading production runs...
         </Text>
       </Container>
     )
   }
 
-  if (!eligibleDesigns.length) {
+  if (!eligibleRuns.length) {
     return (
       <Container className="p-8">
         <Text className="text-ui-fg-subtle text-center">
-          No eligible designs. Designs must be Approved or Commerce Ready to be
-          submitted for payment.
+          No payable production runs. Production runs that have been completed
+          by the partner will appear here.
         </Text>
       </Container>
     )
@@ -400,23 +437,21 @@ const DesignsPanel = ({
   return (
     <div className="flex flex-col gap-y-2">
       <div className="mb-1 flex items-center justify-between">
-        <Heading level="h3">{eligibleDesigns.length} eligible</Heading>
+        <Heading level="h3">{eligibleRuns.length} eligible</Heading>
         <Button variant="secondary" size="small" onClick={onSelectAll}>
-          {selectedIds.size === eligibleDesigns.length
+          {selectedIds.size === eligibleRuns.length
             ? "Deselect All"
             : "Select All"}
         </Button>
       </div>
-      {eligibleDesigns.map((design: any) => {
-        const isSelected = selectedIds.has(design.id)
-        const defaultCost = Number(
-          design.estimated_cost || design.production_cost || 0
-        )
-        const effectiveCost = getEffectiveCost(design)
+      {eligibleRuns.map((run: PayableRun) => {
+        const isSelected = selectedIds.has(run.run_id)
+        const effectiveQuantity = getEffectiveQuantity(run)
+        const effectiveUnitAmount = getEffectiveUnitAmount(run)
 
         return (
           <Container
-            key={design.id}
+            key={run.run_id}
             className={`p-4 transition ${
               isSelected ? "ring-2 ring-ui-border-interactive" : ""
             }`}
@@ -424,42 +459,49 @@ const DesignsPanel = ({
             <div className="flex items-center gap-3">
               <div
                 className="cursor-pointer"
-                onClick={() => onToggle(design.id)}
+                onClick={() => onToggle(run.run_id)}
               >
                 <Checkbox checked={isSelected} />
               </div>
               <div
                 className="flex-1 min-w-0 cursor-pointer"
-                onClick={() => onToggle(design.id)}
+                onClick={() => onToggle(run.run_id)}
               >
                 <div className="flex items-center gap-2">
                   <Text weight="plus" className="truncate">
-                    {design.name || "Unnamed design"}
+                    {run.design_name || "Unnamed design"}
                   </Text>
                   <Badge color="grey" size="2xsmall">
-                    {design.status?.replace(/_/g, " ")}
+                    {run.quantity_basis === "produced"
+                      ? `${run.produced_quantity} made`
+                      : `${run.ordered_quantity} ordered`}
                   </Badge>
+                  {run.billing_status === "unknown" && (
+                    <Badge color="orange" size="2xsmall">
+                      Unknown billing
+                    </Badge>
+                  )}
                 </div>
                 <div className="flex items-center gap-4 mt-1">
-                  {design.design_type && (
-                    <Text size="small" className="text-ui-fg-subtle">
-                      Type: {design.design_type}
-                    </Text>
-                  )}
+                  <Text size="small" className="text-ui-fg-subtle">
+                    Completed {new Date(run.completed_at || "").toLocaleDateString()}
+                  </Text>
                   <Text
                     size="small"
                     className="text-ui-fg-muted font-mono"
                   >
-                    {design.id.slice(0, 12)}...
+                    {run.run_id.slice(0, 12)}...
                   </Text>
                 </div>
               </div>
-              <CostInput
-                id={design.id}
-                defaultCost={defaultCost}
-                override={costOverrides[design.id]}
-                onChange={onCostChange}
-                effectiveCost={effectiveCost}
+              <RunCostInput
+                run={run}
+                quantity={quantities[run.run_id]}
+                unitAmount={unitAmounts[run.run_id]}
+                onQuantityChange={onQuantityChange}
+                onUnitAmountChange={onUnitAmountChange}
+                effectiveQuantity={effectiveQuantity}
+                effectiveUnitAmount={effectiveUnitAmount}
               />
             </div>
           </Container>
@@ -595,55 +637,71 @@ const TasksPanel = ({
   )
 }
 
-// ─── Shared cost input ────────────────────────────────────────────────
-const CostInput = ({
-  id,
-  defaultCost,
-  override,
-  onChange,
-  effectiveCost,
+// ─── Run cost input ───────────────────────────────────────────────────
+const RunCostInput = ({
+  run,
+  quantity,
+  unitAmount,
+  onQuantityChange,
+  onUnitAmountChange,
+  effectiveQuantity,
+  effectiveUnitAmount,
 }: {
-  id: string
-  defaultCost: number
-  override?: number
-  onChange: (id: string, value: string) => void
-  effectiveCost: number
+  run: PayableRun
+  quantity?: number
+  unitAmount?: number
+  onQuantityChange: (id: string, value: string) => void
+  onUnitAmountChange: (id: string, value: string) => void
+  effectiveQuantity: number
+  effectiveUnitAmount: number
 }) => {
+  const total = effectiveQuantity * effectiveUnitAmount
+
   return (
-    <div className="flex flex-col items-end gap-1 shrink-0">
-      <div className="flex items-center gap-2">
-        <Text
-          size="xsmall"
-          className="text-ui-fg-muted whitespace-nowrap"
-        >
-          INR
-        </Text>
-        <Input
-          type="number"
-          size="small"
-          className="w-28 text-right"
-          placeholder={defaultCost ? String(defaultCost) : "0"}
-          value={
-            override != null
-              ? String(override)
-              : defaultCost
-              ? String(defaultCost)
-              : ""
-          }
-          onChange={(e) => onChange(id, e.target.value)}
-          onClick={(e) => e.stopPropagation()}
-        />
+    <div className="flex flex-col items-end gap-2 shrink-0 w-60">
+      <div className="flex gap-2 w-full">
+        <div className="flex-1 flex flex-col items-end gap-1">
+          <Text size="xsmall" className="text-ui-fg-muted">
+            Qty
+          </Text>
+          <Input
+            type="number"
+            size="small"
+            className="w-full text-right"
+            placeholder={String(run.payable_quantity)}
+            value={quantity != null ? String(quantity) : ""}
+            onChange={(e) => onQuantityChange(run.run_id, e.target.value)}
+            onClick={(e) => e.stopPropagation()}
+          />
+        </div>
+        <div className="flex-1 flex flex-col items-end gap-1">
+          <Text size="xsmall" className="text-ui-fg-muted">
+            Rate (₹)
+          </Text>
+          <Input
+            type="number"
+            size="small"
+            className="w-full text-right"
+            placeholder={String(run.unit_amount)}
+            value={unitAmount != null ? String(unitAmount) : ""}
+            onChange={(e) => onUnitAmountChange(run.run_id, e.target.value)}
+            onClick={(e) => e.stopPropagation()}
+          />
+        </div>
       </div>
-      {defaultCost > 0 && effectiveCost !== defaultCost && (
+      <div className="w-full text-right">
+        <Text size="small" className="text-ui-fg-base font-semibold">
+          Total: ₹{total.toLocaleString()}
+        </Text>
+      </div>
+      {run.payable_quantity !== effectiveQuantity && (
         <Text size="xsmall" className="text-ui-fg-muted">
-          was {defaultCost.toLocaleString()}
+          was {run.payable_quantity} units
         </Text>
       )}
-      {/* The prefilled figure is the design's PER-PIECE cost. Unlabelled, a
-          partner who made nine of something submitted the price of one. */}
-      {defaultCost > 0 && effectiveCost === defaultCost && (
-        <Text size="xsmall" className="text-ui-fg-subtle">
-          per piece — enter your total
+      {run.unit_amount !== effectiveUnitAmount && (
+        <Text size="xsmall" className="text-ui-fg-muted">
+          was ₹{run.unit_amount.toLocaleString()}/unit
         </Text>
       )}
     </div>
