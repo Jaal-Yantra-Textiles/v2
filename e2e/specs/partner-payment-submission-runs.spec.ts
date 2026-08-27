@@ -121,7 +121,9 @@ test.describe("Partner payment submission from runs @partnerui (#1571)", () => {
   test("lists completed RUNS with their produced quantity and agreed rate", async ({
     page,
   }) => {
-    const tab = page.getByRole("tab", { name: /production runs/i })
+    // One table with an All/Runs/Tasks filter — the per-source tabs are gone
+    // (#1571). "Runs" narrows it; "All" (the default) already shows them.
+    const tab = page.getByRole("tab", { name: /^runs$/i })
     await expect(tab).toBeVisible({ timeout: 30_000 })
     await tab.click()
 
@@ -146,7 +148,7 @@ test.describe("Partner payment submission from runs @partnerui (#1571)", () => {
   test("shows a run with no agreed rate rather than hiding or zero-billing it", async ({
     page,
   }) => {
-    await page.getByRole("tab", { name: /production runs/i }).click()
+    await page.getByRole("tab", { name: /^runs$/i }).click()
     const card = runCard(page, seed.unpricedRunId)
     await expect(card).toBeVisible({ timeout: 30_000 })
     await expect(card).toContainText("2 made")
@@ -164,13 +166,17 @@ test.describe("Partner payment submission from runs @partnerui (#1571)", () => {
   test("submits a payout that records the run and bills quantity x rate", async ({
     page,
   }) => {
-    await page.getByRole("tab", { name: /production runs/i }).click()
+    await page.getByRole("tab", { name: /^runs$/i }).click()
     const card = runCard(page, seed.partnerBillableRunId)
     await expect(card).toBeVisible({ timeout: 30_000 })
     await card.getByRole("checkbox").click()
 
-    // The header total is the screen's own arithmetic: 4 x 1200.
-    await expect(page.getByText(/INR\s*4,?800/)).toBeVisible()
+    // The command bar's own arithmetic: 4 x 1200. It lives at the bottom of
+    // the screen now, not in the modal header (#1571) — and it only appears
+    // once something is selected, so this also asserts the click landed.
+    await expect(page.getByTestId("submission-total")).toContainText(
+      /INR\s*4,?800/
+    )
 
     const [response] = await Promise.all([
       page.waitForResponse(
@@ -208,7 +214,7 @@ test.describe("Partner payment submission from runs @partnerui (#1571)", () => {
   test("sums the quantity when two runs of one design are billed together", async ({
     page,
   }) => {
-    await page.getByRole("tab", { name: /production runs/i }).click()
+    await page.getByRole("tab", { name: /^runs$/i }).click()
 
     const a = runCard(page, seed.partnerSumRunAId)
     await expect(a).toBeVisible({ timeout: 30_000 })
