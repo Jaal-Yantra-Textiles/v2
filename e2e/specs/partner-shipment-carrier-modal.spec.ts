@@ -59,9 +59,8 @@ test.describe("Partner shipment carrier modal @partnerui", () => {
    * say whether the selector is stale or the screen is broken. `fixme` rather
    * than a silent skip: the report names it every run.
    *
-   * 🔴 #1576 UPDATE — the original diagnosis ("tab stays inactive, selector
-   * may be stale") was wrong on both counts, and the truth is worse: this case
-   * CANNOT PASS ANYWHERE, credentials or not.
+   * 🔴 #1576 — un-parked. The original diagnosis ("tab stays inactive,
+   * selector may be stale") was wrong on both counts. The real cause:
    *
    * `POST /partners/orders/:id/shiprocket-attach-awb` calls
    * `provider.track({ awb })` against the LIVE Shiprocket API, and throws twice
@@ -76,11 +75,16 @@ test.describe("Partner shipment carrier modal @partnerui", () => {
    * "Shipment" and `/^shipment$/i` matches — checked in @medusajs/ui, not
    * assumed. Do not "fix" this by loosening the regex.
    *
-   * To un-park it, one of: stub the shipping provider for e2e, or seed a
-   * known-good AWB on the test Shiprocket account. A tag-and-exclude (the
-   * `@llm` treatment) would only hide it.
+   * Fixed by giving the existing `SHIPROCKET_STUB=1` transport a
+   * `/courier/track/awb/:awb` handler — it had every other endpoint but that
+   * one, so it 404'd the lookup and the client threw exactly as the live API
+   * would. The e2e job now sets it. The stub echoes back the AWB it was asked
+   * about, so this really does test the round-trip.
+   *
+   * ⚠️ What this no longer covers: a waybill Shiprocket REJECTS. The stub
+   * models success only, so "foreign AWB refused" has no test.
    */
-  test.fixme("attaching an AWB in step 1 does not mark the fulfillment shipped", async ({
+  test("attaching an AWB in step 1 does not mark the fulfillment shipped", async ({
     page,
   }) => {
     await page.goto(SHIPMENT_URL)
@@ -128,9 +132,8 @@ test.describe("Partner shipment carrier modal @partnerui", () => {
    * say whether the selector is stale or the screen is broken. `fixme` rather
    * than a silent skip: the report names it every run.
    *
-   * 🔴 #1576 UPDATE — the original diagnosis ("tab stays inactive, selector
-   * may be stale") was wrong on both counts, and the truth is worse: this case
-   * CANNOT PASS ANYWHERE, credentials or not.
+   * 🔴 #1576 — un-parked. The original diagnosis ("tab stays inactive,
+   * selector may be stale") was wrong on both counts. The real cause:
    *
    * `POST /partners/orders/:id/shiprocket-attach-awb` calls
    * `provider.track({ awb })` against the LIVE Shiprocket API, and throws twice
@@ -145,11 +148,16 @@ test.describe("Partner shipment carrier modal @partnerui", () => {
    * "Shipment" and `/^shipment$/i` matches — checked in @medusajs/ui, not
    * assumed. Do not "fix" this by loosening the regex.
    *
-   * To un-park it, one of: stub the shipping provider for e2e, or seed a
-   * known-good AWB on the test Shiprocket account. A tag-and-exclude (the
-   * `@llm` treatment) would only hide it.
+   * Fixed by giving the existing `SHIPROCKET_STUB=1` transport a
+   * `/courier/track/awb/:awb` handler — it had every other endpoint but that
+   * one, so it 404'd the lookup and the client threw exactly as the live API
+   * would. The e2e job now sets it. The stub echoes back the AWB it was asked
+   * about, so this really does test the round-trip.
+   *
+   * ⚠️ What this no longer covers: a waybill Shiprocket REJECTS. The stub
+   * models success only, so "foreign AWB refused" has no test.
    */
-  test.fixme("completing step 2 marks the fulfillment shipped", async ({ page }) => {
+  test("completing step 2 marks the fulfillment shipped", async ({ page }) => {
     await page.goto(SHIPMENT_URL)
 
     // Skip the carrier step — a partner shipping on their own account never
