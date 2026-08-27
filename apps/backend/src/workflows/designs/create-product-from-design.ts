@@ -54,19 +54,10 @@ type CreateProductFromDesignInput = {
    */
   made_to_order?: boolean;
   /**
-   * The price to list, ALREADY in major units and already in `currency_code`.
+   * The price to list, in major units and already in `currency_code`.
    *
-   * ⚠️ Deliberately separate from `estimated_cost`, which this workflow has
-   * always multiplied by 100 before writing. Every other price in this
-   * codebase is a decimal — `accept-quote` writes `amount: freight` and the
-   * minted price list writes `quoted_unit_amount` raw — so that ×100 looks
-   * like a cent-conversion inherited from Medusa v1 that would make a listed
-   * price a hundred times too dear. Nothing tests it and nothing else reads
-   * it, so it is left exactly as it was rather than "fixed" blind on a live
-   * catalogue path; this input exists so the quote path does not inherit it.
-   *
-   * When given, it is written verbatim. `estimated_cost` is then only used for
-   * the legacy path.
+   * Overrides `estimated_cost` when given. Both are now written verbatim —
+   * see `resolveListedPrice` for what changed and why.
    */
   unit_price?: number | null;
 };
@@ -77,6 +68,36 @@ type CreateProductFromDesignOutput = {
   price: number;
   is_new_product: boolean;
 };
+
+/**
+ * PURE: the amount written to `variant.prices[].amount`. Exported for tests.
+ *
+ * Medusa 2.x prices are DECIMAL major units — the seed lists a €10 shirt as
+ * `amount: 10` through this same `createProductsWorkflow`, `accept-quote`
+ * writes `amount: freight` raw, and the minted price list writes
+ * `quoted_unit_amount` raw. This workflow was the only place that multiplied,
+ * doing `Math.round(estimated_cost * 100)`: a cent conversion inherited from
+ * Medusa v1, where amounts really were minor units.
+ *
+ * So a design approved at ₹850 was listed at 85,000. Nothing downstream divided
+ * it back — and the workflow's own output reported `price: estimated_cost`, the
+ * UNMULTIPLIED figure, so it told its caller one price and listed another. That
+ * contradiction is the tell that the ×100 was a leftover and not a convention.
+ *
+ * `unit_price` was added by the quote path precisely to sidestep the multiply;
+ * with the multiply gone the two inputs mean the same thing, and `unit_price`
+ * simply wins when both are supplied.
+ */
+export function resolveListedPrice(input: {
+  estimated_cost: number;
+  unit_price?: number | null;
+}): number {
+  const raw = input.unit_price != null ? input.unit_price : input.estimated_cost;
+  const n = Number(raw);
+  // A NaN here would reach the price row and fail the write with nothing said
+  // about which design caused it.
+  return Number.isFinite(n) && n > 0 ? n : 0;
+}
 
 /**
  * Single step that handles all the product/variant creation logic
@@ -90,11 +111,7 @@ const createProductAndVariantStep = createStep(
     const currencyCode = input.currency_code || "usd";
     const madeToOrder = !!input.made_to_order;
 
-    // See `unit_price` above for why these two spellings differ.
-    const priceAmount =
-      input.unit_price != null
-        ? Number(input.unit_price)
-        : Math.round(input.estimated_cost * 100);
+    const priceAmount = resolveListedPrice(input);
 
     // A made-to-order variant is produced after it is sold, so there is no
     // stock to manage and never will be before the run.
@@ -404,7 +421,9 @@ const createProductAndVariantStep = createStep(
     const output: CreateProductFromDesignOutput = {
       product_id,
       variant_id,
-      price: input.estimated_cost,
+      // What was actually listed. This used to report `estimated_cost` while
+      // the row was written at ×100, so the workflow contradicted itself.
+      price: priceAmount,
       is_new_product,
     };
 
