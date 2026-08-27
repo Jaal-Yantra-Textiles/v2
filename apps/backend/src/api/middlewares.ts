@@ -3645,6 +3645,21 @@ export default defineMiddlewares({
         authenticate("partner", ["session", "bearer"]),
       ],
     },
+    /**
+     * ⚠️ Must precede the `/partners/payment-submissions` GET entry below.
+     * Matching is prefix-based, so the list route's query validator would
+     * otherwise claim this path and reject it on an unknown query shape.
+     *
+     * 🔑 The `/partners*` wildcard only supplies CORS and locale —
+     * `authenticate("partner", …)` is registered per route. A partner route
+     * with no entry here has no `auth_context` at all, so it 401s on every
+     * request while looking perfectly correct in the route file.
+     */
+    {
+      matcher: "/partners/payment-submissions/payable-runs",
+      method: "GET",
+      middlewares: [authenticate("partner", ["session", "bearer"])],
+    },
     {
       matcher: "/partners/payment-submissions",
       method: "GET",
