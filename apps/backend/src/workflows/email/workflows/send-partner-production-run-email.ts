@@ -18,7 +18,29 @@ import {
   derivePartnerFromEmail,
   resolvePartnerProductionRunTemplateKey,
   type ProductionRunEmailAction,
+  type ProductionRunInactivity,
 } from "./partner-production-run-email-lib"
+
+export interface SendPartnerProductionRunEmailInput {
+  productionRunId: string
+  partnerId?: string
+  action: ProductionRunEmailAction
+  notes?: string
+  /** Inactivity facts for the `expiring` warning and the auto-cancellation. */
+  inactivity?: ProductionRunInactivity
+  /**
+   * Suppresses a repeat send of the SAME notification.
+   *
+   * 🔑 Only the inactivity warning passes one. A sweep is re-runnable by
+   * design and a partner must not be mailed "your run expires in 5 days" once
+   * per operator run — but `completed` / `cancelled` fire on a terminal state
+   * change that cannot repeat, so giving them a key would only risk
+   * suppressing a genuine send. The notification module skips a key it has
+   * already sent successfully and RETRIES one whose last attempt failed, which
+   * is exactly the behaviour a warning wants.
+   */
+  idempotencyKey?: string
+}
 
 // ---------------------------------------------------------------------------
 // Step: resolve partner (from the run when the event omits partner_id) + active
@@ -32,15 +54,7 @@ import {
 // ---------------------------------------------------------------------------
 const sendPartnerProductionRunStep = createStep(
   { name: "send-partner-production-run-notification", store: true },
-  async (
-    input: {
-      productionRunId: string
-      partnerId?: string
-      action: ProductionRunEmailAction
-      notes?: string
-    },
-    { container }
-  ) => {
+  async (input: SendPartnerProductionRunEmailInput, { container }) => {
     const { productionRunId, action } = input
 
     const templateKey = resolvePartnerProductionRunTemplateKey(action)
@@ -132,6 +146,7 @@ const sendPartnerProductionRunStep = createStep(
         run,
         action,
         notes: input.notes,
+        inactivity: input.inactivity,
         storeUrl: process.env.FRONTEND_URL || "",
         runUrlBase,
       })
@@ -144,6 +159,11 @@ const sendPartnerProductionRunStep = createStep(
           to: admin.email,
           channel: "email_partner",
           template: templateKey,
+          // Per-ADMIN, so a partner with two admins still gets two emails and
+          // only a repeat of the same warning to the same person is skipped.
+          ...(input.idempotencyKey
+            ? { idempotency_key: `${input.idempotencyKey}:${admin.email}` }
+            : {}),
           data: {
             ...templateData,
             _template_subject: renderedSubject,
@@ -171,12 +191,7 @@ const sendPartnerProductionRunStep = createStep(
 
 export const sendPartnerProductionRunEmailWorkflow = createWorkflow(
   { name: "send-partner-production-run-email", store: true },
-  (input: {
-    productionRunId: string
-    partnerId?: string
-    action: ProductionRunEmailAction
-    notes?: string
-  }) => {
+  (input: SendPartnerProductionRunEmailInput) => {
     const result = sendPartnerProductionRunStep(input)
     return new WorkflowResponse(result)
   }

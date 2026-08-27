@@ -329,6 +329,8 @@ jobs:
             if [ "$MIGRATED" = "success" ]; then
               BEFORE=$(gh api "repos/${{ github.repository }}/actions/runs/${RUN_ID}" --jq '.head_sha' 2>/dev/null || true)
               echo "→ base = last MIGRATED sha ${BEFORE} (run ${RUN_ID})"
+              echo "base=${BEFORE}" >> "$GITHUB_OUTPUT"
+              echo "base_run=${RUN_ID}" >> "$GITHUB_OUTPUT"
               break
             fi
           done
@@ -397,11 +399,25 @@ jobs:
 
       - name: Skipped
         if: steps.gate.outputs.run != 'true'
-        # Names the base it compared against: "skipped" is only trustworthy if
-        # you can see what it was measured from (#1464 read as `success` for
-        # days precisely because it could not be).
+        # 🔑 A skip has to name the base it measured from, or it cannot be
+        # argued with. #1464 read as `success` for days precisely because
+        # "skipped" looked identical whether the base was right or catastrophic.
+        #
+        # The anchor is the last run that actually APPLIED migrations, not the
+        # last that deployed — the earlier wording said DEPLOYED and described a
+        # design we deliberately do not have.
+        env:
+          BASE_SHA: ${{ steps.gate.outputs.base }}
+          BASE_RUN: ${{ steps.gate.outputs.base_run }}
         run: |
-          echo "Migration task skipped — no schema-affecting changes since the last DEPLOYED commit."
+          echo "Migration task skipped — no migration/model/link/config path changed"
+          echo "since ${BASE_SHA:-<unknown>}, the last commit whose deploy actually"
+          echo "APPLIED migrations (run ${BASE_RUN:-<unknown>})."
+          echo
+          echo "Everything merged since that sha is still inside this diff, so a"
+          echo "migration stranded by a cancelled run stays visible until some run"
+          echo "applies it. If that sha looks far older than you expect, that is"
+          echo "correct — the anchor only advances when a migration truly ran."
 
   # ─────────────────────────────────────────────────────────────────────────
   # 3. Deploy server + worker in parallel via Copilot. Each deploy is its

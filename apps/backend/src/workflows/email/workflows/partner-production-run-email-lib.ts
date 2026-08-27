@@ -4,7 +4,33 @@
 //
 // Mirrors lib/partner-task-email.ts so partner task + run emails share one shape.
 
-export type ProductionRunEmailAction = "completed" | "cancelled"
+export type ProductionRunEmailAction = "completed" | "cancelled" | "expiring"
+
+/**
+ * The inactivity facts behind an expiry warning or an auto-cancellation.
+ *
+ * 🔑 `inactive_days` is the RUN's own age, never the policy window. The prod
+ * case that motivated this is 81 days idle against a 28-day policy; telling
+ * that partner "cancelled after 28 days" reports the rule instead of what
+ * happened to their work, and they cannot reconcile it with the run they are
+ * looking at.
+ *
+ * Every field is optional because the same two templates also serve the manual
+ * admin cancel, where none of it applies — the bodies gate the whole block on
+ * `{{#if inactive_days}}` so an admin cancel renders exactly as it did before.
+ */
+export interface ProductionRunInactivity {
+  /** Days since the run's last lifecycle stamp. */
+  inactive_days?: number | null
+  /** The policy window that will cancel it (28 by default). */
+  window_days?: number | null
+  /** Days left before the sweep would cancel it — the warning's whole point. */
+  days_until_cancel?: number | null
+  /** ISO date (YYYY-MM-DD) the run becomes cancellable. */
+  cancel_on?: string | null
+  /** ISO timestamp of the last activity, so the partner can argue with it. */
+  last_activity_at?: string | null
+}
 
 export interface PartnerProductionRunTemplateInput {
   partner: { name?: string | null; handle?: string | null }
@@ -19,6 +45,8 @@ export interface PartnerProductionRunTemplateInput {
     order_id?: string | null
   }
   action: ProductionRunEmailAction
+  /** Inactivity facts for the expiring / auto-cancelled bodies. */
+  inactivity?: ProductionRunInactivity | null
   /** Free-text notes/reason surfaced in the body (completion notes or cancel reason). */
   notes?: string | null
   /** Storefront URL (FRONTEND_URL) surfaced in the footer. */
@@ -31,14 +59,16 @@ export interface PartnerProductionRunTemplateInput {
 
 /**
  * DB template key for a production-run lifecycle email.
- * Only `completed` and `cancelled` have partner emails (#576 slice B); any other
- * action returns null so the workflow can skip without guessing a key.
+ * `completed` and `cancelled` are #576 slice B; `expiring` is the #1574
+ * inactivity warning sent BEFORE the sweep cancels. Any other action returns
+ * null so the workflow can skip without guessing a key.
  */
 export function resolvePartnerProductionRunTemplateKey(
   action: string | null | undefined
 ): string | null {
   if (action === "completed") return "partner-production-run-completed"
   if (action === "cancelled") return "partner-production-run-cancelled"
+  if (action === "expiring") return "partner-production-run-expiring"
   return null
 }
 
@@ -64,6 +94,7 @@ export function buildPartnerProductionRunTemplateData(
   input: PartnerProductionRunTemplateInput
 ): Record<string, string> {
   const { partner, admin, run, action } = input
+  const inactivity = input.inactivity || {}
   const adminName = `${admin.first_name || ""} ${admin.last_name || ""}`.trim()
   const runId = run.id || ""
   const base = (input.runUrlBase || "").replace(/\/$/, "")
@@ -86,6 +117,14 @@ export function buildPartnerProductionRunTemplateData(
     design_id: run.design_id || "",
     order_id: run.order_id || "",
     notes: input.notes || "",
+    // Blank (not "0"/"undefined") when there is no inactivity context, because
+    // the templates gate their inactivity block on `{{#if}}` and Handlebars
+    // treats only the empty string as absent.
+    inactive_days: numOrEmpty(inactivity.inactive_days),
+    inactivity_window_days: numOrEmpty(inactivity.window_days),
+    days_until_cancel: numOrEmpty(inactivity.days_until_cancel),
+    cancel_on: inactivity.cancel_on || "",
+    last_activity_at: inactivity.last_activity_at || "",
     run_url: runUrl,
     current_year: String(input.year ?? new Date().getFullYear()),
     store_url: input.storeUrl || "",

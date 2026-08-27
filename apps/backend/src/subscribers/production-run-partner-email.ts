@@ -12,6 +12,11 @@ import {
  * is completed or cancelled. Runs alongside the feed-only
  * production-run-notifications subscriber.
  *
+ * #1574 adds `production_run.expiring`: the warning the inactivity sweep sends
+ * BEFORE it cancels. Its payload carries the inactivity facts (how long idle,
+ * when it will be cancelled) and an `idempotency_key`, because a sweep is
+ * re-runnable and a partner must not be told once per operator run.
+ *
  * partner_id may be absent from the event payload (the admin cancel route emits
  * production_run.cancelled without it) — the workflow resolves the partner from
  * the run itself. Best-effort: a missing template/partner is logged + skipped,
@@ -26,6 +31,12 @@ export default async function productionRunPartnerEmailHandler({
   partner_id?: string
   action?: string
   notes?: string
+  inactive_days?: number
+  inactivity_window_days?: number
+  days_until_cancel?: number
+  cancel_on?: string
+  last_activity_at?: string
+  idempotency_key?: string
 }>) {
   const logger = container.resolve(ContainerRegistrationKeys.LOGGER) as Logger
   const data = event.data
@@ -49,6 +60,14 @@ export default async function productionRunPartnerEmailHandler({
         partnerId: data.partner_id,
         action,
         notes: data.notes,
+        inactivity: {
+          inactive_days: data.inactive_days,
+          window_days: data.inactivity_window_days,
+          days_until_cancel: data.days_until_cancel,
+          cancel_on: data.cancel_on,
+          last_activity_at: data.last_activity_at,
+        },
+        idempotencyKey: data.idempotency_key,
       },
     })
   } catch (e: any) {
@@ -59,5 +78,9 @@ export default async function productionRunPartnerEmailHandler({
 }
 
 export const config: SubscriberConfig = {
-  event: ["production_run.completed", "production_run.cancelled"],
+  event: [
+    "production_run.completed",
+    "production_run.cancelled",
+    "production_run.expiring",
+  ],
 }

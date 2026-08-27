@@ -1,5 +1,8 @@
 import {
+  decideExpiringRunWarnings,
   decideInactiveRunCancellations,
+  expiryWarningIdempotencyKey,
+  inactivityCancelReason,
   lastActivityOf,
 } from "../lib/inactive-run-cancellation"
 
@@ -138,5 +141,118 @@ describe("decideInactiveRunCancellations", () => {
 
   it("skips a run with no usable timestamp rather than guessing", () => {
     expect(decide([{ id: "a", status: "in_progress" }])).toEqual([])
+  })
+})
+
+// ---------------------------------------------------------------------------
+// The warning that comes BEFORE the cancellation (#1574)
+// ---------------------------------------------------------------------------
+
+describe("decideExpiringRunWarnings", () => {
+  const warn = (runs: any[], days = 28, warnBeforeDays = 7) =>
+    decideExpiringRunWarnings(runs, { asOf: ASOF, days, warnBeforeDays })
+
+  const at = (daysAgo: number) =>
+    new Date(ASOF.getTime() - daysAgo * 24 * 60 * 60 * 1000).toISOString()
+
+  const run = (id: string, daysAgo: number, status = "in_progress") => ({
+    id,
+    status,
+    created_at: at(daysAgo),
+  })
+
+  it("warns inside the lead-time and names the cancellation date", () => {
+    const [d] = warn([run("r_24d", 24)])
+    expect(d.id).toBe("r_24d")
+    expect(d.inactive_days).toBe(24)
+    expect(d.days_until_cancel).toBe(4)
+    // 24 days idle + a 28-day window = cancellable four days from ASOF.
+    expect(d.cancel_on).toBe("2026-08-31")
+  })
+
+  it("stays silent on work that is still fresh", () => {
+    // Day 20 is outside a 7-day lead on a 28-day window.
+    expect(warn([run("r_20d", 20)])).toEqual([])
+  })
+
+  it("🔑 does NOT warn about a run the sweep would cancel in the same pass", () => {
+    // The two sets must be disjoint, or the partner is warned about a deadline
+    // that has already passed — a notice arriving after the verdict.
+    const runs = [run("r_81d", 81), run("r_28d", 28)]
+    expect(warn(runs)).toEqual([])
+    expect(decide(runs).map((d) => d.id)).toEqual(["r_81d", "r_28d"])
+  })
+
+  it("leaves admin-side and terminal states alone, like the sweep", () => {
+    expect(
+      warn([
+        run("r_approved", 24, "approved"),
+        run("r_reassign", 24, "awaiting_reassignment"),
+        run("r_completed", 24, "completed"),
+        run("r_cancelled", 24, "cancelled"),
+      ])
+    ).toEqual([])
+  })
+
+  it("measures from the last lifecycle stamp, not creation", () => {
+    // Re-dispatched 24 days ago: it is the dispatch that puts it in the window,
+    // and a warning quoting the 93-day creation date would be unanswerable.
+    const [d] = warn([
+      {
+        id: "r_redispatched",
+        status: "sent_to_partner",
+        created_at: at(93),
+        dispatch_started_at: at(24),
+      },
+    ])
+    expect(d.last_activity_field).toBe("dispatch_started_at")
+    expect(d.inactive_days).toBe(24)
+  })
+
+  it("clamps a lead-time that would reach back past day zero", () => {
+    // warn_before_days >= days would start the window at or before the moment
+    // of dispatch and warn about work handed over this morning.
+    expect(warn([run("r_today", 0)], 28, 999)).toEqual([])
+    expect(warn([run("r_today", 0)], 28, 28)).toEqual([])
+    // …while a run genuinely inside the widened window is still warned.
+    expect(warn([run("r_2d", 2)], 28, 27).map((d) => d.id)).toEqual(["r_2d"])
+  })
+
+  it("rounds days_until_cancel UP so a deadline never lands early", () => {
+    // 23.5 days idle ⇒ 4.5 days left. Saying "4" would expire the run half a
+    // day before the partner expects it to.
+    const [d] = warn([
+      { id: "r_half", status: "in_progress", created_at: at(23.5) },
+    ])
+    expect(d.days_until_cancel).toBe(5)
+  })
+
+  it("puts the most urgent first", () => {
+    expect(
+      warn([run("r_22d", 22), run("r_27d", 27), run("r_24d", 24)]).map(
+        (d) => d.id
+      )
+    ).toEqual(["r_27d", "r_24d", "r_22d"])
+  })
+})
+
+describe("expiryWarningIdempotencyKey", () => {
+  it("is keyed on the deadline, not the day it was sent", () => {
+    // Re-running the sweep must not re-mail; a NEW deadline must.
+    expect(expiryWarningIdempotencyKey("prod_run_1", "2026-08-31")).toBe(
+      "partner-run-expiring:prod_run_1:2026-08-31"
+    )
+    expect(expiryWarningIdempotencyKey("prod_run_1", "2026-08-31")).toBe(
+      expiryWarningIdempotencyKey("prod_run_1", "2026-08-31")
+    )
+    expect(expiryWarningIdempotencyKey("prod_run_1", "2026-09-14")).not.toBe(
+      expiryWarningIdempotencyKey("prod_run_1", "2026-08-31")
+    )
+  })
+})
+
+describe("inactivityCancelReason", () => {
+  it("states the run's own age — the prod case is 81 days, not the 28-day rule", () => {
+    expect(inactivityCancelReason(81)).toContain("81 days")
   })
 })
