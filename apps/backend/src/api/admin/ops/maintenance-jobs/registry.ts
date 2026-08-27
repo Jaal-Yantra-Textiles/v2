@@ -101,6 +101,7 @@ import { recomputeEmailEngagementStatusJob } from "./recompute-email-engagement-
 import { generateNewsletterWinbackTargetsJob } from "./generate-newsletter-winback-targets-job"
 import { repairInventoryOrderSourceJob } from "./repair-inventory-order-source-job"
 import { repairInventoryOrderRouteJob } from "./repair-inventory-order-route-job"
+import { cancelInactiveProductionRunsJob } from "./cancel-inactive-production-runs-job"
 import { rewindProductionRunJob } from "./rewind-production-run-job"
 import { repairConsumptionLogJob } from "./repair-consumption-log-job"
 import { setLocationOwnershipJob } from "./set-location-ownership-job"
@@ -157,6 +158,16 @@ export type MaintenanceChange = {
   field?: string
   before?: unknown
   after?: unknown
+  /**
+   * Why this row was selected, in the operator's terms.
+   *
+   * A dry-run that lists ids and nothing else cannot be argued with — you can
+   * see WHAT it would touch but not WHY, so the only way to check a sweep's
+   * judgement is to re-derive it by hand. #1574's inactivity sweep states the
+   * stamp it measured from and the age it computed, so a wrong row is visible
+   * before it is cancelled rather than after.
+   */
+  note?: string
 }
 
 export type MaintenanceJobResult = {
@@ -5790,6 +5801,7 @@ export const seedGoodsTransferTaskTemplateJob: MaintenanceJob = {
 }
 
 export const MAINTENANCE_JOBS: MaintenanceJob[] = [
+  cancelInactiveProductionRunsJob,
   cleanOrderFulfillmentDataJob,
   sendCourierChangedEmailJob,
   resendShipmentEmailJob,

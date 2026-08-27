@@ -5,6 +5,7 @@
  * Module → Workflow → API Route architecture pattern.
  */
 import { ContainerRegistrationKeys, MedusaError, Modules, TransactionHandlerType } from "@medusajs/framework/utils"
+import { logger } from "@medusajs/framework"
 import { createStep, StepResponse } from "@medusajs/framework/workflows-sdk"
 
 import { PRODUCTION_RUNS_MODULE } from "../../modules/production_runs"
@@ -12,6 +13,10 @@ import type ProductionRunService from "../../modules/production_runs/service"
 import { PRODUCTION_POLICY_MODULE } from "../../modules/production_policy"
 import type ProductionPolicyService from "../../modules/production_policy/service"
 import { TASKS_MODULE } from "../../modules/tasks"
+import {
+  isAlreadySignalled,
+  isMissingLifecycleTransaction,
+} from "./lib/lifecycle-signal-errors"
 import { lifecycleWorkflowId } from "./run-production-run-lifecycle"
 
 // ---------------------------------------------------------------------------
@@ -157,10 +162,45 @@ export const signalLifecycleStepStep = createStep(
         stepResponse: new StepResponse(true),
       })
     } catch (e: any) {
+      const message = String(e?.message || "")
+
       // Step may already be completed — safe to ignore
-      if (!String(e?.message || "").includes("status is ok")) {
-        throw e
+      if (isAlreadySignalled(message)) {
+        return new StepResponse({ signaled: false })
       }
+
+      /**
+       * The lifecycle transaction is GONE. Every await step carries a 23-day
+       * timeout (`LIFECYCLE_TIMEOUT_SECONDS`), so a partner who takes longer
+       * than that to finish a run finds the workflow expired underneath them.
+       *
+       * 🔴 Before this, the partner's action was LOST. The signal threw, the
+       * whole finish workflow compensated, and `finished_at` rolled back to
+       * null — leaving a run that is `in_progress` and live by every policy
+       * guard, so the screen offers Finish again, forever. They also got the
+       * raw framework string with an internal transaction id in it:
+       * "Transaction <id> could not be found."
+       *
+       * Nothing is lost by carrying on. The lifecycle's only work after the
+       * awaits is `cascadeCompletionStep`, and `complete-production-run`
+       * already does that cascade INLINE precisely because it cannot depend on
+       * the transaction being alive. So an expired lifecycle has nothing left
+       * to do, and refusing the partner's finish buys nothing.
+       *
+       * ⚠️ Deliberately NOT a wider catch. Widening this to every error would
+       * hide genuine signalling failures on runs whose transaction IS live —
+       * the failure mode this guard exists to preserve. Only "the transaction
+       * does not exist" is recoverable, and it is recoverable because there is
+       * provably nothing on the other side of it. #1574
+       */
+      if (isMissingLifecycleTransaction(message)) {
+        logger.warn(
+          `[partner-run] lifecycle transaction ${input.lifecycle_transaction_id} for step ${input.step_id} is gone (expired or pruned) — recording the partner's action anyway: ${message}`
+        )
+        return new StepResponse({ signaled: false, lifecycle_expired: true })
+      }
+
+      throw e
     }
 
     return new StepResponse({ signaled: true })
