@@ -182,6 +182,15 @@ jobs:
         env:
           PARTNER_UI: "1"
           SHIPROCKET_STUB: "1"
+          # 🔴 The stub flag ALONE is not enough. `resolveShippingProvider`
+          # reads credentials and THROWS "Shiprocket credentials not
+          # configured" before it ever looks at SHIPROCKET_STUB — so the attach
+          # 500s and the stub never gets a chance. These are placeholders; the
+          # stub's /auth/login returns a token without validating them. Same
+          # pairing the integration specs use (retail-order-international-
+          # shiprocket.spec.ts sets all three).
+          SHIPROCKET_EMAIL: "e2e@shiprocket.example"
+          SHIPROCKET_PASSWORD: "e2e-stub-secret"
         run: pnpm run e2e
 
       - name: Upload Playwright report
