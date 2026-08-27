@@ -130,6 +130,7 @@ import { normalizeArtisanProductsJob } from "./normalize-artisan-products-job"
 import { linkArtisanDetailRowsJob } from "./link-artisan-detail-rows-job"
 import { setPlatformTaxIdentityActiveJob } from "./set-platform-tax-identity-active-job"
 import { backfillFulfilledRetailRunsJob } from "./backfill-fulfilled-retail-runs-job"
+import { refreshStaleDraftPayoutsJob } from "./refresh-stale-draft-payouts-job"
 import {
   sweepAiPlatformsByCategory,
   AI_ROLES,
@@ -5806,6 +5807,7 @@ export const MAINTENANCE_JOBS: MaintenanceJob[] = [
   cancelInactiveProductionRunsJob,
   warnExpiringProductionRunsJob,
   remirrorCancelledRunStatusJob,
+  refreshStaleDraftPayoutsJob,
   cleanOrderFulfillmentDataJob,
   sendCourierChangedEmailJob,
   resendShipmentEmailJob,
