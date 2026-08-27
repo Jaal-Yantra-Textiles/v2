@@ -99,7 +99,12 @@ jobs:
           COOKIE_SECRET=secret
           ADMIN_CORS=http://localhost:9000
           STORE_CORS=http://localhost:9000
-          AUTH_CORS=http://localhost:9000
+          # The partner UI runs on :5173 and calls this backend cross-origin.
+          # PARTNER_CORS is what createCorsPartnerMiddleware reads first;
+          # AUTH_CORS has to admit :5173 too or partner LOGIN is blocked before
+          # any /partners route is reached.
+          AUTH_CORS=http://localhost:9000,http://localhost:5173
+          PARTNER_CORS=http://localhost:5173
           NODE_ENV=test
           ENCRYPTION_KEY=bPH59JuZDRQULLeDD62+NiwqwcChpOLN/j7aqu3A+Hw=
           EOF
@@ -122,8 +127,33 @@ jobs:
 
       # e2e:seed (fixture admin + order) then e2e:test (Playwright boots
       # `medusa develop` on :9000 and drives the admin headlessly).
+      # `apps/partner-ui` has no e2e coverage on CI at all: the Playwright
+      # config excludes @partnerui because nothing served :5173. So partner
+      # specs were written, committed, and never executed — the #1571 spec
+      # included, on the very PR that added it.
+      #
+      # Booting the dev server here is what makes those specs real. Vite's
+      # default VITE_MEDUSA_BACKEND_URL is already http://localhost:9000, which
+      # is where Playwright's webServer puts the backend.
+      - name: Start partner UI
+        run: pnpm --filter @jyt/partner-ui dev --host 127.0.0.1 --port 5173 &
+
+      - name: Wait for partner UI
+        run: |
+          for i in $(seq 1 60); do
+            if curl -sf http://localhost:5173 > /dev/null; then
+              echo "partner UI up after ${i}s"; exit 0
+            fi
+            sleep 1
+          done
+          echo "::error::partner UI did not come up on :5173 within 60s"
+          exit 1
+
       - name: Run e2e
         working-directory: apps/backend
+        # PARTNER_UI opts the @partnerui specs back in — see playwright.config.ts.
+        env:
+          PARTNER_UI: "1"
         run: pnpm run e2e
 
       - name: Upload Playwright report
