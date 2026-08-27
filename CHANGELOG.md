@@ -1,3 +1,16 @@
+# [13.117.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.116.0...v13.117.0) (2026-08-27)
+
+
+### Bug Fixes
+
+* **partner-ui:** the detail screen could not say what a payment paid for ([#1556](https://github.com/Jaal-Yantra-Textiles/v2/issues/1556)) ([#1591](https://github.com/Jaal-Yantra-Textiles/v2/issues/1591)) ([08d1850](https://github.com/Jaal-Yantra-Textiles/v2/commit/08d185078c26a1b1feeeb4be66d28befe49e4f68)), closes [#1576](https://github.com/Jaal-Yantra-Textiles/v2/issues/1576) [#1576](https://github.com/Jaal-Yantra-Textiles/v2/issues/1576) [#1576](https://github.com/Jaal-Yantra-Textiles/v2/issues/1576) [#1586](https://github.com/Jaal-Yantra-Textiles/v2/issues/1586) [#1579](https://github.com/Jaal-Yantra-Textiles/v2/issues/1579)
+
+
+### Features
+
+* **quotes:** a custom design is quotable before anyone makes a product ([#1486](https://github.com/Jaal-Yantra-Textiles/v2/issues/1486)) ([#1588](https://github.com/Jaal-Yantra-Textiles/v2/issues/1588)) ([138e90f](https://github.com/Jaal-Yantra-Textiles/v2/commit/138e90f62255a772fa52029b3b96478a55ff61fb)), closes [#1554](https://github.com/Jaal-Yantra-Textiles/v2/issues/1554) [#1568](https://github.com/Jaal-Yantra-Textiles/v2/issues/1568) [#1564](https://github.com/Jaal-Yantra-Textiles/v2/issues/1564) [#1563](https://github.com/Jaal-Yantra-Textiles/v2/issues/1563) [#1571](https://github.com/Jaal-Yantra-Textiles/v2/issues/1571)
+* **ops:** sweep the Draft payouts no run correction ever revisited ([#1556](https://github.com/Jaal-Yantra-Textiles/v2/issues/1556)) ([#1592](https://github.com/Jaal-Yantra-Textiles/v2/issues/1592)) ([29bee86](https://github.com/Jaal-Yantra-Textiles/v2/commit/29bee86ccd1e3528e1e278c39727a3c8e4776f3a)), closes [#1554](https://github.com/Jaal-Yantra-Textiles/v2/issues/1554) [#1564](https://github.com/Jaal-Yantra-Textiles/v2/issues/1564)
+
 # [13.116.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.115.0...v13.116.0) (2026-08-27)
 
 
