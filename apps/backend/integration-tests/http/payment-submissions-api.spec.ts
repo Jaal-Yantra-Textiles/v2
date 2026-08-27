@@ -2434,6 +2434,60 @@ setupSharedTestSuite(() => {
       expect(String(res.data?.message || "")).toContain("not eligible")
     })
 
+    it("accepts a Superseded design when a verified run backs the claim", async () => {
+      // A design revised AFTER the partner finished producing it goes
+      // Superseded, and the partner is still owed for the work. 8 such rows
+      // exist on prod; without this they are unpayable through the runs screen.
+      const d1 = await createDesign("Superseded Produced Design", {
+        status: "Superseded",
+      })
+      await linkDesignToPartner(d1, partnerId)
+      const runId = await createCompletedRun(d1, "Superseded Produced Design")
+
+      const res = await api.post(
+        "/partners/payment-submissions",
+        {
+          design_ids: [d1],
+          production_run_ids: { [d1]: [runId] },
+          quantities: { [d1]: 3 },
+          unit_amounts: { [d1]: 500 },
+        },
+        { headers: partnerHeaders }
+      )
+
+      expect(res.status).toBe(201)
+      expect(Number(res.data.payment_submission.total_amount)).toBe(1500)
+    })
+
+    it("still refuses a Conceptual design even with a run behind it", async () => {
+      // 🔴 A design that never left the concept stage cannot legitimately have
+      // a completed run — that pairing is data drift, and paying it out
+      // silently is how drift survives. The run-backed waiver is an ALLOWLIST;
+      // Conceptual is outside it, so this 400s and an admin can still waive it
+      // deliberately with `require_design_status: false`.
+      const d1 = await createDesign("Conceptual With Run", {
+        status: "Conceptual",
+      })
+      await linkDesignToPartner(d1, partnerId)
+      const runId = await createCompletedRun(d1, "Conceptual With Run")
+
+      const res = await api
+        .post(
+          "/partners/payment-submissions",
+          {
+            design_ids: [d1],
+            production_run_ids: { [d1]: [runId] },
+            quantities: { [d1]: 3 },
+            unit_amounts: { [d1]: 500 },
+          },
+          { headers: partnerHeaders }
+        )
+        .catch((e: any) => e.response)
+
+      expect(res.status).toBe(400)
+      expect(String(res.data?.message || "")).toContain("not eligible")
+    })
+
     it("refuses to claim a run a live payout already covers", async () => {
       const d1 = await createDesign("Partner Double Claim Design")
       await linkDesignToPartner(d1, partnerId)

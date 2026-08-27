@@ -310,6 +310,32 @@ const validateDesignsForSubmissionStep = createStep(
     // is the completed run rather than the design's status.
     const ELIGIBLE_STATUSES = ["Commerce_Ready", "Approved"]
     /**
+     * The statuses a verified completed run may stand in for.
+     *
+     * An ALLOWLIST, not a denylist, on purpose: a design status added later
+     * lands OUTSIDE it and gets a loud 400 an admin can waive with
+     * `require_design_status: false`, rather than silently becoming payable.
+     *
+     * `Conceptual` is deliberately absent. A design that never left the concept
+     * stage cannot legitimately have a completed production run, so a claim
+     * naming one is data drift, not a payout — and drift that pays out silently
+     * is drift nobody ever fixes. There is exactly one such row on prod, against
+     * 8 `Superseded`, which are ordinary and stay payable: a design revised
+     * AFTER the partner finished producing it is still owed for. The admin
+     * waiver remains for the case where the odd run turns out to be real.
+     */
+    const RUN_BACKED_ELIGIBLE_STATUSES = [
+      "In_Development",
+      "Technical_Review",
+      "Sample_Production",
+      "Revision",
+      "Approved",
+      "Rejected",
+      "On_Hold",
+      "Commerce_Ready",
+      "Superseded",
+    ]
+    /**
      * A design whose line states the completed run it pays for is exempt.
      *
      * 🔴 Without this the partner runs screen (#1571 B half) could not submit
@@ -340,7 +366,11 @@ const validateDesignsForSubmissionStep = createStep(
     if (input.require_design_status !== false) {
       const ineligible = typedDesigns.filter(
         (d) =>
-          !ELIGIBLE_STATUSES.includes(d.status) && !runBackedDesignIds.has(d.id)
+          !ELIGIBLE_STATUSES.includes(d.status) &&
+          !(
+            runBackedDesignIds.has(d.id) &&
+            RUN_BACKED_ELIGIBLE_STATUSES.includes(d.status)
+          )
       )
       if (ineligible.length) {
         throw new MedusaError(
