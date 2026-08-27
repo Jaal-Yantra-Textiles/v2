@@ -66,6 +66,16 @@ test.describe("#1195 requires_shipping gate — partner UI @partnerui", () => {
    * executed here, so the case has to be opened in a browser before anyone can
    * say whether the selector is stale or the screen is broken. `fixme` rather
    * than a silent skip: the report names it every run.
+   *
+   * ⚠️ #1576 UPDATE — one thing RULED OUT, so nobody re-checks it: the issue
+   * guessed "the status copy may have moved". It has not.
+   * `order-fulfillment-section.tsx` still renders the literal "Awaiting
+   * shipping"; the only sibling is "Awaiting pickup", chosen when the
+   * fulfillment set type is Pickup. So either the seeded fulfillment resolves
+   * as a pickup, or the section never rendered at all — and those two look
+   * identical from a `getByText` timeout.
+   *
+   * This is the one case in #1576 that still needs the screen open.
    */
   test.fixme("offers the shipment action on a requires_shipping=false fulfillment", async ({
     page,

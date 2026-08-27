@@ -103,13 +103,14 @@ test.describe("@partnerui Visual Block Editor (#1466)", () => {
   })
 
   /**
-   * ⚠️ Parked in #1576. Failed on the FIRST-EVER CI run of the @partnerui
-   * specs — this file was written against a partner UI that had never actually
-   * executed here, so the case has to be opened in a browser before anyone can
-   * say whether the selector is stale or the screen is broken. `fixme` rather
-   * than a silent skip: the report names it every run.
+   * #1576 — un-parked. Both failures were the SPEC, established by reading the
+   * component rather than the screen:
+   *   - the block-name assertion addressed "the first <input> on the page"
+   *     (a hidden file input); the field had no accessible name at all, which
+   *     is a real a11y defect and is fixed alongside this
+   *   - `SpacingControl` renders its label as "Padding", never "Padding (px)"
    */
-  test.fixme("selecting a block shows contextual inspector with type badge", async ({
+  test("selecting a block shows contextual inspector with type badge", async ({
     page,
   }) => {
     await page.goto(`${PARTNER_UI}/login`, { waitUntil: "networkidle" })
@@ -145,10 +146,15 @@ test.describe("@partnerui Visual Block Editor (#1466)", () => {
       page.getByText(/click text on the canvas/i).first()
     ).toBeVisible()
 
-    // Should show block name field
-    await expect(
-      page.locator('input').filter({ hasText: "" }).first()
-    ).toBeVisible()
+    // Should show block name field.
+    //
+    // 🔴 NOT `locator('input').filter({ hasText: "" }).first()`, which is what
+    // this asserted until #1576. `hasText: ""` matches everything and an
+    // <input> has no text content anyway, so it resolved to the FIRST input on
+    // the page — a hidden file input — and passed or failed for reasons
+    // unrelated to the inspector. The field had no accessible name to address
+    // it by; it has one now.
+    await expect(page.getByLabel("Block Name")).toBeVisible()
 
     // Advanced Settings should be collapsed by default
     await expect(
@@ -162,13 +168,14 @@ test.describe("@partnerui Visual Block Editor (#1466)", () => {
   })
 
   /**
-   * ⚠️ Parked in #1576. Failed on the FIRST-EVER CI run of the @partnerui
-   * specs — this file was written against a partner UI that had never actually
-   * executed here, so the case has to be opened in a browser before anyone can
-   * say whether the selector is stale or the screen is broken. `fixme` rather
-   * than a silent skip: the report names it every run.
+   * #1576 — un-parked. Both failures were the SPEC, established by reading the
+   * component rather than the screen:
+   *   - the block-name assertion addressed "the first <input> on the page"
+   *     (a hidden file input); the field had no accessible name at all, which
+   *     is a real a11y defect and is fixed alongside this
+   *   - `SpacingControl` renders its label as "Padding", never "Padding (px)"
    */
-  test.fixme("advanced settings expand to show background, padding, max width", async ({
+  test("advanced settings expand to show background, padding, max width", async ({
     page,
   }) => {
     await page.goto(`${PARTNER_UI}/login`, { waitUntil: "networkidle" })
@@ -201,7 +208,7 @@ test.describe("@partnerui Visual Block Editor (#1466)", () => {
       page.getByText("Background Color").first()
     ).toBeVisible({ timeout: 5_000 })
     await expect(
-      page.getByText("Padding (px)").first()
+      page.getByText("Padding").first()
     ).toBeVisible()
     await expect(
       page.getByText("Max Width").first()

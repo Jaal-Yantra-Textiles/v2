@@ -58,6 +58,27 @@ test.describe("Partner shipment carrier modal @partnerui", () => {
    * executed here, so the case has to be opened in a browser before anyone can
    * say whether the selector is stale or the screen is broken. `fixme` rather
    * than a silent skip: the report names it every run.
+   *
+   * 🔴 #1576 UPDATE — the original diagnosis ("tab stays inactive, selector
+   * may be stale") was wrong on both counts, and the truth is worse: this case
+   * CANNOT PASS ANYWHERE, credentials or not.
+   *
+   * `POST /partners/orders/:id/shiprocket-attach-awb` calls
+   * `provider.track({ awb })` against the LIVE Shiprocket API, and throws twice
+   * over — once if the lookup fails, again if Shiprocket returns no shipment
+   * for the waybill. This spec attaches `E2E${Date.now()}`, a synthetic AWB
+   * that by construction exists on nobody's Shiprocket account. So the attach
+   * always throws, `onCarrierResolved` is never called, and step 2 never
+   * activates. The tab is found; it is simply never made active.
+   *
+   * ⚠️ The selector is FINE. `ProgressTabs.Trigger` renders a status icon that
+   * carries no aria-label or <title>, so the accessible name really is
+   * "Shipment" and `/^shipment$/i` matches — checked in @medusajs/ui, not
+   * assumed. Do not "fix" this by loosening the regex.
+   *
+   * To un-park it, one of: stub the shipping provider for e2e, or seed a
+   * known-good AWB on the test Shiprocket account. A tag-and-exclude (the
+   * `@llm` treatment) would only hide it.
    */
   test.fixme("attaching an AWB in step 1 does not mark the fulfillment shipped", async ({
     page,
@@ -106,6 +127,27 @@ test.describe("Partner shipment carrier modal @partnerui", () => {
    * executed here, so the case has to be opened in a browser before anyone can
    * say whether the selector is stale or the screen is broken. `fixme` rather
    * than a silent skip: the report names it every run.
+   *
+   * 🔴 #1576 UPDATE — the original diagnosis ("tab stays inactive, selector
+   * may be stale") was wrong on both counts, and the truth is worse: this case
+   * CANNOT PASS ANYWHERE, credentials or not.
+   *
+   * `POST /partners/orders/:id/shiprocket-attach-awb` calls
+   * `provider.track({ awb })` against the LIVE Shiprocket API, and throws twice
+   * over — once if the lookup fails, again if Shiprocket returns no shipment
+   * for the waybill. This spec attaches `E2E${Date.now()}`, a synthetic AWB
+   * that by construction exists on nobody's Shiprocket account. So the attach
+   * always throws, `onCarrierResolved` is never called, and step 2 never
+   * activates. The tab is found; it is simply never made active.
+   *
+   * ⚠️ The selector is FINE. `ProgressTabs.Trigger` renders a status icon that
+   * carries no aria-label or <title>, so the accessible name really is
+   * "Shipment" and `/^shipment$/i` matches — checked in @medusajs/ui, not
+   * assumed. Do not "fix" this by loosening the regex.
+   *
+   * To un-park it, one of: stub the shipping provider for e2e, or seed a
+   * known-good AWB on the test Shiprocket account. A tag-and-exclude (the
+   * `@llm` treatment) would only hide it.
    */
   test.fixme("completing step 2 marks the fulfillment shipped", async ({ page }) => {
     await page.goto(SHIPMENT_URL)
