@@ -98,7 +98,42 @@ test.describe("Partner shipment carrier modal @partnerui", () => {
    * ⚠️ What this no longer covers: a waybill Shiprocket REJECTS. The stub
    * models success only, so "foreign AWB refused" has no test.
    */
-  test("attaching an AWB in step 1 does not mark the fulfillment shipped", async ({
+  /**
+   * 🔴 PARKED — and NOT for the reason it was parked before.
+   *
+   * This spec cannot pass against the fixture it uses, and no amount of
+   * selector work will change that. `seedShipmentGateOrder` says so itself:
+   *
+   *     "#1195 — an order in the exact shape that HID 'Mark as shipped': a
+   *      line item the derivation stamps `requires_shipping: false` … this
+   *      fixture must stay broken for the specs to mean anything."
+   *
+   * That fixture exists to be the case where shipping is SUPPRESSED. Core
+   * treats a fulfillment that requires no shipping as already shipped, so
+   * `POST .../shipment` answers `400 Shipment has already been created` — on
+   * the FIRST attempt, before any retry. A spec asserting "completing step 2
+   * marks the fulfillment shipped" is asking the one fixture in this repo
+   * built to make that impossible.
+   *
+   * ⚠️ So these two cases have never passed, and #1586 un-parked them on a
+   * diagnosis that was right as far as it went. The Shiprocket stub really was
+   * broken and really is fixed — `shiprocket-attach-awb` returns 200 in CI now,
+   * step 2 activates, and the attach round-trip is genuinely exercised. It was
+   * simply not the only thing wrong.
+   *
+   * ## What unparking these needs
+   *
+   * A seeder producing a genuinely SHIPPABLE partner fulfillment — a profiled
+   * line item, so the derivation stamps `requires_shipping: true` — which no
+   * seeder currently provides for the partner UI. `carrierOrderId` /
+   * `carrierFulfillmentId` are already wired for it and already separate from
+   * the #1195 gate, so that seeder is the only missing piece.
+   *
+   * 🔑 Parked rather than deleted, and parked with the REASON: a permanently
+   * red check on main is one people learn to ignore, and it masks every other
+   * browser regression behind it. `fixme` names these in the report every run.
+   */
+  test.fixme("attaching an AWB in step 1 does not mark the fulfillment shipped", async ({
     page,
   }) => {
     await page.goto(SHIPMENT_URL)
@@ -190,7 +225,10 @@ test.describe("Partner shipment carrier modal @partnerui", () => {
    * ⚠️ What this no longer covers: a waybill Shiprocket REJECTS. The stub
    * models success only, so "foreign AWB refused" has no test.
    */
-  test("completing step 2 marks the fulfillment shipped", async ({ page }) => {
+  // 🔴 Parked for the same reason as the case above — see that docblock. This
+  // one is where the fixture's `requires_shipping: false` actually bites: the
+  // shipment POST is refused as already created before a retry ever happens.
+  test.fixme("completing step 2 marks the fulfillment shipped", async ({ page }) => {
     await page.goto(SHIPMENT_URL)
 
     // Skip the carrier step — a partner shipping on their own account never
