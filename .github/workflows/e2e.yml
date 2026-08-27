@@ -135,6 +135,26 @@ jobs:
       # Booting the dev server here is what makes those specs real. Vite's
       # default VITE_MEDUSA_BACKEND_URL is already http://localhost:9000, which
       # is where Playwright's webServer puts the backend.
+      # 🔴 apps/partner-ui/.env is GITIGNORED, so it does not exist on CI — and
+      # vite.config.mts defaults VITE_MEDUSA_ADMIN_AUTH_TYPE to "session" when
+      # it is absent. `client.ts` reads that as `__AUTH_TYPE__ ?? "jwt"`, and
+      # `??` does NOT fire on the string "session", so the SDK stops sending
+      # `Authorization: Bearer …` and relies on cross-origin cookies instead.
+      #
+      # The failure that produces is genuinely nasty to read: login SUCCEEDS and
+      # the token lands in localStorage (the storage key falls back to the right
+      # value via `||`), so the specs sail through beforeEach — then every data
+      # call 401s and each screen renders its empty state. Two independent specs
+      # failed as "element not found", pointing at the assertions rather than at
+      # auth.
+      - name: Create partner UI env file
+        run: |
+          cat << 'EOF' > apps/partner-ui/.env
+          VITE_MEDUSA_ADMIN_AUTH_TYPE=jwt
+          VITE_MEDUSA_ADMIN_JWT_TOKEN_STORAGE_KEY=partner_ui_auth_token
+          VITE_MEDUSA_BACKEND_URL=http://localhost:9000
+          EOF
+
       - name: Start partner UI
         run: pnpm --filter @jyt/partner-ui dev --host 127.0.0.1 --port 5173 &
 
