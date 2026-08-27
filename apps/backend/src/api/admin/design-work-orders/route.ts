@@ -26,6 +26,26 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
   const sourceOrderFilter = ((req.query as any).source_order_id || "").trim()
   const partnerFilter = ((req.query as any).partner_id || "").trim()
   const runStatusFilter = ((req.query as any).run_status || "").trim()
+  /**
+   * #1574 — cancelled runs are hidden by default.
+   *
+   * A cancelled run kept rendering as a design line, so an order whose work was
+   * called off still read as partly-finished production: `design_count` counted
+   * it and the row rendered next to the live ones. What the admin needs to see
+   * here is work that is genuinely still in flight.
+   *
+   * Hidden, not dropped — `include_cancelled=true` brings them back, because
+   * "what happened to this order" is a real question and the answer must stay
+   * reachable. An explicit `run_status=cancelled` also overrides, since asking
+   * for them by name and getting nothing would be absurd.
+   */
+  const includeCancelled =
+    String((req.query as any).include_cancelled || "").trim() === "true" ||
+    runStatusFilter === "cancelled"
+  const visibleRuns = (runs: any[]) =>
+    includeCancelled
+      ? runs
+      : runs.filter((r: any) => String(r?.status) !== "cancelled")
 
   const [channel] = await scService.listSalesChannels({
     name: PARTNER_WORK_ORDERS_CHANNEL,
@@ -61,7 +81,10 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
 
   const collated = (orders || []).filter((o: any) => {
     if (o?.metadata?.collated_design_order !== true) return false
-    const runs = o?.production_runs ?? []
+    // 🔴 Emptiness is tested on the VISIBLE runs, so an order whose every run
+    // was cancelled drops out of the list entirely rather than rendering as a
+    // work-order with no designs in it.
+    const runs = visibleRuns(o?.production_runs ?? [])
     if (!runs.length) return false
     if (idFilter && o.id !== idFilter) return false
     if (sourceOrderFilter && o?.metadata?.source_order_id !== sourceOrderFilter) {
@@ -83,7 +106,9 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
   const designIds = Array.from(
     new Set(
       page.flatMap((o: any) =>
-        (o.production_runs || []).map((r: any) => r.design_id).filter(Boolean)
+        visibleRuns(o.production_runs || [])
+          .map((r: any) => r.design_id)
+          .filter(Boolean)
       )
     )
   )
@@ -130,8 +155,10 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
     has_customer: !!o.email,
     partner_status: o.unified_order_status?.partner_status ?? null,
     source_order_id: o.metadata?.source_order_id ?? null,
-    design_count: (o.production_runs || []).length,
-    runs: o.production_runs || [],
+    // Counts what is rendered. A count that included the hidden rows would
+    // say "3 designs" above a list of one.
+    design_count: visibleRuns(o.production_runs || []).length,
+    runs: visibleRuns(o.production_runs || []),
   }))
 
   res.json({

@@ -12,6 +12,10 @@ export const PARTNER_STATUS_LABELS: Record<string, string> = {
   finished: "Finished",
   completed: "Completed",
   declined: "Declined",
+  // #1574 — an ADMIN cancel, as distinct from `declined`, which is the partner
+  // refusing the work. Both end the job; showing "Declined" for an admin cancel
+  // would accuse the partner of something they did not do.
+  cancelled: "Cancelled",
 }
 
 /** Resolve the partner work-status off the typed sidecar column. */
