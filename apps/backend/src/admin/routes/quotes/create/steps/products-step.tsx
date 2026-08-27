@@ -175,6 +175,22 @@ export const ProductsStep = ({ form }: Props) => {
       return
     }
 
+    /**
+     * ⚠️ The form's `currency_code` starts EMPTY and is set on the buyer step.
+     * The wizard reaches this step after that one, so it is normally filled —
+     * but firing the request anyway when it is not turns a missing selection
+     * into a 400 from the server, which reads as a broken picker rather than
+     * an unfinished form.
+     */
+    if (!watchedCurrency) {
+      setMintErrors((prev) => ({
+        ...prev,
+        [design.id]:
+          "Choose the quote's currency on the buyer step first — a made-to-order variant has to be listed in it.",
+      }))
+      return
+    }
+
     setMinting(design.id)
     setMintErrors((prev) => {
       const next = { ...prev }

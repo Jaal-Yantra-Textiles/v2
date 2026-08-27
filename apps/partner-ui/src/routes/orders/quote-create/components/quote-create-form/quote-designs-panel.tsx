@@ -79,6 +79,18 @@ export const QuoteDesignsPanel = ({
       return
     }
 
+    // The partner form defaults its currency, so this should never be empty —
+    // but a doomed request reads as a broken picker rather than an unfinished
+    // form, so it is refused here with something actionable instead.
+    if (!currencyCode) {
+      setMintErrors((prev) => ({
+        ...prev,
+        [design.id]:
+          "Choose the quote's currency first — a made-to-order variant has to be listed in it.",
+      }))
+      return
+    }
+
     setMinting(design.id)
     setMintErrors((prev) => {
       const next = { ...prev }

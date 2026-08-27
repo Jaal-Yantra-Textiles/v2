@@ -345,3 +345,49 @@ export const QuoteReadinessReq = QuoteReadinessShape.superRefine(
 )
 
 export type QuoteReadinessReqType = z.infer<typeof QuoteReadinessReq>
+
+/**
+ * Minting the made-to-order variant a custom design is quoted through (#1486).
+ *
+ * 🔴 This schema is not decoration — without it the route reads nothing at all.
+ * Both mint routes were registered with no `validateAndTransformBody`, so
+ * `req.validatedBody` was never populated; the client's JSON sat in `req.body`
+ * unread, the route fell through to a `currency_code` query param nobody sends,
+ * and every pick answered:
+ *
+ *   400 "currency_code is required — the variant has to be listed in the
+ *        currency the quote is denominated in."
+ *
+ * The message was true about the requirement and wrong about the cause, which
+ * is the worst kind: it sends you looking at the form for a field the form was
+ * sending correctly all along.
+ *
+ * ⚠️ `zodValidator` forces `.strict()`, so this rejects unknown keys. Keep it
+ * matching what the two pickers actually post.
+ */
+export const MintDesignVariantReq = z.object({
+  /**
+   * The quote's currency, not the design's. The estimate behind the price is
+   * denominated in the design's `cost_currency` and is converted on the way
+   * through — see `designQuoteUnitPrice`.
+   */
+  currency_code: z
+    .string({
+      // ⚠️ zod 4 — `error`, not `required_error`. Without it a MISSING key
+      // reports "expected string, received undefined", so the two ways a
+      // caller can omit a currency would explain themselves differently.
+      error:
+        "currency_code is required — the variant has to be listed in the currency the quote is denominated in.",
+    })
+    .min(
+      1,
+      "currency_code is required — the variant has to be listed in the currency the quote is denominated in."
+    ),
+  /**
+   * Override the default uplift on the estimated cost. The wizards do not send
+   * it; ops might.
+   */
+  markup_percent: z.number().min(0).optional(),
+})
+
+export type MintDesignVariantReqType = z.infer<typeof MintDesignVariantReq>
