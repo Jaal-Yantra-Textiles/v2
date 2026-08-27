@@ -11,6 +11,26 @@ import { Outlet } from "react-router-dom"
 import { SingleColumnPage } from "../../../components/layout/pages"
 import { SingleColumnPageSkeleton } from "../../../components/common/skeleton"
 import { usePartnerPaymentSubmission } from "../../../hooks/api/partner-payment-submissions"
+import {
+  money,
+  perUnit,
+  provenanceLabel,
+} from "../../../lib/payment-submission-money"
+
+/** The provenance note, rendered. The decision itself lives in `src/lib`. */
+const ProvenanceNote = ({ item }: { item: any }) => {
+  const label = provenanceLabel(item)
+  if (!label) return null
+
+  return (
+    <Text
+      size="xsmall"
+      className={label.muted ? "text-ui-fg-muted" : "text-ui-fg-subtle"}
+    >
+      {label.text}
+    </Text>
+  )
+}
 
 const statusColor = (
   status: string
@@ -51,6 +71,7 @@ export const PaymentSubmissionDetail = () => {
     (i) => i.source_type === "task" || (!i.source_type && i.task_id)
   )
   const documents: any[] = submission.documents || []
+  const currency: string | undefined = (submission as any).currency
 
   return (
     <SingleColumnPage widgets={{ before: [], after: [] }} hasOutlet={true}>
@@ -146,7 +167,7 @@ export const PaymentSubmissionDetail = () => {
               Total Amount
             </Text>
             <Heading>
-              ₹{Number(submission.total_amount).toLocaleString()}
+              {money(submission.total_amount, currency)}
             </Heading>
           </Container>
           <Container className="p-4">
@@ -187,7 +208,7 @@ export const PaymentSubmissionDetail = () => {
               <Table.Header>
                 <Table.Row>
                   <Table.HeaderCell>Design</Table.HeaderCell>
-                  <Table.HeaderCell>Design ID</Table.HeaderCell>
+                  <Table.HeaderCell>Billed for</Table.HeaderCell>
                   <Table.HeaderCell>Amount</Table.HeaderCell>
                 </Table.Row>
               </Table.Header>
@@ -197,13 +218,24 @@ export const PaymentSubmissionDetail = () => {
                     <Table.Cell>
                       {item.design_name || "Unnamed design"}
                     </Table.Cell>
+                    {/*
+                      The design id used to sit here. It answers a question
+                      nobody asks on a payment screen; "what am I being paid
+                      for, and at what rate" is the question, and the create
+                      screen has answered it since #1579 while this one did
+                      not — the two money screens disagreed about what a
+                      submission even was.
+                    */}
                     <Table.Cell>
-                      <span className="font-mono text-xs">
-                        {item.design_id}
-                      </span>
+                      <div className="flex flex-col">
+                        <Text size="small">
+                          {perUnit(item, currency) ?? "One line, no rate given"}
+                        </Text>
+                        <ProvenanceNote item={item} />
+                      </div>
                     </Table.Cell>
                     <Table.Cell>
-                      ₹{Number(item.amount).toLocaleString()}
+                      {money(item.amount, currency)}
                     </Table.Cell>
                   </Table.Row>
                 ))}
@@ -238,7 +270,7 @@ export const PaymentSubmissionDetail = () => {
                       </span>
                     </Table.Cell>
                     <Table.Cell>
-                      ₹{Number(item.amount).toLocaleString()}
+                      {money(item.amount, currency)}
                     </Table.Cell>
                   </Table.Row>
                 ))}
