@@ -31,10 +31,15 @@ export default defineConfig({
   // #1571 spec was not among them, so `e2e: pass` certified everything except
   // the thing the PR changed. A green check that never loaded your file is not
   // evidence about your file.
+  //
+  // ⚠️ `@llm` is excluded even when the partner UI IS up. It marks a spec that
+  // talks to a live model — a requirement CI cannot meet at all, and one that
+  // used to hide inside `@partnerui`. Opting the partner specs back in dragged
+  // it along and it failed for a reason no partner-UI fix could address.
   grepInvert: process.env.CI
     ? process.env.PARTNER_UI
-      ? /@localstack/
-      : /@partnerui|@localstack/
+      ? /@localstack|@llm/
+      : /@partnerui|@localstack|@llm/
     : undefined,
 
   webServer: {
