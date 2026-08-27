@@ -98,6 +98,37 @@ test.describe("Partner shipment carrier modal @partnerui", () => {
    * ⚠️ What this no longer covers: a waybill Shiprocket REJECTS. The stub
    * models success only, so "foreign AWB refused" has no test.
    */
+  /**
+   * 🔑 UN-PARKED, on a fixture that can actually be shipped.
+   *
+   * These two cases had never passed, and two different things were wrong:
+   *
+   * 1. `POST /partners/orders/:id/shiprocket-attach-awb` called
+   *    `provider.track({ awb })` against the LIVE Shiprocket API. The spec
+   *    attaches a synthetic waybill that by construction exists on nobody's
+   *    account, so the attach always threw and step 2 never activated. Fixed by
+   *    giving the `SHIPROCKET_STUB=1` transport the `/courier/track/awb/:awb`
+   *    handler it was missing — it had every other endpoint.
+   *
+   * 2. 🔴 The fixture could not be shipped. They used the #1195 gate order,
+   *    whose own docblock says it "must stay broken for the specs to mean
+   *    anything": its line item is title-only, so `requires_shipping` derives
+   *    FALSE, and core treats a fulfillment needing no shipping as already
+   *    shipped. `POST .../shipment` answered `400 Shipment has already been
+   *    created` on the FIRST attempt. A spec asserting "completing step 2 marks
+   *    the fulfillment shipped" was asking the one fixture in the repo built to
+   *    refuse it — and cloning that seeder inherited the property exactly.
+   *
+   * `seedShippablePartnerOrder` is the answer to (2): a real variant, its
+   * product linked to the SAME shipping profile the fulfillment's option
+   * carries, and `requires_shipping: true` asserted on the fulfillment before
+   * any spec runs. It is also separate from the gate order, so these no longer
+   * collide with `order-shipment-gate.spec.ts`, which ships what it touches.
+   *
+   * ⚠️ If these go red again, read the SEED's assertions first. It fails loudly
+   * with the cause; the specs fail 15 minutes later looking like a broken
+   * screen.
+   */
   test("attaching an AWB in step 1 does not mark the fulfillment shipped", async ({
     page,
   }) => {
@@ -190,6 +221,8 @@ test.describe("Partner shipment carrier modal @partnerui", () => {
    * ⚠️ What this no longer covers: a waybill Shiprocket REJECTS. The stub
    * models success only, so "foreign AWB refused" has no test.
    */
+  // This is the case the shippable fixture exists for: before it, the shipment
+  // POST was refused as already created before a retry ever happened.
   test("completing step 2 marks the fulfillment shipped", async ({ page }) => {
     await page.goto(SHIPMENT_URL)
 
