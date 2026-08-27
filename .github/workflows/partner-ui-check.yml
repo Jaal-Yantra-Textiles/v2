@@ -18,13 +18,31 @@ name: Partner UI Check
 #           excluded, not deleted: the i18n drift is a genuine finding and
 #           belongs in its own fix. Remove the exclusion when that lands.
 #
-#   tsc   — NOT gated. The tree carries >1000 type errors, so any pass/fail gate
-#           is red on a clean checkout and gets ignored, and a ratchet on a
-#           four-digit number mostly measures dependency churn. `pnpm --filter
-#           @jyt/partner-ui check` exists for local use. Making tsc meaningful
-#           here needs the error count brought down first — that is real work,
-#           not a CI flag, and pretending otherwise would ship a gate that
-#           certifies nothing.
+#   tsc   — HARD gate, scoped to the files the PR CHANGED.
+#
+#           The tree carries ~1127 pre-existing errors, so a whole-tree gate is
+#           red on a clean checkout and a four-digit ratchet mostly measures
+#           dependency churn. But "so don't gate tsc" was the wrong conclusion,
+#           and it cost three real bugs in one change: a hook that returned the
+#           raw useQuery result so the screen rendered an empty list forever, a
+#           deleted component still referenced by another panel (a
+#           ReferenceError on render), and an untyped request field on the
+#           payload that decides a payout. esbuild type-checks nothing, so the
+#           build was green through all three. tsc named every one of them.
+#
+#           So the gate asks a narrower question: does this PR leave a type
+#           error in a file it TOUCHED? Errors elsewhere are ignored.
+#
+#           ⚠️ The real cost, stated plainly: this is ratchet-by-contact. Many
+#           files already carry errors, so editing one for an unrelated reason
+#           means cleaning it first. That is deliberate — it is how 1123 becomes
+#           a smaller number instead of a permanent fixture — but it WILL
+#           occasionally make a one-line change more expensive than it looks.
+#           If that proves too sharp in practice, the honest alternative is a
+#           per-file baseline (fail only when a file's count RISES), which needs
+#           a checked-in baseline and a tsc run against the base branch.
+#           Do NOT "fix" it by deleting the gate: ungated tsc is what let three
+#           real bugs through in the change that added this file.
 #
 # ⚠️ Do not add a step whose command is red on main. A permanently-failing job
 # trains everyone to ignore the job, which is worse than not having it.
@@ -53,6 +71,10 @@ jobs:
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
+        with:
+          # The changed-files tsc gate diffs against the base branch, which a
+          # depth-1 checkout has no merge-base for.
+          fetch-depth: 0
 
       - name: Install pnpm
         uses: pnpm/action-setup@v4
@@ -74,3 +96,40 @@ jobs:
         run: |
           pnpm --filter @jyt/partner-ui exec vitest --run \
             --exclude 'src/i18n/translations/__tests__/validate-translations.spec.ts'
+
+      # Scoped tsc — see the note above. Only files this PR touched must be
+      # clean; the ~1127 pre-existing errors elsewhere are not this PR's to fix.
+      - name: Type-check changed files
+        if: github.event_name == 'pull_request'
+        run: |
+          set +e
+          pnpm --filter @jyt/partner-ui check > tsc.log 2>&1
+          set -e
+
+          CHANGED=$(git diff --name-only "origin/${{ github.base_ref }}"...HEAD \
+            -- 'apps/partner-ui/src/**' \
+            | sed 's|^apps/partner-ui/||')
+
+          if [ -z "$CHANGED" ]; then
+            echo "No partner-ui source files changed."
+            exit 0
+          fi
+
+          echo "Changed files:"; echo "$CHANGED"
+
+          FAILED=0
+          for f in $CHANGED; do
+            # Deleted files have no errors to report.
+            [ -f "apps/partner-ui/$f" ] || continue
+            if grep -qF "$f(" tsc.log; then
+              echo "::error file=apps/partner-ui/$f::type errors introduced or left in a file this PR changed"
+              grep -F "$f(" tsc.log
+              FAILED=1
+            fi
+          done
+
+          if [ "$FAILED" -eq 1 ]; then
+            echo "Fix the type errors in the files above, or revert them to a clean state."
+            exit 1
+          fi
+          echo "All changed partner-ui files are type-clean."

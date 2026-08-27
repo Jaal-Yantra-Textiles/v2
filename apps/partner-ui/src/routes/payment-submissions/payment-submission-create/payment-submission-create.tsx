@@ -670,6 +670,59 @@ const TasksPanel = ({
   )
 }
 
+/**
+ * The task cost input. Tasks are billed as a single line total, so this stays
+ * the simple one-box control.
+ *
+ * 🔴 Restored after the runs rewrite deleted it: `RunCostInput` replaced it for
+ * DESIGN lines, but `TasksPanel` still called `CostInput`. esbuild does not
+ * type-check, so the bundle built cleanly and the Tasks tab threw a
+ * ReferenceError the moment it rendered. tsc said so; nothing was reading tsc.
+ */
+const CostInput = ({
+  id,
+  defaultCost,
+  override,
+  onChange,
+  effectiveCost,
+}: {
+  id: string
+  defaultCost: number
+  override?: number
+  onChange: (id: string, value: string) => void
+  effectiveCost: number
+}) => {
+  return (
+    <div className="flex flex-col items-end gap-1 shrink-0">
+      <div className="flex items-center gap-2">
+        <Text size="xsmall" className="text-ui-fg-muted whitespace-nowrap">
+          INR
+        </Text>
+        <Input
+          type="number"
+          size="small"
+          className="w-28 text-right"
+          placeholder={defaultCost ? String(defaultCost) : "0"}
+          value={
+            override != null
+              ? String(override)
+              : defaultCost
+                ? String(defaultCost)
+                : ""
+          }
+          onChange={(e) => onChange(id, e.target.value)}
+          onClick={(e) => e.stopPropagation()}
+        />
+      </div>
+      {defaultCost > 0 && effectiveCost !== defaultCost && (
+        <Text size="xsmall" className="text-ui-fg-muted">
+          was {defaultCost.toLocaleString()}
+        </Text>
+      )}
+    </div>
+  )
+}
+
 // ─── Run cost input ───────────────────────────────────────────────────
 const RunCostInput = ({
   run,

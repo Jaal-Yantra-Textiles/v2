@@ -51,18 +51,29 @@ export const usePartnerPayableRuns = (
     "queryKey" | "queryFn"
   >
 ) => {
-  return useQuery<PayableRunsListResponse, FetchError>(
-    {
-      queryKey: ["partner-payable-runs"],
-      queryFn: async () => {
-        return await sdk.client.fetch<PayableRunsListResponse>(
-          "/partners/payment-submissions/payable-runs",
-          {
-            method: "GET",
-          }
-        )
-      },
-      ...options,
-    }
-  )
+  const { data, ...rest } = useQuery({
+    queryKey: ["partner-payable-runs"] as const,
+    queryFn: async () => {
+      return await sdk.client.fetch<PayableRunsListResponse>(
+        "/partners/payment-submissions/payable-runs",
+        { method: "GET" }
+      )
+    },
+    ...options,
+  })
+
+  /**
+   * 🔴 Spread the payload, exactly as `usePartnerDesigns` does. Returning the
+   * raw `useQuery` result instead gives the caller `{ data, isPending, … }`,
+   * so `const { payable_runs = [] } = usePartnerPayableRuns()` destructures a
+   * property that does not exist, silently falls back to `[]`, and the screen
+   * renders "no payable production runs" forever — with a 200 and a full
+   * payload sitting in `data`. The empty state is indistinguishable from a
+   * partner who genuinely has no runs.
+   */
+  return {
+    ...data,
+    payable_runs: data?.payable_runs ?? [],
+    ...rest,
+  }
 }

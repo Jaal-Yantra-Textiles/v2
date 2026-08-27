@@ -85,6 +85,16 @@ export type CreatePaymentSubmissionPayload = {
   unit_amounts?: Record<string, number>
   cost_overrides?: Record<string, number>
   task_cost_overrides?: Record<string, number>
+  /**
+   * WHICH completed runs each design line pays for, keyed by design id.
+   *
+   * 🔑 Not money, but the PROVENANCE of money — it is what stops the same
+   * finished run being paid for twice (#1556/#1565). Untyped here, the runs
+   * screen still SENT it (the mutation passes the body straight through) while
+   * tsc reported the field as unknown, which is precisely the "typed layer that
+   * isn't the contract" shape #1571 exists to close.
+   */
+  production_run_ids?: Record<string, string[]>
   metadata?: Record<string, any>
 }
 
@@ -170,11 +180,16 @@ export const useCreatePartnerPaymentSubmission = (
         `/partners/payment-submissions`,
         { method: "POST", body: payload }
       ),
-    onSuccess: (data, variables, context) => {
+    // Forward whatever arity the installed react-query types expect. Spelling
+    // the three parameters out hardcoded an older signature and tripped
+    // TS2554 ("expected 4 arguments, but got 3") — a pre-existing error, fixed
+    // here because the changed-files type gate requires a file this PR touches
+    // to come back clean.
+    onSuccess: (...args: Parameters<NonNullable<typeof options>["onSuccess"]>) => {
       queryClient.invalidateQueries({
         queryKey: partnerPaymentSubmissionsQueryKeys.lists(),
       })
-      options?.onSuccess?.(data, variables, context)
+      options?.onSuccess?.(...args)
     },
     ...options,
   })
