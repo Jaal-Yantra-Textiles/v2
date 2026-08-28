@@ -134,6 +134,61 @@ describe("assessDraftLine", () => {
   })
 })
 
+/**
+ * 🔴 From the first real prod dry-run: 7 lines examined, "5 would be re-priced"
+ * — and four of the five had an identical before and after. Their amounts were
+ * right; only `unit_amount` (or a quantity of 1 standing in for 5 × 500) was
+ * missing. The summary sent an operator hunting four discrepancies that did not
+ * exist.
+ */
+describe("summarizeDraftSweep counts a breakdown backfill apart from a re-price", () => {
+  it("does not call an unchanged amount a re-pricing", () => {
+    const out = summarizeDraftSweep({
+      examined: 7,
+      stale: 5,
+      repriced: 1,
+      current: 2,
+      skipped: 0,
+      dryRun: true,
+    })
+
+    expect(out).toContain("1 would be re-priced")
+    expect(out).toContain(
+      "4 would gain a quantity/rate breakdown with no change to the amount"
+    )
+    // The old wording, which was the defect.
+    expect(out).not.toContain("5 would be re-priced")
+  })
+
+  it("says nothing about backfills when every stale line moves money", () => {
+    const out = summarizeDraftSweep({
+      examined: 3,
+      stale: 2,
+      repriced: 2,
+      current: 1,
+      skipped: 0,
+      dryRun: false,
+    })
+
+    expect(out).toContain("2 re-priced")
+    expect(out).not.toContain("breakdown")
+  })
+
+  it("keeps the old wording for a caller that does not split the two", () => {
+    // `repriced` is optional so an older caller reports what it always did,
+    // rather than silently claiming zero payouts changed.
+    const out = summarizeDraftSweep({
+      examined: 5,
+      stale: 2,
+      current: 3,
+      skipped: 0,
+      dryRun: true,
+    })
+    expect(out).toContain("2 would be re-priced")
+    expect(out).not.toContain("breakdown")
+  })
+})
+
 describe("summarizeDraftSweep", () => {
   it("says plainly when there was nothing to examine", () => {
     expect(

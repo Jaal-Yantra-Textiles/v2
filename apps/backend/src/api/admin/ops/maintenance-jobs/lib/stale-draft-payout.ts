@@ -148,9 +148,32 @@ const fmt = (n: unknown): string =>
  * A sweep that says "3 of 200 stale" while 150 were unknowable has told the
  * operator the opposite of the truth about its own coverage.
  */
+/**
+ * 🔴 `stale` is NOT the number of payouts whose money changes, and reporting it
+ * as such is a bad INSTRUCTION rather than a bad number.
+ *
+ * The first real prod dry-run examined 7 lines and said *"5 would be
+ * re-priced"*. Four of those five had an identical before and after: their
+ * amounts were correct and only the BREAKDOWN was missing — `unit_amount`
+ * unset, or a quantity of 1 standing in for 5 × 500. An operator reading
+ * "5 re-priced" concludes five artisans are being paid the wrong amount and
+ * goes looking for four discrepancies that do not exist. That is the #1559
+ * shape exactly: a report-only job's risk is what it tells a human to do.
+ *
+ * So the two are counted apart. Both are still written — a line that bills
+ * 2500 as "1 × unset" instead of "5 × 500" is a line a partner cannot check,
+ * and fixing that is the point of the breakdown columns. It is simply not a
+ * re-pricing.
+ */
 export function summarizeDraftSweep(input: {
   examined: number
   stale: number
+  /**
+   * Of `stale`, how many change the AMOUNT. The remainder only backfill the
+   * quantity/rate behind an amount that was already right. Optional so an older
+   * caller keeps today's wording rather than silently reporting zero.
+   */
+  repriced?: number
   current: number
   skipped: number
   dryRun: boolean
@@ -162,11 +185,21 @@ export function summarizeDraftSweep(input: {
   }
 
   const verb = dryRun ? "would be re-priced" : "re-priced"
+  const backfillVerb = dryRun
+    ? "would gain a quantity/rate breakdown with no change to the amount"
+    : "gained a quantity/rate breakdown with no change to the amount"
+
+  const repriced = input.repriced === undefined ? stale : input.repriced
+  const backfilled = Math.max(0, stale - repriced)
+
   const parts = [
     `${examined} draft line${examined === 1 ? "" : "s"} examined`,
-    `${stale} ${verb}`,
-    `${current} already current`,
+    `${repriced} ${verb}`,
   ]
+  if (backfilled) {
+    parts.push(`${backfilled} ${backfillVerb}`)
+  }
+  parts.push(`${current} already current`)
   if (skipped) {
     parts.push(`${skipped} skipped as unknowable or ambiguous (see changes)`)
   }
