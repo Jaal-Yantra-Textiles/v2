@@ -1520,6 +1520,174 @@ export async function seedShipmentGatePartner(
  * Mirrors seedShipmentGatePartner for auth, then creates a website with a page
  * containing a Hero block and a Feature block so the editor has content to render.
  */
+/**
+ * A design inquiry a partner has been invited to but has NOT answered (#1531).
+ *
+ * 🔑 Deliberately un-answered. The wizard's whole contract is the path from
+ * "invited, silent" to "answered", and a fixture that starts mid-way cannot
+ * exercise the step that has actually broken before: the autosave.
+ *
+ * ⚠️ SINGLE-USE in the sense that matters — the spec submits a verdict, so a
+ * re-run finds a response that is already submitted. The spec is written to
+ * tolerate that (it asserts the wizard reaches a verdict, not that the verdict
+ * was previously absent), but a run against a fresh seed is the honest one.
+ *
+ * The questions are written by hand rather than by running
+ * `generateInquiryQuestions`, on purpose: this fixture is the CONTRACT the UI
+ * renders against. If generation changes shape, this seed should fail to match
+ * the UI and someone should have to look — which is exactly what a generated
+ * fixture would hide by changing in lockstep.
+ */
+async function seedDesignInquiry(container: any): Promise<{
+  email: string
+  password: string
+  partnerId: string
+  designId: string
+  designName: string
+  inquiryId: string
+  materialPrompt: string
+  measurementPrompt: string
+  colourPrompt: string
+  photoPrompt: string
+  questionCount: number
+}> {
+  const authModule = container.resolve(Modules.AUTH)
+  const partnerModule: any = container.resolve("partner")
+  const designService: any = container.resolve("design")
+  const inquiryService: any = container.resolve("design_inquiry")
+
+  const stamp = Date.now()
+  const email = `e2e-inquiry-${stamp}@jyt.test`
+
+  const partner = await partnerModule.createPartners({
+    name: "E2E Inquiry Weaver",
+    handle: `e2e-inquiry-${stamp}`,
+    status: "active",
+    is_verified: true,
+  })
+  const partnerId = (Array.isArray(partner) ? partner[0] : partner).id as string
+
+  await partnerModule.createPartnerAdmins({
+    email,
+    first_name: "Inquiry",
+    last_name: "Weaver",
+    role: "admin",
+    partner_id: partnerId,
+  })
+
+  const hashConfig = { logN: 15, r: 8, p: 1 }
+  const passwordHash = await Scrypt.kdf(SEED_PASSWORD, hashConfig)
+  const authIdentity: any = await authModule.createAuthIdentities({
+    provider_identities: [
+      {
+        provider: "emailpass",
+        entity_id: email,
+        provider_metadata: { password: passwordHash.toString("base64") },
+      },
+    ],
+    app_metadata: { partner_id: partnerId },
+  })
+  const authIdentityId = (
+    Array.isArray(authIdentity) ? authIdentity[0] : authIdentity
+  ).id as string
+
+  const now = new Date()
+  await authModule.createAuthVerifications([
+    {
+      auth_identity_id: authIdentityId,
+      entity_id: email,
+      entity_type: "email",
+      code_provider: "emailpass",
+      requested_at: now,
+      verified_at: now,
+    },
+  ])
+
+  const designName = `Kani Twill Stole (e2e ${stamp})`
+  const design = await designService.createDesigns({
+    name: designName,
+    description: "e2e #1531 sourcing-inquiry fixture",
+    design_type: "Original",
+    status: "In_Development",
+    priority: "Medium",
+  })
+  const designId = (Array.isArray(design) ? design[0] : design).id as string
+
+  const inquiry = await inquiryService.createDesignInquiries({
+    design_id: designId,
+    title: `What can you make for ${designName}?`,
+    brief_note: "Small run, 40 pieces. Tell us what you can actually do.",
+    spec_version: "v1",
+    status: "open",
+  })
+  const inquiryId = (Array.isArray(inquiry) ? inquiry[0] : inquiry).id as string
+
+  const materialPrompt = "Can you supply Cashmere 70s?"
+  const measurementPrompt = "What GSM can you achieve? (we need 90)"
+  const colourPrompt = "Which of these colours can you do?"
+  const photoPrompt =
+    "Show us something similar you have made recently — a photo of what is on your loom now is perfect."
+
+  await inquiryService.createDesignInquiryQuestions([
+    {
+      inquiry_id: inquiryId,
+      step: "Materials",
+      order: 0,
+      kind: "yes_no",
+      prompt: materialPrompt,
+      spec_field_ref: "e2e:material:0",
+    },
+    {
+      inquiry_id: inquiryId,
+      step: "Measurements",
+      order: 1,
+      kind: "number",
+      prompt: measurementPrompt,
+      spec_field_ref: "e2e:measurement:GSM",
+    },
+    {
+      inquiry_id: inquiryId,
+      step: "Colours",
+      order: 2,
+      kind: "colour_select",
+      prompt: colourPrompt,
+      options: [
+        { id: null, value: "Off White", hex: "#F2EFE6" },
+        { id: null, value: "Indigo", hex: "#2B3A67" },
+      ],
+    },
+    {
+      inquiry_id: inquiryId,
+      step: "Show us",
+      order: 3,
+      kind: "photo",
+      prompt: photoPrompt,
+    },
+  ])
+
+  // The empty response row IS the invitation — a partner who never answers has
+  // to read as silence rather than as absent from the comparison.
+  await inquiryService.createDesignInquiryResponses({
+    inquiry_id: inquiryId,
+    partner_id: partnerId,
+    invited_at: now,
+  })
+
+  return {
+    email,
+    password: SEED_PASSWORD,
+    partnerId,
+    designId,
+    designName,
+    inquiryId,
+    materialPrompt,
+    measurementPrompt,
+    colourPrompt,
+    photoPrompt,
+    questionCount: 4,
+  }
+}
+
 async function seedContentEditorPartner(
   container: any
 ): Promise<{
@@ -1993,6 +2161,7 @@ export default async function e2eSeed({ container }: ExecArgs) {
 
   logger.info("E2E seed: creating content editor partner + website + page + blocks...")
   const contentEditor = await seedContentEditorPartner(container)
+  const inquiry = await seedDesignInquiry(container)
 
   logger.info("E2E seed: creating payment-methods partner + two methods (settings/payments spec)...")
   const paymentMethods = await seedPaymentMethodsPartner(container)
@@ -2106,6 +2275,19 @@ export default async function e2eSeed({ container }: ExecArgs) {
     acceptedQuoteCompany: adminQuotes.acceptedQuoteCompany,
     zeroDepositQuoteId: adminQuotes.zeroDepositQuoteId,
     zeroDepositQuoteCompany: adminQuotes.zeroDepositQuoteCompany,
+    // #1531 slice 2 — the sourcing wizard, consumed by
+    // partner-inquiry-wizard.spec.ts (@partnerui, local only).
+    inquiryPartnerEmail: inquiry.email,
+    inquiryPartnerPassword: inquiry.password,
+    inquiryPartnerId: inquiry.partnerId,
+    inquiryId: inquiry.inquiryId,
+    inquiryDesignId: inquiry.designId,
+    inquiryDesignName: inquiry.designName,
+    inquiryMaterialPrompt: inquiry.materialPrompt,
+    inquiryMeasurementPrompt: inquiry.measurementPrompt,
+    inquiryColourPrompt: inquiry.colourPrompt,
+    inquiryPhotoPrompt: inquiry.photoPrompt,
+    inquiryQuestionCount: inquiry.questionCount,
   }
 
   fs.writeFileSync(SEED_FILE, JSON.stringify(seedData, null, 2))
