@@ -43,6 +43,7 @@ export type PriorRunLine = {
   submission_id: string | null
   submission_status: string | null
   production_run_ids: string[] | null
+  inventory_order_id?: string | null
 }
 
 export type RunClaim = {
@@ -86,6 +87,39 @@ export function foldRunClaims(
 }
 
 /**
+ * PURE: the same fold for INVENTORY ORDERS.
+ *
+ * An inventory order is claimed WHOLE — unlike a run-sourced line, which names
+ * a set of run ids, a line pays for one order. So a second line naming the same
+ * `inventory_order_id` is a duplicate by construction.
+ *
+ * 🔴 This exists because a source type without a double-pay guard is a
+ * double-pay hole by construction, and `inventory_order_id` is a brand-new
+ * column that no existing guard reads. Runs got their guard the hard way, after
+ * the same work had already been billed twice; inventory orders get theirs
+ * before the first row is written.
+ */
+export function foldInventoryOrderClaims(
+  priorLines: PriorRunLine[]
+): Map<string, RunClaim> {
+  const claims = new Map<string, RunClaim>()
+
+  for (const line of priorLines || []) {
+    if (String(line.submission_status || "") === "Rejected") continue
+
+    const orderId = line.inventory_order_id
+    if (!orderId || claims.has(orderId)) continue
+
+    claims.set(orderId, {
+      submission_id: line.submission_id,
+      submission_status: line.submission_status,
+    })
+  }
+
+  return claims
+}
+
+/**
  * Every prior submission line belonging to one partner, in the shape
  * `foldRunClaims` wants.
  *
@@ -94,15 +128,15 @@ export function foldRunClaims(
  * lines under them. An `excludeSubmissionId` drops the submission being edited,
  * so a line does not read its own claim as a conflict with itself.
  */
-export async function listPartnerRunClaims(
+export async function listPartnerPriorLines(
   service: {
     listPaymentSubmissions: (filters: any, config?: any) => Promise<any[]>
     listPaymentSubmissionItems: (filters: any, config?: any) => Promise<any[]>
   },
   partnerId: string,
   options?: { excludeSubmissionId?: string }
-): Promise<Map<string, RunClaim>> {
-  if (!partnerId) return new Map()
+): Promise<PriorRunLine[]> {
+  if (!partnerId) return []
 
   const submissions = await service.listPaymentSubmissions({
     partner_id: partnerId,
@@ -114,32 +148,85 @@ export async function listPartnerRunClaims(
       (id: string) => !!id && id !== options?.excludeSubmissionId
     )
 
-  if (!submissionIds.length) return new Map()
+  if (!submissionIds.length) return []
 
   const items = await service.listPaymentSubmissionItems(
     { submission_id: submissionIds },
     { relations: ["submission"] }
   )
 
+  return ((items || []) as any[]).map((item) => ({
+    submission_id: item.submission?.id ?? item.submission_id ?? null,
+    submission_status: item.submission?.status ?? null,
+    production_run_ids: (item.production_run_ids || []) as string[],
+    inventory_order_id: item.inventory_order_id ?? null,
+  }))
+}
+
+export async function listPartnerRunClaims(
+  service: {
+    listPaymentSubmissions: (filters: any, config?: any) => Promise<any[]>
+    listPaymentSubmissionItems: (filters: any, config?: any) => Promise<any[]>
+  },
+  partnerId: string,
+  options?: { excludeSubmissionId?: string }
+): Promise<Map<string, RunClaim>> {
   return foldRunClaims(
-    ((items || []) as any[]).map((item) => ({
-      submission_id: item.submission?.id ?? item.submission_id ?? null,
-      submission_status: item.submission?.status ?? null,
-      production_run_ids: (item.production_run_ids || []) as string[],
-    }))
+    await listPartnerPriorLines(service, partnerId, options)
   )
 }
 
-/** The refusal, naming who holds each run. */
+/**
+ * Both claim maps from ONE pass over the partner's lines.
+ *
+ * Prefer this wherever a caller needs to check runs and inventory orders
+ * together — `listPartnerRunClaims` and a separate inventory lookup would walk
+ * the same rows twice.
+ */
+export async function listPartnerClaims(
+  service: {
+    listPaymentSubmissions: (filters: any, config?: any) => Promise<any[]>
+    listPaymentSubmissionItems: (filters: any, config?: any) => Promise<any[]>
+  },
+  partnerId: string,
+  options?: { excludeSubmissionId?: string }
+): Promise<{
+  runs: Map<string, RunClaim>
+  inventoryOrders: Map<string, RunClaim>
+}> {
+  const lines = await listPartnerPriorLines(service, partnerId, options)
+
+  return {
+    runs: foldRunClaims(lines),
+    inventoryOrders: foldInventoryOrderClaims(lines),
+  }
+}
+
+/** The refusal, naming who holds each claimed thing. */
+const claimedList = (
+  duplicates: string[],
+  claims: Map<string, RunClaim>
+): string =>
+  duplicates
+    .map((id) => {
+      const claim = claims.get(id)
+      const status = claim?.submission_status
+        ? `, ${claim.submission_status}`
+        : ""
+      return `${id} (submission ${claim?.submission_id ?? "unknown"}${status})`
+    })
+    .join(", ")
+
 export function runsAlreadyClaimedMessage(
   duplicates: string[],
   claims: Map<string, RunClaim>
 ): string {
-  const parts = duplicates.map((id) => {
-    const claim = claims.get(id)
-    const status = claim?.submission_status ? `, ${claim.submission_status}` : ""
-    return `${id} (submission ${claim?.submission_id ?? "unknown"}${status})`
-  })
+  return `Production runs already paid for: ${claimedList(duplicates, claims)}`
+}
 
-  return `Production runs already paid for: ${parts.join(", ")}`
+export function inventoryOrdersAlreadyClaimedMessage(
+  duplicates: string[],
+  claims: Map<string, RunClaim>
+): string {
+  return `Inventory orders already paid for: ${claimedList(duplicates, claims)}`
 }
