@@ -20,6 +20,13 @@ export interface PaymentSubmissionItem {
   task_id: string | null
   task_name: string | null
   amount: number
+  /** Units this line pays for, and the rate behind them. `unit_amount` is null
+   *  when the total was typed rather than derived — see resolveDesignLineAmount. */
+  quantity: number
+  unit_amount: number | null
+  /** The runs this line pays for, and whether that is known at all (#1565). */
+  production_run_ids: string[] | null
+  run_provenance: "recorded" | "no_run" | "not_recorded"
   cost_breakdown: any
   metadata: any
   created_at: string
@@ -316,6 +323,99 @@ export const useCreatePaymentSubmission = (
       ) as Promise<{ payment_submission: PaymentSubmission }>,
     onSuccess: (data, variables, _mutateResult, context) => {
       queryClient.invalidateQueries({ queryKey: paymentSubmissionQueryKeys.lists() })
+      options?.onSuccess?.(data, variables, _mutateResult, context)
+    },
+    ...options,
+  })
+}
+
+/**
+ * Draft → Pending, in place (#1604).
+ *
+ * Until this route existed the only exit from a Draft was a partner creating a
+ * SECOND submission by hand — which could not name the runs the Draft already
+ * claimed, so it named none and threw the evidence away. Seven production
+ * Drafts are still waiting on it.
+ */
+export const useSubmitPaymentSubmission = (
+  options?: UseMutationOptions<
+    { payment_submission: PaymentSubmission },
+    FetchError,
+    { id: string; notes?: string }
+  >
+) => {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async ({ id, ...payload }: { id: string; notes?: string }) =>
+      sdk.client.fetch<{ payment_submission: PaymentSubmission }>(
+        `/admin/payment-submissions/${id}/submit`,
+        { method: "POST", body: payload }
+      ) as Promise<{ payment_submission: PaymentSubmission }>,
+    onSuccess: (data, variables, _mutateResult, context) => {
+      queryClient.invalidateQueries({ queryKey: paymentSubmissionQueryKeys.lists() })
+      queryClient.invalidateQueries({ queryKey: paymentSubmissionQueryKeys.detail(variables.id) })
+      options?.onSuccess?.(data, variables, _mutateResult, context)
+    },
+    ...options,
+  })
+}
+
+/**
+ * Correct one line (#1604). Honoured on Draft and Pending only — the money on
+ * anything later has moved or been committed.
+ *
+ * 🔴 `production_run_ids` re-runs the full double-pay guard server-side. Do not
+ * add a client-side shortcut around it.
+ */
+export const useUpdatePaymentSubmissionItem = (
+  options?: UseMutationOptions<
+    { payment_submission: PaymentSubmission },
+    FetchError,
+    {
+      id: string
+      item_id: string
+      quantity?: number
+      unit_amount?: number
+      amount?: number
+      production_run_ids?: string[]
+      metadata?: Record<string, any>
+    }
+  >
+) => {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async ({ id, item_id, ...payload }) =>
+      sdk.client.fetch<{ payment_submission: PaymentSubmission }>(
+        `/admin/payment-submissions/${id}/items/${item_id}`,
+        { method: "PATCH", body: payload }
+      ) as Promise<{ payment_submission: PaymentSubmission }>,
+    onSuccess: (data, variables, _mutateResult, context) => {
+      queryClient.invalidateQueries({ queryKey: paymentSubmissionQueryKeys.lists() })
+      queryClient.invalidateQueries({ queryKey: paymentSubmissionQueryKeys.detail(variables.id) })
+      options?.onSuccess?.(data, variables, _mutateResult, context)
+    },
+    ...options,
+  })
+}
+
+/** Remove a machine-written Draft (#1604). Draft only — the route refuses the rest. */
+export const useDeletePaymentSubmission = (
+  options?: UseMutationOptions<
+    { id: string; deleted: boolean },
+    FetchError,
+    { id: string }
+  >
+) => {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async ({ id }: { id: string }) =>
+      sdk.client.fetch<{ id: string; deleted: boolean }>(
+        `/admin/payment-submissions/${id}`,
+        { method: "DELETE" }
+      ) as Promise<{ id: string; deleted: boolean }>,
+    onSuccess: (data, variables, _mutateResult, context) => {
+      queryClient.invalidateQueries({ queryKey: paymentSubmissionQueryKeys.lists() })
+      queryClient.invalidateQueries({ queryKey: paymentSubmissionQueryKeys.detail(variables.id) })
       options?.onSuccess?.(data, variables, _mutateResult, context)
     },
     ...options,

@@ -257,12 +257,15 @@ import {
 import {
   CreatePaymentSubmissionSchema,
   ListPaymentSubmissionsQuerySchema,
+  SubmitPaymentSubmissionSchema as PartnerSubmitPaymentSubmissionSchema,
 } from "./partners/payment-submissions/validators";
 import {
   AdminListPaymentSubmissionsQuerySchema,
   AdminPayableRunsQuerySchema,
   AdminReviewPaymentSubmissionSchema,
   CreateAdminPaymentSubmissionSchema,
+  SubmitPaymentSubmissionSchema as AdminSubmitPaymentSubmissionSchema,
+  UpdatePaymentSubmissionItemSchema,
 } from "./admin/payment-submissions/validators";
 import {
   ListReconciliationsQuerySchema,
@@ -3614,6 +3617,23 @@ export default defineMiddlewares({
       middlewares: [validateAndTransformBody(wrapSchema(AdminReviewPaymentSubmissionSchema))],
     },
     {
+      // Draft -> Pending, in place (#1604). Declared before the ":id" entries
+      // for the same reason `payable-runs` is: first matching entry wins.
+      matcher: "/admin/payment-submissions/:id/submit",
+      method: "POST",
+      middlewares: [validateAndTransformBody(wrapSchema(AdminSubmitPaymentSubmissionSchema))],
+    },
+    {
+      matcher: "/admin/payment-submissions/:id/items/:itemId",
+      method: "PATCH",
+      middlewares: [validateAndTransformBody(wrapSchema(UpdatePaymentSubmissionItemSchema))],
+    },
+    {
+      matcher: "/admin/payment-submissions/:id",
+      method: "DELETE",
+      middlewares: [],
+    },
+    {
       matcher: "/admin/payment-submissions/:id",
       method: "GET",
       middlewares: [],
@@ -3636,6 +3656,19 @@ export default defineMiddlewares({
       middlewares: [
         authenticate("partner", ["session", "bearer"]),
         maybeMulterArray("files"),
+      ],
+    },
+    {
+      /**
+       * 🔴 A partner route with no entry here has no `auth_context` at all —
+       * the `/partners*` wildcard supplies CORS and locale only. It 401s on
+       * every request while looking perfectly correct in the route file.
+       */
+      matcher: "/partners/payment-submissions/:submissionId/submit",
+      method: "POST",
+      middlewares: [
+        authenticate("partner", ["session", "bearer"]),
+        validateAndTransformBody(wrapSchema(PartnerSubmitPaymentSubmissionSchema)),
       ],
     },
     {

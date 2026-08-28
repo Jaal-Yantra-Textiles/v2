@@ -93,3 +93,46 @@ export const CreateAdminPaymentSubmissionSchema = z
       path: ["design_ids"],
     }
   )
+
+/**
+ * Draft → Pending, in place (#1604). Nothing but an optional note: the money,
+ * the designs and the runs are already on the draft, and a second way to state
+ * them here is a second way for them to disagree.
+ */
+export const SubmitPaymentSubmissionSchema = z.object({
+  notes: z.string().optional(),
+})
+
+/**
+ * Correcting one line (#1604).
+ *
+ * Every field optional, and an absent field keeps its current value — a PATCH
+ * that silently reset the rate would be a worse defect than the one this route
+ * exists to fix. At least one must be present, so an empty body is an error
+ * rather than a write of nothing that returns 200.
+ *
+ * 🔴 `production_run_ids` re-runs the full claim guard in the workflow. It is
+ * the column that decides whether the same work can be billed twice, and an
+ * edit route that wrote it unguarded would silently undo #1602.
+ */
+export const UpdatePaymentSubmissionItemSchema = z
+  .object({
+    quantity: z.coerce.number().positive("quantity must be greater than 0").optional(),
+    unit_amount: z.coerce
+      .number()
+      .positive("unit_amount must be greater than 0")
+      .optional(),
+    amount: z.coerce.number().positive("amount must be greater than 0").optional(),
+    /** `[]` is meaningful: it says this line names no runs. */
+    production_run_ids: z.array(z.string().min(1)).optional(),
+    metadata: z.record(z.string(), z.any()).optional(),
+  })
+  .refine(
+    (data) =>
+      data.quantity !== undefined ||
+      data.unit_amount !== undefined ||
+      data.amount !== undefined ||
+      data.production_run_ids !== undefined ||
+      data.metadata !== undefined,
+    { message: "Nothing to update" }
+  )
