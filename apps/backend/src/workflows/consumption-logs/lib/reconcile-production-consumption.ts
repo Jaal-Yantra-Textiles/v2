@@ -19,6 +19,11 @@
 export type ReconcileRun = {
   id: string
   design_id?: string | null
+  /**
+   * The product a run is anchored to when no design backs it (#1112, #1618).
+   * Of 122 production runs, 8 are product-only and 4 carry both.
+   */
+  product_id?: string | null
   parent_run_id?: string | null
   status?: string | null
   produced_quantity?: number | null
@@ -31,6 +36,16 @@ export type ConsumptionBasis = "total" | "per_piece"
 export type ReconcileLog = {
   id: string
   design_id?: string | null
+  /**
+   * The product a log is anchored to when no design backs it (#1618).
+   *
+   * 🔴 `design_id` used to be required here, and a log without one was dropped
+   * before it reached any bucket. Since #1618 a log can hang off a product, so
+   * that drop silently under-reported consumption — and the failure mode of a
+   * report-only job is a BAD INSTRUCTION: it shows material as missing when it
+   * was recorded, and tells someone to correct data that is already right.
+   */
+  product_id?: string | null
   inventory_item_id?: string | null
   production_run_id?: string | null
   quantity?: number | string | null
@@ -43,8 +58,22 @@ export type ReconcileLog = {
   is_committed?: boolean
 }
 
+export type ReconcileAnchorType = "design" | "product"
+
 export type DesignReconciliation = {
-  design_id: string
+  /**
+   * WHAT this row is about, and which kind of thing that is (#1619).
+   *
+   * A row is keyed by its anchor, not by a design: a product-only run has no
+   * design to group under, and grouping it under `null` would put every
+   * unrelated product-anchored row in one bucket.
+   */
+  anchor_type: ReconcileAnchorType
+  anchor_id: string
+  /** Null on a product-anchored row. Callers that print an id want `anchor_id`. */
+  design_id: string | null
+  /** Set on a product-anchored row; null when a design backs it. */
+  product_id: string | null
   /** Completed leaf-run output, provenance excluded — pieces we actually made. */
   produced: number
   /** Completed provenance quantity — shipped from stock, consumed nothing. */
@@ -164,7 +193,51 @@ const round = (n: number): number => Number(n.toFixed(6))
  * It is optional: with no rate we still report the IMPLIED rate, which is what
  * makes a 0.19 m/piece design visible without anyone having specified a spec.
  */
-export function reconcileDesigns(input: {
+/**
+ * What a run or a log is ABOUT, as a single key (#1619).
+ *
+ * 🔑 The design wins when both are present — 4 of 122 prod runs carry both, and
+ * every existing rate, report and expectation is design-keyed. Preferring the
+ * product for those would silently move them into a new bucket.
+ *
+ * Returns null when neither is set: that row is unattributable and is COUNTED
+ * rather than dropped.
+ */
+const anchorOf = (
+  row: { design_id?: string | null; product_id?: string | null } | null | undefined
+): { type: ReconcileAnchorType; id: string; key: string } | null => {
+  const design = row?.design_id ? String(row.design_id) : ""
+  if (design) return { type: "design", id: design, key: `design:${design}` }
+
+  const product = row?.product_id ? String(row.product_id) : ""
+  if (product) return { type: "product", id: product, key: `product:${product}` }
+
+  return null
+}
+
+/**
+ * What this reconciliation could NOT look at.
+ *
+ * 🔴 Returned, not logged. Silent truncation reads as "covered everything" when
+ * it didn't — and the whole hazard of a report-only job is that its output is
+ * read as an instruction. A caller that cannot see the exclusions cannot know
+ * its report is partial.
+ */
+export type ReconcileExclusions = {
+  /** Committed material logs anchored to neither a design nor a product. */
+  logs: number
+  /** Their raw `quantity` sum. Not a total of anything — a size, not a figure. */
+  log_quantity: number
+  /** Completed leaf runs anchored to neither. Their output is in no bucket. */
+  runs: number
+}
+
+export type ReconcileResult = {
+  rows: DesignReconciliation[]
+  excluded: ReconcileExclusions
+}
+
+export function reconcileConsumption(input: {
   runs: ReconcileRun[]
   logs: ReconcileLog[]
   ratePerUnit?: Record<string, number>
@@ -176,21 +249,42 @@ export function reconcileDesigns(input: {
    * report in the first place. Omitted, those logs stay unresolved.
    */
   assumeBasisWhenUnknown?: ConsumptionBasis
-}): DesignReconciliation[] {
+}): ReconcileResult {
   const implausibleBelow = input.implausibleRateBelow ?? 0.5
   const rates = input.ratePerUnit ?? {}
 
-  const leaves = leafRuns(
-    (input.runs || []).filter((r) => r?.design_id)
-  ).filter((r) => r.status === "completed")
+  /**
+   * ⚠️ Leaf resolution runs over ALL runs, before any anchor filter. Filtering
+   * first would hide a parent from `leafRuns` and promote its children's parent
+   * to a leaf, double-counting the output.
+   */
+  const leaves = leafRuns(input.runs || []).filter(
+    (r) => r.status === "completed"
+  )
+
+  /** Anchor key → what it is, so a row can name itself at the end. */
+  const anchors = new Map<string, { type: ReconcileAnchorType; id: string }>()
+  const remember = (a: { type: ReconcileAnchorType; id: string; key: string }) => {
+    if (!anchors.has(a.key)) anchors.set(a.key, { type: a.type, id: a.id })
+    return a.key
+  }
 
   const produced: Record<string, number> = {}
   const provenance: Record<string, number> = {}
   // Pieces per RUN, so a log attributed to one run is multiplied by that run's
-  // own yield rather than by everything the design ever made.
+  // own yield rather than by everything the anchor ever made.
   const piecesByRun: Record<string, number> = {}
+  let excludedRuns = 0
+
   for (const r of leaves) {
-    const d = String(r.design_id)
+    const anchor = anchorOf(r)
+    if (!anchor) {
+      // Anchored to nothing: no bucket exists for its output. Counted, never
+      // dropped — see ReconcileExclusions.
+      excludedRuns++
+      continue
+    }
+    const d = remember(anchor)
     // produced_quantity is the reported yield; fall back to the ordered
     // quantity only when the yield was never recorded.
     const q = num(r.produced_quantity ?? r.quantity)
@@ -206,14 +300,28 @@ export function reconcileDesigns(input: {
   const unattributed: Record<string, number> = {}
   const unresolvedCount: Record<string, number> = {}
   const unresolvedQty: Record<string, number> = {}
+  let excludedLogs = 0
+  let excludedLogQuantity = 0
+
   for (const l of input.logs || []) {
     // Labour (`Hour`) and energy (`kWh`) logs carry a raw_material_id instead of
     // an inventory item; they are not material and must not enter a metres-per-
     // piece rate.
-    if (!l?.is_committed || !l.inventory_item_id || !l.design_id) {
+    if (!l?.is_committed || !l.inventory_item_id) {
       continue
     }
-    const d = String(l.design_id)
+
+    /**
+     * 🔴 Was `|| !l.design_id`, which dropped every product-anchored log in
+     * silence from the moment #1618 made one possible.
+     */
+    const anchor = anchorOf(l)
+    if (!anchor) {
+      excludedLogs++
+      excludedLogQuantity = round(excludedLogQuantity + num(l.quantity))
+      continue
+    }
+    const d = remember(anchor)
     if (!l.production_run_id) {
       unattributed[d] = (unattributed[d] ?? 0) + 1
     }
@@ -247,7 +355,7 @@ export function reconcileDesigns(input: {
     consumed[d] = round((consumed[d] ?? 0) + raw * pieces)
   }
 
-  const designIds = new Set([
+  const anchorKeys = new Set([
     ...Object.keys(produced),
     ...Object.keys(provenance),
     ...Object.keys(consumed),
@@ -255,11 +363,18 @@ export function reconcileDesigns(input: {
   ])
 
   const out: DesignReconciliation[] = []
-  for (const design_id of designIds) {
+  for (const design_id of anchorKeys) {
+    const anchor = anchors.get(design_id)!
     const p = produced[design_id] ?? 0
     const c = consumed[design_id] ?? 0
     const unresolved = unresolvedCount[design_id] ?? 0
-    const rate = rates[design_id]
+    /**
+     * ⚠️ Rates are keyed by the anchor's own id, not by the composite key. They
+     * have always been design ids, and a product-anchored row simply has no
+     * rate until someone supplies one — `expected` stays null rather than
+     * borrowing a design's.
+     */
+    const rate = rates[anchor.id]
     const expected = rate != null && p > 0 ? round(rate * p) : null
     const implied = p > 0 && c > 0 ? round(c / p) : null
     const flags: ReconcileFlag[] = []
@@ -291,7 +406,10 @@ export function reconcileDesigns(input: {
     }
 
     out.push({
-      design_id,
+      anchor_type: anchor.type,
+      anchor_id: anchor.id,
+      design_id: anchor.type === "design" ? anchor.id : null,
+      product_id: anchor.type === "product" ? anchor.id : null,
       produced: p,
       shipped_from_stock: provenance[design_id] ?? 0,
       consumed: c,
@@ -305,6 +423,27 @@ export function reconcileDesigns(input: {
     })
   }
 
-  // Worst first: most produced with least accounted for.
-  return out.sort((a, b) => b.produced - a.produced || b.consumed - a.consumed)
+  return {
+    // Worst first: most produced with least accounted for.
+    rows: out.sort((a, b) => b.produced - a.produced || b.consumed - a.consumed),
+    excluded: {
+      logs: excludedLogs,
+      log_quantity: excludedLogQuantity,
+      runs: excludedRuns,
+    },
+  }
+}
+
+/**
+ * The rows only.
+ *
+ * ⚠️ A caller using this CANNOT SEE what was excluded, so anything that reports
+ * to a human must call `reconcileConsumption` and say so. Kept because the
+ * exclusions are a property of the pass, not of a row, and most tests only care
+ * about the arithmetic.
+ */
+export function reconcileDesigns(
+  input: Parameters<typeof reconcileConsumption>[0]
+): DesignReconciliation[] {
+  return reconcileConsumption(input).rows
 }

@@ -1,6 +1,7 @@
 import {
   isProvenanceRun,
   leafRuns,
+  reconcileConsumption,
   reconcileDesigns,
   type ReconcileLog,
   type ReconcileRun,
@@ -328,5 +329,158 @@ describe("isProvenanceRun / leafRuns", () => {
       { id: "c", parent_run_id: "p" },
     ]
     expect(leafRuns(runs).map((r) => r.id)).toEqual(["c"])
+  })
+})
+
+/**
+ * #1619 — a consumption log can hang off a PRODUCT since #1618, and this fold
+ * dropped every log without a design before it reached any bucket.
+ *
+ * 🔴 The risk is the one #1559/#1600 already demonstrated: a report-only job's
+ * failure mode is a BAD INSTRUCTION. Showing consumption as missing when it was
+ * recorded against a product tells an operator to correct data that is already
+ * correct.
+ */
+describe("reconcileConsumption — product anchors (#1619)", () => {
+  const productRun = {
+    id: "prod_run_01KZ3DA8TV6SR2A90FR1Q1WGWW",
+    design_id: null,
+    product_id: "prod_01KKV2B0SF4SQHCW41RYX3TYJ5",
+    status: "completed",
+    produced_quantity: 2,
+    quantity: 2,
+  }
+
+  /** The real log committed on 2026-08-28: 3m Kala Cotton, product-anchored. */
+  const productLog = {
+    id: "01M13S4TFR1BMF6APEGT31VD7X",
+    design_id: null,
+    product_id: "prod_01KKV2B0SF4SQHCW41RYX3TYJ5",
+    inventory_item_id: "iitem_01KXZ5JZBQ961KPQ7ZRPV6D7BZ",
+    production_run_id: "prod_run_01KZ3DA8TV6SR2A90FR1Q1WGWW",
+    quantity: 3,
+    quantity_basis: "total" as const,
+    is_committed: true,
+  }
+
+  it("reports a product-anchored run and its log instead of dropping them", () => {
+    const { rows } = reconcileConsumption({
+      runs: [productRun],
+      logs: [productLog],
+    })
+
+    expect(rows).toHaveLength(1)
+    expect(rows[0].anchor_type).toBe("product")
+    expect(rows[0].anchor_id).toBe("prod_01KKV2B0SF4SQHCW41RYX3TYJ5")
+    expect(rows[0].design_id).toBeNull()
+    expect(rows[0].produced).toBe(2)
+    expect(rows[0].consumed).toBe(3)
+    // The whole point: NOT "produced without consumption".
+    expect(rows[0].flags).not.toContain("produced_without_consumption")
+  })
+
+  it("keeps a design row and a product row in SEPARATE buckets", () => {
+    const { rows } = reconcileConsumption({
+      runs: [
+        productRun,
+        {
+          id: "run_design",
+          design_id: "design_1",
+          status: "completed",
+          produced_quantity: 5,
+        },
+      ],
+      logs: [
+        productLog,
+        {
+          id: "log_design",
+          design_id: "design_1",
+          inventory_item_id: "iitem_2",
+          production_run_id: "run_design",
+          quantity: 10,
+          quantity_basis: "total" as const,
+          is_committed: true,
+        },
+      ],
+    })
+
+    expect(rows).toHaveLength(2)
+    const byProduct = rows.find((r) => r.anchor_type === "product")!
+    const byDesign = rows.find((r) => r.anchor_type === "design")!
+    expect(byProduct.consumed).toBe(3)
+    expect(byDesign.consumed).toBe(10)
+  })
+
+  it("prefers the DESIGN when a row carries both", () => {
+    // 4 of 122 prod runs carry both, and every rate and report is design-keyed.
+    // Preferring the product would silently move them into a new bucket.
+    const { rows } = reconcileConsumption({
+      runs: [{ ...productRun, design_id: "design_1" }],
+      logs: [{ ...productLog, design_id: "design_1" }],
+    })
+
+    expect(rows).toHaveLength(1)
+    expect(rows[0].anchor_type).toBe("design")
+    expect(rows[0].design_id).toBe("design_1")
+    expect(rows[0].product_id).toBeNull()
+  })
+
+  it("COUNTS a log anchored to neither rather than dropping it in silence", () => {
+    const { rows, excluded } = reconcileConsumption({
+      runs: [],
+      logs: [{ ...productLog, design_id: null, product_id: null, quantity: 7 }],
+    })
+
+    expect(rows).toHaveLength(0)
+    expect(excluded.logs).toBe(1)
+    expect(excluded.log_quantity).toBe(7)
+  })
+
+  it("counts a completed run anchored to neither", () => {
+    const { excluded } = reconcileConsumption({
+      runs: [{ ...productRun, design_id: null, product_id: null }],
+      logs: [],
+    })
+
+    expect(excluded.runs).toBe(1)
+  })
+
+  it("does not borrow a design's expected rate for a product row", () => {
+    // Rates have always been design ids. A product row has no rate until
+    // someone supplies one; inventing one would manufacture a variance.
+    const { rows } = reconcileConsumption({
+      runs: [productRun],
+      logs: [productLog],
+      ratePerUnit: { design_1: 5 },
+    })
+
+    expect(rows[0].expected).toBeNull()
+    expect(rows[0].flags).not.toContain("under_expected")
+  })
+
+  it("resolves leaf runs BEFORE anchoring, so a parent cannot be double-counted", () => {
+    // Filtering by anchor first would hide the parent from leafRuns and promote
+    // it back to a leaf, counting its children's output twice.
+    const { rows } = reconcileConsumption({
+      runs: [
+        {
+          id: "parent",
+          product_id: "prod_1",
+          status: "completed",
+          produced_quantity: 10,
+        },
+        {
+          id: "child",
+          parent_run_id: "parent",
+          product_id: "prod_1",
+          status: "completed",
+          produced_quantity: 10,
+        },
+      ],
+      logs: [],
+    })
+
+    expect(rows).toHaveLength(1)
+    expect(rows[0].produced).toBe(10)
   })
 })
