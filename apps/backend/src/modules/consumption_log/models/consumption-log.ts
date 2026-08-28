@@ -2,7 +2,27 @@ import { model } from "@medusajs/framework/utils"
 
 const ConsumptionLog = model.define("consumption_log", {
   id: model.id().primaryKey(),
-  design_id: model.text(),
+  /**
+   * What was being made. NULLABLE since #938-groundwork: a product-only
+   * production run — one minted from `order.fulfillment_created` for a product
+   * with no backing design (#1112) — consumes real material, and until now had
+   * nowhere to record it. `design_id text not null` asserted that every
+   * consumption traces to a design, which stopped being true the day
+   * product-only runs shipped.
+   *
+   * 🔴 `design_id` and `product_id` are BOTH nullable but not both absent: a
+   * CHECK constraint requires at least one. That mirrors the production run
+   * itself, which carries the same pair and branches on presence — and it
+   * matches the data, where all 122 runs on prod have at least one of the two
+   * (110 design-only, 8 product-only, 4 both, 0 neither).
+   *
+   * Do NOT collapse these into "just use product": product covers 12 of those
+   * 122 runs today. It becomes universal only once #938 Phase 0 backs every
+   * design with a product at birth, and that has not landed.
+   */
+  design_id: model.text().nullable(),
+  product_id: model.text().nullable(),
+  variant_id: model.text().nullable(),
   production_run_id: model.text().nullable(),
   inventory_item_id: model.text().nullable(),
   raw_material_id: model.text().nullable(),

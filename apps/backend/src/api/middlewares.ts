@@ -180,6 +180,7 @@ import {
 import { createBlocksSchema, ReadBlocksQuerySchema, updateBlockSchema } from "./admin/websites/[id]/pages/[pageId]/blocks/validators";
 import { AdminPostDesignInventoryReq, AdminDeleteDesignInventoryReq } from "./admin/designs/[id]/inventory/validators";
 import { AdminPostConsumptionLogReq, AdminPostCommitConsumptionReq } from "./admin/designs/[id]/consumption-logs/validators";
+import { AdminPostRunConsumptionLogReq, AdminPostRunCommitConsumptionReq } from "./admin/production-runs/[id]/consumption-logs/validators";
 import { AdminPostDesignInquiryReq, AdminPostDesignInquiryPreviewReq, AdminPostCloseDesignInquiryReq } from "./admin/designs/[id]/inquiries/validators";
 import { AdminCreateEnergyRateReq, AdminUpdateEnergyRateReq } from "./admin/energy-rates/validators";
 import { partnerSchema, partnerUpdateSchema } from "./partners/validators";
@@ -4471,6 +4472,21 @@ export default defineMiddlewares({
       matcher: "/admin/designs/:id/consumption-logs/commit",
       method: "POST",
       middlewares: [validateAndTransformBody(wrapSchema(AdminPostCommitConsumptionReq))],
+    },
+
+    // Consumption logs on production RUNS — the only capture path available to
+    // a product-only run, which has no design to hang a log off (#1112/#938).
+
+    {
+      matcher: "/admin/production-runs/:id/consumption-logs",
+      method: "POST",
+      middlewares: [validateAndTransformBody(wrapSchema(AdminPostRunConsumptionLogReq))],
+    },
+
+    {
+      matcher: "/admin/production-runs/:id/consumption-logs/commit",
+      method: "POST",
+      middlewares: [validateAndTransformBody(wrapSchema(AdminPostRunCommitConsumptionReq))],
     },
 
     // Energy rates

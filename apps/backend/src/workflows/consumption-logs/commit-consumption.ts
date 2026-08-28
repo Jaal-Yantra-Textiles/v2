@@ -10,9 +10,21 @@ import { MedusaError } from "@medusajs/utils"
 import { CONSUMPTION_LOG_MODULE } from "../../modules/consumption_log"
 import ConsumptionLogService from "../../modules/consumption_log/service"
 import { RAW_MATERIAL_MODULE } from "../../modules/raw_material"
+import { resolveCommitScope } from "./lib/consumption-anchor"
 
+/**
+ * What to commit, scoped by ONE anchor.
+ *
+ * 🔴 `production_run_id` and `product_id` exist because committing was
+ * design-only, and `is_committed` is what `apply-to-inventory` requires before
+ * it will deduct stock. A product-only log could therefore be written and then
+ * never committed and never applied — recorded, but inert. A source of
+ * consumption without a commit path is a dead end by construction.
+ */
 export type CommitConsumptionInput = {
-  design_id: string
+  design_id?: string
+  production_run_id?: string
+  product_id?: string
   log_ids?: string[]
   commit_all?: boolean
 }
@@ -22,8 +34,13 @@ const fetchUncommittedLogsStep = createStep(
   async (input: CommitConsumptionInput, { container }) => {
     const service: ConsumptionLogService = container.resolve(CONSUMPTION_LOG_MODULE)
 
+    const scope = resolveCommitScope(input)
+    if (!scope.ok) {
+      throw new MedusaError(MedusaError.Types.INVALID_DATA, scope.error)
+    }
+
     const filters: Record<string, any> = {
-      design_id: input.design_id,
+      ...scope.filters,
       is_committed: false,
     }
 
@@ -38,7 +55,7 @@ const fetchUncommittedLogsStep = createStep(
     if (!logs.length) {
       throw new MedusaError(
         MedusaError.Types.NOT_FOUND,
-        "No uncommitted consumption logs found for this design"
+        `No uncommitted consumption logs found for ${scope.scope}`
       )
     }
 
