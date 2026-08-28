@@ -96,12 +96,30 @@ export const runUnitCost = (run: RunForPayout | null | undefined): number => {
  * papered over.
  */
 export type RunPayableOffer = {
-  /** The agreed rate per finished unit, or 0 when the run carries none. */
+  /**
+   * The rate per finished unit.
+   *
+   * ⚠️ For a `total` run this is DERIVED for display — `unit_is_derived` says
+   * so — and `unit_amount * quantity` deliberately does NOT reproduce `amount`.
+   * Read `amount` for the money; read this only to show a rate.
+   */
   unit_amount: number
+  /** Whether `unit_amount` was computed rather than agreed. */
+  unit_is_derived: boolean
   /** Units billed — produced where recorded, else ordered, never below 1. */
   quantity: number
   quantity_basis: "produced" | "ordered"
-  /** unit_amount x quantity, to two decimals. */
+  /**
+   * What is owed.
+   *
+   * 🔴 For `cost_type: "total"` this is the agreed total VERBATIM. It is not
+   * `unit_amount * quantity`: dividing a total by the ordered quantity and
+   * re-multiplying by the produced one silently RE-PRICES the job. On a real
+   * run — ₹10,000 agreed, 9 ordered, 7 made — that arithmetic billed ₹7,777.77,
+   * a 22% cut nobody decided, and even when ordered equalled produced it lost a
+   * paisa to rounding (₹9,999.99). The total was the price for the job; a
+   * shortfall in output is a conversation, not an automatic discount. (#1596)
+   */
   amount: number
   /**
    * Whether the RUN carries an agreed rate.
@@ -116,10 +134,6 @@ export type RunPayableOffer = {
 export const runPayableOffer = (
   run: RunForPayout & { produced_quantity?: number | null }
 ): RunPayableOffer => {
-  // `runUnitCost` divides a "total" cost_type back out and takes a "per_unit"
-  // one verbatim — one place, one convention.
-  const unit_amount = runUnitCost(run)
-
   const produced = Number(run?.produced_quantity)
   const hasProduced = Number.isFinite(produced) && produced > 0
   const ordered = Number(run?.quantity)
@@ -129,12 +143,53 @@ export const runPayableOffer = (
       ? ordered
       : 1
 
+  const agreed = Number(run?.partner_cost_estimate)
+  const hasAgreed = Number.isFinite(agreed) && agreed > 0
+
+  /**
+   * 🔑 `"per_unit"` is the ONLY value meaning per-unit; everything else,
+   * including an absent `cost_type`, is a TOTAL. Same convention as
+   * `runPayableAmount` and `runUnitCost`.
+   */
+  const isPerUnit = run?.cost_type === "per_unit"
+
+  if (!hasAgreed) {
+    return {
+      unit_amount: 0,
+      unit_is_derived: false,
+      quantity,
+      quantity_basis: hasProduced ? "produced" : "ordered",
+      amount: 0,
+      payable: false,
+    }
+  }
+
+  if (isPerUnit) {
+    // A rate the partner typed. Multiplying it by what they made is the whole
+    // meaning of "per unit".
+    return {
+      unit_amount: agreed,
+      unit_is_derived: false,
+      quantity,
+      quantity_basis: hasProduced ? "produced" : "ordered",
+      amount: Math.round(agreed * quantity * 100) / 100,
+      payable: true,
+    }
+  }
+
+  /**
+   * A TOTAL. The agreed figure stands verbatim — see `amount` above for why
+   * dividing and re-multiplying it is a silent re-pricing. The per-unit figure
+   * is derived purely so a screen can show a rate, and is flagged as such
+   * because `unit_amount * quantity` will not reproduce `amount`.
+   */
   return {
-    unit_amount,
+    unit_amount: Math.round((agreed / quantity) * 100) / 100,
+    unit_is_derived: true,
     quantity,
     quantity_basis: hasProduced ? "produced" : "ordered",
-    amount: Math.round(unit_amount * quantity * 100) / 100,
-    payable: unit_amount > 0,
+    amount: agreed,
+    payable: true,
   }
 }
 
@@ -162,8 +217,19 @@ export const resolveRunLinePrice = (
     Math.round(offers.reduce((acc, o) => acc + o.amount, 0) * 100) / 100
   const quantity = offers.reduce((acc, o) => acc + o.quantity, 0)
 
+  /**
+   * 🔴 A DERIVED rate is not recorded on the line.
+   *
+   * `payment_submission_item.unit_amount` means "the rate the total was built
+   * from" — and for a `total` run the total was not built from a rate, it WAS
+   * the agreed figure. Writing 1428.57 there would state a price nobody agreed
+   * to, and a reader multiplying it by 7 would get ₹9,999.99 against a line of
+   * ₹10,000. Null is the honest value; the screen can still show a derived rate
+   * from `runPayableOffer` without it being written down as fact. (#1596)
+   */
   const rates = new Set(offers.map((o) => o.unit_amount))
-  const unit_amount = rates.size === 1 ? offers[0].unit_amount : null
+  const anyDerived = offers.some((o) => o.unit_is_derived)
+  const unit_amount = !anyDerived && rates.size === 1 ? offers[0].unit_amount : null
 
   return { amount, quantity, unit_amount }
 }

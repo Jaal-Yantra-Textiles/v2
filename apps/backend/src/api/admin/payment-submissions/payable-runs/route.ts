@@ -311,6 +311,16 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
         payable_quantity,
         quantity_basis: offer.quantity_basis,
         unit_amount,
+        /**
+         * ⚠️ Whether `unit_amount` was COMPUTED rather than agreed (#1596).
+         *
+         * True for every `cost_type: "total"` run — 97 of 100 on production —
+         * where the rate is `total / quantity` and `unit_amount * quantity`
+         * deliberately does NOT reproduce `amount`. A screen showing "7 ×
+         * ₹1,428.57" against a ₹10,000 line must say the rate is derived, or it
+         * is presenting arithmetic as a negotiated price.
+         */
+        unit_is_derived: offer.unit_is_derived,
         amount: offer.amount,
         cost_type: run.cost_type ?? null,
         partner_cost_estimate:

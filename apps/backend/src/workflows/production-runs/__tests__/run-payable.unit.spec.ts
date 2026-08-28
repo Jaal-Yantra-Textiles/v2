@@ -1,4 +1,10 @@
-import { assessRunPayout, runPayableAmount, runUnitCost } from "../lib/run-payable"
+import {
+  assessRunPayout,
+  resolveRunLinePrice,
+  runPayableAmount,
+  runPayableOffer,
+  runUnitCost,
+} from "../lib/run-payable"
 
 describe("runPayableAmount", () => {
   it("multiplies a per-unit cost by the ORDERED quantity", () => {
@@ -215,5 +221,111 @@ describe("runUnitCost", () => {
     expect(runUnitCost({ quantity: 5 })).toBe(0)
     expect(runUnitCost({ partner_cost_estimate: -5 })).toBe(0)
     expect(runUnitCost(null)).toBe(0)
+  })
+})
+
+/**
+ * #1596 — a `total` run must not be re-priced by dividing and re-multiplying.
+ *
+ * Founder's rule, 2026-08-29: the total was the price for the JOB. What was
+ * produced is reported as produced, and rounding must never move the money.
+ */
+describe("runPayableOffer — a total is the agreed price, verbatim", () => {
+  const totalRun = (over: Record<string, any> = {}) => ({
+    id: "run_1",
+    partner_cost_estimate: 10000,
+    cost_type: "total" as const,
+    quantity: 7,
+    produced_quantity: 7,
+    ...over,
+  })
+
+  it("bills the agreed total exactly — no rounding drift", () => {
+    // Was ₹9,999.99: 10000/7 = 1428.57, x7 = 9999.99. A paisa lost to a
+    // division nobody asked for.
+    const offer = runPayableOffer(totalRun())
+
+    expect(offer.amount).toBe(10000)
+    expect(offer.quantity).toBe(7)
+  })
+
+  it("does NOT discount a partially completed run", () => {
+    // 🔴 Was ₹7,777.77 on ₹10,000 agreed — a 22% cut nobody decided.
+    const offer = runPayableOffer(totalRun({ quantity: 9, produced_quantity: 7 }))
+
+    expect(offer.amount).toBe(10000)
+    // What was produced is still reported as produced.
+    expect(offer.quantity).toBe(7)
+    expect(offer.quantity_basis).toBe("produced")
+  })
+
+  it("reports the per-unit figure as DERIVED, for display only", () => {
+    const offer = runPayableOffer(totalRun())
+
+    expect(offer.unit_amount).toBe(1428.57)
+    expect(offer.unit_is_derived).toBe(true)
+    // The point of the flag: this does not reproduce the amount.
+    expect(offer.unit_amount * offer.quantity).not.toBe(offer.amount)
+  })
+
+  it("treats an ABSENT cost_type as a total, like every other reader", () => {
+    const offer = runPayableOffer(totalRun({ cost_type: null }))
+
+    expect(offer.amount).toBe(10000)
+    expect(offer.unit_is_derived).toBe(true)
+  })
+
+  it("still multiplies a per_unit rate by what was produced", () => {
+    const offer = runPayableOffer({
+      id: "run_1",
+      partner_cost_estimate: 1200,
+      cost_type: "per_unit",
+      quantity: 9,
+      produced_quantity: 7,
+    })
+
+    expect(offer.amount).toBe(8400)
+    expect(offer.unit_amount).toBe(1200)
+    expect(offer.unit_is_derived).toBe(false)
+  })
+
+  it("is not payable with no agreed cost, and bills nothing", () => {
+    const offer = runPayableOffer(totalRun({ partner_cost_estimate: null }))
+
+    expect(offer.payable).toBe(false)
+    expect(offer.amount).toBe(0)
+  })
+})
+
+describe("resolveRunLinePrice — a derived rate is never written down", () => {
+  it("records NO unit_amount for a total-priced run", () => {
+    // Writing 1428.57 would state a price nobody agreed to.
+    const price = resolveRunLinePrice([
+      {
+        id: "run_1",
+        partner_cost_estimate: 10000,
+        cost_type: "total",
+        quantity: 7,
+        produced_quantity: 7,
+      } as any,
+    ])
+
+    expect(price?.amount).toBe(10000)
+    expect(price?.unit_amount).toBeNull()
+  })
+
+  it("still records an agreed per_unit rate", () => {
+    const price = resolveRunLinePrice([
+      {
+        id: "run_1",
+        partner_cost_estimate: 1200,
+        cost_type: "per_unit",
+        quantity: 7,
+        produced_quantity: 7,
+      } as any,
+    ])
+
+    expect(price?.amount).toBe(8400)
+    expect(price?.unit_amount).toBe(1200)
   })
 })
