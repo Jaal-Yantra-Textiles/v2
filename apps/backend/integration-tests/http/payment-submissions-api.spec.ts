@@ -1219,22 +1219,39 @@ setupSharedTestSuite(() => {
       )
       expect(approved.status).toBe(200)
 
-      // A second payout for the same design, pointed at the same run.
-      const second = await api.post(
-        "/admin/payment-submissions",
-        {
-          partner_id: partnerId,
-          design_ids: [first.designId],
-          quantities: { [first.designId]: 4 },
-          unit_amounts: { [first.designId]: 1200 },
-        },
-        adminHeaders
-      )
-      const secondDetail = await api.get(
-        `/admin/payment-submissions/${second.data.payment_submission.id}`,
-        adminHeaders
-      )
-      const secondItemId = secondDetail.data.payment_submission.items[0].id
+      /**
+       * A second payout for the same design, with an unrecorded line — the
+       * only shape this job acts on (it refuses to overwrite a line that
+       * already records runs).
+       *
+       * 🔴 Written through the module rather than the create route, and that is
+       * not a convenience. #1602 closed the runless re-bill hole, so creating a
+       * second submission for an already-billed design while naming no runs is
+       * now correctly REFUSED at the door — which is what turned this test red
+       * on main. The line still has to exist to test the JOB's guard, and lines
+       * in exactly this state exist on production, written before that guard
+       * did. So the fixture is built the way reality built them.
+       */
+      const container = getContainer()
+      const submissionService: any = container.resolve("payment_submissions")
+      const secondSubmission = await submissionService.createPaymentSubmissions({
+        partner_id: partnerId,
+        status: "Pending",
+        total_amount: 4800,
+        currency: "inr",
+        submitted_at: new Date(),
+      })
+      const secondItem = await submissionService.createPaymentSubmissionItems({
+        source_type: "design",
+        design_id: first.designId,
+        design_name: "Double Claim Design",
+        amount: 4800,
+        quantity: 4,
+        unit_amount: 1200,
+        run_provenance: "not_recorded",
+        submission_id: secondSubmission.id,
+      })
+      const secondItemId = secondItem.id
 
       const res = await api
         .post(
@@ -2523,6 +2540,60 @@ setupSharedTestSuite(() => {
   })
 
   // ─── Auth Guards ──────────────────────────────────────────────────────────
+
+  // ─── Provenance runs are not billable labour (#1606) ───────────────────────
+
+  describe("payable-runs excludes retail provenance runs (#1606)", () => {
+    /**
+     * A run minted by `reconcile-provenance-runs` when a design-backed retail
+     * order ships from stock passes every filter payable-runs applies:
+     * completed, a design, a partner, a cost. No shop-floor work happened
+     * inside it, so offering it as billable invents labour — the money-side
+     * twin of the material-side rule `reconcileDesigns` has applied since
+     * #1123.
+     */
+    it("holds a provenance run back and says why, on both surfaces", async () => {
+      const designId = await createDesign("Provenance Run Design")
+      await linkDesignToPartner(designId, partnerId)
+
+      const realRun = await createCompletedRun(designId, "Provenance Run Design")
+      const provenanceRun = await createCompletedRun(
+        designId,
+        "Provenance Run Design",
+        {
+          metadata: {
+            source: "order.fulfillment_created",
+            design_backed: true,
+          },
+        }
+      )
+
+      const admin = await api.get(
+        `/admin/payment-submissions/payable-runs?partner_id=${partnerId}`,
+        adminHeaders
+      )
+      expect(admin.status).toBe(200)
+      const adminIds = admin.data.payable_runs.map((r: any) => r.run_id)
+      expect(adminIds).toContain(realRun)
+      expect(adminIds).not.toContain(provenanceRun)
+      expect(admin.data.excluded_runs).toEqual([
+        expect.objectContaining({
+          run_id: provenanceRun,
+          excluded_reason: "provenance_run",
+        }),
+      ])
+
+      const partnerRes = await api.get(
+        "/partners/payment-submissions/payable-runs",
+        { headers: partnerHeaders }
+      )
+      expect(partnerRes.status).toBe(200)
+      const partnerIds = partnerRes.data.payable_runs.map((r: any) => r.run_id)
+      expect(partnerIds).toContain(realRun)
+      expect(partnerIds).not.toContain(provenanceRun)
+      expect(partnerRes.data.excluded_count).toBe(1)
+    })
+  })
 
   describe("Auth protection", () => {
     it("should reject unauthenticated partner endpoints", async () => {

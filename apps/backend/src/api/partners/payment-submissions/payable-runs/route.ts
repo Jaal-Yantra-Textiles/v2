@@ -3,6 +3,7 @@ import { ContainerRegistrationKeys, MedusaError } from "@medusajs/framework/util
 
 import { PAYMENT_SUBMISSIONS_MODULE } from "../../../../modules/payment_submissions"
 import PaymentSubmissionsService from "../../../../modules/payment_submissions/service"
+import { isProvenanceRun } from "../../../../workflows/consumption-logs/lib/reconcile-production-consumption"
 import { runUnitCost } from "../../../../workflows/production-runs/lib/run-payable"
 import { getPartnerFromAuthContext } from "../../helpers"
 
@@ -51,14 +52,46 @@ export const GET = async (
       "partner_cost_estimate",
       "cost_type",
       "completed_at",
+      // Read by `isProvenanceRun` — a guard reading a field the query never
+      // fetched is dead code that types perfectly (#1606).
+      "metadata",
     ],
     filters: { partner_id: partner.id, status: "completed" },
   })
 
-  const completedRuns = ((runs || []) as any[]).filter((r) => !!r.design_id)
+  const designBackedRuns = ((runs || []) as any[]).filter((r) => !!r.design_id)
+
+  /**
+   * A run minted by a retail fulfilment is not billable labour (#1606).
+   *
+   * `reconcile-provenance-runs` mints (or completes) a run when a design-backed
+   * retail order ships from stock. It carries a partner, a design, a quantity and
+   * `status: "completed"` — every filter this endpoint applies — but no
+   * shop-floor work happened inside it and nothing was consumed. Offering it as
+   * billable invents labour, exactly as counting it would invent material on the
+   * consumption side, which is why `reconcileDesigns` has excluded these since
+   * #1123. The money side never got the same treatment.
+   *
+   * 🔑 Reported rather than silently dropped. A partner DID make those goods —
+   * just not in that run — and a screen that simply omits the row teaches nobody
+   * why the work vanished. `excluded_runs` says which runs were held back and on
+   * what grounds, and leaves the open product question (whether made-to-stock
+   * work has any payout path at all) visible instead of buried.
+   */
+  const completedRuns = designBackedRuns.filter((r) => !isProvenanceRun(r))
+  const excluded_runs = designBackedRuns
+    .filter((r) => isProvenanceRun(r))
+    .map((r) => ({
+      run_id: String(r.id),
+      design_id: String(r.design_id),
+      completed_at: r.completed_at ?? null,
+      excluded_reason: "provenance_run" as const,
+    }))
 
   if (!completedRuns.length) {
-    return res.status(200).json({ payable_runs: [], count: 0 })
+    return res
+      .status(200)
+      .json({ payable_runs: [], count: 0, excluded_runs, excluded_count: excluded_runs.length })
   }
 
   const designIds = [
@@ -207,5 +240,7 @@ export const GET = async (
   return res.status(200).json({
     payable_runs,
     count: payable_runs.length,
+    excluded_runs,
+    excluded_count: excluded_runs.length,
   })
 }
