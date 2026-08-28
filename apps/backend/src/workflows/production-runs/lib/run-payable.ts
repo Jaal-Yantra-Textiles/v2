@@ -11,6 +11,8 @@
 // dual-write, which both derive the unit price from `run.quantity`). Correcting
 // a partner's output figure therefore does NOT move the money — deliberately.
 
+import { isProvenanceRun } from "../../consumption-logs/lib/reconcile-production-consumption"
+
 export type RunForPayout = {
   id?: string
   design_id?: string | null
@@ -19,6 +21,12 @@ export type RunForPayout = {
   quantity?: number | null
   partner_cost_estimate?: number | null
   cost_type?: "per_unit" | "total" | null
+  /**
+   * Read ONLY to answer "was this run minted by a retail fulfilment" (#1606).
+   * ⚠️ Every caller must actually FETCH it — a guard reading a field the query
+   * never asked for is dead code that types perfectly.
+   */
+  metadata?: Record<string, any> | null
 }
 
 /**
@@ -106,6 +114,20 @@ export const assessRunPayout = (
   }
   if (!run.partner_id) {
     return { eligible: false, reason: "no_partner" }
+  }
+
+  /**
+   * A run born from a retail fulfilment shipped from stock: no shop-floor
+   * work, no consumption, no labour to pay for. Counting it invents labour,
+   * exactly as `reconcileDesigns` refuses to let it invent material (#1123).
+   *
+   * Defensive today rather than load-bearing: `complete-provenance-run`
+   * deliberately emits no `production_run.completed`, so no auto-draft
+   * currently reaches this for one. If that ever changes, this is what stops a
+   * phantom payout appearing with no guard in the way. #1606
+   */
+  if (isProvenanceRun(run)) {
+    return { eligible: false, reason: "provenance_run" }
   }
 
   const amount = runPayableAmount(run)

@@ -121,7 +121,19 @@ export type ReconcileFlag =
  * would let exactly the design-attached ones through, which are the only kind
  * that can reach a design's reconciliation at all.
  */
-export function isProvenanceRun(run: ReconcileRun): boolean {
+/**
+ * ⚠️ Typed on the ONE field it reads rather than on `ReconcileRun`, so the
+ * payout side can ask the same question of a run shaped for payout (#1606).
+ * One owner for this test — a second place re-checking the metadata key is how
+ * the materials side and the money side come to disagree about what a
+ * provenance run is.
+ */
+export function isProvenanceRun(
+  run:
+    | { metadata?: Record<string, any> | null; [key: string]: any }
+    | null
+    | undefined
+): boolean {
   return run?.metadata?.source === "order.fulfillment_created"
 }
 

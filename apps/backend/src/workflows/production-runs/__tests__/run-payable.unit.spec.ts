@@ -142,6 +142,32 @@ describe("assessRunPayout", () => {
       reason: "run_not_found",
     })
   })
+
+  /**
+   * #1606 — a run minted by a retail fulfilment passes every other check here:
+   * completed, a design, a partner, a cost. It shipped from stock, so no
+   * shop-floor work happened inside it and paying for it invents labour.
+   *
+   * 🔑 Nothing emits `production_run.completed` for one today
+   * (`complete-provenance-run` deliberately stays silent), so this guard is
+   * defensive — it is what stops a phantom payout the day that changes.
+   */
+  it("refuses a run minted by a retail fulfilment", () => {
+    expect(
+      assessRunPayout({
+        ...completed,
+        metadata: { source: "order.fulfillment_created", design_backed: true },
+      })
+    ).toEqual({ eligible: false, reason: "provenance_run" })
+  })
+
+  it("still pays a real run that merely carries other metadata", () => {
+    const verdict = assessRunPayout({
+      ...completed,
+      metadata: { source: "partner_dispatch", note: "rush" },
+    })
+    expect(verdict.eligible).toBe(true)
+  })
 })
 
 /**
