@@ -17,27 +17,32 @@ type Item = Record<string, any>
 
 const makeContainer = (opts: {
   items: Item[]
-  /** submission id → payment ids the submission↔payment link holds. */
+  /**
+   * submission id → the payment ids its RECONCILIATION rows name.
+   *
+   * `undefined` means NO reconciliation row exists — ignorance, not "no
+   * payment". `[]` means a row exists carrying no `payment_id`, which is a
+   * real answer: nothing was paid.
+   */
   payments?: Record<string, string[]>
   /** inventory order id → payment ids ALREADY linked to it. */
   linked?: Record<string, string[]>
 }) => {
   const linkCreate = jest.fn().mockResolvedValue(undefined)
 
+  const listPaymentReconciliations = jest.fn(async ({ reference_id }: any) => {
+    const ids = opts.payments?.[reference_id]
+    if (ids === undefined) return []
+    if (!ids.length) return [{ id: "rec_1", reference_id, payment_id: null }]
+    return ids.map((payment_id, i) => ({
+      id: `rec_${i}`,
+      reference_id,
+      payment_id,
+    }))
+  })
+
   const query = {
     graph: jest.fn(async ({ entity, filters }: any) => {
-      if (entity === "payment_submissions" || entity === "payment_submission") {
-        /**
-         * `undefined` in the fixture means the relation was DROPPED — the key
-         * is absent from the node, which is what a wrong entity/field spelling
-         * actually looks like on `query.graph`. Distinct from `[]`.
-         */
-        const ids = opts.payments?.[filters.id]
-        if (ids === undefined) {
-          return { data: [{ id: filters.id }] }
-        }
-        return { data: [{ id: filters.id, payments: ids.map((id) => ({ id })) }] }
-      }
       if (entity === "inventory_orders") {
         const ids = opts.linked?.[filters.id] ?? []
         return {
@@ -54,13 +59,14 @@ const makeContainer = (opts: {
     resolve: (key: string) => {
       if (key === "query") return query
       if (key === "link" || key === "remoteLink") return { create: linkCreate }
+      if (key === "payment_reports") return { listPaymentReconciliations }
       return {
         listPaymentSubmissionItems: jest.fn().mockResolvedValue(opts.items),
       }
     },
   } as any
 
-  return { container, linkCreate }
+  return { container, linkCreate, listPaymentReconciliations }
 }
 
 const line = (over: Item = {}): Item => ({
@@ -240,8 +246,8 @@ describe("backfill-inventory-order-payment-links", () => {
  * the job reported ignorance as a finding.
  */
 describe("could-not-look is not no-payment", () => {
-  it("reports UNRESOLVED, not 'no payment', when the relation is dropped", async () => {
-    // `payments` absent from the fixture ⇒ the key is missing on the node.
+  it("reports UNRESOLVED, not 'no payment', when NO reconciliation row exists", async () => {
+    // No row at all ⇒ nothing has told this job whether a payment exists.
     const { container, linkCreate } = makeContainer({ items: [line()] })
 
     const result = await backfillInventoryOrderPaymentLinksJob.run(container, {

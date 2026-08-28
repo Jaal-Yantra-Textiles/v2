@@ -5,6 +5,7 @@ import type { Link } from "@medusajs/modules-sdk"
 
 import { INTERNAL_PAYMENTS_MODULE } from "../../../../modules/internal_payments"
 import { ORDER_INVENTORY_MODULE } from "../../../../modules/inventory_orders"
+import { PAYMENT_REPORTS_MODULE } from "../../../../modules/payment_reports"
 import { PAYMENT_SUBMISSIONS_MODULE } from "../../../../modules/payment_submissions"
 import type PaymentSubmissionsService from "../../../../modules/payment_submissions/service"
 import type { MaintenanceChange, MaintenanceJob, MaintenanceJobResult } from "./registry"
@@ -84,6 +85,8 @@ export const backfillInventoryOrderPaymentLinksJob: MaintenanceJob = {
     )
     const query: any = container.resolve(ContainerRegistrationKeys.QUERY)
     const remoteLink = container.resolve(ContainerRegistrationKeys.LINK) as Link
+    /** Holds the submission↔payment pairing as COLUMNS. See `paymentsFor`. */
+    const reportsService: any = container.resolve(PAYMENT_REPORTS_MODULE)
 
     /**
      * Lines that name an inventory order. Read from the LINE, which is where
@@ -147,32 +150,44 @@ export const backfillInventoryOrderPaymentLinksJob: MaintenanceJob = {
         return paymentsBySubmission.get(submissionId)!
       }
 
-      const read = async (entity: string): Promise<string[] | null> => {
-        try {
-          const { data } = await query.graph({
-            entity,
-            fields: ["id", "payments.id"],
-            filters: { id: submissionId },
-          })
-          const node = (data || [])[0]
-          if (!node) return null
-          // Key ABSENT — the relation was dropped, so this is ignorance.
-          if (!("payments" in node)) return null
-
-          const raw = (node as any).payments
-          return (!raw ? [] : Array.isArray(raw) ? raw : [raw])
-            .map((p: any) => p?.id)
-            .filter(Boolean) as string[]
-        } catch {
-          return null
-        }
+      /**
+       * 🔑 The RECONCILIATION's `payment_id`, a plain scalar column — not a
+       * link traversal.
+       *
+       * Both graph spellings (`payment_submissions` and `payment_submission`)
+       * returned rows carrying no `payments` key at all, so neither could
+       * answer. `payment_reconciliation` records `reference_id` (the
+       * submission) and `payment_id` (the payment) side by side as columns,
+       * written by the same review workflow that creates the payment. On prod
+       * that resolves GOF's `01M13MPTSC…` to payment `01M13QV30QSF…` —
+       * the exact record visible on the partner.
+       *
+       * A column cannot be silently dropped the way an unrecognised relation
+       * can, which is the whole reason to prefer it here.
+       */
+      let rows: any[]
+      try {
+        rows = (await reportsService.listPaymentReconciliations({
+          reference_type: "payment_submission",
+          reference_id: submissionId,
+        })) as any[]
+      } catch {
+        // Could not look at all.
+        return null
       }
 
-      // Plural first: it is the spelling the working graph calls in this
-      // codebase use. The singular is tried only as a fallback.
-      const ids = (await read("payment_submissions")) ?? (await read("payment_submission"))
+      /**
+       * ⚠️ NO reconciliation row is ignorance, not "no payment". The row is
+       * what records the pairing; without one this job has not been told
+       * anything about whether a payment exists.
+       */
+      if (!rows?.length) return null
 
-      if (ids) paymentsBySubmission.set(submissionId, ids)
+      const ids = Array.from(
+        new Set(rows.map((r) => r?.payment_id).filter(Boolean))
+      ) as string[]
+
+      paymentsBySubmission.set(submissionId, ids)
       return ids
     }
 
