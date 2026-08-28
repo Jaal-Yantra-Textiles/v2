@@ -1,3 +1,22 @@
+# [13.118.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.117.1...v13.118.0) (2026-08-28)
+
+
+### Bug Fixes
+
+* **payments:** a Draft prior must not block the submission it becomes ([#1602](https://github.com/Jaal-Yantra-Textiles/v2/issues/1602)) ([#1605](https://github.com/Jaal-Yantra-Textiles/v2/issues/1605)) ([6ee84c5](https://github.com/Jaal-Yantra-Textiles/v2/commit/6ee84c5ec49a63deefda28074faea498b84bb8d7)), closes [#1604](https://github.com/Jaal-Yantra-Textiles/v2/issues/1604) [#1604](https://github.com/Jaal-Yantra-Textiles/v2/issues/1604)
+* **payments:** a re-bill that names no runs was billed twice ([#1556](https://github.com/Jaal-Yantra-Textiles/v2/issues/1556)) ([#1602](https://github.com/Jaal-Yantra-Textiles/v2/issues/1602)) ([da05588](https://github.com/Jaal-Yantra-Textiles/v2/commit/da05588ddf68d68b9765d48f6f32a51923afc4b5)), closes [#1579](https://github.com/Jaal-Yantra-Textiles/v2/issues/1579)
+* **designs:** an approved design was listed at 100x its cost ([#1601](https://github.com/Jaal-Yantra-Textiles/v2/issues/1601)) ([4625ea3](https://github.com/Jaal-Yantra-Textiles/v2/commit/4625ea3b8e28d37f56ac012ab5e4498521824fac))
+* **payments:** payable-runs offered retail provenance runs as billable labour ([#1606](https://github.com/Jaal-Yantra-Textiles/v2/issues/1606)) ([#1609](https://github.com/Jaal-Yantra-Textiles/v2/issues/1609)) ([1df511e](https://github.com/Jaal-Yantra-Textiles/v2/commit/1df511ee1d3761d7679f3937b6e996f276ccb020)), closes [#1123](https://github.com/Jaal-Yantra-Textiles/v2/issues/1123) [#1602](https://github.com/Jaal-Yantra-Textiles/v2/issues/1602) [#1602](https://github.com/Jaal-Yantra-Textiles/v2/issues/1602)
+* **ops:** the draft sweep called a breakdown backfill a re-pricing ([#1556](https://github.com/Jaal-Yantra-Textiles/v2/issues/1556)) ([#1608](https://github.com/Jaal-Yantra-Textiles/v2/issues/1608)) ([1bc395c](https://github.com/Jaal-Yantra-Textiles/v2/commit/1bc395c28a0151480335c3199d35ac4ae6f1dbd3)), closes [#1559](https://github.com/Jaal-Yantra-Textiles/v2/issues/1559)
+* **e2e:** the gate partner's store had no defaults, so every order page was a 404 ([#1576](https://github.com/Jaal-Yantra-Textiles/v2/issues/1576)) ([#1607](https://github.com/Jaal-Yantra-Textiles/v2/issues/1607)) ([b59d58f](https://github.com/Jaal-Yantra-Textiles/v2/commit/b59d58f11c976fb089f35c2192bf1f839c3228e3))
+* **ops:** the reconcile report compared a total against a rate ([#1559](https://github.com/Jaal-Yantra-Textiles/v2/issues/1559)) ([#1600](https://github.com/Jaal-Yantra-Textiles/v2/issues/1600)) ([fb8e9ef](https://github.com/Jaal-Yantra-Textiles/v2/commit/fb8e9eff167e69b0cef1ccb651990f22f063786d))
+
+
+### Features
+
+* **payments:** edit and delete partner payout methods from settings ([#1603](https://github.com/Jaal-Yantra-Textiles/v2/issues/1603)) ([b74b183](https://github.com/Jaal-Yantra-Textiles/v2/commit/b74b183d31b9ed8f32a35afc1961e26934485c5a)), closes [#1488](https://github.com/Jaal-Yantra-Textiles/v2/issues/1488)
+* **payments:** submit, correct and delete a payment submission ([#1604](https://github.com/Jaal-Yantra-Textiles/v2/issues/1604)) ([#1610](https://github.com/Jaal-Yantra-Textiles/v2/issues/1610)) ([3258571](https://github.com/Jaal-Yantra-Textiles/v2/commit/3258571695477a17cd1dcd68c29c24fb278f384c)), closes [#1602](https://github.com/Jaal-Yantra-Textiles/v2/issues/1602) [#1605](https://github.com/Jaal-Yantra-Textiles/v2/issues/1605) [#1605](https://github.com/Jaal-Yantra-Textiles/v2/issues/1605)
+
 ## [13.117.1](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.117.0...v13.117.1) (2026-08-27)
 
 
