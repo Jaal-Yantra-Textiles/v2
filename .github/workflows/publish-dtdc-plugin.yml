@@ -1,0 +1,91 @@
+name: Publish DTDC Plugin
+
+# Publishes @jytextiles/medusa-plugin-dtdc-shipping to npm when the plugin source
+# changes on main. Publish is gated on a version bump: the job is a no-op unless
+# the version in package.json is not yet on the registry, so unrelated pushes
+# (or re-runs) never error on "cannot publish over existing version".
+#
+# To cut a release: bump `version` in packages/medusa-plugin-dtdc-shipping/package.json
+# and merge to main. That's it.
+#
+# The FIRST publish is manual: npm Trusted Publishing (OIDC) must be configured
+# once on npmjs.com for this package before the workflow can mint an OIDC token —
+#   Package → Settings → Trusted publishing →
+#     Organization or user: Jaal-Yantra-Textiles
+#     Repository:           v2
+#     Workflow filename:    publish-dtdc-plugin.yml
+#     Allowed actions:      npm publish
+# Until that is set up (or for the very first release), publish by hand from
+# packages/medusa-plugin-dtdc-shipping after `pnpm build`.
+#
+# AUTH: npm Trusted Publishing (OIDC) — no long-lived token, nothing to rotate.
+# Provenance is generated automatically (no --provenance flag). Needs npm >= 11.5.1
+# (installed below) and Node >= 22.14.
+
+on:
+  push:
+    branches: [ main ]
+    paths:
+      - 'packages/medusa-plugin-dtdc-shipping/**'
+      - '.github/workflows/publish-dtdc-plugin.yml'
+  workflow_dispatch: {}
+
+# id-token is granted now so the move to OIDC Trusted Publishing later needs no
+# workflow change. contents:read is the least privilege for checkout.
+permissions:
+  contents: read
+  id-token: write
+
+concurrency:
+  group: publish-dtdc-plugin
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: packages/medusa-plugin-dtdc-shipping
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Use Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          registry-url: 'https://registry.npmjs.org'
+          cache: 'pnpm'
+
+      # Install at the workspace root so the plugin's devDeps (medusa CLI, etc.)
+      # are available for the build.
+      - name: Install dependencies
+        working-directory: .
+        run: pnpm install --frozen-lockfile
+
+      - name: Build plugin
+        run: pnpm build
+
+      - name: Test plugin
+        run: pnpm test
+
+      # Trusted Publishing (OIDC) requires npm >= 11.5.1; Node 22 ships npm 10.x.
+      - name: Upgrade npm for OIDC trusted publishing
+        # Pinned: npm 12.0.0 (2026-07-08) broke provenance publishing with
+        # "Cannot find module 'sigstore'". 11.18.0 is the last known-good that
+        # bundles sigstore for OIDC trusted publishing. Revisit when 12.x fixes it.
+        run: npm install -g npm@11.18.0
+
+      - name: Publish to npm via OIDC (only if version changed)
+        run: |
+          NAME=$(node -p "require('./package.json').name")
+          VERSION=$(node -p "require('./package.json').version")
+          if npm view "${NAME}@${VERSION}" version >/dev/null 2>&1; then
+            echo "::notice::${NAME}@${VERSION} is already published — skipping (bump the version to release)."
+            exit 0
+          fi
+          echo "Publishing ${NAME}@${VERSION} via trusted publishing…"
+          # No token + no --provenance: OIDC auth and provenance are automatic.
+          npm publish --access public
