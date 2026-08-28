@@ -29,6 +29,20 @@ export {
   type McpScopeLevel,
 } from "./tiers"
 export { dispatchMcpTool } from "./dispatch"
+export {
+  executeMcpPlan,
+  navPlanPath,
+  isEmptyPlanResult,
+  broadenPlanArgs,
+  PLAN_SCOPE_GUIDANCE,
+  type McpPlanStep,
+  type McpPlan,
+  type McpPlanFallback,
+  type McpPlanMapResult,
+  type ExecutePlanOptions,
+  type McpPlanResult,
+  type EntityResolver,
+} from "./plan"
 export { callMcpRoute, type McpProxyArgs, type McpProxyError } from "./proxy"
 export { buildMcpServer, type BuildMcpServerOptions } from "./server"
 export {

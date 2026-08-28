@@ -1,6 +1,37 @@
 import { MedusaError, MedusaService } from "@medusajs/framework/utils"
 import AssistantContextCache from "./models/assistant-context-cache"
 
+/** One natural-key -> id resolution stored in a cache row. */
+export interface EntityResolution {
+  type: string
+  key: string
+  value: string
+  id: string
+  label?: string
+}
+
+/**
+ * Scan cache rows for a matching entity resolution. Pure so it can be unit
+ * tested without the DB; the service method is a thin wrapper over a row read.
+ */
+export function findResolutionInRows(
+  rows: Array<{ entity_resolutions?: unknown }>,
+  type: string,
+  key: string,
+  value: string
+): string | null {
+  for (const row of rows) {
+    const list = row?.entity_resolutions
+    if (!Array.isArray(list)) continue
+    for (const r of list as Array<Record<string, unknown>>) {
+      if (r.type === type && r.key === key && r.value === value && typeof r.id === "string") {
+        return r.id
+      }
+    }
+  }
+  return null
+}
+
 /**
  * Thin CRUD over the cross-conversation context cache, always scoped to a
  * (principal_id, surface) pair. The generated MedusaService methods handle
@@ -46,7 +77,10 @@ class AssistantContextCacheService extends MedusaService({
     entityIds: string[]
     summary: string
     conversationId?: string
+    resolutions?: EntityResolution[]
   }) {
+    const resolutions = (input.resolutions ?? []) as any
+
     const [existing] = await this.listAssistantContextCaches({
       principal_id: input.principalId,
       surface: input.surface,
@@ -58,6 +92,7 @@ class AssistantContextCacheService extends MedusaService({
         {
           id: existing.id,
           entity_ids: input.entityIds as any,
+          entity_resolutions: resolutions,
           summary: input.summary,
           conversation_id: input.conversationId ?? null,
         },
@@ -71,6 +106,7 @@ class AssistantContextCacheService extends MedusaService({
         surface: input.surface,
         domain: input.domain,
         entity_ids: input.entityIds as any,
+        entity_resolutions: resolutions,
         summary: input.summary,
         conversation_id: input.conversationId ?? null,
       })
@@ -90,12 +126,29 @@ class AssistantContextCacheService extends MedusaService({
         {
           id: raced.id,
           entity_ids: input.entityIds as any,
+          entity_resolutions: resolutions,
           summary: input.summary,
           conversation_id: input.conversationId ?? null,
         },
       ])
       return updated
     }
+  }
+
+  /**
+   * Resolve an entity id by a natural key from the cache — the memory the plan
+   * executor's `resolve` step consults. Scans all rows for the principal
+   * (thin table, one row per domain) and returns the first match, or null.
+   */
+  async resolveEntityByKey(
+    principalId: string,
+    surface: string,
+    type: string,
+    key: string,
+    value: string
+  ): Promise<string | null> {
+    const rows = await this.getContextForPrincipal(principalId, surface)
+    return findResolutionInRows(rows as Array<{ entity_resolutions?: unknown }>, type, key, value)
   }
 
   /**
