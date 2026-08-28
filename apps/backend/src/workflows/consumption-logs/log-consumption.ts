@@ -19,12 +19,21 @@ import {
   readRunAllocation,
 } from "../../lib/production-run-allocation"
 import { checkConsumptionAgainstAllocation } from "../production-runs/lib/run-materials"
+import { anchorRefusalMessage } from "./lib/consumption-anchor"
 
 // Energy/labor consumption types that don't require an inventory item
 const NON_INVENTORY_TYPES = ["energy_electricity", "energy_water", "energy_gas", "labor"]
 
 export type LogConsumptionInput = {
-  design_id: string
+  /**
+   * What was being made. One of `design_id` / `product_id` must be present —
+   * enforced by `assertAnchorStep` here and by a CHECK constraint in the
+   * schema, because a log anchored to neither can never be costed, committed
+   * or reconciled.
+   */
+  design_id?: string | null
+  product_id?: string | null
+  variant_id?: string | null
   production_run_id?: string
   inventory_item_id?: string
   raw_material_id?: string
@@ -57,6 +66,27 @@ export type LogConsumptionInput = {
   location_id?: string
   metadata?: Record<string, any>
 }
+
+/**
+ * A log must name what was being made — a design, a product, or both.
+ *
+ * 🔴 First step in the workflow, before anything is validated or written, so a
+ * log with no anchor is refused rather than half-created. The schema carries
+ * the same rule as a CHECK constraint; this exists so the caller gets a
+ * readable 400 instead of a raw constraint violation, and so the two cannot
+ * drift apart silently.
+ */
+const assertAnchorStep = createStep(
+  "log-consumption-assert-anchor",
+  async (input: { design_id: string; product_id: string }) => {
+    const refusal = anchorRefusalMessage(input)
+    if (refusal) {
+      throw new MedusaError(MedusaError.Types.INVALID_DATA, refusal)
+    }
+
+    return new StepResponse({ ok: true })
+  }
+)
 
 const validateDesignStep = createStep(
   "log-consumption-validate-design",
@@ -135,7 +165,9 @@ const createConsumptionLogStep = createStep(
     const service: ConsumptionLogService = container.resolve(CONSUMPTION_LOG_MODULE)
 
     const log = await service.createConsumptionLogs({
-      design_id: input.design_id,
+      design_id: input.design_id || null,
+      product_id: input.product_id || null,
+      variant_id: input.variant_id || null,
       production_run_id: input.production_run_id || null,
       inventory_item_id: input.inventory_item_id,
       raw_material_id: input.raw_material_id || null,
@@ -175,12 +207,19 @@ const linkConsumptionLogStep = createStep(
   ) => {
     const remoteLink: any = container.resolve(ContainerRegistrationKeys.LINK)
 
-    const coreLinks: LinkDefinition[] = [
-      {
+    /**
+     * The design link is conditional now: a product-only log has no design to
+     * link, and `{ design_id: undefined }` would create a DANGLING link row —
+     * the exact shape that turned one query unfiltered across tenants (#1397).
+     */
+    const coreLinks: LinkDefinition[] = []
+
+    if (input.design_id) {
+      coreLinks.push({
         [DESIGN_MODULE]: { design_id: input.design_id },
         [CONSUMPTION_LOG_MODULE]: { consumption_log_id: input.log_id },
-      },
-    ]
+      })
+    }
 
     // Only link to inventory if this is a material-type consumption
     if (input.has_inventory !== false && input.inventory_item_id) {
@@ -190,7 +229,11 @@ const linkConsumptionLogStep = createStep(
       })
     }
 
-    await remoteLink.create(coreLinks)
+    // A product-only energy/labour log links to nothing here — its anchors are
+    // the direct columns plus the production-run link below.
+    if (coreLinks.length) {
+      await remoteLink.create(coreLinks)
+    }
 
     // Production run link is created separately so a failure doesn't
     // break the core design + inventory links
@@ -216,7 +259,9 @@ const linkConsumptionLogStep = createStep(
   async (data, { container }) => {
     if (!data) return
     const remoteLink: any = container.resolve(ContainerRegistrationKeys.LINK)
-    await remoteLink.dismiss(data.coreLinks)
+    if (data.coreLinks?.length) {
+      await remoteLink.dismiss(data.coreLinks)
+    }
     if (data.productionRunLink) {
       await remoteLink.dismiss([data.productionRunLink]).catch(() => {})
     }
@@ -229,7 +274,21 @@ export const logConsumptionWorkflow = createWorkflow(
     store: true,
   },
   function (input: LogConsumptionInput) {
-    validateDesignStep({ design_id: input.design_id })
+    const anchor = transform({ input }, (data) => ({
+      design_id: data.input.design_id || "",
+      product_id: data.input.product_id || "",
+      has_design: !!data.input.design_id,
+    }))
+
+    assertAnchorStep({
+      design_id: anchor.design_id,
+      product_id: anchor.product_id,
+    })
+
+    // Only when the log names one — a product-only run has no design to check.
+    when(anchor, (data) => data.has_design).then(() => {
+      validateDesignStep({ design_id: anchor.design_id })
+    })
 
     // Only validate inventory item for material types (not energy/labor)
     const hasInventoryItem = transform({ input }, (data) => ({
@@ -268,7 +327,7 @@ export const logConsumptionWorkflow = createWorkflow(
     const linkInput = transform(
       { input, logId },
       (data) => ({
-        design_id: data.input.design_id,
+        design_id: data.input.design_id || "",
         production_run_id: data.input.production_run_id,
         inventory_item_id: data.input.inventory_item_id || "",
         log_id: data.logId as string,
