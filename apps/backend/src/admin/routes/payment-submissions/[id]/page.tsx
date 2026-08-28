@@ -10,6 +10,7 @@ import {
   Button,
   Input,
   Prompt,
+  Textarea,
 } from "@medusajs/ui"
 import { CheckCircleSolid, PencilSquare, Trash, XCircleSolid } from "@medusajs/icons"
 import { Outlet } from "react-router-dom"
@@ -18,6 +19,7 @@ import {
   usePaymentSubmission,
   useSubmitPaymentSubmission,
   useUpdatePaymentSubmissionItem,
+  useUpdatePaymentSubmissionNotes,
   type PaymentSubmission,
 } from "../../../hooks/api/payment-submissions"
 import { describePaymentLine } from "../../../lib/payment-line-source"
@@ -42,6 +44,86 @@ const money = (amount: number | string, currency?: string | null) =>
     currency: (currency || "inr").toUpperCase(),
     maximumFractionDigits: 2,
   }).format(Number(amount || 0))
+
+/**
+ * The sentence describing a payout, correctable at any status (#1611).
+ *
+ * ⚠️ Notes only. The money is the sum of the LINES, and every path that touches
+ * a line re-runs the double-pay guards — `EditableLine` below is where an
+ * amount is corrected. A note that contradicts its own line is a record that
+ * misstates money, which is exactly what one production payout does today.
+ */
+const EditableNotes = ({
+  submissionId,
+  notes,
+}: {
+  submissionId: string
+  notes: string | null
+}) => {
+  const [editing, setEditing] = useState(false)
+  const [value, setValue] = useState(notes ?? "")
+  const { mutateAsync, isPending } = useUpdatePaymentSubmissionNotes()
+
+  const save = async () => {
+    try {
+      await mutateAsync({ id: submissionId, notes: value })
+      toast.success("Note updated")
+      setEditing(false)
+    } catch (e: any) {
+      toast.error(e?.message || "Could not update the note")
+    }
+  }
+
+  return (
+    <div className="flex flex-col gap-y-1">
+      <div className="flex items-center justify-between">
+        <Text size="small" className="text-ui-fg-subtle">
+          Notes
+        </Text>
+        {!editing && (
+          <Button
+            size="small"
+            variant="transparent"
+            onClick={() => {
+              // Re-seed from the record on every open, so an abandoned edit
+              // cannot be silently re-submitted later.
+              setValue(notes ?? "")
+              setEditing(true)
+            }}
+          >
+            <PencilSquare />
+          </Button>
+        )}
+      </div>
+      {editing ? (
+        <div className="flex flex-col gap-y-2">
+          <Textarea
+            rows={4}
+            value={value}
+            onChange={(e) => setValue(e.target.value)}
+            placeholder="What this payout is for, and how the amount was reached"
+          />
+          <div className="flex gap-2">
+            <Button
+              size="small"
+              variant="secondary"
+              onClick={() => setEditing(false)}
+            >
+              Cancel
+            </Button>
+            <Button size="small" isLoading={isPending} onClick={save}>
+              Save
+            </Button>
+          </div>
+        </div>
+      ) : (
+        <Text className={notes ? "" : "text-ui-fg-muted"}>
+          {notes || "No note"}
+        </Text>
+      )}
+    </div>
+  )
+}
 
 /**
  * Inline correction of one line (#1604).
@@ -387,14 +469,19 @@ const PaymentSubmissionDetailPage = () => {
                   </Text>
                 </div>
               )}
-              {submission.notes && (
-                <div className="col-span-2">
-                  <Text size="small" className="text-ui-fg-subtle">
-                    Notes
-                  </Text>
-                  <Text>{submission.notes}</Text>
-                </div>
-              )}
+              {/**
+                * 🔴 Editable, at any status (#1611). One payout on production
+                * reads "Billed 7 x 1200 = 8400" against a line corrected to
+                * ₹10,000 — the line was fixed through the guarded item route
+                * and the sentence describing it could not follow. Rendering it
+                * read-only is what preserved the error.
+                */}
+              <div className="col-span-2">
+                <EditableNotes
+                  submissionId={submission.id}
+                  notes={submission.notes}
+                />
+              </div>
             </div>
           </div>
         </Container>
