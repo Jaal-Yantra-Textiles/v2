@@ -44,6 +44,8 @@ export function isFresh(row: ContextCacheRow, now = Date.now()): boolean {
 export interface ContextCacheRow {
   domain: string
   entity_ids: string[] | unknown
+  /** Natural-key -> id resolutions: [{type, key, value, id, label?}]. */
+  entity_resolutions?: unknown
   summary: string
   updated_at: string | Date
 }
@@ -72,6 +74,18 @@ export function formatPriorContext(rows: ContextCacheRow[]): string | undefined 
       `### ${row.domain} (${time})`,
       `- ${row.summary}`,
     ]
+    // Known id mappings — the whole point of the resolution column. Tells the
+    // model "you already know customer X = cus_...", so it can use the id
+    // directly instead of re-running the lookup tool. A pointer, like the rest
+    // of the block, never a source of truth.
+    const resolutions = Array.isArray(row.entity_resolutions) ? row.entity_resolutions : []
+    const resoList = resolutions
+      .slice(0, 6)
+      .map((r: any) => `${r?.type} ${r?.value} = ${r?.id}`)
+      .join("; ")
+    if (resoList) {
+      lines.push(`- Known: ${resoList}${resolutions.length > 6 ? `, +${resolutions.length - 6} more` : ""}`)
+    }
     if (idList) {
       lines.push(`- Entity ids: ${idList}${ids.length > 8 ? `, +${ids.length - 8} more` : ""}`)
     }

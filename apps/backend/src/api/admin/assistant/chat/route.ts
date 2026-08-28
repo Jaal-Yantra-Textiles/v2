@@ -57,6 +57,7 @@ import {
   extractContextFromTurn,
   loadAndFormatContext,
   resolveContextCache,
+  buildRunPlanTool,
 } from "../../../../lib/assistant-context"
 import { normaliseUiMessages } from "../../../../lib/assistant-messages"
 import type { AdminAssistantChatReq } from "./validators"
@@ -376,6 +377,23 @@ export const POST = async (
   })
   activated.add("load_admin_tools")
 
+  // Structured multi-step planning. The model can emit ONE plan instead of
+  // chaining tool calls itself; every step still goes through dispatchAdminTool
+  // (dry_run / confirm / reason rails + scope checks). `resolve` steps consult
+  // the entity-memory cache so "customer by email" skips the lookup tool.
+  const resolveEntity = cacheService && adminUserId
+    ? (type: string, by: string, value: string) =>
+        cacheService.resolveEntityByKey(adminUserId, "admin", type, by, value)
+    : undefined
+  tools.run_plan = buildRunPlanTool({
+    ctx,
+    tools: enabled,
+    dispatch: (name, args) => dispatchAdminTool(ctx, name, args),
+    resolveEntity,
+    cap: capToolResult,
+  })
+  activated.add("run_plan")
+
   // This assistant REQUIRES tool calling. The free rotator ranks by context
   // length and can land on a text-only model, so on the free path use the
   // tool-capable variant. A DB-configured platform for this role overrides this.
@@ -440,6 +458,7 @@ export const POST = async (
                   entityIds: entry.entityIds,
                   summary: entry.summary,
                   conversationId: body.id ?? null,
+                  resolutions: entry.resolutions,
                 })
               }
             } catch (e: any) {

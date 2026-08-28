@@ -60,6 +60,7 @@ import {
   extractContextFromTurn,
   loadAndFormatContext,
   resolveContextCache,
+  buildRunPlanTool,
 } from "../../../../lib/assistant-context"
 import { getPartnerFromAuthContext } from "../../helpers"
 import {
@@ -278,6 +279,22 @@ export const POST = async (
   })
   activated.add("load_partner_tools")
 
+  // Structured multi-step planning. The model can emit ONE plan instead of
+  // chaining tool calls itself; every step still goes through dispatchPartnerTool
+  // (dry_run / confirm rails + write gating). `resolve` steps consult the
+  // entity-memory cache so "customer by email" skips the lookup tool.
+  const resolveEntity = cacheService && partnerId
+    ? (type: string, by: string, value: string) =>
+        cacheService.resolveEntityByKey(partnerId, "partner", type, by, value)
+    : undefined
+  tools.run_plan = buildRunPlanTool({
+    ctx,
+    tools: enabled,
+    dispatch: (name, args) => dispatchPartnerTool(ctx, name, args),
+    resolveEntity,
+  })
+  activated.add("run_plan")
+
   // This assistant REQUIRES tool calling. The free rotator ranks by context
   // length and can land on a text-only model ("No endpoints found that support
   // tool use"), so on the free path use the tool-capable variant (openrouter/
@@ -349,6 +366,7 @@ export const POST = async (
                   entityIds: entry.entityIds,
                   summary: entry.summary,
                   conversationId: body.id ?? null,
+                  resolutions: entry.resolutions,
                 })
               }
             } catch (e: any) {
