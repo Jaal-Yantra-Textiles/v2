@@ -2541,6 +2541,568 @@ setupSharedTestSuite(() => {
 
   // ─── Auth Guards ──────────────────────────────────────────────────────────
 
+  /**
+   * The create routes return the submission row, not its lines — the workflow
+   * writes items after `createPaymentSubmissions` returns. Every assertion
+   * about a LINE therefore has to re-read the detail rather than trust the
+   * create response, which is the same reason the write routes re-read instead
+   * of echoing.
+   */
+  async function readSubmission(submissionId: string) {
+    const res = await api.get(
+      `/admin/payment-submissions/${submissionId}`,
+      adminHeaders
+    )
+    return res.data.payment_submission
+  }
+
+  // ─── Draft → Pending: the submit route (#1604) ─────────────────────────────
+
+  /**
+   * 🔴 Before this route existed there was NO way out of a Draft.
+   *
+   * `auto-draft-payment-submission` writes one on every completed run, holding
+   * the design, the rate, the quantity AND the run ids. "Submitting" it meant
+   * creating a SECOND submission by hand — which could not name the runs (the
+   * Draft already claims them, so the run-level guard refuses) and therefore
+   * had to name none. #1602 closed the runless hole and with it the only path a
+   * drafted design had; #1605 had to reopen it. Seven production Drafts are
+   * still sitting in that state.
+   *
+   * Converting in place keeps the run evidence, which is the whole point: the
+   * line that reaches review reads `recorded`, not `not_recorded`.
+   */
+  describe("POST /partners/payment-submissions/:submissionId/submit (#1604)", () => {
+    it("turns a partner's own Draft into a Pending claim, keeping its run evidence", async () => {
+      const designId = await createDesign("Submittable Draft Design")
+      await linkDesignToPartner(designId, partnerId)
+      const runId = await createCompletedRun(designId, "Submittable Draft Design")
+
+      const draft = await api.post(
+        "/admin/payment-submissions",
+        {
+          partner_id: partnerId,
+          design_ids: [designId],
+          status: "Draft",
+          quantities: { [designId]: 4 },
+          unit_amounts: { [designId]: 1200 },
+          production_run_ids: { [designId]: [runId] },
+        },
+        adminHeaders
+      )
+      expect(draft.status).toBe(201)
+      expect(draft.data.payment_submission.status).toBe("Draft")
+      expect(draft.data.payment_submission.submitted_at).toBeFalsy()
+
+      const submissionId = draft.data.payment_submission.id
+
+      const res = await api.post(
+        `/partners/payment-submissions/${submissionId}/submit`,
+        {},
+        { headers: partnerHeaders }
+      )
+
+      expect(res.status).toBe(200)
+      // Read back, not echoed — the review route's stale-200 is exactly this.
+      expect(res.data.payment_submission.status).toBe("Pending")
+      expect(res.data.payment_submission.submitted_at).toBeTruthy()
+
+      const line = res.data.payment_submission.items.find(
+        (i: any) => i.design_id === designId
+      )
+      // The evidence survives the transition. A hand-made re-submission could
+      // never have carried it.
+      expect(line.run_provenance).toBe("recorded")
+      expect(line.production_run_ids).toEqual([runId])
+      expect(Number(line.amount)).toBe(4800)
+    })
+
+    it("refuses anything that is not a Draft, and says which status it is in", async () => {
+      const designId = await createDesign("Already Pending Design")
+      await linkDesignToPartner(designId, partnerId)
+
+      const created = await api.post(
+        "/partners/payment-submissions",
+        { design_ids: [designId] },
+        { headers: partnerHeaders }
+      )
+      expect(created.data.payment_submission.status).toBe("Pending")
+
+      const res = await api
+        .post(
+          `/partners/payment-submissions/${created.data.payment_submission.id}/submit`,
+          {},
+          { headers: partnerHeaders }
+        )
+        .catch((e: any) => e.response)
+
+      expect(res.status).toBe(400)
+      expect(res.data.message).toContain("Pending")
+    })
+
+    it("refuses another partner's Draft", async () => {
+      const designId = await createDesign("Someone Else's Draft")
+      await linkDesignToPartner(designId, partnerId)
+
+      const draft = await api.post(
+        "/admin/payment-submissions",
+        { partner_id: partnerId, design_ids: [designId], status: "Draft" },
+        adminHeaders
+      )
+
+      const other = await createPartnerWithAuth(
+        Math.floor(Math.random() * 100000)
+      )
+
+      const res = await api
+        .post(
+          `/partners/payment-submissions/${draft.data.payment_submission.id}/submit`,
+          {},
+          { headers: other.partnerHeaders }
+        )
+        .catch((e: any) => e.response)
+
+      // `MedusaError.Types.NOT_ALLOWED` is what the sibling GET detail route
+      // already throws for exactly this, and Medusa maps it to 400. What
+      // matters is that it is refused and says so, not the digit.
+      expect([400, 401, 403]).toContain(res.status)
+      expect(res.data.message).toContain("do not have access")
+    })
+
+    /**
+     * 🔴 The reason submit re-runs the guards rather than trusting the draft.
+     *
+     * A Draft can be months old. If the same run has been billed by another
+     * submission in the meantime, converting the draft in place would pay for
+     * it twice — and the draft would look perfectly clean while doing it.
+     */
+    it("refuses a Draft whose design was claimed by a hand submission since", async () => {
+      /**
+       * The exact hole #1605's Draft exemption leaves open. A partner with a
+       * pre-filled Draft can still submit the SAME design by hand naming no
+       * runs — the runless guard waves it through precisely because the prior
+       * is a Draft. Submitting the Draft afterwards would bill the work twice,
+       * and neither claim could be told from the other.
+       */
+      const designId = await createDesign("Raced Draft Design")
+      await linkDesignToPartner(designId, partnerId)
+      const runId = await createCompletedRun(designId, "Raced Draft Design")
+
+      const draft = await api.post(
+        "/admin/payment-submissions",
+        {
+          partner_id: partnerId,
+          design_ids: [designId],
+          status: "Draft",
+          production_run_ids: { [designId]: [runId] },
+        },
+        adminHeaders
+      )
+
+      const byHand = await api.post(
+        "/partners/payment-submissions",
+        { design_ids: [designId] },
+        { headers: partnerHeaders }
+      )
+      expect(byHand.data.payment_submission.status).toBe("Pending")
+
+      const res = await api
+        .post(
+          `/partners/payment-submissions/${draft.data.payment_submission.id}/submit`,
+          {},
+          { headers: partnerHeaders }
+        )
+        .catch((e: any) => e.response)
+
+      expect(res.status).toBe(400)
+      expect(res.data.message).toContain("already in an active payment submission")
+    })
+
+    it("refuses a Draft whose run was claimed by another submission since", async () => {
+      /**
+       * A Draft can be months old. `create` refuses a second submission that
+       * names a run the Draft already holds, so this claim is written straight
+       * through the module — which is exactly the shape a repair job, an
+       * import, or a future edit route can produce. The transition must
+       * re-check rather than trust the draft it was written from.
+       */
+      const designId = await createDesign("Contested Draft Run Design")
+      await linkDesignToPartner(designId, partnerId)
+      const runId = await createCompletedRun(designId, "Contested Draft Run Design")
+
+      const draft = await api.post(
+        "/admin/payment-submissions",
+        {
+          partner_id: partnerId,
+          design_ids: [designId],
+          status: "Draft",
+          production_run_ids: { [designId]: [runId] },
+        },
+        adminHeaders
+      )
+
+      const container = getContainer()
+      const service: any = container.resolve("payment_submissions")
+      /**
+       * Approved, not Pending — deliberately. The design-level guard only
+       * blocks Pending/Under_Review, so an Approved rival slips past it and
+       * leaves the RUN-level guard as the only thing standing between this
+       * draft and a second payment for the same work. That is the check under
+       * test; a Pending rival would be caught one step earlier and prove
+       * nothing about it.
+       */
+      const rival = await service.createPaymentSubmissions({
+        partner_id: partnerId,
+        status: "Approved",
+        total_amount: 1000,
+        currency: "inr",
+        submitted_at: new Date(),
+      })
+      await service.createPaymentSubmissionItems({
+        source_type: "design",
+        design_id: designId,
+        design_name: "Contested Draft Run Design",
+        amount: 1000,
+        quantity: 1,
+        production_run_ids: [runId],
+        run_provenance: "recorded",
+        submission_id: rival.id,
+      })
+
+      const res = await api
+        .post(
+          `/partners/payment-submissions/${draft.data.payment_submission.id}/submit`,
+          {},
+          { headers: partnerHeaders }
+        )
+        .catch((e: any) => e.response)
+
+      expect(res.status).toBe(400)
+      expect(res.data.message).toContain(runId)
+    })
+
+    it("lets an admin submit a Draft on the partner's behalf", async () => {
+      // Seven production Drafts need exactly this: the partner is not the only
+      // one who gets stuck.
+      const designId = await createDesign("Admin Submitted Draft")
+      await linkDesignToPartner(designId, partnerId)
+
+      const draft = await api.post(
+        "/admin/payment-submissions",
+        { partner_id: partnerId, design_ids: [designId], status: "Draft" },
+        adminHeaders
+      )
+
+      const res = await api.post(
+        `/admin/payment-submissions/${draft.data.payment_submission.id}/submit`,
+        { notes: "Chased by ops" },
+        adminHeaders
+      )
+
+      expect(res.status).toBe(200)
+      expect(res.data.payment_submission.status).toBe("Pending")
+      expect(res.data.payment_submission.notes).toBe("Chased by ops")
+    })
+
+    it("makes the submitted claim reviewable, which a Draft never was", async () => {
+      // The end of the road the Draft could not reach: `review` refuses
+      // anything that is not Pending or Under_Review.
+      const designId = await createDesign("Draft To Review Design")
+      await linkDesignToPartner(designId, partnerId)
+
+      const draft = await api.post(
+        "/admin/payment-submissions",
+        { partner_id: partnerId, design_ids: [designId], status: "Draft" },
+        adminHeaders
+      )
+      const submissionId = draft.data.payment_submission.id
+
+      const beforeSubmit = await api
+        .post(
+          `/admin/payment-submissions/${submissionId}/review`,
+          { action: "reject", rejection_reason: "n/a" },
+          adminHeaders
+        )
+        .catch((e: any) => e.response)
+      expect(beforeSubmit.status).toBe(400)
+
+      await api.post(
+        `/partners/payment-submissions/${submissionId}/submit`,
+        {},
+        { headers: partnerHeaders }
+      )
+
+      const afterSubmit = await api.post(
+        `/admin/payment-submissions/${submissionId}/review`,
+        { action: "reject", rejection_reason: "Wrong quantity" },
+        adminHeaders
+      )
+      expect(afterSubmit.status).toBe(200)
+    })
+  })
+
+  // ─── Deleting a machine-written Draft (#1604) ──────────────────────────────
+
+  describe("DELETE /admin/payment-submissions/:id (#1604)", () => {
+    it("removes a Draft and releases the design it was holding", async () => {
+      const designId = await createDesign("Deletable Draft Design")
+      await linkDesignToPartner(designId, partnerId)
+      const runId = await createCompletedRun(designId, "Deletable Draft Design")
+
+      const draft = await api.post(
+        "/admin/payment-submissions",
+        {
+          partner_id: partnerId,
+          design_ids: [designId],
+          status: "Draft",
+          production_run_ids: { [designId]: [runId] },
+        },
+        adminHeaders
+      )
+      const submissionId = draft.data.payment_submission.id
+
+      const del = await api.delete(
+        `/admin/payment-submissions/${submissionId}`,
+        adminHeaders
+      )
+      expect(del.status).toBe(200)
+      expect(del.data.deleted).toBe(true)
+
+      const gone = await api
+        .get(`/admin/payment-submissions/${submissionId}`, adminHeaders)
+        .catch((e: any) => e.response)
+      expect(gone.status).toBe(404)
+
+      /**
+       * 🔴 The lines have to go with it. Every claim guard reads
+       * `listPaymentSubmissionItems` joined to its submission, so a deleted
+       * header whose lines survived would keep blocking the very run it named
+       * — which is the failure this route exists to end.
+       */
+      const reclaim = await api.post(
+        "/admin/payment-submissions",
+        {
+          partner_id: partnerId,
+          design_ids: [designId],
+          production_run_ids: { [designId]: [runId] },
+        },
+        adminHeaders
+      )
+      expect(reclaim.status).toBe(201)
+    })
+
+    it("refuses to delete anything that has been submitted", async () => {
+      const designId = await createDesign("Undeletable Pending Design")
+      await linkDesignToPartner(designId, partnerId)
+
+      const created = await api.post(
+        "/partners/payment-submissions",
+        { design_ids: [designId] },
+        { headers: partnerHeaders }
+      )
+
+      const res = await api
+        .delete(
+          `/admin/payment-submissions/${created.data.payment_submission.id}`,
+          adminHeaders
+        )
+        .catch((e: any) => e.response)
+
+      expect(res.status).toBe(400)
+      expect(res.data.message).toContain("Only a Draft")
+    })
+  })
+
+  // ─── Correcting a line (#1604) ─────────────────────────────────────────────
+
+  describe("PATCH /admin/payment-submissions/:id/items/:itemId (#1604)", () => {
+    async function draftWithLine(name: string, extra: Record<string, any> = {}) {
+      const designId = await createDesign(name)
+      await linkDesignToPartner(designId, partnerId)
+      const res = await api.post(
+        "/admin/payment-submissions",
+        {
+          partner_id: partnerId,
+          design_ids: [designId],
+          status: "Draft",
+          quantities: { [designId]: 1 },
+          unit_amounts: { [designId]: 850 },
+          ...extra,
+        },
+        adminHeaders
+      )
+      const detail = await readSubmission(res.data.payment_submission.id)
+      return {
+        designId,
+        submissionId: detail.id as string,
+        itemId: detail.items[0].id as string,
+      }
+    }
+
+    it("re-prices a line and moves the submission total with it", async () => {
+      // The `unmatched` lines `audit-partner-payout-quantity` reports and
+      // refuses to write: 850/unit billed once against a run of nine.
+      const { submissionId, itemId } = await draftWithLine("Underbilled Line")
+
+      const res = await api.patch(
+        `/admin/payment-submissions/${submissionId}/items/${itemId}`,
+        { quantity: 9 },
+        adminHeaders
+      )
+
+      expect(res.status).toBe(200)
+      const line = res.data.payment_submission.items[0]
+      expect(Number(line.quantity)).toBe(9)
+      expect(Number(line.unit_amount)).toBe(850)
+      expect(Number(line.amount)).toBe(7650)
+      expect(Number(res.data.payment_submission.total_amount)).toBe(7650)
+    })
+
+    it("takes a typed total and clears the rate behind it", async () => {
+      const { submissionId, itemId } = await draftWithLine("Typed Total Line")
+
+      const res = await api.patch(
+        `/admin/payment-submissions/${submissionId}/items/${itemId}`,
+        { amount: 5000 },
+        adminHeaders
+      )
+
+      expect(res.status).toBe(200)
+      const line = res.data.payment_submission.items[0]
+      expect(Number(line.amount)).toBe(5000)
+      // There is no recorded rate behind a typed total, and dividing it back
+      // out would invent one.
+      expect(line.unit_amount).toBeFalsy()
+    })
+
+    /**
+     * 🔴 THE case this route had to get right.
+     *
+     *     submit naming no runs        → refused by the guard
+     *     submit clean, then PATCH runs in → completely unguarded
+     *
+     * An edit route that writes `production_run_ids` without re-running the
+     * claim checks silently undoes #1602.
+     */
+    it("refuses to PATCH in a run another submission has already claimed", async () => {
+      const designId = await createDesign("Contested Run Design")
+      await linkDesignToPartner(designId, partnerId)
+      const runId = await createCompletedRun(designId, "Contested Run Design")
+
+      const holder = await api.post(
+        "/admin/payment-submissions",
+        {
+          partner_id: partnerId,
+          design_ids: [designId],
+          production_run_ids: { [designId]: [runId] },
+        },
+        adminHeaders
+      )
+      expect(holder.status).toBe(201)
+
+      // A second, clean submission on the same design — allowed while the
+      // first is merely Pending only because it names no runs.
+      const secondDesign = await createDesign("Contested Run Design B")
+      await linkDesignToPartner(secondDesign, partnerId)
+      const clean = await api.post(
+        "/admin/payment-submissions",
+        {
+          partner_id: partnerId,
+          design_ids: [secondDesign],
+          status: "Draft",
+        },
+        adminHeaders
+      )
+
+      const cleanDetail = await readSubmission(clean.data.payment_submission.id)
+
+      const res = await api
+        .patch(
+          `/admin/payment-submissions/${cleanDetail.id}/items/${cleanDetail.items[0].id}`,
+          { production_run_ids: [runId] },
+          adminHeaders
+        )
+        .catch((e: any) => e.response)
+
+      // Refused — the run belongs to another design AND is already claimed.
+      // Either refusal is correct; what must not happen is a 200.
+      expect(res.status).toBeGreaterThanOrEqual(400)
+    })
+
+    it("records the runs on a line that never named any, and says so", async () => {
+      const designId = await createDesign("Late Evidence Design")
+      await linkDesignToPartner(designId, partnerId)
+      const runId = await createCompletedRun(designId, "Late Evidence Design")
+
+      const draft = await api.post(
+        "/admin/payment-submissions",
+        { partner_id: partnerId, design_ids: [designId], status: "Draft" },
+        adminHeaders
+      )
+      const before = await readSubmission(draft.data.payment_submission.id)
+      expect(before.items[0].run_provenance).toBe("not_recorded")
+
+      const res = await api.patch(
+        `/admin/payment-submissions/${before.id}/items/${before.items[0].id}`,
+        { production_run_ids: [runId] },
+        adminHeaders
+      )
+
+      expect(res.status).toBe(200)
+      const line = res.data.payment_submission.items[0]
+      expect(line.run_provenance).toBe("recorded")
+      expect(line.production_run_ids).toEqual([runId])
+    })
+
+    it("refuses to rewrite a line once the money has moved", async () => {
+      const designId = await createDesign("Paid Line Design")
+      await linkDesignToPartner(designId, partnerId)
+
+      const created = await api.post(
+        "/partners/payment-submissions",
+        { design_ids: [designId] },
+        { headers: partnerHeaders }
+      )
+      const submissionId = created.data.payment_submission.id
+
+      const approved = await api.post(
+        `/admin/payment-submissions/${submissionId}/review`,
+        { action: "approve", payment_type: "Bank", paid_to_id: paidToId },
+        adminHeaders
+      )
+      expect(approved.status).toBe(200)
+
+      const detail = await readSubmission(submissionId)
+
+      const res = await api
+        .patch(
+          `/admin/payment-submissions/${submissionId}/items/${detail.items[0].id}`,
+          { quantity: 9 },
+          adminHeaders
+        )
+        .catch((e: any) => e.response)
+
+      // Rewriting a paid row makes our record disagree with what was actually
+      // paid, without putting a rupee in anyone's hand.
+      expect(res.status).toBe(400)
+      expect(res.data.message).toContain("Paid")
+    })
+
+    it("refuses an empty body rather than writing nothing and returning 200", async () => {
+      const { submissionId, itemId } = await draftWithLine("Empty Patch Line")
+
+      const res = await api
+        .patch(
+          `/admin/payment-submissions/${submissionId}/items/${itemId}`,
+          {},
+          adminHeaders
+        )
+        .catch((e: any) => e.response)
+
+      expect(res.status).toBe(400)
+    })
+  })
+
   // ─── Provenance runs are not billable labour (#1606) ───────────────────────
 
   describe("payable-runs excludes retail provenance runs (#1606)", () => {

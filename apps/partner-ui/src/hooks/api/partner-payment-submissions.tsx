@@ -196,3 +196,49 @@ export const useCreatePartnerPaymentSubmission = (
     ...options,
   })
 }
+
+/**
+ * Turn one of this partner's Drafts into a real claim (#1604).
+ *
+ * `auto-draft-payment-submission` pre-fills a submission on every completed
+ * run — the design, the rate, the quantity AND the run ids — and until this
+ * route existed there was no way to submit it. The documented workaround was to
+ * create a second submission by hand naming NO runs, which threw the run
+ * evidence away and is precisely the claim the double-pay guard cannot tell
+ * apart from an earlier one. Converting in place keeps the evidence.
+ */
+export const useSubmitPartnerPaymentSubmission = (
+  options?: UseMutationOptions<
+    { payment_submission: PaymentSubmission },
+    FetchError,
+    { submissionId: string; notes?: string }
+  >
+) => {
+  return useMutation({
+    mutationFn: async ({
+      submissionId,
+      ...payload
+    }: {
+      submissionId: string
+      notes?: string
+    }) =>
+      await sdk.client.fetch<{ payment_submission: PaymentSubmission }>(
+        `/partners/payment-submissions/${submissionId}/submit`,
+        { method: "POST", body: payload }
+      ),
+    onSuccess: (
+      ...args: Parameters<NonNullable<NonNullable<typeof options>["onSuccess"]>>
+    ) => {
+      queryClient.invalidateQueries({
+        queryKey: partnerPaymentSubmissionsQueryKeys.lists(),
+      })
+      queryClient.invalidateQueries({
+        queryKey: partnerPaymentSubmissionsQueryKeys.detail(
+          args[1].submissionId
+        ),
+      })
+      options?.onSuccess?.(...args)
+    },
+    ...options,
+  })
+}

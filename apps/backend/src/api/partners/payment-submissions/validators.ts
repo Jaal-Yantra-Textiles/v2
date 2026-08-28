@@ -55,3 +55,13 @@ export const ListPaymentSubmissionsQuerySchema = z.object({
   limit: z.coerce.number().int().min(1).max(100).default(20).optional(),
   offset: z.coerce.number().int().min(0).default(0).optional(),
 })
+
+/**
+ * A partner turning their own Draft into a real claim (#1604).
+ *
+ * ⚠️ No `status` here either, for the same reason `CreatePaymentSubmissionSchema`
+ * refuses it: the route decides where a submission lands, not the caller.
+ */
+export const SubmitPaymentSubmissionSchema = z.object({
+  notes: z.string().optional(),
+})

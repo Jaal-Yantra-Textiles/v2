@@ -1,4 +1,5 @@
 import { UIMatch, useNavigate, useParams } from "react-router-dom"
+import { useState } from "react"
 import {
   Container,
   Heading,
@@ -7,11 +8,16 @@ import {
   Table,
   toast,
   Button,
+  Input,
+  Prompt,
 } from "@medusajs/ui"
-import { CheckCircleSolid, XCircleSolid } from "@medusajs/icons"
+import { CheckCircleSolid, PencilSquare, Trash, XCircleSolid } from "@medusajs/icons"
 import { Outlet } from "react-router-dom"
 import {
+  useDeletePaymentSubmission,
   usePaymentSubmission,
+  useSubmitPaymentSubmission,
+  useUpdatePaymentSubmissionItem,
   type PaymentSubmission,
 } from "../../../hooks/api/payment-submissions"
 
@@ -33,6 +39,161 @@ const statusColor = (
   }
 }
 
+/**
+ * ⚠️ `currency` is a real column that merely DEFAULTS to inr. Hardcoding ₹ told
+ * a partner billing in another currency the wrong thing in the one place they
+ * check what they are owed.
+ */
+const money = (amount: number | string, currency?: string | null) =>
+  new Intl.NumberFormat("en-IN", {
+    style: "currency",
+    currency: (currency || "inr").toUpperCase(),
+    maximumFractionDigits: 2,
+  }).format(Number(amount || 0))
+
+/**
+ * Inline correction of one line (#1604).
+ *
+ * `audit-partner-payout-quantity` reports the lines that need a human decision
+ * and deliberately refuses to write them — "the correction is a payment
+ * decision rather than a data repair". This is where that decision is made. It
+ * edits the BREAKDOWN (units and rate) rather than the total, because a total
+ * typed over a rate throws away the "9 × 850" that lets a partner check the
+ * number instead of taking it on trust.
+ */
+const EditableLine = ({
+  item,
+  submissionId,
+  currency,
+  editable,
+}: {
+  item: any
+  submissionId: string
+  currency?: string | null
+  editable: boolean
+}) => {
+  const [editing, setEditing] = useState(false)
+  const [quantity, setQuantity] = useState(String(item.quantity ?? 1))
+  const [unitAmount, setUnitAmount] = useState(
+    item.unit_amount === null || item.unit_amount === undefined
+      ? ""
+      : String(item.unit_amount)
+  )
+
+  const { mutateAsync, isPending } = useUpdatePaymentSubmissionItem()
+
+  const save = async () => {
+    const payload: Record<string, number> = {}
+    const q = Number(quantity)
+    if (Number.isFinite(q) && q > 0 && q !== Number(item.quantity ?? 1)) {
+      payload.quantity = q
+    }
+    const u = Number(unitAmount)
+    if (Number.isFinite(u) && u > 0 && u !== Number(item.unit_amount ?? NaN)) {
+      payload.unit_amount = u
+    }
+    if (!Object.keys(payload).length) {
+      setEditing(false)
+      return
+    }
+
+    try {
+      await mutateAsync({ id: submissionId, item_id: item.id, ...payload })
+      toast.success("Line updated")
+      setEditing(false)
+    } catch (e: any) {
+      // The server owns the guards — a refusal here is the double-pay check or
+      // the status contract talking, and its wording is the useful part.
+      toast.error(e?.message || "Could not update the line")
+    }
+  }
+
+  return (
+    <Table.Row>
+      <Table.Cell>{item.design_name || "Unnamed design"}</Table.Cell>
+      <Table.Cell>
+        <span className="font-mono text-xs">{item.design_id}</span>
+      </Table.Cell>
+      <Table.Cell>
+        {editing ? (
+          <Input
+            size="small"
+            className="w-20"
+            value={quantity}
+            onChange={(e) => setQuantity(e.target.value)}
+          />
+        ) : (
+          Number(item.quantity ?? 1)
+        )}
+      </Table.Cell>
+      <Table.Cell>
+        {editing ? (
+          <Input
+            size="small"
+            className="w-28"
+            value={unitAmount}
+            placeholder="rate"
+            onChange={(e) => setUnitAmount(e.target.value)}
+          />
+        ) : item.unit_amount === null || item.unit_amount === undefined ? (
+          // A typed total has no rate behind it, and dividing the total back
+          // out would invent one.
+          <Text size="small" className="text-ui-fg-muted">
+            typed total
+          </Text>
+        ) : (
+          money(item.unit_amount, currency)
+        )}
+      </Table.Cell>
+      <Table.Cell>{money(item.amount, currency)}</Table.Cell>
+      <Table.Cell>
+        {/* Whether the runs behind this money are known at all (#1565). */}
+        <Badge
+          size="2xsmall"
+          color={
+            item.run_provenance === "recorded"
+              ? "green"
+              : item.run_provenance === "no_run"
+                ? "grey"
+                : "orange"
+          }
+        >
+          {item.run_provenance === "recorded"
+            ? `${(item.production_run_ids || []).length} run(s)`
+            : item.run_provenance === "no_run"
+              ? "no run"
+              : "not recorded"}
+        </Badge>
+      </Table.Cell>
+      <Table.Cell>
+        {editable &&
+          (editing ? (
+            <div className="flex gap-1">
+              <Button
+                size="small"
+                variant="secondary"
+                onClick={() => setEditing(false)}
+              >
+                Cancel
+              </Button>
+              <Button size="small" isLoading={isPending} onClick={save}>
+                Save
+              </Button>
+            </div>
+          ) : (
+            <Button
+              size="small"
+              variant="transparent"
+              onClick={() => setEditing(true)}
+            >
+              <PencilSquare />
+            </Button>
+          ))}
+      </Table.Cell>
+    </Table.Row>
+  )
+}
+
 const PaymentSubmissionDetailPage = () => {
   const { id } = useParams()
   const navigate = useNavigate()
@@ -43,6 +204,12 @@ const PaymentSubmissionDetailPage = () => {
     isError,
     error,
   } = usePaymentSubmission(id!) as any
+
+  // 🔴 Declared before the loading/error early-returns. A hook called
+  // conditionally changes the hook order between renders and React throws.
+  const [confirmDelete, setConfirmDelete] = useState(false)
+  const submitDraft = useSubmitPaymentSubmission()
+  const deleteDraft = useDeletePaymentSubmission()
 
   if (isLoading || !submission) {
     return (
@@ -58,6 +225,14 @@ const PaymentSubmissionDetailPage = () => {
 
   const isReviewable =
     submission.status === "Pending" || submission.status === "Under_Review"
+  /**
+   * A Draft is machine-written and was, until #1604, a dead end: `review`
+   * refuses anything that is not Pending or Under_Review, nothing converted it,
+   * and nothing removed it. Seven piled up on production.
+   */
+  const isDraft = submission.status === "Draft"
+  /** Lines are editable only while the money has not moved. */
+  const linesEditable = isDraft || submission.status === "Pending"
   const items: any[] = submission.items || []
   const designItems = items.filter(
     (i) => i.source_type === "design" || (!i.source_type && i.design_id)
@@ -79,6 +254,33 @@ const PaymentSubmissionDetailPage = () => {
                 {submission.status.replace("_", " ")}
               </Badge>
             </div>
+            {isDraft && (
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="secondary"
+                  size="small"
+                  onClick={() => setConfirmDelete(true)}
+                >
+                  <Trash className="mr-1" />
+                  Delete draft
+                </Button>
+                <Button
+                  size="small"
+                  isLoading={submitDraft.isPending}
+                  onClick={async () => {
+                    try {
+                      await submitDraft.mutateAsync({ id: submission.id })
+                      toast.success("Submitted for review")
+                    } catch (e: any) {
+                      toast.error(e?.message || "Could not submit this draft")
+                    }
+                  }}
+                >
+                  <CheckCircleSolid className="mr-1" />
+                  Submit for review
+                </Button>
+              </div>
+            )}
             {isReviewable && (
               <div className="flex items-center gap-2">
                 <Button
@@ -178,9 +380,7 @@ const PaymentSubmissionDetailPage = () => {
             <Text size="small" className="text-ui-fg-subtle">
               Total Amount
             </Text>
-            <Heading>
-              ₹{Number(submission.total_amount).toLocaleString()}
-            </Heading>
+            <Heading>{money(submission.total_amount, submission.currency)}</Heading>
           </Container>
           <Container className="p-4">
             <Text size="small" className="text-ui-fg-subtle">
@@ -213,24 +413,24 @@ const PaymentSubmissionDetailPage = () => {
                 <Table.Row>
                   <Table.HeaderCell>Design</Table.HeaderCell>
                   <Table.HeaderCell>Design ID</Table.HeaderCell>
+                  {/* The breakdown, so a partner reads "9 x 850" rather than a
+                      bare total they have to take on trust (#1554). */}
+                  <Table.HeaderCell>Units</Table.HeaderCell>
+                  <Table.HeaderCell>Rate</Table.HeaderCell>
                   <Table.HeaderCell>Amount</Table.HeaderCell>
+                  <Table.HeaderCell>Runs</Table.HeaderCell>
+                  <Table.HeaderCell />
                 </Table.Row>
               </Table.Header>
               <Table.Body>
                 {designItems.map((item: any) => (
-                  <Table.Row key={item.id}>
-                    <Table.Cell>
-                      {item.design_name || "Unnamed design"}
-                    </Table.Cell>
-                    <Table.Cell>
-                      <span className="font-mono text-xs">
-                        {item.design_id}
-                      </span>
-                    </Table.Cell>
-                    <Table.Cell>
-                      ₹{Number(item.amount).toLocaleString()}
-                    </Table.Cell>
-                  </Table.Row>
+                  <EditableLine
+                    key={item.id}
+                    item={item}
+                    submissionId={submission.id}
+                    currency={submission.currency}
+                    editable={linesEditable}
+                  />
                 ))}
               </Table.Body>
             </Table>
@@ -263,7 +463,7 @@ const PaymentSubmissionDetailPage = () => {
                       </span>
                     </Table.Cell>
                     <Table.Cell>
-                      ₹{Number(item.amount).toLocaleString()}
+                      {money(item.amount, submission.currency)}
                     </Table.Cell>
                   </Table.Row>
                 ))}
@@ -302,6 +502,41 @@ const PaymentSubmissionDetailPage = () => {
           </Container>
         )}
       </div>
+      {/**
+        * A Draft is machine-written, so removing one is routine — but it is
+        * still a delete, and the route refuses anything that has been
+        * submitted. Confirm rather than fire on a stray click.
+        */}
+      <Prompt open={confirmDelete} onOpenChange={setConfirmDelete}>
+        <Prompt.Content>
+          <Prompt.Header>
+            <Prompt.Title>Delete this draft?</Prompt.Title>
+            <Prompt.Description>
+              Drafts are pre-filled automatically when a production run
+              completes. Deleting this one releases the design and its runs so
+              they can be billed again. Nothing that has been submitted,
+              approved or paid can be deleted.
+            </Prompt.Description>
+          </Prompt.Header>
+          <Prompt.Footer>
+            <Prompt.Cancel>Cancel</Prompt.Cancel>
+            <Prompt.Action
+              onClick={async () => {
+                try {
+                  await deleteDraft.mutateAsync({ id: submission.id })
+                  toast.success("Draft deleted")
+                  navigate("/payment-submissions")
+                } catch (e: any) {
+                  toast.error(e?.message || "Could not delete this draft")
+                }
+              }}
+            >
+              Delete
+            </Prompt.Action>
+          </Prompt.Footer>
+        </Prompt.Content>
+      </Prompt>
+
       <Outlet />
     </>
   )

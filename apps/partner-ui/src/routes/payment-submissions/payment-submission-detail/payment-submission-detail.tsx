@@ -1,16 +1,21 @@
 import { useParams } from "react-router-dom"
 import {
   Badge,
+  Button,
   Container,
   Heading,
   Table,
   Text,
+  toast,
 } from "@medusajs/ui"
 import { Outlet } from "react-router-dom"
 
 import { SingleColumnPage } from "../../../components/layout/pages"
 import { SingleColumnPageSkeleton } from "../../../components/common/skeleton"
-import { usePartnerPaymentSubmission } from "../../../hooks/api/partner-payment-submissions"
+import {
+  usePartnerPaymentSubmission,
+  useSubmitPartnerPaymentSubmission,
+} from "../../../hooks/api/partner-payment-submissions"
 import {
   money,
   perUnit,
@@ -54,6 +59,9 @@ export const PaymentSubmissionDetail = () => {
   const { id } = useParams()
   const { payment_submission: submission, isPending, isError, error } =
     usePartnerPaymentSubmission(id!)
+  // Above the early returns — a conditionally-called hook changes the hook
+  // order between renders and React throws.
+  const submitDraft = useSubmitPartnerPaymentSubmission()
 
   if (isPending || !submission) {
     return <SingleColumnPageSkeleton sections={3} />
@@ -87,6 +95,36 @@ export const PaymentSubmissionDetail = () => {
                 {submission.status.replace("_", " ")}
               </Badge>
             </div>
+            {/**
+              * 🔴 The button this screen never had (#1604).
+              *
+              * A Draft is pre-filled for you when a production run completes —
+              * amount, units and the runs it pays for. Until now the only way
+              * to bill it was to start a NEW submission by hand, which could
+              * not name those runs and so recorded no evidence of what it was
+              * for. Submitting the draft in place keeps that evidence, which is
+              * what lets the same work be refused a second time.
+              */}
+            {submission.status === "Draft" && (
+              <Button
+                size="small"
+                isLoading={submitDraft.isPending}
+                onClick={async () => {
+                  try {
+                    await submitDraft.mutateAsync({
+                      submissionId: submission.id,
+                    })
+                    toast.success("Submitted for review")
+                  } catch (e: any) {
+                    toast.error(
+                      e?.message || "Could not submit this draft"
+                    )
+                  }
+                }}
+              >
+                Submit for review
+              </Button>
+            )}
           </div>
 
           <div className="px-6 py-4">
