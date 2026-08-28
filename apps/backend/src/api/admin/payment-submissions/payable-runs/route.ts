@@ -5,6 +5,8 @@ import { PAYMENT_SUBMISSIONS_MODULE } from "../../../../modules/payment_submissi
 import PaymentSubmissionsService from "../../../../modules/payment_submissions/service"
 import { isProvenanceRun } from "../../../../workflows/consumption-logs/lib/reconcile-production-consumption"
 import { runUnitCost } from "../../../../workflows/production-runs/lib/run-payable"
+import { listPartnerSubmissionItems } from "../../../../workflows/payment_submissions/lib/run-claims"
+import { groupOrderBackedRuns } from "../../../../workflows/payment_submissions/lib/order-run-groups"
 
 /**
  * GET /admin/payment-submissions/payable-runs?partner_id=…
@@ -106,6 +108,11 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
       "partner_cost_estimate",
       "cost_type",
       "completed_at",
+      // Needed to group the order-backed runs below, and to say which order a
+      // row belongs to.
+      "order_id",
+      "product_id",
+      "order_line_item_id",
       // Read by `isProvenanceRun` — a guard reading a field the query never
       // fetched is dead code that types perfectly (#1606).
       "metadata",
@@ -113,7 +120,94 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
     filters: { partner_id: partnerId, status: "completed" },
   })
 
-  const designBackedRuns = ((runs || []) as any[]).filter((r) => !!r.design_id)
+  const allRuns = (runs || []) as any[]
+  const designBackedRuns = allRuns.filter((r) => !!r.design_id)
+
+  /**
+   * 🔴 Runs with no design were being dropped on the floor.
+   *
+   * `filter((r) => !!r.design_id)` was the first thing this endpoint did, and
+   * everything downstream is design-keyed, so a run without one simply ceased
+   * to exist here — no row, no exclusion, no count. The seven runs behind
+   * retail order #79 are exactly that: minted by `order.fulfillment_created`
+   * with `design_id: null`, completed, delivered, and never offered for payment
+   * by any screen (#1598).
+   *
+   * That contradicted this file's own rule for the provenance runs directly
+   * below — report what is held back and why, because "a screen that simply
+   * omits the row teaches nobody why the work vanished". A silent drop is worse
+   * than an exclusion: an exclusion at least says the work exists.
+   *
+   * These runs are real payable labour, so they are surfaced — grouped by the
+   * ORDER that commissioned them, because that is the unit the payout is
+   * agreed in. Order #79 is one payment of ₹8,974, not seven of ₹1,282.
+   */
+  const orderBackedRuns = allRuns.filter((r) => !r.design_id && !!r.order_id)
+
+  /**
+   * ⚠️ And runs with neither. Nothing can attribute these — no design to price
+   * from, no order to group by. They are reported rather than dropped for the
+   * same reason: an unattributable run is a data question someone must answer,
+   * not a row to hide.
+   */
+  const unattributableRuns = allRuns.filter((r) => !r.design_id && !r.order_id)
+
+  /**
+   * Prior payment lines for this PARTNER.
+   *
+   * 🔴 Was scoped `{ design_id: designIds }`, on the reasoning that a run
+   * belongs to one design so a prior billing of it could only sit on a line for
+   * that design. That stopped being true when a line could be sourced from a
+   * run or an inventory order (#1612): those carry `design_id: null` and were
+   * invisible here, so a run this screen offers as payable could already have
+   * been paid by a run-sourced line and the screen would never know.
+   *
+   * A run belongs to exactly one partner, so partner scope is equally exact and
+   * equally bounded, and survives a line being keyed on something else. See
+   * `workflows/payment_submissions/lib/run-claims`.
+   *
+   * Fetched BEFORE the design early-return below, because the order-backed rows
+   * need it too and they must not disappear just because no design run exists.
+   */
+  const service: PaymentSubmissionsService = req.scope.resolve(
+    PAYMENT_SUBMISSIONS_MODULE
+  )
+  const priorItems = await listPartnerSubmissionItems(service as any, partnerId)
+
+  /** Run id → the live line claiming it. Rejected lines release their runs. */
+  const claimedRunIds = new Map<string, { submission_id: string; status: string }>()
+  for (const item of priorItems || []) {
+    const status = String(item.submission?.status || "")
+    if (status === "Rejected") continue
+    for (const runId of (item.production_run_ids || []) as string[]) {
+      if (!claimedRunIds.has(String(runId))) {
+        claimedRunIds.set(String(runId), {
+          submission_id: String(item.submission?.id || item.submission_id || ""),
+          status,
+        })
+      }
+    }
+  }
+
+  /**
+   * Order-backed runs, grouped by the order that commissioned them.
+   *
+   * One group is one payout: the caller sends it to `POST
+   * /admin/payment-submissions` as a single `run_lines` entry naming every run
+   * id, which is why `run_ids` is given in full rather than a count.
+   *
+   * ⚠️ No `amount` is offered. These runs carry `partner_cost_estimate: null`
+   * — all seven of order #79's do — so any figure here would be a 0 dressed up
+   * as a price. The rate was agreed out of band and an operator must state it;
+   * `create` refuses a zero-value run line for the same reason.
+   */
+  const order_runs = groupOrderBackedRuns(orderBackedRuns, claimedRunIds)
+
+  const unattributable_runs = unattributableRuns.map((run) => ({
+    run_id: String(run.id),
+    completed_at: run.completed_at ?? null,
+    excluded_reason: "no_design_and_no_order" as const,
+  }))
 
   /**
    * A run minted by a retail fulfilment is not billable labour (#1606).
@@ -143,9 +237,18 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
     }))
 
   if (!completedRuns.length) {
-    return res
-      .status(200)
-      .json({ payable_runs: [], count: 0, excluded_runs, excluded_count: excluded_runs.length })
+    // ⚠️ Still returns the order-backed rows. They are not design-backed, so a
+    // partner with no design runs at all can still have real payable work —
+    // which is precisely the case this endpoint used to render as "nothing".
+    return res.status(200).json({
+      payable_runs: [],
+      count: 0,
+      excluded_runs,
+      excluded_count: excluded_runs.length,
+      order_runs,
+      order_runs_count: order_runs.length,
+      unattributable_runs,
+    })
   }
 
   const designIds = [
@@ -160,17 +263,6 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
   const designById = new Map(
     ((designs || []) as any[]).map((d) => [d.id, d])
   )
-
-  // Prior payment lines for these designs. Scoped to the designs in play rather
-  // than every line ever written: a run belongs to exactly one design, so a
-  // prior billing of it can only sit on a line for that design.
-  const service: PaymentSubmissionsService = req.scope.resolve(
-    PAYMENT_SUBMISSIONS_MODULE
-  )
-  const priorItems = (await service.listPaymentSubmissionItems(
-    { design_id: designIds },
-    { relations: ["submission"] }
-  )) as any[]
 
   const billedRuns = new Map<
     string,
@@ -359,5 +451,14 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
     count: payable_runs.length,
     excluded_runs,
     excluded_count: excluded_runs.length,
+    /**
+     * Order-backed runs, as their own list rather than merged into
+     * `payable_runs`. They are a different shape — no design, no per-unit rate,
+     * grouped by order rather than one row per run — and folding them in would
+     * hand every existing consumer rows whose `design_id` is null.
+     */
+    order_runs,
+    order_runs_count: order_runs.length,
+    unattributable_runs,
   })
 }

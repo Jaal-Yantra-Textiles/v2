@@ -128,14 +128,21 @@ export function foldInventoryOrderClaims(
  * lines under them. An `excludeSubmissionId` drops the submission being edited,
  * so a line does not read its own claim as a conflict with itself.
  */
-export async function listPartnerPriorLines(
+/**
+ * The partner's prior submission lines, RAW.
+ *
+ * Callers that need more than the claim maps — `payable-runs` reads
+ * `run_provenance`, `design_id`, `amount` and `quantity` off these rows —
+ * take them from here rather than re-deriving the partner scope themselves.
+ */
+export async function listPartnerSubmissionItems(
   service: {
     listPaymentSubmissions: (filters: any, config?: any) => Promise<any[]>
     listPaymentSubmissionItems: (filters: any, config?: any) => Promise<any[]>
   },
   partnerId: string,
   options?: { excludeSubmissionId?: string }
-): Promise<PriorRunLine[]> {
+): Promise<any[]> {
   if (!partnerId) return []
 
   const submissions = await service.listPaymentSubmissions({
@@ -150,10 +157,21 @@ export async function listPartnerPriorLines(
 
   if (!submissionIds.length) return []
 
-  const items = await service.listPaymentSubmissionItems(
+  return (await service.listPaymentSubmissionItems(
     { submission_id: submissionIds },
     { relations: ["submission"] }
-  )
+  )) as any[]
+}
+
+export async function listPartnerPriorLines(
+  service: {
+    listPaymentSubmissions: (filters: any, config?: any) => Promise<any[]>
+    listPaymentSubmissionItems: (filters: any, config?: any) => Promise<any[]>
+  },
+  partnerId: string,
+  options?: { excludeSubmissionId?: string }
+): Promise<PriorRunLine[]> {
+  const items = await listPartnerSubmissionItems(service, partnerId, options)
 
   return ((items || []) as any[]).map((item) => ({
     submission_id: item.submission?.id ?? item.submission_id ?? null,
