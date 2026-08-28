@@ -18,6 +18,14 @@ import {
   designsBilledWithoutRunEvidence,
   runlessResubmitMessage,
 } from "./lib/run-evidence-guard"
+import {
+  listPartnerRunClaims,
+  runsAlreadyClaimedMessage,
+} from "./lib/run-claims"
+import {
+  normaliseCurrency,
+  resolveSubmissionCurrency,
+} from "./lib/submission-currency"
 import { PARTNER_MODULE } from "../../modules/partner"
 import { DESIGN_MODULE } from "../../modules/designs"
 import { TASKS_MODULE } from "../../modules/tasks"
@@ -91,6 +99,16 @@ export type CreatePaymentSubmissionInput = {
    * spelling mistake away from reading nothing at all (#1557).
    */
   production_run_ids?: Record<string, string[]>
+  /**
+   * What the payout is denominated in. Absent means the partner's own
+   * `currency_code`, and `inr` if they have none — see
+   * `lib/submission-currency`, which owns that precedence.
+   *
+   * ⚠️ This is the currency of the SUBMISSION, not of its sources. A line
+   * priced in another currency is converted into this one at an FX rate that
+   * is recorded on the line, never applied silently.
+   */
+  currency?: string
 }
 
 type ValidatedDesign = {
@@ -542,32 +560,31 @@ const validateDesignsForSubmissionStep = createStep(
         }
       }
 
-      // Already paid for? A Rejected submission never paid anyone, so its
-      // lines release their runs; everything else — Draft, Pending,
-      // Under_Review, Approved, Paid — is a live claim on that run.
+      /**
+       * Already paid for? A Rejected submission never paid anyone, so its
+       * lines release their runs; everything else — Draft, Pending,
+       * Under_Review, Approved, Paid — is a live claim on that run.
+       *
+       * 🔴 Scoped by PARTNER, not by design. This used to fetch priors with
+       * `{ design_id: input.design_ids }`, on the reasoning that a run belongs
+       * to one design so a prior billing of it could only sit on a line for
+       * that design. A line sourced from anything other than a design carries
+       * `design_id: null`, so that query could not see it, and the same run
+       * could be billed once from each side with neither claim visible to the
+       * other. See `lib/run-claims`.
+       */
       const submissionService: PaymentSubmissionsService = container.resolve(
         PAYMENT_SUBMISSIONS_MODULE
       )
-      const priorItems = await submissionService.listPaymentSubmissionItems(
-        { design_id: input.design_ids },
-        { relations: ["submission"] }
+      const billed = await listPartnerRunClaims(
+        submissionService as any,
+        input.partner_id
       )
-      const billed = new Map<string, string>()
-      for (const item of (priorItems || []) as any[]) {
-        if (item.submission?.status === "Rejected") continue
-        for (const runId of (item.production_run_ids || []) as string[]) {
-          if (!billed.has(runId)) {
-            billed.set(runId, item.submission?.id || item.submission_id)
-          }
-        }
-      }
       const duplicates = allClaimedRunIds.filter((id) => billed.has(id))
       if (duplicates.length) {
         throw new MedusaError(
           MedusaError.Types.INVALID_DATA,
-          `Production runs already paid for: ${duplicates
-            .map((id) => `${id} (submission ${billed.get(id)})`)
-            .join(", ")}`
+          runsAlreadyClaimedMessage(duplicates, billed)
         )
       }
     }
@@ -780,6 +797,51 @@ const validateTasksForSubmissionStep = createStep(
 )
 
 // Step 2: Create the submission record with items (designs and/or tasks)
+/**
+ * Decide what the payout is denominated in, once, before anything is priced.
+ *
+ * A step rather than a `transform` because it has to READ the partner, and the
+ * precedence (explicit → partner's own → inr) belongs in one place — see
+ * `lib/submission-currency`. Scattering it across callers is how two routes
+ * come to disagree about what currency a partner is paid in.
+ *
+ * ⚠️ A partner whose `currency_code` is NULL is real (hrhandloom's is), so the
+ * lookup failing to produce one is an expected path, not an error.
+ */
+const resolveSubmissionCurrencyStep = createStep(
+  "resolve-submission-currency",
+  async (
+    input: { partner_id: string; currency?: string },
+    { container }
+  ) => {
+    if (normaliseCurrency(input.currency)) {
+      return new StepResponse(normaliseCurrency(input.currency))
+    }
+
+    let partnerCurrency: string | null = null
+    try {
+      const query: any = container.resolve(ContainerRegistrationKeys.QUERY)
+      const { data } = await query.graph({
+        entity: "partner",
+        fields: ["id", "currency_code"],
+        filters: { id: input.partner_id },
+      })
+      partnerCurrency = (data || [])[0]?.currency_code ?? null
+    } catch {
+      // A partner we cannot read is not a reason to refuse the payout; it just
+      // means we fall through to the default below.
+      partnerCurrency = null
+    }
+
+    return new StepResponse(
+      resolveSubmissionCurrency({
+        explicit: input.currency,
+        partnerCurrency,
+      })
+    )
+  }
+)
+
 const createSubmissionRecordStep = createStep(
   "create-submission-record",
   async (
@@ -791,6 +853,12 @@ const createSubmissionRecordStep = createStep(
       documents?: Array<{ id?: string; url: string; filename?: string; mimeType?: string }>
       metadata?: Record<string, any>
       status?: "Draft" | "Pending"
+      /**
+       * What the payout is denominated in. Resolved by the workflow (explicit
+       * → partner's own → inr) rather than defaulted here, so there is exactly
+       * one place that decides it. See `lib/submission-currency`.
+       */
+      currency?: string
     },
     { container }
   ) => {
@@ -822,7 +890,14 @@ const createSubmissionRecordStep = createStep(
       partner_id: input.partner_id,
       status,
       total_amount,
-      currency: "inr",
+      /**
+       * 🔴 Was hardcoded `"inr"`. Every submission ever written was INR, so
+       * nothing had exercised the alternative — but the retail payout for
+       * order #79 is derived in USD and settled in rupees, and partners exist
+       * whose own `currency_code` is NULL. Resolved upstream so a caller
+       * stating a currency is not silently overridden by a default.
+       */
+      currency: normaliseCurrency(input.currency) || "inr",
       submitted_at: status === "Draft" ? null : new Date(),
       notes: input.notes || null,
       documents: (input.documents || null) as Record<string, unknown> | null,
@@ -1109,6 +1184,11 @@ export const createPaymentSubmissionWorkflow = createWorkflow(
       cost_overrides: costOverrides.tasks,
     })
 
+    const currency = resolveSubmissionCurrencyStep({
+      partner_id: input.partner_id,
+      currency: input.currency,
+    })
+
     const submission = createSubmissionRecordStep({
       partner_id: input.partner_id,
       designs: validatedDesigns,
@@ -1117,6 +1197,7 @@ export const createPaymentSubmissionWorkflow = createWorkflow(
       documents: input.documents,
       metadata: input.metadata,
       status: input.status,
+      currency,
     })
 
     linkSubmissionToPartnerStep({

@@ -17,9 +17,44 @@ const PaymentSubmissionItem = model.define("payment_submission_item", {
   // Task source (nullable — may be a design-based item instead)
   task_id: model.text().nullable(),
   task_name: model.text().nullable(),
-  // Discriminator so consumers don't need to sniff which id is populated
+  /**
+   * Inventory-order source (#1612) — a partner we BOUGHT material from, rather
+   * than one who did labour for us. The payout is the order's `total_price`.
+   */
+  inventory_order_id: model.text().nullable(),
+  inventory_order_name: model.text().nullable(),
+  /**
+   * The commissioning retail order, for a `run`-sourced line.
+   *
+   * A run born from a customer order already carries `order_id`, `product_id`,
+   * `variant_id` and `order_line_item_id` — but nothing wrote the order onto
+   * the PAYOUT, so a payout could not be traced back to the order that caused
+   * it (#1598). Denormalised here rather than re-derived from the runs, since
+   * a reader asking "what did order #79 cost us in labour" should not have to
+   * fan out through every run to find out.
+   */
+  order_id: model.text().nullable(),
+  /**
+   * Discriminator so consumers don't need to sniff which id is populated.
+   *
+   * 🔴 Adding a value here is not a free extension. Every "already paid for"
+   * guard was keyed on `design_id`, so a line sourced from anything else was
+   * invisible to it and its runs could be billed a second time from the design
+   * side. Those guards are now scoped by PARTNER — see
+   * `workflows/payment_submissions/lib/run-claims`. A future source type MUST
+   * be checked against them before it is added, or it is a double-pay hole by
+   * construction.
+   *
+   * - `design`          — labour on a design. The original behaviour.
+   * - `task`            — a completed task. Never has a run.
+   * - `run`             — production runs directly, including runs minted from
+   *                       a retail order's fulfillment, which carry no
+   *                       `design_id` at all and so can never be a `design`
+   *                       line.
+   * - `inventory_order` — material we bought from the partner.
+   */
   source_type: model
-    .enum(["design", "task"])
+    .enum(["design", "task", "run", "inventory_order"])
     .default("design"),
   /**
    * What this line bills, in total. Authoritative — every reader sums `amount`

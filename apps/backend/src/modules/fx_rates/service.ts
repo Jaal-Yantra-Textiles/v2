@@ -96,6 +96,81 @@ class FxRatesService extends MedusaService({ FxRate, FxPriceMeta }) {
   }
 
   /**
+   * `getRate`, but a cache that is missing the pair or too old triggers ONE
+   * live provider fetch and a retry.
+   *
+   * `getRate` alone answers off a cache that is only as fresh as whoever last
+   * refreshed it, and it cannot tell "this pair does not exist" from "nobody
+   * has refreshed in a month" (#1512). For money that is about to be written —
+   * converting a payout line — reading a stale rate silently is the failure
+   * mode worth spending a network call to avoid. A remembered rate was once
+   * 24% wrong (#1538).
+   *
+   * 🔴 At most ONE refresh, ever, per service instance per concurrent burst.
+   * Unbounded FX fetching has OOM-killed production twice (#1368), so the
+   * in-flight promise is shared: N lines converting at once trigger one fetch,
+   * not N. A refresh that has already happened is not repeated for a pair the
+   * provider simply does not carry — otherwise every unknown currency becomes
+   * a fresh HTTP call.
+   *
+   * ⚠️ Falls back to the cached value if the provider fetch fails but the cache
+   * could answer. A stale rate beats no payout; a MISSING rate still throws,
+   * because `convertAmount` must never see a rate it can treat as 1.
+   */
+  async getRateLive(
+    from: string,
+    to: string,
+    options?: { maxAgeMs?: number }
+  ): Promise<number> {
+    const fromCode = from.toLowerCase()
+    const toCode = to.toLowerCase()
+    if (fromCode === toCode) return 1
+
+    // 24h by default: rates move slowly enough that a day-old figure is fine,
+    // and often enough that a month-old one is not.
+    const maxAgeMs = options?.maxAgeMs ?? 24 * 60 * 60 * 1000
+
+    let cached: number | null = null
+    try {
+      cached = await this.getRate(fromCode, toCode)
+    } catch {
+      cached = null
+    }
+
+    const lastFetchedAt = await this.getLastFetchedAt()
+    const isStale =
+      !lastFetchedAt || Date.now() - lastFetchedAt.getTime() > maxAgeMs
+
+    if (cached !== null && !isStale) return cached
+
+    try {
+      await this.refreshOnce()
+    } catch (e) {
+      // Provider unreachable. A stale cached rate is still better than
+      // refusing, but nothing is better than a wrong one.
+      if (cached !== null) return cached
+      throw e
+    }
+
+    return this.getRate(fromCode, toCode)
+  }
+
+  /**
+   * Shared in-flight refresh, so concurrent callers cause one provider fetch
+   * rather than one each. See the fanout note on `getRateLive`.
+   */
+  protected refreshInFlight: Promise<unknown> | null = null
+
+  protected async refreshOnce(): Promise<unknown> {
+    if (!this.refreshInFlight) {
+      this.refreshInFlight = this.refreshRatesFromProvider().finally(() => {
+        this.refreshInFlight = null
+      })
+    }
+    return this.refreshInFlight
+  }
+
+  /**
    * Fetch fresh rates from the configured provider and upsert into the
    * fx_rate table. Returns counts of inserts/updates.
    */

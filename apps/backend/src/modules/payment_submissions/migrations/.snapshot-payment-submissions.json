@@ -394,7 +394,9 @@
           "comment": null,
           "enumItems": [
             "design",
-            "task"
+            "task",
+            "run",
+            "inventory_order"
           ],
           "mappedType": "enum"
         },
@@ -525,6 +527,54 @@
           "comment": null,
           "enumItems": [],
           "mappedType": "datetime"
+        },
+        "inventory_order_id": {
+          "name": "inventory_order_id",
+          "type": "text",
+          "unsigned": false,
+          "autoincrement": false,
+          "primary": false,
+          "nullable": true,
+          "unique": false,
+          "length": null,
+          "precision": null,
+          "scale": null,
+          "default": null,
+          "comment": null,
+          "enumItems": [],
+          "mappedType": "text"
+        },
+        "inventory_order_name": {
+          "name": "inventory_order_name",
+          "type": "text",
+          "unsigned": false,
+          "autoincrement": false,
+          "primary": false,
+          "nullable": true,
+          "unique": false,
+          "length": null,
+          "precision": null,
+          "scale": null,
+          "default": null,
+          "comment": null,
+          "enumItems": [],
+          "mappedType": "text"
+        },
+        "order_id": {
+          "name": "order_id",
+          "type": "text",
+          "unsigned": false,
+          "autoincrement": false,
+          "primary": false,
+          "nullable": true,
+          "unique": false,
+          "length": null,
+          "precision": null,
+          "scale": null,
+          "default": null,
+          "comment": null,
+          "enumItems": [],
+          "mappedType": "text"
         }
       },
       "name": "payment_submission_item",
