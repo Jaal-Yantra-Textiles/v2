@@ -77,6 +77,97 @@ export const runUnitCost = (run: RunForPayout | null | undefined): number => {
   return Math.round((cost / units) * 100) / 100
 }
 
+/**
+ * What `payable-runs` OFFERS for one run — the figure an operator reads on the
+ * screen and then acts on.
+ *
+ * 🔴 Extracted because the offer screen and the create path were two different
+ * pricers over one run (#1616). `payable-runs` offered ₹810 for the Princess
+ * Highway run; creating the submission for that exact run, naming it in
+ * `production_run_ids`, wrote ₹1,056.40 — the DESIGN's `estimated_cost`, +30%.
+ * A figure an operator reads is not the figure that gets written, and the
+ * created Draft looks authoritative either way.
+ *
+ * ⚠️ The quantity is PRODUCED where output was recorded, ordered otherwise —
+ * which is deliberately NOT `runPayableAmount`'s multiplier. That function
+ * bills the ordered quantity (#456, and the unified-order dual-write depends on
+ * it); this one bills what the screen offers. The two answer different
+ * questions and the difference is stated in `quantity_basis` rather than
+ * papered over.
+ */
+export type RunPayableOffer = {
+  /** The agreed rate per finished unit, or 0 when the run carries none. */
+  unit_amount: number
+  /** Units billed — produced where recorded, else ordered, never below 1. */
+  quantity: number
+  quantity_basis: "produced" | "ordered"
+  /** unit_amount x quantity, to two decimals. */
+  amount: number
+  /**
+   * Whether the RUN carries an agreed rate.
+   *
+   * ⚠️ NOT "can this be paid". A run with no agreed rate is not a zero-value
+   * payout and it is not unpayable — it is a run whose price was never written
+   * down, and someone who knows what was agreed must still be able to type it.
+   */
+  payable: boolean
+}
+
+export const runPayableOffer = (
+  run: RunForPayout & { produced_quantity?: number | null }
+): RunPayableOffer => {
+  // `runUnitCost` divides a "total" cost_type back out and takes a "per_unit"
+  // one verbatim — one place, one convention.
+  const unit_amount = runUnitCost(run)
+
+  const produced = Number(run?.produced_quantity)
+  const hasProduced = Number.isFinite(produced) && produced > 0
+  const ordered = Number(run?.quantity)
+  const quantity = hasProduced
+    ? produced
+    : Number.isFinite(ordered) && ordered > 0
+      ? ordered
+      : 1
+
+  return {
+    unit_amount,
+    quantity,
+    quantity_basis: hasProduced ? "produced" : "ordered",
+    amount: Math.round(unit_amount * quantity * 100) / 100,
+    payable: unit_amount > 0,
+  }
+}
+
+/**
+ * What a payout line naming one or more runs bills, priced from THE RUNS.
+ *
+ * Returns `null` when no claimed run carries an agreed rate — the caller then
+ * falls back to whatever it did before. Pricing a rate-less run from the design
+ * is the silent substitution `payable-runs` already refuses ("a suggestion,
+ * never a price"), but refusing outright here would block the documented flow
+ * of billing a run whose price was agreed off-system, so the fallback stays and
+ * says which basis it used.
+ *
+ * 🔴 `unit_amount` is null when the claimed runs carry DIFFERENT rates. There
+ * is no single rate behind such a line, and dividing the total back out would
+ * invent one — the same reason a typed total records no rate.
+ */
+export const resolveRunLinePrice = (
+  runs: Array<RunForPayout & { produced_quantity?: number | null }>
+): { amount: number; quantity: number; unit_amount: number | null } | null => {
+  const offers = (runs || []).map(runPayableOffer).filter((o) => o.payable)
+  if (!offers.length) return null
+
+  const amount =
+    Math.round(offers.reduce((acc, o) => acc + o.amount, 0) * 100) / 100
+  const quantity = offers.reduce((acc, o) => acc + o.quantity, 0)
+
+  const rates = new Set(offers.map((o) => o.unit_amount))
+  const unit_amount = rates.size === 1 ? offers[0].unit_amount : null
+
+  return { amount, quantity, unit_amount }
+}
+
 export type PayoutEligibility =
   | {
       eligible: true

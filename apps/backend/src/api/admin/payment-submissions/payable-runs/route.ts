@@ -4,7 +4,7 @@ import { ContainerRegistrationKeys, MedusaError } from "@medusajs/framework/util
 import { PAYMENT_SUBMISSIONS_MODULE } from "../../../../modules/payment_submissions"
 import PaymentSubmissionsService from "../../../../modules/payment_submissions/service"
 import { isProvenanceRun } from "../../../../workflows/consumption-logs/lib/reconcile-production-consumption"
-import { runUnitCost } from "../../../../workflows/production-runs/lib/run-payable"
+import { runPayableOffer } from "../../../../workflows/production-runs/lib/run-payable"
 import { listPartnerSubmissionItems } from "../../../../workflows/payment_submissions/lib/run-claims"
 import { groupOrderBackedRuns } from "../../../../workflows/payment_submissions/lib/order-run-groups"
 import { foldPartnerBilling } from "../../../../workflows/payment_submissions/lib/run-billing"
@@ -280,19 +280,20 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
     .map((run) => {
       const design = designById.get(String(run.design_id))
 
-      // The per-unit rate the partner agreed, derived from the run rather than
-      // the design. `runUnitCost` divides a "total" cost_type back out and
-      // takes a "per_unit" one verbatim — one place, one convention.
-      const unit_amount = runUnitCost(run)
+      /**
+       * 🔴 The offer comes from `runPayableOffer`, which `create` now prices
+       * from too. These were two different pricers over one run: this screen
+       * offered ₹810 and create wrote the design's ₹1,056.40 for the same run
+       * (#1616). A figure an operator reads must be the figure that gets
+       * written when they act on it.
+       */
+      const offer = runPayableOffer(run)
+      const unit_amount = offer.unit_amount
+      const payable_quantity = offer.quantity
 
       const produced = Number(run.produced_quantity)
       const hasProduced = Number.isFinite(produced) && produced > 0
       const ordered = Number(run.quantity)
-      const payable_quantity = hasProduced
-        ? produced
-        : Number.isFinite(ordered) && ordered > 0
-          ? ordered
-          : 1
 
       return {
         run_id: String(run.id),
@@ -308,9 +309,9 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
             : Number(run.rejected_quantity),
         /** What this row bills for: produced, or ordered when output was never recorded. */
         payable_quantity,
-        quantity_basis: hasProduced ? "produced" : "ordered",
+        quantity_basis: offer.quantity_basis,
         unit_amount,
-        amount: Math.round(unit_amount * payable_quantity * 100) / 100,
+        amount: offer.amount,
         cost_type: run.cost_type ?? null,
         partner_cost_estimate:
           run.partner_cost_estimate === null ||

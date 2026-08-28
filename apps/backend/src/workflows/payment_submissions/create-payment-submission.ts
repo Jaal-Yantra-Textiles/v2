@@ -35,7 +35,11 @@ import {
   describeInventoryOrderValue,
   valueInventoryOrderByReceipts,
 } from "./lib/inventory-order-value"
-import { runPayableAmount } from "../production-runs/lib/run-payable"
+import {
+  resolveRunLinePrice,
+  runPayableAmount,
+  type RunForPayout,
+} from "../production-runs/lib/run-payable"
 import { PARTNER_MODULE } from "../../modules/partner"
 import { DESIGN_MODULE } from "../../modules/designs"
 import { TASKS_MODULE } from "../../modules/tasks"
@@ -328,6 +332,92 @@ export const resolveDesignLineAmount = (input: {
   }
 }
 
+/**
+ * PURE: what one payout line bills, given the RUNS it names as well as the
+ * design behind it.
+ *
+ * 🔴 `resolveDesignLineAmount` alone was the #1616 defect. `payable-runs`
+ * offered ₹810 for the Princess Highway run; creating the submission for that
+ * exact run — naming it in `production_run_ids`, so there was no ambiguity —
+ * wrote ₹1,056.40, the DESIGN's `estimated_cost`. +30%, and nothing surfaced
+ * the difference: the create response returns `items: []`, so the amount was
+ * invisible until the submission was fetched again. Two pricers over one run,
+ * and the figure an operator reads was not the figure that got written.
+ *
+ * Precedence, and the reason for each step:
+ *
+ *  1. **A typed total wins outright.** Somebody typed it — the partner on the
+ *     form, or the auto-draft passing `runPayableAmount`'s already-multiplied
+ *     figure. Multiplying it again is #456.
+ *  2. **A typed rate next**, for the same reason: a human who knows the agreed
+ *     price outranks every stored estimate.
+ *  3. **Then the RUNS**, via `runPayableOffer` — the same helper `payable-runs`
+ *     offers from, so the screen and this path cannot disagree.
+ *  4. **Then the design's per-unit cost**, which is where a hand-picked design
+ *     line with no run behind it has always been priced.
+ *
+ * ⚠️ Step 4 still catches a claimed run carrying NO agreed rate. Refusing there
+ * would block the documented flow of billing a run whose price was agreed
+ * off-system; `payable-runs` flags such a run `payable: false` and shows the
+ * design's figure as a suggestion, which is the same treatment.
+ *
+ * An explicit `quantity` combined with runs bills the RUNS' rate for that many
+ * units: the caller is correcting how many, not what each one costs.
+ */
+export const resolvePaymentLineAmount = (input: {
+  runs?: Array<RunForPayout & { produced_quantity?: number | null }> | null
+  unit_cost: number
+  quantity?: number | null
+  override?: number | null
+  unit_override?: number | null
+}): { amount: number; quantity: number; unit_amount: number | null } => {
+  const runPrice = input.runs?.length ? resolveRunLinePrice(input.runs) : null
+
+  const explicitQty =
+    Number.isFinite(Number(input.quantity)) && Number(input.quantity) > 0
+      ? Number(input.quantity)
+      : null
+
+  const override = Number(input.override)
+  const unitOverride = Number(input.unit_override)
+  const hasOverride = Number.isFinite(override) && override > 0
+  const hasUnitOverride = Number.isFinite(unitOverride) && unitOverride > 0
+
+  /**
+   * The runs answer only when nobody typed a price. Their own quantity is used
+   * unless the caller supplied one — and when the runs carry DIFFERENT rates
+   * there is no single rate to record, so the total stands alone with a null
+   * `unit_amount` rather than an invented average.
+   */
+  if (runPrice && !hasOverride && !hasUnitOverride) {
+    if (runPrice.unit_amount == null) {
+      /**
+       * ⚠️ The supplied quantity is recorded but NOT multiplied — there is no
+       * rate to multiply by. The runs' summed total stands, which is the only
+       * figure that is actually agreed. Zeroing the line here because the
+       * arithmetic is unavailable would put a 0 in front of a partner.
+       */
+      return {
+        amount: runPrice.amount,
+        quantity: explicitQty ?? runPrice.quantity,
+        unit_amount: null,
+      }
+    }
+
+    return resolveDesignLineAmount({
+      unit_cost: runPrice.unit_amount,
+      quantity: explicitQty ?? runPrice.quantity,
+    })
+  }
+
+  return resolveDesignLineAmount({
+    unit_cost: input.unit_cost,
+    quantity: explicitQty ?? runPrice?.quantity,
+    override: input.override,
+    unit_override: input.unit_override,
+  })
+}
+
 // Step 1a: Validate all designs for submission eligibility
 const validateDesignsForSubmissionStep = createStep(
   "validate-designs-for-submission",
@@ -558,14 +648,36 @@ const validateDesignsForSubmissionStep = createStep(
       ...new Set(Object.values(claimedRuns).flat().filter(Boolean)),
     ]
 
+    /**
+     * The claimed runs, kept in scope so the LINE CAN BE PRICED FROM THEM
+     * below (#1616). Empty when nothing was claimed.
+     */
+    const runById = new Map<string, any>()
+
     if (allClaimedRunIds.length) {
       const { data: runs } = await query.graph({
         entity: "production_runs",
-        fields: ["id", "design_id", "partner_id", "status"],
+        fields: [
+          "id",
+          "design_id",
+          "partner_id",
+          "status",
+          /**
+           * ⚠️ The money fields are FETCHED, not merely typed. `runPayableOffer`
+           * reads all four, and a pricer reading a field the query never asked
+           * for silently prices everything at zero.
+           */
+          "quantity",
+          "produced_quantity",
+          "partner_cost_estimate",
+          "cost_type",
+        ],
         filters: { id: allClaimedRunIds },
       })
       const typedRuns = (runs || []) as unknown as ProductionRunGraphResult[]
-      const runById = new Map(typedRuns.map((r) => [r.id, r]))
+      for (const run of typedRuns) {
+        runById.set(run.id, run)
+      }
 
       const missing = allClaimedRunIds.filter((id) => !runById.has(id))
       if (missing.length) {
@@ -684,9 +796,12 @@ const validateDesignsForSubmissionStep = createStep(
     const unitAmounts = input.unit_amounts || {}
 
     const validated: ValidatedDesign[] = typedDesigns.map((d) => {
-      // `estimated_cost` / `production_cost` are PER FINISHED UNIT. Treating
-      // either as a line total is the #1554 defect this resolver exists to fix.
-      const line = resolveDesignLineAmount({
+      const line = resolvePaymentLineAmount({
+        runs: (claimedRuns[d.id] || [])
+          .map((runId) => runById.get(runId))
+          .filter(Boolean),
+        // `estimated_cost` / `production_cost` are PER FINISHED UNIT. Treating
+        // either as a line total is the #1554 defect (#1554).
         unit_cost: Number(d.estimated_cost || (d as any).production_cost || 0),
         quantity: quantities[d.id],
         override: overrides[d.id],
@@ -1383,6 +1498,28 @@ const createSubmissionRecordStep = createStep(
         run_provenance: "no_run" as const,
         submission_id: submission.id,
       })
+    }
+
+    /**
+     * 🔴 The lines are read back and returned WITH the submission (#1616).
+     *
+     * `create` returned a submission with `items: []`, so the amount it had
+     * just written was invisible until someone fetched the submission again.
+     * That is how a ₹1,056.40 line went out against an offered ₹810 and was
+     * caught only because a handoff happened to name the expected figure. An
+     * amount that cannot be seen at the moment it is written cannot be checked
+     * at the moment it is written.
+     *
+     * Best-effort: the submission and its lines are already committed by the
+     * time this runs, and a failure to read them back must not roll back a
+     * created payout.
+     */
+    try {
+      ;(submission as any).items = await service.listPaymentSubmissionItems({
+        submission_id: submission.id,
+      })
+    } catch {
+      // Leave whatever the create returned; the submission itself is written.
     }
 
     return new StepResponse(submission, submission.id)
