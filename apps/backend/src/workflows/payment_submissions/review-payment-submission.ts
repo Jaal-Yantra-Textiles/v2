@@ -317,12 +317,19 @@ const linkPaymentToInventoryOrderStep = createStep(
     try {
       await remoteLink.create([link])
     } catch (e: any) {
-      container
-        .resolve(ContainerRegistrationKeys.LOGGER)
-        .warn(
-          `[review-payment-submission] payment ${input.payment_id} recorded but ` +
-            `could not be linked to inventory order ${input.inventory_order_id}: ${e?.message}`
-        )
+      /**
+       * ⚠️ Assigned through `any` rather than chained off `container.resolve`.
+       * Medusa 2.19 types `resolve` as `unknown`, so `resolve(LOGGER).warn(…)`
+       * is `TS2571: Object is of type 'unknown'` — which broke the deploy of
+       * `24f12a1b5` while `check:prod-build` passed both locally and in CI,
+       * because the Docker build resolves a different @medusajs/types than
+       * either. Every other logger in this file is already assigned first.
+       */
+      const logger: any = container.resolve(ContainerRegistrationKeys.LOGGER)
+      logger?.warn?.(
+        `[review-payment-submission] payment ${input.payment_id} recorded but ` +
+          `could not be linked to inventory order ${input.inventory_order_id}: ${e?.message}`
+      )
       return new StepResponse<LinkDefinition | null>(null)
     }
 
