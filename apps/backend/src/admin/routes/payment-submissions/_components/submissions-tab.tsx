@@ -7,26 +7,13 @@ import {
   usePaymentSubmissions,
   type PaymentSubmission,
 } from "../../../hooks/api/payment-submissions"
+import {
+  paymentSubmissionStatusColor,
+  paymentSubmissionStatusLabel,
+} from "../../../lib/payment-submission-status"
 
 const columnHelper = createColumnHelper<PaymentSubmission>()
 
-const statusColor = (
-  status: string
-): "green" | "orange" | "red" | "grey" | "blue" | "purple" => {
-  switch (status) {
-    case "Paid":
-      return "green"
-    case "Approved":
-      return "blue"
-    case "Pending":
-    case "Under_Review":
-      return "orange"
-    case "Rejected":
-      return "red"
-    default:
-      return "grey"
-  }
-}
 
 export const SubmissionsTab = () => {
   const navigate = useNavigate()
@@ -66,7 +53,9 @@ export const SubmissionsTab = () => {
       columnHelper.accessor("status", {
         header: "Status",
         cell: ({ getValue }) => (
-          <StatusBadge color={statusColor(getValue())}>{getValue().replace("_", " ")}</StatusBadge>
+          <StatusBadge color={paymentSubmissionStatusColor(getValue())}>
+            {paymentSubmissionStatusLabel(getValue())}
+          </StatusBadge>
         ),
       }),
       columnHelper.accessor("total_amount", {
