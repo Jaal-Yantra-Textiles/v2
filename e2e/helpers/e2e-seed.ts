@@ -1694,6 +1694,111 @@ async function seedCrmContact(container: any): Promise<{
   }
 }
 
+/**
+ * Partner + two linked payment methods for the partner-UI settings/payments
+ * spec (edit + delete). Mirrors `seedShipmentGatePartner` for auth, then links
+ * two `internal_payment_details` rows to the partner via the same
+ * `partner ↔ internal_payments` link the create workflow writes.
+ *
+ * TWO methods, deliberately: the edit case renames one and the delete case
+ * removes the other, so neither case mutates the other's fixture. Both carry a
+ * stamped account name — the spec selects rows by that text, and a repeat seed
+ * must not produce two rows reading the same thing.
+ */
+async function seedPaymentMethodsPartner(container: any): Promise<{
+  partnerId: string
+  email: string
+  password: string
+  editMethodId: string
+  editMethodName: string
+  deleteMethodId: string
+  deleteMethodName: string
+}> {
+  const partnerModule: any = container.resolve("partner")
+  const authModule = container.resolve(Modules.AUTH)
+  const link: any = container.resolve(ContainerRegistrationKeys.LINK)
+  const payments: any = container.resolve("internal_payments")
+
+  const stamp = Date.now()
+
+  const created = await partnerModule.createPartners({
+    name: `E2E Payments Partner ${stamp}`,
+    handle: `e2e-payments-${stamp}`,
+    status: "active",
+    is_verified: true,
+  })
+  const partnerId = Array.isArray(created) ? created[0].id : created.id
+
+  const email = `e2e-payments-${stamp}@jyt.test`
+  await partnerModule.createPartnerAdmins({
+    email,
+    first_name: "E2E",
+    last_name: "Payments",
+    role: "admin",
+    partner_id: partnerId,
+  })
+
+  const hashConfig = { logN: 15, r: 8, p: 1 }
+  const passwordHash = await Scrypt.kdf(SEED_PASSWORD, hashConfig)
+  const authIdentity: any = await authModule.createAuthIdentities({
+    provider_identities: [
+      {
+        provider: "emailpass",
+        entity_id: email,
+        provider_metadata: { password: passwordHash.toString("base64") },
+      },
+    ],
+    app_metadata: { partner_id: partnerId },
+  })
+  const authIdentityId = Array.isArray(authIdentity)
+    ? authIdentity[0].id
+    : authIdentity.id
+
+  const now = new Date()
+  await authModule.createAuthVerifications([
+    {
+      auth_identity_id: authIdentityId,
+      entity_id: email,
+      entity_type: "email",
+      code_provider: "emailpass",
+      requested_at: now,
+      verified_at: now,
+    },
+  ])
+
+  const mkMethod = async (suffix: string, type: string) => {
+    const createdMethod = await payments.createPaymentDetails({
+      type,
+      account_name: `E2E ${suffix} Acct ${stamp}`,
+      account_number: `E2E-ACCT-${suffix}-${stamp}`,
+      bank_name: "E2E Bank",
+      ifsc_code: "E2E0000123",
+      wallet_id: null,
+    })
+    const method = Array.isArray(createdMethod) ? createdMethod[0] : createdMethod
+
+    await link.create({
+      partner: { partner_id: partnerId },
+      internal_payments: { internal_payment_details_id: method.id },
+    })
+
+    return { id: method.id as string, name: method.account_name as string }
+  }
+
+  const editMethod = await mkMethod("Edit", "bank_account")
+  const deleteMethod = await mkMethod("Delete", "bank_account")
+
+  return {
+    partnerId,
+    email,
+    password: SEED_PASSWORD,
+    editMethodId: editMethod.id,
+    editMethodName: editMethod.name,
+    deleteMethodId: deleteMethod.id,
+    deleteMethodName: deleteMethod.name,
+  }
+}
+
 const SEED_PASSWORD = "e2etest123!"
 const SEED_FILE = path.resolve(__dirname, "../../apps/backend/.e2e-seed.json")
 
@@ -1889,6 +1994,9 @@ export default async function e2eSeed({ container }: ExecArgs) {
   logger.info("E2E seed: creating content editor partner + website + page + blocks...")
   const contentEditor = await seedContentEditorPartner(container)
 
+  logger.info("E2E seed: creating payment-methods partner + two methods (settings/payments spec)...")
+  const paymentMethods = await seedPaymentMethodsPartner(container)
+
   const seedData = {
     email,
     password: SEED_PASSWORD,
@@ -1937,6 +2045,15 @@ export default async function e2eSeed({ container }: ExecArgs) {
     contentEditorPartnerId: contentEditor.partnerId,
     contentEditorPageId: contentEditor.pageId,
     contentEditorWebsiteId: contentEditor.websiteId,
+    // Payment-methods fixture — consumed by partner-payment-methods.spec.ts
+    // (@partnerui). The delete case removes its method; the edit case renames
+    // its own — each is single-use per seed, which `pnpm e2e` refreshes.
+    paymentsPartnerEmail: paymentMethods.email,
+    paymentsPartnerPassword: paymentMethods.password,
+    paymentsEditMethodId: paymentMethods.editMethodId,
+    paymentsEditMethodName: paymentMethods.editMethodName,
+    paymentsDeleteMethodId: paymentMethods.deleteMethodId,
+    paymentsDeleteMethodName: paymentMethods.deleteMethodName,
     // #1363 per-assignment material allocation — consumed by
     // production-run-material-allocation.spec.ts (admin, CI). SINGLE-USE like
     // every other run fixture: the spec approves the run, and an approved run

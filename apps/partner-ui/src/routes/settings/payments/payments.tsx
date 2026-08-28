@@ -1,21 +1,106 @@
+import { PencilSquare, Trash } from "@medusajs/icons"
 import {
   Button,
   Container,
   Heading,
   Text,
   createDataTableColumnHelper,
+  toast,
+  usePrompt,
 } from "@medusajs/ui"
-import { useMemo } from "react"
+import { useCallback, useMemo } from "react"
 import { useTranslation } from "react-i18next"
 import { Link } from "react-router-dom"
 
+import { ActionMenu } from "../../../components/common/action-menu"
 import { SingleColumnPage } from "../../../components/layout/pages"
 import { _DataTable } from "../../../components/table/data-table"
 import { getLocaleAmount } from "../../../lib/money-amount-helpers"
 import { usePartnerPayments } from "../../../hooks/api/partner-payments"
-import { usePartnerPaymentMethods } from "../../../hooks/api/partner-payment-methods"
+import {
+  useDeletePartnerPaymentMethod,
+  usePartnerPaymentMethods,
+} from "../../../hooks/api/partner-payment-methods"
 import { useMe } from "../../../hooks/api/users"
 import { useDataTable } from "../../../hooks/use-data-table"
+
+type PaymentMethodRow = {
+  id: string
+  type: string
+  account_name: string
+  account_number?: string | null
+  bank_name?: string | null
+  ifsc_code?: string | null
+  wallet_id?: string | null
+  created_at?: string | null
+}
+
+type PaymentMethodRowActionsProps = {
+  method: PaymentMethodRow
+  partnerId?: string | null
+}
+
+const PaymentMethodRowActions = ({
+  method,
+  partnerId,
+}: PaymentMethodRowActionsProps) => {
+  const { t } = useTranslation()
+  const prompt = usePrompt()
+
+  const { mutateAsync } = useDeletePartnerPaymentMethod(
+    partnerId || "",
+    method.id
+  )
+
+  const handleDelete = useCallback(async () => {
+    const confirmed = await prompt({
+      title: t("general.areYouSure"),
+      description: t("partner.payments.delete.confirmation", {
+        accountName: method.account_name,
+      }),
+      confirmText: t("actions.delete"),
+      cancelText: t("actions.cancel"),
+    })
+
+    if (!confirmed) {
+      return
+    }
+
+    await mutateAsync(undefined, {
+      onSuccess: () => {
+        toast.success(t("partner.payments.toast.deleted"))
+      },
+      onError: (e) => {
+        toast.error(e.message)
+      },
+    })
+  }, [mutateAsync, prompt, t, method.account_name])
+
+  return (
+    <ActionMenu
+      groups={[
+        {
+          actions: [
+            {
+              icon: <PencilSquare />,
+              label: t("actions.edit"),
+              to: `${method.id}/edit`,
+            },
+          ],
+        },
+        {
+          actions: [
+            {
+              icon: <Trash />,
+              label: t("actions.delete"),
+              onClick: handleDelete,
+            },
+          ],
+        },
+      ]}
+    />
+  )
+}
 
 export const SettingsPayments = () => {
   const { t } = useTranslation()
@@ -24,17 +109,6 @@ export const SettingsPayments = () => {
 
   const { payments, isPending: isPaymentsLoading } = usePartnerPayments(partnerId)
   const { paymentMethods, isPending: isMethodsLoading } = usePartnerPaymentMethods(partnerId)
-
-  type PaymentMethodRow = {
-    id: string
-    type: string
-    account_name: string
-    account_number?: string | null
-    bank_name?: string | null
-    ifsc_code?: string | null
-    wallet_id?: string | null
-    created_at?: string | null
-  }
 
   const rows = useMemo<PaymentMethodRow[]>(() => {
     return (paymentMethods || []).map((m) => ({
@@ -127,8 +201,17 @@ export const SettingsPayments = () => {
           }
         },
       }),
+      columnHelper.display({
+        id: "actions",
+        cell: ({ row }) => (
+          <PaymentMethodRowActions
+            method={row.original}
+            partnerId={partnerId}
+          />
+        ),
+      }),
     ],
-    [columnHelper, t]
+    [columnHelper, t, partnerId]
   )
 
   const paymentsColumns = useMemo(

@@ -41,7 +41,11 @@ export const ActionMenu = ({
 }: ActionMenuProps) => {
   const direction = useDocumentDirection()
   const inner = children ?? (
-    <IconButton size="small" variant={variant}>
+    <IconButton
+      size="small"
+      variant={variant}
+      aria-label="Open actions menu"
+    >
       <EllipsisHorizontal />
     </IconButton>
   )

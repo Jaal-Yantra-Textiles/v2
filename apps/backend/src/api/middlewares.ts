@@ -287,6 +287,7 @@ import {
   ListPaymentsByPartnerQuerySchema as PartnerListPaymentsByPartnerQuerySchema,
   ListPaymentMethodsByPartnerQuerySchema as PartnerListPaymentMethodsByPartnerQuerySchema,
   CreatePaymentMethodForPartnerSchema as PartnerCreatePaymentMethodForPartnerSchema,
+  UpdatePaymentMethodForPartnerSchema as PartnerUpdatePaymentMethodForPartnerSchema,
 } from "./partners/[id]/payments/validators";
 import { ReviseDesignSchema } from "./admin/designs/[id]/revise/validators";
 import { CancelPartnerAssignmentSchema } from "./admin/designs/[id]/cancel-partner-assignment/validators";
@@ -3452,6 +3453,28 @@ export default defineMiddlewares({
       middlewares: [
         authenticate("partner", ["session", "bearer"]),
         validateAndTransformBody(wrapSchema(PartnerCreatePaymentMethodForPartnerSchema)),
+      ],
+    },
+    {
+      matcher: "/partners/:id/payments/methods/:methodId",
+      method: "GET",
+      middlewares: [
+        authenticate("partner", ["session", "bearer"]),
+      ],
+    },
+    {
+      matcher: "/partners/:id/payments/methods/:methodId",
+      method: "POST",
+      middlewares: [
+        authenticate("partner", ["session", "bearer"]),
+        validateAndTransformBody(wrapSchema(PartnerUpdatePaymentMethodForPartnerSchema)),
+      ],
+    },
+    {
+      matcher: "/partners/:id/payments/methods/:methodId",
+      method: "DELETE",
+      middlewares: [
+        authenticate("partner", ["session", "bearer"]),
       ],
     },
     // Admin Abandoned Carts (read-only, backed by native Cart Module)

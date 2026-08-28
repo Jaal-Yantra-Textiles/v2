@@ -384,8 +384,9 @@ export function getPartnerRouteMap(): RouteObject[] {
                           Component,
                           loader,
                           handle: {
-                            breadcrumb: (match: UIMatch) =>
-                              <Breadcrumb {...match} />,
+                            breadcrumb: (
+                              match: UIMatch<HttpTypes.AdminInventoryItemResponse>
+                            ) => <Breadcrumb {...match} />,
                           },
                         }
                       },
@@ -1108,6 +1109,11 @@ export function getPartnerRouteMap(): RouteObject[] {
                       path: "create",
                       lazy: () =>
                         import("../../routes/settings/payments/payments-create"),
+                    },
+                    {
+                      path: ":id/edit",
+                      lazy: () =>
+                        import("../../routes/settings/payments/payments-edit"),
                     },
                   ],
                 },
