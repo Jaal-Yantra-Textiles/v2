@@ -7,6 +7,7 @@ import {
   useReconciliations,
   type PaymentReconciliation,
 } from "../../../hooks/api/payment-submissions"
+import { RefLink } from "../../../components/payments/payment-line-links"
 
 const columnHelper = createColumnHelper<PaymentReconciliation>()
 
@@ -89,14 +90,59 @@ export const ReconciliationTab = () => {
           return <span className={color}>{num > 0 ? "+" : ""}{num.toLocaleString()}</span>
         },
       }),
+      /**
+       * 🔴 Was a truncated ULID — `01K4PJMNMNRG...` — repeated down the column.
+       * This is the screen where a discrepancy is chased, and a column of
+       * indistinguishable ids is the least useful place to be told nothing
+       * (#1622). Name and link now; the id is still the title attribute.
+       */
       columnHelper.accessor("partner_id", {
         header: "Partner",
-        cell: ({ getValue }) =>
-          getValue() ? (
-            <span className="font-mono text-xs">{getValue()!.slice(0, 12)}...</span>
+        cell: ({ row }) =>
+          row.original.partner_id ? (
+            <RefLink
+              kind="partner"
+              refOrId={row.original.partner || row.original.partner_id}
+              className="text-ui-fg-interactive text-xs hover:underline"
+            />
           ) : (
             "—"
           ),
+      }),
+      /**
+       * WHERE the money came from, not what kind of record this is — the two
+       * are separate columns on purpose (#1614). A `mixed` payout keeps a null
+       * source by design, so it shows its type and no link rather than being
+       * made to point at one of the several things it covered.
+       */
+      columnHelper.accessor("source_type", {
+        header: "Source",
+        cell: ({ row }) => {
+          const { source_type, source_id, source } = row.original
+          if (!source_type) return "—"
+
+          const kind =
+            source_type === "design"
+              ? "design"
+              : source_type === "run"
+                ? "run"
+                : source_type === "inventory_order"
+                  ? "inventory_order"
+                  : null
+
+          return (
+            <div className="flex items-center gap-x-2">
+              <Badge color="grey">{source_type.replace("_", " ")}</Badge>
+              {kind && source_id ? (
+                <RefLink
+                  kind={kind}
+                  refOrId={source || source_id}
+                  className="text-ui-fg-interactive text-xs hover:underline"
+                />
+              ) : null}
+            </div>
+          )
+        },
       }),
       columnHelper.accessor("created_at", {
         header: "Created",

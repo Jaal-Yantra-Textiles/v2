@@ -765,3 +765,48 @@ export const useAttachMediaToRun = (
     ...options,
   })
 }
+
+/**
+ * Whether this run has already been billed, and by which payout (#1622).
+ *
+ * `payable-runs` has always known this and only ever showed it on a screen
+ * listing OTHER runs. Same partner-scoped fold behind both, so the run page and
+ * the payable list cannot disagree about who holds a run.
+ */
+export type ProductionRunBilling = {
+  run_id: string
+  partner_id: string | null
+  /** Branch on this — `unknown` is not `clear`. See `runBillingStatus`. */
+  billing_status: "billed" | "unknown" | "clear"
+  claim: { submission_id: string; status: string; quantity: number } | null
+  unrecorded_claims: Array<{
+    submission_id: string
+    status: string
+    amount: number
+  }>
+  lines: any[]
+}
+
+export const useProductionRunPayments = (
+  id: string,
+  options?: Omit<
+    UseQueryOptions<
+      ProductionRunBilling,
+      FetchError,
+      ProductionRunBilling,
+      QueryKey
+    >,
+    "queryFn" | "queryKey"
+  >,
+) => {
+  const { data, ...rest } = useQuery({
+    queryKey: ["production-runs", id, "payments"],
+    queryFn: async () =>
+      sdk.client.fetch<ProductionRunBilling>(
+        `/admin/production-runs/${id}/payments`,
+        { method: "GET" },
+      ),
+    ...options,
+  })
+  return { ...data, ...rest }
+}

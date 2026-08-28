@@ -12,13 +12,37 @@ import { queryKeysFactory } from "../../lib/query-key-factory"
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
+/**
+ * An id resolved to something a human recognises (#1622). `name` is never an
+ * id — a caller that gets no ref shows the id itself.
+ */
+export interface ResolvedRef {
+  id: string
+  name: string
+  detail?: string | null
+}
+
 export interface PaymentSubmissionItem {
   id: string
-  source_type: "design" | "task"
+  /**
+   * ⚠️ FOUR values since #1614, not two. This type said `design | task` while
+   * the column had offered `run` and `inventory_order` for months — the same
+   * two-of-four blindness that made whole payouts render nowhere (#1621).
+   */
+  source_type: "design" | "task" | "run" | "inventory_order"
   design_id: string | null
   design_name: string | null
   task_id: string | null
   task_name: string | null
+  /** Inventory-order and retail-order sources (#1612, #1598). */
+  inventory_order_id: string | null
+  inventory_order_name: string | null
+  order_id: string | null
+  /** Resolved by the detail route so the screen shows names, not ULIDs. */
+  design?: ResolvedRef | null
+  order?: ResolvedRef | null
+  inventory_order?: ResolvedRef | null
+  runs?: ResolvedRef[]
   amount: number
   /** Units this line pays for, and the rate behind them. `unit_amount` is null
    *  when the total was typed rather than derived — see resolveDesignLineAmount. */
@@ -35,6 +59,8 @@ export interface PaymentSubmissionItem {
 export interface PaymentSubmission {
   id: string
   partner_id: string
+  /** Who is being paid, by name. Resolved by the detail route only (#1622). */
+  partner?: ResolvedRef | null
   status: "Draft" | "Pending" | "Under_Review" | "Approved" | "Rejected" | "Paid"
   total_amount: number
   currency: string
@@ -159,6 +185,16 @@ export interface PaymentReconciliation {
   reference_type: "payment_submission" | "inventory_order" | "manual"
   reference_id: string | null
   partner_id: string | null
+  /**
+   * WHERE the money came from, distinct from `reference_type` (#1614). `mixed`
+   * carries a null `source_id` on purpose: a payout naming several sources has
+   * no single one to point at.
+   */
+  source_type: string | null
+  source_id: string | null
+  /** Resolved by the list route (#1622). Null when there is nothing to name. */
+  partner?: ResolvedRef | null
+  source?: ResolvedRef | null
   expected_amount: number
   actual_amount: number | null
   discrepancy: number | null

@@ -21,25 +21,15 @@ import {
   type PaymentSubmission,
 } from "../../../hooks/api/payment-submissions"
 import { describePaymentLine } from "../../../lib/payment-line-source"
+import {
+  paymentSubmissionStatusColor,
+  paymentSubmissionStatusLabel,
+} from "../../../lib/payment-submission-status"
+import {
+  PaymentLineLinks,
+  RefLink,
+} from "../../../components/payments/payment-line-links"
 import { SubmissionDocuments } from "../_components/submission-documents"
-
-const statusColor = (
-  status: string
-): "green" | "orange" | "red" | "grey" | "blue" | "purple" => {
-  switch (status) {
-    case "Paid":
-      return "green"
-    case "Approved":
-      return "blue"
-    case "Pending":
-    case "Under_Review":
-      return "orange"
-    case "Rejected":
-      return "red"
-    default:
-      return "grey"
-  }
-}
 
 /**
  * ⚠️ `currency` is a real column that merely DEFAULTS to inr. Hardcoding ₹ told
@@ -125,8 +115,14 @@ const EditableLine = ({
         </Badge>
       </Table.Cell>
       <Table.Cell>{source.title}</Table.Cell>
+      {/**
+        * 🔴 Was a bare ULID in a monospace span. Every id a line names is now a
+        * link to the thing itself — the design, the retail order, the inventory
+        * order, and each run — so a payout can be checked against the work it
+        * paid for instead of being taken on trust (#1622).
+        */}
       <Table.Cell>
-        <span className="font-mono text-xs">{source.reference || "—"}</span>
+        <PaymentLineLinks item={item} />
       </Table.Cell>
       <Table.Cell>
         {editing ? (
@@ -269,8 +265,8 @@ const PaymentSubmissionDetailPage = () => {
           <div className="flex items-center justify-between px-6 py-4">
             <div className="flex items-center gap-3">
               <Heading>Submission {submission.id.slice(0, 8)}...</Heading>
-              <Badge color={statusColor(submission.status)}>
-                {submission.status.replace("_", " ")}
+              <Badge color={paymentSubmissionStatusColor(submission.status)}>
+                {paymentSubmissionStatusLabel(submission.status)}
               </Badge>
             </div>
             {isDraft && (
@@ -324,11 +320,21 @@ const PaymentSubmissionDetailPage = () => {
           {/* Metadata Grid */}
           <div className="px-6 py-4">
             <div className="grid grid-cols-2 gap-4 md:grid-cols-3">
+              {/**
+                * 🔴 The one field saying WHO is being paid used to render as a
+                * bare ULID. It is a name and a link to the partner now; the id
+                * survives underneath, because a partner that cannot be resolved
+                * must still be identifiable (#1622).
+                */}
               <div>
                 <Text size="small" className="text-ui-fg-subtle">
-                  Partner ID
+                  Partner
                 </Text>
-                <Text className="font-mono text-xs">
+                <RefLink
+                  kind="partner"
+                  refOrId={submission.partner || submission.partner_id}
+                />
+                <Text size="xsmall" className="text-ui-fg-muted font-mono">
                   {submission.partner_id}
                 </Text>
               </div>
@@ -434,7 +440,7 @@ const PaymentSubmissionDetailPage = () => {
                 <Table.Row>
                   <Table.HeaderCell>Source</Table.HeaderCell>
                   <Table.HeaderCell>For</Table.HeaderCell>
-                  <Table.HeaderCell>Reference</Table.HeaderCell>
+                  <Table.HeaderCell>Links</Table.HeaderCell>
                   {/* The breakdown, so a partner reads "9 x 850" rather than a
                       bare total they have to take on trust (#1554). */}
                   <Table.HeaderCell>Units</Table.HeaderCell>

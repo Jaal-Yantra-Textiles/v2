@@ -7,6 +7,7 @@ import { isProvenanceRun } from "../../../../workflows/consumption-logs/lib/reco
 import { runUnitCost } from "../../../../workflows/production-runs/lib/run-payable"
 import { listPartnerSubmissionItems } from "../../../../workflows/payment_submissions/lib/run-claims"
 import { groupOrderBackedRuns } from "../../../../workflows/payment_submissions/lib/order-run-groups"
+import { foldPartnerBilling } from "../../../../workflows/payment_submissions/lib/run-billing"
 
 /**
  * GET /admin/payment-submissions/payable-runs?partner_id=…
@@ -264,63 +265,16 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
     ((designs || []) as any[]).map((d) => [d.id, d])
   )
 
-  const billedRuns = new Map<
-    string,
-    { submission_id: string; status: string; quantity: number }
-  >()
-  const designsWithOpenSubmission = new Set<string>()
   /**
-   * Designs carrying a live payout that does not say which run it paid for.
-   *
-   * 🔴 These are the rows that made the guard a fiction. A line with
-   * `run_provenance: "not_recorded"` pays for run work, is not Rejected, and
-   * names no run — so for every completed run of that design, "is this already
-   * paid for?" has no answer. Reporting `billed: null` for those runs said
-   * "no", and the screen sorted them to the top as clean, payable work.
-   *
-   * A `no_run` line (a task payout) is deliberately NOT collected here: that
-   * is the one case where a missing run is an answer rather than a gap.
+   * 🔴 The fold lives in `lib/run-billing.ts`, not here. #1622 asks the same
+   * question from the run's own page, and a second copy of "is this run
+   * billed" is how two screens start disagreeing about whether someone gets
+   * paid twice. The rules — a Rejected submission releases its runs, the first
+   * live claim wins, a `not_recorded` line is DOUBT rather than a clearance —
+   * are stated there, once.
    */
-  const designsWithUnrecordedClaims = new Map<
-    string,
-    { submission_id: string; status: string; amount: number }[]
-  >()
-  const OPEN_STATUSES = new Set([
-    "Draft",
-    "Pending",
-    "Under_Review",
-  ])
-
-  for (const item of priorItems || []) {
-    const status = String(item.submission?.status || "")
-    // A Rejected submission never paid anyone — its lines release their runs.
-    if (status === "Rejected") continue
-
-    if (OPEN_STATUSES.has(status) && item.design_id) {
-      designsWithOpenSubmission.add(String(item.design_id))
-    }
-
-    if (item.run_provenance === "not_recorded" && item.design_id) {
-      const designId = String(item.design_id)
-      const claims = designsWithUnrecordedClaims.get(designId) || []
-      claims.push({
-        submission_id: String(item.submission?.id || item.submission_id || ""),
-        status,
-        amount: Number(item.amount ?? 0),
-      })
-      designsWithUnrecordedClaims.set(designId, claims)
-    }
-
-    for (const runId of (item.production_run_ids || []) as string[]) {
-      if (!billedRuns.has(runId)) {
-        billedRuns.set(runId, {
-          submission_id: String(item.submission?.id || item.submission_id || ""),
-          status,
-          quantity: Number(item.quantity ?? 1),
-        })
-      }
-    }
-  }
+  const { billedRuns, designsWithUnrecordedClaims, designsWithOpenSubmission } =
+    foldPartnerBilling(priorItems as any[])
 
   const payable_runs = completedRuns
     .map((run) => {

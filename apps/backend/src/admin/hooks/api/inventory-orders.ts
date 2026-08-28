@@ -417,3 +417,66 @@ export const useUpdateInventoryOrderLines = (
     ...options,
   });
 };
+
+/**
+ * What this order has been billed for, and what was actually paid (#1622).
+ *
+ * Distinct from the order's `internal_payments`: those exist only once a payout
+ * is APPROVED, so a Pending payout naming this order is invisible on the order
+ * itself. `/payments` reads the submission lines, which name the order from the
+ * moment they are written, at every status.
+ */
+export type InventoryOrderPayout = {
+  line_id: string;
+  submission_id: string;
+  submission_status: string | null;
+  submission_total: number | null;
+  partner_id: string | null;
+  currency: string | null;
+  created_at: string | null;
+  reviewed_at: string | null;
+  amount: number;
+  quantity: number | null;
+  unit_amount: number | null;
+  notes: string | null;
+  source_type: string | null;
+  design_id: string | null;
+  design_name: string | null;
+  task_id: string | null;
+  task_name: string | null;
+  inventory_order_id: string | null;
+  inventory_order_name: string | null;
+  order_id: string | null;
+  production_run_ids: string[] | null;
+};
+
+export type InventoryOrderPaymentsResponse = {
+  payouts: InventoryOrderPayout[];
+  payments: any[];
+  totals: { billed: number; paid: number; recorded: number };
+  count: number;
+};
+
+export const useInventoryOrderPayments = (
+  id: string,
+  options?: Omit<
+    UseQueryOptions<
+      InventoryOrderPaymentsResponse,
+      FetchError,
+      InventoryOrderPaymentsResponse,
+      QueryKey
+    >,
+    "queryFn" | "queryKey"
+  >,
+) => {
+  const { data, ...rest } = useQuery({
+    queryKey: [INVENTORY_ORDER_QUERY_KEY, id, "payments"],
+    queryFn: async () =>
+      sdk.client.fetch<InventoryOrderPaymentsResponse>(
+        `/admin/inventory-orders/${id}/payments`,
+        { method: "GET" },
+      ),
+    ...options,
+  });
+  return { ...data, ...rest };
+};
