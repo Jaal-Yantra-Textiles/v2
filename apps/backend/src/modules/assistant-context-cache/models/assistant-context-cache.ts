@@ -38,6 +38,11 @@ const AssistantContextCache = model
     // Stored as a JSON array — thin by design, never the full tool results.
     entity_ids: model.json(),
 
+    // Richer entity resolutions: [{type, key, value, id, label}]. Lets a later
+    // plan resolve "customer by email" straight to an id instead of re-running
+    // the lookup tool. Stored as a JSON array, same thin-by-design intent.
+    entity_resolutions: model.json(),
+
     // A compact (1-3 line) summary of what was found, e.g.
     // "5 orders found. Most recent: order_abc (₹2,500). Statuses: 2 pending, 3 completed."
     summary: model.text(),
