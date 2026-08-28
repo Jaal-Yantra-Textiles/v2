@@ -99,6 +99,8 @@ export const refreshStaleDraftPayoutsJob: MaintenanceJob = {
 
     let examined = 0
     let stale = 0
+    /** Of `stale`, the lines whose AMOUNT actually moves. */
+    let repriced = 0
     let current = 0
     let skipped = 0
 
@@ -198,6 +200,14 @@ export const refreshStaleDraftPayoutsJob: MaintenanceJob = {
       }
 
       stale++
+      /**
+       * Whether this line's MONEY moves, or only the breakdown behind it.
+       * Counted apart because the summary must not call a `unit_amount`
+       * backfill a re-pricing — see `summarizeDraftSweep`.
+       */
+      if (Number(line.amount) !== Number(verdict.expected.amount)) {
+        repriced++
+      }
       changes.push({
         entity: "payment_submission_item",
         id: line.item_id,
@@ -255,6 +265,7 @@ export const refreshStaleDraftPayoutsJob: MaintenanceJob = {
       summary: summarizeDraftSweep({
         examined,
         stale,
+        repriced,
         current,
         skipped,
         dryRun: opts.dry_run,
