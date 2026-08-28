@@ -14,6 +14,10 @@ import { LinkDefinition } from "@medusajs/framework/types"
 import type { IEventBusModuleService } from "@medusajs/types"
 import type { Link } from "@medusajs/modules-sdk"
 import { PAYMENT_SUBMISSIONS_MODULE } from "../../modules/payment_submissions"
+import {
+  designsBilledWithoutRunEvidence,
+  runlessResubmitMessage,
+} from "./lib/run-evidence-guard"
 import { PARTNER_MODULE } from "../../modules/partner"
 import { DESIGN_MODULE } from "../../modules/designs"
 import { TASKS_MODULE } from "../../modules/tasks"
@@ -564,6 +568,52 @@ const validateDesignsForSubmissionStep = createStep(
           `Production runs already paid for: ${duplicates
             .map((id) => `${id} (submission ${billed.get(id)})`)
             .join(", ")}`
+        )
+      }
+    }
+
+    /**
+     * 7. The same question for a claim that names NO runs (#1556).
+     *
+     * 🔴 Step 6 is exact, and it is gated on `allClaimedRunIds.length` — it
+     * only runs when the new submission names runs. A submission that names
+     * none skips it entirely, and step 5 has already stopped being true once
+     * the first payout is Approved or Paid. So a design could be billed, paid,
+     * and billed again with no run ids, and NOTHING would object. The two
+     * claims are indistinguishable afterwards because the second recorded no
+     * evidence of what it was for.
+     *
+     * There is no arithmetic that rescues this: a claim naming nothing cannot
+     * be diffed against what was already paid. The model already takes the
+     * honest position — a line whose provenance is not `recorded` reads as
+     * UNKNOWN, never as clear — and paying twice is far harder to undo than a
+     * refusal a partner can act on in one step. The create screen has sent
+     * `production_run_ids` since #1579, so "name the runs" is a field away.
+     */
+    if (input.design_ids?.length) {
+      const submissionService: PaymentSubmissionsService = container.resolve(
+        PAYMENT_SUBMISSIONS_MODULE
+      )
+      const priorItems = (await submissionService.listPaymentSubmissionItems(
+        { design_id: input.design_ids },
+        { relations: ["submission"] }
+      )) as any[]
+
+      const conflicts = designsBilledWithoutRunEvidence({
+        design_ids: input.design_ids,
+        claimed_runs: input.production_run_ids,
+        prior_lines: (priorItems || []).map((item) => ({
+          design_id: item.design_id ? String(item.design_id) : null,
+          submission_status: item.submission?.status ?? null,
+          submission_id: item.submission?.id ?? item.submission_id ?? null,
+          run_provenance: item.run_provenance ?? null,
+        })),
+      })
+
+      if (conflicts.length) {
+        throw new MedusaError(
+          MedusaError.Types.INVALID_DATA,
+          runlessResubmitMessage(conflicts)
         )
       }
     }
