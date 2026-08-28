@@ -75,6 +75,52 @@ export const CreateAdminPaymentSubmissionSchema = z
      */
     status: z.enum(["Draft", "Pending"]).optional(),
     /**
+     * What the payout is denominated in. Absent means the partner's own
+     * currency, then `inr` — see `lib/submission-currency`, which owns that
+     * precedence so two routes cannot disagree about it.
+     */
+    currency: z.string().min(1).optional(),
+    /**
+     * Payout lines sourced from production RUNS (#1612).
+     *
+     * 🔑 The only expression available for a run with `design_id: null` — one
+     * minted from `order.fulfillment_created` is not design-backed and never
+     * will be, so no `design_ids` entry can reach it.
+     *
+     * Grouping is deliberate: the seven runs behind order #79 are ONE payout of
+     * ₹8,974, not seven of ₹1,282, because that is how the money moved.
+     */
+    run_lines: z
+      .array(
+        z.object({
+          run_ids: z.array(z.string().min(1)).min(1),
+          amount: z.coerce.number().positive().optional(),
+          quantity: z.coerce.number().positive().optional(),
+          order_id: z.string().min(1).optional(),
+          label: z.string().optional(),
+          currency: z.string().min(1).optional(),
+        })
+      )
+      .optional(),
+    /**
+     * Payout lines sourced from INVENTORY ORDERS — material bought from the
+     * partner.
+     *
+     * ⚠️ `amount` is an OVERRIDE. Left absent, the workflow derives what is
+     * owed from the typed `line_fulfillments` receipts, because `total_price`
+     * is what was ordered: one `Partial` order is ordered at ₹88,885 with
+     * ₹25,670 actually received.
+     */
+    inventory_order_lines: z
+      .array(
+        z.object({
+          inventory_order_id: z.string().min(1),
+          amount: z.coerce.number().positive().optional(),
+          currency: z.string().min(1).optional(),
+        })
+      )
+      .optional(),
+    /**
      * Skip the design-status gate (must be Approved/Commerce_Ready).
      *
      * The run-completion auto-draft already passes `false` because its proof of
@@ -87,9 +133,15 @@ export const CreateAdminPaymentSubmissionSchema = z
     metadata: z.record(z.string(), z.any()).optional(),
   })
   .refine(
-    (data) => (data.design_ids?.length || 0) + (data.task_ids?.length || 0) > 0,
+    (data) =>
+      (data.design_ids?.length || 0) +
+        (data.task_ids?.length || 0) +
+        (data.run_lines?.length || 0) +
+        (data.inventory_order_lines?.length || 0) >
+      0,
     {
-      message: "At least one design or task is required",
+      message:
+        "At least one design, task, production run or inventory order is required",
       path: ["design_ids"],
     }
   )

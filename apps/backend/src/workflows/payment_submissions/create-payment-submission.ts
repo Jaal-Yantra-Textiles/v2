@@ -23,9 +23,19 @@ import {
   runsAlreadyClaimedMessage,
 } from "./lib/run-claims"
 import {
+  inventoryOrdersAlreadyClaimedMessage,
+  listPartnerClaims,
+} from "./lib/run-claims"
+import {
   normaliseCurrency,
   resolveSubmissionCurrency,
 } from "./lib/submission-currency"
+import { resolveRunLineAmount } from "./lib/run-line-amount"
+import {
+  describeInventoryOrderValue,
+  valueInventoryOrderByReceipts,
+} from "./lib/inventory-order-value"
+import { runPayableAmount } from "../production-runs/lib/run-payable"
 import { PARTNER_MODULE } from "../../modules/partner"
 import { DESIGN_MODULE } from "../../modules/designs"
 import { TASKS_MODULE } from "../../modules/tasks"
@@ -109,6 +119,41 @@ export type CreatePaymentSubmissionInput = {
    * is recorded on the line, never applied silently.
    */
   currency?: string
+  /**
+   * Payout lines sourced from production RUNS directly (#1612).
+   *
+   * Each entry becomes ONE line claiming the runs it names. Grouping is the
+   * caller's: the seven runs behind retail order #79 are one payout of ₹8,974,
+   * not seven of ₹1,282, because that is how the money actually moved.
+   *
+   * 🔑 This is the only expression available for a run with `design_id: null`
+   * — a run minted from `order.fulfillment_created` is not design-backed and
+   * never will be.
+   */
+  run_lines?: Array<{
+    run_ids: string[]
+    /** An explicit line TOTAL. Usually required — see `lib/run-line-amount`. */
+    amount?: number
+    quantity?: number
+    /** The commissioning retail order, denormalised onto the line (#1598). */
+    order_id?: string
+    /** What the line is called on a payout a partner reads. */
+    label?: string
+    /** The currency `amount` is stated in, if not the submission's. */
+    currency?: string
+  }>
+  /**
+   * Payout lines sourced from INVENTORY ORDERS — material we bought.
+   *
+   * The amount is DERIVED from what was actually received unless overridden:
+   * a `Partial` order's `total_price` is what was ordered, not what is owed.
+   * See `lib/inventory-order-value`.
+   */
+  inventory_order_lines?: Array<{
+    inventory_order_id: string
+    amount?: number
+    currency?: string
+  }>
 }
 
 type ValidatedDesign = {
@@ -797,6 +842,308 @@ const validateTasksForSubmissionStep = createStep(
 )
 
 // Step 2: Create the submission record with items (designs and/or tasks)
+export type ValidatedRunLine = {
+  run_ids: string[]
+  label: string
+  amount: number
+  quantity: number
+  unit_amount: number | null
+  order_id: string | null
+  cost_breakdown: Record<string, unknown>
+}
+
+export type ValidatedInventoryLine = {
+  inventory_order_id: string
+  inventory_order_name: string
+  amount: number
+  quantity: number
+  cost_breakdown: Record<string, unknown>
+}
+
+/**
+ * Run-sourced lines: the runs must be this partner's, completed, and not
+ * already claimed.
+ *
+ * The ownership checks mirror the design path's step 6 exactly, minus the
+ * "belongs to this design" check, which is meaningless here — these runs have
+ * no design. What replaces it is the `order_id` cross-check below: if a caller
+ * names a commissioning order, every run on the line must actually belong to
+ * it, or the line's provenance is decoration.
+ */
+const validateRunLinesStep = createStep(
+  "validate-run-lines-for-submission",
+  async (
+    input: {
+      partner_id: string
+      run_lines: NonNullable<CreatePaymentSubmissionInput["run_lines"]>
+    },
+    { container }
+  ) => {
+    const lines = input.run_lines || []
+    if (!lines.length) return new StepResponse<ValidatedRunLine[]>([])
+
+    const query: any = container.resolve(ContainerRegistrationKeys.QUERY)
+
+    const allRunIds = [
+      ...new Set(lines.flatMap((line) => line.run_ids || []).filter(Boolean)),
+    ]
+    if (!allRunIds.length) {
+      throw new MedusaError(
+        MedusaError.Types.INVALID_DATA,
+        "A run-sourced line must name at least one production run."
+      )
+    }
+
+    const { data: runs } = await query.graph({
+      entity: "production_runs",
+      fields: [
+        "id",
+        "partner_id",
+        "status",
+        "quantity",
+        "produced_quantity",
+        "partner_cost_estimate",
+        "cost_type",
+        "order_id",
+      ],
+      filters: { id: allRunIds },
+    })
+    const runById = new Map(
+      ((runs || []) as any[]).map((run) => [String(run.id), run])
+    )
+
+    const missing = allRunIds.filter((id) => !runById.has(id))
+    if (missing.length) {
+      throw new MedusaError(
+        MedusaError.Types.NOT_FOUND,
+        `Production runs not found: ${missing.join(", ")}`
+      )
+    }
+
+    for (const runId of allRunIds) {
+      const run = runById.get(runId)!
+      if (String(run.partner_id || "") !== input.partner_id) {
+        throw new MedusaError(
+          MedusaError.Types.NOT_ALLOWED,
+          `Production run ${runId} does not belong to this partner`
+        )
+      }
+      if (String(run.status || "") !== "completed") {
+        throw new MedusaError(
+          MedusaError.Types.INVALID_DATA,
+          `Production run ${runId} is not completed (${run.status})`
+        )
+      }
+    }
+
+    /**
+     * 🔴 The double-pay guard, partner-scoped. A run-sourced line and a
+     * design-sourced line can name the same run, and only a partner-scoped
+     * lookup sees both — see `lib/run-claims`.
+     */
+    const submissionService: PaymentSubmissionsService = container.resolve(
+      PAYMENT_SUBMISSIONS_MODULE
+    )
+    const billed = await listPartnerRunClaims(
+      submissionService as any,
+      input.partner_id
+    )
+    const duplicates = allRunIds.filter((id) => billed.has(id))
+    if (duplicates.length) {
+      throw new MedusaError(
+        MedusaError.Types.INVALID_DATA,
+        runsAlreadyClaimedMessage(duplicates, billed)
+      )
+    }
+
+    // A run may be claimed only once ACROSS the lines of this submission too —
+    // two lines naming the same run would each pass the prior-claim check above
+    // and bill it twice in a single request.
+    const seen = new Set<string>()
+    for (const line of lines) {
+      for (const runId of line.run_ids || []) {
+        if (seen.has(runId)) {
+          throw new MedusaError(
+            MedusaError.Types.INVALID_DATA,
+            `Production run ${runId} is claimed by more than one line of this submission`
+          )
+        }
+        seen.add(runId)
+      }
+    }
+
+    const validated: ValidatedRunLine[] = lines.map((line) => {
+      const lineRuns = (line.run_ids || []).map((id) => runById.get(id)!)
+
+      if (line.order_id) {
+        const foreign = lineRuns.filter(
+          (run) => String(run.order_id || "") !== String(line.order_id)
+        )
+        if (foreign.length) {
+          throw new MedusaError(
+            MedusaError.Types.INVALID_DATA,
+            `Runs ${foreign.map((r) => r.id).join(", ")} do not belong to order ${line.order_id}`
+          )
+        }
+      }
+
+      let resolved
+      try {
+        resolved = resolveRunLineAmount({
+          runs: lineRuns,
+          amount: line.amount,
+          quantity: line.quantity,
+          deriveAmount: (run) => runPayableAmount(run as any),
+        })
+      } catch (e: any) {
+        throw new MedusaError(MedusaError.Types.INVALID_DATA, e.message)
+      }
+
+      return {
+        run_ids: line.run_ids,
+        label:
+          line.label ||
+          (line.order_id
+            ? `Production for order ${line.order_id}`
+            : `Production runs (${line.run_ids.length})`),
+        amount: resolved.amount,
+        quantity: resolved.quantity,
+        unit_amount: resolved.unit_amount,
+        order_id: line.order_id ?? null,
+        cost_breakdown: resolved.cost_breakdown,
+      }
+    })
+
+    return new StepResponse(validated)
+  }
+)
+
+/**
+ * Inventory-order lines: the order must be this partner's, have receipts, and
+ * not already be claimed.
+ *
+ * ⚠️ The amount is derived from the TYPED `line_fulfillments` rows, never from
+ * `total_price` (what was ordered) and never from
+ * `metadata.partner_delivery_history` (which disagrees with the typed rows —
+ * #1613). See `lib/inventory-order-value`.
+ */
+const validateInventoryOrderLinesStep = createStep(
+  "validate-inventory-order-lines-for-submission",
+  async (
+    input: {
+      partner_id: string
+      inventory_order_lines: NonNullable<
+        CreatePaymentSubmissionInput["inventory_order_lines"]
+      >
+    },
+    { container }
+  ) => {
+    const lines = input.inventory_order_lines || []
+    if (!lines.length) return new StepResponse<ValidatedInventoryLine[]>([])
+
+    const query: any = container.resolve(ContainerRegistrationKeys.QUERY)
+    const orderIds = [
+      ...new Set(lines.map((l) => l.inventory_order_id).filter(Boolean)),
+    ]
+
+    if (orderIds.length !== lines.length) {
+      throw new MedusaError(
+        MedusaError.Types.INVALID_DATA,
+        "An inventory order may appear only once per submission — an order is claimed whole."
+      )
+    }
+
+    const { data: orders } = await query.graph({
+      entity: "inventory_orders",
+      fields: [
+        "id",
+        "status",
+        "total_price",
+        "currency_code",
+        "partner.id",
+        "orderlines.id",
+        "orderlines.quantity",
+        "orderlines.price",
+        "orderlines.material_name",
+        "orderlines.line_fulfillments.quantity_delta",
+      ],
+      filters: { id: orderIds },
+    })
+    const orderById = new Map(
+      ((orders || []) as any[]).map((order) => [String(order.id), order])
+    )
+
+    const missing = orderIds.filter((id) => !orderById.has(id))
+    if (missing.length) {
+      throw new MedusaError(
+        MedusaError.Types.NOT_FOUND,
+        `Inventory orders not found: ${missing.join(", ")}`
+      )
+    }
+
+    const submissionService: PaymentSubmissionsService = container.resolve(
+      PAYMENT_SUBMISSIONS_MODULE
+    )
+    const { inventoryOrders: claimed } = await listPartnerClaims(
+      submissionService as any,
+      input.partner_id
+    )
+    const duplicates = orderIds.filter((id) => claimed.has(id))
+    if (duplicates.length) {
+      throw new MedusaError(
+        MedusaError.Types.INVALID_DATA,
+        inventoryOrdersAlreadyClaimedMessage(duplicates, claimed)
+      )
+    }
+
+    const validated: ValidatedInventoryLine[] = lines.map((line) => {
+      const order = orderById.get(line.inventory_order_id)!
+
+      const ownerId = order.partner?.id ?? order.partner?.[0]?.id ?? null
+      if (ownerId && String(ownerId) !== input.partner_id) {
+        throw new MedusaError(
+          MedusaError.Types.NOT_ALLOWED,
+          `Inventory order ${line.inventory_order_id} does not belong to this partner`
+        )
+      }
+
+      const value = valueInventoryOrderByReceipts(order.orderlines || [])
+
+      const amount =
+        line.amount != null && Number.isFinite(Number(line.amount))
+          ? Math.round(Number(line.amount) * 100) / 100
+          : value.total
+
+      if (!(amount > 0)) {
+        throw new MedusaError(
+          MedusaError.Types.INVALID_DATA,
+          `Inventory order ${line.inventory_order_id} has no recorded receipts to bill ` +
+            `(status ${order.status}). Nothing has been delivered against it, so a payout ` +
+            `would be for nothing — record the delivery first, or send an explicit amount.`
+        )
+      }
+
+      return {
+        inventory_order_id: line.inventory_order_id,
+        inventory_order_name: `Inventory order ${line.inventory_order_id}`,
+        amount,
+        quantity: value.received_quantity || 1,
+        cost_breakdown: {
+          source: "inventory_order",
+          basis:
+            line.amount != null ? "explicit_total" : "received_x_unit_price",
+          ordered_total: Number(order.total_price ?? 0),
+          received_quantity: value.received_quantity,
+          lines: value.lines,
+          breakdown: describeInventoryOrderValue(value),
+        },
+      }
+    })
+
+    return new StepResponse(validated)
+  }
+)
+
 /**
  * Decide what the payout is denominated in, once, before anything is priced.
  *
@@ -859,6 +1206,8 @@ const createSubmissionRecordStep = createStep(
        * one place that decides it. See `lib/submission-currency`.
        */
       currency?: string
+      runLines?: ValidatedRunLine[]
+      inventoryLines?: ValidatedInventoryLine[]
     },
     { container }
   ) => {
@@ -871,12 +1220,26 @@ const createSubmissionRecordStep = createStep(
       0
     )
     const taskTotal = input.tasks.reduce((sum, t) => sum + t.amount, 0)
-    const total_amount = designTotal + taskTotal
+    const runTotal = (input.runLines || []).reduce((sum, l) => sum + l.amount, 0)
+    const inventoryTotal = (input.inventoryLines || []).reduce(
+      (sum, l) => sum + l.amount,
+      0
+    )
+    const total_amount =
+      Math.round(
+        (designTotal + taskTotal + runTotal + inventoryTotal) * 100
+      ) / 100
 
-    if ((input.designs.length + input.tasks.length) === 0) {
+    if (
+      input.designs.length +
+        input.tasks.length +
+        (input.runLines || []).length +
+        (input.inventoryLines || []).length ===
+      0
+    ) {
       throw new MedusaError(
         MedusaError.Types.INVALID_DATA,
-        "At least one design or task is required"
+        "At least one design, task, production run or inventory order is required"
       )
     }
 
@@ -960,6 +1323,64 @@ const createSubmissionRecordStep = createStep(
         production_run_ids: null as unknown as Record<string, unknown> | null,
         run_provenance: "no_run" as const,
         cost_breakdown: task.cost_breakdown || null,
+        submission_id: submission.id,
+      })
+    }
+
+    /**
+     * Run-sourced line items (#1612).
+     *
+     * `run_provenance` is `recorded` unconditionally: a run line exists BECAUSE
+     * it names runs, and the validation step refuses one that does not. There
+     * is no path here that leaves the provenance unknown.
+     */
+    for (const line of input.runLines || []) {
+      await service.createPaymentSubmissionItems({
+        source_type: "run",
+        design_id: null,
+        design_name: line.label,
+        task_id: null,
+        task_name: null,
+        inventory_order_id: null,
+        inventory_order_name: null,
+        order_id: line.order_id,
+        amount: line.amount,
+        quantity: line.quantity,
+        unit_amount: line.unit_amount,
+        cost_breakdown: line.cost_breakdown || null,
+        production_run_ids: line.run_ids as unknown as Record<
+          string,
+          unknown
+        > | null,
+        run_provenance: "recorded" as const,
+        submission_id: submission.id,
+      })
+    }
+
+    /**
+     * Inventory-order line items (#1612).
+     *
+     * `no_run` because material we bought is not production output — there was
+     * never a run behind it. This is the same case a task line is in: a missing
+     * run here is an ANSWER, not a gap, and may safely be read as "no run
+     * billed" (#1565).
+     */
+    for (const line of input.inventoryLines || []) {
+      await service.createPaymentSubmissionItems({
+        source_type: "inventory_order",
+        design_id: null,
+        design_name: null,
+        task_id: null,
+        task_name: null,
+        inventory_order_id: line.inventory_order_id,
+        inventory_order_name: line.inventory_order_name,
+        order_id: null,
+        amount: line.amount,
+        quantity: line.quantity,
+        unit_amount: null,
+        cost_breakdown: line.cost_breakdown || null,
+        production_run_ids: null as unknown as Record<string, unknown> | null,
+        run_provenance: "no_run" as const,
         submission_id: submission.id,
       })
     }
@@ -1184,6 +1605,16 @@ export const createPaymentSubmissionWorkflow = createWorkflow(
       cost_overrides: costOverrides.tasks,
     })
 
+    const validatedRunLines = validateRunLinesStep({
+      partner_id: input.partner_id,
+      run_lines: input.run_lines || [],
+    })
+
+    const validatedInventoryLines = validateInventoryOrderLinesStep({
+      partner_id: input.partner_id,
+      inventory_order_lines: input.inventory_order_lines || [],
+    })
+
     const currency = resolveSubmissionCurrencyStep({
       partner_id: input.partner_id,
       currency: input.currency,
@@ -1198,6 +1629,8 @@ export const createPaymentSubmissionWorkflow = createWorkflow(
       metadata: input.metadata,
       status: input.status,
       currency,
+      runLines: validatedRunLines,
+      inventoryLines: validatedInventoryLines,
     })
 
     linkSubmissionToPartnerStep({

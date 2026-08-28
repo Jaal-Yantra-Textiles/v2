@@ -54,6 +54,20 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
     status?: "Draft" | "Pending"
     require_design_status?: boolean
     metadata?: Record<string, any>
+    currency?: string
+    run_lines?: Array<{
+      run_ids: string[]
+      amount?: number
+      quantity?: number
+      order_id?: string
+      label?: string
+      currency?: string
+    }>
+    inventory_order_lines?: Array<{
+      inventory_order_id: string
+      amount?: number
+      currency?: string
+    }>
   }
 
   assertNoNearMissMoneyKey(body.metadata)
@@ -70,6 +84,12 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
       // Typed input, not folded into metadata — this is the double-pay guard's
       // evidence, and it must not be reachable by a misspelt JSON key.
       production_run_ids: body.production_run_ids,
+      // 🔴 Forwarded explicitly. A field the validator accepts but the handler
+      // never passes on is dropped in SILENCE — the request succeeds, the line
+      // is simply not there, and no dry-run can reveal it.
+      run_lines: body.run_lines,
+      inventory_order_lines: body.inventory_order_lines,
+      currency: body.currency,
       // The money, as typed inputs. These are the contract; the fold below
       // keeps the same values on `metadata` so the review UI and any existing
       // reader still see original vs. requested exactly as before.
