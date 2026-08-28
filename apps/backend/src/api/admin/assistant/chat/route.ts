@@ -458,6 +458,7 @@ export const POST = async (
                   surface: "admin",
                   domain: entry.domain,
                   entityIds: entry.entityIds,
+                  resolutions: entry.resolutions,
                   summary: entry.summary,
                   conversationId: body.id ?? null,
                 })

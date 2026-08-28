@@ -15,11 +15,14 @@
  *   harmless, a crash in onFinish is not.
  */
 import { toolNameToDomain, type AssistantSurface } from "./domains"
+import { extractEntityResolutions, type EntityResolution } from "./entities"
 
 export interface ExtractedContextEntry {
   domain: string
   entityIds: string[]
   summary: string
+  /** Natural-key -> id resolutions, so a later turn can resolve without re-looking up. */
+  resolutions: EntityResolution[]
 }
 
 /** Known entity-id prefixes on the JYT platform. */
@@ -126,7 +129,10 @@ export function extractContextFromTurn(
 ): ExtractedContextEntry[] {
   if (!toolResults?.length) return []
 
-  const byDomain = new Map<string, { entityIds: Set<string>; summaries: string[] }>()
+  const byDomain = new Map<
+    string,
+    { entityIds: Set<string>; summaries: string[]; resolutions: EntityResolution[] }
+  >()
 
   for (const tr of toolResults) {
     const toolName = tr?.toolName
@@ -139,23 +145,30 @@ export function extractContextFromTurn(
 
     const output = tr.output
     const ids = extractEntityIds(output)
+    const resolutions = extractEntityResolutions(output)
     const summary = buildToolSummary(toolName, output)
 
     let entry = byDomain.get(domain)
     if (!entry) {
-      entry = { entityIds: new Set(), summaries: [] }
+      entry = { entityIds: new Set(), summaries: [], resolutions: [] }
       byDomain.set(domain, entry)
     }
 
     for (const id of ids) entry.entityIds.add(id)
+    entry.resolutions.push(...resolutions)
     entry.summaries.push(summary)
   }
 
   const entries: ExtractedContextEntry[] = []
-  for (const [domain, { entityIds, summaries }] of byDomain) {
+  for (const [domain, { entityIds, summaries, resolutions }] of byDomain) {
     const allIds = [...entityIds].slice(0, MAX_ENTITY_IDS)
     const combined = summaries.join("; ").slice(0, MAX_SUMMARY_LEN)
-    entries.push({ domain, entityIds: allIds, summary: combined })
+    entries.push({
+      domain,
+      entityIds: allIds,
+      summary: combined,
+      resolutions: resolutions.slice(0, MAX_ENTITY_IDS),
+    })
   }
 
   return entries

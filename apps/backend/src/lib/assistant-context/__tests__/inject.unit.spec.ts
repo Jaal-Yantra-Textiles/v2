@@ -94,6 +94,34 @@ describe("assistant-context: formatPriorContext", () => {
     expect(result!).not.toContain("Entity ids")
   })
 
+  it("surfaces known id resolutions", () => {
+    const rows: ContextCacheRow[] = [
+      {
+        domain: "customers",
+        entity_ids: ["cus_01KS9B"],
+        entity_resolutions: [
+          { type: "customer", key: "email", value: "delhi@gmail.com", id: "cus_01KS9B" },
+        ],
+        summary: "list_customers: 1 customer",
+        updated_at: new Date().toISOString(),
+      },
+    ]
+    const result = formatPriorContext(rows)
+    expect(result!).toContain("Known: customer delhi@gmail.com = cus_01KS9B")
+  })
+
+  it("omits the Known line when there are no resolutions", () => {
+    const rows: ContextCacheRow[] = [
+      {
+        domain: "customers",
+        entity_ids: ["cus_01KS9B"],
+        summary: "list_customers: 1 customer",
+        updated_at: new Date().toISOString(),
+      },
+    ]
+    expect(formatPriorContext(rows)!).not.toContain("Known:")
+  })
+
   it("uses relative time formatting", () => {
     const cases: [number, string][] = [
       [0, "just now"],

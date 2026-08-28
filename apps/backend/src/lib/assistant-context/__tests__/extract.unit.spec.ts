@@ -203,4 +203,25 @@ describe("assistant-context: extractContextFromTurn", () => {
     expect(entries).toHaveLength(1)
     expect(entries[0].summary.length).toBeLessThanOrEqual(200)
   })
+
+  it("extracts natural-key resolutions alongside entity ids", () => {
+    const entries = extractContextFromTurn([
+      {
+        toolName: "list_customers",
+        output: {
+          customers: [{ id: "cus_01KS9B", email: "delhi@gmail.com" }],
+        },
+      },
+    ])
+
+    expect(entries).toHaveLength(1)
+    expect(entries[0].domain).toBe("customers")
+    expect(entries[0].resolutions).toHaveLength(1)
+    expect(entries[0].resolutions[0]).toMatchObject({
+      type: "customer",
+      key: "email",
+      value: "delhi@gmail.com",
+      id: "cus_01KS9B",
+    })
+  })
 })
