@@ -20,6 +20,8 @@ import {
   useUpdatePaymentSubmissionItem,
   type PaymentSubmission,
 } from "../../../hooks/api/payment-submissions"
+import { describePaymentLine } from "../../../lib/payment-line-source"
+import { SubmissionDocuments } from "../_components/submission-documents"
 
 const statusColor = (
   status: string
@@ -108,11 +110,23 @@ const EditableLine = ({
     }
   }
 
+  /**
+   * What this line is for, by its own source_type — not "design" for
+   * everything. A run- or inventory-order-sourced line used to render nowhere
+   * at all; now it renders here and says what it is.
+   */
+  const source = describePaymentLine(item)
+
   return (
     <Table.Row>
-      <Table.Cell>{item.design_name || "Unnamed design"}</Table.Cell>
       <Table.Cell>
-        <span className="font-mono text-xs">{item.design_id}</span>
+        <Badge size="2xsmall" color={source.kind === "unknown" ? "orange" : "grey"}>
+          {source.label}
+        </Badge>
+      </Table.Cell>
+      <Table.Cell>{source.title}</Table.Cell>
+      <Table.Cell>
+        <span className="font-mono text-xs">{source.reference || "—"}</span>
       </Table.Cell>
       <Table.Cell>
         {editing ? (
@@ -234,12 +248,17 @@ const PaymentSubmissionDetailPage = () => {
   /** Lines are editable only while the money has not moved. */
   const linesEditable = isDraft || submission.status === "Pending"
   const items: any[] = submission.items || []
-  const designItems = items.filter(
-    (i) => i.source_type === "design" || (!i.source_type && i.design_id)
-  )
-  const taskItems = items.filter(
-    (i) => i.source_type === "task" || (!i.source_type && i.task_id)
-  )
+  /**
+   * 🔴 One table over every line, not a filter per source type.
+   *
+   * The previous split kept only `design` and `task` buckets. `source_type`
+   * has been `design | task | run | inventory_order` since #1614, so run- and
+   * inventory-order-sourced lines matched NEITHER filter and rendered nowhere
+   * at all — the total said ₹30,000 while the line explaining it was invisible.
+   * Partitioning by source is what made a whole class of payout disappear, so
+   * the fix is to stop partitioning: every line is shown, and the source is a
+   * column rather than a reason to be excluded.
+   */
   const documents: any[] = submission.documents || []
 
   return (
@@ -383,8 +402,10 @@ const PaymentSubmissionDetailPage = () => {
             <Heading>{money(submission.total_amount, submission.currency)}</Heading>
           </Container>
           <Container className="p-4">
+            {/* Was "Designs" over items.length — which counted an inventory
+                order as a design. It counts LINES; say so. */}
             <Text size="small" className="text-ui-fg-subtle">
-              Designs
+              Lines
             </Text>
             <Heading>{items.length}</Heading>
           </Container>
@@ -402,17 +423,18 @@ const PaymentSubmissionDetailPage = () => {
           </Container>
         </div>
 
-        {/* Design Items Table */}
-        {designItems.length > 0 && (
+        {/* Payout lines — every source type, one table */}
+        {items.length > 0 && (
           <Container className="p-0">
             <div className="border-b border-ui-border-base px-4 py-3">
-              <Heading level="h3">Design Items</Heading>
+              <Heading level="h3">Payout Lines</Heading>
             </div>
             <Table>
               <Table.Header>
                 <Table.Row>
-                  <Table.HeaderCell>Design</Table.HeaderCell>
-                  <Table.HeaderCell>Design ID</Table.HeaderCell>
+                  <Table.HeaderCell>Source</Table.HeaderCell>
+                  <Table.HeaderCell>For</Table.HeaderCell>
+                  <Table.HeaderCell>Reference</Table.HeaderCell>
                   {/* The breakdown, so a partner reads "9 x 850" rather than a
                       bare total they have to take on trust (#1554). */}
                   <Table.HeaderCell>Units</Table.HeaderCell>
@@ -423,7 +445,7 @@ const PaymentSubmissionDetailPage = () => {
                 </Table.Row>
               </Table.Header>
               <Table.Body>
-                {designItems.map((item: any) => (
+                {items.map((item: any) => (
                   <EditableLine
                     key={item.id}
                     item={item}
@@ -431,41 +453,6 @@ const PaymentSubmissionDetailPage = () => {
                     currency={submission.currency}
                     editable={linesEditable}
                   />
-                ))}
-              </Table.Body>
-            </Table>
-          </Container>
-        )}
-
-        {/* Task Items Table */}
-        {taskItems.length > 0 && (
-          <Container className="p-0">
-            <div className="border-b border-ui-border-base px-4 py-3">
-              <Heading level="h3">Task Items</Heading>
-            </div>
-            <Table>
-              <Table.Header>
-                <Table.Row>
-                  <Table.HeaderCell>Task</Table.HeaderCell>
-                  <Table.HeaderCell>Task ID</Table.HeaderCell>
-                  <Table.HeaderCell>Amount</Table.HeaderCell>
-                </Table.Row>
-              </Table.Header>
-              <Table.Body>
-                {taskItems.map((item: any) => (
-                  <Table.Row key={item.id}>
-                    <Table.Cell>
-                      {item.task_name || "Untitled task"}
-                    </Table.Cell>
-                    <Table.Cell>
-                      <span className="font-mono text-xs">
-                        {item.task_id}
-                      </span>
-                    </Table.Cell>
-                    <Table.Cell>
-                      {money(item.amount, submission.currency)}
-                    </Table.Cell>
-                  </Table.Row>
                 ))}
               </Table.Body>
             </Table>
@@ -480,27 +467,12 @@ const PaymentSubmissionDetailPage = () => {
           </Container>
         )}
 
-        {/* Documents */}
-        {documents.length > 0 && (
-          <Container className="p-0">
-            <div className="border-b border-ui-border-base px-4 py-3">
-              <Heading level="h3">Documents</Heading>
-            </div>
-            <div className="flex flex-col gap-2 p-4">
-              {documents.map((doc: any, i: number) => (
-                <a
-                  key={i}
-                  href={doc.url}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-ui-fg-interactive underline text-sm"
-                >
-                  {doc.filename || doc.url}
-                </a>
-              ))}
-            </div>
-          </Container>
-        )}
+        {/* Documents — always rendered, and attachable at any status. The
+            receipt proving a payout happened arrives after it is Paid. */}
+        <SubmissionDocuments
+          submissionId={submission.id}
+          documents={documents}
+        />
       </div>
       {/**
         * A Draft is machine-written, so removing one is routine — but it is

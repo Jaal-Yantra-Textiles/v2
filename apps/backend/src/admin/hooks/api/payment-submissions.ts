@@ -398,6 +398,69 @@ export const useUpdatePaymentSubmissionItem = (
   })
 }
 
+/**
+ * Attach documents to a payout — at ANY status.
+ *
+ * The route APPENDS to what it reads, so this sends every file from one drop
+ * in a single call: two overlapping requests would each read the same array
+ * and the second would silently drop the first's attachments.
+ */
+export const useAttachPaymentSubmissionDocuments = (
+  options?: UseMutationOptions<
+    { documents: any[]; added: number },
+    FetchError,
+    {
+      id: string
+      documents: Array<{
+        id?: string
+        url: string
+        filename?: string
+        mimeType?: string
+        size?: number
+      }>
+    }
+  >
+) => {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async ({ id, documents }) =>
+      sdk.client.fetch<{ documents: any[]; added: number }>(
+        `/admin/payment-submissions/${id}/documents`,
+        { method: "POST", body: { documents } }
+      ) as Promise<{ documents: any[]; added: number }>,
+    onSuccess: (data, variables, _mutateResult, context) => {
+      queryClient.invalidateQueries({ queryKey: paymentSubmissionQueryKeys.lists() })
+      queryClient.invalidateQueries({ queryKey: paymentSubmissionQueryKeys.detail(variables.id) })
+      options?.onSuccess?.(data, variables, _mutateResult, context)
+    },
+    ...options,
+  })
+}
+
+/** Remove one attachment by id. Never by index — the array is re-read on write. */
+export const useDeletePaymentSubmissionDocument = (
+  options?: UseMutationOptions<
+    { documents: any[] },
+    FetchError,
+    { id: string; document_id: string }
+  >
+) => {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async ({ id, document_id }) =>
+      sdk.client.fetch<{ documents: any[] }>(
+        `/admin/payment-submissions/${id}/documents?document_id=${encodeURIComponent(document_id)}`,
+        { method: "DELETE" }
+      ) as Promise<{ documents: any[] }>,
+    onSuccess: (data, variables, _mutateResult, context) => {
+      queryClient.invalidateQueries({ queryKey: paymentSubmissionQueryKeys.lists() })
+      queryClient.invalidateQueries({ queryKey: paymentSubmissionQueryKeys.detail(variables.id) })
+      options?.onSuccess?.(data, variables, _mutateResult, context)
+    },
+    ...options,
+  })
+}
+
 /** Remove a machine-written Draft (#1604). Draft only — the route refuses the rest. */
 export const useDeletePaymentSubmission = (
   options?: UseMutationOptions<
