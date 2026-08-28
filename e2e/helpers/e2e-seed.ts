@@ -1449,9 +1449,52 @@ export async function seedShipmentGatePartner(
   // per partner (`defineLink(partner, { store, isList: true })`), so reusing an
   // already-linked store throws "Cannot create multiple links between 'partner'
   // and 'store'" the second time the seed runs.
+  //
+  /**
+   * 🔴 The three defaults are NOT decoration — the store is unusable without
+   * them, and the way it fails is the worst kind.
+   *
+   * `GET /partners/stores` throws `NOT_FOUND` when any of
+   * `default_sales_channel_id` / `default_location_id` / `default_region_id` is
+   * missing. The partner order-detail page requests it, the route error
+   * boundary paints a 404 for the whole page, and the ORDER never renders —
+   * even though every order request returned 200 and the action the spec just
+   * performed had succeeded.
+   *
+   * That is precisely how "completing step 2 marks the fulfillment shipped"
+   * failed on main: the shipment POST returned 200, the fulfillment WAS
+   * shipped, and the assertion then looked for "Shipped" on a page reading
+   * "404 - There is no page at this address". A seed defect wearing the costume
+   * of a broken screen — and the retries could never pass either, because the
+   * first attempt had already shipped the fulfillment.
+   */
+  const { data: gateRegions } = await query.graph({
+    entity: "region",
+    fields: ["id"],
+  })
+  const { data: gateChannels } = await query.graph({
+    entity: "sales_channel",
+    fields: ["id"],
+  })
+  const { data: gateLocations } = await query.graph({
+    entity: "stock_location",
+    fields: ["id"],
+  })
+  const gateRegionId = gateRegions?.[0]?.id
+  const gateChannelId = gateChannels?.[0]?.id
+  const gateLocationId = gateLocations?.[0]?.id
+  if (!gateRegionId || !gateChannelId || !gateLocationId) {
+    throw new Error(
+      `E2E seed: the gate partner's store needs a region (${gateRegionId}), a sales channel (${gateChannelId}) and a stock location (${gateLocationId}). Without all three, /partners/stores 404s and every partner order page renders as a 404. Run the demo seed first: \`medusa exec ./src/scripts/seed.ts\`.`
+    )
+  }
+
   const storeModule: any = container.resolve(Modules.STORE)
   const createdStore: any = await storeModule.createStores({
     name: `E2E Gate Store ${Date.now()}`,
+    default_sales_channel_id: gateChannelId,
+    default_location_id: gateLocationId,
+    default_region_id: gateRegionId,
   })
   const storeId = Array.isArray(createdStore)
     ? createdStore[0].id

@@ -220,8 +220,30 @@ test.describe("Partner shipment carrier modal @partnerui", () => {
    * ⚠️ What this no longer covers: a waybill Shiprocket REJECTS. The stub
    * models success only, so "foreign AWB refused" has no test.
    */
-  // This is the case the shippable fixture exists for: before it, the shipment
-  // POST was refused as already created before a retry ever happened.
+  /**
+   * This is the case the shippable fixture exists for: before it, the shipment
+   * POST was refused as already created before a retry ever happened.
+   *
+   * 🔴 Red on main for three consecutive runs, and the cause was NOT here.
+   *
+   * The CI log says the shipment POST returned **200** — the fulfillment really
+   * was shipped. The failure was the assertion below finding no "Shipped",
+   * because the page it landed on was the app's own *"404 - There is no page at
+   * this address"*. Every order request had returned 200; what 404'd was
+   * `GET /partners/stores`, which the order-detail page requests and the route
+   * error boundary turns into a whole-page 404.
+   *
+   * `/partners/stores` throws NOT_FOUND when the store has no
+   * `default_sales_channel_id` / `default_location_id` / `default_region_id`,
+   * and `seedShipmentGatePartner` created its dedicated store with a name and
+   * nothing else. A seed defect wearing the costume of a broken screen — the
+   * same shape as the four stacked defects #1576 already worked through here.
+   *
+   * ⚠️ And it could never self-heal: attempt 1 ships the fulfillment, so both
+   * Playwright retries then get `400 Shipment has already been created` and
+   * fail at the URL assertion instead. A red retry here says nothing about the
+   * cause; read attempt 1.
+   */
   test("completing step 2 marks the fulfillment shipped", async ({ page }) => {
     await page.goto(SHIPMENT_URL)
 
