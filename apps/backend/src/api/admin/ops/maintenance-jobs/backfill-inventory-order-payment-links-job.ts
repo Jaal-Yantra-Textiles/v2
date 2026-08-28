@@ -110,6 +110,12 @@ export const backfillInventoryOrderPaymentLinksJob: MaintenanceJob = {
     const errors: Array<{ id: string; message: string }> = []
     /** Named an order but the payout has no payment record yet. */
     const noPayment: Array<{ submission_id: string; status: string }> = []
+    /**
+     * Named an order and the payment lookup COULD NOT ANSWER. Kept apart from
+     * `noPayment` deliberately: reporting ignorance as "no payment" is how a
+     * report-only job turns into a wrong instruction.
+     */
+    const unresolved: Array<{ submission_id: string; status: string }> = []
     let alreadyLinked = 0
 
     /** submission id → its payment ids, resolved once per submission. */
@@ -117,20 +123,56 @@ export const backfillInventoryOrderPaymentLinksJob: MaintenanceJob = {
     /** inventory order id → the payment ids already linked to it. */
     const linkedByOrder = new Map<string, Set<string>>()
 
-    const paymentsFor = async (submissionId: string): Promise<string[]> => {
+    /**
+     * 🔴 `null` means COULD NOT LOOK; `[]` means looked and found none.
+     *
+     * The first dry-run on production reported all four payouts as "no payment
+     * record yet" — including GOF, whose ₹30,000 payment demonstrably exists.
+     * The cause is the trap this codebase keeps hitting: on `query.graph` an
+     * UNKNOWN relation is silently DROPPED, so the key is simply absent, while
+     * a real-but-empty one returns `[]`. Reading `data?.[0]?.payments` collapsed
+     * those two into "no payments", and the job then reported ignorance as an
+     * answer — the exact shape of #1557 and #1565.
+     *
+     * ⚠️ The module registers as `payment_submissions` (plural) — see the
+     * working graph calls in `workflows/whatsapp/*` — while the MODEL is
+     * `payment_submission`. The singular resolved without throwing and returned
+     * rows carrying no `payments` key at all, which is why this looked like a
+     * data answer rather than a spelling mistake.
+     */
+    const paymentsFor = async (
+      submissionId: string
+    ): Promise<string[] | null> => {
       if (paymentsBySubmission.has(submissionId)) {
         return paymentsBySubmission.get(submissionId)!
       }
-      const { data } = await query.graph({
-        entity: "payment_submission",
-        fields: ["id", "payments.id"],
-        filters: { id: submissionId },
-      })
-      const raw = (data || [])[0]?.payments
-      const ids = (!raw ? [] : Array.isArray(raw) ? raw : [raw])
-        .map((p: any) => p?.id)
-        .filter(Boolean) as string[]
-      paymentsBySubmission.set(submissionId, ids)
+
+      const read = async (entity: string): Promise<string[] | null> => {
+        try {
+          const { data } = await query.graph({
+            entity,
+            fields: ["id", "payments.id"],
+            filters: { id: submissionId },
+          })
+          const node = (data || [])[0]
+          if (!node) return null
+          // Key ABSENT — the relation was dropped, so this is ignorance.
+          if (!("payments" in node)) return null
+
+          const raw = (node as any).payments
+          return (!raw ? [] : Array.isArray(raw) ? raw : [raw])
+            .map((p: any) => p?.id)
+            .filter(Boolean) as string[]
+        } catch {
+          return null
+        }
+      }
+
+      // Plural first: it is the spelling the working graph calls in this
+      // codebase use. The singular is tried only as a fallback.
+      const ids = (await read("payment_submissions")) ?? (await read("payment_submission"))
+
+      if (ids) paymentsBySubmission.set(submissionId, ids)
       return ids
     }
 
@@ -162,12 +204,25 @@ export const backfillInventoryOrderPaymentLinksJob: MaintenanceJob = {
       try {
         const paymentIds = submissionId ? await paymentsFor(submissionId) : []
 
+        /**
+         * 🔴 COULD NOT LOOK. Never reported as "no payment": that is ignorance
+         * presented as a finding, and it would tell a reader this payout has no
+         * payment record when the truth is that the query could not answer.
+         */
+        if (paymentIds === null) {
+          unresolved.push({
+            submission_id: submissionId || "(unknown)",
+            status: String(item?.submission?.status || "unknown"),
+          })
+          continue
+        }
+
         if (!paymentIds.length) {
           /**
-           * No payment exists, so there is nothing to link. Reported rather
-           * than silently dropped: a Pending payout naming an order is a real
-           * state, and a reader must not mistake this job's silence about it
-           * for "already linked".
+           * Looked, and there is genuinely no payment yet. Reported rather than
+           * silently dropped: a Pending payout naming an order is a real state,
+           * and a reader must not mistake this job's silence for "already
+           * linked".
            */
           noPayment.push({
             submission_id: submissionId || "(unknown)",
@@ -223,6 +278,13 @@ export const backfillInventoryOrderPaymentLinksJob: MaintenanceJob = {
     if (noPayment.length) {
       parts.push(
         `${noPayment.length} line(s) name an inventory order but their payout has no payment record yet — nothing to link: ${noPayment
+          .map((n) => `${n.submission_id} (${n.status})`)
+          .join(", ")}`
+      )
+    }
+    if (unresolved.length) {
+      parts.push(
+        `🔴 ${unresolved.length} line(s) COULD NOT BE RESOLVED — the payment lookup returned no answer, which is NOT the same as "no payment". These may well have payments and are not covered by this run: ${unresolved
           .map((n) => `${n.submission_id} (${n.status})`)
           .join(", ")}`
       )

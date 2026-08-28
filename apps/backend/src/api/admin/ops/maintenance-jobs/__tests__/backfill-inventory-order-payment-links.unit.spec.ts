@@ -26,8 +26,16 @@ const makeContainer = (opts: {
 
   const query = {
     graph: jest.fn(async ({ entity, filters }: any) => {
-      if (entity === "payment_submission") {
-        const ids = opts.payments?.[filters.id] ?? []
+      if (entity === "payment_submissions" || entity === "payment_submission") {
+        /**
+         * `undefined` in the fixture means the relation was DROPPED — the key
+         * is absent from the node, which is what a wrong entity/field spelling
+         * actually looks like on `query.graph`. Distinct from `[]`.
+         */
+        const ids = opts.payments?.[filters.id]
+        if (ids === undefined) {
+          return { data: [{ id: filters.id }] }
+        }
         return { data: [{ id: filters.id, payments: ids.map((id) => ({ id })) }] }
       }
       if (entity === "inventory_orders") {
@@ -219,5 +227,46 @@ describe("backfill-inventory-order-payment-links", () => {
     expect(result.errors?.[0]?.message).toBe("link exploded")
     // The second order still got its edge.
     expect(linkCreate).toHaveBeenCalledTimes(2)
+  })
+})
+
+/**
+ * 🔴 The defect the FIRST production dry-run exposed.
+ *
+ * It reported all four payouts as "no payment record yet" — including GOF,
+ * whose ₹30,000 payment demonstrably exists. On `query.graph` an unknown
+ * relation is silently DROPPED (the key is absent) while a real-but-empty one
+ * returns `[]`; reading `data?.[0]?.payments` collapsed those into "none", and
+ * the job reported ignorance as a finding.
+ */
+describe("could-not-look is not no-payment", () => {
+  it("reports UNRESOLVED, not 'no payment', when the relation is dropped", async () => {
+    // `payments` absent from the fixture ⇒ the key is missing on the node.
+    const { container, linkCreate } = makeContainer({ items: [line()] })
+
+    const result = await backfillInventoryOrderPaymentLinksJob.run(container, {
+      dry_run: false,
+      params: {},
+    } as any)
+
+    expect(linkCreate).not.toHaveBeenCalled()
+    expect(result.summary).toContain("COULD NOT BE RESOLVED")
+    // The claim it must NOT make.
+    expect(result.summary).not.toContain("no payment record yet")
+  })
+
+  it("still reports 'no payment' when it genuinely looked and found none", async () => {
+    const { container } = makeContainer({
+      items: [line({ submission: { id: "sub_1", status: "Pending" } })],
+      payments: { sub_1: [] },
+    })
+
+    const result = await backfillInventoryOrderPaymentLinksJob.run(container, {
+      dry_run: false,
+      params: {},
+    } as any)
+
+    expect(result.summary).toContain("no payment record yet")
+    expect(result.summary).not.toContain("COULD NOT BE RESOLVED")
   })
 })
