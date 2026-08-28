@@ -33,6 +33,29 @@
  * paid for something no run produced" — it makes no claim on any run, so it
  * cannot be double-claimed by one. Only `recorded` and `not_recorded` describe
  * run work.
+ *
+ * 🔴 Nor does a prior in **Draft**, and that exemption is load-bearing rather
+ * than a nicety.
+ *
+ * `auto-draft-payment-submission` drafts a submission on every
+ * `production_run.completed`, and a Draft is explicitly "visible, editable, and
+ * NOT yet a claim on anyone" — nothing is billed without the partner's say-so.
+ * The partner then submits by hand, which `create-payment-submission` documents
+ * as the intended path: *"A partner submitting by hand is NOT blocked by their
+ * own draft — that's them turning the draft into a real submission."*
+ *
+ * That hand submission cannot name the runs (the Draft already holds a live
+ * claim on them, so the run-level guard refuses it), and there is no route that
+ * converts a Draft to Pending. So naming NO runs was the only way through — and
+ * blocking it here left the design unbillable by any route at all, with the
+ * Draft equally unrejectable (review requires Pending/Under_Review) and
+ * undeletable (#1604).
+ *
+ * A Draft has never been submitted, approved or paid, so exempting it costs the
+ * guard nothing: its real target is a prior that actually took money —
+ * Pending, Under_Review, Approved, Paid. The proper fix is a submit route that
+ * converts a Draft in place; until that exists this exemption is what keeps the
+ * documented flow working.
  */
 
 export type PriorSubmissionLine = {
@@ -71,8 +94,16 @@ export function designsBilledWithoutRunEvidence(input: {
     const prior = (input.prior_lines || []).find((line) => {
       if (String(line.design_id || "") !== designId) return false
 
-      // A Rejected submission never paid anyone; its lines release their claim.
-      if (String(line.submission_status || "") === "Rejected") return false
+      /**
+       * Neither of these ever took money, so neither stakes a claim a second
+       * submission could duplicate:
+       *   - `Rejected` — reviewed and refused; its lines release their runs.
+       *   - `Draft`    — never submitted at all. See the docblock above: this
+       *                  is the auto-draft the partner is in the middle of
+       *                  turning into a real submission.
+       */
+      const priorStatus = String(line.submission_status || "")
+      if (priorStatus === "Rejected" || priorStatus === "Draft") return false
 
       /**
        * 🔑 `no_run` is an explicit statement that no run produced this work, so
