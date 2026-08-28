@@ -102,7 +102,14 @@ describe("payable-runs offer === what create writes", () => {
 
     expect(written.amount).toBe(offered)
     expect(written.quantity).toBe(2)
-    expect(written.unit_amount).toBe(810)
+    /**
+     * ⚠️ Was `810`. Both runs are `cost_type: "total"`, so 810 is DERIVED —
+     * ₹810 agreed for one piece happens to divide to ₹810 — and #1596's rule is
+     * that a derived rate is never written down as an agreed one. Null here is
+     * the change, and it is the point: `unit_amount` states a price somebody
+     * agreed to, or nothing.
+     */
+    expect(written.unit_amount).toBeNull()
   })
 })
 
