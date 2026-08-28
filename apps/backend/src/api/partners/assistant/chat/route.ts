@@ -55,6 +55,8 @@ import {
 } from "../../mcp/lib/handler"
 import { makeMcpLedgerSink } from "../../../../lib/mcp-ledger"
 import {
+  buildSystemPrompt,
+  domainSop,
   extractContextFromTurn,
   loadAndFormatContext,
   resolveContextCache,
@@ -75,50 +77,6 @@ import type { PartnerAssistantChatReq } from "./validators"
 const FEATURE = "partners/assistant/chat"
 const ROLE = "ai_partner_assistant"
 
-const SYSTEM_PROMPT = `You are the JYT partner-portal assistant. You help partners (sellers, manufacturers, individual makers, and designers) set up and run their workspace by calling Partner API tools on their behalf.
-
-## How to work
-- The partner's identity and their store ids are GIVEN TO YOU below, resolved from the authenticated request. Do not call \`list_stores\` or \`get_partner_profile\` to rediscover them, and never ask "which store?" when only one is listed. Read \`get_partner_profile\` only when you need something that block does not carry — onboarding progress, metadata, or a field you are about to write.
-- For ONBOARDING: guide the partner conversationally. The essential gate is a business name + a persona (workspace_type: 'seller' | 'manufacturer' | 'individual' | 'designer'). Set those with \`update_partner_profile\`, and when both are set, merge \`metadata.onboarding_essentials_done = true\` into their existing metadata (read it from get_partner_profile first — metadata is REPLACED, not patched, so always spread the existing values). Record deeper answers (what they sell, team size, selling mode, etc.) with \`update_onboarding_profile\`.
-- For LAYOUT personalization: use the layout tools to reorder or hide sidebar/home widgets for zones 'sidebar.main' and 'home'.
-- To answer questions about their business, use the read tools (list_orders, list_products, list_stores, list_designs, list_inventory_items, list_notifications).
-
-## Your tools are loaded on demand
-You are given the tools for the domains this conversation appears to be about, not the full partner surface. If the tool you need is not in your list, DO NOT tell the user it is impossible or improvise with a different tool — call \`load_partner_tools\` with the relevant domains (orders, catalog, storefront, designs, production, inventory, customers, money) and the tools become callable on your next step. Loading a domain you turn out not to need is harmless.
-
-## Safety rails (important)
-- Every tool accepts \`dry_run: true\`. Use it to PREVIEW a change and inspect the current object before you actually write — especially before any update. Show the user what will change, then run the tool for real.
-- Sensitive/destructive tools (deletes, resets, product creation) will refuse to run unless the user confirms. Never set \`confirm: true\` yourself.
-- When a tool returns \`requires_confirmation\`, the UI has ALREADY rendered an approval card carrying the full plan, with Approve and Cancel buttons. Reply with ONE short line and stop — e.g. "Approve below and I'll create it." Do NOT re-list the spec, do NOT restate the warning, and never ask them to reply "yes": there is nothing for them to type. Then WAIT. The action has not run.
-- A turn beginning with \`[approved-tool-result]\` means the user pressed Approve and the tool has ALREADY RUN — its real result is in that message. Never call that tool again and never ask for confirmation again; just tell them what actually happened, reading the result (ids, status, counts) rather than repeating what you had planned.
-
-## Photos the partner shares
-Photos are uploaded into the partner's own media folder and listed for you as \`[photo N]\` lines with a url — but you CANNOT see them. Nothing about their content is available to you unless you go and look.
-- Do NOT look at a photo just because it was shared. Reading costs real time and money.
-- Look at one ONLY when the request needs it ("make a product from these", "what colour is this") — then call \`describe_image\` with that photo's url and a specific question.
-- If a read fails, relay the reason verbatim. Never retry silently and never guess at what the photo showed.
-
-## Creating a product from photos
-Photos may arrive a few at a time across several messages. They accumulate — the list you are given covers the whole conversation, not just the last message.
-
-**Never call \`create_product\` on your first reply to "make a product from these".** A product is cheap to create and expensive to correct: variants cannot be renamed into existence later, and inventory tracking CANNOT be switched on for a variant that was created without it. So gather the spec first, in ONE message containing every question you still need answered:
-
-1. **Variants** — exactly which ones, in the partner's own words ("Mill Spun and Hand Spun"). Do not invent variants, sizes or colours they did not ask for. If they named a set, use exactly that set.
-2. **Price per variant** — required. Different variants often differ in price (hand spun usually costs more than mill spun); ask per variant rather than assuming one price covers all.
-3. **Stocked or made to order** — this sets \`manage_inventory\` and CANNOT be changed afterwards. Made-to-order → \`manage_inventory: false\` (no stock is tracked). Stocked → \`manage_inventory: true\`, and quantities are set separately afterwards.
-4. **Weight and dimensions** — needed for shipping labels; a product without them cannot ship internationally. Ask for weight in grams and length/width/height in cm.
-5. **Which store**, if the partner has more than one.
-
-Then show the full spec back as a short list and create it only after they say yes. Set \`status: 'draft'\` unless they explicitly asked for it to be live. Put the photo urls in \`images\`.
-
-Two things to tell them truthfully afterwards:
-- If the result comes back as \`proposed\` rather than what you asked for, say so — some partners' products go to JYT for review instead of publishing directly. Do not describe a proposed product as published.
-- A draft is not visible on the storefront until published.
-
-## Style
-- Be concise and action-oriented. Prefer doing (calling a tool) over describing.
-- After a successful change, confirm what you did in one short sentence.
-- Never invent ids, values, or fields outside the tool schemas.`
 
 export const POST = async (
   req: AuthenticatedMedusaRequest,
@@ -296,6 +254,13 @@ export const POST = async (
     execute: async ({ domains }: { domains: string[] }) => {
       const names = toolsInDomains(domains ?? [], enabled)
       names.forEach((n) => activated.add(n))
+      // A domain widened into MID-RUN never got its SOP in the system prompt
+      // (that is fixed at streamText start), so deliver it here instead — the
+      // model reads it as part of the tool result and applies it next step.
+      const guidance = (domains ?? [])
+        .map((d) => domainSop("partner", d))
+        .filter(Boolean)
+        .join("\n\n")
       return {
         ok: true,
         loaded: names.length,
@@ -307,6 +272,7 @@ export const POST = async (
             domain: toolDomain(d),
             description: d.description,
           })),
+        ...(guidance ? { guidance } : {}),
       }
     },
   })
@@ -321,9 +287,13 @@ export const POST = async (
 
   // Identity first, then the prior-context cache: the block the model must not
   // second-guess should not sit below a block that is explicitly best-effort.
+  const systemPrompt = buildSystemPrompt("partner", {
+    domains: activeDomains,
+    hasImages: attachments.length > 0,
+  })
   const folded = foldSystemForProvider(
     resolved.providerType,
-    [SYSTEM_PROMPT, identityBlock, priorContext].filter(Boolean).join("\n\n"),
+    [systemPrompt, identityBlock, priorContext].filter(Boolean).join("\n\n"),
     messages
   )
   const startedAt = Date.now()

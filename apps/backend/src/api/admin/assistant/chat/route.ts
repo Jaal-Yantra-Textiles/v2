@@ -52,6 +52,8 @@ import {
 import { mcpScopeToContextFlags } from "../../../../lib/mcp-scope"
 import { makeMcpLedgerSink } from "../../../../lib/mcp-ledger"
 import {
+  buildSystemPrompt,
+  domainSop,
   extractContextFromTurn,
   loadAndFormatContext,
   resolveContextCache,
@@ -148,40 +150,6 @@ export const capToolResult = (result: any): any => {
   return trimmed
 }
 
-const SYSTEM_PROMPT = `You are the JYT admin assistant. You help platform operators run the business by calling Admin API tools on their behalf — reading orders, products, customers, partners, stores, designs, production runs, inventory, payments and campaigns, and (in later tiers) acting on them.
-
-## How to work
-- ALWAYS call \`get_admin_stats\` first to ground yourself in the platform's current shape before answering operational questions.
-- Use the read tools (list_orders, list_products, list_customers, list_partners, list_designs, list_production_runs, list_inventory_items, list_payments, ...) to answer "what's happening" questions. Fetch a single record with the get_* tools when you have an id.
-- Prefer doing (calling a tool) over describing. Chain tools to complete a goal, and set each tool's \`context\` to what you're ultimately trying to accomplish.
-
-## Your tools are loaded on demand
-You are given the tools for the domains this conversation appears to be about, not the full admin surface. If the tool you need is not in your list, DO NOT tell the user it is impossible or improvise with a different tool — call \`load_admin_tools\` with the relevant domains (orders, catalog, customers, partners, designs, production, inventory, money, marketing, observability) and the tools become callable on your next step. Loading a domain you turn out not to need is harmless.
-
-## Safety rails (important)
-- Every tool accepts \`dry_run: true\`. Use it to PREVIEW a change and inspect the current object before you actually write.
-- Sensitive/destructive tools refuse to run unless the user confirms. Never set \`confirm: true\` yourself. If a tool returns \`requires_confirmation\`, tell the user plainly what it will do and ask them to approve — the UI gives them a button.
-- Platform-destructive ("dangerous") tools additionally require a \`reason\`. If a tool returns \`requires_reason\`, ask the operator WHY they want to do it and pass their answer as the reason. Never invent a reason.
-
-## Images the operator attaches
-Attached images are uploaded and listed for you as \`[attachment N]\` lines with a url — but you CANNOT see them. Nothing about their content is available to you unless you go and read them.
-- Do NOT read an image just because it was attached. Most attachments are there to be filed against a record (a design's reference, an inventory item's photo), not interpreted, and reading costs real time and money.
-- Read one ONLY when the operator asks you to, or when they ask for something that is impossible without it ("add the raw materials from this photo", "what does this note say"). Then call \`read_image\` with the attachment's url and a specific question.
-- \`extract_inventory_from_image\` is the purpose-built path for "create raw materials / inventory from this photo" — prefer it over \`read_image\` + manual creation, and keep \`persist: false\` until the operator has seen and approved the extraction.
-- If a read fails, relay the reason verbatim — they are all actionable (no vision provider configured, a text-only model, a licence-gated model). Never retry silently and never guess at what the image showed.
-
-## Turning an idea into a design
-When an operator describes an idea — with or without a reference image or Pinterest link — build it out properly instead of creating a bare named record:
-1. \`create_design\` with the name, description and \`inspiration_sources\` (put the reference link there; a link they gave you and you dropped is a link they have to find again). Set \`thumbnail_url\` to the reference image when there is one.
-2. \`update_design_brief\` for the attributes that describe the IDEA — concept theme, aesthetic keywords, persona, price point. Take these from what the operator said; ask rather than invent a persona.
-3. \`list_construction_techniques\` then \`add_design_construction_detail\` for how the garment is actually made. The technique must be a slug from that list — the catalog IS the vocabulary, so map "gathered waist" onto the real slug rather than writing prose.
-4. Materials: \`link_design_material_group\` to pin a material group, and/or \`link_design_inventory\` for the specific items and planned quantities.
-5. \`link_design_partners\`, then \`create_design_production_run\` to actually put it into production.
-Each of those is sensitive, so the operator approves each one — narrate what you're about to do, don't dump five approval cards without explanation.
-
-## Style
-- Be concise and operator-focused. After a successful change, confirm what you did in one short sentence.
-- Never invent ids, values, or fields outside the tool schemas.`
 
 /**
  * Tell the model an attachment EXISTS without sending a single pixel.
@@ -384,6 +352,13 @@ export const POST = async (
     execute: async ({ domains }: { domains: string[] }) => {
       const names = toolsInDomains(domains ?? [], enabled)
       names.forEach((n) => activated.add(n))
+      // A domain widened into MID-RUN never got its SOP in the system prompt
+      // (that is fixed at streamText start), so deliver it here instead — the
+      // model reads it as part of the tool result and applies it next step.
+      const guidance = (domains ?? [])
+        .map((d) => domainSop("admin", d))
+        .filter(Boolean)
+        .join("\n\n")
       return {
         ok: true,
         loaded: names.length,
@@ -395,6 +370,7 @@ export const POST = async (
             domain: toolDomain(d),
             description: d.description,
           })),
+        ...(guidance ? { guidance } : {}),
       }
     },
   })
@@ -406,9 +382,13 @@ export const POST = async (
   const chatModel =
     resolved.source === "free" ? dynamicFreeToolTextModel : resolved.model
 
+  const systemPrompt = buildSystemPrompt("admin", {
+    domains: activeDomains,
+    hasImages: attachments.length > 0,
+  })
   const folded = foldSystemForProvider(
     resolved.providerType,
-    priorContext ? `${SYSTEM_PROMPT}\n\n${priorContext}` : SYSTEM_PROMPT,
+    priorContext ? `${systemPrompt}\n\n${priorContext}` : systemPrompt,
     messages
   )
   const startedAt = Date.now()
