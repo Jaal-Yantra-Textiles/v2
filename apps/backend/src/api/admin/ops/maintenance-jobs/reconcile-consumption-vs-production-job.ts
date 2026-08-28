@@ -4,7 +4,7 @@ import { z } from "@medusajs/framework/zod"
 import { CONSUMPTION_LOG_MODULE } from "../../../../modules/consumption_log"
 import { PRODUCTION_RUNS_MODULE } from "../../../../modules/production_runs"
 import {
-  reconcileDesigns,
+  reconcileConsumption,
   type ReconcileLog,
   type ReconcileRun,
 } from "../../../../workflows/consumption-logs/lib/reconcile-production-consumption"
@@ -58,7 +58,7 @@ export const reconcileConsumptionVsProductionJob: MaintenanceJob = {
   id: "reconcile-consumption-vs-production",
   label: "Reconcile consumption against production (report-only)",
   description:
-    "Compare what each design PRODUCED against what it reported CONSUMING. Counts completed leaf runs only (#498) and excludes provenance runs minted from retail fulfillment — those shipped from stock and consumed nothing, so counting them invents material. Reads each log's quantity_basis and resolves a per_piece rate against the run's piece count before summing, as the apply job does; a log whose basis is unknown is reported as unknown_basis rather than guessed, and the verdicts that depend on a complete total are withheld for that design. Flags: production with zero material logged, consumption with no production, implausible metres/piece, logs not attributed to a production run, and unreadable logs. Reports an expected/variance figure when a per-unit rate is supplied. NEVER writes — correct the log, then run the apply job.",
+    "Compare what each ANCHOR — a design, or a product where no design backs the work (#1618) — PRODUCED against what it reported CONSUMING. A product-anchored log used to be dropped before it reached any bucket, which under-reported consumption and would tell an operator to correct data that was already correct (#1619); rows anchored to NEITHER are counted and named in the summary rather than silently omitted. Counts completed leaf runs only (#498) and excludes provenance runs minted from retail fulfillment — those shipped from stock and consumed nothing, so counting them invents material. Reads each log's quantity_basis and resolves a per_piece rate against the run's piece count before summing, as the apply job does; a log whose basis is unknown is reported as unknown_basis rather than guessed, and the verdicts that depend on a complete total are withheld for that design. Flags: production with zero material logged, consumption with no production, implausible metres/piece, logs not attributed to a production run, and unreadable logs. Reports an expected/variance figure when a per-unit rate is supplied. NEVER writes — correct the log, then run the apply job.",
   params: [
     {
       name: "design_id",
@@ -130,6 +130,9 @@ export const reconcileConsumptionVsProductionJob: MaintenanceJob = {
     const runs: ReconcileRun[] = ((rawRuns || []) as any[]).map((r) => ({
       id: r.id,
       design_id: r.design_id ?? null,
+      // Projected explicitly: a fold reading an anchor the query never fetched
+      // sees `undefined` and buckets the row as unattributable (#1619).
+      product_id: r.product_id ?? null,
       parent_run_id: r.parent_run_id ?? null,
       status: r.status ?? null,
       produced_quantity: r.produced_quantity ?? null,
@@ -139,6 +142,7 @@ export const reconcileConsumptionVsProductionJob: MaintenanceJob = {
     const logs: ReconcileLog[] = ((rawLogs || []) as any[]).map((l) => ({
       id: l.id,
       design_id: l.design_id ?? null,
+      product_id: l.product_id ?? null,
       inventory_item_id: l.inventory_item_id ?? null,
       production_run_id: l.production_run_id ?? null,
       quantity: l.quantity ?? null,
@@ -149,7 +153,12 @@ export const reconcileConsumptionVsProductionJob: MaintenanceJob = {
       is_committed: Boolean(l.is_committed),
     }))
 
-    const all = reconcileDesigns({
+    /**
+     * 🔴 `reconcileConsumption`, not `reconcileDesigns` — this job reports to a
+     * human, and the rows-only form cannot say what it could not look at.
+     * Silent truncation reads as "covered everything" (#1619).
+     */
+    const { rows: all, excluded } = reconcileConsumption({
       runs,
       logs,
       ratePerUnit: rate_per_unit,
@@ -161,8 +170,8 @@ export const reconcileConsumptionVsProductionJob: MaintenanceJob = {
     // Reported as `changes` purely so the ops UI renders the table; before/after
     // are the observation, not a proposed write.
     const changes: MaintenanceChange[] = rows.map((r) => ({
-      entity: "design",
-      id: r.design_id,
+      entity: r.anchor_type,
+      id: r.anchor_id,
       field: `produced ${r.produced} / shipped-from-stock ${r.shipped_from_stock}${
         r.unresolved_logs
           ? ` / ${r.unresolved_logs} log(s) unreadable (raw ${r.unresolved_quantity})`
@@ -179,14 +188,33 @@ export const reconcileConsumptionVsProductionJob: MaintenanceJob = {
       return acc
     }, {})
 
+    const byAnchor = all.reduce(
+      (acc, r) => {
+        acc[r.anchor_type] = (acc[r.anchor_type] ?? 0) + 1
+        return acc
+      },
+      {} as Record<string, number>
+    )
+
     const summary = [
-      `Reconciled ${all.length} design(s); ${rows.length} flagged`,
+      `Reconciled ${all.length} anchor(s) — ${byAnchor.design ?? 0} design, ${
+        byAnchor.product ?? 0
+      } product; ${rows.length} flagged`,
       Object.keys(counts).length
         ? Object.entries(counts)
             .sort((a, b) => b[1] - a[1])
             .map(([f, n]) => `${n}× ${f}`)
             .join("; ")
         : "no flags",
+      /**
+       * ⚠️ Said out loud even when zero. "0 excluded" is a claim about
+       * coverage; saying nothing is not.
+       */
+      `${excluded.logs} committed log(s) and ${excluded.runs} completed run(s) are anchored to NEITHER a design nor a product and are in no bucket${
+        excluded.log_quantity
+          ? ` (raw quantity ${excluded.log_quantity}, not a total of anything)`
+          : ""
+      }`,
       "report-only — no stock was moved",
     ].join(". ")
 
