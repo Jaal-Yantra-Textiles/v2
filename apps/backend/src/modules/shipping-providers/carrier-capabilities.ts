@@ -115,12 +115,13 @@ export const CARRIER_CAPABILITIES: CarrierCapability[] = [
   {
     id: "dtdc",
     label: "DTDC",
-    integrated: false,
-    platform_account: false,
-    domestic: { can_rate: false, can_ship: false },
+    integrated: true,
+    platform_account: true,
+    domestic: { can_rate: false, can_ship: true },
     international: { can_rate: false, can_ship: false },
     can_declare_ddp: false,
-    notes: "Not integrated. No adapter exists yet.",
+    notes:
+      "Domestic (express/ground) only. The integration books consignments, fetches labels, cancels and tracks (pull + webhook) through DTDC's pxapi.dtdc.in and blktracksvc.dtdc.com surfaces, but exposes no rate API — so it can only be used as a flat-priced or manually-priced option. International is not served by this API surface.",
   },
 ]
 

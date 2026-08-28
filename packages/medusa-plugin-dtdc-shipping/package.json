@@ -1,0 +1,61 @@
+{
+  "name": "@jytextiles/medusa-plugin-dtdc-shipping",
+  "version": "0.1.1",
+  "publishConfig": {
+    "access": "public",
+    "registry": "https://registry.npmjs.org/"
+  },
+  "description": "Medusa v2 plugin for DTDC shipping integration — pincode check, order booking, label generation, cancellation, and tracking.",
+  "keywords": [
+    "medusa-v2",
+    "medusa-plugin-fulfillment",
+    "dtdc",
+    "shipping",
+    "medusa",
+    "plugin"
+  ],
+  "license": "MIT",
+  "author": "Jaal Yantra Textiles",
+  "homepage": "https://github.com/Jaal-Yantra-Textiles/v2/tree/main/packages/medusa-plugin-dtdc-shipping#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Jaal-Yantra-Textiles/v2.git",
+    "directory": "packages/medusa-plugin-dtdc-shipping"
+  },
+  "bugs": {
+    "url": "https://github.com/Jaal-Yantra-Textiles/v2/issues"
+  },
+  "scripts": {
+    "build": "medusa plugin:build",
+    "dev": "medusa plugin:develop",
+    "test": "jest"
+  },
+  "exports": {
+    "./package.json": "./package.json",
+    "./providers/*": "./.medusa/server/src/providers/*/index.js",
+    "./providers/dtdc/adapter": "./.medusa/server/src/providers/dtdc/adapter.js",
+    "./lib/*": "./.medusa/server/src/lib/*.js",
+    "./*": "./.medusa/server/src/*.js"
+  },
+  "files": [
+    "src",
+    ".medusa"
+  ],
+  "devDependencies": {
+    "@medusajs/cli": "2.19.0",
+    "@medusajs/framework": "2.19.0",
+    "@medusajs/medusa": "2.19.0",
+    "@medusajs/types": "2.19.0",
+    "@swc/core": "1.5.7",
+    "@swc/jest": "0.2.37",
+    "@types/jest": "29.5.14",
+    "@types/node": "^20.0.0",
+    "jest": "29.7.0",
+    "typescript": "5.6.3"
+  },
+  "peerDependencies": {
+    "@medusajs/framework": "2.19.0",
+    "@medusajs/medusa": "2.19.0",
+    "@medusajs/types": "2.19.0"
+  }
+}

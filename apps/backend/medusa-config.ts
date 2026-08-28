@@ -501,6 +501,25 @@ module.exports = defineConfig({
                       },
                     ]
                   : []),
+                ...(process.env.DTDC_API_KEY
+                  ? [
+                      {
+                        resolve: "@jytextiles/medusa-plugin-dtdc-shipping/providers/dtdc",
+                        id: "dtdc",
+                        options: {
+                          customer_code: process.env.DTDC_CUSTOMER_CODE,
+                          api_key: process.env.DTDC_API_KEY,
+                          sandbox: process.env.DTDC_SANDBOX === "true",
+                          tracking_username: process.env.DTDC_TRACKING_USERNAME,
+                          tracking_password: process.env.DTDC_TRACKING_PASSWORD,
+                          tracking_access_token:
+                            process.env.DTDC_TRACKING_ACCESS_TOKEN,
+                          default_service_type:
+                            process.env.DTDC_DEFAULT_SERVICE_TYPE,
+                        },
+                      },
+                    ]
+                  : []),
                 ...(process.env.DHL_API_KEY
                   ? [
                       {
