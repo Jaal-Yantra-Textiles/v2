@@ -3808,8 +3808,17 @@
         "cancel": "Cancel",
         "create": "Create"
       },
+      "edit": {
+        "heading": "Edit Payment Method",
+        "description": "Update this payout method."
+      },
+      "delete": {
+        "confirmation": "Remove this payment method ({{accountName}})?"
+      },
       "toast": {
-        "created": "Payment method created"
+        "created": "Payment method created",
+        "updated": "Payment method updated",
+        "deleted": "Payment method removed"
       }
     },
     "stripeConnect": {

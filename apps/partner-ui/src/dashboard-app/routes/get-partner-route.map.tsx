@@ -1109,6 +1109,11 @@ export function getPartnerRouteMap(): RouteObject[] {
                       lazy: () =>
                         import("../../routes/settings/payments/payments-create"),
                     },
+                    {
+                      path: ":id/edit",
+                      lazy: () =>
+                        import("../../routes/settings/payments/payments-edit"),
+                    },
                   ],
                 },
                 {

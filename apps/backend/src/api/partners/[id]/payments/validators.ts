@@ -33,3 +33,16 @@ export const CreatePaymentMethodForPartnerSchema = z.object({
 })
 export type CreatePaymentMethodForPartner = z.infer<typeof CreatePaymentMethodForPartnerSchema>
 export const CreatePaymentMethodForPartner = CreatePaymentMethodForPartnerSchema
+
+// Update a payment method for a partner (all fields optional — PATCH semantics)
+export const UpdatePaymentMethodForPartnerSchema = z.object({
+  type: z.enum(["bank_account", "cash_account", "digital_wallet"]).optional(),
+  account_name: z.string().min(1).optional(),
+  account_number: z.string().nullish(),
+  bank_name: z.string().nullish(),
+  ifsc_code: z.string().nullish(),
+  wallet_id: z.string().nullish(),
+  metadata: z.record(z.string(), z.any()).nullish(),
+})
+export type UpdatePaymentMethodForPartner = z.infer<typeof UpdatePaymentMethodForPartnerSchema>
+export const UpdatePaymentMethodForPartner = UpdatePaymentMethodForPartnerSchema

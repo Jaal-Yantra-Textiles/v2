@@ -96,6 +96,41 @@ export const usePartnerPaymentMethods = (
   }
 }
 
+export const usePartnerPaymentMethod = (
+  partnerId?: string | null,
+  methodId?: string | null,
+  options?: Omit<
+    UseQueryOptions<
+      { paymentMethod: PartnerPaymentMethod | null },
+      FetchError,
+      { paymentMethod: PartnerPaymentMethod | null },
+      QueryKey
+    >,
+    "queryFn" | "queryKey"
+  >
+) => {
+  const { data, ...rest } = useQuery({
+    queryKey: partnerPaymentMethodsQueryKeys.detail(methodId || ""),
+    queryFn: async () => {
+      if (!partnerId || !methodId) {
+        return { paymentMethod: null }
+      }
+      return await sdk.client.fetch<{ paymentMethod: PartnerPaymentMethod | null }>(
+        `/partners/${partnerId}/payments/methods/${methodId}`,
+        { method: "GET" }
+      )
+    },
+    enabled: !!partnerId && !!methodId,
+    ...options,
+  })
+
+  return {
+    ...data,
+    paymentMethod: data?.paymentMethod ?? null,
+    ...rest,
+  }
+}
+
 export const useCreatePartnerPaymentMethod = (
   partnerId: string,
   options?: UseMutationOptions<
@@ -111,6 +146,63 @@ export const useCreatePartnerPaymentMethod = (
         `/partners/${partnerId}/payments/methods`,
         { method: "POST", body: payload }
       ),
+    onSuccess: (data, variables, context) => {
+      queryClient.invalidateQueries({
+        queryKey: partnerPaymentMethodsQueryKeys.lists(),
+      })
+      options?.onSuccess?.(data, variables, context)
+    },
+    ...options,
+  })
+}
+
+export type UpdatePartnerPaymentMethodPayload = {
+  type?: "bank_account" | "cash_account" | "digital_wallet"
+  account_name?: string
+  account_number?: string | null
+  bank_name?: string | null
+  ifsc_code?: string | null
+  wallet_id?: string | null
+  metadata?: Record<string, any> | null
+}
+
+export const useUpdatePartnerPaymentMethod = (
+  partnerId: string,
+  methodId: string,
+  options?: UseMutationOptions<
+    { paymentMethod: PartnerPaymentMethod },
+    FetchError,
+    UpdatePartnerPaymentMethodPayload
+  >
+) => {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async (payload: UpdatePartnerPaymentMethodPayload) =>
+      sdk.client.fetch<{ paymentMethod: PartnerPaymentMethod }>(
+        `/partners/${partnerId}/payments/methods/${methodId}`,
+        { method: "POST", body: payload }
+      ),
+    onSuccess: (data, variables, context) => {
+      queryClient.invalidateQueries({
+        queryKey: partnerPaymentMethodsQueryKeys.lists(),
+      })
+      options?.onSuccess?.(data, variables, context)
+    },
+    ...options,
+  })
+}
+
+export const useDeletePartnerPaymentMethod = (
+  partnerId: string,
+  methodId: string,
+  options?: UseMutationOptions<any, FetchError, void>
+) => {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: () =>
+      sdk.client.fetch(`/partners/${partnerId}/payments/methods/${methodId}`, {
+        method: "DELETE",
+      }),
     onSuccess: (data, variables, context) => {
       queryClient.invalidateQueries({
         queryKey: partnerPaymentMethodsQueryKeys.lists(),

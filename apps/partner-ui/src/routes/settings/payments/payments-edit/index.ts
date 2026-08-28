@@ -1,0 +1,1 @@
+export { SettingsPaymentsEdit as Component } from "./payments-edit.tsx"
