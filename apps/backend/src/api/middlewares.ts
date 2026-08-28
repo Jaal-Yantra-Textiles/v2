@@ -181,6 +181,7 @@ import { createBlocksSchema, ReadBlocksQuerySchema, updateBlockSchema } from "./
 import { AdminPostDesignInventoryReq, AdminDeleteDesignInventoryReq } from "./admin/designs/[id]/inventory/validators";
 import { AdminPostConsumptionLogReq, AdminPostCommitConsumptionReq } from "./admin/designs/[id]/consumption-logs/validators";
 import { AdminPostRunConsumptionLogReq, AdminPostRunCommitConsumptionReq } from "./admin/production-runs/[id]/consumption-logs/validators";
+import { AdminAttachSubmissionDocumentsReq } from "./admin/payment-submissions/[id]/documents/validators";
 import { AdminPostDesignInquiryReq, AdminPostDesignInquiryPreviewReq, AdminPostCloseDesignInquiryReq } from "./admin/designs/[id]/inquiries/validators";
 import { AdminCreateEnergyRateReq, AdminUpdateEnergyRateReq } from "./admin/energy-rates/validators";
 import { partnerSchema, partnerUpdateSchema } from "./partners/validators";
@@ -3651,6 +3652,14 @@ export default defineMiddlewares({
       matcher: "/admin/payment-submissions/:id/items/:itemId",
       method: "PATCH",
       middlewares: [validateAndTransformBody(wrapSchema(UpdatePaymentSubmissionItemSchema))],
+    },
+    {
+      // Attachments, at ANY status — the bank receipt proving a payout happened
+      // only exists after the money moves, when every other write is refused.
+      // Declared before the ":id" entries: first matching entry wins.
+      matcher: "/admin/payment-submissions/:id/documents",
+      method: "POST",
+      middlewares: [validateAndTransformBody(wrapSchema(AdminAttachSubmissionDocumentsReq))],
     },
     {
       matcher: "/admin/payment-submissions/:id",

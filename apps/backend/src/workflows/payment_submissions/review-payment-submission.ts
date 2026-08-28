@@ -22,6 +22,8 @@ import PaymentSubmissionsService from "../../modules/payment_submissions/service
 import InternalPaymentService from "../../modules/internal_payments/service"
 import Payment_reportsService from "../../modules/payment_reports/service"
 import PartnerPaymentMethodsLink from "../../links/partner-payment-methods-link"
+import { ORDER_INVENTORY_MODULE } from "../../modules/inventory_orders"
+import { resolveSubmissionSource } from "./lib/submission-source"
 
 export type ReviewPaymentSubmissionInput = {
   submission_id: string
@@ -252,6 +254,89 @@ const linkSubmissionToPaymentStep = createStep(
   }
 )
 
+/**
+ * Where this payout's money came from, folded from the submission's LINES.
+ *
+ * A step of its own so reconciliation and the inventory-order link read the
+ * same answer. Derived from the lines rather than accepted from the reviewer:
+ * a review action knows nothing about provenance, and a source supplied by the
+ * caller could contradict the lines it claims to describe.
+ */
+const resolveSubmissionSourceStep = createStep(
+  "resolve-submission-source",
+  async (input: { submission_id: string }, { container }) => {
+    const service: PaymentSubmissionsService = container.resolve(
+      PAYMENT_SUBMISSIONS_MODULE
+    )
+
+    const items = await service.listPaymentSubmissionItems({
+      submission_id: input.submission_id,
+    })
+
+    return new StepResponse(resolveSubmissionSource(items as any[]))
+  }
+)
+
+/**
+ * Link the payment to the INVENTORY ORDER it paid for.
+ *
+ * 🔴 `links/inventory-orders-internal-payments.ts` has existed all along and
+ * nothing has ever written it. The consequence is visible on prod: open the
+ * inventory order a payout was for and it shows no payment, because the only
+ * link approval created pointed at the partner. The declaration was the
+ * intended design; it was simply never wired.
+ *
+ * Best-effort and non-fatal, deliberately. The payment, the reconciliation and
+ * the submission status are all already written by the time this runs, and a
+ * failure to draw a navigational edge must not roll back a recorded payout.
+ * Mirrors how the production-run link is created in `log-consumption`.
+ */
+const linkPaymentToInventoryOrderStep = createStep(
+  "link-payment-to-inventory-order",
+  async (
+    input: { payment_id: string; inventory_order_id: string },
+    { container }
+  ) => {
+    if (!input.inventory_order_id || !input.payment_id) {
+      return new StepResponse<LinkDefinition | null>(null)
+    }
+
+    const remoteLink = container.resolve(
+      ContainerRegistrationKeys.LINK
+    ) as Link
+
+    const link: LinkDefinition = {
+      [ORDER_INVENTORY_MODULE]: {
+        inventory_orders_id: input.inventory_order_id,
+      },
+      [INTERNAL_PAYMENTS_MODULE]: {
+        internal_payments_id: input.payment_id,
+      },
+    }
+
+    try {
+      await remoteLink.create([link])
+    } catch (e: any) {
+      container
+        .resolve(ContainerRegistrationKeys.LOGGER)
+        .warn(
+          `[review-payment-submission] payment ${input.payment_id} recorded but ` +
+            `could not be linked to inventory order ${input.inventory_order_id}: ${e?.message}`
+        )
+      return new StepResponse<LinkDefinition | null>(null)
+    }
+
+    return new StepResponse<LinkDefinition | null>(link, link)
+  },
+  async (link: LinkDefinition | null, { container }) => {
+    if (!link) return
+    const remoteLink = container.resolve(
+      ContainerRegistrationKeys.LINK
+    ) as Link
+    await remoteLink.dismiss([link]).catch(() => {})
+  }
+)
+
 // Step 5: Create reconciliation record
 const createReconciliationRecordStep = createStep(
   "create-reconciliation-record",
@@ -262,6 +347,8 @@ const createReconciliationRecordStep = createStep(
       expected_amount: number
       actual_amount: number
       payment_id: string
+      source_type: string | null
+      source_id: string | null
     },
     { container }
   ) => {
@@ -269,13 +356,18 @@ const createReconciliationRecordStep = createStep(
       PAYMENT_REPORTS_MODULE
     )
 
+
     const discrepancy = input.actual_amount - input.expected_amount
     const status =
       Math.abs(discrepancy) < 0.01 ? "Matched" : "Discrepant"
 
     const reconciliation = await service.createPaymentReconciliations({
+      // `reference_*` stays the record being reconciled; `source_*` says where
+      // the money came from. Two facts, two columns — see the model.
       reference_type: "payment_submission",
       reference_id: input.submission_id,
+      source_type: input.source_type,
+      source_id: input.source_id,
       partner_id: input.partner_id,
       expected_amount: input.expected_amount,
       actual_amount: input.actual_amount,
@@ -418,6 +510,10 @@ export const reviewPaymentSubmissionWorkflow = createWorkflow(
       })
     )
 
+    const source = when(isApproval, (val) => val).then(() =>
+      resolveSubmissionSourceStep({ submission_id: input.submission_id })
+    )
+
     when(isApproval, (val) => val).then(() =>
       createReconciliationRecordStep({
         submission_id: input.submission_id,
@@ -425,6 +521,29 @@ export const reviewPaymentSubmissionWorkflow = createWorkflow(
         expected_amount: submission.total_amount,
         actual_amount: paymentAmount,
         payment_id: payment!.id,
+        source_type: source!.source_type,
+        source_id: source!.source_id,
+      })
+    )
+
+    /**
+     * Draw the edge the inventory order needs to show its payments.
+     *
+     * Only for an inventory-order-sourced payout: `source_id` is the order id
+     * exactly when `source_type` is `inventory_order` and the submission names
+     * a single one. The step itself no-ops on an empty id, so a design-, task-,
+     * run- or mixed-sourced payout passes straight through.
+     */
+    const inventoryOrderForPayment = transform({ source }, (data) =>
+      data.source?.source_type === "inventory_order" && data.source?.source_id
+        ? String(data.source.source_id)
+        : ""
+    )
+
+    when(isApproval, (val) => val).then(() =>
+      linkPaymentToInventoryOrderStep({
+        payment_id: payment!.id,
+        inventory_order_id: inventoryOrderForPayment,
       })
     )
 
