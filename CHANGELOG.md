@@ -1,3 +1,10 @@
+# [13.119.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.118.0...v13.119.0) (2026-08-28)
+
+
+### Features
+
+* **consumption:** anchor a consumption log to a product, not only a design ([#938](https://github.com/Jaal-Yantra-Textiles/v2/issues/938), [#1612](https://github.com/Jaal-Yantra-Textiles/v2/issues/1612)) ([#1618](https://github.com/Jaal-Yantra-Textiles/v2/issues/1618)) ([feca1d9](https://github.com/Jaal-Yantra-Textiles/v2/commit/feca1d9a5b731add299193c270674401f1e641ef)), closes [#1112](https://github.com/Jaal-Yantra-Textiles/v2/issues/1112) [#1397](https://github.com/Jaal-Yantra-Textiles/v2/issues/1397) [#1112](https://github.com/Jaal-Yantra-Textiles/v2/issues/1112)
+
 # [13.118.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.117.1...v13.118.0) (2026-08-28)
 
 
