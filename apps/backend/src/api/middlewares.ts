@@ -268,6 +268,7 @@ import {
   CreateAdminPaymentSubmissionSchema,
   SubmitPaymentSubmissionSchema as AdminSubmitPaymentSubmissionSchema,
   UpdatePaymentSubmissionItemSchema,
+  UpdatePaymentSubmissionSchema,
 } from "./admin/payment-submissions/validators";
 import {
   ListReconciliationsQuerySchema,
@@ -3665,6 +3666,14 @@ export default defineMiddlewares({
       matcher: "/admin/payment-submissions/:id",
       method: "DELETE",
       middlewares: [],
+    },
+    {
+      // Correcting the SENTENCE describing a payout, never its money (#1611).
+      matcher: "/admin/payment-submissions/:id",
+      method: "PATCH",
+      middlewares: [
+        validateAndTransformBody(wrapSchema(UpdatePaymentSubmissionSchema)),
+      ],
     },
     {
       matcher: "/admin/payment-submissions/:id",

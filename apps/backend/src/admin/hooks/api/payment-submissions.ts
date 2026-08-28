@@ -670,3 +670,37 @@ export const usePartnerPaymentMethods = (
     ...rest,
   }
 }
+
+/**
+ * Correct the NOTE on a payout (#1611).
+ *
+ * ⚠️ Notes only. The money is the sum of the lines and every path that touches
+ * a line re-runs the double-pay guards — `useUpdatePaymentSubmissionItem` is
+ * how an amount is corrected.
+ */
+export const useUpdatePaymentSubmissionNotes = (
+  options?: UseMutationOptions<
+    { payment_submission: PaymentSubmission },
+    FetchError,
+    { id: string; notes: string }
+  >
+) => {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async ({ id, notes }) =>
+      sdk.client.fetch<{ payment_submission: PaymentSubmission }>(
+        `/admin/payment-submissions/${id}`,
+        { method: "PATCH", body: { notes } }
+      ) as Promise<{ payment_submission: PaymentSubmission }>,
+    onSuccess: (data, variables, _mutateResult, context) => {
+      queryClient.invalidateQueries({
+        queryKey: paymentSubmissionQueryKeys.lists(),
+      })
+      queryClient.invalidateQueries({
+        queryKey: paymentSubmissionQueryKeys.detail(variables.id),
+      })
+      options?.onSuccess?.(data, variables, _mutateResult, context)
+    },
+    ...options,
+  })
+}

@@ -97,3 +97,72 @@ export const DELETE = async (req: MedusaRequest, res: MedusaResponse) => {
     deleted: result.deleted,
   })
 }
+
+/**
+ * PATCH /admin/payment-submissions/:id — correct the note on a payout (#1611).
+ *
+ * 🔴 No route could edit a submission's `notes`, and one on production is
+ * actively wrong about money: `01M0Y336X9A6DJ9ESZ4HC0RXVM` reads "Billed 7 x
+ * 1200 = 8400" while its line and total say ₹10,000, because the line was
+ * corrected afterwards through the guarded item route and the sentence
+ * describing it could not follow. The real breakdown ended up in the item's
+ * `metadata.rate_batches`, where nobody reading the payout will look.
+ *
+ * ⚠️ `notes` ONLY. The money is the sum of the lines, and every path that
+ * touches a line re-runs the double-pay guards; accepting `total_amount` or
+ * `status` here would bypass all of them. The validator is `.strict()`, so
+ * anything else is a 400 rather than a silently ignored field.
+ *
+ * The previous text is kept in `metadata.notes_revisions` — a correction that
+ * erases what was originally claimed destroys the more useful half of the
+ * record. That history is an AUDIT TRAIL and nothing reads it to decide
+ * anything; the note itself is the current statement.
+ */
+export const PATCH = async (req: MedusaRequest, res: MedusaResponse) => {
+  const { id } = req.params
+  const { notes } = req.validatedBody as { notes: string }
+
+  const service: PaymentSubmissionsService = req.scope.resolve(
+    PAYMENT_SUBMISSIONS_MODULE
+  )
+
+  const existing = (
+    await service.listPaymentSubmissions({ id: [id] })
+  )[0] as any
+
+  if (!existing) {
+    throw new MedusaError(
+      MedusaError.Types.NOT_FOUND,
+      `Payment submission not found: ${id}`
+    )
+  }
+
+  const editedBy = (req as any).auth_context?.actor_id || "admin"
+  const previous = existing.notes ?? null
+
+  /**
+   * ⚠️ `updatePaymentSubmissions({ id, ... })` as a single object is an UPDATE
+   * for the entity form here, not a selector — the same call `markSubmissionPaid`
+   * uses. Keep the id in the object rather than splitting it into a selector.
+   */
+  const updated = (await service.updatePaymentSubmissions({
+    id,
+    notes,
+    metadata: {
+      ...(existing.metadata || {}),
+      notes_revisions: [
+        ...((existing.metadata?.notes_revisions as any[]) || []),
+        { previous, edited_by: editedBy, edited_at: new Date().toISOString() },
+      ],
+    },
+  })) as any
+
+  /**
+   * Re-read rather than echo. The review route's 200 echoes its PRE-UPDATE body
+   * and has misled a reader before; a correction route that reports the old note
+   * as the new one would be the same defect on the field it exists to fix.
+   */
+  const fresh = (await service.listPaymentSubmissions({ id: [id] }))[0] ?? updated
+
+  return res.status(200).json({ payment_submission: fresh })
+}

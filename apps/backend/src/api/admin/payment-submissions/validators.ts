@@ -201,3 +201,24 @@ export const UpdatePaymentSubmissionItemSchema = z
       data.metadata !== undefined,
     { message: "Nothing to update" }
   )
+
+/**
+ * Correcting a submission's own DESCRIPTION (#1611).
+ *
+ * 🔴 `notes` and nothing else. The money on a submission is the sum of its
+ * lines, and every path that touches a line re-runs the double-pay claim
+ * guards; a route that could set `total_amount` or `status` here would be a
+ * clean bypass of all of them. An amount is corrected through
+ * `PATCH /:id/items/:itemId`, which is guarded — this route exists only so the
+ * SENTENCE describing a payout can be made to match it.
+ *
+ * ⚠️ Allowed at ANY status, deliberately. Submission 01M0Y336X9… reads
+ * "Billed 7 x 1200 = 8400" against a line that was corrected to ₹10,000, and
+ * that record is more wrong today than it was when it was written. The same
+ * reasoning as #1621's documents-at-any-status: a payout's paperwork arrives
+ * after the money moves, and refusing the correction preserves the error.
+ */
+export const UpdatePaymentSubmissionSchema = z.object({
+  /** `""` clears the note. Distinct from omitting it, which changes nothing. */
+  notes: z.string(),
+})
