@@ -78,6 +78,79 @@ describe("designsBilledWithoutRunEvidence", () => {
     expect(out).toEqual([])
   })
 
+  /**
+   * The regression #1602 shipped, caught while tracing why 7 Draft submissions
+   * had piled up on prod.
+   *
+   * `auto-draft-payment-submission` drafts one on every completed run. The
+   * partner then submits by hand — and that hand submission CANNOT name the
+   * runs, because the Draft already holds a live claim on them (the run-level
+   * guard refuses it). Naming no runs was the only way through. Blocking it
+   * here left the design unbillable by any route: the Draft cannot be submitted
+   * (no such route), cannot be rejected (review requires Pending/Under_Review)
+   * and cannot be deleted (#1604).
+   */
+  it("🔴 a Draft prior does NOT block — it is the auto-draft being submitted", () => {
+    const conflicts = designsBilledWithoutRunEvidence({
+      design_ids: ["design_1"],
+      claimed_runs: {},
+      prior_lines: [
+        {
+          design_id: "design_1",
+          submission_status: "Draft",
+          submission_id: "sub_draft",
+          run_provenance: "recorded",
+        },
+      ],
+    })
+    // Before the fix this returned a conflict, and the partner had no route
+    // left to bill the design at all.
+    expect(conflicts).toEqual([])
+  })
+
+  it("a Draft alongside a Paid prior still blocks — the Paid one is the claim", () => {
+    const conflicts = designsBilledWithoutRunEvidence({
+      design_ids: ["design_1"],
+      claimed_runs: {},
+      prior_lines: [
+        {
+          design_id: "design_1",
+          submission_status: "Draft",
+          submission_id: "sub_draft",
+          run_provenance: "recorded",
+        },
+        {
+          design_id: "design_1",
+          submission_status: "Paid",
+          submission_id: "sub_paid",
+          run_provenance: "recorded",
+        },
+      ],
+    })
+    // Exempting Draft must not let a genuinely-paid prior through with it.
+    expect(conflicts).toHaveLength(1)
+    expect(conflicts[0].prior_submission_id).toBe("sub_paid")
+    expect(conflicts[0].prior_status).toBe("Paid")
+  })
+
+  it("still blocks every status that actually took money", () => {
+    for (const status of ["Pending", "Under_Review", "Approved", "Paid"]) {
+      const conflicts = designsBilledWithoutRunEvidence({
+        design_ids: ["design_1"],
+        claimed_runs: {},
+        prior_lines: [
+          {
+            design_id: "design_1",
+            submission_status: status,
+            submission_id: `sub_${status}`,
+            run_provenance: "recorded",
+          },
+        ],
+      })
+      expect(conflicts).toHaveLength(1)
+    }
+  })
+
   it("🔑 a Rejected prior releases its claim", () => {
     // It never paid anyone, so it cannot be the thing being double-billed.
     const out = designsBilledWithoutRunEvidence({
