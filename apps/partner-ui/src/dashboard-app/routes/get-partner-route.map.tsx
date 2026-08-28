@@ -384,8 +384,9 @@ export function getPartnerRouteMap(): RouteObject[] {
                           Component,
                           loader,
                           handle: {
-                            breadcrumb: (match: UIMatch) =>
-                              <Breadcrumb {...match} />,
+                            breadcrumb: (
+                              match: UIMatch<HttpTypes.AdminInventoryItemResponse>
+                            ) => <Breadcrumb {...match} />,
                           },
                         }
                       },

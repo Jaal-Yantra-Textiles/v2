@@ -146,11 +146,11 @@ export const useCreatePartnerPaymentMethod = (
         `/partners/${partnerId}/payments/methods`,
         { method: "POST", body: payload }
       ),
-    onSuccess: (data, variables, context) => {
+    onSuccess: (data, variables, onMutateResult, context) => {
       queryClient.invalidateQueries({
         queryKey: partnerPaymentMethodsQueryKeys.lists(),
       })
-      options?.onSuccess?.(data, variables, context)
+      options?.onSuccess?.(data, variables, onMutateResult, context)
     },
     ...options,
   })
@@ -182,11 +182,11 @@ export const useUpdatePartnerPaymentMethod = (
         `/partners/${partnerId}/payments/methods/${methodId}`,
         { method: "POST", body: payload }
       ),
-    onSuccess: (data, variables, context) => {
+    onSuccess: (data, variables, onMutateResult, context) => {
       queryClient.invalidateQueries({
         queryKey: partnerPaymentMethodsQueryKeys.lists(),
       })
-      options?.onSuccess?.(data, variables, context)
+      options?.onSuccess?.(data, variables, onMutateResult, context)
     },
     ...options,
   })
@@ -203,11 +203,11 @@ export const useDeletePartnerPaymentMethod = (
       sdk.client.fetch(`/partners/${partnerId}/payments/methods/${methodId}`, {
         method: "DELETE",
       }),
-    onSuccess: (data, variables, context) => {
+    onSuccess: (data, variables, onMutateResult, context) => {
       queryClient.invalidateQueries({
         queryKey: partnerPaymentMethodsQueryKeys.lists(),
       })
-      options?.onSuccess?.(data, variables, context)
+      options?.onSuccess?.(data, variables, onMutateResult, context)
     },
     ...options,
   })
