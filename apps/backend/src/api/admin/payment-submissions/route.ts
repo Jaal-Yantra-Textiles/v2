@@ -1,5 +1,7 @@
 import type { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
+import { ContainerRegistrationKeys } from "@medusajs/framework/utils"
 import { PAYMENT_SUBMISSIONS_MODULE } from "../../../modules/payment_submissions"
+import { resolvePaymentEntities } from "./lib/resolve-payment-entities"
 import PaymentSubmissionsService from "../../../modules/payment_submissions/service"
 import { createPaymentSubmissionWorkflow } from "../../../workflows/payment_submissions/create-payment-submission"
 import {
@@ -9,8 +11,8 @@ import {
 
 // GET /admin/payment-submissions — list all submissions with filters
 export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
-  const { offset = 0, limit = 20, status, partner_id } = (req.validatedQuery ||
-    req.query) as any
+  const { offset = 0, limit = 20, status, partner_id, q } =
+    (req.validatedQuery || req.query) as any
 
   const service: PaymentSubmissionsService = req.scope.resolve(
     PAYMENT_SUBMISSIONS_MODULE
@@ -19,6 +21,8 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
   const filters: any = {}
   if (status) filters.status = status
   if (partner_id) filters.partner_id = partner_id
+  // The search box on the list screen. See the validator for why it did nothing.
+  if (q) filters.id = { $ilike: `%${q}%` }
 
   const [submissions, count] = await service.listAndCountPaymentSubmissions(
     filters,
@@ -29,6 +33,25 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
       relations: ["items"],
     }
   )
+
+  /**
+   * Who each payout is FOR, by name (#1622).
+   *
+   * The list rendered `partner_id.slice(0, 12)` — twelve characters of a ULID,
+   * repeated down the column, on the screen whose whole job is to tell you who
+   * is owed what. Best-effort per entity: a partner that cannot be resolved
+   * leaves one name absent rather than failing the list.
+   */
+  const query: any = req.scope.resolve(ContainerRegistrationKeys.QUERY)
+  const resolved = await resolvePaymentEntities(query, {
+    partnerIds: submissions.map((s: any) => s.partner_id),
+  })
+
+  for (const submission of submissions as any[]) {
+    submission.partner = submission.partner_id
+      ? resolved.partners.get(submission.partner_id) ?? null
+      : null
+  }
 
   return res.status(200).json({
     payment_submissions: submissions,
