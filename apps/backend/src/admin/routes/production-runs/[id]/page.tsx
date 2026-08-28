@@ -41,6 +41,7 @@ import {
   useAdminStartRun,
   useCancelProductionRun,
   useProductionRun,
+  useProductionRunPayments,
   useProductionRuns,
   useUpdateProductionRun,
 } from "../../../hooks/api/production-runs"
@@ -75,6 +76,15 @@ const ProductionRunDetailPage = () => {
     { enabled: !!id }
   )
   const isParent = !!(children && children.length > 0)
+
+  /**
+   * Whether this run has already been billed (#1622).
+   *
+   * `payable-runs` has always computed this and only ever shown it on a screen
+   * listing OTHER runs, so the one place you could not learn that a run was
+   * already paid for was the run itself.
+   */
+  const billing = useProductionRunPayments(id || "", { enabled: !!id })
 
   const canCancel = run?.status && !["completed", "cancelled"].includes(run.status)
   const canEdit = run && run.status !== "completed" && run.status !== "cancelled"
@@ -383,6 +393,44 @@ const ProductionRunDetailPage = () => {
                       {run.snapshot?.provenance?.partner_name || run.partner_id}
                     </Text>
                   </Link>
+                ) : (
+                  <Text>-</Text>
+                )}
+              </div>
+            )}
+            {/**
+              * Billed, or not, or unknown — never "not billed" when the answer
+              * is unknown. A live payout that never recorded which run it paid
+              * for means this run MAY already be inside it, and reporting that
+              * as clean is how the same garments get paid for twice (#1565).
+              */}
+            {!isParent && (
+              <div>
+                <Text size="small" className="text-ui-fg-subtle">
+                  Billing
+                </Text>
+                {billing.billing_status === "billed" ? (
+                  <div className="flex items-center gap-x-2">
+                    <StatusBadge color="green">Billed</StatusBadge>
+                    {billing.claim?.submission_id && (
+                      <Link
+                        to={`/payment-submissions/${billing.claim.submission_id}`}
+                        className="text-ui-fg-interactive text-xs hover:underline"
+                      >
+                        {billing.claim.status} payout
+                      </Link>
+                    )}
+                  </div>
+                ) : billing.billing_status === "unknown" ? (
+                  <div className="flex flex-col gap-y-1">
+                    <StatusBadge color="orange">Unknown</StatusBadge>
+                    <Text size="xsmall" className="text-ui-fg-subtle">
+                      A live payout for this design records no run. This one may
+                      already be inside it.
+                    </Text>
+                  </div>
+                ) : billing.billing_status === "clear" ? (
+                  <StatusBadge color="grey">Not billed</StatusBadge>
                 ) : (
                   <Text>-</Text>
                 )}

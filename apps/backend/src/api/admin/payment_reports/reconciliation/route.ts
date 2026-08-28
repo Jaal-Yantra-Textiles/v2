@@ -1,7 +1,11 @@
 import type { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
-import { MedusaError } from "@medusajs/framework/utils"
+import {
+  ContainerRegistrationKeys,
+  MedusaError,
+} from "@medusajs/framework/utils"
 import { PAYMENT_REPORTS_MODULE } from "../../../../modules/payment_reports"
 import Payment_reportsService from "../../../../modules/payment_reports/service"
+import { resolvePaymentEntities } from "../../payment-submissions/lib/resolve-payment-entities"
 
 // GET /admin/payment_reports/reconciliation — list reconciliation records
 export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
@@ -43,6 +47,54 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
       if (period_end && created > new Date(period_end).getTime()) return false
       return true
     })
+  }
+
+  /**
+   * Resolved names alongside the ids (#1622).
+   *
+   * The table rendered `partner_id` and `source_id` as raw ULIDs, one per row —
+   * the reconciliation screen is where a discrepancy is chased, and a column of
+   * indistinguishable ids is the least useful place to do it. `source_id` is
+   * resolved by `source_type`, so an `inventory_order` row names the order and a
+   * `run` row names the run; a `mixed` payout keeps a null source by design and
+   * simply has no name to show.
+   *
+   * Best-effort throughout — see `resolvePaymentEntities`. A record of money
+   * must render even when what it paid for is gone.
+   */
+  const query: any = req.scope.resolve(ContainerRegistrationKeys.QUERY)
+  const resolved = await resolvePaymentEntities(query, {
+    partnerIds: filtered.map((r: any) => r.partner_id),
+    designIds: filtered
+      .filter((r: any) => r.source_type === "design")
+      .map((r: any) => r.source_id),
+    runIds: filtered
+      .filter((r: any) => r.source_type === "run")
+      .map((r: any) => r.source_id),
+    inventoryOrderIds: filtered
+      .filter((r: any) => r.source_type === "inventory_order")
+      .map((r: any) => r.source_id),
+  })
+
+  const sourceRef = (record: any) => {
+    if (!record.source_id) return null
+    switch (record.source_type) {
+      case "design":
+        return resolved.designs.get(record.source_id) ?? null
+      case "run":
+        return resolved.runs.get(record.source_id) ?? null
+      case "inventory_order":
+        return resolved.inventoryOrders.get(record.source_id) ?? null
+      default:
+        return null
+    }
+  }
+
+  for (const record of filtered as any[]) {
+    record.partner = record.partner_id
+      ? resolved.partners.get(record.partner_id) ?? null
+      : null
+    record.source = sourceRef(record)
   }
 
   return res.status(200).json({
