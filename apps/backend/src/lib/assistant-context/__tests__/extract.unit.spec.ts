@@ -203,4 +203,38 @@ describe("assistant-context: extractContextFromTurn", () => {
     expect(entries).toHaveLength(1)
     expect(entries[0].summary.length).toBeLessThanOrEqual(200)
   })
+
+  it("extracts natural-key entity resolutions from tool results", () => {
+    const entries = extractContextFromTurn([
+      {
+        toolName: "list_customers",
+        output: {
+          customers: [
+            { id: "cus_01KS9B", email: "delhi@gmail.com", first_name: "Delhi" },
+          ],
+        },
+      },
+    ])
+
+    expect(entries).toHaveLength(1)
+    expect(entries[0].domain).toBe("customers")
+    expect(entries[0].resolutions).toEqual([
+      expect.objectContaining({
+        type: "customer",
+        key: "email",
+        value: "delhi@gmail.com",
+        id: "cus_01KS9B",
+      }),
+    ])
+  })
+
+  it("deduplicates resolutions across tools in the same domain", () => {
+    const entries = extractContextFromTurn([
+      { toolName: "list_customers", output: { customers: [{ id: "cus_01KS9B", email: "a@b.com" }] } },
+      { toolName: "get_customer", output: { id: "cus_01KS9B", email: "a@b.com" } },
+    ])
+
+    expect(entries).toHaveLength(1)
+    expect(entries[0].resolutions).toHaveLength(1)
+  })
 })

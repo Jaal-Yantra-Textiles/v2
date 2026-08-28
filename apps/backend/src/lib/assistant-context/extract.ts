@@ -15,11 +15,13 @@
  *   harmless, a crash in onFinish is not.
  */
 import { toolNameToDomain, type AssistantSurface } from "./domains"
+import { extractEntityResolutions, type EntityResolution } from "./entities"
 
 export interface ExtractedContextEntry {
   domain: string
   entityIds: string[]
   summary: string
+  resolutions: EntityResolution[]
 }
 
 /** Known entity-id prefixes on the JYT platform. */
@@ -110,6 +112,9 @@ function buildToolSummary(toolName: string, output: unknown): string {
 /** Maximum entity ids to keep per domain entry — thin by design. */
 const MAX_ENTITY_IDS = 20
 
+/** Maximum natural-key resolutions to keep per domain entry. */
+const MAX_RESOLUTIONS = 50
+
 /** Maximum summary length per domain entry. */
 const MAX_SUMMARY_LEN = 200
 
@@ -126,7 +131,14 @@ export function extractContextFromTurn(
 ): ExtractedContextEntry[] {
   if (!toolResults?.length) return []
 
-  const byDomain = new Map<string, { entityIds: Set<string>; summaries: string[] }>()
+  const byDomain = new Map<
+    string,
+    {
+      entityIds: Set<string>
+      summaries: string[]
+      resolutions: Map<string, EntityResolution>
+    }
+  >()
 
   for (const tr of toolResults) {
     const toolName = tr?.toolName
@@ -140,22 +152,32 @@ export function extractContextFromTurn(
     const output = tr.output
     const ids = extractEntityIds(output)
     const summary = buildToolSummary(toolName, output)
+    const resolutions = extractEntityResolutions(output)
 
     let entry = byDomain.get(domain)
     if (!entry) {
-      entry = { entityIds: new Set(), summaries: [] }
+      entry = { entityIds: new Set(), summaries: [], resolutions: new Map() }
       byDomain.set(domain, entry)
     }
 
     for (const id of ids) entry.entityIds.add(id)
     entry.summaries.push(summary)
+    for (const r of resolutions) {
+      entry.resolutions.set(`${r.type}:${r.key}:${r.value}`, r)
+    }
   }
 
   const entries: ExtractedContextEntry[] = []
-  for (const [domain, { entityIds, summaries }] of byDomain) {
+  for (const [domain, { entityIds, summaries, resolutions }] of byDomain) {
     const allIds = [...entityIds].slice(0, MAX_ENTITY_IDS)
     const combined = summaries.join("; ").slice(0, MAX_SUMMARY_LEN)
-    entries.push({ domain, entityIds: allIds, summary: combined })
+    const allResolutions = [...resolutions.values()].slice(0, MAX_RESOLUTIONS)
+    entries.push({
+      domain,
+      entityIds: allIds,
+      summary: combined,
+      resolutions: allResolutions,
+    })
   }
 
   return entries
