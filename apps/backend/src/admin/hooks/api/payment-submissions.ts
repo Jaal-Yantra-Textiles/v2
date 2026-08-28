@@ -86,6 +86,14 @@ export interface PaymentSubmissionsListResponse {
 export interface PaymentSubmissionsQuery {
   status?: string
   partner_id?: string
+  /**
+   * Free-text over the submission id.
+   *
+   * ⚠️ The list query is validated `.strict()`, so an undeclared key is a 400
+   * rather than an ignored extra — send only what is here, and omit rather
+   * than pass `undefined`.
+   */
+  q?: string
   limit?: number
   offset?: number
 }

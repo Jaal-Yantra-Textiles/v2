@@ -14,6 +14,19 @@ export const AdminListPaymentSubmissionsQuerySchema = z.object({
     ])
     .optional(),
   partner_id: z.string().optional(),
+  /**
+   * Free-text search over the submission id.
+   *
+   * 🔴 The list screen has always rendered a search box, and nothing ever sent
+   * its value anywhere — a control that looks like it filters and does not is
+   * worse than no control, because an unchanged list reads as "no other
+   * results" (#1622). The box is now honoured.
+   *
+   * ⚠️ `zodValidator` forces `.strict()`, so a param that is not declared here
+   * is a 400 rather than an ignored extra. Declaring it is what makes the UI
+   * able to send it at all.
+   */
+  q: z.string().trim().min(1).optional(),
   limit: z.coerce.number().int().min(1).max(100).default(20).optional(),
   offset: z.coerce.number().int().min(0).default(0).optional(),
 })
