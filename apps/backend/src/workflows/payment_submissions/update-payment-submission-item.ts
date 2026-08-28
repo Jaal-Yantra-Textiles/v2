@@ -15,6 +15,10 @@ import {
   designsBilledWithoutRunEvidence,
   runlessResubmitMessage,
 } from "./lib/run-evidence-guard"
+import {
+  listPartnerRunClaims,
+  runsAlreadyClaimedMessage,
+} from "./lib/run-claims"
 import { resolveDesignLineAmount } from "./create-payment-submission"
 
 /**
@@ -202,26 +206,24 @@ const validateItemEditStep = createStep(
           String(input.submission_id)
       )
 
+      /**
+       * 🔴 Scoped by PARTNER rather than by this line's design. `foreignPriors`
+       * above is design-scoped and stays that way for the runless check, which
+       * IS a question about designs — but a run claimed by a line sourced from
+       * something other than a design carries `design_id: null` and would be
+       * invisible to it. See `lib/run-claims`.
+       */
       if (runIds.length) {
-        const billed = new Map<string, string>()
-        for (const prior of foreignPriors) {
-          if (String(prior.submission?.status || "") === "Rejected") continue
-          for (const runId of (prior.production_run_ids || []) as string[]) {
-            if (!billed.has(String(runId))) {
-              billed.set(
-                String(runId),
-                String(prior.submission?.id || prior.submission_id || "unknown")
-              )
-            }
-          }
-        }
+        const billed = await listPartnerRunClaims(
+          service as any,
+          String(submission.partner_id || ""),
+          { excludeSubmissionId: String(input.submission_id) }
+        )
         const duplicates = runIds.filter((id) => billed.has(id))
         if (duplicates.length) {
           throw new MedusaError(
             MedusaError.Types.INVALID_DATA,
-            `Production runs already paid for: ${duplicates
-              .map((id) => `${id} (submission ${billed.get(id)})`)
-              .join(", ")}`
+            runsAlreadyClaimedMessage(duplicates, billed)
           )
         }
       }

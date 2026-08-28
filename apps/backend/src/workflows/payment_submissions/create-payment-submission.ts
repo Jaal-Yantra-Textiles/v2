@@ -18,6 +18,10 @@ import {
   designsBilledWithoutRunEvidence,
   runlessResubmitMessage,
 } from "./lib/run-evidence-guard"
+import {
+  listPartnerRunClaims,
+  runsAlreadyClaimedMessage,
+} from "./lib/run-claims"
 import { PARTNER_MODULE } from "../../modules/partner"
 import { DESIGN_MODULE } from "../../modules/designs"
 import { TASKS_MODULE } from "../../modules/tasks"
@@ -542,32 +546,31 @@ const validateDesignsForSubmissionStep = createStep(
         }
       }
 
-      // Already paid for? A Rejected submission never paid anyone, so its
-      // lines release their runs; everything else — Draft, Pending,
-      // Under_Review, Approved, Paid — is a live claim on that run.
+      /**
+       * Already paid for? A Rejected submission never paid anyone, so its
+       * lines release their runs; everything else — Draft, Pending,
+       * Under_Review, Approved, Paid — is a live claim on that run.
+       *
+       * 🔴 Scoped by PARTNER, not by design. This used to fetch priors with
+       * `{ design_id: input.design_ids }`, on the reasoning that a run belongs
+       * to one design so a prior billing of it could only sit on a line for
+       * that design. A line sourced from anything other than a design carries
+       * `design_id: null`, so that query could not see it, and the same run
+       * could be billed once from each side with neither claim visible to the
+       * other. See `lib/run-claims`.
+       */
       const submissionService: PaymentSubmissionsService = container.resolve(
         PAYMENT_SUBMISSIONS_MODULE
       )
-      const priorItems = await submissionService.listPaymentSubmissionItems(
-        { design_id: input.design_ids },
-        { relations: ["submission"] }
+      const billed = await listPartnerRunClaims(
+        submissionService as any,
+        input.partner_id
       )
-      const billed = new Map<string, string>()
-      for (const item of (priorItems || []) as any[]) {
-        if (item.submission?.status === "Rejected") continue
-        for (const runId of (item.production_run_ids || []) as string[]) {
-          if (!billed.has(runId)) {
-            billed.set(runId, item.submission?.id || item.submission_id)
-          }
-        }
-      }
       const duplicates = allClaimedRunIds.filter((id) => billed.has(id))
       if (duplicates.length) {
         throw new MedusaError(
           MedusaError.Types.INVALID_DATA,
-          `Production runs already paid for: ${duplicates
-            .map((id) => `${id} (submission ${billed.get(id)})`)
-            .join(", ")}`
+          runsAlreadyClaimedMessage(duplicates, billed)
         )
       }
     }

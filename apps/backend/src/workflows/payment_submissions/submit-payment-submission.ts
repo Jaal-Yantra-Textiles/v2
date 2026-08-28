@@ -13,6 +13,10 @@ import {
   designsBilledWithoutRunEvidence,
   runlessResubmitMessage,
 } from "./lib/run-evidence-guard"
+import {
+  listPartnerRunClaims,
+  runsAlreadyClaimedMessage,
+} from "./lib/run-claims"
 
 /**
  * Turn a Draft payment submission into a real claim — Draft → Pending, in place.
@@ -132,6 +136,38 @@ const validateSubmissionForSubmitStep = createStep(
       ),
     ]
 
+    /**
+     * The run-level guard, lifted OUT of the `designIds.length` block below.
+     *
+     * 🔴 It used to sit inside it, so a submission carrying no design-sourced
+     * line at all — every line keyed on something else — skipped all three
+     * guards and submitted unchecked. The design gate belongs to the design
+     * questions; whether a run is already claimed is not one of them.
+     *
+     * Scoped by partner (see `lib/run-claims`) and excluding this submission,
+     * since a claim cannot conflict with itself.
+     */
+    const claimedRunIds = [
+      ...new Set(
+        items.flatMap((i) => (i.production_run_ids || []).map(String))
+      ),
+    ].filter(Boolean)
+
+    if (claimedRunIds.length) {
+      const billed = await listPartnerRunClaims(
+        service as any,
+        String(submission.partner_id || ""),
+        { excludeSubmissionId: String(input.submission_id) }
+      )
+      const duplicates = claimedRunIds.filter((id) => billed.has(id))
+      if (duplicates.length) {
+        throw new MedusaError(
+          MedusaError.Types.INVALID_DATA,
+          runsAlreadyClaimedMessage(duplicates, billed)
+        )
+      }
+    }
+
     if (designIds.length) {
       /**
        * Every prior line for these designs, this submission's own excluded —
@@ -176,40 +212,9 @@ const validateSubmissionForSubmitStep = createStep(
       }
 
       /**
-       * 2. The run-level guard. A Rejected prior released its runs; everything
-       *    else — Draft included, because another draft holding the same run
-       *    is a duplicate this one must not race — is a live claim.
+       * 2. The run-level guard has already run above, unconditionally and
+       *    scoped by partner. It is deliberately NOT repeated here.
        */
-      const claimedRunIds = [
-        ...new Set(
-          items.flatMap((i) => (i.production_run_ids || []).map(String))
-        ),
-      ].filter(Boolean)
-
-      if (claimedRunIds.length) {
-        const billed = new Map<string, string>()
-        for (const item of foreignPriors) {
-          if (String(item.submission?.status || "") === "Rejected") continue
-          for (const runId of (item.production_run_ids || []) as string[]) {
-            if (!billed.has(String(runId))) {
-              billed.set(
-                String(runId),
-                String(item.submission?.id || item.submission_id || "unknown")
-              )
-            }
-          }
-        }
-
-        const duplicates = claimedRunIds.filter((id) => billed.has(id))
-        if (duplicates.length) {
-          throw new MedusaError(
-            MedusaError.Types.INVALID_DATA,
-            `Production runs already paid for: ${duplicates
-              .map((id) => `${id} (submission ${billed.get(id)})`)
-              .join(", ")}`
-          )
-        }
-      }
 
       /**
        * 3. And the runless half of the same question (#1556). A draft line that
