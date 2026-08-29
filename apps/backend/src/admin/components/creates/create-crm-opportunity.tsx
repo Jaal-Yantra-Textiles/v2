@@ -1,3 +1,4 @@
+import { useMemo } from "react";
 import { useForm } from "react-hook-form";
 import { z } from "@medusajs/framework/zod";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -10,6 +11,8 @@ import { RouteFocusModal } from "../modal/route-focus-modal";
 import { Form } from "../common/form";
 import { KeyboundForm } from "../utilitites/key-bound-form";
 import { sdk } from "../../lib/config";
+import { fetchAllCrm } from "../../lib/crm-list";
+import { Combobox } from "../inputs/combobox/combobox";
 import {
   CRM_OPPORTUNITY_DEFAULT_STAGE,
   CRM_OPPORTUNITY_STAGES,
@@ -74,26 +77,43 @@ export const CreateCrmOpportunityComponent = () => {
    * Contacts and companies as pickers rather than raw id fields. An id typed by
    * hand is how a deal ends up owned by nobody — the board resolves these ids
    * to names, and an unresolvable one renders as the ULID itself.
+   *
+   * PAGED, not `limit: 500`. The route clamps limit to 100 without complaining,
+   * so this dropdown used to hold the first 100 of 234 contacts: the other 134
+   * could not be picked at all, and arriving here from one of them prefilled an
+   * id with no matching option, which renders as the "Nobody yet" placeholder —
+   * indistinguishable from having chosen nobody.
    */
   const { data: refs } = useQuery({
     queryKey: ["crm-opportunity-refs"],
     queryFn: async () => {
       const [people, companies] = await Promise.all([
-        sdk.client.fetch<{ crm_people: CrmPerson[] }>("/admin/crm/people", {
-          query: { limit: 500 },
-        }),
-        sdk.client.fetch<{ crm_companies: CrmCompany[] }>(
-          "/admin/crm/companies",
-          { query: { limit: 200 } }
-        ),
+        fetchAllCrm<CrmPerson>("/admin/crm/people", "crm_people"),
+        fetchAllCrm<CrmCompany>("/admin/crm/companies", "crm_companies"),
       ])
-      return {
-        people: people.crm_people ?? [],
-        companies: companies.crm_companies ?? [],
-      }
+      return { people: people.rows, companies: companies.rows }
     },
     staleTime: 60_000,
   })
+
+  const personOptions = useMemo(
+    () =>
+      (refs?.people ?? []).map((p) => ({
+        label:
+          [p.first_name, p.last_name].filter(Boolean).join(" ").trim() || p.id,
+        value: p.id,
+      })),
+    [refs?.people]
+  )
+
+  const companyOptions = useMemo(
+    () =>
+      (refs?.companies ?? []).map((c) => ({
+        label: c.name || c.id,
+        value: c.id,
+      })),
+    [refs?.companies]
+  )
 
   const { mutateAsync, isPending } = useMutation({
     mutationFn: (body: Record<string, unknown>) =>
@@ -259,27 +279,29 @@ export const CreateCrmOpportunityComponent = () => {
                   </Form.Item>
                 )}
               />
+              {/* Searchable: 234 contacts is past the point where a plain
+                  dropdown is usable, and the name is what the user knows. */}
               <Form.Field
                 control={form.control}
                 name="owner_person_id"
-                render={({ field: { onChange, ...field } }) => (
+                render={({ field: { onChange, value, ref: _ref, ...field } }) => (
                   <Form.Item>
                     <Form.Label optional>Contact</Form.Label>
                     <Form.Control>
-                      <Select {...field} onValueChange={onChange}>
-                        <Select.Trigger>
-                          <Select.Value placeholder="Nobody yet" />
-                        </Select.Trigger>
-                        <Select.Content>
-                          {(refs?.people ?? []).map((p) => (
-                            <Select.Item key={p.id} value={p.id}>
-                              {[p.first_name, p.last_name]
-                                .filter(Boolean)
-                                .join(" ") || p.id}
-                            </Select.Item>
-                          ))}
-                        </Select.Content>
-                      </Select>
+                      {/* The wrapper carries the test hook: when a value is
+                          selected the Combobox hides its input and renders the
+                          chosen label in a SIBLING element, so anchoring a test
+                          on the input alone cannot see what is selected. */}
+                      <div data-testid="crm-opportunity-contact">
+                        <Combobox
+                          {...field}
+                          options={personOptions}
+                          value={value}
+                          onChange={(next) => onChange((next as string) || "")}
+                          allowClear
+                          placeholder="Search contacts"
+                        />
+                      </div>
                     </Form.Control>
                     <Form.ErrorMessage />
                   </Form.Item>
@@ -288,22 +310,20 @@ export const CreateCrmOpportunityComponent = () => {
               <Form.Field
                 control={form.control}
                 name="company_id"
-                render={({ field: { onChange, ...field } }) => (
+                render={({ field: { onChange, value, ref: _ref, ...field } }) => (
                   <Form.Item>
                     <Form.Label optional>Company</Form.Label>
                     <Form.Control>
-                      <Select {...field} onValueChange={onChange}>
-                        <Select.Trigger>
-                          <Select.Value placeholder="No company" />
-                        </Select.Trigger>
-                        <Select.Content>
-                          {(refs?.companies ?? []).map((c) => (
-                            <Select.Item key={c.id} value={c.id}>
-                              {c.name || c.id}
-                            </Select.Item>
-                          ))}
-                        </Select.Content>
-                      </Select>
+                      <div data-testid="crm-opportunity-company">
+                        <Combobox
+                          {...field}
+                          options={companyOptions}
+                          value={value}
+                          onChange={(next) => onChange((next as string) || "")}
+                          allowClear
+                          placeholder="Search companies"
+                        />
+                      </div>
                     </Form.Control>
                     <Form.ErrorMessage />
                   </Form.Item>

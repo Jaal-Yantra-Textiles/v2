@@ -21,6 +21,7 @@ import {
   type CrmOpportunityStage,
 } from "../../../../modules/crm/stages";
 import { sdk } from "../../../lib/config";
+import { fetchAllCrm } from "../../../lib/crm-list";
 
 /**
  * The deal board. Columns come from the shared stage vocabulary in
@@ -70,23 +71,25 @@ const CrmPipelinePage = () => {
   const { data, isLoading } = useQuery({
     queryKey: ["crm-pipeline"],
     queryFn: async () => {
+      /**
+       * PAGED, all three. The route clamps `limit` to 100 and says nothing, so
+       * `limit: 500` was serving the first 100 of 234 contacts — and the owner
+       * line below only renders when the id RESOLVES to a name, so every deal
+       * whose contact sat past row 100 rendered as though it had no contact at
+       * all. The deal was fine; the lookup table was short.
+       */
       const [opps, people, companies] = await Promise.all([
-        sdk.client.fetch<{ crm_opportunities: CrmOpportunity[] }>(
+        fetchAllCrm<CrmOpportunity>(
           "/admin/crm/opportunities",
-          { query: { limit: 200 } }
+          "crm_opportunities"
         ),
-        sdk.client.fetch<{ crm_people: CrmPerson[] }>("/admin/crm/people", {
-          query: { limit: 500 },
-        }),
-        sdk.client.fetch<{ crm_companies: CrmCompany[] }>(
-          "/admin/crm/companies",
-          { query: { limit: 200 } }
-        ),
+        fetchAllCrm<CrmPerson>("/admin/crm/people", "crm_people"),
+        fetchAllCrm<CrmCompany>("/admin/crm/companies", "crm_companies"),
       ]);
       return {
-        opportunities: opps.crm_opportunities ?? [],
-        people: people.crm_people ?? [],
-        companies: companies.crm_companies ?? [],
+        opportunities: opps.rows,
+        people: people.rows,
+        companies: companies.rows,
       };
     },
     staleTime: 15_000,
@@ -222,16 +225,24 @@ const CrmPipelinePage = () => {
                 </div>
               ) : (
                 deals.map((o) => {
+                  /**
+                   * Falls back to the raw id rather than to nothing. A deal
+                   * that HAS a contact the lookup cannot name must not look
+                   * identical to a deal with no contact — those are different
+                   * facts, and silently collapsing them is what made a
+                   * correctly-created deal read as "no contact associated".
+                   */
                   const owner = o.owner_person_id
-                    ? nameById.get(o.owner_person_id)
+                    ? nameById.get(o.owner_person_id) || o.owner_person_id
                     : null;
                   const company = o.company_id
-                    ? companyById.get(o.company_id)
+                    ? companyById.get(o.company_id) || o.company_id
                     : null;
                   const amount = formatAmount(o.amount, o.currency);
                   return (
                     <div
                       key={o.id}
+                      data-testid="crm-deal-card"
                       className="flex flex-col gap-2 rounded-md border border-ui-border-base bg-ui-bg-base p-3"
                     >
                       {/* Deliberately not a link: there is no opportunity

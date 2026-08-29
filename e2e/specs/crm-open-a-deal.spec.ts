@@ -26,6 +26,14 @@ test.describe("Open a CRM deal (#1552)", () => {
   let contactName: string
   let contactId: string
   const stamp = Date.now()
+  /**
+   * ⚠️ Tracked so afterAll can remove them. The CRM store is a FILE that no
+   * snapshot restore resets, so contacts left behind here are permanent — and
+   * a hundred of them push every OTHER spec's fixtures off the first page of
+   * `/admin/crm/people`, which is what broke `crm-list-ordering`'s
+   * route-ordering case on the run that first added them.
+   */
+  const fillerIds: string[] = []
 
   test.beforeAll(async () => {
     if (!fs.existsSync(SEED_FILE)) {
@@ -53,6 +61,18 @@ test.describe("Open a CRM deal (#1552)", () => {
     })
     expect([200, 201]).toContain(person.status())
     contactId = (await person.json()).crm_person.id
+    await api.dispose()
+  })
+
+  test.afterAll(async () => {
+    if (!fillerIds.length) return
+    const api = await pwRequest.newContext({
+      baseURL: BASE,
+      extraHTTPHeaders: { Authorization: `Bearer ${token}` },
+    })
+    for (const id of fillerIds) {
+      await api.delete(`/admin/crm/people/${id}`)
+    }
     await api.dispose()
   })
 
@@ -134,7 +154,7 @@ test.describe("Open a CRM deal (#1552)", () => {
      * the service, and a workflow whose side effects fail can still leave the
      * caller a created row; the board is where that shows.
      */
-    await page.waitForURL(/\/app\/crm\/pipeline/, { timeout: 20000 })
+    await page.waitForURL(/\/app\/crm\/pipeline$/, { timeout: 20000 })
     await expect(page.getByText(title)).toBeVisible({ timeout: 20000 })
   })
 
@@ -160,15 +180,131 @@ test.describe("Open a CRM deal (#1552)", () => {
 
     /**
      * Pre-SELECTED, not merely present in the picker — asserted on the Contact
-     * field's own trigger. Anchoring on the name anywhere on the page would
-     * match the contact heading behind the modal and pass with the field left
-     * on "Nobody yet".
+     * field itself. Anchoring on the name anywhere on the page would match the
+     * contact heading behind the modal and pass with the field left empty.
      */
-    const contactField = page
-      .locator("form")
-      .getByRole("combobox")
-      .filter({ hasText: `${contactName} Buyer` })
-    await expect(contactField).toBeVisible({ timeout: 15000 })
+    /**
+     * ⚠️ Blur first, and assert the popover is shut. The Combobox renders its
+     * option list INSIDE this wrapper, so a wrapper that merely "contains the
+     * name" may just be showing an open dropdown with that contact somewhere
+     * in it — which is a different claim from the field being pre-selected,
+     * and passes in cases where the prefill did nothing. (The negative control
+     * for this file showed exactly that text: every option, concatenated.)
+     */
+    await page.getByLabel("Title").click()
+    await expect(page.getByRole("option")).toHaveCount(0)
+    await expect(
+      page.getByTestId("crm-opportunity-contact")
+    ).toContainText(`${contactName} Buyer`, { timeout: 15000 })
+  })
+
+  /**
+   * 🔴 The case above passes on a near-empty store no matter what the code
+   * does, because one seeded contact is always inside the first page. THIS is
+   * the case that reproduces what was reported from production.
+   *
+   * `/admin/crm/people` clamps `limit` to 100 and does not complain:
+   *
+   *   const limit = Math.min(Math.max(Number(q.limit) || 20, 1), 100)
+   *
+   * Both CRM screens asked for `limit: 500` and believed they had everything.
+   * With 234 contacts in production that meant the picker held the first 100,
+   * and a contact past that point could not be chosen — while arriving from
+   * their page prefilled an id with no matching option, which renders as an
+   * empty field. Verified against production: contact `crmp_2e6be87e006f` is
+   * not in the first 100 of 234, and the deal opened for them stored the
+   * owner correctly while the board showed no contact at all.
+   */
+  test("offers EVERY contact, not the first hundred", async ({ page }) => {
+    const api = await pwRequest.newContext({
+      baseURL: BASE,
+      extraHTTPHeaders: { Authorization: `Bearer ${token}` },
+    })
+
+    // Push the store past one page, so the assertion below is not vacuous.
+    // Bounded: only tops up to the threshold, and the store never resets.
+    const before = await api.get("/admin/crm/people?limit=1")
+    let total = (await before.json()).count
+    for (let i = total; i < 105; i++) {
+      const res = await api.post("/admin/crm/people", {
+        data: {
+          first_name: `Filler-${stamp}-${i}`,
+          last_name: "Contact",
+          email: `filler-${stamp}-${i}@jyt.test`,
+        },
+      })
+      expect([200, 201]).toContain(res.status())
+      fillerIds.push((await res.json()).crm_person.id)
+      total++
+    }
+    expect(total).toBeGreaterThan(100)
+
+    await login(page)
+    await page.goto("/app/crm/pipeline/create")
+    await expect(page.getByRole("heading", { name: "Open a deal" })).toBeVisible(
+      { timeout: 20000 }
+    )
+
+    const contact = page.getByTestId("crm-opportunity-contact")
+    await contact.getByRole("combobox").click()
+
+    /**
+     * Every contact, counted — not "the one I seeded is present". Presence
+     * alone passes on a truncated list whenever the fixture lands early; the
+     * count is what the truncation actually changes (100 vs 105+).
+     */
+    await expect
+      .poll(async () => await page.getByRole("option").count(), {
+        timeout: 20000,
+      })
+      .toBe(total)
+
+    // Searchable, which a 234-row dropdown has to be to be usable at all.
+    await contact.getByRole("combobox").fill(contactName)
+    await expect(page.getByRole("option")).toHaveCount(1)
+    await page.getByRole("option").first().click()
+
+    const title = `E2E Deal Search ${stamp}`
+    await page.getByLabel("Title").fill(title)
+    await page.getByRole("button", { name: "Open deal" }).click()
+
+    /**
+     * 🔴 Anchored to the END of the path. `/\/app\/crm\/pipeline/` also
+     * matches `/app/crm/pipeline/create`, which is where this click STARTS —
+     * so it returns instantly whether or not the deal was ever created, and
+     * the API read below then races the POST it is supposed to be checking.
+     * That is precisely how this case failed on its first run while the
+     * feature underneath it worked.
+     */
+    await page.waitForURL(/\/app\/crm\/pipeline$/, { timeout: 20000 })
+    await expect(page.getByText(title)).toBeVisible({ timeout: 20000 })
+
+    /**
+     * The reported symptom was "no contact is associated to it", so assert on
+     * the STORED record, not on the card. The board rendering the contact and
+     * the deal carrying one are different claims, and it was the rendering
+     * that failed in production.
+     */
+    const opps = await api.get("/admin/crm/opportunities?limit=100")
+    const created = (await opps.json()).crm_opportunities.find(
+      (o: any) => o.title === title
+    )
+    expect(created).toBeTruthy()
+    expect(created.owner_person_id).toBe(contactId)
+    await api.dispose()
+
+    // ...and the board NAMES them. This is the half that actually broke in
+    // production: the card only renders its contact line when the id resolves
+    // through the (truncated) people list, so a deal carrying a contact past
+    // row 100 rendered identically to one with no contact at all.
+    // Anchored on the CARD, not on any div containing the title — the success
+    // toast carries the title too, and `.last()` over bare divs picked the
+    // toast, which passes or fails for reasons that have nothing to do with
+    // the board.
+    const card = page
+      .getByTestId("crm-deal-card")
+      .filter({ hasText: title })
+    await expect(card).toContainText(`${contactName} Buyer`)
   })
 
 })
