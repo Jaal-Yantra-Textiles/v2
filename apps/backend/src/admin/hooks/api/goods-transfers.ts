@@ -37,6 +37,25 @@ export type AdminGoodsTransfer = {
   reason: "finishing" | "qc" | "packaging" | "stock" | "customer" | "other"
   status: GoodsTransferStatus
   shipment_id: string | null
+  /**
+   * Whether a carrier was booked for this hop — and whether we can still see it
+   * (#1553). THREE values, not two: `unresolved` means `shipment_id` names a
+   * shipment the server could not read, which must never render as "no carrier
+   * booked" — that is how someone re-books goods already collected.
+   */
+  carrier_state?: "not_booked" | "booked" | "unresolved"
+  /** The waybill facts. Null unless `carrier_state` is `booked`. */
+  shipment?: {
+    shipment_id: string
+    carrier: string | null
+    awb: string | null
+    tracking_number: string | null
+    tracking_url: string | null
+    label_url: string | null
+    status: string | null
+    pickup_location_name: string | null
+    pickup_scheduled_date: string | null
+  } | null
   shipped_at: string | null
   received_at: string | null
   received_quantity: number | null

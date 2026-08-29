@@ -1800,6 +1800,223 @@ async function seedPaymentMethodsPartner(container: any): Promise<{
 }
 
 /**
+ * #1553 — a run whose transfers cover ALL THREE carrier states, so the row can
+ * be driven in a browser.
+ *
+ * 🔴 The point of the change is not "show the AWB". It is that `not_booked` and
+ * `unresolved` must not read the same: one is a van run with no waybill and
+ * that is the final answer, the other is a booked shipment the server could not
+ * read — and collapsing them sends an operator to re-book goods the carrier has
+ * already collected. A fixture with only a booked hop cannot fail that.
+ */
+async function seedRunTransferCarrier(container: any): Promise<{
+  runId: string
+  designName: string
+  bookedAwb: string
+  bookedCarrier: string
+  danglingShipmentId: string
+}> {
+  const designService: any = container.resolve("design")
+  const runService: any = container.resolve("production_runs")
+  const fulfilled: any = container.resolve("fullfilled_orders")
+  const stockLocation: any = container.resolve(Modules.STOCK_LOCATION)
+
+  const stamp = Date.now()
+
+  const designName = `Transfer Carrier Fixture (e2e ${stamp})`
+  const design = await designService.createDesigns({
+    name: designName,
+    description: "e2e #1553 goods-transfer carrier fixture",
+    design_type: "Original",
+    status: "Technical_Review",
+    priority: "Medium",
+  })
+  const designId = (Array.isArray(design) ? design[0] : design).id as string
+
+  const run = await runService.createProductionRuns({
+    design_id: designId,
+    run_type: "production",
+    status: "completed",
+    quantity: 12,
+    produced_quantity: 12,
+    completed_at: new Date(),
+    snapshot: { design: { id: designId, name: designName } },
+    captured_at: new Date(),
+  })
+  const runId = (Array.isArray(run) ? run[0] : run).id as string
+
+  // Named locations, so the row reads as a movement rather than two ids. The
+  // component falls back to the raw id, which would pass an assertion while
+  // looking broken.
+  const mkLocation = async (name: string) => {
+    const created = await stockLocation.createStockLocations({ name })
+    return (Array.isArray(created) ? created[0] : created).id as string
+  }
+  const fromLocationId = await mkLocation(`E2E Transfer Origin ${stamp}`)
+  const toLocationId = await mkLocation(`E2E Transfer Finisher ${stamp}`)
+
+  const mkTransfer = async (overrides: Record<string, any>) => {
+    const created = await fulfilled.createGoodsTransfers({
+      production_run_id: runId,
+      design_id: designId,
+      quantity: 4,
+      from_location_id: fromLocationId,
+      to_location_id: toLocationId,
+      reason: "finishing",
+      status: "in_transit",
+      ...overrides,
+    })
+    return (Array.isArray(created) ? created[0] : created).id as string
+  }
+
+  // ── booked ────────────────────────────────────────────────────────────────
+  // The whole point: a waybill that outlives the booking toast.
+  const bookedCarrier = "Bluedart"
+  const bookedAwb = `E2ECARRIER${stamp}`
+  const shipmentCreated = await fulfilled.createInventoryShipments({
+    carrier: bookedCarrier,
+    awb: bookedAwb,
+    tracking_number: bookedAwb,
+    tracking_url: `https://example.invalid/track/${bookedAwb}`,
+    label_url: `https://example.invalid/label/${bookedAwb}.pdf`,
+    status: "pickup_scheduled",
+    pickup_location_name: `E2E Transfer Origin ${stamp}`,
+    pickup_scheduled_date: "2026-09-02",
+  })
+  const shipment = Array.isArray(shipmentCreated)
+    ? shipmentCreated[0]
+    : shipmentCreated
+  await mkTransfer({
+    shipment_id: shipment.id,
+    shipped_at: new Date("2026-08-30T04:00:00.000Z"),
+  })
+
+  // ── not_booked ────────────────────────────────────────────────────────────
+  // A van run between two of our own locations. No AWB, and that is correct.
+  await mkTransfer({ reason: "stock", status: "draft", shipment_id: null })
+
+  // ── unresolved ────────────────────────────────────────────────────────────
+  // A `shipment_id` naming a row that cannot be read. Deliberately a plain
+  // string rather than a deleted row: `shipment_id` is a column, not a
+  // relation, so nothing stops it dangling — which is exactly why the third
+  // state has to exist.
+  const danglingShipmentId = `ship_e2e_missing_${stamp}`
+  await mkTransfer({ reason: "qc", shipment_id: danglingShipmentId })
+
+  return { runId, designName, bookedAwb, bookedCarrier, danglingShipmentId }
+}
+
+/**
+ * #1612 — a partner carrying BOTH money records, so the merged ledger panel can
+ * be driven in a browser.
+ *
+ * 🔴 The defect this closes is a panel that shows half the money and reads as
+ * complete, so the fixture is deliberately mixed: a payout (a submission with a
+ * line behind it) that no `internal_payments` row was ever written for — every
+ * payout since #1638 — plus a historical `internal_payments` row that no payout
+ * points at. A partner with only one of the two cannot fail the old code.
+ */
+async function seedPartnerLedgerFixture(container: any): Promise<{
+  partnerId: string
+  partnerName: string
+  designName: string
+  submissionId: string
+  payoutAmount: number
+  paymentAmount: number
+}> {
+  const partnerModule: any = container.resolve("partner")
+  const designService: any = container.resolve("design")
+  const submissionsService: any = container.resolve("payment_submissions")
+  const paymentsService: any = container.resolve("internal_payments")
+  const remoteLink: any = container.resolve(ContainerRegistrationKeys.LINK)
+
+  const stamp = Date.now()
+
+  const created = await partnerModule.createPartners({
+    name: `E2E Ledger Partner ${stamp}`,
+    handle: `e2e-ledger-${stamp}`,
+    status: "active",
+    is_verified: true,
+  })
+  const partner = Array.isArray(created) ? created[0] : created
+
+  const designName = `Ledger Fixture Design (e2e ${stamp})`
+  const design = await designService.createDesigns({
+    name: designName,
+    description: "e2e #1612 merged partner ledger fixture",
+    design_type: "Original",
+    status: "Technical_Review",
+    priority: "Medium",
+    estimated_cost: 900,
+  })
+  const designId = (Array.isArray(design) ? design[0] : design).id as string
+  await remoteLink.create({
+    design: { design_id: designId },
+    partner: { partner_id: partner.id },
+  })
+
+  /**
+   * The payout half. `Approved` rather than `Paid`: approval is exactly the
+   * state that writes no payment row, so this entry is invisible to the old
+   * `internal_payments`-only panel AND lands in `outstanding` rather than
+   * `paid`, which the totals line then has to distinguish.
+   */
+  const payoutAmount = 4500
+  const submissionCreated = await submissionsService.createPaymentSubmissions({
+    partner_id: partner.id,
+    status: "Approved",
+    total_amount: payoutAmount,
+    currency: "inr",
+    submitted_at: new Date("2026-08-01T04:00:00.000Z"),
+    reviewed_at: new Date("2026-08-02T04:00:00.000Z"),
+  })
+  const submission = Array.isArray(submissionCreated)
+    ? submissionCreated[0]
+    : submissionCreated
+
+  await submissionsService.createPaymentSubmissionItems({
+    submission_id: submission.id,
+    source_type: "design",
+    design_id: designId,
+    design_name: designName,
+    amount: payoutAmount,
+    quantity: 5,
+    unit_amount: 900,
+  })
+
+  /**
+   * The payment half — a row of the shape the 31 historical ones have: money
+   * that moved, with no statement of what it was for. Deliberately a DIFFERENT
+   * amount from the payout, so a panel that renders one entry twice shows a
+   * total that is visibly wrong rather than coincidentally right.
+   */
+  const paymentAmount = 1200
+  const paymentCreated = await paymentsService.createPayments({
+    amount: paymentAmount,
+    status: "Pending",
+    payment_type: "Bank",
+    payment_date: new Date("2025-11-14T04:00:00.000Z"),
+  })
+  const payment = Array.isArray(paymentCreated)
+    ? paymentCreated[0]
+    : paymentCreated
+
+  await remoteLink.create({
+    partner: { partner_id: partner.id },
+    internal_payments: { internal_payments_id: payment.id },
+  })
+
+  return {
+    partnerId: partner.id as string,
+    partnerName: partner.name as string,
+    designName,
+    submissionId: submission.id as string,
+    payoutAmount,
+    paymentAmount,
+  }
+}
+
+/**
  * #1596 — a submission carrying a mixed-price line beside an ordinary one, so
  * the Rate cell can be driven in a browser.
  *
@@ -2056,6 +2273,9 @@ export default async function e2eSeed({ container }: ExecArgs) {
   logger.info("E2E seed: creating the #1228 parked production run + partners...")
   const parkedRun = await seedParkedProductionRun(container)
 
+  logger.info("E2E seed: run transfer carrier fixture (#1553)...")
+  const transferCarrier = await seedRunTransferCarrier(container)
+
   logger.info("E2E seed: creating the #1363 allocation design (3-item BOM) + approvable run...")
   const allocation = await seedAllocationDesignRun(container)
 
@@ -2072,6 +2292,9 @@ export default async function e2eSeed({ container }: ExecArgs) {
 
   logger.info("E2E seed: rate-breakdown submission fixture (#1596)...")
   const rateBreakdown = await seedRateBreakdownSubmission(container)
+
+  logger.info("E2E seed: partner ledger fixture (#1612)...")
+  const partnerLedger = await seedPartnerLedgerFixture(container)
 
   logger.info("E2E seed: creating the #1439 admin quote fixtures (active + superseded)...")
   const adminQuotes = await seedAdminQuotes(container)
@@ -2229,6 +2452,22 @@ export default async function e2eSeed({ container }: ExecArgs) {
     rateMixedBreakdownText: rateBreakdown.mixedBreakdownText,
     rateMixedAmount: rateBreakdown.mixedAmount,
     rateFlatUnitAmount: rateBreakdown.flatUnitAmount,
+    // #1553 goods-transfer carrier facts — consumed by
+    // run-transfer-carrier.spec.ts (admin, CI). NOT single-use: the spec reads
+    // the rows and cancels out of the create drawer.
+    transferRunId: transferCarrier.runId,
+    transferDesignName: transferCarrier.designName,
+    transferBookedAwb: transferCarrier.bookedAwb,
+    transferBookedCarrier: transferCarrier.bookedCarrier,
+    transferDanglingShipmentId: transferCarrier.danglingShipmentId,
+    // #1612 merged partner ledger — consumed by partner-ledger-panel.spec.ts
+    // (admin, CI). NOT single-use: the spec only reads the panel.
+    ledgerPartnerId: partnerLedger.partnerId,
+    ledgerPartnerName: partnerLedger.partnerName,
+    ledgerDesignName: partnerLedger.designName,
+    ledgerSubmissionId: partnerLedger.submissionId,
+    ledgerPayoutAmount: partnerLedger.payoutAmount,
+    ledgerPaymentAmount: partnerLedger.paymentAmount,
   }
 
   fs.writeFileSync(SEED_FILE, JSON.stringify(seedData, null, 2))
