@@ -15,6 +15,7 @@ import { MedusaError } from "@medusajs/framework/utils";
 import type { ModelRepository } from "@jytextiles/mikrohyperbee";
 
 import { CRM_MODEL_BY_SEGMENT } from "./crm-contracts";
+import { serializeListOrder } from "./list-order";
 
 /**
  * The `limit` sent when a caller asks for every row (`take: null`).
@@ -47,12 +48,57 @@ const ERROR_TYPE: Record<string, string> = {
   not_allowed: MedusaError.Types.NOT_ALLOWED,
 };
 
+/**
+ * What each node URL has told us it understands, probed once per process.
+ *
+ * Cached as the PROMISE, not the result, so concurrent first requests share one
+ * probe rather than each opening their own.
+ */
+const CAPABILITIES_BY_URL = new Map<string, Promise<Set<string>>>();
+
+/** Exposed for tests, which must not inherit another case's probe. */
+export const __resetCrmNodeCapabilities = () => CAPABILITIES_BY_URL.clear();
+
+const probeCapabilities = async (
+  baseUrl: string,
+  token?: string
+): Promise<Set<string>> => {
+  try {
+    const res = await fetch(`${baseUrl}/health`, {
+      headers: token ? { authorization: `Bearer ${token}` } : {},
+    });
+    const data = await res.json().catch(() => ({}));
+    const caps = Array.isArray(data?.capabilities) ? data.capabilities : [];
+    return new Set(caps.map(String));
+  } catch {
+    /**
+     * ⚠️ An unreachable /health means "assume nothing". The list call that
+     * follows will fail on its own terms if the node is genuinely down; what
+     * must not happen is inferring a capability from a failed probe and then
+     * sending a param that turns into a filter.
+     */
+    return new Set<string>();
+  }
+};
+
 class CrmProxyRepository implements ModelRepository {
+  /** Resolved by `ensureCapabilities` before any list that wants ordering. */
+  private orderSupported = false;
+
   constructor(
     private baseUrl: string,
     private segment: string,
     private token?: string
   ) {}
+
+  private async ensureCapabilities(): Promise<void> {
+    let probe = CAPABILITIES_BY_URL.get(this.baseUrl);
+    if (!probe) {
+      probe = probeCapabilities(this.baseUrl, this.token);
+      CAPABILITIES_BY_URL.set(this.baseUrl, probe);
+    }
+    this.orderSupported = (await probe).has("order");
+  }
 
   private async call(method: string, path: string, body?: unknown): Promise<any> {
     const res = await fetch(`${this.baseUrl}${path}`, {
@@ -74,7 +120,10 @@ class CrmProxyRepository implements ModelRepository {
     return data;
   }
 
-  private qs(filters?: Record<string, any>, config?: { take?: number | null; skip?: number }): string {
+  private qs(
+    filters?: Record<string, any>,
+    config?: { take?: number | null; skip?: number; order?: Record<string, string> | null }
+  ): string {
     const p = new URLSearchParams();
     for (const [k, v] of Object.entries(filters ?? {})) {
       if (v === undefined || v === null || typeof v === "object") continue; // node handles equality filters
@@ -98,6 +147,21 @@ class CrmProxyRepository implements ModelRepository {
       p.set("limit", String(config.take));
     }
     if (config?.skip) p.set("offset", String(config.skip));
+    /**
+     * Ordering (#1551). `ListConfig` has always declared `order`, so the
+     * EMBEDDED repository honoured it and the proxied one silently did not — a
+     * fix that touched only the route would have worked in dev and done nothing
+     * in prod, with no error either way. That is the same shape as the
+     * `take: null` defect documented above.
+     *
+     * 🔴 Sent only when the node has said it understands it. Every param this
+     * node does not recognise becomes an equality FILTER, so an `order` reaching
+     * an un-redeployed node would filter on a column that does not exist and
+     * return an EMPTY list — strictly worse than the unsorted one we have now.
+     * `supportsOrder` is resolved from `/health` and cached per node URL.
+     */
+    const order = serializeListOrder(config?.order as any);
+    if (order && this.orderSupported) p.set("order", order);
     const s = p.toString();
     return s ? `?${s}` : "";
   }
@@ -111,10 +175,13 @@ class CrmProxyRepository implements ModelRepository {
     return record;
   }
   async list(filters: any = {}, config: any = {}): Promise<any[]> {
+    // Only when ordering is actually asked for — an unsorted list costs no probe.
+    if (config?.order) await this.ensureCapabilities();
     const { rows } = await this.call("GET", `/crm/${this.segment}${this.qs(filters, config)}`);
     return rows ?? [];
   }
   async listAndCount(filters: any = {}, config: any = {}): Promise<[any[], number]> {
+    if (config?.order) await this.ensureCapabilities();
     const { rows, count } = await this.call("GET", `/crm/${this.segment}${this.qs(filters, config)}`);
     return [rows ?? [], count ?? 0];
   }
