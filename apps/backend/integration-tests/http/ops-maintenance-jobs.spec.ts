@@ -119,6 +119,35 @@ setupSharedTestSuite(() => {
       )
     })
 
+    /**
+     * #1613 — the receipts audit. Registered AND reachable, and report-only in
+     * the strong sense: `dry_run: false` must still leave `applied` false,
+     * because the job has no write path at all. A job whose safety rests on a
+     * caller passing dry_run is one keystroke from writing.
+     */
+    it("POST audit-inventory-receipt-drift changes nothing even with dry_run=false", async () => {
+      const res = await api.post(
+        "/admin/ops/maintenance-jobs/audit-inventory-receipt-drift/run",
+        { dry_run: false, params: { limit: 50 } },
+        adminHeaders
+      )
+      expect(res.status).toBe(200)
+      expect(res.data.result.dry_run).toBe(false)
+      expect(res.data.result.applied).toBe(false)
+      expect(res.data.result.summary).toContain("Reports only")
+      expect(Array.isArray(res.data.result.changes)).toBe(true)
+    })
+
+    it("POST audit-inventory-receipt-drift 404s on an unknown order rather than reporting a clean scan", async () => {
+      await expect(
+        api.post(
+          "/admin/ops/maintenance-jobs/audit-inventory-receipt-drift/run",
+          { dry_run: true, params: { order_id: "inv_order_does_not_exist" } },
+          adminHeaders
+        )
+      ).rejects.toMatchObject({ response: { status: 404 } })
+    })
+
     it("GET lists the backfill-finished-run-consumption job (#697)", async () => {
       const res = await api.get("/admin/ops/maintenance-jobs", adminHeaders)
       expect(res.status).toBe(200)
