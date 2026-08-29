@@ -1799,6 +1799,116 @@ async function seedPaymentMethodsPartner(container: any): Promise<{
   }
 }
 
+/**
+ * #1612 — a partner carrying BOTH money records, so the merged ledger panel can
+ * be driven in a browser.
+ *
+ * 🔴 The defect this closes is a panel that shows half the money and reads as
+ * complete, so the fixture is deliberately mixed: a payout (a submission with a
+ * line behind it) that no `internal_payments` row was ever written for — every
+ * payout since #1638 — plus a historical `internal_payments` row that no payout
+ * points at. A partner with only one of the two cannot fail the old code.
+ */
+async function seedPartnerLedgerFixture(container: any): Promise<{
+  partnerId: string
+  partnerName: string
+  designName: string
+  submissionId: string
+  payoutAmount: number
+  paymentAmount: number
+}> {
+  const partnerModule: any = container.resolve("partner")
+  const designService: any = container.resolve("design")
+  const submissionsService: any = container.resolve("payment_submissions")
+  const paymentsService: any = container.resolve("internal_payments")
+  const remoteLink: any = container.resolve(ContainerRegistrationKeys.LINK)
+
+  const stamp = Date.now()
+
+  const created = await partnerModule.createPartners({
+    name: `E2E Ledger Partner ${stamp}`,
+    handle: `e2e-ledger-${stamp}`,
+    status: "active",
+    is_verified: true,
+  })
+  const partner = Array.isArray(created) ? created[0] : created
+
+  const designName = `Ledger Fixture Design (e2e ${stamp})`
+  const design = await designService.createDesigns({
+    name: designName,
+    description: "e2e #1612 merged partner ledger fixture",
+    design_type: "Original",
+    status: "Technical_Review",
+    priority: "Medium",
+    estimated_cost: 900,
+  })
+  const designId = (Array.isArray(design) ? design[0] : design).id as string
+  await remoteLink.create({
+    design: { design_id: designId },
+    partner: { partner_id: partner.id },
+  })
+
+  /**
+   * The payout half. `Approved` rather than `Paid`: approval is exactly the
+   * state that writes no payment row, so this entry is invisible to the old
+   * `internal_payments`-only panel AND lands in `outstanding` rather than
+   * `paid`, which the totals line then has to distinguish.
+   */
+  const payoutAmount = 4500
+  const submissionCreated = await submissionsService.createPaymentSubmissions({
+    partner_id: partner.id,
+    status: "Approved",
+    total_amount: payoutAmount,
+    currency: "inr",
+    submitted_at: new Date("2026-08-01T04:00:00.000Z"),
+    reviewed_at: new Date("2026-08-02T04:00:00.000Z"),
+  })
+  const submission = Array.isArray(submissionCreated)
+    ? submissionCreated[0]
+    : submissionCreated
+
+  await submissionsService.createPaymentSubmissionItems({
+    submission_id: submission.id,
+    source_type: "design",
+    design_id: designId,
+    design_name: designName,
+    amount: payoutAmount,
+    quantity: 5,
+    unit_amount: 900,
+  })
+
+  /**
+   * The payment half — a row of the shape the 31 historical ones have: money
+   * that moved, with no statement of what it was for. Deliberately a DIFFERENT
+   * amount from the payout, so a panel that renders one entry twice shows a
+   * total that is visibly wrong rather than coincidentally right.
+   */
+  const paymentAmount = 1200
+  const paymentCreated = await paymentsService.createPayments({
+    amount: paymentAmount,
+    status: "Pending",
+    payment_type: "Bank",
+    payment_date: new Date("2025-11-14T04:00:00.000Z"),
+  })
+  const payment = Array.isArray(paymentCreated)
+    ? paymentCreated[0]
+    : paymentCreated
+
+  await remoteLink.create({
+    partner: { partner_id: partner.id },
+    internal_payments: { internal_payments_id: payment.id },
+  })
+
+  return {
+    partnerId: partner.id as string,
+    partnerName: partner.name as string,
+    designName,
+    submissionId: submission.id as string,
+    payoutAmount,
+    paymentAmount,
+  }
+}
+
 const SEED_PASSWORD = "e2etest123!"
 const SEED_FILE = path.resolve(__dirname, "../../apps/backend/.e2e-seed.json")
 
@@ -1958,6 +2068,9 @@ export default async function e2eSeed({ container }: ExecArgs) {
   logger.info("E2E seed: creating the #1556 payable production runs + partner...")
   const payableRuns = await seedPayableProductionRuns(container)
 
+  logger.info("E2E seed: partner ledger fixture (#1612)...")
+  const partnerLedger = await seedPartnerLedgerFixture(container)
+
   logger.info("E2E seed: creating the #1439 admin quote fixtures (active + superseded)...")
   const adminQuotes = await seedAdminQuotes(container)
 
@@ -2106,6 +2219,14 @@ export default async function e2eSeed({ container }: ExecArgs) {
     acceptedQuoteCompany: adminQuotes.acceptedQuoteCompany,
     zeroDepositQuoteId: adminQuotes.zeroDepositQuoteId,
     zeroDepositQuoteCompany: adminQuotes.zeroDepositQuoteCompany,
+    // #1612 merged partner ledger — consumed by partner-ledger-panel.spec.ts
+    // (admin, CI). NOT single-use: the spec only reads the panel.
+    ledgerPartnerId: partnerLedger.partnerId,
+    ledgerPartnerName: partnerLedger.partnerName,
+    ledgerDesignName: partnerLedger.designName,
+    ledgerSubmissionId: partnerLedger.submissionId,
+    ledgerPayoutAmount: partnerLedger.payoutAmount,
+    ledgerPaymentAmount: partnerLedger.paymentAmount,
   }
 
   fs.writeFileSync(SEED_FILE, JSON.stringify(seedData, null, 2))
