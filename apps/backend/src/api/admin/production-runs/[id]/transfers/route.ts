@@ -3,6 +3,7 @@ import { MedusaError } from "@medusajs/framework/utils"
 import { z } from "@medusajs/framework/zod"
 
 import { FULLFILLED_ORDERS_MODULE } from "../../../../../modules/fullfilled_orders"
+import { listRunTransfersWithCarrier } from "../../../../../modules/fullfilled_orders/lib/transfer-carrier"
 import { createProductionRunTransfer } from "../../../../../workflows/production-runs/create-production-run-transfer"
 
 /**
@@ -82,10 +83,12 @@ export const GET = async (
   res: MedusaResponse
 ) => {
   const service: any = req.scope.resolve(FULLFILLED_ORDERS_MODULE)
-  const transfers = await service.listGoodsTransfers(
-    { production_run_id: req.params.id },
-    { order: { created_at: "DESC" } }
-  )
+  /**
+   * Carrier facts included (#1553). The AWB used to be shown once, in the
+   * booking toast, and never again — `shipment_id` was returned raw, so the
+   * waybill never left the server.
+   */
+  const transfers = await listRunTransfersWithCarrier(service, req.params.id)
 
   res.status(200).json({ goods_transfers: transfers })
 }
