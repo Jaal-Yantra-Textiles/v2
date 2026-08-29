@@ -68,12 +68,25 @@ export const qualifyOriginatingLeadStep = createStep(
       });
 
       /**
-       * Only leads not already at or past this point. Re-stamping a `won` lead
-       * as `qualified` would walk it BACKWARDS — a second deal for a contact is
-       * a normal thing to open, and it must not undo the first one's outcome.
+       * 🔴 An ALLOWLIST of statuses to promote FROM, not a denylist of ones to
+       * skip. The first attempt skipped `qualified` and `won` — and `won` is not
+       * a lead status at all (the enum is new / contacted / qualified /
+       * unqualified / converted / lost / archived), so that clause read as
+       * protection while protecting nothing, and every genuinely terminal
+       * status was promoted.
+       *
+       * A `converted` lead has become a customer and a `lost` one is closed;
+       * stamping either back to `qualified` walks it BACKWARDS, and a second
+       * deal for one contact is a normal thing to open. `unqualified` is
+       * somebody's judgement that this is not a fit, and overwriting it in
+       * silence is not this step's call.
+       *
+       * Written as an allowlist so a status added later defaults to "leave it
+       * alone" rather than to a silent promotion.
        */
-      const toQualify = (leads || []).filter(
-        (l: any) => l?.status !== "qualified" && l?.status !== "won"
+      const PROMOTABLE = new Set(["new", "contacted"]);
+      const toQualify = (leads || []).filter((l: any) =>
+        PROMOTABLE.has(String(l?.status))
       );
       if (!toQualify.length) return new StepResponse(null);
 
