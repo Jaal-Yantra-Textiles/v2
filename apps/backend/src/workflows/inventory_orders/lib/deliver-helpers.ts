@@ -1,6 +1,6 @@
 import { MedusaError } from "@medusajs/framework/utils"
 import {
-  aggregateDeliveredByLine,
+  resolveDeliveredByLine,
   type DeliveredLine,
   type OrderLineForReversal,
 } from "./cancel-helpers"
@@ -16,7 +16,11 @@ import {
  * compute the stock to post when an admin actually delivers an order.
  */
 
-/** An order line shaped for delivery stock posting (mirrors the reversal shape). */
+/**
+ * An order line shaped for delivery stock posting (mirrors the reversal shape,
+ * including its optional `line_fulfillments` — the typed receipt record #1613
+ * makes this helper read alongside the metadata blob).
+ */
 export type OrderLineForDelivery = OrderLineForReversal & {
   /** Ordered quantity for the line (what a full delivery posts, minus prior deliveries). */
   quantity: number
@@ -84,7 +88,11 @@ export const computeAdminDeliveryPosting = (
   alreadyDelivered: DeliveredLine[] | undefined | null,
   destLocationId: string | null | undefined
 ): { levels: DeliveryLevelInput[]; deliveredRecords: DeliveredLine[] } => {
-  const deliveredByLine = aggregateDeliveredByLine(alreadyDelivered)
+  // #1613 — `already` reads BOTH records of what has been delivered (the typed
+  // `line_fulfillments` rows carried on the line, and the metadata blob) and
+  // takes the larger. Reading the blob alone under-counted every submission but
+  // the last, and posted the difference as stock that was already received.
+  const deliveredByLine = resolveDeliveredByLine(orderlines, alreadyDelivered)
   const levels: DeliveryLevelInput[] = []
   const deliveredRecords: DeliveredLine[] = []
 

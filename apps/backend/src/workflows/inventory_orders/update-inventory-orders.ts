@@ -12,6 +12,8 @@ import type { RemoteQueryFunction, UpdateInventoryLevelInput } from "@medusajs/t
 import { createInventoryLevelsWorkflow, updateInventoryLevelsWorkflow } from "@medusajs/medusa/core-flows";
 import { ORDER_INVENTORY_MODULE } from "../../modules/inventory_orders";
 import InventoryOrderService from "../../modules/inventory_orders/service";
+import { FULLFILLED_ORDERS_MODULE } from "../../modules/fullfilled_orders";
+import type Fullfilled_ordersService from "../../modules/fullfilled_orders/service";
 import { mirrorUnifiedOrderStatusStep } from "./dual-write-unified-order";
 import { reprojectInventoryMirrorItemsStep } from "./reproject-inventory-mirror-items";
 import { resolveExistingLevelsStep } from "./partner-complete-inventory-order";
@@ -349,6 +351,10 @@ export const loadDeliveryContextStep = createStep(
         "metadata",
         "orderlines.id",
         "orderlines.quantity",
+        // #1613 — the TYPED receipt record. Without it the posting helper sees
+        // only `metadata.partner_delivered_lines`, which holds the latest
+        // partner submission and nothing before it.
+        "orderlines.line_fulfillments.quantity_delta",
         "orderlines.inventory_items.id",
         "orderlines.inventory_items.stock_locations.id",
       ],
@@ -404,6 +410,73 @@ export const appendDeliveredLinesStep = createStep(
     if (!comp) return;
     const inventoryOrderService: InventoryOrderService = container.resolve(ORDER_INVENTORY_MODULE);
     await inventoryOrderService.updateInventoryOrders({ id: comp.id, metadata: comp.metadata });
+  }
+);
+
+/**
+ * Step 5b (#1613): record the admin-delivered quantities as TYPED receipts.
+ *
+ * The admin deliver path used to write its quantities to
+ * `metadata.partner_delivered_lines` and nowhere else, while the partner path
+ * wrote typed `line_fulfillments` rows AND overwrote that same key. So the two
+ * writers each held half the truth and neither held all of it — the whole of
+ * #1613.
+ *
+ * Writing a typed row here makes the typed record the complete one going
+ * forward: every subsequent reader (`resolveDeliveredByLine`, the partner
+ * path's own over-delivery guard, and any payout that asks what was received)
+ * sees the admin delivery too, instead of a gap the blob happens to cover until
+ * the next partner submission overwrites it.
+ *
+ * `event_type: "received"` matches the partner path. Best-effort is NOT
+ * acceptable here — a receipt that silently fails to record is the bug being
+ * fixed — so a failure rolls the step back and the compensation deletes any row
+ * already written.
+ */
+export const recordAdminReceiptsStep = createStep(
+  "record-admin-delivery-receipts-step",
+  async (
+    input: { id: string; records: DeliveredLine[] },
+    { container, context }
+  ) => {
+    const service = container.resolve(FULLFILLED_ORDERS_MODULE) as Fullfilled_ordersService;
+    const remoteLink = container.resolve(ContainerRegistrationKeys.LINK) as Link;
+
+    const createdIds: string[] = [];
+    for (const record of input.records || []) {
+      if (!record?.order_line_id || !(Number(record.quantity) > 0)) continue;
+      const entry = await (service as any).createLine_fulfillments({
+        quantity_delta: Number(record.quantity),
+        event_type: "received",
+        transaction_id: context.transactionId,
+        notes: "Recorded by admin delivery",
+        metadata: { source: "admin_delivery", inventory_order_id: input.id },
+      });
+      createdIds.push(entry.id);
+      await remoteLink.create([
+        {
+          [ORDER_INVENTORY_MODULE]: { inventory_order_line_id: record.order_line_id },
+          [FULLFILLED_ORDERS_MODULE]: { line_fulfillment_id: entry.id },
+        },
+        {
+          [ORDER_INVENTORY_MODULE]: { inventory_orders_id: input.id },
+          [FULLFILLED_ORDERS_MODULE]: { line_fulfillment_id: entry.id },
+        },
+      ]);
+    }
+
+    return new StepResponse({ created: createdIds.length }, { ids: createdIds });
+  },
+  async (comp: { ids: string[] } | undefined, { container }) => {
+    if (!comp?.ids?.length) return;
+    const service = container.resolve(FULLFILLED_ORDERS_MODULE) as Fullfilled_ordersService;
+    for (const id of comp.ids) {
+      try {
+        await (service as any).deleteLine_fulfillments(id);
+      } catch {
+        /* the row may already be gone; the rest still need deleting */
+      }
+    }
   }
 );
 
@@ -514,6 +587,9 @@ export const updateInventoryOrderWorkflow = createWorkflow(
     const shouldRecord = transform({ deliveredRecords }, ({ deliveredRecords }) => Array.isArray(deliveredRecords) && (deliveredRecords as any[]).length > 0);
     when(shouldRecord, (b) => Boolean(b)).then(() => {
       appendDeliveredLinesStep({ id: input.id, records: deliveredRecords as unknown as DeliveredLine[] });
+      // #1613 — the same fact into the TYPED record, so the admin delivery is
+      // not invisible to every reader of `line_fulfillments`.
+      recordAdminReceiptsStep({ id: input.id, records: deliveredRecords as unknown as DeliveredLine[] });
     });
 
     // #342 — best-effort §5 status mirror onto the unified core order

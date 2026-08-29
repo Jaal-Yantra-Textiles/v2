@@ -2,6 +2,7 @@ import {
   assertCancellable,
   aggregateDeliveredByLine,
   buildReversalLevels,
+  resolveDeliveredByLine,
   computeStockReversalUpdates,
   selectOpenTaskIds,
 } from "../lib/cancel-helpers"
@@ -128,5 +129,64 @@ describe("selectOpenTaskIds (#778 C4)", () => {
         null,
       ] as any)
     ).toEqual(["t1", "t2", "t3", "t4"])
+  })
+})
+
+/**
+ * #1613 — a cancel reverses what a delivery posted. It read that quantity from
+ * `metadata.partner_delivered_lines`, the key the partner path OVERWRITES on
+ * every submission, so on a twice-delivered order it un-posted only the last
+ * submission and left the rest of the stock on the shelf for goods that were
+ * being sent back.
+ */
+describe("resolveDeliveredByLine + buildReversalLevels read both records (#1613)", () => {
+  const line = (id: string, itemId: string, typed: number[] | null) => ({
+    id,
+    inventory_items: [{ id: itemId, stock_locations: [] }],
+    ...(typed === null ? {} : { line_fulfillments: typed.map((quantity_delta) => ({ quantity_delta })) }),
+  })
+
+  it("takes the typed total when the overwritten blob holds only the last submission", () => {
+    expect(
+      resolveDeliveredByLine(
+        [line("ol_1", "iitem_1", [10, 6])],
+        [{ order_line_id: "ol_1", quantity: 6 }]
+      )
+    ).toEqual({ ol_1: 16 })
+  })
+
+  it("takes the blob when the typed record is the one missing the entry", () => {
+    expect(
+      resolveDeliveredByLine(
+        [line("ol_1", "iitem_1", [])],
+        [{ order_line_id: "ol_1", quantity: 62 }]
+      )
+    ).toEqual({ ol_1: 62 })
+  })
+
+  it("never sums the two — the same delivery in both records is one delivery", () => {
+    expect(
+      resolveDeliveredByLine(
+        [line("ol_1", "iitem_1", [12])],
+        [{ order_line_id: "ol_1", quantity: 12 }]
+      )
+    ).toEqual({ ol_1: 12 })
+  })
+
+  it("reverses the full typed quantity, not just the last submission", () => {
+    expect(
+      buildReversalLevels(
+        [line("ol_1", "iitem_1", [10, 6])],
+        [{ order_line_id: "ol_1", quantity: 6 }],
+        "sloc_dest"
+      )
+    ).toEqual([
+      { location_id: "sloc_dest", inventory_item_id: "iitem_1", quantity: 16 },
+    ])
+  })
+
+  it("leaves lines with neither record alone", () => {
+    expect(resolveDeliveredByLine([line("ol_1", "iitem_1", null)], [])).toEqual({ ol_1: 0 })
+    expect(buildReversalLevels([line("ol_1", "iitem_1", null)], [], "sloc_dest")).toEqual([])
   })
 })

@@ -20,21 +20,26 @@
  * typed rows total 69.5 units against the blob's 59.3, including a whole
  * 10-unit receipt (₹4,000) the blob never recorded.
  *
- * 🔴 **This is not only a reporting problem.** Two live readers compute stock
+ * 🔴 **This was not only a reporting problem.** Two readers computed stock
  * movements from the overwritten key:
  *
  *  - `computeAdminDeliveryPosting` posts `ordered − already`, where `already`
- *    comes from `partner_delivered_lines`. Where the blob understates, an admin
+ *    came from `partner_delivered_lines`. Where the blob understates, an admin
  *    pressing Deliver posts stock that was already received — phantom
  *    inventory, in the warehouse's real numbers.
  *  - `cancel-inventory-order` reverses stock from the same key, so a cancel
- *    un-posts the wrong quantity in whichever direction the blob is wrong.
+ *    un-posted the wrong quantity in whichever direction the blob was wrong.
  *
- * ⚠️ And why the obvious fix is not simply "read the typed rows everywhere":
- * the two sources disagree in BOTH directions. Where the typed side is the one
- * missing an entry, switching a reader to it makes `already` smaller and the
- * over-posting WORSE. That is why this file only measures, and why the job
- * built on it writes nothing.
+ * ✅ Both now read `resolveDeliveredByLine` (`lib/cancel-helpers.ts`), which
+ * takes the LARGER of the two records per line — the only combination that
+ * cannot regress either reader, since the sources disagree in BOTH directions
+ * and a blind switch to the typed rows makes `already` smaller wherever the
+ * typed side is the one missing an entry. The admin deliver path also writes a
+ * typed receipt now, so the typed record is the complete one going forward.
+ *
+ * This file still only MEASURES: reconciling the historical rows is a separate,
+ * per-order decision (two orders on production are undecidable from the data),
+ * and the job built on it writes nothing.
  */
 
 export type DeliveredLineRecord = {
