@@ -24,6 +24,10 @@ import {
 } from "../../../hooks/api/payment-submissions"
 import { describePaymentLine } from "../../../lib/payment-line-source"
 import {
+  describeRateBreakdown,
+  readRateBreakdown,
+} from "../../../../workflows/payment_submissions/lib/rate-breakdown"
+import {
   paymentSubmissionStatusColor,
   paymentSubmissionStatusLabel,
 } from "../../../lib/payment-submission-status"
@@ -189,6 +193,9 @@ const EditableLine = ({
    */
   const source = describePaymentLine(item)
 
+  /** The per-piece bands, when this line has more than one rate (#1596). */
+  const bands = readRateBreakdown(item)
+
   return (
     <Table.Row>
       <Table.Cell>
@@ -219,7 +226,21 @@ const EditableLine = ({
         )}
       </Table.Cell>
       <Table.Cell>
-        {editing ? (
+        {bands ? (
+          /**
+           * Per-piece prices (#1596). A mixed line's `unit_amount` is null by
+           * design — an average would be a rate nobody agreed to — so without
+           * the bands this cell said "typed total", which is exactly wrong:
+           * the rates ARE recorded, they are simply more than one.
+           *
+           * ⚠️ Not editable here. Typing a single rate over a breakdown would
+           * contradict the bands beside it; correcting a mixed line goes
+           * through reject-and-replace like any other claimed run.
+           */
+          <Text size="small" className="text-ui-fg-subtle">
+            {describeRateBreakdown(bands)}
+          </Text>
+        ) : editing ? (
           <Input
             size="small"
             className="w-28"

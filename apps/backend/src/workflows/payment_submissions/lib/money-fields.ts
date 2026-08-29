@@ -46,6 +46,36 @@ export const paymentSubmissionMoneyFields = {
   /** Typed line total per task. */
   task_cost_overrides: z.record(z.string(), z.number().positive()).optional(),
   /**
+   * Per-piece prices within one design's line, keyed by design id (#1596).
+   *
+   * "3 at 850 and 1 at 1,200" — the shape a single `unit_amount` cannot hold. A
+   * partner may legitimately charge different rates for different pieces of one
+   * run, and until now the only ways to say so were to average it (the total
+   * right, the explanation a fiction) or to split the work into extra runs
+   * purely to express pricing.
+   *
+   * 🔑 At least TWO bands. One band is an ordinary priced line and belongs in
+   * `quantities` + `unit_amounts`, where every existing reader already looks;
+   * accepting it here would create a second spelling of a fact that already has
+   * one.
+   *
+   * ⚠️ Like `production_run_ids`, this is NOT folded into `metadata`. It has no
+   * legacy caller, so it never touches the untyped channel at all.
+   */
+  rate_breakdown: z
+    .record(
+      z.string(),
+      z
+        .array(
+          z.object({
+            quantity: z.number().positive(),
+            unit_amount: z.number().positive(),
+          })
+        )
+        .min(2)
+    )
+    .optional(),
+  /**
    * WHICH completed production runs each design line is paying for, keyed by
    * design id. An array because a line is keyed by design and one design can
    * have several completed runs — they collapse into one item whose quantity
@@ -74,6 +104,8 @@ export type PaymentSubmissionMoneyInput = {
   task_cost_overrides?: Record<string, number>
   /** design id → the completed run ids that line pays for. */
   production_run_ids?: Record<string, string[]>
+  /** design id → its per-piece price bands (#1596). At least two. */
+  rate_breakdown?: Record<string, Array<{ quantity: number; unit_amount: number }>>
 }
 
 /**
