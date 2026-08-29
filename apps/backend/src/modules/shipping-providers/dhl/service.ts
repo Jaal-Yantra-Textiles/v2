@@ -6,6 +6,7 @@ import {
   FulfillmentOrderDTO,
   FulfillmentDTO,
   CalculatedShippingOptionPrice,
+  CalculateShippingOptionPriceDTO,
   CreateShippingOptionDTO,
   Logger,
 } from "@medusajs/framework/types"
@@ -82,27 +83,45 @@ class DHLExpressFulfillmentService extends AbstractFulfillmentProviderService {
     return true
   }
 
+  /**
+   * Calculated price for a DHL shipping option (`price_type: "calculated"`).
+   *
+   * Follows the Medusa fulfillment-provider contract:
+   * - `optionData` is the shipping option's `data` — the fulfillment option
+   *   chosen in the admin, which carries `product_code` from
+   *   `getFulfillmentOptions`.
+   * - `data` is the shipping method's `data` — validated by
+   *   `validateFulfillmentData` (plus any custom frontend data).
+   * - `context` carries the cart: `shipping_address`, `items`, and
+   *   `from_location` (the stock location shipping the items).
+   *
+   * Price is resolved through DHL's `/rates` endpoint for the matched
+   * product, billing the customer-billed currency (`BILLC`). Failures are
+   * caught and fall back to a zero amount rather than throwing: a throw
+   * blocks the cart operation that triggered the calculation (adding the
+   * method or refreshing the cart) and stops checkout.
+   */
   async calculatePrice(
-    optionData: Record<string, unknown>,
-    data: Record<string, unknown>,
-    context: any
+    optionData: CalculateShippingOptionPriceDTO["optionData"],
+    data: CalculateShippingOptionPriceDTO["data"],
+    context: CalculateShippingOptionPriceDTO["context"]
   ): Promise<CalculatedShippingOptionPrice> {
-    try {
-      const from = (context as any).from_location?.address || {}
-      const to = (context as any).shipping_address || {}
-      const items = (context as any).items || []
+    const from = context.from_location?.address
+    const to = context.shipping_address
+    const items = context.items ?? []
 
-      const totalWeightKg = this.weightInKg(items)
+    try {
+      const totalWeightKg = this.weightInKg(items as any[])
 
       const result = await this.client.getRates({
-        origin_country: from.country_code || "IN",
-        origin_city: from.city || "",
-        origin_postal_code: from.postal_code || "",
-        dest_country: to.country_code || "",
-        dest_city: to.city || "",
-        dest_postal_code: to.postal_code || "",
+        origin_country: from?.country_code || "IN",
+        origin_city: from?.city || "",
+        origin_postal_code: from?.postal_code || "",
+        dest_country: to?.country_code || "",
+        dest_city: to?.city || "",
+        dest_postal_code: to?.postal_code || "",
         weight: totalWeightKg,
-        is_customs_declarable: from.country_code !== to.country_code,
+        is_customs_declarable: from?.country_code !== to?.country_code,
       })
 
       const products = result?.products || []
