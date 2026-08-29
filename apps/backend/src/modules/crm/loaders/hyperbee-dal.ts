@@ -4,6 +4,7 @@ import type { LoaderOptions } from "@medusajs/framework/types";
 
 import { createCrmProxyRepositories, type CrmRepositories } from "../dal/crm-proxy";
 import { createCrmRepositories } from "../dal/hyperbee-crm-service";
+import { createMemoryBee, MEMORY_STORE } from "../dal/memory-bee";
 
 /**
  * CRM DAL loader. Two modes, and it is FLAG-GATED + NON-FATAL — a CRM backend
@@ -65,6 +66,19 @@ export default async function hyperbeeDalLoader({ container }: LoaderOptions) {
     return;
   }
   const storeDir = process.env.CRM_HYPERBEE_STORE || "./.crm-store";
+
+  // ── In-memory store (tests) ────────────────────────────────────────────────
+  //
+  // The on-disk store is single-writer and its lock is a FILE, so two Jest
+  // workers opening one path fails the second with "File descriptor could not be
+  // locked" and leaves CRM offline for that worker (#1648). corestore@7.11 has no
+  // RAM storage, so the swap happens at the BeeLike boundary instead.
+  if (storeDir === MEMORY_STORE) {
+    registerCrm(container, createCrmRepositories(createMemoryBee()));
+    logger?.info("[crm] embedded in-memory DAL active — per-process, non-durable");
+    return;
+  }
+
   try {
     const [{ default: Corestore }, { default: Hyperbee }] = await Promise.all([
       import("corestore"),

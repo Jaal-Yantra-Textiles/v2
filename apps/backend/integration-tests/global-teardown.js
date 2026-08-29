@@ -8,9 +8,9 @@ module.exports = async () => {
   // Clean up any global resources
   resetSharedTestEnvironment();
 
-  // The embedded CRM store is a DIRECTORY under the temp dir, one per run
-  // (setup.js keys it on the pid). Postgres is reset by the runner; this is not,
-  // so without this it accumulates a corestore per local run forever.
+  // The CRM store is in memory now (#1648) and writes nothing. This sweep stays
+  // only to clear the per-run directories older checkouts left behind; it is a
+  // no-op on a machine that has only ever run the in-memory store.
   const os = require('node:os');
   const path = require('node:path');
   for (const name of require('node:fs').readdirSync(os.tmpdir())) {
