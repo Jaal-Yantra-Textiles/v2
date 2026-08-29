@@ -1,15 +1,17 @@
 import { defineRouteConfig } from "@medusajs/admin-sdk";
-import { CurrencyDollar } from "@medusajs/icons";
+import { CurrencyDollar, Plus } from "@medusajs/icons";
 import {
   Badge,
   Container,
   Heading,
+  Button,
   Select,
   Text,
   toast,
 } from "@medusajs/ui";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMemo } from "react";
+import { Link, Outlet } from "react-router-dom";
 
 import {
   CRM_OPPORTUNITY_STAGES,
@@ -159,8 +161,39 @@ const CrmPipelinePage = () => {
                 : `${total} deal${total === 1 ? "" : "s"} · ${formatAmount(openTotal, "INR")} open`}
           </Text>
         </div>
+        {/* 🔴 The action that makes this board possible at all (#1552). Until
+            now nothing in the product could create an opportunity — the raw
+            route had no caller and `createOpportunityWorkflow` had none
+            anywhere in src/ — so the only rows that could exist were ones
+            somebody made by hand with curl. */}
+        <Button size="small" variant="secondary" asChild>
+          <Link to="create">
+            <Plus />
+            New deal
+          </Link>
+        </Button>
       </div>
 
+      {/**
+        * 🔴 An honest empty state instead of six drop-target columns (#1552).
+        * A full Kanban with labelled columns and nothing in them reads as a
+        * data-loading failure, not as "you have not opened a deal yet" — and
+        * the drag-to-move affordance was live against a set nothing could
+        * populate.
+        */}
+      {!isLoading && total === 0 ? (
+        <div className="flex flex-col items-center gap-3 px-6 py-16">
+          <Text size="small" className="text-ui-fg-subtle">
+            No deals are open yet.
+          </Text>
+          <Button size="small" variant="secondary" asChild>
+            <Link to="create">
+              <Plus />
+              Open the first deal
+            </Link>
+          </Button>
+        </div>
+      ) : (
       <div className="flex gap-4 overflow-x-auto px-6 py-4">
         {CRM_OPPORTUNITY_STAGES.map((stage) => {
           const deals = byStage.get(stage) ?? [];
@@ -246,6 +279,9 @@ const CrmPipelinePage = () => {
           );
         })}
       </div>
+      )}
+      {/* The create modal renders here. */}
+      <Outlet />
     </Container>
   );
 };

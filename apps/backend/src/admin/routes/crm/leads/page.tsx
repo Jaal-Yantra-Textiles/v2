@@ -78,6 +78,9 @@ const formatDate = (iso?: string | null) => {
       });
 };
 
+/** One page of the intake queue. Named so the count can say when it is capped. */
+const LEAD_PAGE_SIZE = 100;
+
 const CrmLeadsPage = () => {
   const queryClient = useQueryClient();
   const [status, setStatus] = useState("new");
@@ -86,7 +89,7 @@ const CrmLeadsPage = () => {
     queryKey: ["crm-intake", status],
     queryFn: () =>
       sdk.client.fetch<LeadsResponse>("/admin/meta-ads/leads", {
-        query: { limit: 100, ...(status === "all" ? {} : { status }) },
+        query: { limit: LEAD_PAGE_SIZE, ...(status === "all" ? {} : { status }) },
       }),
     staleTime: 15_000,
   });
@@ -123,6 +126,20 @@ const CrmLeadsPage = () => {
     [leads]
   );
 
+  /**
+   * 🔴 `unimported.length` counts THIS PAGE, not the queue.
+   *
+   * The query asks for 100 and the docblock above records 230 leads sitting at
+   * `new`. Printing the filtered page count as though it were the backlog says
+   * "100 leads not yet in the CRM" beside "230 total" — a number that stops
+   * growing at 100 and quietly understates the work left, which is the opposite
+   * of what an intake queue is for.
+   *
+   * Said as "at least" when the page is full, because that is the honest claim:
+   * we know of this many and cannot see past the page.
+   */
+  const pageIsFull = leads.length >= LEAD_PAGE_SIZE;
+
   return (
     <Container className="divide-y p-0">
       <div className="flex flex-col items-start justify-between gap-2 px-6 py-4 md:flex-row md:items-center">
@@ -131,9 +148,9 @@ const CrmLeadsPage = () => {
           <Text size="small" className="text-ui-fg-subtle">
             {isLoading
               ? "Loading leads…"
-              : `${unimported.length} lead${unimported.length === 1 ? "" : "s"} not yet in the CRM${
-                  data?.total ? ` · ${data.total} total` : ""
-                }`}
+              : `${pageIsFull ? "at least " : ""}${unimported.length} lead${
+                  unimported.length === 1 ? "" : "s"
+                } not yet in the CRM${data?.total ? ` · ${data.total} total` : ""}`}
           </Text>
         </div>
         <Select size="small" value={status} onValueChange={setStatus}>

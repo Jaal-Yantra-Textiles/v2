@@ -1,8 +1,8 @@
 import { Spinner } from "@medusajs/icons";
-import { Container, Heading, Text, Badge } from "@medusajs/ui";
+import { Button, Container, Heading, Text, Badge } from "@medusajs/ui";
 import { useQuery } from "@tanstack/react-query";
 import type { ReactNode } from "react";
-import { UIMatch, useLoaderData, useParams } from "react-router-dom";
+import { Link, UIMatch, useLoaderData, useParams } from "react-router-dom";
 
 import {
   ActivitySection,
@@ -83,12 +83,35 @@ const CrmPersonDetailPage = () => {
               </Text>
             )}
           </div>
-          {person && (
-            <EngagementBadge
-              state={person.engagement_state}
-              nextFollowUpAt={person.next_follow_up_at}
-            />
-          )}
+          <div className="flex items-center gap-x-3">
+            {person && (
+              <EngagementBadge
+                state={person.engagement_state}
+                nextFollowUpAt={person.next_follow_up_at}
+              />
+            )}
+            {person && (
+              /**
+               * Where the thought actually occurs (#1552). "This is a real
+               * deal" is decided while looking at a CONTACT, not at a board, so
+               * the action lives here too and arrives with the contact — and
+               * their company — already filled in.
+               */
+              <Button size="small" variant="secondary" asChild>
+                <Link
+                  to={`/crm/pipeline/create?owner_person_id=${encodeURIComponent(
+                    person.id
+                  )}${
+                    person.company_id
+                      ? `&company_id=${encodeURIComponent(person.company_id)}`
+                      : ""
+                  }`}
+                >
+                  Open a deal
+                </Link>
+              </Button>
+            )}
+          </div>
         </div>
 
         {isLoading && (
