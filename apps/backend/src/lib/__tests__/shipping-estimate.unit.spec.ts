@@ -33,6 +33,47 @@ describe("resolveUnitWeight", () => {
 
   it("refuses when neither level has a weight", () => {
     expect(resolveUnitWeight({ weight: null, product: { weight: null } })).toBeNull()
+  })
+
+  /**
+   * The operator's own figure, for a line the catalogue cannot weigh.
+   *
+   * 🔴 Freight is quoted against the summed basket weight and the estimate
+   * refuses the WHOLE basket on the first weightless line — so a design quoted
+   * before its garment was ever weighed could not be priced at all. Typing the
+   * measured weight is the only way through.
+   */
+  it("prefers a manual weight over both catalogue levels, and says a human gave it", () => {
+    expect(
+      resolveUnitWeight({ weight: 105, product: { weight: 115 } }, 250)
+    ).toEqual({ weight_grams: 250, weight_source: "manual" })
+  })
+
+  it("rescues a line the catalogue cannot weigh at all", () => {
+    expect(
+      resolveUnitWeight({ weight: null, product: { weight: null } }, 320)
+    ).toEqual({ weight_grams: 320, weight_source: "manual" })
+  })
+
+  /**
+   * 🔑 A blank cell is not a weightless parcel. `Number(undefined)` is NaN and
+   * `Number("")` is 0 — both must fall through to the catalogue rather than be
+   * taken as an answer, or every untouched row would quote at a carrier's floor
+   * the way the `0 INR` freight row shipped bulk orders free (#1430).
+   */
+  it.each([undefined, null, "", 0, -5, "abc"])(
+    "ignores %p and falls back to the catalogue",
+    (manual) => {
+      expect(
+        resolveUnitWeight({ weight: 105, product: { weight: 115 } }, manual)
+      ).toEqual({ weight_grams: 105, weight_source: "variant" })
+    }
+  )
+
+  it("still refuses when neither the catalogue nor the operator has a weight", () => {
+    expect(
+      resolveUnitWeight({ weight: null, product: { weight: null } }, 0)
+    ).toBeNull()
     expect(resolveUnitWeight({})).toBeNull()
   })
 

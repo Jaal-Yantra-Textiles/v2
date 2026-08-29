@@ -12,6 +12,7 @@ import {
 import { ShiprocketClient, ShiprocketOptions } from "./client"
 import { CreateShipmentInput, ShipmentItem } from "../provider-interface"
 import { deriveShiprocketRateContext } from "./rate-context"
+import { resolveShipmentPaymentMode } from "./payment-mode"
 import { FlatFallbackConfig, resolveFlatFallbackAmount } from "./flat-fallback"
 
 type InjectedDeps = { logger: Logger }
@@ -245,13 +246,30 @@ class ShiprocketFulfillmentService extends AbstractFulfillmentProviderService {
     }
 
     const paymentStatus = (order as any)?.payment_status
-    const isPrepaid = paymentStatus === "captured" || paymentStatus === "paid"
     const subTotal = shipItems.reduce((s, i) => s + i.unit_price * i.quantity, 0)
+
+    // The rule lives in `payment-mode.ts`, pure and unit-tested — an
+    // international lane has no COD product, so deriving this inline is how it
+    // silently became "no shipment at all". See that file's header.
+    const paymentMode = resolveShipmentPaymentMode({
+      payment_status: paymentStatus,
+      destination_country_code: shippingAddress?.country_code,
+      sub_total: subTotal,
+    })
+
+    if (paymentMode.warn_uncaptured) {
+      this.logger.warn(
+        `[shiprocket] order ${(order as any)?.id} ships to ` +
+          `${String(shippingAddress?.country_code || "").toUpperCase()} with ` +
+          `payment_status="${paymentStatus}". Sent as PREPAID because Shiprocket has ` +
+          `no international COD — the payment is not confirmed captured.`
+      )
+    }
 
     const input: CreateShipmentInput = {
       reference_id: (order as any)?.id || fulfillment.id || "",
-      payment_mode: isPrepaid ? "prepaid" : "cod",
-      cod_amount: isPrepaid ? undefined : subTotal,
+      payment_mode: paymentMode.payment_mode,
+      cod_amount: paymentMode.cod_amount,
       pickup_location_name:
         fromLocation.metadata?.shiprocket_pickup_location ||
         fromLocation.name ||

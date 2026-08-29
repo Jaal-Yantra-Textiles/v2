@@ -41,6 +41,27 @@ const QuoteLine = z
     discount_percent: z.number().min(0).max(100).nullish(),
     /** A flat unit price, in the partner store's default currency. */
     override_unit_amount: z.number().positive().nullish(),
+
+    /**
+     * The weight of ONE unit of this line, in grams, typed by the operator.
+     *
+     * 🔴 Exists because refusing was the only other answer. Freight is quoted
+     * against the summed basket weight and `buildShippingEstimate` refuses the
+     * WHOLE basket on the first line it cannot weigh — 183 variants platform-
+     * wide carry no weight at either level, and a design quoted before its
+     * garment has ever been weighed has none by definition. Without this, a
+     * design-led quote simply cannot be priced.
+     *
+     * 🔑 Positive, never 0. A zero here is a weightless consignment, which
+     * every carrier rates at its floor — the same shape as the `0 INR` freight
+     * row that shipped bulk orders free (#1430). Absent means "no figure",
+     * which the estimate already knows how to refuse loudly.
+     *
+     * Prices THIS quote and is never written back to the variant: a figure
+     * typed under time pressure must not become the catalogue's answer for
+     * every future basket.
+     */
+    unit_weight_grams: z.number().positive().max(1_000_000).nullish(),
   })
   .refine((l) => Boolean(l.variant_id) || Boolean(l.design_id), {
     message: "A line must name either a variant_id or a design_id.",

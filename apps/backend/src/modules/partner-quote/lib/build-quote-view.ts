@@ -136,6 +136,12 @@ export type BuildQuoteViewLine = {
   quantity: number
   position?: number
   note?: string | null
+  /**
+   * The operator's own unit weight in grams, for a line the catalogue cannot
+   * weigh. Feeds the freight estimate for THIS quote and is never written back
+   * to the variant.
+   */
+  unit_weight_grams?: number | null
 }
 
 export type BuildQuoteViewInput = {
@@ -309,7 +315,7 @@ export type QuoteViewLine = {
   quoted_subtotal: number | null
   unit_weight_grams: number | null
   /** Per line, because a basket can mix variant- and product-weighted items. */
-  weight_source: "variant" | "product" | null
+  weight_source: "variant" | "product" | "manual" | null
 }
 
 export type QuoteView = {
@@ -1003,7 +1009,7 @@ export async function buildQuoteView(
   let importEstimate: QuoteImportEstimate | null = null
   let weightByVariant = new Map<
     string,
-    { unit_weight_grams: number; weight_source: "variant" | "product" }
+    { unit_weight_grams: number; weight_source: "variant" | "product" | "manual" }
   >()
 
   /**
@@ -1112,6 +1118,7 @@ export async function buildQuoteView(
         lines: effectiveLines.map((l) => ({
           variant_id: l.variant_id,
           quantity: l.quantity,
+          unit_weight_grams: l.unit_weight_grams ?? null,
         })),
         destination_postal_code: String(input.destination_postal_code ?? ""),
         country_code: input.destination_country_code,
