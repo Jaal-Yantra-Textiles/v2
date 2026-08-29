@@ -118,28 +118,39 @@ test.describe("CRM list ordering (#1551)", () => {
     await expect(page.getByText(names[2])).toBeVisible({ timeout: 20000 })
 
     /**
-     * ⚠️ Asserted on the DATES of page one, not on where this spec's three
+     * ⚠️ Asserted on page one as a whole, not on where this spec's three
      * contacts land. They are the newest rows in the store, so ascending pushes
      * them onto the LAST page — and a store that accumulates across runs makes
-     * "which page" unknowable. The dates are the sort itself, and they are
-     * page-independent.
+     * "which page" unknowable.
+     *
+     * 🔴 Two claims, because neither alone holds in both environments. The
+     * DATES are the sort itself, but `toLocaleDateString` has day granularity:
+     * on a fresh CI database the only contacts are the three created seconds
+     * ago, every date is today, and the monotonicity checks pass vacuously in
+     * BOTH directions. The row ORDER is what carries the case there. On a
+     * developer's accumulated store the dates span weeks and carry it instead.
+     * The first version of this case asserted only the dates and failed on CI
+     * for exactly this reason.
      */
-    const addedDates = async () => {
+    const pageOne = async () => {
       const rows = await page.getByRole("row").allInnerTexts()
-      return rows
-        .slice(1)
-        .map((r: string) => {
-          const m = r.match(/\d{1,2}\/\d{1,2}\/\d{4}/)
-          return m ? new Date(m[0]).getTime() : null
-        })
-        .filter((d): d is number => d !== null)
+      const body = rows.slice(1)
+      return {
+        names: body.map((r: string) => r.split("\n")[0]),
+        dates: body
+          .map((r: string) => {
+            const m = r.match(/\d{1,2}\/\d{1,2}\/\d{4}/)
+            return m ? new Date(m[0]).getTime() : null
+          })
+          .filter((d): d is number => d !== null),
+      }
     }
 
-    const before = await addedDates()
-    expect(before.length).toBeGreaterThan(1)
+    const before = await pageOne()
+    expect(before.names.length).toBeGreaterThan(1)
     // Newest first, by default.
-    for (let i = 1; i < before.length; i++) {
-      expect(before[i]).toBeLessThanOrEqual(before[i - 1])
+    for (let i = 1; i < before.dates.length; i++) {
+      expect(before.dates[i]).toBeLessThanOrEqual(before.dates[i - 1])
     }
 
     /**
@@ -154,14 +165,18 @@ test.describe("CRM list ordering (#1551)", () => {
       .click()
 
     await expect(async () => {
-      const after = await addedDates()
-      expect(after.length).toBeGreaterThan(1)
-      for (let i = 1; i < after.length; i++) {
-        expect(after[i]).toBeGreaterThanOrEqual(after[i - 1])
+      const after = await pageOne()
+      expect(after.names.length).toBeGreaterThan(1)
+      for (let i = 1; i < after.dates.length; i++) {
+        expect(after.dates[i]).toBeGreaterThanOrEqual(after.dates[i - 1])
       }
-      // The re-fetch genuinely happened: the oldest contact in the store is
-      // not the newest one, so page one cannot open on the same date twice.
-      expect(after[0]).toBeLessThan(before[0])
+      /**
+       * The re-fetch genuinely happened and genuinely reversed. This spec
+       * creates three contacts, so page one holds at least three rows and
+       * cannot come back in the same order — whatever the dates say.
+       */
+      expect(after.names).not.toEqual(before.names)
+      expect(after.names[0]).not.toEqual(before.names[0])
     }).toPass({ timeout: 15000 })
   })
 
