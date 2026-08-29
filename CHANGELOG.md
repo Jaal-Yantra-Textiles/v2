@@ -1,3 +1,10 @@
+## [13.123.1](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.123.0...v13.123.1) (2026-08-29)
+
+
+### Bug Fixes
+
+* **crm:** the contact picker held the first 100 of 234 — and the board hid the rest ([#1552](https://github.com/Jaal-Yantra-Textiles/v2/issues/1552)) ([#1650](https://github.com/Jaal-Yantra-Textiles/v2/issues/1650)) ([3e7e1db](https://github.com/Jaal-Yantra-Textiles/v2/commit/3e7e1dbac6037179eb998de8a2039378f2906d14))
+
 # [13.123.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.122.0...v13.123.0) (2026-08-29)
 
 
