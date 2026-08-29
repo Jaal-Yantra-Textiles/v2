@@ -67,6 +67,46 @@ test.describe("Open a CRM deal (#1552)", () => {
     await page.waitForURL(/\/app\/(?!login)/, { timeout: 15000 })
   }
 
+  test("the board says so honestly when there are no deals", async ({
+    page,
+  }) => {
+    const api = await pwRequest.newContext({
+      baseURL: BASE,
+      extraHTTPHeaders: { Authorization: `Bearer ${token}` },
+    })
+    const res = await api.get("/admin/crm/opportunities?limit=1")
+    const count = (await res.json()).count
+    await api.dispose()
+
+    /**
+     * 🔴 Skipped LOUDLY rather than asserted around, when the store already
+     * holds deals. The embedded CRM store is never reset, so a developer's
+     * machine accumulates them — and an empty-state case rewritten to pass
+     * against a non-empty board is a check that never ran reading as a pass.
+     * On CI the database is fresh and prod's own count is 0, which is the
+     * condition this case exists for.
+     *
+     * 🔴 Declared FIRST on purpose. Playwright runs a file in declaration
+     * order, and the case below opens a deal — so as the last case this one
+     * skipped on every run, CI included. A check that can never run reads as
+     * a pass.
+     */
+    test.skip(
+      count > 0,
+      `store already holds ${count} deal(s); the empty state is only reachable on a fresh store`
+    )
+
+    await login(page)
+    await page.goto("/app/crm/pipeline")
+
+    await expect(page.getByText("No deals are open yet.")).toBeVisible({
+      timeout: 20000,
+    })
+    await expect(
+      page.getByRole("link", { name: "Open the first deal" })
+    ).toBeVisible()
+  })
+
   test("opens a deal from the board, and it lands on the board", async ({
     page,
   }) => {
@@ -131,38 +171,4 @@ test.describe("Open a CRM deal (#1552)", () => {
     await expect(contactField).toBeVisible({ timeout: 15000 })
   })
 
-  test("the board says so honestly when there are no deals", async ({
-    page,
-  }) => {
-    const api = await pwRequest.newContext({
-      baseURL: BASE,
-      extraHTTPHeaders: { Authorization: `Bearer ${token}` },
-    })
-    const res = await api.get("/admin/crm/opportunities?limit=1")
-    const count = (await res.json()).count
-    await api.dispose()
-
-    /**
-     * 🔴 Skipped LOUDLY rather than asserted around, when the store already
-     * holds deals. The embedded CRM store is never reset, so a developer's
-     * machine accumulates them — and an empty-state case rewritten to pass
-     * against a non-empty board is a check that never ran reading as a pass.
-     * On CI the database is fresh and prod's own count is 0, which is the
-     * condition this case exists for.
-     */
-    test.skip(
-      count > 0,
-      `store already holds ${count} deal(s); the empty state is only reachable on a fresh store`
-    )
-
-    await login(page)
-    await page.goto("/app/crm/pipeline")
-
-    await expect(page.getByText("No deals are open yet.")).toBeVisible({
-      timeout: 20000,
-    })
-    await expect(
-      page.getByRole("link", { name: "Open the first deal" })
-    ).toBeVisible()
-  })
 })
