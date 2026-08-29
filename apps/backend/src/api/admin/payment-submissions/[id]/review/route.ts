@@ -24,6 +24,13 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
 
   return res.status(200).json({
     payment_submission: result.submission,
-    payment: result.payment || null,
+    /**
+     * `payment` is always null now — approval stops creating an
+     * `internal_payments` row and the submission IS the payout record (#1636).
+     * The key is kept so existing callers do not see their shape change; the
+     * method the payout went to is reported alongside it.
+     */
+    payment: null,
+    paid_to: (result as any).paid_to ?? null,
   })
 }
