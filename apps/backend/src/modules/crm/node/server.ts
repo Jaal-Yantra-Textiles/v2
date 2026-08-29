@@ -35,6 +35,7 @@ import {
 } from "@jytextiles/mikrohyperbee";
 
 import { crmContracts, CRM_MODEL_BY_SEGMENT } from "../dal/crm-contracts";
+import { CRM_ORDERABLE_FIELDS, parseListOrder } from "../dal/list-order";
 
 export type CrmNode = {
   base: any;
@@ -104,7 +105,22 @@ export function createCrmNodeServer(node: CrmNode, opts: { token?: string } = {}
       const url = new URL(req.url || "/", "http://localhost");
       const parts = url.pathname.split("/").filter(Boolean); // ["crm","people",":id"]
 
-      if (parts[0] === "health") return send(res, 200, { ok: true, writable: node.base.writable });
+      /**
+       * 🔑 `capabilities` is how the proxy knows what this node understands
+       * (#1551). The node is deployed separately from Medusa, so a proxy that
+       * simply started sending a new query param would break against an
+       * un-redeployed node — and worse than "unsorted": every unrecognised
+       * param below is read as an equality FILTER, so `order=-created_at`
+       * would filter on a column that does not exist and return nothing.
+       *
+       * Advertising instead of assuming makes the deploy order irrelevant.
+       */
+      if (parts[0] === "health")
+        return send(res, 200, {
+          ok: true,
+          writable: node.base.writable,
+          capabilities: ["order"],
+        });
 
       if (opts.token) {
         const auth = req.headers["authorization"];
@@ -128,10 +144,22 @@ export function createCrmNodeServer(node: CrmNode, opts: { token?: string } = {}
 
       if (!id && req.method === "GET") {
         const filters: Record<string, string> = {};
-        for (const [k, v] of url.searchParams) if (k !== "limit" && k !== "offset") filters[k] = v;
+        /**
+         * ⚠️ `order` joins `limit` and `offset` as a CONFIG param (#1551).
+         * Everything else here becomes an equality filter, so forgetting to
+         * exclude it would filter on a column named `order` and return no
+         * rows — a silent empty list, not an error.
+         */
+        for (const [k, v] of url.searchParams)
+          if (k !== "limit" && k !== "offset" && k !== "order") filters[k] = v;
         const take = url.searchParams.has("limit") ? Number(url.searchParams.get("limit")) : undefined;
         const skip = url.searchParams.has("offset") ? Number(url.searchParams.get("offset")) : 0;
-        const [rows, count] = await repo.listAndCount(filters, { take, skip });
+        const order = parseListOrder(url.searchParams.get("order"), CRM_ORDERABLE_FIELDS);
+        const [rows, count] = await repo.listAndCount(filters, {
+          take,
+          skip,
+          ...(order ? { order } : {}),
+        });
         return send(res, 200, { rows, count });
       }
       if (!id && req.method === "POST") {

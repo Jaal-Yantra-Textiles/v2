@@ -11,6 +11,7 @@ import {
   createDataTableFilterHelper,
   DataTablePaginationState,
   DataTableFilteringState,
+  DataTableSortingState,
 } from "@medusajs/ui";
 import { useQuery } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
@@ -55,8 +56,27 @@ const CrmPeoplePage = () => {
     pageIndex: 0,
   });
   const [filtering, setFiltering] = useState<DataTableFilteringState>({});
+  /**
+   * Sorting (#1551). Newest first by default — "what came in recently" is the
+   * question this table exists to answer, and it could not be asked at all: the
+   * table had no date column, `useDataTable` was given no sorting state, and
+   * the query sent no `order`.
+   */
+  const [sorting, setSorting] = useState<DataTableSortingState | null>({
+    id: "created_at",
+    desc: true,
+  });
 
   const offset = pagination.pageIndex * pagination.pageSize;
+
+  /**
+   * The wire format the CRM routes parse — one field, `-` for descending. Only
+   * the allowlisted columns are orderable server-side; anything else is ignored
+   * there rather than erroring, so the list still loads.
+   */
+  const order = sorting
+    ? `${sorting.desc ? "-" : ""}${sorting.id}`
+    : undefined;
 
   // Collapse the DataTable filter state (values can arrive as arrays) into the
   // flat exact-match query params the CRM API understands.
@@ -71,10 +91,15 @@ const CrmPeoplePage = () => {
   }, [filtering]);
 
   const { data, isLoading } = useQuery({
-    queryKey: ["crm-people", pagination.pageSize, offset, filterParams],
+    queryKey: ["crm-people", pagination.pageSize, offset, filterParams, order],
     queryFn: () =>
       sdk.client.fetch<ListResponse>("/admin/crm/people", {
-        query: { limit: pagination.pageSize, offset, ...filterParams },
+        query: {
+          limit: pagination.pageSize,
+          offset,
+          ...filterParams,
+          ...(order ? { order } : {}),
+        },
       }),
     staleTime: 30_000,
   });
@@ -112,6 +137,26 @@ const CrmPeoplePage = () => {
           ) : (
             <Text size="small" className="text-ui-fg-muted">
               —
+            </Text>
+          );
+        },
+      }),
+      /**
+       * When the contact was added (#1551). The row type has declared
+       * `created_at` all along; nothing rendered it, so "who came in this week"
+       * was unanswerable from this screen.
+       */
+      columnHelper.accessor("created_at", {
+        header: "Added",
+        enableSorting: true,
+        sortLabel: "Added",
+        sortAscLabel: "Oldest first",
+        sortDescLabel: "Newest first",
+        cell: ({ getValue }) => {
+          const v = getValue();
+          return (
+            <Text size="small" className="text-ui-fg-subtle">
+              {v ? new Date(v).toLocaleDateString() : "—"}
             </Text>
           );
         },
@@ -158,6 +203,7 @@ const CrmPeoplePage = () => {
     onRowClick: (_, row) => navigate(`/crm/${row.id}`),
     pagination: { state: pagination, onPaginationChange: setPagination },
     filtering: { state: filtering, onFilteringChange: setFiltering },
+    sorting: { state: sorting, onSortingChange: setSorting },
   });
 
   return (
@@ -171,6 +217,7 @@ const CrmPeoplePage = () => {
             </Text>
           </div>
           <div className="flex items-center gap-2">
+            <DataTable.SortingMenu tooltip="Sort people" />
             <DataTable.FilterMenu tooltip="Filter people" />
             <CreateButton />
           </div>
