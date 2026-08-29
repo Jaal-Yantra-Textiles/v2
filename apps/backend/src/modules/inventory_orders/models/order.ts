@@ -5,6 +5,22 @@ const InventoryOrder = model.define("inventory_orders", {
   id: model.id({prefix: 'inv_order'}).primaryKey(),
   quantity: model.float(),
   total_price: model.bigNumber(),
+  /**
+   * What was AGREED with the partner for this order — which is not what the
+   * order was priced at (#1617).
+   *
+   * `total_price` is Σ(line quantity × line price): on
+   * `inv_order_01K76V5J4KKS3EC71D2R2MNJSP` that is ₹63,375.75, while the price
+   * actually agreed with the partner was ₹35,000. A payout guard comparing
+   * against the ordered total would have allowed ₹28,375 more than anyone
+   * agreed to pay, so the agreed figure needs a typed home rather than living
+   * in a submission's `metadata.agreed_total`.
+   *
+   * Nullable on purpose: historical orders have no agreed figure recorded, and
+   * inventing one is worse than admitting it is absent. The payout guard falls
+   * back to `total_price` when this is null.
+   */
+  agreed_total: model.bigNumber().nullable(),
   // #778 H9 — the order's currency. Previously absent: the dual-write to the
   // unified order assumed INR (currency_assumed:true). Defaults to "inr" for
   // back-compat; the dual-write now uses this instead of guessing.

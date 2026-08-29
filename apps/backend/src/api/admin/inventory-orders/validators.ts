@@ -26,6 +26,24 @@ const inventoryOrdersBaseSchema = z.object({
   // Allow decimal order quantity (sum of line quantities)
   quantity: z.number().nonnegative("Order quantity must be zero or positive"),
   total_price: z.number().nonnegative("Total price must be zero or positive"),
+  /**
+   * #1617 — what was AGREED with the partner, which is NOT `total_price`.
+   *
+   * `total_price` is Σ(line quantity × line price); the agreed figure is what
+   * the partner will actually be paid, and the two routinely differ (₹63,375.75
+   * ordered vs ₹35,000 agreed on `inv_order_01K76V5J4KKS3EC71D2R2MNJSP`). The
+   * payout guard sums live claims against this, so a part payment no longer
+   * locks out the balance.
+   *
+   * Nullable AND optional: absent means "nobody has recorded an agreed price",
+   * and the guard falls back to the ordered total rather than inventing one.
+   * Explicit null clears a figure recorded in error.
+   */
+  agreed_total: z
+    .number()
+    .nonnegative("Agreed total must be zero or positive")
+    .nullable()
+    .optional(),
   // #778 H9 — ISO currency code; defaults to inr at the DB layer when omitted.
   currency_code: z.string().min(3).max(3).optional(),
   // System-only statuses (e.g. "Partial") are intentionally excluded — see
