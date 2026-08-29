@@ -79,6 +79,29 @@ const PaymentSubmissionItem = model.define("payment_submission_item", {
    */
   quantity: model.float().default(1),
   unit_amount: model.bigNumber().nullable(),
+  /**
+   * Per-piece prices within this one line (#1596).
+   *
+   * `Array<{ quantity: number; unit_amount: number }>` — "3 at 850 and 1 at
+   * 1,200". A partner may legitimately charge different rates for different
+   * pieces of one run (extra embroidery, a costlier size, a re-make), and a
+   * production run carries exactly ONE rate, so that shape had nowhere to live.
+   * The alternatives were to average it — the total right, every "9 × ₹X"
+   * display a fiction — or to split the work into extra runs purely to express
+   * pricing, distorting run counts and dispatch state.
+   *
+   * 🔴 EXPLAINS `amount`; never competes with it. `amount` stays the
+   * authoritative total — re-deriving a total underpaid a partner by 22%
+   * (#1637). And when the bands disagree, `unit_amount` stays NULL rather than
+   * carrying an average nobody agreed to.
+   *
+   * NULL on every ordinary line, which is 20 of the 21 production lines. A real
+   * column rather than a `metadata` key for the reason `production_run_ids` is:
+   * this decides money, and `metadata` is validated as `z.record(z.string(),
+   * z.any())` everywhere it is accepted — a misspelt key would validate
+   * cleanly and leave the breakdown reading nothing (#1557).
+   */
+  rate_breakdown: model.json().nullable(),
   cost_breakdown: model.json().nullable(),
   /**
    * The production run(s) this line pays for, as an array of run ids.

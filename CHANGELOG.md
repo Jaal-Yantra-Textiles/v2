@@ -1,3 +1,10 @@
+# [13.122.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.121.0...v13.122.0) (2026-08-29)
+
+
+### Features
+
+* **shipping:** DHL Express API — serviceability, landed cost, customs shipment ([#1640](https://github.com/Jaal-Yantra-Textiles/v2/issues/1640)) ([5460795](https://github.com/Jaal-Yantra-Textiles/v2/commit/5460795a3226832141f07b4b83b23ce6d678cdf3))
+
 # [13.121.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.120.0...v13.121.0) (2026-08-29)
 
 

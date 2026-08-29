@@ -107,6 +107,15 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
       // Typed input, not folded into metadata — this is the double-pay guard's
       // evidence, and it must not be reachable by a misspelt JSON key.
       production_run_ids: body.production_run_ids,
+      /**
+       * Per-piece prices within one line (#1596). Typed only — never metadata.
+       *
+       * ⚠️ Cast for the same reason `cost_overrides` below is: the money
+       * fragment is spread from a plain-`zod` module into a schema built with
+       * `@medusajs/framework/zod`, and the spread's types do not survive the
+       * mix. The VALIDATOR still enforces the shape; only tsc loses sight of it.
+       */
+      rate_breakdown: (body as any).rate_breakdown,
       // 🔴 Forwarded explicitly. A field the validator accepts but the handler
       // never passes on is dropped in SILENCE — the request succeeds, the line
       // is simply not there, and no dry-run can reveal it.

@@ -130,3 +130,63 @@ describe("provenanceLabel", () => {
     expect(provenanceLabel({})).toBeNull()
   })
 })
+
+/**
+ * Per-piece prices (#1596). A partner may charge different rates for different
+ * pieces of one run; before this, such a line's `unit_amount` was null and the
+ * screen showed no breakdown at all — so a partner could not see the rates they
+ * had themselves quoted.
+ */
+describe("perUnit — per-piece price bands", () => {
+  it("shows every band on a mixed-price line", () => {
+    const text = perUnit(
+      {
+        quantity: 4,
+        unit_amount: null,
+        rate_breakdown: [
+          { quantity: 3, unit_amount: 850 },
+          { quantity: 1, unit_amount: 1200 },
+        ],
+      },
+      "inr"
+    )
+
+    expect(text).toContain("3 ×")
+    expect(text).toContain("1 ×")
+    expect(text).toContain("+")
+  })
+
+  it("ignores a single band — that is an ordinary priced line", () => {
+    const text = perUnit(
+      {
+        quantity: 9,
+        unit_amount: 850,
+        rate_breakdown: [{ quantity: 9, unit_amount: 850 }],
+      },
+      "inr"
+    )
+
+    expect(text).toContain("9 ×")
+    expect(text).not.toContain("+")
+  })
+
+  it("still says nothing for a typed total with no bands", () => {
+    expect(perUnit({ quantity: 1, unit_amount: null }, "inr")).toBeNull()
+  })
+
+  it("never renders a malformed band as NaN at a partner", () => {
+    const text = perUnit(
+      {
+        quantity: 4,
+        unit_amount: null,
+        rate_breakdown: [
+          { quantity: 3, unit_amount: 850 },
+          { quantity: "many", unit_amount: 1200 },
+        ],
+      },
+      "inr"
+    )
+
+    expect(text).toBeNull()
+  })
+})

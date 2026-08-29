@@ -4,6 +4,7 @@ import { z } from "@medusajs/framework/zod"
 
 import { PRODUCTION_RUNS_MODULE } from "../../../../../modules/production_runs"
 import { FULLFILLED_ORDERS_MODULE } from "../../../../../modules/fullfilled_orders"
+import { listRunTransfersWithCarrier } from "../../../../../modules/fullfilled_orders/lib/transfer-carrier"
 import { createProductionRunTransfer } from "../../../../../workflows/production-runs/create-production-run-transfer"
 
 /**
@@ -118,10 +119,8 @@ export async function GET(
   await assertPartnerOwnsRun(req, req.params.id, partnerId)
 
   const service: any = req.scope.resolve(FULLFILLED_ORDERS_MODULE)
-  const transfers = await service.listGoodsTransfers(
-    { production_run_id: req.params.id },
-    { order: { created_at: "DESC" } }
-  )
+  /** Same carrier hydration the admin route returns (#1553). */
+  const transfers = await listRunTransfersWithCarrier(service, req.params.id)
 
   return res.status(200).json({ goods_transfers: transfers })
 }
