@@ -218,3 +218,96 @@ export function reconcileOrderReceipts(input: {
     reversal_note: reversalNote,
   }
 }
+
+/**
+ * The date `line_fulfillment.quantity_delta` stopped being an INTEGER column.
+ *
+ * Migration20260612202252 (#342): "quantity_delta was integer, silently
+ * rounding decimal partial deliveries (1.5 kg → 2)". Before it, Postgres
+ * rounded every fractional receipt on the way in — the partner submitted 11.8
+ * and the row stored 12, one second after the same figure went into
+ * `metadata.partner_delivery_history` as 11.8, which is a jsonb blob and kept
+ * it. The forward fix shipped; the rows already written were never corrected.
+ */
+export const QUANTITY_DELTA_WAS_INTEGER_UNTIL = new Date("2026-06-12T20:22:52Z")
+
+export type ReceiptRow = {
+  id: string
+  quantity_delta?: number | string | null
+  created_at?: string | Date | null
+}
+
+export type RoundedReceipt = {
+  fulfillment_id: string
+  line_id: string
+  stored: number
+  /** The unrounded figure the metadata kept. */
+  actual: number
+  created_at: string | null
+}
+
+/**
+ * PURE: receipts whose stored quantity is an integer-rounding artefact of the
+ * pre-#342 column, and what the true figure was.
+ *
+ * 🔴 Deliberately narrow, because this is the one part of #1613 that is
+ * DECIDABLE. It fires only when every one of these holds:
+ *
+ *  - the row was written BEFORE the column became `real`;
+ *  - the line has exactly ONE receipt and exactly ONE history entry, so the two
+ *    can be paired without guessing which delivery is which;
+ *  - the history figure is fractional, and rounds to exactly what is stored.
+ *
+ * Anything else — several receipts on a line, a whole-number history value, a
+ * gap of a unit or more — is NOT rounding and is left alone. A gap of 10 units
+ * is a missing receipt, not a rounding error, and repairing it as one would
+ * invent a delivery.
+ */
+export function detectRoundedReceipts(input: {
+  orderlines: Array<
+    OrderLineForReconciliation & { line_fulfillments?: ReceiptRow[] | null }
+  > | null | undefined
+  metadata: Record<string, unknown> | null | undefined
+}): RoundedReceipt[] {
+  const history = (input.metadata?.partner_delivery_history ||
+    []) as DeliveryHistoryEntry[]
+
+  const found: RoundedReceipt[] = []
+
+  for (const line of (input.orderlines || []).filter(Boolean)) {
+    const receipts = (line.line_fulfillments || []) as ReceiptRow[]
+    if (receipts.length !== 1) continue
+
+    // Every history entry naming this line, across all submissions.
+    const entries = history.flatMap((entry) =>
+      (entry?.lines || []).filter(
+        (l) => String(l?.order_line_id ?? "") === String(line.id)
+      )
+    )
+    if (entries.length !== 1) continue
+
+    const receipt = receipts[0]
+    const stored = num(receipt.quantity_delta)
+    const actual = num(entries[0].quantity)
+
+    // Fractional on the metadata side, whole on the stored side, and the one
+    // rounds to the other. `Math.round` matches Postgres' integer cast.
+    if (Number.isInteger(actual)) continue
+    if (!Number.isInteger(stored)) continue
+    if (Math.round(actual) !== stored) continue
+
+    const createdAt = receipt.created_at ? new Date(receipt.created_at) : null
+    if (!createdAt || Number.isNaN(createdAt.getTime())) continue
+    if (createdAt >= QUANTITY_DELTA_WAS_INTEGER_UNTIL) continue
+
+    found.push({
+      fulfillment_id: String(receipt.id),
+      line_id: String(line.id),
+      stored,
+      actual,
+      created_at: createdAt.toISOString(),
+    })
+  }
+
+  return found
+}
