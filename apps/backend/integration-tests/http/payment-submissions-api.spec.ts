@@ -1883,16 +1883,22 @@ setupSharedTestSuite(() => {
       expect(reviewRes.data.paid_to).toBeDefined()
       expect(reviewRes.data.paid_to.id).toBe(paidToId)
 
-      // Verify submission status is now Paid
+      /**
+       * 🔴 Approval stops at `Approved` (#1639). The assertion this replaces
+       * demanded `Paid` here. In production the gap between approval and the
+       * money actually moving was 13 seconds, 8 minutes, 2 days, 6 days and
+       * 34 days — for 34 days a payout read `Paid` and the partner had been
+       * told so, while nothing had been sent.
+       */
       const detail = await api.get(
         `/admin/payment-submissions/${submissionId}`,
         adminHeaders
       )
-      expect(detail.data.payment_submission.status).toBe("Paid")
+      expect(detail.data.payment_submission.status).toBe("Approved")
       expect(detail.data.payment_submission.reviewed_at).toBeDefined()
       expect(detail.data.payment_submission.reviewed_by).toBeDefined()
-      // When money moved — distinct from `status: "Paid"`, which approval sets.
-      expect(detail.data.payment_submission.paid_at).toBeTruthy()
+      // Nothing has moved yet, so nothing claims it has.
+      expect(detail.data.payment_submission.paid_at).toBeFalsy()
 
       /**
        * And no `internal_payments` row appeared for it. Asserted by COUNT
@@ -1923,6 +1929,27 @@ setupSharedTestSuite(() => {
       expect(Number(recon.expected_amount)).toBe(10000)
       expect(Number(recon.actual_amount)).toBe(10000)
       expect(Number(recon.discrepancy)).toBe(0)
+
+      /**
+       * Settling is the moment money is recorded as having moved, and it
+       * carries the submission with it — one action, both records, so the two
+       * cannot drift into the disagreement #1636 was opened about.
+       */
+      const settled = await api.post(
+        `/admin/payment_reports/reconciliation/${recon.id}/settle`,
+        {},
+        adminHeaders
+      )
+      expect(settled.status).toBe(200)
+      expect(settled.data.reconciliation.status).toBe("Settled")
+      expect(settled.data.reconciliation.settled_at).toBeTruthy()
+
+      const afterSettle = await api.get(
+        `/admin/payment-submissions/${submissionId}`,
+        adminHeaders
+      )
+      expect(afterSettle.data.payment_submission.status).toBe("Paid")
+      expect(afterSettle.data.payment_submission.paid_at).toBeTruthy()
     })
 
     /**
@@ -3209,10 +3236,15 @@ setupSharedTestSuite(() => {
         )
         .catch((e: any) => e.response)
 
-      // Rewriting a paid row makes our record disagree with what was actually
-      // paid, without putting a rupee in anyone's hand.
+      // Rewriting a committed row makes our record disagree with what was
+      // actually agreed, without putting a rupee in anyone's hand.
+      //
+      // The status named here is `Approved`, not `Paid`: approval stops at
+      // Approved since #1639, and the line is locked from that moment — the
+      // amount is agreed even though the transfer has not been made yet.
       expect(res.status).toBe(400)
-      expect(res.data.message).toContain("Paid")
+      expect(res.data.message).toContain("Approved")
+      expect(res.data.message).toContain("cannot be edited")
     })
 
     it("refuses an empty body rather than writing nothing and returning 200", async () => {

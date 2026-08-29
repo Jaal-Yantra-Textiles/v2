@@ -111,6 +111,7 @@ import { resetNegativeInventoryLevelsJob } from "./reset-negative-inventory-leve
 import { backfillDispatchedTemplateIdsJob } from "./backfill-dispatched-template-ids-job"
 import { backfillPaymentLineRunProvenanceJob } from "./backfill-payment-line-run-provenance-job"
 import { backfillInventoryOrderPaymentLinksJob } from "./backfill-inventory-order-payment-links-job"
+import { backfillSubmissionPaidAtJob } from "./backfill-submission-paid-at-job"
 import { clearUnpriceableDesignCostsJob } from "./clear-unpriceable-design-costs-job"
 import { recordPaymentLineRunJob } from "./record-payment-line-run-job"
 import { deduplicateTaskTemplateNamesJob } from "./deduplicate-task-template-names-job"
@@ -5877,6 +5878,7 @@ export const MAINTENANCE_JOBS: MaintenanceJob[] = [
   backfillDispatchedTemplateIdsJob,
   backfillPaymentLineRunProvenanceJob,
   backfillInventoryOrderPaymentLinksJob,
+  backfillSubmissionPaidAtJob,
   clearUnpriceableDesignCostsJob,
   recordPaymentLineRunJob,
   recordManualInventoryCorrectionJob,

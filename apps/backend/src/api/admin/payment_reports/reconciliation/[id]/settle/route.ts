@@ -1,45 +1,29 @@
 import type { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
-import { MedusaError } from "@medusajs/framework/utils"
-import { PAYMENT_REPORTS_MODULE } from "../../../../../../modules/payment_reports"
-import Payment_reportsService from "../../../../../../modules/payment_reports/service"
+import { settlePaymentReconciliationWorkflow } from "../../../../../../workflows/payment_reports/settle-payment-reconciliation"
 
-// POST /admin/payment_reports/reconciliation/:id/settle
+/**
+ * POST /admin/payment_reports/reconciliation/:id/settle
+ *
+ * Settling now also marks the payout's submission `Paid` and stamps `paid_at`,
+ * and it is what fires `payment_submission.paid` to the partner. Approval sets
+ * `Approved` and stops there (#1639) — it used to claim `Paid` up to 34 days
+ * before the money moved.
+ *
+ * The validation and the reconciliation write moved into the workflow so both
+ * records land in one compensatable transaction rather than two loose updates.
+ */
 export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
   const { id } = req.params
   const body = (req.validatedBody || {}) as any
   const settledBy = (req as any).auth_context?.actor_id || "admin"
 
-  const service: Payment_reportsService = req.scope.resolve(
-    PAYMENT_REPORTS_MODULE
-  )
+  const { result } = await settlePaymentReconciliationWorkflow(req.scope).run({
+    input: {
+      reconciliation_id: id,
+      settled_by: settledBy,
+      notes: body.notes,
+    },
+  })
 
-  const existing = await service.listPaymentReconciliations({ id: [id] })
-  if (!existing[0]) {
-    throw new MedusaError(
-      MedusaError.Types.NOT_FOUND,
-      `Reconciliation record not found: ${id}`
-    )
-  }
-
-  if (existing[0].status === "Settled") {
-    throw new MedusaError(
-      MedusaError.Types.INVALID_DATA,
-      "This reconciliation is already settled"
-    )
-  }
-
-  const updateData: Record<string, any> = {
-    id,
-    status: "Settled",
-    settled_at: new Date(),
-    settled_by: settledBy,
-  }
-
-  if (body.notes) {
-    updateData.notes = body.notes
-  }
-
-  const updated = await service.updatePaymentReconciliations(updateData)
-
-  return res.status(200).json({ reconciliation: updated })
+  return res.status(200).json({ reconciliation: result.reconciliation })
 }

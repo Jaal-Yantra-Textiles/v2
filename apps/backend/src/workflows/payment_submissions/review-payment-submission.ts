@@ -332,35 +332,6 @@ const createReconciliationRecordStep = createStep(
   }
 )
 
-// Step 6: Mark submission as paid
-const markSubmissionPaidStep = createStep(
-  "mark-submission-paid",
-  async (input: { submission_id: string }, { container }) => {
-    const service: PaymentSubmissionsService = container.resolve(
-      PAYMENT_SUBMISSIONS_MODULE
-    )
-
-    await service.updatePaymentSubmissions({
-      id: input.submission_id,
-      status: "Paid",
-      paid_at: new Date(),
-    })
-
-    return new StepResponse(undefined, input.submission_id)
-  },
-  async (submissionId: string, { container }) => {
-    if (!submissionId) return
-    const service: PaymentSubmissionsService = container.resolve(
-      PAYMENT_SUBMISSIONS_MODULE
-    )
-    await service.updatePaymentSubmissions({
-      id: submissionId,
-      status: "Approved",
-      paid_at: null,
-    })
-  }
-)
-
 // Emit a payment_submission.* event after a successful status change.
 // Decoupled from the status-update step so emission only happens after
 // the entire workflow path that produced the new status has succeeded
@@ -412,7 +383,6 @@ const emitHandler = async (input: EmitInput, { container }: any) => {
   ])
   return new StepResponse({ emitted: true })
 }
-const emitPaidEventStep = createStep("emit-payment-submission-paid", emitHandler)
 const emitRejectedEventStep = createStep("emit-payment-submission-rejected", emitHandler)
 
 // Workflow
@@ -475,44 +445,26 @@ export const reviewPaymentSubmissionWorkflow = createWorkflow(
      * payments.ts` stays declared for the historical rows.
      */
 
-    when(isApproval, (val) => val).then(() =>
-      markSubmissionPaidStep({
-        submission_id: input.submission_id,
-      })
-    )
-
     /**
-     * The payout's type now comes from the METHOD it was paid to rather than
-     * from a reviewer-supplied field, so the two can no longer disagree. The
-     * event keeps the legacy `Bank`/`Cash`/`Digital_Wallet` spelling because
-     * subscribers already read it; `internal_payment_details.type` spells the
-     * same three values differently.
+     * 🔴 Approval STOPS at `Approved` (#1639). It used to continue to `Paid`
+     * in the same atomic workflow, and `payment_submission.paid` fired here.
+     *
+     * Production said that was untrue. All five reconciliations carry a real
+     * `settled_at`, and the gap from approval to settlement was 13 seconds,
+     * 8 minutes, 2 days, 6 days and **34 days**. For 34 days one payout read
+     * `Paid` and the partner had been told over WhatsApp they had been paid,
+     * while the money had not moved.
+     *
+     * `Paid` and `paid_at` are written by settling the reconciliation now —
+     * an action prod performs on 5 of 5 payouts, unlike the `internal_payments`
+     * row approval used to create, which was left `Pending` 5 times out of 5.
+     * The discipline was never missing; it was being spent on the record that
+     * had a UI.
+     *
+     * No `payment_submission.approved` event replaces it: there is no WhatsApp
+     * template for one, and inventing a notification is a separate decision
+     * from removing an untrue one.
      */
-    const paidPaymentType = transform({ paidToMethod }, (data) => {
-      const map: Record<string, string> = {
-        bank_account: "Bank",
-        cash_account: "Cash",
-        digital_wallet: "Digital_Wallet",
-      }
-      return map[data.paidToMethod?.type as string] ?? "Bank"
-    })
-
-    // Approval branch: now in Paid status — fire the event so the
-    // payment-status visual flow can WhatsApp the partner.
-    when(isApproval, (val) => val).then(() =>
-      emitPaidEventStep({
-        event_name: "payment_submission.paid",
-        submission_id: input.submission_id,
-        partner_id: submission.partner_id,
-        total_amount: paymentAmount,
-        currency: submission.currency,
-        payment_type: paidPaymentType,
-        // No payment row is created any more (#1636); the submission is the
-        // payout record. Left in the payload rather than removed so existing
-        // subscribers keep their shape.
-        payment_id: null,
-      })
-    )
 
     // Rejection branch: status is now Rejected. Fire the event so the
     // partner gets notified with the reason.

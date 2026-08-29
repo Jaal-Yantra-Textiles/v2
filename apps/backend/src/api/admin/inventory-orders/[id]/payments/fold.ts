@@ -35,10 +35,11 @@ export type SubmissionLike = {
 /**
  * The one status that means money has actually left.
  *
- * ⚠️ `Approved` is deliberately NOT here. An approved submission has a payment
- * record but `markSubmissionPaidStep` is what flips it to Paid; counting
- * Approved as paid would tell an order it is settled while the transfer is
- * still owed.
+ * ⚠️ `Approved` is deliberately NOT here, and since #1639 that is load-bearing
+ * rather than cautious. Approval now STOPS at `Approved`; `Paid` is written by
+ * settling the reconciliation, which is the moment money is recorded as having
+ * moved. Counting Approved as paid would tell an order it is settled while the
+ * transfer is still owed — in production that window ran to 34 days.
  */
 const PAID_STATUSES = new Set(["Paid"])
 
