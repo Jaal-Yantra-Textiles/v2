@@ -26,7 +26,7 @@ import { describePaymentLine } from "../../../lib/payment-line-source"
 import {
   describeRateBreakdown,
   readRateBreakdown,
-} from "../../../../workflows/payment_submissions/lib/rate-breakdown"
+} from "../../../../workflows/payment_submissions/lib/rate-breakdown-display"
 import {
   paymentSubmissionStatusColor,
   paymentSubmissionStatusLabel,

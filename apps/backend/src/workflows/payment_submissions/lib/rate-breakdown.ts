@@ -30,11 +30,22 @@
  */
 import { MedusaError } from "@medusajs/framework/utils"
 
-/** One price band within a line: this many pieces, at this rate each. */
-export type RateSlice = {
-  quantity: number
-  unit_amount: number
-}
+/**
+ * The display half lives in its own file and is re-exported here, so existing
+ * callers are unchanged.
+ *
+ * 🔴 It cannot move back. The admin submission page imports these two, and the
+ * admin app is a browser bundle: pulling them from THIS file dragged
+ * `MedusaError` and its Node built-ins into Vite, and the dashboard died on
+ * `util.inherits is not a function` before login rendered.
+ */
+export {
+  describeRateBreakdown,
+  readRateBreakdown,
+} from "./rate-breakdown-display"
+export type { RateSlice } from "./rate-breakdown-display"
+
+import type { RateSlice } from "./rate-breakdown-display"
 
 export type FoldedRateBreakdown = {
   /** Total pieces across every band. */
@@ -99,46 +110,4 @@ export const assertBreakdownMatchesTotal = (
     MedusaError.Types.INVALID_DATA,
     `rate_breakdown for ${designId} sums to ${folded.amount} but cost_overrides says ${typed}. Both describe the same line total — send one, or make them agree.`
   )
-}
-
-/**
- * The bands, in words: "3 × 850 + 1 × 1200".
- *
- * PURE and shared, so the admin screen and the partner screen cannot describe
- * one partner's money two different ways.
- */
-export const describeRateBreakdown = (
-  slices: RateSlice[] | null | undefined
-): string | null => {
-  if (!Array.isArray(slices) || !slices.length) return null
-
-  return slices
-    .map((s) => `${Number(s.quantity)} × ${Number(s.unit_amount)}`)
-    .join(" + ")
-}
-
-/**
- * A stored line's breakdown, if it has one worth showing.
- *
- * ⚠️ A single-band breakdown is deliberately dropped: it says exactly what
- * `quantity` and `unit_amount` already say, and rendering it twice invites a
- * reader to wonder which is authoritative.
- */
-export const readRateBreakdown = (item: any): RateSlice[] | null => {
-  const raw = item?.rate_breakdown
-  if (!Array.isArray(raw) || raw.length < 2) return null
-
-  const slices = raw
-    .filter(
-      (s) =>
-        s &&
-        Number.isFinite(Number(s.quantity)) &&
-        Number.isFinite(Number(s.unit_amount))
-    )
-    .map((s) => ({
-      quantity: Number(s.quantity),
-      unit_amount: Number(s.unit_amount),
-    }))
-
-  return slices.length >= 2 ? slices : null
 }
