@@ -11,6 +11,26 @@ process.env.LOG_LEVEL = "error"
 process.env.WHATSAPP_WEBHOOK_VERIFY_TOKEN =
   process.env.WHATSAPP_WEBHOOK_VERIFY_TOKEN || "jyt_whatsapp_test_verify"
 
+// Bring the CRM up in EMBEDDED mode so its routes are testable (#1551/#1552).
+//
+// Without one of CRM_NODE_URL / CRM_HYPERBEE the loader logs "[crm] disabled"
+// and registers nothing, so every CRM route answers 500 — which is why the CRM
+// had no integration coverage at all. The loader is deliberately non-fatal, so
+// this cannot break boot: the worst case is the module stays offline and the
+// CRM specs fail loudly, which is the correct outcome rather than a silent skip.
+//
+// ⚠️ The store is a FILE, not Postgres. The runner restores a DB snapshot before
+// every test; it does NOT reset this. CRM rows therefore ACCUMULATE across tests
+// in a run — a CRM spec must assert on rows it created, never on a total count.
+//
+// The store PATH is chosen in global-setup.js, not here: globalSetup and
+// globalTeardown share a process while this file runs in each worker, so a path
+// computed here would be invisible to the cleanup.
+process.env.CRM_HYPERBEE = process.env.CRM_HYPERBEE || "true"
+process.env.CRM_HYPERBEE_STORE =
+  process.env.CRM_HYPERBEE_STORE ||
+  require("node:path").join(require("node:os").tmpdir(), "jyt-crm-store-worker")
+
 // Opt-in HTTP error tracing: `DEBUG_HTTP_ERRORS=1 pnpm test:integration:http:shared ...`
 //
 // An AxiosError prints its status and nothing else, so a spec that fails with
