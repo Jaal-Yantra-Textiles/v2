@@ -23,6 +23,7 @@ import {
   runsAlreadyClaimedMessage,
 } from "./lib/run-claims"
 import {
+  assessInventoryOrderClaims,
   inventoryOrdersAlreadyClaimedMessage,
   listPartnerClaims,
 } from "./lib/run-claims"
@@ -1263,14 +1264,6 @@ const validateInventoryOrderLinesStep = createStep(
       submissionService as any,
       input.partner_id
     )
-    const duplicates = orderIds.filter((id) => claimed.has(id))
-    if (duplicates.length) {
-      throw new MedusaError(
-        MedusaError.Types.INVALID_DATA,
-        inventoryOrdersAlreadyClaimedMessage(duplicates, claimed)
-      )
-    }
-
     const validated: ValidatedInventoryLine[] = lines.map((line) => {
       const order = orderById.get(line.inventory_order_id)!
 
@@ -1314,6 +1307,45 @@ const validateInventoryOrderLinesStep = createStep(
         },
       }
     })
+
+    /**
+     * The double-pay guard, as a HEADROOM check rather than a flag (#1617).
+     *
+     * An inventory order used to be claimed whole: it appeared on a live
+     * submission, so a second line naming it was refused outright. That was
+     * right about the hole it closed, but it assumed one order => one payout.
+     * Real payouts arrive in TRANCHES — ₹30,000 of an agreed ₹35,000 was
+     * released on `inv_order_01K76V5J4KKS3EC71D2R2MNJSP`, and recording that
+     * honestly made the remaining ₹5,000 unbillable through this route. The
+     * only ways out were to overstate the payout or to reject a payment that
+     * really happened.
+     *
+     * So compare a SUM against the ordered `total_price` — never the receipts
+     * value, which on that same order derives ₹64,274 and is HIGHER than the
+     * ordered total, so an amountless line defaulting to it is refused.
+     */
+    const requestedByOrder = new Map<string, number>()
+    for (const line of validated) {
+      // Summed per order across THIS submission too: two lines naming one order
+      // must be weighed together, or the guard is defeated by splitting a line.
+      requestedByOrder.set(
+        line.inventory_order_id,
+        (requestedByOrder.get(line.inventory_order_id) ?? 0) + line.amount
+      )
+    }
+
+    const overclaimed = assessInventoryOrderClaims({
+      requestedByOrder,
+      orders: orderById,
+      claims: claimed,
+    })
+
+    if (overclaimed.length) {
+      throw new MedusaError(
+        MedusaError.Types.INVALID_DATA,
+        inventoryOrdersAlreadyClaimedMessage(overclaimed, claimed)
+      )
+    }
 
     return new StepResponse(validated)
   }

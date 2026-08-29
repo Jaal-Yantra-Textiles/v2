@@ -44,12 +44,29 @@ export type PriorRunLine = {
   submission_status: string | null
   production_run_ids: string[] | null
   inventory_order_id?: string | null
+  /**
+   * What this line claimed. Needed because an inventory order is no longer
+   * claimed as a boolean — a real payout arrives in tranches, so the guard has
+   * to compare a SUM against what the order is worth (#1617).
+   */
+  amount?: number | string | null
 }
 
 export type RunClaim = {
   /** The submission holding the live claim. */
   submission_id: string | null
   submission_status: string | null
+}
+
+/**
+ * What an inventory order has been claimed for SO FAR, across every live
+ * submission — plus who holds those claims.
+ */
+export type InventoryOrderClaim = {
+  /** Sum of the live lines naming this order. */
+  claimed_total: number
+  /** Every live claim, earliest first, for the refusal message. */
+  claims: RunClaim[]
 }
 
 /**
@@ -87,36 +104,67 @@ export function foldRunClaims(
 }
 
 /**
- * PURE: the same fold for INVENTORY ORDERS.
+ * PURE: the same fold for INVENTORY ORDERS — but a SUM, not a flag.
  *
- * An inventory order is claimed WHOLE — unlike a run-sourced line, which names
- * a set of run ids, a line pays for one order. So a second line naming the same
- * `inventory_order_id` is a duplicate by construction.
+ * 🔴 This used to key on `inventory_order_id` alone: the order appeared on a
+ * live submission, therefore it was paid for, therefore refuse. That guard was
+ * right about the hole it closed — a new source column with no double-pay guard
+ * is a double-pay hole by construction — but it assumed one order ⇒ one payout.
  *
- * 🔴 This exists because a source type without a double-pay guard is a
- * double-pay hole by construction, and `inventory_order_id` is a brand-new
- * column that no existing guard reads. Runs got their guard the hard way, after
- * the same work had already been billed twice; inventory orders get theirs
- * before the first row is written.
+ * Real payouts arrive in TRANCHES. `inv_order_01K76V5J4KKS3EC71D2R2MNJSP` was
+ * agreed at ₹35,000, of which ₹30,000 was released on 2026-08-28. Recording the
+ * ₹30,000 — the only honest thing to record, because it is what left the bank —
+ * made the remaining ₹5,000 unbillable, and the only ways out were to overstate
+ * the payout or to reject a payment that really happened (#1617).
+ *
+ * So: fold to `order id → claimed so far`, and let the caller compare that sum
+ * against what the order is worth. A `Rejected` submission never paid anyone,
+ * so its lines release their claim, exactly as before.
  */
 export function foldInventoryOrderClaims(
   priorLines: PriorRunLine[]
-): Map<string, RunClaim> {
-  const claims = new Map<string, RunClaim>()
+): Map<string, InventoryOrderClaim> {
+  const claims = new Map<string, InventoryOrderClaim>()
 
   for (const line of priorLines || []) {
     if (String(line.submission_status || "") === "Rejected") continue
 
     const orderId = line.inventory_order_id
-    if (!orderId || claims.has(orderId)) continue
+    if (!orderId) continue
 
-    claims.set(orderId, {
+    const existing = claims.get(orderId) ?? { claimed_total: 0, claims: [] }
+    /**
+     * A line with no amount contributes NOTHING to the total rather than
+     * defaulting to something. Guessing here would either invent headroom that
+     * does not exist or consume headroom that does.
+     */
+    const amount = Number(line.amount ?? 0)
+    existing.claimed_total += Number.isFinite(amount) ? amount : 0
+    existing.claims.push({
       submission_id: line.submission_id,
       submission_status: line.submission_status,
     })
+    claims.set(orderId, existing)
   }
 
   return claims
+}
+
+/**
+ * PURE: what is still billable on an order.
+ *
+ * `ceiling` is the AGREED total where one is recorded, falling back to the
+ * order's ordered `total_price`. The two are not the same number and must not
+ * be conflated: the order above was ordered at ₹63,375.75 and agreed at
+ * ₹35,000, so a guard using the ordered total would have allowed ₹28,375 more
+ * than anyone agreed to pay.
+ */
+export function inventoryOrderHeadroom(
+  claim: InventoryOrderClaim | undefined,
+  ceiling: number
+): number {
+  const claimed = claim?.claimed_total ?? 0
+  return Math.max(0, ceiling - claimed)
 }
 
 /**
@@ -178,6 +226,7 @@ export async function listPartnerPriorLines(
     submission_status: item.submission?.status ?? null,
     production_run_ids: (item.production_run_ids || []) as string[],
     inventory_order_id: item.inventory_order_id ?? null,
+    amount: item.amount ?? null,
   }))
 }
 
@@ -210,7 +259,7 @@ export async function listPartnerClaims(
   options?: { excludeSubmissionId?: string }
 ): Promise<{
   runs: Map<string, RunClaim>
-  inventoryOrders: Map<string, RunClaim>
+  inventoryOrders: Map<string, InventoryOrderClaim>
 }> {
   const lines = await listPartnerPriorLines(service, partnerId, options)
 
@@ -242,9 +291,105 @@ export function runsAlreadyClaimedMessage(
   return `Production runs already paid for: ${claimedList(duplicates, claims)}`
 }
 
+export type OverclaimedInventoryOrder = {
+  order_id: string
+  /** What the order is worth: the agreed total, else the ordered total. */
+  ceiling: number
+  claimed_total: number
+  requested: number
+}
+
+/**
+ * PURE: which of these lines would take an order past what it is worth.
+ *
+ * Extracted from the workflow step so the money decision is testable without
+ * standing up a submission — inventory-order-sourced payouts have no
+ * integration coverage at all, so logic left inline in the step would ship
+ * unexercised.
+ *
+ * ⚠️ `total_price` is a `bigNumber` column: through `query.graph` it arrives as
+ * a number, but through a raw service read it can be a STRING. Coerced here,
+ * once, rather than at each call site.
+ */
+export function assessInventoryOrderClaims(input: {
+  /** Requested amount per order, already summed across this submission. */
+  requestedByOrder: Map<string, number>
+  orders: Map<string, { total_price?: number | string | null }>
+  claims: Map<string, InventoryOrderClaim>
+}): OverclaimedInventoryOrder[] {
+  const overclaimed: OverclaimedInventoryOrder[] = []
+
+  for (const [orderId, requested] of input.requestedByOrder) {
+    const order = input.orders.get(orderId)
+    if (!order) continue
+
+    /**
+     * The ceiling is the ORDERED total.
+     *
+     * A separate `agreed_total` column was built and then removed: the price
+     * agreed can sit below the ordered total (₹35,000 against ₹63,375.75 on the
+     * order that opened #1617), but with no surface to record it the column
+     * would have been null on every row forever — a typed field with no writer,
+     * which reads as a contract and means nothing. If that deviation needs
+     * capturing, add the column WITH its input, so it is never a façade.
+     *
+     * Never the receipts value: on that same order it derives ₹64,274, which is
+     * ABOVE the ordered total — so an amountless line, which defaults to the
+     * receipts figure, is refused here rather than silently overpaying.
+     */
+    const ordered = Number(order.total_price ?? 0)
+    const ceiling = Number.isFinite(ordered) ? ordered : 0
+
+    // A ceiling of zero means the order is worth nothing we can read. Refusing
+    // on that would block every payout on an unpriced order; the whole-order
+    // guard this replaces did not block those either.
+    if (!(ceiling > 0)) continue
+
+    const claimedTotal = input.claims.get(orderId)?.claimed_total ?? 0
+
+    // Half a paisa of tolerance: amounts are rounded to 2dp upstream, and
+    // refusing a legitimate final tranche over float noise is worse than
+    // allowing a rounding error.
+    if (claimedTotal + requested > ceiling + 0.005) {
+      overclaimed.push({
+        order_id: orderId,
+        ceiling,
+        claimed_total: claimedTotal,
+        requested,
+      })
+    }
+  }
+
+  return overclaimed
+}
+
 export function inventoryOrdersAlreadyClaimedMessage(
-  duplicates: string[],
-  claims: Map<string, RunClaim>
+  overclaimed: OverclaimedInventoryOrder[],
+  claims: Map<string, InventoryOrderClaim>
 ): string {
-  return `Inventory orders already paid for: ${claimedList(duplicates, claims)}`
+  /**
+   * Names the headroom, not just the refusal. "Already paid for" told the
+   * caller to give up; what they actually need to know is how much of the
+   * order is still billable and who holds the rest.
+   */
+  const detail = overclaimed
+    .map(({ order_id, ceiling, claimed_total, requested }) => {
+      const holders = (claims.get(order_id)?.claims ?? [])
+        .map(
+          (c) =>
+            `submission ${c.submission_id ?? "unknown"}${
+              c.submission_status ? `, ${c.submission_status}` : ""
+            }`
+        )
+        .join("; ")
+      const remaining = Math.max(0, ceiling - claimed_total)
+      return (
+        `${order_id}: worth ${ceiling}, already claimed ${claimed_total}` +
+        ` (${holders || "no prior claim"}), ${remaining} remaining` +
+        ` — this line asks for ${requested}`
+      )
+    })
+    .join(" | ")
+
+  return `Inventory order payout exceeds what the order is worth: ${detail}`
 }
