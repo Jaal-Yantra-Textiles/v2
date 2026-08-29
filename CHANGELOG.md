@@ -1,3 +1,17 @@
+# [13.124.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.123.1...v13.124.0) (2026-08-29)
+
+
+### Bug Fixes
+
+* **ops:** a line with no receipts arrives as ONE all-null row, not zero ([#1613](https://github.com/Jaal-Yantra-Textiles/v2/issues/1613)) ([4dd0f12](https://github.com/Jaal-Yantra-Textiles/v2/commit/4dd0f1203305d97748ebf2b4448b80e6066e7a5b))
+* **ops:** restore the fractional receipts an integer column rounded away ([#1613](https://github.com/Jaal-Yantra-Textiles/v2/issues/1613), [#342](https://github.com/Jaal-Yantra-Textiles/v2/issues/342)) ([#1656](https://github.com/Jaal-Yantra-Textiles/v2/issues/1656)) ([87ef3c4](https://github.com/Jaal-Yantra-Textiles/v2/commit/87ef3c4bd6dff44b52ba05856c8dc967dfad873e)), closes [#1655](https://github.com/Jaal-Yantra-Textiles/v2/issues/1655)
+
+
+### Features
+
+* **payments:** an inventory order can be paid in tranches ([#1617](https://github.com/Jaal-Yantra-Textiles/v2/issues/1617)) ([#1652](https://github.com/Jaal-Yantra-Textiles/v2/issues/1652)) ([2857d8e](https://github.com/Jaal-Yantra-Textiles/v2/commit/2857d8ebddef72599b955a4a187f2630f2d4f851))
+* **ops:** report where the two records of a delivery disagree ([#1613](https://github.com/Jaal-Yantra-Textiles/v2/issues/1613)) ([#1655](https://github.com/Jaal-Yantra-Textiles/v2/issues/1655)) ([0c5940a](https://github.com/Jaal-Yantra-Textiles/v2/commit/0c5940a68a5884593bcf66a9996ec92a9f67911a))
+
 ## [13.123.1](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.123.0...v13.123.1) (2026-08-29)
 
 
