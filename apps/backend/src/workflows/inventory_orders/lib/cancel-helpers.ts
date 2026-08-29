@@ -9,10 +9,19 @@ import { MedusaError } from "@medusajs/framework/utils"
 
 export type DeliveredLine = { order_line_id: string; quantity: number }
 
+/** A typed receipt row (`line_fulfillments`) as fetched off an order line. */
+export type TypedReceiptRow = { quantity_delta?: number | string | null }
+
 export type OrderLineForReversal = {
   id: string
   inventory_items?: Array<{ id?: string; stock_locations?: Array<{ id?: string }> }>
   inventory_item_id?: string
+  /**
+   * The TYPED receipts for this line (#1613). Optional so every existing caller
+   * still type-checks; when absent the line falls back to the metadata blob
+   * alone, i.e. the pre-#1613 behaviour.
+   */
+  line_fulfillments?: Array<TypedReceiptRow | null> | null
 }
 
 export type ReversalLevel = {
@@ -67,6 +76,71 @@ export const aggregateDeliveredByLine = (
 }
 
 /**
+ * Σ of a line's typed `quantity_delta` rows — the operative receipt record.
+ *
+ * ⚠️ A SUM, never the row count and never the latest row: the event types
+ * include `adjust` and `correction`, and a negative delta legitimately reduces
+ * what was received.
+ *
+ * ⚠️ `query.graph` returns ONE all-null row for a line with NO receipts, so the
+ * relation's `length` is 1 for an empty relation. Summing nulls yields 0, which
+ * is the right answer either way, but the filter keeps that from being luck.
+ */
+export const sumTypedReceipts = (
+  line: { line_fulfillments?: Array<TypedReceiptRow | null> | null } | null | undefined
+): number =>
+  (line?.line_fulfillments || [])
+    .filter((row) => row && row.quantity_delta != null)
+    .reduce((sum, row) => sum + (Number(row!.quantity_delta) || 0), 0)
+
+/**
+ * How much of each line has ALREADY been delivered — reading BOTH records of
+ * that fact and taking the larger (#1613).
+ *
+ * There are two records and neither one is complete:
+ *
+ *  - **Typed** `line_fulfillments` rows. Written by the partner path on every
+ *    submission, so they accumulate. But the ADMIN deliver path historically
+ *    wrote no typed row at all, so anything an admin delivered is missing here.
+ *  - **`metadata.partner_delivered_lines`.** OVERWRITTEN by the partner path
+ *    with just the latest submission and APPENDED to by the admin path. So it
+ *    holds "last partner submission + admin appends since" — never the total.
+ *
+ * On production the two disagree in BOTH directions, which is why neither a
+ * blind switch to the typed rows nor a sum of the two is safe: a sum would
+ * double-count every quantity both records hold (which is most of them), and
+ * switching outright makes `already` SMALLER wherever the typed side is the one
+ * missing an entry — `inv_order_01K3BAM50H…` has 62 units in the blob and zero
+ * typed rows.
+ *
+ * `max` is the only combination that cannot regress either reader:
+ *
+ *  - Delivering posts `ordered − already`, so a too-small `already` posts stock
+ *    that was already received — phantom inventory in the warehouse's real
+ *    numbers. `max` can only make `already` LARGER than today, never smaller,
+ *    so it removes over-posting and can never introduce it.
+ *  - Cancelling reverses `already`, so a too-small `already` leaves posted
+ *    stock behind. `max` reverses at least as much as today, floored at 0 and
+ *    capped by the level that actually exists.
+ *
+ * It is deliberately NOT exact: an order whose blob was overwritten *after* an
+ * admin append still under-counts that append. Making it exact needs the admin
+ * path to write typed rows too — which it now does — so on orders written from
+ * here on the typed side is the complete record and `max` returns it.
+ */
+export const resolveDeliveredByLine = (
+  orderlines: OrderLineForReversal[] | undefined | null,
+  deliveredLines: DeliveredLine[] | undefined | null
+): Record<string, number> => {
+  const byLine = aggregateDeliveredByLine(deliveredLines)
+  for (const ol of (orderlines || []).filter(Boolean)) {
+    const id = String(ol.id)
+    byLine[id] = Math.max(byLine[id] || 0, sumTypedReceipts(ol))
+  }
+  return byLine
+}
+
+/**
  * Resolve which (item, location, qty) levels a cancel must reverse, mirroring
  * exactly how `partner-complete` posted them: per delivered order line, the
  * line's first linked inventory item at the order's destination location (or
@@ -78,7 +152,7 @@ export const buildReversalLevels = (
   deliveredLines: DeliveredLine[] | undefined | null,
   destLocationId: string | null | undefined
 ): ReversalLevel[] => {
-  const deliveredByLine = aggregateDeliveredByLine(deliveredLines)
+  const deliveredByLine = resolveDeliveredByLine(orderlines, deliveredLines)
   const levels: ReversalLevel[] = []
   for (const ol of (orderlines || []).filter(Boolean)) {
     const qty = deliveredByLine[ol.id]

@@ -50,6 +50,10 @@ export const loadOrderForCancelStep = createStep(
         "status",
         "metadata",
         "orderlines.id",
+        // #1613 — the TYPED receipt record, read alongside the metadata blob so
+        // a cancel reverses everything that was posted, not just the last
+        // partner submission.
+        "orderlines.line_fulfillments.quantity_delta",
         "orderlines.inventory_items.id",
         "orderlines.inventory_items.stock_locations.id",
         "stock_locations.id",

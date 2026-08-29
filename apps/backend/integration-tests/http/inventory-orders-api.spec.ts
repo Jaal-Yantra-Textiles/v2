@@ -453,6 +453,24 @@ setupSharedTestSuite(() => {
         expect(orderGet.data.inventoryOrder.status).toBe("Delivered");
         const delivered = orderGet.data.inventoryOrder.metadata?.partner_delivered_lines || [];
         expect(delivered).toEqual([{ order_line_id: expect.any(String), quantity: 3 }]);
+
+        // #1613 — and into the TYPED record too. Writing only the metadata blob
+        // made the admin delivery invisible to every reader of
+        // `line_fulfillments`: the partner path's own over-delivery guard, the
+        // drift audit, and anything asking what this order actually received.
+        const { ContainerRegistrationKeys } = await import("@medusajs/framework/utils");
+        const query = getContainer().resolve(ContainerRegistrationKeys.QUERY) as any;
+        const { data: withReceipts } = await query.graph({
+          entity: "inventory_orders",
+          filters: { id: orderId },
+          fields: ["id", "orderlines.id", "orderlines.line_fulfillments.quantity_delta", "orderlines.line_fulfillments.event_type"],
+        });
+        const receipts = (withReceipts?.[0]?.orderlines || [])
+          .flatMap((l: any) => l.line_fulfillments || [])
+          .filter((f: any) => f?.quantity_delta != null);
+        expect(receipts).toEqual([
+          expect.objectContaining({ quantity_delta: 3, event_type: "received" }),
+        ]);
       });
 
 

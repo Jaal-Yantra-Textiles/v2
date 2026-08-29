@@ -766,5 +766,112 @@ setupSharedTestSuite(() => {
         const requestedQty = newOrderPayload.quantity
         expect(totalStocked).toBe(requestedQty)
       })
+
+      /**
+       * #1613 at the HTTP boundary — the two records of a delivery, and a
+       * cancel that read the wrong one.
+       *
+       * `metadata.partner_delivered_lines` is OVERWRITTEN on every partner
+       * submission, so after two partial deliveries it holds only the second.
+       * The cancel workflow reversed stock from that key, so it un-posted the
+       * second submission and left the first sitting in the warehouse as stock
+       * for goods that were never received.
+       *
+       * Two submissions is the minimum that makes the two records disagree —
+       * with one, the blob and the typed rows say the same thing and the
+       * assertion would hold either way.
+       */
+      it("reverses BOTH partner submissions on cancel, not just the last one (#1613)", async () => {
+        const itemRes = await api.post(
+          "/admin/inventory-items",
+          { title: "Twice-Delivered Fabric", description: "#1613 cancel reversal" },
+          adminHeaders
+        )
+        expect(itemRes.status).toBe(200)
+        const itemId = itemRes.data.inventory_item.id
+
+        const orderRes = await api.post(
+          "/admin/inventory-orders",
+          {
+            order_lines: [{ inventory_item_id: itemId, quantity: 16, price: 400 }],
+            quantity: 16,
+            total_price: 6400,
+            status: "Pending",
+            expected_delivery_date: new Date(Date.now() + 3 * 24 * 60 * 60 * 1000).toISOString(),
+            order_date: new Date().toISOString(),
+            shipping_address: {
+              address_1: "1 Loom Road",
+              city: "Bhagalpur",
+              postal_code: "812001",
+              country_code: "IN",
+            },
+            stock_location_id: stockLocationId,
+            to_stock_location_id: stockLocationId,
+            from_stock_location_id: fromStockLocationId,
+            is_sample: false,
+          },
+          adminHeaders
+        )
+        expect(orderRes.status).toBe(201)
+        const orderId = orderRes.data.inventoryOrder.id
+
+        expect(
+          (await api.post(
+            `/admin/inventory-orders/${orderId}/send-to-partner`,
+            { partnerId, notes: "#1613 two-submission cancel" },
+            adminHeaders
+          )).status
+        ).toBe(200)
+        expect([200, 204]).toContain(
+          (await api.post(`/partners/inventory-orders/${orderId}/start`, {}, { headers: partnerHeaders })).status
+        )
+
+        const partnerView = await api.get(`/partners/inventory-orders/${orderId}`, { headers: partnerHeaders })
+        const lineId = partnerView.data.inventoryOrder.order_lines[0].id
+
+        // Two submissions on the SAME line: 10, then 6.
+        for (const quantity of [10, 6]) {
+          const res = await api.post(
+            `/partners/inventory-orders/${orderId}/complete`,
+            {
+              notes: `#1613 submission of ${quantity}`,
+              deliveryDate: new Date().toISOString(),
+              stock_location_id: stockLocationId,
+              lines: [{ order_line_id: lineId, quantity }],
+            },
+            { headers: partnerHeaders }
+          )
+          expect([200, 204]).toContain(res.status)
+        }
+
+        const container = getContainer()
+        const query = container.resolve(ContainerRegistrationKeys.QUERY)
+        const stockedAtDest = async () => {
+          const { data: levels } = await query.graph({
+            entity: "inventory_level",
+            fields: ["id", "location_id", "stocked_quantity"],
+            filters: { inventory_item_id: itemId },
+          })
+          return (levels || [])
+            .filter((l: any) => String(l.location_id) === String(stockLocationId))
+            .reduce((sum: number, l: any) => sum + (Number(l.stocked_quantity) || 0), 0)
+        }
+
+        // Both submissions posted, so all 16 units are on the shelf.
+        expect(await stockedAtDest()).toBe(16)
+
+        // 🔴 The blob now holds ONLY the second submission. If this were the
+        // whole record, the order would look 6 units delivered, not 16.
+        const orderView = await api.get(`/admin/inventory-orders/${orderId}?fields=id,status,metadata`, adminHeaders)
+        const blob = orderView.data.inventoryOrder.metadata?.partner_delivered_lines || []
+        expect(blob).toEqual([{ order_line_id: lineId, quantity: 6 }])
+
+        const cancelRes = await api.post(`/admin/inventory-orders/${orderId}/cancel`, { reason: "#1613" }, adminHeaders)
+        expect(cancelRes.status).toBe(200)
+
+        // Everything that was posted comes back off. Reading the blob alone
+        // reversed 6 and left 10 units of phantom stock behind.
+        expect(await stockedAtDest()).toBe(0)
+      })
     })
 })
