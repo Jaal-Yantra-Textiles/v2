@@ -32,6 +32,11 @@ import {
 } from "./lib/submission-currency"
 import { resolveRunLineAmount } from "./lib/run-line-amount"
 import {
+  assertBreakdownMatchesTotal,
+  foldRateBreakdown,
+  type RateSlice,
+} from "./lib/rate-breakdown"
+import {
   describeInventoryOrderValue,
   valueInventoryOrderByReceipts,
 } from "./lib/inventory-order-value"
@@ -84,6 +89,13 @@ export type CreatePaymentSubmissionInput = {
   cost_overrides?: Record<string, number>
   /** Typed line total per task. */
   task_cost_overrides?: Record<string, number>
+  /**
+   * Per-piece prices within one design's line, keyed by design id (#1596).
+   *
+   * ⚠️ Typed only — never read from `metadata`. It has no legacy caller, so it
+   * never touches the untyped channel at all.
+   */
+  rate_breakdown?: Record<string, RateSlice[]>
   /**
    * The status the submission lands in. "Pending" (the default) is a partner
    * saying "pay me for this". "Draft" is the system pre-filling one FOR the
@@ -175,6 +187,11 @@ type ValidatedDesign = {
   cost_breakdown: Record<string, unknown> | null
   /** The completed run ids this line pays for, or null when it came from none. */
   production_run_ids: string[] | null
+  /**
+   * Per-piece price bands, when the caller stated them (#1596). Null on every
+   * ordinary line, which is 20 of the 21 production lines.
+   */
+  rate_breakdown: RateSlice[] | null
 }
 
 type ValidatedTask = {
@@ -435,6 +452,8 @@ const validateDesignsForSubmissionStep = createStep(
       status?: "Draft" | "Pending"
       /** design id → the completed run ids that line pays for. */
       production_run_ids?: Record<string, string[]>
+      /** design id → its per-piece price bands (#1596). At least two. */
+      rate_breakdown?: Record<string, RateSlice[]>
     },
     { container }
   ) => {
@@ -559,10 +578,18 @@ const validateDesignsForSubmissionStep = createStep(
       const n = Number(value)
       return Number.isFinite(n) && n > 0
     }
+    const suppliedBreakdowns = input.rate_breakdown || {}
     const noCost = typedDesigns.filter(
       (d) =>
         !overrides[d.id] &&
         !suppliedUnitAmounts[d.id] &&
+        /**
+         * Per-piece bands ARE a stated cost (#1596) — the most explicit one
+         * available. Omitting them here would refuse a mixed-price claim for a
+         * design whose stored estimate is missing, which is precisely the case
+         * the bands exist to express.
+         */
+        !suppliedBreakdowns[d.id]?.length &&
         !isUsableCost(d.estimated_cost) &&
         !isUsableCost((d as any).production_cost)
     )
@@ -794,8 +821,40 @@ const validateDesignsForSubmissionStep = createStep(
 
     const quantities = input.quantities || {}
     const unitAmounts = input.unit_amounts || {}
+    const breakdowns = input.rate_breakdown || {}
 
     const validated: ValidatedDesign[] = typedDesigns.map((d) => {
+      /**
+       * Per-piece prices win outright (#1596). Somebody stated, band by band,
+       * what each piece costs — that outranks every stored estimate and every
+       * single-rate override, and it is the only statement that can describe a
+       * mixed-price line at all.
+       *
+       * 🔴 `unit_amount` comes from the fold, which returns null the moment two
+       * bands disagree. It is never an average: the model says a reader wanting
+       * "9 × 850" must read `unit_amount` rather than dividing, so a rate
+       * nobody agreed to would be read as one they did.
+       */
+      const slices = breakdowns[d.id]
+      if (slices?.length) {
+        const folded = foldRateBreakdown(slices)
+        // Two spellings of one total must agree, or the caller decides which.
+        assertBreakdownMatchesTotal(d.id, folded, overrides[d.id])
+
+        return {
+          id: d.id,
+          name: d.name,
+          estimated_cost: folded.amount,
+          quantity: folded.quantity,
+          unit_amount: folded.unit_amount,
+          cost_breakdown: d.cost_breakdown,
+          production_run_ids: claimedRuns[d.id]?.length
+            ? [...new Set(claimedRuns[d.id])]
+            : null,
+          rate_breakdown: slices,
+        }
+      }
+
       const line = resolvePaymentLineAmount({
         runs: (claimedRuns[d.id] || [])
           .map((runId) => runById.get(runId))
@@ -818,6 +877,7 @@ const validateDesignsForSubmissionStep = createStep(
         production_run_ids: claimedRuns[d.id]?.length
           ? [...new Set(claimedRuns[d.id])]
           : null,
+        rate_breakdown: null,
       }
     })
 
@@ -1397,6 +1457,15 @@ const createSubmissionRecordStep = createStep(
         quantity: design.quantity,
         unit_amount: design.unit_amount,
         cost_breakdown: design.cost_breakdown || null,
+        /**
+         * Per-piece prices, when the line has them (#1596). Cast at the service
+         * boundary the same way `production_run_ids` is: the column is
+         * `model.json()`, which types as an object, and what we store is an
+         * ARRAY of `{ quantity, unit_amount }` bands.
+         */
+        rate_breakdown: (design.rate_breakdown ?? null) as unknown as
+          | Record<string, unknown>
+          | null,
         // Which finished runs this line paid for — the record that lets the
         // NEXT submission refuse to pay for them again.
         //
@@ -1734,6 +1803,8 @@ export const createPaymentSubmissionWorkflow = createWorkflow(
       // Straight through as a typed input — see the field's docs for why this
       // one deliberately does not ride the metadata channel.
       production_run_ids: input.production_run_ids,
+      // Per-piece prices, same reasoning: typed only, never via metadata.
+      rate_breakdown: input.rate_breakdown,
     })
 
     const validatedTasks = validateTasksForSubmissionStep({

@@ -2016,6 +2016,118 @@ async function seedPartnerLedgerFixture(container: any): Promise<{
   }
 }
 
+/**
+ * #1596 — a submission carrying a mixed-price line beside an ordinary one, so
+ * the Rate cell can be driven in a browser.
+ *
+ * 🔴 A mixed line's `unit_amount` is NULL by design: an average is a rate
+ * nobody agreed to. That null is why the cell said "typed total" — exactly
+ * wrong, since the rates ARE recorded, there are simply more than one. The
+ * fixture therefore needs BOTH kinds on one submission: a mixed line alone
+ * cannot show that the ordinary path still reads a single rate, and an
+ * ordinary line alone cannot show the bands at all.
+ *
+ * `Pending`, so the lines are editable — which is the only state in which the
+ * "a breakdown is not editable here" half is even assertable.
+ */
+async function seedRateBreakdownSubmission(container: any): Promise<{
+  partnerId: string
+  submissionId: string
+  mixedDesignName: string
+  flatDesignName: string
+  mixedBreakdownText: string
+  mixedAmount: number
+  flatUnitAmount: number
+}> {
+  const partnerModule: any = container.resolve("partner")
+  const designService: any = container.resolve("design")
+  const submissionsService: any = container.resolve("payment_submissions")
+  const remoteLink: any = container.resolve(ContainerRegistrationKeys.LINK)
+
+  const stamp = Date.now()
+
+  const created = await partnerModule.createPartners({
+    name: `E2E Rate Partner ${stamp}`,
+    handle: `e2e-rate-${stamp}`,
+    status: "active",
+    is_verified: true,
+  })
+  const partner = Array.isArray(created) ? created[0] : created
+
+  const mkDesign = async (name: string) => {
+    const design = await designService.createDesigns({
+      name,
+      description: "e2e #1596 rate breakdown fixture",
+      design_type: "Original",
+      status: "Technical_Review",
+      priority: "Medium",
+    })
+    const id = (Array.isArray(design) ? design[0] : design).id as string
+    await remoteLink.create({
+      design: { design_id: id },
+      partner: { partner_id: partner.id },
+    })
+    return id
+  }
+
+  const mixedDesignName = `Mixed Price Fixture (e2e ${stamp})`
+  const flatDesignName = `Flat Price Fixture (e2e ${stamp})`
+  const mixedDesignId = await mkDesign(mixedDesignName)
+  const flatDesignId = await mkDesign(flatDesignName)
+
+  // 3 × 850 + 1 × 1200 = 3750. The bands are NOT round multiples of each
+  // other, so a screen that averaged them (937.5) would be visibly wrong.
+  const mixedAmount = 3750
+  const flatUnitAmount = 850
+  const flatAmount = 7650
+
+  const submissionCreated = await submissionsService.createPaymentSubmissions({
+    partner_id: partner.id,
+    status: "Pending",
+    total_amount: mixedAmount + flatAmount,
+    currency: "inr",
+    submitted_at: new Date("2026-08-20T04:00:00.000Z"),
+  })
+  const submission = Array.isArray(submissionCreated)
+    ? submissionCreated[0]
+    : submissionCreated
+
+  await submissionsService.createPaymentSubmissionItems({
+    submission_id: submission.id,
+    source_type: "design",
+    design_id: mixedDesignId,
+    design_name: mixedDesignName,
+    amount: mixedAmount,
+    quantity: 4,
+    // Null, deliberately — see the note above. This is what made the cell lie.
+    unit_amount: null,
+    rate_breakdown: [
+      { quantity: 3, unit_amount: 850 },
+      { quantity: 1, unit_amount: 1200 },
+    ],
+  })
+
+  await submissionsService.createPaymentSubmissionItems({
+    submission_id: submission.id,
+    source_type: "design",
+    design_id: flatDesignId,
+    design_name: flatDesignName,
+    amount: flatAmount,
+    quantity: 9,
+    unit_amount: flatUnitAmount,
+  })
+
+  return {
+    partnerId: partner.id as string,
+    submissionId: submission.id as string,
+    mixedDesignName,
+    flatDesignName,
+    mixedBreakdownText: "3 × 850 + 1 × 1200",
+    mixedAmount,
+    flatUnitAmount,
+  }
+}
+
 const SEED_PASSWORD = "e2etest123!"
 const SEED_FILE = path.resolve(__dirname, "../../apps/backend/.e2e-seed.json")
 
@@ -2178,6 +2290,9 @@ export default async function e2eSeed({ container }: ExecArgs) {
   logger.info("E2E seed: creating the #1556 payable production runs + partner...")
   const payableRuns = await seedPayableProductionRuns(container)
 
+  logger.info("E2E seed: rate-breakdown submission fixture (#1596)...")
+  const rateBreakdown = await seedRateBreakdownSubmission(container)
+
   logger.info("E2E seed: partner ledger fixture (#1612)...")
   const partnerLedger = await seedPartnerLedgerFixture(container)
 
@@ -2329,6 +2444,14 @@ export default async function e2eSeed({ container }: ExecArgs) {
     acceptedQuoteCompany: adminQuotes.acceptedQuoteCompany,
     zeroDepositQuoteId: adminQuotes.zeroDepositQuoteId,
     zeroDepositQuoteCompany: adminQuotes.zeroDepositQuoteCompany,
+    // #1596 per-piece prices — consumed by submission-rate-breakdown.spec.ts
+    // (admin, CI). NOT single-use: the spec only reads and cancels.
+    rateSubmissionId: rateBreakdown.submissionId,
+    rateMixedDesignName: rateBreakdown.mixedDesignName,
+    rateFlatDesignName: rateBreakdown.flatDesignName,
+    rateMixedBreakdownText: rateBreakdown.mixedBreakdownText,
+    rateMixedAmount: rateBreakdown.mixedAmount,
+    rateFlatUnitAmount: rateBreakdown.flatUnitAmount,
     // #1553 goods-transfer carrier facts — consumed by
     // run-transfer-carrier.spec.ts (admin, CI). NOT single-use: the spec reads
     // the rows and cancels out of the create drawer.

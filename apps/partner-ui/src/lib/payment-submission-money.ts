@@ -48,6 +48,19 @@ export const money = (amount: unknown, currency?: string | null): string => {
  * the partner had agreed to it.
  */
 export const perUnit = (item: any, currency?: string | null): string | null => {
+  /**
+   * Per-piece prices first (#1596). A mixed-price line's `unit_amount` is null
+   * by design — an average would be a rate nobody agreed to — so before this,
+   * such a line showed no breakdown at all, and a partner checking a payout
+   * could not see the rates they had themselves quoted.
+   */
+  const bands = rateBands(item)
+  if (bands) {
+    return bands
+      .map((b) => `${b.quantity} × ${money(b.unit_amount, currency)}`)
+      .join(" + ")
+  }
+
   const qty = Number(item?.quantity)
   const unit = item?.unit_amount
 
@@ -58,6 +71,35 @@ export const perUnit = (item: any, currency?: string | null): string | null => {
   if (!Number.isFinite(qty) || qty <= 0) return null
 
   return `${qty} × ${money(unitValue, currency)}`
+}
+
+/**
+ * The per-piece price bands on a line, when it has more than one rate (#1596).
+ *
+ * 🔴 Mirrors `readRateBreakdown` in
+ * `apps/backend/src/workflows/payment_submissions/lib/rate-breakdown.ts`, which
+ * OWNS this shape. partner-ui cannot import across the app boundary, so the
+ * rule is restated rather than shared: a single band is dropped, because it
+ * says exactly what `quantity` and `unit_amount` already say, and a malformed
+ * band is dropped rather than rendered as NaN at the partner it belongs to.
+ */
+const rateBands = (item: any): Array<{ quantity: number; unit_amount: number }> | null => {
+  const raw = item?.rate_breakdown
+  if (!Array.isArray(raw) || raw.length < 2) return null
+
+  const bands = raw
+    .filter(
+      (b: any) =>
+        b &&
+        Number.isFinite(Number(b.quantity)) &&
+        Number.isFinite(Number(b.unit_amount))
+    )
+    .map((b: any) => ({
+      quantity: Number(b.quantity),
+      unit_amount: Number(b.unit_amount),
+    }))
+
+  return bands.length >= 2 ? bands : null
 }
 
 /** What the run-provenance note should say, or null for "say nothing". */

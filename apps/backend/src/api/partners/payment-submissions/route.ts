@@ -87,6 +87,8 @@ export const POST = async (
       documents: body.documents,
       // Typed input, not folded into metadata — see the field's docs.
       production_run_ids: body.production_run_ids,
+      // Per-piece prices within one line (#1596). Typed only.
+      rate_breakdown: body.rate_breakdown,
       // The money, as typed inputs. The fold below keeps the same values on
       // `metadata` so reviewers still see original vs. requested.
       quantities: body.quantities,
