@@ -10,8 +10,9 @@ import {
   CreateShippingOptionDTO,
   Logger,
 } from "@medusajs/framework/types"
-import { DHLClient, DHLOptions } from "./client"
+import { DHLClient, DHLOptions, normalizeDhlDocuments } from "./client"
 import { declaredValueForShipment } from "../delhivery/declared-value"
+import { FlatFallbackConfig, resolveFlatFallbackAmount } from "../shiprocket/flat-fallback"
 
 type InjectedDeps = { logger: Logger }
 
@@ -26,16 +27,54 @@ function hsCodeFor(orderItem: any): string {
   return metadata.hs_code || metadata.hsCode || metadata.HSCode || DEFAULT_HS_CODE
 }
 
+/**
+ * Map a Medusa document type onto DHL's "Get Image" `typeCode` enum
+ * (`waybill`, `commercial-invoice`, `customs-entry`,
+ * `transport-accompanying-document`, `generic-entry-summary`,
+ * `dhl-issued-proforma-invoice`). Unknown types default to `waybill` (the label),
+ * which is the one document every shipment has.
+ */
+export function dhlDocumentTypeCode(documentType?: string): string {
+  const t = String(documentType || "").toLowerCase()
+  if (/proforma/.test(t)) return "dhl-issued-proforma-invoice"
+  if (/(invoice|commercial)/.test(t)) return "commercial-invoice"
+  if (/(label|waybill)/.test(t)) return "waybill"
+  if (/customs/.test(t)) return "customs-entry"
+  if (/transport/.test(t)) return "transport-accompanying-document"
+  if (/summary/.test(t)) return "generic-entry-summary"
+  return "waybill"
+}
+
+/**
+ * DHL's "Get Image" needs the pickup month (`YYYY-MM`) to locate a document.
+ * Read it from the fulfillment's timestamps, best-effort; the caller falls back
+ * to the current month when none is available (a wrong month is a 404, caught
+ * upstream — never a throw).
+ */
+export function dhlPickupYearMonth(value?: unknown): string | undefined {
+  if (value === null || value === undefined || value === "") return undefined
+  const d = value instanceof Date ? value : new Date(value as any)
+  if (Number.isNaN(d.getTime())) return undefined
+  const pad = (n: number) => String(n).padStart(2, "0")
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}`
+}
+
 class DHLExpressFulfillmentService extends AbstractFulfillmentProviderService {
   static identifier = "dhl-express"
 
   protected client: DHLClient
   protected logger: Logger
+  /** What an unquotable lane costs. See `shiprocket/flat-fallback.ts`. */
+  protected fallbackConfig: FlatFallbackConfig
 
-  constructor({ logger }: InjectedDeps, options: DHLOptions) {
+  constructor({ logger }: InjectedDeps, options: DHLOptions & FlatFallbackConfig) {
     super()
     this.logger = logger
     this.client = new DHLClient(options)
+    this.fallbackConfig = {
+      flat_fallback_amounts: options?.flat_fallback_amounts,
+      flat_fallback_amount: options?.flat_fallback_amount,
+    }
   }
 
   async getFulfillmentOptions(): Promise<FulfillmentOption[]> {
@@ -96,10 +135,12 @@ class DHLExpressFulfillmentService extends AbstractFulfillmentProviderService {
    *   `from_location` (the stock location shipping the items).
    *
    * Price is resolved through DHL's `/rates` endpoint for the matched
-   * product, billing the customer-billed currency (`BILLC`). Failures are
-   * caught and fall back to a zero amount rather than throwing: a throw
-   * blocks the cart operation that triggered the calculation (adding the
-   * method or refreshing the cart) and stops checkout.
+   * product, billing the customer-billed currency (`BILLC`). A lane DHL will
+   * not quote — an empty product list, no matched product, no `BILLC` price,
+   * or a carrier/network error — resolves to the flat fallback rather than
+   * throwing or answering `0` (see `shiprocket/flat-fallback.ts` for why a
+   * silent zero is the bug, and why a throw here is worse than what it
+   * replaced: it would take the whole shipping options listing with it).
    */
   async calculatePrice(
     optionData: CalculateShippingOptionPriceDTO["optionData"],
@@ -109,6 +150,15 @@ class DHLExpressFulfillmentService extends AbstractFulfillmentProviderService {
     const from = context.from_location?.address
     const to = context.shipping_address
     const items = context.items ?? []
+    const destinationCountry = String(to?.country_code || "").toUpperCase()
+    /**
+     * 🔑 `calculated_amount` is denominated in the CART's currency, so the
+     * currency decides whether a fallback figure means anything at all. Read
+     * best-effort; when absent the resolver skips its per-currency map rather
+     * than guessing between €35 and ₹3200.
+     */
+    const currencyCode =
+      (context as any)?.currency_code ?? (context as any)?.cart?.currency_code ?? null
 
     try {
       const totalWeightKg = this.weightInKg(items as any[])
@@ -132,12 +182,59 @@ class DHLExpressFulfillmentService extends AbstractFulfillmentProviderService {
       const billc = (match?.totalPrice || []).find(
         (p: any) => p.currencyType === "BILLC"
       )
-      const amount = billc?.price ?? match?.totalPrice?.[0]?.price ?? 0
+      const amount = billc?.price ?? match?.totalPrice?.[0]?.price
 
-      return { calculated_amount: amount, is_calculated_price_tax_inclusive: true }
+      if (!Number.isFinite(Number(amount))) {
+        return this.flatFallback(
+          destinationCountry,
+          `DHL returned no rate for ${productCode || "any product"} to ${to?.city || ""} ${to?.postal_code || ""} ${to?.country_code || ""}`,
+          optionData,
+          currencyCode
+        )
+      }
+
+      return { calculated_amount: Number(amount), is_calculated_price_tax_inclusive: true }
     } catch (e: any) {
       this.logger.error(`DHL calculatePrice error: ${e.message}`)
-      return { calculated_amount: 0, is_calculated_price_tax_inclusive: false }
+      return this.flatFallback(destinationCountry, e.message, optionData, currencyCode)
+    }
+  }
+
+  /**
+   * The flat rate for a lane DHL would not quote.
+   *
+   * The `reason` is logged rather than returned: the buyer must not see a
+   * carrier's internal complaint, but an operator needs to know the lane fell
+   * back rather than quoting live — otherwise a carrier outage looks exactly
+   * like normal pricing. 🔑 That log line is the ONLY thing separating this from
+   * the silent zero it replaced, so it must never be dropped to reduce noise.
+   */
+  private flatFallback(
+    destinationCountry: string,
+    reason: string,
+    optionData?: Record<string, unknown>,
+    currencyCode?: string | null
+  ): CalculatedShippingOptionPrice {
+    const { amount, reason: unconfigured } = resolveFlatFallbackAmount(
+      this.fallbackConfig,
+      destinationCountry,
+      optionData,
+      currencyCode
+    )
+
+    this.logger.warn(
+      `[dhl-express] falling back to the flat rate ${amount} ${
+        currencyCode ? String(currencyCode).toUpperCase() : "(currency unknown)"
+      } for ${destinationCountry || "IN"} — ${reason}${
+        unconfigured ? ` (${unconfigured})` : ""
+      }`
+    )
+
+    return {
+      calculated_amount: amount!,
+      // A flat rate is a figure WE set, so it carries no carrier tax treatment
+      // to inherit. Claiming tax-inclusive here would quietly shrink it.
+      is_calculated_price_tax_inclusive: false,
     }
   }
 
@@ -239,13 +336,83 @@ class DHLExpressFulfillmentService extends AbstractFulfillmentProviderService {
     }
   }
 
+  /**
+   * Cancel a shipment with DHL Express.
+   *
+   * Deliberately a no-op: DHL's MyDHLAPI exposes **no programmatic cancel**
+   * endpoint. A cancellation is a manual action with DHL customer service (via
+   * the shipment's tracking number), so the honest behaviour is to record the
+   * request in the log and return — inventing an API call that doesn't exist,
+   * or throwing, would break the cancel workflow for nothing. The log line
+   * carries the tracking number so an operator chasing a cancel has the
+   * reference DHL needs.
+   */
   async cancelFulfillment(fulfillment: Record<string, any>): Promise<any> {
-    this.logger.info(`DHL cancellation requested for ${fulfillment.data?.tracking_number}`)
+    this.logger.info(`DHL cancellation requested for ${fulfillment.data?.tracking_number}; DHL Express has no API cancel — raise with DHL customer service`)
     return {}
   }
 
+  /**
+   * Return fulfillment — stubbed.
+   *
+   * DHL has no first-class "return this shipment" API op: a return is a NEW
+   * outbound shipment booked the normal way (the receiver becomes the shipper
+   * on a fresh waybill), which is `createFulfillment` again, not a separate
+   * method. Until a return flow exists that drives it, this returns the same
+   * carrier-marked stub Shiprocket uses, so a return fulfillment can at least
+   * be recorded without a carrier call.
+   */
   async createReturnFulfillment(fulfillment: Record<string, any>): Promise<CreateFulfillmentResult> {
     return { data: { carrier: "dhl-express", type: "return" }, labels: [] }
+  }
+
+  /**
+   * Documents for a fulfillment — the label and commercial/customs invoice DHL
+   * produced at create time. Prefer what's already stored on the fulfillment
+   * (the createShipment response is spread onto `data`); otherwise fetch fresh
+   * by tracking number.
+   */
+  async getFulfillmentDocuments(data: Record<string, any>): Promise<any> {
+    const stored = normalizeDhlDocuments(data?.documents)
+    if (stored.length) return stored
+    return this.retrieveDocuments(data)
+  }
+
+  /**
+   * Retrieve documents of a specific type for a fulfillment.
+   *
+   * The base `AbstractFulfillmentProviderService` throws from this method, so
+   * overriding it is required, not optional. Maps Medusa's `documentType`
+   * ("label", "invoice", …) onto DHL's "Get Image" service (`/shipments/{id}/get-image`)
+   * and returns the normalized rows; a carrier/network failure (or a stale pickup
+   * month) degrades to `[]` rather than throwing, so a document fetch can't wedge
+   * the caller.
+   */
+  async retrieveDocuments(
+    fulfillmentData: Record<string, any>,
+    documentType?: string
+  ): Promise<any> {
+    const trackingNumber =
+      fulfillmentData?.tracking_number ||
+      fulfillmentData?.shipment_id ||
+      fulfillmentData?.awb_number ||
+      ""
+    if (!trackingNumber) return []
+    try {
+      const res = await this.client.getShipmentImage(trackingNumber, {
+        typeCode: dhlDocumentTypeCode(documentType),
+        pickupYearAndMonth:
+          dhlPickupYearMonth(
+            fulfillmentData?.shipped_at ??
+              fulfillmentData?.pickup_at ??
+              fulfillmentData?.created_at
+          ) || new Date().toISOString().slice(0, 7),
+      })
+      return normalizeDhlDocuments(res)
+    } catch (e: any) {
+      this.logger.warn(`DHL document retrieval failed for ${trackingNumber}: ${e.message}`)
+      return []
+    }
   }
 
   /** Cart items carry variant weight (grams) → billable weight in kg. */
