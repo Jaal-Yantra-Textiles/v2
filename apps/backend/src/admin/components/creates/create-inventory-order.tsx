@@ -1,13 +1,13 @@
 import { useForm, useFieldArray, useWatch } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "@medusajs/framework/zod";
-import { Button, DatePicker, Heading, Input, Text, ProgressTabs, ProgressStatus, Select, toast, Switch, Label } from "@medusajs/ui";
+import { Button, DatePicker, Heading, Text, ProgressTabs, ProgressStatus, Select, toast, Switch, Label } from "@medusajs/ui";
 import { useRouteModal } from "../modal/use-route-modal";
 import { useCreateInventoryOrder } from "../../hooks/api/inventory-orders";
 import { RouteFocusModal } from "../modal/route-focus-modal";
 import { KeyboundForm } from "../utilitites/key-bound-form";
 import { Form } from "../common/form";
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect } from "react";
 import { useStockLocations } from "../../hooks/api/stock_location";
 import { useAllInventoryWithRawMaterials } from "../../hooks/api/raw-materials";
 import { InventoryOrderLinesGrid } from "./inventory-order-lines-grid";
@@ -23,13 +23,6 @@ export const inventoryOrderFormSchema = z
     // From location (optional)
     from_stock_location_id: z.string().optional(),
     is_sample: z.boolean().optional(),
-    /**
-     * #1617 — what the partner will actually be PAID, which is not the ordered
-     * total. Typed as text and coerced on submit: an empty numeric input yields
-     * NaN, which would fail a `.nonnegative()` with a message about a number
-     * the user never entered.
-     */
-    agreed_total: z.string().optional(),
     order_lines: z
       .array(
         z.object({
@@ -76,7 +69,6 @@ export const CreateInventoryOrderComponent = () => {
       stock_location_id: "",
       from_stock_location_id: undefined,
       is_sample: false,
-      agreed_total: "",
       // Seed multiple empty rows so users can start filling without needing to add immediately
       order_lines: Array.from({ length: 5 }, () => ({ inventory_item_id: "", quantity: 0, price: 0 })),
     },
@@ -167,36 +159,8 @@ export const CreateInventoryOrderComponent = () => {
     return { totalQuantity, totalPrice };
   };
 
-  /**
-   * How far the agreed figure sits from the ordered total, or null when it is
-   * blank or not a number. Shown rather than silently accepted: a mistyped
-   * agreed total is a ceiling on every future payout for this order, and "below
-   * the order price by 28,375.75" is the sentence that catches a slip.
-   */
-  const agreedTotalWatch = useWatch({ control: form.control, name: "agreed_total" });
-  const agreedTotalDelta = useMemo(() => {
-    const raw = (agreedTotalWatch || "").trim();
-    if (raw === "") return null;
-    const parsed = Number(raw);
-    if (!Number.isFinite(parsed)) return null;
-    return parsed - calculateTotals().totalPrice;
-    // `fields` drives the totals, so the delta has to recompute as lines change.
-  }, [agreedTotalWatch, fields]);
-
   const handleSubmit = form.handleSubmit(async (data) => {
     const { totalQuantity, totalPrice } = calculateTotals();
-
-    const agreedRaw = (data.agreed_total || "").trim();
-    if (agreedRaw !== "") {
-      const parsed = Number(agreedRaw);
-      if (!Number.isFinite(parsed) || parsed < 0) {
-        form.setError("agreed_total", {
-          message: "Enter a number, or leave it blank",
-        });
-        setTab(Tab.ORDER_LINES);
-        return;
-      }
-    }
 
     let payload: any = {
       quantity: totalQuantity,
@@ -216,16 +180,6 @@ export const CreateInventoryOrderComponent = () => {
           batch_number: batch_number ?? null,
         })),
     };
-    /**
-     * Omitted entirely when blank, rather than sent as 0 — null means "nobody
-     * recorded an agreed price" and the payout guard falls back to the ordered
-     * total, while 0 would assert this order is worth nothing and make it
-     * unpayable.
-     */
-    const agreed = (data.agreed_total || "").trim();
-    if (agreed !== "") {
-      payload.agreed_total = Number(agreed);
-    }
     if (data.from_stock_location_id) {
       payload.from_stock_location_id = data.from_stock_location_id;
     }
@@ -425,59 +379,6 @@ export const CreateInventoryOrderComponent = () => {
                   <div className="flex justify-between items-center">
                     <Text weight="plus">Total Order Price:</Text>
                     <Text weight="plus">${calculateTotals().totalPrice.toFixed(2)}</Text>
-                  </div>
-
-                  {/**
-                    * #1617 — the AGREED payout total, next to the ordered total
-                    * because the whole point is that the two differ. One order
-                    * was priced at ₹63,375.75 and agreed at ₹35,000.
-                    *
-                    * Until this existed the agreed figure lived only in a
-                    * payment submission's `metadata.agreed_total`, so the payout
-                    * guard had nothing to measure a part payment against: paying
-                    * ₹30,000 of an agreed ₹35,000 locked out the balance.
-                    */}
-                  <div className="mt-4 border-t border-dashed pt-4">
-                    <Form.Field
-                      control={form.control}
-                      name="agreed_total"
-                      render={({ field }) => (
-                        <Form.Item>
-                          <div className="flex justify-between items-center gap-x-4">
-                            <div className="flex flex-col">
-                              <Form.Label optional>Agreed payout total</Form.Label>
-                              <Text size="small" className="text-ui-fg-subtle">
-                                What this partner will actually be paid, if it
-                                differs from the order price. Leave blank and the
-                                order price is used.
-                              </Text>
-                            </div>
-                            <Form.Control>
-                              <Input
-                                className="max-w-[180px]"
-                                inputMode="decimal"
-                                autoComplete="off"
-                                placeholder={calculateTotals().totalPrice.toFixed(2)}
-                                {...field}
-                              />
-                            </Form.Control>
-                          </div>
-                          <Form.ErrorMessage />
-                        </Form.Item>
-                      )}
-                    />
-                    {agreedTotalDelta !== null && (
-                      <Text
-                        size="small"
-                        className="text-ui-fg-subtle mt-2 flex justify-end"
-                      >
-                        {agreedTotalDelta === 0
-                          ? "Same as the order price."
-                          : `${agreedTotalDelta > 0 ? "Above" : "Below"} the order price by ${Math.abs(
-                              agreedTotalDelta
-                            ).toFixed(2)}.`}
-                      </Text>
-                    )}
                   </div>
                 </div>
               </div>
