@@ -1579,6 +1579,74 @@ setupSharedTestSuite(() => {
     })
   })
 
+  /**
+   * #1616 — `payable-runs` offered ₹810 and `create` wrote ₹1,056.40, the
+   * DESIGN's `estimated_cost`, for the same run. Both halves of that fix are
+   * asserted here at the HTTP boundary:
+   *
+   *  1. what the offer screen shows is what `create` writes; and
+   *  2. `create` RETURNS the line it wrote.
+   *
+   * 🔴 The second matters as much as the first. `create` used to return
+   * `items: []`, so the amount could not be seen until the submission was
+   * fetched again — the overbill was found only because a handoff had named the
+   * expected figure. The read-back exists in the workflow but nothing at this
+   * boundary held it, so deleting it would have left every test green.
+   */
+  describe("POST /admin/payment-submissions — the offer is what gets written (#1616)", () => {
+    it("prices from the RUN, and returns the line it wrote", async () => {
+      // The shape of the prod row: a `total` run worth far less than the
+      // design's per-unit estimate.
+      const designId = await createDesign("Princess Highway", {
+        estimated_cost: 1056.4,
+      })
+      await linkDesignToPartner(designId, partnerId)
+      const runId = await createCompletedRun(designId, "Princess Highway", {
+        quantity: 1,
+        produced_quantity: 1,
+        partner_cost_estimate: 810,
+        cost_type: "total",
+      })
+
+      // What the operator is offered.
+      const offers = await api.get(
+        `/admin/payment-submissions/payable-runs?partner_id=${partnerId}`,
+        adminHeaders
+      )
+      expect(offers.status).toBe(200)
+      const offered = (offers.data.runs || offers.data.payable_runs || []).find(
+        (r: any) => r.id === runId || r.run_id === runId
+      )
+      expect(offered).toBeDefined()
+      expect(Number(offered.amount)).toBe(810)
+
+      // What acting on it actually writes — no explicit amount, so the pricer
+      // decides.
+      const res = await api.post(
+        "/admin/payment-submissions",
+        {
+          partner_id: partnerId,
+          design_ids: [designId],
+          production_run_ids: { [designId]: [runId] },
+        },
+        adminHeaders
+      )
+      expect(res.status).toBe(201)
+
+      // 🔴 Asserted on the CREATE response, not on a follow-up GET. That the
+      // amount is visible at the moment it is written is the fix.
+      const created = res.data.payment_submission
+      expect(Array.isArray(created.items)).toBe(true)
+      expect(created.items.length).toBe(1)
+      expect(Number(created.items[0].amount)).toBe(810)
+      // The exact overbill the issue reports.
+      expect(Number(created.items[0].amount)).not.toBe(1056.4)
+
+      // And the two agree, which is the contract.
+      expect(Number(created.items[0].amount)).toBe(Number(offered.amount))
+    })
+  })
+
   describe("POST /admin/payment-submissions — run provenance (#1556)", () => {
     it("records which runs a line paid for, and reports them as billed", async () => {
       const d1 = await createDesign("Provenance Design", {
