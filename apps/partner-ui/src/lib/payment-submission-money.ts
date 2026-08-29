@@ -102,6 +102,42 @@ const rateBands = (item: any): Array<{ quantity: number; unit_amount: number }> 
   return bands.length >= 2 ? bands : null
 }
 
+/**
+ * Group priced runs into the bands a line records (#1596).
+ *
+ * 🔴 Mirrors `groupIntoRateBands` in
+ * `apps/backend/src/workflows/payment_submissions/lib/rate-breakdown-display.ts`,
+ * which OWNS this shape — partner-ui cannot import across the app boundary, so
+ * the rule is restated. Keep the two in step: the backend validator refuses
+ * fewer than two bands and refuses a non-positive figure, so a screen that
+ * disagrees turns a mistyped box into a 400 for the whole submission.
+ *
+ * Runs at the same rate merge into one band, and bands come back ordered by
+ * rate so the same selection always sends the same payload.
+ */
+export const groupIntoRateBands = (
+  entries: Array<{ quantity: number; unit_amount: number }> | null | undefined
+): Array<{ quantity: number; unit_amount: number }> | null => {
+  const byRate = new Map<number, number>()
+
+  for (const entry of entries || []) {
+    const quantity = Number(entry?.quantity)
+    const rate = Number(entry?.unit_amount)
+    if (!Number.isFinite(quantity) || quantity <= 0) continue
+    if (!Number.isFinite(rate) || rate <= 0) continue
+    byRate.set(rate, (byRate.get(rate) || 0) + quantity)
+  }
+
+  if (byRate.size < 2) return null
+
+  return [...byRate.entries()]
+    .sort(([a], [b]) => a - b)
+    .map(([unit_amount, quantity]) => ({
+      quantity: Math.round(quantity * 100) / 100,
+      unit_amount,
+    }))
+}
+
 /** What the run-provenance note should say, or null for "say nothing". */
 export type ProvenanceLabel = { text: string; muted: boolean } | null
 

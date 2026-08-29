@@ -59,3 +59,54 @@ export const readRateBreakdown = (item: any): RateSlice[] | null => {
 
   return slices.length >= 2 ? slices : null
 }
+
+/**
+ * Group priced work into the bands a line records (#1596).
+ *
+ * ## Why this is the WRITER's missing half
+ *
+ * The bands rendered from day one and nothing could produce them. Both create
+ * screens hit the mixed-rate case and threw the structure away: two runs of one
+ * design at ₹850 and ₹1,200 collapsed into a single typed TOTAL, and the line
+ * came out saying ₹3,750 with a null rate and no account of how it got there.
+ * The total was right and the explanation was gone — which is the whole of what
+ * #1596 asks for.
+ *
+ * Runs at the SAME rate merge into one band: three separate ₹850 runs are "3 ×
+ * 850", not three bands saying the same thing. Bands come back ordered by rate
+ * so the same selection always sends the same payload — a set's iteration order
+ * is insertion order, and two admins picking the same runs in a different order
+ * would otherwise write two different-looking breakdowns of one agreement.
+ *
+ * 🔴 Returns null below two distinct rates, matching the validator's `.min(2)`
+ * and `readRateBreakdown`'s floor. One rate is an ordinary priced line and
+ * belongs in `quantity` + `unit_amount`, where every existing reader already
+ * looks; sending it here would be a second spelling of a fact that has one.
+ * Zero and negative figures are dropped — the validator refuses them, so a
+ * screen that sends them turns a mistyped box into a 400 for the whole
+ * submission rather than one skipped run.
+ */
+export const groupIntoRateBands = (
+  entries: Array<{ quantity: number; unit_amount: number }> | null | undefined
+): RateSlice[] | null => {
+  const byRate = new Map<number, number>()
+
+  for (const entry of entries || []) {
+    const quantity = Number(entry?.quantity)
+    const rate = Number(entry?.unit_amount)
+    if (!Number.isFinite(quantity) || quantity <= 0) continue
+    if (!Number.isFinite(rate) || rate <= 0) continue
+    byRate.set(rate, (byRate.get(rate) || 0) + quantity)
+  }
+
+  if (byRate.size < 2) return null
+
+  return [...byRate.entries()]
+    .sort(([a], [b]) => a - b)
+    .map(([unit_amount, quantity]) => ({
+      // Guard the float: 0.1 + 0.2 pieces must not reach the validator as
+      // 0.30000000000000004 and read as a quantity nobody typed.
+      quantity: Math.round(quantity * 100) / 100,
+      unit_amount,
+    }))
+}

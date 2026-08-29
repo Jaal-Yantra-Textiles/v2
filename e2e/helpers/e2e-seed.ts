@@ -627,6 +627,12 @@ async function seedPayableProductionRuns(container: any): Promise<{
   partnerSumRunAId: string
   partnerSumRunBId: string
   sumDesignName: string
+  partnerMixedRunAId: string
+  partnerMixedRunBId: string
+  mixedDesignName: string
+  adminMixedRunAId: string
+  adminMixedRunBId: string
+  adminMixedDesignName: string
 }> {
   const partnerModule: any = container.resolve("partner")
   const designService: any = container.resolve("design")
@@ -857,6 +863,116 @@ async function seedPayableProductionRuns(container: any): Promise<{
     cost_type: "per_unit",
   })
 
+  /**
+   * #1596 — a pair of runs on one design at DIFFERENT agreed rates: the exact
+   * case the issue was opened for, "3 at ₹850 and 1 at ₹1,200".
+   *
+   * 🔴 Different rates is the whole fixture. The summing pair above is
+   * deliberately 1200 and 1200, so a screen that collapses two rates into one
+   * typed total passes it — the sum is right either way. Only a pair that
+   * DISAGREES can tell a breakdown from an average, and only then does the
+   * line's `unit_amount` have to come back null.
+   *
+   * ⚠️ Its own design again, for the reason the block above gives: a design
+   * already carrying a Pending submission is refused outright, so sharing one
+   * would fail this spec with a message about active submissions that says
+   * nothing about per-piece prices. And these runs are CONSUMED by the
+   * submitting spec — read attempt #1, never a retry.
+   */
+  const mixedDesignName = `Mixed Rate Fixture (e2e ${stamp})`
+  const mixedDesign = await designService.createDesigns({
+    name: mixedDesignName,
+    description: "e2e #1596 per-piece prices fixture",
+    design_type: "Original",
+    status: "Technical_Review",
+    priority: "Medium",
+    estimated_cost: 5000,
+  })
+  const mixedDesignId = (
+    Array.isArray(mixedDesign) ? mixedDesign[0] : mixedDesign
+  ).id as string
+  await remoteLink.create({
+    design: { design_id: mixedDesignId },
+    partner: { partner_id: partner.id },
+  })
+
+  const mkMixedRun = async (overrides: Record<string, any>) => {
+    const run = await runService.createProductionRuns({
+      design_id: mixedDesignId,
+      partner_id: partner.id,
+      run_type: "production",
+      status: "completed",
+      completed_at: new Date(),
+      snapshot: { design: { id: mixedDesignId, name: mixedDesignName } },
+      captured_at: new Date(),
+      ...overrides,
+    })
+    return (Array.isArray(run) ? run[0] : run).id as string
+  }
+
+  const partnerMixedRunAId = await mkMixedRun({
+    quantity: 3,
+    produced_quantity: 3,
+    partner_cost_estimate: 850,
+    cost_type: "per_unit",
+  })
+  const partnerMixedRunBId = await mkMixedRun({
+    quantity: 1,
+    produced_quantity: 1,
+    partner_cost_estimate: 1200,
+    cost_type: "per_unit",
+  })
+
+  /**
+   * The same case again for the ADMIN create screen. A separate design and a
+   * separate pair, because both screens CONSUME what they bill — sharing one
+   * would make whichever spec ran second fail on the double-pay guard, and that
+   * failure looks exactly like a real defect.
+   */
+  const adminMixedDesignName = `Admin Mixed Rate Fixture (e2e ${stamp})`
+  const adminMixedDesign = await designService.createDesigns({
+    name: adminMixedDesignName,
+    description: "e2e #1596 per-piece prices fixture (admin screen)",
+    design_type: "Original",
+    status: "Technical_Review",
+    priority: "Medium",
+    estimated_cost: 5000,
+  })
+  const adminMixedDesignId = (
+    Array.isArray(adminMixedDesign) ? adminMixedDesign[0] : adminMixedDesign
+  ).id as string
+  await remoteLink.create({
+    design: { design_id: adminMixedDesignId },
+    partner: { partner_id: partner.id },
+  })
+
+  const mkAdminMixedRun = async (overrides: Record<string, any>) => {
+    const run = await runService.createProductionRuns({
+      design_id: adminMixedDesignId,
+      partner_id: partner.id,
+      run_type: "production",
+      status: "completed",
+      completed_at: new Date(),
+      snapshot: { design: { id: adminMixedDesignId, name: adminMixedDesignName } },
+      captured_at: new Date(),
+      ...overrides,
+    })
+    return (Array.isArray(run) ? run[0] : run).id as string
+  }
+
+  const adminMixedRunAId = await mkAdminMixedRun({
+    quantity: 3,
+    produced_quantity: 3,
+    partner_cost_estimate: 850,
+    cost_type: "per_unit",
+  })
+  const adminMixedRunBId = await mkAdminMixedRun({
+    quantity: 1,
+    produced_quantity: 1,
+    partner_cost_estimate: 1200,
+    cost_type: "per_unit",
+  })
+
   return {
     partnerId: partner.id as string,
     partnerName: partner.name as string,
@@ -871,6 +987,12 @@ async function seedPayableProductionRuns(container: any): Promise<{
     partnerSumRunAId,
     partnerSumRunBId,
     sumDesignName,
+    partnerMixedRunAId,
+    partnerMixedRunBId,
+    mixedDesignName,
+    adminMixedRunAId,
+    adminMixedRunBId,
+    adminMixedDesignName,
   }
 }
 
@@ -2429,6 +2551,13 @@ export default async function e2eSeed({ container }: ExecArgs) {
     partnerSumRunAId: payableRuns.partnerSumRunAId,
     partnerSumRunBId: payableRuns.partnerSumRunBId,
     sumDesignName: payableRuns.sumDesignName,
+    partnerMixedRunAId: payableRuns.partnerMixedRunAId,
+    partnerMixedRunBId: payableRuns.partnerMixedRunBId,
+    mixedDesignName: payableRuns.mixedDesignName,
+    adminMixedRunAId: payableRuns.adminMixedRunAId,
+    adminMixedRunBId: payableRuns.adminMixedRunBId,
+    adminMixedDesignName: payableRuns.adminMixedDesignName,
+    adminPartnerName: payableRuns.partnerName,
     // #1439 S3/S4 admin quote surface — consumed by admin-quote-surface.spec.ts
     // (admin, CI). NOT single-use: the spec cancels out of the revoke prompt
     // rather than confirming it, so a re-run finds the same active quote.

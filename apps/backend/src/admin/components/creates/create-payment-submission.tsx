@@ -23,6 +23,14 @@ import {
   usePayableRuns,
   type PayableRun,
 } from "../../hooks/api/payment-submissions"
+/**
+ * 🔴 From `rate-breakdown-display`, NOT `rate-breakdown`. This is a Vite
+ * BROWSER bundle: the latter imports `MedusaError`, and pulling it in here
+ * dragged Node built-ins into the dashboard and killed it on
+ * `util.inherits is not a function` — login included — before a pixel
+ * rendered (#1596). The display file imports nothing, and must keep to that.
+ */
+import { groupIntoRateBands } from "../../../workflows/payment_submissions/lib/rate-breakdown-display"
 
 const ELIGIBLE_DESIGN_STATUSES = ["Commerce_Ready", "Approved"] as const
 const ELIGIBLE_TASK_STATUSES = ["completed"] as const
@@ -459,13 +467,46 @@ export const CreatePaymentSubmissionComponent = () => {
       const unitAmounts: Record<string, number> = {}
       const runCostOverrides: Record<string, number> = { ...designCostOverrides }
       const productionRunIds: Record<string, string[]> = {}
+      const rateBreakdown: Record<
+        string,
+        Array<{ quantity: number; unit_amount: number }>
+      > = {}
 
       for (const [designId, line] of runLinesByDesign.entries()) {
         quantities[designId] = line.quantity
         productionRunIds[designId] = line.runs.map((r) => r.run_id)
         if (line.rates.size === 1) {
           unitAmounts[designId] = [...line.rates][0]
+          continue
+        }
+
+        /**
+         * Two runs of one design at DIFFERENT agreed rates (#1596). This used
+         * to send the line TOTAL and stop there — the money right, and every
+         * account of how it was reached thrown away, leaving a line that says
+         * ₹3,750 with a null rate and nothing to explain it.
+         *
+         * The bands say it: "3 × 850 + 1 × 1200". The workflow folds them into
+         * the same total and keeps `unit_amount` NULL, because with two rates
+         * there is no single rate to state and an average is one nobody agreed
+         * to.
+         *
+         * 🔴 The bands are sent INSTEAD of the total, not alongside it. Two
+         * spellings of one figure must agree or the request is refused, and
+         * there is no reason to make the screen state it twice.
+         */
+        const bands = groupIntoRateBands(
+          line.runs.map((r) => ({
+            quantity: getRunQuantity(r),
+            unit_amount: getRunRate(r),
+          }))
+        )
+
+        if (bands) {
+          rateBreakdown[designId] = bands
         } else {
+          // Every rate dropped as unusable (a zero or a negative typed into a
+          // box). Fall back to the exact total rather than billing nothing.
           runCostOverrides[designId] = line.amount
         }
       }
@@ -490,6 +531,10 @@ export const CreatePaymentSubmissionComponent = () => {
         // The evidence behind the money: which finished runs this pays for, so
         // the next submission can refuse to pay for them again.
         production_run_ids: runDesignIds.length ? productionRunIds : undefined,
+        // Per-piece prices, when this selection has any (#1596).
+        rate_breakdown: Object.keys(rateBreakdown).length
+          ? rateBreakdown
+          : undefined,
         /**
          * 🔑 Paying out a COMPLETED RUN, whose proof of finished work is the
          * run itself. Completion moves a design to Technical_Review, so the

@@ -41,6 +41,7 @@ import { MedusaError } from "@medusajs/framework/utils"
  */
 export {
   describeRateBreakdown,
+  groupIntoRateBands,
   readRateBreakdown,
 } from "./rate-breakdown-display"
 export type { RateSlice } from "./rate-breakdown-display"

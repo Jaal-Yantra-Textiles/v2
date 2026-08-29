@@ -23,6 +23,7 @@ import {
   usePartnerPayableRuns,
   type PayableRun,
 } from "../../../hooks/api/partner-payable-runs"
+import { groupIntoRateBands } from "../../../lib/payment-submission-money"
 
 const ELIGIBLE_TASK_STATUSES = ["completed"]
 
@@ -374,6 +375,14 @@ export const PaymentSubmissionCreate = () => {
       const costOverrides: Record<string, number> = {}
       const ratesByDesign: Record<string, Set<number>> = {}
       const exactTotals: Record<string, number> = {}
+      const pricedRuns: Record<
+        string,
+        Array<{ quantity: number; unit_amount: number }>
+      > = {}
+      const rateBreakdown: Record<
+        string,
+        Array<{ quantity: number; unit_amount: number }>
+      > = {}
 
       for (const run of eligibleRuns) {
         if (!selectedRunIds.has(run.run_id)) continue
@@ -385,6 +394,7 @@ export const PaymentSubmissionCreate = () => {
         quantities[designId] = (quantities[designId] ?? 0) + qty
         exactTotals[designId] = (exactTotals[designId] ?? 0) + qty * rate
         ;(ratesByDesign[designId] ||= new Set()).add(rate)
+        ;(pricedRuns[designId] ||= []).push({ quantity: qty, unit_amount: rate })
       }
 
       for (const [designId, rates] of Object.entries(ratesByDesign)) {
@@ -392,16 +402,28 @@ export const PaymentSubmissionCreate = () => {
           // One agreed rate across this design's runs — state it per unit, so
           // the reviewer sees the rate and the quantity that produced the sum.
           unitAmounts[designId] = [...rates][0]
+          continue
+        }
+
+        /**
+         * Two runs of one design at DIFFERENT agreed rates. A line carries a
+         * single `unit_amount`, so no per-unit figure is honest here — using
+         * either rate, or an average, misprices the work.
+         *
+         * This used to send the line TOTAL and stop: the money right, and every
+         * account of how it was reached discarded. The bands say it — "3 × 850
+         * + 1 × 1200" — and the workflow folds them into the same total while
+         * keeping `unit_amount` null, which is the truth: there isn't one.
+         *
+         * 🔴 Bands INSTEAD of the total, never both. Two spellings of one
+         * figure must agree or the request is refused.
+         */
+        const bands = groupIntoRateBands(pricedRuns[designId])
+        if (bands) {
+          rateBreakdown[designId] = bands
         } else {
-          /**
-           * Two runs of one design at DIFFERENT agreed rates. A line carries a
-           * single `unit_amount`, so no per-unit figure is honest here — using
-           * either rate, or an average, misprices the work.
-           *
-           * `cost_overrides` is the line TOTAL and wins outright without being
-           * multiplied by quantity, so the exact sum is billed while
-           * `unit_amount` stays null — which is the truth: there isn't one.
-           */
+          // Every rate unusable (a zero or negative in a box). Bill the exact
+          // sum rather than nothing.
           costOverrides[designId] = Math.round(exactTotals[designId] * 100) / 100
         }
       }
@@ -418,6 +440,10 @@ export const PaymentSubmissionCreate = () => {
         task_ids: Array.from(selectedTaskIds),
         notes: notes || undefined,
         production_run_ids: designIds.length ? productionRunIds : undefined,
+        // Per-piece prices, when this selection has any (#1596).
+        rate_breakdown: Object.keys(rateBreakdown).length
+          ? rateBreakdown
+          : undefined,
         quantities: Object.keys(quantities).length ? quantities : undefined,
         unit_amounts: Object.keys(unitAmounts).length ? unitAmounts : undefined,
         cost_overrides: Object.keys(costOverrides).length

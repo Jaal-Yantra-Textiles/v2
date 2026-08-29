@@ -142,6 +142,16 @@ export interface CreateAdminPaymentSubmissionPayload {
    * blob is one spelling mistake away from reading nothing.
    */
   production_run_ids?: Record<string, string[]>
+  /**
+   * Per-piece price bands per design line (#1596) — "3 × 850 + 1 × 1200".
+   *
+   * At least two bands: one is an ordinary priced line and belongs in
+   * `quantities` + `unit_amounts`. Sent INSTEAD of a `cost_overrides` entry for
+   * that design, never alongside one — the workflow refuses two statements of
+   * a line total that disagree, and there is no reason to make the screen state
+   * it twice.
+   */
+  rate_breakdown?: Record<string, Array<{ quantity: number; unit_amount: number }>>
   metadata?: Record<string, any>
 }
 
