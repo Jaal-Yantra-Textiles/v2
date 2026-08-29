@@ -24,6 +24,10 @@ import {
 } from "../../hooks/api/goods-transfers"
 import { useStockLocations } from "../../hooks/api/stock_location"
 import { SHIPMENT_CARRIERS } from "../../lib/shipment-carriers"
+import {
+  describeTransferCarrier,
+  describeTransferMovement,
+} from "../../lib/transfer-carrier-line"
 
 /**
  * Goods movement on a production run, for the ADMIN (#891 follow-up).
@@ -331,6 +335,8 @@ export const GoodsTransferSection = ({ runId }: Props) => {
           {transfers.map((t) => {
             const replacedBy = t.metadata?.replaced_by_transfer_id
             const replaces = t.metadata?.replaces_transfer_id
+            const carrier = describeTransferCarrier(t)
+            const movement = describeTransferMovement(t)
 
             const rowActions: Action[] = []
             if (t.status === "cancelled" && !replacedBy) {
@@ -372,6 +378,44 @@ export const GoodsTransferSection = ({ runId }: Props) => {
                       <ActionMenu groups={[{ actions: rowActions }]} />
                     )}
                   </div>
+                </div>
+                {/* The waybill, which used to exist only in the booking toast
+                    (#1553). Dismiss that and the operator's next question —
+                    "has it been picked up?" — had no answer on this screen. */}
+                <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                  <Text
+                    size="xsmall"
+                    className={
+                      carrier.muted ? "text-ui-fg-muted" : "text-ui-fg-subtle"
+                    }
+                  >
+                    {carrier.text}
+                  </Text>
+                  {carrier.trackingUrl && (
+                    <a
+                      href={carrier.trackingUrl}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="text-ui-fg-interactive text-xs hover:underline"
+                    >
+                      Track
+                    </a>
+                  )}
+                  {carrier.labelUrl && (
+                    <a
+                      href={carrier.labelUrl}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="text-ui-fg-interactive text-xs hover:underline"
+                    >
+                      Label
+                    </a>
+                  )}
+                  {movement && (
+                    <Text size="xsmall" className="text-ui-fg-muted">
+                      {movement}
+                    </Text>
+                  )}
                 </div>
                 {/* The history the re-booking preserves, said out loud. */}
                 {(replaces || replacedBy || t.notes) && (
