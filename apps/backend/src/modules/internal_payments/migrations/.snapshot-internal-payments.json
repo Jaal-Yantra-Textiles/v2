@@ -22,8 +22,8 @@
           "enumItems": [],
           "mappedType": "text"
         },
-        "partner_id": {
-          "name": "partner_id",
+        "type": {
+          "name": "type",
           "type": "text",
           "unsigned": false,
           "autoincrement": false,
@@ -35,50 +35,15 @@
           "scale": null,
           "default": null,
           "comment": null,
-          "enumItems": [],
-          "mappedType": "text"
-        },
-        "status": {
-          "name": "status",
-          "type": "text",
-          "unsigned": false,
-          "autoincrement": false,
-          "primary": false,
-          "nullable": false,
-          "unique": false,
-          "length": null,
-          "precision": null,
-          "scale": null,
-          "default": "'Draft'",
-          "comment": null,
           "enumItems": [
-            "Draft",
-            "Pending",
-            "Under_Review",
-            "Approved",
-            "Rejected",
-            "Paid"
+            "bank_account",
+            "cash_account",
+            "digital_wallet"
           ],
           "mappedType": "enum"
         },
-        "total_amount": {
-          "name": "total_amount",
-          "type": "numeric",
-          "unsigned": false,
-          "autoincrement": false,
-          "primary": false,
-          "nullable": false,
-          "unique": false,
-          "length": null,
-          "precision": null,
-          "scale": null,
-          "default": null,
-          "comment": null,
-          "enumItems": [],
-          "mappedType": "decimal"
-        },
-        "currency": {
-          "name": "currency",
+        "account_name": {
+          "name": "account_name",
           "type": "text",
           "unsigned": false,
           "autoincrement": false,
@@ -88,45 +53,13 @@
           "length": null,
           "precision": null,
           "scale": null,
-          "default": "'inr'",
+          "default": null,
           "comment": null,
           "enumItems": [],
           "mappedType": "text"
         },
-        "submitted_at": {
-          "name": "submitted_at",
-          "type": "timestamptz",
-          "unsigned": false,
-          "autoincrement": false,
-          "primary": false,
-          "nullable": true,
-          "unique": false,
-          "length": 6,
-          "precision": null,
-          "scale": null,
-          "default": null,
-          "comment": null,
-          "enumItems": [],
-          "mappedType": "datetime"
-        },
-        "reviewed_at": {
-          "name": "reviewed_at",
-          "type": "timestamptz",
-          "unsigned": false,
-          "autoincrement": false,
-          "primary": false,
-          "nullable": true,
-          "unique": false,
-          "length": 6,
-          "precision": null,
-          "scale": null,
-          "default": null,
-          "comment": null,
-          "enumItems": [],
-          "mappedType": "datetime"
-        },
-        "reviewed_by": {
-          "name": "reviewed_by",
+        "account_number": {
+          "name": "account_number",
           "type": "text",
           "unsigned": false,
           "autoincrement": false,
@@ -141,24 +74,8 @@
           "enumItems": [],
           "mappedType": "text"
         },
-        "paid_at": {
-          "name": "paid_at",
-          "type": "timestamptz",
-          "unsigned": false,
-          "autoincrement": false,
-          "primary": false,
-          "nullable": true,
-          "unique": false,
-          "length": 6,
-          "precision": null,
-          "scale": null,
-          "default": null,
-          "comment": null,
-          "enumItems": [],
-          "mappedType": "datetime"
-        },
-        "rejection_reason": {
-          "name": "rejection_reason",
+        "bank_name": {
+          "name": "bank_name",
           "type": "text",
           "unsigned": false,
           "autoincrement": false,
@@ -173,8 +90,8 @@
           "enumItems": [],
           "mappedType": "text"
         },
-        "notes": {
-          "name": "notes",
+        "ifsc_code": {
+          "name": "ifsc_code",
           "type": "text",
           "unsigned": false,
           "autoincrement": false,
@@ -189,9 +106,9 @@
           "enumItems": [],
           "mappedType": "text"
         },
-        "documents": {
-          "name": "documents",
-          "type": "jsonb",
+        "wallet_id": {
+          "name": "wallet_id",
+          "type": "text",
           "unsigned": false,
           "autoincrement": false,
           "primary": false,
@@ -203,7 +120,23 @@
           "default": null,
           "comment": null,
           "enumItems": [],
-          "mappedType": "json"
+          "mappedType": "text"
+        },
+        "is_default": {
+          "name": "is_default",
+          "type": "boolean",
+          "unsigned": false,
+          "autoincrement": false,
+          "primary": false,
+          "nullable": false,
+          "unique": false,
+          "length": null,
+          "precision": null,
+          "scale": null,
+          "default": "false",
+          "comment": null,
+          "enumItems": [],
+          "mappedType": "boolean"
         },
         "metadata": {
           "name": "metadata",
@@ -212,22 +145,6 @@
           "autoincrement": false,
           "primary": false,
           "nullable": true,
-          "unique": false,
-          "length": null,
-          "precision": null,
-          "scale": null,
-          "default": null,
-          "comment": null,
-          "enumItems": [],
-          "mappedType": "json"
-        },
-        "raw_total_amount": {
-          "name": "raw_total_amount",
-          "type": "jsonb",
-          "unsigned": false,
-          "autoincrement": false,
-          "primary": false,
-          "nullable": false,
           "unique": false,
           "length": null,
           "precision": null,
@@ -286,20 +203,20 @@
           "mappedType": "datetime"
         }
       },
-      "name": "payment_submission",
+      "name": "internal_payment_details",
       "schema": "public",
       "indexes": [
         {
-          "keyName": "IDX_payment_submission_deleted_at",
+          "keyName": "IDX_internal_payment_details_deleted_at",
           "columnNames": [],
           "composite": false,
           "constraint": false,
           "primary": false,
           "unique": false,
-          "expression": "CREATE INDEX IF NOT EXISTS \"IDX_payment_submission_deleted_at\" ON \"payment_submission\" (\"deleted_at\") WHERE deleted_at IS NULL"
+          "expression": "CREATE INDEX IF NOT EXISTS \"IDX_internal_payment_details_deleted_at\" ON \"internal_payment_details\" (\"deleted_at\") WHERE deleted_at IS NULL"
         },
         {
-          "keyName": "payment_submission_pkey",
+          "keyName": "internal_payment_details_pkey",
           "columnNames": [
             "id"
           ],
@@ -331,139 +248,6 @@
           "enumItems": [],
           "mappedType": "text"
         },
-        "design_id": {
-          "name": "design_id",
-          "type": "text",
-          "unsigned": false,
-          "autoincrement": false,
-          "primary": false,
-          "nullable": true,
-          "unique": false,
-          "length": null,
-          "precision": null,
-          "scale": null,
-          "default": null,
-          "comment": null,
-          "enumItems": [],
-          "mappedType": "text"
-        },
-        "design_name": {
-          "name": "design_name",
-          "type": "text",
-          "unsigned": false,
-          "autoincrement": false,
-          "primary": false,
-          "nullable": true,
-          "unique": false,
-          "length": null,
-          "precision": null,
-          "scale": null,
-          "default": null,
-          "comment": null,
-          "enumItems": [],
-          "mappedType": "text"
-        },
-        "task_id": {
-          "name": "task_id",
-          "type": "text",
-          "unsigned": false,
-          "autoincrement": false,
-          "primary": false,
-          "nullable": true,
-          "unique": false,
-          "length": null,
-          "precision": null,
-          "scale": null,
-          "default": null,
-          "comment": null,
-          "enumItems": [],
-          "mappedType": "text"
-        },
-        "task_name": {
-          "name": "task_name",
-          "type": "text",
-          "unsigned": false,
-          "autoincrement": false,
-          "primary": false,
-          "nullable": true,
-          "unique": false,
-          "length": null,
-          "precision": null,
-          "scale": null,
-          "default": null,
-          "comment": null,
-          "enumItems": [],
-          "mappedType": "text"
-        },
-        "inventory_order_id": {
-          "name": "inventory_order_id",
-          "type": "text",
-          "unsigned": false,
-          "autoincrement": false,
-          "primary": false,
-          "nullable": true,
-          "unique": false,
-          "length": null,
-          "precision": null,
-          "scale": null,
-          "default": null,
-          "comment": null,
-          "enumItems": [],
-          "mappedType": "text"
-        },
-        "inventory_order_name": {
-          "name": "inventory_order_name",
-          "type": "text",
-          "unsigned": false,
-          "autoincrement": false,
-          "primary": false,
-          "nullable": true,
-          "unique": false,
-          "length": null,
-          "precision": null,
-          "scale": null,
-          "default": null,
-          "comment": null,
-          "enumItems": [],
-          "mappedType": "text"
-        },
-        "order_id": {
-          "name": "order_id",
-          "type": "text",
-          "unsigned": false,
-          "autoincrement": false,
-          "primary": false,
-          "nullable": true,
-          "unique": false,
-          "length": null,
-          "precision": null,
-          "scale": null,
-          "default": null,
-          "comment": null,
-          "enumItems": [],
-          "mappedType": "text"
-        },
-        "source_type": {
-          "name": "source_type",
-          "type": "text",
-          "unsigned": false,
-          "autoincrement": false,
-          "primary": false,
-          "nullable": false,
-          "unique": false,
-          "length": null,
-          "precision": null,
-          "scale": null,
-          "default": "'design'",
-          "comment": null,
-          "enumItems": [
-            "design",
-            "task",
-            "run",
-            "inventory_order"
-          ],
-          "mappedType": "enum"
-        },
         "amount": {
           "name": "amount",
           "type": "numeric",
@@ -480,72 +264,8 @@
           "enumItems": [],
           "mappedType": "decimal"
         },
-        "quantity": {
-          "name": "quantity",
-          "type": "real",
-          "unsigned": false,
-          "autoincrement": false,
-          "primary": false,
-          "nullable": false,
-          "unique": false,
-          "length": null,
-          "precision": null,
-          "scale": null,
-          "default": "1",
-          "comment": null,
-          "enumItems": [],
-          "mappedType": "float"
-        },
-        "unit_amount": {
-          "name": "unit_amount",
-          "type": "numeric",
-          "unsigned": false,
-          "autoincrement": false,
-          "primary": false,
-          "nullable": true,
-          "unique": false,
-          "length": null,
-          "precision": null,
-          "scale": null,
-          "default": null,
-          "comment": null,
-          "enumItems": [],
-          "mappedType": "decimal"
-        },
-        "cost_breakdown": {
-          "name": "cost_breakdown",
-          "type": "jsonb",
-          "unsigned": false,
-          "autoincrement": false,
-          "primary": false,
-          "nullable": true,
-          "unique": false,
-          "length": null,
-          "precision": null,
-          "scale": null,
-          "default": null,
-          "comment": null,
-          "enumItems": [],
-          "mappedType": "json"
-        },
-        "production_run_ids": {
-          "name": "production_run_ids",
-          "type": "jsonb",
-          "unsigned": false,
-          "autoincrement": false,
-          "primary": false,
-          "nullable": true,
-          "unique": false,
-          "length": null,
-          "precision": null,
-          "scale": null,
-          "default": null,
-          "comment": null,
-          "enumItems": [],
-          "mappedType": "json"
-        },
-        "run_provenance": {
-          "name": "run_provenance",
+        "status": {
+          "name": "status",
           "type": "text",
           "unsigned": false,
           "autoincrement": false,
@@ -555,14 +275,52 @@
           "length": null,
           "precision": null,
           "scale": null,
-          "default": "'not_recorded'",
+          "default": "'Pending'",
           "comment": null,
           "enumItems": [
-            "recorded",
-            "no_run",
-            "not_recorded"
+            "Pending",
+            "Processing",
+            "Completed",
+            "Failed",
+            "Cancelled"
           ],
           "mappedType": "enum"
+        },
+        "payment_type": {
+          "name": "payment_type",
+          "type": "text",
+          "unsigned": false,
+          "autoincrement": false,
+          "primary": false,
+          "nullable": false,
+          "unique": false,
+          "length": null,
+          "precision": null,
+          "scale": null,
+          "default": null,
+          "comment": null,
+          "enumItems": [
+            "Bank",
+            "Cash",
+            "Digital_Wallet"
+          ],
+          "mappedType": "enum"
+        },
+        "payment_date": {
+          "name": "payment_date",
+          "type": "timestamptz",
+          "unsigned": false,
+          "autoincrement": false,
+          "primary": false,
+          "nullable": false,
+          "unique": false,
+          "length": 6,
+          "precision": null,
+          "scale": null,
+          "default": null,
+          "comment": null,
+          "enumItems": [],
+          "mappedType": "datetime"
         },
         "metadata": {
           "name": "metadata",
@@ -580,13 +338,13 @@
           "enumItems": [],
           "mappedType": "json"
         },
-        "submission_id": {
-          "name": "submission_id",
+        "paid_to_id": {
+          "name": "paid_to_id",
           "type": "text",
           "unsigned": false,
           "autoincrement": false,
           "primary": false,
-          "nullable": false,
+          "nullable": true,
           "unique": false,
           "length": null,
           "precision": null,
@@ -603,22 +361,6 @@
           "autoincrement": false,
           "primary": false,
           "nullable": false,
-          "unique": false,
-          "length": null,
-          "precision": null,
-          "scale": null,
-          "default": null,
-          "comment": null,
-          "enumItems": [],
-          "mappedType": "json"
-        },
-        "raw_unit_amount": {
-          "name": "raw_unit_amount",
-          "type": "jsonb",
-          "unsigned": false,
-          "autoincrement": false,
-          "primary": false,
-          "nullable": true,
           "unique": false,
           "length": null,
           "precision": null,
@@ -677,29 +419,29 @@
           "mappedType": "datetime"
         }
       },
-      "name": "payment_submission_item",
+      "name": "internal_payments",
       "schema": "public",
       "indexes": [
         {
-          "keyName": "IDX_payment_submission_item_submission_id",
+          "keyName": "IDX_internal_payments_paid_to_id",
           "columnNames": [],
           "composite": false,
           "constraint": false,
           "primary": false,
           "unique": false,
-          "expression": "CREATE INDEX IF NOT EXISTS \"IDX_payment_submission_item_submission_id\" ON \"payment_submission_item\" (\"submission_id\") WHERE deleted_at IS NULL"
+          "expression": "CREATE INDEX IF NOT EXISTS \"IDX_internal_payments_paid_to_id\" ON \"internal_payments\" (\"paid_to_id\") WHERE deleted_at IS NULL"
         },
         {
-          "keyName": "IDX_payment_submission_item_deleted_at",
+          "keyName": "IDX_internal_payments_deleted_at",
           "columnNames": [],
           "composite": false,
           "constraint": false,
           "primary": false,
           "unique": false,
-          "expression": "CREATE INDEX IF NOT EXISTS \"IDX_payment_submission_item_deleted_at\" ON \"payment_submission_item\" (\"deleted_at\") WHERE deleted_at IS NULL"
+          "expression": "CREATE INDEX IF NOT EXISTS \"IDX_internal_payments_deleted_at\" ON \"internal_payments\" (\"deleted_at\") WHERE deleted_at IS NULL"
         },
         {
-          "keyName": "payment_submission_item_pkey",
+          "keyName": "internal_payments_pkey",
           "columnNames": [
             "id"
           ],
@@ -711,16 +453,245 @@
       ],
       "checks": [],
       "foreignKeys": {
-        "payment_submission_item_submission_id_foreign": {
-          "constraintName": "payment_submission_item_submission_id_foreign",
+        "internal_payments_paid_to_id_foreign": {
+          "constraintName": "internal_payments_paid_to_id_foreign",
           "columnNames": [
-            "submission_id"
+            "paid_to_id"
           ],
-          "localTableName": "public.payment_submission_item",
+          "localTableName": "public.internal_payments",
           "referencedColumnNames": [
             "id"
           ],
-          "referencedTableName": "public.payment_submission",
+          "referencedTableName": "public.internal_payment_details",
+          "deleteRule": "set null",
+          "updateRule": "cascade"
+        }
+      },
+      "nativeEnums": {}
+    },
+    {
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "unsigned": false,
+          "autoincrement": false,
+          "primary": true,
+          "nullable": false,
+          "unique": false,
+          "length": null,
+          "precision": null,
+          "scale": null,
+          "default": null,
+          "comment": null,
+          "enumItems": [],
+          "mappedType": "text"
+        },
+        "file_id": {
+          "name": "file_id",
+          "type": "text",
+          "unsigned": false,
+          "autoincrement": false,
+          "primary": false,
+          "nullable": false,
+          "unique": false,
+          "length": null,
+          "precision": null,
+          "scale": null,
+          "default": null,
+          "comment": null,
+          "enumItems": [],
+          "mappedType": "text"
+        },
+        "url": {
+          "name": "url",
+          "type": "text",
+          "unsigned": false,
+          "autoincrement": false,
+          "primary": false,
+          "nullable": false,
+          "unique": false,
+          "length": null,
+          "precision": null,
+          "scale": null,
+          "default": null,
+          "comment": null,
+          "enumItems": [],
+          "mappedType": "text"
+        },
+        "filename": {
+          "name": "filename",
+          "type": "text",
+          "unsigned": false,
+          "autoincrement": false,
+          "primary": false,
+          "nullable": true,
+          "unique": false,
+          "length": null,
+          "precision": null,
+          "scale": null,
+          "default": null,
+          "comment": null,
+          "enumItems": [],
+          "mappedType": "text"
+        },
+        "mime_type": {
+          "name": "mime_type",
+          "type": "text",
+          "unsigned": false,
+          "autoincrement": false,
+          "primary": false,
+          "nullable": true,
+          "unique": false,
+          "length": null,
+          "precision": null,
+          "scale": null,
+          "default": null,
+          "comment": null,
+          "enumItems": [],
+          "mappedType": "text"
+        },
+        "size": {
+          "name": "size",
+          "type": "integer",
+          "unsigned": false,
+          "autoincrement": false,
+          "primary": false,
+          "nullable": true,
+          "unique": false,
+          "length": null,
+          "precision": null,
+          "scale": null,
+          "default": null,
+          "comment": null,
+          "enumItems": [],
+          "mappedType": "integer"
+        },
+        "metadata": {
+          "name": "metadata",
+          "type": "jsonb",
+          "unsigned": false,
+          "autoincrement": false,
+          "primary": false,
+          "nullable": true,
+          "unique": false,
+          "length": null,
+          "precision": null,
+          "scale": null,
+          "default": null,
+          "comment": null,
+          "enumItems": [],
+          "mappedType": "json"
+        },
+        "payment_id": {
+          "name": "payment_id",
+          "type": "text",
+          "unsigned": false,
+          "autoincrement": false,
+          "primary": false,
+          "nullable": false,
+          "unique": false,
+          "length": null,
+          "precision": null,
+          "scale": null,
+          "default": null,
+          "comment": null,
+          "enumItems": [],
+          "mappedType": "text"
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamptz",
+          "unsigned": false,
+          "autoincrement": false,
+          "primary": false,
+          "nullable": false,
+          "unique": false,
+          "length": 6,
+          "precision": null,
+          "scale": null,
+          "default": "now()",
+          "comment": null,
+          "enumItems": [],
+          "mappedType": "datetime"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamptz",
+          "unsigned": false,
+          "autoincrement": false,
+          "primary": false,
+          "nullable": false,
+          "unique": false,
+          "length": 6,
+          "precision": null,
+          "scale": null,
+          "default": "now()",
+          "comment": null,
+          "enumItems": [],
+          "mappedType": "datetime"
+        },
+        "deleted_at": {
+          "name": "deleted_at",
+          "type": "timestamptz",
+          "unsigned": false,
+          "autoincrement": false,
+          "primary": false,
+          "nullable": true,
+          "unique": false,
+          "length": 6,
+          "precision": null,
+          "scale": null,
+          "default": null,
+          "comment": null,
+          "enumItems": [],
+          "mappedType": "datetime"
+        }
+      },
+      "name": "internal_payment_attachment",
+      "schema": "public",
+      "indexes": [
+        {
+          "keyName": "IDX_internal_payment_attachment_payment_id",
+          "columnNames": [],
+          "composite": false,
+          "constraint": false,
+          "primary": false,
+          "unique": false,
+          "expression": "CREATE INDEX IF NOT EXISTS \"IDX_internal_payment_attachment_payment_id\" ON \"internal_payment_attachment\" (\"payment_id\") WHERE deleted_at IS NULL"
+        },
+        {
+          "keyName": "IDX_internal_payment_attachment_deleted_at",
+          "columnNames": [],
+          "composite": false,
+          "constraint": false,
+          "primary": false,
+          "unique": false,
+          "expression": "CREATE INDEX IF NOT EXISTS \"IDX_internal_payment_attachment_deleted_at\" ON \"internal_payment_attachment\" (\"deleted_at\") WHERE deleted_at IS NULL"
+        },
+        {
+          "keyName": "internal_payment_attachment_pkey",
+          "columnNames": [
+            "id"
+          ],
+          "composite": false,
+          "constraint": true,
+          "primary": true,
+          "unique": true
+        }
+      ],
+      "checks": [],
+      "foreignKeys": {
+        "internal_payment_attachment_payment_id_foreign": {
+          "constraintName": "internal_payment_attachment_payment_id_foreign",
+          "columnNames": [
+            "payment_id"
+          ],
+          "localTableName": "public.internal_payment_attachment",
+          "referencedColumnNames": [
+            "id"
+          ],
+          "referencedTableName": "public.internal_payments",
           "updateRule": "cascade"
         }
       },

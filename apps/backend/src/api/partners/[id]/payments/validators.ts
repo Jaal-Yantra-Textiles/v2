@@ -30,6 +30,11 @@ export const CreatePaymentMethodForPartnerSchema = z.object({
   ifsc_code: z.string().optional(),
   wallet_id: z.string().optional(),
   metadata: z.record(z.string(), z.any()).nullish(),
+  /**
+   * Marks this the method a payout falls back to when the reviewer names none.
+   * Exclusive per owner — setting it unsets the owner's other methods.
+   */
+  is_default: z.boolean().optional(),
 })
 export type CreatePaymentMethodForPartner = z.infer<typeof CreatePaymentMethodForPartnerSchema>
 export const CreatePaymentMethodForPartner = CreatePaymentMethodForPartnerSchema
@@ -43,6 +48,11 @@ export const UpdatePaymentMethodForPartnerSchema = z.object({
   ifsc_code: z.string().nullish(),
   wallet_id: z.string().nullish(),
   metadata: z.record(z.string(), z.any()).nullish(),
+  /**
+   * Marks this the method a payout falls back to when the reviewer names none.
+   * Exclusive per owner — setting it unsets the owner's other methods.
+   */
+  is_default: z.boolean().optional(),
 })
 export type UpdatePaymentMethodForPartner = z.infer<typeof UpdatePaymentMethodForPartnerSchema>
 export const UpdatePaymentMethodForPartner = UpdatePaymentMethodForPartnerSchema

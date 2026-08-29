@@ -133,102 +133,93 @@ const updateSubmissionStatusStep = createStep(
   }
 )
 
-// Step 3: Create internal payment on approval
-const createPaymentOnApprovalStep = createStep(
-  "create-payment-on-approval",
+/**
+ * Step 3: resolve the payment METHOD this payout goes to, and record it on the
+ * submission itself.
+ *
+ * 🔴 This step used to call `createPayments` and produce an `internal_payments`
+ * row (#1636). It no longer does. One payout used to exist as three records
+ * with three different answers to "has this partner been paid" — the submission
+ * said Paid, the payment said Pending forever because nothing ever moved it,
+ * and reconciliation said Settled. The submission is now the single payout
+ * record. Historical `internal_payments` rows are left exactly where they are;
+ * this only stops new ones being created.
+ *
+ * The method is still an `internal_payment_details` row — a payment METHOD, not
+ * a payment record — so the dependency that survives is the correct one. It is
+ * attached through the `payment_submission_paid_to_method` link rather than a
+ * `paid_to_id` column, because the two models live in different modules.
+ */
+const resolvePaidToMethodStep = createStep(
+  "resolve-paid-to-method",
   async (
     input: {
+      submission_id: string
       partner_id: string
-      amount: number
-      payment_type: "Bank" | "Cash" | "Digital_Wallet"
       paid_to_id?: string
     },
     { container }
   ) => {
+    const query = container.resolve(ContainerRegistrationKeys.QUERY) as any
+
+    const { data: linkData } = await query.graph({
+      entity: PartnerPaymentMethodsLink.entryPoint,
+      fields: ["internal_payment_details_id"],
+      filters: { partner_id: input.partner_id },
+    })
+    const methodIds = ((linkData || []) as any[]).map(
+      (r) => r.internal_payment_details_id
+    )
+
     const paymentService: InternalPaymentService = container.resolve(
       INTERNAL_PAYMENTS_MODULE
     )
+    const methods = methodIds.length
+      ? ((await paymentService.listPaymentDetails({ id: methodIds })) as any[])
+      : []
 
-    // Resolve paid_to_id: use provided value or auto-fetch partner's default payment method
-    let resolvedPaidToId = input.paid_to_id
-    if (!resolvedPaidToId && input.partner_id) {
-      const query = container.resolve(ContainerRegistrationKeys.QUERY) as any
-      const { data: linkData } = await query.graph({
-        entity: PartnerPaymentMethodsLink.entryPoint,
-        fields: ["internal_payment_details_id"],
-        filters: { partner_id: input.partner_id },
-      })
-      const methods = (linkData || []) as any[]
-      if (methods.length > 0) {
-        resolvedPaidToId = methods[0].internal_payment_details_id
+    /**
+     * Four branches, in order. The last one REFUSES rather than guessing.
+     *
+     * 🔴 The old code took `methods[0]` — whichever row the link query happened
+     * to return first. In production Sharlho has four bank accounts, one per
+     * employee, and three of them have received money at different times; two
+     * more partners have two methods each. Taking the first row there does not
+     * pay the wrong account, it pays the wrong PERSON. A partner with several
+     * methods and no default is a question for the reviewer, not something to
+     * resolve by ordering.
+     */
+    let resolved: any = null
+
+    if (input.paid_to_id) {
+      resolved = methods.find((m) => m.id === input.paid_to_id)
+      if (!resolved) {
+        throw new MedusaError(
+          MedusaError.Types.INVALID_DATA,
+          `Payment method ${input.paid_to_id} is not one of this partner's payment methods.`
+        )
       }
+    } else if (methods.some((m) => m.is_default)) {
+      resolved = methods.find((m) => m.is_default)
+    } else if (methods.length === 1) {
+      resolved = methods[0]
+    } else if (methods.length > 1) {
+      throw new MedusaError(
+        MedusaError.Types.INVALID_DATA,
+        `Cannot approve payment: partner has ${methods.length} payment methods and none is marked default. ` +
+          `Choose which one to pay, or mark one as the partner's default.`
+      )
     }
 
-    if (!resolvedPaidToId) {
+    if (!resolved) {
+      // Kept verbatim — approving a payout to a partner with no bank details
+      // approves something that cannot be paid.
       throw new MedusaError(
         MedusaError.Types.INVALID_DATA,
         "Cannot approve payment: partner has no payment method configured. Ask the partner to add their bank/wallet details first."
       )
     }
 
-    const paymentData: Record<string, any> = {
-      amount: input.amount,
-      status: "Pending",
-      payment_type: input.payment_type,
-      payment_date: new Date(),
-      paid_to_id: resolvedPaidToId,
-    }
-
-    const payment = await paymentService.createPayments(paymentData)
-
-    // Link payment to partner
-    const remoteLink = container.resolve(
-      ContainerRegistrationKeys.LINK
-    ) as Link
-
-    const partnerLink: LinkDefinition = {
-      [PARTNER_MODULE]: { partner_id: input.partner_id },
-      [INTERNAL_PAYMENTS_MODULE]: {
-        internal_payments_id: payment.id,
-      },
-      data: {
-        partner_id: input.partner_id,
-        payment_id: payment.id,
-        linked_with: "partner",
-      },
-    }
-
-    await remoteLink.create([partnerLink])
-
-    return new StepResponse(payment, {
-      payment_id: payment.id,
-      partner_link: partnerLink,
-    })
-  },
-  async (
-    rollbackData: { payment_id: string; partner_link: LinkDefinition },
-    { container }
-  ) => {
-    if (!rollbackData) return
-    const paymentService: InternalPaymentService = container.resolve(
-      INTERNAL_PAYMENTS_MODULE
-    )
-    await paymentService.softDeletePayments(rollbackData.payment_id)
-
-    const remoteLink = container.resolve(
-      ContainerRegistrationKeys.LINK
-    ) as Link
-    await remoteLink.dismiss([rollbackData.partner_link])
-  }
-)
-
-// Step 4: Link submission to the created payment
-const linkSubmissionToPaymentStep = createStep(
-  "link-submission-to-payment",
-  async (
-    input: { submission_id: string; payment_id: string },
-    { container }
-  ) => {
     const remoteLink = container.resolve(
       ContainerRegistrationKeys.LINK
     ) as Link
@@ -238,19 +229,26 @@ const linkSubmissionToPaymentStep = createStep(
         payment_submission_id: input.submission_id,
       },
       [INTERNAL_PAYMENTS_MODULE]: {
-        internal_payments_id: input.payment_id,
+        internal_payment_details_id: resolved.id,
       },
     }
-
     await remoteLink.create([link])
-    return new StepResponse(link, link)
+
+    return new StepResponse(
+      {
+        id: resolved.id,
+        type: resolved.type as string,
+        account_name: resolved.account_name as string,
+      },
+      link
+    )
   },
   async (rollbackLink: LinkDefinition, { container }) => {
     if (!rollbackLink) return
     const remoteLink = container.resolve(
       ContainerRegistrationKeys.LINK
     ) as Link
-    await remoteLink.dismiss([rollbackLink])
+    await remoteLink.dismiss([rollbackLink]).catch(() => {})
   }
 )
 
@@ -277,73 +275,6 @@ const resolveSubmissionSourceStep = createStep(
   }
 )
 
-/**
- * Link the payment to the INVENTORY ORDER it paid for.
- *
- * 🔴 `links/inventory-orders-internal-payments.ts` has existed all along and
- * nothing has ever written it. The consequence is visible on prod: open the
- * inventory order a payout was for and it shows no payment, because the only
- * link approval created pointed at the partner. The declaration was the
- * intended design; it was simply never wired.
- *
- * Best-effort and non-fatal, deliberately. The payment, the reconciliation and
- * the submission status are all already written by the time this runs, and a
- * failure to draw a navigational edge must not roll back a recorded payout.
- * Mirrors how the production-run link is created in `log-consumption`.
- */
-const linkPaymentToInventoryOrderStep = createStep(
-  "link-payment-to-inventory-order",
-  async (
-    input: { payment_id: string; inventory_order_id: string },
-    { container }
-  ) => {
-    if (!input.inventory_order_id || !input.payment_id) {
-      return new StepResponse<LinkDefinition | null>(null)
-    }
-
-    const remoteLink = container.resolve(
-      ContainerRegistrationKeys.LINK
-    ) as Link
-
-    const link: LinkDefinition = {
-      [ORDER_INVENTORY_MODULE]: {
-        inventory_orders_id: input.inventory_order_id,
-      },
-      [INTERNAL_PAYMENTS_MODULE]: {
-        internal_payments_id: input.payment_id,
-      },
-    }
-
-    try {
-      await remoteLink.create([link])
-    } catch (e: any) {
-      /**
-       * ⚠️ Assigned through `any` rather than chained off `container.resolve`.
-       * Medusa 2.19 types `resolve` as `unknown`, so `resolve(LOGGER).warn(…)`
-       * is `TS2571: Object is of type 'unknown'` — which broke the deploy of
-       * `24f12a1b5` while `check:prod-build` passed both locally and in CI,
-       * because the Docker build resolves a different @medusajs/types than
-       * either. Every other logger in this file is already assigned first.
-       */
-      const logger: any = container.resolve(ContainerRegistrationKeys.LOGGER)
-      logger?.warn?.(
-        `[review-payment-submission] payment ${input.payment_id} recorded but ` +
-          `could not be linked to inventory order ${input.inventory_order_id}: ${e?.message}`
-      )
-      return new StepResponse<LinkDefinition | null>(null)
-    }
-
-    return new StepResponse<LinkDefinition | null>(link, link)
-  },
-  async (link: LinkDefinition | null, { container }) => {
-    if (!link) return
-    const remoteLink = container.resolve(
-      ContainerRegistrationKeys.LINK
-    ) as Link
-    await remoteLink.dismiss([link]).catch(() => {})
-  }
-)
-
 // Step 5: Create reconciliation record
 const createReconciliationRecordStep = createStep(
   "create-reconciliation-record",
@@ -353,7 +284,6 @@ const createReconciliationRecordStep = createStep(
       partner_id: string
       expected_amount: number
       actual_amount: number
-      payment_id: string
       source_type: string | null
       source_id: string | null
     },
@@ -380,7 +310,15 @@ const createReconciliationRecordStep = createStep(
       actual_amount: input.actual_amount,
       discrepancy,
       status,
-      payment_id: input.payment_id,
+      /**
+       * 🔴 Vestigial for new payouts (#1636). `payment_id` was the only
+       * traversable route from a submission to its payment, and #1634 had just
+       * repaired a backfill to use it — but approval no longer creates a
+       * payment row, so there is nothing to point at. Nothing is lost:
+       * `reference_id` already names the submission, which IS the payout record
+       * now. The column still resolves the 5 historical rows.
+       */
+      payment_id: null,
     })
 
     return new StepResponse(reconciliation, reconciliation.id)
@@ -391,33 +329,6 @@ const createReconciliationRecordStep = createStep(
       PAYMENT_REPORTS_MODULE
     )
     await service.softDeletePaymentReconciliations(reconciliationId)
-  }
-)
-
-// Step 6: Mark submission as paid
-const markSubmissionPaidStep = createStep(
-  "mark-submission-paid",
-  async (input: { submission_id: string }, { container }) => {
-    const service: PaymentSubmissionsService = container.resolve(
-      PAYMENT_SUBMISSIONS_MODULE
-    )
-
-    await service.updatePaymentSubmissions({
-      id: input.submission_id,
-      status: "Paid",
-    })
-
-    return new StepResponse(undefined, input.submission_id)
-  },
-  async (submissionId: string, { container }) => {
-    if (!submissionId) return
-    const service: PaymentSubmissionsService = container.resolve(
-      PAYMENT_SUBMISSIONS_MODULE
-    )
-    await service.updatePaymentSubmissions({
-      id: submissionId,
-      status: "Approved",
-    })
   }
 )
 
@@ -472,7 +383,6 @@ const emitHandler = async (input: EmitInput, { container }: any) => {
   ])
   return new StepResponse({ emitted: true })
 }
-const emitPaidEventStep = createStep("emit-payment-submission-paid", emitHandler)
 const emitRejectedEventStep = createStep("emit-payment-submission-rejected", emitHandler)
 
 // Workflow
@@ -501,19 +411,11 @@ export const reviewPaymentSubmissionWorkflow = createWorkflow(
 
     const isApproval = transform(input, (i) => i.action === "approve")
 
-    const payment = when(isApproval, (val) => val).then(() =>
-      createPaymentOnApprovalStep({
-        partner_id: submission.partner_id,
-        amount: paymentAmount,
-        payment_type: (input.payment_type || "Bank") as "Bank" | "Cash" | "Digital_Wallet",
-        paid_to_id: input.paid_to_id,
-      })
-    )
-
-    when(isApproval, (val) => val).then(() =>
-      linkSubmissionToPaymentStep({
+    const paidToMethod = when(isApproval, (val) => val).then(() =>
+      resolvePaidToMethodStep({
         submission_id: input.submission_id,
-        payment_id: payment!.id,
+        partner_id: submission.partner_id,
+        paid_to_id: input.paid_to_id,
       })
     )
 
@@ -527,52 +429,42 @@ export const reviewPaymentSubmissionWorkflow = createWorkflow(
         partner_id: submission.partner_id,
         expected_amount: submission.total_amount,
         actual_amount: paymentAmount,
-        payment_id: payment!.id,
         source_type: source!.source_type,
         source_id: source!.source_id,
       })
     )
 
     /**
-     * Draw the edge the inventory order needs to show its payments.
+     * ⚠️ The payment → inventory-order link is deliberately gone (#1636).
      *
-     * Only for an inventory-order-sourced payout: `source_id` is the order id
-     * exactly when `source_type` is `inventory_order` and the submission names
-     * a single one. The step itself no-ops on an empty id, so a design-, task-,
-     * run- or mixed-sourced payout passes straight through.
+     * It was wired so an inventory order could show the payout it paid for, but
+     * it drew its edge from the `internal_payments` row that approval no longer
+     * creates. Nothing regresses: #1625 made payouts reachable from the order
+     * through the submission's LINES, which is why GOF's order already showed
+     * its ₹30,000 with no such link present. `links/inventory-orders-internal-
+     * payments.ts` stays declared for the historical rows.
      */
-    const inventoryOrderForPayment = transform({ source }, (data) =>
-      data.source?.source_type === "inventory_order" && data.source?.source_id
-        ? String(data.source.source_id)
-        : ""
-    )
 
-    when(isApproval, (val) => val).then(() =>
-      linkPaymentToInventoryOrderStep({
-        payment_id: payment!.id,
-        inventory_order_id: inventoryOrderForPayment,
-      })
-    )
-
-    when(isApproval, (val) => val).then(() =>
-      markSubmissionPaidStep({
-        submission_id: input.submission_id,
-      })
-    )
-
-    // Approval branch: now in Paid status — fire the event so the
-    // payment-status visual flow can WhatsApp the partner.
-    when(isApproval, (val) => val).then(() =>
-      emitPaidEventStep({
-        event_name: "payment_submission.paid",
-        submission_id: input.submission_id,
-        partner_id: submission.partner_id,
-        total_amount: paymentAmount,
-        currency: submission.currency,
-        payment_type: input.payment_type ?? "Bank",
-        payment_id: payment!.id,
-      })
-    )
+    /**
+     * 🔴 Approval STOPS at `Approved` (#1639). It used to continue to `Paid`
+     * in the same atomic workflow, and `payment_submission.paid` fired here.
+     *
+     * Production said that was untrue. All five reconciliations carry a real
+     * `settled_at`, and the gap from approval to settlement was 13 seconds,
+     * 8 minutes, 2 days, 6 days and **34 days**. For 34 days one payout read
+     * `Paid` and the partner had been told over WhatsApp they had been paid,
+     * while the money had not moved.
+     *
+     * `Paid` and `paid_at` are written by settling the reconciliation now —
+     * an action prod performs on 5 of 5 payouts, unlike the `internal_payments`
+     * row approval used to create, which was left `Pending` 5 times out of 5.
+     * The discipline was never missing; it was being spent on the record that
+     * had a UI.
+     *
+     * No `payment_submission.approved` event replaces it: there is no WhatsApp
+     * template for one, and inventing a notification is a separate decision
+     * from removing an untrue one.
+     */
 
     // Rejection branch: status is now Rejected. Fire the event so the
     // partner gets notified with the reason.
@@ -588,6 +480,6 @@ export const reviewPaymentSubmissionWorkflow = createWorkflow(
       })
     )
 
-    return new WorkflowResponse({ submission, payment })
+    return new WorkflowResponse({ submission, paid_to: paidToMethod })
   }
 )

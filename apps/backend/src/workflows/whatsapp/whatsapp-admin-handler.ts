@@ -804,14 +804,34 @@ async function handleReviewPayment(
     return { handled: true, action: `${decision}_payment`, error: "missing_id" }
   }
 
-  await reviewPaymentSubmissionWorkflow(scope).run({
-    input: {
-      submission_id: submissionId,
-      action: decision === "approve" ? "approve" : "reject",
-      reviewed_by: admin.userId,
-      ...(reason ? { rejection_reason: reason } : {}),
-    },
-  })
+  /**
+   * ⚠️ This path names no `paid_to_id` — there is no picker over WhatsApp.
+   *
+   * It therefore depends entirely on the fallback, and since #1636 the fallback
+   * REFUSES when a partner has several payment methods and none is marked
+   * default. That is the point: Sharlho has four bank accounts, one per
+   * employee, and this path used to resolve them by taking whichever row the
+   * link query returned first — approving a payout to an arbitrary person from
+   * a chat message. Surface the refusal as a readable reply instead of an
+   * unhandled throw.
+   */
+  try {
+    await reviewPaymentSubmissionWorkflow(scope).run({
+      input: {
+        submission_id: submissionId,
+        action: decision === "approve" ? "approve" : "reject",
+        reviewed_by: admin.userId,
+        ...(reason ? { rejection_reason: reason } : {}),
+      },
+    })
+  } catch (e: any) {
+    const message = e?.message || "Unknown error"
+    await whatsapp.sendTextMessage(
+      phone,
+      `Could not ${decision} payment ${submissionId}.\n\n${message}`
+    )
+    return { handled: true, action: `${decision}_payment`, error: "review_failed" }
+  }
 
   const emoji = decision === "approve" ? "Approved" : "Rejected"
   const audit: WhatsAppAuditContext = {

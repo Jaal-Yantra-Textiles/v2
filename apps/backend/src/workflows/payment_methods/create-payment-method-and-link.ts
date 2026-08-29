@@ -1,4 +1,4 @@
-import { createStep, createWorkflow, StepResponse, WorkflowResponse, when } from "@medusajs/framework/workflows-sdk"
+import { createStep, createWorkflow, StepResponse, WorkflowResponse, transform, when } from "@medusajs/framework/workflows-sdk"
 import { ContainerRegistrationKeys } from "@medusajs/framework/utils"
 import { LinkDefinition } from "@medusajs/framework/types"
 import { INTERNAL_PAYMENTS_MODULE } from "../../modules/internal_payments"
@@ -6,6 +6,7 @@ import InternalPaymentService from "../../modules/internal_payments/service"
 import { PERSON_MODULE } from "../../modules/person"
 import { PARTNER_MODULE } from "../../modules/partner"
 import type { Link } from "@medusajs/modules-sdk"
+import { setDefaultPaymentMethodStep } from "./set-default-payment-method"
 
 export type CreatePaymentMethodInput = {
   type: "bank_account" | "cash_account" | "digital_wallet"
@@ -17,6 +18,12 @@ export type CreatePaymentMethodInput = {
   metadata?: Record<string, any> | null
   person_id?: string
   partner_id?: string
+  /**
+   * Make this the owner's default straight away. Applied AFTER linking, since
+   * "default" is exclusive per owner and the sibling set is resolved through
+   * the link table.
+   */
+  is_default?: boolean
 }
 
 const createPaymentMethodStep = createStep(
@@ -100,6 +107,19 @@ export const createPaymentMethodAndLinkWorkflow = createWorkflow(
         payment_method_id: method.id,
         partner_id: input.partner_id,
       }).config({ name: 'link-to-partner' })
+    })
+
+    // Only after the link exists — the sibling set it unsets is read from it.
+    const shouldDefault = transform(
+      { input },
+      (d) => Boolean(d.input.is_default) && Boolean(d.input.partner_id || d.input.person_id)
+    )
+    when(shouldDefault, (v) => v).then(() => {
+      setDefaultPaymentMethodStep({
+        payment_method_id: method.id,
+        partner_id: input.partner_id,
+        person_id: input.person_id,
+      })
     })
 
     return new WorkflowResponse(method)

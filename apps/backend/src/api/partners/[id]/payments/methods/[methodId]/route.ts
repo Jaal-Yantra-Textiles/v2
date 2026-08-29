@@ -4,6 +4,7 @@ import { getPartnerFromAuthContext } from "../../../../helpers"
 import PartnerPaymentMethodsLink from "../../../../../../links/partner-payment-methods-link"
 import { updatePaymentDetailsWorkflow } from "../../../../../../workflows/internal_payments/update-payment-details"
 import { deletePaymentDetailsWorkflow } from "../../../../../../workflows/internal_payments/delete-payment-details"
+import { setDefaultPaymentMethodWorkflow } from "../../../../../../workflows/payment_methods/set-default-payment-method"
 
 // Verify the payment method belongs to the acting partner (prevents IDOR — a
 // partner must not be able to edit/delete another partner's payout method).
@@ -59,14 +60,35 @@ export const POST = async (
 ) => {
   await verifyOwnership(req)
 
+  const body = { ...((req.validatedBody as any) || {}) }
+
+  /**
+   * `is_default` is exclusive per owner, so it cannot ride along as a plain
+   * column write — promoting one method has to demote the partner's others.
+   * Routed to its own workflow and stripped from the field update.
+   */
+  const makeDefault = body.is_default === true
+  delete body.is_default
+
   const { result } = await updatePaymentDetailsWorkflow(req.scope).run({
     input: {
       id: req.params.methodId,
-      ...(req.validatedBody || {}),
+      ...body,
     },
   })
 
-  return res.status(200).json({ paymentMethod: result })
+  if (makeDefault) {
+    await setDefaultPaymentMethodWorkflow(req.scope).run({
+      input: {
+        payment_method_id: req.params.methodId,
+        partner_id: req.params.id,
+      },
+    })
+  }
+
+  return res.status(200).json({
+    paymentMethod: makeDefault ? { ...(result as any), is_default: true } : result,
+  })
 }
 
 export const DELETE = async (

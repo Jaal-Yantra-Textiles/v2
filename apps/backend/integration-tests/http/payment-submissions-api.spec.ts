@@ -1848,7 +1848,7 @@ setupSharedTestSuite(() => {
   // ─── Admin: Approve Submission ────────────────────────────────────────────
 
   describe("POST /admin/payment-submissions/:id/review", () => {
-    it("should approve a submission and create payment + reconciliation", async () => {
+    it("should approve a submission into a payout on the submission itself, creating NO internal payment (#1636)", async () => {
       const d1 = await createDesign("Approve Design", { estimated_cost: 10000 })
       await linkDesignToPartner(d1, partnerId)
 
@@ -1871,19 +1871,47 @@ setupSharedTestSuite(() => {
 
       expect(reviewRes.status).toBe(200)
       expect(reviewRes.data.payment_submission).toBeDefined()
-      expect(reviewRes.data.payment).toBeDefined()
-      expect(reviewRes.data.payment.id).toBeDefined()
-      expect(Number(reviewRes.data.payment.amount)).toBe(10000)
-      expect(reviewRes.data.payment.status).toBe("Pending")
 
-      // Verify submission status is now Paid
+      /**
+       * 🔴 The assertion this replaces required `reviewRes.data.payment.id` and
+       * a `Pending` payment of 10000. That payment row was the second of the
+       * three records one payout used to exist as, and nothing ever moved it
+       * off Pending — the submission said Paid at the same moment. Approval no
+       * longer creates it (#1636).
+       */
+      expect(reviewRes.data.payment).toBeNull()
+      expect(reviewRes.data.paid_to).toBeDefined()
+      expect(reviewRes.data.paid_to.id).toBe(paidToId)
+
+      /**
+       * 🔴 Approval stops at `Approved` (#1639). The assertion this replaces
+       * demanded `Paid` here. In production the gap between approval and the
+       * money actually moving was 13 seconds, 8 minutes, 2 days, 6 days and
+       * 34 days — for 34 days a payout read `Paid` and the partner had been
+       * told so, while nothing had been sent.
+       */
       const detail = await api.get(
         `/admin/payment-submissions/${submissionId}`,
         adminHeaders
       )
-      expect(detail.data.payment_submission.status).toBe("Paid")
+      expect(detail.data.payment_submission.status).toBe("Approved")
       expect(detail.data.payment_submission.reviewed_at).toBeDefined()
       expect(detail.data.payment_submission.reviewed_by).toBeDefined()
+      // Nothing has moved yet, so nothing claims it has.
+      expect(detail.data.payment_submission.paid_at).toBeFalsy()
+
+      /**
+       * And no `internal_payments` row appeared for it. Asserted by COUNT
+       * across the whole list rather than by absence of a key: a wrong response
+       * key reads as a confident nothing, and this is exactly the claim the
+       * issue was opened about.
+       */
+      const paymentsAfter = await api.get("/admin/payments?limit=100", adminHeaders)
+      expect(paymentsAfter.status).toBe(200)
+      const matching = (paymentsAfter.data.payments || []).filter(
+        (pmt: any) => Number(pmt.amount) === 10000 && pmt.status === "Pending"
+      )
+      expect(matching).toHaveLength(0)
 
       // Verify reconciliation record was created
       const reconRes = await api.get(
@@ -1901,6 +1929,127 @@ setupSharedTestSuite(() => {
       expect(Number(recon.expected_amount)).toBe(10000)
       expect(Number(recon.actual_amount)).toBe(10000)
       expect(Number(recon.discrepancy)).toBe(0)
+
+      /**
+       * Settling is the moment money is recorded as having moved, and it
+       * carries the submission with it — one action, both records, so the two
+       * cannot drift into the disagreement #1636 was opened about.
+       */
+      const settled = await api.post(
+        `/admin/payment_reports/reconciliation/${recon.id}/settle`,
+        {},
+        adminHeaders
+      )
+      expect(settled.status).toBe(200)
+      expect(settled.data.reconciliation.status).toBe("Settled")
+      expect(settled.data.reconciliation.settled_at).toBeTruthy()
+
+      const afterSettle = await api.get(
+        `/admin/payment-submissions/${submissionId}`,
+        adminHeaders
+      )
+      expect(afterSettle.data.payment_submission.status).toBe("Paid")
+      expect(afterSettle.data.payment_submission.paid_at).toBeTruthy()
+    })
+
+    /**
+     * 🔴 The four-branch method resolution (#1636).
+     *
+     * Production motivated every branch: Sharlho has FOUR bank accounts under
+     * one partner, one per employee, and three of them have been paid at
+     * different times. The code this replaces took `methods[0]` — whichever row
+     * the link query returned first — so approving without naming a method did
+     * not risk the wrong account, it risked the wrong PERSON.
+     */
+    it("should REFUSE approval when a partner has several methods and none is default", async () => {
+      // A second method, so the partner now has two and neither is default.
+      const second = await api.post(
+        `/admin/payments/partners/${partnerId}/methods`,
+        {
+          type: "bank_account",
+          account_name: "Second Employee Account",
+          bank_name: "Other Bank",
+        },
+        adminHeaders
+      )
+      const secondId = second.data.paymentMethod.id
+
+      const d1 = await createDesign("Ambiguous Method Design", {
+        estimated_cost: 4000,
+      })
+      await linkDesignToPartner(d1, partnerId)
+      const createRes = await api.post(
+        "/partners/payment-submissions",
+        { design_ids: [d1] },
+        { headers: partnerHeaders }
+      )
+      const submissionId = createRes.data.payment_submission.id
+
+      // No paid_to_id, no default → must refuse rather than pick.
+      const refused = await api
+        .post(
+          `/admin/payment-submissions/${submissionId}/review`,
+          { action: "approve" },
+          adminHeaders
+        )
+        .catch((e: any) => e.response)
+
+      expect(refused.status).toBe(400)
+      expect(String(refused.data?.message)).toContain("none is marked default")
+
+      // The refusal must not have half-approved it.
+      const stillPending = await api.get(
+        `/admin/payment-submissions/${submissionId}`,
+        adminHeaders
+      )
+      expect(stillPending.data.payment_submission.status).not.toBe("Paid")
+      expect(stillPending.data.payment_submission.paid_at).toBeFalsy()
+
+      // Mark one default → the same approval now resolves to THAT method.
+      await api.post(
+        `/partners/${partnerId}/payments/methods/${secondId}`,
+        { is_default: true },
+        { headers: partnerHeaders }
+      )
+
+      const approved = await api.post(
+        `/admin/payment-submissions/${submissionId}/review`,
+        { action: "approve" },
+        adminHeaders
+      )
+      expect(approved.status).toBe(200)
+      expect(approved.data.paid_to.id).toBe(secondId)
+
+      // Exclusive: promoting the second must have demoted the first.
+      const methods = await api.get(
+        `/admin/payments/partners/${partnerId}/methods`,
+        adminHeaders
+      )
+      const first = methods.data.paymentMethods.find((m: any) => m.id === paidToId)
+      expect(first.is_default).toBe(false)
+    })
+
+    it("should reject a paid_to_id that belongs to a different partner", async () => {
+      const d1 = await createDesign("Foreign Method Design", {
+        estimated_cost: 1500,
+      })
+      await linkDesignToPartner(d1, partnerId)
+      const createRes = await api.post(
+        "/partners/payment-submissions",
+        { design_ids: [d1] },
+        { headers: partnerHeaders }
+      )
+
+      const refused = await api
+        .post(
+          `/admin/payment-submissions/${createRes.data.payment_submission.id}/review`,
+          { action: "approve", paid_to_id: "ipd_not_this_partners_method" },
+          adminHeaders
+        )
+        .catch((e: any) => e.response)
+
+      expect(refused.status).toBe(400)
+      expect(String(refused.data?.message)).toContain("not one of this partner")
     })
 
     it("should create a discrepant reconciliation when amount_override differs", async () => {
@@ -1926,7 +2075,12 @@ setupSharedTestSuite(() => {
       )
 
       expect(reviewRes.status).toBe(200)
-      expect(Number(reviewRes.data.payment.amount)).toBe(7000)
+      /**
+       * The overridden amount used to be read off the created payment row.
+       * There is no payment row now (#1636) — reconciliation's `actual_amount`
+       * below is where the override lands, and it is asserted there.
+       */
+      expect(reviewRes.data.payment).toBeNull()
 
       // Verify reconciliation shows discrepancy
       const reconRes = await api.get(
@@ -3082,10 +3236,15 @@ setupSharedTestSuite(() => {
         )
         .catch((e: any) => e.response)
 
-      // Rewriting a paid row makes our record disagree with what was actually
-      // paid, without putting a rupee in anyone's hand.
+      // Rewriting a committed row makes our record disagree with what was
+      // actually agreed, without putting a rupee in anyone's hand.
+      //
+      // The status named here is `Approved`, not `Paid`: approval stops at
+      // Approved since #1639, and the line is locked from that moment — the
+      // amount is agreed even though the transfer has not been made yet.
       expect(res.status).toBe(400)
-      expect(res.data.message).toContain("Paid")
+      expect(res.data.message).toContain("Approved")
+      expect(res.data.message).toContain("cannot be edited")
     })
 
     it("refuses an empty body rather than writing nothing and returning 200", async () => {
