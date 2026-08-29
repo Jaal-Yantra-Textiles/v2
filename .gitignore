@@ -115,3 +115,6 @@ apps/backend/test-results/
 # `git status` and are one careless `git add -A` away from being committed.
 apps/backend/_crm_hb_e2e/
 apps/backend/_pp_hb_e2e/
+
+# Local AI agent memory — never commit
+.ai-memory/
