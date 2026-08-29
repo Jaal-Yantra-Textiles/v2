@@ -1,6 +1,6 @@
 {
   "name": "jyt-commerce-api",
-  "version": "13.122.0",
+  "version": "13.123.0",
   "private": true,
   "workspaces": [
     "apps/analytics",

@@ -1,3 +1,19 @@
+# [13.123.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.122.0...v13.123.0) (2026-08-29)
+
+
+### Bug Fixes
+
+* **crm:** an in-memory store per worker — the file lock made two specs mutually exclusive ([#1648](https://github.com/Jaal-Yantra-Textiles/v2/issues/1648)) ([#1649](https://github.com/Jaal-Yantra-Textiles/v2/issues/1649)) ([d4c64e3](https://github.com/Jaal-Yantra-Textiles/v2/commit/d4c64e3eeee40e3d297e3d44ba74cbf4b2fed152)), closes [#1646](https://github.com/Jaal-Yantra-Textiles/v2/issues/1646) [#1647](https://github.com/Jaal-Yantra-Textiles/v2/issues/1647)
+
+
+### Features
+
+* **payments:** one partner ledger over both money records ([#1612](https://github.com/Jaal-Yantra-Textiles/v2/issues/1612)) ([#1643](https://github.com/Jaal-Yantra-Textiles/v2/issues/1643)) ([7840131](https://github.com/Jaal-Yantra-Textiles/v2/commit/7840131aeb69b960a560b266a418e21705553465)), closes [#1638](https://github.com/Jaal-Yantra-Textiles/v2/issues/1638) [#1621](https://github.com/Jaal-Yantra-Textiles/v2/issues/1621) [#1638](https://github.com/Jaal-Yantra-Textiles/v2/issues/1638)
+* **crm:** open a deal — the pipeline board could only ever be empty ([#1552](https://github.com/Jaal-Yantra-Textiles/v2/issues/1552)) ([#1647](https://github.com/Jaal-Yantra-Textiles/v2/issues/1647)) ([ad56ecf](https://github.com/Jaal-Yantra-Textiles/v2/commit/ad56ecff908e55d9bba027543fcb2a88c0ab86e8))
+* **payments:** per-piece prices on a payout line ([#1596](https://github.com/Jaal-Yantra-Textiles/v2/issues/1596)) ([#1645](https://github.com/Jaal-Yantra-Textiles/v2/issues/1645)) ([9160366](https://github.com/Jaal-Yantra-Textiles/v2/commit/9160366a84aabb74db92a027a2ac13d22d54dd61)), closes [#1637](https://github.com/Jaal-Yantra-Textiles/v2/issues/1637) [#1557](https://github.com/Jaal-Yantra-Textiles/v2/issues/1557) [#1614](https://github.com/Jaal-Yantra-Textiles/v2/issues/1614) [#1616](https://github.com/Jaal-Yantra-Textiles/v2/issues/1616)
+* **crm:** sort the CRM lists by date, at all three ends ([#1551](https://github.com/Jaal-Yantra-Textiles/v2/issues/1551)) ([#1646](https://github.com/Jaal-Yantra-Textiles/v2/issues/1646)) ([94774b1](https://github.com/Jaal-Yantra-Textiles/v2/commit/94774b1ad6aeab2676fb0122f5deb3786dd13e99))
+* **shipping:** surface carrier, AWB and pickup on the run's transfers ([#1553](https://github.com/Jaal-Yantra-Textiles/v2/issues/1553)) ([#1644](https://github.com/Jaal-Yantra-Textiles/v2/issues/1644)) ([d956a50](https://github.com/Jaal-Yantra-Textiles/v2/commit/d956a5071322c5170fc746d266014a66cc9c72b4)), closes [#891](https://github.com/Jaal-Yantra-Textiles/v2/issues/891) [#1643](https://github.com/Jaal-Yantra-Textiles/v2/issues/1643)
+
 # [13.122.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.121.0...v13.122.0) (2026-08-29)
 
 
