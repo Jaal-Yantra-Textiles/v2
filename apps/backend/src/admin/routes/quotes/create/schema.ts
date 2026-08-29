@@ -179,6 +179,21 @@ export const QuoteQuantitiesSchema = z.object({
    * than two that have to be kept in step.
    */
   design_by_variant: z.record(z.string(), z.string()).optional(),
+
+  /**
+   * variant_id → unit weight in grams, typed by the operator.
+   *
+   * 🔴 The only way to quote a line the catalogue cannot weigh. Freight is
+   * quoted against the summed basket weight and the estimate refuses the WHOLE
+   * basket on the first weightless line — so a design quoted before its garment
+   * was ever weighed could not be priced at all.
+   *
+   * Blank is not 0. A zero weight is a weightless consignment that every
+   * carrier rates at its floor, which is how a `0 INR` freight row once shipped
+   * bulk orders free (#1430) — so it is dropped from the payload rather than
+   * sent, and the estimate's own refusal stands.
+   */
+  weights: z.record(z.string(), z.number().nullish()).optional(),
 })
 
 /**
@@ -216,4 +231,4 @@ export const QuoteBuyerFields = [
   "ddp_fee_total",
   "duty_basis",
 ] as const
-export const QuoteProductFields = ["product_ids", "design_by_variant"] as const
+export const QuoteProductFields = ["product_ids", "design_by_variant", "weights"] as const

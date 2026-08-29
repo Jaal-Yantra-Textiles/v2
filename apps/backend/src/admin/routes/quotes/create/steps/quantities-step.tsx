@@ -26,13 +26,22 @@ const columnHelper = createDataGridHelper<Row, AdminQuoteCreateSchemaType>()
  * Mirrors the partner wizard's grid, including the two things that are easy to
  * drop when porting:
  *
- * 🔴 The weight column is not decoration. Freight is quoted against the summed
- * basket weight, and platform-wide most variants carry no weight at either
- * level — a line with no weight cannot be quoted at all, and the operator needs
- * to see that BEFORE minting rather than discover it in a quote that came back
- * short. Which LEVEL the weight came from matters too: a declared product
- * weight over-quotes a lighter variant, and at bulk quantities that can cross a
- * carrier slab.
+ * 🔴 The weight column is not decoration, and it is EDITABLE.
+ *
+ * Freight is quoted against the summed basket weight, and `buildShippingEstimate`
+ * refuses the whole basket on the first line it cannot weigh — 183 variants
+ * platform-wide carry no weight at either level, and a design quoted before its
+ * garment has ever been weighed has none by definition. Read-only, that made a
+ * design-led quote unpriceable with no way out of the wizard.
+ *
+ * So the operator types the weight they measured. It prices THIS quote and is
+ * never written back to the variant: a figure typed under time pressure must
+ * not become the catalogue's answer for every future basket.
+ *
+ * Which LEVEL the weight came from still matters and is still shown — a declared
+ * product weight over-quotes a lighter variant, and at bulk quantities that can
+ * cross a carrier slab. The catalogue figure is the PLACEHOLDER, so a typed
+ * number and an inherited one stay distinguishable.
  *
  * 🔴 The unit-price column is in the PARTNER STORE's currency, not the quote's,
  * and the header says so. A number typed against a USD quote is otherwise read
@@ -76,7 +85,14 @@ export const QuantitiesStep = ({ form }: Props) => {
       }),
       columnHelper.column({
         id: "weight",
-        header: "Unit weight",
+        name: "Unit weight (g)",
+        header: "Unit weight (g)",
+        field: (context: any) => {
+          const entity = context.row.original
+          if (isProductRow(entity)) return null
+          return `weights.${entity.id}` as const
+        },
+        type: "number",
         cell: (context: any) => {
           const entity = context.row.original
           if (isProductRow(entity)) {
@@ -90,21 +106,32 @@ export const QuantitiesStep = ({ form }: Props) => {
           const resolved = variantWeight ?? productWeight ?? null
           const source = variantWeight != null ? "variant" : "product"
 
+          /**
+           * 🔴 Editable, and blank does NOT mean zero.
+           *
+           * The catalogue figure is shown as the placeholder rather than
+           * prefilled: prefilling would send a catalogue weight as though an
+           * operator had vouched for it, and `quoted_weight_source` on the
+           * frozen line would then read `manual` for a number nobody typed.
+           * Leaving it blank keeps "the catalogue answered" and "a human
+           * answered" distinguishable on the document.
+           *
+           * A line with no catalogue weight says so in the placeholder. It used
+           * to read "No weight — cannot quote", which was true: the estimate
+           * refuses the WHOLE basket on the first line it cannot weigh, so a
+           * design quoted before its garment was ever weighed could not be
+           * priced at all. Now it can be, by typing the weight.
+           */
           return (
-            <DataGridReadonlyCell context={context} color="normal">
-              {resolved == null ? (
-                <span className="text-ui-fg-error truncate">
-                  No weight — cannot quote
-                </span>
-              ) : (
-                <span className="truncate">
-                  {resolved} g
-                  {source === "product" ? (
-                    <span className="text-ui-fg-subtle"> (product)</span>
-                  ) : null}
-                </span>
-              )}
-            </DataGridReadonlyCell>
+            <DataGridNumberCell
+              context={context}
+              min={1}
+              placeholder={
+                resolved == null
+                  ? "Enter to quote"
+                  : `${resolved}${source === "product" ? " (product)" : ""}`
+              }
+            />
           )
         },
       }),

@@ -170,7 +170,16 @@ export type QuoteReadinessResult = {
 }
 
 export type QuoteReadinessInput = {
-  lines: Array<{ variant_id: string; quantity: number }>
+  /**
+   * `unit_weight_grams` is the operator's own figure for a line the catalogue
+   * cannot weigh — a design-led quote, or one of the 183 variants carrying no
+   * weight at either level. Priced with, never persisted.
+   */
+  lines: Array<{
+    variant_id: string
+    quantity: number
+    unit_weight_grams?: number | null
+  }>
   store: {
     id?: string | null
     default_location_id?: string | null
@@ -362,6 +371,7 @@ export async function assessQuoteReadiness(
         lines: lines.map((l) => ({
           variant_id: l.variant_id,
           quantity: l.quantity,
+          unit_weight_grams: l.unit_weight_grams ?? null,
         })),
         destination_postal_code: String(input.destination_postal_code ?? ""),
         country_code: input.destination_country_code,

@@ -119,6 +119,7 @@ export const MintQuoteForm = () => {
       discounts: {},
       overrides: {},
       design_by_variant: {},
+      weights: {},
       // Never on by default: a DDP promise nobody arranged clearance for tells
       // the buyer there is nothing to pay and then hands them a customs bill.
       duties_prepaid: false,
@@ -230,10 +231,16 @@ export const MintQuoteForm = () => {
         const override = data.overrides?.[variant_id]
         // #1486 — alongside the variant, never instead of it.
         const designId = data.design_by_variant?.[variant_id]
+        // Blank stays blank. See `weights` in schema.ts — a 0 here is a
+        // weightless consignment, not "unknown".
+        const weight = data.weights?.[variant_id]
         return {
           variant_id,
           quantity: qty as number,
           position: index,
+          ...(typeof weight === "number" && weight > 0
+            ? { unit_weight_grams: weight }
+            : {}),
           ...(designId ? { design_id: designId } : {}),
           ...(typeof discount === "number" && discount > 0
             ? { discount_percent: discount }
@@ -268,6 +275,10 @@ export const MintQuoteForm = () => {
         lines: lines.map((l) => ({
           variant_id: l.variant_id,
           quantity: l.quantity,
+          // Or the preflight refuses a basket the mint would have priced.
+          ...(l.unit_weight_grams
+            ? { unit_weight_grams: l.unit_weight_grams }
+            : {}),
         })),
         destination_country_code: data.destination_country_code,
         destination_postal_code: data.destination_postal_code || null,

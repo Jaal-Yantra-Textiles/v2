@@ -67,6 +67,17 @@ export type MintQuoteInput = {
     discount_percent?: number | null
     /** A flat unit price, in the PARTNER STORE's default currency. */
     override_unit_amount?: number | null
+    /**
+     * The operator's own unit weight in grams, for a line the catalogue cannot
+     * weigh — a design quoted before its garment was ever weighed, or one of
+     * the 183 variants with no weight at either level.
+     *
+     * Prices this quote's freight only. It is frozen onto the line as
+     * `quoted_unit_weight_grams` with `quoted_weight_source: "manual"`, so the
+     * document records that a human supplied the figure, and it is never
+     * written back to the variant.
+     */
+    unit_weight_grams?: number | null
   }>
   destination_country_code: string
   destination_postal_code?: string | null

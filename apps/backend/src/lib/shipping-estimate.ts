@@ -58,6 +58,20 @@ import {
 export type ShippingEstimateLineInput = {
   variant_id: string
   quantity: number
+  /**
+   * A weight typed by the operator, in grams, for this line only.
+   *
+   * 🔴 Wins over the variant's and the product's, and it exists because
+   * refusing was the only other answer. 183 variants platform-wide carry no
+   * weight at either level, and a design quoted before its garment has ever
+   * been weighed has none by definition — so the operator either types the
+   * weight they measured or cannot quote the lane at all.
+   *
+   * It is NOT a default and never persists to the variant: it prices this one
+   * quote. Writing it back would let a guess made under time pressure become
+   * the catalogue's answer for every future basket.
+   */
+  unit_weight_grams?: number | null
 }
 
 export type ShippingEstimateInput = {
@@ -142,7 +156,7 @@ export type ShippingEstimateLine = {
   quantity: number
   unit_weight_grams: number
   /** Which level the unit weight came from. See the header. */
-  weight_source: "variant" | "product"
+  weight_source: "variant" | "product" | "manual"
   line_weight_grams: number
 }
 
@@ -198,12 +212,28 @@ export type ShippingEstimate = {
  * Split out so the rule that decides a buyer's freight number is testable
  * without a container, a carrier or a database.
  */
-export function resolveUnitWeight(variant: {
-  id?: string
-  title?: string | null
-  weight?: unknown
-  product?: { weight?: unknown } | null
-}): { weight_grams: number; weight_source: "variant" | "product" } | null {
+export function resolveUnitWeight(
+  variant: {
+    id?: string
+    title?: string | null
+    weight?: unknown
+    product?: { weight?: unknown } | null
+  },
+  /**
+   * The operator's own figure for this line, if they gave one. Checked FIRST:
+   * someone who has weighed the sample knows better than a catalogue field, and
+   * on a design-led quote the catalogue has no answer at all.
+   */
+  manualWeightGrams?: unknown
+): {
+  weight_grams: number
+  weight_source: "variant" | "product" | "manual"
+} | null {
+  const manual = Number(manualWeightGrams)
+  if (manual && !Number.isNaN(manual) && manual > 0) {
+    return { weight_grams: manual, weight_source: "manual" }
+  }
+
   const variantWeight = Number(variant?.weight)
   if (variantWeight && !Number.isNaN(variantWeight) && variantWeight > 0) {
     return { weight_grams: variantWeight, weight_source: "variant" }
@@ -459,14 +489,14 @@ export async function buildShippingEstimate(
       )
     }
 
-    const resolved = resolveUnitWeight(variant)
+    const resolved = resolveUnitWeight(variant, line.unit_weight_grams)
     if (!resolved) {
       // Deliberately a refusal, not a fallback, and it fails the WHOLE basket:
       // a landed total missing one line's freight is a wrong number wearing a
       // confident label. See the header.
       throw new MedusaError(
         MedusaError.Types.INVALID_DATA,
-        `Variant "${variant.title || variant.id}" has no shipping weight, and neither does its product, so freight cannot be quoted for it. Set a weight on the variant first.`
+        `Variant "${variant.title || variant.id}" has no shipping weight, and neither does its product, so freight cannot be quoted for it. Set a weight on the variant, or enter one for this quote.`
       )
     }
 

@@ -37,10 +37,27 @@ describe("carrier capabilities", () => {
     expect(international.rating.map((c) => c.id)).toEqual(["shiprocket"])
   })
 
-  it("surfaces DTDC as un-integrated rather than hiding it", () => {
+  /**
+   * ⚠️ Was "surfaces DTDC as un-integrated rather than hiding it", asserting
+   * `integrated: false`. #1583 shipped the DTDC provider, so that premise is
+   * simply obsolete — the assertion went red on `main` when it merged.
+   *
+   * The distinction it exists to protect still matters and is what is asserted
+   * now: DTDC BOOKS but cannot RATE. A carrier that ships without quoting must
+   * never reach a rating list, or it wins a lane by returning no price at all.
+   */
+  it("has DTDC integrated for shipping but absent from every rating lane", () => {
     const dtdc = CARRIER_CAPABILITIES.find((c) => c.id === "dtdc")!
-    expect(dtdc.integrated).toBe(false)
-    expect(groupCarriersByLane().unavailable.map((c) => c.id)).toContain("dtdc")
+    expect(dtdc.integrated).toBe(true)
+    expect(dtdc.domestic.can_ship).toBe(true)
+    expect(dtdc.domestic.can_rate).toBe(false)
+    expect(dtdc.international.can_ship).toBe(false)
+
+    const grouped = groupCarriersByLane()
+    expect(grouped.unavailable.map((c) => c.id)).not.toContain("dtdc")
+    expect(grouped.domestic.shipping.map((c) => c.id)).toContain("dtdc")
+    expect(grouped.domestic.rating.map((c) => c.id)).not.toContain("dtdc")
+    expect(grouped.international.rating.map((c) => c.id)).not.toContain("dtdc")
   })
 })
 
