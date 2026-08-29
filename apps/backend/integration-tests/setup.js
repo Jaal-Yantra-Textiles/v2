@@ -19,17 +19,20 @@ process.env.WHATSAPP_WEBHOOK_VERIFY_TOKEN =
 // this cannot break boot: the worst case is the module stays offline and the
 // CRM specs fail loudly, which is the correct outcome rather than a silent skip.
 //
-// ⚠️ The store is a FILE, not Postgres. The runner restores a DB snapshot before
-// every test; it does NOT reset this. CRM rows therefore ACCUMULATE across tests
-// in a run — a CRM spec must assert on rows it created, never on a total count.
+// ⚠️ The store is IN MEMORY, one per worker process (#1648). It is not Postgres:
+// the runner restores a DB snapshot before every test and does NOT reset this, so
+// CRM rows still ACCUMULATE across the tests of one worker — a CRM spec must
+// assert on rows it created, never on a total count. They no longer accumulate
+// ACROSS workers, and nothing is written to disk.
 //
-// The store PATH is chosen in global-setup.js, not here: globalSetup and
-// globalTeardown share a process while this file runs in each worker, so a path
-// computed here would be invisible to the cleanup.
+// It used to be a directory, shared by every worker. The store is single-writer
+// and its lock is a file, so the moment a second CRM spec landed in a second
+// worker the loader failed with "File descriptor could not be locked" and every
+// /admin/crm/* route in that worker answered 500. corestore@7.11 has no RAM
+// storage (hypercore-storage is RocksDB-only), so ":memory:" is handled above
+// Corestore, at the BeeLike boundary — see src/modules/crm/dal/memory-bee.ts.
 process.env.CRM_HYPERBEE = process.env.CRM_HYPERBEE || "true"
-process.env.CRM_HYPERBEE_STORE =
-  process.env.CRM_HYPERBEE_STORE ||
-  require("node:path").join(require("node:os").tmpdir(), "jyt-crm-store-worker")
+process.env.CRM_HYPERBEE_STORE = process.env.CRM_HYPERBEE_STORE || ":memory:"
 
 // Opt-in HTTP error tracing: `DEBUG_HTTP_ERRORS=1 pnpm test:integration:http:shared ...`
 //
