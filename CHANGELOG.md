@@ -1,3 +1,16 @@
+# [13.125.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.124.0...v13.125.0) (2026-08-29)
+
+
+### Bug Fixes
+
+* **inventory:** a cancel reversed only the LAST partner submission ([#1613](https://github.com/Jaal-Yantra-Textiles/v2/issues/1613)) ([#1659](https://github.com/Jaal-Yantra-Textiles/v2/issues/1659)) ([3bfd652](https://github.com/Jaal-Yantra-Textiles/v2/commit/3bfd6521bdebbd0c61fac25f56eeec9589dafb55))
+
+
+### Features
+
+* **payments:** let a human create a per-piece breakdown ([#1596](https://github.com/Jaal-Yantra-Textiles/v2/issues/1596)) ([#1660](https://github.com/Jaal-Yantra-Textiles/v2/issues/1660)) ([a8bf18a](https://github.com/Jaal-Yantra-Textiles/v2/commit/a8bf18a91ee5177e192e711a56b833a14440286b)), closes [#1645](https://github.com/Jaal-Yantra-Textiles/v2/issues/1645)
+* **ops:** recover the material identity pre-[#817](https://github.com/Jaal-Yantra-Textiles/v2/issues/817) order lines never got ([#1613](https://github.com/Jaal-Yantra-Textiles/v2/issues/1613)) ([#1661](https://github.com/Jaal-Yantra-Textiles/v2/issues/1661)) ([f1efd6a](https://github.com/Jaal-Yantra-Textiles/v2/commit/f1efd6a244ebbeb4916720a71e2ab11c90041fbd))
+
 # [13.124.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.123.1...v13.124.0) (2026-08-29)
 
 
