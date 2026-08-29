@@ -52,8 +52,6 @@ export type UpdateInventoryOrderInput = {
     expected_delivery_date: Date;
     order_date: Date;
     total_price: number;
-    /** #1617 — the AGREED payout total, distinct from the ordered total. */
-    agreed_total: number | null;
     quantity: number;
     shipping_address: any;
     /** Repoints the order↔stock-location from-link (ship-from), not a column. */

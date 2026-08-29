@@ -335,25 +335,25 @@ describe("assessInventoryOrderClaims", () => {
       },
     ])
 
-  // The case that opened #1617: ₹35,000 agreed, ₹30,000 released, ₹5,000 left.
+  /**
+   * 🔴 The case that opened #1617: a part payment must not lock out the
+   * balance. Against the old whole-order guard this CANNOT pass — the order
+   * appeared on a live submission, so the second line was refused outright.
+   */
   it("allows the balance after a part payment", () => {
     expect(
       assessInventoryOrderClaims({
         requestedByOrder: new Map([["inv_order_1", 5000]]),
-        orders: new Map([
-          ["inv_order_1", { agreed_total: 35000, total_price: 63375.75 }],
-        ]),
+        orders: new Map([["inv_order_1", { total_price: 35000 }]]),
         claims: claimsOf(30000),
       })
     ).toEqual([])
   })
 
-  it("refuses the excess over the agreed total", () => {
+  it("refuses the excess over what the order is worth", () => {
     const result = assessInventoryOrderClaims({
       requestedByOrder: new Map([["inv_order_1", 10000]]),
-      orders: new Map([
-        ["inv_order_1", { agreed_total: 35000, total_price: 63375.75 }],
-      ]),
+      orders: new Map([["inv_order_1", { total_price: 35000 }]]),
       claims: claimsOf(30000),
     })
 
@@ -368,33 +368,19 @@ describe("assessInventoryOrderClaims", () => {
   })
 
   /**
-   * 🔴 The load-bearing case. The agreed total must WIN over the ordered total:
-   * with the fallback picked instead, ₹33,375 more would be payable than
-   * anybody agreed to — which is the whole reason `agreed_total` exists rather
-   * than reusing `total_price`.
+   * The receipts value is NOT the ceiling. A line sent without an explicit
+   * amount defaults to the receipts total, which on the order that opened this
+   * derives ₹64,274 — above the ₹63,375.75 ordered total, so it is refused
+   * rather than quietly overpaying.
    */
-  it("uses the AGREED total, not the larger ordered total", () => {
+  it("refuses an amountless line that defaults to the receipts value", () => {
     const result = assessInventoryOrderClaims({
-      requestedByOrder: new Map([["inv_order_1", 40000]]),
-      orders: new Map([
-        ["inv_order_1", { agreed_total: 35000, total_price: 63375.75 }],
-      ]),
+      requestedByOrder: new Map([["inv_order_1", 64274]]),
+      orders: new Map([["inv_order_1", { total_price: 63375.75 }]]),
       claims: new Map(),
     })
 
     expect(result).toHaveLength(1)
-    expect(result[0].ceiling).toBe(35000)
-  })
-
-  it("falls back to the ordered total when no agreed figure is recorded", () => {
-    const result = assessInventoryOrderClaims({
-      requestedByOrder: new Map([["inv_order_1", 70000]]),
-      orders: new Map([
-        ["inv_order_1", { agreed_total: null, total_price: 63375.75 }],
-      ]),
-      claims: new Map(),
-    })
-
     expect(result[0].ceiling).toBe(63375.75)
   })
 
@@ -406,9 +392,7 @@ describe("assessInventoryOrderClaims", () => {
   it("coerces string amounts from bigNumber columns", () => {
     const result = assessInventoryOrderClaims({
       requestedByOrder: new Map([["inv_order_1", 10000]]),
-      orders: new Map([
-        ["inv_order_1", { agreed_total: "35000", total_price: "63375.75" }],
-      ]),
+      orders: new Map([["inv_order_1", { total_price: "35000" }]]),
       claims: claimsOf(30000),
     })
 
@@ -420,7 +404,7 @@ describe("assessInventoryOrderClaims", () => {
     expect(
       assessInventoryOrderClaims({
         requestedByOrder: new Map([["inv_order_1", 35000]]),
-        orders: new Map([["inv_order_1", { agreed_total: 35000 }]]),
+        orders: new Map([["inv_order_1", { total_price: 35000 }]]),
         claims: claimsOf(30000, "Rejected"),
       })
     ).toEqual([])
@@ -432,7 +416,7 @@ describe("assessInventoryOrderClaims", () => {
     expect(
       assessInventoryOrderClaims({
         requestedByOrder: new Map([["inv_order_1", 5000]]),
-        orders: new Map([["inv_order_1", { agreed_total: null, total_price: 0 }]]),
+        orders: new Map([["inv_order_1", { total_price: 0 }]]),
         claims: new Map(),
       })
     ).toEqual([])
@@ -442,7 +426,7 @@ describe("assessInventoryOrderClaims", () => {
     expect(
       assessInventoryOrderClaims({
         requestedByOrder: new Map([["inv_order_1", 5000.001]]),
-        orders: new Map([["inv_order_1", { agreed_total: 35000 }]]),
+        orders: new Map([["inv_order_1", { total_price: 35000 }]]),
         claims: claimsOf(30000),
       })
     ).toEqual([])

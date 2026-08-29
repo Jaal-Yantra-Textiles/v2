@@ -307,17 +307,14 @@ export type OverclaimedInventoryOrder = {
  * integration coverage at all, so logic left inline in the step would ship
  * unexercised.
  *
- * ⚠️ `agreed_total` and `total_price` are `bigNumber` columns: through
- * `query.graph` they arrive as numbers, but through a raw service read they can
- * be STRINGS. Coerced here, once, rather than at each call site.
+ * ⚠️ `total_price` is a `bigNumber` column: through `query.graph` it arrives as
+ * a number, but through a raw service read it can be a STRING. Coerced here,
+ * once, rather than at each call site.
  */
 export function assessInventoryOrderClaims(input: {
   /** Requested amount per order, already summed across this submission. */
   requestedByOrder: Map<string, number>
-  orders: Map<
-    string,
-    { agreed_total?: number | string | null; total_price?: number | string | null }
-  >
+  orders: Map<string, { total_price?: number | string | null }>
   claims: Map<string, InventoryOrderClaim>
 }): OverclaimedInventoryOrder[] {
   const overclaimed: OverclaimedInventoryOrder[] = []
@@ -327,20 +324,21 @@ export function assessInventoryOrderClaims(input: {
     if (!order) continue
 
     /**
-     * The ceiling is the AGREED total where one is recorded, falling back to
-     * the ordered total. `agreed_total` is nullable and must stay so — a
-     * historical order has no agreed figure, and inventing one is a licence to
-     * overpay. Never the receipts value: on the order that surfaced this, that
-     * derives ₹64,274 against ₹35,000 agreed.
+     * The ceiling is the ORDERED total.
+     *
+     * A separate `agreed_total` column was built and then removed: the price
+     * agreed can sit below the ordered total (₹35,000 against ₹63,375.75 on the
+     * order that opened #1617), but with no surface to record it the column
+     * would have been null on every row forever — a typed field with no writer,
+     * which reads as a contract and means nothing. If that deviation needs
+     * capturing, add the column WITH its input, so it is never a façade.
+     *
+     * Never the receipts value: on that same order it derives ₹64,274, which is
+     * ABOVE the ordered total — so an amountless line, which defaults to the
+     * receipts figure, is refused here rather than silently overpaying.
      */
-    const agreed = Number(order.agreed_total ?? 0)
     const ordered = Number(order.total_price ?? 0)
-    const ceiling =
-      Number.isFinite(agreed) && agreed > 0
-        ? agreed
-        : Number.isFinite(ordered)
-          ? ordered
-          : 0
+    const ceiling = Number.isFinite(ordered) ? ordered : 0
 
     // A ceiling of zero means the order is worth nothing we can read. Refusing
     // on that would block every payout on an unpriced order; the whole-order

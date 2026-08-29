@@ -35,12 +35,6 @@ export interface InventoryOrderLineInput {
 export interface CreateInventoryOrderInput {
   quantity: number;
   total_price: number;
-  /**
-   * #1617 — the AGREED payout total, distinct from the ordered `total_price`.
-   * Absent means nobody recorded one, and the payout guard falls back to the
-   * ordered total rather than inventing a ceiling.
-   */
-  agreed_total?: number | null;
   currency_code?: string;
   status: InventoryOrderInputStatus;
   expected_delivery_date: Date | undefined;
