@@ -275,7 +275,20 @@ export function detectRoundedReceipts(input: {
   const found: RoundedReceipt[] = []
 
   for (const line of (input.orderlines || []).filter(Boolean)) {
-    const receipts = (line.line_fulfillments || []) as ReceiptRow[]
+    /**
+     * 🔴 Drop the all-null placeholder rows first. `query.graph` returns one
+     * row of nulls for a line with NO receipts, so `line_fulfillments.length`
+     * is 1 for an empty relation — seen on
+     * `inv_order_01K3BAM50HG32BN5C4TF76G5K5`, which has zero real receipts and
+     * two such placeholders. Without this, a line with no receipts and a single
+     * fractional history entry below 0.5 would round to the placeholder's
+     * `0` and be "repaired" — issuing an update against the id `"null"`.
+     * The `created_at` guard below happens to catch it today; that is luck,
+     * not a design, and a write path should not rest on it.
+     */
+    const receipts = ((line.line_fulfillments || []) as ReceiptRow[]).filter(
+      (r) => r && r.id != null
+    )
     if (receipts.length !== 1) continue
 
     // Every history entry naming this line, across all submissions.

@@ -375,3 +375,34 @@ describe("detectRoundedReceipts", () => {
     ).toEqual([])
   })
 })
+
+/**
+ * `query.graph` returns ONE all-null row for a line with no receipts, so
+ * `line_fulfillments.length === 1` does not mean "one receipt". Seen on
+ * `inv_order_01K3BAM50HG32BN5C4TF76G5K5`: zero real receipts, two placeholders.
+ */
+describe("detectRoundedReceipts — null placeholder rows", () => {
+  it("does not treat an empty relation's placeholder as a receipt to repair", () => {
+    expect(
+      detectRoundedReceipts({
+        orderlines: [
+          {
+            id: "line_1",
+            quantity: 30,
+            price: 560,
+            // The shape query.graph actually returns for "no receipts".
+            line_fulfillments: [
+              { id: null as any, quantity_delta: null, created_at: null },
+            ],
+          },
+        ],
+        metadata: {
+          // Fractional, and rounds to the placeholder's 0 — the trap.
+          partner_delivery_history: [
+            { lines: [{ order_line_id: "line_1", quantity: 0.4 }] },
+          ],
+        },
+      })
+    ).toEqual([])
+  })
+})
