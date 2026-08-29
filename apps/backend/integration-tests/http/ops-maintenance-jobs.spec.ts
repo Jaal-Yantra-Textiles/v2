@@ -148,6 +148,33 @@ setupSharedTestSuite(() => {
       ).rejects.toMatchObject({ response: { status: 404 } })
     })
 
+    /**
+     * #342/#1613 — the rounding repair. A dry run must find nothing to change on
+     * a clean database AND report `applied: false`; the danger with a job that
+     * CAN write is a default that writes.
+     */
+    it("POST repair-rounded-receipt-quantities defaults to reporting, not writing", async () => {
+      const res = await api.post(
+        "/admin/ops/maintenance-jobs/repair-rounded-receipt-quantities/run",
+        { dry_run: true, params: { limit: 50 } },
+        adminHeaders
+      )
+      expect(res.status).toBe(200)
+      expect(res.data.result.dry_run).toBe(true)
+      expect(res.data.result.applied).toBe(false)
+      expect(res.data.result.summary).toContain("Nothing was changed")
+    })
+
+    it("POST repair-rounded-receipt-quantities 404s on an unknown order", async () => {
+      await expect(
+        api.post(
+          "/admin/ops/maintenance-jobs/repair-rounded-receipt-quantities/run",
+          { dry_run: true, params: { order_id: "inv_order_nope" } },
+          adminHeaders
+        )
+      ).rejects.toMatchObject({ response: { status: 404 } })
+    })
+
     it("GET lists the backfill-finished-run-consumption job (#697)", async () => {
       const res = await api.get("/admin/ops/maintenance-jobs", adminHeaders)
       expect(res.status).toBe(200)

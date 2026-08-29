@@ -85,6 +85,7 @@ import { backfillShiprocketShippingOptionsJob } from "./backfill-shiprocket-ship
 import { backfillFreightOptionDataJob } from "./backfill-freight-option-data-job"
 import { recoverWhatsappMediaJob } from "./recover-whatsapp-media-job"
 import { auditInventoryReceiptDriftJob } from "./audit-inventory-receipt-drift-job"
+import { repairRoundedReceiptQuantitiesJob } from "./repair-rounded-receipt-quantities-job"
 import { auditPartnerPayoutQuantityJob } from "./audit-partner-payout-quantity-job"
 import { capFreeShippingBandJob } from "./cap-free-shipping-band-job"
 import { deleteOrphanStoreJob } from "./delete-orphan-store-job"
@@ -5856,6 +5857,7 @@ export const MAINTENANCE_JOBS: MaintenanceJob[] = [
   backfillFreightOptionDataJob,
   recoverWhatsappMediaJob,
   auditInventoryReceiptDriftJob,
+  repairRoundedReceiptQuantitiesJob,
   auditPartnerPayoutQuantityJob,
   capFreeShippingBandJob,
   deleteOrphanStoreJob,
