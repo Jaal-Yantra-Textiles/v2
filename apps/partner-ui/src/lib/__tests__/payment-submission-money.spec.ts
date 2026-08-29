@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest"
 
 import {
+  groupIntoRateBands,
   money,
   perUnit,
   provenanceLabel,
@@ -188,5 +189,93 @@ describe("perUnit — per-piece price bands", () => {
     )
 
     expect(text).toBeNull()
+  })
+})
+
+/**
+ * The partner create screen's half of #1596. It collapsed two runs of one
+ * design at different rates into a typed line TOTAL — the money right and the
+ * account of how it was reached discarded — because there was no way to send
+ * the bands. This is that grouping.
+ *
+ * 🔴 Mirrors `groupIntoRateBands` in the backend, which owns the shape. These
+ * cases exist so the two cannot drift apart silently: the backend validator
+ * refuses fewer than two bands and refuses a non-positive figure, and a screen
+ * that disagrees turns a mistyped box into a 400 for the whole submission.
+ */
+describe("groupIntoRateBands (#1596)", () => {
+  it("merges runs at the same rate and orders the bands by rate", () => {
+    expect(
+      groupIntoRateBands([
+        { quantity: 1, unit_amount: 1200 },
+        { quantity: 2, unit_amount: 850 },
+        { quantity: 1, unit_amount: 850 },
+      ])
+    ).toEqual([
+      { quantity: 3, unit_amount: 850 },
+      { quantity: 1, unit_amount: 1200 },
+    ])
+  })
+
+  it("does not depend on the order runs were ticked", () => {
+    expect(
+      groupIntoRateBands([
+        { quantity: 1, unit_amount: 1200 },
+        { quantity: 3, unit_amount: 850 },
+      ])
+    ).toEqual(
+      groupIntoRateBands([
+        { quantity: 3, unit_amount: 850 },
+        { quantity: 1, unit_amount: 1200 },
+      ])
+    )
+  })
+
+  it("returns null when one rate covers every run — that is an ordinary line", () => {
+    expect(
+      groupIntoRateBands([
+        { quantity: 3, unit_amount: 850 },
+        { quantity: 5, unit_amount: 850 },
+      ])
+    ).toBeNull()
+    expect(groupIntoRateBands([])).toBeNull()
+    expect(groupIntoRateBands(null)).toBeNull()
+  })
+
+  it("drops figures the backend validator would refuse", () => {
+    expect(
+      groupIntoRateBands([
+        { quantity: 3, unit_amount: 850 },
+        { quantity: 0, unit_amount: 1200 },
+        { quantity: 1, unit_amount: 1200 },
+      ])
+    ).toEqual([
+      { quantity: 3, unit_amount: 850 },
+      { quantity: 1, unit_amount: 1200 },
+    ])
+  })
+
+  it("keeps a summed fractional quantity off the float's edge", () => {
+    expect(
+      groupIntoRateBands([
+        { quantity: 0.1, unit_amount: 850 },
+        { quantity: 0.2, unit_amount: 850 },
+        { quantity: 1, unit_amount: 1200 },
+      ])
+    ).toEqual([
+      { quantity: 0.3, unit_amount: 850 },
+      { quantity: 1, unit_amount: 1200 },
+    ])
+  })
+
+  it("sums to exactly the total the collapsed line used to send", () => {
+    const runs = [
+      { quantity: 3, unit_amount: 850 },
+      { quantity: 1, unit_amount: 1200 },
+    ]
+    const bands = groupIntoRateBands(runs)!
+    const banded = bands.reduce((s, b) => s + b.quantity * b.unit_amount, 0)
+    const oldTotal = runs.reduce((s, r) => s + r.quantity * r.unit_amount, 0)
+    expect(Math.round(banded * 100) / 100).toBe(Math.round(oldTotal * 100) / 100)
   })
 })

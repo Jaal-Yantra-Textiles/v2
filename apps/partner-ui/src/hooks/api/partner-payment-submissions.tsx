@@ -95,6 +95,14 @@ export type CreatePaymentSubmissionPayload = {
    * isn't the contract" shape #1571 exists to close.
    */
   production_run_ids?: Record<string, string[]>
+  /**
+   * Per-piece price bands per design line (#1596) — "3 × 850 + 1 × 1200".
+   *
+   * At least two bands, sent INSTEAD of a `cost_overrides` entry for that
+   * design: two statements of one line total must agree or the request is
+   * refused, and the bands already carry the total.
+   */
+  rate_breakdown?: Record<string, Array<{ quantity: number; unit_amount: number }>>
   metadata?: Record<string, any>
 }
 

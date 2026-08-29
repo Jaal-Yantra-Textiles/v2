@@ -3,6 +3,10 @@ import * as path from "path"
 
 const BACKEND_DIR = path.resolve(__dirname, "../apps/backend")
 
+const BACKEND_PORT = Number(process.env.E2E_BACKEND_PORT || 9000)
+const BACKEND_URL =
+  process.env.E2E_BACKEND_URL || `http://localhost:${BACKEND_PORT}`
+
 export default defineConfig({
   testDir: path.resolve(__dirname, "specs"),
   fullyParallel: false,
@@ -42,9 +46,21 @@ export default defineConfig({
       : /@partnerui|@localstack|@llm/
     : undefined,
 
+  /**
+   * The backend the admin specs drive.
+   *
+   * 🔴 Overridable because `reuseExistingServer` cannot tell WHOSE server is on
+   * :9000. A second checkout of this repo running its own `medusa develop`
+   * satisfies the port check, and the whole suite then grades the current
+   * branch against somebody else's build — which has already happened: a run
+   * reported `Unrecognized fields: 'rate_breakdown'` against a stale tree while
+   * the branch under test accepted it perfectly. Set `E2E_BACKEND_PORT` (and
+   * `MEDUSA_BACKEND_URL` on the server, so the admin bundle calls itself) to
+   * take a port nobody else holds.
+   */
   webServer: {
     command: `pnpm exec medusa develop`,
-    port: 9000,
+    port: BACKEND_PORT,
     cwd: BACKEND_DIR,
     reuseExistingServer: !process.env.CI,
     stdout: "pipe",
@@ -53,7 +69,7 @@ export default defineConfig({
   },
 
   use: {
-    baseURL: "http://localhost:9000",
+    baseURL: BACKEND_URL,
     trace: "on-first-retry",
     screenshot: "only-on-failure",
     launchOptions: {
