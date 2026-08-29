@@ -5,8 +5,7 @@ import { TwoColumnPageSkeleton } from "../../../components/table/skeleton"
 import { TwoColumnPage } from "../../../components/pages/two-column-pages"
 import { PartnerGeneralSection } from "../../../components/partners/partner-general-section"
 import { PartnerAdminsSection } from "../../../components/partners/partner-admins-section"
-import { PartnerPaymentsSection } from "../../../components/partners/partner-payments-section"
-import { PartnerPayoutsSection } from "../../../components/partners/partner-payouts-section"
+import { PartnerLedgerSection } from "../../../components/partners/partner-ledger-section"
 import { PartnerTasksSection } from "../../../components/partners/partner-tasks-section"
 import { PartnerFeedbacksSection } from "../../../components/partners/partner-feedbacks-section"
 import { PartnerStorefrontSection } from "../../../components/partners/partner-storefront-section"
@@ -62,11 +61,10 @@ const PartnerDetailPage = () => {
           <PartnerSubscriptionSection partnerId={partner.id} />
           <PartnerPeopleSection partnerId={partner.id} />
           <PartnerAdminsSection partnerId={partner.id} admins={partner.admins || []} />
-          <PartnerPaymentsSection partner={partner} />
-          {/* What we owe and have paid, by PAYOUT. The money-movement list
-              above exists only once a payout is approved and cannot say what
-              any of it was for (#1622). */}
-          <PartnerPayoutsSection partnerId={partner.id} />
+          {/* ONE panel over both money records (#1612). It used to be two —
+              `internal_payments` above, submissions below — which since #1638
+              means each showed half the money with nothing saying so. */}
+          <PartnerLedgerSection partnerId={partner.id} />
           <PartnerTransactionFeesSection partnerId={partner.id} />
           <PartnerFeedbacksSection partnerId={partner.id} />
         </TwoColumnPage.Sidebar>
