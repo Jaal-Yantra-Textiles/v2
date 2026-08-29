@@ -1,3 +1,16 @@
+# [13.121.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.120.0...v13.121.0) (2026-08-29)
+
+
+### Bug Fixes
+
+* **quotes,shipping:** type a weight for an unweighable line, and never COD an international shipment ([#1642](https://github.com/Jaal-Yantra-Textiles/v2/issues/1642)) ([648654f](https://github.com/Jaal-Yantra-Textiles/v2/commit/648654fd4e057cc5c049545352b047b275c0f080)), closes [#1430](https://github.com/Jaal-Yantra-Textiles/v2/issues/1430) [#1583](https://github.com/Jaal-Yantra-Textiles/v2/issues/1583)
+
+
+### Features
+
+* **payments:** a payout is a submission with a linked method, and `Paid` means settled ([#1636](https://github.com/Jaal-Yantra-Textiles/v2/issues/1636), [#1639](https://github.com/Jaal-Yantra-Textiles/v2/issues/1639)) ([#1638](https://github.com/Jaal-Yantra-Textiles/v2/issues/1638)) ([e42c35a](https://github.com/Jaal-Yantra-Textiles/v2/commit/e42c35a9071bcf33b310ae0f6193051487886c51)), closes [#1625](https://github.com/Jaal-Yantra-Textiles/v2/issues/1625)
+* **shipping:** add DTDC fulfillment provider plugin ([#1583](https://github.com/Jaal-Yantra-Textiles/v2/issues/1583)) ([b564b66](https://github.com/Jaal-Yantra-Textiles/v2/commit/b564b66cd9465763fcc8b3037c129b43fcc83cca))
+
 # [13.120.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.119.0...v13.120.0) (2026-08-28)
 
 
