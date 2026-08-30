@@ -93,11 +93,15 @@ export async function callMcpRoute({
     headers["x-publishable-api-key"] = publishableKey
   }
   if (context) {
-    // Truncate defensively — this is a header, not a payload.
-    headers["x-mcp-context"] = context.slice(0, 1024)
+    // Header values must be Latin-1 byte strings — undici rejects anything
+    // outside 0x00-0xFF ("Cannot convert argument to a ByteString"). The model
+    // often writes an em dash / curly quote into its intent, which would abort
+    // the fetch before it ever reaches the route. Collapse those to "?" and
+    // truncate defensively.
+    headers["x-mcp-context"] = context.replace(/[^\x00-\xFF]/g, "?").slice(0, 1024)
   }
   if (reason) {
-    headers["x-mcp-reason"] = reason.slice(0, 1024)
+    headers["x-mcp-reason"] = reason.replace(/[^\x00-\xFF]/g, "?").slice(0, 1024)
   }
 
   const init: RequestInit = { method, headers }
@@ -118,9 +122,16 @@ export async function callMcpRoute({
   }
 
   if (!resp.ok) {
-    const message = json?.message || json?.type || `HTTP ${resp.status}`
+    // Routes shape their failures inconsistently: some return `{ message }`,
+    // most of this repo's return `{ error }`, and zod-driven ones add a
+    // `details` array. Surfacing all three turns a bare "HTTP 400" into
+    // something the model can act on (and the observability log can be read
+    // without re-running the call).
+    const message = json?.message || json?.error || json?.type || `HTTP ${resp.status}`
+    const details = json?.details
     const err: McpProxyError = new Error(
-      `Route ${path} responded ${resp.status}: ${message}`
+      `Route ${path} responded ${resp.status}: ${message}` +
+        (details ? ` — ${JSON.stringify(details).slice(0, 500)}` : "")
     )
     err.status = resp.status
     err.body = json

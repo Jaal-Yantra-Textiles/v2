@@ -30,10 +30,11 @@ import { getValueByPath } from "./utils"
 //                           range: { date_field: "accrued_at", last_days: 30 } },
 //         },
 //         echo: { currency: true, window_days: true } },
-//       aov: { entity: "order", currency_key: "currency_code",
-//         aggregates: { amount: { fn: "avg", field: "total",
-//                                 range: { last_days: 30 } } },
-//         echo: { currency: true } },
+//       aov: { entity: "order_transaction", filters: { reference: "capture" },
+//              currency_key: "currency_code",
+//              aggregates: { amount: { fn: "avg", field: "amount",
+//                                      range: { last_days: 30 } } },
+//              echo: { currency: true } },
 //       subscription: { entity: "partner_subscription", currency_key: "plan.currency_code",
 //         filters: { status: "active" },
 //         aggregates: {
@@ -121,7 +122,9 @@ const entitySectionSpecSchema = z.object({
       window_days: z.boolean().optional(),
     })
     .optional()
-    .describe("Context keys to carry into this section's payload."),
+    .describe(
+      "Which context keys to carry into this section's payload — an OBJECT of booleans, e.g. { window_days: true } or { currency: true, window_days: true }. NOT text: the section's label is the section name itself. Omit for no echoed keys."
+    ),
   fetch_limit: z
     .number()
     .int()
@@ -141,7 +144,8 @@ const derivedSectionSpecSchema = z.object({
   }),
   echo: z
     .object({ currency: z.boolean().optional(), window_days: z.boolean().optional() })
-    .optional(),
+    .optional()
+    .describe("Which context keys to echo — an OBJECT of booleans, e.g. { currency: true }. NOT text."),
 })
 
 const sectionSpecSchema = z.union([entitySectionSpecSchema, derivedSectionSpecSchema])

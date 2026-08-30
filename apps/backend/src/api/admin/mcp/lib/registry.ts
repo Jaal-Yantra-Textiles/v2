@@ -4292,7 +4292,7 @@ export const ADMIN_MCP_TOOLS: AdminMcpToolDef[] = [
   {
     name: "create_stats_panel",
     description:
-      "Create a stats panel on a dashboard, driven by operation_type + operation_options JSON. The panel's data resolves LIVE from the configured operation — nothing is stored as a number. For the dynamic metric_sections operation, pass operation_options = { currency, window_days, sections: { <name>: { entity, filters, aggregates: { <key>: { fn, field?, range?, normalize_interval? } }, currency_key?, echo? } | { derived: { ref, aggregate, multiply?, add? }, echo? } } }. Set metadata.public true only if the panel is safe to expose publicly (GET /web/stats/panels/:id/data).",
+      "Create a stats panel on a dashboard, driven by operation_type + operation_options JSON. The panel's data resolves LIVE from the configured operation — nothing is stored as a number. For the dynamic metric_sections operation, pass operation_options = { currency, window_days, sections: { <name>: { entity, filters, aggregates: { <key>: { fn, field?, range?, normalize_interval? } }, currency_key?, echo? } | { derived: { ref, aggregate, multiply?, add? }, echo? } } }. IMPORTANT: `echo` is an OBJECT of booleans like { window_days: true } or { currency: true } — it declares which context keys the section output carries; it is NOT text, and the section's label is the section NAME, so never send echo as a string. Set metadata.public true only if the panel is safe to expose publicly (GET /web/stats/panels/:id/data).",
     method: "POST",
     path: "/admin/stats/dashboards/:id/panels",
     pathParams: ["id"],
@@ -4318,7 +4318,7 @@ export const ADMIN_MCP_TOOLS: AdminMcpToolDef[] = [
         operation_options: {
           type: "object",
           description:
-            "Operation JSON. For metric_sections: { currency, window_days, sections: { name: { entity, filters, aggregates: { key: { fn, field?, range?, normalize_interval? } }, currency_key?, echo? } | { derived: { ref, aggregate, multiply?, add? }, echo? } } }.",
+            "Operation JSON. For metric_sections: { currency, window_days, sections: { name: { entity, filters, aggregates: { key: { fn, field?, range?, normalize_interval? } }, currency_key?, echo? } | { derived: { ref, aggregate, multiply?, add? }, echo? } } }. `echo` is an OBJECT of booleans ({ window_days: true }, { currency: true }) — not text; the section name is the label.",
         },
         display: {
           type: "object",
