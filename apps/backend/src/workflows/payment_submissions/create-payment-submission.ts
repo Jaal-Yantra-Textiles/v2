@@ -19,8 +19,10 @@ import {
   runlessResubmitMessage,
 } from "./lib/run-evidence-guard"
 import {
-  listPartnerRunClaims,
-  runsAlreadyClaimedMessage,
+  assessRunClaims,
+  listPartnerRunTallies,
+  requestedRunQuantities,
+  runsOverclaimedMessage,
 } from "./lib/run-claims"
 import {
   assessInventoryOrderClaims,
@@ -382,6 +384,41 @@ export const resolveDesignLineAmount = (input: {
  * An explicit `quantity` combined with runs bills the RUNS' rate for that many
  * units: the caller is correcting how many, not what each one costs.
  */
+/**
+ * PURE: the units a request EXPLICITLY claims for one design, or null when it
+ * states none.
+ *
+ * The run-claim guard runs before the lines are priced, so it cannot read the
+ * resolved line — but it must agree with what that line will bill, or the
+ * guard and the money would be answering different questions. Both read the
+ * same two inputs, in the same precedence the pricer uses:
+ *
+ *   1. per-piece bands, whose folded quantity is the units they describe;
+ *   2. an explicit per-design `quantities` entry.
+ *
+ * Null when neither is stated — and null means "the whole run" to the guard,
+ * which is exactly what a caller who said nothing has always claimed.
+ */
+export const claimedQuantityForDesign = (
+  designId: string,
+  input: {
+    quantities?: Record<string, number> | null
+    rate_breakdown?: Record<string, RateSlice[]> | null
+  }
+): number | null => {
+  const slices = input.rate_breakdown?.[designId]
+  if (slices?.length) {
+    const folded = foldRateBreakdown(slices)
+    const banded = Number(folded.quantity)
+    if (Number.isFinite(banded) && banded > 0) {
+      return banded
+    }
+  }
+
+  const stated = Number(input.quantities?.[designId])
+  return Number.isFinite(stated) && stated > 0 ? stated : null
+}
+
 export const resolvePaymentLineAmount = (input: {
   runs?: Array<RunForPayout & { produced_quantity?: number | null }> | null
   unit_cost: number
@@ -761,15 +798,39 @@ const validateDesignsForSubmissionStep = createStep(
       const submissionService: PaymentSubmissionsService = container.resolve(
         PAYMENT_SUBMISSIONS_MODULE
       )
-      const billed = await listPartnerRunClaims(
+      /**
+       * #1596 — a run is claimed by QUANTITY, not as a boolean.
+       *
+       * A partner who finishes 1 of 10, bills it, and bills the other 9 later
+       * at a different rate was refused outright by the old whole-run claim,
+       * which is what made reject-and-replace the only way to correct a claim.
+       * Now: the units already claimed are summed and diffed against what the
+       * run was ordered for.
+       *
+       * ⚠️ Only an EXPLICIT quantity — stated per design, or implied by the
+       * per-piece bands — makes this claim partial. Saying nothing still claims
+       * the whole run, so nothing previously refused becomes allowed by
+       * accident.
+       */
+      const tallies = await listPartnerRunTallies(
         submissionService as any,
         input.partner_id
       )
-      const duplicates = allClaimedRunIds.filter((id) => billed.has(id))
-      if (duplicates.length) {
+      const requested = requestedRunQuantities(
+        Object.entries(claimedRuns).map(([designId, runIds]) => ({
+          production_run_ids: runIds,
+          quantity: claimedQuantityForDesign(designId, input),
+        }))
+      )
+      const overclaimed = assessRunClaims({
+        requestedByRun: requested,
+        runs: runById,
+        tallies,
+      })
+      if (overclaimed.length) {
         throw new MedusaError(
           MedusaError.Types.INVALID_DATA,
-          runsAlreadyClaimedMessage(duplicates, billed)
+          runsOverclaimedMessage(overclaimed)
         )
       }
     }
@@ -1120,15 +1181,26 @@ const validateRunLinesStep = createStep(
     const submissionService: PaymentSubmissionsService = container.resolve(
       PAYMENT_SUBMISSIONS_MODULE
     )
-    const billed = await listPartnerRunClaims(
+    const tallies = await listPartnerRunTallies(
       submissionService as any,
       input.partner_id
     )
-    const duplicates = allRunIds.filter((id) => billed.has(id))
-    if (duplicates.length) {
+    // #1596 — quantity-aware, same rule as the design path: a line naming one
+    // run for N units claims N of it, anything else claims the run whole.
+    const overclaimed = assessRunClaims({
+      requestedByRun: requestedRunQuantities(
+        lines.map((line) => ({
+          production_run_ids: line.run_ids,
+          quantity: (line as any).quantity,
+        }))
+      ),
+      runs: runById,
+      tallies,
+    })
+    if (overclaimed.length) {
       throw new MedusaError(
         MedusaError.Types.INVALID_DATA,
-        runsAlreadyClaimedMessage(duplicates, billed)
+        runsOverclaimedMessage(overclaimed)
       )
     }
 

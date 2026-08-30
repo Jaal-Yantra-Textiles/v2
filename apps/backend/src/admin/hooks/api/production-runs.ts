@@ -777,8 +777,16 @@ export type ProductionRunBilling = {
   run_id: string
   partner_id: string | null
   /** Branch on this — `unknown` is not `clear`. See `runBillingStatus`. */
-  billing_status: "billed" | "unknown" | "clear"
-  claim: { submission_id: string; status: string; quantity: number } | null
+  billing_status: "billed" | "partly_billed" | "unknown" | "clear"
+  claim: {
+    submission_id: string
+    status: string
+    quantity: number
+    claimed_quantity: number
+    claimed_wholly: boolean
+  } | null
+  /** Units still billable, or null when there is no arithmetic behind it. */
+  billable_remaining: number | null
   unrecorded_claims: Array<{
     submission_id: string
     status: string

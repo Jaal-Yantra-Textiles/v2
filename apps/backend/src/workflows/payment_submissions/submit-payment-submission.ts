@@ -14,8 +14,11 @@ import {
   runlessResubmitMessage,
 } from "./lib/run-evidence-guard"
 import {
-  listPartnerRunClaims,
-  runsAlreadyClaimedMessage,
+  assessRunClaims,
+  listPartnerRunTallies,
+  listRunOrderedQuantities,
+  requestedRunQuantities,
+  runsOverclaimedMessage,
 } from "./lib/run-claims"
 
 /**
@@ -154,16 +157,32 @@ const validateSubmissionForSubmitStep = createStep(
     ].filter(Boolean)
 
     if (claimedRunIds.length) {
-      const billed = await listPartnerRunClaims(
+      const tallies = await listPartnerRunTallies(
         service as any,
         String(submission.partner_id || ""),
         { excludeSubmissionId: String(input.submission_id) }
       )
-      const duplicates = claimedRunIds.filter((id) => billed.has(id))
-      if (duplicates.length) {
+
+      /**
+       * #1596 — quantity-aware. What this submission's own lines claim is read
+       * off the lines themselves (a line naming one run for N units claims N),
+       * and diffed against what the run was ordered for.
+       */
+      const runs = await listRunOrderedQuantities(container, claimedRunIds)
+      const overclaimed = assessRunClaims({
+        requestedByRun: requestedRunQuantities(
+          items.map((i) => ({
+            production_run_ids: (i.production_run_ids || []).map(String),
+            quantity: (i as any).quantity,
+          }))
+        ),
+        runs,
+        tallies,
+      })
+      if (overclaimed.length) {
         throw new MedusaError(
           MedusaError.Types.INVALID_DATA,
-          runsAlreadyClaimedMessage(duplicates, billed)
+          runsOverclaimedMessage(overclaimed)
         )
       }
     }

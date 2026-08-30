@@ -421,6 +421,30 @@ const ProductionRunDetailPage = () => {
                       </Link>
                     )}
                   </div>
+                ) : billing.billing_status === "partly_billed" ? (
+                  /**
+                   * #1596 — part of this run is paid for and the rest is still
+                   * billable. Saying "Billed" here is what left the last units
+                   * of a short-completed run unbillable through any screen.
+                   */
+                  <div className="flex flex-col gap-y-1">
+                    <div className="flex items-center gap-x-2">
+                      <StatusBadge color="blue">Partly billed</StatusBadge>
+                      {billing.claim?.submission_id && (
+                        <Link
+                          to={`/payment-submissions/${billing.claim.submission_id}`}
+                          className="text-ui-fg-interactive text-xs hover:underline"
+                        >
+                          {billing.claim.status} payout
+                        </Link>
+                      )}
+                    </div>
+                    <Text size="xsmall" className="text-ui-fg-subtle">
+                      {billing.claim?.claimed_quantity} of{" "}
+                      {String(run.quantity ?? "-")} billed —{" "}
+                      {billing.billable_remaining} still billable.
+                    </Text>
+                  </div>
                 ) : billing.billing_status === "unknown" ? (
                   <div className="flex flex-col gap-y-1">
                     <StatusBadge color="orange">Unknown</StatusBadge>

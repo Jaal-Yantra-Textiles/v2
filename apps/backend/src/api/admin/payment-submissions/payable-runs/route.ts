@@ -6,6 +6,10 @@ import PaymentSubmissionsService from "../../../../modules/payment_submissions/s
 import { isProvenanceRun } from "../../../../workflows/consumption-logs/lib/reconcile-production-consumption"
 import { runPayableOffer } from "../../../../workflows/production-runs/lib/run-payable"
 import { listPartnerSubmissionItems } from "../../../../workflows/payment_submissions/lib/run-claims"
+import {
+  runBillableRemaining,
+  runBillingStatus,
+} from "../../../../workflows/payment_submissions/lib/run-billing"
 import { groupOrderBackedRuns } from "../../../../workflows/payment_submissions/lib/order-run-groups"
 import { foldPartnerBilling } from "../../../../workflows/payment_submissions/lib/run-billing"
 
@@ -359,6 +363,16 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
             : Number(design.production_cost),
         billed: billedRuns.get(String(run.id)) ?? null,
         /**
+         * Units still billable on this run (#1596). Null when the question has
+         * no arithmetic behind it — nobody has claimed it, a claim took it
+         * whole, or the run states no quantity — which is exactly when the
+         * write guard refuses. A number here is a promise `create` will keep.
+         */
+        billable_remaining: runBillableRemaining({
+          claim: billedRuns.get(String(run.id)),
+          ordered: run.quantity,
+        }),
+        /**
          * Live payouts against this design that never recorded a run.
          *
          * ⚠️ Non-empty means `billed: null` is IGNORANCE, not innocence — one
@@ -378,18 +392,25 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
        * The single field a caller should branch on, so that "we don't know"
        * cannot be spelled the same way as "no".
        *
-       * - `billed`  — a payment line names this run. Do not pay again.
-       * - `unknown` — a live payout for this design records no run, so this
-       *               run may already be inside it. Needs a human before it is
-       *               paid; #1565 is the whole reason this value exists.
-       * - `clear`   — every live payout for this design says which runs it
-       *               covered, and none of them is this one. Safe to bill.
+       * - `billed`        — claimed in full. Do not pay again.
+       * - `partly_billed` — SOME of it is claimed and `billable_remaining`
+       *                     units are left (#1596). The write guard accepts
+       *                     the remainder, so this screen must offer it.
+       * - `unknown`       — a live payout for this design records no run, so
+       *                     this run may already be inside it. Needs a human
+       *                     before it is paid; #1565 is why this value exists.
+       * - `clear`         — every live payout for this design says which runs
+       *                     it covered, and none is this one. Safe to bill.
+       *
+       * 🔴 The values are produced by `runBillingStatus` in `lib/run-billing`,
+       * not spelled out here — this route and the run page must not be able to
+       * disagree about whether someone gets paid twice.
        */
-      billing_status: row.billed
-        ? ("billed" as const)
-        : row.unrecorded_claims.length
-          ? ("unknown" as const)
-          : ("clear" as const),
+      billing_status: runBillingStatus({
+        billed: row.billed,
+        unrecordedClaims: row.unrecorded_claims,
+        remaining: row.billable_remaining,
+      }),
     }))
     .sort((a, b) => {
       // Clear work first — that is what the screen is for. Then `unknown`,
@@ -400,7 +421,9 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
       // 🔴 `unknown` deliberately does NOT rank with `clear`. Sorting an
       // unverifiable run to the top next to genuinely unpaid work is precisely
       // how a second payout for the same garments would get made.
-      const rank = { clear: 0, unknown: 1, billed: 2 }
+      // `partly_billed` ranks with the work, just behind `clear`: it IS
+      // billable, and it is the case an operator came here to finish.
+      const rank = { clear: 0, partly_billed: 1, unknown: 2, billed: 3 }
       if (rank[a.billing_status] !== rank[b.billing_status]) {
         return rank[a.billing_status] - rank[b.billing_status]
       }
