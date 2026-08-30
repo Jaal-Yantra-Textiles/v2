@@ -4260,4 +4260,84 @@ export const ADMIN_MCP_TOOLS: AdminMcpToolDef[] = [
     sideEffects:
       "The buyer's link stops working immediately and is indistinguishable from an unknown token — they are NOT told. Tell them yourself if they have already been sent it. An already-accepted quote keeps its cart.",
   },
+
+  // ===== Stats dashboards + panels =========================================
+  {
+    name: "create_stats_dashboard",
+    description:
+      "Create an empty stats dashboard (a container that holds stats panels). Returns the dashboard id, which create_stats_panel needs. Pass a name and optionally a description/icon/color. Use this when the user wants a new stats view for a metric they care about.",
+    method: "POST",
+    path: "/admin/stats/dashboards",
+    write: true,
+    sensitive: true,
+    bodyParams: ["name", "description", "icon", "color", "metadata"],
+    inputSchema: obj(
+      {
+        name: STR("Dashboard name (required)."),
+        description: STR("What this dashboard shows."),
+        icon: STR("Icon key, e.g. 'chart-no-axes-combined'."),
+        color: STR("Hex accent color, e.g. '#10b981'."),
+        metadata: {
+          type: "object",
+          description:
+            "Free-form metadata. Set { investor: true } to expose the dashboard on the investor surface.",
+        },
+      },
+      ["name"]
+    ),
+    sideEffects:
+      "Creates an empty dashboard only — no panels, no data. Panels are added afterwards with create_stats_panel.",
+    nextSteps: ["create_stats_panel"],
+  },
+  {
+    name: "create_stats_panel",
+    description:
+      "Create a stats panel on a dashboard, driven by operation_type + operation_options JSON. The panel's data resolves LIVE from the configured operation — nothing is stored as a number. For the dynamic metric_sections operation, pass operation_options = { currency, window_days, sections: { <name>: { entity, filters, aggregates: { <key>: { fn, field?, range?, normalize_interval? } }, currency_key?, echo? } | { derived: { ref, aggregate, multiply?, add? }, echo? } } }. Set metadata.public true only if the panel is safe to expose publicly (GET /web/stats/panels/:id/data).",
+    method: "POST",
+    path: "/admin/stats/dashboards/:id/panels",
+    pathParams: ["id"],
+    write: true,
+    sensitive: true,
+    bodyParams: [
+      "name",
+      "type",
+      "operation_type",
+      "operation_options",
+      "display",
+      "cache_ttl_seconds",
+      "metadata",
+    ],
+    inputSchema: obj(
+      {
+        id: STR("Dashboard id from create_stats_dashboard."),
+        name: STR("Panel name (required)."),
+        type: STR("'metric' (default) | 'list' | 'table' | 'bar' | 'line' | 'area' | 'label'."),
+        operation_type: STR(
+          "Operation that computes this panel's data: 'metric_sections' (dynamic multi-metric), 'aggregate_data', 'time_series', and other registered operations."
+        ),
+        operation_options: {
+          type: "object",
+          description:
+            "Operation JSON. For metric_sections: { currency, window_days, sections: { name: { entity, filters, aggregates: { key: { fn, field?, range?, normalize_interval? } }, currency_key?, echo? } | { derived: { ref, aggregate, multiply?, add? }, echo? } } }.",
+        },
+        display: {
+          type: "object",
+          description: "Renderer config (e.g. { exclude_columns: [...] }).",
+        },
+        cache_ttl_seconds: {
+          type: "integer",
+          description: "In-memory cache seconds for this panel's resolved data (null disables).",
+        },
+        metadata: {
+          type: "object",
+          description:
+            "Free-form metadata. Set { public: true } to expose via the unauthenticated GET /web/stats/panels/:id/data read.",
+        },
+      },
+      ["id", "name", "operation_type"]
+    ),
+    sideEffects:
+      "Creates a panel whose data resolves live from the configured operation on every read. Setting metadata.public true exposes the panel without auth — do that only for safe aggregates.",
+    nextSteps: ["get_admin_stats"],
+  },
 ]

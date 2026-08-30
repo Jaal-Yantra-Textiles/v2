@@ -36,6 +36,7 @@ export { marketingDailyIdeasEmailOperation } from "./marketing-daily-ideas-email
 export { waitForEventOperation } from "./wait-for-event"
 export { gmvProjectionOperation } from "./gmv-projection"
 export { commissionProjectionOperation } from "./commission-projection"
+export { metricSectionsOperation } from "./metric-sections"
 export { adsEfficiencyOperation } from "./ads-efficiency"
 export { runMaintenanceJobOperation } from "./run-maintenance-job"
 
@@ -74,6 +75,7 @@ import { marketingDailyIdeasEmailOperation } from "./marketing-daily-ideas-email
 import { waitForEventOperation } from "./wait-for-event"
 import { gmvProjectionOperation } from "./gmv-projection"
 import { commissionProjectionOperation } from "./commission-projection"
+import { metricSectionsOperation } from "./metric-sections"
 import { adsEfficiencyOperation } from "./ads-efficiency"
 import { runMaintenanceJobOperation } from "./run-maintenance-job"
 
@@ -124,6 +126,7 @@ export function registerBuiltInOperations(): void {
   operationRegistry.register(partnerAnalyticsDigestOperation)
   operationRegistry.register(gmvProjectionOperation)
   operationRegistry.register(commissionProjectionOperation)
+  operationRegistry.register(metricSectionsOperation)
   operationRegistry.register(adsEfficiencyOperation)
 }
 
