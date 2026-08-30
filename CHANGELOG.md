@@ -1,3 +1,15 @@
+# [13.128.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.127.0...v13.128.0) (2026-08-30)
+
+
+### Bug Fixes
+
+* **mcp:** surface stats-panel 400 details and make metric_sections AOV resolvable ([#1678](https://github.com/Jaal-Yantra-Textiles/v2/issues/1678)) ([9f9f185](https://github.com/Jaal-Yantra-Textiles/v2/commit/9f9f1850beeea6a6f1faa7aa1b7ebef0721db666))
+
+
+### Features
+
+* **payments:** short-close UI, payable runs as a grid, and inventory orders on the payout screen ([#1679](https://github.com/Jaal-Yantra-Textiles/v2/issues/1679)) ([5b1508c](https://github.com/Jaal-Yantra-Textiles/v2/commit/5b1508c814aa3468cf3058f8ca3daac23b063e35)), closes [#1677](https://github.com/Jaal-Yantra-Textiles/v2/issues/1677) [#1671](https://github.com/Jaal-Yantra-Textiles/v2/issues/1671) [#1612](https://github.com/Jaal-Yantra-Textiles/v2/issues/1612) [#1612](https://github.com/Jaal-Yantra-Textiles/v2/issues/1612) [#1617](https://github.com/Jaal-Yantra-Textiles/v2/issues/1617)
+
 # [13.127.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.126.0...v13.127.0) (2026-08-30)
 
 
