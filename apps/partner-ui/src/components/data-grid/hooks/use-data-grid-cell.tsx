@@ -7,7 +7,11 @@ import {
   DataGridCellRenderProps,
   DataGridCoordinates,
 } from "../types"
-import { isCellMatch, isSpecialFocusKey } from "../utils"
+import {
+  isCellMatch,
+  isSpecialFocusKey,
+  shouldRestoreAnchorFocus,
+} from "../utils"
 
 type UseDataGridCellOptions<TData, TValue> = {
   context: CellContext<TData, TValue>
@@ -201,7 +205,14 @@ export const useDataGridCell = <TData, TValue>({
   }, [type])
 
   useEffect(() => {
-    if (isAnchor && !containerRef.current?.contains(document.activeElement)) {
+    if (!isAnchor) {
+      return
+    }
+
+    // #1654 — do NOT yank focus out of whatever the user is using. This effect
+    // re-runs on every anchor change, and the anchor is recomputed on every
+    // grid re-render — which typing anywhere on the tab causes.
+    if (shouldRestoreAnchorFocus(containerRef.current, document.activeElement)) {
       containerRef.current?.focus()
     }
   }, [isAnchor])

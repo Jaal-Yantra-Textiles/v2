@@ -6,6 +6,7 @@ import { useCombinedRefs } from "../hooks/use-combined-refs"
 import { ConditionalTooltip } from "../../common/conditional-tooltip"
 import { useDataGridCell, useDataGridCellError } from "../hooks"
 import { DataGridCellProps, InputProps } from "../types"
+import { isForeignFocusTarget } from "../utils"
 import { DataGridCellContainer } from "./data-grid-cell-container"
 
 export const DataGridTogglableNumberCell = <TData, TValue = any>({
@@ -89,6 +90,12 @@ const OuterComponent = ({
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
+      // #1654 — this is a DOCUMENT listener, so without the check an "x" typed
+      // into any input on the page toggles the anchor row's switch.
+      if (isForeignFocusTarget(e.target)) {
+        return
+      }
+
       if (isAnchor && e.key.toLowerCase() === "x") {
         e.preventDefault()
         buttonRef.current?.click()

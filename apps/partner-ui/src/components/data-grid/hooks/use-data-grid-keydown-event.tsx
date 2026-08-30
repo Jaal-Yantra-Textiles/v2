@@ -13,6 +13,7 @@ import {
   DataGridUpdateCommand,
 } from "../models"
 import { DataGridCoordinates } from "../types"
+import { isForeignFocusTarget } from "../utils"
 
 type UseDataGridKeydownEventOptions<TData, TFieldValues extends FieldValues> = {
   containerRef: React.RefObject<HTMLDivElement>
@@ -598,6 +599,13 @@ export const useDataGridKeydownEvent = <
 
   const handleKeyDownEvent = useCallback(
     (e: KeyboardEvent) => {
+      // #1654 — the grid registers this on `window`, so it fires for every
+      // keystroke on the page. Anything the user is typing into that is not a
+      // grid cell handles its own keyboard.
+      if (isForeignFocusTarget(e.target)) {
+        return
+      }
+
       if (ARROW_KEYS.includes(e.key)) {
         handleKeyboardNavigation(e)
         return
