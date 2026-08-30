@@ -13,7 +13,21 @@ export const InventoryOrderLinesSection = ({ inventoryOrder }: { inventoryOrder:
   // color identity (#817 S2) lives on the base OrderLine type and rides along
   // with the orderlines.* field selection.
   type InventoryOrderLine = OrderLine & {
-    inventory_items: [{ id: string; sku: string; title?: string }];
+    inventory_items: [
+      {
+        id: string;
+        sku: string;
+        title?: string;
+        // #1662 — the variants this item backs, when it is a finished
+        // fabric/good rather than a raw material.
+        variants?: Array<{
+          id: string;
+          title?: string | null;
+          sku?: string | null;
+          product?: { id: string; title?: string | null } | null;
+        }>;
+      }
+    ];
   };
 
   // Only allow editing if status is Pending or Processing
@@ -66,17 +80,40 @@ export const InventoryOrderLinesSection = ({ inventoryOrder }: { inventoryOrder:
             }
             
             const link = `/inventory/${inventoryItem.id}`;
+
+            // #1662 — a line with no raw material fell back to the inventory
+            // item's title, which for a variant-made item is the VARIANT's
+            // title alone: an order full of lines reading "M" and "Red" with
+            // nothing saying what was bought. Name the product first.
+            const variant = inventoryItem.variants?.find((v) => v?.id);
+            const productTitle = variant?.product?.title;
+            const label =
+              line.material_name ||
+              (productTitle
+                ? [productTitle, variant?.title].filter(Boolean).join(" · ")
+                : inventoryItem.title) ||
+              inventoryItem.sku;
             
             const Inner = (
               <div className="shadow-elevation-card-rest bg-ui-bg-component rounded-md px-4 py-2 transition-colors">
                 <div className="flex items-center gap-3">
                   <div className="flex flex-1 flex-col overflow-hidden">
                     <span className="text-ui-fg-base font-medium">
-                      {line.material_name || inventoryItem.title}
+                      {label}
                     </span>
                     <div className="flex flex-wrap gap-2 mt-2">
                       {line.color && (
                         <Badge size="small" color="grey">{line.color}</Badge>
+                      )}
+                      {/* #1662 — say which kind of thing this line is, so a
+                          purchase of finished goods is not read as material. */}
+                      {!line.material_name && productTitle && (
+                        <Badge size="small" color="blue">Finished goods</Badge>
+                      )}
+                      {(variant?.sku || inventoryItem.sku) && (
+                        <Badge size="small" className="text-ui-fg-subtle">
+                          {variant?.sku || inventoryItem.sku}
+                        </Badge>
                       )}
                       <Badge size="small" className="text-ui-fg-subtle">Price: ${line.price}</Badge>
                       <Badge size="small" className="text-ui-fg-subtle">Quantity: {line.quantity}</Badge>

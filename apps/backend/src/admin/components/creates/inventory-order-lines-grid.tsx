@@ -389,12 +389,15 @@ export const InventoryOrderLinesGrid = <T extends { id: string; title?: string; 
           : null
         const variant = (item?.variants ?? [])[0]
         const untracked = item?.kind === "untracked_variant"
+        // Kept to ONE word. The Type column is narrow: a three-word badge
+        // wrapped to three lines and overflowed the row, clipping itself above
+        // and below the cell. Seen only by rendering it.
         const label = item?.raw_materials
           ? "Material"
           : untracked
-          ? "Not stocked yet"
+          ? "Untracked"
           : variant
-          ? "Finished goods"
+          ? "Finished"
           : null
         const detail = item?.raw_materials
           ? null
@@ -403,19 +406,29 @@ export const InventoryOrderLinesGrid = <T extends { id: string; title?: string; 
                 .filter(Boolean)
                 .join(" · "),
               item?.partner?.name ? `from ${item.partner.name}` : "",
-              // Say what picking this row will DO. It turns tracking on for the
-              // variant at our location — a real side effect of placing the
-              // order, and one the buyer should not discover afterwards.
-              untracked ? "· we will start tracking it on order" : "",
             ]
               .filter(Boolean)
               .join(" ")
+
+        // Say what picking this row will DO — it turns tracking on for the
+        // variant at our location, a real side effect of placing the order.
+        // It rides on the badge's tooltip rather than in the cell, because the
+        // cell truncates and the sentence was never actually readable there.
+        const hint = untracked
+          ? "This variant does not track stock yet. Ordering it creates its inventory item at the destination location, starting at 0."
+          : item?.raw_materials
+          ? "Raw material."
+          : variant
+          ? "Finished goods bought in, not made."
+          : undefined
 
         return (
           <div className="flex h-full items-center gap-x-2 px-4">
             {label ? (
               <Badge
                 size="2xsmall"
+                className="whitespace-nowrap"
+                title={hint}
                 color={
                   item?.raw_materials ? "grey" : untracked ? "orange" : "blue"
                 }
