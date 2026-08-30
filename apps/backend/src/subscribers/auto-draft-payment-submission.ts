@@ -1,25 +1,23 @@
-import { ContainerRegistrationKeys } from "@medusajs/framework/utils"
 import type { SubscriberArgs, SubscriberConfig } from "@medusajs/framework"
 
-import { createPaymentSubmissionWorkflow } from "../workflows/payment_submissions/create-payment-submission"
-import { assessRunPayout } from "../workflows/production-runs/lib/run-payable"
+import { autoDraftRunPayout } from "../workflows/payment_submissions/lib/auto-draft-run-payout"
 
 /**
  * When a production run completes, pre-fill the partner's payment submission.
  *
- * Completion is the moment every fact needed to bill for the work exists: the
- * design, the partner, the ordered quantity, and the cost the partner just
- * typed into the completion form. Until now the partner had to then go to
- * Payment Submissions, find that design in a list of everything they've ever
- * been assigned, re-enter the same amount, and submit — so the money step
+ * Completion is the moment most of the facts needed to bill for the work exist:
+ * the design, the partner, the ordered quantity, and the cost the partner just
+ * typed into the completion form. Until this existed the partner had to then go
+ * to Payment Submissions, find that design in a list of everything they have
+ * ever been assigned, re-enter the same amount, and submit — so the money step
  * lagged the work step by however long that took, or never happened.
  *
- * This drafts it for them: one design-sourced item, amount = the run's payable
- * total, landing as **Draft** — visible, editable, and NOT yet a claim on
- * anyone. The partner still reviews and submits, so nothing is billed on their
- * behalf without their say-so. See the `status` / `require_design_status`
- * options on createPaymentSubmissionWorkflow for why a draft is allowed to skip
- * the design-status gate that a hand-made submission must pass.
+ * ⚠️ Completion is not the moment they ALL exist. A run finished with no agreed
+ * rate is skipped as `no_cost`, and for as long as this was the only trigger,
+ * nothing looked at it again — the price could be recorded an hour later and no
+ * draft would ever appear. The admin update route now makes the same attempt
+ * when a completed run is priced; the behaviour lives in `autoDraftRunPayout`
+ * so the two callers cannot drift into drafting different things.
  *
  * Deliberately best-effort: a failure here must never look like the completion
  * failed (completion has already committed by the time this event fires), so
@@ -34,104 +32,7 @@ export default async function autoDraftPaymentSubmissionHandler({
     return
   }
 
-  const logger = container.resolve(ContainerRegistrationKeys.LOGGER)
-  const productionRunService = container.resolve("production_runs") as any
-
-  let run: any = null
-  try {
-    run = await productionRunService.retrieveProductionRun(runId)
-  } catch {
-    return
-  }
-
-  const payout = assessRunPayout(run)
-  if (!payout.eligible) {
-    logger.info(
-      `[auto-draft-payment-submission] run ${runId}: skipped (${payout.reason})`
-    )
-    return
-  }
-
-  try {
-    const { result } = await createPaymentSubmissionWorkflow(container).run({
-      input: {
-        partner_id: payout.partner_id,
-        design_ids: [payout.design_id],
-        status: "Draft",
-        // The completed run IS the proof of finished work — completion moves
-        // the design to Technical_Review, which the hand-submission gate would
-        // reject.
-        require_design_status: false,
-        notes: `Drafted automatically when production run ${runId} completed. Review the amount and submit when you're ready.`,
-        /**
-         * The run this draft pays for, in the column that guards the money.
-         *
-         * 🔴 This subscriber knows the run for certain — it is reacting to that
-         * run completing — and for months recorded it ONLY in `metadata` below.
-         * Every draft it wrote therefore reached the double-pay guard as "no
-         * run recorded", so the guard could never fire on the very rows it was
-         * built for: five of production's thirteen submissions. The admin
-         * screen had meanwhile started writing a SECOND spelling of the same
-         * fact (`metadata.source_production_run_id`), which is the #1557 shape
-         * exactly — one truth, two keys, neither of them load-bearing.
-         *
-         * Passing it here is what makes the line `run_provenance: "recorded"`.
-         * `metadata.production_run_id` stays for backwards compatibility with
-         * readers that already parse it, but it is no longer the record. #1565
-         */
-        production_run_ids: { [payout.design_id]: [runId] },
-        /**
-         * The money, as typed inputs.
-         *
-         * 🔴 This subscriber was the last caller still stating what a partner
-         * is owed through `metadata` — the untyped channel that made #1554
-         * reachable by a spelling mistake. Both UIs had already moved; this had
-         * not, and it is the path that writes MOST of production's payouts.
-         *
-         * The same values still reach `metadata` (the route's fold does that
-         * for the review UI), but they no longer *depend* on landing there.
-         */
-        unit_amounts: { [payout.design_id]: payout.unit_amount },
-        quantities: { [payout.design_id]: payout.quantity },
-        metadata: {
-          auto_drafted: true,
-          source: "production_run.completed",
-          production_run_id: runId,
-          cost_type: run?.cost_type ?? null,
-          ordered_quantity: run?.quantity ?? null,
-          partner_cost_estimate: run?.partner_cost_estimate ?? null,
-          /** The total the two fields below are expected to reproduce. */
-          payable_amount: payout.amount,
-          // The rate the partner entered at completion, and how many units it
-          // covers, rather than a single opaque total. The workflow multiplies
-          // them, so the draft bills exactly `runPayableAmount` — and the line
-          // item records the breakdown, so a partner querying the figure sees
-          // "9 x 850" instead of a 7650 they have to take on trust.
-          //
-          // 🔴 Deliberately NOT `design_cost_overrides`. A total override sets
-          // `unit_amount` to null (there is no recorded rate behind a typed
-          // total), which would have thrown away the very breakdown this
-          // subscriber is the one place that actually knows. #1554
-          design_unit_amounts: { [payout.design_id]: payout.unit_amount },
-          design_quantities: { [payout.design_id]: payout.quantity },
-        },
-      },
-    })
-
-    logger.info(
-      `[auto-draft-payment-submission] run ${runId}: drafted submission ${
-        (result as any)?.submission?.id
-      } for design ${payout.design_id} (${payout.quantity} x ${
-        payout.unit_amount
-      } = ${payout.amount})`
-    )
-  } catch (e: any) {
-    // The commonest "failure" is the design already sitting in an open
-    // submission — that's the guard doing its job, not an error worth paging on.
-    logger.info(
-      `[auto-draft-payment-submission] run ${runId}: no draft created — ${e?.message}`
-    )
-  }
+  await autoDraftRunPayout(container, runId, "production_run.completed")
 }
 
 export const config: SubscriberConfig = {
