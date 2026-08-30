@@ -1,3 +1,16 @@
+# [13.126.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.125.0...v13.126.0) (2026-08-30)
+
+
+### Bug Fixes
+
+* **admin:** the DataGrid stole focus and keystrokes from elements it did not own ([#1654](https://github.com/Jaal-Yantra-Textiles/v2/issues/1654)) ([#1664](https://github.com/Jaal-Yantra-Textiles/v2/issues/1664)) ([4c9e2d9](https://github.com/Jaal-Yantra-Textiles/v2/commit/4c9e2d9621d9ec561def18a9462a369b2addbe10)), closes [#836](https://github.com/Jaal-Yantra-Textiles/v2/issues/836) [pre-#836](https://github.com/pre-/issues/836)
+
+
+### Features
+
+* **inventory:** buy finished fabric and finished goods, not just raw material ([#1662](https://github.com/Jaal-Yantra-Textiles/v2/issues/1662)) ([#1663](https://github.com/Jaal-Yantra-Textiles/v2/issues/1663)) ([809eec0](https://github.com/Jaal-Yantra-Textiles/v2/commit/809eec07e5325c7237f98fed91cc555ddfaf09e0)), closes [#817](https://github.com/Jaal-Yantra-Textiles/v2/issues/817) [#1613](https://github.com/Jaal-Yantra-Textiles/v2/issues/1613) [#1667](https://github.com/Jaal-Yantra-Textiles/v2/issues/1667)
+* **payments:** claim a production run by QUANTITY, not as a boolean ([#1596](https://github.com/Jaal-Yantra-Textiles/v2/issues/1596)) ([#1665](https://github.com/Jaal-Yantra-Textiles/v2/issues/1665)) ([8433304](https://github.com/Jaal-Yantra-Textiles/v2/commit/8433304c3227d908fa6100c0b092f49db13c91fe)), closes [#1617](https://github.com/Jaal-Yantra-Textiles/v2/issues/1617) [#79](https://github.com/Jaal-Yantra-Textiles/v2/issues/79) [#1621](https://github.com/Jaal-Yantra-Textiles/v2/issues/1621)
+
 # [13.125.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.124.0...v13.125.0) (2026-08-29)
 
 
