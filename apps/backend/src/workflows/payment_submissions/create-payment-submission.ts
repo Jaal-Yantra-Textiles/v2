@@ -19,6 +19,10 @@ import {
   runlessResubmitMessage,
 } from "./lib/run-evidence-guard"
 import {
+  designsBlockedByOpenClaims,
+  designOpenClaimsMessage,
+} from "./lib/design-open-claims"
+import {
   assessRunClaims,
   listPartnerRunTallies,
   requestedRunQuantities,
@@ -683,13 +687,60 @@ const validateDesignsForSubmissionStep = createStep(
     })
 
     if (activeSubmissionDesigns.length) {
-      const ids = [
-        ...new Set(activeSubmissionDesigns.map((l) => l.design_id)),
-      ]
-      throw new MedusaError(
-        MedusaError.Types.INVALID_DATA,
-        `Designs already in an active payment submission: ${ids.join(", ")}`
+      /**
+       * #1596 — a design in an open submission no longer blocks OUTRIGHT.
+       * A run is claimed by quantity now, so billing 4 of a run ordered for 9
+       * and coming back for the rest is the whole point, and this design-level
+       * check refused it on the strength of the design alone.
+       *
+       * `designsBlockedByOpenClaims` stands the guard down in exactly one
+       * situation — both this claim and every open prior NAME their runs, which
+       * is when `assessRunClaims` in step 6 has the arithmetic to answer
+       * properly. Everything else, opaque priors included, still refuses.
+       */
+      const openByDesign = new Map<string, string[]>()
+      for (const link of activeSubmissionDesigns) {
+        const designId = String(link.design_id)
+        // `payment_submission.*` fetches the id; the link result type only
+        // declares `status`, so it is read off the runtime shape.
+        const submissionId = String(
+          (link.payment_submission as any)?.id || ""
+        )
+        // No "exclude self" here: create has no submission of its own yet.
+        if (!submissionId) {
+          continue
+        }
+        openByDesign.set(designId, [
+          ...new Set([...(openByDesign.get(designId) || []), submissionId]),
+        ])
+      }
+
+      const submissionService: PaymentSubmissionsService = container.resolve(
+        PAYMENT_SUBMISSIONS_MODULE
       )
+      const openPriorItems = (await submissionService.listPaymentSubmissionItems(
+        { design_id: input.design_ids },
+        { relations: ["submission"] }
+      )) as any[]
+
+      const blocked = designsBlockedByOpenClaims({
+        design_ids: input.design_ids,
+        claimed_runs: input.production_run_ids,
+        open_submissions_by_design: openByDesign,
+        prior_lines: (openPriorItems || []).map((item) => ({
+          design_id: item.design_id ? String(item.design_id) : null,
+          submission_id: String(item.submission?.id ?? item.submission_id ?? ""),
+          submission_status: item.submission?.status ?? null,
+          production_run_ids: (item.production_run_ids || []) as string[],
+        })),
+      })
+
+      if (blocked.length) {
+        throw new MedusaError(
+          MedusaError.Types.INVALID_DATA,
+          designOpenClaimsMessage(blocked)
+        )
+      }
     }
 
     /**
