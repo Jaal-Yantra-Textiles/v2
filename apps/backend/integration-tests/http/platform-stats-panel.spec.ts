@@ -19,7 +19,7 @@
  *   commission   — partner_fee sum, all-time + trailing window
  *   subscription — partner_subscription: count_distinct partners + MRR
  *                  (monthly-normalized plan price, yearly / 12)
- *   aov          — avg captured amount over the trailing window
+ *   aov          — avg order value over the trailing window (ALL orders)
  *   arr          — DERIVED section: subscription.mrr × 12
  *
  * Assertions are before/after DELTAS for all-time counts/sums so the spec
@@ -85,11 +85,10 @@ const jpySections = {
     echo: { currency: true },
   },
   aov: {
-    entity: "order_transaction",
-    filters: { reference: "capture" },
+    entity: "order",
     currency_key: "currency_code",
     aggregates: {
-      amount: { fn: "avg", field: "amount", range: { date_field: "created_at", last_days: 30 } },
+      amount: { fn: "avg", field: "total", range: { date_field: "created_at", last_days: 30 } },
     },
     echo: { currency: true },
   },
@@ -230,7 +229,8 @@ setupSharedTestSuite(() => {
         captured: true,
       })
       // Not captured — no capture transaction, so it must be excluded from
-      // orders.processed and from the AOV capture-amount average
+      // orders.processed. It IS an order, though, so the all-orders AOV
+      // (entity "order", avg(total)) counts it.
       await seedPaidOrder(container, {
         currency_code: "jpy",
         unit_price: 12345,
@@ -276,12 +276,13 @@ setupSharedTestSuite(() => {
       expect(d.arr.currency).toBe("JPY")
       expect(d.arr.amount - b.arr.amount).toBe(35988)
 
-      // aov — avg captured amount: (10000 + 10000) / 2. jpy is only seeded
-      // here, so the baseline jpy AOV is 0/null — otherwise the exact check
-      // degrades and we only assert structure.
+      // aov — avg order value over ALL orders in the trailing window:
+      // (10000 + 10000 + 12345) / 3. jpy is only seeded here, so the
+      // baseline jpy AOV is 0/null — otherwise the exact check degrades
+      // and we only assert structure.
       expect(d.aov.currency).toBe("JPY")
       if (b.aov.amount == null || b.aov.amount === 0) {
-        expect(d.aov.amount).toBe(10000)
+        expect(d.aov.amount).toBe(10781.67)
       } else {
         expect(d.aov.amount).toBeGreaterThan(0)
       }

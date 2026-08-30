@@ -36,6 +36,7 @@ export type AdminToolDomain =
   | "marketing"
   | "crm"
   | "observability"
+  | "stats"
 
 /**
  * Route prefix -> domain. Longest prefix wins, so `/admin/production-run-policy`
@@ -114,6 +115,9 @@ const PREFIX_DOMAINS: ReadonlyArray<readonly [string, AdminToolDomain]> = [
   // marketing: the question "who came in from the ads" is answered by working
   // the lead list, not by reading campaign spend.
   ["/admin/meta-ads/leads", "crm"],
+  // Stats dashboards + panels. Their own domain: a "create a stats panel"
+  // ask is about the analytics surface, not any one business domain.
+  ["/admin/stats", "stats"],
 ]
 
 /** Classify one tool by the route it wraps. */
@@ -273,6 +277,10 @@ const DOMAIN_KEYWORDS: Record<Exclude<AdminToolDomain, "core">, string[]> = {
     "backfills", "repair", "reconcile", "reconciliation", "dry run", "dry-run",
     "reversed", "mis-assigned", "wrong location", "wrong warehouse",
   ],
+  stats: [
+    "stats", "stat", "statistics", "metric", "metrics", "dashboard", "dashboards",
+    "panel", "panels", "kpi", "kpis", "chart", "charts", "report", "reports",
+  ],
 }
 
 /**
@@ -392,4 +400,5 @@ export const SELECTABLE_DOMAINS: AdminToolDomain[] = [
   "marketing",
   "crm",
   "observability",
+  "stats",
 ]

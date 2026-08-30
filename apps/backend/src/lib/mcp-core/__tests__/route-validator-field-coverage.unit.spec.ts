@@ -187,6 +187,11 @@ const NO_ROUTE_VALIDATOR = new Set<string>([
   "partner:ready_inventory_order_for_delivery",
   "partner:create_inventory_order_shipment",
   "partner:complete_inventory_order",
+  // Stats routes validate inside the handler (createDashboardSchema.parse /
+  // createPanelSchema.parse) rather than through validateAndTransformBody, so
+  // they carry no middleware binding for this file to check against.
+  "admin:create_stats_dashboard",
+  "admin:create_stats_panel",
 ])
 
 /**

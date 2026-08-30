@@ -79,7 +79,12 @@ const OPERATION_OPTIONS = {
       },
       echo: { currency: true },
     },
-    // Average order value over the trailing window's paid orders
+    // Average order value over the trailing window. AOV is the conventional
+    // sum(order totals) / count(orders) — over ALL orders, because the order
+    // module's model has no `payment_status` column to filter paid orders via
+    // query.graph (payment status is API-layer-derived from payment
+    // collections). Paid-only ordering lives in `orders.processed`, which
+    // counts capture transactions instead.
     aov: {
       entity: "order",
       currency_key: "currency_code",
