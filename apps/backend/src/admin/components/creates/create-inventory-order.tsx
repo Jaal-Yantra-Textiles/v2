@@ -14,39 +14,15 @@ import { InventoryOrderLinesGrid } from "./inventory-order-lines-grid";
 import { AddMaterialGroupControl } from "../inventory-orders/add-material-group-control";
 import { toOrderLineRef } from "./order-line-ref";
 
-// Define a Zod schema for inventory order creation (scaffolded, update as per API contract)
-export const inventoryOrderFormSchema = z
-  .object({
-    order_date: z.date({ error: "Order date is required" }),
-    expected_delivery_date: z.date({ error: "Expected delivery date is required" }),
-    // To location (required)
-    stock_location_id: z.string().nonempty("To stock location is required"),
-    // From location (optional)
-    from_stock_location_id: z.string().optional(),
-    is_sample: z.boolean().optional(),
-    order_lines: z
-      .array(
-        z.object({
-          inventory_item_id: z.string().min(1, "Item is required"),
-          quantity: z.number().min(1, "Quantity must be at least 1"),
-          price: z.number().min(0, "Price must be non-negative"),
-          batch_number: z.number().int().positive().nullish(), // batch tag (separate-batch adds)
-        })
-      )
-      .min(1, "At least one order line is required"),
-  })
-  .superRefine((data, ctx) => {
-    // Validate that from and to are not the same when both are provided
-    if (data.from_stock_location_id && data.stock_location_id === data.from_stock_location_id) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        message: "From and To stock locations must be different",
-        path: ["from_stock_location_id"],
-      });
-    }
-  });
+// The schema lives in its own module so it can be unit-tested: importing this
+// component pulls in `admin/lib/config`, which reads `import.meta.env` and
+// cannot be loaded by Jest (#1671).
+export { inventoryOrderFormSchema } from "./create-inventory-order-schema";
+import {
+  inventoryOrderFormSchema,
+  type InventoryOrderFormData,
+} from "./create-inventory-order-schema";
 
-type InventoryOrderFormData = z.infer<typeof inventoryOrderFormSchema>;
 
 interface OrderLine {
   inventory_item_id: string;
@@ -156,16 +132,22 @@ export const CreateInventoryOrderComponent = () => {
     },
   });
 
-  // Calculate totals from order lines
-  const calculateTotals = () => {
-    const validLines = fields.filter((line: OrderLine) => line.inventory_item_id);
-    const totalQuantity = validLines.reduce((sum: number, line: OrderLine) => sum + (Number(line.quantity) || 0), 0);
-    const totalPrice = validLines.reduce((sum: number, line: OrderLine) => sum + (Number(line.price) || 0) * (Number(line.quantity) || 0), 0);
+  // #1671 — from the LIVE watched rows, never the `useFieldArray` snapshot:
+  // `fields` only refreshes on array operations, so an edited quantity or price
+  // was invisible here and the footer read 0 while a row plainly showed 40×120.
+  // `edit-order-lines.tsx` fixed exactly this and said so; this form did not.
+  const calculateTotals = (source?: OrderLine[]) => {
+    const rows = source ?? (watchedForGroup ?? []);
+    const validLines = rows.filter((line) => line?.inventory_item_id);
+    const totalQuantity = validLines.reduce((sum: number, line) => sum + (Number(line.quantity) || 0), 0);
+    const totalPrice = validLines.reduce((sum: number, line) => sum + (Number(line.price) || 0) * (Number(line.quantity) || 0), 0);
     return { totalQuantity, totalPrice };
   };
 
   const handleSubmit = form.handleSubmit(async (data) => {
-    const { totalQuantity, totalPrice } = calculateTotals();
+    // `data` is what the user actually typed. The `fields` snapshot is not.
+    const submittedLines = (data.order_lines ?? []) as OrderLine[];
+    const { totalQuantity, totalPrice } = calculateTotals(submittedLines);
 
     let payload: any = {
       quantity: totalQuantity,
@@ -178,7 +160,7 @@ export const CreateInventoryOrderComponent = () => {
       is_sample: data.is_sample,
       // #1662 — a picked row is either an existing inventory item or an
       // untracked variant; `toOrderLineRef` sends the right field for each.
-      order_lines: fields
+      order_lines: submittedLines
         .filter((l: OrderLine) => l.inventory_item_id)
         .map(({ inventory_item_id, quantity, price, batch_number }: OrderLine) => ({
           ...toOrderLineRef(inventory_item_id),
@@ -192,6 +174,21 @@ export const CreateInventoryOrderComponent = () => {
     }
     await mutateAsync(payload);
     // Navigation is now handled in the onSuccess callback
+  }, (errors) => {
+    // #1671 — array-level errors live on paths the DataGrid does not render, so
+    // a failed validation used to be indistinguishable from a dead button.
+    const lineErrors = (errors as any)?.order_lines;
+    const first =
+      lineErrors?.message ||
+      lineErrors?.root?.message ||
+      (Array.isArray(lineErrors)
+        ? lineErrors.find(Boolean) &&
+          Object.values(lineErrors.find(Boolean) as any)[0]
+        : undefined);
+    const message =
+      (typeof first === "string" ? first : (first as any)?.message) ||
+      "Check the order lines before creating this order.";
+    toast.error(message);
   });
 
   return (
@@ -385,7 +382,7 @@ export const CreateInventoryOrderComponent = () => {
                   </div>
                   <div className="flex justify-between items-center">
                     <Text weight="plus">Total Order Price:</Text>
-                    <Text weight="plus">${calculateTotals().totalPrice.toFixed(2)}</Text>
+                    <Text weight="plus">₹{calculateTotals().totalPrice.toFixed(2)}</Text>
                   </div>
                 </div>
               </div>

@@ -115,7 +115,7 @@ export const InventoryOrderLinesSection = ({ inventoryOrder }: { inventoryOrder:
                           {variant?.sku || inventoryItem.sku}
                         </Badge>
                       )}
-                      <Badge size="small" className="text-ui-fg-subtle">Price: ${line.price}</Badge>
+                      <Badge size="small" className="text-ui-fg-subtle">Price: ₹{line.price}</Badge>
                       <Badge size="small" className="text-ui-fg-subtle">Quantity: {line.quantity}</Badge>
                     </div>
                   </div>

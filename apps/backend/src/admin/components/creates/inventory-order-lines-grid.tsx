@@ -505,7 +505,17 @@ export const InventoryOrderLinesGrid = <T extends { id: string; title?: string; 
         return (
           <DataGridNumberCell
             context={context}
-            min={1}
+            // 🔴 NO `min={1}` here (#1671). It becomes a native
+            // `<input type="number" min="1">`, and the form seeds FIVE blank
+            // rows whose quantity is 0. Native constraint validation then
+            // refuses to submit the whole form — before React Hook Form or zod
+            // is consulted, so no submit event fires at all — and because the
+            // offending inputs live inside a horizontally scrolled grid the
+            // browser cannot scroll to them to show its own bubble. The result
+            // was a Create button that did nothing, silently, forever.
+            // The rule still exists, in the schema, where a BLANK row can be
+            // told apart from an unfinished one and the error can be attached
+            // to the row the buyer must fix.
             step="any"
             placeholder=""
           />
