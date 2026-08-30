@@ -47,7 +47,11 @@ import {
 } from "../hooks"
 import { DataGridMatrix } from "../models"
 import { DataGridCoordinates, GridColumnOption } from "../types"
-import { isCellMatch, isSpecialFocusKey } from "../utils"
+import {
+  isCellMatch,
+  isForeignFocusTarget,
+  isSpecialFocusKey,
+} from "../utils"
 import { DataGridKeyboardShortcutModal } from "./data-grid-keyboard-shortcut-modal"
 export interface DataGridRootProps<
   TData,
@@ -442,6 +446,13 @@ export const DataGridRoot = <
 
   useEffect(() => {
     const specialFocusHandler = (e: KeyboardEvent) => {
+      // #1654 — this fork never carried the foreign-input guard the admin copy
+      // got in #836, so a keystroke aimed at anything else on the page still
+      // reached the grid.
+      if (isForeignFocusTarget(e.target)) {
+        return
+      }
+
       if (isSpecialFocusKey(e)) {
         handleSpecialFocusKeys(e)
         return

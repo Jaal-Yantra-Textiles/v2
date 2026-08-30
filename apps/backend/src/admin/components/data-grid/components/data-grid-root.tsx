@@ -45,7 +45,11 @@ import {
 } from "../hooks"
 import { DataGridMatrix } from "../models"
 import { DataGridCoordinates, GridColumnOption } from "../types"
-import { isCellMatch, isSpecialFocusKey } from "../utils"
+import {
+  isCellMatch,
+  isForeignFocusTarget,
+  isSpecialFocusKey,
+} from "../utils"
 import { DataGridKeyboardShortcutModal } from "./data-grid-keyboard-shortcut-modal"
 import { useCommandHistory } from "../hooks/use-command-history"
 export interface DataGridRootProps<
@@ -446,15 +450,10 @@ export const DataGridRoot = <
     const specialFocusHandler = (e: KeyboardEvent) => {
       // Ignore keystrokes typed into a foreign input (e.g. the item-picker
       // Combobox) so we don't start editing a grid cell from its keystrokes.
-      const t = e.target as HTMLElement | null
-      const tag = t?.tagName
-      if (
-        tag === "INPUT" ||
-        tag === "TEXTAREA" ||
-        tag === "SELECT" ||
-        t?.isContentEditable ||
-        t?.getAttribute?.("role") === "combobox"
-      ) {
+      // #1654 — the inline tag check this replaced knew only about
+      // `role="combobox"`, so a portaled menu or option (a `div` with a role,
+      // not an `<input>`) still fell through to the grid.
+      if (isForeignFocusTarget(e.target)) {
         return
       }
       if (isSpecialFocusKey(e)) {
