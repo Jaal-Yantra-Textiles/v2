@@ -252,6 +252,10 @@ const DELIBERATELY_OMITTED: Record<string, Record<string, string>> = {
     feedback_history: "append-only log written by the review flow",
     origin_source: "provenance stamped by the creating surface",
     customer_id_for_link: "linking is a separate tool",
+    material_cost:
+      "computed by the recalculate-cost workflow (estimateDesignCostWorkflow) — not assistant-authored",
+    production_cost:
+      "as material_cost — the production half of the cost breakdown, recomputed from the BOM/order history",
   },
   "admin:create_design_production_run": {
     template_ids: "GAP (#1394): template selection by id, name-based is advertised",
