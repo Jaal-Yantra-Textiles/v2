@@ -371,6 +371,24 @@ setupSharedTestSuite(() => {
         : [lines[0].inventory_items].filter(Boolean)
       expect(linked.map((i: any) => i?.id)).toContain(itemId)
 
+      // The order DETAIL page names the line from product + variant, because a
+      // variant-made item's own title is just the variant's ("M", "Red"). That
+      // label rides on a three-hop traversal, and `query.graph` DROPS a
+      // relation it does not recognise in silence — so the hop is pinned here
+      // rather than trusted.
+      const withVariants = await api.get(
+        `/admin/inventory-orders/${orderId}?fields=id,orderlines.*,orderlines.inventory_items.*,orderlines.inventory_items.variants.id,orderlines.inventory_items.variants.title,orderlines.inventory_items.variants.product.id,orderlines.inventory_items.variants.product.title`,
+        headers
+      )
+      expect(withVariants.status).toBe(200)
+      const detailLine = withVariants.data.inventoryOrder.orderlines[0]
+      const detailItem = Array.isArray(detailLine.inventory_items)
+        ? detailLine.inventory_items[0]
+        : detailLine.inventory_items
+      const detailVariant = (detailItem.variants ?? []).find((v: any) => v?.id)
+      expect(detailVariant?.id).toBe(variantId)
+      expect(detailVariant?.product?.title).toBe(`Partner Greige ${marker}`)
+
       // Nothing has been received, so the level at our location is 0 — the
       // order must not invent stock it has not taken delivery of.
       const levels = await api.get(
