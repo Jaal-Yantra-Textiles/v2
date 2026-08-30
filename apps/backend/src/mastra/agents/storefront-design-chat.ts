@@ -157,8 +157,11 @@ export const planDesignTurn = (
     .join(" \n ")
     .toLowerCase()
 
+  const escapeRegExp = (value: string): string =>
+    value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")
+
   const garment = GARMENT_KEYWORDS.find((k) =>
-    new RegExp(`\\b${k.replace(/[-]/g, "\\-")}\\b`).test(userText)
+    new RegExp(`\\b${escapeRegExp(k)}\\b`).test(userText)
   )
   const hasEmail = Boolean(context?.email) || EMAIL_RE.test(userText)
 
