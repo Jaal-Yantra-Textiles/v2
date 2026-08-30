@@ -79,17 +79,19 @@ const OPERATION_OPTIONS = {
       },
       echo: { currency: true },
     },
-    // Average order value over the trailing window. AOV is the conventional
-    // sum(order totals) / count(orders) — over ALL orders, because the order
-    // module's model has no `payment_status` column to filter paid orders via
-    // query.graph (payment status is API-layer-derived from payment
-    // collections). Paid-only ordering lives in `orders.processed`, which
-    // counts capture transactions instead.
+    // Average amount captured per paid order over the trailing window. AOV is
+    // the captured payment amount (order_transaction with reference "capture"),
+    // NOT order.total: the order module computes total/subtotal/etc from
+    // shipping-method adjustments, and query.graph cannot fetch those computed
+    // money fields ("Shipping method version is required to load adjustments").
+    // Captured amount equals order value for full-payment orders, which is the
+    // only graph-fetchable per-order money signal.
     aov: {
-      entity: "order",
+      entity: "order_transaction",
+      filters: { reference: "capture" },
       currency_key: "currency_code",
       aggregates: {
-        amount: { fn: "avg", field: "total", range: { date_field: "created_at", last_days: 30 } },
+        amount: { fn: "avg", field: "amount", range: { date_field: "created_at", last_days: 30 } },
       },
       echo: { currency: true },
     },
