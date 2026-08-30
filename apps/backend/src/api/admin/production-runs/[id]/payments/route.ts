@@ -25,6 +25,7 @@ import { PRODUCTION_RUNS_MODULE } from "../../../../../modules/production_runs"
 import { listPartnerSubmissionItems } from "../../../../../workflows/payment_submissions/lib/run-claims"
 import {
   foldPartnerBilling,
+  runBillableRemaining,
   runBillingStatus,
 } from "../../../../../workflows/payment_submissions/lib/run-billing"
 
@@ -54,6 +55,7 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
       partner_id: null,
       billing_status: "unknown",
       claim: null,
+      billable_remaining: null,
       unrecorded_claims: [],
       lines: [],
     })
@@ -104,6 +106,16 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
       production_run_ids: item.production_run_ids ?? null,
     }))
 
+  /**
+   * Units still billable on this run (#1596). `retrieveProductionRun` returns
+   * the whole row, so `quantity` — the ceiling the write guard uses — is
+   * genuinely present rather than merely typed.
+   */
+  const billable_remaining = runBillableRemaining({
+    claim,
+    ordered: run.quantity,
+  })
+
   return res.status(200).json({
     run_id: id,
     partner_id: run.partner_id,
@@ -111,8 +123,10 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
     billing_status: runBillingStatus({
       billed: claim,
       unrecordedClaims: unrecorded_claims,
+      remaining: billable_remaining,
     }),
     claim,
+    billable_remaining,
     unrecorded_claims,
     lines,
   })

@@ -82,6 +82,13 @@ export const PaymentSubmissionCreate = () => {
    */
   const runBlockedReason = useCallback(
     (r: PayableRun): string | null => {
+      /**
+       * ⚠️ `billed` blocks; `partly_billed` deliberately does NOT (#1596). A
+       * run claimed for 4 of the 9 it was ordered for still has 5 units the
+       * write guard will accept, and reporting that as "already paid" is what
+       * left the last pieces of a short-completed run unbillable through any
+       * screen — the workflow said yes and no screen would ask.
+       */
       if (r.billing_status === "billed") {
         return r.billed?.submission_id
           ? `Already paid · ${r.billed.submission_id}`
@@ -730,6 +737,15 @@ const RunRow = ({
           <Badge color="blue" size="2xsmall">
             Run
           </Badge>
+          {run.billing_status === "partly_billed" && !blocked && (
+            <Tooltip
+              content={`Part of this run has already been paid for. ${run.billable_remaining} of ${run.ordered_quantity} units are still billable.`}
+            >
+              <Badge color="blue" size="2xsmall">
+                {run.billable_remaining} left to bill
+              </Badge>
+            </Tooltip>
+          )}
           {run.billing_status === "unknown" && !blocked && (
             <Tooltip content="An earlier payout for this design did not record which runs it covered, so we cannot tell whether these pieces were already paid for.">
               <Badge color="orange" size="2xsmall">

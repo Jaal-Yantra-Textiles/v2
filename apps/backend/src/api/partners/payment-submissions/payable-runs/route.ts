@@ -5,6 +5,11 @@ import { PAYMENT_SUBMISSIONS_MODULE } from "../../../../modules/payment_submissi
 import PaymentSubmissionsService from "../../../../modules/payment_submissions/service"
 import { isProvenanceRun } from "../../../../workflows/consumption-logs/lib/reconcile-production-consumption"
 import { runUnitCost } from "../../../../workflows/production-runs/lib/run-payable"
+import {
+  foldPartnerBilling,
+  runBillableRemaining,
+  runBillingStatus,
+} from "../../../../workflows/payment_submissions/lib/run-billing"
 import { getPartnerFromAuthContext } from "../../helpers"
 
 /**
@@ -116,51 +121,16 @@ export const GET = async (
     { relations: ["submission"] }
   )) as any[]
 
-  const billedRuns = new Map<
-    string,
-    { submission_id: string; status: string; quantity: number }
-  >()
-  const designsWithOpenSubmission = new Set<string>()
-  const designsWithUnrecordedClaims = new Map<
-    string,
-    { submission_id: string; status: string; amount: number }[]
-  >()
-  const OPEN_STATUSES = new Set([
-    "Draft",
-    "Pending",
-    "Under_Review",
-  ])
-
-  for (const item of priorItems || []) {
-    const status = String(item.submission?.status || "")
-    // A Rejected submission never paid anyone — its lines release their runs.
-    if (status === "Rejected") continue
-
-    if (OPEN_STATUSES.has(status) && item.design_id) {
-      designsWithOpenSubmission.add(String(item.design_id))
-    }
-
-    if (item.run_provenance === "not_recorded" && item.design_id) {
-      const designId = String(item.design_id)
-      const claims = designsWithUnrecordedClaims.get(designId) || []
-      claims.push({
-        submission_id: String(item.submission?.id || item.submission_id || ""),
-        status,
-        amount: Number(item.amount ?? 0),
-      })
-      designsWithUnrecordedClaims.set(designId, claims)
-    }
-
-    for (const runId of (item.production_run_ids || []) as string[]) {
-      if (!billedRuns.has(runId)) {
-        billedRuns.set(runId, {
-          submission_id: String(item.submission?.id || item.submission_id || ""),
-          status,
-          quantity: Number(item.quantity ?? 1),
-        })
-      }
-    }
-  }
+  /**
+   * 🔴 This route used to carry its OWN copy of the fold — the second
+   * implementation of "is this run billed" that `lib/run-billing` exists to
+   * prevent, and it had already drifted: it never learned the quantity-aware
+   * claim (#1596), so a run this partner had partly billed showed as fully
+   * billed here while the admin screen and the write guard said otherwise.
+   * One fold, used by both screens and the run page.
+   */
+  const { billedRuns, designsWithUnrecordedClaims, designsWithOpenSubmission } =
+    foldPartnerBilling(priorItems as any[])
 
   const payable_runs = completedRuns
     .map((run) => {
@@ -210,6 +180,12 @@ export const GET = async (
             ? null
             : Number(design.production_cost),
         billed: billedRuns.get(String(run.id)) ?? null,
+        // Units still billable (#1596). Null when there is no arithmetic
+        // behind the answer — which is exactly when `create` refuses.
+        billable_remaining: runBillableRemaining({
+          claim: billedRuns.get(String(run.id)),
+          ordered: run.quantity,
+        }),
         unrecorded_claims:
           designsWithUnrecordedClaims.get(String(run.design_id)) ?? [],
         design_has_open_submission: designsWithOpenSubmission.has(
@@ -219,14 +195,15 @@ export const GET = async (
     })
     .map((row) => ({
       ...row,
-      billing_status: row.billed
-        ? ("billed" as const)
-        : row.unrecorded_claims.length
-          ? ("unknown" as const)
-          : ("clear" as const),
+      billing_status: runBillingStatus({
+        billed: row.billed,
+        unrecordedClaims: row.unrecorded_claims,
+        remaining: row.billable_remaining,
+      }),
     }))
     .sort((a, b) => {
-      const rank = { clear: 0, unknown: 1, billed: 2 }
+      // `partly_billed` ranks just behind `clear` — it is billable work.
+      const rank = { clear: 0, partly_billed: 1, unknown: 2, billed: 3 }
       if (rank[a.billing_status] !== rank[b.billing_status]) {
         return rank[a.billing_status] - rank[b.billing_status]
       }

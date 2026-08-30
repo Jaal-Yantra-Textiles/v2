@@ -1025,8 +1025,16 @@ setupSharedTestSuite(() => {
       const paid = res.data.payable_runs.find((r: any) => r.run_id === paidRun)
       const fresh = res.data.payable_runs.find((r: any) => r.run_id === freshRun)
 
-      expect(paid.billing_status).toBe("billed")
+      /**
+       * ⚠️ `partly_billed`, not `billed` — 4 of the 9 this run was ordered for
+       * (#1596). It is not `clear`, which is what this case is about: a
+       * recorded claim is never doubt. And the remainder is stated, because
+       * the write guard will accept it.
+       */
+      expect(paid.billing_status).toBe("partly_billed")
+      expect(paid.billable_remaining).toBe(5)
       expect(fresh.billing_status).toBe("clear")
+      expect(fresh.billable_remaining).toBeNull()
       expect(fresh.unrecorded_claims).toHaveLength(0)
     })
 
@@ -1185,14 +1193,18 @@ setupSharedTestSuite(() => {
       expect(applied.status).toBe(200)
       expect(applied.data.result.applied).toBe(true)
 
-      // The EFFECT, not the summary: the run now reads as billed rather than
-      // unknown, which is the whole point of recording it.
+      // The EFFECT, not the summary: the run now reads as claimed rather than
+      // unknown, which is the whole point of recording it. Which of the two
+      // claimed statuses it is depends on how much of the run the line covers
+      // (#1596); what matters here is that the doubt is gone.
       const runs = await api.get(
         `/admin/payment-submissions/payable-runs?partner_id=${partnerId}`,
         adminHeaders
       )
       const row = runs.data.payable_runs.find((r: any) => r.run_id === runId)
-      expect(row.billing_status).toBe("billed")
+      expect(["billed", "partly_billed"]).toContain(row.billing_status)
+      expect(row.billing_status).not.toBe("unknown")
+      expect(row.billed).not.toBeNull()
     })
 
     it("refuses a run already recorded on another live payout", async () => {
@@ -2736,8 +2748,13 @@ setupSharedTestSuite(() => {
 
       const row = res.data.payable_runs.find((r: any) => r.run_id === runId)
       expect(row).toBeDefined()
-      expect(row.billing_status).toBe("billed")
+      // ⚠️ `partly_billed` since #1596 — the line covers some of what the run
+      // was ordered for, and the rest is still billable. The point of the case
+      // is that it is NOT `clear`.
+      expect(row.billing_status).toBe("partly_billed")
+      expect(row.billing_status).not.toBe("clear")
       expect(row.billed).not.toBeNull()
+      expect(row.billable_remaining).toBeGreaterThan(0)
     })
   })
 

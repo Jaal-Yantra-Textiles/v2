@@ -1,5 +1,6 @@
 import {
   foldPartnerBilling,
+  runBillableRemaining,
   runBillingStatus,
 } from "../run-billing"
 
@@ -25,6 +26,10 @@ describe("foldPartnerBilling", () => {
       submission_id: "sub_1",
       status: "Pending",
       quantity: 1,
+      // #1596 — the claim carries how MUCH of the run it took, so a screen can
+      // offer what is left instead of reporting the whole run as billed.
+      claimed_quantity: 1,
+      claimed_wholly: false,
     })
   })
 
@@ -118,5 +123,99 @@ describe("runBillingStatus", () => {
 
   it("says clear only when every live payout named its runs", () => {
     expect(runBillingStatus({ billed: null, unrecordedClaims: [] })).toBe("clear")
+  })
+})
+
+/**
+ * #1596 — how much of a run is left, and the status a screen branches on.
+ *
+ * The write guard accepts the remainder of a partly-claimed run. Reporting it
+ * as `billed` is what left the last units of a short-completed run unbillable
+ * through any screen: the workflow said yes and nothing would ask.
+ */
+describe("runBillableRemaining / runBillingStatus (#1596)", () => {
+  const line = (over: Record<string, any> = {}) => ({
+    submission: { id: "sub_1", status: "Pending" },
+    design_id: "design_1",
+    amount: 1000,
+    quantity: 1,
+    run_provenance: "recorded",
+    production_run_ids: ["run_1"],
+    ...over,
+  })
+
+  const claimOf = (over: Record<string, any> = {}) => ({
+    submission_id: "sub_1",
+    status: "Pending",
+    quantity: 4,
+    claimed_quantity: 4,
+    claimed_wholly: false,
+    ...over,
+  })
+
+  it("reports what is left of a partly claimed run", () => {
+    expect(runBillableRemaining({ claim: claimOf(), ordered: 9 })).toBe(5)
+    expect(
+      runBillingStatus({
+        billed: claimOf(),
+        unrecordedClaims: [],
+        remaining: 5,
+      })
+    ).toBe("partly_billed")
+  })
+
+  it("is `billed` once the ordered quantity is fully claimed", () => {
+    const claim = claimOf({ claimed_quantity: 9 })
+    expect(runBillableRemaining({ claim, ordered: 9 })).toBe(0)
+    expect(
+      runBillingStatus({ billed: claim, unrecordedClaims: [], remaining: 0 })
+    ).toBe("billed")
+  })
+
+  it("says NOTHING rather than 0 when the arithmetic is unavailable", () => {
+    // Null, never a number, in exactly the three cases `assessRunClaims`
+    // refuses — a number here is a promise the write guard has to keep.
+    expect(runBillableRemaining({ claim: null, ordered: 9 })).toBeNull()
+    expect(
+      runBillableRemaining({ claim: claimOf({ claimed_wholly: true }), ordered: 9 })
+    ).toBeNull()
+    expect(runBillableRemaining({ claim: claimOf(), ordered: null })).toBeNull()
+    expect(runBillableRemaining({ claim: claimOf(), ordered: 0 })).toBeNull()
+  })
+
+  it("a run claimed WHOLLY still reads as billed, not partly billed", () => {
+    const claim = claimOf({ claimed_wholly: true, claimed_quantity: 0 })
+    expect(
+      runBillingStatus({
+        billed: claim,
+        unrecordedClaims: [],
+        remaining: runBillableRemaining({ claim, ordered: 9 }),
+      })
+    ).toBe("billed")
+  })
+
+  it("sums every live line naming the run, not just the first", () => {
+    const { billedRuns } = foldPartnerBilling([
+      line({ quantity: 1 }),
+      line({ quantity: 3, submission: { id: "sub_2", status: "Approved" } }),
+    ])
+
+    const claim = billedRuns.get("run_1")!
+    // The DISPLAYED claim is still the earliest one, as before…
+    expect(claim.submission_id).toBe("sub_1")
+    // …but the units are everyone's.
+    expect(claim.claimed_quantity).toBe(4)
+    expect(runBillableRemaining({ claim, ordered: 9 })).toBe(5)
+  })
+
+  it("a line over several runs takes each of them whole", () => {
+    const { billedRuns } = foldPartnerBilling([
+      line({ quantity: 7, production_run_ids: ["run_1", "run_2"] }),
+    ])
+
+    expect(billedRuns.get("run_1")?.claimed_wholly).toBe(true)
+    expect(
+      runBillableRemaining({ claim: billedRuns.get("run_1"), ordered: 9 })
+    ).toBeNull()
   })
 })

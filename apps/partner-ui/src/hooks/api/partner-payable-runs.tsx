@@ -32,7 +32,13 @@ export interface PayableRun {
     amount: number
   }>
   design_has_open_submission: boolean
-  billing_status: "clear" | "unknown" | "billed"
+  billing_status: "clear" | "partly_billed" | "unknown" | "billed"
+  /**
+   * Units still billable on this run (#1596), or null when there is no
+   * arithmetic behind the answer — which is exactly when the write guard
+   * refuses. A number here is a promise `create` will keep.
+   */
+  billable_remaining: number | null
 }
 
 export interface PayableRunsListResponse {
