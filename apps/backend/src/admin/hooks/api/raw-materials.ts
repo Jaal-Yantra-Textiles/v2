@@ -499,3 +499,102 @@ export const useAllInventoryWithRawMaterials = (
 
   return { ...data, ...rest }
 };
+/**
+ * #1662 — the whole pickable catalog: raw-material-linked items AND the
+ * variant-backed ones an inventory order could never see, because
+ * `/admin/inventory-items/raw-materials` enumerates the raw-material LINK
+ * table and cannot emit an item that has no material behind it.
+ *
+ * Rows come back in the same shape that route emits (`raw_materials` is the
+ * single linked material, or null), plus `variants` and a derived `kind`, so
+ * the order-lines picker can swap its source without a second parsing rule.
+ */
+export type InventoryCatalogKind =
+  | "raw_material"
+  | "product"
+  | "both"
+  | "unclassified"
+
+export type InventoryCatalogItem = InventoryItem & {
+  raw_materials?: RawMaterial | null
+  variants?: Array<{
+    id: string
+    title?: string | null
+    sku?: string | null
+    product?: { id: string; title?: string | null; thumbnail?: string | null } | null
+  }>
+  kind?: InventoryCatalogKind
+}
+
+export interface InventoryCatalogResponse {
+  inventory_items: InventoryCatalogItem[]
+  count?: number
+  /** The whole catalog before `q`/`kinds` — so a narrow page never reads as a small catalog. */
+  scanned?: number
+  offset?: number
+  limit?: number
+}
+
+const INVENTORY_CATALOG_PAGE_SIZE = 200
+
+export const useInventoryCatalog = (
+  baseQuery?: Record<string, any>,
+  options?: Omit<
+    UseQueryOptions<
+      InventoryCatalogResponse,
+      FetchError,
+      InventoryCatalogResponse,
+      QueryKey
+    >,
+    "queryKey" | "queryFn"
+  >
+) => {
+  const query = { ...(baseQuery ?? {}) }
+  delete query.limit
+  delete query.offset
+
+  const { data, ...rest } = useQuery<
+    InventoryCatalogResponse,
+    FetchError,
+    InventoryCatalogResponse,
+    QueryKey
+  >({
+    queryKey: [...inventoryItemsRawMaterialQueryKeys.lists(), "catalog", query],
+    queryFn: async () => {
+      const accumulated: InventoryCatalogItem[] = []
+      let offset = 0
+      // Same guard as the raw-materials fetch-all: bound the round-trips, not
+      // the result — a page cap here would be the silent truncation of #947.
+      const maxPages = 500
+      for (let page = 0; page < maxPages; page++) {
+        const res = await sdk.client.fetch<InventoryCatalogResponse>(
+          `/admin/inventory-items/catalog`,
+          {
+            method: "GET",
+            query: {
+              ...query,
+              limit: INVENTORY_CATALOG_PAGE_SIZE,
+              offset,
+            },
+          }
+        )
+        const batch = res.inventory_items ?? []
+        accumulated.push(...batch)
+        const total = res.count ?? accumulated.length
+        offset += batch.length
+        if (batch.length === 0 || offset >= total) {
+          break
+        }
+      }
+      return {
+        inventory_items: accumulated,
+        count: accumulated.length,
+        offset: 0,
+        limit: accumulated.length,
+      }
+    },
+    ...options,
+  })
+
+  return { ...data, ...rest }
+}

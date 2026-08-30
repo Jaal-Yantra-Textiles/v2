@@ -311,6 +311,7 @@ import { listPartnersQuerySchema, PostPartnerSchema } from "./admin/partners/val
 import { AdminBroadcastNotificationSchema } from "./admin/partners/notifications/broadcast/validators";
 import { ListIdentitiesQuerySchema } from "./admin/users/identities/validators";
 import { ListInventoryItemRawMaterialsQuerySchema } from "./admin/inventory-items/raw-materials/validators";
+import { ListInventoryCatalogQuerySchema } from "./admin/inventory-items/catalog/validators";
 import { BulkImportSchema } from "./admin/inventory-items/bulk-import/validators";
 import { PartnerCreateStoreReq } from "./partners/stores/validators";
 import { PartnerCreateProductReq, PartnerArtisanProductDetailReq, PartnerProductSpecReq, PartnerStoreCreateProductReq, PartnerQuickCreateProductReq } from "./partners/products/validators";
@@ -4995,6 +4996,13 @@ export default defineMiddlewares({
       matcher: "/admin/inventory-items/raw-materials",
       method: "GET",
       middlewares: [validateAndTransformQuery(wrapSchema(ListInventoryItemRawMaterialsQuerySchema), {})],
+    },
+
+    // #1662 — the whole pickable catalog, not just raw-material-linked items.
+    {
+      matcher: "/admin/inventory-items/catalog",
+      method: "GET",
+      middlewares: [validateAndTransformQuery(wrapSchema(ListInventoryCatalogQuerySchema), {})],
     },
 
     // Bulk Import Inventory
