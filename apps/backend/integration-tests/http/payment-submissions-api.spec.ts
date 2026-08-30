@@ -1722,13 +1722,22 @@ setupSharedTestSuite(() => {
       )
       expect(approved.status).toBe(200)
 
+      /**
+       * ⚠️ 7 more, not another 4. Since #1596 a run is claimed by QUANTITY:
+       * 4 + 4 of a run ordered for 9 is legitimate tranche billing, and the
+       * ceiling is what stands between the partner and a second payment for
+       * the same work. 4 + 7 = 11 asks for more than was ever ordered, which
+       * is the double pay this case has always been about — and it still has
+       * to be refused with the first payout Approved and the design-level
+       * guard therefore out of the way.
+       */
       const second = await api
         .post(
           "/admin/payment-submissions",
           {
             partner_id: partnerId,
             design_ids: [d1],
-            quantities: { [d1]: 4 },
+            quantities: { [d1]: 7 },
             unit_amounts: { [d1]: 1200 },
             production_run_ids: { [d1]: [runId] },
           },
@@ -1739,6 +1748,7 @@ setupSharedTestSuite(() => {
       expect(second.status).toBe(400)
       expect(second.data.message).toContain("already paid for")
       expect(second.data.message).toContain(runId)
+      expect(second.data.message).toContain("5 remaining")
     })
 
     it("releases a run when its submission was rejected", async () => {
@@ -1782,6 +1792,160 @@ setupSharedTestSuite(() => {
 
       expect(replacement.status).toBe(201)
       expect(Number(replacement.data.payment_submission.total_amount)).toBe(8400)
+    })
+
+    it("bills 1 of 10 now and the other 9 later, at a different rate (#1596)", async () => {
+      /**
+       * The founder's case, and the whole reason the whole-run claim had to
+       * go: a partner finishes 1 of 10, submits, then submits the remaining 9
+       * at a DIFFERENT price. Under the old boolean claim the second submission
+       * was refused outright — the run had been "paid for" — which is what made
+       * reject-and-replace the only way to correct anything, and it only ever
+       * worked because the rates happened to match.
+       */
+      const d1 = await createDesign("Partial Claim Design", {
+        estimated_cost: 5000,
+      })
+      await linkDesignToPartner(d1, partnerId)
+      const runId = await createCompletedRun(d1, "Partial Claim Design", {
+        quantity: 10,
+        produced_quantity: 1,
+      })
+
+      const first = await api.post(
+        "/admin/payment-submissions",
+        {
+          partner_id: partnerId,
+          design_ids: [d1],
+          quantities: { [d1]: 1 },
+          unit_amounts: { [d1]: 1200 },
+          production_run_ids: { [d1]: [runId] },
+        },
+        adminHeaders
+      )
+      expect(first.status).toBe(201)
+      expect(Number(first.data.payment_submission.total_amount)).toBe(1200)
+
+      /**
+       * ⚠️ The first payout has to be CLOSED before the second is offered.
+       * Step 5 refuses a design that is already in an active submission, and
+       * that guard is about designs, not runs — it is not quantity-aware and
+       * fires first. So two OPEN claims on one design still cannot coexist;
+       * what #1596 unlocks is billing the rest once the first has been
+       * reviewed, which is the flow an operator actually follows.
+       */
+      const approved = await api.post(
+        `/admin/payment-submissions/${first.data.payment_submission.id}/review`,
+        { action: "approve", paid_to_id: paidToId },
+        adminHeaders
+      )
+      expect(approved.status).toBe(200)
+
+      // The rest, later, at a different rate — and crucially WITHOUT
+      // rejecting the first, which was the only way to do this before.
+      const second = await api.post(
+        "/admin/payment-submissions",
+        {
+          partner_id: partnerId,
+          design_ids: [d1],
+          quantities: { [d1]: 9 },
+          unit_amounts: { [d1]: 1400 },
+          production_run_ids: { [d1]: [runId] },
+        },
+        adminHeaders
+      )
+      expect(second.status).toBe(201)
+      expect(Number(second.data.payment_submission.total_amount)).toBe(12600)
+    })
+
+    it("refuses the piece that would take a run past what was ordered (#1596)", async () => {
+      // Partial claims are headroom, not a licence. 1 + 9 fills a run ordered
+      // for 10; the eleventh piece has nothing behind it.
+      const d1 = await createDesign("Overclaim Design", { estimated_cost: 5000 })
+      await linkDesignToPartner(d1, partnerId)
+      const runId = await createCompletedRun(d1, "Overclaim Design", {
+        quantity: 10,
+      })
+
+      const first = await api.post(
+        "/admin/payment-submissions",
+        {
+          partner_id: partnerId,
+          design_ids: [d1],
+          quantities: { [d1]: 9 },
+          unit_amounts: { [d1]: 1200 },
+          production_run_ids: { [d1]: [runId] },
+        },
+        adminHeaders
+      )
+      await api.post(
+        `/admin/payment-submissions/${first.data.payment_submission.id}/review`,
+        { action: "approve", paid_to_id: paidToId },
+        adminHeaders
+      )
+
+      const over = await api
+        .post(
+          "/admin/payment-submissions",
+          {
+            partner_id: partnerId,
+            design_ids: [d1],
+            quantities: { [d1]: 2 },
+            unit_amounts: { [d1]: 1200 },
+            production_run_ids: { [d1]: [runId] },
+          },
+          adminHeaders
+        )
+        .catch((e: any) => e.response)
+
+      expect(over.status).toBe(400)
+      expect(over.data.message).toContain("already paid for")
+      expect(over.data.message).toContain("1 remaining")
+    })
+
+    it("still refuses a second claim that states no quantity (#1596)", async () => {
+      // Saying nothing claims the WHOLE run, exactly as it always did — the
+      // partial path is opt-in, so nothing previously refused slips through.
+      const d1 = await createDesign("Silent Claim Design", {
+        estimated_cost: 5000,
+      })
+      await linkDesignToPartner(d1, partnerId)
+      const runId = await createCompletedRun(d1, "Silent Claim Design", {
+        quantity: 10,
+      })
+
+      const first = await api.post(
+        "/admin/payment-submissions",
+        {
+          partner_id: partnerId,
+          design_ids: [d1],
+          quantities: { [d1]: 1 },
+          unit_amounts: { [d1]: 1200 },
+          production_run_ids: { [d1]: [runId] },
+        },
+        adminHeaders
+      )
+      await api.post(
+        `/admin/payment-submissions/${first.data.payment_submission.id}/review`,
+        { action: "approve", paid_to_id: paidToId },
+        adminHeaders
+      )
+
+      const second = await api
+        .post(
+          "/admin/payment-submissions",
+          {
+            partner_id: partnerId,
+            design_ids: [d1],
+            unit_amounts: { [d1]: 1200 },
+            production_run_ids: { [d1]: [runId] },
+          },
+          adminHeaders
+        )
+        .catch((e: any) => e.response)
+
+      expect(second.status).toBe(400)
+      expect(second.data.message).toContain("already paid for")
     })
 
     it("refuses a run that belongs to another partner", async () => {
@@ -2985,7 +3149,14 @@ setupSharedTestSuite(() => {
         design_id: designId,
         design_name: "Contested Draft Run Design",
         amount: 1000,
-        quantity: 1,
+        /**
+         * ⚠️ The rival takes the WHOLE run — 9, its ordered quantity. Since
+         * #1596 a claim is quantity-aware, so a rival holding 1 of 9 leaves
+         * room the draft's own 4 units fit inside, and the transition would be
+         * right to allow it. What must still be refused is a draft claiming
+         * units nobody has left.
+         */
+        quantity: 9,
         production_run_ids: [runId],
         run_provenance: "recorded",
         submission_id: rival.id,

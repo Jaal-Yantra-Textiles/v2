@@ -39,6 +39,8 @@
  * happens to be keyed on today.
  */
 
+import { ContainerRegistrationKeys } from "@medusajs/framework/utils"
+
 export type PriorRunLine = {
   submission_id: string | null
   submission_status: string | null
@@ -50,6 +52,14 @@ export type PriorRunLine = {
    * to compare a SUM against what the order is worth (#1617).
    */
   amount?: number | string | null
+  /**
+   * Units billed by this line. A run is no longer claimed as a boolean either
+   * (#1596): a partner can finish 1 of 10, bill it, and bill the other 9 later
+   * at a different rate. Only attributable when the line names exactly ONE run
+   * — a line naming several carries their SUM, and splitting that back out
+   * would be an invention.
+   */
+  quantity?: number | string | null
 }
 
 export type RunClaim = {
@@ -151,6 +161,252 @@ export function foldInventoryOrderClaims(
 }
 
 /**
+ * What a production run has been claimed for SO FAR.
+ *
+ * 🔴 A run used to be claimed WHOLLY: it appeared on any live line, therefore
+ * it was paid for, therefore refuse. That is what forces reject-and-replace as
+ * the only way to correct a claim — `01M0Y336X9A6DJ9ESZ4HC0RXVM` reached
+ * "produced 7 of 9" by rejecting the whole prior claim twice (3 → 4 → 7), and
+ * it only survived because 4 and 7 happened to be at the same rate.
+ *
+ * The founder's case (#1596) does not survive it at all: a partner finishes 1
+ * of 10, bills it, then bills the remaining 9 at a DIFFERENT price. Under a
+ * boolean claim the second bill is refused outright.
+ */
+export type RunClaimTally = {
+  /** Units claimed by live lines that name this run and nothing else. */
+  claimed_quantity: number
+  /**
+   * A live line claims this run WITHOUT an attributable quantity — it names
+   * several runs (their quantities are summed into one figure), or it carries
+   * no usable quantity at all. Such a claim consumes the run entirely, because
+   * splitting it back out would be an invention.
+   */
+  claimed_wholly: boolean
+  /** Every live claim, first writer first, for the refusal message. */
+  claims: RunClaim[]
+}
+
+/**
+ * PURE: fold prior lines into `run id → units claimed so far`.
+ *
+ * Same skip rule as `foldRunClaims`: a `Rejected` submission never paid
+ * anyone, so its lines release their runs.
+ */
+export function foldRunClaimTallies(
+  priorLines: PriorRunLine[]
+): Map<string, RunClaimTally> {
+  const tallies = new Map<string, RunClaimTally>()
+
+  for (const line of priorLines || []) {
+    if (String(line.submission_status || "") === "Rejected") continue
+
+    const runIds = (line.production_run_ids || []).filter(Boolean)
+    if (!runIds.length) continue
+
+    const quantity = Number(line.quantity)
+    /**
+     * Attributable only when the line names exactly ONE run AND states a
+     * usable quantity. A line over several runs carries their sum; a line with
+     * no quantity states nothing. In both cases the honest reading is "this
+     * claimed the run", not a number invented to fill the gap — inventing one
+     * here would manufacture headroom to bill against.
+     */
+    const attributable =
+      runIds.length === 1 && Number.isFinite(quantity) && quantity > 0
+
+    for (const runId of runIds) {
+      const existing = tallies.get(runId) ?? {
+        claimed_quantity: 0,
+        claimed_wholly: false,
+        claims: [],
+      }
+
+      if (attributable) {
+        existing.claimed_quantity += quantity
+      } else {
+        existing.claimed_wholly = true
+      }
+
+      existing.claims.push({
+        submission_id: line.submission_id,
+        submission_status: line.submission_status,
+      })
+      tallies.set(runId, existing)
+    }
+  }
+
+  return tallies
+}
+
+/**
+ * PURE: how many units a REQUEST claims per run.
+ *
+ * The same attribution rule as the prior-line fold, applied to the incoming
+ * lines — one rule, so the two sides of the comparison can never drift:
+ *
+ *   - a line naming exactly ONE run with a usable quantity claims that many;
+ *   - a line naming several runs, or stating no quantity, claims each of its
+ *     runs WHOLLY (`null`), because its figure covers all of them together and
+ *     splitting it back out would be an invention.
+ *
+ * 🔑 Only an explicitly stated quantity makes a claim partial. Saying nothing
+ * still claims the whole run, which is exactly what every caller meant before
+ * this existed — so nothing that used to be refused becomes allowed by
+ * accident.
+ *
+ * `null` is STICKY: once any line claims a run wholly, no later line's number
+ * can turn that back into a partial claim.
+ */
+export function requestedRunQuantities(
+  lines: Array<{
+    production_run_ids?: string[] | null
+    quantity?: number | string | null
+  }>
+): Map<string, number | null> {
+  const requested = new Map<string, number | null>()
+
+  for (const line of lines || []) {
+    const runIds = (line?.production_run_ids || []).filter(Boolean).map(String)
+    if (!runIds.length) continue
+
+    const quantity = Number(line?.quantity)
+    const attributable =
+      runIds.length === 1 && Number.isFinite(quantity) && quantity > 0
+
+    for (const runId of runIds) {
+      if (!requested.has(runId)) {
+        requested.set(runId, attributable ? quantity : null)
+        continue
+      }
+
+      const existing = requested.get(runId)
+      if (existing == null || !attributable) {
+        requested.set(runId, null)
+        continue
+      }
+
+      requested.set(runId, existing + quantity)
+    }
+  }
+
+  return requested
+}
+
+export type OverclaimedRun = {
+  run_id: string
+  /** Units the run is worth: its ORDERED quantity. */
+  ceiling: number
+  claimed_quantity: number
+  claimed_wholly: boolean
+  /** Units this request asks for, or null when it cannot be attributed. */
+  requested: number | null
+  /** Who holds the live claims, for the refusal message. */
+  claims: RunClaim[]
+}
+
+/**
+ * PURE: which of these claims would take a run past what it is worth.
+ *
+ * ⚠️ The ceiling is the run's **ORDERED** quantity, not its produced one. That
+ * is deliberate and matches `runPayableAmount`, which multiplies a per-unit
+ * rate by `run.quantity`; a produced-quantity ceiling would disagree with the
+ * money on day one, and would also refuse the very first partial claim, since
+ * `produced_quantity` is captured at completion and is null while the partner
+ * is still working. What ordered-quantity headroom does NOT decide is whether
+ * the remainder will ever be made — a run short-closed at 7 of 9 keeps 2 units
+ * billable until something closes it, which wants its own input rather than an
+ * inference here.
+ *
+ * This is strictly narrower than "refuse any prior claim" in exactly one case:
+ * both sides are attributable and their sum fits. Every unattributable claim,
+ * every unreadable ceiling, still refuses — an absent number must never read
+ * as room to bill.
+ */
+export function assessRunClaims(input: {
+  /** Units requested per run, or null where the request cannot be attributed. */
+  requestedByRun: Map<string, number | null>
+  runs: Map<string, { quantity?: number | string | null }>
+  tallies: Map<string, RunClaimTally>
+}): OverclaimedRun[] {
+  const overclaimed: OverclaimedRun[] = []
+
+  for (const [runId, requested] of input.requestedByRun) {
+    const tally = input.tallies.get(runId)
+    if (!tally) continue // nobody has claimed it — nothing to diff against.
+
+    const ordered = Number(input.runs.get(runId)?.quantity)
+    const ceiling = Number.isFinite(ordered) && ordered > 0 ? ordered : 0
+
+    const refuse = () =>
+      overclaimed.push({
+        run_id: runId,
+        ceiling,
+        claimed_quantity: tally.claimed_quantity,
+        claimed_wholly: tally.claimed_wholly,
+        requested,
+        claims: tally.claims,
+      })
+
+    // Somebody already claimed the whole run, or this request claims the whole
+    // run, or the run states no quantity to divide up. No arithmetic is
+    // available, so the old whole-run refusal stands.
+    if (tally.claimed_wholly || requested == null || !(ceiling > 0)) {
+      refuse()
+      continue
+    }
+
+    // A hundredth of a unit of tolerance: quantities are floats, and refusing
+    // a legitimate final piece over float dust is worse than allowing it.
+    if (tally.claimed_quantity + requested > ceiling + 0.005) {
+      refuse()
+    }
+  }
+
+  return overclaimed
+}
+
+/** The refusal, naming the headroom rather than only the refusal. */
+export function runsOverclaimedMessage(
+  overclaimed: OverclaimedRun[]
+): string {
+  const detail = overclaimed
+    .map(
+      ({ run_id, ceiling, claimed_quantity, claimed_wholly, requested, claims }) => {
+        const holders =
+          claims
+            .map(
+              (c) =>
+                `submission ${c.submission_id ?? "unknown"}${
+                  c.submission_status ? `, ${c.submission_status}` : ""
+                }`
+            )
+            .join("; ") || "no prior claim"
+
+        if (claimed_wholly) {
+          return `${run_id}: already claimed in full (${holders})`
+        }
+        if (!(ceiling > 0)) {
+          return (
+            `${run_id}: already claimed (${holders}), and the run states no` +
+            ` quantity to divide`
+          )
+        }
+
+        const remaining = Math.max(0, ceiling - claimed_quantity)
+        const asked = requested == null ? "the whole run" : String(requested)
+        return (
+          `${run_id}: ordered ${ceiling}, already claimed ${claimed_quantity}` +
+          ` (${holders}), ${remaining} remaining — this line asks for ${asked}`
+        )
+      }
+    )
+    .join(" | ")
+
+  return `Production runs already paid for: ${detail}`
+}
+
+/**
  * PURE: what is still billable on an order.
  *
  * `ceiling` is the AGREED total where one is recorded, falling back to the
@@ -227,7 +483,59 @@ export async function listPartnerPriorLines(
     production_run_ids: (item.production_run_ids || []) as string[],
     inventory_order_id: item.inventory_order_id ?? null,
     amount: item.amount ?? null,
+    quantity: item.quantity ?? null,
   }))
+}
+
+/**
+ * The partner's per-run tallies — the quantity-aware replacement for
+ * `listPartnerRunClaims` at every guard that has to answer "how much of this
+ * run is still billable" rather than "has it been touched".
+ */
+/**
+ * The ordered quantity of each run, for the claim ceiling.
+ *
+ * Lives here so every guard reads the ceiling from the same field. The two
+ * create-path guards already fetch the runs for other reasons and pass their
+ * own map; the submit and update guards do not, and would otherwise each grow
+ * their own query.
+ *
+ * ⚠️ Fetch `quantity` explicitly — a guard reading a field the query never
+ * asked for is a guard that always sees `undefined` and always refuses.
+ */
+export async function listRunOrderedQuantities(
+  container: { resolve: (key: string) => any },
+  runIds: string[]
+): Promise<Map<string, { quantity?: number | string | null }>> {
+  const ids = [...new Set((runIds || []).filter(Boolean).map(String))]
+  if (!ids.length) return new Map()
+
+  const query: any = container.resolve(ContainerRegistrationKeys.QUERY)
+  const { data } = await query.graph({
+    entity: "production_runs",
+    fields: ["id", "quantity"],
+    filters: { id: ids },
+  })
+
+  return new Map(
+    ((data || []) as any[]).map((run) => [
+      String(run.id),
+      { quantity: run.quantity },
+    ])
+  )
+}
+
+export async function listPartnerRunTallies(
+  service: {
+    listPaymentSubmissions: (filters: any, config?: any) => Promise<any[]>
+    listPaymentSubmissionItems: (filters: any, config?: any) => Promise<any[]>
+  },
+  partnerId: string,
+  options?: { excludeSubmissionId?: string }
+): Promise<Map<string, RunClaimTally>> {
+  return foldRunClaimTallies(
+    await listPartnerPriorLines(service, partnerId, options)
+  )
 }
 
 export async function listPartnerRunClaims(

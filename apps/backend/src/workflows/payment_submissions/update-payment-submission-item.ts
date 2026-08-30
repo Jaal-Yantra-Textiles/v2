@@ -16,8 +16,11 @@ import {
   runlessResubmitMessage,
 } from "./lib/run-evidence-guard"
 import {
-  listPartnerRunClaims,
-  runsAlreadyClaimedMessage,
+  assessRunClaims,
+  listPartnerRunTallies,
+  listRunOrderedQuantities,
+  requestedRunQuantities,
+  runsOverclaimedMessage,
 } from "./lib/run-claims"
 import { resolveDesignLineAmount } from "./create-payment-submission"
 
@@ -140,6 +143,15 @@ const validateItemEditStep = createStep(
         ...new Set(input.production_run_ids.map(String).filter(Boolean)),
       ]
 
+      /**
+       * What this edited line will claim, for the quantity-aware run guard
+       * (#1596). The edit's quantity when it states one, otherwise the line's
+       * existing quantity — an edit that touches only the run ids has not
+       * changed how many units the line bills.
+       */
+      const claimedQuantity =
+        input.quantity !== undefined ? input.quantity : item.quantity
+
       if (runIds.length) {
         /**
          * 1. The runs must exist, be this partner's, be this design's, and be
@@ -214,16 +226,26 @@ const validateItemEditStep = createStep(
        * invisible to it. See `lib/run-claims`.
        */
       if (runIds.length) {
-        const billed = await listPartnerRunClaims(
+        const tallies = await listPartnerRunTallies(
           service as any,
           String(submission.partner_id || ""),
           { excludeSubmissionId: String(input.submission_id) }
         )
-        const duplicates = runIds.filter((id) => billed.has(id))
-        if (duplicates.length) {
+
+        // #1596 — quantity-aware, same rule as create and submit. The edited
+        // line's own quantity is what it claims; one run plus a quantity is a
+        // partial claim, anything else takes the run whole.
+        const overclaimed = assessRunClaims({
+          requestedByRun: requestedRunQuantities([
+            { production_run_ids: runIds, quantity: claimedQuantity },
+          ]),
+          runs: await listRunOrderedQuantities(container, runIds),
+          tallies,
+        })
+        if (overclaimed.length) {
           throw new MedusaError(
             MedusaError.Types.INVALID_DATA,
-            runsAlreadyClaimedMessage(duplicates, billed)
+            runsOverclaimedMessage(overclaimed)
           )
         }
       }
