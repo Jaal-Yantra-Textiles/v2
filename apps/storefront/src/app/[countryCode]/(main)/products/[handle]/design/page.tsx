@@ -1,7 +1,7 @@
 import { listProducts } from "@lib/data/products"
 import { retrieveCustomer } from "@lib/data/customer"
 import { getDesign, DesignDetail } from "@lib/data/designs"
-import DesignEditorWrapper from "@modules/products/components/design-editor/client-wrapper"
+import DesignChatWrapper from "@modules/products/components/design-chat/client-wrapper"
 import { Metadata } from "next"
 import { notFound } from "next/navigation"
 import { getRegion } from "@lib/data/regions"
@@ -64,25 +64,27 @@ export default async function DesignPage({
     initialDesign = await getDesign(resolvedSearchParams.designId).catch(() => null)
   }
 
+  // Chat-based design editor (Konva editor dormant — see .ai-memory context).
+  // The board (Excalidraw scene on design.moodboard) renders inside the chat;
+  // customer/email seeding happens client-side via retrieveCustomerFresh.
+  void customer
   return (
-    <DesignEditorWrapper
+    <DesignChatWrapper
       product={{
         id: product.id,
         handle: product.handle,
         title: product.title,
         thumbnail: product.thumbnail || undefined,
-        description: product.description || undefined,
-        designs: (product as any).designs || [],
-        metadata: product.metadata || {},
         images: product.images?.map((i: any) => i.url) ?? [],
       }}
-      customer={customer ? {
-        id: customer.id,
-        email: customer.email,
-        aiFeaturesPaid: customer.metadata?.ai_features_paid === true,
+      initialDesign={initialDesign ? {
+        id: initialDesign.id,
+        name: initialDesign.name,
+        status: initialDesign.status,
+        thumbnail_url: initialDesign.thumbnail_url ?? null,
+        moodboard: initialDesign.moodboard,
       } : null}
       countryCode={resolvedParams.countryCode}
-      initialDesign={initialDesign}
     />
   )
 }

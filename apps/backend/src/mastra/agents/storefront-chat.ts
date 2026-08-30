@@ -25,6 +25,10 @@ import { readFileSync } from "node:fs"
 import { join } from "node:path"
 import { dynamicFreeTextModel } from "../providers/dynamic-text-model"
 import { buildChatModel, getAiPlatformForRole } from "../services/ai-platforms"
+import {
+  buildDesignChatSystem,
+  type DesignChatContext,
+} from "./storefront-design-chat"
 
 // ── Brand knowledge corpus ─────────────────────────────────────────────
 
@@ -56,7 +60,7 @@ export type UserPrefs = {
   notes?: string
 }
 
-const formatPrefs = (prefs?: UserPrefs): string => {
+export const formatPrefs = (prefs?: UserPrefs): string => {
   if (!prefs) return "(no preferences captured yet — feel free to ask one short question to learn what they like)"
   const lines: string[] = []
   if (prefs.colors?.length) lines.push(`- colors: ${prefs.colors.join(", ")}`)
@@ -185,3 +189,11 @@ export const resolveStorefrontChatModel = async (
 
   return null
 }
+
+
+// ── Design-editor system prompt re-export ──────────────────────────────
+// The design flow reuses this module's model resolution (same role,
+// ai_search_chat) with a designer-guide prompt — see storefront-design-chat.ts.
+
+export { buildDesignChatSystem }
+export type { DesignChatContext }

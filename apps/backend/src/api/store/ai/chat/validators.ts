@@ -58,12 +58,27 @@ const PrefsSchema = z
   })
   .partial()
 
+// Optional design-editor context — present when the chat runs inside the
+// design flow (/products/:handle/design or /design). The route resolves the
+// referenced product/design server-side (never trusting client prose) and
+// switches the agent into designer-guide mode with the design tools bound.
+const DesignContextSchema = z.object({
+  product_id: z.string().min(1).max(60).optional(),
+  design_id: z.string().min(1).max(60).optional(),
+  // The maker's email once they have shared it in the flow (guest-customer
+  // resolution on first generation). Optional — the agent asks when needed.
+  email: z.string().max(200).optional(),
+})
+
 export const StoreAiChatSchema = z.object({
   // Capped at 40 turns (20 round-trips) — more than that and the system
   // prompt + brand corpus would dominate tokens anyway.
   messages: z.array(UiMessageSchema).min(1).max(40),
   prefs: PrefsSchema.optional(),
   visitor_id: z.string().min(1).max(80),
+
+  // Design-editor context (see DesignContextSchema).
+  context: DesignContextSchema.optional(),
 
   // ──────────────────────────────────────────────────────────────────
   // AI SDK v6 (`useChat`) sends these extra top-level fields on every

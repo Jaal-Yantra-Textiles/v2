@@ -579,7 +579,12 @@ module.exports = defineConfig({
       resolve: "./src/modules/partner-assistant",
     },
     {
-      resolve: "./src/modules/admin-assistant",
+      resolve: "./src/modules/admin-assistant",,
+    {
+      // Chat design editor — per-design chat thread history (email-scoped
+      // mirror of admin-assistant).
+      resolve: "./src/modules/storefront-design-assistant",
+    }
     },
     {
       // The assistants' cross-conversation context cache. Registered in BOTH

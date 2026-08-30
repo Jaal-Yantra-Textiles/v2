@@ -13,6 +13,7 @@ import { DESIGN_MODULE } from "../../modules/designs";
 import DesignService from "../../modules/designs/service";
 import { MEDIA_MODULE } from "../../modules/media";
 import MediaFileService from "../../modules/media/service";
+import { getAiPlatformForRole } from "../../mastra/services/ai-platforms";
 
 type Badge = {
   style?: string;
@@ -65,12 +66,44 @@ type UploadResult = {
 // Step 1: Invoke Mastra workflow for image generation
 const invokeMastraImageGenStep = createStep(
   "invoke-mastra-image-gen-step",
-  async (input: GenerateDesignAiImageInput): Promise<StepResponse<MastraImageGenResult, { imageUrl?: string; mode: string }>> => {
+  async (input: GenerateDesignAiImageInput, { container }): Promise<StepResponse<MastraImageGenResult, { imageUrl?: string; mode: string }>> => {
     try {
       const workflow = mastra.getWorkflow("imageGenerationWorkflow");
 
       if (!workflow) {
         throw new Error("Image generation workflow not found in Mastra");
+      }
+
+      // Resolve the image-gen provider: admin-configured External Platform
+      // (ai_image_gen) first, then the Cloudflare env fallback. The Mastra
+      // runtime has no Medusa container, so we hand the credentials down.
+      let image_gen_config: any = null;
+      try {
+        const platform = await getAiPlatformForRole(container as any, "ai_image_gen");
+        if (platform) {
+          image_gen_config = {
+            provider_type: platform.providerType,
+            api_key: platform.apiKey,
+            account_id: platform.accountId,
+            base_url: platform.baseUrl,
+            model: platform.defaultModel,
+          };
+        }
+      } catch (e: any) {
+        console.warn(`[ai-imagegen] platform resolution failed: ${e?.message ?? e}`);
+      }
+
+      if (
+        !image_gen_config &&
+        process.env.CLOUDFLARE_AI_TOKEN &&
+        process.env.CLOUDFLARE_AI_ACCOUNT_ID
+      ) {
+        image_gen_config = {
+          provider_type: "cloudflare",
+          api_key: process.env.CLOUDFLARE_AI_TOKEN,
+          account_id: process.env.CLOUDFLARE_AI_ACCOUNT_ID,
+          model: null,
+        };
       }
 
       // Create run and start workflow
@@ -84,6 +117,7 @@ const invokeMastraImageGenStep = createStep(
           canvas_snapshot: input.canvas_snapshot,
           preview_cache_key: input.preview_cache_key,
           customer_id: input.customer_id,
+          image_gen_config,
         },
       });
 

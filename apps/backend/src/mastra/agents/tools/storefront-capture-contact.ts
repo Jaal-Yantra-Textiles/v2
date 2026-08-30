@@ -17,7 +17,7 @@
  */
 import type { MedusaContainer } from "@medusajs/framework"
 import { ContainerRegistrationKeys } from "@medusajs/framework/utils"
-import { tool } from "ai"
+import { tool, jsonSchema } from "ai"
 import { z } from "zod"
 import { PERSON_MODULE } from "../../../modules/person"
 import { splitName } from "../../../workflows/leads/lib/email-lead"
@@ -31,12 +31,10 @@ const CaptureArgsSchema = z.object({
     .email()
     .max(200)
     .describe("The shopper's email address, exactly as they typed it."),
-  name: z
-    .string()
-    .min(1)
-    .max(120)
-    .optional()
-    .describe("The shopper's name, if they gave one."),
+  name: z.preprocess(
+    (v) => (typeof v === "string" && !v.trim() ? undefined : v),
+    z.string().min(1).max(120).optional()
+  ).describe("The shopper's name, if they gave one."),
   interest: z
     .string()
     .max(280)
@@ -117,6 +115,32 @@ export const runCaptureContact = async (
   }
 }
 
+/**
+ * Hand-authored input schema — bound via jsonSchema() (admin/partner MCP
+ * chats' pattern). The SDK's PRE-EXECUTE validation runs against THIS, so
+ * `name` is a plain optional string (the model sends name:"" — the zod
+ * min(1) check hard-rejected that before execute could trim it).
+ * runCaptureContact tolerates the empty name via splitName.
+ */
+export const CAPTURE_CONTACT_INPUT_SCHEMA = {
+  type: "object",
+  properties: {
+    email: {
+      type: "string",
+      description: "The shopper's email address, exactly as they typed it.",
+    },
+    name: {
+      type: "string",
+      description: "The shopper's name, if they gave one. Omit rather than sending an empty string.",
+    },
+    interest: {
+      type: "string",
+      description: "A short note on which pieces or topics the shopper was interested in, for follow-up context.",
+    },
+  },
+  required: ["email"],
+}
+
 export const createCaptureContactTool = (
   container: MedusaContainer,
   visitorId?: string
@@ -124,6 +148,16 @@ export const createCaptureContactTool = (
   tool({
     description:
       "Save the shopper's name and email as a follow-up lead. Call this ONCE, and only after the shopper has actually shared an email address in the conversation — never before they've given one. It returns whether the contact was saved.",
-    inputSchema: CaptureArgsSchema,
-    execute: async (args) => runCaptureContact(args, container, visitorId),
+    inputSchema: jsonSchema(CAPTURE_CONTACT_INPUT_SCHEMA as any),
+    execute: async (args) =>
+      runCaptureContact(
+        {
+          ...(args as any),
+          // Normalise the model's empty-string name to undefined (zod never
+          // sees this — jsonSchema binding skips it).
+          name: (args as any)?.name?.trim() || undefined,
+        },
+        container,
+        visitorId
+      ),
   })

@@ -32,6 +32,24 @@ import {
   buildStorefrontChatSystem,
   resolveStorefrontChatModel,
 } from "../../../../mastra/agents/storefront-chat"
+import {
+  buildDesignChatSystem,
+  type DesignChatContext,
+} from "../../../../mastra/agents/storefront-design-chat"
+import {
+  createListRawMaterialsTool,
+  createListPartnersTool,
+  createAnalyzeProductImageTool,
+} from "../../../../mastra/agents/tools/storefront-design-catalog"
+import {
+  createSaveBriefTool,
+  createCreateDesignTool,
+  createGenerateDesignImageTool,
+  createSetActiveCanvasTool,
+  createGetDesignStateTool,
+  type DesignContext,
+} from "../../../../mastra/agents/tools/storefront-design-flow"
+import { createSaveMoodboardTool } from "../../../../mastra/agents/tools/storefront-design-moodboard"
 import { createSearchProductsTool } from "../../../../mastra/agents/tools/storefront-search-products"
 import {
   createGetCategoriesTool,
@@ -57,13 +75,44 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
     return
   }
 
-  const system = buildStorefrontChatSystem(body.prefs)
+  // ── Design-editor mode ──
+  // When the request carries a design context (the chat runs inside
+  // /products/:handle/design or /design), the route server-resolves the
+  // referenced product + design (never trusting client prose), switches the
+  // agent into designer-guide mode, and binds the design tools. The concierge
+  // tools stay bound — makers wander into shopping mid-flow.
+  const designContext: DesignContext | undefined = body.context
+  const system = designContext
+    ? await buildDesignChatSystemResolved(
+        req.scope as any,
+        body.prefs,
+        designContext,
+        body.messages
+      )
+    : buildStorefrontChatSystem(body.prefs)
+
   const tools = {
     search_products: createSearchProductsTool(req.scope as any),
     get_categories: createGetCategoriesTool(req.scope as any),
     get_category_products: createGetCategoryProductsTool(req.scope as any),
     get_product_details: createGetProductDetailsTool(req.scope as any),
     capture_contact: createCaptureContactTool(req.scope as any, body.visitor_id),
+    ...(designContext
+      ? {
+          list_raw_materials: createListRawMaterialsTool(req.scope as any),
+          list_partners: createListPartnersTool(req.scope as any),
+          analyze_product_image: createAnalyzeProductImageTool(req.scope as any),
+          save_brief: createSaveBriefTool(),
+          create_design: createCreateDesignTool(req.scope as any, designContext),
+          generate_design_image: createGenerateDesignImageTool(
+            req.scope as any,
+            designContext
+          ),
+          set_active_canvas: createSetActiveCanvasTool(req.scope as any),
+          get_design_state: createGetDesignStateTool(req.scope as any),
+          save_moodboard: createSaveMoodboardTool(req.scope as any),
+        }
+      : {}),
   }
 
   // Normalise the inbound UI messages.
@@ -128,6 +177,10 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
       // then get_category_products, or search then get_product_details)
       // while still capping runaway tool loops.
       stopWhen: stepCountIs(5),
+      // Keep a ceiling above any normal chat reply (kimi-k2.6, the chat
+      // model, is non-reasoning — probed: proper arrays in tool args,
+      // chained save_brief + capture_contact in one step, 833 tokens).
+      maxOutputTokens: 4096,
       temperature: 0.6,
       onFinish: ({ usage: u }: any) => {
         logAiUsage(logger, {
@@ -176,4 +229,99 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
   // The SDK handles SSE framing, Content-Type, and flushes — we just
   // hand it the Node ServerResponse Medusa hands us.
   result.pipeUIMessageStreamToResponse(res as any)
+}
+
+
+// ── Server-resolved design context for the system prompt ───────────────
+
+import type { MedusaContainer } from "@medusajs/framework"
+
+/**
+ * Server-resolve the product + design referenced by the design context and
+ * build the designer-guide prompt. Only server data enters the prompt — a
+ * client never gets to inject prose into the system message.
+ */
+const buildDesignChatSystemResolved = async (
+  container: MedusaContainer,
+  prefs: StoreAiChatReq["prefs"],
+  context: DesignContext,
+  messages?: StoreAiChatReq["messages"]
+): Promise<string> => {
+  const promptContext: DesignChatContext = {
+    product_id: context.product_id,
+    design_id: context.design_id,
+    email: context.email,
+  }
+
+  if (context.product_id) {
+    const query = container.resolve(ContainerRegistrationKeys.QUERY)
+    const { data } = await query.graph({
+      entity: "product",
+      filters: { id: context.product_id },
+      fields: ["id", "title", "description", "thumbnail", "images.url"],
+    } as any)
+    const product: any = data?.[0]
+    if (product) {
+      promptContext.product = {
+        title: product.title,
+        description: product.description ?? undefined,
+        thumbnail: product.thumbnail ?? undefined,
+        images: (product.images || []).map((i: any) => i?.url).filter(Boolean),
+      }
+    }
+  }
+
+  if (context.design_id) {
+    const designService: any = container.resolve("design" as any)
+    const design = await designService
+      .retrieveDesign(context.design_id)
+      .catch(() => null)
+    if (design) {
+      promptContext.design = {
+        name: design.name,
+        status: design.status,
+        product_type: design.product_type ?? null,
+        concept_theme: design.concept_theme ?? null,
+        aesthetic_keywords: Array.isArray(design.aesthetic_keywords)
+          ? design.aesthetic_keywords
+          : [],
+        thumbnail_url: design.thumbnail_url ?? undefined,
+      }
+
+      // Moodboard summary — canvas takes + reference analyses — so the agent
+      // is grounded on the board every turn without an extra tool round-trip.
+      const {
+        normalizeCanvasScene,
+        readActiveCanvas,
+        readCanvasElements,
+      } = await import("../../../modules/designs/lib/canvas-scene")
+      const scene = normalizeCanvasScene(design.moodboard)
+      const active = readActiveCanvas(scene)
+      const inspirations = scene.elements
+        .filter((el: any) => el.customData?.source === "inspiration")
+        .slice(0, 8)
+        .map((el: any) => {
+          const a = el.customData?.analysis as
+            | { title?: string; description?: string }
+            | undefined
+          return {
+            title: a?.title ?? null,
+            description: a?.description ?? null,
+          }
+        })
+      promptContext.design.board = {
+        canvas_count: readCanvasElements(scene).length,
+        active_canvas: active?.customData?.canvas
+          ? {
+              letter: active.customData.canvas.letter ?? null,
+              kind: active.customData.canvas.kind,
+              prompt_used: active.customData.canvas.prompt_used,
+            }
+          : null,
+        inspirations,
+      }
+    }
+  }
+
+  return buildDesignChatSystem(prefs, promptContext, messages)
 }

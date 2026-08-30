@@ -1,6 +1,6 @@
 import { retrieveCustomer } from "@lib/data/customer"
 import { getRegion } from "@lib/data/regions"
-import DesignEditorWrapper from "@modules/products/components/design-editor/client-wrapper"
+import DesignChatWrapper from "@modules/products/components/design-chat/client-wrapper"
 import { Metadata } from "next"
 import { notFound } from "next/navigation"
 
@@ -24,18 +24,13 @@ export default async function DesignPage(props: Props) {
 
   const customer = await retrieveCustomer().catch(() => null)
 
+  // Chat-based design editor — standalone flow (no base product; the design
+  // generates from brief + moodboard inspirations).
+  void customer
   return (
-    <DesignEditorWrapper
-      product={{
-        id: "custom_design",
-        handle: "design",
-        title: "Custom Design",
-        thumbnail: undefined,
-        description: "Create a custom design.",
-        designs: [],
-        metadata: {},
-      }}
-      customer={customer ? { id: customer.id, email: customer.email } : null}
+    <DesignChatWrapper
+      product={null}
+      initialDesign={null}
       countryCode={params.countryCode}
     />
   )

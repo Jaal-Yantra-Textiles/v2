@@ -16,6 +16,10 @@ export type DescribeProductImageInput = {
   // metadata.role first, then fall back to name (case-insensitive contains).
   providerRole?: string // default: "ai_product_description"
   providerNameContains?: string // default: "qwen"
+  // Optional replacement for the module-level product-copy prompt. Callers
+  // like the chat design editor swap in their own JSON contract (garment
+  // analysis + suggestions) against the same vision provider.
+  system_prompt?: string
 }
 
 export type DescribeProductImageOutput = {
@@ -101,10 +105,11 @@ const callVisionApiStep = createStep(
       }
       imageUrl: string
       hint?: string
+      systemPrompt: string
     },
     { container: _container }
   ) => {
-    const { providerInfo, imageUrl, hint } = input
+    const { providerInfo, imageUrl, hint, systemPrompt } = input
 
     const userParts: Array<Record<string, any>> = [
       { type: "image_url", image_url: { url: imageUrl } },
@@ -126,7 +131,7 @@ const callVisionApiStep = createStep(
       model: providerInfo.model,
       response_format: { type: "json_object" },
       messages: [
-        { role: "system", content: DEFAULT_SYSTEM_PROMPT },
+        { role: "system", content: systemPrompt || DEFAULT_SYSTEM_PROMPT },
         { role: "user", content: userParts },
       ],
       temperature: 0.2,
@@ -180,7 +185,14 @@ const callVisionApiStep = createStep(
       .replace(/```$/i, "")
       .trim()
 
-    let parsed: { title?: string; description?: string }
+    let parsed: {
+      title?: string
+      description?: string
+      // Custom contracts (e.g. the chat design editor's garment analysis)
+      // carry extra fields — passed through untouched so callers can read
+      // their own contract (suggestions, palette, …).
+      [key: string]: any
+    }
     try {
       parsed = JSON.parse(cleaned)
     } catch {
@@ -204,6 +216,7 @@ const callVisionApiStep = createStep(
       title,
       description,
       provider_platform_id: providerInfo.platformId,
+      ...(typeof parsed === "object" ? parsed : {}),
     })
   }
 )
@@ -216,6 +229,7 @@ export const describeProductImageWorkflow = createWorkflow(
       providerInfo,
       imageUrl: input.imageUrl,
       hint: input.hint,
+      systemPrompt: input.system_prompt || DEFAULT_SYSTEM_PROMPT,
     })
     return new WorkflowResponse(result)
   }

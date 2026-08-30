@@ -1,8 +1,14 @@
 // @ts-nocheck - Ignore all TypeScript errors in this file
 import { createWorkflow, createStep } from "@mastra/core/workflows";
 import { z } from "zod";
+import { generateText } from "ai";
+import { createOpenAI } from "@ai-sdk/openai";
 import { Agent } from "@mastra/core/agent";
 import { dynamicFreeTextModel } from "../../providers/dynamic-text-model";
+import {
+  generateWithCloudflare,
+  type CloudflareImageConfig,
+} from "./providers/cloudflare";
 
 // Import provider modules
 import {
@@ -103,6 +109,19 @@ export const triggerSchema = z.object({
   customer_id: z.string(),
   threadId: z.string().optional(),
   resourceId: z.string().optional(),
+  // Resolved image-gen platform config (from the Medusa container — the
+  // Mastra runtime has no container, so the caller hands us the credentials).
+  // provider_type "cloudflare" routes prompt-enhancement + image gen to
+  // Cloudflare Workers AI instead of the OpenRouter free fallback.
+  image_gen_config: z
+    .object({
+      provider_type: z.string().optional(),
+      api_key: z.string().optional(),
+      account_id: z.string().optional(),
+      base_url: z.string().optional(),
+      model: z.string().nullable().optional(),
+    })
+    .optional(),
 });
 
 // Final output schema (workflow output)
@@ -136,7 +155,19 @@ const step1OutputSchema = z.object({
   // Passthrough fields needed by subsequent steps
   mode: z.enum(["preview", "commit"]),
   customer_id: z.string(),
+  image_gen_config: z
+    .object({
+      provider_type: z.string().optional(),
+      api_key: z.string().optional(),
+      account_id: z.string().optional(),
+      base_url: z.string().optional(),
+      model: z.string().nullable().optional(),
+    })
+    .optional(),
 });
+
+/** Cloudflare text model for prompt enhancement (same account/token as image gen). */
+const CF_PROMPT_MODEL = "@cf/meta/llama-3.1-8b-instruct";
 
 const buildPromptStep = createStep({
   id: "buildPrompt",
@@ -147,10 +178,9 @@ const buildPromptStep = createStep({
       badges,
       materials_prompt,
       reference_images,
-      threadId,
-      resourceId,
       mode,
       customer_id,
+      image_gen_config,
     } = inputData;
 
     // Build initial style context from badges
@@ -179,7 +209,6 @@ const buildPromptStep = createStep({
       });
     }
 
-    // Use the agent to enhance the prompt
     const userPrompt =
       `Create an optimized image generation prompt for a fashion design with these specifications:\n\n` +
       `Style Preferences: ${styleContext}\n` +
@@ -198,38 +227,44 @@ const buildPromptStep = createStep({
         technical_details: "Test mode - no AI enhancement",
         mode,
         customer_id,
+        image_gen_config,
       };
     }
 
-    const promptOutputSchema = z.object({
-      enhanced_prompt: z
-        .string()
-        .describe("The optimized prompt for image generation"),
-      style_context: z.string().describe("Summary of the design style"),
-      technical_details: z
-        .string()
-        .optional()
-        .describe("Technical details about materials and construction"),
-    });
+    // Resolve the text model for prompt enhancement. When the caller handed us
+    // a Cloudflare image-gen platform we use the same account/token (Workers AI
+    // text model) instead of the OpenRouter free rotator.
+    let model = dynamicFreeTextModel;
+    if (image_gen_config?.provider_type === "cloudflare" && image_gen_config.api_key && image_gen_config.account_id) {
+      const cf = createOpenAI({
+        baseURL: `https://api.cloudflare.com/client/v4/accounts/${image_gen_config.account_id}/ai/v1`,
+        apiKey: image_gen_config.api_key,
+      });
+      model = cf.chat(CF_PROMPT_MODEL);
+    }
 
-    // Use the prompt enhancer agent (no image generation tool)
-    const response = await promptEnhancerAgent.generate(
-      [{ role: "user", content: userPrompt }],
-      {
-        output: promptOutputSchema,
-        threadId: threadId,
-        resourceId: resourceId || `design-gen:${customer_id}`,
-      } as any
-    );
-
-    const result: any = response.object || {};
+    let enhanced = userPrompt;
+    try {
+      const response = await generateText({
+        model,
+        prompt:
+          `You are a fashion design image-generation prompt writer. ` +
+          `Rewrite the following into ONE detailed text-to-image prompt (visual elements, textures, colors, construction). ` +
+          `Output only the prompt, no preamble or quotes:\n\n${userPrompt}`,
+      } as any);
+      const text = (response as any)?.text?.trim();
+      if (text) enhanced = text;
+    } catch (e) {
+      console.warn(`[ImageGen] prompt enhancement failed, using raw prompt: ${(e as any)?.message ?? e}`);
+    }
 
     return {
-      enhanced_prompt: result.enhanced_prompt || userPrompt,
-      style_context: result.style_context || styleContext,
-      technical_details: result.technical_details,
+      enhanced_prompt: enhanced,
+      style_context: styleContext,
+      technical_details: undefined,
       mode,
       customer_id,
+      image_gen_config,
     };
   },
 });
@@ -440,6 +475,7 @@ const generateImageStep = createStep({
       quota_allowed,
       quota_remaining,
       mode,
+      image_gen_config,
     } = inputData;
 
     if (!quota_allowed) {
@@ -466,8 +502,36 @@ const generateImageStep = createStep({
     }
 
     try {
-      console.log(`[ImageGen] Mode: ${mode}, Starting multi-provider generation...`);
+      console.log(`[ImageGen] Mode: ${mode}, Starting generation...`);
       console.log(`[ImageGen] Enhanced Prompt: ${enhanced_prompt.substring(0, 200)}...`);
+
+      // Cloudflare Workers AI is the configured provider (ai_image_gen platform)
+      // — try it FIRST, then fall back to the multi-provider chain.
+      if (
+        image_gen_config?.provider_type === "cloudflare" &&
+        image_gen_config.api_key &&
+        image_gen_config.account_id
+      ) {
+        const cfResult = await generateWithCloudflare(enhanced_prompt, {
+          api_key: image_gen_config.api_key,
+          account_id: image_gen_config.account_id,
+          model: image_gen_config.model ?? null,
+        } as CloudflareImageConfig);
+
+        if (cfResult.success && cfResult.imageUrl) {
+          console.log(`[ImageGen] Success via ${cfResult.modelUsed ?? "cloudflare"}`);
+          return {
+            image_url: cfResult.imageUrl,
+            enhanced_prompt,
+            style_context,
+            quota_remaining,
+            provider_used: "cloudflare",
+            error: undefined,
+          };
+        }
+
+        console.log(`[ImageGen] Cloudflare failed: ${cfResult.error} — falling back to provider chain`);
+      }
 
       // Use provider chain with automatic fallback
       const result = await generateWithProviderChain(enhanced_prompt);
