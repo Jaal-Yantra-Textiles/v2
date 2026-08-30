@@ -12,6 +12,7 @@ import { useStockLocations } from "../../hooks/api/stock_location";
 import { useInventoryCatalog } from "../../hooks/api/raw-materials";
 import { InventoryOrderLinesGrid } from "./inventory-order-lines-grid";
 import { AddMaterialGroupControl } from "../inventory-orders/add-material-group-control";
+import { toOrderLineRef } from "./order-line-ref";
 
 // Define a Zod schema for inventory order creation (scaffolded, update as per API contract)
 export const inventoryOrderFormSchema = z
@@ -175,10 +176,12 @@ export const CreateInventoryOrderComponent = () => {
       status: "Pending",
       shipping_address: {},
       is_sample: data.is_sample,
+      // #1662 — a picked row is either an existing inventory item or an
+      // untracked variant; `toOrderLineRef` sends the right field for each.
       order_lines: fields
         .filter((l: OrderLine) => l.inventory_item_id)
         .map(({ inventory_item_id, quantity, price, batch_number }: OrderLine) => ({
-          inventory_item_id,
+          ...toOrderLineRef(inventory_item_id),
           quantity: Number(quantity) || 0,
           price: Number(price) || 0,
           batch_number: batch_number ?? null,

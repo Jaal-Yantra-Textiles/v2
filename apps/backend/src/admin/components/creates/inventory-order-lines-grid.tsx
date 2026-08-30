@@ -23,7 +23,15 @@ type PickedInventoryItem = InventoryItem & {
     sku?: string | null
     product?: { id: string; title?: string | null; thumbnail?: string | null } | null
   }>
-  kind?: "raw_material" | "product" | "both" | "unclassified"
+  kind?:
+    | "raw_material"
+    | "product"
+    | "both"
+    | "unclassified"
+    // #1662 — a partner variant that has no inventory item yet. Picking it is
+    // what creates one, at our location, when the order is written.
+    | "untracked_variant"
+  partner?: { id: string; name?: string | null } | null
 }
 
 /**
@@ -252,10 +260,14 @@ export const InventoryOrderLinesGrid = <T extends { id: string; title?: string; 
       // fold the color into the raw-material name at creation — #846).
       const showColor =
         color && !baseLabel.toLowerCase().includes(String(color).toLowerCase())
+      // #1662 — whose fabric is this? A buyer choosing between two partners'
+      // near-identical greige needs the owner on the option, not one click away.
+      const partnerName = item?.partner?.name
       const label = [
         baseLabel,
         showColor ? `— ${color}` : "",
         sku ? `(${sku})` : "",
+        partnerName ? `· ${partnerName}` : "",
       ]
         .filter(Boolean)
         .join(" ")
@@ -272,6 +284,7 @@ export const InventoryOrderLinesGrid = <T extends { id: string; title?: string; 
         variant?.title,
         variant?.sku,
         variant?.product?.title,
+        item?.partner?.name,
       ]
         .filter(Boolean)
         .join(" ")
@@ -296,6 +309,7 @@ export const InventoryOrderLinesGrid = <T extends { id: string; title?: string; 
                 // #1662 — what the line is FOR, when it is not a material.
                 variants: item?.variants ?? [],
                 kind: item?.kind,
+                partner: item?.partner ?? null,
               }
             : null
         )
@@ -374,21 +388,37 @@ export const InventoryOrderLinesGrid = <T extends { id: string; title?: string; 
           ? inventoryItemMap.get(inventoryItemId)
           : null
         const variant = (item?.variants ?? [])[0]
+        const untracked = item?.kind === "untracked_variant"
         const label = item?.raw_materials
           ? "Material"
+          : untracked
+          ? "Not stocked yet"
           : variant
           ? "Finished goods"
           : null
         const detail = item?.raw_materials
           ? null
-          : [variant?.product?.title, variant?.title].filter(Boolean).join(" · ")
+          : [
+              [variant?.product?.title, variant?.title]
+                .filter(Boolean)
+                .join(" · "),
+              item?.partner?.name ? `from ${item.partner.name}` : "",
+              // Say what picking this row will DO. It turns tracking on for the
+              // variant at our location — a real side effect of placing the
+              // order, and one the buyer should not discover afterwards.
+              untracked ? "· we will start tracking it on order" : "",
+            ]
+              .filter(Boolean)
+              .join(" ")
 
         return (
           <div className="flex h-full items-center gap-x-2 px-4">
             {label ? (
               <Badge
                 size="2xsmall"
-                color={item?.raw_materials ? "grey" : "blue"}
+                color={
+                  item?.raw_materials ? "grey" : untracked ? "orange" : "blue"
+                }
               >
                 {label}
               </Badge>

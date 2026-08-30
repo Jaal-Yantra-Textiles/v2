@@ -357,7 +357,7 @@ async function resolveTargetIds(
  * Returns the inventory item id to stock, or null when one could not be
  * established.
  */
-async function enableInventoryTracking(
+export async function enableInventoryTracking(
   container: MedusaContainer,
   variant: any,
   actions: string[]

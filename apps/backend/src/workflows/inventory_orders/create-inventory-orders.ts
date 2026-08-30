@@ -21,11 +21,23 @@ import {
 } from "../../modules/inventory_orders/lib/create-helpers";
 import type { Link } from "@medusajs/modules-sdk";
 import { dualWriteUnifiedOrderStep } from "./dual-write-unified-order";
+import { ensureLineInventoryItems } from "./lib/ensure-line-inventory-items";
 export type InventoryOrder = InferTypeOf<typeof InventoryOrder>;
 
 // --- Interfaces for API Input ---
 export interface InventoryOrderLineInput {
-  inventory_item_id: string;
+  /**
+   * Optional ONLY because #1662 lets a line name an untracked variant instead
+   * (see `variant_id`). By the time the create step runs it is always set —
+   * `ensureOrderLineInventoryItemsStep` resolves the variant form first.
+   */
+  inventory_item_id?: string;
+  /**
+   * #1662 — a partner's fabric/finished-good variant that core never gave an
+   * inventory item. Tracking is established at OUR end when the order is
+   * placed; the resolved item id replaces this before anything is written.
+   */
+  variant_id?: string;
   quantity: number;
   price: number;
   batch_number?: number | null;
@@ -58,13 +70,27 @@ export const createInventoryOrderWithLinesStep = createStep(
     const { order_lines, ...orderData } = input;
 
     // Map to service's expected order line shape
-    const orderLinesForService = order_lines.map(line => ({
+    const orderLinesForService = order_lines.map(line => {
+      // By here every line has a real item id: the variant form is resolved by
+      // ensureOrderLineInventoryItemsStep, which runs first and throws rather
+      // than passing a line through unresolved. Assert it anyway — a line
+      // written with an undefined inventory id would link to nothing and read
+      // as an ordinary order (#1662).
+      if (!line.inventory_item_id) {
+        throw new Error(
+          `Order line has no inventory_item_id${
+            line.variant_id ? ` (variant ${line.variant_id} was not resolved)` : ""
+          }.`
+        );
+      }
+      return {
       inventory_id: line.inventory_item_id,
       quantity: line.quantity,
       price: line.price,
       batch_number: line.batch_number ?? null,
       metadata: line.metadata
-    }));
+    };
+    });
 
     // #817 S2 — denormalize color identity onto each line from its
     // inventory_item's linked raw_material, so the order is self-describing.
@@ -233,17 +259,57 @@ export const linkInventoryOrderWithFromStockLocation = createStep(
 
 
 
+/**
+ * #1662 — turn any line that names an untracked variant into one that names a
+ * real inventory item, creating the item at our end.
+ *
+ * Runs BEFORE the order is written so no line can ever be persisted pointing at
+ * a variant that has nothing to stock. Not compensated on purpose — see
+ * `ensureLineInventoryItems`.
+ */
+export const ensureOrderLineInventoryItemsStep = createStep(
+  "ensure-order-line-inventory-items-step",
+  async (input: CreateInventoryOrderInput, { container }) => {
+    const { lines, enabled_variant_ids } = await ensureLineInventoryItems(
+      container,
+      input.order_lines ?? [],
+      {
+        stock_location_id:
+          (input as any).to_stock_location_id || input.stock_location_id,
+      }
+    );
+
+    return new StepResponse({
+      order_lines: lines.map(({ enabled_variant_id, actions, variant_id, ...line }) => ({
+        ...line,
+        inventory_item_id: line.inventory_item_id,
+      })),
+      enabled_variant_ids,
+    });
+  }
+);
+
 export const createInventoryOrderWorkflow = createWorkflow(
   {
     name: "create-inventory-order-workflow",
     store: true,
   },
   (input: CreateInventoryOrderInput) => {
-    // Step 1: Create inventory order and lines
     // (validateInventoryStep removed — it ran independently of this step so Medusa
     //  could execute the transform before validation completed, causing crashes.
     //  Invalid inventory items will be caught by linkInventoryItemsWithLinesStep.)
-    const created = createInventoryOrderWithLinesStep(input);
+
+    // Step 0 (#1662): a line may name an untracked partner variant. Establish
+    // its inventory item first, so what gets written is always a real item id.
+    const ensured = ensureOrderLineInventoryItemsStep(input);
+
+    const createInput = transform({ input, ensured }, ({ input, ensured }) => ({
+      ...input,
+      order_lines: ensured.order_lines,
+    }));
+
+    // Step 1: Create inventory order and lines
+    const created = createInventoryOrderWithLinesStep(createInput as any);
 
     // Step 2: Use transform to shape input for linking step
     const linkInput = transform(
@@ -293,7 +359,9 @@ export const createInventoryOrderWorkflow = createWorkflow(
     dualWriteUnifiedOrderStep({
       order: linkInput.order,
       orderLines: linkInput.orderLines,
-      input,
+      // The RESOLVED input: its lines carry real inventory item ids, so the
+      // projected core order names the same items the legacy one does.
+      input: createInput as any,
     });
 
     // Step 3: Use transform to shape the final response

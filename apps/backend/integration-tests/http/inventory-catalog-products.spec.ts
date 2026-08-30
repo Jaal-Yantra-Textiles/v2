@@ -120,6 +120,52 @@ setupSharedTestSuite(() => {
       }
     }
 
+
+    /**
+     * The case #1662 actually exists for: a partner's fabric sold as a product
+     * whose variants do NOT track inventory. Core creates no inventory item for
+     * such a variant and can only ever turn tracking off — so there is nothing
+     * for an `inventory_item` sweep to find. Seeded through the ordinary
+     * product-create path, which is how these arrive in production.
+     */
+    const seedUntrackedVariantProduct = async (title: string, sku: string) => {
+      const created = await api.post(
+        "/admin/products",
+        {
+          title,
+          status: "published",
+          shipping_profile_id: shippingProfileId,
+          options: [{ title: "Size", values: ["M"] }],
+          variants: [
+            {
+              title: "M",
+              sku,
+              manage_inventory: false,
+              options: { Size: "M" },
+              prices: [{ amount: 1200, currency_code: "inr" }],
+            },
+          ],
+        },
+        headers
+      )
+      expect(created.status).toBe(200)
+
+      const productId = created.data.product.id
+      const detail = await api.get(
+        `/admin/products/${productId}?fields=variants.id,variants.sku,variants.manage_inventory,variants.inventory_items.inventory_item_id`,
+        headers
+      )
+      const variant = detail.data.product.variants[0]
+      // The premise of the whole slice: no item exists to be found.
+      const links = variant?.inventory_items
+      const existing = Array.isArray(links) ? links : [links].filter(Boolean)
+      expect(
+        existing.filter((l: any) => l?.inventory_item_id)
+      ).toHaveLength(0)
+
+      return { productId, variantId: variant.id as string }
+    }
+
     it("the raw-materials route cannot emit a product-backed item — the gate", async () => {
       const rawItemId = await seedRawMaterialItem(`Kala Cotton ${unique()}`)
       const { inventoryItemId } = await seedProductItem(
@@ -246,6 +292,147 @@ setupSharedTestSuite(() => {
 
       // #817's material denormalization is nullable and simply no-ops here.
       expect(lines[0].raw_material_id ?? null).toBeNull()
+    })
+
+    it("offers an untracked variant, which no inventory_item sweep could reach", async () => {
+      const marker = unique()
+      const { variantId } = await seedUntrackedVariantProduct(
+        `Greige Fabric ${marker}`,
+        `GRG-${marker}`
+      )
+
+      const res = await api.get(
+        "/admin/inventory-items/catalog?limit=1000",
+        headers
+      )
+      expect(res.status).toBe(200)
+
+      const row = res.data.inventory_items.find(
+        (r: any) => r.variant_id === variantId
+      )
+      expect(row).toBeDefined()
+      expect(row.kind).toBe("untracked_variant")
+      // It cannot be posted as an item, because there is no item.
+      expect(row.inventory_item_id).toBeNull()
+      expect(row.id).toBe(`untracked_variant:${variantId}`)
+    })
+
+    it("ordering an untracked variant creates its inventory item and links the line", async () => {
+      const marker = unique()
+      const { variantId } = await seedUntrackedVariantProduct(
+        `Partner Greige ${marker}`,
+        `PGR-${marker}`
+      )
+
+      const order = await api.post(
+        "/admin/inventory-orders",
+        {
+          // The line names the VARIANT — there is no item id to name yet.
+          order_lines: [{ variant_id: variantId, quantity: 40, price: 120 }],
+          quantity: 40,
+          total_price: 4800,
+          status: "Pending",
+          expected_delivery_date: new Date().toISOString(),
+          order_date: new Date().toISOString(),
+          shipping_address: {},
+          stock_location_id: stockLocationId,
+        },
+        headers
+      )
+      expect(order.status).toBe(201)
+
+      // The variant is tracked now, and has the item core would not create.
+      const detail = await api.get(
+        `/admin/products?fields=variants.id,variants.manage_inventory,variants.inventory_items.inventory_item_id&limit=1000`,
+        headers
+      )
+      const variant = detail.data.products
+        .flatMap((p: any) => p.variants ?? [])
+        .find((v: any) => v.id === variantId)
+      expect(variant.manage_inventory).toBe(true)
+
+      const links = Array.isArray(variant.inventory_items)
+        ? variant.inventory_items
+        : [variant.inventory_items].filter(Boolean)
+      const itemId = links.find((l: any) => l?.inventory_item_id)
+        ?.inventory_item_id
+      expect(itemId).toBeTruthy()
+
+      // And the order line points at that same item, not at nothing.
+      const orderId = order.data.inventoryOrder.id
+      const orderDetail = await api.get(
+        `/admin/inventory-orders/${orderId}?fields=id,orderlines.*,orderlines.inventory_items.*`,
+        headers
+      )
+      const lines = orderDetail.data.inventoryOrder?.orderlines ?? []
+      expect(lines.length).toBe(1)
+      const linked = Array.isArray(lines[0].inventory_items)
+        ? lines[0].inventory_items
+        : [lines[0].inventory_items].filter(Boolean)
+      expect(linked.map((i: any) => i?.id)).toContain(itemId)
+
+      // Nothing has been received, so the level at our location is 0 — the
+      // order must not invent stock it has not taken delivery of.
+      const levels = await api.get(
+        `/admin/inventory-items/${itemId}/location-levels`,
+        headers
+      )
+      expect(levels.status).toBe(200)
+      const level = (levels.data.inventory_levels ?? []).find(
+        (l: any) => l.location_id === stockLocationId
+      )
+      expect(Number(level?.stocked_quantity ?? 0)).toBe(0)
+
+      // Once tracked, it is an ordinary catalog row — not offered twice.
+      const after = await api.get(
+        "/admin/inventory-items/catalog?limit=1000",
+        headers
+      )
+      const rowsForVariant = after.data.inventory_items.filter(
+        (r: any) =>
+          r.variant_id === variantId ||
+          (r.variants ?? []).some((v: any) => v.id === variantId)
+      )
+      expect(rowsForVariant).toHaveLength(1)
+      expect(rowsForVariant[0].kind).toBe("product")
+    })
+
+    it("refuses a line that names both an item and a variant", async () => {
+      const marker = unique()
+      const { variantId } = await seedUntrackedVariantProduct(
+        `Ambiguous Fabric ${marker}`,
+        `AMB-${marker}`
+      )
+      const { inventoryItemId } = await seedProductItem(
+        `Other Good ${marker}`,
+        `OTH-${marker}`
+      )
+
+      const res = await api
+        .post(
+          "/admin/inventory-orders",
+          {
+            order_lines: [
+              {
+                inventory_item_id: inventoryItemId,
+                variant_id: variantId,
+                quantity: 1,
+                price: 10,
+              },
+            ],
+            quantity: 1,
+            total_price: 10,
+            status: "Pending",
+            expected_delivery_date: new Date().toISOString(),
+            order_date: new Date().toISOString(),
+            shipping_address: {},
+            stock_location_id: stockLocationId,
+          },
+          headers
+        )
+        .catch((e: any) => e.response)
+
+      expect(res.status).toBe(400)
     })
   })
 })

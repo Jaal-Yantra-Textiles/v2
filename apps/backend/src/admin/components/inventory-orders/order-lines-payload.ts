@@ -15,6 +15,8 @@
  * These functions therefore assume existing rows carry their real DB id.
  */
 
+import { toOrderLineRef } from "../creates/order-line-ref";
+
 export interface EditableOrderLine {
   /** DB order-line id for existing lines; absent/undefined for brand-new rows. */
   id?: string;
@@ -29,6 +31,8 @@ export interface EditableOrderLine {
 export interface OrderLineUpdateEntry {
   id?: string;
   inventory_item_id?: string;
+  /** #1662 — set instead of `inventory_item_id` for an untracked variant row. */
+  variant_id?: string;
   quantity?: number;
   price?: number;
   batch_number?: number | null;
@@ -72,7 +76,9 @@ export function buildOrderLinesUpdatePayload(
 ): OrderLinesUpdatePayload {
   const keep: OrderLineUpdateEntry[] = currentLines.map((line) => ({
     id: line.isExisting && line.id ? line.id : undefined,
-    inventory_item_id: line.inventory_item_id,
+    // #1662 — an untracked-variant pick is sent as `variant_id`; the synthetic
+    // picker id never reaches the API.
+    ...toOrderLineRef(line.inventory_item_id),
     quantity: Number(line.quantity) || 0,
     price: Number(line.price) || 0,
     batch_number: line.batch_number ?? null,

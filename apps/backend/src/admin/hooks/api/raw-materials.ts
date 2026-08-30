@@ -514,6 +514,13 @@ export type InventoryCatalogKind =
   | "product"
   | "both"
   | "unclassified"
+  /**
+   * #1662 — a product variant with NO inventory item. Not a gap in the data:
+   * core never creates an item for `manage_inventory: false`, and can only ever
+   * turn tracking off. These rows are pickable; the order write is what
+   * establishes the item, at our location.
+   */
+  | "untracked_variant"
 
 export type InventoryCatalogItem = InventoryItem & {
   raw_materials?: RawMaterial | null
@@ -524,6 +531,10 @@ export type InventoryCatalogItem = InventoryItem & {
     product?: { id: string; title?: string | null; thumbnail?: string | null } | null
   }>
   kind?: InventoryCatalogKind
+  /** Set on an `untracked_variant` row; null on a row backed by a real item. */
+  variant_id?: string | null
+  /** Which partner's product this is, when one owns it. */
+  partner?: { id: string; name?: string | null } | null
 }
 
 export interface InventoryCatalogResponse {

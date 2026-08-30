@@ -8,13 +8,35 @@ import {
 
 // Input schema for inventory order lines
 export const inventoryOrderLineInputSchema = z.object({
-  inventory_item_id: z.string().min(1, "Inventory item ID is required"),
+  // #1662 — a line names EITHER an existing inventory item or, for a partner's
+  // fabric/finished good whose variant core never gave an item, the variant
+  // itself. Exactly one, enforced below: accepting both would leave two
+  // sources for one fact and no rule for which wins.
+  inventory_item_id: z.string().min(1).optional(),
+  variant_id: z.string().min(1).optional(),
   // Allow decimal quantities >= 0 (0 allowed for empty seeded rows)
   quantity: z.number().nonnegative("Quantity must be zero or positive"),
   price: z.number().nonnegative("Price must be zero or positive"),
   // Optional batch tag for the "keep batches as separate lines" quick-add mode.
   batch_number: z.number().int().positive().nullish(),
   metadata: z.record(z.string(), z.unknown()).optional(),
+}).superRefine((val, ctx) => {
+  if (!val.inventory_item_id && !val.variant_id) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ["inventory_item_id"],
+      message:
+        "An order line needs either inventory_item_id or variant_id",
+    });
+  }
+  if (val.inventory_item_id && val.variant_id) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ["variant_id"],
+      message:
+        "Send inventory_item_id or variant_id, not both — variant_id is only for a variant that has no inventory item yet",
+    });
+  }
 });
 
 // Base ZodObject — kept separately so we can call .partial() on it for the
@@ -162,6 +184,8 @@ export const updateOrderLineSchema = z
   .object({
     id: z.string().optional(), // Existing lines have IDs
     inventory_item_id: z.string().optional(),
+    // #1662 — as on create: a NEW line may name an untracked variant instead.
+    variant_id: z.string().optional(),
     quantity: z.number().optional(),
     price: z.number().optional(),
     // Optional batch tag (see inventoryOrderLineInputSchema).
@@ -184,11 +208,21 @@ export const updateOrderLineSchema = z
       }
       return; // removals skip the create/update field requirements
     }
-    if (!val.inventory_item_id || val.inventory_item_id.length < 1) {
+    const hasItem = !!val.inventory_item_id && val.inventory_item_id.length > 0;
+    const hasVariant = !!val.variant_id && val.variant_id.length > 0;
+    if (!hasItem && !hasVariant) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
         path: ["inventory_item_id"],
-        message: "Inventory item ID is required",
+        message: "An order line needs either inventory_item_id or variant_id",
+      });
+    }
+    if (hasItem && hasVariant) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["variant_id"],
+        message:
+          "Send inventory_item_id or variant_id, not both — variant_id is only for a variant that has no inventory item yet",
       });
     }
     if (val.quantity == null || val.quantity < 1) {
