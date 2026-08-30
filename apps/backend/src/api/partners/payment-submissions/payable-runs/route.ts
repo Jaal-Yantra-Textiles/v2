@@ -11,6 +11,7 @@ import {
   runBillingStatus,
 } from "../../../../workflows/payment_submissions/lib/run-billing"
 import { getPartnerFromAuthContext } from "../../helpers"
+import { runBillableCeiling } from "../../../../workflows/payment_submissions/lib/run-billable-ceiling"
 
 /**
  * GET /partners/payment-submissions/payable-runs
@@ -53,6 +54,10 @@ export const GET = async (
       "status",
       "quantity",
       "produced_quantity",
+      // #1596 short-close. ⚠️ `runBillableCeiling` reads this; without it the
+      // ceiling silently falls back to the ORDERED quantity and the screen
+      // keeps offering units the write guard now refuses.
+      "short_closed_at",
       "rejected_quantity",
       "partner_cost_estimate",
       "cost_type",
@@ -184,7 +189,10 @@ export const GET = async (
         // behind the answer — which is exactly when `create` refuses.
         billable_remaining: runBillableRemaining({
           claim: billedRuns.get(String(run.id)),
-          ordered: run.quantity,
+          // #1596 — the CEILING, not the raw ordered quantity: a short-closed
+          // run bills to what it produced, and this screen must offer exactly
+          // what the write guard will accept.
+          ordered: runBillableCeiling(run as any),
         }),
         unrecorded_claims:
           designsWithUnrecordedClaims.get(String(run.design_id)) ?? [],

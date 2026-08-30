@@ -785,6 +785,12 @@ const validateDesignsForSubmissionStep = createStep(
            */
           "quantity",
           "produced_quantity",
+          /**
+           * #1596 short-close — `runBillableCeiling` reads it. Without it here
+           * the ceiling silently stays the ORDERED quantity and every short
+           * close is ignored on this path.
+           */
+          "short_closed_at",
           "partner_cost_estimate",
           "cost_type",
         ],
@@ -1190,6 +1196,9 @@ const validateRunLinesStep = createStep(
         "status",
         "quantity",
         "produced_quantity",
+        // #1596 short-close — read by `runBillableCeiling` inside
+        // `assessRunClaims` below. Omit it and every close is ignored here.
+        "short_closed_at",
         "partner_cost_estimate",
         "cost_type",
         "order_id",

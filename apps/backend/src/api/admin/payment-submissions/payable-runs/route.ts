@@ -12,6 +12,7 @@ import {
 } from "../../../../workflows/payment_submissions/lib/run-billing"
 import { groupOrderBackedRuns } from "../../../../workflows/payment_submissions/lib/order-run-groups"
 import { foldPartnerBilling } from "../../../../workflows/payment_submissions/lib/run-billing"
+import { runBillableCeiling } from "../../../../workflows/payment_submissions/lib/run-billable-ceiling"
 
 /**
  * GET /admin/payment-submissions/payable-runs?partner_id=…
@@ -109,6 +110,10 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
       "status",
       "quantity",
       "produced_quantity",
+      // #1596 short-close. ⚠️ `runBillableCeiling` reads this; without it the
+      // ceiling silently falls back to the ORDERED quantity and the screen
+      // keeps offering units the write guard now refuses.
+      "short_closed_at",
       "rejected_quantity",
       "partner_cost_estimate",
       "cost_type",
@@ -370,7 +375,10 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
          */
         billable_remaining: runBillableRemaining({
           claim: billedRuns.get(String(run.id)),
-          ordered: run.quantity,
+          // #1596 — the CEILING, not the raw ordered quantity: a short-closed
+          // run bills to what it produced, and this screen must offer exactly
+          // what the write guard will accept.
+          ordered: runBillableCeiling(run as any),
         }),
         /**
          * Live payouts against this design that never recorded a run.

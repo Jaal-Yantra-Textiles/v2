@@ -2960,6 +2960,135 @@ setupSharedTestSuite(() => {
     })
 
     /**
+     * #1596 SHORT CLOSE. Until a run is closed, its ceiling is the ORDERED
+     * quantity on purpose — output is captured at completion and more can
+     * legitimately follow. Closing says no more will be made, and the ceiling
+     * becomes what was produced.
+     */
+    it("short-closing a run drops its ceiling from ordered to produced (#1596)", async () => {
+      const d1 = await createDesign("Short Close Design")
+      await linkDesignToPartner(d1, partnerId)
+      // Ordered 9, produced 4.
+      const runId = await createCompletedRun(d1, "Short Close Design")
+
+      // Before closing: the 5 unmade units are still billable.
+      const open = await api
+        .post(
+          "/partners/payment-submissions",
+          {
+            design_ids: [d1],
+            production_run_ids: { [d1]: [runId] },
+            quantities: { [d1]: 9 },
+            unit_amounts: { [d1]: 1200 },
+          },
+          { headers: partnerHeaders }
+        )
+        .catch((e: any) => e.response)
+      expect(open.status).toBe(201)
+
+      // A fresh run, this time closed before anyone bills it.
+      const d2 = await createDesign("Short Closed Design")
+      await linkDesignToPartner(d2, partnerId)
+      const closedRunId = await createCompletedRun(d2, "Short Closed Design")
+
+      const closeRes = await api.post(
+        `/admin/production-runs/${closedRunId}/short-close`,
+        { reason: "Partner confirmed no more will be made" },
+        adminHeaders
+      )
+      expect(closeRes.status).toBe(200)
+      expect(closeRes.data.short_closed).toBe(true)
+
+      // 5 is now over the ceiling of 4, though well under the ordered 9.
+      const over = await api
+        .post(
+          "/partners/payment-submissions",
+          {
+            design_ids: [d2],
+            production_run_ids: { [d2]: [closedRunId] },
+            quantities: { [d2]: 5 },
+            unit_amounts: { [d2]: 1200 },
+          },
+          { headers: partnerHeaders }
+        )
+        .catch((e: any) => e.response)
+      expect(over.status).toBe(400)
+
+      // And exactly the produced quantity still goes through.
+      const exact = await api.post(
+        "/partners/payment-submissions",
+        {
+          design_ids: [d2],
+          production_run_ids: { [d2]: [closedRunId] },
+          quantities: { [d2]: 4 },
+          unit_amounts: { [d2]: 1200 },
+        },
+        { headers: partnerHeaders }
+      )
+      expect(exact.status).toBe(201)
+    })
+
+    it("reopening a short-closed run restores the ordered ceiling (#1596)", async () => {
+      const d1 = await createDesign("Reopened Run Design")
+      await linkDesignToPartner(d1, partnerId)
+      const runId = await createCompletedRun(d1, "Reopened Run Design")
+
+      await api.post(
+        `/admin/production-runs/${runId}/short-close`,
+        {},
+        adminHeaders
+      )
+
+      const refused = await api
+        .post(
+          "/partners/payment-submissions",
+          {
+            design_ids: [d1],
+            production_run_ids: { [d1]: [runId] },
+            quantities: { [d1]: 9 },
+            unit_amounts: { [d1]: 1200 },
+          },
+          { headers: partnerHeaders }
+        )
+        .catch((e: any) => e.response)
+      expect(refused.status).toBe(400)
+
+      const reopen = await api.delete(
+        `/admin/production-runs/${runId}/short-close`,
+        adminHeaders
+      )
+      expect(reopen.status).toBe(200)
+      expect(reopen.data.reopened).toBe(true)
+
+      const allowed = await api.post(
+        "/partners/payment-submissions",
+        {
+          design_ids: [d1],
+          production_run_ids: { [d1]: [runId] },
+          quantities: { [d1]: 9 },
+          unit_amounts: { [d1]: 1200 },
+        },
+        { headers: partnerHeaders }
+      )
+      expect(allowed.status).toBe(201)
+    })
+
+    it("refuses to close a run that recorded no output, rather than pretending to (#1596)", async () => {
+      const d1 = await createDesign("No Output Design")
+      await linkDesignToPartner(d1, partnerId)
+      const runId = await createCompletedRun(d1, "No Output Design", {
+        produced_quantity: null,
+      })
+
+      const res = await api
+        .post(`/admin/production-runs/${runId}/short-close`, {}, adminHeaders)
+        .catch((e: any) => e.response)
+
+      expect(res.status).toBe(400)
+      expect(String(res.data?.message || "")).toContain("no recorded output")
+    })
+
+    /**
      * 🔴 The loosening, stated. The design-level guard used to refuse this
      * outright; now the run's ORDERED quantity is the only thing standing
      * between a partner and a second claim, and the guard cannot tell "the next

@@ -165,7 +165,13 @@ export type RunBillingStatus =
  */
 export const runBillableRemaining = (input: {
   claim: RunBillingClaim | null | undefined
-  /** The run's ORDERED quantity — the ceiling the write guard uses. */
+  /**
+   * The run's BILLABLE CEILING — `runBillableCeiling(run)`, which is the
+   * ordered quantity until the run is short-closed and the produced quantity
+   * after (#1596). It must be the same number `assessRunClaims` compares
+   * against: a screen offering units the write guard will refuse is the defect
+   * this field exists to prevent.
+   */
   ordered: number | string | null | undefined
 }): number | null => {
   const claim = input.claim
@@ -173,12 +179,15 @@ export const runBillableRemaining = (input: {
     return null
   }
 
-  const ordered = Number(input.ordered)
-  if (!Number.isFinite(ordered) || ordered <= 0) {
+  const ceiling = Number(input.ordered)
+  if (!Number.isFinite(ceiling) || ceiling <= 0) {
     return null
   }
 
-  return Math.max(0, ordered - claim.claimed_quantity)
+  // Clamped at zero on purpose. A run short-closed BELOW what was already
+  // legitimately billed leaves no remainder and no clawback — a negative here
+  // would read as a debt somebody owes back.
+  return Math.max(0, ceiling - claim.claimed_quantity)
 }
 
 /**

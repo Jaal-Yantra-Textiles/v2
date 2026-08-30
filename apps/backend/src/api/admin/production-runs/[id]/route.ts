@@ -99,6 +99,7 @@ import {
 } from "../../../../lib/production-run-allocation"
 import { costTypeGuardMessage } from "../../../../workflows/production-runs/lib/cost-type-guard"
 import { refreshUnclaimedDraftPayouts } from "../../../../workflows/payment_submissions/lib/refresh-draft-payouts"
+import { reopenProductionRun } from "../../../../workflows/production-runs/lib/short-close-production-run"
 
 export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
   const id = req.params.id
@@ -316,6 +317,38 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
       refreshedDrafts = outcome.refreshed
     } catch {
       // Non-fatal by design — see above.
+    }
+  }
+
+  /**
+   * #1596 — an upward output correction REOPENS a short-closed run.
+   *
+   * The close said "nothing more was made". A correction raising
+   * `produced_quantity` is the evidence that it was wrong, and leaving the run
+   * closed would let a 30-day timer permanently cap a partner's claim on the
+   * strength of a figure that has since changed. Reversal is automatic;
+   * closing never is.
+   *
+   * Best-effort, and deliberately after the correction is persisted: failing to
+   * reopen must not roll back a figure an admin just corrected.
+   */
+  if (producedCorrection !== undefined && run.short_closed_at) {
+    const previousProduced = Number(run.produced_quantity)
+    const corrected = Number(producedCorrection)
+    const raised =
+      Number.isFinite(corrected) &&
+      (!Number.isFinite(previousProduced) || corrected > previousProduced)
+    if (raised) {
+      try {
+        await reopenProductionRun(req.scope, {
+          run_id: id,
+          actor_id: String((req as any).auth_context?.actor_id ?? "admin"),
+          actor_type: "admin",
+          reason: "Output corrected upward after the run was short-closed",
+        })
+      } catch {
+        /* non-fatal by design — see above */
+      }
     }
   }
 
