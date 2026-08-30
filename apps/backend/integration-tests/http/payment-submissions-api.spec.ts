@@ -3876,4 +3876,231 @@ setupSharedTestSuite(() => {
       }
     })
   })
+
+  /**
+   * GOODS, as opposed to work (#1612).
+   *
+   * `create` has accepted `inventory_order_lines` since the guard was written —
+   * validator, partner-ownership check, read-side resolution — and NOTHING ever
+   * sent one. On production no payment carries an `inventory_order_id` at all,
+   * because no screen offered them. `assessInventoryOrderClaims` says as much
+   * itself: "inventory-order-sourced payouts have no integration coverage at
+   * all", which is why its money decision was extracted to be testable without
+   * standing up a submission.
+   *
+   * This exercises the path end to end, through the endpoint the screen reads.
+   */
+  describe("GET /admin/payment-submissions/payable-inventory-orders (#1612)", () => {
+    /**
+     * A minimal orderable item. A line must name an inventory item or a
+     * variant — neither is optional, because a line naming nothing is a line
+     * nobody can receive against (#1662).
+     */
+    /**
+     * `send-to-partner` creates the partner's order tasks from three templates
+     * BY NAME and refuses outright when they are absent. The test database has
+     * no seeded templates, so the only way to link an order to a partner
+     * through the API is to make them exist first.
+     */
+    const seedOrderTaskTemplates = async () => {
+      // 🔴 NOT memoised. The runner restores a DB SNAPSHOT before every test,
+      // so a flag saying "already seeded" outlives the rows it describes and
+      // the second case finds no templates at all.
+      for (const name of [
+        "partner-order-sent",
+        "partner-order-received",
+        "partner-order-shipped",
+      ]) {
+        await api
+          .post(
+            "/admin/task-templates",
+            {
+              name,
+              description: `Inventory order step: ${name}`,
+              priority: "medium",
+              estimated_duration: 30,
+              eventable: false,
+              notifiable: false,
+            },
+            adminHeaders
+          )
+          .catch((e: any) => e.response)
+          .then((r: any) => {
+            // Loudly. A template that silently fails to be created surfaces
+            // three calls later as "send-to-partner 400", which says nothing
+            // about the actual cause.
+            if (r && r.status !== 201 && r.status !== 200) {
+              throw new Error(
+                `task-template ${name} failed ${r.status}: ${JSON.stringify(r.data)}`
+              )
+            }
+          })
+      }
+    }
+
+    /** A stock location to receive into — required on every order. */
+    const seedStockLocation = async () => {
+      // Same snapshot rule as the templates above — created per test.
+      const res = await api
+        .post(
+          "/admin/stock-locations",
+          { name: `Payable Goods Warehouse ${Date.now()}` },
+          adminHeaders
+        )
+        .catch((e: any) => e.response)
+      if (res.status !== 200 && res.status !== 201) {
+        throw new Error(`stock-location failed ${res.status}: ${JSON.stringify(res.data)}`)
+      }
+      return res.data.stock_location.id as string
+    }
+
+    const seedInventoryItem = async (tag: string) => {
+      const res = await api
+        .post(
+          "/admin/inventory-items",
+          { sku: `PAYIO-${tag}`, title: `Payable Goods ${tag}` },
+          adminHeaders
+        )
+        .catch((e: any) => e.response)
+      if (res.status !== 200 && res.status !== 201) {
+        throw new Error(`inventory-item failed ${res.status}: ${JSON.stringify(res.data)}`)
+      }
+      return res.data.inventory_item.id
+    }
+
+    const seedOrderForPartner = async (
+      partnerId: string,
+      tag: string,
+      opts?: { quantity?: number; price?: number }
+    ) => {
+      await seedOrderTaskTemplates()
+      const inventoryItemId = await seedInventoryItem(tag)
+      const stockLocationId = await seedStockLocation()
+      const quantity = opts?.quantity ?? 4
+      const price = opts?.price ?? 250
+
+      const created = await api
+        .post(
+          "/admin/inventory-orders",
+          {
+            order_lines: [
+              { inventory_item_id: inventoryItemId, quantity, price },
+            ],
+            quantity,
+            total_price: quantity * price,
+            status: "Pending",
+            expected_delivery_date: new Date().toISOString(),
+            order_date: new Date().toISOString(),
+            shipping_address: {},
+            stock_location_id: stockLocationId,
+          },
+          adminHeaders
+        )
+        .catch((e: any) => e.response)
+      if (created.status !== 201) {
+        throw new Error(
+          `inventory-order create failed ${created.status}: ${JSON.stringify(created.data)}`
+        )
+      }
+      const orderId = created.data.inventoryOrder.id
+
+      const sent = await api
+        .post(
+          `/admin/inventory-orders/${orderId}/send-to-partner`,
+          { partnerId },
+          adminHeaders
+        )
+        .catch((e: any) => e.response)
+      if (sent.status !== 200 && sent.status !== 201) {
+        throw new Error(`send-to-partner failed ${sent.status}: ${JSON.stringify(sent.data)}`)
+      }
+      return orderId
+    }
+
+    it("requires a partner_id rather than listing everyone's orders", async () => {
+      const res = await api
+        .get(
+          "/admin/payment-submissions/payable-inventory-orders",
+          adminHeaders
+        )
+        .catch((e: any) => e.response)
+
+      // 400 from the validator, not a 200 with somebody else's goods on it.
+      expect(res.status).toBe(400)
+    })
+
+    /**
+     * 🔴 Non-vacuously: an order really exists, and it is really withheld.
+     *
+     * `expect([]).toEqual([])` against a database with no inventory orders in
+     * it passes whatever the route does — a fixture tidier than reality
+     * certifies the wrong code. So an order is created and sent to partner A,
+     * and B is asked for it.
+     *
+     * The failure this guards is not hypothetical: an id that resolves to no
+     * filter returns EVERY row rather than none, which is how one dangling key
+     * once served every tenant's data to every tenant.
+     */
+    it("withholds another partner's inventory orders, and shows the owner theirs", async () => {
+      const stamp = Date.now()
+      const ownerAuth = await createPartnerWithAuth(stamp)
+      const otherAuth = await createPartnerWithAuth(stamp + 1)
+      const ownerId = ownerAuth.partnerId
+      const otherId = otherAuth.partnerId
+
+      const orderId = await seedOrderForPartner(ownerId, `own-${stamp}`)
+
+      const owner = await api.get(
+        `/admin/payment-submissions/payable-inventory-orders?partner_id=${ownerId}`,
+        adminHeaders
+      )
+      expect(owner.status).toBe(200)
+      const ownerIds = owner.data.payable_inventory_orders.map(
+        (o: any) => o.inventory_order_id
+      )
+      expect(ownerIds).toContain(orderId)
+
+      const other = await api.get(
+        `/admin/payment-submissions/payable-inventory-orders?partner_id=${otherId}`,
+        adminHeaders
+      )
+      expect(other.status).toBe(200)
+      expect(
+        other.data.payable_inventory_orders.map(
+          (o: any) => o.inventory_order_id
+        )
+      ).not.toContain(orderId)
+    })
+
+    /**
+     * The order above has NO receipts. It is listed rather than hidden — "why
+     * isn't this order here" is the question an operator arrives with — but it
+     * bills nothing, because no receipt is a gap in the record and not a
+     * statement that the goods were free (#1612).
+     */
+    it("lists an order with no receipts, and refuses to bill it", async () => {
+      const stamp = Date.now() + 2
+      const auth = await createPartnerWithAuth(stamp)
+      const partnerId2 = auth.partnerId
+
+      const orderId = await seedOrderForPartner(partnerId2, `norec-${stamp}`)
+
+      const res = await api.get(
+        `/admin/payment-submissions/payable-inventory-orders?partner_id=${partnerId2}`,
+        adminHeaders
+      )
+      const row = res.data.payable_inventory_orders.find(
+        (o: any) => o.inventory_order_id === orderId
+      )
+      expect(row).toBeDefined()
+
+      // 🔑 The ORDERED total is reported — it is the guard's ceiling — while
+      // the billable amount is zero. Reporting 1000 as payable here is the
+      // #1612 overpayment in miniature.
+      expect(row.ordered_total).toBe(1000)
+      expect(row.receipts_total).toBe(0)
+      expect(row.amount).toBe(0)
+      expect(row.payable).toBe(false)
+    })
+  })
 })

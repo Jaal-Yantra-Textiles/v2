@@ -3640,6 +3640,14 @@ export default defineMiddlewares({
       middlewares: [validateAndTransformQuery(wrapSchema(AdminPayableRunsQuerySchema), {})],
     },
     {
+      // Goods, as opposed to work (#1612). Declared before the ":id" entries
+      // for the same reason `payable-runs` is: first matching entry wins, and
+      // "payable-inventory-orders" also matches ":id".
+      matcher: "/admin/payment-submissions/payable-inventory-orders",
+      method: "GET",
+      middlewares: [validateAndTransformQuery(wrapSchema(AdminPayableRunsQuerySchema), {})],
+    },
+    {
       matcher: "/admin/payment-submissions/:id/review",
       method: "POST",
       middlewares: [validateAndTransformBody(wrapSchema(AdminReviewPaymentSubmissionSchema))],

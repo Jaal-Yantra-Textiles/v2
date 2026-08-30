@@ -20,10 +20,13 @@ import { usePartnerTasks, type AdminPartnerTask } from "../../hooks/api/partner-
 import { usePartners } from "../../hooks/api/partners-admin"
 import {
   useCreatePaymentSubmission,
+  usePayableInventoryOrders,
   usePayableRuns,
+  type PayableInventoryOrder,
   type PayableRun,
 } from "../../hooks/api/payment-submissions"
 import { PayableRunsGrid } from "./payable-runs-grid"
+import { PayableInventoryOrdersGrid } from "./payable-inventory-orders-grid"
 import {
   runBillsVerbatimTotal as billsVerbatimTotal,
   runLineAmount,
@@ -92,7 +95,9 @@ export const CreatePaymentSubmissionComponent = () => {
    */
   const [step, setStep] = useState<"partner" | "items">("partner")
 
-  const [activeTab, setActiveTab] = useState<"runs" | "designs" | "tasks">(
+  const [activeTab, setActiveTab] = useState<
+    "runs" | "inventory" | "designs" | "tasks"
+  >(
     "runs"
   )
   const [selectedRunIds, setSelectedRunIds] = useState<Set<string>>(new Set())
@@ -100,6 +105,17 @@ export const CreatePaymentSubmissionComponent = () => {
     Record<string, number>
   >({})
   const [runRateOverrides, setRunRateOverrides] = useState<
+    Record<string, number>
+  >({})
+  /**
+   * #1612 — GOODS, as opposed to work. `create` has accepted
+   * `inventory_order_lines` since the guard was written; no screen ever sent
+   * one, so no payment on production carries an `inventory_order_id`.
+   */
+  const [selectedInventoryOrderIds, setSelectedInventoryOrderIds] = useState<
+    Set<string>
+  >(new Set())
+  const [inventoryAmountOverrides, setInventoryAmountOverrides] = useState<
     Record<string, number>
   >({})
   const [selectedDesignIds, setSelectedDesignIds] = useState<Set<string>>(
@@ -139,6 +155,12 @@ export const CreatePaymentSubmissionComponent = () => {
   // Payable production runs — the primary source of truth for what to pay.
   const { payable_runs: payableRuns, isPending: runsLoading } =
     usePayableRuns(partnerId || undefined)
+
+  // Goods bought FROM this partner, as opposed to work done BY them (#1612).
+  const {
+    payable_inventory_orders: payableInventoryOrders,
+    isPending: inventoryLoading,
+  } = usePayableInventoryOrders(partnerId || undefined)
 
   /**
    * Runs that can be billed now — everything not already paid for.
@@ -183,6 +205,8 @@ export const CreatePaymentSubmissionComponent = () => {
     setSelectedRunIds(new Set())
     setRunQuantityOverrides({})
     setRunRateOverrides({})
+    setSelectedInventoryOrderIds(new Set())
+    setInventoryAmountOverrides({})
     setSelectedDesignIds(new Set())
     setSelectedTaskIds(new Set())
     setDesignCostOverrides({})
@@ -263,6 +287,39 @@ export const CreatePaymentSubmissionComponent = () => {
         hasTypedRate: runHasTypedRate(run),
       }),
     [getRunQuantity, getRunRate, runHasTypedRate]
+  )
+
+  /**
+   * What an inventory order bills.
+   *
+   * The offered figure is the RECEIPTS value capped at what the guard will
+   * still accept — see `payable-inventory-orders`. An operator may retype it;
+   * `create` takes the typed amount and the guard still refuses anything past
+   * the ordered total, so a typed figure cannot smuggle an overclaim through.
+   */
+  const getInventoryAmount = useCallback(
+    (order: PayableInventoryOrder): number =>
+      inventoryAmountOverrides[order.inventory_order_id] != null
+        ? inventoryAmountOverrides[order.inventory_order_id]
+        : order.amount,
+    [inventoryAmountOverrides]
+  )
+
+  const selectedInventoryOrders = useMemo(
+    () =>
+      payableInventoryOrders.filter((o) =>
+        selectedInventoryOrderIds.has(o.inventory_order_id)
+      ),
+    [payableInventoryOrders, selectedInventoryOrderIds]
+  )
+
+  const inventoryTotal = useMemo(
+    () =>
+      selectedInventoryOrders.reduce(
+        (sum, order) => sum + getInventoryAmount(order),
+        0
+      ),
+    [selectedInventoryOrders, getInventoryAmount]
   )
 
   /** A row still billing an agreed TOTAL rather than a rate it was given. */
@@ -443,7 +500,10 @@ export const CreatePaymentSubmissionComponent = () => {
   )
 
   const totalSelected =
-    selectedRuns.length + selectedDesignIds.size + selectedTaskIds.size
+    selectedRuns.length +
+    selectedInventoryOrders.length +
+    selectedDesignIds.size +
+    selectedTaskIds.size
 
   const totalAmount = useMemo(() => {
     const designTotal = eligibleDesigns
@@ -452,8 +512,9 @@ export const CreatePaymentSubmissionComponent = () => {
     const taskTotal = eligibleTasks
       .filter((t) => selectedTaskIds.has(t.id))
       .reduce((sum, t) => sum + getEffectiveTaskCost(t), 0)
-    return designTotal + taskTotal + runsTotal
+    return designTotal + taskTotal + runsTotal + inventoryTotal
   }, [
+    inventoryTotal,
     runsTotal,
     eligibleDesigns,
     selectedDesignIds,
@@ -470,7 +531,7 @@ export const CreatePaymentSubmissionComponent = () => {
       return
     }
     if (totalSelected === 0) {
-      toast.error("Select at least one run, design or task")
+      toast.error("Select at least one run, inventory order, design or task")
       return
     }
 
@@ -611,6 +672,20 @@ export const CreatePaymentSubmissionComponent = () => {
         // Per-piece prices, when this selection has any (#1596).
         rate_breakdown: Object.keys(rateBreakdown).length
           ? rateBreakdown
+          : undefined,
+        /**
+         * GOODS (#1612). An order is claimed by id with an explicit amount —
+         * the receipts value capped at what the guard still accepts, or a
+         * figure an operator retyped. Sending no amount would default the
+         * server to the raw receipts value, which on an over-delivered order
+         * sits ABOVE the ordered total and is refused (#1617).
+         */
+        inventory_order_lines: selectedInventoryOrders.length
+          ? selectedInventoryOrders.map((order) => ({
+              inventory_order_id: order.inventory_order_id,
+              amount: getInventoryAmount(order),
+              currency: order.currency_code || undefined,
+            }))
           : undefined,
         /**
          * 🔑 Paying out a COMPLETED RUN, whose proof of finished work is the
@@ -779,7 +854,7 @@ export const CreatePaymentSubmissionComponent = () => {
             <Tabs
               value={activeTab}
               onValueChange={(v) =>
-                setActiveTab(v as "runs" | "designs" | "tasks")
+                setActiveTab(v as "runs" | "inventory" | "designs" | "tasks")
               }
             >
               <Tabs.List>
@@ -791,6 +866,17 @@ export const CreatePaymentSubmissionComponent = () => {
                   {selectedRunIds.size > 0 && (
                     <Badge size="2xsmall" color="green" className="ml-1">
                       {selectedRunIds.size} picked
+                    </Badge>
+                  )}
+                </Tabs.Trigger>
+                <Tabs.Trigger value="inventory">
+                  Inventory orders{" "}
+                  <Badge size="2xsmall" color="grey" className="ml-2">
+                    {payableInventoryOrders.filter((o) => o.payable).length}
+                  </Badge>
+                  {selectedInventoryOrderIds.size > 0 && (
+                    <Badge size="2xsmall" color="green" className="ml-1">
+                      {selectedInventoryOrderIds.size} picked
                     </Badge>
                   )}
                 </Tabs.Trigger>
@@ -848,6 +934,39 @@ export const CreatePaymentSubmissionComponent = () => {
                   getAmount={getRunAmount}
                   billsVerbatimTotal={runBillsVerbatimTotal}
                   hasTypedRate={runHasTypedRate}
+                />
+              </Tabs.Content>
+
+              {/*
+                GOODS, as opposed to work. The founder's distinction: an
+                inventory order is stock coming IN, a production run is the
+                work and its expenses. Both are owed to a partner and only one
+                of them has ever been payable through a screen.
+              */}
+              <Tabs.Content value="inventory" className="mt-4">
+                <PayableInventoryOrdersGrid
+                  orders={payableInventoryOrders}
+                  isLoading={inventoryLoading}
+                  selectedIds={selectedInventoryOrderIds}
+                  amountOverrides={inventoryAmountOverrides}
+                  onSelectionChange={(id, selected) =>
+                    setSelectedInventoryOrderIds((prev) => {
+                      const next = new Set(prev)
+                      if (selected) {
+                        next.add(id)
+                      } else {
+                        next.delete(id)
+                      }
+                      return next
+                    })
+                  }
+                  onAmountChange={(id, value) =>
+                    handleRunNumberChange(setInventoryAmountOverrides, id, value)
+                  }
+                  onClearSelection={() =>
+                    setSelectedInventoryOrderIds(new Set())
+                  }
+                  getAmount={getInventoryAmount}
                 />
               </Tabs.Content>
 

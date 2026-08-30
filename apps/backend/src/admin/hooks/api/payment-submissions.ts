@@ -152,6 +152,21 @@ export interface CreateAdminPaymentSubmissionPayload {
    * it twice.
    */
   rate_breakdown?: Record<string, Array<{ quantity: number; unit_amount: number }>>
+  /**
+   * GOODS bought from this partner (#1612). Accepted by `create` — with a
+   * validator, a partner-ownership guard and read-side resolution — since the
+   * guard was written; it was missing from THIS type, so no screen could send
+   * one and none did.
+   *
+   * ⚠️ Send the amount explicitly. Omitting it defaults the server to the raw
+   * receipts value, which on an over-delivered order sits ABOVE the ordered
+   * total and is refused by `assessInventoryOrderClaims` (#1617).
+   */
+  inventory_order_lines?: Array<{
+    inventory_order_id: string
+    amount?: number
+    currency?: string
+  }>
   metadata?: Record<string, any>
 }
 
@@ -337,6 +352,90 @@ export const usePayableRuns = (
     ...options,
   })
   return { payable_runs: data?.payable_runs ?? [], count: data?.count ?? 0, ...rest }
+}
+
+/**
+ * An inventory order a partner may be paid for — GOODS, as opposed to work.
+ *
+ * `create` has accepted `inventory_order_lines` since #1612, with a validator,
+ * a partner-ownership guard and read-side resolution. Nothing ever sent one,
+ * because no screen offered them: on production, NO payment carries an
+ * `inventory_order_id`.
+ */
+export interface PayableInventoryOrder {
+  inventory_order_id: string
+  status: string | null
+  is_sample: boolean
+  currency_code: string | null
+  /**
+   * What was ORDERED — and the guard's CEILING. Not what is billed: an order
+   * placed for ₹88,885 with ₹28,670 delivered is owed ₹28,670.
+   */
+  ordered_total: number | null
+  /** What the RECEIPTS are worth, before the ceiling is applied. */
+  receipts_total: number
+  received_quantity: number
+  lines: Array<{
+    line_id: string
+    material_name: string | null
+    received: number
+    ordered: number
+    unit_price: number
+    amount: number
+  }>
+  /** Already billed across every live submission — an order is claimed in tranches. */
+  claimed_total: number
+  /** What may still be billed; null when the order has no readable price. */
+  remaining: number | null
+  /** What this row bills if selected: the receipts value, capped at `remaining`. */
+  amount: number
+  /**
+   * ⚠️ Whether `amount` is BELOW `receipts_total` because the ordered total
+   * bit. The receipts figure can legitimately exceed what was ordered, and
+   * `assessInventoryOrderClaims` refuses that — so the cap is what makes the
+   * offer match what the guard accepts (#1617).
+   */
+  capped_by_ceiling: boolean
+  order_date: string | null
+  expected_delivery_date: string | null
+  payable: boolean
+  claims: Array<{ submission_id: string | null; status: string | null }>
+}
+
+export interface PayableInventoryOrdersResponse {
+  payable_inventory_orders: PayableInventoryOrder[]
+  count: number
+}
+
+export const usePayableInventoryOrders = (
+  partnerId: string | undefined,
+  options?: Omit<
+    UseQueryOptions<
+      PayableInventoryOrdersResponse,
+      FetchError,
+      PayableInventoryOrdersResponse,
+      QueryKey
+    >,
+    "queryFn" | "queryKey"
+  >
+) => {
+  const { data, ...rest } = useQuery({
+    queryFn: async () =>
+      sdk.client.fetch<PayableInventoryOrdersResponse>(
+        `/admin/payment-submissions/payable-inventory-orders`,
+        { method: "GET", query: { partner_id: partnerId } }
+      ) as Promise<PayableInventoryOrdersResponse>,
+    queryKey: paymentSubmissionQueryKeys.list({
+      payable_inventory_orders: partnerId,
+    }),
+    enabled: !!partnerId,
+    ...options,
+  })
+  return {
+    payable_inventory_orders: data?.payable_inventory_orders ?? [],
+    count: data?.count ?? 0,
+    ...rest,
+  }
 }
 
 export const usePaymentSubmission = (
