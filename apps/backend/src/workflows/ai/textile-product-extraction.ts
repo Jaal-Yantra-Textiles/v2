@@ -36,6 +36,24 @@ export type TextileProductExtractionInput = {
   resourceId?: string;
 };
 
+export type VisualObservations = {
+  visible_colors?: string[];
+  visible_pattern?: string | null;
+  pattern_description?: string | null;
+  design_elements?: string[];
+  fabric?: {
+    type_idea?: string | null;
+    texture?: string | null;
+    weave_or_knit?: string | null;
+    perceived_weight?: string | null;
+    finish?: string | null;
+  };
+  visible_item?: string | null;
+  visible_text?: string[];
+  shot_type?: string | null;
+  not_visible_or_uncertain?: string[];
+};
+
 export type TextileProductExtractionOutput = {
   // Garment / product catalog fields
   title: string;
@@ -54,6 +72,9 @@ export type TextileProductExtractionOutput = {
   seo_keywords?: string[];
   target_audience?: string | null;
   confidence?: number;
+
+  // Visible-only observations from the feedback-oriented first pass
+  visual_observations?: VisualObservations | null;
 
   // Raw internal fields — not for customer display
   face_raw?: {
@@ -112,56 +133,70 @@ export const waitConfirmationTextileExtractionStep = createStep(
 );
 
 /**
+ * Shared runner for the Mastra textile extraction workflow.
+ * Used by the per-media workflow step and the folder-wide
+ * rate-limited extraction workflow.
+ */
+export const runTextileMastraExtraction = async (input: {
+  image_url: string;
+  hints?: string[];
+  gender?: string;
+  threadId?: string;
+  resourceId?: string;
+}): Promise<TextileProductExtractionOutput> => {
+  const workflow = mastra.getWorkflow("textileProductExtractionWorkflow");
+  const run = await workflow.createRun();
+
+  // Generate threadId and resourceId if not provided (required for Memory)
+  const threadId = input.threadId || `textile-thread-${Date.now()}`;
+  const resourceId = input.resourceId || `textile-extraction:${Date.now()}`;
+
+  // Execute the workflow
+  const workflowResult = await run.start({
+    inputData: {
+      image_url: input.image_url,
+      hints: input.hints || [],
+      gender: (input.gender as any) || "unisex",
+      threadId,
+      resourceId,
+    },
+  });
+
+  // Check validation step result
+  if (workflowResult.steps.validateTextileExtraction?.status === "success") {
+    const output = workflowResult.steps.validateTextileExtraction.output as TextileProductExtractionOutput;
+    return output;
+  }
+
+  // Fallback: check derivation step
+  if (workflowResult.steps.deriveProductFields?.status === "success") {
+    const output = workflowResult.steps.deriveProductFields.output as TextileProductExtractionOutput;
+    return output;
+  }
+
+  // Check for errors
+  const failedStep = Object.entries(workflowResult.steps).find(([, step]) => (step as any).status === "failed");
+  if (failedStep) {
+    throw new MedusaError(
+      MedusaError.Types.UNEXPECTED_STATE,
+      `Textile extraction failed at step ${failedStep[0]}: ${failedStep[1] || "Unknown error"}`
+    );
+  }
+
+  throw new MedusaError(
+    MedusaError.Types.UNEXPECTED_STATE,
+    "Textile extraction workflow completed but no valid output found"
+  );
+};
+
+/**
  * Step to run the Mastra textile extraction workflow
  */
 const runMastraTextileExtractionStep = createStep(
   "run-mastra-textile-extraction",
   async (input: { image_url: string; hints?: string[]; gender?: string; threadId?: string; resourceId?: string }) => {
     try {
-      // Get the Mastra workflow
-      const workflow = mastra.getWorkflow("textileProductExtractionWorkflow");
-      const run = await workflow.createRun();
-
-      // Generate threadId and resourceId if not provided (required for Memory)
-      const threadId = input.threadId || `textile-thread-${Date.now()}`;
-      const resourceId = input.resourceId || `textile-extraction:${Date.now()}`;
-
-      // Execute the workflow
-      const workflowResult = await run.start({
-        inputData: {
-          image_url: input.image_url,
-          hints: input.hints || [],
-          gender: (input.gender as any) || "unisex",
-          threadId,
-          resourceId,
-        },
-      });
-
-      // Check validation step result
-      if (workflowResult.steps.validateTextileExtraction?.status === "success") {
-        const output = workflowResult.steps.validateTextileExtraction.output as TextileProductExtractionOutput;
-        return new StepResponse(output);
-      }
-
-      // Fallback: check extraction step
-      if (workflowResult.steps.extractTextileFeatures?.status === "success") {
-        const output = workflowResult.steps.extractTextileFeatures.output as TextileProductExtractionOutput;
-        return new StepResponse(output);
-      }
-
-      // Check for errors
-      const failedStep = Object.entries(workflowResult.steps).find(([, step]) => (step as any).status === "failed");
-      if (failedStep) {
-        throw new MedusaError(
-          MedusaError.Types.UNEXPECTED_STATE,
-          `Textile extraction failed at step ${failedStep[0]}: ${failedStep[1] || "Unknown error"}`
-        );
-      }
-
-      throw new MedusaError(
-        MedusaError.Types.UNEXPECTED_STATE,
-        "Textile extraction workflow completed but no valid output found"
-      );
+      return new StepResponse(await runTextileMastraExtraction(input));
     } catch (error: any) {
       if (error instanceof MedusaError) throw error;
       throw new MedusaError(
@@ -175,6 +210,24 @@ const runMastraTextileExtractionStep = createStep(
     // No rollback needed for extraction
   }
 );
+
+/**
+ * Persist extraction results to a media file's metadata.
+ * Shared by the per-media workflow and the folder-wide workflow.
+ */
+export const persistTextileExtractionResult = async (
+  mediaService: MediaService,
+  media_id: string,
+  extraction: TextileProductExtractionOutput
+): Promise<void> => {
+  await mediaService.updateMediaFiles({
+    id: media_id,
+    metadata: {
+      textile_extraction: extraction,
+      extracted_at: new Date().toISOString(),
+    },
+  });
+};
 
 /**
  * Step to persist extraction results to media metadata (optional)

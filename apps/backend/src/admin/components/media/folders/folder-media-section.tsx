@@ -21,6 +21,7 @@ export const FolderMediaSection = ({ folder }: FolderMediaSectionProps) => {
   const [selection, setSelection] = useState<Record<string, true>>({})
   const [extractionModalOpen, setExtractionModalOpen] = useState(false)
   const [extractionMediaIds, setExtractionMediaIds] = useState<string[]>([])
+  const [extractionFolderId, setExtractionFolderId] = useState<string | undefined>(undefined)
   const [createProductModalOpen, setCreateProductModalOpen] = useState(false)
   const queryClient = useQueryClient()
   const selectedCount = useMemo(() => Object.keys(selection).length, [selection])
@@ -81,6 +82,7 @@ export const FolderMediaSection = ({ folder }: FolderMediaSectionProps) => {
       toast.error("No images selected. Extraction only works on image files.")
       return
     }
+    setExtractionFolderId(undefined)
     setExtractionMediaIds(selectedImageMediaIds)
     setExtractionModalOpen(true)
   }
@@ -90,7 +92,10 @@ export const FolderMediaSection = ({ folder }: FolderMediaSectionProps) => {
       toast.error("No images in this folder. Extraction only works on image files.")
       return
     }
-    setExtractionMediaIds(allImageMediaIds)
+    // Folder-wide extraction: single long-running, rate-limited workflow
+    // (1 photo per minute) instead of one workflow per photo.
+    setExtractionFolderId(folder.id)
+    setExtractionMediaIds([])
     setExtractionModalOpen(true)
   }
 
@@ -245,8 +250,12 @@ export const FolderMediaSection = ({ folder }: FolderMediaSectionProps) => {
       </CommandBar>
       <TextileExtractionModal
         open={extractionModalOpen}
-        onOpenChange={setExtractionModalOpen}
-        mediaIds={extractionMediaIds}
+        onOpenChange={(open) => {
+          setExtractionModalOpen(open)
+          if (!open) setExtractionFolderId(undefined)
+        }}
+        mediaIds={extractionFolderId ? [] : extractionMediaIds}
+        folderId={extractionFolderId}
         onSuccess={handleExtractionSuccess}
       />
       <CreateProductFromMediaModal

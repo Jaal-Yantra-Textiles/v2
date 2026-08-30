@@ -15,6 +15,8 @@ import {
   useBatchExtractTextileFeatures,
   useExtractTextileFeatures,
   useConfirmExtraction,
+  useExtractFolderFeatures,
+  useConfirmFolderExtraction,
 } from "../../hooks/api/textile-extraction";
 import { Spinner } from "../ui/spinner";
 
@@ -28,6 +30,12 @@ interface TextileExtractionModalProps {
    */
   mediaIds: string | string[];
   /**
+   * When provided, extraction runs as a folder-wide long-running workflow
+   * that processes every image in the folder at 1 photo per minute
+   * (rate-limited) instead of firing one workflow per photo.
+   */
+  folderId?: string;
+  /**
    * Called after successful extraction initiation
    */
   onSuccess?: () => void;
@@ -37,6 +45,7 @@ export const TextileExtractionModal = ({
   open,
   onOpenChange,
   mediaIds,
+  folderId,
   onSuccess,
 }: TextileExtractionModalProps) => {
   const [hints, setHints] = useState("");
@@ -47,9 +56,13 @@ export const TextileExtractionModal = ({
   const singleExtractMutation = useExtractTextileFeatures();
   const confirmMutation = useConfirmExtraction();
   const batchExtractMutation = useBatchExtractTextileFeatures();
+  const folderExtractMutation = useExtractFolderFeatures();
+  const folderConfirmMutation = useConfirmFolderExtraction();
 
-  const isSingle = typeof mediaIds === "string";
-  const count = isSingle ? 1 : mediaIds.length;
+  // Folder mode: one long-running, rate-limited job for the whole folder
+  const isFolderMode = typeof folderId === "string" && folderId.length > 0;
+  const isSingle = typeof mediaIds === "string" && !isFolderMode;
+  const count = isFolderMode ? 0 : isSingle ? 1 : mediaIds.length;
 
   const handleExtract = async () => {
     const hintsArray = hints
@@ -57,7 +70,28 @@ export const TextileExtractionModal = ({
       .map((h) => h.trim())
       .filter(Boolean);
 
-    if (isSingle) {
+    if (isFolderMode) {
+      try {
+        const result = await folderExtractMutation.mutateAsync({
+          folderId: folderId!,
+          hints: hintsArray.length > 0 ? hintsArray : undefined,
+          gender,
+          persist,
+        });
+
+        if (autoConfirm && result.transaction_id) {
+          await folderConfirmMutation.mutateAsync({
+            folderId: folderId!,
+            transactionId: result.transaction_id,
+          });
+        }
+
+        handleClose();
+        onSuccess?.();
+      } catch (error) {
+        console.error("Folder extraction failed:", error);
+      }
+    } else if (isSingle) {
       try {
         const result = await singleExtractMutation.mutateAsync({
           media_id: mediaIds,
@@ -76,9 +110,10 @@ export const TextileExtractionModal = ({
         console.error("Extraction failed:", error);
       }
     } else {
+      const batchMediaIds = Array.isArray(mediaIds) ? mediaIds : [];
       try {
         await batchExtractMutation.mutateAsync({
-          media_ids: mediaIds,
+          media_ids: batchMediaIds,
           hints: hintsArray.length > 0 ? hintsArray : undefined,
           gender,
           persist,
@@ -104,7 +139,9 @@ export const TextileExtractionModal = ({
   const isLoading =
     singleExtractMutation.isPending ||
     confirmMutation.isPending ||
-    batchExtractMutation.isPending;
+    batchExtractMutation.isPending ||
+    folderExtractMutation.isPending ||
+    folderConfirmMutation.isPending;
 
   return (
     <FocusModal open={open} onOpenChange={onOpenChange}>
@@ -124,11 +161,26 @@ export const TextileExtractionModal = ({
               <InformationCircleSolid className="mt-0.5 shrink-0 text-ui-fg-interactive" />
               <div className="flex flex-col gap-y-0.5">
                 <Text size="small" weight="plus" className="text-ui-fg-base">
-                  Analyzing {count} {count === 1 ? "image" : "images"}
+                  {isFolderMode
+                    ? "Extracting all images in this folder"
+                    : `Analyzing ${count} ${count === 1 ? "image" : "images"}`}
                 </Text>
                 <Text size="xsmall" className="text-ui-fg-subtle">
-                  AI will extract two data sets: <strong>garment data</strong> for product catalog
-                  and <strong>raw internal data</strong> (face, body, model characteristics) for internal use.
+                  {isFolderMode ? (
+                    <>
+                      Runs as a long-running background job processing{" "}
+                      <strong>1 photo per minute</strong> so AI providers are never
+                      rate limited. Every image in the folder gets extracted —
+                      track progress from the folder page.
+                    </>
+                  ) : (
+                    <>
+                      AI first observes <strong>what is visible</strong> (colors,
+                      pattern, design, fabric) and then derives garment data for
+                      the product catalog plus raw internal data (face, body, model
+                      characteristics) for internal use.
+                    </>
+                  )}
                 </Text>
               </div>
             </div>
@@ -278,7 +330,11 @@ export const TextileExtractionModal = ({
               ) : (
                 <div className="flex items-center gap-x-2">
                   <Sparkles />
-                  Extract {count > 1 ? `${count} images` : "features"}
+                  {isFolderMode
+                    ? "Extract all (1 photo/min)"
+                    : count > 1
+                      ? `Extract ${count} images`
+                      : "Extract features"}
                 </div>
               )}
             </Button>
