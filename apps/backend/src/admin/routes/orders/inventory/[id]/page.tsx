@@ -10,13 +10,23 @@ import { InventoryOrderPaymentsSection } from "../../../../components/inventory-
 import { InventoryOrderShipmentsSection } from "../../../../components/inventory-orders/inventory-order-shipments-section";
 import { InventoryOrderFeedbacksSection } from "../../../../components/inventory-orders/inventory-order-feedbacks-section";
 import { inventoryOrderLoader } from "./loader";
+import { INVENTORY_ORDER_DETAIL_FIELDS } from "./constants";
 import InventoryOrderIDSection from "../../../../components/inventory-orders/inventory-order-general-orderId";
 
 const InventoryOrderDetailPage = () => {
   const initialData = useLoaderData() as Awaited<AdminInventoryOrderResponse>
   const { id } = useParams();
+  // ⚠️ This list used to be an inline COPY of INVENTORY_ORDER_DETAIL_FIELDS, and
+  // the two drifted: adding the product/variant fields to the constant (#1662)
+  // changed the loader's prefetch but not the query this page actually renders
+  // from, so the fix looked applied and the line still showed a bare variant
+  // title. One home now; the payment fields this page needs are appended.
   const { inventoryOrder, isLoading, isError, error } = useInventoryOrder(id!, {
-    fields: ['orderlines.*', 'orderlines.inventory_items.*', 'stock_locations.*', 'stock_locations.address.*', '+tasks.*', '+partner.*', '+internal_payments.*', '+internal_payments.attachments.*']
+    fields: [
+      ...INVENTORY_ORDER_DETAIL_FIELDS.split(',').map((f) => f.trim()),
+      '+internal_payments.*',
+      '+internal_payments.attachments.*',
+    ]
   }, {
     initialData
   });
