@@ -9,9 +9,10 @@ import { KeyboundForm } from "../utilitites/key-bound-form";
 import { Form } from "../common/form";
 import { useState, useEffect } from "react";
 import { useStockLocations } from "../../hooks/api/stock_location";
-import { useAllInventoryWithRawMaterials } from "../../hooks/api/raw-materials";
+import { useInventoryCatalog } from "../../hooks/api/raw-materials";
 import { InventoryOrderLinesGrid } from "./inventory-order-lines-grid";
 import { AddMaterialGroupControl } from "../inventory-orders/add-material-group-control";
+import { toOrderLineRef } from "./order-line-ref";
 
 // Define a Zod schema for inventory order creation (scaffolded, update as per API contract)
 export const inventoryOrderFormSchema = z
@@ -120,7 +121,11 @@ export const CreateInventoryOrderComponent = () => {
   // closed the dropdown and wiped the query (the "search flickers / closes on
   // the earlier value" flakiness). A single large fetch + local narrowing is
   // stable and covers our catalog size.
-  const { inventory_items = [], isLoading } = useAllInventoryWithRawMaterials();
+  // #1662 — the catalog, not just the raw-material link table. Buying finished
+  // fabric or finished goods from a partner is an inventory order (a PURCHASE,
+  // not a make); the write path was always generic, only this query's entry
+  // point was not.
+  const { inventory_items = [], isLoading } = useInventoryCatalog();
 
   // Use Field Array for order lines
   const { fields, append, remove } = useFieldArray({
@@ -171,10 +176,12 @@ export const CreateInventoryOrderComponent = () => {
       status: "Pending",
       shipping_address: {},
       is_sample: data.is_sample,
+      // #1662 — a picked row is either an existing inventory item or an
+      // untracked variant; `toOrderLineRef` sends the right field for each.
       order_lines: fields
         .filter((l: OrderLine) => l.inventory_item_id)
         .map(({ inventory_item_id, quantity, price, batch_number }: OrderLine) => ({
-          inventory_item_id,
+          ...toOrderLineRef(inventory_item_id),
           quantity: Number(quantity) || 0,
           price: Number(price) || 0,
           batch_number: batch_number ?? null,

@@ -14,6 +14,26 @@ import { firstMediaUrl } from "../../lib/utils/first-media-url";
 
 type PickerOption = { label: string; value: string; keywords?: string; disabled?: boolean };
 
+/** A picked catalog row: a material-backed item, a variant-backed one, or neither. */
+type PickedInventoryItem = InventoryItem & {
+  raw_materials?: RawMaterial | null
+  variants?: Array<{
+    id: string
+    title?: string | null
+    sku?: string | null
+    product?: { id: string; title?: string | null; thumbnail?: string | null } | null
+  }>
+  kind?:
+    | "raw_material"
+    | "product"
+    | "both"
+    | "unclassified"
+    // #1662 — a partner variant that has no inventory item yet. Picking it is
+    // what creates one, at our location, when the order is written.
+    | "untracked_variant"
+  partner?: { id: string; name?: string | null } | null
+}
+
 /**
  * Item picker cell — a real (ariakit) Combobox instead of a search box wedged
  * inside a Radix Select. The Select approach fought Radix's focus/typeahead and
@@ -222,21 +242,32 @@ export const InventoryOrderLinesGrid = <T extends { id: string; title?: string; 
     return mergedItems.map((item: any) => {
       const inv = item?.inventory_item ?? item
       const raw = item?.raw_materials
-      const baseLabel = raw?.name || inv?.title || inv?.sku || ""
+      // #1662 — an item can be variant-backed instead of material-backed
+      // (finished fabric / finished goods bought from a partner). Those have
+      // no raw-material name, so the product/variant is what names them.
+      const variant = (item?.variants ?? [])[0]
+      const productLabel = [variant?.product?.title, variant?.title]
+        .filter(Boolean)
+        .join(" · ")
+      const baseLabel = raw?.name || productLabel || inv?.title || inv?.sku || ""
       // #846 — many colors of one material share the same raw-material name
       // (e.g. 12 "Tangaliya weave suit piece"), which made the picker options
       // visually identical and read as "missing/duplicate items". Disambiguate
       // the visible label with color and SKU so every option is distinct.
       const color = raw?.color
-      const sku = inv?.sku
+      const sku = inv?.sku || variant?.sku
       // Don't re-append a color the name already carries (newer group colors
       // fold the color into the raw-material name at creation — #846).
       const showColor =
         color && !baseLabel.toLowerCase().includes(String(color).toLowerCase())
+      // #1662 — whose fabric is this? A buyer choosing between two partners'
+      // near-identical greige needs the owner on the option, not one click away.
+      const partnerName = item?.partner?.name
       const label = [
         baseLabel,
         showColor ? `— ${color}` : "",
         sku ? `(${sku})` : "",
+        partnerName ? `· ${partnerName}` : "",
       ]
         .filter(Boolean)
         .join(" ")
@@ -244,7 +275,17 @@ export const InventoryOrderLinesGrid = <T extends { id: string; title?: string; 
       const value = item?.inventory_item_id || inv?.id || item?.id
       // Searchable keywords beyond the visible name so the picker matches on
       // color / material / sku too (#831 — quick matching).
-      const keywords = [raw?.name, raw?.color, raw?.material_name, inv?.title, inv?.sku]
+      const keywords = [
+        raw?.name,
+        raw?.color,
+        raw?.material_name,
+        inv?.title,
+        inv?.sku,
+        variant?.title,
+        variant?.sku,
+        variant?.product?.title,
+        item?.partner?.name,
+      ]
         .filter(Boolean)
         .join(" ")
         .toLowerCase()
@@ -253,16 +294,25 @@ export const InventoryOrderLinesGrid = <T extends { id: string; title?: string; 
   }, [mergedItems])
 
   const inventoryItemMap = useMemo(() => {
-    const map = new Map<
-      string,
-      (InventoryItem & { raw_materials?: RawMaterial | null }) | null
-    >()
+    const map = new Map<string, PickedInventoryItem | null>()
     mergedItems.forEach((item: any) => {
       const inv = (item?.inventory_item ?? item) as InventoryItem | undefined
       const raw = item?.raw_materials as RawMaterial | undefined
       const value = item?.inventory_item_id || inv?.id || item?.id
       if (value) {
-        map.set(value, inv ? { ...inv, raw_materials: raw } : null)
+        map.set(
+          value,
+          inv
+            ? {
+                ...inv,
+                raw_materials: raw,
+                // #1662 — what the line is FOR, when it is not a material.
+                variants: item?.variants ?? [],
+                kind: item?.kind,
+                partner: item?.partner ?? null,
+              }
+            : null
+        )
       }
     })
     return map
@@ -321,6 +371,70 @@ export const InventoryOrderLinesGrid = <T extends { id: string; title?: string; 
         );
       },
       disableHiding: true,
+    }),
+    columnHelper.column({
+      id: "kind",
+      name: "Type",
+      header: "Type",
+      cell: (context: any) => {
+        // #1662 — a partner making a garment FOR us is a production run; a
+        // partner selling us finished stock is this. Once the picker can see
+        // both, the same real-world event could be recorded either way, so the
+        // distinction has to be visible on the line rather than left to
+        // whoever opened the form.
+        const inventoryItemId =
+          lineAt(context.row.index)?.inventory_item_id || ""
+        const item = inventoryItemId
+          ? inventoryItemMap.get(inventoryItemId)
+          : null
+        const variant = (item?.variants ?? [])[0]
+        const untracked = item?.kind === "untracked_variant"
+        const label = item?.raw_materials
+          ? "Material"
+          : untracked
+          ? "Not stocked yet"
+          : variant
+          ? "Finished goods"
+          : null
+        const detail = item?.raw_materials
+          ? null
+          : [
+              [variant?.product?.title, variant?.title]
+                .filter(Boolean)
+                .join(" · "),
+              item?.partner?.name ? `from ${item.partner.name}` : "",
+              // Say what picking this row will DO. It turns tracking on for the
+              // variant at our location — a real side effect of placing the
+              // order, and one the buyer should not discover afterwards.
+              untracked ? "· we will start tracking it on order" : "",
+            ]
+              .filter(Boolean)
+              .join(" ")
+
+        return (
+          <div className="flex h-full items-center gap-x-2 px-4">
+            {label ? (
+              <Badge
+                size="2xsmall"
+                color={
+                  item?.raw_materials ? "grey" : untracked ? "orange" : "blue"
+                }
+              >
+                {label}
+              </Badge>
+            ) : (
+              <Text size="small" className="text-ui-fg-muted">
+                —
+              </Text>
+            )}
+            {detail ? (
+              <Text size="small" className="truncate text-ui-fg-subtle">
+                {detail}
+              </Text>
+            ) : null}
+          </div>
+        )
+      },
     }),
     columnHelper.column({
       id: "color",

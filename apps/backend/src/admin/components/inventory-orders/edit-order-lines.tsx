@@ -5,7 +5,7 @@ import { Button, Heading, Text, toast } from "@medusajs/ui";
 import { useRouteModal } from "../modal/use-route-modal";
 import { RouteFocusModal } from "../modal/route-focus-modal";
 import { KeyboundForm } from "../utilitites/key-bound-form";
-import { useAllInventoryWithRawMaterials } from "../../hooks/api/raw-materials";
+import { useInventoryCatalog } from "../../hooks/api/raw-materials";
 import { InventoryOrderLinesGrid } from "../creates/inventory-order-lines-grid";
 import { AddMaterialGroupControl } from "./add-material-group-control";
 import { AdminInventoryOrder } from "../../hooks/api/inventory-orders";
@@ -76,7 +76,9 @@ export const EditOrderLines = ({ inventoryOrder }: EditOrderLinesProps) => {
   // was dropped: the per-keystroke refetch remounted the picker cell and made
   // search flaky). The fetch-all hook pages until the endpoint's true count is
   // reached so a large catalog no longer silently truncates (#947).
-  const { inventory_items = [], isLoading } = useAllInventoryWithRawMaterials();
+  // #1662 — same catalog as the create screen, so a product-backed line stays
+  // editable (and resolvable) instead of vanishing from the picker.
+  const { inventory_items = [], isLoading } = useInventoryCatalog();
 
   // Use Field Array for order lines.
   // keyName MUST NOT be the default "id": react-hook-form overwrites the row's

@@ -27,6 +27,7 @@ import {
   buildMaterialLookupByInventoryId,
   type MaterialInfo,
 } from "../../modules/inventory_orders/lib/create-helpers";
+import { ensureLineInventoryItems } from "./lib/ensure-line-inventory-items";
 import {
   repointInventoryOrderFromLink,
   restoreInventoryOrderFromLink,
@@ -41,6 +42,12 @@ export type UpdateInventoryOrderLineInput = {
   // enforces these are present, so the create/update branches below can rely on
   // them at runtime.
   inventory_item_id?: string;
+  /**
+   * #1662 — a NEW line may instead name a partner variant that has no
+   * inventory item yet. Resolved to a real `inventory_item_id` at the top of
+   * the line step, before anything is written.
+   */
+  variant_id?: string;
   quantity?: number;
   price?: number;
   batch_number?: number | null; // Batch tag for separate-batch quick-add lines
@@ -143,6 +150,31 @@ export const updateOrderLinesStep = createStep(
     const currentOrder = await inventoryOrderService.retrieveInventoryOrder(input.order_id, { relations: ["orderlines"] });
     const currentOrderlines = currentOrder.orderlines || [];
     const byId = new Map<string, any>(currentOrderlines.map((l: any) => [l.id, l]));
+
+    // #1662 — a new line may name an untracked partner variant instead of an
+    // item. Establish the inventory item BEFORE anything below reads
+    // `inventory_item_id`, so every later branch sees a line of one shape.
+    // No level is seeded here: the completion receipt creates the level if it
+    // is missing, and this path does not carry the order's destination.
+    const newLines = input.order_lines.filter((l) => !l.remove && !l.id);
+    if (newLines.some((l) => !l.inventory_item_id && l.variant_id)) {
+      const { lines: resolvedNew } = await ensureLineInventoryItems(
+        container,
+        newLines
+      );
+      const resolvedByVariant = new Map<string, string>();
+      resolvedNew.forEach((l, i) => {
+        const variantId = newLines[i]?.variant_id;
+        if (variantId) {
+          resolvedByVariant.set(String(variantId), l.inventory_item_id);
+        }
+      });
+      for (const line of input.order_lines) {
+        if (!line.inventory_item_id && line.variant_id) {
+          line.inventory_item_id = resolvedByVariant.get(String(line.variant_id));
+        }
+      }
+    }
 
     // #817 S2 — resolve color identity for newly-added lines so they're
     // self-describing just like create-path lines. Existing lines keep their
