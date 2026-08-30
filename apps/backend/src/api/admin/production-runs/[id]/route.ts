@@ -98,6 +98,7 @@ import {
   setRunAllocation,
 } from "../../../../lib/production-run-allocation"
 import { costTypeGuardMessage } from "../../../../workflows/production-runs/lib/cost-type-guard"
+import { autoDraftRunPayout } from "../../../../workflows/payment_submissions/lib/auto-draft-run-payout"
 import { refreshUnclaimedDraftPayouts } from "../../../../workflows/payment_submissions/lib/refresh-draft-payouts"
 import { reopenProductionRun } from "../../../../workflows/production-runs/lib/short-close-production-run"
 
@@ -321,6 +322,42 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
   }
 
   /**
+   * The other half of that refresh: create a draft where none exists.
+   *
+   * 🔴 `auto-draft-payment-submission` fires on `production_run.completed`, and
+   * a run completed with NO agreed rate is skipped as `no_cost` — after which
+   * nothing ever looked at it again. 97 of 215 completed runs on the local
+   * database carry no cost: the partner finished the job and no price was
+   * recorded. Setting that price here, through the cost drawer, is the
+   * documented way to fix it, and it produced no draft. The work stayed unpaid
+   * unless somebody remembered to raise a submission by hand.
+   *
+   * Only when the PRICE moved. `runPayableAmount` bills the ORDERED quantity by
+   * design (#456), so an output correction does not change what is owed and
+   * must not manufacture a draft — `touchesMoney` above is deliberately wider
+   * than this condition, because re-pricing an existing draft and creating a
+   * new one are different questions.
+   *
+   * Best-effort and idempotent: `autoDraftRunPayout` asks whether the run is
+   * already claimed rather than relying on a guard to throw.
+   */
+  let autoDraftedSubmissionId: string | null = null
+  const touchesPrice =
+    update.partner_cost_estimate !== undefined || update.cost_type !== undefined
+  if (touchesPrice) {
+    try {
+      const outcome = await autoDraftRunPayout(
+        req.scope,
+        id,
+        "admin.production-run.priced"
+      )
+      autoDraftedSubmissionId = outcome.submission_id ?? null
+    } catch {
+      // Non-fatal by design — the correction is already persisted.
+    }
+  }
+
+  /**
    * #1596 — an upward output correction REOPENS a short-closed run.
    *
    * The close said "nothing more was made". A correction raising
@@ -414,6 +451,13 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
     ...(touchesMaterials
       ? { materials: await readRunAllocation(req.scope, id) }
       : {}),
+    /**
+     * The Draft this correction CREATED, when pricing a completed run that had
+     * none. Stated for the same reason as `refreshed_draft_payouts` below: so
+     * the caller can see the money followed the run rather than having to go
+     * and look. Null when nothing was drafted.
+     */
+    auto_drafted_submission_id: autoDraftedSubmissionId,
     /**
      * Which unclaimed Draft payouts were re-priced to match this correction.
      * Stated so the caller can see the money moved with the run rather than

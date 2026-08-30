@@ -1530,6 +1530,147 @@ setupSharedTestSuite(() => {
   })
 
   /**
+   * Pricing a completed run that never had a price must DRAFT its payout.
+   *
+   * 🔴 `auto-draft-payment-submission` fires on `production_run.completed`, and
+   * a run completed with no agreed rate is skipped as `no_cost` — after which
+   * nothing ever looked at it again. 97 of 215 completed runs on the local
+   * database carry no cost: the partner finished the job and no price was
+   * recorded. Setting that price afterwards through the cost drawer is the
+   * documented fix, and it produced no draft, so the work stayed unpaid unless
+   * somebody remembered to raise a submission by hand.
+   *
+   * `refreshUnclaimedDraftPayouts` already ran on this exact correction and
+   * re-priced a Draft that EXISTED. This is its missing other half.
+   */
+  describe("pricing an uncosted completed run drafts its payout (#1596)", () => {
+    /**
+     * Which submissions name this run, at any status.
+     *
+     * ⚠️ Listed by PARTNER, not by design — `zodValidator` forces `.strict()`
+     * on the list query, so an undeclared `design_id` param is a 400 rather
+     * than an ignored filter. Each submission is then re-read for its items,
+     * because the list does not expand them.
+     */
+    const submissionsNaming = async (_designId: string, runId: string) => {
+      const list = await api.get(
+        `/admin/payment-submissions?partner_id=${partnerId}`,
+        adminHeaders
+      )
+      const found: any[] = []
+      for (const summary of list.data.payment_submissions || []) {
+        const detail = await api.get(
+          `/admin/payment-submissions/${summary.id}`,
+          adminHeaders
+        )
+        const sub = detail.data.payment_submission
+        const names = (sub.items || []).some((item: any) =>
+          (item.production_run_ids || []).includes(runId)
+        )
+        if (names) {
+          found.push(sub)
+        }
+      }
+      return found
+    }
+
+    it("drafts one when the rate is recorded after completion", async () => {
+      const designId = await createDesign("Late Priced Design", {
+        estimated_cost: 1200,
+      })
+      await linkDesignToPartner(designId, partnerId)
+
+      // Finished, and nobody said what it cost. The state 97 of 215 completed
+      // runs are actually in.
+      const runId = await createCompletedRun(designId, "Late Priced Design", {
+        quantity: 5,
+        produced_quantity: 5,
+        partner_cost_estimate: null,
+        cost_type: null,
+      })
+
+      expect(await submissionsNaming(designId, runId)).toHaveLength(0)
+
+      const priced = await api.post(
+        `/admin/production-runs/${runId}`,
+        { partner_cost_estimate: 900, cost_type: "per_unit" },
+        adminHeaders
+      )
+      expect(priced.status).toBe(200)
+      // Reported on the response, so the caller can see the money followed the
+      // run rather than having to go and look.
+      expect(priced.data.auto_drafted_submission_id).toBeTruthy()
+
+      // 🔑 The EFFECT, re-read rather than taken from the write's own response.
+      const drafted = await submissionsNaming(designId, runId)
+      expect(drafted).toHaveLength(1)
+      expect(drafted[0].status).toBe("Draft")
+      // 5 ordered x 900. `runPayableAmount` bills the ORDERED quantity (#456).
+      expect(Number(drafted[0].total_amount)).toBe(4500)
+    })
+
+    it("does not draft a SECOND time when the price is corrected again", async () => {
+      const designId = await createDesign("Twice Priced Design", {
+        estimated_cost: 1200,
+      })
+      await linkDesignToPartner(designId, partnerId)
+      const runId = await createCompletedRun(designId, "Twice Priced Design", {
+        quantity: 5,
+        produced_quantity: 5,
+        partner_cost_estimate: null,
+        cost_type: null,
+      })
+
+      await api.post(
+        `/admin/production-runs/${runId}`,
+        { partner_cost_estimate: 900, cost_type: "per_unit" },
+        adminHeaders
+      )
+      const second = await api.post(
+        `/admin/production-runs/${runId}`,
+        { partner_cost_estimate: 950, cost_type: "per_unit" },
+        adminHeaders
+      )
+      expect(second.status).toBe(200)
+      expect(second.data.auto_drafted_submission_id).toBeNull()
+
+      // One draft, re-priced by `refreshUnclaimedDraftPayouts` — never two.
+      // Two pre-fills for one run is two answers to one question.
+      const subs = await submissionsNaming(designId, runId)
+      expect(subs).toHaveLength(1)
+      expect(Number(subs[0].total_amount)).toBe(4750)
+    })
+
+    /**
+     * ⚠️ The deliberate NON-trigger. `runPayableAmount` bills the ORDERED
+     * quantity (#456), so correcting what was produced does not change what is
+     * owed — and a correction that does not move the money must not manufacture
+     * a payout out of a run nobody has priced.
+     */
+    it("does not draft on an output correction alone", async () => {
+      const designId = await createDesign("Output Only Design", {
+        estimated_cost: 1200,
+      })
+      await linkDesignToPartner(designId, partnerId)
+      const runId = await createCompletedRun(designId, "Output Only Design", {
+        quantity: 5,
+        produced_quantity: 5,
+        partner_cost_estimate: null,
+        cost_type: null,
+      })
+
+      const corrected = await api.post(
+        `/admin/production-runs/${runId}`,
+        { produced_quantity: 3 },
+        adminHeaders
+      )
+      expect(corrected.status).toBe(200)
+      expect(corrected.data.auto_drafted_submission_id).toBeNull()
+      expect(await submissionsNaming(designId, runId)).toHaveLength(0)
+    })
+  })
+
+  /**
    * Correcting a run must re-price the Draft it pre-filled (#1571).
    *
    * 🔴 `auto-draft-payment-submission` writes a Draft at completion using the
