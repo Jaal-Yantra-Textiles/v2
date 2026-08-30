@@ -20,6 +20,10 @@ import {
   requestedRunQuantities,
   runsOverclaimedMessage,
 } from "./lib/run-claims"
+import {
+  designsBlockedByOpenClaims,
+  designOpenClaimsMessage,
+} from "./lib/design-open-claims"
 
 /**
  * Turn a Draft payment submission into a real claim — Draft → Pending, in place.
@@ -213,20 +217,58 @@ const validateSubmissionForSubmitStep = createStep(
        *    would leave both stuck, which is the shape of #1605.
        */
       const OPEN_STATUSES = new Set(["Pending", "Under_Review"])
-      const openDesigns = [
-        ...new Set(
-          foreignPriors
-            .filter((item) =>
-              OPEN_STATUSES.has(String(item.submission?.status || ""))
-            )
-            .map((item) => String(item.design_id))
-            .filter((id) => designIds.includes(id))
-        ),
-      ]
-      if (openDesigns.length) {
+      const openPriors = foreignPriors.filter(
+        (item) =>
+          OPEN_STATUSES.has(String(item.submission?.status || "")) &&
+          designIds.includes(String(item.design_id))
+      )
+
+      const openByDesign = new Map<string, string[]>()
+      for (const item of openPriors) {
+        const designId = String(item.design_id)
+        const submissionId = String(
+          item.submission?.id || item.submission_id || ""
+        )
+        if (!submissionId) {
+          continue
+        }
+        openByDesign.set(designId, [
+          ...new Set([...(openByDesign.get(designId) || []), submissionId]),
+        ])
+      }
+
+      /**
+       * #1596 — same rule as create, from the same pure function: an open
+       * prior on the design only blocks when the arithmetic is unavailable.
+       * Where both sides name their runs, the quantity-aware run guard that
+       * already ran above is the one entitled to answer.
+       */
+      const claimedRunsHere: Record<string, string[]> = {}
+      for (const item of items) {
+        if (!item.design_id) continue
+        const designId = String(item.design_id)
+        claimedRunsHere[designId] = [
+          ...(claimedRunsHere[designId] || []),
+          ...((item.production_run_ids || []) as string[]).map(String),
+        ].filter(Boolean)
+      }
+
+      const blocked = designsBlockedByOpenClaims({
+        design_ids: designIds,
+        claimed_runs: claimedRunsHere,
+        open_submissions_by_design: openByDesign,
+        prior_lines: openPriors.map((item) => ({
+          design_id: item.design_id ? String(item.design_id) : null,
+          submission_id: String(item.submission?.id || item.submission_id || ""),
+          submission_status: item.submission?.status ?? null,
+          production_run_ids: (item.production_run_ids || []) as string[],
+        })),
+      })
+
+      if (blocked.length) {
         throw new MedusaError(
           MedusaError.Types.INVALID_DATA,
-          `Designs already in an active payment submission: ${openDesigns.join(", ")}`
+          designOpenClaimsMessage(blocked)
         )
       }
 

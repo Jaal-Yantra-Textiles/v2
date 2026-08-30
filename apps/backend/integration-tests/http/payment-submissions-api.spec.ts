@@ -2908,9 +2908,26 @@ setupSharedTestSuite(() => {
       expect(String(res.data?.message || "")).toContain("not eligible")
     })
 
-    it("refuses to claim a run a live payout already covers", async () => {
+    /**
+     * ⚠️ Re-expressed, not relaxed. This case used to bill 4 then 4 of a run
+     * ORDERED FOR 9 and expect a refusal — and it got one, but from the
+     * design-level guard, which refused any second submission on a design
+     * whether or not the money overlapped. #1596 made 4-then-4-of-9 legitimate
+     * tranche billing, so the design guard now stands down where the run guard
+     * has the arithmetic (see `designsBlockedByOpenClaims`), and this case
+     * would have started passing for a reason it never meant.
+     *
+     * The intent — an overclaim is refused — is kept by asking for MORE than
+     * the run is worth. The sibling case below pins the half that is now
+     * allowed, so the loosening is stated rather than merely un-caught.
+     *
+     * This is the third test of this family; #1665 re-expressed two others the
+     * same way, at 4 + 7 = 11.
+     */
+    it("refuses to claim a run past what a live payout leaves of it", async () => {
       const d1 = await createDesign("Partner Double Claim Design")
       await linkDesignToPartner(d1, partnerId)
+      // Ordered for 9.
       const runId = await createCompletedRun(d1, "Partner Double Claim Design")
 
       const first = await api.post(
@@ -2931,7 +2948,8 @@ setupSharedTestSuite(() => {
           {
             design_ids: [d1],
             production_run_ids: { [d1]: [runId] },
-            quantities: { [d1]: 4 },
+            // 4 + 7 = 11 against a ceiling of 9.
+            quantities: { [d1]: 7 },
             unit_amounts: { [d1]: 1200 },
           },
           { headers: partnerHeaders }
@@ -2939,6 +2957,84 @@ setupSharedTestSuite(() => {
         .catch((e: any) => e.response)
 
       expect(second.status).toBe(400)
+    })
+
+    /**
+     * 🔴 The loosening, stated. The design-level guard used to refuse this
+     * outright; now the run's ORDERED quantity is the only thing standing
+     * between a partner and a second claim, and the guard cannot tell "the next
+     * 4" from "the same 4" — nothing in the data ever could. Recorded here so
+     * the change is visible rather than inferred from an absent refusal.
+     */
+    it("allows a second tranche of the same run while the first is still open (#1596)", async () => {
+      const d1 = await createDesign("Partner Tranche Design")
+      await linkDesignToPartner(d1, partnerId)
+      const runId = await createCompletedRun(d1, "Partner Tranche Design")
+
+      const first = await api.post(
+        "/partners/payment-submissions",
+        {
+          design_ids: [d1],
+          production_run_ids: { [d1]: [runId] },
+          quantities: { [d1]: 4 },
+          unit_amounts: { [d1]: 1200 },
+        },
+        { headers: partnerHeaders }
+      )
+      expect(first.status).toBe(201)
+
+      const second = await api
+        .post(
+          "/partners/payment-submissions",
+          {
+            design_ids: [d1],
+            production_run_ids: { [d1]: [runId] },
+            // 4 + 4 = 8, inside the run's ordered 9.
+            quantities: { [d1]: 4 },
+            unit_amounts: { [d1]: 1200 },
+          },
+          { headers: partnerHeaders }
+        )
+        .catch((e: any) => e.response)
+
+      expect(second.status).toBe(201)
+    })
+
+    /**
+     * And the half that must NOT loosen: an open prior that does not say which
+     * runs it paid for is invisible to the run guard, so the design-level
+     * refusal is still the only thing that can catch it.
+     */
+    it("still refuses when the open prior names no runs to diff against (#1596)", async () => {
+      const d1 = await createDesign("Partner Opaque Prior Design")
+      await linkDesignToPartner(d1, partnerId)
+      const runId = await createCompletedRun(d1, "Partner Opaque Prior Design")
+
+      // A claim that records no run evidence at all.
+      const first = await api.post(
+        "/partners/payment-submissions",
+        { design_ids: [d1] },
+        { headers: partnerHeaders }
+      )
+      expect(first.status).toBe(201)
+
+      const second = await api
+        .post(
+          "/partners/payment-submissions",
+          {
+            design_ids: [d1],
+            production_run_ids: { [d1]: [runId] },
+            quantities: { [d1]: 1 },
+            unit_amounts: { [d1]: 1200 },
+          },
+          { headers: partnerHeaders }
+        )
+        .catch((e: any) => e.response)
+
+      expect(second.status).toBe(400)
+      expect(String(second.data?.message || "")).toContain(
+        "already in an active payment submission"
+      )
     })
   })
 
