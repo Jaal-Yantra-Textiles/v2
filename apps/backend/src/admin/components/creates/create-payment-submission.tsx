@@ -23,6 +23,11 @@ import {
   usePayableRuns,
   type PayableRun,
 } from "../../hooks/api/payment-submissions"
+import { PayableRunsGrid } from "./payable-runs-grid"
+import {
+  runBillsVerbatimTotal as billsVerbatimTotal,
+  runLineAmount,
+} from "./lib/run-line-pricing"
 /**
  * 🔴 From `rate-breakdown-display`, NOT `rate-breakdown`. This is a Vite
  * BROWSER bundle: the latter imports `MedusaError`, and pulling it in here
@@ -76,6 +81,17 @@ export const CreatePaymentSubmissionComponent = () => {
   const navigate = useNavigate()
 
   const [partnerId, setPartnerId] = useState<string>("")
+  /**
+   * Two steps, because they are two different jobs.
+   *
+   * Choosing the partner decides WHOSE work is on the screen; everything after
+   * it is deciding what to pay for. Sharing one page meant the picker and its
+   * notes box sat above a spreadsheet forever, holding a third of the height
+   * and half the width for a decision already made — and the grid, which is the
+   * whole point of the screen, was squeezed into a 720px column beside them.
+   */
+  const [step, setStep] = useState<"partner" | "items">("partner")
+
   const [activeTab, setActiveTab] = useState<"runs" | "designs" | "tasks">(
     "runs"
   )
@@ -140,12 +156,6 @@ export const CreatePaymentSubmissionComponent = () => {
     [payableRuns]
   )
 
-  /** Runs already carrying an agreed rate — what "Select All" may safely take. */
-  const pricedSelectableRuns = useMemo(
-    () => selectableRuns.filter((r) => r.payable),
-    [selectableRuns]
-  )
-
   const eligibleDesigns = useMemo(
     () =>
       designs.filter((d) =>
@@ -180,8 +190,12 @@ export const CreatePaymentSubmissionComponent = () => {
   }
 
   const handlePartnerChange = (value: string) => {
+    // A different partner means a different set of runs, so anything already
+    // ticked refers to work this partner did not do.
+    if (value !== partnerId) {
+      resetSelection()
+    }
     setPartnerId(value)
-    resetSelection()
   }
 
   // ─── Selection handlers ─────────────────────────────────────────────
@@ -192,28 +206,6 @@ export const CreatePaymentSubmissionComponent = () => {
       return next
     })
   }, [])
-
-  const toggleRun = useCallback((id: string) => {
-    setSelectedRunIds((prev) => {
-      const next = new Set(prev)
-      next.has(id) ? next.delete(id) : next.add(id)
-      return next
-    })
-  }, [])
-
-  /**
-   * Select All takes only the PRICED runs. Bulk-selecting a run with no rate
-   * would add a line the submit guard then refuses, so the button would appear
-   * to work and then block the whole submission on rows the admin never chose.
-   * An unpriced run is selected deliberately, one at a time, with a rate typed.
-   */
-  const selectAllRuns = useCallback(() => {
-    setSelectedRunIds((prev) =>
-      prev.size === pricedSelectableRuns.length
-        ? new Set()
-        : new Set(pricedSelectableRuns.map((r) => r.run_id))
-    )
-  }, [pricedSelectableRuns])
 
   /** Units billed for a run — the produced figure unless an admin retyped it. */
   const getRunQuantity = useCallback(
@@ -233,10 +225,54 @@ export const CreatePaymentSubmissionComponent = () => {
     [runRateOverrides]
   )
 
+  /**
+   * Whether a human has typed a rate for this run.
+   *
+   * This is the line between "the system is showing you what was agreed" and
+   * "you have decided a new price". Everything below turns on it.
+   */
+  const runHasTypedRate = useCallback(
+    (run: PayableRun): boolean => runRateOverrides[run.run_id] != null,
+    [runRateOverrides]
+  )
+
+  /**
+   * What this run bills.
+   *
+   * 🔴 A `total` run's agreed figure is the price OF THE JOB, not a rate. Its
+   * `unit_amount` is `total / quantity`, derived purely so a screen can show a
+   * rate, and flagged `unit_is_derived` for exactly this reason: multiplying it
+   * back out does not reproduce the total. On a real run — ₹10,000 agreed, 9
+   * ordered, 7 made — that arithmetic bills ₹7,777.77, a 22% cut nobody
+   * decided, and even when the numbers line up it loses a paisa to rounding
+   * (₹9,999.99 for ₹10,000). 97 of 100 production runs are priced this way.
+   *
+   * So an untouched derived row bills its agreed total VERBATIM, and changing
+   * the quantity does not move it — the total was never per-piece.
+   *
+   * Typing a rate is the deliberate way out: a human who has decided a per-unit
+   * price outranks the stored figure, and from then on the row multiplies.
+   */
   const getRunAmount = useCallback(
     (run: PayableRun): number =>
-      Math.round(getRunQuantity(run) * getRunRate(run) * 100) / 100,
-    [getRunQuantity, getRunRate]
+      runLineAmount({
+        quantity: getRunQuantity(run),
+        rate: getRunRate(run),
+        amount: run.amount,
+        unit_is_derived: run.unit_is_derived,
+        hasTypedRate: runHasTypedRate(run),
+      }),
+    [getRunQuantity, getRunRate, runHasTypedRate]
+  )
+
+  /** A row still billing an agreed TOTAL rather than a rate it was given. */
+  const runBillsVerbatimTotal = useCallback(
+    (run: PayableRun): boolean =>
+      billsVerbatimTotal({
+        unit_is_derived: run.unit_is_derived,
+        hasTypedRate: runHasTypedRate(run),
+      }),
+    [runHasTypedRate]
   )
 
   const handleRunNumberChange = (
@@ -345,7 +381,23 @@ export const CreatePaymentSubmissionComponent = () => {
   const runLinesByDesign = useMemo(() => {
     const byDesign = new Map<
       string,
-      { runs: PayableRun[]; quantity: number; amount: number; rates: Set<number> }
+      {
+        runs: PayableRun[]
+        quantity: number
+        amount: number
+        rates: Set<number>
+        /**
+         * Whether any run on this line is still billing an agreed TOTAL.
+         *
+         * 🔴 This decides which channel the line is SENT on, and it is not a
+         * display concern. `create` prices in a fixed order — a typed line
+         * total wins outright, then a typed RATE, and only then the runs via
+         * `runPayableOffer`. Sending a derived rate as `unit_amounts` therefore
+         * OUTRANKS the one true pricer and makes the server multiply a figure
+         * that was never per-piece.
+         */
+        hasVerbatimTotal: boolean
+      }
     >()
 
     for (const run of selectedRuns) {
@@ -354,16 +406,25 @@ export const CreatePaymentSubmissionComponent = () => {
         quantity: 0,
         amount: 0,
         rates: new Set<number>(),
+        hasVerbatimTotal: false,
       }
       entry.runs.push(run)
       entry.quantity += getRunQuantity(run)
       entry.amount = Math.round((entry.amount + getRunAmount(run)) * 100) / 100
       entry.rates.add(getRunRate(run))
+      entry.hasVerbatimTotal =
+        entry.hasVerbatimTotal || runBillsVerbatimTotal(run)
       byDesign.set(run.design_id, entry)
     }
 
     return byDesign
-  }, [selectedRuns, getRunQuantity, getRunAmount, getRunRate])
+  }, [
+    selectedRuns,
+    getRunQuantity,
+    getRunAmount,
+    getRunRate,
+    runBillsVerbatimTotal,
+  ])
 
   const runsTotal = useMemo(
     () => selectedRuns.reduce((sum, r) => sum + getRunAmount(r), 0),
@@ -475,6 +536,22 @@ export const CreatePaymentSubmissionComponent = () => {
       for (const [designId, line] of runLinesByDesign.entries()) {
         quantities[designId] = line.quantity
         productionRunIds[designId] = line.runs.map((r) => r.run_id)
+
+        /**
+         * 🔴 An agreed TOTAL goes on the line-total channel, never as a rate.
+         *
+         * `cost_overrides` "wins outright; never multiplied by quantity" — the
+         * only channel that says what this is. Sending the derived rate in
+         * `unit_amounts` instead outranks `runPayableOffer` server-side and
+         * bills `quantity × total/quantity`: a 22% cut on a short run, and a
+         * lost paisa even on an exact one. What the screen shows and what gets
+         * written have to be the same number (#1616).
+         */
+        if (line.hasVerbatimTotal) {
+          runCostOverrides[designId] = line.amount
+          continue
+        }
+
         if (line.rates.size === 1) {
           unitAmounts[designId] = [...line.rates][0]
           continue
@@ -564,37 +641,80 @@ export const CreatePaymentSubmissionComponent = () => {
             </RouteFocusModal.Title>
             <RouteFocusModal.Description asChild>
               <Text size="small" className="text-ui-fg-subtle">
-                Create a submission on behalf of a partner
+                {step === "partner"
+                  ? "Step 1 of 2 — choose who is being paid"
+                  : `Step 2 of 2 — choose what to pay ${
+                      selectedPartner?.name || "them"
+                    } for`}
               </Text>
             </RouteFocusModal.Description>
           </div>
           <div className="flex items-center gap-3">
-            {totalSelected > 0 && (
-              <Text className="text-ui-fg-subtle">
-                {totalSelected} item{totalSelected !== 1 ? "s" : ""} ={" "}
-                <span
-                  className="font-semibold text-ui-fg-base"
-                  data-testid="submission-total"
+            {step === "items" && (
+              <>
+                {totalSelected > 0 && (
+                  <Text className="text-ui-fg-subtle">
+                    {totalSelected} item{totalSelected !== 1 ? "s" : ""} ={" "}
+                    <span
+                      className="font-semibold text-ui-fg-base"
+                      data-testid="submission-total"
+                    >
+                      INR {totalAmount.toLocaleString()}
+                    </span>
+                  </Text>
+                )}
+                {/* Back, not "change partner": switching partner from here
+                    would silently discard a grid full of ticked rows, so the
+                    way back is the way you came. */}
+                <Button
+                  variant="secondary"
+                  onClick={() => setStep("partner")}
+                  disabled={isCreating}
                 >
-                  INR {totalAmount.toLocaleString()}
-                </span>
-              </Text>
+                  Back
+                </Button>
+                <Button
+                  onClick={handleSubmit}
+                  isLoading={isCreating}
+                  disabled={!partnerId || totalSelected === 0}
+                >
+                  Create Submission
+                </Button>
+              </>
             )}
-            <Button
-              onClick={handleSubmit}
-              isLoading={isCreating}
-              disabled={!partnerId || totalSelected === 0}
-            >
-              Create Submission
-            </Button>
+            {step === "partner" && (
+              <Button
+                onClick={() => setStep("items")}
+                disabled={!partnerId}
+              >
+                Continue
+              </Button>
+            )}
           </div>
         </div>
       </RouteFocusModal.Header>
 
-      <RouteFocusModal.Body className="flex flex-col gap-y-6 overflow-y-auto p-6 md:p-16">
-        <div className="mx-auto w-full max-w-[720px]">
-          {/* Partner picker */}
-          <div className="mb-6">
+      {/*
+        Step 2 is a spreadsheet and takes the whole modal: 720px could not hold
+        six columns, and Rate and Amount — the two numbers the operator is
+        actually deciding between — fell off the right edge entirely. Step 1 is
+        two form fields and stays in a narrow column, where a full-bleed text
+        input would just be a very long line.
+      */}
+      <RouteFocusModal.Body
+        className={
+          step === "partner"
+            ? "flex flex-col gap-y-6 overflow-y-auto p-6 md:p-16"
+            : "flex flex-col gap-y-4 overflow-y-auto p-4 md:p-6"
+        }
+      >
+        <div
+          className={
+            step === "partner" ? "mx-auto w-full max-w-[720px]" : "w-full"
+          }
+        >
+          {/* Partner picker — step 1. */}
+          <div className={step === "partner" ? "mb-6" : "hidden"}>
             <Text size="small" weight="plus" className="mb-2">
               Partner *
             </Text>
@@ -629,8 +749,8 @@ export const CreatePaymentSubmissionComponent = () => {
             )}
           </div>
 
-          {/* Notes */}
-          <div className="mb-6">
+          {/* Notes — step 1, alongside the partner. */}
+          <div className={step === "partner" ? "mb-6" : "hidden"}>
             <Text size="small" weight="plus" className="mb-2">
               Notes (optional)
             </Text>
@@ -642,6 +762,13 @@ export const CreatePaymentSubmissionComponent = () => {
             />
           </div>
 
+          {/*
+            Kept MOUNTED across the step change rather than unmounted, so a rate
+            half-typed into the grid survives a trip back to the partner step.
+            An operator who steps back to re-read a note and loses their column
+            of figures will not use the second step again.
+          */}
+          <div className={step === "partner" ? "hidden" : ""}>
           {!partnerId ? (
             <Container className="p-8">
               <Text className="text-ui-fg-subtle text-center">
@@ -692,23 +819,35 @@ export const CreatePaymentSubmissionComponent = () => {
               </Tabs.List>
 
               <Tabs.Content value="runs" className="mt-4">
-                <RunsPanel
+                <PayableRunsGrid
                   runs={payableRuns}
                   isLoading={runsLoading}
                   selectedIds={selectedRunIds}
-                  onToggle={toggleRun}
-                  onSelectAll={selectAllRuns}
                   quantityOverrides={runQuantityOverrides}
                   rateOverrides={runRateOverrides}
+                  onSelectionChange={(id, selected) =>
+                    setSelectedRunIds((prev) => {
+                      const next = new Set(prev)
+                      if (selected) {
+                        next.add(id)
+                      } else {
+                        next.delete(id)
+                      }
+                      return next
+                    })
+                  }
                   onQuantityChange={(id, value) =>
                     handleRunNumberChange(setRunQuantityOverrides, id, value)
                   }
                   onRateChange={(id, value) =>
                     handleRunNumberChange(setRunRateOverrides, id, value)
                   }
+                  onClearSelection={() => setSelectedRunIds(new Set())}
                   getQuantity={getRunQuantity}
                   getRate={getRunRate}
                   getAmount={getRunAmount}
+                  billsVerbatimTotal={runBillsVerbatimTotal}
+                  hasTypedRate={runHasTypedRate}
                 />
               </Tabs.Content>
 
@@ -739,305 +878,10 @@ export const CreatePaymentSubmissionComponent = () => {
               </Tabs.Content>
             </Tabs>
           )}
+          </div>
         </div>
       </RouteFocusModal.Body>
     </>
-  )
-}
-
-// ─── Production runs panel ────────────────────────────────────────────
-/**
- * One row per completed RUN — the thing that actually carries a rate and a
- * piece count. The screen this replaces listed designs and had no quantity
- * input at all, which is how a per-unit rate came to be billed once (#1554).
- *
- * Rows that cannot be billed are shown rather than filtered away: a run with no
- * agreed rate, and a run already paid for, are both things an admin looking for
- * "why isn't this here" needs to SEE. They are visibly non-selectable instead.
- */
-const RunsPanel = ({
-  runs,
-  isLoading,
-  selectedIds,
-  onToggle,
-  onSelectAll,
-  quantityOverrides,
-  rateOverrides,
-  onQuantityChange,
-  onRateChange,
-  getQuantity,
-  getRate,
-  getAmount,
-}: {
-  runs: PayableRun[]
-  isLoading: boolean
-  selectedIds: Set<string>
-  onToggle: (id: string) => void
-  onSelectAll: () => void
-  quantityOverrides: Record<string, number>
-  rateOverrides: Record<string, number>
-  onQuantityChange: (id: string, value: string) => void
-  onRateChange: (id: string, value: string) => void
-  getQuantity: (run: PayableRun) => number
-  getRate: (run: PayableRun) => number
-  getAmount: (run: PayableRun) => number
-}) => {
-  if (isLoading) {
-    return (
-      <Container className="p-8">
-        <Text className="text-ui-fg-subtle text-center">
-          Loading production runs...
-        </Text>
-      </Container>
-    )
-  }
-
-  if (!runs.length) {
-    return (
-      <Container className="p-8">
-        <Text className="text-ui-fg-subtle text-center">
-          No completed production runs for this partner. A run has to be
-          completed before it can be paid for.
-        </Text>
-      </Container>
-    )
-  }
-
-  const selectable = runs.filter((r) => r.payable && !r.billed)
-
-  return (
-    <div className="flex flex-col gap-y-2">
-      <div className="mb-1 flex items-center justify-between">
-        <Heading level="h3">{selectable.length} payable</Heading>
-        {selectable.length > 0 && (
-          <Button variant="secondary" size="small" onClick={onSelectAll}>
-            {selectedIds.size === selectable.length
-              ? "Deselect All"
-              : "Select All"}
-          </Button>
-        )}
-      </div>
-
-      {runs.map((run) => {
-        // Only an existing payout blocks. A missing rate is something to TYPE,
-        // not a reason the work cannot be paid for.
-        const isSelectable = !run.billed
-        const needsRate = !run.payable
-        const suggestion =
-          run.design_estimated_cost ?? run.design_production_cost ?? null
-        const isSelected = selectedIds.has(run.run_id)
-        const quantity = getQuantity(run)
-        const rate = getRate(run)
-        const amount = getAmount(run)
-
-        // The two figures disagreeing is the normal case, not an error — it is
-        // the whole reason the basis is stated instead of assumed.
-        const shortfall =
-          run.produced_quantity !== null &&
-          run.ordered_quantity !== null &&
-          run.produced_quantity !== run.ordered_quantity
-
-        /**
-         * #1596 — the shortfall beside this row is SETTLED, not pending.
-         *
-         * "Produced 7 of 9 ordered" is the same sentence whether the last 2
-         * units are still being made or will never be made, and those are
-         * opposite situations for the person deciding what to pay. The offer
-         * already differs — the ceiling moved — so a screen that shows the new
-         * number without the reason presents it as an unexplained reduction.
-         */
-        const isShortClosed = !!run.short_closed_at
-
-        return (
-          <Container
-            key={run.run_id}
-            className={`p-4 transition ${
-              isSelected ? "ring-2 ring-ui-border-interactive" : ""
-            } ${isSelectable ? "" : "opacity-60"}`}
-            data-testid="payable-run-row"
-            data-run-id={run.run_id}
-          >
-            <div className="flex items-center gap-3">
-              <div
-                className={isSelectable ? "cursor-pointer" : "cursor-not-allowed"}
-                onClick={() => isSelectable && onToggle(run.run_id)}
-              >
-                <Checkbox checked={isSelected} disabled={!isSelectable} />
-              </div>
-
-              <div
-                className="flex-1 min-w-0"
-                onClick={() => isSelectable && onToggle(run.run_id)}
-              >
-                {/* flex-wrap deliberately: these badges are sentences, not
-                    words, and a row that cannot wrap clips them above and
-                    below the cell instead of pushing them onto a new line. */}
-                <div className="flex flex-wrap items-center gap-2">
-                  <Text weight="plus" className="truncate">
-                    {run.design_name || "Unnamed design"}
-                  </Text>
-                  {run.design_status && (
-                    <Badge color="grey" size="2xsmall">
-                      {run.design_status.replace(/_/g, " ")}
-                    </Badge>
-                  )}
-                  {run.billed && (
-                    <Badge color="orange" size="2xsmall">
-                      Already paid — {run.billed.status}
-                    </Badge>
-                  )}
-                  {needsRate && (
-                    <Badge color="orange" size="2xsmall">
-                      No agreed rate — enter one
-                    </Badge>
-                  )}
-                  {isShortClosed && (
-                    <Badge color="grey" size="2xsmall">
-                      short-closed
-                    </Badge>
-                  )}
-                </div>
-
-                <div className="mt-1 flex flex-wrap items-center gap-x-4 gap-y-1">
-                  {/* Produced vs ordered, side by side. Which one the amount is
-                      built from is stated, never inferred by the reader. */}
-                  <Text size="small" className="text-ui-fg-subtle">
-                    Produced{" "}
-                    <span className="font-semibold text-ui-fg-base">
-                      {run.produced_quantity ?? "—"}
-                    </span>{" "}
-                    of {run.ordered_quantity ?? "—"} ordered
-                  </Text>
-                  {run.quantity_basis === "ordered" && (
-                    <Text size="small" className="text-ui-fg-warning">
-                      no output recorded — billing the ordered quantity
-                    </Text>
-                  )}
-                  {shortfall && run.quantity_basis === "produced" && (
-                    <Text size="small" className="text-ui-fg-subtle">
-                      {isShortClosed
-                        ? "closed short — nothing further will be made"
-                        : "paying on produced"}
-                    </Text>
-                  )}
-                  {run.rejected_quantity ? (
-                    <Text size="small" className="text-ui-fg-subtle">
-                      {run.rejected_quantity} rejected
-                    </Text>
-                  ) : null}
-                  {/*
-                    Long enough to be UNAMBIGUOUS. Runs are created in
-                    parent/child pairs within the same millisecond, so their
-                    ULIDs share a long prefix — prod's own pair differs only at
-                    character 15. A shorter truncation renders two different
-                    runs as the same string.
-                  */}
-                  <Text size="small" className="text-ui-fg-muted font-mono">
-                    {run.run_id.slice(0, 24)}...
-                  </Text>
-                </div>
-
-                {run.billed && (
-                  <Text size="xsmall" className="text-ui-fg-muted mt-1">
-                    Paid for by submission {run.billed.submission_id} (
-                    {run.billed.quantity} unit
-                    {run.billed.quantity === 1 ? "" : "s"})
-                  </Text>
-                )}
-                {needsRate && suggestion != null && (
-                  <Text size="xsmall" className="text-ui-fg-muted mt-1">
-                    {/* A starting point, explicitly labelled as coming from the
-                        design rather than from what was agreed. The box stays
-                        EMPTY — billing a design cost without someone typing it
-                        is the #1554 substitution. */}
-                    The design estimates {suggestion.toLocaleString()} per unit.
-                    That is the design's figure, not an agreed rate — check it
-                    before using it.
-                  </Text>
-                )}
-                {needsRate && suggestion == null && (
-                  <Text size="xsmall" className="text-ui-fg-muted mt-1">
-                    No cost recorded on the run or the design. Recalculate the
-                    design's cost, or enter the agreed rate here.
-                  </Text>
-                )}
-                {!run.billed && run.design_has_open_submission && (
-                  <Text size="xsmall" className="text-ui-fg-warning mt-1">
-                    This design is already in an open submission — creating
-                    another will be refused until that one is resolved.
-                  </Text>
-                )}
-              </div>
-
-              {isSelectable && (
-                <div className="flex items-center gap-2 shrink-0">
-                  <div className="flex flex-col items-end gap-1">
-                    <Text size="xsmall" className="text-ui-fg-muted">
-                      Qty
-                    </Text>
-                    <Input
-                      type="number"
-                      size="small"
-                      className="w-20 text-right"
-                      aria-label={`Quantity for ${run.design_name || run.run_id}`}
-                      value={
-                        quantityOverrides[run.run_id] != null
-                          ? String(quantityOverrides[run.run_id])
-                          : String(run.payable_quantity)
-                      }
-                      onChange={(e) =>
-                        onQuantityChange(run.run_id, e.target.value)
-                      }
-                      onClick={(e) => e.stopPropagation()}
-                    />
-                  </div>
-                  <div className="flex flex-col items-end gap-1">
-                    <Text size="xsmall" className="text-ui-fg-muted">
-                      Rate
-                    </Text>
-                    <Input
-                      type="number"
-                      size="small"
-                      className="w-24 text-right"
-                      aria-label={`Rate for ${run.design_name || run.run_id}`}
-                      // Empty, not "0", when the run carries no rate — a 0 in
-                      // the box reads as an agreed price of zero, and the
-                      // placeholder makes it obvious a number is wanted.
-                      placeholder={needsRate ? "rate" : undefined}
-                      value={
-                        rateOverrides[run.run_id] != null
-                          ? String(rateOverrides[run.run_id])
-                          : run.unit_amount > 0
-                            ? String(run.unit_amount)
-                            : ""
-                      }
-                      onChange={(e) => onRateChange(run.run_id, e.target.value)}
-                      onClick={(e) => e.stopPropagation()}
-                    />
-                  </div>
-                  <div className="flex flex-col items-end gap-1 w-28">
-                    <Text size="xsmall" className="text-ui-fg-muted">
-                      Amount
-                    </Text>
-                    {/* The arithmetic, shown. A partner disputing a payment
-                        reads "7 × 1,200", not a bare 8,400. */}
-                    <Text
-                      weight="plus"
-                      className="text-right"
-                      data-testid={`run-amount-${run.run_id}`}
-                    >
-                      {rate > 0
-                        ? `${quantity} × ${rate.toLocaleString()} = ${amount.toLocaleString()}`
-                        : "—"}
-                    </Text>
-                  </div>
-                </div>
-              )}
-            </div>
-          </Container>
-        )
-      })}
-    </div>
   )
 }
 

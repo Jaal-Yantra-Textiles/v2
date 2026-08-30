@@ -182,6 +182,21 @@ export interface PayableRun {
   payable_quantity: number
   quantity_basis: "produced" | "ordered"
   unit_amount: number
+  /**
+   * 🔴 Whether `unit_amount` was COMPUTED rather than agreed.
+   *
+   * True for every `cost_type: "total"` run — 97 of 100 on production — where
+   * the rate is `total / quantity` and `unit_amount * quantity` deliberately
+   * does NOT reproduce `amount`. A screen that multiplies it anyway bills a
+   * figure nobody agreed to: ₹7,777.77 against a ₹10,000 job on a short run,
+   * and ₹9,999.99 even on an exact one.
+   *
+   * ⚠️ The API has always sent this. It was missing from this type, so no
+   * screen could read it and none did — the flag existed and had no consumers
+   * for as long as it has been sent.
+   */
+  unit_is_derived: boolean
+  /** What is OWED. For a total-priced run this is the agreed total, verbatim. */
   amount: number
   cost_type: "per_unit" | "total" | null
   partner_cost_estimate: number | null

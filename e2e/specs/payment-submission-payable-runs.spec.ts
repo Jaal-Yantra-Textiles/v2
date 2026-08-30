@@ -62,7 +62,13 @@ test.describe("Payment submission from production runs (#1556)", () => {
     await page.waitForURL(/\/app\/(?!login)/, { timeout: 15000 })
   }
 
-  /** Open the create modal and pick the fixture partner. */
+  /**
+   * Open the create modal, pick the fixture partner, and advance to the grid.
+   *
+   * The screen is TWO steps now: choosing who is paid, then choosing what they
+   * are paid for. Step 1 is a partner and a notes box; the runs are a
+   * full-width spreadsheet on step 2, which is why they no longer share a page.
+   */
   const openCreateForPartner = async (page: any) => {
     await page.goto("/app/payment-submissions/create")
     await expect(
@@ -72,20 +78,43 @@ test.describe("Payment submission from production runs (#1556)", () => {
     await page.getByRole("combobox").first().click()
     await page.getByRole("option", { name: seed.payoutPartnerName }).click()
 
+    await page.getByRole("button", { name: "Continue" }).click()
+
     // The runs list is fetched only once a partner is chosen.
-    await expect(page.getByText("payable", { exact: false }).first()).toBeVisible(
-      { timeout: 20000 }
-    )
+    await expect(
+      page.getByText("billable of", { exact: false }).first()
+    ).toBeVisible({ timeout: 20000 })
   }
 
   /**
+   * One grid row.
+   *
    * ⚠️ Addressed by the FULL run id, not a truncated prefix. The seed's two
    * runs are created in the same millisecond, so their ULIDs share a 16-char
-   * prefix and a `hasText` filter on it matches both rows — which is also why
-   * the row now renders a longer id.
+   * prefix and a `hasText` filter on it matches both rows.
+   *
+   * 🔑 The id lives on the DESIGN cell — the grid renders its own rows and
+   * offers no hook for a per-row attribute — so the row is reached by asking
+   * which row contains that cell.
    */
   const runRow = (page: any, runId: string) =>
-    page.locator(`[data-testid="payable-run-row"][data-run-id="${runId}"]`)
+    page
+      .locator('[role="row"]')
+      .filter({
+        has: page.locator(
+          `[data-testid="payable-run-row"][data-run-id="${runId}"]`
+        ),
+      })
+
+  /**
+   * The editable boxes, addressed by POSITION within the row: Qty then Rate.
+   *
+   * A grid cell has no label of its own — the column header is the label, and
+   * it is not associated with the input. Position is the contract a spreadsheet
+   * actually offers, so it is stated here once rather than guessed at each use.
+   */
+  const qtyBox = (row: any) => row.getByRole("spinbutton").nth(0)
+  const rateBox = (row: any) => row.getByRole("spinbutton").nth(1)
 
   test("lists runs with the produced quantity and prices them from the run", async ({
     page,
@@ -102,17 +131,18 @@ test.describe("Payment submission from production runs (#1556)", () => {
     await expect(row).toBeVisible({ timeout: 15000 })
 
     // 🔑 Both figures, stated. A screen that showed only one could not be
-    // checked for which of the two it was actually billing.
-    await expect(row).toContainText("Produced")
-    await expect(row).toContainText("4")
-    await expect(row).toContainText("of 9 ordered")
+    // checked for which of the two it was actually billing — the Output column
+    // carries produced-of-ordered, and Qty carries what is being billed.
+    await expect(row).toContainText("4 of 9")
+    await expect(qtyBox(row)).toHaveValue("4")
 
     // Priced from the RUN (1200/unit), not from the design's own
     // estimated_cost of 5000 — which would have read 5000 here and billed
     // 45,000 for work worth 4,800.
+    await expect(rateBox(row)).toHaveValue("1200")
     await expect(
       row.getByTestId(`run-amount-${seed.payableRunId}`)
-    ).toContainText("4 × 1,200 = 4,800")
+    ).toHaveText("4,800")
   })
 
   test("still lets an unpriced run be paid, by typing the rate", async ({
@@ -133,7 +163,7 @@ test.describe("Payment submission from production runs (#1556)", () => {
      */
     const row = runRow(page, seed.unpricedRunId)
     await expect(row).toBeVisible({ timeout: 15000 })
-    await expect(row).toContainText("No agreed rate")
+    await expect(row).toContainText("no rate")
     await expect(row.getByRole("checkbox")).toBeEnabled()
 
     // No amount asserted until someone supplies a rate — a "0" here would read
@@ -143,14 +173,16 @@ test.describe("Payment submission from production runs (#1556)", () => {
     ).toHaveText("—")
 
     await row.getByRole("checkbox").click()
-    await row
-      .getByRole("spinbutton", { name: `Rate for ${seed.payoutDesignName}` })
-      .fill("400")
+    // ⚠️ The grid commits a cell on BLUR, as a spreadsheet does. Without the
+    // blur the box reads 400 and nothing downstream has heard about it, which
+    // is a passing-looking test asserting an uncommitted edit.
+    await rateBox(row).fill("400")
+    await rateBox(row).blur()
 
     // 2 produced x 400 typed by hand.
     await expect(
       row.getByTestId(`run-amount-${seed.unpricedRunId}`)
-    ).toContainText("2 × 400 = 800")
+    ).toHaveText("800")
     await expect(page.getByTestId("submission-total")).toHaveText("INR 800")
   })
 
@@ -175,14 +207,12 @@ test.describe("Payment submission from production runs (#1556)", () => {
     // The live correction this mirrors: a partner reported more output after
     // the fact, so the payable quantity is retyped. Before #1556 there was no
     // box to type it into at all.
-    const qty = row.getByRole("spinbutton", {
-      name: `Quantity for ${seed.payoutDesignName}`,
-    })
-    await qty.fill("7")
+    await qtyBox(row).fill("7")
+    await qtyBox(row).blur()
 
     await expect(
       row.getByTestId(`run-amount-${seed.billableRunId}`)
-    ).toContainText("7 × 1,200 = 8,400")
+    ).toHaveText("8,400")
     await expect(total).toHaveText("INR 8,400")
 
     // 🔴 Assert the POST itself, not just where the browser ends up. This case
@@ -236,7 +266,7 @@ test.describe("Payment submission from production runs (#1556)", () => {
     // Depends on the previous case having created the payout against it.
     const row = runRow(page, seed.billableRunId)
     await expect(row).toBeVisible({ timeout: 15000 })
-    await expect(row).toContainText("Already paid")
+    await expect(row).toContainText("paid")
     await expect(row.getByRole("checkbox")).toBeDisabled()
   })
 })

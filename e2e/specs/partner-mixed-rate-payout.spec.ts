@@ -225,8 +225,23 @@ test.describe("Partner per-piece prices @partnerui (#1596)", () => {
     await page.getByRole("combobox").first().click()
     await page.getByRole("option", { name: seed.adminPartnerName }).click()
 
+    // The screen is two steps now: who is paid, then what for. The runs are a
+    // full-width grid on the second.
+    await page.getByRole("button", { name: "Continue" }).click()
+
+    /**
+     * One grid row. The run id lives on the DESIGN cell — the grid renders its
+     * own rows and offers no hook for a per-row attribute — so the row is
+     * reached by asking which row contains that cell.
+     */
     const row = (runId: string) =>
-      page.locator(`[data-testid="payable-run-row"][data-run-id="${runId}"]`)
+      page
+        .locator('[role="row"]')
+        .filter({
+          has: page.locator(
+            `[data-testid="payable-run-row"][data-run-id="${runId}"]`
+          ),
+        })
 
     await expect(row(seed.adminMixedRunAId)).toBeVisible({ timeout: 30_000 })
     await row(seed.adminMixedRunAId).getByRole("checkbox").click()
