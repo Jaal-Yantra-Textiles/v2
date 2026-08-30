@@ -891,6 +891,56 @@ setupSharedTestSuite(() => {
       expect(row.quantity_basis).toBe("ordered")
     })
 
+    /**
+     * #1596 — the ROW says it is closed, not just the arithmetic.
+     *
+     * `short_closed_at` is fetched by this route to compute the ceiling, and it
+     * would have been easy to leave it there. But the picker prints "Produced 4
+     * of 9 ordered" either way, and the offer it acts on has quietly dropped
+     * from 9 to 4 — an unexplained reduction unless the row can say why. A
+     * screen branching on a field the API stopped sending renders "not closed"
+     * forever, in silence, which is the whole failure this asserts against.
+     */
+    it("says on the row that a run was short-closed, not just in the offer (#1596)", async () => {
+      const d1 = await createDesign("Closed Row Design", { estimated_cost: 100 })
+      await linkDesignToPartner(d1, partnerId)
+      const runId = await createCompletedRun(d1, "Closed Row Design", {
+        quantity: 9,
+        produced_quantity: 4,
+        partner_cost_estimate: 1200,
+        cost_type: "per_unit",
+      })
+
+      const before = await api.get(
+        `/admin/payment-submissions/payable-runs?partner_id=${partnerId}`,
+        adminHeaders
+      )
+      const openRow = before.data.payable_runs.find((r: any) => r.run_id === runId)
+      // Present and null — an absent key and "not closed" must not look alike
+      // to a screen reading it.
+      expect(openRow).toBeDefined()
+      expect(openRow.short_closed_at).toBeNull()
+
+      await api.post(
+        `/admin/production-runs/${runId}/short-close`,
+        { reason: "Partner confirmed no more will be made" },
+        adminHeaders
+      )
+
+      const after = await api.get(
+        `/admin/payment-submissions/payable-runs?partner_id=${partnerId}`,
+        adminHeaders
+      )
+      const closedRow = after.data.payable_runs.find((r: any) => r.run_id === runId)
+      expect(closedRow).toBeDefined()
+      expect(closedRow.short_closed_at).toBeTruthy()
+      // The ordered figure is still reported as ordered — the row shows what
+      // was agreed AND what is now offered, rather than rewriting history.
+      expect(closedRow.ordered_quantity).toBe(9)
+      expect(closedRow.produced_quantity).toBe(4)
+      expect(closedRow.payable_quantity).toBe(4)
+    })
+
     it("marks a run with no agreed rate unpayable instead of billing zero", async () => {
       // A run with no cost is not a zero-value payout — it is a run whose price
       // has not been settled. Surfaced, not silently dropped.

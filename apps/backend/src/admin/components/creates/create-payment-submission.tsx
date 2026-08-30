@@ -837,6 +837,17 @@ const RunsPanel = ({
           run.ordered_quantity !== null &&
           run.produced_quantity !== run.ordered_quantity
 
+        /**
+         * #1596 — the shortfall beside this row is SETTLED, not pending.
+         *
+         * "Produced 7 of 9 ordered" is the same sentence whether the last 2
+         * units are still being made or will never be made, and those are
+         * opposite situations for the person deciding what to pay. The offer
+         * already differs — the ceiling moved — so a screen that shows the new
+         * number without the reason presents it as an unexplained reduction.
+         */
+        const isShortClosed = !!run.short_closed_at
+
         return (
           <Container
             key={run.run_id}
@@ -858,7 +869,10 @@ const RunsPanel = ({
                 className="flex-1 min-w-0"
                 onClick={() => isSelectable && onToggle(run.run_id)}
               >
-                <div className="flex items-center gap-2">
+                {/* flex-wrap deliberately: these badges are sentences, not
+                    words, and a row that cannot wrap clips them above and
+                    below the cell instead of pushing them onto a new line. */}
+                <div className="flex flex-wrap items-center gap-2">
                   <Text weight="plus" className="truncate">
                     {run.design_name || "Unnamed design"}
                   </Text>
@@ -875,6 +889,11 @@ const RunsPanel = ({
                   {needsRate && (
                     <Badge color="orange" size="2xsmall">
                       No agreed rate — enter one
+                    </Badge>
+                  )}
+                  {isShortClosed && (
+                    <Badge color="grey" size="2xsmall">
+                      short-closed
                     </Badge>
                   )}
                 </div>
@@ -896,7 +915,9 @@ const RunsPanel = ({
                   )}
                   {shortfall && run.quantity_basis === "produced" && (
                     <Text size="small" className="text-ui-fg-subtle">
-                      paying on produced
+                      {isShortClosed
+                        ? "closed short — nothing further will be made"
+                        : "paying on produced"}
                     </Text>
                   )}
                   {run.rejected_quantity ? (

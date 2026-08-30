@@ -172,6 +172,12 @@ export interface PayableRun {
   /** Null when output was never recorded — distinct from "made zero". */
   produced_quantity: number | null
   rejected_quantity: number | null
+  /**
+   * #1596 — set means the run was declared finished for good, so the gap
+   * between produced and ordered is settled rather than pending. The offer on
+   * the row already reflects it; this is what lets the screen SAY so.
+   */
+  short_closed_at: string | null
   /** What this row bills for: produced, falling back to ordered. */
   payable_quantity: number
   quantity_basis: "produced" | "ordered"

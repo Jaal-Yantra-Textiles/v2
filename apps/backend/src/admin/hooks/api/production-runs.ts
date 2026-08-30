@@ -35,6 +35,18 @@ export type AdminProductionRun = Record<string, any> & {
   run_type?: "production" | "sample"
   partner_id?: string | null
   design_id?: string
+  /**
+   * #1596 — short close. Set means "no more will be made": the run's billable
+   * ceiling is its PRODUCED quantity from here, not its ordered one.
+   * `short_closed_by` is an admin actor id, or the literal "system" when the
+   * 30-day counter closed it. `short_closed_quantity` is what produced was
+   * believed to be at the moment of the decision — the ceiling itself is always
+   * re-derived from the live figure, so a later upward correction is honoured.
+   */
+  short_closed_at?: string | null
+  short_closed_by?: string | null
+  short_close_reason?: string | null
+  short_closed_quantity?: number | null
 }
 
 export type AdminCreateDesignProductionRunResponse =
@@ -817,4 +829,98 @@ export const useProductionRunPayments = (
     ...options,
   })
   return { ...data, ...rest }
+}
+
+/**
+ * SHORT CLOSE (#1596) — "no more will be made on this run."
+ *
+ * A run ordered for 9 and completed at 7 keeps 2 units billable, deliberately:
+ * output is captured at completion and a run can legitimately produce more
+ * afterwards. That headroom cannot tell "not made yet" from "never will be
+ * made", and this is the statement that settles it. From here the run bills to
+ * what it PRODUCED.
+ *
+ * 🔑 Invalidate the billing key too. The remainder shown beside "Partly billed"
+ * is computed by `/payments` from the same ceiling this moves, and a screen
+ * still offering units the write guard now refuses is how an admin learns about
+ * a rule from a 400.
+ */
+const invalidateRunBilling = (queryClient: ReturnType<typeof useQueryClient>, runId: string) => {
+  queryClient.invalidateQueries({ queryKey: productionRunQueryKeys.detail(runId) })
+  queryClient.invalidateQueries({ queryKey: productionRunQueryKeys.lists() })
+  queryClient.invalidateQueries({ queryKey: ["production-runs", runId, "payments"] })
+  queryClient.invalidateQueries({ queryKey: ["payable-runs"] })
+}
+
+export type AdminShortCloseRunPayload = {
+  reason?: string | null
+}
+
+export type AdminShortCloseRunResponse = {
+  production_run: AdminProductionRun
+  short_closed: boolean
+  /** `closed`, or `already_closed` when a repeat call found nothing to do. */
+  outcome: string
+}
+
+export const useShortCloseProductionRun = (
+  runId: string,
+  options?: UseMutationOptions<
+    AdminShortCloseRunResponse,
+    FetchError,
+    AdminShortCloseRunPayload
+  >
+) => {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: async (payload: AdminShortCloseRunPayload) =>
+      sdk.client.fetch<AdminShortCloseRunResponse>(
+        `/admin/production-runs/${runId}/short-close`,
+        { method: "POST", body: payload }
+      ),
+    onSuccess: (data, variables, _mutateResult, context) => {
+      invalidateRunBilling(queryClient, runId)
+      queryClient.invalidateQueries({
+        queryKey: [...productionRunQueryKeys.detail(runId), "activities"],
+      })
+      options?.onSuccess?.(data, variables, _mutateResult, context)
+    },
+    ...options,
+  })
+}
+
+export type AdminReopenRunResponse = {
+  production_run: AdminProductionRun
+  reopened: boolean
+}
+
+/**
+ * Reverse a short close — it was premature, or more work is coming.
+ *
+ * Reversal is always available; closing never is automatic on this screen. An
+ * upward output correction also reopens a closed run on the server, so this is
+ * the deliberate path rather than the only one.
+ */
+export const useReopenProductionRun = (
+  runId: string,
+  options?: UseMutationOptions<AdminReopenRunResponse, FetchError, AdminShortCloseRunPayload | void>
+) => {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: async (payload: AdminShortCloseRunPayload | void) =>
+      sdk.client.fetch<AdminReopenRunResponse>(
+        `/admin/production-runs/${runId}/short-close`,
+        { method: "DELETE", body: payload || {} }
+      ),
+    onSuccess: (data, variables, _mutateResult, context) => {
+      invalidateRunBilling(queryClient, runId)
+      queryClient.invalidateQueries({
+        queryKey: [...productionRunQueryKeys.detail(runId), "activities"],
+      })
+      options?.onSuccess?.(data, variables, _mutateResult, context)
+    },
+    ...options,
+  })
 }
