@@ -1,3 +1,19 @@
+# [13.127.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.126.0...v13.127.0) (2026-08-30)
+
+
+### Bug Fixes
+
+* **inventory:** Create did nothing because native validation rejected the blank rows the form seeds ([#1671](https://github.com/Jaal-Yantra-Textiles/v2/issues/1671)) ([#1673](https://github.com/Jaal-Yantra-Textiles/v2/issues/1673)) ([b1eafbd](https://github.com/Jaal-Yantra-Textiles/v2/commit/b1eafbdd661d300c77ec3f7a9b5fbc45954ca82b))
+* **inventory:** name the product on a finished-goods order line, not just its variant ([#1662](https://github.com/Jaal-Yantra-Textiles/v2/issues/1662)) ([#1668](https://github.com/Jaal-Yantra-Textiles/v2/issues/1668)) ([5e96829](https://github.com/Jaal-Yantra-Textiles/v2/commit/5e96829be33c3d33b53c3075ff68e0d61d5ac173))
+
+
+### Features
+
+* **stats:** dynamic metric_sections operation + seeded public Platform Stats panel ([#1672](https://github.com/Jaal-Yantra-Textiles/v2/issues/1672)) ([5d132f7](https://github.com/Jaal-Yantra-Textiles/v2/commit/5d132f7505ff7ca75567d43910bb983962b8d33c))
+* **production-runs:** short-close a run, explicitly and on a 30-day counter ([#1596](https://github.com/Jaal-Yantra-Textiles/v2/issues/1596)) ([#1677](https://github.com/Jaal-Yantra-Textiles/v2/issues/1677)) ([d71bbc6](https://github.com/Jaal-Yantra-Textiles/v2/commit/d71bbc6e95af93c84376f331413c438a0b082d2b)), closes [#1557](https://github.com/Jaal-Yantra-Textiles/v2/issues/1557)
+* **payments:** stop refusing a second claim on a design the run guard can settle ([#1596](https://github.com/Jaal-Yantra-Textiles/v2/issues/1596)) ([#1674](https://github.com/Jaal-Yantra-Textiles/v2/issues/1674)) ([e1c7e0a](https://github.com/Jaal-Yantra-Textiles/v2/commit/e1c7e0a0f7f7dc39bdae10755bb15733a26fb87e)), closes [#1557](https://github.com/Jaal-Yantra-Textiles/v2/issues/1557) [#1565](https://github.com/Jaal-Yantra-Textiles/v2/issues/1565) [#1665](https://github.com/Jaal-Yantra-Textiles/v2/issues/1665) [#1665](https://github.com/Jaal-Yantra-Textiles/v2/issues/1665)
+* **medias:** visible-first textile extraction and rate-limited folder-wide feature extraction ([#1666](https://github.com/Jaal-Yantra-Textiles/v2/issues/1666)) ([479b67f](https://github.com/Jaal-Yantra-Textiles/v2/commit/479b67fe868d022cd7596d95296de41cd5092f1c))
+
 # [13.126.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.125.0...v13.126.0) (2026-08-30)
 
 
