@@ -239,3 +239,75 @@ describe("resolveRunLinePrice", () => {
     expect(written?.quantity).toBe(1)
   })
 })
+
+/**
+ * #1596 — the ADMIN SCREEN's fold must reach the same figure as the server's.
+ *
+ * The screen does not just display an amount; it chooses which request field
+ * carries it, and `create` prices in a fixed order — a typed line total wins
+ * outright, then a typed RATE, and only then the runs. So a screen that sends a
+ * DERIVED rate as `unit_amounts` outranks `resolveRunLinePrice` and makes the
+ * server multiply a figure that was never per-piece.
+ *
+ * 🔴 That is what the admin create screen did for as long as it has existed.
+ * `payable-runs` has always sent `unit_is_derived`; the client type never
+ * declared it, so no screen could read it and none did.
+ */
+describe("the admin screen's fold agrees with the server's pricer", () => {
+  /** ₹10,000 agreed for the job, 9 ordered, 7 made. */
+  const TOTAL_PRICED_RUN = {
+    id: "prod_run_total",
+    design_id: "design_total",
+    partner_id: "partner_1",
+    status: "completed",
+    quantity: 9,
+    produced_quantity: 7,
+    partner_cost_estimate: 10000,
+    cost_type: "total" as const,
+  }
+
+  it("bills the agreed total, whichever end computes it", () => {
+    const offer = runPayableOffer(TOTAL_PRICED_RUN)
+    expect(offer.unit_is_derived).toBe(true)
+    expect(offer.amount).toBe(10000)
+
+    // What the screen now sends for such a line: the offer's amount as a line
+    // TOTAL, never the derived rate.
+    const asScreenSendsIt = resolvePaymentLineAmount({
+      runs: [TOTAL_PRICED_RUN],
+      unit_cost: 0,
+      quantity: offer.quantity,
+      override: offer.amount,
+      unit_override: null,
+    })
+    expect(asScreenSendsIt.amount).toBe(10000)
+
+    // And letting the server price it from the runs reaches the same figure,
+    // so the two ends cannot drift.
+    const asServerPricesIt = resolvePaymentLineAmount({
+      runs: [TOTAL_PRICED_RUN],
+      unit_cost: 0,
+      quantity: offer.quantity,
+      override: null,
+      unit_override: null,
+    })
+    expect(asServerPricesIt.amount).toBe(10000)
+  })
+
+  it("would have UNDERPAID had the derived rate been sent as a rate", () => {
+    // The defect this guards, stated as arithmetic. 7 x (10000/7) loses a
+    // paisa; the same rate against the ordered 9 invents ₹2,857 nobody agreed.
+    const offer = runPayableOffer(TOTAL_PRICED_RUN)
+
+    const sentAsRate = resolvePaymentLineAmount({
+      runs: [TOTAL_PRICED_RUN],
+      unit_cost: 0,
+      quantity: offer.quantity,
+      override: null,
+      unit_override: offer.unit_amount,
+    })
+
+    expect(sentAsRate.amount).not.toBe(10000)
+    expect(sentAsRate.amount).toBeLessThan(10000)
+  })
+})

@@ -316,6 +316,17 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
           run.rejected_quantity === null || run.rejected_quantity === undefined
             ? null
             : Number(run.rejected_quantity),
+        /**
+         * #1596 — set means this run has been declared finished for good, so
+         * the produced/ordered gap beside it is SETTLED rather than pending.
+         *
+         * The row already prints "Produced 7 of 9 ordered"; without this the
+         * screen cannot say whether those 2 units are still coming or will
+         * never be made — and `ordered_quantity` above is the raw ordered
+         * figure, deliberately, so the operator can still see what was agreed.
+         * The offer they act on comes from the ceiling, not from that number.
+         */
+        short_closed_at: run.short_closed_at ?? null,
         /** What this row bills for: produced, or ordered when output was never recorded. */
         payable_quantity,
         quantity_basis: offer.quantity_basis,

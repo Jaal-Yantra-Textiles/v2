@@ -14,6 +14,7 @@ import {
   ArrowPath,
   CheckCircle,
   EllipsisHorizontal,
+  LockClosedSolid,
   PencilSquare,
   PlayMiniSolid,
   Trash,
@@ -48,6 +49,23 @@ import {
 import { productionRunStatusColor as statusColor } from "../../../lib/status-colors"
 
 const formatStatus = (s: string) => s.replace(/_/g, " ")
+
+/**
+ * Quantities for display.
+ *
+ * ⚠️ `short_closed_quantity` is a float COLUMN, so it arrives as the string
+ * "4.000000" and `String(...)` renders it verbatim — the screen read "Closed at
+ * 4.000000 of 9 ordered". Every quantity on this page goes through here rather
+ * than through String(), because which of them is a float and which an integer
+ * is a schema detail no reader of this file should have to remember.
+ */
+const formatQty = (value: unknown): string => {
+  if (value === null || value === undefined || value === "") {
+    return "—"
+  }
+  const n = Number(value)
+  return Number.isFinite(n) ? String(n) : String(value)
+}
 
 const ProductionRunDetailPage = () => {
   const { id } = useParams()
@@ -107,6 +125,41 @@ const ProductionRunDetailPage = () => {
     !isParent && hasPartner && notTerminal && !!run?.accepted_at && !run?.started_at
   const canFinish =
     !isParent && hasPartner && notTerminal && !!run?.started_at && !run?.finished_at
+
+  /**
+   * #1596 — SHORT CLOSE. A run ordered for 9 and completed at 7 keeps 2 units
+   * billable on purpose: output is captured at completion and a run can
+   * legitimately produce more afterwards. That headroom cannot tell "not made
+   * yet" from "never will be made" — this is where somebody says the latter,
+   * after which the run bills to what it produced.
+   *
+   * The offer is gated on the close actually MOVING the ceiling. With no
+   * output figure the server refuses outright, and at produced >= ordered the
+   * ceiling would not move, so offering it there would be a control that looks
+   * like a decision and changes nothing.
+   */
+  const isShortClosed = !!run?.short_closed_at
+  const producedQty = Number(run?.produced_quantity)
+  const orderedQty = Number(run?.quantity)
+  /**
+   * What may be billed IN TOTAL, mirroring `runBillableCeiling` on the server.
+   * Ordered quantity until the run is closed, then what it produced — and never
+   * a reduction inferred from missing data.
+   */
+  const billableCeiling =
+    !Number.isFinite(orderedQty) || orderedQty <= 0
+      ? null
+      : isShortClosed && Number.isFinite(producedQty) && producedQty > 0
+        ? Math.min(orderedQty, producedQty)
+        : orderedQty
+
+  const canShortClose =
+    !isParent &&
+    !isShortClosed &&
+    run?.status === "completed" &&
+    Number.isFinite(producedQty) &&
+    producedQty > 0 &&
+    (!Number.isFinite(orderedQty) || orderedQty <= 0 || producedQty < orderedQty)
 
   // #1228 — a run parked by the reminder cap (or a decline) has no partner and
   // no other control on this page; this is its only way back into production.
@@ -201,6 +254,11 @@ const ProductionRunDetailPage = () => {
                   {formatStatus(String(run.status || "-"))}
                 </StatusBadge>
                 {isParent && <Badge color="blue">parent</Badge>}
+                {isShortClosed && (
+                  <Badge color="orange" size="2xsmall">
+                    short-closed
+                  </Badge>
+                )}
               </div>
               <Text size="small" className="text-ui-fg-subtle">
                 {run.design_id ? (
@@ -344,6 +402,26 @@ const ProductionRunDetailPage = () => {
                       )}
                     </>
                   )}
+                  {/* #1596 — reversal is always offered; closing only when it
+                      would move the ceiling. */}
+                  {(canShortClose || isShortClosed) && (
+                    <>
+                      <DropdownMenu.Separator />
+                      <DropdownMenu.Item onClick={() => navigate("short-close")}>
+                        {isShortClosed ? (
+                          <>
+                            <ArrowPath className="mr-2" />
+                            Reopen run
+                          </>
+                        ) : (
+                          <>
+                            <LockClosedSolid className="mr-2" />
+                            Short-close run
+                          </>
+                        )}
+                      </DropdownMenu.Item>
+                    </>
+                  )}
                   {canCancel && (
                     <>
                       <DropdownMenu.Separator />
@@ -439,10 +517,19 @@ const ProductionRunDetailPage = () => {
                         </Link>
                       )}
                     </div>
+                    {/**
+                      * The denominator is the CEILING, not the ordered
+                      * quantity. Once short-closed those are different numbers,
+                      * and printing "3 of 9 billed" beside a remainder of 4
+                      * reads as arithmetic that does not add up — which is how
+                      * an admin concludes the remainder is wrong rather than
+                      * that the run was closed.
+                      */}
                     <Text size="xsmall" className="text-ui-fg-subtle">
                       {billing.claim?.claimed_quantity} of{" "}
-                      {String(run.quantity ?? "-")} billed —{" "}
-                      {billing.billable_remaining} still billable.
+                      {String(billableCeiling ?? run.quantity ?? "-")} billed —{" "}
+                      {billing.billable_remaining} still billable
+                      {isShortClosed ? " (short-closed)" : ""}.
                     </Text>
                   </div>
                 ) : billing.billing_status === "unknown" ? (
@@ -551,6 +638,40 @@ const ProductionRunDetailPage = () => {
                     {run.rejection_notes ? ` — ${run.rejection_notes}` : ""}
                   </Text>
                 )}
+              </div>
+            )}
+
+            {/**
+              * #1596 — the close, stated in units and attributed.
+              *
+              * "short-closed" alone answers none of the questions an admin
+              * actually has: closed at what, by whom, and what it did to what
+              * this partner may still claim. The counter closes runs too, so
+              * WHO is not rhetorical — "system" means a 30-day silence did it,
+              * not that anyone looked.
+              */}
+            {isShortClosed && (
+              <div className="col-span-2">
+                <Text size="small" className="text-ui-fg-subtle">
+                  Short close
+                </Text>
+                <div className="mt-1 flex flex-col gap-y-1">
+                  <Text size="small">
+                    Closed at{" "}
+                    {formatQty(run.short_closed_quantity ?? run.produced_quantity)} of{" "}
+                    {formatQty(run.quantity)} ordered — no further output
+                    expected, and the run bills to what it produced.
+                  </Text>
+                  <Text size="xsmall" className="text-ui-fg-subtle">
+                    {run.short_closed_by === "system"
+                      ? "Closed automatically after 30 days without a change to its output"
+                      : `Closed by ${run.short_closed_by || "an admin"}`}
+                    {run.short_closed_at
+                      ? ` on ${new Date(run.short_closed_at).toLocaleDateString()}`
+                      : ""}
+                    {run.short_close_reason ? ` — ${run.short_close_reason}` : ""}
+                  </Text>
+                </div>
               </div>
             )}
 
