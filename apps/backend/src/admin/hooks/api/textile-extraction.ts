@@ -1,4 +1,4 @@
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { sdk } from "../../lib/config";
 import { toast } from "@medusajs/ui";
 import { mediaFolderDetailQueryKeys } from "./media-folders/use-media-folder-detail";
@@ -214,5 +214,159 @@ export const useBatchExtractTextileFeatures = () => {
       toast.error("Failed to initiate batch extraction");
       console.error("[useBatchExtractTextileFeatures] Error:", error);
     },
+  });
+};
+
+// ============================================
+// Folder-wide (rate-limited) extraction hooks
+// ============================================
+
+export type ExtractFolderFeaturesRequest = {
+  hints?: string[];
+  gender?: "female" | "male" | "unisex";
+  persist?: boolean;
+  /** Milliseconds between photos. Default 60000 (1 photo per minute). */
+  interval_ms?: number;
+};
+
+export type ExtractFolderFeaturesResponse = {
+  message: string;
+  transaction_id: string;
+  status: "pending_confirmation";
+  folder_id: string;
+  total_images?: number;
+  summary?: any;
+};
+
+export type ConfirmFolderExtractionResponse = {
+  success: boolean;
+  message: string;
+  transaction_id: string;
+};
+
+export type FolderExtractionProgress = {
+  status: "running" | "completed" | "failed";
+  total: number;
+  completed: number;
+  failed: number;
+  interval_ms?: number;
+  started_at?: string;
+  updated_at?: string;
+  finished_at?: string | null;
+  last_media_id?: string | null;
+  errors?: Array<{ media_id: string; error: string }>;
+};
+
+export type ExtractFolderFeaturesStatusResponse = {
+  folder_id: string;
+  has_run: boolean;
+  progress: FolderExtractionProgress | null;
+};
+
+/**
+ * Hook to initiate folder-wide feature extraction.
+ * Runs as a long-running workflow processing 1 photo per minute
+ * (configurable via interval_ms) to avoid AI rate limits.
+ */
+export const useExtractFolderFeatures = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({
+      folderId,
+      ...payload
+    }: ExtractFolderFeaturesRequest & { folderId: string }) => {
+      const response = await fetch(
+        `/admin/medias/folder/${folderId}/extract-features`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify(payload),
+        }
+      );
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.message || "Failed to initiate folder extraction");
+      }
+
+      return response.json() as Promise<ExtractFolderFeaturesResponse>;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({
+        queryKey: mediaFolderDetailQueryKeys.all,
+      });
+    },
+    onError: (error: any) => {
+      const message = error?.message || "Failed to initiate folder extraction";
+      toast.error(message);
+      console.error("[useExtractFolderFeatures] Error:", error);
+    },
+  });
+};
+
+/**
+ * Hook to confirm a pending folder extraction transaction
+ */
+export const useConfirmFolderExtraction = () => {
+  return useMutation({
+    mutationFn: async ({
+      folderId,
+      transactionId,
+    }: {
+      folderId: string;
+      transactionId: string;
+    }) => {
+      const response = await fetch(
+        `/admin/medias/folder/${folderId}/extract-features/${transactionId}/confirm`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+        }
+      );
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.message || "Failed to confirm folder extraction");
+      }
+
+      return response.json() as Promise<ConfirmFolderExtractionResponse>;
+    },
+    onSuccess: (data) => {
+      toast.success(data.message || "Folder extraction confirmed and started");
+    },
+    onError: (error: any) => {
+      const message = error?.message || "Failed to confirm folder extraction";
+      toast.error(message);
+      console.error("[useConfirmFolderExtraction] Error:", error);
+    },
+  });
+};
+
+/**
+ * Hook to poll folder extraction progress (from folder metadata)
+ */
+export const useFolderExtractionStatus = (
+  folderId: string | undefined,
+  options?: { refetchInterval?: number; enabled?: boolean }
+) => {
+  return useQuery({
+    queryKey: ["folder-extraction-status", folderId],
+    queryFn: async (): Promise<ExtractFolderFeaturesStatusResponse> => {
+      const response = await fetch(
+        `/admin/medias/folder/${folderId}/extract-features/status`
+      );
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.message || "Failed to fetch folder extraction status");
+      }
+      return response.json();
+    },
+    enabled: !!folderId && (options?.enabled ?? true),
+    refetchInterval: options?.refetchInterval,
   });
 };

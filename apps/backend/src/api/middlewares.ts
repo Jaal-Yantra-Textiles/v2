@@ -236,6 +236,7 @@ import { AdminImageExtractionReq } from "./admin/ai/image-extraction/validators"
 import { AdminSendPersonAgreementReq } from "./admin/persons/[id]/agreements/validators";
 import { folderSchema, uploadMediaSchema } from "./admin/medias/validator";
 import { ExtractFeaturesRequestSchema } from "./admin/medias/extract-features/validators";
+import { ExtractFolderFeaturesRequestSchema } from "./admin/medias/folder/[id]/extract-features/validators";
 import {
   AdminCreateFormSchema,
   AdminListFormResponsesQuerySchema,
@@ -4046,6 +4047,22 @@ export default defineMiddlewares({
     {
       matcher: "/admin/medias/extract-features/:transaction_id/confirm",
       method: "POST",
+      middlewares: [],
+    },
+    // Folder-wide (rate-limited) textile feature extraction endpoints
+    {
+      matcher: "/admin/medias/folder/:id/extract-features",
+      method: "POST",
+      middlewares: [validateAndTransformBody(wrapSchema(ExtractFolderFeaturesRequestSchema))],
+    },
+    {
+      matcher: "/admin/medias/folder/:id/extract-features/:transaction_id/confirm",
+      method: "POST",
+      middlewares: [],
+    },
+    {
+      matcher: "/admin/medias/folder/:id/extract-features/status",
+      method: "GET",
       middlewares: [],
     },
     // Person Types
