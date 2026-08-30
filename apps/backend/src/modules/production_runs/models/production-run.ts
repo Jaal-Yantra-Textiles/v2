@@ -62,6 +62,26 @@ const ProductionRun = model.define("production_runs", {
   rejection_reason: model.text().translatable().nullable(),
   rejection_notes: model.text().translatable().nullable(),
 
+  /**
+   * #1596 — SHORT CLOSE. A run ordered for 9 and completed at 7 keeps 2 units
+   * billable, because ordered-quantity headroom cannot tell "not made yet"
+   * from "never will be made". This is the statement that settles it: from
+   * here the billable ceiling is what was PRODUCED, not what was ordered.
+   *
+   * Typed columns rather than metadata: this decides how much money a partner
+   * may still claim, and a metadata blob is not a contract (#1557).
+   *
+   * `short_closed_by` is an admin actor id, or the literal "system" when the
+   * 30-day counter closed it. `short_closed_quantity` records what produced
+   * was BELIEVED to be at the moment of closing — the ceiling itself is always
+   * re-derived from the live `produced_quantity`, so a later upward correction
+   * is honoured rather than frozen out.
+   */
+  short_closed_at: model.dateTime().nullable(),
+  short_closed_by: model.text().nullable(),
+  short_close_reason: model.text().nullable(),
+  short_closed_quantity: model.float().nullable(),
+
   // Cost
   partner_cost_estimate: model.float().nullable(),
   cost_type: model.enum(["per_unit", "total"]).default("total").nullable(),

@@ -40,6 +40,7 @@
  */
 
 import { ContainerRegistrationKeys } from "@medusajs/framework/utils"
+import { runBillableCeiling } from "./run-billable-ceiling"
 
 export type PriorRunLine = {
   submission_id: string | null
@@ -293,6 +294,18 @@ export function requestedRunQuantities(
   return requested
 }
 
+/**
+ * What a run may be billed to, plus the figures it was derived from. The
+ * `ceiling` is the number every guard must compare against — `quantity` alone
+ * stopped being the answer when short-close arrived (#1596).
+ */
+export type RunCeiling = {
+  quantity?: number | string | null
+  produced_quantity?: number | string | null
+  short_closed_at?: Date | string | null
+  ceiling: number | null
+}
+
 export type OverclaimedRun = {
   run_id: string
   /** Units the run is worth: its ORDERED quantity. */
@@ -326,17 +339,64 @@ export type OverclaimedRun = {
 export function assessRunClaims(input: {
   /** Units requested per run, or null where the request cannot be attributed. */
   requestedByRun: Map<string, number | null>
-  runs: Map<string, { quantity?: number | string | null }>
+  /**
+   * The runs' BILLABLE CEILINGS. A caller may pass the raw run rows — the
+   * ceiling is re-derived from them when it is absent — but passing a bare
+   * `{ quantity }` after a short close would read the ordered figure and
+   * ignore the close, so the derivation lives here rather than at each call.
+   */
+  runs: Map<string, Partial<RunCeiling>>
   tallies: Map<string, RunClaimTally>
 }): OverclaimedRun[] {
   const overclaimed: OverclaimedRun[] = []
 
   for (const [runId, requested] of input.requestedByRun) {
     const tally = input.tallies.get(runId)
-    if (!tally) continue // nobody has claimed it — nothing to diff against.
+    const row = input.runs.get(runId)
 
-    const ordered = Number(input.runs.get(runId)?.quantity)
-    const ceiling = Number.isFinite(ordered) && ordered > 0 ? ordered : 0
+    if (!tally) {
+      /**
+       * Nobody has claimed it, so there is nothing to diff against — and a
+       * FIRST claim has never been compared to the run's own quantity. That is
+       * long-standing behaviour and is deliberately left alone here: a run can
+       * legitimately overproduce, and `payable-runs` offers the produced
+       * figure, so refusing on the ordered quantity would start rejecting
+       * honest claims.
+       *
+       * 🔴 Except once the run is SHORT-CLOSED (#1596). That is somebody
+       * stating outright that no more will be made, and it is the only reason
+       * the feature exists: without this branch a closed run's first claim
+       * could still bill the full ordered quantity and the close would mean
+       * nothing at all.
+       */
+      // ⚠️ Derive, never read `row.ceiling` directly: `create` passes RAW run
+      // rows whose `ceiling` is undefined, so reading the field would quietly
+      // skip this branch on the very path that creates most claims.
+      const closedCeiling = row?.short_closed_at
+        ? row.ceiling !== undefined
+          ? row.ceiling
+          : runBillableCeiling(row)
+        : null
+      if (
+        closedCeiling != null &&
+        requested != null &&
+        requested > closedCeiling + 0.005
+      ) {
+        overclaimed.push({
+          run_id: runId,
+          ceiling: closedCeiling,
+          claimed_quantity: 0,
+          claimed_wholly: false,
+          requested,
+          claims: [],
+        })
+      }
+      continue
+    }
+
+    const derived =
+      row?.ceiling !== undefined ? row.ceiling : runBillableCeiling(row)
+    const ceiling = derived != null && derived > 0 ? derived : 0
 
     const refuse = () =>
       overclaimed.push({
@@ -506,21 +566,32 @@ export async function listPartnerPriorLines(
 export async function listRunOrderedQuantities(
   container: { resolve: (key: string) => any },
   runIds: string[]
-): Promise<Map<string, { quantity?: number | string | null }>> {
+): Promise<Map<string, RunCeiling>> {
   const ids = [...new Set((runIds || []).filter(Boolean).map(String))]
   if (!ids.length) return new Map()
 
   const query: any = container.resolve(ContainerRegistrationKeys.QUERY)
   const { data } = await query.graph({
     entity: "production_runs",
-    fields: ["id", "quantity"],
+    /**
+     * ⚠️ `produced_quantity` and `short_closed_at` are fetched because
+     * `runBillableCeiling` reads them (#1596). A guard reading a field the
+     * query never asked for always sees `undefined` — here that would silently
+     * ignore every short close and keep offering units nobody will make.
+     */
+    fields: ["id", "quantity", "produced_quantity", "short_closed_at"],
     filters: { id: ids },
   })
 
   return new Map(
     ((data || []) as any[]).map((run) => [
       String(run.id),
-      { quantity: run.quantity },
+      {
+        quantity: run.quantity,
+        produced_quantity: run.produced_quantity,
+        short_closed_at: run.short_closed_at,
+        ceiling: runBillableCeiling(run),
+      },
     ])
   )
 }
