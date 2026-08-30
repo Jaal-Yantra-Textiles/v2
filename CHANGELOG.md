@@ -1,3 +1,10 @@
+# [13.129.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.128.0...v13.129.0) (2026-08-30)
+
+
+### Features
+
+* **payments:** draft a payout when a completed run is priced, not only when it completes ([#1596](https://github.com/Jaal-Yantra-Textiles/v2/issues/1596)) ([#1680](https://github.com/Jaal-Yantra-Textiles/v2/issues/1680)) ([a79410c](https://github.com/Jaal-Yantra-Textiles/v2/commit/a79410ccc0e251d5b0c94b44994b61b6bda6a22f)), closes [#1565](https://github.com/Jaal-Yantra-Textiles/v2/issues/1565) [#456](https://github.com/Jaal-Yantra-Textiles/v2/issues/456)
+
 # [13.128.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.127.0...v13.128.0) (2026-08-30)
 
 
