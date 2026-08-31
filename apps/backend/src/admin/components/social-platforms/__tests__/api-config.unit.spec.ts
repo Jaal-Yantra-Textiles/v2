@@ -50,3 +50,54 @@ describe("inferAuthType — ai", () => {
     expect(inferAuthType("ai", undefined)).toBe("bearer")
   })
 })
+
+describe("buildApiConfig — shipping", () => {
+  it("builds the ShipGlobal Basic-auth blob (username/password/service)", () => {
+    const config = buildApiConfig("shipping", {
+      provider_type: "shipglobal",
+      mode: "live",
+      username: "ship@example.com",
+      password: "secret",
+      service: "sgdirecteuyun",
+    })
+    expect(config).toEqual({
+      provider: "shipglobal",
+      mode: "live",
+      username: "ship@example.com",
+      password: "secret",
+      service: "sgdirecteuyun",
+    })
+  })
+
+  it("omits a blank service code so the edit overlay keeps the stored value", () => {
+    const config = buildApiConfig("shipping", {
+      provider_type: "shipglobal",
+      username: "ship@example.com",
+      password: "secret",
+      service: "",
+    })
+    expect(config).not.toHaveProperty("service")
+    expect(config.username).toBe("ship@example.com")
+  })
+
+  it("still builds the Shiprocket email/password blob", () => {
+    const config = buildApiConfig("shipping", {
+      provider_type: "shiprocket",
+      email: "ship@example.com",
+      password: "secret",
+      pickup_location: "Primary",
+    })
+    expect(config.provider).toBe("shiprocket")
+    expect(config.email).toBe("ship@example.com")
+    expect(config).not.toHaveProperty("api_key")
+  })
+})
+
+describe("inferAuthType — shipping", () => {
+  it("uses basic auth for ShipGlobal and Shiprocket, api_key otherwise", () => {
+    expect(inferAuthType("shipping", "shipglobal")).toBe("basic")
+    expect(inferAuthType("shipping", "shiprocket")).toBe("basic")
+    expect(inferAuthType("shipping", "dhl")).toBe("api_key")
+    expect(inferAuthType("shipping", "delhivery")).toBe("api_key")
+  })
+})
