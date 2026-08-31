@@ -123,6 +123,19 @@ export const CARRIER_CAPABILITIES: CarrierCapability[] = [
     notes:
       "Domestic (express/ground) only. The integration books consignments, fetches labels, cancels and tracks (pull + webhook) through DTDC's pxapi.dtdc.in and blktracksvc.dtdc.com surfaces, but exposes no rate API — so it can only be used as a flat-priced or manually-priced option. International is not served by this API surface.",
   },
+  {
+    id: "shipglobal",
+    label: "ShipGlobal",
+    integrated: true,
+    platform_account: true,
+    domestic: { can_rate: false, can_ship: false },
+    international: { can_rate: true, can_ship: true },
+    // The collection exposes no incoterm field on `order/add`; a DDP sale on
+    // ShipGlobal is a promise kept by hand, same as Shiprocket/Delhivery today.
+    can_declare_ddp: false,
+    notes:
+      "Cross-border only (India → international). Rates (`/rates/calculate`), books (`/order/add`), labels (`/order/getLabel`), tracks (`/tools/tracking`) and cancels (`/order/cancelRefundOrder`) via HTTP Basic auth at app.shipglobal.in/apiv1. No domestic product, so it never appears in a domestic lane.",
+  },
 ]
 
 /** The Medusa fulfillment-provider id a carrier registers under. */

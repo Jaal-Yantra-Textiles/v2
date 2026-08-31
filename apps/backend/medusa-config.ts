@@ -592,6 +592,29 @@ module.exports = defineConfig({
                       },
                     ]
                   : []),
+                ...(process.env.SHIPGLOBAL_USERNAME
+                  ? [
+                      {
+                        resolve: "./src/modules/shipping-providers/shipglobal",
+                        id: "shipglobal",
+                        options: {
+                          username: process.env.SHIPGLOBAL_USERNAME,
+                          password: process.env.SHIPGLOBAL_PASSWORD,
+                          service: process.env.SHIPGLOBAL_SERVICE,
+                          // What an UNQUOTABLE lane costs. Mirrors Shiprocket's
+                          // fallback: without it, calculatePrice answers 0 — free
+                          // international freight wearing a real quote.
+                          flat_fallback_amounts: parseFlatFallbackAmounts(
+                            process.env.SHIPGLOBAL_FLAT_FALLBACK_AMOUNTS
+                          ),
+                          flat_fallback_amount: process.env
+                            .SHIPGLOBAL_FLAT_FALLBACK_AMOUNT
+                            ? Number(process.env.SHIPGLOBAL_FLAT_FALLBACK_AMOUNT)
+                            : undefined,
+                        },
+                      },
+                    ]
+                  : []),
               ],
             },
           },
