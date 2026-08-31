@@ -83,6 +83,7 @@ import { backfillQuoteTenancyJob } from "./backfill-quote-tenancy-job"
 import { backfillStoreCurrenciesJob } from "./backfill-store-currencies-job"
 import { backfillShiprocketShippingOptionsJob } from "./backfill-shiprocket-shipping-options-job"
 import { correctProductionRunQuantityJob } from "./correct-production-run-quantity-job"
+import { backfillTextileAnalysisJob } from "./backfill-textile-analysis-job"
 import { backfillFreightOptionDataJob } from "./backfill-freight-option-data-job"
 import { recoverWhatsappMediaJob } from "./recover-whatsapp-media-job"
 import { auditInventoryReceiptDriftJob } from "./audit-inventory-receipt-drift-job"
@@ -5821,6 +5822,7 @@ export const MAINTENANCE_JOBS: MaintenanceJob[] = [
   recalculateDesignCostBulkJob,
   correctProductionRunCostJob,
   correctProductionRunQuantityJob,
+  backfillTextileAnalysisJob,
   backfillInventoryUnitCostJob,
   backfillInventoryThumbnailJob,
   backfillDesignEnergyCostJob,
