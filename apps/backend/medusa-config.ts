@@ -530,6 +530,16 @@ module.exports = defineConfig({
                           api_secret: process.env.DHL_API_SECRET,
                           account_number: process.env.DHL_ACCOUNT_NUMBER,
                           sandbox: process.env.DHL_SANDBOX === "true",
+                          // What an UNQUOTABLE lane costs. Mirrors Shiprocket's
+                          // fallback: without it, calculatePrice answers 0 — free
+                          // international freight wearing a real quote. `US=3500`
+                          // (ISO2=minor units); see shiprocket/flat-fallback.ts.
+                          flat_fallback_amounts: parseFlatFallbackAmounts(
+                            process.env.DHL_FLAT_FALLBACK_AMOUNTS
+                          ),
+                          flat_fallback_amount: process.env.DHL_FLAT_FALLBACK_AMOUNT
+                            ? Number(process.env.DHL_FLAT_FALLBACK_AMOUNT)
+                            : undefined,
                         },
                       },
                     ]
