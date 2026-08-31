@@ -75,7 +75,24 @@ export type MaterialHit = {
   inventory_item_id: string | null
 }
 
-export const MaterialsCall = ({ part }: { part: any }) => {
+/**
+ * What a maker can click instead of describing.
+ *
+ * 🔑 The tool results were render-only: the assistant laid out eight fabrics
+ * and four partners as pictures, and the only way to choose one was to type its
+ * name back at the model — which then had to guess which row you meant. The
+ * card IS the choice now; the typed sentence it sends carries the id, so the
+ * model resolves it exactly rather than by fuzzy name match.
+ */
+export type ChoiceHandler = (text: string) => void
+
+export const MaterialsCall = ({
+  part,
+  onChoose,
+}: {
+  part: any
+  onChoose?: ChoiceHandler
+}) => {
   const state = part?.state as string | undefined
 
   if (state === "input-streaming" || state === "input-available") {
@@ -92,10 +109,19 @@ export const MaterialsCall = ({ part }: { part: any }) => {
     return (
       <div className="mt-3 grid grid-cols-4 gap-2">
         {materials.map((m) => (
-          <div
+          <button
             key={m.id}
+            type="button"
+            disabled={!onChoose}
+            onClick={() =>
+              onChoose?.(
+                `Use ${m.name ?? m.category ?? "this fabric"}${
+                  m.composition ? ` (${m.composition})` : ""
+                } — inventory item ${m.inventory_item_id ?? m.id}.`
+              )
+            }
             title={[m.name, m.composition].filter(Boolean).join(" · ")}
-            className="flex flex-col items-center gap-1 rounded-lg border border-ui-border-base bg-ui-bg-base p-2"
+            className="flex flex-col items-center gap-1 rounded-lg border border-ui-border-base bg-ui-bg-base p-2 text-left transition enabled:hover:border-ui-border-interactive enabled:hover:bg-ui-bg-base-hover enabled:focus-visible:outline enabled:focus-visible:outline-2 enabled:focus-visible:outline-ui-border-interactive disabled:cursor-default"
           >
             {m.thumbnail ? (
               /* eslint-disable-next-line @next/next/no-img-element */
@@ -113,7 +139,7 @@ export const MaterialsCall = ({ part }: { part: any }) => {
             <p className="w-full truncate text-center text-[10px] font-medium">
               {m.name ?? m.category ?? "Fabric"}
             </p>
-          </div>
+          </button>
         ))}
       </div>
     )
@@ -134,7 +160,13 @@ export type PartnerHit = {
   workspace_type: string | null
 }
 
-export const PartnersCall = ({ part }: { part: any }) => {
+export const PartnersCall = ({
+  part,
+  onChoose,
+}: {
+  part: any
+  onChoose?: ChoiceHandler
+}) => {
   const state = part?.state as string | undefined
 
   if (state === "input-streaming" || state === "input-available") {
@@ -151,9 +183,16 @@ export const PartnersCall = ({ part }: { part: any }) => {
     return (
       <div className="mt-3 flex flex-col gap-2">
         {partners.map((p) => (
-          <div
+          <button
             key={p.id}
-            className="flex items-center gap-3 rounded-lg bg-ui-bg-base p-2"
+            type="button"
+            disabled={!onChoose}
+            onClick={() =>
+              onChoose?.(
+                `Make it with ${p.company_name ?? p.name ?? "this partner"} — partner ${p.id}.`
+              )
+            }
+            className="flex w-full items-center gap-3 rounded-lg bg-ui-bg-base p-2 text-left transition enabled:hover:bg-ui-bg-base-hover enabled:focus-visible:outline enabled:focus-visible:outline-2 enabled:focus-visible:outline-ui-border-interactive disabled:cursor-default"
           >
             {p.logo ? (
               /* eslint-disable-next-line @next/next/no-img-element */
@@ -175,7 +214,7 @@ export const PartnersCall = ({ part }: { part: any }) => {
                 <p className="truncate text-xs text-ui-fg-subtle">{p.path}</p>
               )}
             </div>
-          </div>
+          </button>
         ))}
       </div>
     )
@@ -300,7 +339,46 @@ export const GenerateCall = ({ part }: { part: any }) => {
 
 // ── save_brief / set_active_canvas / save_moodboard / get_design_state ─
 
-export const SaveBriefCall = ({ part }: { part: any }) => {
+/**
+ * The next step, as buttons.
+ *
+ * Generation is gated on explicit consent, which is right — it costs money and
+ * takes ~20s per take. But "explicit consent" was only ever expressible as a
+ * free-typed sentence, so the maker had to guess the magic words, and the model
+ * had to decide whether "go on then" counted. These say the same thing in one
+ * click, in the words the flow already understands.
+ */
+export const ChoiceRow = ({
+  choices,
+  onChoose,
+}: {
+  choices: Array<{ label: string; send: string }>
+  onChoose?: ChoiceHandler
+}) => {
+  if (!onChoose || !choices.length) return null
+  return (
+    <div className="mt-3 flex flex-wrap gap-2">
+      {choices.map((c) => (
+        <button
+          key={c.label}
+          type="button"
+          onClick={() => onChoose(c.send)}
+          className="rounded-full border border-ui-border-interactive bg-ui-bg-base px-3 py-1.5 text-xs font-medium text-ui-fg-interactive transition hover:bg-ui-bg-base-hover focus-visible:outline focus-visible:outline-2 focus-visible:outline-ui-border-interactive"
+        >
+          {c.label}
+        </button>
+      ))}
+    </div>
+  )
+}
+
+export const SaveBriefCall = ({
+  part,
+  onChoose,
+}: {
+  part: any
+  onChoose?: ChoiceHandler
+}) => {
   const state = part?.state as string | undefined
   if (state === "input-streaming" || state === "input-available") {
     return <ToolStatusChip label="Locking in the brief…" />
@@ -311,20 +389,36 @@ export const SaveBriefCall = ({ part }: { part: any }) => {
   if (state === "output-available") {
     const brief = part.output?.brief ?? {}
     return (
-      <div className="mt-2 flex flex-wrap gap-1">
-        {brief.product_type && (
-          <span className="rounded-full bg-ui-tag-green-bg px-2 py-0.5 text-[10px] font-medium uppercase text-ui-tag-green-text">
-            {brief.product_type.replace(/_/g, " ")}
-          </span>
-        )}
-        {(brief.aesthetic_keywords ?? []).slice(0, 5).map((k: string) => (
-          <span
-            key={k}
-            className="rounded-full bg-ui-bg-base-pressed px-2 py-0.5 text-[10px] text-ui-fg-subtle"
-          >
-            {k}
-          </span>
-        ))}
+      <div className="mt-2">
+        <div className="flex flex-wrap gap-1">
+          {brief.product_type && (
+            <span className="rounded-full bg-ui-tag-green-bg px-2 py-0.5 text-[10px] font-medium uppercase text-ui-tag-green-text">
+              {brief.product_type.replace(/_/g, " ")}
+            </span>
+          )}
+          {(brief.aesthetic_keywords ?? []).slice(0, 5).map((k: string) => (
+            <span
+              key={k}
+              className="rounded-full bg-ui-bg-base-pressed px-2 py-0.5 text-[10px] text-ui-fg-subtle"
+            >
+              {k}
+            </span>
+          ))}
+        </div>
+        <ChoiceRow
+          onChoose={onChoose}
+          choices={[
+            { label: "Show me fabrics", send: "Show me the fabric options." },
+            {
+              label: "Find a partner to make it",
+              send: "Show me partners who could make this.",
+            },
+            {
+              label: "Generate two takes",
+              send: "Go ahead and generate the two takes now.",
+            },
+          ]}
+        />
       </div>
     )
   }
@@ -380,6 +474,11 @@ export const ConversationCall = ({ part }: { part: any }) => {
 
 // ── dispatch map ───────────────────────────────────────────────────────
 
+/**
+ * Every renderer takes `onChoose`; the ones that ignore it simply don't offer
+ * choices. Passing it uniformly is what lets the chat stay the single place
+ * that knows how to send a message.
+ */
 export const DESIGN_TOOL_PARTS: Record<string, React.ComponentType<any>> = {
   "tool-list_raw_materials": MaterialsCall,
   "tool-list_partners": PartnersCall,

@@ -2750,6 +2750,17 @@ export default defineMiddlewares({
       method: "POST",
       middlewares: [createCorsMiddleware()],
     },
+    {
+      // The board read. Public like the rest of the assistant's store mount and
+      // scoped by the maker's email — the board panel previously read through
+      // the CUSTOMER-authenticated `/store/custom/designs/:id`, which 401s for
+      // every guest, i.e. for everyone this flow is built for.
+      //
+      // ⚠️ A route file without a matcher entry is not a route.
+      matcher: "/store/custom/design-assistant/designs/:id",
+      method: "GET",
+      middlewares: [createCorsMiddleware()],
+    },
     // Customs HS/HSN codes — bulk gap scan + bulk fill. /admin/* is
     // admin-authenticated globally, so only the write body needs validation.
     // The GET still needs its matcher registered: a route file without one is

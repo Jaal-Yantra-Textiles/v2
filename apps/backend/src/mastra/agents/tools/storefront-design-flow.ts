@@ -486,11 +486,33 @@ export type GenerateResult = {
 
 export const runGenerateDesignImage = async (
   container: MedusaContainer,
-  args: z.infer<typeof GenerateSchema>,
+  /**
+   * `z.input`, not `z.infer`. The output type marks `kind` as always present
+   * because the schema defaults it — true of the TOOL path, where the model's
+   * arguments are parsed, and false of every direct call, which is what this
+   * export exists for. Typing the parsed shape here told callers a guarantee
+   * the function does not actually receive.
+   */
+  args: z.input<typeof GenerateSchema>,
   context?: DesignContext
 ): Promise<GenerateResult> => {
   const designService = resolveDesignService(container)
   const missingSetup: string[] = []
+
+  /**
+   * 🔴 Normalised, not read raw. `GenerateSchema` declares `.default("initial")`
+   * so the TOOL path can never see `undefined` — but this function is exported
+   * and callable directly, and there the default has not run. Every use below
+   * was written as `args.kind !== "initial"`, which sends an ABSENT kind down
+   * the iterate branch: the very first generation, before any canvas exists,
+   * gets refused with "Pick one of the takes first".
+   *
+   * The first call is the one with nothing to compare against, and asking
+   * "is it not initial?" answers yes for `undefined` — the same shape as a
+   * first payment claim measured against a tally of prior claims (#1676).
+   * Asking positively instead means an unknown value fails safe.
+   */
+  const kind = args.kind ?? "initial"
 
   const productId = args.product_id ?? context?.product_id
   const email = args.email ?? context?.email
@@ -631,7 +653,7 @@ export const runGenerateDesignImage = async (
   let referenceUsed: string | null = null
   let referenceImages: Array<{ url: string; weight?: number; prompt?: string }> = []
 
-  if (args.kind !== "initial") {
+  if (kind === "revision" || kind === "layer") {
     // revision/layer build on the ACTIVE canvas — require one.
     if (!activeRef) {
       throw new Error(
@@ -679,6 +701,20 @@ export const runGenerateDesignImage = async (
         design_id: designId as string,
         mode: "commit",
         badges: args.badges,
+        /**
+         * 🔴 The brief was in hand here the whole time and was never passed.
+         * `save_brief` normalises it, `create_design` persists it, the system
+         * prompt reasons about it — and the generator, the one consumer that
+         * decides what the maker actually SEES, was handed only badges and a
+         * materials fragment. With neither, its style context defaulted to
+         * "casual fashion".
+         */
+        design_brief: {
+          product_type: brief.product_type,
+          concept_theme: brief.concept_theme,
+          aesthetic_keywords: brief.aesthetic_keywords,
+          color_palette: brief.color_palette,
+        },
         materials_prompt: materialsPrompt,
         reference_images: referenceImages.length ? referenceImages : undefined,
       },
@@ -713,7 +749,7 @@ export const runGenerateDesignImage = async (
 
   // ── Append BOTH candidates to the Excalidraw scene ──
   const parentCanvasId =
-    args.kind !== "initial" && readActiveCanvas(scene)
+    kind !== "initial" && readActiveCanvas(scene)
       ? (readActiveCanvas(scene) as any).customData.canvas.id
       : null
 
@@ -723,7 +759,7 @@ export const runGenerateDesignImage = async (
       {
         canvasId: candA.canvasId,
         letter: "A",
-        kind: args.kind,
+        kind,
         parentCanvasId,
         mediaId: outA?.media_id ?? null,
         imageUrl: candA.imageUrl,
@@ -734,7 +770,7 @@ export const runGenerateDesignImage = async (
       {
         canvasId: candB.canvasId,
         letter: "B",
-        kind: args.kind,
+        kind,
         parentCanvasId,
         mediaId: outB?.media_id ?? null,
         imageUrl: candB.imageUrl,
@@ -750,7 +786,7 @@ export const runGenerateDesignImage = async (
   return {
     design_id: designId as string,
     created_design: createdDesign,
-    kind: args.kind,
+    kind,
     reference_used: referenceUsed,
     candidates: [
       {

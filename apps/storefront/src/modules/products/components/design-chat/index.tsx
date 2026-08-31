@@ -492,6 +492,26 @@ export default function DesignChat({
     sendMessage({ text: composed })
   }
 
+  /**
+   * A clicked choice is an ordinary message.
+   *
+   * 🔑 Deliberately NOT a side channel. The transcript is what the model reads
+   * on the next turn and what the conversation store persists, so a pick that
+   * bypassed it would vanish on reload and leave the assistant reasoning about
+   * a fabric nobody ever mentioned. The button just types the sentence for you.
+   *
+   * Guarded on `isStreaming`/`uploading` for the same reason the composer is:
+   * two turns in flight interleave their tool calls.
+   */
+  const handleChoice = React.useCallback(
+    (text: string) => {
+      if (isStreaming || uploading) return
+      setStickToBottom(true)
+      sendMessage({ text })
+    },
+    [isStreaming, uploading, sendMessage]
+  )
+
   const handlePickCanvas = async (canvasId: string) => {
     if (!designId || picking) return
     setPicking(true)
@@ -531,7 +551,9 @@ export default function DesignChat({
     if (!target) return
     try {
       const { getDesignScene } = await import("./lib/design-scene")
-      const next = await getDesignScene(target)
+      // The board read is email-scoped — a guest maker has no customer session,
+      // which is exactly why the old customer-authenticated read 401'd.
+      const next = await getDesignScene(target, meta.email)
       if (next?.scene) setScene(next.scene)
       if (next?.thumbnail_url) setThumbnailUrl(next.thumbnail_url)
       if (next?.design_id) setDesignId(next.design_id)
@@ -626,7 +648,7 @@ export default function DesignChat({
               const Tool = DESIGN_TOOL_PARTS[part.type]
               return (
                 <div key={i}>
-                  <Tool part={part} />
+                  <Tool part={part} onChoose={handleChoice} />
                 </div>
               )
             }
@@ -839,6 +861,38 @@ export default function DesignChat({
                     className="min-w-0 flex-1 rounded-full border border-ui-border-base bg-ui-bg-field px-3.5 py-2 text-sm outline-none focus:border-ui-border-strong"
                     data-testid="design-chat-onboarding-email"
                   />
+                )}
+              </div>
+              {/*
+                The garment as choices, not a blank field.
+                `product_type` is load-bearing — the production spec and the
+                cost estimate both derive from it (#938) — and a free-typed
+                "something flowy for summer" normalises to nothing. These are
+                the types the catalogue actually produces; the field stays open
+                for anything else.
+              */}
+              <div className="mt-2 flex flex-wrap gap-1.5">
+                {["Kurta", "Saree", "Trousers", "Shirt", "Scarf", "Shawl", "Robe"].map(
+                  (g) => {
+                    const selected =
+                      onboardingGarment.trim().toLowerCase() === g.toLowerCase()
+                    return (
+                      <button
+                        key={g}
+                        type="button"
+                        aria-pressed={selected}
+                        onClick={() => setOnboardingGarment(g.toLowerCase())}
+                        className={
+                          selected
+                            ? "rounded-full border border-ui-border-interactive bg-ui-bg-interactive px-3 py-1 text-[11px] font-medium text-white"
+                            : "rounded-full border border-ui-border-base bg-ui-bg-base px-3 py-1 text-[11px] text-ui-fg-subtle transition hover:border-ui-border-interactive hover:text-ui-fg-base"
+                        }
+                        data-testid={`design-chat-garment-${g.toLowerCase()}`}
+                      >
+                        {g}
+                      </button>
+                    )
+                  }
                 )}
               </div>
               <div className="mt-3 flex items-center justify-between gap-2">

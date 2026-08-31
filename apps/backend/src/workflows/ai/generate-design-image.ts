@@ -46,6 +46,20 @@ export type GenerateDesignAiImageInput = {
   design_id?: string;
   mode: "preview" | "commit";
   badges?: Badge;
+  /**
+   * The normalised brief — the garment itself.
+   *
+   * 🔴 Without it the prompt enhancer builds its style context from `badges`
+   * alone and falls back to the literal string "casual fashion", so the image
+   * is of a garment nobody described. See `design_brief` on the mastra trigger
+   * schema for what that looked like in practice.
+   */
+  design_brief?: {
+    product_type?: string | null;
+    concept_theme?: string | null;
+    aesthetic_keywords?: string[];
+    color_palette?: Array<{ name?: string | null; code?: string | null }>;
+  };
   materials_prompt?: string;
   reference_images?: ReferenceImage[];
   canvas_snapshot?: CanvasSnapshot;
@@ -112,6 +126,8 @@ const invokeMastraImageGenStep = createStep(
         inputData: {
           mode: input.mode,
           badges: input.badges,
+          // The garment. Everything else here is an adjustment TO it.
+          design_brief: input.design_brief,
           materials_prompt: input.materials_prompt,
           reference_images: input.reference_images,
           canvas_snapshot: input.canvas_snapshot,

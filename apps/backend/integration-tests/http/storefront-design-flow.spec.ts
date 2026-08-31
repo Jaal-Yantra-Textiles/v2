@@ -135,12 +135,63 @@ setupSharedTestSuite(() => {
         expect(c.prompt_used).toBeTruthy()
       }
 
+      /**
+       * 🔴 The prompt has to be about the GARMENT THEY ASKED FOR.
+       *
+       * `expect(prompt_used).toBeTruthy()` was the whole assertion, and it
+       * passed while the generator produced a pastel pink blouse and a pastel
+       * blue denim jacket for this indigo kurta brief — because the brief was
+       * never passed to it and the enhancer's style context defaulted to the
+       * literal string "casual fashion".
+       *
+       * A truthy string is not a correct one. This is the difference between
+       * "an image came back" and "the design came back", and it is the only
+       * thing the maker actually judges the feature on.
+       *
+       * ⚠️ Asserted on the GARMENT and nothing else. My first version of this
+       * matched `/kurta|indigo|handwoven/` and passed with the brief removed —
+       * because "indigo handwoven cotton" is also this fixture's
+       * `materials_prompt`, which reaches the enhancer by a different route.
+       * The alternation made the test agree with both versions of the code.
+       * `kurta` comes from `brief.product_type` and from nowhere else.
+       */
+      const prompts = result.candidates.map((c) => c.prompt_used.toLowerCase())
+      for (const p of prompts) {
+        expect(p).toMatch(/kurta/)
+      }
+
       // The design was persisted with its board canvases + a thumbnail.
       const designService = container.resolve(DESIGN_MODULE) as any
       const design = await designService.retrieveDesign(result.design_id)
       expect(design).toBeTruthy()
       expect(design.thumbnail_url).toBeTruthy()
       expect(design.moodboard).toBeTruthy()
+    })
+
+    /**
+     * 🔴 The guard the fix above must NOT have weakened.
+     *
+     * `kind` is normalised to "initial" when absent, because the schema
+     * defaults it and only the tool path parses. But an EXPLICIT revision with
+     * no picked take still has nothing to iterate on, and generating anyway
+     * would silently re-roll from the brief while telling the maker it built on
+     * their pick — a different garment under the label of the one they chose.
+     */
+    it("🔴 an explicit revision with no picked take is still refused", async () => {
+      await expect(
+        runGenerateDesignImage(container, {
+          email: "flow@jyt.test",
+          name: "Indigo Kurta — revision",
+          kind: "revision",
+          change_request: "make the sleeves fuller",
+          brief: {
+            product_type: "kurta",
+            concept_theme: "Indigo handwoven",
+            aesthetic_keywords: ["handwoven"],
+            color_palette: [{ name: "indigo", code: "#1e3a5f" }],
+          },
+        })
+      ).rejects.toThrow(/Pick one of the takes first/)
     })
 
     it("analyzes a shared reference image and returns a shaped analysis", async () => {

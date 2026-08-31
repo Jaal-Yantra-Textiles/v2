@@ -81,6 +81,34 @@ export const triggerSchema = z.object({
       custom: z.record(z.string(), z.any()).optional(),
     })
     .optional(),
+  /**
+   * 🔴 THE GARMENT. Absent until now, and its absence is why this workflow
+   * generated the wrong thing every single time.
+   *
+   * `styleContext` is built from `badges` alone and falls back to the literal
+   * string `"casual fashion"` when there are none. So a maker who spent three
+   * turns describing a heritage-indigo handwoven kurta — product type, concept
+   * theme, five aesthetic keywords, a two-colour palette, all of it normalised
+   * by `save_brief` and persisted on the design — had the image model asked
+   * for "casual fashion". It answered honestly: a pastel pink blouse, and a
+   * pastel blue denim jacket.
+   *
+   * Nothing failed. Two images came back, the board filled, the chat said
+   * "here are your two takes". The output was simply unrelated to the design,
+   * and no test can see that because every test asserts an image URL exists.
+   *
+   * The brief is the ONE input this workflow could least afford to be missing.
+   */
+  design_brief: z
+    .object({
+      product_type: z.string().nullish(),
+      concept_theme: z.string().nullish(),
+      aesthetic_keywords: z.array(z.string()).optional(),
+      color_palette: z
+        .array(z.object({ name: z.string().nullish(), code: z.string().nullish() }))
+        .optional(),
+    })
+    .optional(),
   materials_prompt: z.string().optional(),
   reference_images: z
     .array(
@@ -186,6 +214,7 @@ const buildPromptStep = createStep({
   execute: async ({ inputData }) => {
     const {
       badges,
+      design_brief,
       materials_prompt,
       reference_images,
       mode,
@@ -193,8 +222,24 @@ const buildPromptStep = createStep({
       image_gen_config,
     } = inputData;
 
-    // Build initial style context from badges
+    // Build initial style context — the BRIEF first, then badges.
+    //
+    // Order matters: the garment and its concept are what the image is OF;
+    // badges are adjustments to it. Appending the brief after the style
+    // preferences would bury "kurta" behind "Style: relaxed".
     const styleParts: string[] = [];
+    if (design_brief) {
+      if (design_brief.product_type)
+        styleParts.push(`Garment: ${String(design_brief.product_type).replace(/_/g, " ")}`);
+      if (design_brief.concept_theme)
+        styleParts.push(`Concept: ${design_brief.concept_theme}`);
+      const keywords = (design_brief.aesthetic_keywords ?? []).filter(Boolean);
+      if (keywords.length) styleParts.push(`Aesthetic: ${keywords.join(", ")}`);
+      const palette = (design_brief.color_palette ?? [])
+        .map((c) => [c?.name, c?.code].filter(Boolean).join(" "))
+        .filter(Boolean);
+      if (palette.length) styleParts.push(`Colours: ${palette.join(", ")}`);
+    }
     if (badges) {
       if (badges.style) styleParts.push(`Style: ${badges.style}`);
       if (badges.color_family)
@@ -207,6 +252,13 @@ const buildPromptStep = createStep({
         styleParts.push(`Budget: ${badges.budget_sensitivity}`);
     }
 
+    /**
+     * ⚠️ `"casual fashion"` is the fallback that made the failure invisible.
+     * With no brief and no badges the model was asked for generic casual wear
+     * and cheerfully produced it, so the pipeline looked healthy end to end
+     * while generating a garment nobody had described. It stays only as the
+     * last resort for a caller that supplies neither — and now says so.
+     */
     const styleContext =
       styleParts.length > 0 ? styleParts.join(", ") : "casual fashion";
 
@@ -221,7 +273,10 @@ const buildPromptStep = createStep({
 
     const userPrompt =
       `Create an optimized image generation prompt for a fashion design with these specifications:\n\n` +
-      `Style Preferences: ${styleContext}\n` +
+      // "Design brief", not "Style preferences" — this line now leads with the
+      // garment and its concept, and mislabelling it invites the model to treat
+      // the whole thing as optional styling.
+      `Design brief: ${styleContext}\n` +
       (materials_prompt ? `Materials: ${materials_prompt}\n` : "") +
       refContext +
       `\n\nGenerate a detailed, professional prompt suitable for a text-to-image AI model. ` +
