@@ -179,7 +179,7 @@ import {
 } from "./admin/websites/[id]/pages/validators";
 import { createBlocksSchema, ReadBlocksQuerySchema, updateBlockSchema } from "./admin/websites/[id]/pages/[pageId]/blocks/validators";
 import { AdminPostDesignInventoryReq, AdminDeleteDesignInventoryReq } from "./admin/designs/[id]/inventory/validators";
-import { AdminPostConsumptionLogReq, AdminPostCommitConsumptionReq } from "./admin/designs/[id]/consumption-logs/validators";
+import { AdminPostConsumptionLogReq, AdminPostCommitConsumptionReq, AdminPatchConsumptionLogReq } from "./admin/designs/[id]/consumption-logs/validators";
 import { AdminPostRunConsumptionLogReq, AdminPostRunCommitConsumptionReq } from "./admin/production-runs/[id]/consumption-logs/validators";
 import { AdminAttachSubmissionDocumentsReq } from "./admin/payment-submissions/[id]/documents/validators";
 import { AdminPostDesignInquiryReq, AdminPostDesignInquiryPreviewReq, AdminPostCloseDesignInquiryReq } from "./admin/designs/[id]/inquiries/validators";
@@ -4562,6 +4562,23 @@ export default defineMiddlewares({
       matcher: "/admin/designs/:id/consumption-logs",
       method: "POST",
       middlewares: [validateAndTransformBody(wrapSchema(AdminPostConsumptionLogReq))],
+    },
+    {
+      /**
+       * Correct one consumption log. There was no edit path at all — the
+       * figure that decides stock deduction AND design cost could only ever be
+       * added to, so a `per_piece` basis recorded where `total` was meant
+       * stayed wrong by a multiple. Refuses a log already applied to stock.
+       */
+      matcher: "/admin/designs/:id/consumption-logs/:logId",
+      method: "PATCH",
+      middlewares: [validateAndTransformBody(wrapSchema(AdminPatchConsumptionLogReq))],
+    },
+    {
+      // Retire a duplicate. Same applied-to-stock refusal, same audit row.
+      matcher: "/admin/designs/:id/consumption-logs/:logId",
+      method: "DELETE",
+      middlewares: [],
     },
 
     // #1531 — spec-driven capability inquiries.

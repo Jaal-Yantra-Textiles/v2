@@ -22,6 +22,8 @@ import {
   useDesignInventory,
   useLogConsumption,
   useCommitConsumption,
+  useUpdateConsumptionLog,
+  useDeleteConsumptionLog,
 } from "../../hooks/api/designs"
 
 interface DesignConsumptionLogsSectionProps {
@@ -65,6 +67,62 @@ export const DesignConsumptionLogsSection = ({ design }: DesignConsumptionLogsSe
   const { data: inventoryData } = useDesignInventory(design.id)
   const { mutateAsync: logConsumption, isPending: isLogging } = useLogConsumption(design.id)
   const { mutateAsync: commitConsumption, isPending: isCommitting } = useCommitConsumption(design.id)
+  const { mutateAsync: updateLog } = useUpdateConsumptionLog(design.id)
+  const { mutateAsync: deleteLog } = useDeleteConsumptionLog(design.id)
+
+  /** The log being corrected, plus the two fields worth correcting. */
+  const [editing, setEditing] = useState<ConsumptionLog | null>(null)
+  const [editQuantity, setEditQuantity] = useState("")
+  const [editBasis, setEditBasis] = useState<"total" | "per_piece">("total")
+  const [saving, setSaving] = useState(false)
+  const [deleting, setDeleting] = useState<string | null>(null)
+
+  const beginEdit = (log: ConsumptionLog) => {
+    setEditing(log)
+    setEditQuantity(String(log.quantity ?? ""))
+    // An unset basis opens on "total" — the reading that does NOT multiply, so
+    // an operator who saves without thinking cannot silently inflate a
+    // deduction by the piece count.
+    setEditBasis(log.quantity_basis === "per_piece" ? "per_piece" : "total")
+  }
+
+  const handleSaveEdit = async () => {
+    if (!editing) return
+    const quantity = parseFloat(editQuantity)
+    if (!Number.isFinite(quantity) || quantity <= 0) {
+      toast.error("Quantity must be a positive number")
+      return
+    }
+    setSaving(true)
+    try {
+      await updateLog({ logId: editing.id, quantity, quantity_basis: editBasis })
+      toast.success(
+        `Corrected to ${quantity} ${editing.unit_of_measure} (${editBasis === "per_piece" ? "per piece" : "total"})`
+      )
+      setEditing(null)
+    } catch (e: any) {
+      toast.error(e?.message ?? "Could not correct this log")
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const handleDelete = async (log: ConsumptionLog) => {
+    const ok = await prompt({
+      title: "Retire this consumption log?",
+      description: `${log.quantity} ${log.unit_of_measure} will no longer count towards stock deduction or design cost. An audit row records who retired it.`,
+    })
+    if (!ok) return
+    setDeleting(log.id)
+    try {
+      await deleteLog(log.id)
+      toast.success("Consumption log retired")
+    } catch (e: any) {
+      toast.error(e?.message ?? "Could not retire this log")
+    } finally {
+      setDeleting(null)
+    }
+  }
 
   const logs: ConsumptionLog[] = logsData?.logs || []
   const inventoryItems: LinkedInventoryItem[] = inventoryData?.inventory_items || []
@@ -389,6 +447,24 @@ export const DesignConsumptionLogsSection = ({ design }: DesignConsumptionLogsSe
                       ) : (
                         <Badge size="2xsmall" color="grey">pending</Badge>
                       )}
+                      {/*
+                        🔴 What the quantity MEASURES, which decides the number
+                        by a multiple: `q` under total, `q × pieces` under
+                        per-piece. It was rendered nowhere, so "2 Meter" could
+                        deduct 2 or 6 and this row looked the same either way.
+                        An unset basis is called out in red because it is not a
+                        default — the apply job refuses to guess and skips.
+                      */}
+                      {log.quantity_basis === "per_piece" ? (
+                        <Badge size="2xsmall" color="orange">per piece</Badge>
+                      ) : log.quantity_basis === "total" ? (
+                        <Badge size="2xsmall" color="blue">total</Badge>
+                      ) : (
+                        <Badge size="2xsmall" color="red">basis unset</Badge>
+                      )}
+                      {log.inventory_applied_at && (
+                        <Badge size="2xsmall" color="purple">stock applied</Badge>
+                      )}
                     </div>
                     <Text size="xsmall" className="text-ui-fg-subtle">
                       {getInventoryLabel(log.inventory_item_id)}
@@ -406,6 +482,34 @@ export const DesignConsumptionLogsSection = ({ design }: DesignConsumptionLogsSe
                     <Text size="xsmall" className="text-ui-fg-muted">
                       {formatDate(log.consumed_at)}
                     </Text>
+                    {/*
+                      Correcting a log was impossible from anywhere — the API
+                      had no edit path, so a wrong quantity or basis could only
+                      be added to. Hidden once the stock movement has happened:
+                      past that point the number describes a decrement that
+                      occurred, and it takes a reversing entry, not an edit.
+                    */}
+                    {!log.inventory_applied_at && (
+                      <div className="mt-1 flex items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={() => beginEdit(log)}
+                          className="text-[11px] text-ui-fg-interactive hover:underline"
+                          data-testid={`consumption-log-edit-${log.id}`}
+                        >
+                          Correct
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleDelete(log)}
+                          disabled={deleting === log.id}
+                          className="text-[11px] text-ui-fg-error hover:underline disabled:opacity-50"
+                          data-testid={`consumption-log-delete-${log.id}`}
+                        >
+                          {deleting === log.id ? "Retiring…" : "Retire"}
+                        </button>
+                      </div>
+                    )}
                   </div>
                 </div>
               </div>
@@ -413,6 +517,86 @@ export const DesignConsumptionLogsSection = ({ design }: DesignConsumptionLogsSe
           )}
         </div>
       )}
+
+      {/*
+        Correcting a log. Quantity and basis only — everything else identifies
+        the log rather than measuring it.
+
+        🔑 The basis selector spells out what each option DOES, because the
+        difference is a multiple and the words "total" and "per piece" do not
+        make that obvious on their own. This is the field that would have
+        deducted 12 m where 6 m was used.
+      */}
+      <Drawer open={!!editing} onOpenChange={(o) => !o && setEditing(null)}>
+        <Drawer.Content>
+          <Drawer.Header>
+            <Drawer.Title>Correct consumption</Drawer.Title>
+          </Drawer.Header>
+          <Drawer.Body className="flex flex-col gap-4">
+            {editing && (
+              <>
+                <Text size="small" className="text-ui-fg-subtle">
+                  {getInventoryLabel(editing.inventory_item_id)} ·{" "}
+                  {editing.consumption_type} · logged by {editing.consumed_by}
+                </Text>
+
+                <div className="flex flex-col gap-1">
+                  <Text size="small" weight="plus">
+                    Quantity ({editing.unit_of_measure})
+                  </Text>
+                  <Input
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    value={editQuantity}
+                    onChange={(e) => setEditQuantity(e.target.value)}
+                    data-testid="consumption-log-edit-quantity"
+                  />
+                </div>
+
+                <div className="flex flex-col gap-1">
+                  <Text size="small" weight="plus">
+                    What does that measure?
+                  </Text>
+                  <Select
+                    value={editBasis}
+                    onValueChange={(v) => setEditBasis(v as "total" | "per_piece")}
+                  >
+                    <Select.Trigger data-testid="consumption-log-edit-basis">
+                      <Select.Value />
+                    </Select.Trigger>
+                    <Select.Content>
+                      <Select.Item value="total">
+                        Total — deduct this much, once
+                      </Select.Item>
+                      <Select.Item value="per_piece">
+                        Per piece — multiply by the pieces produced
+                      </Select.Item>
+                    </Select.Content>
+                  </Select>
+                  <Text size="xsmall" className="text-ui-fg-muted">
+                    {editBasis === "per_piece"
+                      ? "Only correct when EVERY piece uses this material. A run where one garment used one fabric and the rest another is not per-piece — record each material's own total."
+                      : "Deducts exactly this amount when the stock movement is applied."}
+                  </Text>
+                </div>
+              </>
+            )}
+          </Drawer.Body>
+          <Drawer.Footer>
+            <Button variant="secondary" onClick={() => setEditing(null)}>
+              Cancel
+            </Button>
+            <Button
+              onClick={handleSaveEdit}
+              isLoading={saving}
+              data-testid="consumption-log-edit-save"
+            >
+              Save correction
+            </Button>
+          </Drawer.Footer>
+        </Drawer.Content>
+      </Drawer>
     </Container>
   )
 }

@@ -47,3 +47,29 @@ export const AdminPostCommitConsumptionReq = z.object({
 })
 
 export type AdminPostCommitConsumptionReq = z.infer<typeof AdminPostCommitConsumptionReq>
+
+/**
+ * Correcting an existing log (PATCH). Every field optional — the route refuses
+ * an empty body rather than silently no-opping.
+ *
+ * 🔴 `quantity_basis` is the reason this exists. The same `quantity` deducts
+ * `q` under "total" and `q × pieces` under "per_piece", so a log recorded with
+ * the wrong basis is not slightly wrong, it is wrong by a multiple. On the
+ * design that prompted this, two `per_piece` logs would have deducted 12 m
+ * where 6 m was used.
+ *
+ * `quantity` is `.positive()` for the same reason the create schema is: a 0
+ * consumption is not a correction, it is a deletion wearing a disguise — and
+ * DELETE exists for that, with its own audit line.
+ */
+export const AdminPatchConsumptionLogReq = z.object({
+  quantity: z.number().positive().optional(),
+  quantity_basis: z.enum(["total", "per_piece"]).nullish(),
+  unit_cost: z.number().nonnegative().nullish(),
+  notes: z.string().max(2000).nullish(),
+  location_id: z.string().trim().min(1).nullish(),
+})
+
+export type AdminPatchConsumptionLogReq = z.infer<
+  typeof AdminPatchConsumptionLogReq
+>
