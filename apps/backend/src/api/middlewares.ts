@@ -4559,6 +4559,16 @@ export default defineMiddlewares({
     // Consumption logs on Designs
 
     {
+      /**
+       * Fabrics searchable by what a vision model saw. A route file without a
+       * matcher entry is not a route — and this one is the only reader of a
+       * module whose whole justification is being queryable.
+       */
+      matcher: "/admin/textile-analyses",
+      method: "GET",
+      middlewares: [],
+    },
+    {
       matcher: "/admin/designs/:id/consumption-logs",
       method: "POST",
       middlewares: [validateAndTransformBody(wrapSchema(AdminPostConsumptionLogReq))],
