@@ -51,6 +51,12 @@ type CreateDesignStepInput = {
    * MANUAL and no model may overwrite it.
    */
   product_type?: string | null;
+  // Roadmap #604 — design brief / collection concept. The chat design editor
+  // writes these at creation so the brief the maker converged on in chat is
+  // part of the design record (partner-ui moodboard reads concept from canvas,
+  // but the typed columns are the record).
+  concept_theme?: string | null;
+  aesthetic_keywords?: Record<string, any>;
   origin_source?: "manual" | "ai-mistral" | "ai-other";
   customer_id_for_link?: string;
   // Roadmap #6: set when a partner creates the design for their own
@@ -98,6 +104,8 @@ export const createDesignStep = createStep(
       // being stored bent, and the inference step then fills it in.
       product_type: normalizedProductType,
       product_type_source: normalizedProductType ? "manual" : null,
+      concept_theme: input.concept_theme ?? null,
+      aesthetic_keywords: (input.aesthetic_keywords ?? null) as Record<string, unknown> | null,
     });
     // Persist structured colors if provided
     if (normalizedColors?.length) {

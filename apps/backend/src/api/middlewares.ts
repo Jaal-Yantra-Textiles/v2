@@ -203,6 +203,7 @@ import { PartnerAssistantChatSchema } from "./partners/assistant/chat/validators
 import { PartnerAssistantSummarizeSchema } from "./partners/assistant/summarize/validators";
 import { CreateConversationSchema as PartnerCreateConversationSchema, UpdateConversationSchema as PartnerUpdateConversationSchema } from "./partners/assistant/conversations/validators";
 import { CreateConversationSchema as AdminAssistantCreateConversationSchema, UpdateConversationSchema as AdminAssistantUpdateConversationSchema } from "./admin/assistant/conversations/validators";
+import { CreateDesignConversationSchema, UpdateDesignConversationSchema, DeleteDesignConversationSchema } from "./store/custom/design-assistant/conversations/validators";
 import { BulkHsCodesSchema } from "./admin/customs/hs-codes/validators";
 import { BulkUpdateProductsSchema } from "./admin/products/bulk-update/validators";
 import { BulkProductSpecReq } from "./admin/products/spec-bulk/validators";
@@ -2706,6 +2707,61 @@ export default defineMiddlewares({
       middlewares: [
         validateAndTransformBody(wrapSchema(AdminAssistantUpdateConversationSchema)),
       ],
+    },
+    // Storefront design-assistant conversation history (chat design editor)
+    // — server-persisted design threads, email-scoped (public, mirrors the
+    // chat flow's email gate — no customer auth). Validation only.
+    {
+      matcher: "/store/custom/design-assistant/conversations",
+      method: "GET",
+      middlewares: [createCorsMiddleware()],
+    },
+    {
+      matcher: "/store/custom/design-assistant/conversations",
+      method: "POST",
+      middlewares: [
+        createCorsMiddleware(),
+        validateAndTransformBody(wrapSchema(CreateDesignConversationSchema)),
+      ],
+    },
+    {
+      matcher: "/store/custom/design-assistant/conversations/:id",
+      method: "GET",
+      middlewares: [createCorsMiddleware()],
+    },
+    {
+      matcher: "/store/custom/design-assistant/conversations/:id",
+      method: "PATCH",
+      middlewares: [
+        createCorsMiddleware(),
+        validateAndTransformBody(wrapSchema(UpdateDesignConversationSchema)),
+      ],
+    },
+    {
+      matcher: "/store/custom/design-assistant/conversations/:id",
+      method: "DELETE",
+      middlewares: [
+        createCorsMiddleware(),
+        validateAndTransformBody(wrapSchema(DeleteDesignConversationSchema)),
+      ],
+    },
+    {
+      // Deterministic canvas pick (scene panel "Build on this") — reuses the
+      // chat flow's set_active_canvas write without a model turn.
+      matcher: "/store/custom/design-assistant/pick",
+      method: "POST",
+      middlewares: [createCorsMiddleware()],
+    },
+    {
+      // The board read. Public like the rest of the assistant's store mount and
+      // scoped by the maker's email — the board panel previously read through
+      // the CUSTOMER-authenticated `/store/custom/designs/:id`, which 401s for
+      // every guest, i.e. for everyone this flow is built for.
+      //
+      // ⚠️ A route file without a matcher entry is not a route.
+      matcher: "/store/custom/design-assistant/designs/:id",
+      method: "GET",
+      middlewares: [createCorsMiddleware()],
     },
     // Customs HS/HSN codes — bulk gap scan + bulk fill. /admin/* is
     // admin-authenticated globally, so only the write body needs validation.

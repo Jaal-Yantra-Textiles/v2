@@ -592,6 +592,11 @@ module.exports = defineConfig({
       resolve: "./src/modules/admin-assistant",
     },
     {
+      // Chat design editor — per-design chat thread history (email-scoped
+      // mirror of admin-assistant).
+      resolve: "./src/modules/storefront-design-assistant",
+    },
+    {
       // The assistants' cross-conversation context cache. Registered in BOTH
       // config files: prod loads its own, so a module listed only here is
       // absent on ECS, and the chat routes resolve it on every turn.

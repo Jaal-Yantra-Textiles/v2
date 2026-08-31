@@ -25,6 +25,7 @@ import {
 } from "@lib/util/concierge-thread"
 import { getOrCreateVisitorId } from "@lib/util/visitor-id"
 import OnboardingForm, { type OnboardingHandle } from "./onboarding"
+import { MarkdownContent } from "./markdown-content"
 
 /**
  * Full-page Cici concierge chat, rendered at `/[countryCode]/chat`.

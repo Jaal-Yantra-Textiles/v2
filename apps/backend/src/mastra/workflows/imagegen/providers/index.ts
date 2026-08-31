@@ -12,7 +12,12 @@
  * Provider Priority: Google Imagen → Gemini Flash → Mistral → Fireworks → Out of credits
  */
 
-export type ImageProvider = "google" | "gemini-flash" | "mistral" | "fireworks";
+export type ImageProvider =
+  | "cloudflare"
+  | "google"
+  | "gemini-flash"
+  | "mistral"
+  | "fireworks";
 
 export type ProviderStatus = {
   available: boolean;

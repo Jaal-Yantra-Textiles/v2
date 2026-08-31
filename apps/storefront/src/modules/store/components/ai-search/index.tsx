@@ -76,13 +76,15 @@ export default function StoreAiSearch() {
   }, [])
 
   return (
-    <div className="mb-8">
+    /* Centred search pill — lives in the page flow (not pinned to the top),
+       so it scrolls away with Lenis's eased window scroll. */
+    <div className="z-40 mx-auto mb-8 w-[min(680px,94%)]">
       <form
         onSubmit={(e) => {
           e.preventDefault()
           void submit()
         }}
-        className="flex items-center gap-2"
+        className="flex items-center gap-2 rounded-full border border-neutral-200 bg-white/85 p-1.5 pl-5 shadow-lg shadow-neutral-900/5 backdrop-blur-md"
       >
         <label className="sr-only" htmlFor="store-ai-search">
           Search products
@@ -93,78 +95,86 @@ export default function StoreAiSearch() {
           value={input}
           onChange={(e) => setInput(e.target.value)}
           placeholder="Search products — describe what you want"
-          className="flex-1 rounded-full border border-neutral-300 bg-white px-4 py-2 text-sm text-neutral-900 placeholder:text-neutral-400 focus:border-neutral-500 focus:outline-none focus:ring-1 focus:ring-neutral-500 sm:text-base"
+          className="min-w-0 flex-1 bg-transparent py-1.5 text-sm text-neutral-900 placeholder:text-neutral-400 focus:outline-none sm:text-base"
           maxLength={200}
           autoComplete="off"
           spellCheck={false}
+          data-testid="store-ai-search-input"
         />
+        {state.kind !== "idle" && (
+          <button
+            type="button"
+            onClick={clear}
+            aria-label="Clear search"
+            className="rounded-full px-2 py-1.5 text-sm text-neutral-400 hover:text-neutral-900"
+          >
+            ✕
+          </button>
+        )}
         <button
           type="submit"
           disabled={
             state.kind === "loading" || input.trim().length < 2
           }
-          className="rounded-full bg-neutral-900 px-4 py-2 text-sm font-medium text-white disabled:cursor-not-allowed disabled:opacity-50 sm:text-base"
+          className="flex-shrink-0 rounded-full bg-neutral-900 px-5 py-2 text-sm font-medium text-white transition hover:bg-black disabled:cursor-not-allowed disabled:opacity-50"
+          data-testid="store-ai-search-submit"
         >
           {state.kind === "loading" ? "…" : "Search"}
         </button>
-        {state.kind !== "idle" && (
-          <button
-            type="button"
-            onClick={clear}
-            className="rounded-full px-3 py-2 text-sm text-neutral-500 hover:text-neutral-900"
-          >
-            Clear
-          </button>
-        )}
       </form>
 
-      {state.kind === "loading" && (
-        <p className="mt-3 text-sm text-neutral-500">
-          Searching for <em>"{state.query}"</em>…
-        </p>
-      )}
-
-      {state.kind === "error" && (
-        <p className="mt-3 text-sm text-red-600">
-          Couldn't reach the search service. Try again.
-        </p>
-      )}
-
-      {state.kind === "result" && (
-        <div className="mt-4 rounded-2xl border border-neutral-200 bg-neutral-50 p-4">
-          <div className="mb-3 flex flex-wrap items-baseline justify-between gap-2">
-            <p className="text-sm text-neutral-700 sm:text-base">
-              <strong>{state.products.length}</strong>{" "}
-              {state.products.length === 1 ? "match" : "matches"} for{" "}
-              <em>"{state.query}"</em>
-            </p>
-            {state.interpretation && (
-              <p className="text-[11px] text-neutral-500 sm:text-xs">
-                Interpreted as:{" "}
-                {[
-                  state.interpretation.keywords?.join(", "),
-                  state.interpretation.color,
-                  state.interpretation.material,
-                  state.interpretation.max_price
-                    ? `under ${state.interpretation.max_price}`
-                    : null,
-                ]
-                  .filter(Boolean)
-                  .join(" · ")}
-              </p>
-            )}
-          </div>
-          {state.products.length === 0 ? (
+      {/* Results panel — attached beneath the floating bar */}
+      {state.kind !== "idle" && (
+        <div className="mt-2 rounded-2xl border border-neutral-200 bg-white/95 p-4 shadow-xl shadow-neutral-900/10 backdrop-blur-md">
+          {state.kind === "loading" && (
             <p className="text-sm text-neutral-500">
-              Nothing matched. Try simpler keywords, or browse the
-              catalogue below.
+              Searching for <em>"{state.query}"</em>…
             </p>
-          ) : (
-            <ul className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
-              {state.products.map((p) => (
-                <ProductCard key={p.id} product={p} />
-              ))}
-            </ul>
+          )}
+
+          {state.kind === "error" && (
+            <p className="text-sm text-red-600">
+              Couldn't reach the search service. Try again.
+            </p>
+          )}
+
+          {state.kind === "result" && (
+            <>
+              <div className="mb-3 flex flex-wrap items-baseline justify-between gap-2">
+                <p className="text-sm text-neutral-700 sm:text-base">
+                  <strong>{state.products.length}</strong>{" "}
+                  {state.products.length === 1 ? "match" : "matches"} for{" "}
+                  <em>"{state.query}"</em>
+                </p>
+                {state.interpretation && (
+                  <p className="text-[11px] text-neutral-500 sm:text-xs">
+                    Interpreted as:{" "}
+                    {[
+                      state.interpretation.keywords?.join(", "),
+                      state.interpretation.color,
+                      state.interpretation.material,
+                      state.interpretation.max_price
+                        ? `under ${state.interpretation.max_price}`
+                        : null,
+                    ]
+                      .filter(Boolean)
+                      .join(" · ")}
+                  </p>
+                )}
+              </div>
+              {state.products.length === 0 ? (
+                <p className="text-sm text-neutral-500">
+                  Nothing matched. Try simpler keywords, or browse the
+                  catalogue below.
+                </p>
+              ) : (
+                <ul className="max-h-[60vh] overflow-y-auto pr-1 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
+                  {state.products.map((p) => (
+                    <ProductCard key={p.id} product={p} />
+                  ))}
+                </ul>
+              )}
+            </>
           )}
         </div>
       )}

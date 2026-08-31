@@ -46,6 +46,9 @@ const StoreTemplate = async ({
         <div className="mb-6 text-2xl-semi">
           <h1 data-testid="store-page-title">All products</h1>
         </div>
+        {/* Floating AI search — a sticky pill centred over the catalogue.
+            It stays centred while the customer scrolls and the results
+            panel drops beneath it (see ai-search/index.tsx). */}
         <StoreAiSearch />
         <Suspense fallback={<SkeletonProductGrid />}>
           <PaginatedProducts

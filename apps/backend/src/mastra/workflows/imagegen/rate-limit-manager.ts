@@ -48,6 +48,11 @@ const RATE_LIMITS: Record<ImageProvider, RateLimitConfig> = {
     windowDurationMs: 60000, // 1 minute window
     cooldownMs: 60000, // 1 minute cooldown on 429
   },
+  cloudflare: {
+    maxRequests: 50, // Conservative estimate for Workers AI (flux-1-schnell)
+    windowDurationMs: 60000, // 1 minute window
+    cooldownMs: 60000, // 1 minute cooldown on 429
+  },
 };
 
 /**
@@ -197,7 +202,7 @@ export function getProviderStatus(): Record<
     }
   > = {} as any;
 
-  const allProviders: ImageProvider[] = ["google", "gemini-flash", "mistral", "fireworks"];
+  const allProviders: ImageProvider[] = ["cloudflare", "google", "gemini-flash", "mistral", "fireworks"];
 
   for (const provider of allProviders) {
     const state = ensureState(provider);
