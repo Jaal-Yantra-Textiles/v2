@@ -18,7 +18,18 @@ import { z } from "@medusajs/framework/zod"
  * number and a plausible typo, and an ACTIVE price of zero is one the cart
  * cheerfully charges — see the note in `lib/line-override.ts`.
  */
-const QuoteLine = z
+/**
+ * The line's FIELDS, before the cross-field refinements.
+ *
+ * 🔑 Exported so the MCP tool schema can be checked against it. The tools'
+ * coverage test compares top-level body keys to the mint validator, but a
+ * quote's real vocabulary is mostly INSIDE a line — and the nested half went
+ * unchecked until `unit_weight_grams` was found missing from the tool schema,
+ * which is the one field a design-led quote cannot be priced without.
+ * `.refine()` returns a ZodEffects with no `.shape`, so the raw object has to
+ * be named to be readable.
+ */
+export const QuoteLineShape = z
   .object({
     /**
      * Optional ONLY because a line may name a `design_id` instead — see the
@@ -63,6 +74,9 @@ const QuoteLine = z
      */
     unit_weight_grams: z.number().positive().max(1_000_000).nullish(),
   })
+
+/** The line as the routes accept it: the shape plus its cross-field rules. */
+const QuoteLine = QuoteLineShape
   .refine((l) => Boolean(l.variant_id) || Boolean(l.design_id), {
     message: "A line must name either a variant_id or a design_id.",
     path: ["variant_id"],
