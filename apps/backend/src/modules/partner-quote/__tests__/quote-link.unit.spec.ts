@@ -185,14 +185,41 @@ describe("resolveQuoteBuyerLink", () => {
     ).resolves.toBe("https://unique-pashmina.jaalyantra.com/de/quotes/tok_abc")
   })
 
-  it("falls back to the house storefront when the partner has no domain at all", async () => {
+  /**
+   * 🔴 Was "falls back to the house storefront". It does not, because that link
+   * does not work: `assertQuoteVisibleToCaller` refuses any read whose key
+   * resolves to a store other than the quote's own. Verified live against quote
+   * `01M1BPV6TM…` — `GET /store/b2b/quotes/<token>` was **404** under the house
+   * publishable key and **200** under the owning partner store's.
+   *
+   * Null makes `deliverQuoteEmail` refuse to send and record why. A 404 dressed
+   * as a link would have gone to the buyer instead.
+   */
+  it("🔴 returns NULL, not a house link, when a PARTNER has no storefront", async () => {
     const scope = scopeWith([
       { id: "part_1", custom_domain: null, custom_domain_verified: false, storefront_domain: null },
     ])
 
     await expect(
       withHouse(() => resolveQuoteBuyerLink(scope, base))
-    ).resolves.toBe("https://cicilabel.com/de/quotes/tok_abc")
+    ).resolves.toBeNull()
+  })
+
+  it("🔴 a VERIFIED custom domain with no storefront is not a link either", async () => {
+    // The production row: saranshsharma.me, verified, nothing deployed behind
+    // it. It served an unrelated personal site and 404'd the quote page.
+    const scope = scopeWith([
+      {
+        id: "part_1",
+        custom_domain: "saranshsharma.me",
+        custom_domain_verified: true,
+        storefront_domain: null,
+      },
+    ])
+
+    await expect(
+      withHouse(() => resolveQuoteBuyerLink(scope, base))
+    ).resolves.toBeNull()
   })
 
   it("uses the house storefront for a quote with no partner at all", async () => {
@@ -202,14 +229,14 @@ describe("resolveQuoteBuyerLink", () => {
     ).resolves.toBe("https://cicilabel.com/de/quotes/tok_abc")
   })
 
-  it("🔴 falls back to the house link when the partner read FALLS OVER", async () => {
-    // A query that failed is not evidence the partner has no shop, and the link
-    // is the only copy of the token: a reachable page on our own domain beats
-    // no email at all.
+  it("🔴 returns null when the partner read FALLS OVER", async () => {
+    // A failed query is not evidence the partner has no shop — but nor does it
+    // make a house link work for a partner's quote, and a link to a not-found
+    // page is worse for the buyer than the mint saying it could not build one.
     const scope = scopeWith([], { throws: true })
     await expect(
       withHouse(() => resolveQuoteBuyerLink(scope, base))
-    ).resolves.toBe("https://cicilabel.com/de/quotes/tok_abc")
+    ).resolves.toBeNull()
   })
 
   it("still returns null when there is no partner domain AND no house domain", async () => {

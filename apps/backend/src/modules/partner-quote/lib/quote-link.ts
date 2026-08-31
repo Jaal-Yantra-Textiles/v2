@@ -27,18 +27,30 @@ import { producerStorefrontUrl } from "./quote-producer"
  * owns "which host is this partner reachable on", including the refusal to link
  * an unverified custom domain, and it is already under test.
  *
- * ## The house fallback
+ * ## The house fallback is ONLY for a house quote
  *
- * A quote minted by an admin for a partner with no domain — and, once #1486's
- * no-partner branch lands, a house quote with no partner at all — has no
- * partner host to use. It falls back to the platform storefront, from
+ * A quote with no partner falls back to the platform storefront, from
  * `ROOT_DOMAIN` (cicilabel.com) with `FRONTEND_URL` as the second choice.
  *
- * 🔑 The fallback is the LAST resort, never the first. A partner's buyer must
- * land on the partner's own shop: the quote page names the producer, prices
- * against their catalogue and, once accepted, builds a cart in their sales
- * channel. Preferring the house domain would quietly move every partner's
- * buyer onto ours.
+ * 🔴 A PARTNER's quote never does, and the reason is not preference — it is
+ * that the link would not work. `assertQuoteVisibleToCaller` refuses any read
+ * whose calling publishable key resolves to a store other than the quote's
+ * own, and that guard exists because three stores' keys once all returned 200
+ * for the same token (#1439 S15). Verified live on 2026-08-31 against quote
+ * `01M1BPV6TM…`: `GET /store/b2b/quotes/<token>` answered **404** under the
+ * house key and **200** under the owning partner store's. So a house link for
+ * a partner quote is a 404 dressed as a link, and the buyer link is the only
+ * copy of the token.
+ *
+ * Null instead. `deliverQuoteEmail` already treats a missing link as a refusal
+ * to send — "an email without the link is worse than no email" — and records
+ * it on the quote's timeline for a human to act on. A quote nobody can open is
+ * a fact worth surfacing at the mint, not one to paper over with a URL that
+ * resolves to a not-found page.
+ *
+ * 🔑 A partner's buyer must land on the partner's own shop for a second reason
+ * too: the page names the producer, prices against their catalogue and, once
+ * accepted, builds a cart in their sales channel.
  */
 
 /**
@@ -127,19 +139,22 @@ export async function resolveQuoteBuyerLink(
     })
 
     const partner = ((partners ?? []) as any[])[0]
-    if (!partner) return houseLink()
 
-    return (
-      buildQuoteBuyerUrl({
-        origin: producerStorefrontUrl(partner),
-        countryCode: input.destination_country_code,
-        token: input.token,
-      }) ?? houseLink()
-    )
+    // 🔴 NOT the house link. This quote belongs to the partner's store, and the
+    // tenant guard refuses it to every other store's key — a house URL here
+    // would 404 for the buyer.
+    if (!partner) return null
+
+    return buildQuoteBuyerUrl({
+      origin: producerStorefrontUrl(partner),
+      countryCode: input.destination_country_code,
+      token: input.token,
+    })
   } catch {
-    // 🔴 The house link, not null. A partner lookup that fell over is not
-    // evidence the partner has no shop, and the buyer link is the only copy of
-    // the token — a reachable page on our own domain beats no email at all.
-    return houseLink()
+    // Null, for the same reason. A failed lookup is not evidence the partner
+    // has no shop — but nor does it make a house link work, and "here is your
+    // quote" pointing at a not-found page is worse for the buyer than the mint
+    // telling a human the link could not be built.
+    return null
   }
 }
