@@ -1,3 +1,12 @@
+# [13.130.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.129.0...v13.130.0) (2026-08-31)
+
+
+### Features
+
+* **payments:** bound a run's FIRST payment claim, and let a run declare no agreed quantity ([#1676](https://github.com/Jaal-Yantra-Textiles/v2/issues/1676)) ([#1682](https://github.com/Jaal-Yantra-Textiles/v2/issues/1682)) ([796d07b](https://github.com/Jaal-Yantra-Textiles/v2/commit/796d07b3a081ad444d08b49387a56c90433a4daf)), closes [#1616](https://github.com/Jaal-Yantra-Textiles/v2/issues/1616) [#1596](https://github.com/Jaal-Yantra-Textiles/v2/issues/1596) [#1596](https://github.com/Jaal-Yantra-Textiles/v2/issues/1596) [#1679](https://github.com/Jaal-Yantra-Textiles/v2/issues/1679) [#1679](https://github.com/Jaal-Yantra-Textiles/v2/issues/1679) [#1616](https://github.com/Jaal-Yantra-Textiles/v2/issues/1616)
+* **shipping:** finish DHL Express provider against the OpenAPI spec ([#1653](https://github.com/Jaal-Yantra-Textiles/v2/issues/1653)) ([98f16c0](https://github.com/Jaal-Yantra-Textiles/v2/commit/98f16c0549fa953062ef795ce2011ce507b38841)), closes [#1641](https://github.com/Jaal-Yantra-Textiles/v2/issues/1641)
+* **stats:** wire window_days into metric_sections and expose real graph entities ([#1681](https://github.com/Jaal-Yantra-Textiles/v2/issues/1681)) ([e3a6449](https://github.com/Jaal-Yantra-Textiles/v2/commit/e3a64490e9f2a71930e5b8755dddb0c8384b1b75))
+
 # [13.129.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.128.0...v13.129.0) (2026-08-30)
 
 
