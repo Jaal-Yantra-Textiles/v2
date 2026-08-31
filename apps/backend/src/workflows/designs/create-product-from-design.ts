@@ -60,6 +60,23 @@ type CreateProductFromDesignInput = {
    * see `resolveListedPrice` for what changed and why.
    */
   unit_price?: number | null;
+  /**
+   * The sales channel the new product belongs in — the catalogue of whoever is
+   * quoting or selling it.
+   *
+   * 🔴 Until this existed the branch below read `listStores({})[0]` and used
+   * THAT store's default channel. On a platform with 15 stores that is
+   * whichever row Postgres returned first, which in practice was always the
+   * core "Default Sales Channel" — so every made-to-order design product ever
+   * minted landed in a catalogue belonging to nobody who was quoting it. All
+   * 12 on production did. `assertVariantsInStore` then refused the mint, and
+   * the readiness preflight refused before that, which is how a whole feature
+   * could be shipped, tested and never once produce a quotable design.
+   *
+   * Omitted, the store default is still the fallback: the approve path creates
+   * a catalogue product for the core store and that behaviour is unchanged.
+   */
+  sales_channel_id?: string | null;
 };
 
 type CreateProductFromDesignOutput = {
@@ -230,10 +247,19 @@ const createProductAndVariantStep = createStep(
       variant_id = createdVariant.id;
     } else {
       // Need to create a new product
-      const storeService = container.resolve(Modules.STORE) as any;
-      const [store] = await storeService.listStores({});
+      //
+      // The caller's channel wins. Only when nobody named one do we fall back
+      // to the store default — see `sales_channel_id` for what that fallback
+      // silently did to every design quote.
+      let salesChannelId = input.sales_channel_id || null;
 
-      if (!store?.default_sales_channel_id) {
+      if (!salesChannelId) {
+        const storeService = container.resolve(Modules.STORE) as any;
+        const [store] = await storeService.listStores({});
+        salesChannelId = store?.default_sales_channel_id || null;
+      }
+
+      if (!salesChannelId) {
         throw new Error("No default sales channel configured for the store");
       }
 
@@ -256,7 +282,7 @@ const createProductAndVariantStep = createStep(
           design_id: design.id,
           design_type: design.design_type,
         },
-        sales_channels: [{ id: store.default_sales_channel_id }],
+        sales_channels: [{ id: salesChannelId }],
         options: [
           {
             title: "Type",

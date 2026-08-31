@@ -5,10 +5,14 @@ import {
   WorkflowResponse,
 } from "@medusajs/framework/workflows-sdk"
 import { ContainerRegistrationKeys, MedusaError } from "@medusajs/framework/utils"
+import { linkProductsToSalesChannelWorkflow } from "@medusajs/medusa/core-flows"
 
 import { applyRate, fetchExchangeRate } from "../../lib/fx/exchange-rate"
 import { designQuoteUnitPrice } from "../../modules/partner-quote/lib/design-quote-price"
-import { resolveDesignVariants } from "../../modules/partner-quote/lib/design-lines"
+import {
+  isMadeToOrderDesignProduct,
+  resolveDesignVariants,
+} from "../../modules/partner-quote/lib/design-lines"
 import { estimateDesignCostWorkflow } from "../designs/estimate-design-cost"
 import { createProductFromDesignWorkflow } from "../designs/create-product-from-design"
 
@@ -56,6 +60,19 @@ export type EnsureDesignQuoteVariantInput = {
   partner_id?: string | null
   /** Override the 20% uplift. The wizard does not; ops might. */
   markup_percent?: number
+  /**
+   * The catalogue the minted product belongs in — the quoting partner's
+   * default sales channel.
+   *
+   * 🔑 Deliberately NOT `partner_id`. That field scopes VISIBILITY, and on the
+   * admin surface it is passed as null on purpose: a design is not owned by
+   * anyone before a production run, so an admin quotes any design for any
+   * partner. Whose catalogue the product lands in is a different question with
+   * a different answer, and folding the two together would either re-scope the
+   * picker or put the product in nobody's catalogue — which is exactly what
+   * happened while this input did not exist.
+   */
+  catalogue_sales_channel_id?: string | null
   /**
    * Answer the question without creating anything.
    *
@@ -235,6 +252,9 @@ const ensureVariantStep = createStep(
         unit_price: priced.unit_price,
         currency_code: to,
         made_to_order: true,
+        // Whose catalogue this is. Without it the product went to whichever
+        // store came back first from `listStores({})`.
+        sales_channel_id: input.catalogue_sales_channel_id ?? null,
       } as any,
     })
 
@@ -269,7 +289,13 @@ export const ensureDesignQuoteVariantWorkflow = createWorkflow(
  */
 export function makeDesignVariantPort(
   scope: any,
-  config: { currency_code: string; partner_id?: string | null; markup_percent?: number }
+  config: {
+    currency_code: string
+    partner_id?: string | null
+    markup_percent?: number
+    /** The quoting partner's catalogue. See `catalogue_sales_channel_id`. */
+    catalogue_sales_channel_id?: string | null
+  }
 ) {
   return async (input: { design_id: string; dry_run: boolean }) => {
     const { result } = await ensureDesignQuoteVariantWorkflow(scope).run({
@@ -278,6 +304,7 @@ export function makeDesignVariantPort(
         currency_code: config.currency_code,
         partner_id: config.partner_id ?? null,
         markup_percent: config.markup_percent,
+        catalogue_sales_channel_id: config.catalogue_sales_channel_id ?? null,
         dry_run: input.dry_run,
       },
     })
@@ -291,6 +318,91 @@ export function makeDesignVariantPort(
       reason: out?.reason ?? null,
     }
   }
+}
+
+/**
+ * Put every made-to-order design product in this basket into the quoting
+ * partner's catalogue.
+ *
+ * ## Why minting into the right channel is not enough on its own
+ *
+ * `ensureDesignQuoteVariant` is idempotent by design: a design that already
+ * resolves to a variant returns straight away and creates nothing. That is
+ * correct — a second mint would attach a SECOND variant to the design and make
+ * it unquotable for the opposite reason. But it means the channel fix on the
+ * mint path only ever reaches designs quoted for the FIRST time, and every
+ * design already carrying a product stays in whatever catalogue it was born
+ * in. All 12 on production were born in the wrong one.
+ *
+ * It is also the case that genuinely needs handling twice over: a design is not
+ * owned by any partner before a production run, so the same made-to-order
+ * product can legitimately be quoted by two different partners. Sales-channel
+ * membership is many-to-many precisely so that both can be true, which is why
+ * this ADDS and never replaces.
+ *
+ * 🔴 `isMadeToOrderDesignProduct` is the whole safety boundary. Only a product
+ * the quote flow itself minted qualifies; a design that resolves through
+ * `product_design` points at a real catalogue product someone else owns, and
+ * adding that to this partner's channel would be a cross-tenant catalogue
+ * write. It is skipped, and `assertVariantsInStore` refuses it a moment later,
+ * which is the correct answer.
+ *
+ * Writes only what is missing — `link.create` is not idempotent, so a product
+ * already in the channel is filtered out rather than re-linked.
+ */
+export async function ensureDesignProductsInCatalogue(
+  scope: any,
+  input: {
+    lines: Array<{ variant_id?: string | null; design_id?: string | null }>
+    sales_channel_id?: string | null
+  }
+): Promise<{ added_product_ids: string[] }> {
+  const salesChannelId = input.sales_channel_id || null
+  if (!salesChannelId) return { added_product_ids: [] }
+
+  const variantIds = Array.from(
+    new Set(
+      (input.lines ?? [])
+        .filter((l) => l?.design_id && l?.variant_id)
+        .map((l) => String(l.variant_id))
+    )
+  )
+  // `filters: { id: [] }` is NO filter, not "no rows" (#1433) — this would
+  // otherwise read every variant on the platform.
+  if (!variantIds.length) return { added_product_ids: [] }
+
+  const query = scope.resolve(ContainerRegistrationKeys.QUERY) as any
+
+  const { data: variants = [] } = await query.graph({
+    entity: "variant",
+    fields: [
+      "id",
+      "product.id",
+      "product.metadata",
+      "product.sales_channels.id",
+    ],
+    filters: { id: variantIds },
+  })
+
+  const productIds = new Set<string>()
+  for (const variant of (variants ?? []) as any[]) {
+    const product = variant?.product
+    if (!product?.id) continue
+    // Quoted from a design line by construction — that is how it got here.
+    if (!isMadeToOrderDesignProduct(product, true)) continue
+    const channels = (product.sales_channels ?? []) as any[]
+    if (channels.some((c) => c?.id === salesChannelId)) continue
+    productIds.add(product.id)
+  }
+
+  if (!productIds.size) return { added_product_ids: [] }
+
+  const added = Array.from(productIds)
+  await linkProductsToSalesChannelWorkflow(scope).run({
+    input: { id: salesChannelId, add: added },
+  })
+
+  return { added_product_ids: added }
 }
 
 export default ensureDesignQuoteVariantWorkflow

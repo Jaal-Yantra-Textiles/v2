@@ -57,7 +57,25 @@ const PartnerQuoteLine = model.define("partner_quote_line", {
   quoted_subtotal: model.bigNumber().nullable(),
   /** Unit weight used, and which level it came from. See the header. */
   quoted_unit_weight_grams: model.number().nullable(),
-  quoted_weight_source: model.enum(["variant", "product"]).nullable(),
+  /**
+   * 🔴 `"manual"` was missing here, and the enum is a CHECK CONSTRAINT.
+   *
+   * `resolveUnitWeight` has always returned `weight_source: "manual"` for an
+   * operator-typed figure, `mint-quote` has always written `l.weight_source`
+   * straight through, and this column's own docblock two files up says the line
+   * is frozen "with `quoted_weight_source: \"manual\"`". The column simply
+   * never learned the value — so every quote minted with a hand-typed
+   * `unit_weight_grams` died at the INSERT with a
+   * `CheckConstraintViolationException` and answered the partner with a bare
+   * 500 carrying an HTML error page.
+   *
+   * Nothing caught it because nothing could reach it: the readiness preflight
+   * ignored the typed weight too and refused the basket first, so the mint was
+   * never called with one. Two defects in series, each hiding the other, on the
+   * one input that makes the 140 weightless variants and every made-to-order
+   * design quotable at all.
+   */
+  quoted_weight_source: model.enum(["variant", "product", "manual"]).nullable(),
 
   // ===== The trade price, and how it was arrived at (#1439 S7) =============
   /**

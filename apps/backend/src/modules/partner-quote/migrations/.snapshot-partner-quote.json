@@ -915,7 +915,8 @@
           "comment": null,
           "enumItems": [
             "variant",
-            "product"
+            "product",
+            "manual"
           ],
           "mappedType": "enum"
         },
