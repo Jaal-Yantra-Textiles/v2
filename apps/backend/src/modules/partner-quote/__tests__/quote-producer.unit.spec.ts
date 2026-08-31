@@ -155,6 +155,25 @@ describe("producerStorefrontUrl", () => {
     ).toBe("https://unique-pashmina.jaalyantra.com")
   })
 
+  /**
+   * The production row that emailed a buyer a 404 (2026-08-31).
+   *
+   * `custom_domain_verified` is proof the DNS is ours, NOT proof a storefront
+   * is deployed behind it. The founder's own partner had a verified
+   * `saranshsharma.me` and no storefront at all — the host serves an unrelated
+   * personal site, and the quote link 404'd there. The buyer link is the only
+   * copy of the token.
+   */
+  it("🔴 refuses a VERIFIED custom domain when no storefront was ever provisioned", () => {
+    expect(
+      producerStorefrontUrl({
+        custom_domain: "saranshsharma.me",
+        custom_domain_verified: true,
+        storefront_domain: null,
+      })
+    ).toBeNull()
+  })
+
   it("is null when the partner has no reachable domain at all", () => {
     expect(
       producerStorefrontUrl({ custom_domain: null, storefront_domain: null })

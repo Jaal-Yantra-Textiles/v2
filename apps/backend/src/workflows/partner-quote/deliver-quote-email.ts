@@ -150,7 +150,9 @@ export async function deliverQuoteEmail(
     // An email without the link is worse than no email: it tells the buyer a
     // quote exists and gives them no way to open it.
     return await fail(
-      "there is no verified storefront domain for this partner and no house storefront configured, so there is no buyer link to send.",
+      "this partner has no storefront of their own, and a link on the house domain would 404 — " +
+        "the quote can only be read through its own store's key. Provision a storefront for the partner, " +
+        "or mint under one that has one.",
       "email_skipped"
     )
   }
