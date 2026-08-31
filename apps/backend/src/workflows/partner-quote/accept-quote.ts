@@ -569,6 +569,11 @@ const assertCartMatchesQuoteStep = createStep(
         lines: (input.lines ?? []).map((l: any) => ({
           variant_id: l.variant_id,
           quantity: Number(l.quantity),
+          // The weight the mint froze on the line. A design-led quote's
+          // made-to-order variant has none of its own, and without this the
+          // estimate refuses the whole basket — the same drop that made the
+          // buyer page report an open quote as closed.
+          unit_weight_grams: l.quoted_unit_weight_grams ?? null,
         })),
         customer_group_id: quote.customer_group_id,
         destination_country_code: quote.destination_country_code,

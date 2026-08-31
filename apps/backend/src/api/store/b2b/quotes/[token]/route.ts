@@ -4,6 +4,7 @@ import { ContainerRegistrationKeys, MedusaError } from "@medusajs/framework/util
 import { PARTNER_QUOTE_MODULE } from "../../../../../modules/partner-quote"
 import { buildQuoteView } from "../../../../../modules/partner-quote/lib/build-quote-view"
 import { composeQuoteAcceptance } from "../../../../../modules/partner-quote/lib/quote-acceptance-view"
+import { effectiveQuoteLines } from "../../../../../modules/partner-quote/lib/effective-quote-lines"
 import { resolveQuoteParties } from "../../../../../modules/partner-quote/lib/quote-parties"
 import { assertQuoteVisibleToCaller } from "../../../../../modules/partner-quote/lib/quote-tenant-guard"
 import { hashQuoteToken } from "../../../../../modules/partner-quote/lib/token"
@@ -41,31 +42,17 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
 
   const lines = await service.listPartnerQuoteLines({ quote_id: quote.id })
 
-  // The buyer may move their quantities; absent that, the quoted basket stands.
-  const requested = (req.query.lines as string | undefined) ?? null
-  let effectiveLines = (lines ?? []).map((l: any) => ({
-    variant_id: l.variant_id,
-    quantity: l.quantity,
-    position: l.position,
-    note: l.note,
-  }))
-
-  if (requested) {
-    try {
-      const dialled = JSON.parse(requested) as Array<{
-        variant_id: string
-        quantity: number
-      }>
-      const byVariant = new Map(dialled.map((d) => [d.variant_id, d.quantity]))
-      effectiveLines = effectiveLines.map((l: any) => ({
-        ...l,
-        quantity: Number(byVariant.get(l.variant_id) ?? l.quantity),
-      }))
-    } catch {
-      // A malformed dial is not worth a 400 — show the quoted basket instead of
-      // failing a buyer's page over a query string.
-    }
-  }
+  /**
+   * The buyer may move their quantities; absent that, the quoted basket stands.
+   *
+   * 🔑 `effectiveQuoteLines` carries `quoted_unit_weight_grams` through as the
+   * line's `unit_weight_grams`. Omitting it here is what made every design-led
+   * quote report itself closed — see that function's docblock.
+   */
+  const effectiveLines = effectiveQuoteLines(
+    lines as any,
+    (req.query.lines as string | undefined) ?? null
+  )
 
   // 🔴 The store's PICKUP LOCATION, not just its id.
   //
