@@ -279,6 +279,15 @@ export const MintQuoteForm = () => {
           ...(l.unit_weight_grams
             ? { unit_weight_grams: l.unit_weight_grams }
             : {}),
+          /**
+           * 🔴 Dropped here until now, and the mint sent it. A made-to-order
+           * design product is put in the partner's catalogue BY THE MINT, and
+           * the assessor can only know that if it knows the line came from a
+           * design — so without this the preflight refused, as
+           * `variant_not_in_catalogue`, every basket the mint would have
+           * accepted. The two calls have to describe the same basket.
+           */
+          ...(l.design_id ? { design_id: l.design_id } : {}),
         })),
         destination_country_code: data.destination_country_code,
         destination_postal_code: data.destination_postal_code || null,

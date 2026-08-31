@@ -9,7 +9,10 @@ import { resolveQuoteDesignLines } from "../../../modules/partner-quote/lib/desi
 import { deliverQuoteEmail } from "../../../workflows/partner-quote/deliver-quote-email"
 import { mintQuoteWorkflow } from "../../../workflows/partner-quote/mint-quote"
 import { assertVariantsInStore } from "./lib/assert-variants-in-store"
-import { makeDesignVariantPort } from "../../../workflows/partner-quote/ensure-design-quote-variant"
+import {
+  ensureDesignProductsInCatalogue,
+  makeDesignVariantPort,
+} from "../../../workflows/partner-quote/ensure-design-quote-variant"
 
 /**
  * Admin quotes (#1389 S5).
@@ -120,7 +123,25 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
     variant_port: makeDesignVariantPort(req.scope, {
       currency_code: body.currency_code,
       partner_id: null,
+      // Unscoped for VISIBILITY, catalogued for THIS partner. Two questions,
+      // two inputs — see `catalogue_sales_channel_id`.
+      catalogue_sales_channel_id: store.default_sales_channel_id,
     }),
+  })
+
+  /**
+   * A design already carrying a made-to-order product is not re-minted — the
+   * port returns straight away — so the channel it was born in is the one it
+   * keeps unless something adds this partner's. That is what this does, for
+   * the designs the mint above did not create.
+   *
+   * Before the assertion below, deliberately: the assertion is the gate, and
+   * this is the last chance to make it true. It adds only to custom-design
+   * products; anything else still gets refused, which is right.
+   */
+  await ensureDesignProductsInCatalogue(req.scope, {
+    lines: lines as any,
+    sales_channel_id: store.default_sales_channel_id,
   })
 
   // 🔴 An admin picks the partner from one dropdown and the variants from

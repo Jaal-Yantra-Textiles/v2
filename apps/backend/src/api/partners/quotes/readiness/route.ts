@@ -46,6 +46,8 @@ export const POST = async (
     variant_port: makeDesignVariantPort(req.scope, {
       currency_code: body.currency_code,
       partner_id: partner.id,
+      // Where the mint WOULD put it. Nothing is created here (`dry_run: true`).
+      catalogue_sales_channel_id: (store as any).default_sales_channel_id,
     }),
     currency_code: body.currency_code,
   })

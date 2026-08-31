@@ -9,7 +9,10 @@ import { totalQuotedQuantity } from "../../../modules/partner-quote/lib/quote-em
 import { deliverQuoteEmail } from "../../../workflows/partner-quote/deliver-quote-email"
 import { mintQuoteWorkflow } from "../../../workflows/partner-quote/mint-quote"
 import { getPartnerStore, tryGetPartnerStore } from "../helpers"
-import { makeDesignVariantPort } from "../../../workflows/partner-quote/ensure-design-quote-variant"
+import {
+  ensureDesignProductsInCatalogue,
+  makeDesignVariantPort,
+} from "../../../workflows/partner-quote/ensure-design-quote-variant"
 
 /**
  * The partner's own quotes. Scoped by `partner_id`, never listed globally.
@@ -88,7 +91,23 @@ export const POST = async (
     variant_port: makeDesignVariantPort(req.scope, {
       currency_code: body.currency_code,
       partner_id: partner.id,
+      // The partner's own catalogue. Same fix as the admin route: without it
+      // the minted product went to whichever store `listStores({})` returned
+      // first, which was never this one.
+      catalogue_sales_channel_id: (store as any).default_sales_channel_id,
     }),
+  })
+
+  /**
+   * And for a design that already had a product, which the port returns
+   * without touching. There is no `assertVariantsInStore` on this surface —
+   * a partner picks from their own catalogue — but `assertProductOwnership`
+   * and the readiness check both read the same sales-channel membership, and
+   * a made-to-order design product minted before this fix is in none of them.
+   */
+  await ensureDesignProductsInCatalogue(req.scope, {
+    lines: lines as any,
+    sales_channel_id: (store as any).default_sales_channel_id,
   })
 
   const { result } = await mintQuoteWorkflow(req.scope).run({

@@ -5,10 +5,11 @@ import { FieldPath, useForm } from "react-hook-form"
 import { useTranslation } from "react-i18next"
 import { z } from "@medusajs/framework/zod"
 
-import {
-  RouteFocusModal,
-  useRouteModal,
-} from "../../../../../components/modals"
+// `useRouteModal` was imported and never used. Harmless until now: partner-ui
+// CI type-checks CHANGED FILES ONLY, so an unused import sits quietly until
+// someone edits the file it lives in — and then fails their build for a line
+// they did not write.
+import { RouteFocusModal } from "../../../../../components/modals"
 import { KeyboundForm } from "../../../../../components/utilities/keybound-form"
 import { useDocumentDirection } from "../../../../../hooks/use-document-direction"
 import {
@@ -172,6 +173,15 @@ export const QuoteCreateForm = ({
         lines: lines.map((l) => ({
           variant_id: l.variant_id,
           quantity: l.quantity,
+          /**
+           * 🔴 Dropped here until now, while the mint sent it — so the two
+           * calls described different baskets. A made-to-order design product
+           * is put in the partner's catalogue by the MINT, and the assessor
+           * can only know that if it knows the line came from a design;
+           * without this it refused, as `variant_not_in_catalogue`, a basket
+           * the mint would have accepted.
+           */
+          ...(l.design_id ? { design_id: l.design_id } : {}),
         })),
         destination_country_code: data.destination_country_code,
         destination_postal_code: data.destination_postal_code || null,

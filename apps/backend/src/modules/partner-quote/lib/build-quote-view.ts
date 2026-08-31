@@ -94,7 +94,13 @@ export type QuoteViewLineRow = {
   quoted_unit_amount?: number | null
   quoted_subtotal?: number | null
   quoted_unit_weight_grams?: number | null
-  quoted_weight_source?: "variant" | "product" | null
+  /**
+   * `"manual"` included: a frozen line CAN say a human supplied the weight.
+   * The reader below already fell back to this field, so while the type
+   * excluded the value the one provenance an operator can vouch for was the
+   * one the frozen document could not express.
+   */
+  quoted_weight_source?: "variant" | "product" | "manual" | null
 }
 
 export type QuoteViewQuote = {

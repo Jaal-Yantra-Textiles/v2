@@ -81,6 +81,10 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
     variant_port: makeDesignVariantPort(req.scope, {
       currency_code: body.currency_code,
       partner_id: null,
+      // Where the mint WOULD put it. Nothing is created on this path
+      // (`dry_run: true`), and stating it here keeps the preview and the mint
+      // describing the same product rather than two.
+      catalogue_sales_channel_id: store.default_sales_channel_id,
     }),
     currency_code: body.currency_code,
   })

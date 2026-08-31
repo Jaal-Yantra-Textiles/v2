@@ -294,6 +294,36 @@ export type QuoteLineInput = {
 }
 
 /**
+ * PURE: is this product one the quote flow MINTED for a design, on a line that
+ * actually named that design?
+ *
+ * ## Why the question has two halves
+ *
+ * `create-product-from-design` stamps `metadata.is_custom_design` on everything
+ * it makes, and that alone is not enough. A partner can put a custom-design
+ * product on a plain variant line, with no `design_id` anywhere — nothing in
+ * the design machinery runs for that line, so nothing would attach the
+ * catalogue link, and calling it "pending" would be a promise no code keeps.
+ *
+ * 🔴 And the metadata half cannot be dropped either. A design that resolves
+ * through `product_design` points at a REAL catalogue product belonging to
+ * whoever owns that catalogue. Treating that as attachable would let one
+ * partner's quote silently add another partner's product to its own sales
+ * channel — a cross-tenant catalogue write, which is the family of failure
+ * `assertVariantsInStore` was written for (#1419).
+ *
+ * So: minted for a design AND quoted as a design. Both, or the ordinary
+ * refusal stands.
+ */
+export function isMadeToOrderDesignProduct(
+  product: { metadata?: Record<string, any> | null } | null | undefined,
+  quotedFromADesignLine: boolean
+): boolean {
+  if (!quotedFromADesignLine) return false
+  return product?.metadata?.is_custom_design === true
+}
+
+/**
  * PURE: fold resolutions into the basket, and collect every failure.
  *
  * 🔑 Every failure, not the first. A partner fixing a five-line basket one

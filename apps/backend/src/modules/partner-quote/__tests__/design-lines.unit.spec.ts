@@ -1,6 +1,7 @@
 import {
   applyDesignResolutions,
   designsNeedingAVariant,
+  isMadeToOrderDesignProduct,
   withDesignIssues,
   type DesignResolution,
 } from "../lib/design-lines"
@@ -388,5 +389,49 @@ describe("designsNeedingAVariant", () => {
     )
     // Two mints would leave the design resolving to two variants.
     expect(out).toEqual(["d1"])
+  })
+})
+
+/**
+ * Whose catalogue a design-led line may be added to (#1486 tail).
+ *
+ * 🔴 The interesting cases are the two REFUSALS, not the acceptance. A custom
+ * product quoted as a plain variant has nothing running that would attach the
+ * catalogue link, so calling it "pending" is a promise no code keeps; and a
+ * design resolved through a real catalogue product points at something another
+ * partner owns, where an automatic attach is a cross-tenant write. Both must be
+ * false, and a test that only asserts the happy path would pass through either.
+ */
+describe("isMadeToOrderDesignProduct", () => {
+  const minted = { metadata: { is_custom_design: true, design_id: "d1" } }
+
+  it("is true only for a minted design product ON a design line", () => {
+    expect(isMadeToOrderDesignProduct(minted, true)).toBe(true)
+  })
+
+  it("🔴 is false for the same product quoted as a plain variant", () => {
+    // Nothing in the design machinery runs for that line, so nothing would
+    // ever attach the channel this would be promising.
+    expect(isMadeToOrderDesignProduct(minted, false)).toBe(false)
+  })
+
+  it("🔴 is false for a real catalogue product reached through a design", () => {
+    // Someone else owns this catalogue. Adding it to the quoting partner's
+    // sales channel would be the #1419 failure with an extra step.
+    expect(
+      isMadeToOrderDesignProduct({ metadata: { design_id: "d1" } }, true)
+    ).toBe(false)
+    expect(isMadeToOrderDesignProduct({ metadata: null }, true)).toBe(false)
+    expect(isMadeToOrderDesignProduct(null, true)).toBe(false)
+  })
+
+  it("does not accept a truthy-but-not-true flag", () => {
+    // `metadata` is untyped JSON; "false" and 1 both arrive from somewhere.
+    expect(
+      isMadeToOrderDesignProduct({ metadata: { is_custom_design: "false" } }, true)
+    ).toBe(false)
+    expect(
+      isMadeToOrderDesignProduct({ metadata: { is_custom_design: 1 } }, true)
+    ).toBe(false)
   })
 })

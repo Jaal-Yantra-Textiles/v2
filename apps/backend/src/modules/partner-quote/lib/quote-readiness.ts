@@ -5,6 +5,7 @@ import {
   resolveUnitWeight,
 } from "../../../lib/shipping-estimate"
 import { pickFreightOption } from "./build-quote-view"
+import { isMadeToOrderDesignProduct } from "./design-lines"
 
 /**
  * Can this basket actually be quoted? (#1445 / #1439 S6)
@@ -50,6 +51,11 @@ export type QuoteReadinessCode =
   /** A line named a design that cannot be resolved to one variant (#1486). */
   | "design_unresolved"
   | "variant_not_in_catalogue"
+  /**
+   * A made-to-order design product that the MINT will add to this partner's
+   * catalogue. A warning, never blocking — see the branch that raises it.
+   */
+  | "design_catalogue_pending"
   | "line_unpriced"
   | "weight_missing"
   | "no_freight_option"
@@ -179,6 +185,15 @@ export type QuoteReadinessInput = {
     variant_id: string
     quantity: number
     unit_weight_grams?: number | null
+    /**
+     * Set when this line was picked as a DESIGN rather than as a variant. It
+     * rides along from `resolveDesignLinesForReadiness` and decides one thing:
+     * whether a catalogue miss is the mint's job to fix or the operator's.
+     *
+     * ⚠️ It was already arriving here at runtime and was simply not declared,
+     * so nothing could read it — the same shape as `unit_is_derived` (#1679).
+     */
+    design_id?: string | null
   }>
   store: {
     id?: string | null
@@ -253,12 +268,49 @@ export async function assessQuoteReadiness(
       "product.id",
       "product.title",
       "product.weight",
+      "product.metadata",
       "product.sales_channels.id",
     ],
     filters: { id: variantIds },
   })
 
   const byId = new Map<string, any>((variants ?? []).map((v: any) => [v.id, v]))
+
+  /**
+   * The operator's own weight for a line, by variant.
+   *
+   * 🔴 Without this the check below asked `resolveUnitWeight(variant)` with no
+   * second argument, so the typed figure was read for the freight estimate and
+   * NOWHERE else — and since `weight_missing` also gates `canEstimate`, the
+   * estimate it was meant to feed never ran either. The wizard has always sent
+   * it ("Or the preflight refuses a basket the mint would have priced"), the
+   * validator has always accepted it, the input type has always declared it,
+   * and no reader ever consulted it: three producers, zero consumers. A
+   * design-led quote has no catalogue weight BY DEFINITION, so this was the
+   * whole difference between "type the weight" and "this cannot be quoted".
+   *
+   * ⚠️ Keyed by variant because the checks below are per VARIANT while a
+   * weight is per LINE. Both wizards emit one line per variant; if that ever
+   * stops being true, a weight typed on one line would silently answer for
+   * another, so the first positive figure wins and the collision is named here
+   * rather than discovered in a landed total.
+   */
+  const manualWeightByVariant = new Map<string, number>()
+  for (const line of lines) {
+    const grams = Number(line.unit_weight_grams)
+    if (!Number.isFinite(grams) || grams <= 0) continue
+    if (!manualWeightByVariant.has(line.variant_id)) {
+      manualWeightByVariant.set(line.variant_id, grams)
+    }
+  }
+
+  /**
+   * Which variants arrived on a line that named a DESIGN. Load-bearing for the
+   * catalogue verdict below — see `isMadeToOrderDesignProduct`.
+   */
+  const designLineVariants = new Set(
+    lines.filter((l) => l.design_id).map((l) => l.variant_id)
+  )
 
   for (const id of variantIds) {
     const variant = byId.get(id)
@@ -282,23 +334,47 @@ export async function assessQuoteReadiness(
       if (
         !channels.some((c) => c?.id === input.store.default_sales_channel_id)
       ) {
-        issues.push({
-          code: "variant_not_in_catalogue",
-          severity: "blocking",
-          message: `"${label}" is not in ${input.partner_label || "this partner"}'s catalogue, so it cannot be quoted for them.`,
-          variant_id: id,
-        })
+        /**
+         * A made-to-order design product is put in the quoting partner's
+         * catalogue BY THE MINT, so reporting it as blocking here refuses a
+         * basket the mint would have accepted — the same preflight/mint split
+         * `freight_override_amount` exists to avoid.
+         *
+         * 🔴 Narrow on purpose, and the narrowness is the whole safety
+         * argument. Only a product the quote flow itself minted for a design
+         * qualifies: a design that resolves to a REAL catalogue product
+         * belongs to whoever owns that catalogue, and quietly adding it to
+         * another partner's sales channel would be a cross-tenant catalogue
+         * write dressed up as a convenience. Every other line keeps the hard
+         * refusal, which is the one #1419 was written for.
+         */
+        if (isMadeToOrderDesignProduct(variant.product, designLineVariants.has(id))) {
+          issues.push({
+            code: "design_catalogue_pending",
+            severity: "warning",
+            message: `"${label}" is a made-to-order design product and will be added to ${input.partner_label || "this partner"}'s catalogue when this quote is minted.`,
+            variant_id: id,
+          })
+        } else {
+          issues.push({
+            code: "variant_not_in_catalogue",
+            severity: "blocking",
+            message: `"${label}" is not in ${input.partner_label || "this partner"}'s catalogue, so it cannot be quoted for them.`,
+            variant_id: id,
+          })
+        }
       }
     }
 
-    if (!resolveUnitWeight(variant)) {
+    if (!resolveUnitWeight(variant, manualWeightByVariant.get(id))) {
       // 140 of 183 variants are null at BOTH levels. Without a weight the
       // freight leg is a guess, and a guessed landed total is the number a
-      // buyer commits to.
+      // buyer commits to. The operator's own figure counts — see
+      // `manualWeightByVariant`.
       issues.push({
         code: "weight_missing",
         severity: "blocking",
-        message: `"${label}" has no weight on the variant or its product, so freight for it would be a guess.`,
+        message: `"${label}" has no weight on the variant or its product, so freight for it would be a guess. Enter a weight for this line, or set one on the variant.`,
         variant_id: id,
       })
     }
