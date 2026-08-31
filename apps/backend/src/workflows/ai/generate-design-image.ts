@@ -120,6 +120,43 @@ const invokeMastraImageGenStep = createStep(
         };
       }
 
+      /**
+       * The TEXT model that turns the brief into an image prompt.
+       *
+       * 🔴 Resolved separately from the image platform, because the image
+       * platform may not do text at all. Production's is **fal** — image-only —
+       * and the workflow's only text branch was "is the image platform
+       * Cloudflare?". It wasn't, so enhancement fell to the OpenRouter free
+       * rotator, which answers live requests with "only available on agentic
+       * harnesses". When it fails the RAW prompt is used, so a brief quietly
+       * becomes whatever the raw string happened to say.
+       *
+       * An image platform that CAN do text is still preferred — same key, same
+       * bill. Otherwise borrow a text role that is already configured.
+       */
+      let prompt_model_config: any = null;
+      if (image_gen_config && image_gen_config.provider_type !== "fal") {
+        prompt_model_config = image_gen_config;
+      } else {
+        for (const role of ["ai_design_product_type", "ai_search_chat"] as const) {
+          try {
+            const textPlatform = await getAiPlatformForRole(container as any, role);
+            if (textPlatform?.apiKey) {
+              prompt_model_config = {
+                provider_type: textPlatform.providerType,
+                api_key: textPlatform.apiKey,
+                account_id: textPlatform.accountId,
+                base_url: textPlatform.baseUrl,
+                model: textPlatform.defaultModel,
+              };
+              break;
+            }
+          } catch {
+            // Try the next role; the workflow's own fallback covers "none".
+          }
+        }
+      }
+
       // Create run and start workflow
       const run = await workflow.createRun();
       const result = await run.start({
@@ -134,6 +171,7 @@ const invokeMastraImageGenStep = createStep(
           preview_cache_key: input.preview_cache_key,
           customer_id: input.customer_id,
           image_gen_config,
+          prompt_model_config,
         },
       });
 

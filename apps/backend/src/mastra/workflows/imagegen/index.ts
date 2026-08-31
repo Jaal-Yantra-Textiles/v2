@@ -9,6 +9,7 @@ import {
   generateWithCloudflare,
   type CloudflareImageConfig,
 } from "./providers/cloudflare";
+import { generateWithFal } from "./providers/fal";
 
 // Import provider modules
 import {
@@ -139,9 +140,32 @@ export const triggerSchema = z.object({
   resourceId: z.string().optional(),
   // Resolved image-gen platform config (from the Medusa container — the
   // Mastra runtime has no container, so the caller hands us the credentials).
-  // provider_type "cloudflare" routes prompt-enhancement + image gen to
-  // Cloudflare Workers AI instead of the OpenRouter free fallback.
+  // `resolveImageProvider` decides whether it is usable here — Cloudflare and
+  // FAL both are; anything else falls through to the env provider chain and
+  // SAYS SO rather than pretending the admin's choice was honoured.
   image_gen_config: z
+    .object({
+      provider_type: z.string().optional(),
+      api_key: z.string().optional(),
+      account_id: z.string().optional(),
+      base_url: z.string().optional(),
+      model: z.string().nullable().optional(),
+    })
+    .optional(),
+  /**
+   * The TEXT model that rewrites the brief into an image prompt.
+   *
+   * 🔴 Separate from `image_gen_config` on purpose. Prompt enhancement used to
+   * piggyback on the image platform, and only when that platform was
+   * Cloudflare; for anything else it dropped to the OpenRouter free rotator —
+   * the dependency #1669 claimed to remove, and one that answers real requests
+   * with "this model is only available on agentic harnesses".
+   *
+   * FAL is the case that makes the split unavoidable: it is image-only, so
+   * "use the image platform for text" cannot work there at all. The caller
+   * resolves a text-capable platform from the container and hands it down.
+   */
+  prompt_model_config: z
     .object({
       provider_type: z.string().optional(),
       api_key: z.string().optional(),
@@ -180,8 +204,43 @@ function isTestEnvironment(): boolean {
  * when credentials are present — the stub is only the no-credential fallback
  * so CI (no token) exercises the full flow without an image call.
  */
+// Superseded by `hasConfiguredImageCreds`; kept only as the Cloudflare-specific
+// question, which the text-model branch below still asks.
 function hasCfImageCreds(cfg?: { provider_type?: string; api_key?: string; account_id?: string }): boolean {
   return !!(cfg && cfg.provider_type === "cloudflare" && cfg.api_key && cfg.account_id);
+}
+
+/**
+ * PURE: can the configured `ai_image_gen` platform actually generate here?
+ *
+ * 🔴 The gate used to be "is it Cloudflare?", and production's platform is
+ * **fal** — active, keyed, and matching nothing. The configured platform was
+ * skipped in silence and generation fell through to the env-keyed provider
+ * chain, which is a different set of credentials, a different bill, and a
+ * different model from the one an admin chose in Settings.
+ *
+ * "Configured" and "usable" are separate questions and this answers the second.
+ * A platform whose provider has no generator module here is NOT usable, and
+ * saying so out loud beats pretending the admin's choice was honoured.
+ */
+export function resolveImageProvider(cfg?: {
+  provider_type?: string;
+  api_key?: string;
+  account_id?: string;
+}): "cloudflare" | "fal" | null {
+  if (!cfg?.api_key) return null;
+  if (cfg.provider_type === "cloudflare") return cfg.account_id ? "cloudflare" : null;
+  if (cfg.provider_type === "fal") return "fal";
+  return null;
+}
+
+/** Any usable configured platform — the test-stub gate, widened past Cloudflare. */
+function hasConfiguredImageCreds(cfg?: {
+  provider_type?: string;
+  api_key?: string;
+  account_id?: string;
+}): boolean {
+  return resolveImageProvider(cfg) !== null;
 }
 
 // Step 1: Build and enhance prompt using Mistral agent
@@ -207,6 +266,30 @@ const step1OutputSchema = z.object({
 /** Cloudflare text model for prompt enhancement (same account/token as image gen). */
 const CF_PROMPT_MODEL = "@cf/meta/llama-3.3-70b-instruct-fp8-fast";
 
+/**
+ * Build the prompt-enhancement model from a handed-down platform config.
+ *
+ * Mirrors `buildChatModel` in ai-platforms rather than importing it: that
+ * module reaches for the Medusa container, and this file runs inside the Mastra
+ * runtime where there isn't one. Same provider rules, no container.
+ */
+function buildPromptModel(cfg: {
+  provider_type?: string;
+  api_key?: string;
+  account_id?: string;
+  base_url?: string;
+  model?: string | null;
+}) {
+  const id = cfg.model || CF_PROMPT_MODEL;
+  const baseURL =
+    cfg.base_url ||
+    (cfg.provider_type === "cloudflare" && cfg.account_id
+      ? `https://api.cloudflare.com/client/v4/accounts/${cfg.account_id}/ai/v1`
+      : undefined);
+  const client = createOpenAI({ baseURL, apiKey: cfg.api_key });
+  return client.chat(id);
+}
+
 const buildPromptStep = createStep({
   id: "buildPrompt",
   inputSchema: triggerSchema,
@@ -220,6 +303,7 @@ const buildPromptStep = createStep({
       mode,
       customer_id,
       image_gen_config,
+      prompt_model_config,
     } = inputData;
 
     // Build initial style context — the BRIEF first, then badges.
@@ -285,7 +369,7 @@ const buildPromptStep = createStep({
 
     // In test environment WITHOUT image-gen credentials, skip the AI call to
     // save credits (and so CI has no dependency on a token).
-    if (isTestEnvironment() && !hasCfImageCreds(image_gen_config)) {
+    if (isTestEnvironment() && !hasConfiguredImageCreds(image_gen_config)) {
       console.log(`[ImageGen] Test environment detected - returning mock prompt`);
       return {
         enhanced_prompt: `Test fashion design: ${styleContext}. ${materials_prompt || ""}`.trim(),
@@ -297,11 +381,30 @@ const buildPromptStep = createStep({
       };
     }
 
-    // Resolve the text model for prompt enhancement. When the caller handed us
-    // a Cloudflare image-gen platform we use the same account/token (Workers AI
-    // text model) instead of the OpenRouter free rotator.
+    /**
+     * Resolve the text model for prompt enhancement, in order:
+     *
+     *   1. `prompt_model_config` — a text-capable platform the caller resolved
+     *      from the container. This is the only branch that works when the
+     *      image platform is FAL (image-only), which is production's.
+     *   2. A Cloudflare IMAGE platform, whose account/token also serves Workers
+     *      AI text — the original special case, kept because it is free.
+     *   3. The OpenRouter free rotator.
+     *
+     * 🔴 (3) was effectively the only branch in production. The rotator is not
+     * a fallback so much as a coin flip: it answers live requests with "this
+     * model is only available on agentic harnesses", and when it does, the
+     * enhancement is skipped and the RAW prompt is used — which is how a brief
+     * became "casual fashion" twice over.
+     */
     let model = dynamicFreeTextModel;
-    if (image_gen_config?.provider_type === "cloudflare" && image_gen_config.api_key && image_gen_config.account_id) {
+    if (prompt_model_config?.api_key) {
+      model = buildPromptModel(prompt_model_config);
+    } else if (
+      image_gen_config?.provider_type === "cloudflare" &&
+      image_gen_config.api_key &&
+      image_gen_config.account_id
+    ) {
       const cf = createOpenAI({
         baseURL: `https://api.cloudflare.com/client/v4/accounts/${image_gen_config.account_id}/ai/v1`,
         apiKey: image_gen_config.api_key,
@@ -556,7 +659,7 @@ const generateImageStep = createStep({
 
     // In test environment WITHOUT image-gen credentials, return a sample image
     // to avoid using AI credits (and so CI has no dependency on a token).
-    if (isTestEnvironment() && !hasCfImageCreds(image_gen_config)) {
+    if (isTestEnvironment() && !hasConfiguredImageCreds(image_gen_config)) {
       console.log(`[ImageGen] Test environment detected - returning sample image`);
       return {
         image_url: TEST_SAMPLE_IMAGE_BASE64,
@@ -572,17 +675,23 @@ const generateImageStep = createStep({
       console.log(`[ImageGen] Mode: ${mode}, Starting generation...`);
       console.log(`[ImageGen] Enhanced Prompt: ${enhanced_prompt.substring(0, 200)}...`);
 
-      // Cloudflare Workers AI is the configured provider (ai_image_gen platform)
-      // — try it FIRST, then fall back to the multi-provider chain.
-      if (
-        image_gen_config?.provider_type === "cloudflare" &&
-        image_gen_config.api_key &&
-        image_gen_config.account_id
-      ) {
+      /**
+       * The ADMIN-CONFIGURED platform goes first, whatever it is.
+       *
+       * 🔴 This used to read `provider_type === "cloudflare"` and nothing else.
+       * Production's `ai_image_gen` is **fal** — active, keyed, chosen by an
+       * admin in Settings — and it matched no branch, so every generation went
+       * to the env-keyed provider chain instead: different credentials, a
+       * different bill, and a different model from the one that was configured.
+       * Nothing logged that the choice had been ignored.
+       */
+      const configuredProvider = resolveImageProvider(image_gen_config);
+
+      if (configuredProvider === "cloudflare") {
         const cfResult = await generateWithCloudflare(enhanced_prompt, {
-          api_key: image_gen_config.api_key,
-          account_id: image_gen_config.account_id,
-          model: image_gen_config.model ?? null,
+          api_key: image_gen_config!.api_key!,
+          account_id: image_gen_config!.account_id!,
+          model: image_gen_config!.model ?? null,
         } as CloudflareImageConfig);
 
         if (cfResult.success && cfResult.imageUrl) {
@@ -598,6 +707,34 @@ const generateImageStep = createStep({
         }
 
         console.log(`[ImageGen] Cloudflare failed: ${cfResult.error} — falling back to provider chain`);
+      } else if (configuredProvider === "fal") {
+        const falResult = await generateWithFal(enhanced_prompt, {
+          api_key: image_gen_config!.api_key!,
+          model: image_gen_config!.model ?? null,
+        });
+
+        if (falResult.success && falResult.imageUrl) {
+          console.log(`[ImageGen] Success via ${falResult.modelUsed ?? "fal"}`);
+          return {
+            image_url: falResult.imageUrl,
+            enhanced_prompt,
+            style_context,
+            quota_remaining,
+            provider_used: "fal",
+            error: undefined,
+          };
+        }
+
+        console.log(`[ImageGen] FAL failed: ${falResult.error} — falling back to provider chain`);
+      } else if (image_gen_config?.api_key) {
+        // Configured, but this workflow has no generator for it. Say so — the
+        // silent version of this is what sent production down the env chain
+        // for months while an admin believed their platform was in use.
+        console.warn(
+          `[ImageGen] ai_image_gen platform is provider_type="${image_gen_config.provider_type}", ` +
+            `which has no generator here — using the env provider chain instead. ` +
+            `Configure a cloudflare or fal platform, or add a provider module.`
+        );
       }
 
       // Use provider chain with automatic fallback
