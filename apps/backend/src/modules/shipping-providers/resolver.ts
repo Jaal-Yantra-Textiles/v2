@@ -27,6 +27,7 @@ import { ShiprocketClient } from "./shiprocket/client"
 import { BlueDartProviderAdapter } from "./bluedart/adapter"
 import { DhlUnifiedTrackingClient } from "./dhl-unified-tracking"
 import { DtdcProviderAdapter } from "@jytextiles/medusa-plugin-dtdc-shipping/providers/dtdc/adapter"
+import { ShipglobalClient } from "./shipglobal/client"
 
 /** Carriers `resolveShippingProvider` can return a live client for. */
 export const SUPPORTED_CARRIERS: CarrierId[] = [
@@ -34,6 +35,7 @@ export const SUPPORTED_CARRIERS: CarrierId[] = [
   "shiprocket",
   "bluedart",
   "dtdc",
+  "shipglobal",
 ]
 
 /**
@@ -283,6 +285,26 @@ export async function resolveShippingProvider(
         (cfg.default_service_type as any) ||
         process.env.DTDC_DEFAULT_SERVICE_TYPE,
     } as any) as unknown as ShippingProviderClient
+  }
+
+  if (id === "shipglobal") {
+    // Cross-border courier (India → international), HTTP Basic auth. The
+    // username is the account email, the password is issued by ShipGlobal.
+    const username =
+      cfg.username || cfg.email || process.env.SHIPGLOBAL_USERNAME
+    const password =
+      readSecret(cfg, "password", encryption) || process.env.SHIPGLOBAL_PASSWORD
+    if (!username || !password) {
+      throw new MedusaError(
+        MedusaError.Types.UNEXPECTED_STATE,
+        "ShipGlobal credentials not configured (no shipping platform record or SHIPGLOBAL_USERNAME + SHIPGLOBAL_PASSWORD)"
+      )
+    }
+    return new ShipglobalClient({
+      username: username!,
+      password: password!,
+      service: cfg.service || process.env.SHIPGLOBAL_SERVICE,
+    })
   }
 
   throw new MedusaError(

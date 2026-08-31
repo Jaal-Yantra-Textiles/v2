@@ -32,9 +32,12 @@ describe("carrier capabilities", () => {
     expect(delhivery.international.can_rate).toBe(false)
   })
 
-  it("has Shiprocket as the only carrier that rates cross-border", () => {
+  it("has Shiprocket and ShipGlobal as the carriers that rate cross-border", () => {
     const { international } = groupCarriersByLane()
-    expect(international.rating.map((c) => c.id)).toEqual(["shiprocket"])
+    expect(international.rating.map((c) => c.id)).toEqual([
+      "shiprocket",
+      "shipglobal",
+    ])
   })
 
   /**
