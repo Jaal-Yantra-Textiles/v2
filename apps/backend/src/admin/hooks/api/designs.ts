@@ -1387,6 +1387,20 @@ export interface ConsumptionLog {
   notes?: string | null;
   location_id?: string | null;
   metadata?: Record<string, any> | null;
+  /**
+   * 🔴 What `quantity` MEASURES — and it was declared nowhere and rendered
+   * nowhere. The same figure deducts `q` under "total" and `q × pieces` under
+   * "per_piece", so a row reading "2 Meter" could mean 2 or 6 and the screen
+   * looked identical either way. On the design that surfaced this, two
+   * `per_piece` logs of 2 would have deducted 12 m where 6 m was used.
+   */
+  quantity_basis?: "total" | "per_piece" | null;
+  /**
+   * Set once the stock movement actually happened. A log past this point is
+   * frozen — the number then describes a decrement that occurred, so it takes
+   * a reversing entry rather than an edit.
+   */
+  inventory_applied_at?: string | null;
   created_at?: string;
   updated_at?: string;
 }
@@ -1452,6 +1466,61 @@ export const useLogConsumption = (
       sdk.client.fetch<{ consumption_log: ConsumptionLog }>(
         `/admin/designs/${designId}/consumption-logs`,
         { method: "POST", body: payload }
+      ),
+    onSuccess: (data, variables, _mutateResult, context) => {
+      queryClient.invalidateQueries({ queryKey: designQueryKeys.detail(designId) })
+      options?.onSuccess?.(data, variables, _mutateResult, context)
+    },
+    ...options,
+  })
+}
+
+/**
+ * Correct one consumption log, or retire a duplicate.
+ *
+ * There was no edit path at all — the routes were POST + GET — so the figure
+ * that decides both stock deduction and design cost could only ever be added
+ * to. The server refuses a log already applied to stock and writes an ops
+ * audit row carrying before/after for every write.
+ */
+export const useUpdateConsumptionLog = (
+  designId: string,
+  options?: UseMutationOptions<
+    { consumption_log: ConsumptionLog },
+    FetchError,
+    { logId: string } & Partial<
+      Pick<
+        ConsumptionLog,
+        "quantity" | "quantity_basis" | "unit_cost" | "notes" | "location_id"
+      >
+    >
+  >
+) => {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async ({ logId, ...body }) =>
+      sdk.client.fetch<{ consumption_log: ConsumptionLog }>(
+        `/admin/designs/${designId}/consumption-logs/${logId}`,
+        { method: "PATCH", body }
+      ),
+    onSuccess: (data, variables, _mutateResult, context) => {
+      queryClient.invalidateQueries({ queryKey: designQueryKeys.detail(designId) })
+      options?.onSuccess?.(data, variables, _mutateResult, context)
+    },
+    ...options,
+  })
+}
+
+export const useDeleteConsumptionLog = (
+  designId: string,
+  options?: UseMutationOptions<{ deleted: boolean }, FetchError, string>
+) => {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async (logId: string) =>
+      sdk.client.fetch<{ deleted: boolean }>(
+        `/admin/designs/${designId}/consumption-logs/${logId}`,
+        { method: "DELETE" }
       ),
     onSuccess: (data, variables, _mutateResult, context) => {
       queryClient.invalidateQueries({ queryKey: designQueryKeys.detail(designId) })
