@@ -13,29 +13,29 @@ import { getValueByPath } from "./utils"
 //     window_days: 30,
 //     sections: {
 //       orders: {
-//         entity: "order_transaction",
+//         entity: "order_transactions",
 //         filters: { reference: "capture" },
 //         aggregates: {
-//           processed:    { fn: "count_distinct", field: "order_id" },
-//           trailing_30d: { fn: "count_distinct", field: "order_id",
-//                           range: { date_field: "created_at", last_days: 30 } },
+//           processed: { fn: "count_distinct", field: "order_id" },
+//           trailing:  { fn: "count_distinct", field: "order_id",
+//                        range: { date_field: "created_at" } },
 //         },
 //         echo: { window_days: true },
 //       },
-//       commission: { entity: "partner_fee", currency_key: "currency_code",
+//       commission: { entity: "partner_fees", currency_key: "currency_code",
 //         filters: { status: "accrued" },
 //         aggregates: {
-//           accrued:      { fn: "sum", field: "fee_amount" },
-//           trailing_30d: { fn: "sum", field: "fee_amount",
-//                           range: { date_field: "accrued_at", last_days: 30 } },
+//           accrued:  { fn: "sum", field: "fee_amount" },
+//           trailing: { fn: "sum", field: "fee_amount",
+//                       range: { date_field: "accrued_at" } },
 //         },
 //         echo: { currency: true, window_days: true } },
-//       aov: { entity: "order_transaction", filters: { reference: "capture" },
+//       aov: { entity: "order_transactions", filters: { reference: "capture" },
 //              currency_key: "currency_code",
 //              aggregates: { amount: { fn: "avg", field: "amount",
-//                                      range: { last_days: 30 } } },
+//                                      range: { date_field: "created_at" } } },
 //              echo: { currency: true } },
-//       subscription: { entity: "partner_subscription", currency_key: "plan.currency_code",
+//       subscription: { entity: "partner_subscriptions", currency_key: "plan.currency_code",
 //         filters: { status: "active" },
 //         aggregates: {
 //           paying_artisans: { fn: "count_distinct", field: "partner_id" },
@@ -48,8 +48,8 @@ import { getValueByPath } from "./utils"
 //     },
 //   }
 //
-// → data: { orders: { processed, trailing_30d, window_days },
-//           commission: { accrued, trailing_30d, currency, window_days },
+// → data: { orders: { processed, trailing, window_days },
+//           commission: { accrued, trailing, currency, window_days },
 //           aov: { amount, currency },
 //           subscription: { paying_artisans, mrr, currency },
 //           arr: { amount, currency },
@@ -61,7 +61,9 @@ import { getValueByPath } from "./utils"
 //   aggregates        — count | sum | avg | min | max | count_distinct over a
 //                       (possibly nested) field path
 //   range             — bounds an aggregate's rows to a date window
-//                       ({ last_days } or { from, to })
+//                       ({ last_days } rolling, { from, to } absolute). When
+//                       last_days is omitted, it inherits the panel's
+//                       window_days, so "trailing" follows the panel window.
 //   normalize_interval— monthly-normalize a price by the row's interval
 //                       (yearly price / 12) before aggregating
 //   currency_key      — row-level currency filter (sections only count rows
@@ -74,17 +76,12 @@ import { getValueByPath } from "./utils"
 // section to { error } with a warning instead of failing the whole panel —
 // same partial-snapshot honesty as GET /admin/mcp/stats.
 
-const rangeSchema = z.union([
-  z.object({
-    date_field: z.string().optional().default("created_at"),
-    last_days: z.number().int().positive().max(3650),
-  }),
-  z.object({
-    date_field: z.string().optional().default("created_at"),
-    from: z.string().describe("ISO date (inclusive)"),
-    to: z.string().describe("ISO date (exclusive)"),
-  }),
-])
+const rangeSchema = z.object({
+  date_field: z.string().optional().default("created_at"),
+  last_days: z.number().int().positive().max(3650).optional(),
+  from: z.string().optional().describe("ISO date (inclusive). Overrides last_days when paired with `to`."),
+  to: z.string().optional().describe("ISO date (exclusive). Overrides last_days when paired with `from`."),
+})
 
 const aggregateSpecSchema = z.object({
   fn: z.enum(["count", "sum", "avg", "min", "max", "count_distinct"]).default("count"),
@@ -94,7 +91,9 @@ const aggregateSpecSchema = z.object({
     .describe("Field to aggregate (possibly nested). Required for all fns except 'count'."),
   range: rangeSchema
     .optional()
-    .describe("Optional date window bounding this aggregate's rows."),
+    .describe(
+      "Optional date window bounding this aggregate's rows. Omit last_days (e.g. just { date_field }) to inherit the panel's window_days; set { from, to } for an absolute window; set { last_days } to override."
+    ),
   normalize_interval: z
     .object({
       interval_field: z.string().describe("Row path carrying the interval (monthly | yearly)."),
@@ -176,23 +175,26 @@ const toFiniteNumber = (v: unknown): number | null => {
   return Number.isFinite(n) ? n : null
 }
 
-/** Inclusive-from / exclusive-to window, aligned to UTC day boundaries (mirrors aggregate-data). */
+/** Inclusive-from / exclusive-to window, aligned to UTC day boundaries (mirrors aggregate-data).
+ * When `range` has no `last_days` (and no `from`/`to`), it inherits the panel's `window_days`. */
 function resolveWindow(
   range: { from?: string; to?: string; last_days?: number },
-  now: Date
+  now: Date,
+  defaultLastDays: number
 ): { from: string; to: string } {
-  if ("last_days" in range && range.last_days != null) {
-    const to = new Date(now)
-    to.setUTCHours(0, 0, 0, 0)
-    to.setUTCDate(to.getUTCDate() + 1)
-    const from = new Date(to)
-    from.setUTCDate(from.getUTCDate() - range.last_days)
-    return { from: from.toISOString(), to: to.toISOString() }
+  if (range.from && range.to) {
+    return {
+      from: new Date(range.from).toISOString(),
+      to: new Date(range.to).toISOString(),
+    }
   }
-  return {
-    from: new Date(range.from!).toISOString(),
-    to: new Date(range.to!).toISOString(),
-  }
+  const lastDays = range.last_days ?? defaultLastDays
+  const to = new Date(now)
+  to.setUTCHours(0, 0, 0, 0)
+  to.setUTCDate(to.getUTCDate() + 1)
+  const from = new Date(to)
+  from.setUTCDate(from.getUTCDate() - lastDays)
+  return { from: from.toISOString(), to: to.toISOString() }
 }
 
 /** Fetch-then-aggregate one entity section. Returns the section payload. */
@@ -255,7 +257,7 @@ async function resolveEntitySection(
   for (const [aggName, agg] of Object.entries(aggregates)) {
     let subset = eligibleRows
     if (agg.range) {
-      const window = resolveWindow(agg.range as any, ctx.now)
+      const window = resolveWindow(agg.range as any, ctx.now, ctx.windowDays)
       const dateField = agg.range.date_field || "created_at"
       subset = subset.filter((row) => {
         const v = getValueByPath(row, dateField)

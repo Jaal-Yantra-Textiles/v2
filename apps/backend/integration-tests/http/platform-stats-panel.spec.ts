@@ -44,34 +44,34 @@ const unique = () => `ps${Date.now()}${Math.floor(Math.random() * 1e6)}`
 // derives every section from live rows.
 const jpySections = {
   orders: {
-    entity: "order_transaction",
+    entity: "order_transactions",
     filters: { reference: "capture" },
     aggregates: {
       processed: { fn: "count_distinct", field: "order_id" },
-      trailing_30d: {
+      trailing: {
         fn: "count_distinct",
         field: "order_id",
-        range: { date_field: "created_at", last_days: 30 },
+        range: { date_field: "created_at" },
       },
     },
     echo: { window_days: true },
   },
   commission: {
-    entity: "partner_fee",
+    entity: "partner_fees",
     filters: { status: "accrued" },
     currency_key: "currency_code",
     aggregates: {
       accrued: { fn: "sum", field: "fee_amount" },
-      trailing_30d: {
+      trailing: {
         fn: "sum",
         field: "fee_amount",
-        range: { date_field: "accrued_at", last_days: 30 },
+        range: { date_field: "accrued_at" },
       },
     },
     echo: { currency: true, window_days: true },
   },
   subscription: {
-    entity: "partner_subscription",
+    entity: "partner_subscriptions",
     filters: { status: "active" },
     currency_key: "plan.currency_code",
     aggregates: {
@@ -85,11 +85,11 @@ const jpySections = {
     echo: { currency: true },
   },
   aov: {
-    entity: "order_transaction",
+    entity: "order_transactions",
     filters: { reference: "capture" },
     currency_key: "currency_code",
     aggregates: {
-      amount: { fn: "avg", field: "amount", range: { date_field: "created_at", last_days: 30 } },
+      amount: { fn: "avg", field: "amount", range: { date_field: "created_at" } },
     },
     echo: { currency: true },
   },
@@ -258,13 +258,13 @@ setupSharedTestSuite(() => {
 
       // orders — capture transactions only (count_distinct over order_id)
       expect(d.orders.processed - b.orders.processed).toBe(2)
-      expect(d.orders.trailing_30d - b.orders.trailing_30d).toBe(2)
+      expect(d.orders.trailing - b.orders.trailing).toBe(2)
       expect(d.orders.window_days).toBe(30)
 
       // commission — 200 + 300 seeded, only the recent one in the window
       expect(d.commission.currency).toBe("JPY")
       expect(d.commission.accrued - b.commission.accrued).toBe(500)
-      expect(d.commission.trailing_30d - b.commission.trailing_30d).toBe(200)
+      expect(d.commission.trailing - b.commission.trailing).toBe(200)
       expect(d.commission.window_days).toBe(30)
 
       // subscription — monthly 999 + yearly 24000/12 = mrr 2999
@@ -293,11 +293,11 @@ setupSharedTestSuite(() => {
       expect(d.window_days).toBe(30)
 
       // Shape contract — section keys are exactly what the config declares
-      expect(Object.keys(d.orders).sort()).toEqual(["processed", "trailing_30d", "window_days"])
+      expect(Object.keys(d.orders).sort()).toEqual(["processed", "trailing", "window_days"])
       expect(Object.keys(d.commission).sort()).toEqual([
         "accrued",
         "currency",
-        "trailing_30d",
+        "trailing",
         "window_days",
       ])
       expect(Object.keys(d.subscription).sort()).toEqual(["currency", "mrr", "paying_artisans"])
@@ -306,6 +306,33 @@ setupSharedTestSuite(() => {
 
       // Fee rows must have accrued_at honored — sanity on the seeded row
       expect(f1.fee_amount).toBeDefined()
+    })
+
+    it("drives the trailing window from the panel's window_days (not a hardcoded 30)", async () => {
+      const container = getContainer()
+      const o1 = await seedPaidOrder(container, {
+        currency_code: "jpy",
+        unit_price: 10000,
+        quantity: 1,
+        captured: true,
+      })
+      // A fee accrued 40 days ago: outside a 30-day window, inside a 90-day one.
+      await seedFee({
+        order_id: o1.id,
+        fee_amount: 300,
+        accrued_at: new Date(Date.now() - 40 * 24 * 60 * 60 * 1000),
+      })
+
+      const narrow = await jpyPreview() // window_days: 30
+      const wide = await preview({ currency: "jpy", window_days: 90, sections: jpySections })
+
+      const narrowTrailing = narrow.data.data.commission.trailing
+      const wideTrailing = wide.data.data.commission.trailing
+
+      // The 40-day-old fee must be OUTSIDE the 30-day trailing window but
+      // INSIDE the 90-day one — proving window_days actually drives the range.
+      expect(wideTrailing).toBeGreaterThan(narrowTrailing)
+      expect(wide.data.data.commission.window_days).toBe(90)
     })
 
     it("rejects invalid operation_options", async () => {
