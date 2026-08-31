@@ -3062,6 +3062,43 @@ setupSharedTestSuite(() => {
       expect(row.billing_status).toBe("clear")
     })
 
+    /**
+     * 🔴 A `total` is the price for the JOB, on this screen too.
+     *
+     * This route priced with its own arithmetic — `runUnitCost(run) ×
+     * payable_quantity`, i.e. the derived rate re-multiplied — which is the
+     * defect #1679 removed from the admin side. On this run the two screens
+     * disagreed by 22% on the same day: ₹10,000 offered to the admin, and
+     * ₹7,777.77 offered to the partner whose work it was. Both now price
+     * through `runPayableOffer`.
+     */
+    it("offers the agreed TOTAL verbatim, not the derived rate × quantity (#1679)", async () => {
+      const d1 = await createDesign("Partner Total Priced Design", {
+        estimated_cost: 5000,
+      })
+      await linkDesignToPartner(d1, partnerId)
+      const runId = await createCompletedRun(d1, "Partner Total Priced Design", {
+        quantity: 9,
+        produced_quantity: 7,
+        partner_cost_estimate: 10000,
+        cost_type: "total",
+      })
+
+      const res = await api.get("/partners/payment-submissions/payable-runs", {
+        headers: partnerHeaders,
+      })
+
+      const row = res.data.payable_runs.find((r: any) => r.run_id === runId)
+      expect(row).toBeDefined()
+      expect(row.amount).toBe(10000)
+      // The old arithmetic, named so the case cannot pass for the wrong reason.
+      expect(row.amount).not.toBe(7777.77)
+      // The rate is DERIVED — display only, and the row has to say so or a
+      // screen multiplies it and re-prices the job.
+      expect(row.unit_is_derived).toBe(true)
+      expect(row.payable_quantity).toBe(7)
+    })
+
     it("never shows one partner the runs of another", async () => {
       const other = await createPartnerWithAuth(
         Math.floor(Math.random() * 100000)

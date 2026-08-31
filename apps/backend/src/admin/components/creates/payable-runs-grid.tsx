@@ -74,6 +74,7 @@ export const PayableRunsGrid = ({
   getAmount,
   billsVerbatimTotal,
   hasTypedRate,
+  needsTypedPrice,
 }: {
   runs: PayableRun[]
   isLoading: boolean
@@ -91,6 +92,11 @@ export const PayableRunsGrid = ({
   billsVerbatimTotal: (run: PayableRun) => boolean
   /** Whether a human has typed a rate for this run. */
   hasTypedRate: (run: PayableRun) => boolean
+  /**
+   * Whether this row states no price of its own until somebody types one — an
+   * agreed TOTAL on a run part of which is already billed (#1596/#1676).
+   */
+  needsTypedPrice: (run: PayableRun) => boolean
 }) => {
   const rows: RunRow[] = useMemo(
     () => runs.map((run, index) => ({ run, index })),
@@ -147,7 +153,20 @@ export const PayableRunsGrid = ({
         return
       }
 
-      const nextSelected = !!row?.selected && !run.billed
+      /**
+       * 🔴 `billing_status`, not `!run.billed` — the THIRD place this shortcut
+       * appeared, and the one that made the other two useless. `billed` is
+       * truthy for a PARTLY billed run, so this effect reported every such
+       * row's selection back as `false`: the checkbox ticked in the grid, the
+       * parent never heard it, `totalSelected` stayed 0 and the Create
+       * Submission button stayed disabled forever. A row that can be selected
+       * and can never be submitted is worse than one that is filtered out.
+       *
+       * Found by rendering the screen. Nothing in tsc or the suite could see
+       * it — the grid's own state was correct throughout.
+       */
+      const nextSelected =
+        !!row?.selected && run.billing_status !== "billed"
       if (nextSelected !== selectedIds.has(run.run_id)) {
         onSelectionChange(run.run_id, nextSelected)
       }
@@ -179,9 +198,14 @@ export const PayableRunsGrid = ({
         cell: (context: any) => (
           <DataGridBooleanCell
             context={context}
-            // An already-paid run cannot be billed again. Disabled rather than
-            // absent: the row still answers "where is this run".
-            disabled={!!rows[context.row.index]?.run.billed}
+            // A run billed IN FULL cannot be billed again. Disabled rather
+            // than absent: the row still answers "where is this run".
+            //
+            // ⚠️ `billing_status`, not `billed` — `billed` is truthy for a
+            // PARTLY billed run too, and its remainder is billable (#1596).
+            disabled={
+              rows[context.row.index]?.run.billing_status === "billed"
+            }
           />
         ),
       }),
@@ -213,14 +237,39 @@ export const PayableRunsGrid = ({
                 <Text size="small" className="truncate">
                   {run.design_name || "Unnamed design"}
                 </Text>
-                {run.billed && (
+                {run.billing_status === "billed" && (
                   <Badge color="orange" size="2xsmall" className="shrink-0">
                     paid
                   </Badge>
                 )}
-                {!run.payable && !run.billed && (
+                {/*
+                  #1596 — SOME of this run is already paid for, and what is on
+                  offer is the remainder. Without the badge the row looks like
+                  any other and the Qty column silently holds a smaller number
+                  than the Output column beside it.
+                */}
+                {run.billing_status === "partly_billed" && (
+                  <Badge color="blue" size="2xsmall" className="shrink-0">
+                    {run.billable_remaining != null
+                      ? `${run.billable_remaining} left`
+                      : "part billed"}
+                  </Badge>
+                )}
+                {!run.payable && run.billing_status !== "billed" && (
                   <Badge color="orange" size="2xsmall" className="shrink-0">
                     no rate
+                  </Badge>
+                )}
+                {/*
+                  🔴 An agreed TOTAL that has already been billed against. The
+                  total was the price for the WHOLE job, so the remainder has
+                  no figure of its own — re-billing it double-pays and
+                  dividing it re-prices. The row bills 0 until someone states
+                  what the rest is worth, and the submit guard refuses it.
+                */}
+                {needsTypedPrice(run) && (
+                  <Badge color="red" size="2xsmall" className="shrink-0">
+                    price the rest
                   </Badge>
                 )}
                 {/* #1596 — the produced/ordered gap on this row is SETTLED. */}
@@ -425,7 +474,14 @@ export const PayableRunsGrid = ({
     )
   }
 
-  const selectableCount = runs.filter((r) => !r.billed).length
+  /**
+   * ⚠️ `billing_status`, not `!r.billed` — `billed` is truthy for a PARTLY
+   * billed run, whose remainder is billable and whose row is selectable. The
+   * count said "0 billable of 2" above two rows an operator could bill.
+   */
+  const selectableCount = runs.filter(
+    (r) => r.billing_status !== "billed"
+  ).length
 
   return (
     <div className="flex flex-col gap-y-2">
