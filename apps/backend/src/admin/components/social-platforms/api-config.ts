@@ -126,6 +126,15 @@ export function buildApiConfig(
           password: data.password,
           pickup_location: data.pickup_location,
         })
+      } else if (data.provider_type === "shipglobal") {
+        // ShipGlobal authenticates with username/password (HTTP Basic) and a
+        // region-specific service code (sgdirecteuyun EU / sgdirectyungb GB).
+        Object.assign(config, {
+          mode: data.mode || "test",
+          username: data.username,
+          password: data.password,
+          service: data.service,
+        })
       } else {
         Object.assign(config, {
           mode: data.mode || "test",
@@ -224,7 +233,9 @@ export function inferAuthType(category: string, providerType?: string): string {
     case "payment":
       return "api_key"
     case "shipping":
-      return providerType === "shiprocket" ? "basic" : "api_key"
+      return providerType === "shiprocket" || providerType === "shipglobal"
+        ? "basic"
+        : "api_key"
     case "analytics":
       return "api_key"
     case "storage":

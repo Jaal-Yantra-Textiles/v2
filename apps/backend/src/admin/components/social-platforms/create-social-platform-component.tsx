@@ -55,6 +55,7 @@ const CreateSocialPlatformSchema = z.object({
   account_number: z.string().optional(),
   email: z.string().optional(),
   pickup_location: z.string().optional(),
+  service: z.string().optional(),
   // Analytics fields
   tracking_id: z.string().optional(),
   project_token: z.string().optional(),
@@ -94,6 +95,10 @@ const CreateSocialPlatformSchema = z.object({
   if (data.category === "shipping" && data.provider_type === "shiprocket") {
     if (!data.email) ctx.addIssue({ code: "custom", path: ["email"], message: "Shiprocket account email is required" })
     if (!data.password) ctx.addIssue({ code: "custom", path: ["password"], message: "Shiprocket password is required" })
+  }
+  if (data.category === "shipping" && data.provider_type === "shipglobal") {
+    if (!data.username) ctx.addIssue({ code: "custom", path: ["username"], message: "ShipGlobal account email is required" })
+    if (!data.password) ctx.addIssue({ code: "custom", path: ["password"], message: "ShipGlobal password is required" })
   }
   if (data.category === "communication" && data.provider_type === "whatsapp") {
     if (!data.phone_number_id) ctx.addIssue({ code: "custom", path: ["phone_number_id"], message: "Phone Number ID is required" })

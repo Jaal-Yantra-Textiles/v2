@@ -3,7 +3,7 @@ import { type Control, type UseFormWatch } from "react-hook-form"
 import { Form } from "../common/form"
 
 export type ShippingProviderFieldValues = {
-  provider_type: "delhivery" | "shiprocket" | "dhl" | "fedex" | "ups" | "australia_post"
+  provider_type: "delhivery" | "shiprocket" | "dhl" | "fedex" | "ups" | "australia_post" | "shipglobal"
   api_key?: string
   account_number?: string
   api_secret?: string
@@ -13,6 +13,9 @@ export type ShippingProviderFieldValues = {
   email?: string
   password?: string
   pickup_location?: string
+  // ShipGlobal (username/password Basic auth + region-specific service code)
+  username?: string
+  service?: string
 }
 
 type ShippingProviderFieldsProps = {
@@ -35,6 +38,7 @@ export const ShippingProviderFields = ({
     fedex: { apiKey: "FedEx API key", account: "FedEx Account Number" },
     ups: { apiKey: "UPS Client ID", account: "UPS Account Number" },
     australia_post: { apiKey: "Australia Post API key", account: "Account Number" },
+    shipglobal: { apiKey: "n/a", account: "Service code (sgdirecteuyun / sgdirectyungb)" },
   }
 
   const current = placeholders[providerType] || placeholders.dhl
@@ -63,6 +67,7 @@ export const ShippingProviderFields = ({
                   <Select.Item value="fedex">FedEx</Select.Item>
                   <Select.Item value="ups">UPS</Select.Item>
                   <Select.Item value="australia_post">Australia Post</Select.Item>
+                  <Select.Item value="shipglobal">ShipGlobal</Select.Item>
                 </Select.Content>
               </Select>
             </Form.Control>
@@ -146,7 +151,60 @@ export const ShippingProviderFields = ({
         </>
       )}
 
-      {providerType && providerType !== "shiprocket" && (
+      {providerType === "shipglobal" && (
+        <>
+          <Form.Field
+            control={control}
+            name="username"
+            render={({ field }) => (
+              <Form.Item>
+                <Form.Label>Account Email / Username</Form.Label>
+                <Form.Control>
+                  <Input {...field} type="email" placeholder="ShipGlobal account email" />
+                </Form.Control>
+                <Form.ErrorMessage />
+              </Form.Item>
+            )}
+          />
+
+          <Form.Field
+            control={control}
+            name="password"
+            render={({ field }) => (
+              <Form.Item>
+                <Form.Label>
+                  Password
+                  {isEditing && (
+                    <span className="text-ui-fg-subtle ml-1">
+                      (leave blank to keep existing)
+                    </span>
+                  )}
+                </Form.Label>
+                <Form.Control>
+                  <Input {...field} type="password" placeholder="ShipGlobal password" />
+                </Form.Control>
+                <Form.ErrorMessage />
+              </Form.Item>
+            )}
+          />
+
+          <Form.Field
+            control={control}
+            name="service"
+            render={({ field }) => (
+              <Form.Item>
+                <Form.Label optional>Service Code</Form.Label>
+                <Form.Control>
+                  <Input {...field} placeholder={current.account} />
+                </Form.Control>
+                <Form.ErrorMessage />
+              </Form.Item>
+            )}
+          />
+        </>
+      )}
+
+      {providerType && providerType !== "shiprocket" && providerType !== "shipglobal" && (
         <>
           <Form.Field
             control={control}
