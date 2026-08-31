@@ -75,6 +75,8 @@ export const QUOTE_MINT_WRITE_GUIDANCE = [
   "Cross-border freight IS rated now (#1498): when the partner's own pickup pin cannot be carried, the rate is retried from one of our own export warehouses and the domestic first leg is added, so a real carrier number is quoted. Do NOT reach for `freight_override_amount` by reflex — hand-typed international rates have run 2-3x the rated route, and the buyer is charged the difference. Supply it only when readiness actually refuses for want of freight, and pass `freight_basis` saying where the number came from; it is shown to the buyer as quoted by hand.",
   "`duties_prepaid: true` is a promise that the buyer pays nothing at their border. It requires a duty figure alongside it — either `duty_rate_percent` (preferred, applied to the basket actually priced) or `duty_total`. Promising DDP with no amount funds it out of margin.",
   "Tax follows the SELLER's jurisdiction, never the buyer's. An export from India is zero-rated whatever the destination's VAT rate is; do not add destination VAT to the lines.",
+  "A DESIGN line (`design_id`) is quoted before the garment exists as a product. Two things follow that a variant line never needs. (1) Send `unit_weight_grams` on it — the design has no weight of its own, and the freight estimate refuses the whole basket on the first line it cannot weigh, so one design line with no weight kills the quote. (2) The mint CREATES a made-to-order product for that design and adds it to the partner's catalogue; readiness reports this as a `design_catalogue_pending` warning, which is expected and not a problem to solve.",
+  "`override_unit_amount` is read in the PARTNER STORE's default currency and converted at the live rate — it is not in the quote currency. On an INR store quoting in AUD, `40` means forty rupees, about A$0.58. Quote the price the seller means in their own currency, or state the buyer-facing figure and let a human convert it.",
 ].join(" ")
 
 /**
@@ -137,7 +139,12 @@ export const quoteMintSchemaProps = () => ({
         override_unit_amount: {
           type: "number",
           description:
-            "A flat unit price in the partner store's default currency. Beats the catalogue and any discount.",
+            "A flat unit price in the partner store's DEFAULT currency, not the quote currency — it is converted at the live rate on mint. Beats the catalogue and any discount.",
+        },
+        unit_weight_grams: {
+          type: "number",
+          description:
+            "Weight of ONE unit, in grams. REQUIRED IN PRACTICE ON A DESIGN LINE: freight is rated on the summed basket weight and the estimate refuses the WHOLE basket on the first line it cannot weigh, and a design quoted before its garment was ever weighed has no weight to find. Prices this quote only — it is never written back to the variant.",
         },
       },
       required: ["quantity"],
