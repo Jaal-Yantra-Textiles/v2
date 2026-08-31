@@ -106,11 +106,30 @@ export function composeProducerTags(input: {
  * ours, linking it points a buyer at a host we do not control. The provisioned
  * subdomain is always ours, so it is the fallback rather than the second
  * choice.
+ *
+ * 🔴 `storefront_domain` is the PROOF that a storefront exists, and nothing
+ * else is. `custom_domain_verified` means the DNS is ours — it says nothing
+ * about anything being deployed behind it, and the two came apart on
+ * production: the founder's own partner carried
+ * `custom_domain: saranshsharma.me`, `custom_domain_verified: true`,
+ * `storefront_domain: null` and no deployment at all. A minted quote emailed a
+ * buyer a link to that host, which serves an unrelated personal site and
+ * answered **404** for the quote page — the only copy of the token, pointed at
+ * a stranger's website.
+ *
+ * So a partner host requires a provisioned subdomain. Without one this returns
+ * null and the caller falls back to the house storefront, which is a page that
+ * actually exists. Every partner on production who has a real shop has this
+ * column set (a `*.cicilabel.com` host); the only row it excluded was the one
+ * that had no shop.
  */
 export function producerStorefrontUrl(partner: any): string | null {
+  const provisioned = String(partner?.storefront_domain ?? "").trim()
+  if (!provisioned) return null
+
   const host = partner?.custom_domain_verified
-    ? partner?.custom_domain || partner?.storefront_domain
-    : partner?.storefront_domain
+    ? partner?.custom_domain || provisioned
+    : provisioned
 
   const clean = String(host ?? "").trim().toLowerCase()
   if (!clean) return null
