@@ -154,6 +154,21 @@ export const InventoryOrderPaymentsSection = ({ inventoryOrder }: InventoryOrder
   const payoutList = payouts || [];
   const total = payoutList.length + payments.length;
 
+  /**
+   * 🔴 `paid` and `recorded` answer DIFFERENT questions and the headline must
+   * carry both (#1704). `paid` is what a submission with status `Paid` covers —
+   * money that has SETTLED — and #1639 made that deliberately strict so an
+   * order cannot claim settlement before the transfer happens. `recorded` is
+   * the internal payments actually booked against this order. Rendering only
+   * `paid` headlined an order "INR 0 paid" above INR 20,000 of completed
+   * payments, and that reading is what nearly paid a partner twice.
+   *
+   * Internal payments carry no currency of their own (see the model), so the
+   * recorded figure is formatted with the INR default rather than the payout's
+   * currency — those are not the same unit and must not be summed.
+   */
+  const recorded = Number(totals?.recorded ?? 0);
+
   return (
     <Container className="divide-y p-0">
       <div className="flex items-center justify-between px-6 py-4">
@@ -194,8 +209,14 @@ export const InventoryOrderPaymentsSection = ({ inventoryOrder }: InventoryOrder
               Partner payouts for this order
             </Text>
             <Text size="xsmall" className="text-ui-fg-subtle">
-              {money(totals?.paid, payoutList[0]?.currency)} paid of{" "}
+              {money(totals?.paid, payoutList[0]?.currency)} settled of{" "}
               {money(totals?.billed, payoutList[0]?.currency)} billed
+              {recorded > 0 && (
+                <>
+                  {" · "}
+                  {money(recorded)} recorded against this order
+                </>
+              )}
             </Text>
           </div>
           {payoutList.map((p) => (
