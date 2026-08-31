@@ -610,6 +610,12 @@ module.exports = defineConfig({
     resolve: "./src/modules/media",
   },
   {
+    // What a vision model saw in a textile image. Typed because "show me more
+    // fabrics like this" filters on pattern / weight / cloth type, and
+    // query.graph cannot filter into JSON subkeys.
+    resolve: "./src/modules/textile-analysis",
+  },
+  {
     resolve: "./src/modules/fullfilled_orders",
   },
   {
