@@ -47,6 +47,20 @@ const paramsSchema = z.object({
   limit: z.number().int().positive().max(1000).optional(),
 })
 
+/**
+ * How many media files are read per round-trip while sweeping.
+ *
+ * 🔴 The sweep PAGES. It used to take a single page of 1000 — and production
+ * holds 1671 media files, so 671 of them were never looked at. The first run
+ * reported "Would create 3 … from 3 media file(s) carrying
+ * metadata.textile_extraction" while **37** carried the blob: a silent
+ * truncation that reads exactly like a finished job.
+ */
+const PAGE_SIZE = 500
+
+/** A runaway guard, not a limit anyone should hit: 200 pages = 100k files. */
+const MAX_PAGES = 200
+
 export const backfillTextileAnalysisJob: MaintenanceJob = {
   id: "backfill-textile-analysis",
   label: "Backfill textile analysis rows from media metadata",
@@ -63,7 +77,8 @@ export const backfillTextileAnalysisJob: MaintenanceJob = {
       name: "limit",
       type: "number",
       required: false,
-      description: "Cap how many files are considered (default 1000)",
+      description:
+        "Cap how many CANDIDATES are processed (default: all of them). The sweep pages through every media file regardless — it is not a cap on what is looked at.",
     },
   ],
   run: async (container, { dry_run, params }): Promise<MaintenanceJobResult> => {
@@ -78,12 +93,49 @@ export const backfillTextileAnalysisJob: MaintenanceJob = {
     const query: any = container.resolve(ContainerRegistrationKeys.QUERY)
     const link: any = container.resolve(ContainerRegistrationKeys.LINK)
 
-    const files: any[] = await mediaService.listMediaFiles(
-      media_id ? { id: media_id } : {},
-      { take: limit ?? 1000 }
-    )
+    /**
+     * Read every media file, a page at a time, and keep the ones carrying the
+     * blob.
+     *
+     * The filter cannot be pushed into the query — `metadata.textile_extraction`
+     * is a JSON subkey, which is the whole reason this backfill exists — so the
+     * files have to be walked. Ordered by `id` so the pages are stable and a
+     * row cannot be skipped or read twice as the sweep advances.
+     */
+    const scanned: { files: number; pages: number; truncated: boolean } = {
+      files: 0,
+      pages: 0,
+      truncated: false,
+    }
+    const candidates: any[] = []
+    const maxCandidates = limit ?? Number.POSITIVE_INFINITY
 
-    const candidates = files.filter((f) => f?.metadata?.textile_extraction)
+    if (media_id) {
+      const files: any[] = await mediaService.listMediaFiles({ id: media_id }, { take: 1 })
+      scanned.files = files?.length ?? 0
+      scanned.pages = 1
+      for (const f of files ?? []) {
+        if (f?.metadata?.textile_extraction) candidates.push(f)
+      }
+    } else {
+      for (let page = 0; page < MAX_PAGES; page++) {
+        const files: any[] = await mediaService.listMediaFiles(
+          {},
+          { take: PAGE_SIZE, skip: page * PAGE_SIZE, order: { id: "ASC" } }
+        )
+        scanned.pages++
+        scanned.files += files?.length ?? 0
+
+        for (const f of files ?? []) {
+          if (f?.metadata?.textile_extraction) candidates.push(f)
+        }
+
+        if (!files?.length || files.length < PAGE_SIZE) break
+        if (candidates.length >= maxCandidates) break
+        if (page === MAX_PAGES - 1) scanned.truncated = true
+      }
+      if (candidates.length > maxCandidates) candidates.length = maxCandidates
+    }
 
     /**
      * Which of them already have an internal-extraction row.
@@ -187,9 +239,16 @@ export const backfillTextileAnalysisJob: MaintenanceJob = {
       }
     }
 
+    /**
+     * 🔑 Says what was SCANNED, not only what was found. "3 of 3 candidates" and
+     * "3 of 3 candidates, 1000 files scanned" read identically as success while
+     * only the second lets anyone notice that 671 files were never opened.
+     */
     const summary = `${dry_run ? "Would create" : "Created"} ${created} textile_analysis row(s) from ${
       candidates.length
-    } media file(s) carrying metadata.textile_extraction${
+    } media file(s) carrying metadata.textile_extraction — ${
+      scanned.files
+    } file(s) scanned${scanned.truncated ? ` (STOPPED at ${MAX_PAGES} pages — more remain)` : ""}${
       errors.length ? ` — ${errors.length} failed` : ""
     }`
 

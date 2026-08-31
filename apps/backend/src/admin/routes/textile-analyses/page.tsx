@@ -62,8 +62,17 @@ type ListResponse = {
   count: number
 }
 
-/** "" means "no filter", and must never reach the query string as `field=`. */
-const ANY = ""
+/**
+ * The "no filter" option's value.
+ *
+ * 🔴 NOT `""`. Radix — which `Select` is built on — reserves the empty string
+ * for "cleared, show the placeholder" and throws on a `Select.Item` that uses
+ * it, so the whole screen died in an error boundary the moment it rendered.
+ * A sentinel says the same thing without colliding with that meaning, and is
+ * dropped when the query string is built so it never reaches the API as
+ * `field=`.
+ */
+const ANY = "__any__"
 
 const FILTERS = [
   {
