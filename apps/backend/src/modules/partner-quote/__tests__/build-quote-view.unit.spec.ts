@@ -621,6 +621,46 @@ describe("buildQuoteView — lifecycle", () => {
     expect(view.compare.state).toBe("dead_link")
   })
 
+  /**
+   * 🔴 The lifecycle verdict must be READABLE off the view (#1705).
+   *
+   * It was not, and the buyer route reached for `live_error` instead — a
+   * PRICING failure — to decide whether to print "this quote is no longer
+   * open". An open quote whose freight could not be rated was told it was
+   * closed. The route now reads this field, so a view that stops carrying it
+   * would silently stop refusing revoked quotes: a missing key is a confident
+   * null.
+   */
+  it("names the lifecycle verdict on the view, separately from live_error", async () => {
+    const captured: Captured = { contexts: [], rateWeights: [] }
+
+    const revoked = await buildQuoteView(
+      scopeWith(captured) as any,
+      baseInput({ quote: { status: "revoked", lines: [{ variant_id: "var_a", quantity: 500 }] } })
+    )
+    expect(revoked.unusable_reason).toBe("revoked")
+
+    const expired = await buildQuoteView(
+      scopeWith(captured) as any,
+      baseInput({
+        quote: {
+          status: "active",
+          expires_at: "2026-08-01T00:00:00Z",
+          lines: [{ variant_id: "var_a", quantity: 500 }],
+        },
+      })
+    )
+    expect(expired.unusable_reason).toBe("expired")
+
+    const open = await buildQuoteView(
+      scopeWith(captured) as any,
+      baseInput({ quote: { status: "active", lines: [{ variant_id: "var_a", quantity: 500 }] } })
+    )
+    // The one that mattered: open, and whatever happened to the live half is
+    // NOT allowed to appear here.
+    expect(open.unusable_reason).toBeNull()
+  })
+
   it("never re-prices an expired link, but still names what was quoted", async () => {
     const captured: Captured = { contexts: [], rateWeights: [] }
     const view = await buildQuoteView(
