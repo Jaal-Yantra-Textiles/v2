@@ -9,7 +9,12 @@ import {
   runListRawMaterials,
   runListPartners,
 } from "../../src/mastra/agents/tools/storefront-design-catalog"
-import { runGenerateDesignImage } from "../../src/mastra/agents/tools/storefront-design-flow"
+import {
+  runCreateDesign,
+  runGenerateDesignImage,
+  findOpenChatDesign,
+  runEnsureGuestCustomer,
+} from "../../src/mastra/agents/tools/storefront-design-flow"
 import { PARTNER_MODULE } from "../../src/modules/partner"
 import { DESIGN_MODULE } from "../../src/modules/designs"
 
@@ -192,6 +197,131 @@ setupSharedTestSuite(() => {
           },
         })
       ).rejects.toThrow(/Pick one of the takes first/)
+    })
+
+    /**
+     * ── #1689: two designs, 24 seconds apart, from one ask ──────────────
+     *
+     * `create_design` was documented as idempotent, and it was — against
+     * `context.design_id`, which the CLIENT supplies after reading the
+     * finished turn's tool output. So two calls inside one turn both saw an
+     * empty context, and so did the next turn whenever the client failed to
+     * read the id. Production: `01M1B2RS6ZM6P2HNCD8VZA9TBJ` and
+     * `01M1B2SGY8RH06QBQJYYW44VHX`, same maker, same conversation.
+     *
+     * ⚠️ Each of these was run against the pre-fix code and FAILED there.
+     */
+    describe("🔴 one ask, one design", () => {
+      const BRIEF = {
+        product_type: "trousers",
+        concept_theme: "Post-industrial lounge",
+        aesthetic_keywords: ["utilitarian", "raw"],
+        color_palette: [{ name: "slate", code: "#4a5259" }],
+      }
+
+      it("a second create_design in the SAME turn returns the first design", async () => {
+        // The context object the route builds once per request and hands to
+        // every tool factory — empty, exactly as it is on a first turn.
+        const context: any = { email: "twice@jyt.test" }
+
+        const first = await runCreateDesign(
+          container,
+          { email: "twice@jyt.test", name: "Post-Industrial Lounge Trousers", brief: BRIEF },
+          context
+        )
+        const second = await runCreateDesign(
+          container,
+          { email: "twice@jyt.test", name: "Post-Industrial Trousers", brief: BRIEF },
+          context
+        )
+
+        expect(first.created).toBe(true)
+        expect(second.created).toBe(false)
+        expect(second.design_id).toBe(first.design_id)
+        // The context was stamped — that is what makes the second call see it.
+        expect(context.design_id).toBe(first.design_id)
+      })
+
+      it("a NEXT turn with an empty context still finds the maker's open design", async () => {
+        const first = await runCreateDesign(
+          container,
+          { email: "nextturn@jyt.test", name: "Indigo Kurta", brief: { ...BRIEF, product_type: "kurta" } },
+          // No context at all — the client never told us the design id.
+          undefined
+        )
+
+        const second = await runCreateDesign(
+          container,
+          { email: "nextturn@jyt.test", name: "Indigo Kurta", brief: { ...BRIEF, product_type: "kurta" } },
+          undefined
+        )
+
+        expect(second.created).toBe(false)
+        expect(second.design_id).toBe(first.design_id)
+      })
+
+      it("generate_design_image lands on the design create_design just made", async () => {
+        const context: any = { email: "gen-once@jyt.test" }
+
+        const created = await runCreateDesign(
+          container,
+          { email: "gen-once@jyt.test", name: "Indigo Kurta", brief: { ...BRIEF, product_type: "kurta" } },
+          context
+        )
+
+        const generated = await runGenerateDesignImage(
+          container,
+          {
+            email: "gen-once@jyt.test",
+            name: "Indigo Kurta",
+            brief: { ...BRIEF, product_type: "kurta" },
+          },
+          // 🔴 A FRESH context — the shape a client that missed the tool
+          // output actually sends. This is where the second design was born.
+          { email: "gen-once@jyt.test" }
+        )
+
+        expect(generated.created_design).toBe(false)
+        expect(generated.design_id).toBe(created.design_id)
+        expect(generated.candidates).toHaveLength(2)
+      })
+
+      /**
+       * 🔴 The bound that keeps "reuse the maker's design" from becoming
+       * "hijack any design they own". A design that has moved past Conceptual
+       * is in flight somewhere — a partner may already be quoting it — and a
+       * new chat must never write takes onto it.
+       */
+      it("does NOT adopt a design that has left Conceptual", async () => {
+        const context: any = { email: "moved-on@jyt.test" }
+        const created = await runCreateDesign(
+          container,
+          { email: "moved-on@jyt.test", name: "Sent Kurta", brief: { ...BRIEF, product_type: "kurta" } },
+          context
+        )
+
+        const designService = container.resolve(DESIGN_MODULE) as any
+        await designService.updateDesigns({
+          id: created.design_id,
+          status: "In_Development",
+        })
+
+        const { customer_id } = await runEnsureGuestCustomer(container, "moved-on@jyt.test")
+        expect(await findOpenChatDesign(container, customer_id)).toBeNull()
+
+        const next = await runCreateDesign(
+          container,
+          { email: "moved-on@jyt.test", name: "A new one", brief: { ...BRIEF, product_type: "kurta" } },
+          undefined
+        )
+        expect(next.created).toBe(true)
+        expect(next.design_id).not.toBe(created.design_id)
+      })
+
+      it("a maker with no design at all gets one", async () => {
+        const { customer_id } = await runEnsureGuestCustomer(container, "brand-new@jyt.test")
+        expect(await findOpenChatDesign(container, customer_id)).toBeNull()
+      })
     })
 
     it("analyzes a shared reference image and returns a shaped analysis", async () => {
