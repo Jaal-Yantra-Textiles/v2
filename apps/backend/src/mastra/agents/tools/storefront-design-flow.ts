@@ -142,7 +142,7 @@ const saveScene = async (
 // JSON into its visible reply). Coerce BEFORE validating.
 const coerceKeywords = (v: unknown): string[] | undefined => {
   if (v == null) return undefined
-  let arr: unknown = v
+  let arr: any = v
   if (typeof v === "string") {
     try {
       arr = JSON.parse(v)
@@ -161,7 +161,7 @@ const coercePalette = (
   v: unknown
 ): Array<{ name: string; code: string }> | undefined => {
   if (v == null) return undefined
-  let arr: unknown = v
+  let arr: any = v
   if (typeof v === "string") {
     try {
       arr = JSON.parse(v)
@@ -502,6 +502,9 @@ export const runGenerateDesignImage = async (
   let brief: DesignBrief
 
   const briefResult = await runSaveBrief(args.brief)
+  if (!briefResult.ok) {
+    throw new Error(briefResult.message)
+  }
   brief = briefResult.brief
 
   if (designId) {

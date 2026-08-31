@@ -294,7 +294,7 @@ const buildDesignChatSystemResolved = async (
         normalizeCanvasScene,
         readActiveCanvas,
         readCanvasElements,
-      } = await import("../../../modules/designs/lib/canvas-scene")
+      } = await import("../../../../modules/designs/lib/canvas-scene.js")
       const scene = normalizeCanvasScene(design.moodboard)
       const active = readActiveCanvas(scene)
       const inspirations = scene.elements
