@@ -21,6 +21,8 @@
 import { createAdminUser, getAuthHeaders } from "../helpers/create-admin-user"
 import { getSharedTestEnv, setupSharedTestSuite } from "./shared-test-setup"
 import { mastra } from "../../src/mastra"
+import { ContainerRegistrationKeys } from "@medusajs/framework/utils"
+import mediaTextileAnalysisLink from "../../src/links/media-textile-analysis-link"
 
 jest.setTimeout(120000)
 
@@ -183,6 +185,43 @@ setupSharedTestSuite(() => {
     return fresh?.metadata || null
   }
 
+  /**
+   * The extraction now lands as a TYPED `textile_analysis` row linked to the
+   * media file, not as `metadata.textile_extraction`.
+   *
+   * 🔴 The blob could not be filtered — `query.graph` does not reach into JSON
+   * subkeys — so the one feature the data exists to serve ("show me more
+   * fabrics like this") was unbuildable on it. And of the 37 production files
+   * carrying the blob, 37 had a title inside it and **0** had the typed,
+   * `.searchable()` `MediaFile.title` column set.
+   */
+  const getTextileAnalysis = async (mediaId: string) => {
+    const container = getContainer()
+    const query: any = container.resolve(ContainerRegistrationKeys.QUERY)
+    const service: any = container.resolve("textile_analysis")
+
+    // Queried through the LINK's entry point rather than a relation name — the
+    // same way `designCustomerLink.entryPoint` is read elsewhere. It asserts
+    // the link row exists, which a relation expansion would let us assume.
+    const { data: links = [] } = await query.graph({
+      entity: mediaTextileAnalysisLink.entryPoint,
+      fields: ["media_file_id", "textile_analysis_id"],
+      filters: { media_file_id: mediaId },
+    })
+
+    const analysisId = (links as any[])[0]?.textile_analysis_id ?? null
+    const analysis = analysisId
+      ? await service.retrieveTextileAnalysis(analysisId).catch(() => null)
+      : null
+
+    const [media] = await getMediaService().listMediaFiles(
+      { id: mediaId },
+      { take: 1 }
+    )
+
+    return { media, analysis }
+  }
+
   // ============================================
   // Per-media extraction with stubbed generation
   // ============================================
@@ -222,8 +261,8 @@ setupSharedTestSuite(() => {
 
       // 3) Wait for background persistence of the stubbed result
       const persisted = await waitFor(async () => {
-        const metadata = await getMediaMetadata(media.id)
-        return !!metadata?.textile_extraction
+        const { analysis } = await getTextileAnalysis(media.id)
+        return !!analysis
       })
       expect(persisted).toBe(true)
 
@@ -234,8 +273,12 @@ setupSharedTestSuite(() => {
       expect(stubInput.hints).toContain("focus on weave structure")
       expect(stubInput.gender).toBe("female")
 
-      const metadata = await getMediaMetadata(media.id)
-      const extraction = metadata.textile_extraction
+      const { media: freshMedia, analysis: extraction } = await getTextileAnalysis(media.id)
+
+      // 🔑 The searchable columns are populated too — the half that sat empty
+      // for all 37 production rows while a good title lived in the blob.
+      expect(freshMedia?.title).toBe(FAKE_EXTRACTION.title)
+      expect(freshMedia?.alt_text).toBe(FAKE_EXTRACTION.description)
 
       // Product fields derived by pass 2 (stubbed)
       expect(extraction.title).toBe(FAKE_EXTRACTION.title)
@@ -249,7 +292,10 @@ setupSharedTestSuite(() => {
       expect(extraction.visual_observations.not_visible_or_uncertain).toContain(
         "fabric composition not visible"
       )
-      expect(metadata.extracted_at).toBeDefined()
+      // `extracted_at` is now a typed column on the analysis row, not a
+      // metadata key sharing a bag with four other writers.
+      expect(extraction.analyzed_at).toBeTruthy()
+      expect(extraction.source).toBe("internal_extraction")
     })
   })
 
@@ -333,9 +379,9 @@ setupSharedTestSuite(() => {
 
       // 6) Both media persisted the stubbed extraction
       for (const image of images) {
-        const metadata = await getMediaMetadata(image.id)
-        expect(metadata?.textile_extraction?.title).toBe(FAKE_EXTRACTION.title)
-        expect(metadata?.textile_extraction?.visual_observations.visible_colors).toEqual([
+        const { analysis } = await getTextileAnalysis(image.id)
+        expect(analysis?.title).toBe(FAKE_EXTRACTION.title)
+        expect(analysis?.visual_observations.visible_colors).toEqual([
           "indigo blue",
           "off-white",
         ])
@@ -397,11 +443,11 @@ setupSharedTestSuite(() => {
       // Failed photo has no extraction; the other one does
       const failedId = progress.errors[0].media_id
       const okImage = images.find((i) => i.id !== failedId)
-      const failedMetadata = await getMediaMetadata(failedId)
-      expect(failedMetadata?.textile_extraction).toBeUndefined()
+      const { analysis: failedAnalysis } = await getTextileAnalysis(failedId)
+      expect(failedAnalysis).toBeNull()
 
-      const okMetadata = await getMediaMetadata(okImage!.id)
-      expect(okMetadata?.textile_extraction?.title).toBe(FAKE_EXTRACTION.title)
+      const { analysis: okAnalysis } = await getTextileAnalysis(okImage!.id)
+      expect(okAnalysis?.title).toBe(FAKE_EXTRACTION.title)
     })
 
     it("returns 400 when the folder has no image files", async () => {

@@ -21,6 +21,9 @@ import { MedusaError } from "@medusajs/framework/utils";
 import { notifyOnFailureStep, sendNotificationsStep } from "@medusajs/medusa/core-flows";
 import { mastra } from "../../mastra";
 import MediaService from "../../modules/media/service";
+import type { MedusaContainer } from "@medusajs/framework";
+import { persistTextileAnalysis } from "../../modules/textile-analysis/lib/persist";
+import { TEXTILE_ANALYSIS_MODULE } from "../../modules/textile-analysis";
 
 // ============================================
 // Types
@@ -212,20 +215,46 @@ const runMastraTextileExtractionStep = createStep(
 );
 
 /**
- * Persist extraction results to a media file's metadata.
- * Shared by the per-media workflow and the folder-wide workflow.
+ * Persist extraction results as a typed `textile_analysis` row.
+ *
+ * ## What changed, and why
+ *
+ * This used to write `MediaFile.metadata.textile_extraction` — a JSON blob on a
+ * shared bag — and to replace the whole `metadata` object doing it. Two
+ * problems, one fatal:
+ *
+ * 1. **It could not be filtered.** `query.graph` does not reach into JSON
+ *    subkeys, so "show me more fabrics like this" (pattern / weight / cloth
+ *    type) — the feature this data exists to serve — was not buildable on it.
+ * 2. **It bypassed columns that already existed.** Of the 37 production media
+ *    files carrying the blob, 37 had a `title` and `description` inside it and
+ *    **0** had the typed `MediaFile.title` / `description` / `alt_text` set,
+ *    with `title` one of the two `.searchable()` fields.
+ *
+ * ⚠️ The signature keeps `mediaService` it no longer uses, so every caller —
+ * the per-media workflow and the folder-wide one — stays untouched. Removing
+ * the argument is a separate, mechanical change; doing it here would mix a
+ * storage cutover with a call-site sweep.
  */
 export const persistTextileExtractionResult = async (
-  mediaService: MediaService,
+  _mediaService: MediaService,
   media_id: string,
-  extraction: TextileProductExtractionOutput
+  extraction: TextileProductExtractionOutput,
+  container?: MedusaContainer
 ): Promise<void> => {
-  await mediaService.updateMediaFiles({
-    id: media_id,
-    metadata: {
-      textile_extraction: extraction,
-      extracted_at: new Date().toISOString(),
-    },
+  if (!container) {
+    // Nothing to write into without a container. Loud, because a silently
+    // skipped persist is how 37 extractions became write-only in the first
+    // place.
+    throw new MedusaError(
+      MedusaError.Types.INVALID_DATA,
+      "persistTextileExtractionResult needs the container to write a textile_analysis row."
+    );
+  }
+  await persistTextileAnalysis(container, {
+    media_id,
+    payload: extraction as unknown as Record<string, any>,
+    source: "internal_extraction",
   });
 };
 
@@ -243,39 +272,41 @@ const persistExtractionResultsStep = createStep(
     { container }
   ) => {
     if (!input.persist) {
-      return new StepResponse({ persisted: false, media_id: input.media_id });
+      return new StepResponse({ persisted: false, media_id: input.media_id, analysis_id: null as string | null });
     }
 
     try {
-      // Resolve media service to update metadata
-      const mediaService: MediaService = container.resolve("media");
-
-      await mediaService.updateMediaFiles({
-        id: input.media_id,
-        metadata: {
-          textile_extraction: input.extraction,
-          extracted_at: new Date().toISOString(),
-        },
+      const { analysis_id } = await persistTextileAnalysis(container, {
+        media_id: input.media_id,
+        payload: input.extraction as unknown as Record<string, any>,
+        source: "internal_extraction",
       });
 
-      return new StepResponse({ persisted: true, media_id: input.media_id });
+      return new StepResponse({
+        persisted: true,
+        media_id: input.media_id,
+        analysis_id,
+      });
     } catch (error: any) {
       console.error(`Failed to persist extraction results: ${error?.message}`);
-      return new StepResponse({ persisted: false, media_id: input.media_id, error: error?.message });
+      return new StepResponse({ persisted: false, media_id: input.media_id, analysis_id: null as string | null, error: error?.message });
     }
   },
-  // Compensation: remove metadata on failure
+  /**
+   * Compensation: delete the ROW, not a metadata key.
+   *
+   * ⚠️ The old version nulled `metadata.textile_extraction` AND
+   * `metadata.extracted_at` by writing a fresh `metadata` object — on a bag
+   * shared with the partner upload, WhatsApp and raw-material-binding writers.
+   * A rollback therefore stood to erase provenance that had nothing to do with
+   * this extraction. Deleting the analysis row touches only what this step
+   * created.
+   */
   async (data, { container }) => {
-    if (!data?.persisted) return;
+    if (!data?.persisted || !data?.analysis_id) return;
     try {
-      const mediaService: MediaService = container.resolve("media");
-      await mediaService.updateMediaFiles({
-        id: data.media_id,
-        metadata: {
-          textile_extraction: null,
-          extracted_at: null,
-        },
-      });
+      const service: any = container.resolve(TEXTILE_ANALYSIS_MODULE);
+      await service.deleteTextileAnalyses(data.analysis_id);
     } catch {}
   }
 );

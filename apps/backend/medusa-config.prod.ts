@@ -505,6 +505,13 @@ module.exports = defineConfig({
     resolve: "./src/modules/media",
   },
   {
+    // Typed vision results for textile images. Registered HERE as well as in
+    // medusa-config.ts — the prod config is a separate file, and a module
+    // missing from it fails the build with "Service … was not found" via the
+    // link that references it.
+    resolve: "./src/modules/textile-analysis",
+  },
+  {
     resolve: "./src/modules/fullfilled_orders",
   },
   {

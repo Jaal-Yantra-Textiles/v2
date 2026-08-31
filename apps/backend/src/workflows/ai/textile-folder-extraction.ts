@@ -270,7 +270,7 @@ const processFolderMediaSequentiallyStep = createStep(
         });
 
         if (input.persist) {
-          await persistTextileExtractionResult(mediaService, item.media_id, extraction);
+          await persistTextileExtractionResult(mediaService, item.media_id, extraction, container);
         }
 
         completed++;

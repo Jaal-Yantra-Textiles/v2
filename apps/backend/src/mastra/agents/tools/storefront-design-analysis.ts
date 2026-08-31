@@ -19,6 +19,7 @@ import type { MedusaContainer } from "@medusajs/framework"
 import { MEDIA_MODULE } from "../../../modules/media"
 import type MediaFileService from "../../../modules/media/service"
 import { runAnalyzeProductImage, type ImageAnalysis } from "./storefront-design-catalog"
+import { persistTextileAnalysis } from "../../../modules/textile-analysis/lib/persist"
 
 export type ReferenceAnalysis = ImageAnalysis & {
   media_id: string | null
@@ -119,6 +120,36 @@ const analyzeOne = async (
         extension: ext,
         is_public: true,
         ...payload,
+      })
+    }
+
+    /**
+     * The same analysis, as a TYPED row — one vocabulary for both pipelines.
+     *
+     * 🔴 Before this, the internal extractor wrote
+     * `metadata.textile_extraction` and this path wrote
+     * `metadata.vision_analysis`: two schemas for the same question, neither
+     * reading the other, and neither filterable. A fabric photograph analysed
+     * by one was invisible to the other.
+     *
+     * `source: "storefront_reference"` is what keeps them distinguishable now
+     * that they share a shape — a stranger's inspiration photo and our own
+     * extraction over stock we hold deserve different trust, and previously
+     * the only thing separating them was which key someone happened to write.
+     *
+     * Best-effort: the analysis is already returned to the caller and stamped
+     * on the scene element. A failure to ALSO type it must not fail the upload.
+     */
+    if (analysis && media?.id) {
+      await persistTextileAnalysis(container, {
+        media_id: media.id,
+        payload: analysis as unknown as Record<string, any>,
+        source: "storefront_reference",
+        analyzed_at: analyzedAt,
+      }).catch((e: any) => {
+        console.warn(
+          `[design-reference] textile_analysis write failed for ${url}: ${e?.message || e}`
+        )
       })
     }
 
