@@ -4,6 +4,7 @@ import React from "react"
 import clsx from "clsx"
 import { useChat } from "@ai-sdk/react"
 import { DefaultChatTransport, type UIMessage } from "ai"
+import { useLenis } from "lenis/react"
 import { Button, Text } from "@medusajs/ui"
 import {
   ArrowLeft,
@@ -185,6 +186,7 @@ export default function DesignChat({
     setMessages,
     stop,
   } = useChat({ transport })
+  const lenis = useLenis()
 
   const isStreaming = status === "submitted" || status === "streaming"
   const isGenerating = messages.some(
@@ -336,8 +338,18 @@ export default function DesignChat({
   const [stickToBottom, setStickToBottom] = React.useState(true)
   React.useEffect(() => {
     if (!stickToBottom) return
-    scrollAnchorRef.current?.scrollIntoView({ block: "end" })
-  }, [messages, stickToBottom])
+    // The app is wrapped in <ReactLenis root> (smooth-scroll.tsx), which
+    // hijacks native scroll — `scrollIntoView` never moves the window. Drive
+    // Lenis directly for an instant jump to the bottom anchor; fall back to
+    // native scrollIntoView when no Lenis instance is present (tests / SSR).
+    if (lenis) {
+      lenis.scrollTo(document.documentElement.scrollHeight, {
+        immediate: true,
+      })
+    } else {
+      scrollAnchorRef.current?.scrollIntoView({ block: "end" })
+    }
+  }, [messages, stickToBottom, lenis])
 
   React.useEffect(() => {
     const onScroll = () => {

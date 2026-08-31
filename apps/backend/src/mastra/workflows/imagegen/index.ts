@@ -146,6 +146,16 @@ function isTestEnvironment(): boolean {
   return !!process.env.TEST_TYPE;
 }
 
+/**
+ * True when the caller handed down a usable Cloudflare image-gen platform
+ * (role ai_image_gen). In a test environment we still want REAL generation
+ * when credentials are present — the stub is only the no-credential fallback
+ * so CI (no token) exercises the full flow without an image call.
+ */
+function hasCfImageCreds(cfg?: { provider_type?: string; api_key?: string; account_id?: string }): boolean {
+  return !!(cfg && cfg.provider_type === "cloudflare" && cfg.api_key && cfg.account_id);
+}
+
 // Step 1: Build and enhance prompt using Mistral agent
 // Input: triggerSchema, Output: enhanced prompt data + passthrough fields
 const step1OutputSchema = z.object({
@@ -167,7 +177,7 @@ const step1OutputSchema = z.object({
 });
 
 /** Cloudflare text model for prompt enhancement (same account/token as image gen). */
-const CF_PROMPT_MODEL = "@cf/meta/llama-3.1-8b-instruct";
+const CF_PROMPT_MODEL = "@cf/meta/llama-3.3-70b-instruct-fp8-fast";
 
 const buildPromptStep = createStep({
   id: "buildPrompt",
@@ -218,8 +228,9 @@ const buildPromptStep = createStep({
       `Focus on visual elements, textures, colors, and design details. ` +
       `The prompt should be clear, specific, and optimized for high-quality fashion design generation.`;
 
-    // In test environment, skip the AI call to save credits
-    if (isTestEnvironment()) {
+    // In test environment WITHOUT image-gen credentials, skip the AI call to
+    // save credits (and so CI has no dependency on a token).
+    if (isTestEnvironment() && !hasCfImageCreds(image_gen_config)) {
       console.log(`[ImageGen] Test environment detected - returning mock prompt`);
       return {
         enhanced_prompt: `Test fashion design: ${styleContext}. ${materials_prompt || ""}`.trim(),
@@ -488,8 +499,9 @@ const generateImageStep = createStep({
       };
     }
 
-    // In test environment, return a sample image to avoid using AI credits
-    if (isTestEnvironment()) {
+    // In test environment WITHOUT image-gen credentials, return a sample image
+    // to avoid using AI credits (and so CI has no dependency on a token).
+    if (isTestEnvironment() && !hasCfImageCreds(image_gen_config)) {
       console.log(`[ImageGen] Test environment detected - returning sample image`);
       return {
         image_url: TEST_SAMPLE_IMAGE_BASE64,

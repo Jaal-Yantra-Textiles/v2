@@ -52,7 +52,7 @@ export const generateWithCloudflare = async (
         Authorization: `Bearer ${config.api_key}`,
         "Content-Type": "application/json",
       },
-      body: JSON.stringify({ prompt, num_steps: 4 }),
+      body: JSON.stringify({ prompt }),
       signal: controller.signal,
     })
   } catch (err: any) {

@@ -178,7 +178,7 @@ export const resolveStorefrontChatModel = async (
   if (cloudflare) {
     const modelId =
       process.env.STOREFRONT_CHAT_CLOUDFLARE_MODEL ||
-      "@cf/meta/llama-3.1-8b-instruct"
+      "@cf/moonshotai/kimi-k2.6"
     return { model: cloudflare(modelId), provider: `cloudflare:${modelId}` }
   }
 
