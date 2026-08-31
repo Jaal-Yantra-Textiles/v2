@@ -101,6 +101,15 @@ import { costTypeGuardMessage } from "../../../../workflows/production-runs/lib/
 import { autoDraftRunPayout } from "../../../../workflows/payment_submissions/lib/auto-draft-run-payout"
 import { refreshUnclaimedDraftPayouts } from "../../../../workflows/payment_submissions/lib/refresh-draft-payouts"
 import { reopenProductionRun } from "../../../../workflows/production-runs/lib/short-close-production-run"
+import {
+  assessRunQuantityCorrection,
+  correctionConsequenceNote,
+} from "../../../../workflows/production-runs/lib/run-quantity-correction"
+import {
+  foldRunClaimTallies,
+  listPartnerPriorLines,
+} from "../../../../workflows/payment_submissions/lib/run-claims"
+import { PAYMENT_SUBMISSIONS_MODULE } from "../../../../modules/payment_submissions"
 
 export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
   const id = req.params.id
@@ -177,16 +186,37 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
   const body = req.body as Record<string, any>
   const update: Record<string, any> = {}
 
-  const touchesStructural =
-    body.quantity !== undefined ||
-    body.role !== undefined ||
-    body.run_type !== undefined
+  /**
+   * 🔴 QUANTITY NO LONGER FREEZES WITH THE OTHER STRUCTURAL FIELDS (#1695).
+   *
+   * `role` and `run_type` say WHO is doing the work and HOW — changing them
+   * after a partner has accepted rewrites the assignment underneath them, so
+   * they keep the old freeze.
+   *
+   * `quantity` is different: it is the CEILING on what may be billed against
+   * the run, and freezing it at `accepted_at` deadlocked the two halves of a
+   * correction. A run sent for 2 where the partner made 3 could not be fixed
+   * from either end — the run refused because work had begun, and
+   * `assessRunClaims` refused a claim of 3 against a ceiling of 2. Nothing was
+   * paid and nothing was disputed. It took an ops job to break it.
+   *
+   * The freeze point is SETTLEMENT: correctable while every live claim against
+   * the run is a Draft. See `assessRunQuantityCorrection` for the whole rule.
+   */
+  /** Reported back so a ceiling never moves next to money in silence. */
+  let quantityCorrection: ReturnType<typeof assessRunQuantityCorrection> | null =
+    null
 
-  if (touchesStructural) {
+  const touchesAssignment =
+    body.role !== undefined || body.run_type !== undefined
+  const touchesQuantity = body.quantity !== undefined
+  const touchesStructural = touchesAssignment || touchesQuantity
+
+  if (touchesAssignment) {
     if (run.accepted_at || run.started_at) {
       throw new MedusaError(
         MedusaError.Types.NOT_ALLOWED,
-        "Cannot edit quantity, role, or run_type after the run has been accepted or started"
+        "Cannot edit role or run_type after the run has been accepted or started"
       )
     }
     if (run.status === "completed") {
@@ -195,15 +225,19 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
         "Cannot edit a completed production run"
       )
     }
+  }
+
+  if (touchesStructural) {
     /**
      * 🔴 `null` CLEARS the agreed quantity (#1676) — an open-ended run, with no
      * ceiling on what may be claimed against it. `Number(null)` is 0, which
      * would have written the opposite: a quantity that IS set and is unusable,
      * which every payment guard refuses outright.
      *
-     * Still gated by the structural check above, so this can only be said
-     * before the partner accepts or starts. Removing the agreed amount after
-     * work began would rewrite the deal retroactively.
+     * ⚠️ This used to be gated on "before the partner accepts or starts". It is
+     * now gated on the money instead (#1695): open-ending a run is a RAISE — it
+     * removes the ceiling — so it is allowed exactly as long as any other raise
+     * is, and refused the moment a non-Draft claim stands against the run.
      */
     if (body.quantity !== undefined) {
       if (body.quantity === null) {
@@ -217,6 +251,47 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
           )
         }
         update.quantity = quantity
+      }
+    }
+
+    /**
+     * The money gate on a quantity change, and the consequence it will have.
+     *
+     * Scoped by PARTNER, which is how every other claim guard in this module
+     * reads prior lines — a run belongs to exactly one partner, and a
+     * design-scoped read cannot see a run-sourced line at all (see
+     * `run-claims`). A run with no partner cannot have been claimed by anyone,
+     * so there is nothing to read.
+     *
+     * 🔴 A failed lookup is NOT "no claims". `claims_readable: false` refuses
+     * the change rather than letting an outage read as headroom.
+     */
+    if (touchesQuantity) {
+      let tally: any = null
+      let claimsReadable = true
+
+      if (run.partner_id) {
+        try {
+          const submissions: any = req.scope.resolve(PAYMENT_SUBMISSIONS_MODULE)
+          const priorLines = await listPartnerPriorLines(submissions, run.partner_id)
+          tally = foldRunClaimTallies(priorLines).get(id) ?? null
+        } catch {
+          claimsReadable = false
+        }
+      }
+
+      quantityCorrection = assessRunQuantityCorrection({
+        run,
+        next_quantity: (update.quantity ?? null) as number | null,
+        tally,
+        claims_readable: claimsReadable,
+      })
+
+      if (!quantityCorrection.allowed) {
+        throw new MedusaError(
+          MedusaError.Types.NOT_ALLOWED,
+          quantityCorrection.refusal as string
+        )
       }
     }
     if (body.role !== undefined) update.role = body.role
@@ -334,7 +409,16 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
   const touchesMoney =
     update.partner_cost_estimate !== undefined ||
     update.cost_type !== undefined ||
-    update.produced_quantity !== undefined
+    update.produced_quantity !== undefined ||
+    /**
+     * 🔴 The agreed quantity belongs here too (#1695). `runPayableAmount` bills
+     * the ORDERED quantity, so a corrected quantity changes what an existing
+     * Draft is worth — and now that the quantity can be corrected AFTER the
+     * work is done, the draft that was written at completion is exactly the one
+     * left disagreeing with it. A correction that does not cascade just moves
+     * the disagreement somewhere new.
+     */
+    update.quantity !== undefined
   if (touchesMoney) {
     try {
       const outcome = await refreshUnclaimedDraftPayouts(req.scope, id)
@@ -487,5 +571,25 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
      * having to go and check. Empty when nothing needed it.
      */
     ...(refreshedDrafts.length ? { refreshed_draft_submissions: refreshedDrafts } : {}),
+    /**
+     * What the quantity change did to the billing ceiling, in the same shape
+     * the ops job reports (#1694) — before, after, already claimed, newly
+     * claimable and what that is worth.
+     *
+     * 🔑 Always stated when the quantity moved. A number changing next to money
+     * in silence is how a correction becomes a surprise on somebody's payout.
+     */
+    ...(quantityCorrection
+      ? {
+          ceiling: {
+            before: quantityCorrection.ceiling_before,
+            after: quantityCorrection.ceiling_after,
+            already_claimed: quantityCorrection.claimed_quantity,
+            newly_claimable: quantityCorrection.newly_claimable,
+            worth: quantityCorrection.worth,
+            note: correctionConsequenceNote(quantityCorrection),
+          },
+        }
+      : {}),
   })
 }
