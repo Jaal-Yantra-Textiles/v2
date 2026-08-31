@@ -162,7 +162,14 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
     quote,
     gross_total:
       (view as any)?.live?.gross_total ?? (view as any)?.quoted?.gross_total ?? null,
-    unusable_reason: (view as any)?.live_error ?? null,
+    /**
+     * 🔴 The LIFECYCLE verdict, which is the one this parameter means (#1705).
+     * `live_error` used to be passed here, and it is a PRICING failure — so an
+     * open quote, minted an hour earlier, told its buyer it was no longer open
+     * and to ask for a fresh one that would have failed the same way.
+     */
+    unusable_reason: (view as any)?.unusable_reason ?? null,
+    pricing_error: (view as any)?.live_error ?? null,
   })
 
   res.json({ quote: { ...view, parties, acceptance } })

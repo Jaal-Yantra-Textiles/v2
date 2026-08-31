@@ -34,6 +34,20 @@ import { splitDeposit } from "../../payment_schedule/lib/split"
  * 🔑 The honest statement is about the DESTINATION, not about who named the
  * number.
  *
+ * ## ⚠️ A quote that cannot be PRICED is not a quote that is CLOSED (#1705)
+ *
+ * `unusable_reason` means one thing — revoked, superseded, expired — and the
+ * sentence it prints ("no longer open, ask for a fresh one") is a statement
+ * about the quote's STANDING. The buyer route used to pass the view's
+ * `live_error` into it, which is a pricing failure, so a quote minted an hour
+ * earlier and valid for a fortnight told its buyer it was closed and sent them
+ * to ask for a replacement that would have failed identically.
+ *
+ * Pricing failures therefore arrive as `pricing_error` and get their own
+ * sentence. Both still block acceptance — a cart priced off a half we could
+ * not compute is worse than a refusal — but only one of them is allowed to
+ * claim the quote is over.
+ *
  * ## The amount shown is the GROSS total
  *
  * 🔑 Not the landed total. The deposit is a share of what the cart will
@@ -63,8 +77,16 @@ export function composeQuoteAcceptance(input: {
   quote: any
   /** The gross total the cart will charge — live if we have it, else frozen. */
   gross_total: number | null | undefined
-  /** Non-null when the quote is revoked or expired. */
+  /**
+   * LIFECYCLE only: revoked, superseded, expired. Nothing else may be passed
+   * here — see the note above on why a pricing failure must not arrive as this.
+   */
   unusable_reason?: string | null
+  /**
+   * The live half could not be priced — the view's `live_error`. Transient and
+   * about US, not about the quote's standing, so it gets its own sentence.
+   */
+  pricing_error?: string | null
 }): QuoteAcceptance {
   const q = input.quote ?? {}
   const accepted = Boolean(q.accepted_cart_id)
@@ -88,6 +110,15 @@ export function composeQuoteAcceptance(input: {
        * without asking the buyer to care why.
        */
       return "We cannot take this order online for your destination yet — there is no online delivery set up for this route. Reply to this quote and we will arrange it for you."
+    }
+    if (input.pricing_error) {
+      /**
+       * 🔴 The quote is OPEN. Only our pricing failed (#1705) — so the one
+       * thing this sentence must not do is send the buyer away for a fresh
+       * quote, which would fail in exactly the same way. Same shape as the
+       * destination copy: what is true, what happens next, whose move it is.
+       */
+      return "We could not work out an up-to-date price for this quote just now. It is still open — reply to this quote and we will confirm it for you."
     }
     if (total === null || !Number.isFinite(total) || total <= 0) {
       return "This quote has no total to charge. Ask for a fresh one."
