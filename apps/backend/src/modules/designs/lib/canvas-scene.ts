@@ -373,3 +373,97 @@ export function readGenerationReference(
     (typeof active.link === "string" ? active.link : null)
   return url && url.startsWith("http") ? url : null
 }
+
+/**
+ * Add uploaded reference images to a scene as INSPIRATION elements.
+ *
+ * 🔑 Extracted from `storefront-design-flow`, which built these inline while
+ * seeding a brand-new design. A second caller now needs the same shape — the
+ * public reference-upload route, which drops photos onto a design that may
+ * already exist — and a hand-copied twin is how the run-line pricer ended up
+ * with two homes and a 22% gap between them.
+ *
+ * Inspiration elements are NOT canvases: they carry no `customData.canvas`, so
+ * `readCanvasElements`, `readActiveCanvas` and the A/B pick logic all ignore
+ * them. They are the maker's own photographs sitting on the board next to the
+ * takes generated from them.
+ *
+ * `analysis` rides on the element as well as on the MediaFile so a later turn
+ * can ground on the description without a second vision call — the same reason
+ * the seed path stamped it there.
+ */
+export function appendInspirationElements(
+  scene: CanvasScene,
+  references: Array<{
+    url: string
+    media_id?: string | null
+    analysis?: {
+      title?: string | null
+      description?: string | null
+      suggestions?: string[]
+      analyzed_at?: string | null
+    } | null
+  }>,
+  now: number = Date.now()
+): CanvasScene {
+  const next: CanvasScene = {
+    ...scene,
+    elements: [...scene.elements],
+    files: { ...scene.files },
+  }
+
+  for (const ref of references) {
+    if (!ref?.url) continue
+    // Already on the board — re-uploading the same photo must not double it.
+    if (next.elements.some((el) => el.link === ref.url)) continue
+
+    const fileId = `insp-${now}-${Math.random().toString(36).slice(2, 8)}`
+    next.files[fileId] = {
+      id: fileId,
+      dataURL: ref.url,
+      mimeType: "image/png",
+      created: now,
+      lastRetrieved: now,
+    }
+    next.elements.push({
+      id: `el-${fileId}`,
+      type: "image",
+      x: 40 + (next.elements.length % 2) * 300,
+      y: 40 + Math.floor(next.elements.length / 2) * 300,
+      width: 260,
+      height: 260,
+      angle: 0,
+      strokeColor: "transparent",
+      backgroundColor: "transparent",
+      fillStyle: "solid",
+      strokeWidth: 1,
+      strokeStyle: "solid",
+      roughness: 1,
+      opacity: 100,
+      roundness: null,
+      isDeleted: false,
+      boundElements: null,
+      updated: now,
+      link: ref.url,
+      locked: true,
+      fileId,
+      mimeType: "image/png",
+      customData: {
+        source: "inspiration",
+        ...(ref.media_id ? { media_id: ref.media_id } : {}),
+        ...(ref.analysis
+          ? {
+              analysis: {
+                title: ref.analysis.title ?? null,
+                description: ref.analysis.description ?? null,
+                suggestions: ref.analysis.suggestions ?? [],
+                analyzed_at: ref.analysis.analyzed_at ?? null,
+              },
+            }
+          : {}),
+      },
+    } as SceneElement)
+  }
+
+  return next
+}

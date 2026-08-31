@@ -2753,6 +2753,21 @@ export default defineMiddlewares({
       middlewares: [createCorsMiddleware()],
     },
     {
+      /**
+       * Reference photos → a design. Multipart, so `bodyParser: false` and
+       * multer, exactly like the partner design-media upload.
+       *
+       * 🔴 Public on purpose. The client used to presign to S3 itself, and
+       * that endpoint is customer-authenticated — in a flow whose makers are
+       * guests with an email. Every attached photo silently degraded to a
+       * session-local preview and never existed server-side.
+       */
+      matcher: "/store/custom/design-assistant/references",
+      method: "POST",
+      bodyParser: false,
+      middlewares: [createCorsMiddleware(), maybeMulterArray("files")],
+    },
+    {
       // The board read. Public like the rest of the assistant's store mount and
       // scoped by the maker's email — the board panel previously read through
       // the CUSTOMER-authenticated `/store/custom/designs/:id`, which 401s for
