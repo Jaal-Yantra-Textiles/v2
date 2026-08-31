@@ -1,3 +1,10 @@
+## [13.130.1](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.130.0...v13.130.1) (2026-08-31)
+
+
+### Bug Fixes
+
+* **quotes:** make a design quotable at all — catalogue, typed weight, and the enum that refused it ([#1683](https://github.com/Jaal-Yantra-Textiles/v2/issues/1683)) ([#1684](https://github.com/Jaal-Yantra-Textiles/v2/issues/1684)) ([4e9677a](https://github.com/Jaal-Yantra-Textiles/v2/commit/4e9677a024890fc20e9ede201d0f02798df34484)), closes [#1419](https://github.com/Jaal-Yantra-Textiles/v2/issues/1419)
+
 # [13.130.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.129.0...v13.130.0) (2026-08-31)
 
 
