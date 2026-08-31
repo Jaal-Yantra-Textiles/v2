@@ -151,6 +151,14 @@ export const ADMIN_MCP_TOOLS: AdminMcpToolDef[] = [
     path: "/admin/mcp/stats",
     inputSchema: obj({}),
   },
+  {
+    name: "list_graph_entities",
+    description:
+      "List the REAL query.graph entity names available for stats panels (metric_sections / aggregate_data / time_series), with descriptions and key fields. Call this to pick the correct `entity` value — do NOT invent entity names. Plural snake_case (e.g. 'order_transactions', 'partner_fees', 'partner_subscriptions').",
+    method: "GET",
+    path: "/admin/mcp/graph-entities",
+    inputSchema: obj({}),
+  },
 
   // ===== Orders ============================================================
   {
@@ -4292,7 +4300,7 @@ export const ADMIN_MCP_TOOLS: AdminMcpToolDef[] = [
   {
     name: "create_stats_panel",
     description:
-      "Create a stats panel on a dashboard, driven by operation_type + operation_options JSON. The panel's data resolves LIVE from the configured operation — nothing is stored as a number. For the dynamic metric_sections operation, pass operation_options = { currency, window_days, sections: { <name>: { entity, filters, aggregates: { <key>: { fn, field?, range?, normalize_interval? } }, currency_key?, echo? } | { derived: { ref, aggregate, multiply?, add? }, echo? } } }. IMPORTANT: `echo` is an OBJECT of booleans like { window_days: true } or { currency: true } — it declares which context keys the section output carries; it is NOT text, and the section's label is the section NAME, so never send echo as a string. Set metadata.public true only if the panel is safe to expose publicly (GET /web/stats/panels/:id/data).",
+      "Create a stats panel on a dashboard, driven by operation_type + operation_options JSON. The panel's data resolves LIVE from the configured operation — nothing is stored as a number. For the dynamic metric_sections operation, pass operation_options = { currency, window_days, sections: { <name>: { entity, filters, aggregates: { <key>: { fn, field?, range?, normalize_interval? } }, currency_key?, echo? } | { derived: { ref, aggregate, multiply?, add? }, echo? } } }. The `entity` MUST be a real query.graph name — call list_graph_entities first (plural snake_case, e.g. 'order_transactions' for paid orders, 'partner_fees' for commission, 'partner_subscriptions' for subscriptions); never invent names like 'orders'/'subscriptions'/'payments'. `echo` is an OBJECT of booleans like { window_days: true } or { currency: true } — it declares which context keys the section output carries; it is NOT text, and the section's label is the section NAME. A trailing-window aggregate uses `range: { date_field }` (no last_days) so it follows the panel's window_days. Set metadata.public true only if the panel is safe to expose publicly (GET /web/stats/panels/:id/data).",
     method: "POST",
     path: "/admin/stats/dashboards/:id/panels",
     pathParams: ["id"],

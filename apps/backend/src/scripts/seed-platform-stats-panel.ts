@@ -8,9 +8,10 @@ import { STATS_MODULE } from "../modules/stats"
  * The panel uses the DYNAMIC `metric_sections` operation: the metric keys are
  * declarative panel config (operation_options.sections), not hardcoded code.
  * Adding a new section = editing this panel's options — no code change.
- * Seeded sections, all derived from live rows only:
- *   orders       { processed, trailing_30d, window_days }
- *   commission   { accrued, trailing_30d, currency, window_days }
+ * Seeded sections, all derived from live rows only (the `trailing` windows
+ * follow the panel's `window_days`):
+ *   orders       { processed, trailing, window_days }
+ *   commission   { accrued, trailing, currency, window_days }
  *   arr          { amount, currency }
  *   aov          { amount, currency }
  *   subscription { paying_artisans, mrr, currency }
@@ -33,40 +34,41 @@ const OPERATION_OPTIONS = {
   currency: "INR",
   window_days: 30,
   sections: {
-    // Paid orders — every capture lands an order_transaction row
+    // Paid orders — every capture lands an order_transactions row
     // (reference "capture"), so "processed" is a generic count_distinct
-    // over that entity. No Medusa-specific aggregate code needed.
+    // over that entity. No Medusa-specific aggregate code needed. Entity
+    // names are the query.graph names (see list_graph_entities).
     orders: {
-      entity: "order_transaction",
+      entity: "order_transactions",
       filters: { reference: "capture" },
       aggregates: {
         processed: { fn: "count_distinct", field: "order_id" },
-        trailing_30d: {
+        trailing: {
           fn: "count_distinct",
           field: "order_id",
-          range: { date_field: "created_at", last_days: 30 },
+          range: { date_field: "created_at" },
         },
       },
       echo: { window_days: true },
     },
-    // Platform commission — partner_fee lifecycle, currency-matched
+    // Platform commission — partner_fees lifecycle, currency-matched
     commission: {
-      entity: "partner_fee",
+      entity: "partner_fees",
       filters: { status: "accrued" },
       currency_key: "currency_code",
       aggregates: {
         accrued: { fn: "sum", field: "fee_amount" },
-        trailing_30d: {
+        trailing: {
           fn: "sum",
           field: "fee_amount",
-          range: { date_field: "accrued_at", last_days: 30 },
+          range: { date_field: "accrued_at" },
         },
       },
       echo: { currency: true, window_days: true },
     },
     // Artisan subscriptions — MRR monthly-normalized (yearly / 12)
     subscription: {
-      entity: "partner_subscription",
+      entity: "partner_subscriptions",
       filters: { status: "active" },
       currency_key: "plan.currency_code",
       aggregates: {
@@ -80,18 +82,18 @@ const OPERATION_OPTIONS = {
       echo: { currency: true },
     },
     // Average amount captured per paid order over the trailing window. AOV is
-    // the captured payment amount (order_transaction with reference "capture"),
+    // the captured payment amount (order_transactions with reference "capture"),
     // NOT order.total: the order module computes total/subtotal/etc from
     // shipping-method adjustments, and query.graph cannot fetch those computed
     // money fields ("Shipping method version is required to load adjustments").
     // Captured amount equals order value for full-payment orders, which is the
     // only graph-fetchable per-order money signal.
     aov: {
-      entity: "order_transaction",
+      entity: "order_transactions",
       filters: { reference: "capture" },
       currency_key: "currency_code",
       aggregates: {
-        amount: { fn: "avg", field: "amount", range: { date_field: "created_at", last_days: 30 } },
+        amount: { fn: "avg", field: "amount", range: { date_field: "created_at" } },
       },
       echo: { currency: true },
     },
