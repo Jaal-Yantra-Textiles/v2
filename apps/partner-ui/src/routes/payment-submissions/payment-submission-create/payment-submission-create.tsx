@@ -739,10 +739,18 @@ const RunRow = ({
           </Badge>
           {run.billing_status === "partly_billed" && !blocked && (
             <Tooltip
-              content={`Part of this run has already been paid for. ${run.billable_remaining} of ${run.ordered_quantity} units are still billable.`}
+              content={
+                run.open_ended
+                  ? "Part of this run has already been paid for. It has no agreed quantity, so there is no cap on what may still be billed."
+                  : `Part of this run has already been paid for. ${run.billable_remaining} of ${run.ordered_quantity} units are still billable.`
+              }
             >
               <Badge color="blue" size="2xsmall">
-                {run.billable_remaining} left to bill
+                {/* #1676 — an open-ended run's remainder is null because there
+                  * is no ceiling. Rendering it raw printed "null left to bill". */}
+                {run.open_ended
+                  ? "no cap on what's left"
+                  : `${run.billable_remaining} left to bill`}
               </Badge>
             </Tooltip>
           )}
@@ -761,9 +769,25 @@ const RunRow = ({
         </div>
         <div className="mt-1 flex items-center gap-3">
           <Text size="small" className="text-ui-fg-subtle">
-            {run.quantity_basis === "produced"
-              ? `${run.produced_quantity} made of ${run.ordered_quantity} ordered`
-              : `${run.ordered_quantity} ordered`}
+            {/*
+              ⚠️ Read "was output recorded" off `produced_quantity`, NOT off
+              `quantity_basis`. Since #1676 the offer is capped at the ordered
+              quantity, so an OVERPRODUCED run reports its basis as "ordered"
+              while having recorded output — and `ordered_quantity` is null on a
+              run with no agreed quantity at all.
+            */}
+            {run.produced_quantity != null
+              ? `${run.produced_quantity} made of ${
+                  run.ordered_quantity ?? "no agreed quantity"
+                }${
+                  run.ordered_quantity != null &&
+                  run.produced_quantity > run.ordered_quantity
+                    ? " — billing capped at ordered"
+                    : " ordered"
+                }`
+              : run.ordered_quantity != null
+                ? `${run.ordered_quantity} ordered`
+                : "No agreed quantity — open-ended"}
           </Text>
           {/*
             🔴 The TAIL of the id, not the head. `prod_run_` eats 9 characters

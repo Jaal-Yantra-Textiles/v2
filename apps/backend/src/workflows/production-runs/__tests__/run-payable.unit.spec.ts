@@ -295,6 +295,42 @@ describe("runPayableOffer — a total is the agreed price, verbatim", () => {
     expect(offer.payable).toBe(false)
     expect(offer.amount).toBe(0)
   })
+
+  /**
+   * #1676 — the offer is what an operator reads and then acts on, and the write
+   * guard now refuses a claim above the run's agreed quantity, including its
+   * first. Offering more than that would put a number on the screen that
+   * `create` rejects — the very defect `runPayableOffer` exists to prevent.
+   */
+  it("never offers MORE units than were ordered", () => {
+    const offer = runPayableOffer({
+      id: "run_1",
+      partner_cost_estimate: 1200,
+      cost_type: "per_unit",
+      quantity: 9,
+      produced_quantity: 12,
+    })
+
+    expect(offer.quantity).toBe(9)
+    // Honest about the clamp: a produced figure cut back to ordered IS ordered.
+    expect(offer.quantity_basis).toBe("ordered")
+    expect(offer.amount).toBe(10800)
+  })
+
+  it("offers what was made when the run has NO agreed quantity", () => {
+    // An open-ended run (#1676) has no ordered figure to clamp against.
+    const offer = runPayableOffer({
+      id: "run_1",
+      partner_cost_estimate: 1200,
+      cost_type: "per_unit",
+      quantity: null,
+      produced_quantity: 12,
+    })
+
+    expect(offer.quantity).toBe(12)
+    expect(offer.quantity_basis).toBe("produced")
+    expect(offer.amount).toBe(14400)
+  })
 })
 
 describe("resolveRunLinePrice — a derived rate is never written down", () => {

@@ -47,7 +47,12 @@ export type CreateProductionRunInput = {
   // required and the snapshot is built from the product instead of a design.
   design_id?: string | null
   partner_id?: string | null
-  quantity?: number
+  /**
+   * The agreed quantity. Absent = 1, as always; explicit `null` = there is NO
+   * agreed amount, an open-ended run that opts out of the payment ceiling
+   * (#1676). The two are not interchangeable here.
+   */
+  quantity?: number | null
   // #1112 — for runs born already-`completed` (retail fulfillment), stamp the
   // produced yield up front instead of leaving it for the lifecycle to fill.
   produced_quantity?: number
@@ -336,7 +341,16 @@ const createProductionRunStep = createStep(
     const created = await productionRunService.createProductionRuns({
       design_id: input.payload.design_id ?? null,
       partner_id: input.payload.partner_id ?? null,
-      quantity: input.payload.quantity ?? 1,
+      /**
+       * 🔴 An explicit `null` is PRESERVED, not defaulted (#1676). It declares
+       * a run with no agreed quantity — open-ended — and that is the only way
+       * to say it. `?? 1` would have swallowed the declaration and written the
+       * tightest possible ceiling instead of none.
+       *
+       * Omitting the field still means one piece, exactly as before.
+       */
+      quantity:
+        input.payload.quantity === null ? null : (input.payload.quantity ?? 1),
       run_type: input.payload.run_type ?? "production",
       product_id: input.payload.product_id,
       variant_id: input.payload.variant_id,
@@ -478,6 +492,9 @@ export const createProductionRunWorkflow = createWorkflow(
             order_line_item_id: data.input.order_line_item_id,
             product_id: data.input.product_id,
             variant_id: data.input.variant_id,
+            // The SNAPSHOT's own record of what was asked for, not a ceiling
+            // — an open-ended run (`quantity: null`) records 1 here rather than
+            // leaving the provenance blank. Nothing bills from this.
             quantity: data.input.quantity ?? 1,
             partner_id: data.input.partner_id ?? null,
           },

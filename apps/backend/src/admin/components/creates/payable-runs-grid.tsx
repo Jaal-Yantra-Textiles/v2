@@ -257,12 +257,30 @@ export const PayableRunsGrid = ({
           return (
             <DataGridReadOnlyCell context={context}>
               <Text size="small" className="truncate">
-                {run.produced_quantity ?? "—"} of {run.ordered_quantity ?? "—"}
-                {run.quantity_basis === "ordered"
+                {/* #1676 — an open-ended run has no denominator, and "40 of no
+                  * agreed qty" reads as a broken sentence. */}
+                {run.ordered_quantity == null
+                  ? `${run.produced_quantity ?? "—"} produced · no agreed qty`
+                  : `${run.produced_quantity ?? "—"} of ${run.ordered_quantity}`}
+                {/**
+                  * ⚠️ Read "was output recorded" off `produced_quantity`, NOT
+                  * off `quantity_basis`. Since #1676 the offer is capped at the
+                  * ordered figure, so an OVERPRODUCED run reports its basis as
+                  * "ordered" while having recorded output — inferring the note
+                  * from the basis printed "12 of 9 · no output recorded".
+                  *
+                  * ⚠️ Kept SHORT — the cell truncates, and "billing capped at
+                  * ordered" was cut to "…capped at or…". The Qty column beside
+                  * it already shows the clamped figure.
+                  */}
+                {run.produced_quantity == null
                   ? " · no output recorded"
-                  : run.short_closed_at
-                    ? " · closed short"
-                    : ""}
+                  : run.ordered_quantity != null &&
+                      run.produced_quantity > run.ordered_quantity
+                    ? " · billing capped"
+                    : run.short_closed_at
+                      ? " · closed short"
+                      : ""}
               </Text>
             </DataGridReadOnlyCell>
           )

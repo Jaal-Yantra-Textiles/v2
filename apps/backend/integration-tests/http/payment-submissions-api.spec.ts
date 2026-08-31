@@ -941,6 +941,72 @@ setupSharedTestSuite(() => {
       expect(closedRow.payable_quantity).toBe(4)
     })
 
+    /**
+     * #1676 — an open-ended run keeps being offered.
+     *
+     * 🔴 Its `billable_remaining` is null because there is no ceiling to
+     * subtract from, and everywhere else null means "no arithmetic available",
+     * which a screen reads as nothing left. Without `open_ended` on the row the
+     * status folds to `billed` after the FIRST claim and no screen ever offers
+     * the run again — repeated billing is the entire point of the opt-out.
+     */
+    it("keeps offering a run with no agreed quantity after it has been billed (#1676)", async () => {
+      const d1 = await createDesign("Open Ended Row Design", {
+        estimated_cost: 100,
+      })
+      await linkDesignToPartner(d1, partnerId)
+      const runId = await createCompletedRun(d1, "Open Ended Row Design", {
+        quantity: null,
+        produced_quantity: 40,
+        partner_cost_estimate: 100,
+        cost_type: "per_unit",
+      })
+
+      const before = await api.get(
+        `/admin/payment-submissions/payable-runs?partner_id=${partnerId}`,
+        adminHeaders
+      )
+      const row = before.data.payable_runs.find((r: any) => r.run_id === runId)
+      expect(row).toBeDefined()
+      expect(row.open_ended).toBe(true)
+      // Null, not 0. `Number(null)` is 0, and "ordered for nothing" is a very
+      // different statement from "no amount was agreed".
+      expect(row.ordered_quantity).toBeNull()
+      expect(row.payable_quantity).toBe(40)
+      expect(row.billing_status).toBe("clear")
+
+      const first = await api.post(
+        "/admin/payment-submissions",
+        {
+          partner_id: partnerId,
+          design_ids: [d1],
+          quantities: { [d1]: 10 },
+          unit_amounts: { [d1]: 100 },
+          production_run_ids: { [d1]: [runId] },
+        },
+        adminHeaders
+      )
+      expect(first.status).toBe(201)
+      await api.post(
+        `/admin/payment-submissions/${first.data.payment_submission.id}/review`,
+        { action: "approve", paid_to_id: paidToId },
+        adminHeaders
+      )
+
+      const after = await api.get(
+        `/admin/payment-submissions/payable-runs?partner_id=${partnerId}`,
+        adminHeaders
+      )
+      const billedRow = after.data.payable_runs.find(
+        (r: any) => r.run_id === runId
+      )
+      expect(billedRow).toBeDefined()
+      expect(billedRow.open_ended).toBe(true)
+      expect(billedRow.billing_status).toBe("partly_billed")
+      // Null means NO CEILING here, and the row says which of the two it is.
+      expect(billedRow.billable_remaining).toBeNull()
+    })
+
     it("marks a run with no agreed rate unpayable instead of billing zero", async () => {
       // A run with no cost is not a zero-value payout — it is a run whose price
       // has not been settled. Surfaced, not silently dropped.
@@ -2104,6 +2170,106 @@ setupSharedTestSuite(() => {
       expect(over.status).toBe(400)
       expect(over.data.message).toContain("already paid for")
       expect(over.data.message).toContain("1 remaining")
+    })
+
+    /**
+     * #1676 — the FIRST claim was never checked against the run at all.
+     *
+     * `assessRunClaims` diffs against a tally of PRIOR claims, and a run nobody
+     * had billed yet has no tally, so it was skipped entirely: a run ordered
+     * for 9 could be billed at 100 and nothing refused it. Only a short-closed
+     * run was checked, because otherwise the close would have meant nothing.
+     */
+    it("refuses a FIRST claim for more than the run was ordered for (#1676)", async () => {
+      const d1 = await createDesign("First Claim Ceiling Design", {
+        estimated_cost: 5000,
+      })
+      await linkDesignToPartner(d1, partnerId)
+      const runId = await createCompletedRun(d1, "First Claim Ceiling Design", {
+        quantity: 9,
+        produced_quantity: 9,
+      })
+
+      const over = await api
+        .post(
+          "/admin/payment-submissions",
+          {
+            partner_id: partnerId,
+            design_ids: [d1],
+            quantities: { [d1]: 100 },
+            unit_amounts: { [d1]: 1200 },
+            production_run_ids: { [d1]: [runId] },
+          },
+          adminHeaders
+        )
+        .catch((e: any) => e.response)
+
+      expect(over.status).toBe(400)
+      expect(over.data.message).toContain("already paid for")
+      expect(over.data.message).toContain("ordered 9")
+      expect(over.data.message).toContain("asks for 100")
+    })
+
+    it("still allows a first claim within the ordered quantity (#1676)", async () => {
+      // The bound is the agreed amount, not a ban on billing a whole run.
+      const d1 = await createDesign("First Claim Within Design", {
+        estimated_cost: 5000,
+      })
+      await linkDesignToPartner(d1, partnerId)
+      const runId = await createCompletedRun(d1, "First Claim Within Design", {
+        quantity: 9,
+        produced_quantity: 9,
+      })
+
+      const res = await api.post(
+        "/admin/payment-submissions",
+        {
+          partner_id: partnerId,
+          design_ids: [d1],
+          quantities: { [d1]: 9 },
+          unit_amounts: { [d1]: 1200 },
+          production_run_ids: { [d1]: [runId] },
+        },
+        adminHeaders
+      )
+
+      expect(res.status).toBe(201)
+      expect(Number(res.data.payment_submission.total_amount)).toBe(10800)
+    })
+
+    /**
+     * #1676 — the opt-out that makes the ceiling safe to impose.
+     *
+     * A run created with NO agreed quantity is open-ended: ongoing work with no
+     * fixed order, billed as it comes. `quantity` defaulted to 1 and was NOT
+     * NULL until this issue, so "no agreed amount" was unrepresentable — an
+     * unset quantity read as a run ordered for one piece, the tightest possible
+     * ceiling rather than the absence of one.
+     */
+    it("does not cap a run created with NO agreed quantity (#1676)", async () => {
+      const d1 = await createDesign("Open Ended Run Design", {
+        estimated_cost: 5000,
+      })
+      await linkDesignToPartner(d1, partnerId)
+      const runId = await createCompletedRun(d1, "Open Ended Run Design", {
+        quantity: null,
+        produced_quantity: 40,
+      })
+
+      const res = await api.post(
+        "/admin/payment-submissions",
+        {
+          partner_id: partnerId,
+          design_ids: [d1],
+          quantities: { [d1]: 40 },
+          unit_amounts: { [d1]: 1200 },
+          production_run_ids: { [d1]: [runId] },
+        },
+        adminHeaders
+      )
+
+      expect(res.status).toBe(201)
+      expect(Number(res.data.payment_submission.total_amount)).toBe(48000)
     })
 
     it("still refuses a second claim that states no quantity (#1596)", async () => {

@@ -39,6 +39,12 @@ export interface PayableRun {
    * refuses. A number here is a promise `create` will keep.
    */
   billable_remaining: number | null
+  /**
+   * #1676 — no agreed quantity, so nothing caps what may be billed against
+   * this run. A null `billable_remaining` beside this means "no ceiling", not
+   * "nothing left".
+   */
+  open_ended: boolean
 }
 
 export interface PayableRunsListResponse {

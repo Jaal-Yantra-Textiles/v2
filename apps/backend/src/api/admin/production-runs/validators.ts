@@ -19,7 +19,12 @@ const RunMaterialSchema = z.object({
 const AssignmentSchema = z.object({
   partner_id: z.string().min(1),
   role: z.string().optional(),
-  quantity: z.number().optional(),
+  /**
+   * Units for this child run. Omit to inherit the parent's; `null` declares
+   * this child OPEN-ENDED — no agreed quantity, and so no ceiling on what may
+   * be billed against it (#1676).
+   */
+  quantity: z.number().nullish(),
   order: z.number().int().positive().optional(),
   // `.nullish()` (= optional + nullable) accepts undefined, null, or
   // an array. The admin UI sends `null` when the "Send to production"
@@ -55,7 +60,15 @@ const AssignmentSchema = z.object({
 export const AdminCreateProductionRunReq = z.object({
   design_id: z.string().min(1),
   partner_id: z.string().optional(),
-  quantity: z.number().optional(),
+  /**
+   * The agreed quantity. Omit it and the run is ordered for 1, as always.
+   *
+   * 🔴 `null` is NOT the same as omitting it (#1676): it declares that this run
+   * has no agreed amount — open-ended, ongoing work — and that declaration opts
+   * the run out of the payment ceiling, so nothing refuses a claim against it.
+   * `.nullish()` rather than `.optional()` exists solely to let that be said.
+   */
+  quantity: z.number().nullish(),
   run_type: z.enum(["production", "sample"]).optional(),
   product_id: z.string().optional(),
   variant_id: z.string().optional(),

@@ -142,6 +142,17 @@ const ProductionRunDetailPage = () => {
   const producedQty = Number(run?.produced_quantity)
   const orderedQty = Number(run?.quantity)
   /**
+   * #1676 — no agreed quantity. Not "we don't know yet": a deliberate
+   * declaration that this run is open-ended, which is why it prints as a phrase
+   * rather than as a dash. Payment claims against it are uncapped until it is
+   * short-closed, and the screen has to say so — an uncapped run that looks
+   * identical to a run ordered for one piece is how the opt-out gets used by
+   * accident.
+   *
+   * ⚠️ Strictly `null`. `undefined` is the field not having loaded.
+   */
+  const isOpenEnded = run?.quantity === null
+  /**
    * What may be billed IN TOTAL, mirroring `runBillableCeiling` on the server.
    * Ordered quantity until the run is closed, then what it produced — and never
    * a reduction inferred from missing data.
@@ -527,8 +538,19 @@ const ProductionRunDetailPage = () => {
                       */}
                     <Text size="xsmall" className="text-ui-fg-subtle">
                       {billing.claim?.claimed_quantity} of{" "}
-                      {String(billableCeiling ?? run.quantity ?? "-")} billed —{" "}
-                      {billing.billable_remaining} still billable
+                      {billableCeiling != null
+                        ? String(billableCeiling)
+                        : isOpenEnded
+                          ? "no agreed quantity"
+                          : String(run.quantity ?? "-")}{" "}
+                      billed —{" "}
+                      {/* #1676 — an open-ended run's remainder is null because
+                        * there is no ceiling to subtract from. Printed raw it
+                        * read "null still billable", which is the one reading
+                        * it must never have. */}
+                      {isOpenEnded
+                        ? "no cap on what may still be billed"
+                        : `${billing.billable_remaining} still billable`}
                       {isShortClosed ? " (short-closed)" : ""}.
                     </Text>
                   </div>
@@ -551,7 +573,16 @@ const ProductionRunDetailPage = () => {
               <Text size="small" className="text-ui-fg-subtle">
                 Quantity
               </Text>
-              <Text>{String(run.quantity ?? "-")}</Text>
+              {isOpenEnded ? (
+                <div className="flex flex-col gap-y-1">
+                  <Text>Open-ended</Text>
+                  <Text size="xsmall" className="text-ui-fg-subtle">
+                    No agreed quantity — payouts against this run are not capped.
+                  </Text>
+                </div>
+              ) : (
+                <Text>{String(run.quantity ?? "-")}</Text>
+              )}
             </div>
             <div>
               <Text size="small" className="text-ui-fg-subtle">
@@ -608,29 +639,39 @@ const ProductionRunDetailPage = () => {
                   Output / Yield
                 </Text>
                 <div className="flex items-center gap-4 mt-1">
+                  {/**
+                    * ⚠️ A yield needs a DENOMINATOR. An open-ended run (#1676)
+                    * has none, and this block rendered "40 of  produced" beside
+                    * a "0% yield" badge — a run that made 40 pieces reported as
+                    * having made none of them.
+                    */}
                   <Text size="small">
-                    {run.produced_quantity} of {run.quantity} produced
+                    {isOpenEnded
+                      ? `${run.produced_quantity} produced (no agreed quantity)`
+                      : `${run.produced_quantity} of ${run.quantity} produced`}
                   </Text>
                   {(run.rejected_quantity || 0) > 0 && (
                     <Text size="small" className="text-ui-fg-error">
                       {run.rejected_quantity} rejected
                     </Text>
                   )}
-                  <Badge
-                    size="2xsmall"
-                    color={
-                      run.quantity > 0 && run.produced_quantity / run.quantity >= 0.9
-                        ? "green"
-                        : run.produced_quantity / run.quantity >= 0.7
-                          ? "orange"
-                          : "red"
-                    }
-                  >
-                    {run.quantity > 0
-                      ? Math.round((run.produced_quantity / run.quantity) * 100)
-                      : 0}
-                    % yield
-                  </Badge>
+                  {!isOpenEnded && (
+                    <Badge
+                      size="2xsmall"
+                      color={
+                        run.quantity > 0 && run.produced_quantity / run.quantity >= 0.9
+                          ? "green"
+                          : run.produced_quantity / run.quantity >= 0.7
+                            ? "orange"
+                            : "red"
+                      }
+                    >
+                      {run.quantity > 0
+                        ? Math.round((run.produced_quantity / run.quantity) * 100)
+                        : 0}
+                      % yield
+                    </Badge>
+                  )}
                 </div>
                 {run.rejection_reason && (
                   <Text size="xsmall" className="text-ui-fg-subtle mt-1">
@@ -658,9 +699,14 @@ const ProductionRunDetailPage = () => {
                 <div className="mt-1 flex flex-col gap-y-1">
                   <Text size="small">
                     Closed at{" "}
-                    {formatQty(run.short_closed_quantity ?? run.produced_quantity)} of{" "}
-                    {formatQty(run.quantity)} ordered — no further output
-                    expected, and the run bills to what it produced.
+                    {formatQty(run.short_closed_quantity ?? run.produced_quantity)}{" "}
+                    {/* An open-ended run (#1676) has nothing to close "of" —
+                      * closing it is what gives it a ceiling at all. */}
+                    {isOpenEnded
+                      ? "(no agreed quantity)"
+                      : `of ${formatQty(run.quantity)} ordered`}{" "}
+                    — no further output expected, and the run bills to what it
+                    produced.
                   </Text>
                   <Text size="xsmall" className="text-ui-fg-subtle">
                     {run.short_closed_by === "system"

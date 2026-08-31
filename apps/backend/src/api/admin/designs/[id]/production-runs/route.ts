@@ -143,7 +143,7 @@ export const POST = async (
     })
     const linkedPartners = designs?.[0]?.partners || []
 
-    if (linkedPartners.length && body.quantity) {
+    if (linkedPartners.length && body.quantity != null) {
       // Single partner: assign full quantity
       // Multiple partners: split equally (admin can adjust via explicit assignments)
       const perPartner = Math.ceil(Number(body.quantity) / linkedPartners.length)
@@ -158,33 +158,69 @@ export const POST = async (
         template_ids: body.template_ids || [],
         template_names: body.template_names || [],
       }))
+    } else if (linkedPartners.length && body.quantity === null) {
+      /**
+       * An OPEN-ENDED parent (#1676). There is no quantity to split, so every
+       * linked partner gets an open-ended share rather than none at all —
+       * without this branch the run would be created with no children, which
+       * looks like the same request quietly doing less.
+       */
+      assignments = linkedPartners.map((p: any) => ({
+        partner_id: p.id,
+        quantity: null,
+        template_ids: body.template_ids || [],
+        template_names: body.template_names || [],
+      }))
     }
   }
 
-  let parentQuantity: number | undefined = body.quantity
+  /**
+   * ⚠️ Three states, not two (#1676): a number, `undefined` (infer it), and
+   * `null` (there is NO agreed quantity — an open-ended run, outside the
+   * payment ceiling). `parentQuantity ?? total` collapsed the last two, which
+   * would have silently un-declared open-endedness by filling in the sum.
+   */
+  const statedQuantity: number | null | undefined = body.quantity
+  let parentQuantity: number | null | undefined = statedQuantity
 
   if (assignments.length) {
-    const missingQty = assignments.some((a) => typeof a.quantity !== "number")
+    const missingQty = assignments.some(
+      (a) => a.quantity !== null && typeof a.quantity !== "number"
+    )
     if (missingQty) {
       throw new MedusaError(
         MedusaError.Types.INVALID_DATA,
-        "All assignments must include quantity"
+        "All assignments must include quantity, or null for an open-ended one"
       )
     }
 
+    const anyOpenEnded = assignments.some((a) => a.quantity === null)
     const total = assignments.reduce(
       (sum, a) => sum + (Number(a.quantity) || 0),
       0
     )
 
-    if (body.quantity != null && Number(body.quantity) !== total) {
+    /**
+     * The sum rule only applies when every share is a number. One open-ended
+     * child makes the total unknowable — refusing on a sum that cannot be
+     * computed would just be refusing the feature.
+     */
+    if (
+      statedQuantity != null &&
+      !anyOpenEnded &&
+      Number(statedQuantity) !== total
+    ) {
       throw new MedusaError(
         MedusaError.Types.INVALID_DATA,
-        `Assignments quantity sum (${total}) must match parent quantity (${body.quantity})`
+        `Assignments quantity sum (${total}) must match parent quantity (${statedQuantity})`
       )
     }
 
-    parentQuantity = parentQuantity ?? total
+    if (statedQuantity === undefined) {
+      // Inferred, as before — except that an open-ended child makes the parent
+      // open-ended too rather than understating it by that child's share.
+      parentQuantity = anyOpenEnded ? null : total
+    }
   }
 
   const { result: createdRun, errors } = await createProductionRunWorkflow(

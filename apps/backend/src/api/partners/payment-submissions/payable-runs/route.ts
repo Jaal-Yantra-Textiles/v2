@@ -146,11 +146,25 @@ export const GET = async (
       const produced = Number(run.produced_quantity)
       const hasProduced = Number.isFinite(produced) && produced > 0
       const ordered = Number(run.quantity)
-      const payable_quantity = hasProduced
-        ? produced
-        : Number.isFinite(ordered) && ordered > 0
-          ? ordered
-          : 1
+      const hasOrdered = Number.isFinite(ordered) && ordered > 0
+      const offered = hasProduced ? produced : hasOrdered ? ordered : 1
+      /**
+       * 🔴 Never more than was ORDERED (#1676). The write guard refuses a claim
+       * above the run's agreed quantity — including the run's FIRST claim — so
+       * offering the raw produced figure would put a number on the partner's
+       * screen that `create` then rejects. A run with no agreed quantity has no
+       * `ordered` to clamp against, and offers what was made.
+       *
+       * ⚠️ This route prices with its OWN arithmetic (`runUnitCost` x quantity)
+       * rather than `runPayableOffer`, which the admin screen and `create` both
+       * use. That divergence predates this change and is the shape of #1679 —
+       * a derived rate re-multiplied — sitting on the partner screen. The clamp
+       * is duplicated here rather than left out; unifying the pricer is its own
+       * change.
+       */
+      const payable_quantity = hasOrdered
+        ? Math.min(offered, ordered)
+        : offered
 
       return {
         run_id: String(run.id),
@@ -158,14 +172,28 @@ export const GET = async (
         design_name: design?.name ?? null,
         design_status: design?.status ?? null,
         completed_at: run.completed_at ?? null,
-        ordered_quantity: Number.isFinite(ordered) ? ordered : null,
+        /**
+         * ⚠️ `Number(null)` is 0, so a run with NO agreed quantity (#1676) used
+         * to report `ordered_quantity: 0` — a run ordered for nothing, which is
+         * a different and much worse statement than "no amount was agreed".
+         * Read the raw field, not the coercion.
+         */
+        ordered_quantity:
+          run.quantity === null || run.quantity === undefined
+            ? null
+            : Number.isFinite(ordered)
+              ? ordered
+              : null,
         produced_quantity: hasProduced ? produced : null,
         rejected_quantity:
           run.rejected_quantity === null || run.rejected_quantity === undefined
             ? null
             : Number(run.rejected_quantity),
         payable_quantity,
-        quantity_basis: hasProduced ? "produced" : "ordered",
+        // Honest about the clamp: a produced figure cut back to ordered IS
+        // ordered — the same rule `runPayableOffer` applies.
+        quantity_basis:
+          hasProduced && payable_quantity === produced ? "produced" : "ordered",
         unit_amount,
         amount: Math.round(unit_amount * payable_quantity * 100) / 100,
         cost_type: run.cost_type ?? null,
@@ -185,6 +213,12 @@ export const GET = async (
             ? null
             : Number(design.production_cost),
         billed: billedRuns.get(String(run.id)) ?? null,
+        /**
+         * #1676 — the run states NO agreed quantity, so the offer is not
+         * capped. Null `billable_remaining` beside this means "no ceiling",
+         * not "nothing left".
+         */
+        open_ended: run.quantity === null || run.quantity === undefined,
         // Units still billable (#1596). Null when there is no arithmetic
         // behind the answer — which is exactly when `create` refuses.
         billable_remaining: runBillableRemaining({
@@ -207,6 +241,9 @@ export const GET = async (
         billed: row.billed,
         unrecordedClaims: row.unrecorded_claims,
         remaining: row.billable_remaining,
+        // #1676 — without this an open-ended run reads as fully `billed` after
+        // its first claim and this screen would never offer it again.
+        openEnded: row.open_ended,
       }),
     }))
     .sort((a, b) => {

@@ -16,7 +16,8 @@ const PRODUCTION_RUNS_QUERY_KEY = "production-runs" as const
 export const productionRunQueryKeys = queryKeysFactory(PRODUCTION_RUNS_QUERY_KEY)
 
 export type AdminCreateDesignProductionRunPayload = {
-  quantity?: number
+  /** `null` = no agreed quantity: an open-ended run (#1676). Omitted = 1. */
+  quantity?: number | null
   run_type?: string
   assignments?: Array<{
     partner_id: string
@@ -35,6 +36,15 @@ export type AdminProductionRun = Record<string, any> & {
   run_type?: "production" | "sample"
   partner_id?: string | null
   design_id?: string
+  /**
+   * The AGREED quantity — how many units the run was ordered for.
+   *
+   * 🔴 `null` is a statement, not a gap (#1676): this run has NO agreed amount.
+   * It is open-ended, and payment claims against it are not capped. Declared
+   * explicitly at creation or before the partner accepts; never inferred.
+   */
+  quantity?: number | null
+  produced_quantity?: number | null
   /**
    * #1596 — short close. Set means "no more will be made": the run's billable
    * ceiling is its PRODUCED quantity from here, not its ordered one.
@@ -367,7 +377,8 @@ export const useAssignProductionRunPartner = (
 }
 
 export type AdminUpdateProductionRunPayload = {
-  quantity?: number
+  /** `null` clears the agreed quantity — an open-ended run (#1676). */
+  quantity?: number | null
   role?: string
   run_type?: string
   partner_cost_estimate?: number | null
@@ -799,6 +810,12 @@ export type ProductionRunBilling = {
   } | null
   /** Units still billable, or null when there is no arithmetic behind it. */
   billable_remaining: number | null
+  /**
+   * #1676 — the run states NO agreed quantity, so nothing caps what may be
+   * billed against it. When true, a null `billable_remaining` means "no
+   * ceiling", NOT "nothing left"; the two must not render the same way.
+   */
+  open_ended: boolean
   unrecorded_claims: Array<{
     submission_id: string
     status: string

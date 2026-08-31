@@ -28,6 +28,7 @@ import {
   runBillableRemaining,
   runBillingStatus,
 } from "../../../../../workflows/payment_submissions/lib/run-billing"
+import { runBillableCeiling } from "../../../../../workflows/payment_submissions/lib/run-billable-ceiling"
 
 export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
   const { id } = req.params
@@ -107,13 +108,17 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
     }))
 
   /**
-   * Units still billable on this run (#1596). `retrieveProductionRun` returns
-   * the whole row, so `quantity` — the ceiling the write guard uses — is
-   * genuinely present rather than merely typed.
+   * Units still billable on this run (#1596).
+   *
+   * 🔴 The CEILING, not the raw ordered quantity. Since the short close the two
+   * are different numbers on a closed run, and this route was still reading
+   * `run.quantity` — so the run page offered units the write guard refuses.
+   * `retrieveProductionRun` returns the whole row, so `produced_quantity` and
+   * `short_closed_at` are genuinely present rather than merely typed.
    */
   const billable_remaining = runBillableRemaining({
     claim,
-    ordered: run.quantity,
+    ordered: runBillableCeiling(run as any),
   })
 
   return res.status(200).json({
@@ -124,7 +129,14 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
       billed: claim,
       unrecordedClaims: unrecorded_claims,
       remaining: billable_remaining,
+      // #1676 — an open-ended run has no ceiling, so its remainder is null;
+      // without this it would report `billed` after one claim and the run page
+      // would say the work is fully paid for when more may still be billed.
+      openEnded: run.quantity === null || run.quantity === undefined,
     }),
+    /** #1676 — no agreed quantity. `billable_remaining` is null because there
+     *  is no ceiling, NOT because nothing is left. */
+    open_ended: run.quantity === null || run.quantity === undefined,
     claim,
     billable_remaining,
     unrecorded_claims,

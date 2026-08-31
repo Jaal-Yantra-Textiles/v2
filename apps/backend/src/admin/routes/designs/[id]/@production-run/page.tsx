@@ -5,6 +5,7 @@ import {
   Container,
   Heading,
   Input,
+  Label,
   Select,
   Switch,
   Text,
@@ -37,7 +38,15 @@ import {
 const assignmentSchema = z.object({
   partner_id: z.string().min(1, "Partner is required"),
   role: z.string().optional(),
-  quantity: z.coerce.number().positive("Quantity must be > 0"),
+  /**
+   * Units for this partner's child run.
+   *
+   * 🔴 `null` is a DECLARATION (#1676): this run has no agreed quantity —
+   * open-ended, ongoing work — and payouts against it are not capped at an
+   * agreed amount. `.nullable()` sits outside the coercion on purpose: coercing
+   * null would make it 0, which is a broken number rather than a statement.
+   */
+  quantity: z.coerce.number().positive("Quantity must be > 0").nullable(),
   order: z.coerce.number().int().positive().optional(),
   template_names: z.array(z.string()).optional(),
   template_ids: z.array(z.string()).optional(),
@@ -65,7 +74,8 @@ type FormValues = z.infer<typeof createSchema>
 type Assignment = {
   partner_id: string
   role?: string
-  quantity: number
+  /** `null` = no agreed quantity, an open-ended run (#1676). */
+  quantity: number | null
   order?: number
   template_names?: string[]
   template_ids?: string[]
@@ -318,11 +328,32 @@ const AssignmentsModal = ({
                     <Input
                       type="number"
                       min={1}
-                      value={assignment.quantity ?? ""}
+                      disabled={assignment.quantity === null}
+                      value={
+                        assignment.quantity === null
+                          ? ""
+                          : (assignment.quantity ?? "")
+                      }
                       onChange={(e) =>
                         updateField(idx, "quantity", e.target.value ? Number(e.target.value) : "")
                       }
                     />
+                    <div className="mt-2 flex items-center gap-x-2">
+                      {/* #1676 — a run with NO agreed quantity is deliberately
+                        * open-ended, and payouts against it are not capped at
+                        * an agreed amount. A switch rather than an empty box:
+                        * an empty box is somebody who has not typed yet. */}
+                      <Switch
+                        id={`assignment-open-ended-${idx}`}
+                        checked={assignment.quantity === null}
+                        onCheckedChange={(checked) =>
+                          updateField(idx, "quantity", checked ? null : 1)
+                        }
+                      />
+                      <Label size="xsmall" htmlFor={`assignment-open-ended-${idx}`}>
+                        No agreed quantity (open-ended) — payouts uncapped
+                      </Label>
+                    </div>
                   </div>
 
                   <div>

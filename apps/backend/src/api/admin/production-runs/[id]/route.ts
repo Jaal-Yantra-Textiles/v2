@@ -195,7 +195,30 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
         "Cannot edit a completed production run"
       )
     }
-    if (body.quantity !== undefined) update.quantity = Number(body.quantity)
+    /**
+     * 🔴 `null` CLEARS the agreed quantity (#1676) — an open-ended run, with no
+     * ceiling on what may be claimed against it. `Number(null)` is 0, which
+     * would have written the opposite: a quantity that IS set and is unusable,
+     * which every payment guard refuses outright.
+     *
+     * Still gated by the structural check above, so this can only be said
+     * before the partner accepts or starts. Removing the agreed amount after
+     * work began would rewrite the deal retroactively.
+     */
+    if (body.quantity !== undefined) {
+      if (body.quantity === null) {
+        update.quantity = null
+      } else {
+        const quantity = Number(body.quantity)
+        if (!Number.isFinite(quantity) || quantity <= 0) {
+          throw new MedusaError(
+            MedusaError.Types.INVALID_DATA,
+            "quantity must be a positive number, or null for a run with no agreed quantity"
+          )
+        }
+        update.quantity = quantity
+      }
+    }
     if (body.role !== undefined) update.role = body.role
     if (body.run_type !== undefined) update.run_type = body.run_type
   }

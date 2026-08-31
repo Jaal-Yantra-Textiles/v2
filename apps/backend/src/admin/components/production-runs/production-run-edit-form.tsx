@@ -1,5 +1,5 @@
 import { zodResolver } from "@hookform/resolvers/zod"
-import { Button, Input, Select, toast } from "@medusajs/ui"
+import { Button, Input, Label, Select, Switch, Text, toast } from "@medusajs/ui"
 import { z } from "@medusajs/framework/zod"
 import { useForm } from "react-hook-form"
 
@@ -14,6 +14,15 @@ import {
 
 const schema = z.object({
   quantity: z.number().int().min(1).optional(),
+  /**
+   * #1676 — this run has NO agreed quantity: open-ended, ongoing work.
+   *
+   * A separate switch rather than "leave the box empty", because an empty box
+   * is a person who has not typed yet. Declaring open-endedness removes the
+   * ceiling on what may be billed against this run, so it has to be an act,
+   * not an omission.
+   */
+  open_ended: z.boolean().optional(),
   role: z.string().optional(),
   run_type: z.enum(["production", "sample"]).optional(),
 })
@@ -32,6 +41,7 @@ export const EditProductionRunForm = ({ run }: EditProductionRunFormProps) => {
     resolver: zodResolver(schema),
     defaultValues: {
       quantity: run.quantity ?? undefined,
+      open_ended: run.quantity === null,
       role: run.role ?? "",
       run_type: (run.run_type as "production" | "sample") ?? "production",
     },
@@ -39,8 +49,15 @@ export const EditProductionRunForm = ({ run }: EditProductionRunFormProps) => {
 
   const onSubmit = form.handleSubmit(async (data) => {
     const payload: Record<string, any> = {}
-    if (data.quantity !== undefined && data.quantity !== run.quantity) {
-      payload.quantity = data.quantity
+    /**
+     * `null` is sent DELIBERATELY, and only when the switch is on — the API
+     * reads it as "no agreed quantity" rather than as a missing field. An
+     * untouched form still sends nothing.
+     */
+    const nextQuantity = data.open_ended ? null : data.quantity
+    const currentQuantity = run.quantity ?? null
+    if (nextQuantity !== undefined && nextQuantity !== currentQuantity) {
+      payload.quantity = nextQuantity
     }
     if ((data.role ?? "") !== (run.role ?? "")) {
       payload.role = data.role || undefined
@@ -62,6 +79,7 @@ export const EditProductionRunForm = ({ run }: EditProductionRunFormProps) => {
   })
 
   const isOverride = !!run.accepted_at || !!run.started_at
+  const openEnded = !!form.watch("open_ended")
 
   return (
     <RouteDrawer.Form form={form}>
@@ -109,7 +127,8 @@ export const EditProductionRunForm = ({ run }: EditProductionRunFormProps) => {
                     type="number"
                     min={1}
                     {...field}
-                    value={field.value ?? ""}
+                    disabled={openEnded}
+                    value={openEnded ? "" : (field.value ?? "")}
                     onChange={(e) =>
                       field.onChange(
                         e.target.value === "" ? undefined : Number(e.target.value)
@@ -117,6 +136,30 @@ export const EditProductionRunForm = ({ run }: EditProductionRunFormProps) => {
                     }
                   />
                 </Form.Control>
+                <Form.ErrorMessage />
+              </Form.Item>
+            )}
+          />
+          <Form.Field
+            control={form.control}
+            name="open_ended"
+            render={({ field: { value, onChange } }) => (
+              <Form.Item>
+                <div className="flex items-center gap-x-2">
+                  <Switch
+                    id="production-run-open-ended"
+                    checked={!!value}
+                    onCheckedChange={(checked) => onChange(!!checked)}
+                  />
+                  <Label size="xsmall" htmlFor="production-run-open-ended">
+                    No agreed quantity (open-ended)
+                  </Label>
+                </div>
+                <Text size="xsmall" className="text-ui-fg-subtle">
+                  Ongoing work with no fixed order. Payments against this run
+                  are not capped at an agreed quantity — nothing will refuse a
+                  claim for more than was ordered, because nothing was ordered.
+                </Text>
                 <Form.ErrorMessage />
               </Form.Item>
             )}

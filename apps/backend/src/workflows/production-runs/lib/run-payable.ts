@@ -88,7 +88,8 @@ export const runUnitCost = (run: RunForPayout | null | undefined): number => {
  * A figure an operator reads is not the figure that gets written, and the
  * created Draft looks authoritative either way.
  *
- * ⚠️ The quantity is PRODUCED where output was recorded, ordered otherwise —
+ * ⚠️ The quantity is PRODUCED where output was recorded, ordered otherwise,
+ * and never above what was ordered (#1676) —
  * which is deliberately NOT `runPayableAmount`'s multiplier. That function
  * bills the ordered quantity (#456, and the unified-order dual-write depends on
  * it); this one bills what the screen offers. The two answer different
@@ -106,7 +107,11 @@ export type RunPayableOffer = {
   unit_amount: number
   /** Whether `unit_amount` was computed rather than agreed. */
   unit_is_derived: boolean
-  /** Units billed — produced where recorded, else ordered, never below 1. */
+  /**
+   * Units billed — produced where recorded, else ordered; never below 1 and
+   * never above the ordered quantity, which is the ceiling the write guard
+   * enforces (#1676).
+   */
   quantity: number
   quantity_basis: "produced" | "ordered"
   /**
@@ -137,11 +142,28 @@ export const runPayableOffer = (
   const produced = Number(run?.produced_quantity)
   const hasProduced = Number.isFinite(produced) && produced > 0
   const ordered = Number(run?.quantity)
-  const quantity = hasProduced
-    ? produced
-    : Number.isFinite(ordered) && ordered > 0
-      ? ordered
-      : 1
+  const hasOrdered = Number.isFinite(ordered) && ordered > 0
+  const offered = hasProduced ? produced : hasOrdered ? ordered : 1
+  /**
+   * 🔴 Never more than was ORDERED (#1676).
+   *
+   * The offer is what an operator reads and then acts on, and from #1676 the
+   * write guard refuses a claim above the run's agreed quantity — including
+   * the run's very first claim. Offering the produced figure unclamped would
+   * put a number on the screen that `create` then rejects, which is the exact
+   * defect `runPayableOffer` was extracted to prevent (#1616): a figure an
+   * operator reads must be the figure that gets written.
+   *
+   * A run that genuinely overproduced is not being cheated silently — the row
+   * still prints `produced_quantity` beside this, and the honest routes are to
+   * correct the ordered quantity (an audited edit) or to run open-ended. A run
+   * with NO agreed quantity has no `ordered` to clamp against, so it offers
+   * what was made.
+   */
+  const quantity = hasOrdered ? Math.min(offered, ordered) : offered
+  /** Honest about the clamp: a produced figure cut back to ordered IS ordered. */
+  const quantity_basis: "produced" | "ordered" =
+    hasProduced && quantity === produced ? "produced" : "ordered"
 
   const agreed = Number(run?.partner_cost_estimate)
   const hasAgreed = Number.isFinite(agreed) && agreed > 0
@@ -158,7 +180,7 @@ export const runPayableOffer = (
       unit_amount: 0,
       unit_is_derived: false,
       quantity,
-      quantity_basis: hasProduced ? "produced" : "ordered",
+      quantity_basis,
       amount: 0,
       payable: false,
     }
@@ -171,7 +193,7 @@ export const runPayableOffer = (
       unit_amount: agreed,
       unit_is_derived: false,
       quantity,
-      quantity_basis: hasProduced ? "produced" : "ordered",
+      quantity_basis,
       amount: Math.round(agreed * quantity * 100) / 100,
       payable: true,
     }
@@ -187,7 +209,7 @@ export const runPayableOffer = (
     unit_amount: Math.round((agreed / quantity) * 100) / 100,
     unit_is_derived: true,
     quantity,
-    quantity_basis: hasProduced ? "produced" : "ordered",
+    quantity_basis,
     amount: agreed,
     payable: true,
   }
