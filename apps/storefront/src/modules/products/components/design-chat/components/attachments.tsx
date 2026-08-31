@@ -154,7 +154,14 @@ export function AttachButton({
       <input
         ref={inputRef}
         type="file"
-        accept="image/jpeg,image/png,image/webp,image/gif"
+        /**
+         * Kept in step with `ACCEPTED_TYPES` in `lib/design-uploads`, which is
+         * itself kept in step with the upload route's own list. A type the
+         * picker filters out never reaches the validator that would have
+         * accepted it — the maker just sees their photo greyed out with no
+         * reason given. HEIC matters here: it is what an iPhone hands you.
+         */
+        accept="image/jpeg,image/png,image/webp,image/gif,image/avif,image/heic,image/heif"
         multiple
         onChange={handleChange}
         className="hidden"

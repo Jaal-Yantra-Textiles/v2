@@ -38,6 +38,7 @@ import {
   readGenerationReference,
   appendCanvasElements,
   markActiveCanvas,
+  appendInspirationElements,
   type CanvasScene,
   type CanvasMarker,
 } from "../../../modules/designs/lib/canvas-scene"
@@ -46,11 +47,148 @@ import { createDesignWorkflow } from "../../../workflows/designs/create-design"
 import { linkProductWithDesignWorkflow } from "../../../workflows/products/link-unlink-products-with-designs"
 import { generateDesignAiImageWorkflow } from "../../../workflows/ai/generate-design-image"
 import { analyzeReferenceImages } from "./storefront-design-analysis"
+import designCustomerLink from "../../../links/design-customer-link"
 
 // ── Shared resolvers ───────────────────────────────────────────────────
 
 const resolveDesignService = (container: MedusaContainer): DesignService =>
   container.resolve(DESIGN_MODULE) as unknown as DesignService
+
+/**
+ * ── The design a chat is already working on ─────────────────────────────
+ *
+ * 🔴 #1689: one ask produced TWO designs, 24 seconds apart. `create_design`
+ * was described as idempotent, and it is — but only against
+ * `context.design_id`, which is supplied by the CLIENT. The client learns the
+ * id by scanning the finished turn's tool output, so:
+ *
+ *   - two `create_design` calls inside ONE turn both see an empty context, and
+ *   - a turn whose tool parts the client failed to read leaves the next turn
+ *     with an empty context too.
+ *
+ * Either way the "idempotent" tool mints a second design. An idempotency key
+ * that only the client can supply is not an idempotency key.
+ *
+ * So the maker is asked instead of the client: does this maker already have a
+ * chat design open? Bounded three ways, because "reuse the maker's design" is
+ * a dangerous instruction without limits — it must never adopt a design from
+ * last week that they have since sent to a partner.
+ *
+ *   1. it came from THIS flow (the `chat-editor` tag),
+ *   2. it is still `Conceptual` — nothing downstream has happened to it,
+ *   3. it was created inside the window below.
+ *
+ * A maker who wants a genuinely new design says "start a new design", which
+ * the client handles as a domain keyword — and would otherwise land here. That
+ * is what the window is for: a new session tomorrow is a new design; a second
+ * tool call this minute is the same one.
+ */
+const OPEN_CHAT_DESIGN_WINDOW_MS = 2 * 60 * 60 * 1000
+
+export const findOpenChatDesign = async (
+  container: MedusaContainer,
+  customerId: string
+): Promise<string | null> => {
+  const query = container.resolve(ContainerRegistrationKeys.QUERY) as any
+  const { data: links = [] } = await query
+    .graph({
+      entity: designCustomerLink.entryPoint,
+      fields: ["design_id"],
+      filters: { customer_id: customerId },
+    })
+    .catch(() => ({ data: [] }))
+
+  // ⚠️ An empty relation comes back as a single all-null row, not an empty
+  // array — filter on the value, not on `links.length`.
+  const designIds = [
+    ...new Set(
+      (links as any[]).map((l) => l?.design_id).filter((id): id is string => !!id)
+    ),
+  ]
+  if (!designIds.length) return null
+
+  const designService = resolveDesignService(container)
+  const designs: any[] = await (designService as any)
+    .listDesigns(
+      { id: designIds, status: "Conceptual" },
+      { order: { created_at: "DESC" }, take: 50 }
+    )
+    .catch(() => [])
+
+  const cutoff = Date.now() - OPEN_CHAT_DESIGN_WINDOW_MS
+  const open = designs.find((d) => {
+    const tags = Array.isArray(d?.tags) ? d.tags : []
+    if (!tags.includes("chat-editor")) return false
+    const createdAt = d?.created_at ? new Date(d.created_at).getTime() : NaN
+    return Number.isFinite(createdAt) && createdAt >= cutoff
+  })
+
+  return open?.id ?? null
+}
+
+/**
+ * Resolve the design this turn should write to, creating one only if the maker
+ * genuinely has none open.
+ *
+ * 🔑 It MUTATES `context.design_id` on the way out. The context object is
+ * built once per request and handed to every tool factory, so stamping it is
+ * what makes a second `create_design` — or a `generate_design_image` that
+ * follows in the same turn — resolve to the design that was just made rather
+ * than mint another beside it.
+ */
+export const resolveOrCreateChatDesign = async (
+  container: MedusaContainer,
+  input: {
+    customerId: string
+    name?: string
+    brief: DesignBrief
+    context?: DesignContext
+  }
+): Promise<{ design_id: string; created: boolean }> => {
+  const { context, customerId, brief } = input
+
+  const contextId = context?.design_id
+  if (contextId) {
+    const designService = resolveDesignService(container)
+    const existing = await designService
+      .retrieveDesign(contextId)
+      .catch(() => null)
+    if (existing) return { design_id: contextId, created: false }
+  }
+
+  const open = await findOpenChatDesign(container, customerId)
+  if (open) {
+    if (context) context.design_id = open
+    return { design_id: open, created: false }
+  }
+
+  const { result, errors } = await createDesignWorkflow(container as any).run({
+    input: {
+      name:
+        input.name?.trim() ||
+        brief.concept_theme ||
+        `${brief.product_type} design`,
+      description: brief.concept_theme || undefined,
+      design_type: "Custom",
+      status: "Conceptual",
+      origin_source: "ai-other",
+      concept_theme: brief.concept_theme || undefined,
+      aesthetic_keywords: brief.aesthetic_keywords.length
+        ? (brief.aesthetic_keywords as unknown as Record<string, any>)
+        : undefined,
+      color_palette: brief.color_palette.length
+        ? (brief.color_palette as unknown as Record<string, any>)
+        : undefined,
+      customer_id_for_link: customerId,
+      tags: ["custom", "customer-design", "chat-editor"],
+    } as any,
+  })
+  if (errors?.length) throw errors[0]
+
+  const designId = (result as any).id
+  if (context) context.design_id = designId
+  return { design_id: designId, created: true }
+}
 
 /**
  * Find-or-create the guest customer keyed on the maker's email.
@@ -342,15 +480,6 @@ export const runCreateDesign = async (
   args: z.infer<typeof CreateDesignSchema>,
   context?: DesignContext
 ): Promise<CreateDesignResult> => {
-  const existingId = context?.design_id
-  if (existingId) {
-    const designService = resolveDesignService(container)
-    const existing = await designService
-      .retrieveDesign(existingId)
-      .catch(() => null)
-    if (existing) return { design_id: existingId, created: false }
-  }
-
   const email = (args.email ?? context?.email)?.trim().toLowerCase()
   if (!email) {
     throw new Error(
@@ -366,32 +495,18 @@ export const runCreateDesign = async (
 
   const { customer_id } = await runEnsureGuestCustomer(container, email)
 
-  const { result: designResult, errors: designErrors } = await createDesignWorkflow(
-    container as any
-  ).run({
-    input: {
-      name: args.name?.trim() || brief.concept_theme || `${brief.product_type} design`,
-      description: brief.concept_theme || undefined,
-      design_type: "Custom",
-      status: "Conceptual",
-      origin_source: "ai-other",
-      concept_theme: brief.concept_theme || undefined,
-      aesthetic_keywords: brief.aesthetic_keywords.length
-        ? (brief.aesthetic_keywords as unknown as Record<string, any>)
-        : undefined,
-      color_palette: brief.color_palette.length
-        ? (brief.color_palette as unknown as Record<string, any>)
-        : undefined,
-      customer_id_for_link: customer_id,
-      tags: ["custom", "customer-design", "chat-editor"],
-    },
+  /**
+   * The resolver checks the context, then the maker's open chat design, then
+   * creates — and stamps `context.design_id` either way, so a SECOND
+   * `create_design` in this same turn lands on the design this one made.
+   * See #1689: two designs, 24 seconds apart, from one ask.
+   */
+  return resolveOrCreateChatDesign(container, {
+    customerId: customer_id,
+    name: args.name,
+    brief,
+    context,
   })
-
-  if (designErrors?.length) {
-    throw designErrors[0]
-  }
-
-  return { design_id: (designResult as any).id, created: true }
 }
 
 export const createCreateDesignTool = (
@@ -536,104 +651,68 @@ export const runGenerateDesignImage = async (
     }
     scene = loaded.scene
   } else {
-    // First generation creates the design — brief + email REQUIRED.
+    // No design yet. This is where the second design used to come from
+    // (#1689): the branch minted unconditionally, so any turn that reached it
+    // with an empty context made another one. It now resolves the maker's
+    // open chat design first and only creates when there genuinely is none.
     if (!email) {
       throw new Error(
         "I need your email to save the design before I can generate. What email should I use?"
       )
     }
-    missingSetup.push("design")
-    if (!productId) {
-      // Standalone design (no base product) still needs a name.
-    }
     const { customer_id } = await runEnsureGuestCustomer(container, email)
 
-    // Seed the moodboard scene with the maker's inspirations. Each reference is
-    // analysed on the fly — the vision result is stamped onto the media's
-    // metadata and onto the element so the generation (and later turns) can
-    // ground on a pre-computed description.
-    let seedScene = normalizeCanvasScene(null)
-    if (args.inspiration_images?.length) {
-      const analyses = await analyzeReferenceImages(container, args.inspiration_images)
-      for (const url of args.inspiration_images) {
-        const fileId = `insp-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
-        const analysis = analyses.get(url)
-        seedScene.files[fileId] = {
-          id: fileId,
-          dataURL: url,
-          mimeType: "image/png",
-          created: Date.now(),
-          lastRetrieved: Date.now(),
-        }
-        seedScene.elements.push({
-          id: `el-${fileId}`,
-          type: "image",
-          x: 40 + (seedScene.elements.length % 2) * 300,
-          y: 40 + Math.floor(seedScene.elements.length / 2) * 300,
-          width: 260,
-          height: 260,
-          angle: 0,
-          strokeColor: "transparent",
-          backgroundColor: "transparent",
-          fillStyle: "solid",
-          strokeWidth: 1,
-          strokeStyle: "solid",
-          roughness: 1,
-          opacity: 100,
-          roundness: null,
-          isDeleted: false,
-          boundElements: null,
-          updated: Date.now(),
-          link: url,
-          locked: true,
-          fileId,
-          mimeType: "image/png",
-          customData: {
-            source: "inspiration",
-            ...(analysis
-              ? {
-                  media_id: analysis.media_id,
-                  analysis: {
-                    title: analysis.title,
-                    description: analysis.description,
-                    suggestions: analysis.suggestions,
-                    analyzed_at: analysis.analyzed_at,
-                  },
-                }
-              : {}),
-          },
-        })
-      }
-    }
-
-    const { result: designResult, errors: designErrors } = await createDesignWorkflow(
-      container as any
-    ).run({
-      input: {
-        name: args.name?.trim() || brief.concept_theme || `${brief.product_type} design`,
-        description: brief.concept_theme || undefined,
-        design_type: "Custom",
-        status: "Conceptual",
-        origin_source: "ai-other",
-        concept_theme: brief.concept_theme || undefined,
-        aesthetic_keywords: brief.aesthetic_keywords.length
-          ? (brief.aesthetic_keywords as unknown as Record<string, any>)
-          : undefined,
-        color_palette: brief.color_palette.length
-          ? (brief.color_palette as unknown as Record<string, any>)
-          : undefined,
-        moodboard: seedScene as unknown as Record<string, any>,
-        customer_id_for_link: customer_id,
-        tags: ["custom", "customer-design", "chat-editor"],
-      },
+    const resolvedDesign = await resolveOrCreateChatDesign(container, {
+      customerId: customer_id,
+      name: args.name,
+      brief,
+      context,
     })
+    designId = resolvedDesign.design_id
+    createdDesign = resolvedDesign.created
+    if (createdDesign) missingSetup.push("design")
 
-    if (designErrors?.length) {
-      throw designErrors[0]
+    /**
+     * Start from what is already on the board. A resolved (rather than freshly
+     * created) design may already carry the maker's photos — the reference
+     * upload route puts them there before a single word is typed — and seeding
+     * a blank scene over it would erase them.
+     */
+    const loaded = await loadDesignScene(container, designId as string)
+    scene = loaded?.scene ?? normalizeCanvasScene(null)
+
+    // Seed the maker's inspirations. Each is analysed on the fly so the
+    // generation (and later turns) can ground on a pre-computed description.
+    //
+    // 🔑 `appendInspirationElements`, not an inline rebuild. This block WAS
+    // the inline original; #1691 extracted it for the upload route and left
+    // the twin behind here. Two homes for one shape is how the run-line
+    // pricer drifted 22% apart.
+    if (args.inspiration_images?.length) {
+      const analyses = await analyzeReferenceImages(
+        container,
+        args.inspiration_images
+      ).catch(() => new Map())
+      scene = appendInspirationElements(
+        scene,
+        args.inspiration_images.map((url) => {
+          const analysis: any = analyses.get(url)
+          return {
+            url,
+            media_id: analysis?.media_id ?? null,
+            analysis: analysis
+              ? {
+                  title: analysis.title ?? null,
+                  description: analysis.description ?? null,
+                  suggestions: analysis.suggestions ?? [],
+                  analyzed_at: analysis.analyzed_at ?? null,
+                }
+              : null,
+          }
+        })
+      )
+      await saveScene(container, designId as string, scene)
     }
-    designId = (designResult as any).id
-    createdDesign = true
-    scene = seedScene
 
     // Link the base product (variant designs) — first-class product-design
     // link, NOT metadata.

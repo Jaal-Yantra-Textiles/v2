@@ -55,7 +55,10 @@ import {
   normalizeCanvasScene,
 } from "../../../../../modules/designs/lib/canvas-scene"
 import { analyzeReferenceImages } from "../../../../../mastra/agents/tools/storefront-design-analysis"
-import { runEnsureGuestCustomer } from "../../../../../mastra/agents/tools/storefront-design-flow"
+import {
+  findOpenChatDesign,
+  runEnsureGuestCustomer,
+} from "../../../../../mastra/agents/tools/storefront-design-flow"
 import { createDesignWorkflow } from "../../../../../workflows/designs/create-design"
 
 /** Images only. A maker's "reference" is a picture, and nothing here reads a PDF. */
@@ -114,9 +117,23 @@ export const POST = async (
     }
   } else {
     /**
-     * No design yet — this IS the opening move. Named from the upload rather
-     * than left blank, because "Untitled" is what the maker will see on their
-     * board before the assistant has asked them anything.
+     * No design id supplied — but that does not mean there is no design.
+     *
+     * 🔴 #1689: the chat mints a design the moment the brief is locked, and
+     * the CLIENT only learns its id by reading the finished turn's tool
+     * output. A maker who drags photos in before that has landed sends no
+     * `design_id`, and this branch would mint a SECOND design beside the one
+     * they are talking to — the same two-designs-from-one-ask defect, through
+     * a different door. Ask for their open chat design first.
+     */
+    designId = await findOpenChatDesign(req.scope as any, customer_id)
+  }
+
+  if (!designId) {
+    /**
+     * Genuinely nothing open — this IS the opening move. Named from the upload
+     * rather than left blank, because "Untitled" is what the maker will see on
+     * their board before the assistant has asked them anything.
      *
      * 🔑 Deliberately NOT inferring a `product_type` here. That field is
      * load-bearing — the production spec and the cost estimate derive from it

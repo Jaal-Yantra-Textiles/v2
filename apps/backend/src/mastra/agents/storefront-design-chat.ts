@@ -37,6 +37,7 @@ export type DesignChatContext = {
     product_type?: string | null
     concept_theme?: string | null
     aesthetic_keywords?: string[]
+    color_palette?: string[]
     thumbnail_url?: string
     // Moodboard summary — so the agent is grounded on the board without an
     // extra get_design_state round-trip.
@@ -80,6 +81,8 @@ const DESIGN_CONTEXT = (ctx: DesignChatContext): string => {
   if (d.concept_theme) lines.push(`- Concept: ${d.concept_theme}`)
   if (d.aesthetic_keywords?.length)
     lines.push(`- Aesthetic keywords: ${d.aesthetic_keywords.join(", ")}`)
+  if (d.color_palette?.length)
+    lines.push(`- Palette: ${d.color_palette.join(", ")}`)
   if (d.thumbnail_url) lines.push(`- Current design image: ${d.thumbnail_url}`)
 
   // Moodboard summary — canvas takes + reference analyses, so the agent is
@@ -141,6 +144,72 @@ export type PlannedTurn = {
   garment_type: string | null
   has_email: boolean
   directive: string
+  /** Everything already established, stated back to the model as given. */
+  settled: string
+}
+
+/**
+ * ── SETTLED FACTS ───────────────────────────────────────────────────────
+ *
+ * 🔴 #1689: "there's a lot of asking going on, it should concretely ask and
+ * perform and actually carry on what has been done." Seen verbatim — the
+ * onboarding sent `Design a kurta. Save my designs to <email>.` and the reply
+ * was *"what email should I save this design under? You mentioned <the same
+ * email>, but just to confirm…"*.
+ *
+ * Two causes, and neither is the model being careless:
+ *
+ *   1. The route PRUNES every tool part out of the history before the model
+ *      sees it (provider shims reject the tool-call shapes). Its own comment
+ *      says so: "the model can't remember it searched already". So each turn
+ *      the model genuinely does not know what it has already done.
+ *   2. The standing instructions say "ask for their email EARLY", with nothing
+ *      to switch that off once the email is in hand. The turn plan said the
+ *      email was captured; the flow above it still said to go and ask.
+ *
+ * The fix is the same move the board state already gets: reconstruct what is
+ * established SERVER-SIDE and state it as given, then forbid re-opening it.
+ * A fact restated is cheaper than a question re-asked.
+ */
+const buildSettledFacts = (
+  garment: string | null,
+  email: string | null,
+  context?: DesignChatContext
+): string => {
+  const d = context?.design
+  const facts: string[] = []
+
+  if (email) facts.push(`- Email: **${email}** — already given. Use it. Do NOT ask for it or ask them to confirm it.`)
+  const garmentType = d?.product_type || garment
+  if (garmentType) facts.push(`- Garment: **${garmentType}** — already decided. Do NOT re-ask what they are designing.`)
+  if (d?.concept_theme) facts.push(`- Concept: **${d.concept_theme}** — already agreed.`)
+  if (d?.aesthetic_keywords?.length)
+    facts.push(`- Aesthetic keywords: **${d.aesthetic_keywords.join(", ")}** — already agreed.`)
+  if (d?.color_palette?.length)
+    facts.push(`- Palette: **${d.color_palette.join(", ")}** — already agreed.`)
+  if (context?.design_id)
+    facts.push(
+      `- The design is ALREADY SAVED (${context.design_id})${d?.name ? ` as "${d.name}"` : ""}. Do NOT call create_design again — calling it a second time is the exact defect this rule exists to stop.`
+    )
+  if (d?.board?.inspirations?.length)
+    facts.push(
+      `- ${d.board.inspirations.length} reference photo(s) are on their board and already analysed (descriptions above). Do NOT ask them to upload again, and do NOT re-analyse.`
+    )
+  if (d?.board?.canvas_count)
+    facts.push(
+      `- ${d.board.canvas_count} take(s) already generated${d.board.active_canvas?.letter ? `, take ${d.board.active_canvas.letter} is the active pick` : ""}.`
+    )
+
+  if (!facts.length) return ""
+
+  return [
+    "",
+    "# SETTLED — treat every line as GIVEN (route-computed from the record, not from the transcript)",
+    ...facts,
+    "",
+    "🔴 You cannot see your own earlier tool calls: the history is stripped of them before it reaches you. This block IS your memory of them. Anything listed here has happened. Do not ask for it, do not ask them to confirm it, do not redo it.",
+    "🔴 PREFER ACTING OVER ASKING. Explicit consent is required for ONE thing only — image generation, which costs real money. For everything else, if this block or the context gives you what you need, do it and say what you did. At most one short question per reply, and only about something genuinely not settled.",
+  ].join("\n")
 }
 
 export const planDesignTurn = (
@@ -163,7 +232,15 @@ export const planDesignTurn = (
   const garment = GARMENT_KEYWORDS.find((k) =>
     new RegExp(`\\b${escapeRegExp(k)}\\b`).test(userText)
   )
-  const hasEmail = Boolean(context?.email) || EMAIL_RE.test(userText)
+  /**
+   * The email as a VALUE, not just a boolean. The settled-facts block states
+   * it back verbatim, which is what stops "you mentioned X, but just to
+   * confirm: is that the one?" — a question whose answer was already in the
+   * message that prompted it.
+   */
+  const resolvedEmail =
+    context?.email?.trim().toLowerCase() || userText.match(EMAIL_RE)?.[0] || null
+  const hasEmail = Boolean(resolvedEmail)
 
   const lines: string[] = ["", "# TURN PLAN (route-computed — follow EXACTLY)"]
   if (!garment) {
@@ -179,6 +256,13 @@ export const planDesignTurn = (
     lines.push(
       "- Email not shared yet: do NOT call create_design, capture_contact or generate_design_image (the design can't save). You may brief, browse fabrics and partners. Ask for the email once, naturally, right after the brief."
     )
+  } else if (context?.design_id) {
+    // The design exists. Saying "call create_design" here is how one ask
+    // produced two designs (#1689) — the tool now refuses to duplicate, but
+    // the instruction should not be asking for it either.
+    lines.push(
+      "- Email captured AND the design is already saved. Do NOT call create_design again. capture_contact may run (once)."
+    )
   } else {
     lines.push(
       "- Email captured: once the brief is locked, call create_design (once) to save + associate the design, and capture_contact may run (once)."
@@ -190,13 +274,11 @@ export const planDesignTurn = (
 
   return {
     garment_type: garment ?? null,
-    has_email: has_email_safe(context?.email, userText),
+    has_email: hasEmail,
     directive: lines.join("\n"),
+    settled: buildSettledFacts(garment ?? null, resolvedEmail, context),
   }
 }
-
-const has_email_safe = (contextEmail?: string, userText?: string): boolean =>
-  Boolean(contextEmail) || EMAIL_RE.test(userText ?? "")
 
 export const buildDesignChatSystem = (
   prefs?: UserPrefs,
@@ -205,6 +287,7 @@ export const buildDesignChatSystem = (
 ): string => {
   const hasProduct = Boolean(context?.product)
   const hasDesign = Boolean(context?.design)
+  const plan = planDesignTurn(messages, context)
 
   return `You are Cici's designer — a warm, hands-on design guide for Cici Label, a slow-fashion brand under Jaal Yantra Textiles (JYT). You help a maker design a real garment: you ground everything in their product or brief, our fabrics, and our production partners, and you keep the iteration loop going until they love a take.
 
@@ -224,7 +307,7 @@ export const buildDesignChatSystem = (
 - Render tool results as the UI cards (fabric chips, partner cards, canvas A/B) — never list them in prose by hand.
 - The board is the maker's: canvas takes, inspirations and the active pick all live on one Excalidraw board they can see. Describe state in board terms ("your board now has two takes — A indigo, B natural").
 - Uploaded references are pre-analysed (vision) and carry their description on the board — call get_design_state and read the inspirations' descriptions/suggestions instead of re-analysing the same image.
-- Email: ask for it EARLY — right after the brief, because the design saves under it. Ask once, naturally ("what email should I save this design under?"). Call create_design after they give it; call capture_contact once.
+- Email: ${plan.has_email ? "already in hand (see SETTLED below) — use it silently. Do NOT ask for it and do NOT ask them to confirm it." : "ask for it EARLY — right after the brief, because the design saves under it. Ask once, naturally (\"what email should I save this design under?\")."} Call create_design once the brief is locked; call capture_contact once.
 - 🔴 NEVER auto-generate: image generation costs real quota and ~20s. Always ask for an explicit yes first ("ready for me to generate two takes on this?") and only call generate_design_image after they confirm. If they describe changes instead of confirming, treat it as a revision request and confirm again.
 - Estimates/checkout come later: once a take is active and fabric + partner are chosen, point them to Checkout (the estimate renders there from the design + selected fabric + partner). Don't fabricate prices.
 - Match their energy. Short paragraphs. You suggest; they decide.
@@ -244,7 +327,8 @@ ${hasProduct ? PRODUCT_CONTEXT(context!) : ""}${hasDesign ? DESIGN_CONTEXT(conte
 
 # Maker preferences (from onboarding)
 ${formatPrefs(prefs)}
-${planDesignTurn(messages, context).directive}
+${plan.settled}
+${plan.directive}
 
 Weave preferences into every generation (badges) and fabric/partner suggestions. If empty, ask at most one short question at a time.
 `

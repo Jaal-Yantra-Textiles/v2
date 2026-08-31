@@ -155,6 +155,63 @@ setupSharedTestSuite(() => {
       expect(inspirations).toHaveLength(2)
     })
 
+    /**
+     * 🔴 #1689, through the upload door.
+     *
+     * The chat mints the design the moment the brief locks, and the client
+     * only learns its id from the finished turn's tool output. A maker who
+     * drags photos in before that lands sends no `design_id` — and this route
+     * used to mint a SECOND design beside the one they were talking to.
+     */
+    it("🔴 pins onto the maker's OPEN chat design when no design_id is sent", async () => {
+      const openEmail = `open-${Date.now()}@jyt.test`
+      const { runCreateDesign } = await import(
+        "../../src/mastra/agents/tools/storefront-design-flow"
+      )
+      const created = await runCreateDesign(
+        container(),
+        {
+          email: openEmail,
+          name: "Indigo Kurta",
+          brief: {
+            product_type: "kurta",
+            concept_theme: "Indigo handwoven",
+            aesthetic_keywords: ["handwoven"],
+            color_palette: [{ name: "indigo", code: "#1e3a5f" }],
+          },
+        },
+        undefined
+      )
+
+      // The client has not learned the id yet — no design_id in the body.
+      const res = await upload({ customer_email: openEmail }, [
+        { buf: PNG_1X1, name: "swatch.png" },
+      ])
+
+      expect(res.status).toBe(201)
+      expect(res.data.created_design).toBe(false)
+      expect(res.data.design_id).toBe(created.design_id)
+    })
+
+    /**
+     * The client merges each returned analysis back onto the file it came
+     * from BY NAME, so `name` echoing the uploaded filename is part of the
+     * contract, not decoration. Without it the wrong description lands on the
+     * wrong photo — silently, since both are strings.
+     */
+    it("echoes each uploaded filename so the client can match them back", async () => {
+      const res = await upload({ customer_email: `names-${Date.now()}@jyt.test` }, [
+        { buf: PNG_1X1, name: "front.png" },
+        { buf: PNG_1X1, name: "back.png" },
+      ])
+
+      expect(res.status).toBe(201)
+      expect(res.data.references.map((r: any) => r.name)).toEqual([
+        "front.png",
+        "back.png",
+      ])
+    })
+
     it("🔴 refuses a design that is not this maker's", async () => {
       const mine = await upload({ customer_email: email }, [
         { buf: PNG_1X1, name: "mine.png" },

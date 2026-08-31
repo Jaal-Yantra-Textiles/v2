@@ -23,7 +23,8 @@ import {
   createReference,
   isAcceptedImage,
   releaseReference,
-  uploadDesignReference,
+  uploadDesignReferences,
+  MAX_REFERENCES_PER_UPLOAD,
   type DesignReference,
 } from "./lib/design-uploads"
 import {
@@ -431,7 +432,14 @@ export default function DesignChat({
   const addFiles = React.useCallback((files: File[]) => {
     const accepted = files.filter(isAcceptedImage)
     if (!accepted.length) return
-    setAttachments((prev) => [...prev, ...accepted.map(createReference)])
+    // The upload route refuses more than MAX_REFERENCES_PER_UPLOAD per
+    // request, so stop at the cap here rather than letting the whole batch
+    // 400 with the maker's message attached to it.
+    setAttachments((prev) => {
+      const room = MAX_REFERENCES_PER_UPLOAD - prev.length
+      if (room <= 0) return prev
+      return [...prev, ...accepted.slice(0, room).map(createReference)]
+    })
   }, [])
 
   const removeAttachment = React.useCallback((id: string) => {
@@ -462,17 +470,65 @@ export default function DesignChat({
     setStickToBottom(true)
 
     // Upload pending references first so the message carries their permanent
-    // URLs (guests keep session-only previews — thumbnails still render).
+    // URLs — the model can only look at a picture that exists server-side.
     let resolved: DesignReference[] = attachments
     if (attachments.length) {
       setUploading(true)
       setAttachments((prev) => prev.map((a) => ({ ...a, status: "uploading" })))
-      resolved = await Promise.all(attachments.map(uploadDesignReference))
+      /**
+       * ONE request for the whole batch, carrying the maker's email and the
+       * design if there is one. The route resolves-or-CREATES the design, so
+       * a per-file fan-out would mint a design per photo — the same shape as
+       * the two-designs-from-one-ask defect this issue opens with.
+       *
+       * `emailMatch` is read rather than `meta.email` because the state set
+       * above has not flushed yet: on the turn where the maker first types
+       * their email, `meta.email` is still undefined.
+       */
+      const email =
+        meta.email ?? (emailMatch ? emailMatch[0].toLowerCase() : null)
+      const upload = await uploadDesignReferences(attachments, {
+        email,
+        designId,
+      })
+      resolved = upload.references
+      // The photos may have brought the design into existence. Adopt it, or
+      // the next turn asks the model to create one and we are back to two.
+      if (upload.designId && upload.designId !== designId) {
+        setDesignId(upload.designId)
+      }
       setUploading(false)
+
+      /**
+       * The route pins the photos to the design's moodboard server-side, so
+       * the board is stale the moment the upload returns.
+       *
+       * 🔴 Caught by RENDERING it, not by a test: every assertion passed while
+       * the panel sat there saying "Your board is empty" beside two photos
+       * that were already on the board in the database. Nothing was broken —
+       * the screen was just lying, which is the failure mode this whole issue
+       * is made of.
+       */
+      if (upload.references.some((r) => r.publicUrl)) {
+        refreshScene(upload.designId ?? undefined)
+      }
     }
 
-    const referenceLines = resolved
-      .filter((r) => r.publicUrl)
+    const uploaded = resolved.filter((r) => r.publicUrl)
+    const failed = resolved.filter((r) => !r.publicUrl)
+
+    /**
+     * A failed upload stays in the tray with its message rather than riding
+     * along as a thumbnail with no URL behind it. That silent version is the
+     * exact shape of this bug: the maker saw their photo, the model never
+     * did, and nothing said so.
+     */
+    if (failed.length && !text && !uploaded.length) {
+      setAttachments(failed)
+      return
+    }
+
+    const referenceLines = uploaded
       .map((r) => {
         const a = r.analysis
         const note =
@@ -485,10 +541,11 @@ export default function DesignChat({
     const referenceBlock = referenceLines.length
       ? `\n\nReference image${referenceLines.length > 1 ? "s" : ""} — my on-the-fly read of each:\n${referenceLines.join("\n")}`
       : ""
-    const composed = `${text}${referenceBlock}`.trim() || "I've attached some inspirations."
+    const composed =
+      `${text}${referenceBlock}`.trim() || "I've attached some inspirations."
 
-    pendingSendRef.current = resolved
-    setAttachments([])
+    pendingSendRef.current = uploaded
+    setAttachments(failed)
     sendMessage({ text: composed })
   }
 

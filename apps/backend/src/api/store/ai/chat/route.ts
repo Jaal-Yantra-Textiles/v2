@@ -285,6 +285,16 @@ const buildDesignChatSystemResolved = async (
         aesthetic_keywords: Array.isArray(design.aesthetic_keywords)
           ? design.aesthetic_keywords
           : [],
+        // Palette entries are stored as `{ name, code }` — the prompt wants
+        // the names. A settled fact the model could not see is a question the
+        // maker gets asked twice.
+        color_palette: Array.isArray(design.color_palette)
+          ? design.color_palette
+              .map((c: any) =>
+                typeof c === "string" ? c : (c?.name ?? c?.code ?? null)
+              )
+              .filter((c: any): c is string => typeof c === "string" && !!c)
+          : [],
         thumbnail_url: design.thumbnail_url ?? undefined,
       }
 
