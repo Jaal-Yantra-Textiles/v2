@@ -300,10 +300,17 @@ export async function resolveShippingProvider(
         "ShipGlobal credentials not configured (no shipping platform record or SHIPGLOBAL_USERNAME + SHIPGLOBAL_PASSWORD)"
       )
     }
+    // Tests/CI inject a deterministic transport (SHIPGLOBAL_STUB=1) — ShipGlobal
+    // has no usable sandbox, so a live create would mint a billable waybill.
+    const fetchImpl =
+      process.env.SHIPGLOBAL_STUB === "1"
+        ? require("./shipglobal/stub-fetch").createShipglobalStubFetch()
+        : undefined
     return new ShipglobalClient({
       username: username!,
       password: password!,
       service: cfg.service || process.env.SHIPGLOBAL_SERVICE,
+      fetchImpl,
     })
   }
 
