@@ -5,6 +5,9 @@ import {
   money,
   perUnit,
   provenanceLabel,
+  runBillsVerbatimTotal,
+  runLineAmount,
+  runNeedsTypedPrice,
 } from "../payment-submission-money"
 
 /**
@@ -277,5 +280,88 @@ describe("groupIntoRateBands (#1596)", () => {
     const banded = bands.reduce((s, b) => s + b.quantity * b.unit_amount, 0)
     const oldTotal = runs.reduce((s, r) => s + r.quantity * r.unit_amount, 0)
     expect(Math.round(banded * 100) / 100).toBe(Math.round(oldTotal * 100) / 100)
+  })
+})
+
+/**
+ * #1679 on the PARTNER side, and #1676's remainder.
+ *
+ * This screen used to compute `unit_amount × quantity` for every run, so a job
+ * agreed at ₹10,000 as a TOTAL — 9 ordered, 7 made — was offered at ₹7,777.77
+ * here while the admin screen offered ₹10,000 for the same run on the same day.
+ * A partner submitting their own draft under-claimed by 22%, and by a paisa
+ * even when produced equalled ordered.
+ */
+describe("runLineAmount — a total is the agreed price (#1679)", () => {
+  const totalRun = {
+    quantity: 7,
+    rate: 1111.11,
+    amount: 10000,
+    unit_is_derived: true,
+    hasTypedRate: false,
+  }
+
+  it("bills the agreed total verbatim, not the derived rate × quantity", () => {
+    expect(runLineAmount(totalRun)).toBe(10000)
+    expect(runLineAmount(totalRun)).not.toBe(7777.77)
+  })
+
+  it("loses no paisa when produced equals ordered", () => {
+    // 10000/9 = 1111.11, × 9 = 9999.99. The rounding that made a ₹10,000 job
+    // pay ₹9,999.99.
+    expect(runLineAmount({ ...totalRun, quantity: 9 })).toBe(10000)
+  })
+
+  it("multiplies once a rate is typed — that is the deliberate way out", () => {
+    expect(
+      runLineAmount({ ...totalRun, rate: 1400, hasTypedRate: true })
+    ).toBe(9800)
+  })
+
+  it("multiplies a genuine per-unit rate", () => {
+    expect(
+      runLineAmount({
+        quantity: 7,
+        rate: 1200,
+        amount: 8400,
+        unit_is_derived: false,
+        hasTypedRate: false,
+      })
+    ).toBe(8400)
+  })
+
+  it("bills NOTHING for the remainder of a partly-billed total run (#1676)", () => {
+    // Re-billing the total double-pays; dividing it re-prices. Neither is an
+    // answer this screen may invent, so it states none and the submit guard
+    // refuses until somebody types one.
+    expect(
+      runLineAmount({ ...totalRun, quantity: 5, alreadyPartlyBilled: true })
+    ).toBe(0)
+    expect(
+      runNeedsTypedPrice({
+        unit_is_derived: true,
+        hasTypedRate: false,
+        alreadyPartlyBilled: true,
+      })
+    ).toBe(true)
+    expect(
+      runBillsVerbatimTotal({
+        unit_is_derived: true,
+        hasTypedRate: false,
+        alreadyPartlyBilled: true,
+      })
+    ).toBe(false)
+  })
+
+  it("prices the remainder from the moment a rate is typed", () => {
+    expect(
+      runLineAmount({
+        ...totalRun,
+        quantity: 5,
+        rate: 1400,
+        hasTypedRate: true,
+        alreadyPartlyBilled: true,
+      })
+    ).toBe(7000)
   })
 })

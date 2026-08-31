@@ -183,7 +183,17 @@ export interface PayableRun {
   design_name: string | null
   design_status: string | null
   completed_at: string | null
+  /**
+   * The agreed quantity. Null when the run states NO agreed amount (#1676) —
+   * it is open-ended, and the offer is not capped. Distinct from 0.
+   */
   ordered_quantity: number | null
+  /**
+   * #1676 — the run states no agreed quantity: open-ended, and the offer
+   * against it is not capped. Read it beside `billable_remaining`, which is
+   * null here because there is no ceiling — not because nothing is left.
+   */
+  open_ended: boolean
   /** Null when output was never recorded — distinct from "made zero". */
   produced_quantity: number | null
   rejected_quantity: number | null
@@ -193,7 +203,13 @@ export interface PayableRun {
    * the row already reflects it; this is what lets the screen SAY so.
    */
   short_closed_at: string | null
-  /** What this row bills for: produced, falling back to ordered. */
+  /**
+   * What this row bills for: produced, falling back to ordered — and NEVER
+   * above the ordered quantity (#1676), which is the ceiling the write guard
+   * enforces. A basis of "ordered" therefore means either "no output recorded"
+   * or "the produced figure was capped"; read `produced_quantity` to tell them
+   * apart rather than inferring it from the basis.
+   */
   payable_quantity: number
   quantity_basis: "produced" | "ordered"
   unit_amount: number
@@ -223,7 +239,39 @@ export interface PayableRun {
   /** The design's own cost, offered as a starting point. A suggestion, never a price. */
   design_estimated_cost: number | null
   design_production_cost: number | null
-  billed: { submission_id: string; status: string; quantity: number } | null
+  /**
+   * The EARLIEST live line naming this run, or null.
+   *
+   * ⚠️ Truthy for a run that has been claimed AT ALL, including one claimed
+   * for 1 of the 10 it was ordered for. Never branch on it to decide whether a
+   * run may be billed — read `billing_status`, which separates the two.
+   */
+  billed: {
+    submission_id: string
+    status: string
+    quantity: number
+    claimed_quantity: number
+    claimed_wholly: boolean
+  } | null
+  /**
+   * The field to branch on, so "we don't know" cannot be spelled the same way
+   * as "no" — `billed` | `partly_billed` | `unknown` | `clear`.
+   *
+   * 🔴 The API has always sent this and this type never declared it, so no
+   * admin screen could read it and none did. That is why this screen filtered
+   * on `!r.billed` and dropped every partly-billed run, making the #1596 case
+   * ("bill 1 of 10 now and the other 9 later") unreachable here while the write
+   * guard accepted it and the partner's own screen offered it. Same shape as
+   * `unit_is_derived` above: a field sent for months with zero consumers.
+   */
+  billing_status: "billed" | "partly_billed" | "unknown" | "clear"
+  /**
+   * Units still billable on this run, or null when there is no arithmetic
+   * behind the answer — a claim took the run whole, or the run has no agreed
+   * quantity at all (#1676, read `open_ended`). Null is NOT a remainder of
+   * zero. A number here is a promise `create` will keep.
+   */
+  billable_remaining: number | null
   design_has_open_submission: boolean
 }
 

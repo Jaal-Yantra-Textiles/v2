@@ -641,5 +641,120 @@ setupSharedTestSuite(() => {
         childRes.data.production_run.dispatched_template_ids ?? null
       ).toBeNull()
     })
+
+    /**
+     * #1676 — a run may state NO agreed quantity.
+     *
+     * `quantity` was `not null default 1`, so "there is no agreed amount" was
+     * unrepresentable: an unset quantity read as a run ordered for ONE piece,
+     * which is the tightest possible payment ceiling rather than the absence of
+     * one. Since every payment claim — including a run's first — is bounded by
+     * that quantity, this null is the explicit, per-run opt-out.
+     */
+    describe("a run with no agreed quantity (#1676)", () => {
+      it("creates one, and keeps the null rather than defaulting it to 1", async () => {
+        const { api } = getSharedTestEnv()
+
+        const res = await api.post(
+          "/admin/production-runs",
+          { design_id: designId, quantity: null },
+          adminHeaders
+        )
+
+        expect(res.status).toBe(201)
+        expect(res.data.production_run.quantity).toBeNull()
+
+        // And it reads back that way — the column is nullable, not just the
+        // response shape.
+        const detail = await api.get(
+          `/admin/production-runs/${res.data.production_run.id}`,
+          adminHeaders
+        )
+        expect(detail.data.production_run.quantity).toBeNull()
+      })
+
+      it("still defaults to 1 when the field is simply omitted", async () => {
+        // Omitting is not declaring. Only an explicit null opts out.
+        const { api } = getSharedTestEnv()
+
+        const res = await api.post(
+          "/admin/production-runs",
+          { design_id: designId },
+          adminHeaders
+        )
+
+        expect(res.status).toBe(201)
+        expect(res.data.production_run.quantity).toBe(1)
+      })
+
+      it("passes open-endedness down to the child runs on approve", async () => {
+        // 🔴 `a.quantity ?? parent.quantity ?? 1` collapsed an open-ended
+        // parent to 1 — the tightest ceiling on a run whose whole point is that
+        // it has none, and only visible when a partner's claim was refused.
+        const { api } = getSharedTestEnv()
+
+        const parent = await api.post(
+          "/admin/production-runs",
+          { design_id: designId, quantity: null },
+          adminHeaders
+        )
+        expect(parent.status).toBe(201)
+
+        const approved = await api.post(
+          `/admin/production-runs/${parent.data.production_run.id}/approve`,
+          { assignments: [{ partner_id: partnerId, role: "production" }] },
+          adminHeaders
+        )
+        expect(approved.status).toBe(200)
+
+        const child = (approved.data.result?.children || [])[0]
+        expect(child).toBeTruthy()
+        expect(child.quantity).toBeNull()
+      })
+
+      it("clears an agreed quantity on a run that has not been accepted", async () => {
+        const { api } = getSharedTestEnv()
+
+        const created = await api.post(
+          "/admin/production-runs",
+          { design_id: designId, quantity: 5 },
+          adminHeaders
+        )
+        expect(created.data.production_run.quantity).toBe(5)
+
+        const updated = await api.post(
+          `/admin/production-runs/${created.data.production_run.id}`,
+          { quantity: null },
+          adminHeaders
+        )
+
+        expect(updated.status).toBe(200)
+        expect(updated.data.production_run.quantity).toBeNull()
+      })
+
+      it("refuses a quantity of 0 — a broken number is not a declaration", async () => {
+        // `Number(null)` is 0, so the two used to be written the same way. A
+        // zero quantity IS set and is unusable, and every payment guard refuses
+        // on it; only null means open-ended.
+        const { api } = getSharedTestEnv()
+
+        const created = await api.post(
+          "/admin/production-runs",
+          { design_id: designId, quantity: 5 },
+          adminHeaders
+        )
+
+        const res = await api
+          .post(
+            `/admin/production-runs/${created.data.production_run.id}`,
+            { quantity: 0 },
+            adminHeaders
+          )
+          .catch((e: any) => e.response)
+
+        expect(res.status).toBe(400)
+        expect(res.data.message).toContain("positive number")
+      })
+    })
   })
 })

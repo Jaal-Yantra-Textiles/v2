@@ -210,8 +210,24 @@ export const runBillingStatus = (input: {
   unrecordedClaims: unknown[]
   /** Units still billable, from `runBillableRemaining`. */
   remaining?: number | null
+  /**
+   * The run states NO agreed quantity — `isOpenEndedRun` (#1676).
+   *
+   * 🔴 Load-bearing, and easy to leave out. `runBillableRemaining` returns
+   * `null` for such a run because there is no ceiling to subtract from, and
+   * `null` here otherwise reads as "nothing left" — so a run that may be billed
+   * again indefinitely would report `billed`, and every screen would stop
+   * offering it after ONE claim. That is the whole feature, undone by a null
+   * meaning two things.
+   */
+  openEnded?: boolean
 }): RunBillingStatus => {
   if (input.billed) {
+    if (input.openEnded) {
+      // More may always be billed; how much is deliberately unbounded, which
+      // is why `billable_remaining` stays null beside this.
+      return "partly_billed"
+    }
     return input.remaining != null && input.remaining > 0
       ? "partly_billed"
       : "billed"

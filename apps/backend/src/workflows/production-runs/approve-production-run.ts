@@ -29,7 +29,12 @@ import {
 export type ProductionRunAssignment = {
   partner_id: string
   role?: string | null
-  quantity?: number
+  /**
+   * Units for this child. Absent inherits the parent's; explicit `null`
+   * declares this child open-ended — no agreed quantity, no payment ceiling
+   * (#1676).
+   */
+  quantity?: number | null
   order?: number
   /**
    * Templates BY NAME. Kept because existing callers use it, but since #1261 a
@@ -161,7 +166,24 @@ const approveProductionRunStep = createStep(
       ((original as any).metadata ?? {}) as Record<string, any>
 
     const childPayloads = assignments.map((a, idx) => {
-      const quantity = a.quantity ?? (original as any).quantity ?? 1
+      /**
+       * A child inherits the parent's OPEN-ENDEDNESS, not just its number
+       * (#1676). `a.quantity ?? parent.quantity ?? 1` collapsed a parent with
+       * no agreed quantity to 1 — the tightest possible payment ceiling on a
+       * run whose whole point is that it has none, and the sort of inversion
+       * that only shows up when a partner's claim is refused.
+       *
+       * An assignment that states its own quantity still wins — including an
+       * explicit `null`, which declares that one child open-ended even when the
+       * parent is not. Hence `!== undefined` rather than `!= null`.
+       */
+      const parentQuantity = (original as any).quantity
+      const quantity =
+        a.quantity !== undefined
+          ? a.quantity
+          : parentQuantity === null
+            ? null
+            : parentQuantity ?? 1
       const allocation = allocationByIndex[idx] || []
 
       const originalSnapshot = (original as any).snapshot
@@ -425,7 +447,16 @@ export const approveProductionRunWorkflow = createWorkflow(
 
       const partnerId = (data.run as any)?.partner_id
       if (partnerId) {
-        return [{ partner_id: partnerId, quantity: (data.run as any)?.quantity ?? 1 }]
+        // ⚠️ `=== undefined`, not `??`: a run with NO agreed quantity (#1676)
+        // stays open-ended in its implied single assignment. `?? 1` would have
+        // capped it at one piece.
+        const runQuantity = (data.run as any)?.quantity
+        return [
+          {
+            partner_id: partnerId,
+            quantity: runQuantity === undefined ? 1 : runQuantity,
+          },
+        ]
       }
 
       return []

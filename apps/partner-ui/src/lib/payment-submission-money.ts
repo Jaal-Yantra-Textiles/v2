@@ -182,3 +182,82 @@ export const provenanceLabel = (item: any): ProvenanceLabel => {
 
   return null
 }
+
+/**
+ * What one payable run BILLS on the create screen.
+ *
+ * 🔴 TWO HOMES. This is the partner-side copy of
+ * `apps/backend/src/admin/components/creates/lib/run-line-pricing.ts`. The two
+ * screens price the same runs and send the same request, and when they drifted
+ * they disagreed by 22% on the same run on the same day: this screen used to
+ * compute `unit_amount × quantity` for everything, so a job agreed at ₹10,000
+ * as a TOTAL (9 ordered, 7 made) offered ₹7,777.77 here and ₹10,000 there. A
+ * change to either file belongs in both.
+ *
+ * ## The rule
+ *
+ * A run carries either a rate or a total, and `unit_is_derived` says which. A
+ * `per_unit` run was agreed at so much per piece, so its amount is
+ * `quantity × rate` and moving the quantity moves the money.
+ *
+ * A `total` run was agreed at a price for the JOB. Its `unit_amount` is
+ * `total / ordered`, sent purely so a screen can show a rate, and multiplying
+ * it back out does NOT reproduce the total — it loses a paisa even when the
+ * numbers line up, and cuts 22% when they do not. So an untouched total-priced
+ * run bills its agreed figure VERBATIM and the quantity does not move it.
+ *
+ * Typing a rate is the way out: a human who has decided a per-unit price
+ * outranks a stored figure, and from then on the row multiplies.
+ */
+export type RunLinePricingInput = {
+  quantity: number
+  rate: number
+  /** What the API says is owed. For a total-priced run, the agreed total. */
+  amount: number
+  unit_is_derived?: boolean | null
+  hasTypedRate: boolean
+  /**
+   * Whether a live line already claimed part of this run (#1596/#1676).
+   *
+   * The remainder of a total-priced job has no figure of its own: re-billing
+   * the total double-pays, and dividing it re-prices work nobody re-negotiated.
+   */
+  alreadyPartlyBilled?: boolean | null
+}
+
+/** PURE. Whether this row still bills an agreed TOTAL rather than a rate. */
+export const runBillsVerbatimTotal = (
+  input: Pick<
+    RunLinePricingInput,
+    "unit_is_derived" | "hasTypedRate" | "alreadyPartlyBilled"
+  >
+): boolean =>
+  !input.hasTypedRate && !!input.unit_is_derived && !input.alreadyPartlyBilled
+
+/** PURE. Whether this row can state no price at all until somebody types one. */
+export const runNeedsTypedPrice = (
+  input: Pick<
+    RunLinePricingInput,
+    "unit_is_derived" | "hasTypedRate" | "alreadyPartlyBilled"
+  >
+): boolean =>
+  !input.hasTypedRate && !!input.unit_is_derived && !!input.alreadyPartlyBilled
+
+/** PURE. What this run bills. */
+export const runLineAmount = (input: RunLinePricingInput): number => {
+  // Before both other branches: re-billing the total double-pays, and
+  // multiplying the derived rate re-prices the job.
+  if (runNeedsTypedPrice(input)) {
+    return 0
+  }
+  if (runBillsVerbatimTotal(input)) {
+    // Verbatim. Not rounded, not re-derived, not multiplied.
+    return input.amount
+  }
+  const quantity = Number(input.quantity)
+  const rate = Number(input.rate)
+  if (!Number.isFinite(quantity) || !Number.isFinite(rate)) {
+    return 0
+  }
+  return Math.round(quantity * rate * 100) / 100
+}

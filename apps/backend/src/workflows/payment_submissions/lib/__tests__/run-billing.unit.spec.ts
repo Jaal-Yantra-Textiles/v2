@@ -219,3 +219,54 @@ describe("runBillableRemaining / runBillingStatus (#1596)", () => {
     ).toBeNull()
   })
 })
+
+/**
+ * #1676 — a run with NO agreed quantity has no ceiling, so its remainder is
+ * `null`. Everywhere else `null` means "no arithmetic available", which reads
+ * as nothing left — so without the flag, an open-ended run reports `billed`
+ * after ONE claim and no screen offers it again. The feature is repeated
+ * billing; that would be the feature, undone.
+ */
+describe("runBillingStatus — an open-ended run (#1676)", () => {
+  const claim = {
+    submission_id: "sub_1",
+    status: "Pending",
+    quantity: 4,
+    claimed_quantity: 4,
+    claimed_wholly: false,
+  }
+
+  it("stays partly_billed however much has been claimed", () => {
+    expect(
+      runBillingStatus({
+        billed: claim,
+        unrecordedClaims: [],
+        remaining: null,
+        openEnded: true,
+      })
+    ).toBe("partly_billed")
+  })
+
+  it("is billed without the flag — the null remainder reads as nothing left", () => {
+    // The exact failure the flag exists to prevent, pinned so nobody "tidies"
+    // the parameter away.
+    expect(
+      runBillingStatus({
+        billed: claim,
+        unrecordedClaims: [],
+        remaining: null,
+      })
+    ).toBe("billed")
+  })
+
+  it("does not invent a claim where there is none", () => {
+    // Open-ended says nothing about whether anybody has billed it yet.
+    expect(
+      runBillingStatus({ billed: null, unrecordedClaims: [], openEnded: true })
+    ).toBe("clear")
+  })
+
+  it("still reports a claimless open-ended run's remainder as unknown", () => {
+    expect(runBillableRemaining({ claim: null, ordered: null })).toBeNull()
+  })
+})

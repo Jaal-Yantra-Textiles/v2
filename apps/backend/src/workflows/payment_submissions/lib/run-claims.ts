@@ -40,7 +40,7 @@
  */
 
 import { ContainerRegistrationKeys } from "@medusajs/framework/utils"
-import { runBillableCeiling } from "./run-billable-ceiling"
+import { runBillableCeiling, isOpenEndedRun } from "./run-billable-ceiling"
 
 export type PriorRunLine = {
   submission_id: string | null
@@ -335,6 +335,14 @@ export type OverclaimedRun = {
  * both sides are attributable and their sum fits. Every unattributable claim,
  * every unreadable ceiling, still refuses — an absent number must never read
  * as room to bill.
+ *
+ * 🔴 #1676 — EVERY claim is bounded, including the first. Until then the
+ * ceiling only started applying from the second claim onward: `tallies` holds
+ * only runs a PRIOR submission already claimed, so a run's opening claim was
+ * compared against nothing and a run ordered for 9 could be billed at 100.
+ * The single exception is a run created with NO agreed quantity, which is an
+ * explicit, per-run opt-out (`isOpenEndedRun`) rather than the accidental
+ * absence of a guard.
  */
 export function assessRunClaims(input: {
   /** Units requested per run, or null where the request cannot be attributed. */
@@ -354,37 +362,90 @@ export function assessRunClaims(input: {
     const tally = input.tallies.get(runId)
     const row = input.runs.get(runId)
 
+    // ⚠️ Derive, never read `row.ceiling` directly: `create` passes RAW run
+    // rows whose `ceiling` is undefined, so reading the field would quietly
+    // skip every check below on the path that creates most claims.
+    const rowCeiling =
+      row?.ceiling !== undefined ? row.ceiling : runBillableCeiling(row)
+
+    /**
+     * 🔴 The run states NO agreed quantity — it is deliberately open-ended
+     * (#1676). There is no ceiling to exceed, so nothing here refuses: not the
+     * first claim, not a later one, not even a prior claim that took the run
+     * whole. That is the whole point of the opt-out, and it is why it has to be
+     * declared by a person at creation rather than inferred from a number.
+     *
+     * Checked BEFORE the tally, because the alternative reading of "no
+     * quantity" — the `!(ceiling > 0)` refusal further down — is the exact
+     * inverse of what this means.
+     *
+     * ⚠️ `&& rowCeiling == null` is load-bearing. SHORT-CLOSING an open-ended
+     * run gives it a ceiling after all — the produced figure — because a close
+     * is somebody stating outright that no more will be made. Opting out of an
+     * agreed quantity is not opting out of that statement, and without this
+     * clause a close on such a run would mean nothing at all.
+     */
+    if (isOpenEndedRun(row) && rowCeiling == null) {
+      continue
+    }
+
     if (!tally) {
       /**
-       * Nobody has claimed it, so there is nothing to diff against — and a
-       * FIRST claim has never been compared to the run's own quantity. That is
-       * long-standing behaviour and is deliberately left alone here: a run can
-       * legitimately overproduce, and `payable-runs` offers the produced
-       * figure, so refusing on the ordered quantity would start rejecting
-       * honest claims.
+       * A FIRST claim. It used to be compared against nothing at all: the
+       * tally map only holds runs some PRIOR submission claimed, so a run
+       * ordered for 9 could be billed at 100 and this guard would not look
+       * (#1676). Only a short-closed run was checked, and only because the
+       * close would otherwise have meant nothing.
        *
-       * 🔴 Except once the run is SHORT-CLOSED (#1596). That is somebody
-       * stating outright that no more will be made, and it is the only reason
-       * the feature exists: without this branch a closed run's first claim
-       * could still bill the full ordered quantity and the close would mean
-       * nothing at all.
+       * It is now bounded by the same ceiling every later claim is: the agreed
+       * quantity, or what was produced once the run is short-closed.
+       *
+       * ⚠️ This DOES refuse a claim for more than was ordered on a run that
+       * genuinely overproduced — `payable-runs` offers the produced figure, so
+       * that figure is clamped at the ceiling on the offer side and the two
+       * agree. The two honest ways past it are to correct the run's ordered
+       * quantity (an audited edit) or to have created the run open-ended. An
+       * unbounded first claim by accident, everywhere, is what this replaces.
        */
-      // ⚠️ Derive, never read `row.ceiling` directly: `create` passes RAW run
-      // rows whose `ceiling` is undefined, so reading the field would quietly
-      // skip this branch on the very path that creates most claims.
-      const closedCeiling = row?.short_closed_at
-        ? row.ceiling !== undefined
-          ? row.ceiling
-          : runBillableCeiling(row)
-        : null
-      if (
-        closedCeiling != null &&
-        requested != null &&
-        requested > closedCeiling + 0.005
-      ) {
+      const ceiling = rowCeiling
+
+      /**
+       * An unattributable claim (a line naming several runs, or stating no
+       * quantity) takes the run WHOLE — which is what the run is worth by
+       * definition. There is no number to compare, and inventing one is how
+       * headroom gets manufactured. Unchanged from before this branch existed.
+       */
+      if (requested == null) {
+        continue
+      }
+
+      // No row at all — the run is unknown to this map. Ownership and
+      // existence are somebody else's guard; refusing here would block a
+      // submit over a run this function was simply not told about.
+      if (!row) {
+        continue
+      }
+
+      if (ceiling == null || !(ceiling > 0)) {
+        // A quantity IS set and it is unusable (0, negative, unparseable).
+        // That is a broken number, not a declaration of open-endedness, and
+        // the second-and-later branch has always refused it.
         overclaimed.push({
           run_id: runId,
-          ceiling: closedCeiling,
+          ceiling: 0,
+          claimed_quantity: 0,
+          claimed_wholly: false,
+          requested,
+          claims: [],
+        })
+        continue
+      }
+
+      // The same hundredth-of-a-unit tolerance the later claims use.
+      if (requested > ceiling + 0.005) {
+        overclaimed.push({
+          run_id: runId,
+          ceiling,
           claimed_quantity: 0,
           claimed_wholly: false,
           requested,
@@ -394,9 +455,7 @@ export function assessRunClaims(input: {
       continue
     }
 
-    const derived =
-      row?.ceiling !== undefined ? row.ceiling : runBillableCeiling(row)
-    const ceiling = derived != null && derived > 0 ? derived : 0
+    const ceiling = rowCeiling != null && rowCeiling > 0 ? rowCeiling : 0
 
     const refuse = () =>
       overclaimed.push({
@@ -409,8 +468,9 @@ export function assessRunClaims(input: {
       })
 
     // Somebody already claimed the whole run, or this request claims the whole
-    // run, or the run states no quantity to divide up. No arithmetic is
-    // available, so the old whole-run refusal stands.
+    // run, or the run's quantity is set but unusable. No arithmetic is
+    // available, so the old whole-run refusal stands. (A run with NO quantity
+    // has already been let through above — that is a declaration, not a gap.)
     if (tally.claimed_wholly || requested == null || !(ceiling > 0)) {
       refuse()
       continue

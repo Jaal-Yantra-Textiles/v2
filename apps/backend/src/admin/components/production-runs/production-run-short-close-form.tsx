@@ -60,7 +60,12 @@ export const ShortCloseRunForm = ({ run }: ShortCloseFormProps) => {
     defaultValues: { reason: "" },
   })
 
-  const ordered = asNumber(run.quantity)
+  /**
+   * 🔴 `Number(null)` is 0, and `asNumber` calls it FINITE — so a run with no
+   * agreed quantity (#1676) read as "ordered 0" and this drawer offered to
+   * close it "at 40 of 0 ordered". Ask the raw field first; only then coerce.
+   */
+  const ordered = run.quantity == null ? null : asNumber(run.quantity)
   const produced = asNumber(run.produced_quantity)
   const forfeited =
     ordered != null && produced != null && ordered > produced
@@ -96,10 +101,16 @@ export const ShortCloseRunForm = ({ run }: ShortCloseFormProps) => {
             <Alert variant="info">
               <Text size="small">
                 This run is closed at{" "}
-                <strong>{fmt(asNumber(run.short_closed_quantity) ?? produced)}</strong>{" "}
-                of {fmt(ordered)} ordered. Reopening makes the ordered
-                quantity billable again — use it when the close was premature, or
-                when more work is genuinely coming.
+                <strong>{fmt(asNumber(run.short_closed_quantity) ?? produced)}</strong>
+                {/* #1676 — an open-ended run has nothing to be closed "of", and
+                  * closing it is what gives it a ceiling in the first place.
+                  * "of — ordered" read as a missing number. */}
+                {ordered == null
+                  ? " — it has no agreed quantity, so this close is the only cap on it. Reopening removes that cap entirely."
+                  : ` of ${fmt(ordered)} ordered. Reopening makes the ordered quantity billable again`}
+                {ordered == null
+                  ? ""
+                  : " — use it when the close was premature, or when more work is genuinely coming."}
               </Text>
             </Alert>
           ) : (
@@ -114,14 +125,23 @@ export const ShortCloseRunForm = ({ run }: ShortCloseFormProps) => {
                 ) : (
                   <>
                     Closing declares that no more will be made. This run bills to{" "}
-                    <strong>{produced}</strong> produced instead of{" "}
-                    <strong>{fmt(ordered)}</strong> ordered
-                    {forfeited != null ? (
+                    <strong>{produced}</strong> produced
+                    {ordered == null ? (
+                      // #1676 — no agreed quantity, so nothing caps this run
+                      // today. The close IS the cap.
+                      <> — it has no agreed quantity, so nothing caps it until now</>
+                    ) : (
                       <>
-                        , so <strong>{forfeited}</strong> unit
-                        {forfeited === 1 ? "" : "s"} stop being billable
+                        {" "}
+                        instead of <strong>{fmt(ordered)}</strong> ordered
+                        {forfeited != null ? (
+                          <>
+                            , so <strong>{forfeited}</strong> unit
+                            {forfeited === 1 ? "" : "s"} stop being billable
+                          </>
+                        ) : null}
                       </>
-                    ) : null}
+                    )}
                     .
                   </>
                 )}

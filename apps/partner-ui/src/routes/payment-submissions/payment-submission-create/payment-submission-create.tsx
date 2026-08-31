@@ -23,7 +23,12 @@ import {
   usePartnerPayableRuns,
   type PayableRun,
 } from "../../../hooks/api/partner-payable-runs"
-import { groupIntoRateBands } from "../../../lib/payment-submission-money"
+import {
+  groupIntoRateBands,
+  runBillsVerbatimTotal,
+  runLineAmount,
+  runNeedsTypedPrice,
+} from "../../../lib/payment-submission-money"
 
 const ELIGIBLE_TASK_STATUSES = ["completed"]
 
@@ -197,20 +202,73 @@ export const PaymentSubmissionCreate = () => {
     [runQuantities]
   )
 
+  /** Whether a human has typed a rate for this run. */
+  const runHasTypedRate = useCallback(
+    (run: PayableRun): boolean => runUnitAmounts[run.run_id] != null,
+    [runUnitAmounts]
+  )
+
+  /** Whether a live line already claimed part of this run (#1596/#1676). */
+  const runAlreadyPartlyBilled = useCallback(
+    (run: PayableRun): boolean => run.billing_status === "partly_billed",
+    []
+  )
+
+  /**
+   * The row states no price until somebody types one — an agreed TOTAL on a
+   * run that has already been billed against. Re-billing the total double-pays
+   * and dividing it re-prices; neither is an answer this screen may invent.
+   */
+  const runNeedsPrice = useCallback(
+    (run: PayableRun): boolean =>
+      runNeedsTypedPrice({
+        unit_is_derived: run.unit_is_derived,
+        hasTypedRate: runHasTypedRate(run),
+        alreadyPartlyBilled: runAlreadyPartlyBilled(run),
+      }),
+    [runHasTypedRate, runAlreadyPartlyBilled]
+  )
+
+  /**
+   * The rate in the box.
+   *
+   * ⚠️ Empty on a partly-billed TOTAL run: its `unit_amount` is `total /
+   * ordered`, computed for display only, and showing it beside a remainder
+   * invites billing the job at a price nobody re-negotiated.
+   */
   const getEffectiveRunUnitAmount = useCallback(
     (run: PayableRun): number => {
       if (runUnitAmounts[run.run_id] != null)
         return runUnitAmounts[run.run_id]
-      return getRunUnitCost(run)
+      return runNeedsPrice(run) ? 0 : getRunUnitCost(run)
     },
-    [runUnitAmounts]
+    [runUnitAmounts, runNeedsPrice]
   )
 
+  /**
+   * 🔴 What this run bills — through the SHARED rule, not `qty × rate`.
+   *
+   * A total-priced run bills its agreed figure verbatim. This screen used to
+   * multiply the derived rate for everything, so a ₹10,000 job that produced 7
+   * of 9 was offered at ₹7,777.77 here while the admin screen offered ₹10,000
+   * for the same run on the same day (#1679).
+   */
   const getEffectiveRunTotal = useCallback(
-    (run: PayableRun): number => {
-      return getEffectiveRunQuantity(run) * getEffectiveRunUnitAmount(run)
-    },
-    [getEffectiveRunQuantity, getEffectiveRunUnitAmount]
+    (run: PayableRun): number =>
+      runLineAmount({
+        quantity: getEffectiveRunQuantity(run),
+        rate: getEffectiveRunUnitAmount(run),
+        amount: run.amount,
+        unit_is_derived: run.unit_is_derived,
+        hasTypedRate: runHasTypedRate(run),
+        alreadyPartlyBilled: runAlreadyPartlyBilled(run),
+      }),
+    [
+      getEffectiveRunQuantity,
+      getEffectiveRunUnitAmount,
+      runHasTypedRate,
+      runAlreadyPartlyBilled,
+    ]
   )
 
   const getEffectiveTaskCost = useCallback(
@@ -347,10 +405,16 @@ export const PaymentSubmissionCreate = () => {
     }
 
     // Validate runs: all must have a quantity and a unit amount
+    /**
+     * ⚠️ The AMOUNT, not the rate. A total-priced run legitimately bills
+     * without a per-unit figure, and since #1676 the remainder of one bills
+     * nothing at all until somebody states what the rest is worth — this is
+     * the guard that makes them state it, rather than a zero being submitted.
+     */
     const invalidRuns = eligibleRuns.filter(
       (r: PayableRun) =>
         selectedRunIds.has(r.run_id) &&
-        (getEffectiveRunUnitAmount(r) <= 0 || getEffectiveRunQuantity(r) <= 0)
+        (getEffectiveRunTotal(r) <= 0 || getEffectiveRunQuantity(r) <= 0)
     )
     const invalidTasks = eligibleTasks.filter(
       (t) => selectedTaskIds.has(t.id) && getEffectiveTaskCost(t) <= 0
@@ -391,6 +455,19 @@ export const PaymentSubmissionCreate = () => {
         Array<{ quantity: number; unit_amount: number }>
       > = {}
 
+      /**
+       * 🔴 Which designs still bill an agreed TOTAL rather than a rate.
+       *
+       * This decides which request field the money is SENT on, and it is not a
+       * display concern. `create` prices in a fixed order — a typed line total
+       * wins outright, then a typed RATE, and only then the runs via
+       * `runPayableOffer`. Sending a DERIVED rate as `unit_amounts` therefore
+       * outranks the one true pricer and makes the server multiply a figure
+       * that was never per-piece: ₹7,777.77 written against a ₹10,000 job
+       * (#1679, and #1616 before it).
+       */
+      const verbatimTotalDesigns = new Set<string>()
+
       for (const run of eligibleRuns) {
         if (!selectedRunIds.has(run.run_id)) continue
         const designId = run.design_id
@@ -399,12 +476,33 @@ export const PaymentSubmissionCreate = () => {
 
         ;(productionRunIds[designId] ||= []).push(run.run_id)
         quantities[designId] = (quantities[designId] ?? 0) + qty
-        exactTotals[designId] = (exactTotals[designId] ?? 0) + qty * rate
+        // The run's OWN amount, through the shared rule — a total-priced run
+        // contributes its agreed total, not `qty × a rate derived from it`.
+        exactTotals[designId] =
+          (exactTotals[designId] ?? 0) + getEffectiveRunTotal(run)
         ;(ratesByDesign[designId] ||= new Set()).add(rate)
         ;(pricedRuns[designId] ||= []).push({ quantity: qty, unit_amount: rate })
+
+        if (
+          runBillsVerbatimTotal({
+            unit_is_derived: run.unit_is_derived,
+            hasTypedRate: runHasTypedRate(run),
+            alreadyPartlyBilled: runAlreadyPartlyBilled(run),
+          })
+        ) {
+          verbatimTotalDesigns.add(designId)
+        }
       }
 
       for (const [designId, rates] of Object.entries(ratesByDesign)) {
+        if (verbatimTotalDesigns.has(designId)) {
+          // The agreed total goes on the line-total channel, which "wins
+          // outright; never multiplied by quantity" — the only field that says
+          // what this figure is.
+          costOverrides[designId] = Math.round(exactTotals[designId] * 100) / 100
+          continue
+        }
+
         if (rates.size === 1) {
           // One agreed rate across this design's runs — state it per unit, so
           // the reviewer sees the rate and the quantity that produced the sum.
@@ -609,6 +707,10 @@ export const PaymentSubmissionCreate = () => {
                       onToggle={toggleRun}
                       quantity={getEffectiveRunQuantity(row.run)}
                       unitAmount={getEffectiveRunUnitAmount(row.run)}
+                      // 🔴 The row must not re-derive this. `qty × rate` on a
+                      // total-priced run is the 22% re-pricing (#1679).
+                      total={getEffectiveRunTotal(row.run)}
+                      needsPrice={runNeedsPrice(row.run)}
                       onQuantityChange={handleRunQuantityChange}
                       onUnitAmountChange={handleRunUnitAmountChange}
                     />
@@ -699,6 +801,8 @@ const RunRow = ({
   onToggle,
   quantity,
   unitAmount,
+  total,
+  needsPrice,
   onQuantityChange,
   onUnitAmountChange,
 }: {
@@ -708,11 +812,14 @@ const RunRow = ({
   onToggle: (id: string) => void
   quantity: number
   unitAmount: number
+  /** What this row BILLS — computed once, by the shared rule. */
+  total: number
+  /** An agreed TOTAL on a run already billed against: it has no price yet. */
+  needsPrice: boolean
   onQuantityChange: (id: string, value: string) => void
   onUnitAmountChange: (id: string, value: string) => void
 }) => {
   const blocked = !!blockedReason
-  const total = quantity * unitAmount
 
   return (
     <Table.Row
@@ -739,10 +846,31 @@ const RunRow = ({
           </Badge>
           {run.billing_status === "partly_billed" && !blocked && (
             <Tooltip
-              content={`Part of this run has already been paid for. ${run.billable_remaining} of ${run.ordered_quantity} units are still billable.`}
+              content={
+                run.open_ended
+                  ? "Part of this run has already been paid for. It has no agreed quantity, so there is no cap on what may still be billed."
+                  : `Part of this run has already been paid for. ${run.billable_remaining} of ${run.ordered_quantity} units are still billable.`
+              }
             >
               <Badge color="blue" size="2xsmall">
-                {run.billable_remaining} left to bill
+                {/* #1676 — an open-ended run's remainder is null because there
+                  * is no ceiling. Rendering it raw printed "null left to bill". */}
+                {run.open_ended
+                  ? "no cap on what's left"
+                  : `${run.billable_remaining} left to bill`}
+              </Badge>
+            </Tooltip>
+          )}
+          {/*
+            🔴 An agreed TOTAL, already billed against. The total was the price
+            for the WHOLE job, so the remainder has no figure of its own —
+            re-billing it double-pays and dividing it re-prices. The row bills
+            nothing until somebody states what the rest is worth.
+          */}
+          {needsPrice && !blocked && (
+            <Tooltip content="This run was agreed at a total price for the whole job, and part of it has already been paid. Type what the remaining work is worth.">
+              <Badge color="red" size="2xsmall">
+                Price the rest
               </Badge>
             </Tooltip>
           )}
@@ -761,9 +889,25 @@ const RunRow = ({
         </div>
         <div className="mt-1 flex items-center gap-3">
           <Text size="small" className="text-ui-fg-subtle">
-            {run.quantity_basis === "produced"
-              ? `${run.produced_quantity} made of ${run.ordered_quantity} ordered`
-              : `${run.ordered_quantity} ordered`}
+            {/*
+              ⚠️ Read "was output recorded" off `produced_quantity`, NOT off
+              `quantity_basis`. Since #1676 the offer is capped at the ordered
+              quantity, so an OVERPRODUCED run reports its basis as "ordered"
+              while having recorded output — and `ordered_quantity` is null on a
+              run with no agreed quantity at all.
+            */}
+            {run.produced_quantity != null
+              ? `${run.produced_quantity} made of ${
+                  run.ordered_quantity ?? "no agreed quantity"
+                }${
+                  run.ordered_quantity != null &&
+                  run.produced_quantity > run.ordered_quantity
+                    ? " — billing capped at ordered"
+                    : " ordered"
+                }`
+              : run.ordered_quantity != null
+                ? `${run.ordered_quantity} ordered`
+                : "No agreed quantity — open-ended"}
           </Text>
           {/*
             🔴 The TAIL of the id, not the head. `prod_run_` eats 9 characters
@@ -789,9 +933,15 @@ const RunRow = ({
       </Table.Cell>
 
       <Table.Cell className="text-right">
+        {/*
+          ⚠️ The placeholder is EMPTY on a row that has no price yet (#1676).
+          `run.unit_amount` there is `total / ordered` — a division done for
+          display on a job that was agreed as a whole, and offering it as the
+          rate for the remainder re-prices work nobody re-negotiated.
+        */}
         <NumberCell
           label={`Rate for ${run.design_name || run.run_id}`}
-          placeholder={String(run.unit_amount)}
+          placeholder={needsPrice ? "Type a rate" : String(run.unit_amount)}
           value={unitAmount !== run.unit_amount ? unitAmount : undefined}
           disabled={blocked}
           onChange={(v) => onUnitAmountChange(run.run_id, v)}

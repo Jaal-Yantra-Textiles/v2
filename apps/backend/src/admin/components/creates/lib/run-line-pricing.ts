@@ -47,6 +47,18 @@ export type RunLinePricingInput = {
   unit_is_derived?: boolean | null
   /** Whether a human has typed a rate for this run. */
   hasTypedRate: boolean
+  /**
+   * Whether a LIVE line already claimed part of this run (#1596/#1676).
+   *
+   * 🔴 It changes what an untouched total-priced row bills, and it has to.
+   * `amount` is the price agreed for the WHOLE job, and this screen used to
+   * drop such a run the moment anything claimed it — so "bill it again" was
+   * never a state that could exist. Now that the remainder is offered, an
+   * untouched row would default to the full agreed total a SECOND time, and
+   * `assessRunClaims` would not stop it: that guard bounds UNITS (4 + 5 ≤ 9),
+   * not money. ₹10,000 agreed, ₹20,000 paid, nothing refused.
+   */
+  alreadyPartlyBilled?: boolean | null
 }
 
 /**
@@ -56,11 +68,46 @@ export type RunLinePricingInput = {
  * longer derived, and a genuine per-unit rate was never a total.
  */
 export const runBillsVerbatimTotal = (
-  input: Pick<RunLinePricingInput, "unit_is_derived" | "hasTypedRate">
-): boolean => !input.hasTypedRate && !!input.unit_is_derived
+  input: Pick<
+    RunLinePricingInput,
+    "unit_is_derived" | "hasTypedRate" | "alreadyPartlyBilled"
+  >
+): boolean =>
+  !input.hasTypedRate && !!input.unit_is_derived && !input.alreadyPartlyBilled
+
+/**
+ * PURE. Whether this row can state no price of its own until somebody types one.
+ *
+ * The one case: an agreed TOTAL, on a run part of which has already been
+ * billed. The total was the price for the whole job and it has been paid
+ * against once; there is no arithmetic that yields the remainder's worth.
+ * Dividing the total by the ordered quantity and re-multiplying is exactly the
+ * re-pricing that billed ₹7,777.77 on a ₹10,000 job (#1679), and re-billing the
+ * total is a straight double payment.
+ *
+ * So the row bills NOTHING and says so, and the screen's existing zero-amount
+ * guard refuses to submit until an operator states what the rest is worth.
+ * That is the same rule this screen already applies to a run carrying no agreed
+ * rate: an absent figure is never a price, and somebody who knows types it.
+ */
+export const runNeedsTypedPrice = (
+  input: Pick<
+    RunLinePricingInput,
+    "unit_is_derived" | "hasTypedRate" | "alreadyPartlyBilled"
+  >
+): boolean =>
+  !input.hasTypedRate && !!input.unit_is_derived && !!input.alreadyPartlyBilled
 
 /** PURE. What this run bills. */
 export const runLineAmount = (input: RunLinePricingInput): number => {
+  /**
+   * 🔴 BEFORE the verbatim branch and before the multiplication — both of the
+   * other answers are wrong here. Re-billing the total double-pays; multiplying
+   * the derived rate re-prices a job nobody re-negotiated.
+   */
+  if (runNeedsTypedPrice(input)) {
+    return 0
+  }
   if (runBillsVerbatimTotal(input)) {
     // Verbatim. Not rounded, not re-derived, not multiplied.
     return input.amount

@@ -177,21 +177,28 @@ describe("assessRunClaims (#1596)", () => {
     expect(overclaimed[0]?.requested).toBeNull()
   })
 
-  it("refuses when the run states no quantity to divide", () => {
-    // No ceiling means no arithmetic. Allowing here would invent headroom on
-    // exactly the runs whose records are weakest.
+  it("refuses when the run's quantity is set but UNUSABLE", () => {
+    // No readable ceiling means no arithmetic. Allowing here would invent
+    // headroom on exactly the runs whose records are weakest.
+    //
+    // ⚠️ `0`, not `null`: since #1676 a null quantity is a DECLARATION that the
+    // run is open-ended, and it is the one case that does not refuse. A zero is
+    // still a broken number.
     const overclaimed = assessRunClaims({
       requestedByRun: requestedRunQuantities([
         { production_run_ids: ["run_a"], quantity: 1 },
       ]),
-      runs: new Map([["run_a", { quantity: null }]]),
+      runs: new Map([["run_a", { quantity: 0 }]]),
       tallies: foldRunClaimTallies([live(["run_a"], 1)]),
     })
     expect(overclaimed).toHaveLength(1)
     expect(overclaimed[0]?.ceiling).toBe(0)
   })
 
-  it("says nothing about a run nobody has claimed", () => {
+  it("says nothing about a run nobody has claimed, when the claim is unattributable", () => {
+    // An unattributable claim takes the run WHOLE, which is what it is worth.
+    // There is no number to compare — see the #1676 block for the case where
+    // there IS one.
     expect(
       assessRunClaims({
         requestedByRun: requestedRunQuantities([
@@ -235,5 +242,198 @@ describe("runsOverclaimedMessage (#1596)", () => {
     expect(message).toContain("1 remaining")
     expect(message).toContain("asks for 2")
     expect(message).toContain("sub_prior")
+  })
+})
+
+/**
+ * #1676 — a FIRST claim is bounded too.
+ *
+ * `tallies` only holds runs some PRIOR submission claimed, so a run's opening
+ * claim used to be compared against nothing at all: a run ordered for 9 could
+ * be billed at 100 and this guard would not look. Only a short-closed run was
+ * checked, because otherwise the close would have meant nothing.
+ *
+ * The founder's rule is a pair, and the second half is what makes the first
+ * half safe: bound the first claim by the agreed amount, and let a run created
+ * with NO agreed quantity be the explicit, per-run opt-out. That turns an
+ * implicit absence of validation into a declaration somebody has to make.
+ */
+describe("assessRunClaims — a first claim (#1676)", () => {
+  const first = (quantity: number | null) =>
+    requestedRunQuantities([{ production_run_ids: ["run_a"], quantity }])
+
+  it("refuses a first claim for more than the run was ordered for", () => {
+    // The headline case: ordered 9, billed 100, nobody had claimed it before.
+    const overclaimed = assessRunClaims({
+      requestedByRun: first(100),
+      runs: new Map([["run_a", { quantity: 9 }]]),
+      tallies: new Map(),
+    })
+
+    expect(overclaimed).toHaveLength(1)
+    expect(overclaimed[0]).toEqual(
+      expect.objectContaining({
+        run_id: "run_a",
+        ceiling: 9,
+        claimed_quantity: 0,
+        requested: 100,
+        claims: [],
+      })
+    )
+  })
+
+  it("allows a first claim within the ordered quantity", () => {
+    expect(
+      assessRunClaims({
+        requestedByRun: first(7),
+        runs: new Map([["run_a", { quantity: 9 }]]),
+        tallies: new Map(),
+      })
+    ).toEqual([])
+  })
+
+  it("allows the whole ordered quantity, float dust included", () => {
+    expect(
+      assessRunClaims({
+        requestedByRun: first(9.001),
+        runs: new Map([["run_a", { quantity: 9 }]]),
+        tallies: new Map(),
+      })
+    ).toEqual([])
+  })
+
+  it("names the run's own ceiling in the refusal, with no prior holder", () => {
+    const message = runsOverclaimedMessage(
+      assessRunClaims({
+        requestedByRun: first(100),
+        runs: new Map([["run_a", { quantity: 9 }]]),
+        tallies: new Map(),
+      })
+    )
+
+    expect(message).toContain("ordered 9")
+    expect(message).toContain("already claimed 0")
+    expect(message).toContain("no prior claim")
+    expect(message).toContain("asks for 100")
+  })
+
+  it("refuses when the row states a quantity that cannot be read", () => {
+    // A zero is a broken number, not a declaration — the same rule the
+    // second-and-later claims have always applied.
+    expect(
+      assessRunClaims({
+        requestedByRun: first(5),
+        runs: new Map([["run_a", { quantity: 0 }]]),
+        tallies: new Map(),
+      })
+    ).toHaveLength(1)
+  })
+
+  it("refuses when the row never FETCHED the quantity", () => {
+    // 🔴 The trap this guard is one keystroke away from: a `query.graph` that
+    // forgot `quantity` produces rows with no such key. Reading that as
+    // open-ended would silently disable the ceiling everywhere. Absence of the
+    // field is absence of an answer, so it refuses.
+    expect(
+      assessRunClaims({
+        requestedByRun: first(100),
+        runs: new Map([["run_a", { produced_quantity: 9 }]]),
+        tallies: new Map(),
+      })
+    ).toHaveLength(1)
+  })
+
+  it("says nothing about a run it was never given a row for", () => {
+    // Existence and ownership are somebody else's guard; refusing here would
+    // block a submit over a run this function was simply not told about.
+    expect(
+      assessRunClaims({
+        requestedByRun: first(100),
+        runs: new Map(),
+        tallies: new Map(),
+      })
+    ).toEqual([])
+  })
+
+  it("still refuses a first claim above what a SHORT-CLOSED run produced", () => {
+    expect(
+      assessRunClaims({
+        requestedByRun: first(9),
+        runs: new Map([
+          [
+            "run_a",
+            { quantity: 9, produced_quantity: 4, short_closed_at: new Date() },
+          ],
+        ]),
+        tallies: new Map(),
+      })
+    ).toHaveLength(1)
+  })
+})
+
+/**
+ * #1676 — the opt-out. A run created with NO agreed quantity is open-ended:
+ * ongoing work, billed as it comes, and deliberately outside the ceiling.
+ */
+describe("assessRunClaims — an open-ended run (#1676)", () => {
+  const openEnded = { quantity: null }
+
+  it("does not bound a first claim of any size", () => {
+    expect(
+      assessRunClaims({
+        requestedByRun: requestedRunQuantities([
+          { production_run_ids: ["run_a"], quantity: 1000 },
+        ]),
+        runs: new Map([["run_a", openEnded]]),
+        tallies: new Map(),
+      })
+    ).toEqual([])
+  })
+
+  it("does not bound a LATER claim either", () => {
+    expect(
+      assessRunClaims({
+        requestedByRun: requestedRunQuantities([
+          { production_run_ids: ["run_a"], quantity: 50 },
+        ]),
+        runs: new Map([["run_a", openEnded]]),
+        tallies: foldRunClaimTallies([live(["run_a"], 500)]),
+      })
+    ).toEqual([])
+  })
+
+  it("does not refuse even when a prior claim took the run WHOLE", () => {
+    // The deliberate cost of the opt-out, and the reason it has to be declared
+    // by a person rather than inferred: no agreed amount means no arithmetic
+    // for the double-pay guard to do.
+    expect(
+      assessRunClaims({
+        requestedByRun: requestedRunQuantities([
+          { production_run_ids: ["run_a"], quantity: 5 },
+        ]),
+        runs: new Map([["run_a", openEnded]]),
+        tallies: foldRunClaimTallies([live(["run_a"], null)]),
+      })
+    ).toEqual([])
+  })
+
+  it("IS bounded once it is short-closed — a close is still a statement", () => {
+    // Opting out of an agreed quantity is not opting out of "no more will be
+    // made". Without this the close would mean nothing at all on such a run.
+    const overclaimed = assessRunClaims({
+      requestedByRun: requestedRunQuantities([
+        { production_run_ids: ["run_a"], quantity: 5 },
+      ]),
+      runs: new Map([
+        [
+          "run_a",
+          { quantity: null, produced_quantity: 4, short_closed_at: new Date() },
+        ],
+      ]),
+      tallies: new Map(),
+    })
+
+    expect(overclaimed).toHaveLength(1)
+    expect(overclaimed[0]?.ceiling).toBe(4)
   })
 })

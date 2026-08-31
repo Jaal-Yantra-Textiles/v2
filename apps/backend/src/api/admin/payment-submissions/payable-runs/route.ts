@@ -310,7 +310,18 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
         design_name: design?.name ?? null,
         design_status: design?.status ?? null,
         completed_at: run.completed_at ?? null,
-        ordered_quantity: Number.isFinite(ordered) ? ordered : null,
+        /**
+         * ⚠️ `Number(null)` is 0, so a run with NO agreed quantity (#1676) used
+         * to report `ordered_quantity: 0` — a run ordered for nothing, which is
+         * a different and much worse statement than "no amount was agreed".
+         * Read the raw field, not the coercion.
+         */
+        ordered_quantity:
+          run.quantity === null || run.quantity === undefined
+            ? null
+            : Number.isFinite(ordered)
+              ? ordered
+              : null,
         produced_quantity: hasProduced ? produced : null,
         rejected_quantity:
           run.rejected_quantity === null || run.rejected_quantity === undefined
@@ -384,6 +395,13 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
          * whole, or the run states no quantity — which is exactly when the
          * write guard refuses. A number here is a promise `create` will keep.
          */
+        /**
+         * #1676 — the run states NO agreed quantity: it is open-ended, and the
+         * offer against it is not capped. Read it beside `billable_remaining`,
+         * which is null here because there is no ceiling to subtract from —
+         * NOT because nothing is left.
+         */
+        open_ended: run.quantity === null || run.quantity === undefined,
         billable_remaining: runBillableRemaining({
           claim: billedRuns.get(String(run.id)),
           // #1596 — the CEILING, not the raw ordered quantity: a short-closed
@@ -429,6 +447,10 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
         billed: row.billed,
         unrecordedClaims: row.unrecorded_claims,
         remaining: row.billable_remaining,
+        // #1676 — without this an open-ended run reads as fully `billed` after
+        // its first claim (its remainder is null because it has no ceiling),
+        // and no screen would ever offer it again.
+        openEnded: row.open_ended,
       }),
     }))
     .sort((a, b) => {

@@ -20,7 +20,21 @@ const ProductionRun = model.define("production_runs", {
     ])
     .default("pending_review"),
   run_type: model.enum(["production", "sample"]).default("production"),
-  quantity: model.float().default(1),
+  /**
+   * The AGREED quantity — how many units this run was ordered for.
+   *
+   * 🔴 Nullable, and null means something specific: there is NO agreed amount
+   * (#1676). Such a run is deliberately open-ended — ongoing work, billed as it
+   * comes — and it opts out of the billed-quantity ceiling entirely, so nothing
+   * refuses a payment claim against it. It has to be stated by a person at
+   * creation; it is never inferred, and `0` is emphatically NOT it (`0` is a
+   * broken number and still refuses).
+   *
+   * The `.default(1)` stays so that OMITTING the field keeps meaning "one
+   * piece", exactly as it has for every existing row and caller. Only an
+   * explicit `null` declares open-endedness.
+   */
+  quantity: model.float().default(1).nullable(),
 
   parent_run_id: model.text().nullable(),
   role: model.text().nullable(),

@@ -1,4 +1,4 @@
-import { runBillableCeiling } from "../run-billable-ceiling"
+import { isOpenEndedRun, runBillableCeiling } from "../run-billable-ceiling"
 
 /**
  * #1596 short-close. The ceiling decides how much a partner may still claim, so
@@ -77,5 +77,44 @@ describe("runBillableCeiling", () => {
         short_closed_at: "2026-08-30T00:00:00.000Z",
       })
     ).toBe(7)
+  })
+})
+
+/**
+ * #1676 — "no agreed quantity" is a DECLARATION, and it has to be spelled
+ * differently from "no readable ceiling", which is a refusal.
+ */
+describe("isOpenEndedRun (#1676)", () => {
+  it("is true only for a quantity that is explicitly null", () => {
+    expect(isOpenEndedRun({ quantity: null })).toBe(true)
+  })
+
+  it("is FALSE for a quantity that is set but unusable", () => {
+    // `0` is not `null`. A broken number is not a declaration, and the guards
+    // still refuse on it.
+    expect(isOpenEndedRun({ quantity: 0 })).toBe(false)
+    expect(isOpenEndedRun({ quantity: -1 })).toBe(false)
+    expect(isOpenEndedRun({ quantity: "" })).toBe(false)
+  })
+
+  it("is FALSE when the row never fetched the field at all", () => {
+    // 🔴 The dangerous spelling. `run.quantity == null` would read every row of
+    // a query that forgot `quantity` as open-ended — a guard that silently
+    // allows everything. Absence of the field is absence of an answer.
+    expect(isOpenEndedRun({ produced_quantity: 9 } as any)).toBe(false)
+    expect(isOpenEndedRun({})).toBe(false)
+    expect(isOpenEndedRun(null)).toBe(false)
+    expect(isOpenEndedRun(undefined)).toBe(false)
+  })
+
+  it("still has no ceiling of its own — until it is short-closed", () => {
+    expect(runBillableCeiling({ quantity: null })).toBeNull()
+    expect(
+      runBillableCeiling({
+        quantity: null,
+        produced_quantity: 4,
+        short_closed_at: new Date("2026-08-31"),
+      })
+    ).toBe(4)
   })
 })

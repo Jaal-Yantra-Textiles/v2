@@ -4,7 +4,7 @@ import { ContainerRegistrationKeys, MedusaError } from "@medusajs/framework/util
 import { PAYMENT_SUBMISSIONS_MODULE } from "../../../../modules/payment_submissions"
 import PaymentSubmissionsService from "../../../../modules/payment_submissions/service"
 import { isProvenanceRun } from "../../../../workflows/consumption-logs/lib/reconcile-production-consumption"
-import { runUnitCost } from "../../../../workflows/production-runs/lib/run-payable"
+import { runPayableOffer } from "../../../../workflows/production-runs/lib/run-payable"
 import {
   foldPartnerBilling,
   runBillableRemaining,
@@ -141,16 +141,28 @@ export const GET = async (
     .map((run) => {
       const design = designById.get(String(run.design_id))
 
-      const unit_amount = runUnitCost(run)
+      /**
+       * 🔴 ONE pricer, shared with the admin screen and with `create`.
+       *
+       * This route used to price with its own arithmetic — `runUnitCost(run) ×
+       * payable_quantity` — which is the derived rate re-multiplied, the exact
+       * defect #1679 removed from the admin side. On a real run (₹10,000
+       * agreed as a TOTAL, 9 ordered, 7 made) the two screens disagreed on the
+       * same day: the admin offered ₹10,000 and this one ₹7,777.77, a 22% cut
+       * nobody decided. Even when produced equalled ordered it lost a paisa
+       * (₹9,999.99). A partner submitting their own draft under-claimed.
+       *
+       * `runPayableOffer` bills a `total` verbatim, multiplies a `per_unit`
+       * rate, clamps the quantity at what was ordered (#1676), and says which
+       * of its numbers was agreed via `unit_is_derived`.
+       */
+      const offer = runPayableOffer(run)
+      const unit_amount = offer.unit_amount
+      const payable_quantity = offer.quantity
 
       const produced = Number(run.produced_quantity)
       const hasProduced = Number.isFinite(produced) && produced > 0
       const ordered = Number(run.quantity)
-      const payable_quantity = hasProduced
-        ? produced
-        : Number.isFinite(ordered) && ordered > 0
-          ? ordered
-          : 1
 
       return {
         run_id: String(run.id),
@@ -158,16 +170,36 @@ export const GET = async (
         design_name: design?.name ?? null,
         design_status: design?.status ?? null,
         completed_at: run.completed_at ?? null,
-        ordered_quantity: Number.isFinite(ordered) ? ordered : null,
+        /**
+         * ⚠️ `Number(null)` is 0, so a run with NO agreed quantity (#1676) used
+         * to report `ordered_quantity: 0` — a run ordered for nothing, which is
+         * a different and much worse statement than "no amount was agreed".
+         * Read the raw field, not the coercion.
+         */
+        ordered_quantity:
+          run.quantity === null || run.quantity === undefined
+            ? null
+            : Number.isFinite(ordered)
+              ? ordered
+              : null,
         produced_quantity: hasProduced ? produced : null,
         rejected_quantity:
           run.rejected_quantity === null || run.rejected_quantity === undefined
             ? null
             : Number(run.rejected_quantity),
         payable_quantity,
-        quantity_basis: hasProduced ? "produced" : "ordered",
+        quantity_basis: offer.quantity_basis,
         unit_amount,
-        amount: Math.round(unit_amount * payable_quantity * 100) / 100,
+        /**
+         * ⚠️ Whether `unit_amount` was COMPUTED rather than agreed.
+         *
+         * True for every `cost_type: "total"` run — 97 of 100 on production.
+         * A screen that multiplies it anyway bills a figure nobody agreed to.
+         * The admin row has carried this since #1679; this one did not, which
+         * is how the two screens came to disagree by 22%.
+         */
+        unit_is_derived: offer.unit_is_derived,
+        amount: offer.amount,
         cost_type: run.cost_type ?? null,
         partner_cost_estimate:
           run.partner_cost_estimate === null ||
@@ -185,6 +217,12 @@ export const GET = async (
             ? null
             : Number(design.production_cost),
         billed: billedRuns.get(String(run.id)) ?? null,
+        /**
+         * #1676 — the run states NO agreed quantity, so the offer is not
+         * capped. Null `billable_remaining` beside this means "no ceiling",
+         * not "nothing left".
+         */
+        open_ended: run.quantity === null || run.quantity === undefined,
         // Units still billable (#1596). Null when there is no arithmetic
         // behind the answer — which is exactly when `create` refuses.
         billable_remaining: runBillableRemaining({
@@ -207,6 +245,9 @@ export const GET = async (
         billed: row.billed,
         unrecordedClaims: row.unrecorded_claims,
         remaining: row.billable_remaining,
+        // #1676 — without this an open-ended run reads as fully `billed` after
+        // its first claim and this screen would never offer it again.
+        openEnded: row.open_ended,
       }),
     }))
     .sort((a, b) => {

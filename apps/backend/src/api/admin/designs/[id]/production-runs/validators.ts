@@ -23,7 +23,12 @@ const RunMaterialSchema = z.object({
 const ProductionAssignmentSchema = z.object({
   partner_id: z.string().min(1),
   role: z.string().optional(),
-  quantity: z.number().positive(),
+  /**
+   * Units for this child run. `null` declares it OPEN-ENDED — no agreed
+   * quantity, and so no ceiling on what may be billed against it (#1676).
+   * A number is still required otherwise: "allocate nothing" is not a share.
+   */
+  quantity: z.number().positive().nullable(),
   order: z.number().int().positive().optional(),
   /**
    * Which of the design's inventory items THIS partner is sent, and how much.
@@ -41,7 +46,15 @@ const ProductionAssignmentSchema = z.object({
 })
 
 export const AdminCreateDesignProductionRunSchema = z.object({
-  quantity: z.number().positive().optional(),
+  /**
+   * The agreed quantity for the parent run. Omit it and it is inferred from the
+   * assignments (or defaults to 1).
+   *
+   * 🔴 `null` is NOT the same as omitting it (#1676): it declares that this run
+   * has no agreed amount — open-ended, ongoing work — which opts it out of the
+   * payment ceiling entirely.
+   */
+  quantity: z.number().positive().nullish(),
   run_type: z.enum(["production", "sample"]).optional(),
   assignments: z.array(ProductionAssignmentSchema).min(1).optional(),
   /**

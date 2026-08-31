@@ -15,6 +15,15 @@ export interface PayableRun {
   payable_quantity: number
   quantity_basis: "produced" | "ordered"
   unit_amount: number
+  /**
+   * 🔴 Whether `unit_amount` was COMPUTED rather than agreed.
+   *
+   * True for every `cost_type: "total"` run — 97 of 100 on production — where
+   * the rate is `total / ordered` and multiplying it back out does not
+   * reproduce `amount`. Read `amount` for the money; read this only to show a
+   * rate. Without it this screen billed ₹7,777.77 against a ₹10,000 job.
+   */
+  unit_is_derived: boolean
   amount: number
   cost_type: string | null
   partner_cost_estimate: number | null
@@ -39,6 +48,12 @@ export interface PayableRun {
    * refuses. A number here is a promise `create` will keep.
    */
   billable_remaining: number | null
+  /**
+   * #1676 — no agreed quantity, so nothing caps what may be billed against
+   * this run. A null `billable_remaining` beside this means "no ceiling", not
+   * "nothing left".
+   */
+  open_ended: boolean
 }
 
 export interface PayableRunsListResponse {

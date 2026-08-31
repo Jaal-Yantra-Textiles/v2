@@ -29,6 +29,7 @@ import { PayableRunsGrid } from "./payable-runs-grid"
 import { PayableInventoryOrdersGrid } from "./payable-inventory-orders-grid"
 import {
   runBillsVerbatimTotal as billsVerbatimTotal,
+  runNeedsTypedPrice,
   runLineAmount,
 } from "./lib/run-line-pricing"
 /**
@@ -162,19 +163,25 @@ export const CreatePaymentSubmissionComponent = () => {
     isPending: inventoryLoading,
   } = usePayableInventoryOrders(partnerId || undefined)
 
-  /**
-   * Runs that can be billed now — everything not already paid for.
-   *
-   * 🔑 A missing rate does NOT disqualify a run. The rate lives on the run
-   * because that is where it SHOULD be recorded, but on prod 15 of 27 completed
-   * runs carry none — the partner completed the work and never entered a price.
-   * That is a gap in the record, not a statement that the work was free, and an
-   * admin who knows what was agreed must be able to pay it by typing the rate.
-   * Blocking here would have made real completed work permanently unpayable
-   * through the only screen that can pay it.
-   */
+  /** Runs that can be billed now — everything not already paid for IN FULL. */
   const selectableRuns = useMemo(
-    () => payableRuns.filter((r) => !r.billed),
+    /**
+     * 🔴 `billing_status`, not `!r.billed`.
+     *
+     * `billed` is truthy for a run that has been claimed AT ALL, so a run
+     * claimed for 1 of the 10 it was ordered for vanished from this screen —
+     * the founder's own #1596 case ("bill 1 of 10 now and the other 9 later")
+     * was unreachable from the screen payouts are actually created on, while
+     * the write guard accepted it and the partner's own screen offered it.
+     * `partly_billed` deliberately does NOT block, exactly as it does not on
+     * the partner side; only `billed` does.
+     *
+     * 🔑 A missing rate does NOT disqualify a run either. On prod 15 of 27
+     * completed runs carry none — the partner did the work and never entered a
+     * price. That is a gap in the record, not a statement that the work was
+     * free, and an admin who knows what was agreed must be able to type it.
+     */
+    () => payableRuns.filter((r) => r.billing_status !== "billed"),
     [payableRuns]
   )
 
@@ -231,22 +238,67 @@ export const CreatePaymentSubmissionComponent = () => {
     })
   }, [])
 
-  /** Units billed for a run — the produced figure unless an admin retyped it. */
-  const getRunQuantity = useCallback(
-    (run: PayableRun): number =>
-      runQuantityOverrides[run.run_id] != null
-        ? runQuantityOverrides[run.run_id]
-        : run.payable_quantity,
-    [runQuantityOverrides]
+  /** Whether a live line has already claimed part of this run (#1596/#1676). */
+  const runAlreadyPartlyBilled = useCallback(
+    (run: PayableRun): boolean => run.billing_status === "partly_billed",
+    []
   )
 
-  /** The per-unit rate — the run's agreed rate unless an admin retyped it. */
+  /**
+   * Units billed for a run — the produced figure unless an admin retyped it.
+   *
+   * 🔴 On a partly-billed run it is what is LEFT, not what was produced. The
+   * screen must offer exactly what the write guard will accept: a run ordered
+   * 10 and claimed for 1 has 9 units of headroom, and defaulting to the
+   * produced 10 puts a number in the box that `create` then refuses.
+   *
+   * `billable_remaining` is null when there is no arithmetic behind it — a
+   * claim took the run whole, or (since #1676) the run has no agreed quantity
+   * and therefore no ceiling to subtract from. Neither is a remainder of zero,
+   * so both fall back to the offered figure rather than to nothing.
+   */
+  const getRunQuantity = useCallback(
+    (run: PayableRun): number => {
+      if (runQuantityOverrides[run.run_id] != null) {
+        return runQuantityOverrides[run.run_id]
+      }
+      const remaining = run.billable_remaining
+      if (
+        runAlreadyPartlyBilled(run) &&
+        remaining != null &&
+        remaining > 0 &&
+        remaining < run.payable_quantity
+      ) {
+        return remaining
+      }
+      return run.payable_quantity
+    },
+    [runQuantityOverrides, runAlreadyPartlyBilled]
+  )
+
+  /**
+   * The per-unit rate — the run's agreed rate unless an admin retyped it.
+   *
+   * ⚠️ Empty on a partly-billed TOTAL run. Its `unit_amount` is `total /
+   * ordered`, computed for display only, and showing it beside a remainder
+   * invites copying it down a column — which is how a job agreed at ₹10,000
+   * gets re-priced by arithmetic nobody decided (#1679). The row states no rate
+   * because there is none to state.
+   */
   const getRunRate = useCallback(
-    (run: PayableRun): number =>
-      runRateOverrides[run.run_id] != null
-        ? runRateOverrides[run.run_id]
-        : run.unit_amount,
-    [runRateOverrides]
+    (run: PayableRun): number => {
+      if (runRateOverrides[run.run_id] != null) {
+        return runRateOverrides[run.run_id]
+      }
+      return runNeedsTypedPrice({
+        unit_is_derived: run.unit_is_derived,
+        hasTypedRate: false,
+        alreadyPartlyBilled: runAlreadyPartlyBilled(run),
+      })
+        ? 0
+        : run.unit_amount
+    },
+    [runRateOverrides, runAlreadyPartlyBilled]
   )
 
   /**
@@ -285,8 +337,12 @@ export const CreatePaymentSubmissionComponent = () => {
         amount: run.amount,
         unit_is_derived: run.unit_is_derived,
         hasTypedRate: runHasTypedRate(run),
+        // 🔴 Without this an untouched total-priced remainder re-bills the
+        // WHOLE agreed total, and the write guard — which bounds units, not
+        // money — would let it through.
+        alreadyPartlyBilled: runAlreadyPartlyBilled(run),
       }),
-    [getRunQuantity, getRunRate, runHasTypedRate]
+    [getRunQuantity, getRunRate, runHasTypedRate, runAlreadyPartlyBilled]
   )
 
   /**
@@ -328,8 +384,26 @@ export const CreatePaymentSubmissionComponent = () => {
       billsVerbatimTotal({
         unit_is_derived: run.unit_is_derived,
         hasTypedRate: runHasTypedRate(run),
+        // A partly-billed total does NOT go on the line-total channel: it has
+        // no figure of its own until an operator types a rate.
+        alreadyPartlyBilled: runAlreadyPartlyBilled(run),
       }),
-    [runHasTypedRate]
+    [runHasTypedRate, runAlreadyPartlyBilled]
+  )
+
+  /**
+   * The row states no price until somebody types one — an agreed TOTAL on a
+   * run that has already been billed against. The grid says so on the row, and
+   * the existing zero-amount guard refuses the submit until it is priced.
+   */
+  const runNeedsTypedPriceForRun = useCallback(
+    (run: PayableRun): boolean =>
+      runNeedsTypedPrice({
+        unit_is_derived: run.unit_is_derived,
+        hasTypedRate: runHasTypedRate(run),
+        alreadyPartlyBilled: runAlreadyPartlyBilled(run),
+      }),
+    [runHasTypedRate, runAlreadyPartlyBilled]
   )
 
   const handleRunNumberChange = (
@@ -934,6 +1008,7 @@ export const CreatePaymentSubmissionComponent = () => {
                   getAmount={getRunAmount}
                   billsVerbatimTotal={runBillsVerbatimTotal}
                   hasTypedRate={runHasTypedRate}
+                  needsTypedPrice={runNeedsTypedPriceForRun}
                 />
               </Tabs.Content>
 
