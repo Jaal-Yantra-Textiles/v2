@@ -257,16 +257,72 @@ test.describe("Payment submission from production runs (#1556)", () => {
      */
   })
 
-  test("refuses to offer a run that has already been paid for", async ({
+  /**
+   * 🔴 This case used to assert that billing a run ONCE retired it — "refuses to
+   * offer a run that has already been paid for", expecting the row to read
+   * "paid" with a disabled checkbox.
+   *
+   * That was true, and it was the bug. The screen hid a run behind `!r.billed`
+   * in three places, so a run billed for SOME of its quantity vanished and its
+   * REMAINDER could never be claimed — #1596's own case was unreachable from
+   * the screen payouts are made on. #1682 fixed it, and this assertion went red
+   * the first time these specs actually ran.
+   *
+   * The previous case bills 7 of 9. So the run is PARTLY billed, and the right
+   * assertion is the opposite of the old one: it is still offered, with 2 left.
+   * Then billing those 2 is what retires it — which is the behaviour worth
+   * covering, and the half the old spec could never reach.
+   */
+  test("offers a partly-billed run's REMAINDER, and retires it once that is billed", async ({
     page,
   }) => {
     await login(page)
     await openCreateForPartner(page)
 
-    // Depends on the previous case having created the payout against it.
+    // Depends on the previous case having billed 7 of this run's 9.
     const row = runRow(page, seed.billableRunId)
     await expect(row).toBeVisible({ timeout: 15000 })
-    await expect(row).toContainText("paid")
-    await expect(row.getByRole("checkbox")).toBeDisabled()
+
+    // Still offered, and it says how much is left rather than hiding the run.
+    await expect(row).toContainText("2 left")
+    await expect(row.getByRole("checkbox")).toBeEnabled()
+
+    await row.getByRole("checkbox").click()
+
+    /**
+     * The quantity box opens on the REMAINDER, not on the produced quantity —
+     * offering 4 again on a run with 2 left is how a double-bill starts.
+     */
+    await expect(qtyBox(row)).toHaveValue("2", { timeout: 10000 })
+
+    const total = page.getByTestId("submission-total")
+    await expect(total).toHaveText("INR 2,400", { timeout: 10000 })
+
+    const [response] = await Promise.all([
+      page.waitForResponse(
+        (r: any) =>
+          r.url().includes("/admin/payment-submissions") &&
+          r.request().method() === "POST"
+      ),
+      page.getByRole("button", { name: /Create Submission/i }).click(),
+    ])
+    expect(response.status()).toBeLessThan(400)
+
+    await page.waitForURL(
+      /\/app\/payment-submissions\/(?!create$)[^/]+$/,
+      { timeout: 20000 }
+    )
+
+    /**
+     * NOW it is wholly billed, and only now does the original assertion hold.
+     * "paid" and "N left" are different badges on different statuses — `billed`
+     * renders the first, `partly_billed` the second — so this asserts the state
+     * positively rather than by the absence of the other.
+     */
+    await openCreateForPartner(page)
+    const settled = runRow(page, seed.billableRunId)
+    await expect(settled).toBeVisible({ timeout: 15000 })
+    await expect(settled).toContainText("paid")
+    await expect(settled.getByRole("checkbox")).toBeDisabled()
   })
 })
