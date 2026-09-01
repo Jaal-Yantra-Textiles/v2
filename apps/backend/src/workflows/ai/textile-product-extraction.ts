@@ -30,6 +30,7 @@ import {
   clearTextileModelsForRun,
   clearTextileCooldownForRun,
 } from "../../mastra/agents/textileExtractionAgent";
+import { summarizeAiStepError } from "./image-extraction";
 
 /** Vision role the textile extraction resolves its provider ladder from. */
 const TEXTILE_VISION_ROLE = "ai_image_extraction";
@@ -215,9 +216,14 @@ export const runTextileMastraExtraction = async (input: {
   // Check for errors
   const failedStep = Object.entries(workflowResult.steps).find(([, step]) => (step as any).status === "failed");
   if (failedStep) {
+    // ⚠️ The step VALUE here is a `{ status, output, error }` object — printing
+    // it directly yields "[object Object]" and buries the reason the operator
+    // needs (which model/format/size actually failed). `summarizeAiStepError`
+    // digs the provider's real message out of the AI SDK error shape.
+    const detail = summarizeAiStepError((failedStep[1] as any)?.error)
     throw new MedusaError(
       MedusaError.Types.UNEXPECTED_STATE,
-      `Textile extraction failed at step ${failedStep[0]}: ${failedStep[1] || "Unknown error"}`
+      `Textile extraction failed at step ${failedStep[0]}: ${detail}`
     );
   }
 

@@ -16,8 +16,13 @@ import {
 } from "../../agents/textileExtractionAgent";
 import { PinoLogger } from "@mastra/loggers";
 import { readModelJsonOrThrow } from "../../../lib/ai/model-json";
+import sharp from "sharp";
 
 const logger = new PinoLogger();
+
+/** Longest-side cap for images sent to vision models — keeps the base64 body
+ * under Cloudflare's request-size ceiling and matches typical "high detail". */
+const MAX_IMAGE_DIM = 1024;
 
 // Input schema for the workflow
 export const triggerSchema = z.object({
@@ -213,7 +218,7 @@ const prepareImageForAgent = async (image_url: string): Promise<{ image: string;
   if (image_url.startsWith("http")) {
     try {
       const resp = await fetch(image_url);
-      const buf = Buffer.from(await resp.arrayBuffer());
+      let buf = Buffer.from(await resp.arrayBuffer());
 
       const isPng = buf[0] === 0x89 && buf[1] === 0x50 && buf[2] === 0x4e && buf[3] === 0x47;
       const isJpeg = buf[0] === 0xff && buf[1] === 0xd8;
@@ -228,6 +233,34 @@ const prepareImageForAgent = async (image_url: string): Promise<{ image: string;
       else {
         const ct = resp.headers.get("content-type") || "";
         if (ct.startsWith("image/")) mimeType = ct.split(";")[0].trim();
+      }
+
+      // 🔑 Normalise through sharp → JPEG. HEIC (iPhone) and other phone
+      // formats are rejected by almost every vision model (Cloudflare:
+      // "unrecognized image format", Minimax: "image/heic not supported"), and
+      // an oversized base64 body trips Cloudflare's request-size limit. Anything
+      // that isn't already JPEG/PNG/WebP is re-encoded, and everything is capped
+      // to MAX_IMAGE_DIM so the body stays small.
+      const needsReencode = !isJpeg && !isPng && !isWebp; // HEIC, GIF, TIFF, …
+      try {
+        const meta = await sharp(buf, { failOn: "none" }).metadata();
+        const tooBig =
+          (meta.width ?? 0) > MAX_IMAGE_DIM || (meta.height ?? 0) > MAX_IMAGE_DIM;
+        if (needsReencode || tooBig) {
+          buf = await sharp(buf, { failOn: "none" })
+            .rotate() // apply EXIF orientation
+            .resize({
+              width: MAX_IMAGE_DIM,
+              height: MAX_IMAGE_DIM,
+              fit: "inside",
+              withoutEnlargement: true,
+            })
+            .jpeg({ quality: 82 })
+            .toBuffer();
+          mimeType = "image/jpeg";
+        }
+      } catch (err) {
+        logger.warn(`[TextileExtraction] sharp re-encode failed, using original bytes: ${err}`);
       }
 
       const b64 = buf.toString("base64");
@@ -367,7 +400,14 @@ const runVisionExtraction = async <T>(
     }
   }
 
-  throw new Error(`[${label}] All vision models exhausted. Last error: ${lastError?.message || String(lastError)}`);
+  // Surface the provider's REAL reason, not just a wrapped "Provider returned
+  // error". The AI SDK buries the detail in `responseBody` (e.g. Cloudflare
+  // "unrecognized image format", Minimax "image/heic not supported"), which is
+  // the difference between a diagnosable failure and "[object Object]".
+  const lastDetail = lastError?.responseBody
+    ? `${lastError?.message ?? "error"} — ${String(lastError.responseBody).slice(0, 300)}`
+    : lastError?.message || String(lastError)
+  throw new Error(`[${label}] All vision models exhausted. Last error: ${lastDetail}`);
 };
 
 // ─────────────────────────────────────────────────────────────
