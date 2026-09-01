@@ -11,6 +11,7 @@ import { getThumbUrl } from "../../../lib/media";
 import { TextileExtractionModal } from "../textile-extraction-modal";
 import { CreateProductFromMediaModal } from "../create-product-from-media-modal";
 import { useTextileAnalyses } from "../../../hooks/api/textile-analyses";
+import { useRetryFolderExtraction } from "../../../hooks/api/textile-extraction";
 
 const MAX_PRODUCT_PHOTOS = 4
 
@@ -26,6 +27,13 @@ export const FolderMediaSection = ({ folder }: FolderMediaSectionProps) => {
   const [createProductModalOpen, setCreateProductModalOpen] = useState(false)
   const queryClient = useQueryClient()
   const selectedCount = useMemo(() => Object.keys(selection).length, [selection])
+  const { mutateAsync: retryFailed, isPending: isRetrying } = useRetryFolderExtraction()
+
+  // Failed files from the last folder-wide extraction (mirrored into metadata).
+  const failedCount = useMemo(() => {
+    const errors = (folder.metadata?.folder_extraction as any)?.errors
+    return Array.isArray(errors) ? errors.length : 0
+  }, [folder.metadata])
 
   // Get selected image media files only (extraction only works on images)
   const selectedImageMediaIds = useMemo(() => {
@@ -139,6 +147,15 @@ export const FolderMediaSection = ({ folder }: FolderMediaSectionProps) => {
     setCreateProductModalOpen(true)
   }
 
+  const handleRetryFailed = async () => {
+    try {
+      await retryFailed(folder.id)
+      await queryClient.invalidateQueries({ queryKey: mediaFolderDetailQueryKeys.detail(folder.id) })
+    } catch (error: any) {
+      toast.error(error?.message || "Failed to retry extraction")
+    }
+  }
+
   return (
     <Container className="divide-y p-0">
       <div className="flex items-center justify-between px-6 py-4">
@@ -161,6 +178,15 @@ export const FolderMediaSection = ({ folder }: FolderMediaSectionProps) => {
                   icon: <Sparkles />,
                   onClick: handleExtractAll,
                 },
+                ...(failedCount > 0
+                  ? [
+                      {
+                        label: `Retry Failed (${failedCount})`,
+                        icon: <Sparkles />,
+                        onClick: handleRetryFailed,
+                      },
+                    ]
+                  : []),
               ],
             },
           ]}
