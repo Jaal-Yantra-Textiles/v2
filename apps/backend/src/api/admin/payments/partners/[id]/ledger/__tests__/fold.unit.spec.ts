@@ -1,4 +1,4 @@
-import { foldPartnerLedger } from "../fold"
+import { foldPartnerLedger, mergePaymentSources } from "../fold"
 
 /**
  * The merged partner ledger (#1612). Every case here is a shape that exists on
@@ -187,5 +187,255 @@ describe("foldPartnerLedger", () => {
     })
 
     expect(new Set(entries.map((e) => e.id)).size).toBe(2)
+  })
+})
+
+/**
+ * #1710 — one fact, two homes, no reconciliation.
+ *
+ * The exact prod shape: partner `01KKB7C2FY…` (Parmar), inventory order
+ * `inv_order_01KWAKAZE1…`, submission `01M13T9D9A…` (Approved, INR 28,200 —
+ * the ordered total), and two Completed INR 10,000 payments that linked to the
+ * ORDER and never to the partner. The order page read `recorded: 20000`; the
+ * partner ledger read `recorded: 0, outstanding: 28200`. That second reading is
+ * the one that pays someone twice.
+ */
+describe("foldPartnerLedger — money recorded against an order a payout bills (#1710)", () => {
+  const ORDER = "inv_order_01KWAKAZE17CC95XDEY7Q0M8SN"
+
+  const parmarSubmission = {
+    id: "01M13T9D9AGDA3QJYCXEZ942W7",
+    status: "Approved",
+    total_amount: 28200,
+    currency: "inr",
+    submitted_at: "2026-08-28T10:00:00.000Z",
+  }
+
+  const parmarLine = {
+    id: "item_1",
+    submission_id: "01M13T9D9AGDA3QJYCXEZ942W7",
+    source_type: "inventory_order",
+    inventory_order_id: ORDER,
+    inventory_order_name: "Parmar cotton",
+  }
+
+  /** Both real rows: 11 Jul and 30 Aug, INR 10,000 each, Completed. */
+  const orderPayments = [
+    {
+      id: "pay_jul",
+      amount: 10000,
+      status: "Completed",
+      payment_type: "Bank",
+      payment_date: "2026-07-11T00:00:00.000Z",
+      inventory_order_id: ORDER,
+      inventory_order_name: "Parmar cotton",
+    },
+    {
+      id: "pay_aug",
+      amount: 10000,
+      status: "Completed",
+      payment_type: "Bank",
+      payment_date: "2026-08-30T00:00:00.000Z",
+      inventory_order_id: ORDER,
+      inventory_order_name: "Parmar cotton",
+    },
+  ]
+
+  const parmar = (over: Record<string, any> = {}) =>
+    foldPartnerLedger({
+      submissions: [parmarSubmission],
+      items: [parmarLine],
+      payments: orderPayments,
+      reconciliations: [],
+      ...over,
+    })
+
+  it("SEES money that reached the ledger only through the inventory order", () => {
+    /**
+     * ⚠️ The union that makes these rows VISIBLE is `mergePaymentSources`, not
+     * this fold — handing the fold a payments array asserts nothing about where
+     * it came from. So drive it the way the route does: a partner link that
+     * returns NOTHING, and the order link that returns both rows.
+     */
+    const payments = mergePaymentSources([
+      { rows: [] },
+      {
+        rows: [{ id: "pay_jul", amount: 10000, status: "Completed" }],
+        attribution: { inventory_order_id: ORDER, inventory_order_name: "Parmar cotton" },
+      },
+      {
+        rows: [{ id: "pay_aug", amount: 10000, status: "Completed" }],
+        attribution: { inventory_order_id: ORDER, inventory_order_name: "Parmar cotton" },
+      },
+    ])
+
+    const { totals } = parmar({ payments })
+
+    // Before #1710 the route read the partner link ALONE, which returns [] for
+    // both of these — so this was 0 while the order page said 20,000.
+    expect(totals.recorded).toBe(20000)
+    expect(totals.recorded_against_open).toBe(20000)
+  })
+
+  it("warns on the payout that INR 20,000 already sits against the order it bills", () => {
+    const { entries } = parmar()
+
+    const payout = entries.find((e) => e.kind === "payout")!
+    expect(payout.recorded_against_total).toBe(20000)
+    expect(payout.recorded_against).toHaveLength(2)
+    expect(payout.recorded_against!.map((r) => r.payment_id).sort()).toEqual([
+      "pay_aug",
+      "pay_jul",
+    ])
+    expect(payout.recorded_against![0].via).toBe("inventory_order")
+    expect(payout.recorded_against![0].inventory_order_name).toBe(
+      "Parmar cotton"
+    )
+  })
+
+  it("does NOT net that money off `outstanding` — an advance and a payout can coexist", () => {
+    const { totals } = parmar()
+
+    // The founder decides whether these INR 20,000 discharge the payout, by
+    // linking the payment to the submission. This fold must not infer it from a
+    // shared order id.
+    expect(totals.billed).toBe(28200)
+    expect(totals.paid).toBe(0)
+    expect(totals.outstanding).toBe(28200)
+    // …but it must say so, right beside it.
+    expect(totals.recorded_against_open).toBe(20000)
+  })
+
+  it("counts a payment ONCE when two open payouts bill the same order", () => {
+    const second = {
+      ...parmarSubmission,
+      id: "sub_2",
+      total_amount: 5000,
+    }
+    const { totals } = parmar({
+      submissions: [parmarSubmission, second],
+      items: [parmarLine, { ...parmarLine, id: "item_2", submission_id: "sub_2" }],
+    })
+
+    // Two payouts mention the order; the money moved once.
+    expect(totals.recorded_against_open).toBe(20000)
+  })
+
+  it("stops warning once the payout is Paid — settled money is history, not risk", () => {
+    // The control: while it is Approved the warning is loud.
+    expect(parmar().totals.recorded_against_open).toBe(20000)
+
+    const { totals } = parmar({
+      submissions: [{ ...parmarSubmission, status: "Paid", paid_at: "2026-08-31T00:00:00.000Z" }],
+    })
+
+    expect(totals.paid).toBe(28200)
+    expect(totals.recorded_against_open).toBe(0)
+    // Still visible as recorded money — it did move.
+    expect(totals.recorded).toBe(20000)
+  })
+
+  it("keeps the order on the payment entry, so a reader can see WHY it is there", () => {
+    const { entries } = parmar()
+
+    const payment = entries.find((e) => e.id === "payment:pay_jul")!
+    expect(payment.inventory_order_id).toBe(ORDER)
+    expect(payment.inventory_order_name).toBe("Parmar cotton")
+
+    // The control: a payment with no order stays null rather than inheriting
+    // the order of whichever row was folded beside it.
+    const { entries: bare } = parmar({
+      payments: [{ id: "pay_bare", amount: 500, status: "Completed" }],
+    })
+    expect(bare.find((e) => e.id === "payment:pay_bare")!.inventory_order_id).toBeNull()
+  })
+
+  it("attaches a payment that NAMES its payout, and drops it from `recorded`", () => {
+    // The direct link — the fact a human states. Same money, now matched.
+    const { entries, totals } = parmar({
+      payments: [
+        { ...orderPayments[0], submission_id: "01M13T9D9AGDA3QJYCXEZ942W7" },
+        orderPayments[1],
+      ],
+    })
+
+    const payout = entries.find((e) => e.kind === "payout")!
+    expect(payout.settled_by?.payment_id).toBe("pay_jul")
+
+    // It is described on its payout, so it is no longer "recorded separately"…
+    expect(totals.recorded).toBe(10000)
+    // …nor is it double-reported as unmatched money against the same order.
+    expect(payout.recorded_against!.map((r) => r.payment_id)).toEqual(["pay_aug"])
+    expect(totals.recorded_against_open).toBe(10000)
+  })
+
+  it("ignores a direct link that names a submission belonging to someone else", () => {
+    // The control: the SAME row, naming THIS partner's payout, does attach.
+    const attached = parmar({
+      payments: [{ ...orderPayments[0], submission_id: parmarSubmission.id }],
+    })
+    expect(
+      attached.entries.find((e) => e.kind === "payout")!.settled_by?.payment_id
+    ).toBe("pay_jul")
+
+    const { entries, totals } = parmar({
+      payments: [{ ...orderPayments[0], submission_id: "sub_of_another_partner" }],
+    })
+
+    const payout = entries.find((e) => e.kind === "payout")!
+    expect(payout.settled_by).toBeNull()
+    // Still this partner's money, still visible.
+    expect(totals.recorded).toBe(10000)
+  })
+})
+
+/**
+ * The union itself (#1710) — which decides whether money is VISIBLE at all,
+ * before any arithmetic runs on it.
+ */
+describe("mergePaymentSources", () => {
+  it("returns a row that only ONE source knows about", () => {
+    const merged = mergePaymentSources([
+      { rows: [] },
+      { rows: [{ id: "p1", amount: 10000 }], attribution: { inventory_order_id: "o1" } },
+    ])
+
+    expect(merged).toHaveLength(1)
+    expect(merged[0].inventory_order_id).toBe("o1")
+  })
+
+  it("counts a row present in TWO sources once", () => {
+    const merged = mergePaymentSources([
+      { rows: [{ id: "p1", amount: 10000 }] },
+      { rows: [{ id: "p1", amount: 10000 }], attribution: { inventory_order_id: "o1" } },
+    ])
+
+    expect(merged).toHaveLength(1)
+    // …and the later source still teaches it which order it was recorded against.
+    expect(merged[0].inventory_order_id).toBe("o1")
+  })
+
+  it("lets a later source FILL IN a missing field but never OVERWRITE one", () => {
+    const merged = mergePaymentSources([
+      { rows: [{ id: "p1" }], attribution: { inventory_order_id: "o_first" } },
+      { rows: [{ id: "p1" }], attribution: { inventory_order_id: "o_second", submission_id: "s1" } },
+    ])
+
+    expect(merged[0].inventory_order_id).toBe("o_first")
+    expect(merged[0].submission_id).toBe("s1")
+  })
+
+  it("does not let a null attribution erase a value already present", () => {
+    const merged = mergePaymentSources([
+      { rows: [{ id: "p1", inventory_order_name: "Parmar cotton" }] },
+      { rows: [{ id: "p1" }], attribution: { inventory_order_name: null } },
+    ])
+
+    expect(merged[0].inventory_order_name).toBe("Parmar cotton")
+  })
+
+  it("skips rows with no id rather than collapsing them into one", () => {
+    const merged = mergePaymentSources([{ rows: [{ amount: 1 }, null, undefined] as any }])
+    expect(merged).toEqual([])
   })
 })

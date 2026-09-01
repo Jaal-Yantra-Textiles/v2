@@ -14,6 +14,7 @@ import { INTERNAL_PAYMENTS_MODULE } from "../../modules/internal_payments"
 import { PERSON_MODULE } from "../../modules/person"
 import { PARTNER_MODULE } from "../../modules/partner"
 import { ORDER_INVENTORY_MODULE } from "../../modules/inventory_orders"
+import { PAYMENT_SUBMISSIONS_MODULE } from "../../modules/payment_submissions"
 import InternalPaymentService from "../../modules/internal_payments/service"
 import {
   normalizePaymentAttachments,
@@ -32,6 +33,24 @@ export type CreatePaymentAndLinkInput = {
   personIds?: string[]
   partnerIds?: string[]
   inventoryOrderIds?: string[]
+  /**
+   * The payout(s) this payment SETTLES (#1710).
+   *
+   * 🔴 The fact that ends the "one fact, two homes" class. Until this existed a
+   * payment could name a person, a partner or an inventory order — never the
+   * submission it was actually paying off — so the partner ledger read
+   * `recorded: 0` beside `outstanding: 28,200` on an order against which
+   * INR 20,000 had demonstrably moved. That is the reading that pays someone
+   * twice.
+   *
+   * ⚠️ The link it writes is `paym_subm_paym_subm_inte_paym_inte_paym-9812b09f`.
+   * It has existed and been migrated since the link was declared — the belief
+   * that Postgres's 63-byte identifier limit stopped it from being created was
+   * wrong (Medusa abbreviates each segment to four characters and appends a
+   * hash). The table was empty because nothing wrote it, not because it was
+   * missing.
+   */
+  paymentSubmissionIds?: string[]
   // #496 — file attachments (receipts/invoices) persisted to the link table.
   attachments?: PaymentAttachmentInput[]
 }
@@ -154,6 +173,51 @@ export const linkPaymentToInventoryOrdersStep = createStep(
   }
 )
 
+/**
+ * Link a payment to the payout(s) it settles (#1710).
+ *
+ * 🔑 This is the only relationship in the system that says a given rupee of
+ * `internal_payments` discharges a given `payment_submission`. Everything else
+ * — the reconciliation's vestigial `payment_id`, the order link, the partner
+ * link — says who or what the money is ABOUT, never what it pays OFF.
+ */
+export const linkPaymentToSubmissionsStep = createStep(
+  "link-payment-to-submissions-step",
+  async (
+    input: { payment_id: string; submission_ids: string[] },
+    { container }
+  ) => {
+    const remoteLink = container.resolve(ContainerRegistrationKeys.LINK) as Link
+
+    const links: LinkDefinition[] = input.submission_ids.map(
+      (payment_submission_id) => ({
+        [PAYMENT_SUBMISSIONS_MODULE]: {
+          payment_submission_id,
+        },
+        [INTERNAL_PAYMENTS_MODULE]: {
+          internal_payments_id: input.payment_id,
+        },
+        data: {
+          payment_submission_id,
+          payment_id: input.payment_id,
+          linked_with: "payment_submission",
+        },
+      })
+    )
+
+    if (links.length) {
+      await remoteLink.create(links)
+    }
+
+    return new StepResponse(links, links)
+  },
+  async (rollbackLinks: LinkDefinition[], { container }) => {
+    if (!rollbackLinks?.length) return
+    const remoteLink = container.resolve(ContainerRegistrationKeys.LINK) as Link
+    await remoteLink.dismiss(rollbackLinks)
+  }
+)
+
 export const createPaymentAttachmentsStep = createStep(
   "create-payment-attachments-step",
   async (
@@ -208,6 +272,13 @@ export const createPaymentAndLinkWorkflow = createWorkflow(
       })
     )
 
+    const submissionLinks = when(input, (i) => Boolean(i.paymentSubmissionIds && i.paymentSubmissionIds.length)).then(() =>
+      linkPaymentToSubmissionsStep({
+        payment_id: payment.id,
+        submission_ids: input.paymentSubmissionIds as string[],
+      })
+    )
+
     const attachments = when(input, (i) => Boolean(i.attachments && i.attachments.length)).then(() =>
       createPaymentAttachmentsStep({
         payment_id: payment.id,
@@ -215,6 +286,6 @@ export const createPaymentAndLinkWorkflow = createWorkflow(
       })
     )
 
-    return new WorkflowResponse({ payment, personLinks, partnerLinks, inventoryOrderLinks, attachments })
+    return new WorkflowResponse({ payment, personLinks, partnerLinks, inventoryOrderLinks, submissionLinks, attachments })
   }
 )

@@ -261,3 +261,112 @@ export const runLineAmount = (input: RunLinePricingInput): number => {
   }
   return Math.round(quantity * rate * 100) / 100
 }
+
+/**
+ * How to label ONE submission line, whatever it is sourced from (#1710).
+ *
+ * 🔑 The `default` branch is load-bearing: a source type this build has never
+ * heard of still gets a row, a readable title and its amount. The previous
+ * design — one table per known type — made an unknown type vanish silently,
+ * which is how `run` and `inventory_order` lines came to render nowhere on
+ * this screen while still counting toward the total.
+ */
+export const describeLine = (
+  item: any
+): {
+  title: string
+  subtitle: string | null
+  badge: string
+  badgeColor: "blue" | "purple" | "orange" | "green" | "grey"
+  billedFor: string
+} => {
+  /**
+   * ⚠️ Normalise FIRST. `source_type` defaults to `design` on the model, but
+   * rows written before the discriminator existed carry null, and every other
+   * reader in the codebase resolves those by asking which id is populated. A
+   * switch on the raw field sent them to the unknown branch and badged a
+   * perfectly ordinary design line "Item".
+   */
+  const sourceType =
+    item.source_type || (item.task_id ? "task" : item.design_id ? "design" : null)
+
+  switch (sourceType) {
+    case "task":
+      return {
+        title: item.task_name || "Untitled task",
+        subtitle: item.task_id ?? null,
+        badge: "Task",
+        badgeColor: "purple",
+        billedFor: "One task",
+      }
+    case "run":
+      return {
+        title: item.design_name || "Production run",
+        subtitle: (item.production_run_ids || []).join(", ") || null,
+        badge: "Run",
+        badgeColor: "green",
+        billedFor: "Production run",
+      }
+    case "inventory_order":
+      return {
+        title: item.inventory_order_name || "Inventory order",
+        subtitle: item.inventory_order_id ?? null,
+        badge: "Goods",
+        badgeColor: "orange",
+        billedFor: "Material delivered",
+      }
+    case "design":
+      return {
+        title: item.design_name || "Unnamed design",
+        subtitle: null,
+        badge: "Design",
+        badgeColor: "blue",
+        billedFor: "One line, no rate given",
+      }
+    default:
+      /**
+       * ⚠️ Not an error state — a line whose type this build does not know is
+       * still money this partner is owed, and hiding it is strictly worse than
+       * labelling it plainly.
+       */
+      return {
+        title:
+          item.design_name ||
+          item.task_name ||
+          item.inventory_order_name ||
+          "Payment line",
+        subtitle: sourceType ? `source: ${sourceType}` : null,
+        badge: "Item",
+        badgeColor: "grey",
+        billedFor: "One line, no rate given",
+      }
+  }
+}
+
+/**
+ * "2 designs · 1 task · 3 goods" — counted off `source_type` rather than off a
+ * fixed list of the two types this screen used to know about (#1710).
+ */
+export const summariseItems = (items: any[]): string => {
+  const LABELS: Record<string, [string, string]> = {
+    design: ["design", "designs"],
+    task: ["task", "tasks"],
+    run: ["run", "runs"],
+    inventory_order: ["goods line", "goods lines"],
+  }
+
+  const counts = new Map<string, number>()
+  for (const item of items) {
+    // An item with no `source_type` at all predates the discriminator and is a
+    // design line by the same rule every other reader uses.
+    const key = item.source_type || (item.task_id ? "task" : "design")
+    counts.set(key, (counts.get(key) ?? 0) + 1)
+  }
+
+  return [...counts.entries()]
+    .map(([key, n]) => {
+      const [one, many] = LABELS[key] ?? [key, `${key}s`]
+      return `${n} ${n === 1 ? one : many}`
+    })
+    .join(" · ")
+}

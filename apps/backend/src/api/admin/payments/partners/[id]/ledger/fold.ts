@@ -54,13 +54,63 @@ export type PaymentLike = {
   paid_to?: any
   attachments?: any[] | null
   metadata?: any
+  /**
+   * The inventory order this payment was recorded against, when it was reached
+   * through the order rather than through the partner (#1710).
+   *
+   * 🔴 The whole defect. `POST /partners/inventory-orders/:id/submit-payment`
+   * writes ONLY the order link, so two Completed INR 10,000 payments were
+   * invisible to a ledger that reads exclusively through the partner link —
+   * `recorded: 0` beside `outstanding: 28,200` on the very order they paid.
+   * Reading both homes needs no backfill, so historical rows are covered too.
+   */
+  inventory_order_id?: string | null
+  inventory_order_name?: string | null
+  /** The payout this payment settles, via the direct link (#1710). */
+  submission_id?: string | null
 }
 
 /**
- * A reconciliation is the only thing that says an `internal_payments` row came
- * from a submission — there is no link between the two and there never was.
- * The generated link table name is 73 characters, past PostgreSQL's 63-byte
- * identifier limit, so `defineLink` skipped it in silence.
+ * A payment recorded against something a payout ALSO bills.
+ *
+ * 🔑 Advisory, never arithmetic. It is attached to the payout so the operator
+ * reading "INR 28,200 outstanding" sees, on the same row, that INR 20,000 has
+ * already moved against the order that payout bills. It is deliberately not
+ * subtracted from `outstanding`: whether an order-linked payment discharges a
+ * payout is a money decision a human makes by linking it (`submission_id`),
+ * not one this fold may infer from a shared order id.
+ */
+export type RecordedAgainst = {
+  payment_id: string
+  amount: number
+  status: string | null
+  payment_type: string | null
+  payment_date: string | null
+  /** How this payment was tied to the payout. */
+  via: "submission" | "inventory_order"
+  inventory_order_id: string | null
+  inventory_order_name: string | null
+}
+
+/**
+ * A reconciliation says an `internal_payments` row came from a submission.
+ *
+ * 🔴 CORRECTED (#1710). This file used to assert it was the ONLY such thing,
+ * because `defineLink(paymentSubmission, internalPayments)` generates a
+ * 73-character table name and Postgres truncates identifiers at 63 bytes — so
+ * the table "was never created, in either environment". That is wrong. Medusa
+ * abbreviates each segment of an over-long link name to four characters and
+ * appends a hash; the table exists, migrated, in both environments:
+ *
+ *     paym_subm_paym_subm_inte_paym_inte_paym-9812b09f
+ *
+ * It read as absent because it held ZERO ROWS — nothing ever wrote it. A
+ * capability declared dead on a mechanism that was never the mechanism, so
+ * nobody built the writer. `linkPaymentToSubmissionsStep` is that writer now,
+ * and `PaymentLike.submission_id` below is how a linked row arrives here.
+ *
+ * The reconciliation path stays: it resolves the 5 historical rows, and it is
+ * correctly null for everything written since #1638.
  */
 export type ReconciliationLike = {
   reference_type?: string | null
@@ -104,12 +154,27 @@ export type LedgerEntry = {
     payment_date: string | null
     status: string | null
   } | null
+  /**
+   * Money already recorded against something THIS payout bills (#1710).
+   *
+   * 🔴 The reading that pays someone twice is "INR 28,200 outstanding" printed
+   * with no hint that INR 20,000 has moved against the same order. This is that
+   * hint, attached to the row that makes the claim.
+   *
+   * ⚠️ Advisory. It never enters `paid` or `outstanding` — see `RecordedAgainst`.
+   */
+  recorded_against?: RecordedAgainst[]
+  /** Sum of `recorded_against`. Advisory, for the same reason. */
+  recorded_against_total?: number
 
   // ── payment only ───────────────────────────────────────────────────────
   payment_type?: string | null
   payment_date?: string | null
   attachments?: any[]
   paid_to?: any
+  /** Which inventory order this money was recorded against, if any (#1710). */
+  inventory_order_id?: string | null
+  inventory_order_name?: string | null
 }
 
 export type LedgerTotals = {
@@ -127,10 +192,70 @@ export type LedgerTotals = {
    */
   recorded: number
   /**
+   * Of `recorded`, what was recorded against a source an UNPAID payout bills
+   * (#1710).
+   *
+   * 🔑 The anti-double-pay figure. `outstanding` says what the payouts still
+   * claim; this says how much of that has money already sitting against it,
+   * unmatched. On the order that opened #1710 it is INR 20,000 against INR
+   * 28,200 outstanding.
+   *
+   * ⚠️ NOT subtracted from `outstanding`. Two Completed payments touching the
+   * same order as a payout is evidence a human should look, not proof the
+   * payout is discharged — an advance and a payout can legitimately coexist.
+   * Linking the payment to the submission is how a human states that it does.
+   */
+  recorded_against_open: number
+  /**
    * The currency all live submissions agree on, or null when they do not. A
    * caller must not render an aggregate against a null currency.
    */
   currency: string | null
+}
+
+/**
+ * Union the payment rows a partner's money can arrive through, deduped by id
+ * (#1710).
+ *
+ * 🔴 THE FIX. One payment has up to three homes — the partner link, the
+ * inventory-order link, the submission link — and until this existed the ledger
+ * read exactly one of them. Two Completed INR 10,000 rows lived only in the
+ * order home, so the screen that answers "what do we owe this partner" reported
+ * `recorded: 0` against `outstanding: 28,200` on the very order they paid.
+ *
+ * 🔑 Order matters, and it is the caller's: the FIRST source to supply a row
+ * owns its provenance, and later sources may only FILL IN fields that are still
+ * absent. A payment reached through the partner link keeps that identity while
+ * still learning which order it was recorded against.
+ *
+ * PURE, so the union that decides whether money is visible at all can be tested
+ * without a graph behind it.
+ */
+export const mergePaymentSources = (
+  sources: Array<{
+    rows: any[]
+    /** Fields this source knows that the row itself does not carry. */
+    attribution?: Record<string, any>
+  }>
+): PaymentLike[] => {
+  const byId = new Map<string, any>()
+
+  for (const source of sources) {
+    for (const row of source.rows || []) {
+      if (!row?.id) continue
+      const extra = source.attribution || {}
+      const existing = byId.get(row.id)
+      if (existing) {
+        for (const [k, v] of Object.entries(extra)) {
+          if (v != null && existing[k] == null) existing[k] = v
+        }
+        continue
+      }
+      byId.set(row.id, { ...row, ...extra })
+    }
+  }
+
+  return [...byId.values()]
 }
 
 const num = (v: unknown): number => {
@@ -189,7 +314,50 @@ export const foldPartnerLedger = (input: {
     paymentBySubmission.set(rec.reference_id, rec.payment_id)
   }
 
+  /**
+   * The DIRECT link (#1710): a payment that names the submission it settles.
+   *
+   * 🔑 Applied ON TOP of the reconciliations, never instead — the 5 historical
+   * rows have only a reconciliation, and this must not take their settlement
+   * away. Every directly-linked payment is marked settled, so none of them can
+   * also be reported as unmatched money against the same order.
+   *
+   * ⚠️ Where BOTH exist for one submission the reconciliation keeps the
+   * `settled_by` slot, which is why the guard below is `!has` rather than an
+   * overwrite. It is one display slot, not an arithmetic precedence: both
+   * payments are attached either way, so neither total moves.
+   */
+  for (const p of payments) {
+    if (!p.submission_id) continue
+    if (!submissionIds.has(p.submission_id)) continue
+    settlementByPayment.set(p.id, {
+      reference_type: "payment_submission",
+      reference_id: p.submission_id,
+      payment_id: p.id,
+    })
+    if (!paymentBySubmission.has(p.submission_id)) {
+      paymentBySubmission.set(p.submission_id, p.id)
+    }
+  }
+
   const paymentsById = new Map(payments.map((p) => [p.id, p]))
+
+  /**
+   * inventory order id → the payments recorded against it, for payments that no
+   * payout already accounts for (#1710).
+   *
+   * A payment already attached as `settled_by` is excluded: it is described on
+   * its payout as the money that settled it, and describing it a second time as
+   * "unmatched money against the same order" would contradict that.
+   */
+  const paymentsByOrder = new Map<string, PaymentLike[]>()
+  for (const p of payments) {
+    if (!p.inventory_order_id) continue
+    if (settlementByPayment.has(p.id)) continue
+    const list = paymentsByOrder.get(p.inventory_order_id) || []
+    list.push(p)
+    paymentsByOrder.set(p.inventory_order_id, list)
+  }
 
   const payoutEntries: LedgerEntry[] = submissions.map((submission) => {
     const settlingPaymentId = paymentBySubmission.get(submission.id)
@@ -200,6 +368,32 @@ export const foldPartnerLedger = (input: {
     const submitted = iso(submission.submitted_at)
     const paid = iso(submission.paid_at)
 
+    /**
+     * Money sitting against the orders THIS payout bills (#1710). Deduped by
+     * payment id: one payout may bill several lines of the same order, and a
+     * mixed payout may bill several orders that share a payment.
+     */
+    const lines = itemsBySubmission.get(submission.id) || []
+    const seenPayment = new Set<string>()
+    const recordedAgainst: RecordedAgainst[] = []
+    for (const line of lines) {
+      if (!line.inventory_order_id) continue
+      for (const p of paymentsByOrder.get(line.inventory_order_id) || []) {
+        if (seenPayment.has(p.id)) continue
+        seenPayment.add(p.id)
+        recordedAgainst.push({
+          payment_id: p.id,
+          amount: num(p.amount),
+          status: p.status ?? null,
+          payment_type: p.payment_type ?? null,
+          payment_date: iso(p.payment_date),
+          via: "inventory_order",
+          inventory_order_id: line.inventory_order_id ?? null,
+          inventory_order_name: line.inventory_order_name ?? null,
+        })
+      }
+    }
+
     return {
       id: `payout:${submission.id}`,
       kind: "payout",
@@ -208,7 +402,7 @@ export const foldPartnerLedger = (input: {
       currency: (submission.currency || "inr").toLowerCase(),
       occurred_at: paid || submitted || iso(submission.created_at),
       submission_id: submission.id,
-      lines: (itemsBySubmission.get(submission.id) || []).map((item) => ({
+      lines: lines.map((item) => ({
         id: item.id,
         submission_id: item.submission_id ?? null,
         source_type: item.source_type ?? null,
@@ -233,6 +427,11 @@ export const foldPartnerLedger = (input: {
             status: settlingPayment.status ?? null,
           }
         : null,
+      recorded_against: recordedAgainst,
+      recorded_against_total: recordedAgainst.reduce(
+        (acc, r) => acc + r.amount,
+        0
+      ),
     }
   })
 
@@ -257,6 +456,8 @@ export const foldPartnerLedger = (input: {
     payment_date: iso(p.payment_date),
     attachments: Array.isArray(p.attachments) ? p.attachments : [],
     paid_to: p.paid_to ?? null,
+    inventory_order_id: p.inventory_order_id ?? null,
+    inventory_order_name: p.inventory_order_name ?? null,
   }))
 
   const entries = [...payoutEntries, ...paymentEntries].sort((a, b) =>
@@ -284,6 +485,25 @@ export const foldPartnerLedger = (input: {
       paid,
       outstanding: billed - paid,
       recorded: paymentEntries.reduce((acc, e) => acc + e.amount, 0),
+      /**
+       * Counted once per PAYMENT, not once per payout that mentions it — two
+       * open payouts billing the same order must not double the warning.
+       * Only payouts that are not already Paid contribute: money against a
+       * settled payout is history, not a double-pay risk.
+       */
+      recorded_against_open: (() => {
+        const seen = new Set<string>()
+        let total = 0
+        for (const entry of live) {
+          if (PAID_STATUSES.has(String(entry.status))) continue
+          for (const r of entry.recorded_against || []) {
+            if (seen.has(r.payment_id)) continue
+            seen.add(r.payment_id)
+            total += r.amount
+          }
+        }
+        return total
+      })(),
       currency: currencies.size === 1 ? [...currencies][0] : null,
     },
   }

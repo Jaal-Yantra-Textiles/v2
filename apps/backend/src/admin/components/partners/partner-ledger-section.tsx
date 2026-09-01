@@ -82,6 +82,29 @@ const PayoutRow = ({ entry }: { entry: PartnerLedgerEntry }) => {
               : ""}
           </Text>
         )}
+        {entry.status !== "Paid" && (entry.recorded_against_total ?? 0) > 0 && (
+          /**
+           * 🔴 #1710 — the line that stops someone being paid twice.
+           *
+           * This payout claims money is owed; these payments say money has
+           * already moved against the same order. Neither record knows about
+           * the other, so the reconciliation has to happen in the reader's
+           * head — and it can only happen if the reader is TOLD.
+           *
+           * ⚠️ Not subtracted from the amount beside it. An advance and a
+           * payout can legitimately coexist; only a human linking the payment
+           * to this submission settles that question.
+           */
+          <Text size="xsmall" className="text-ui-tag-orange-text">
+            ⚠ {money(entry.recorded_against_total!, entry.currency)} already
+            recorded against{" "}
+            {entry.recorded_against!.length === 1
+              ? entry.recorded_against![0].inventory_order_name ||
+                "the order this bills"
+              : `${entry.recorded_against!.length} payments on the order this bills`}{" "}
+            — check before paying
+          </Text>
+        )}
       </div>
       <div className="flex flex-col items-end">
         <Text size="small" weight="plus">
@@ -137,7 +160,12 @@ const PaymentRow = ({ entry }: { entry: PartnerLedgerEntry }) => {
           {/* No lines exist for these. Saying so beats an empty space that
               reads as "nothing was billed". */}
           <Text size="xsmall" className="text-ui-fg-muted">
-            recorded payment — no payout attached
+            {entry.inventory_order_id
+              ? /* #1710 — this row reached the ledger through the ORDER link.
+                   Before, it reached it through nothing at all and the panel
+                   reported the partner as owed the full amount. */
+                `recorded against ${entry.inventory_order_name || "an inventory order"} — no payout attached`
+              : "recorded payment — no payout attached"}
           </Text>
         </div>
         <div className="flex items-center gap-x-3">
@@ -239,6 +267,16 @@ export const PartnerLedgerSection = ({ partnerId }: { partnerId: string }) => {
               </>
             )}
           </Text>
+          {totals!.recorded_against_open > 0 && (
+            /* #1710 — the headline figure for the double-pay risk. Its own
+               line, not appended to the run-on above, because it is the one
+               number here that should stop an action. */
+            <Text size="xsmall" className="text-ui-tag-orange-text mt-1">
+              ⚠ {money(totals!.recorded_against_open, totals!.currency)} of that
+              sits against orders an unpaid payout still bills — settle or link
+              it before paying again
+            </Text>
+          )}
         </div>
       )}
 
