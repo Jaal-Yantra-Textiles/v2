@@ -248,6 +248,7 @@ import {
 // Payments: schemas
 import { PaymentSchema, ListPaymentsQuerySchema, UpdatePaymentSchema, PaymentSettlesSchema } from "./admin/payments/validators";
 import { CreatePaymentAndLinkSchema } from "./admin/payments/link/validators";
+import { CreatePartnerCreditSchema } from "./admin/partners/[id]/credits/validators";
 import { ListPaymentsByPersonQuerySchema } from "./admin/payments/persons/[id]/validators";
 import { ListPaymentsByPartnerQuerySchema } from "./admin/payments/partners/[id]/validators";
 import { ListPaymentMethodsByPersonQuerySchema, CreatePaymentMethodForPersonSchema } from "./admin/payments/persons/[id]/methods/validators";
@@ -3843,6 +3844,13 @@ export default defineMiddlewares({
       method: "GET",
       middlewares: [authenticate("partner", ["session", "bearer"])],
     },
+    // Partner Credits (#1712) — read-only. Auth is PER-ROUTE here: without this
+    // entry the route 401s, and both tsc and a green suite stay silent about it.
+    {
+      matcher: "/partners/credits",
+      method: "GET",
+      middlewares: [authenticate("partner", ["session", "bearer"])],
+    },
     {
       matcher: "/partners/payment-submissions",
       method: "GET",
@@ -4362,6 +4370,20 @@ export default defineMiddlewares({
       matcher: "/admin/partners",
       method: "POST",
       middlewares: [validateAndTransformBody(wrapSchema(PostPartnerSchema))],
+    },
+    // Admin Partner Credits (#1712) — money the partner already holds that no
+    // payout consumed. GET carries no body; POST is validated.
+    {
+      matcher: "/admin/partners/:id/credits",
+      method: "GET",
+      middlewares: [],
+    },
+    {
+      matcher: "/admin/partners/:id/credits",
+      method: "POST",
+      middlewares: [
+        validateAndTransformBody(wrapSchema(CreatePartnerCreditSchema)),
+      ],
     },
     // Admin Partner Subscription
     {
