@@ -567,12 +567,39 @@ export const ADMIN_MCP_TOOLS: AdminMcpToolDef[] = [
   {
     name: "get_partner_credits",
     description:
-      "Money this partner ALREADY HOLDS that no payout has consumed — an overpayment, an adjustment or a goodwill credit. Returns the credit rows plus `open_total` (only `Open` credits; an `Applied` one has already reduced a payout). 🔑 Reported beside `outstanding`, never netted against it: applying a credit is a deliberate act, and a partner can hold a credit on one order while being genuinely owed money on another.",
+      "Money this partner ALREADY HOLDS that no payout has consumed — an overpayment, an adjustment or a goodwill credit. Returns the credit rows plus `open_total` (only `Open` credits; an `Applied` one has already reduced a payout). 🔑 Reported beside `outstanding`, never netted against it: applying a credit is a deliberate act, and a partner can hold a credit on one order while being genuinely owed money on another — use apply_partner_credit to make that decision. Each row carries `inventory_order_id`: the order the credit is EARMARKED against, or null when it is partner-wide. An earmark is where the founder decided the credit should be consumed; it does not restrict which payout it may be applied to.",
     method: "GET",
     path: "/admin/partners/:id/credits",
     pathParams: ["id"],
     inputSchema: obj({ id: STR("Partner id, e.g. 'partner_...'.") }, ["id"]),
-    nextSteps: ["get_partner_ledger"],
+    nextSteps: ["apply_partner_credit", "get_partner_ledger"],
+  },
+  {
+    name: "apply_partner_credit",
+    description:
+      "Consume an Open credit against a specific payout — the deliberate act that turns money the partner already holds into a reduction of what they are still owed. The credit becomes `Applied`, stamps the payout it discharged, and the ledger's `credited` rises while `outstanding` falls by the same amount. Sensitive: requires confirm:true. 🔑 `paid` does NOT move — that figure means money that transferred, and a founder reconciling the ledger against a bank statement must not find a number no statement explains. 🔴 This is the SAFE way to carry a surplus forward; never link one payment to two payouts to do it, because `paid` sums per payout with only a per-payout clamp and the same money would count in full against both. ⚠️ A credit applies WHOLE — there is no partial application — so it is refused if it is larger than what the payout still claims, if the credit is not Open, or if the payout is Paid or Rejected. The refusal names both numbers.",
+    method: "POST",
+    path: "/admin/partners/:id/credits/:creditId/apply",
+    pathParams: ["id", "creditId"],
+    bodyParams: ["submission_id"],
+    previewPath: "/admin/partners/:id/credits",
+    write: true,
+    sensitive: true,
+    inputSchema: obj(
+      {
+        id: STR("Partner id who holds the credit."),
+        creditId: STR(
+          "The credit to consume. Must belong to this partner — the route reads it through the partner link and 404s otherwise, because `partner_credit` has no partner column and an id alone would happily apply someone else's money."
+        ),
+        submission_id: STR(
+          "The payout (payment submission) this credit discharges. Must belong to the SAME partner. Required — a credit applied to a partner in general reduces nothing and stamps a decision nobody can audit."
+        ),
+      },
+      ["id", "creditId", "submission_id"]
+    ),
+    sideEffects:
+      "Sets the credit to `Applied` and stamps `applied_to_submission_id` + `applied_at`. Moves `credited` and `outstanding` on the partner ledger; leaves `paid`, every payment, and the payout's own status and amount untouched. Forward-only — there is no unapply, because reversing a settled money decision is a new decision that belongs in a credit of its own.",
+    nextSteps: ["get_partner_ledger", "get_partner_credits"],
   },
   {
     name: "link_payment_to_payout",

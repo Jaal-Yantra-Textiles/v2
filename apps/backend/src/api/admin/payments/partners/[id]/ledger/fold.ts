@@ -18,6 +18,18 @@
  * tested without a database behind it.
  */
 
+import { appliedCreditsFor } from "../../../../../../modules/internal_payments/lib/apply-credit"
+
+export type CreditLike = {
+  id?: string
+  amount?: number | string | null
+  status?: string | null
+  currency_code?: string | null
+  reason?: string | null
+  applied_to_submission_id?: string | null
+  applied_at?: string | Date | null
+}
+
 export type SubmissionLike = {
   id: string
   status?: string | null
@@ -175,6 +187,24 @@ export type LedgerEntry = {
    * must not make the partner look overpaid on this row.
    */
   settled_amount?: number
+  /**
+   * Credits a human APPLIED to this payout (#1712).
+   *
+   * 🔴 Unlike `recorded_against` this is NOT advisory — it enters `outstanding`.
+   * The distinction is the whole design: a shared order id is evidence someone
+   * should look, while an applied credit IS the decision, made by a human
+   * naming the payout it discharges. Treating the first as arithmetic pays
+   * twice; treating the second as advisory leaves a claim standing that
+   * everyone agreed was already settled.
+   */
+  credits_applied?: Array<{
+    credit_id: string
+    amount: number
+    reason: string | null
+    applied_at: string | null
+  }>
+  /** Sum of `credits_applied`. Enters `credited`, and so `outstanding`. */
+  credited_amount?: number
 
   // ── payment only ───────────────────────────────────────────────────────
   payment_type?: string | null
@@ -208,7 +238,18 @@ export type LedgerTotals = {
    * silently restate historical numbers nobody re-examined.
    */
   paid: number
-  /** Still owed. `billed - paid`. */
+  /**
+   * Of `billed`, what applied credits discharged (#1712).
+   *
+   * 🔑 Kept SEPARATE from `paid` rather than folded into it. `paid` means money
+   * that moved against these payouts; `credited` means money that had already
+   * moved, was recorded as a credit, and has now been named against a claim.
+   * Summing them would make a partner's `paid` figure grow without a transfer,
+   * and the next reader reconciling this screen against a bank statement would
+   * find a number no statement can explain.
+   */
+  credited: number
+  /** Still owed. `billed - paid - credited`. */
   outstanding: number
   /**
    * Historical money movement that NO payout accounts for. Deliberately not
@@ -310,8 +351,15 @@ export const foldPartnerLedger = (input: {
   items: SubmissionItemLike[]
   payments: PaymentLike[]
   reconciliations: ReconciliationLike[]
+  /**
+   * The partner's credits (#1712). Optional so every existing caller and test
+   * keeps its meaning: a ledger folded without them reports `credited: 0`,
+   * which is exactly what it reported before they existed.
+   */
+  credits?: CreditLike[]
 }): { entries: LedgerEntry[]; totals: LedgerTotals } => {
   const { submissions, items, payments, reconciliations } = input
+  const credits = input.credits || []
 
   const itemsBySubmission = new Map<string, SubmissionItemLike[]>()
   for (const item of items) {
@@ -445,6 +493,22 @@ export const foldPartnerLedger = (input: {
     const settledAmount =
       Math.round(Math.min(settledRaw, submissionAmount) * 100) / 100
 
+    /**
+     * Credits a human applied to THIS payout, by the shared rule the admin
+     * route checks before writing one. Only `Applied` rows naming this
+     * submission count — an `Open` credit has discharged nothing.
+     */
+    const applied = appliedCreditsFor(submission.id, credits)
+    const appliedCreditsTotal = applied.total
+    const appliedCredits = credits
+      .filter((c) => applied.ids.includes(String(c.id ?? "")))
+      .map((c) => ({
+        credit_id: String(c.id ?? ""),
+        amount: num(c.amount),
+        reason: c.reason ?? null,
+        applied_at: iso(c.applied_at),
+      }))
+
     return {
       id: `payout:${submission.id}`,
       kind: "payout",
@@ -484,6 +548,8 @@ export const foldPartnerLedger = (input: {
         0
       ),
       settled_amount: settledAmount,
+      credits_applied: appliedCredits,
+      credited_amount: appliedCreditsTotal,
     }
   })
 
@@ -536,6 +602,19 @@ export const foldPartnerLedger = (input: {
     return acc + (e.settled_amount ?? 0)
   }, 0)
 
+  /**
+   * ⚠️ Credits on a payout that is already `Paid` are excluded, the same way
+   * `paid` refuses to count status and settlement together. A Paid payout
+   * contributes its whole amount to `paid`; also subtracting a credit from it
+   * would push `outstanding` negative and report the partner as overpaid on a
+   * row that is simply settled. The apply route refuses to create that state,
+   * but a ledger must read historical rows it did not write.
+   */
+  const credited = live.reduce((acc, e) => {
+    if (PAID_STATUSES.has(String(e.status))) return acc
+    return acc + (e.credited_amount ?? 0)
+  }, 0)
+
   const currencies = new Set(live.map((e) => e.currency))
   for (const e of paymentEntries) currencies.add(e.currency)
 
@@ -544,7 +623,8 @@ export const foldPartnerLedger = (input: {
     totals: {
       billed,
       paid,
-      outstanding: billed - paid,
+      credited,
+      outstanding: billed - paid - credited,
       recorded: paymentEntries.reduce((acc, e) => acc + e.amount, 0),
       /**
        * Counted once per PAYMENT, not once per payout that mentions it — two

@@ -602,3 +602,136 @@ describe("foldPartnerLedger — a payout settled in PART (#1710)", () => {
     expect(totals.paid).toBe(0)
   })
 })
+
+/**
+ * Applying a credit to a payout (#1712).
+ *
+ * hrhandloom's real shape: 1,380 already in their hands from being paid 30,000
+ * against a 28,620 payout, now named against a later claim.
+ */
+describe("foldPartnerLedger — applied credits (#1712)", () => {
+  const sub = (over: Record<string, any> = {}) => ({
+    id: "sub_10000",
+    status: "Approved",
+    total_amount: 10000,
+    currency: "inr",
+    submitted_at: "2026-09-01T00:00:00.000Z",
+    ...over,
+  })
+
+  const credit = (over: Record<string, any> = {}) => ({
+    id: "cred_1380",
+    amount: 1380,
+    status: "Applied",
+    currency_code: "inr",
+    reason: "Overpaid 30,000 against a 28,620 payout",
+    applied_to_submission_id: "sub_10000",
+    applied_at: "2026-09-02T00:00:00.000Z",
+    ...over,
+  })
+
+  const fold = (over: Record<string, any> = {}) =>
+    foldPartnerLedger({
+      submissions: [sub()],
+      items: [],
+      payments: [],
+      reconciliations: [],
+      ...over,
+    })
+
+  it("reduces what the payout still claims", () => {
+    const { totals } = fold({ credits: [credit()] })
+
+    expect(totals.billed).toBe(10000)
+    expect(totals.paid).toBe(0)
+    expect(totals.credited).toBe(1380)
+    expect(totals.outstanding).toBe(8620)
+  })
+
+  /**
+   * 🔑 Kept OUT of `paid`. `paid` means money that moved against these payouts;
+   * a founder reconciling this screen against a bank statement must not find a
+   * figure no statement can explain.
+   */
+  it("does NOT inflate paid", () => {
+    expect(fold({ credits: [credit()] }).totals.paid).toBe(0)
+  })
+
+  it("attaches the credit to the payout it discharged", () => {
+    const { entries } = fold({ credits: [credit()] })
+    const payout = entries.find((e) => e.kind === "payout")!
+
+    expect(payout.credited_amount).toBe(1380)
+    expect(payout.credits_applied).toEqual([
+      {
+        credit_id: "cred_1380",
+        amount: 1380,
+        reason: "Overpaid 30,000 against a 28,620 payout",
+        applied_at: "2026-09-02T00:00:00.000Z",
+      },
+    ])
+  })
+
+  it("ignores an Open credit — it has discharged nothing yet", () => {
+    const { totals } = fold({
+      credits: [credit({ status: "Open", applied_to_submission_id: null })],
+    })
+
+    expect(totals.credited).toBe(0)
+    expect(totals.outstanding).toBe(10000)
+  })
+
+  it("ignores a credit applied to a DIFFERENT payout", () => {
+    const { totals } = fold({
+      credits: [credit({ applied_to_submission_id: "sub_other" })],
+    })
+
+    expect(totals.credited).toBe(0)
+    expect(totals.outstanding).toBe(10000)
+  })
+
+  it("stacks with money settled against the same payout", () => {
+    const { totals } = fold({
+      payments: [
+        {
+          id: "pay_4000",
+          amount: 4000,
+          status: "Completed",
+          submission_id: "sub_10000",
+        },
+      ],
+      credits: [credit()],
+    })
+
+    expect(totals.paid).toBe(4000)
+    expect(totals.credited).toBe(1380)
+    expect(totals.outstanding).toBe(4620)
+  })
+
+  /**
+   * ⚠️ A Paid payout contributes its whole amount to `paid`. Also subtracting a
+   * credit would push `outstanding` negative and report the partner as overpaid
+   * on a row that is simply settled. The apply route refuses to create this
+   * state, but the ledger reads rows it did not write.
+   */
+  it("does not double-discharge a payout that is already Paid", () => {
+    const { totals } = fold({
+      submissions: [sub({ status: "Paid", paid_at: "2026-09-01T00:00:00.000Z" })],
+      credits: [credit()],
+    })
+
+    expect(totals.paid).toBe(10000)
+    expect(totals.credited).toBe(0)
+    expect(totals.outstanding).toBe(0)
+  })
+
+  /**
+   * Every caller that predates credits keeps its meaning — a ledger folded
+   * without them reports exactly what it reported before they existed.
+   */
+  it("reports credited: 0 when no credits are passed at all", () => {
+    const { totals } = fold()
+    expect(totals.credited).toBe(0)
+    expect(totals.outstanding).toBe(10000)
+  })
+})
