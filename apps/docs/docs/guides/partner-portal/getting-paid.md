@@ -74,6 +74,21 @@ wrong, that is a conversation to have before billing — the cap is not
 negotiable through this screen.
 :::
 
+:::danger "⚠ N already paid on this order"
+Someone has already recorded a payment against this order — possibly for these
+very goods. The row is **still tickable**, deliberately: a payment on an order
+is not always payment for the claim you are about to make (it may be an advance,
+a deposit, or money for a different delivery on the same order). But billing
+again for goods already settled is the mistake this row can cause, so check
+before you submit.
+
+This is not hypothetical. One live order shows **INR 9,800 paid since March
+against INR 0 ever billed** — so the screen was offering INR 5,800 of an order
+that had already been settled in full. The billable ceiling measures what has
+been *billed* against what was *ordered*; it has no knowledge of what has been
+*paid*. That is why the warning exists and why it is only a warning.
+:::
+
 :::warning Rows you cannot tick
 A greyed row says why underneath:
 
@@ -157,13 +172,33 @@ that an **unpaid** payout also bills:
 > ⚠ *INR 20,000 of that sits against orders an unpaid payout still bills —
 > settle or link it before paying again*
 
+:::tip Acting on it — "Mark N as settling this payout"
+Beside the warning, each recorded payment now carries a one-click action. Using
+it states that **this payment discharges this payout** — after which:
+
+- the money counts toward **paid**, so a payout of INR 28,200 with INR 20,000
+  linked reads *paid 20,000 · outstanding 8,200*
+- it stops being "recorded separately" and stops raising the warning
+- the payout stays **Approved**, which is now honest: partly settled, not
+  fully
+
+🔑 This is the only way a payout can be settled in **part**. Before it existed
+the model could only say `Approved` (0 paid, the reading that pays twice) or
+`Paid` (the whole amount, when only some of it moved). Neither was true.
+
+⚠️ Only a **Completed** payment settles anything. A `Pending` one — the status
+the partner portal writes — still raises the warning but contributes nothing to
+`paid`, because a partner must not be able to move their own paid figure by
+asserting they were paid. Marking it Completed is a separate, deliberate act.
+:::
+
 :::danger Do not pay past this line without checking
 The system deliberately **does not** subtract that money from `outstanding`. An
 advance and a payout can legitimately coexist, and no screen may quietly decide
 that one discharges the other. Only a human can say so — by linking the payment
-to the submission it settles (`paymentSubmissionIds` on
-`POST /admin/payments/link`). Once linked, it shows on the payout as
-"settled by" and drops out of "recorded separately".
+to the submission it settles (the "Mark … as settling this payout" action, or
+`POST /admin/payments/:id/settles`). Once linked, the money counts toward
+`paid` and drops out of "recorded separately".
 :::
 
 ### Where the ledger reads from
@@ -180,6 +215,23 @@ different questions. The order page is scoped to one order; the ledger is
 scoped to one partner. They should agree on any payment they can both see — if
 they do not, say so rather than trusting the larger number.
 :::
+
+## Quick reference
+
+## Why "paid" and "billed" are tracked separately
+
+A recurring source of confusion, worth stating plainly:
+
+- **Recording a payment never creates a payout.** The three places you can
+  record one — the partner page, the inventory order page, and the partner
+  portal's Submit Payment — all write a payment row and nothing else. No claim
+  is raised, nothing enters review.
+- **Approving a payout never records a payment.** Since #1638 approval writes no
+  payment row at all; `Paid` is set when the reconciliation is settled.
+
+So the two records are joined only when a human joins them. Everything above —
+the ledger warning, the "already paid on this order" note — exists because
+nothing does it automatically, and the system deliberately refuses to guess.
 
 ## Quick reference
 

@@ -444,6 +444,17 @@ export interface PayableInventoryOrder {
    * offer match what the guard accepts (#1617).
    */
   capped_by_ceiling: boolean
+  /**
+   * Money already PAID against this order (#1710).
+   *
+   * 🔴 Declare it or the grid cannot read it. The route computes it, and a
+   * value sent over the wire with no entry in the client type has ZERO readers
+   * — the shape that let an order headline "INR 0 paid" over INR 20,000 of
+   * completed payments (#1704), and a flag ship for months unread (#1679).
+   */
+  recorded_total: number
+  /** Whether what has already been paid meets or exceeds what this row bills. */
+  recorded_covers_amount: boolean
   order_date: string | null
   expected_delivery_date: string | null
   payable: boolean

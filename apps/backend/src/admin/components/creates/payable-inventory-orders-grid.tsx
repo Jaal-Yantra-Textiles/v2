@@ -300,9 +300,24 @@ export const PayableInventoryOrdersGrid = ({
                   ? order.receipts_total > 0
                     ? "already claimed in full"
                     : "no receipts recorded"
-                  : order.capped_by_ceiling
-                    ? "capped at the ordered total"
-                    : "what was delivered"}
+                  : /**
+                     * 🔴 #1710 — the warning that outranks the basis.
+                     *
+                     * The ceiling measures CLAIMS against the ordered total and
+                     * has no term for payments, so an order already paid in
+                     * full but never billed is offered as freshly payable. That
+                     * is live on prod: INR 9,800 recorded since March, INR 0
+                     * claimed, and this grid offered INR 5,800 of it.
+                     *
+                     * ⚠️ Warned, not blocked and not netted. A payment on an
+                     * order is not necessarily an advance against a payout —
+                     * whether it discharges this claim is the operator's call.
+                     */
+                    order.recorded_covers_amount
+                    ? `⚠ ${order.recorded_total.toLocaleString()} already paid on this order`
+                    : order.capped_by_ceiling
+                      ? "capped at the ordered total"
+                      : "what was delivered"}
               </Text>
             </DataGridReadOnlyCell>
           )

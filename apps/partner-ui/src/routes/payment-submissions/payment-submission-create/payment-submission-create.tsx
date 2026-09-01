@@ -1360,6 +1360,22 @@ const InventoryOrderRow = ({
             </Text>
           </Tooltip>
         )}
+        {!blocked && order.recorded_covers_amount && (
+          /**
+           * 🔴 #1710 — money already paid against this order.
+           *
+           * Not a block: a payment on an order is not necessarily payment for
+           * THIS claim, and refusing would stop a legitimate bill. But billing
+           * again for goods already settled is the mistake this row can cause,
+           * so it must not be silent.
+           */
+          <Tooltip content="Someone has already recorded a payment against this order. If that payment was for these goods, you may have been paid already — check before billing.">
+            <Text size="xsmall" className="mt-1 text-ui-tag-orange-text">
+              ⚠ {order.recorded_total.toLocaleString()} already paid on this
+              order
+            </Text>
+          </Tooltip>
+        )}
         {!blocked && order.claimed_total > 0 && !order.capped_by_ceiling && (
           <Text size="xsmall" className="mt-1 text-ui-fg-muted">
             {order.claimed_total.toLocaleString()} already claimed on this order

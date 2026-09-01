@@ -246,7 +246,7 @@ import {
   AdminUpdateFormSchema,
 } from "./admin/forms/validators";
 // Payments: schemas
-import { PaymentSchema, ListPaymentsQuerySchema, UpdatePaymentSchema } from "./admin/payments/validators";
+import { PaymentSchema, ListPaymentsQuerySchema, UpdatePaymentSchema, PaymentSettlesSchema } from "./admin/payments/validators";
 import { CreatePaymentAndLinkSchema } from "./admin/payments/link/validators";
 import { ListPaymentsByPersonQuerySchema } from "./admin/payments/persons/[id]/validators";
 import { ListPaymentsByPartnerQuerySchema } from "./admin/payments/partners/[id]/validators";
@@ -3572,6 +3572,23 @@ export default defineMiddlewares({
       middlewares: [validateAndTransformBody(wrapSchema(PaymentSchema))],
     },
 
+    {
+      /**
+       * 🔴 MUST precede `/admin/payments/:id` below (#1710). Matching is
+       * prefix-based and `UpdatePaymentSchema` is `.strict()`, so the update
+       * entry would otherwise claim this path and reject
+       * `payment_submission_id` as an unrecognised field — a 400 that reads
+       * like a bad request rather than a mis-ordered route.
+       */
+      matcher: "/admin/payments/:id/settles",
+      method: "POST",
+      middlewares: [validateAndTransformBody(wrapSchema(PaymentSettlesSchema))],
+    },
+    {
+      matcher: "/admin/payments/:id/settles",
+      method: "DELETE",
+      middlewares: [],
+    },
     {
       matcher: "/admin/payments/:id",
       method: "POST",

@@ -439,3 +439,166 @@ describe("mergePaymentSources", () => {
     expect(merged).toEqual([])
   })
 })
+
+/**
+ * PARTIAL settlement (#1710) — the reading the founder asked for.
+ *
+ * Parmar's payout is INR 28,200 and INR 20,000 has demonstrably moved. Before
+ * this, the model had no honest way to say so: `Approved` reports 0 paid and
+ * 28,200 outstanding — the reading that pays someone twice — while flipping it
+ * to `Paid` would claim 28,200 moved when 8,200 is still owed.
+ *
+ * 🔑 Linking a payment to the payout it settles is the human statement that
+ * makes the partial expressible. It is not inference: nothing here derives it
+ * from a shared order id.
+ */
+describe("foldPartnerLedger — a payout settled in PART (#1710)", () => {
+  const sub = {
+    id: "sub_28200",
+    status: "Approved",
+    total_amount: 28200,
+    currency: "inr",
+    submitted_at: "2026-08-28T10:00:00.000Z",
+  }
+
+  const linked = (over: Record<string, any> = {}) => ({
+    id: "pay_jul",
+    amount: 10000,
+    status: "Completed",
+    submission_id: "sub_28200",
+    ...over,
+  })
+
+  const fold = (payments: any[]) =>
+    foldPartnerLedger({
+      submissions: [sub],
+      items: [],
+      payments,
+      reconciliations: [],
+    })
+
+  it("counts linked money as paid, and owes only the remainder", () => {
+    const { totals } = fold([linked(), linked({ id: "pay_aug" })])
+
+    expect(totals.billed).toBe(28200)
+    expect(totals.paid).toBe(20000)
+    expect(totals.outstanding).toBe(8200)
+  })
+
+  it("leaves an UNLINKED payment out of paid — that is the whole distinction", () => {
+    // Same money, same order, no statement that it settles this payout.
+    const { totals } = fold([
+      { id: "pay_jul", amount: 10000, status: "Completed" },
+      { id: "pay_aug", amount: 10000, status: "Completed" },
+    ])
+
+    expect(totals.paid).toBe(0)
+    expect(totals.outstanding).toBe(28200)
+    expect(totals.recorded).toBe(20000)
+  })
+
+  it("does not let a bounced payment settle anything", () => {
+    const { totals } = fold([
+      linked({ id: "pay_failed", status: "Failed" }),
+      linked({ id: "pay_cancelled", status: "Cancelled" }),
+      linked({ id: "pay_real" }),
+    ])
+
+    // Only the one that moved.
+    expect(totals.paid).toBe(10000)
+    expect(totals.outstanding).toBe(18200)
+  })
+
+  it("🔴 does not let a PENDING payment settle anything either", () => {
+    /**
+     * The status a partner's own submission is written with. If Pending
+     * settled, a partner could move their own `paid` figure by asserting they
+     * had been paid — the admin marking it `Completed` is the only control on
+     * that, and it is deliberately a human act (#1639's rule, applied to the
+     * link).
+     */
+    const { totals, entries } = fold([
+      linked({ id: "pay_pending", status: "Pending" }),
+    ])
+
+    expect(entries.find((e) => e.kind === "payout")!.settled_amount).toBe(0)
+    expect(totals.paid).toBe(0)
+    expect(totals.outstanding).toBe(28200)
+  })
+
+  it("warns on a Pending payment even though it cannot settle — warn wide, settle narrow", () => {
+    /**
+     * ⚠️ The two rules are deliberately different. `recorded_against_open`
+     * counts Pending because a warning should over-fire; `paid` refuses it
+     * because a settlement must not.
+     */
+    const { totals } = foldPartnerLedger({
+      submissions: [sub],
+      items: [{ id: "i1", submission_id: "sub_28200", source_type: "inventory_order", inventory_order_id: "o1" }],
+      payments: [
+        { id: "pay_pending", amount: 10000, status: "Pending", inventory_order_id: "o1" },
+      ],
+      reconciliations: [],
+    })
+
+    expect(totals.paid).toBe(0)
+    expect(totals.recorded_against_open).toBe(10000)
+  })
+
+  it("caps settlement at the payout's own amount", () => {
+    // A INR 30,000 payment cannot make a INR 28,200 payout overpaid; the
+    // surplus belongs to something else.
+    const { totals, entries } = fold([linked({ amount: 30000 })])
+
+    expect(entries.find((e) => e.kind === "payout")!.settled_amount).toBe(28200)
+    expect(totals.paid).toBe(28200)
+    expect(totals.outstanding).toBe(0)
+  })
+
+  it("does NOT double-count a Paid payout that also carries a link", () => {
+    /**
+     * 🔴 The regression this guards. If status and links both contributed, a
+     * settled payout with its payment linked would report 38,200 paid against
+     * 28,200 billed and a NEGATIVE outstanding.
+     */
+    const { totals } = foldPartnerLedger({
+      submissions: [{ ...sub, status: "Paid", paid_at: "2026-08-31T00:00:00.000Z" }],
+      items: [],
+      payments: [linked()],
+      reconciliations: [],
+    })
+
+    expect(totals.paid).toBe(28200)
+    expect(totals.outstanding).toBe(0)
+  })
+
+  it("keeps a RECONCILIATION-derived association out of paid", () => {
+    /**
+     * ⚠️ Provenance, not a statement of how much is discharged. Letting it move
+     * `paid` would silently restate historical numbers nobody re-examined.
+     */
+    const { totals } = foldPartnerLedger({
+      submissions: [sub],
+      items: [],
+      payments: [{ id: "pay_hist", amount: 10000, status: "Pending" }],
+      reconciliations: [
+        { reference_type: "payment_submission", reference_id: "sub_28200", payment_id: "pay_hist" },
+      ],
+    })
+
+    expect(totals.paid).toBe(0)
+    expect(totals.outstanding).toBe(28200)
+  })
+
+  it("still reports a Rejected payout as neither billed nor paid", () => {
+    const { totals } = foldPartnerLedger({
+      submissions: [{ ...sub, status: "Rejected" }],
+      items: [],
+      payments: [linked()],
+      reconciliations: [],
+    })
+
+    expect(totals.billed).toBe(0)
+    expect(totals.paid).toBe(0)
+  })
+})
