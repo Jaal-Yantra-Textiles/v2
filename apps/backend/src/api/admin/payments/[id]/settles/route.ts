@@ -5,10 +5,15 @@ import {
 } from "@medusajs/framework/utils"
 import type { Link } from "@medusajs/modules-sdk"
 
+import InventoryOrdersInternalPaymentsLink from "../../../../../links/inventory-orders-internal-payments"
+import PartnerInventoryOrderLink from "../../../../../links/partner-inventory-order"
+import PartnerPaymentMethodsLink from "../../../../../links/partner-payment-methods-link"
+import PartnerPaymentsLink from "../../../../../links/partner-payments-link"
 import { INTERNAL_PAYMENTS_MODULE } from "../../../../../modules/internal_payments"
 import { PAYMENT_SUBMISSIONS_MODULE } from "../../../../../modules/payment_submissions"
 import type PaymentSubmissionsService from "../../../../../modules/payment_submissions/service"
 import type InternalPaymentService from "../../../../../modules/internal_payments/service"
+import { decideSamePartner, resolvePaymentOwners } from "./same-partner"
 
 /**
  * POST /admin/payments/:id/settles   { payment_submission_id }
@@ -90,6 +95,47 @@ const resolveBoth = async (
     throw new MedusaError(
       MedusaError.Types.NOT_ALLOWED,
       `Payment submission ${submissionId} was rejected — it is not owed, so no payment can settle it.`
+    )
+  }
+
+  /**
+   * 🔴 BOTH ENDS AGAINST EACH OTHER, not merely both present (#1712).
+   *
+   * Existence checks alone let partner A's money discharge partner B's payout —
+   * this route writes `paid` on the partner ledger, so that mistake pays the
+   * wrong person and leaves a link nobody would think to question. A bulk
+   * reconciliation pass is exactly where an id gets typed one character wrong.
+   *
+   * Permissive when the payment has no traceable owner — see `same-partner.ts`
+   * for why that is deliberate rather than an oversight.
+   */
+  const query = req.scope.resolve(ContainerRegistrationKeys.QUERY) as any
+  const owners = await resolvePaymentOwners(
+    query,
+    {
+      partnerPayments: PartnerPaymentsLink,
+      orderPayments: InventoryOrdersInternalPaymentsLink,
+      partnerOrders: PartnerInventoryOrderLink,
+      partnerMethods: PartnerPaymentMethodsLink,
+    },
+    String(req.params.id),
+    /**
+     * ⚠️ `paid_to` is a `belongsTo`, so an unexpanded `listPayments` returns the
+     * FK column and NOT the object. Reading only `.paid_to.id` would leave home
+     * 3 permanently unreached — a check that never runs reads as a pass.
+     */
+    (payment as any)?.paid_to?.id ?? (payment as any)?.paid_to_id ?? null
+  )
+
+  const decision = decideSamePartner(owners, (submission as any)?.partner_id)
+  if (!decision.allowed) {
+    throw new MedusaError(
+      MedusaError.Types.NOT_ALLOWED,
+      `Payment ${req.params.id} belongs to partner ${decision.owners.join(
+        ", "
+      )}, but submission ${submissionId} belongs to partner ${
+        (submission as any).partner_id
+      }. A payment cannot settle another partner's payout.`
     )
   }
 }
