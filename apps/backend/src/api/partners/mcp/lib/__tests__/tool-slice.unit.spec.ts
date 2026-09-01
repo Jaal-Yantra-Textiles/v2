@@ -360,6 +360,9 @@ describe("partner-mcp per-ask tool slicing", () => {
       "/partners/payments": "refund this payment",
       "/partners/payment-providers": "which payment providers are available",
       "/partners/payment-submissions": "list my payment submissions",
+      // #1712. A partner asks about a credit in the words of what happened to
+      // them — "was I overpaid" — never "list my partner_credit rows".
+      "/partners/credits": "do I have any credit left over from an overpayment",
       "/partners/payment-collections": "mark this payment collection as paid",
       "/partners/stores/:id/payment-providers":
         "which payment providers are enabled for my store",

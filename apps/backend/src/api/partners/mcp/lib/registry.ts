@@ -1160,6 +1160,47 @@ export const PARTNER_MCP_TOOLS: PartnerMcpToolDef[] = [
       ["submissionId"]
     ),
   },
+
+  /**
+   * What this partner may still bill for, and what they already hold (#1712).
+   *
+   * 🔑 READ ONLY, and deliberately so. A partner may see every one of these
+   * numbers; only an admin may declare a payout settled or mint a credit.
+   * Whether money already given discharges the next payout is not a partner's
+   * assertion to make — the admin surface owns link_payment_to_payout.
+   *
+   * ⚠️ None of them take a partner id. They are scoped to the AUTHENTICATED
+   * partner by the route itself; there is no way to ask about somebody else,
+   * which is the property that keeps one partner's payouts off another's
+   * screen.
+   */
+  {
+    name: "list_payable_runs",
+    description:
+      "The completed production runs YOU can still bill for — work, as opposed to goods. One row per run with its billing status (`clear` / `partly_billed` / `billed` / `unknown`), produced vs ordered quantity, the agreed rate, and how much a previous payout already claimed. ⚠️ `unknown` means the run's billing history could not be verified, not that it is unbilled. Scoped to your own runs; it takes no arguments.",
+    method: "GET",
+    path: "/partners/payment-submissions/payable-runs",
+    inputSchema: obj({}),
+    nextSteps: ["list_payable_inventory_orders", "list_payment_submissions"],
+  },
+  {
+    name: "list_payable_inventory_orders",
+    description:
+      "The inventory orders YOU can still bill for — goods, as opposed to work. Each row carries what the order is worth by RECEIPTS (a partially received order is billable only for what actually arrived), what earlier payouts already claimed, and what remains. 🔑 A `count: 0` here does not mean nothing is owed: unbilled WORK lives in list_payable_runs. Takes no arguments.",
+    method: "GET",
+    path: "/partners/payment-submissions/payable-inventory-orders",
+    inputSchema: obj({}),
+    nextSteps: ["list_payable_runs", "list_payment_submissions"],
+  },
+  {
+    name: "list_credits",
+    description:
+      "Money YOU already hold that no payout has consumed — an overpayment, an adjustment or a goodwill credit. Returns the credit rows plus `open_total` (only `Open` credits count; an `Applied` one has already reduced a payout). Read-only: a credit is applied to a payout by an admin, never claimed here. Takes no arguments.",
+    method: "GET",
+    path: "/partners/credits",
+    inputSchema: obj({}),
+    nextSteps: ["list_payment_submissions"],
+  },
   {
     name: "list_returns",
     description: "List returns for the partner's sales channel (optionally filtered by order_id).",
