@@ -182,18 +182,46 @@ export const listPayableInventoryOrders = async (
           ? null
           : Math.round(Math.max(0, ceiling - claimedTotal) * 100) / 100
 
+      const uncapped = value.total
+
       /**
-       * What this row offers: the receipts value, capped at what is left.
+       * 🔴 The receipts NOT YET CLAIMED — not the receipts figure (#1712).
        *
-       * Capping rather than offering the raw figure is the whole point — but a
-       * silent cap is a reduction nobody decided, so `capped_by_ceiling` says
+       * This offered `min(receipts_total, ordered − claimed)`, which nets what
+       * is billable against the ORDERED total but never against what has
+       * already been billed FOR THOSE SAME RECEIPTS. On a partially-received
+       * order the same goods could therefore be billed again and again until
+       * claims reached the ordered total.
+       *
+       * Live on production: hrhandloom's `inv_order_01K36TE2WB` had receipts
+       * 25,620 already claimed at 25,670, and this route still offered another
+       * 25,620 — roughly 63,215 of re-billable headroom against goods that do
+       * not exist. The operator reading it concluded supply was unpaid.
+       *
+       * 🔑 It never showed on a FULLY claimed order, because there
+       * `remaining` is 0 and the ceiling masked it. Only partially-received
+       * orders were exposed, which is exactly where a partner is mid-delivery
+       * and the screen is consulted most.
+       *
+       * ⚠️ `claimedTotal` counts LIVE claims only — `listPartnerClaims` skips
+       * `Rejected` submissions — so netting against it cannot block a claim
+       * released by a rejection.
+       */
+      const unclaimedReceipts =
+        Math.round(Math.max(0, uncapped - claimedTotal) * 100) / 100
+
+      /**
+       * Still capped at what the ordered-total ceiling leaves, because the
+       * receipts figure can legitimately sit ABOVE the ordered total (#1617)
+       * and `assessInventoryOrderClaims` would refuse it.
+       *
+       * A silent cap is a reduction nobody decided, so `capped_by_ceiling` says
        * it happened and the raw figure stays on the row beside it.
        */
-      const uncapped = value.total
       const amount =
         remaining == null
-          ? uncapped
-          : Math.round(Math.min(uncapped, remaining) * 100) / 100
+          ? unclaimedReceipts
+          : Math.round(Math.min(unclaimedReceipts, remaining) * 100) / 100
 
       /**
        * ⚠️ Computed per order and REPORTED, never folded into `amount`. See
@@ -213,7 +241,13 @@ export const listPayableInventoryOrders = async (
         claimed_total: Math.round(claimedTotal * 100) / 100,
         remaining,
         amount,
-        capped_by_ceiling: remaining != null && uncapped > remaining,
+        /**
+         * ⚠️ Compares the UNCLAIMED receipts, not the raw receipts figure.
+         * Since #1712 `amount` is also reduced by what has already been
+         * claimed, and `uncapped > remaining` would report the ceiling as the
+         * cause whenever prior claims were the real reason.
+         */
+        capped_by_ceiling: remaining != null && unclaimedReceipts > remaining,
         recorded_total: recordedTotal,
         recorded_covers_amount: amount > 0 && recordedTotal >= amount,
         order_date: order.order_date ?? null,
