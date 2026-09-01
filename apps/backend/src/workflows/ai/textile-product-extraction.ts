@@ -28,6 +28,7 @@ import { resolveRoleVisionModels } from "../../mastra/services/ai-platforms";
 import {
   setTextileModelsForRun,
   clearTextileModelsForRun,
+  clearTextileCooldownForRun,
 } from "../../mastra/agents/textileExtractionAgent";
 
 /** Vision role the textile extraction resolves its provider ladder from. */
@@ -193,7 +194,10 @@ export const runTextileMastraExtraction = async (input: {
       },
     });
   } finally {
-    if (container) clearTextileModelsForRun(run.runId);
+    if (container) {
+      clearTextileModelsForRun(run.runId);
+      clearTextileCooldownForRun(run.runId);
+    }
   }
 
   // Check validation step result

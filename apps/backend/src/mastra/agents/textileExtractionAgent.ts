@@ -170,4 +170,25 @@ export function clearTextileModelsForRun(runId?: string): void {
   if (runId) _textileModelsByRun.delete(runId)
 }
 
+/**
+ * Per-run cooldown of configured vision providers (by index into the models
+ * list). A provider that answers 429 after its retries is skipped for the rest
+ * of THIS run (both observation + derivation passes), so a rate-limited
+ * provider stops being hammered and the next provider in the ladder takes over.
+ */
+const _textileCooldownByRun = new Map<string, Set<number>>()
+
+export function getTextileCooldownForRun(runId?: string): Set<number> {
+  if (!runId) return new Set()
+  return _textileCooldownByRun.get(runId) ?? new Set()
+}
+
+export function setTextileCooldownForRun(runId: string, indices: Set<number>): void {
+  if (runId) _textileCooldownByRun.set(runId, indices)
+}
+
+export function clearTextileCooldownForRun(runId?: string): void {
+  if (runId) _textileCooldownByRun.delete(runId)
+}
+
 export { MAX_RETRIES, INITIAL_RETRY_DELAY_MS, MAX_RETRY_DELAY_MS };

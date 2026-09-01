@@ -6,6 +6,8 @@ import {
   createTextileAgentFromModel,
   getTextileFallbackModels,
   getTextileModelsForRun,
+  getTextileCooldownForRun,
+  setTextileCooldownForRun,
   isRateLimitError,
   sleep,
   MAX_RETRIES,
@@ -256,18 +258,54 @@ const runVisionExtraction = async <T>(
   // These generate PLAIN text and parse via readModelJsonOrThrow, because
   // Groq/Cloudflare don't reliably honour AI-SDK `json_schema` structured
   // output — the prompts already demand "ONLY a valid JSON object".
+  //
+  // Rate-limit handling matches the free ladder below: a 429 retries the SAME
+  // provider with exponential backoff (a transient 429 must not cascade into
+  // the next provider and burn ITS rpm), and a provider that stays rate-limited
+  // after retries is cooled down for the rest of this run so the other passes
+  // and providers take over.
   const configuredModels = getTextileModelsForRun(context?.runId);
+  const cooldown = getTextileCooldownForRun(context?.runId);
   for (let i = 0; i < configuredModels.length; i++) {
-    try {
-      const agent = await createTextileAgentFromModel(configuredModels[i]);
-      logger.info(`[${label}] Attempting configured vision provider #${i + 1}/${configuredModels.length}`);
-      const response = await agent.generate(messages);
-      const parsed = readModelJsonOrThrow(response, `${label}(configured#${i})`) as T;
-      logger.info(`[${label}] Successfully extracted with configured vision provider`);
-      return parsed;
-    } catch (error: any) {
-      lastError = error;
-      logger.warn(`[${label}] Error with configured vision provider: ${error?.message || String(error)}`);
+    if (cooldown.has(i)) {
+      logger.info(`[${label}] Configured provider #${i + 1} in cooldown — skipping`);
+      continue;
+    }
+
+    let retryCount = 0;
+    while (retryCount < MAX_RETRIES) {
+      try {
+        const agent = await createTextileAgentFromModel(configuredModels[i]);
+        logger.info(`[${label}] Attempting configured vision provider #${i + 1}/${configuredModels.length} (attempt ${retryCount + 1})`);
+        const response = await agent.generate(messages);
+        const parsed = readModelJsonOrThrow(response, `${label}(configured#${i})`) as T;
+        logger.info(`[${label}] Successfully extracted with configured vision provider`);
+        return parsed;
+      } catch (error: any) {
+        lastError = error;
+        const errorMsg = error?.message || String(error);
+        logger.warn(`[${label}] Error with configured provider #${i + 1} (attempt ${retryCount + 1}): ${errorMsg}`);
+
+        if (isRateLimitError(error)) {
+          retryCount++;
+          if (retryCount < MAX_RETRIES) {
+            const delay = Math.min(
+              INITIAL_RETRY_DELAY_MS * Math.pow(2, retryCount - 1) + Math.random() * 2000,
+              MAX_RETRY_DELAY_MS
+            );
+            logger.info(`[${label}] Rate limited on provider #${i + 1}. Waiting ${Math.round(delay / 1000)}s before retry...`);
+            await sleep(delay);
+          } else {
+            cooldown.add(i);
+            setTextileCooldownForRun(context?.runId ?? "", cooldown);
+            logger.warn(`[${label}] Provider #${i + 1} still rate-limited — cooling down for this run.`);
+            break;
+          }
+        } else {
+          logger.warn(`[${label}] Non-rate-limit error on provider #${i + 1}. Trying next provider...`);
+          break;
+        }
+      }
     }
   }
 
