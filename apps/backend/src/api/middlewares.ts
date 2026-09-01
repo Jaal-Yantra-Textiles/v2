@@ -3817,6 +3817,16 @@ export default defineMiddlewares({
       middlewares: [authenticate("partner", ["session", "bearer"])],
     },
     {
+      /**
+       * #1710 — the goods half of what a partner may bill for. Same placement
+       * rule as `payable-runs` above: before the list entry, whose query
+       * validator would otherwise claim this path.
+       */
+      matcher: "/partners/payment-submissions/payable-inventory-orders",
+      method: "GET",
+      middlewares: [authenticate("partner", ["session", "bearer"])],
+    },
+    {
       matcher: "/partners/payment-submissions",
       method: "GET",
       middlewares: [

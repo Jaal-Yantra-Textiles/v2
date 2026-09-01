@@ -4446,5 +4446,230 @@ setupSharedTestSuite(() => {
       expect(row.amount).toBe(0)
       expect(row.payable).toBe(false)
     })
+
+    /**
+     * #1710 — the PARTNER's own door to the same question.
+     *
+     * The admin has been able to bill goods since #1612; a partner never
+     * could. Their create validator accepted `design_ids` and `task_ids` and
+     * nothing else, and no partner screen listed an inventory order — so the
+     * one party who knows what they delivered had to ask an admin. The only
+     * self-serve path left, `submit-payment` on the order, writes an
+     * `internal_payments` row that is NOT a claim and that no payout accounts
+     * for. That is where the two orphaned INR 10,000 rows came from.
+     */
+    describe("GET /partners/payment-submissions/payable-inventory-orders (#1710)", () => {
+      it("401s without partner auth, rather than listing everyone's goods", async () => {
+        const res = await api
+          .get("/partners/payment-submissions/payable-inventory-orders")
+          .catch((e: any) => e.response)
+
+        expect(res.status).toBe(401)
+      })
+
+      /**
+       * 🔴 Non-vacuously. An order really exists and really belongs to A, and
+       * B is asked for it with B's own token. There is no `partner_id`
+       * parameter on this route at all — the scope comes from the auth
+       * context, which is the whole of the security boundary.
+       */
+      it("shows the owner their order and withholds it from another partner", async () => {
+        const stamp = Date.now() + 10
+        const owner = await createPartnerWithAuth(stamp)
+        const other = await createPartnerWithAuth(stamp + 1)
+
+        const orderId = await seedOrderForPartner(
+          owner.partnerId,
+          `pown-${stamp}`
+        )
+
+        const mine = await api.get(
+          "/partners/payment-submissions/payable-inventory-orders",
+          { headers: owner.partnerHeaders }
+        )
+        expect(mine.status).toBe(200)
+        expect(
+          mine.data.payable_inventory_orders.map(
+            (o: any) => o.inventory_order_id
+          )
+        ).toContain(orderId)
+
+        const theirs = await api.get(
+          "/partners/payment-submissions/payable-inventory-orders",
+          { headers: other.partnerHeaders }
+        )
+        expect(theirs.status).toBe(200)
+        expect(
+          theirs.data.payable_inventory_orders.map(
+            (o: any) => o.inventory_order_id
+          )
+        ).not.toContain(orderId)
+      })
+
+      /**
+       * 🔑 One question, one answer. The admin and partner routes read the
+       * same lib, so the receipts rule, the ordered-total ceiling and the cap
+       * flag cannot drift apart between them — which is exactly what happened
+       * when `apps/partner-ui` kept a private copy of `foldPartnerBilling`.
+       */
+      it("answers identically to the admin route for the same partner", async () => {
+        const stamp = Date.now() + 20
+        const owner = await createPartnerWithAuth(stamp)
+        const orderId = await seedOrderForPartner(
+          owner.partnerId,
+          `psame-${stamp}`
+        )
+
+        const asPartner = await api.get(
+          "/partners/payment-submissions/payable-inventory-orders",
+          { headers: owner.partnerHeaders }
+        )
+        const asAdmin = await api.get(
+          `/admin/payment-submissions/payable-inventory-orders?partner_id=${owner.partnerId}`,
+          adminHeaders
+        )
+
+        const pick = (data: any) =>
+          data.payable_inventory_orders.find(
+            (o: any) => o.inventory_order_id === orderId
+          )
+
+        expect(pick(asPartner.data)).toEqual(pick(asAdmin.data))
+      })
+    })
+
+    /**
+     * #1710 — a partner BILLING for goods, which the create route refused
+     * outright until now ("At least one design or task is required").
+     */
+    describe("POST /partners/payment-submissions — inventory_order_lines (#1710)", () => {
+      it("refuses an order that belongs to ANOTHER partner", async () => {
+        const stamp = Date.now() + 30
+        const owner = await createPartnerWithAuth(stamp)
+        const thief = await createPartnerWithAuth(stamp + 1)
+
+        const orderId = await seedOrderForPartner(
+          owner.partnerId,
+          `pthief-${stamp}`
+        )
+
+        const res = await api
+          .post(
+            "/partners/payment-submissions",
+            {
+              inventory_order_lines: [
+                { inventory_order_id: orderId, amount: 500 },
+              ],
+            },
+            { headers: thief.partnerHeaders }
+          )
+          .catch((e: any) => e.response)
+
+        expect(res.status).toBe(400)
+        expect(res.data.message).toContain("does not belong to this partner")
+      })
+
+      /**
+       * 🔴 The hole this route would have opened.
+       *
+       * The ownership guard read `if (ownerId && ownerId !== partner_id)`, so
+       * an order with NO partner link satisfied it by having nothing to
+       * compare — and 8 of 16 orders in a dev database have no link. That was
+       * survivable while only an admin naming an explicit `partner_id` could
+       * reach the step. It stopped being survivable the moment a partner
+       * could. A missing id is not permission; it is a missing answer.
+       */
+      it("refuses an order linked to NO partner at all", async () => {
+        const stamp = Date.now() + 40
+        const partner = await createPartnerWithAuth(stamp)
+
+        // Deliberately NOT sent to any partner.
+        const inventoryItemId = await seedInventoryItem(`orphan-${stamp}`)
+        const stockLocationId = await seedStockLocation()
+        const created = await api.post(
+          "/admin/inventory-orders",
+          {
+            order_lines: [
+              { inventory_item_id: inventoryItemId, quantity: 4, price: 250 },
+            ],
+            quantity: 4,
+            total_price: 1000,
+            status: "Pending",
+            expected_delivery_date: new Date().toISOString(),
+            order_date: new Date().toISOString(),
+            shipping_address: {},
+            stock_location_id: stockLocationId,
+          },
+          adminHeaders
+        )
+        const orphanId = created.data.inventoryOrder.id
+
+        const res = await api
+          .post(
+            "/partners/payment-submissions",
+            {
+              inventory_order_lines: [
+                { inventory_order_id: orphanId, amount: 500 },
+              ],
+            },
+            { headers: partner.partnerHeaders }
+          )
+          .catch((e: any) => e.response)
+
+        expect(res.status).toBe(400)
+        expect(res.data.message).toContain("not linked to any partner")
+      })
+
+      it("creates a goods-sourced submission a partner can see on their own list", async () => {
+        const stamp = Date.now() + 50
+        const owner = await createPartnerWithAuth(stamp)
+        const orderId = await seedOrderForPartner(
+          owner.partnerId,
+          `pbill-${stamp}`
+        )
+
+        const res = await api
+          .post(
+            "/partners/payment-submissions",
+            {
+              // An explicit amount: this order has no receipts recorded, and
+              // an amountless line is correctly refused there.
+              inventory_order_lines: [
+                { inventory_order_id: orderId, amount: 600 },
+              ],
+              notes: "Cotton delivered in July",
+            },
+            { headers: owner.partnerHeaders }
+          )
+          .catch((e: any) => e.response)
+
+        expect(res.status).toBe(201)
+
+        const submission = res.data.payment_submission
+        expect(Number(submission.total_amount)).toBe(600)
+
+        /**
+         * 🔑 The LINE carries the order, at `source_type: "inventory_order"`.
+         * Without that the partner detail screen has nothing to render and the
+         * ledger cannot tell which order the payout bills — which is the join
+         * #1710 needs to warn on money already recorded against it.
+         */
+        const line = (submission.items || [])[0]
+        expect(line.source_type).toBe("inventory_order")
+        expect(line.inventory_order_id).toBe(orderId)
+      })
+
+      it("still refuses a submission naming nothing at all", async () => {
+        const res = await api
+          .post(
+            "/partners/payment-submissions",
+            { notes: "pay me" },
+            { headers: partnerHeaders }
+          )
+          .catch((e: any) => e.response)
+
+        expect(res.status).toBe(400)
+      })
+    })
   })
 })

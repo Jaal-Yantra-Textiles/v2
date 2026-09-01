@@ -120,11 +120,33 @@ export type PartnerLedgerEntry = {
     payment_date: string | null;
     status: string | null;
   } | null;
+  /**
+   * Money already recorded against a source this payout ALSO bills (#1710).
+   *
+   * 🔴 Declare it here or the panel cannot read it. A flag the server sends for
+   * months with no entry in the client TYPE has zero readers (#1679) — the same
+   * shape that let an order headline "INR 0 paid" over INR 20,000 of completed
+   * payments.
+   */
+  recorded_against?: Array<{
+    payment_id: string;
+    amount: number;
+    status: string | null;
+    payment_type: string | null;
+    payment_date: string | null;
+    via: "submission" | "inventory_order";
+    inventory_order_id: string | null;
+    inventory_order_name: string | null;
+  }>;
+  recorded_against_total?: number;
   // payment
   payment_type?: string | null;
   payment_date?: string | null;
   attachments?: any[];
   paid_to?: any;
+  /** Which inventory order this money was recorded against (#1710). */
+  inventory_order_id?: string | null;
+  inventory_order_name?: string | null;
 };
 
 export type PartnerLedgerResponse = {
@@ -134,6 +156,8 @@ export type PartnerLedgerResponse = {
     paid: number;
     outstanding: number;
     recorded: number;
+    /** Of `recorded`, what sits against a source an UNPAID payout bills (#1710). */
+    recorded_against_open: number;
     currency: string | null;
   };
   count: number;

@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest"
 
 import {
+  describeLine,
   groupIntoRateBands,
   money,
   perUnit,
@@ -8,6 +9,7 @@ import {
   runBillsVerbatimTotal,
   runLineAmount,
   runNeedsTypedPrice,
+  summariseItems,
 } from "../payment-submission-money"
 
 /**
@@ -363,5 +365,94 @@ describe("runLineAmount — a total is the agreed price (#1679)", () => {
         alreadyPartlyBilled: true,
       })
     ).toBe(7000)
+  })
+})
+
+/**
+ * #1710 — a submission line must RENDER, whatever it is sourced from.
+ *
+ * The partner detail screen partitioned `items` into `designItems` and
+ * `taskItems` and drew a table for each. `source_type` has four values, so a
+ * `run` or `inventory_order` line matched neither filter and appeared nowhere
+ * — while still counting toward the total in the header. A partner billing for
+ * goods saw a five-figure total above an empty item list.
+ */
+describe("describeLine", () => {
+  it("labels an inventory-order line as goods, with the order on it", () => {
+    const line = describeLine({
+      source_type: "inventory_order",
+      inventory_order_id: "inv_order_01KWAKAZE17CC95XDEY7Q0M8SN",
+      inventory_order_name: "Parmar cotton",
+    })
+
+    expect(line.badge).toBe("Goods")
+    expect(line.title).toBe("Parmar cotton")
+    expect(line.subtitle).toBe("inv_order_01KWAKAZE17CC95XDEY7Q0M8SN")
+  })
+
+  it("labels a run line, which the two old tables could not render either", () => {
+    const line = describeLine({
+      source_type: "run",
+      design_name: "Kala kurta",
+      production_run_ids: ["run_1", "run_2"],
+    })
+
+    expect(line.badge).toBe("Run")
+    expect(line.title).toBe("Kala kurta")
+    expect(line.subtitle).toBe("run_1, run_2")
+  })
+
+  it("still renders a source type this build has never heard of", () => {
+    /**
+     * 🔑 The whole point. Adding a fourth branch to a filter fixes the two
+     * types we know about today and loses the fifth one the same way — so the
+     * unknown case must produce a row, not nothing.
+     */
+    const line = describeLine({ source_type: "commission", amount: 500 })
+
+    expect(line.badge).toBe("Item")
+    expect(line.title).toBe("Payment line")
+    expect(line.subtitle).toBe("source: commission")
+  })
+
+  it("treats a line with NO source_type as a design, like every other reader", () => {
+    const line = describeLine({ design_name: "Old row", design_id: "d1" })
+    expect(line.badge).toBe("Design")
+    expect(line.title).toBe("Old row")
+  })
+})
+
+describe("summariseItems", () => {
+  it("counts goods lines, which the old summary omitted entirely", () => {
+    const summary = summariseItems([
+      { source_type: "inventory_order" },
+      { source_type: "inventory_order" },
+      { source_type: "design" },
+    ])
+
+    expect(summary).toContain("2 goods lines")
+    expect(summary).toContain("1 design")
+  })
+
+  it("reads an item with no source_type as a design", () => {
+    expect(summariseItems([{ design_id: "d1" }])).toBe("1 design")
+  })
+
+  it("reads an item with no source_type but a task id as a task", () => {
+    expect(summariseItems([{ task_id: "t1" }])).toBe("1 task")
+  })
+
+  it("names an unknown source type rather than dropping it from the count", () => {
+    // Singular for one, and an "s" appended for more — an unknown label has no
+    // plural we can know, so the fallback must at least not read as a count of
+    // zero.
+    expect(summariseItems([{ source_type: "commission" }])).toBe("1 commission")
+    expect(
+      summariseItems([{ source_type: "commission" }, { source_type: "commission" }])
+    ).toBe("2 commissions")
+  })
+
+  it("is empty for no items, so the caller can print its own zero", () => {
+    expect(summariseItems([])).toBe("")
   })
 })

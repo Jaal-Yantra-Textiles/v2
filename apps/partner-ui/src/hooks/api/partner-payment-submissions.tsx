@@ -103,6 +103,25 @@ export type CreatePaymentSubmissionPayload = {
    * refused, and the bands already carry the total.
    */
   rate_breakdown?: Record<string, Array<{ quantity: number; unit_amount: number }>>
+  /**
+   * Payout lines sourced from INVENTORY ORDERS — goods we bought from this
+   * partner, as opposed to work they did for us (#1710).
+   *
+   * 🔴 Declared here or the screen cannot send it. The mutation passes the body
+   * straight through, so an undeclared field type-errors at the call site while
+   * the request would have worked — and the reverse (a field the client sends
+   * that no type declares) is how a flag shipped for months with zero readers
+   * (#1679). One order per entry; the workflow refuses a repeated order id.
+   *
+   * ⚠️ Send `amount` ONLY when a human typed one. Absent means "value it from
+   * the recorded receipts", which is the server's job and the one place that
+   * arithmetic lives.
+   */
+  inventory_order_lines?: Array<{
+    inventory_order_id: string
+    amount?: number
+    currency?: string
+  }>
   metadata?: Record<string, any>
 }
 

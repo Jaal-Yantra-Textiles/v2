@@ -17,9 +17,11 @@ import {
   useSubmitPartnerPaymentSubmission,
 } from "../../../hooks/api/partner-payment-submissions"
 import {
+  describeLine,
   money,
   perUnit,
   provenanceLabel,
+  summariseItems,
 } from "../../../lib/payment-submission-money"
 
 /** The provenance note, rendered. The decision itself lives in `src/lib`. */
@@ -72,12 +74,30 @@ export const PaymentSubmissionDetail = () => {
   }
 
   const items: any[] = submission.items || []
+
+  /**
+   * 🔴 ONE list of lines, not a table per source type (#1710, #1621).
+   *
+   * This screen used to partition `items` into `designItems` and `taskItems`
+   * and render a table for each. `source_type` has FOUR values — `design`,
+   * `task`, `run`, `inventory_order` — so a line sourced from a production run
+   * or from an inventory order matched neither filter and rendered NOWHERE. It
+   * still counted toward `total_amount` in the header, so the page showed a
+   * total with no lines adding up to it, and a partner billing for goods saw
+   * an empty submission.
+   *
+   * 🔑 The fix for a filter that enumerates known values is to REMOVE the
+   * partitioning, not to add a fourth branch — the next source type would
+   * disappear the same way. `describeLine` below labels whatever arrives, and
+   * an unrecognised type still gets a row.
+   */
   const designItems = items.filter(
     (i) => i.source_type === "design" || (!i.source_type && i.design_id)
   )
   const taskItems = items.filter(
     (i) => i.source_type === "task" || (!i.source_type && i.task_id)
   )
+  const goodsItems = items.filter((i) => i.source_type === "inventory_order")
   const documents: any[] = submission.documents || []
   const currency: string | undefined = (submission as any).currency
 
@@ -142,12 +162,13 @@ export const PaymentSubmissionDetail = () => {
                 <Text size="small" className="text-ui-fg-subtle">
                   Items
                 </Text>
-                <Text>
-                  {designItems.length ? `${designItems.length} design${designItems.length !== 1 ? "s" : ""}` : ""}
-                  {designItems.length && taskItems.length ? " · " : ""}
-                  {taskItems.length ? `${taskItems.length} task${taskItems.length !== 1 ? "s" : ""}` : ""}
-                  {!items.length ? 0 : ""}
-                </Text>
+                {/*
+                  ⚠️ Counts every line, including the ones this summary used to
+                  omit. It listed designs and tasks only, so a submission of
+                  three inventory-order lines read as an empty item count while
+                  the total beside it was in five figures (#1710).
+                */}
+                <Text>{summariseItems(items) || 0}</Text>
               </div>
               <div>
                 <Text size="small" className="text-ui-fg-subtle">
@@ -199,7 +220,7 @@ export const PaymentSubmissionDetail = () => {
         )}
 
         {/* Stat Cards */}
-        <div className="grid grid-cols-2 gap-4 md:grid-cols-5">
+        <div className="grid grid-cols-2 gap-4 md:grid-cols-6">
           <Container className="p-4">
             <Text size="small" className="text-ui-fg-subtle">
               Total Amount
@@ -222,6 +243,12 @@ export const PaymentSubmissionDetail = () => {
           </Container>
           <Container className="p-4">
             <Text size="small" className="text-ui-fg-subtle">
+              Goods
+            </Text>
+            <Heading>{goodsItems.length}</Heading>
+          </Container>
+          <Container className="p-4">
+            <Text size="small" className="text-ui-fg-subtle">
               Currency
             </Text>
             <Heading>
@@ -236,82 +263,65 @@ export const PaymentSubmissionDetail = () => {
           </Container>
         </div>
 
-        {/* Design Items */}
-        {designItems.length > 0 && (
+        {/*
+          Every line, whatever its source (#1710).
+
+          🔴 Replaces the "Design Items" and "Task Items" tables. Those two
+          between them could render `design` and `task` lines only, so a `run`
+          or `inventory_order` line was invisible while still counting toward
+          the total in the header above.
+        */}
+        {items.length > 0 && (
           <Container className="p-0">
             <div className="border-b border-ui-border-base px-4 py-3">
-              <Heading level="h3">Design Items</Heading>
+              <Heading level="h3">What this bills for</Heading>
             </div>
             <Table>
               <Table.Header>
                 <Table.Row>
-                  <Table.HeaderCell>Design</Table.HeaderCell>
+                  <Table.HeaderCell>Item</Table.HeaderCell>
                   <Table.HeaderCell>Billed for</Table.HeaderCell>
                   <Table.HeaderCell>Amount</Table.HeaderCell>
                 </Table.Row>
               </Table.Header>
               <Table.Body>
-                {designItems.map((item: any) => (
-                  <Table.Row key={item.id}>
-                    <Table.Cell>
-                      {item.design_name || "Unnamed design"}
-                    </Table.Cell>
-                    {/*
-                      The design id used to sit here. It answers a question
-                      nobody asks on a payment screen; "what am I being paid
-                      for, and at what rate" is the question, and the create
-                      screen has answered it since #1579 while this one did
-                      not — the two money screens disagreed about what a
-                      submission even was.
-                    */}
-                    <Table.Cell>
-                      <div className="flex flex-col">
-                        <Text size="small">
-                          {perUnit(item, currency) ?? "One line, no rate given"}
-                        </Text>
-                        <ProvenanceNote item={item} />
-                      </div>
-                    </Table.Cell>
-                    <Table.Cell>
-                      {money(item.amount, currency)}
-                    </Table.Cell>
-                  </Table.Row>
-                ))}
-              </Table.Body>
-            </Table>
-          </Container>
-        )}
-
-        {/* Task Items */}
-        {taskItems.length > 0 && (
-          <Container className="p-0">
-            <div className="border-b border-ui-border-base px-4 py-3">
-              <Heading level="h3">Task Items</Heading>
-            </div>
-            <Table>
-              <Table.Header>
-                <Table.Row>
-                  <Table.HeaderCell>Task</Table.HeaderCell>
-                  <Table.HeaderCell>Task ID</Table.HeaderCell>
-                  <Table.HeaderCell>Amount</Table.HeaderCell>
-                </Table.Row>
-              </Table.Header>
-              <Table.Body>
-                {taskItems.map((item: any) => (
-                  <Table.Row key={item.id}>
-                    <Table.Cell>
-                      {item.task_name || "Untitled task"}
-                    </Table.Cell>
-                    <Table.Cell>
-                      <span className="font-mono text-xs">
-                        {item.task_id}
-                      </span>
-                    </Table.Cell>
-                    <Table.Cell>
-                      {money(item.amount, currency)}
-                    </Table.Cell>
-                  </Table.Row>
-                ))}
+                {items.map((item: any) => {
+                  const line = describeLine(item)
+                  return (
+                    <Table.Row key={item.id}>
+                      <Table.Cell>
+                        <div className="flex items-center gap-2">
+                          <Text size="small">{line.title}</Text>
+                          <Badge color={line.badgeColor} size="2xsmall">
+                            {line.badge}
+                          </Badge>
+                        </div>
+                        {line.subtitle && (
+                          <Text size="xsmall" className="mt-1 text-ui-fg-muted font-mono">
+                            {line.subtitle}
+                          </Text>
+                        )}
+                      </Table.Cell>
+                      {/*
+                        The design id used to sit here. It answers a question
+                        nobody asks on a payment screen; "what am I being paid
+                        for, and at what rate" is the question, and the create
+                        screen has answered it since #1579 while this one did
+                        not — the two money screens disagreed about what a
+                        submission even was.
+                      */}
+                      <Table.Cell>
+                        <div className="flex flex-col">
+                          <Text size="small">
+                            {perUnit(item, currency) ?? line.billedFor}
+                          </Text>
+                          <ProvenanceNote item={item} />
+                        </div>
+                      </Table.Cell>
+                      <Table.Cell>{money(item.amount, currency)}</Table.Cell>
+                    </Table.Row>
+                  )
+                })}
               </Table.Body>
             </Table>
           </Container>

@@ -1399,8 +1399,33 @@ const validateInventoryOrderLinesStep = createStep(
     const validated: ValidatedInventoryLine[] = lines.map((line) => {
       const order = orderById.get(line.inventory_order_id)!
 
+      /**
+       * 🔴 The order must be OWNED by the partner being paid — and an order
+       * with no owner at all is refused, not waved through (#1710).
+       *
+       * This guard used to read `if (ownerId && ownerId !== partner_id)`, so a
+       * dangling link — an inventory order with no `partner` row, which is 8 of
+       * 16 orders in a dev database — satisfied it by having nothing to
+       * compare. That was survivable while only an admin naming an explicit
+       * `partner_id` could reach this step. It stopped being survivable when
+       * the partner portal gained `inventory_order_lines` (#1710): a partner
+       * could then bill for any unowned order in the system, and the callee is
+       * the one that has to refuse.
+       *
+       * ⚠️ Same shape as the dangling publishable key that made a tenant filter
+       * evaluate to "no filter" and rendered every storefront's data to
+       * everyone. A missing id is not permission; it is a missing answer.
+       */
       const ownerId = order.partner?.id ?? order.partner?.[0]?.id ?? null
-      if (ownerId && String(ownerId) !== input.partner_id) {
+      if (!ownerId) {
+        throw new MedusaError(
+          MedusaError.Types.NOT_ALLOWED,
+          `Inventory order ${line.inventory_order_id} is not linked to any partner, ` +
+            `so it cannot be billed as this partner's goods. Link the order to its ` +
+            `supplier first.`
+        )
+      }
+      if (String(ownerId) !== input.partner_id) {
         throw new MedusaError(
           MedusaError.Types.NOT_ALLOWED,
           `Inventory order ${line.inventory_order_id} does not belong to this partner`

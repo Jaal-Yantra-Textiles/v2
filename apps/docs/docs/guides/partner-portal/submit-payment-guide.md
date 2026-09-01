@@ -1,12 +1,24 @@
 ---
 title: "Submitting Payments on Inventory Orders"
 sidebar_label: "Submit Payment"
-sidebar_position: 1
+sidebar_position: 3
 ---
 
 # Submitting Payments on Inventory Orders
 
-This guide walks through how partners submit payments against their inventory orders from the partner portal.
+This guide walks through how partners **record a payment that has already
+happened** against an inventory order.
+
+:::danger This is not how you ask to be paid
+Submit Payment creates a **record that money moved**. It is not a claim: it
+creates no payout, enters no review queue, and does not reduce what a payout
+says is outstanding.
+
+**If you are asking to be paid for material you supplied, use Payment
+Submissions → Create → Goods instead.** See
+[Getting Paid](./getting-paid.md), which explains the difference and why it
+matters.
+:::
 
 ## Prerequisites
 
@@ -42,8 +54,18 @@ A success toast confirms the submission, and the drawer closes automatically.
 ## What Happens Next
 
 - The payment appears in the admin's inventory order detail view under the payments section
+- It also appears on the partner ledger (**Partners → *partner* → Payments**),
+  listed as *"recorded against &lt;order&gt; — no payout attached"*
 - Admin can review and update the payment status (approve, mark as completed, etc.)
 - Partners can submit multiple payments against the same order (e.g., partial payments)
+
+:::warning If a payout also bills this order
+Both records now exist and neither knows about the other. The partner ledger
+raises an orange warning on the payout — *"already recorded against the order
+this bills — check before paying"* — but it deliberately does **not** subtract
+one from the other. An advance and a payout can legitimately coexist, so a
+human decides, by linking the payment to the submission it settles.
+:::
 
 ## Troubleshooting
 

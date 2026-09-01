@@ -24,6 +24,10 @@ import {
   type PayableRun,
 } from "../../../hooks/api/partner-payable-runs"
 import {
+  usePartnerPayableInventoryOrders,
+  type PayableInventoryOrder,
+} from "../../../hooks/api/partner-payable-inventory-orders"
+import {
   groupIntoRateBands,
   runBillsVerbatimTotal,
   runLineAmount,
@@ -51,7 +55,9 @@ export const PaymentSubmissionCreate = () => {
    * Tasks are NOT redundant with runs. Most hang off a run, but a partner can
    * hold standalone ones, and this screen is the only place they can be billed.
    */
-  const [typeFilter, setTypeFilter] = useState<"all" | "runs" | "tasks">("all")
+  const [typeFilter, setTypeFilter] = useState<
+    "all" | "runs" | "tasks" | "orders"
+  >("all")
   /** Reveal the rows that cannot be submitted, greyed out, with the reason. */
   const [showSubmitted, setShowSubmitted] = useState(false)
   const [selectedRunIds, setSelectedRunIds] = useState<Set<string>>(
@@ -65,11 +71,30 @@ export const PaymentSubmissionCreate = () => {
   const [taskCostOverrides, setTaskCostOverrides] = useState<
     Record<string, number>
   >({})
+  /**
+   * GOODS this partner delivered (#1710) — material we bought FROM them, as
+   * opposed to work they did for us.
+   *
+   * 🔴 Until now a partner could bill only for work. The one self-serve path
+   * for goods was "Submit Payment" on the inventory order, which records an
+   * `internal_payments` row that is NOT a claim and that no payout accounts
+   * for — money that then sat invisible to the partner ledger entirely.
+   */
+  const [selectedOrderIds, setSelectedOrderIds] = useState<Set<string>>(
+    new Set()
+  )
+  const [orderAmountOverrides, setOrderAmountOverrides] = useState<
+    Record<string, number>
+  >({})
   const [notes, setNotes] = useState("")
 
-  // Fetch payable runs and tasks in parallel
+  // Fetch payable runs, tasks and inventory orders in parallel
   const { payable_runs = [], isPending: runsLoading } = usePartnerPayableRuns()
   const { tasks = [], isPending: tasksLoading } = usePartnerAssignedTasks()
+  const {
+    payable_inventory_orders = [],
+    isPending: ordersLoading,
+  } = usePartnerPayableInventoryOrders()
 
   /**
    * Why a run cannot be submitted right now, or null when it can.
@@ -134,6 +159,49 @@ export const PaymentSubmissionCreate = () => {
     [tasks]
   )
 
+  /**
+   * Why an inventory order cannot be billed right now, or null when it can.
+   *
+   * 🔑 The server already decided this — `payable` is false when there is
+   * nothing left, and `remaining` says how much headroom is left against the
+   * ORDERED total. The screen must not re-derive it: a screen that computes its
+   * own answer offers figures the write guard then refuses, and the partner
+   * learns the rule from a 400 (#1617).
+   */
+  const orderBlockedReason = useCallback(
+    (o: PayableInventoryOrder): string | null => {
+      if (o.payable) return null
+      if (o.remaining != null && o.remaining <= 0) {
+        return o.claims.length
+          ? `Already billed · ${o.claims[0].submission_id ?? "open submission"}`
+          : "Already fully billed"
+      }
+      /**
+       * ⚠️ No receipts is a GAP IN THE RECORD, not a price of zero. Saying so
+       * is the difference between a partner chasing the delivery note and a
+       * partner concluding we think the goods were free.
+       */
+      return "No delivery recorded against this order yet"
+    },
+    []
+  )
+
+  const eligibleOrders = useMemo(
+    () =>
+      payable_inventory_orders.filter(
+        (o: PayableInventoryOrder) => !orderBlockedReason(o)
+      ),
+    [payable_inventory_orders, orderBlockedReason]
+  )
+
+  const blockedOrders = useMemo(
+    () =>
+      payable_inventory_orders.filter(
+        (o: PayableInventoryOrder) => !!orderBlockedReason(o)
+      ),
+    [payable_inventory_orders, orderBlockedReason]
+  )
+
   const { mutateAsync: createSubmission, isPending: isCreating } =
     useCreatePartnerPaymentSubmission()
 
@@ -154,6 +222,14 @@ export const PaymentSubmissionCreate = () => {
     })
   }, [])
 
+  const toggleOrder = useCallback((id: string) => {
+    setSelectedOrderIds((prev) => {
+      const next = new Set(prev)
+      next.has(id) ? next.delete(id) : next.add(id)
+      return next
+    })
+  }, [])
+
   /**
    * Select-all acts on what is ON SCREEN, not on everything selectable.
    *
@@ -162,26 +238,46 @@ export const PaymentSubmissionCreate = () => {
    * would bill work the partner never looked at, and the command bar total is
    * the only place they would notice.
    */
+  /**
+   * ⚠️ Each of these names the filter it BELONGS to, rather than excluding the
+   * one filter it does not. Under the old exclusion form
+   * (`typeFilter === "tasks" ? [] : eligibleRuns`) adding a third tab silently
+   * made every run selectable from it — pressing select-all on Goods would
+   * have billed work the partner never looked at, and the command-bar total is
+   * the only place they would have noticed.
+   */
   const visibleSelectableRuns = useMemo(
-    () => (typeFilter === "tasks" ? [] : eligibleRuns),
+    () => (typeFilter === "all" || typeFilter === "runs" ? eligibleRuns : []),
     [typeFilter, eligibleRuns]
   )
   const visibleSelectableTasks = useMemo(
-    () => (typeFilter === "runs" ? [] : eligibleTasks),
+    () => (typeFilter === "all" || typeFilter === "tasks" ? eligibleTasks : []),
     [typeFilter, eligibleTasks]
+  )
+  const visibleSelectableOrders = useMemo(
+    () =>
+      typeFilter === "all" || typeFilter === "orders" ? eligibleOrders : [],
+    [typeFilter, eligibleOrders]
   )
 
   const allVisibleSelected =
-    visibleSelectableRuns.length + visibleSelectableTasks.length > 0 &&
+    visibleSelectableRuns.length +
+      visibleSelectableTasks.length +
+      visibleSelectableOrders.length >
+      0 &&
     visibleSelectableRuns.every((r: PayableRun) => selectedRunIds.has(r.run_id)) &&
     visibleSelectableTasks.every((t: PartnerAssignedTask) =>
       selectedTaskIds.has(t.id)
+    ) &&
+    visibleSelectableOrders.every((o: PayableInventoryOrder) =>
+      selectedOrderIds.has(o.inventory_order_id)
     )
 
   const toggleSelectAllVisible = useCallback(() => {
     if (allVisibleSelected) {
       setSelectedRunIds(new Set())
       setSelectedTaskIds(new Set())
+      setSelectedOrderIds(new Set())
       return
     }
     setSelectedRunIds(
@@ -190,7 +286,19 @@ export const PaymentSubmissionCreate = () => {
     setSelectedTaskIds(
       new Set(visibleSelectableTasks.map((t: PartnerAssignedTask) => t.id))
     )
-  }, [allVisibleSelected, visibleSelectableRuns, visibleSelectableTasks])
+    setSelectedOrderIds(
+      new Set(
+        visibleSelectableOrders.map(
+          (o: PayableInventoryOrder) => o.inventory_order_id
+        )
+      )
+    )
+  }, [
+    allVisibleSelected,
+    visibleSelectableRuns,
+    visibleSelectableTasks,
+    visibleSelectableOrders,
+  ])
 
   // ─── Cost helpers ───────────────────────────────────────────────────
   const getEffectiveRunQuantity = useCallback(
@@ -280,6 +388,37 @@ export const PaymentSubmissionCreate = () => {
     [taskCostOverrides]
   )
 
+  /**
+   * What this order bills.
+   *
+   * 🔑 `o.amount` is the SERVER's answer — the receipts value, already capped
+   * at what is left against the ordered total. The screen offers it as a
+   * default and lets a partner state a different figure, but it never computes
+   * one: re-deriving a total is how a ₹10,000 job got re-priced to ₹12,857
+   * (#1679) and how a partner was underpaid by 22% (#1596).
+   */
+  const getEffectiveOrderAmount = useCallback(
+    (order: PayableInventoryOrder): number => {
+      const typed = orderAmountOverrides[order.inventory_order_id]
+      if (typed != null) return typed
+      return order.amount
+    },
+    [orderAmountOverrides]
+  )
+
+  const handleOrderAmountChange = (orderId: string, value: string) => {
+    const num = parseFloat(value)
+    if (value === "" || isNaN(num)) {
+      setOrderAmountOverrides((prev) => {
+        const next = { ...prev }
+        delete next[orderId]
+        return next
+      })
+    } else {
+      setOrderAmountOverrides((prev) => ({ ...prev, [orderId]: num }))
+    }
+  }
+
   const handleRunQuantityChange = (runId: string, value: string) => {
     const num = parseFloat(value)
     if (value === "" || isNaN(num)) {
@@ -320,7 +459,8 @@ export const PaymentSubmissionCreate = () => {
   }
 
   // ─── Totals ─────────────────────────────────────────────────────────
-  const totalSelected = selectedRunIds.size + selectedTaskIds.size
+  const totalSelected =
+    selectedRunIds.size + selectedTaskIds.size + selectedOrderIds.size
 
   const totalAmount = useMemo(() => {
     const runTotal = eligibleRuns
@@ -329,7 +469,16 @@ export const PaymentSubmissionCreate = () => {
     const taskTotal = eligibleTasks
       .filter((t) => selectedTaskIds.has(t.id))
       .reduce((sum, t) => sum + getEffectiveTaskCost(t), 0)
-    return runTotal + taskTotal
+    const orderTotal = eligibleOrders
+      .filter((o: PayableInventoryOrder) =>
+        selectedOrderIds.has(o.inventory_order_id)
+      )
+      .reduce(
+        (sum: number, o: PayableInventoryOrder) =>
+          sum + getEffectiveOrderAmount(o),
+        0
+      )
+    return runTotal + taskTotal + orderTotal
   }, [
     eligibleRuns,
     selectedRunIds,
@@ -337,15 +486,19 @@ export const PaymentSubmissionCreate = () => {
     eligibleTasks,
     selectedTaskIds,
     getEffectiveTaskCost,
+    eligibleOrders,
+    selectedOrderIds,
+    getEffectiveOrderAmount,
   ])
 
   const clearSelection = useCallback(() => {
     setSelectedRunIds(new Set())
     setSelectedTaskIds(new Set())
+    setSelectedOrderIds(new Set())
   }, [])
 
   // ─── Rows ───────────────────────────────────────────────────────────
-  const isLoading = runsLoading || tasksLoading
+  const isLoading = runsLoading || tasksLoading || ordersLoading
 
   /**
    * One list, runs and tasks together, in the order a partner reads them.
@@ -357,13 +510,22 @@ export const PaymentSubmissionCreate = () => {
   type Row =
     | { kind: "run"; run: PayableRun }
     | { kind: "task"; task: PartnerAssignedTask }
+    | { kind: "order"; order: PayableInventoryOrder }
 
+  /**
+   * ⚠️ Each filter names the kinds it INCLUDES, rather than excluding the ones
+   * it is not. The exclusion form (`typeFilter !== "tasks"`) silently drops
+   * every kind added later — adding "orders" under that rule would have shown
+   * runs on the Orders tab. A filter that enumerates known values and drops
+   * the rest is exactly how two of four payout source types rendered nowhere
+   * at all (#1621).
+   */
   const visibleRows = useMemo((): Row[] => {
     const rows: Row[] = []
-    if (typeFilter !== "tasks") {
+    if (typeFilter === "all" || typeFilter === "runs") {
       rows.push(...eligibleRuns.map((run: PayableRun) => ({ kind: "run" as const, run })))
     }
-    if (typeFilter !== "runs") {
+    if (typeFilter === "all" || typeFilter === "tasks") {
       rows.push(
         ...eligibleTasks.map((task: PartnerAssignedTask) => ({
           kind: "task" as const,
@@ -371,11 +533,37 @@ export const PaymentSubmissionCreate = () => {
         }))
       )
     }
-    if (showSubmitted && typeFilter !== "tasks") {
-      rows.push(...blockedRuns.map((run: PayableRun) => ({ kind: "run" as const, run })))
+    if (typeFilter === "all" || typeFilter === "orders") {
+      rows.push(
+        ...eligibleOrders.map((order: PayableInventoryOrder) => ({
+          kind: "order" as const,
+          order,
+        }))
+      )
+    }
+    if (showSubmitted) {
+      if (typeFilter === "all" || typeFilter === "runs") {
+        rows.push(...blockedRuns.map((run: PayableRun) => ({ kind: "run" as const, run })))
+      }
+      if (typeFilter === "all" || typeFilter === "orders") {
+        rows.push(
+          ...blockedOrders.map((order: PayableInventoryOrder) => ({
+            kind: "order" as const,
+            order,
+          }))
+        )
+      }
     }
     return rows
-  }, [typeFilter, eligibleRuns, eligibleTasks, showSubmitted, blockedRuns])
+  }, [
+    typeFilter,
+    eligibleRuns,
+    eligibleTasks,
+    eligibleOrders,
+    showSubmitted,
+    blockedRuns,
+    blockedOrders,
+  ])
 
   /**
    * 🔑 An empty table must say WHICH kind of empty it is. "Nothing to bill" and
@@ -384,6 +572,7 @@ export const PaymentSubmissionCreate = () => {
    * finished runs have vanished.
    */
   const emptyMessage = useMemo(() => {
+    const hiddenCount = blockedRuns.length + blockedOrders.length
     if (typeFilter === "runs") {
       return blockedRuns.length && !showSubmitted
         ? `No runs left to bill — ${blockedRuns.length} are already submitted. Tick "Show already submitted" to see them.`
@@ -392,15 +581,20 @@ export const PaymentSubmissionCreate = () => {
     if (typeFilter === "tasks") {
       return "No payable tasks. Completed tasks that are not part of a run appear here."
     }
-    return blockedRuns.length && !showSubmitted
-      ? `Nothing left to bill — ${blockedRuns.length} item(s) are already submitted. Tick "Show already submitted" to see them.`
-      : "Nothing to bill yet. Completed runs and tasks appear here."
-  }, [typeFilter, blockedRuns.length, showSubmitted])
+    if (typeFilter === "orders") {
+      return blockedOrders.length && !showSubmitted
+        ? `No inventory orders left to bill — ${blockedOrders.length} are already billed or have no delivery recorded. Tick "Show already submitted" to see them.`
+        : "No inventory orders to bill. Orders appear here once a delivery is recorded against them."
+    }
+    return hiddenCount && !showSubmitted
+      ? `Nothing left to bill — ${hiddenCount} item(s) are already submitted. Tick "Show already submitted" to see them.`
+      : "Nothing to bill yet. Completed runs, tasks and delivered inventory orders appear here."
+  }, [typeFilter, blockedRuns.length, blockedOrders.length, showSubmitted])
 
   // ─── Submit ─────────────────────────────────────────────────────────
   const handleSubmit = async () => {
     if (totalSelected === 0) {
-      toast.error("Select at least one run or task")
+      toast.error("Select at least one run, task or inventory order")
       return
     }
 
@@ -419,12 +613,23 @@ export const PaymentSubmissionCreate = () => {
     const invalidTasks = eligibleTasks.filter(
       (t) => selectedTaskIds.has(t.id) && getEffectiveTaskCost(t) <= 0
     )
-    if (invalidRuns.length || invalidTasks.length) {
+    /**
+     * ⚠️ An order line whose amount is zero would be REFUSED by the workflow
+     * ("has no recorded receipts to bill"), so catch it here where the partner
+     * can see which row it was. A 400 naming an order id teaches nothing.
+     */
+    const invalidOrders = eligibleOrders.filter(
+      (o: PayableInventoryOrder) =>
+        selectedOrderIds.has(o.inventory_order_id) &&
+        getEffectiveOrderAmount(o) <= 0
+    )
+    if (invalidRuns.length || invalidTasks.length || invalidOrders.length) {
       const names = [
         ...invalidRuns.map((r: PayableRun) => r.design_name || r.run_id),
         ...invalidTasks.map((t) => t.title || t.id),
+        ...invalidOrders.map((o: PayableInventoryOrder) => o.inventory_order_id),
       ]
-      toast.error(`Enter valid quantity and unit amount for: ${names.join(", ")}`)
+      toast.error(`Enter a valid amount for: ${names.join(", ")}`)
       return
     }
 
@@ -540,9 +745,33 @@ export const PaymentSubmissionCreate = () => {
        */
       const designIds = Object.keys(productionRunIds)
 
+      /**
+       * Goods lines (#1710). One entry per order, claimed whole — the workflow
+       * refuses a repeated order id, and sums per order across the submission
+       * so splitting a line cannot defeat the ceiling.
+       *
+       * 🔑 `amount` is sent ONLY when a human typed one. Leaving it absent lets
+       * the server value the order from its typed `line_fulfillments` receipts,
+       * which is the one place that arithmetic lives. Echoing the server's own
+       * default back at it would make this screen a second pricer.
+       */
+      const inventoryOrderLines = eligibleOrders
+        .filter((o: PayableInventoryOrder) =>
+          selectedOrderIds.has(o.inventory_order_id)
+        )
+        .map((o: PayableInventoryOrder) => {
+          const typed = orderAmountOverrides[o.inventory_order_id]
+          return typed != null
+            ? { inventory_order_id: o.inventory_order_id, amount: typed }
+            : { inventory_order_id: o.inventory_order_id }
+        })
+
       await createSubmission({
         design_ids: designIds,
         task_ids: Array.from(selectedTaskIds),
+        inventory_order_lines: inventoryOrderLines.length
+          ? inventoryOrderLines
+          : undefined,
         notes: notes || undefined,
         production_run_ids: designIds.length ? productionRunIds : undefined,
         // Per-piece prices, when this selection has any (#1596).
@@ -572,7 +801,7 @@ export const PaymentSubmissionCreate = () => {
           <div>
             <RouteFocusModal.Title>New Payment Submission</RouteFocusModal.Title>
             <RouteFocusModal.Description>
-              Pick the runs and tasks you want paid for
+              Pick the work and goods you want paid for
             </RouteFocusModal.Description>
           </div>
         </div>
@@ -617,9 +846,16 @@ export const PaymentSubmissionCreate = () => {
             <div className="flex items-center gap-1 rounded-lg bg-ui-bg-subtle p-1">
               {(
                 [
-                  ["all", "All", eligibleRuns.length + eligibleTasks.length],
+                  [
+                    "all",
+                    "All",
+                    eligibleRuns.length +
+                      eligibleTasks.length +
+                      eligibleOrders.length,
+                  ],
                   ["runs", "Runs", eligibleRuns.length],
                   ["tasks", "Tasks", eligibleTasks.length],
+                  ["orders", "Goods", eligibleOrders.length],
                 ] as const
               ).map(([value, label, count]) => (
                 <button
@@ -649,14 +885,15 @@ export const PaymentSubmissionCreate = () => {
               ))}
             </div>
 
-            {blockedRuns.length > 0 && (
+            {blockedRuns.length + blockedOrders.length > 0 && (
               <label className="flex items-center gap-2 text-ui-fg-subtle txt-compact-small">
                 <Checkbox
                   checked={showSubmitted}
                   onCheckedChange={(v) => setShowSubmitted(!!v)}
                   aria-label="Show already submitted"
                 />
-                Show already submitted ({blockedRuns.length})
+                Show already submitted (
+                {blockedRuns.length + blockedOrders.length})
               </label>
             )}
           </div>
@@ -690,7 +927,7 @@ export const PaymentSubmissionCreate = () => {
                       aria-label="Select all shown"
                     />
                   </Table.HeaderCell>
-                  <Table.HeaderCell>Work</Table.HeaderCell>
+                  <Table.HeaderCell>Work / goods</Table.HeaderCell>
                   <Table.HeaderCell className="text-right">Qty</Table.HeaderCell>
                   <Table.HeaderCell className="text-right">Rate</Table.HeaderCell>
                   <Table.HeaderCell className="text-right">Amount</Table.HeaderCell>
@@ -698,7 +935,19 @@ export const PaymentSubmissionCreate = () => {
               </Table.Header>
               <Table.Body>
                 {visibleRows.map((row) =>
-                  row.kind === "run" ? (
+                  row.kind === "order" ? (
+                    <InventoryOrderRow
+                      key={row.order.inventory_order_id}
+                      order={row.order}
+                      blockedReason={orderBlockedReason(row.order)}
+                      selected={selectedOrderIds.has(
+                        row.order.inventory_order_id
+                      )}
+                      onToggle={toggleOrder}
+                      amount={getEffectiveOrderAmount(row.order)}
+                      onAmountChange={handleOrderAmountChange}
+                    />
+                  ) : row.kind === "run" ? (
                     <RunRow
                       key={row.run.run_id}
                       run={row.run}
@@ -1025,5 +1274,131 @@ const TaskRow = ({
     </Table.Cell>
   </Table.Row>
 )
+
+/**
+ * One inventory order this partner may bill for (#1710) — GOODS, not work.
+ *
+ * 🔴 The amount box is pre-filled from the server's `amount`, which is the
+ * receipts value already capped at what is left against the ORDERED total. It
+ * is the only figure on this row that may be sent as money. `receipts_total`
+ * and `ordered_total` are shown beside it as explanation, never re-multiplied
+ * into a new one — every time a screen has re-derived a payout total on this
+ * codebase it has got it wrong (#1596 by 22%, #1679 by 28%).
+ */
+const InventoryOrderRow = ({
+  order,
+  blockedReason,
+  selected,
+  onToggle,
+  amount,
+  onAmountChange,
+}: {
+  order: PayableInventoryOrder
+  blockedReason: string | null
+  selected: boolean
+  onToggle: (id: string) => void
+  amount: number
+  onAmountChange: (id: string, value: string) => void
+}) => {
+  const blocked = !!blockedReason
+
+  return (
+    <Table.Row
+      data-inventory-order-id={order.inventory_order_id}
+      data-testid="payable-inventory-order-row"
+      className={blocked ? "opacity-60" : undefined}
+    >
+      <Table.Cell>
+        <Checkbox
+          checked={selected}
+          disabled={blocked}
+          onCheckedChange={() => onToggle(order.inventory_order_id)}
+          aria-label={`Select inventory order ${order.inventory_order_id}`}
+        />
+      </Table.Cell>
+
+      <Table.Cell>
+        <div className="flex items-center gap-2">
+          <Text weight="plus" className="truncate font-mono text-xs">
+            {order.inventory_order_id}
+          </Text>
+          <Badge color="orange" size="2xsmall">
+            Goods
+          </Badge>
+          {order.is_sample && (
+            <Badge color="grey" size="2xsmall">
+              Sample
+            </Badge>
+          )}
+        </div>
+        <Text size="small" className="mt-1 text-ui-fg-subtle">
+          {order.status || "Unknown"}
+          {order.lines?.length
+            ? ` · ${order.lines
+                .map((l) => l.material_name)
+                .filter(Boolean)
+                .slice(0, 2)
+                .join(", ")}`
+            : ""}
+        </Text>
+        {blockedReason && (
+          <Text size="xsmall" className="mt-1 text-ui-fg-muted">
+            {blockedReason}
+          </Text>
+        )}
+        {!blocked && order.capped_by_ceiling && (
+          /**
+           * ⚠️ A silent cap is a reduction nobody decided. The receipts are
+           * worth more than the order has headroom for, so this row offers
+           * less than the goods came to — say so, with both figures.
+           */
+          <Tooltip
+            content={`Receipts are worth ${order.receipts_total.toLocaleString()}, but only ${(order.remaining ?? 0).toLocaleString()} is left against the ordered total of ${(order.ordered_total ?? 0).toLocaleString()}.`}
+          >
+            <Text size="xsmall" className="mt-1 text-ui-tag-orange-text">
+              capped at what is left on the order
+            </Text>
+          </Tooltip>
+        )}
+        {!blocked && order.claimed_total > 0 && !order.capped_by_ceiling && (
+          <Text size="xsmall" className="mt-1 text-ui-fg-muted">
+            {order.claimed_total.toLocaleString()} already claimed on this order
+          </Text>
+        )}
+      </Table.Cell>
+
+      {/* Units RECEIVED, which is what the amount is derived from — not the
+          quantity ordered. The two differ on every partially-delivered order. */}
+      <Table.Cell className="text-right">
+        <Text size="small" className="text-ui-fg-muted">
+          {order.received_quantity?.toLocaleString() ?? "—"}
+        </Text>
+      </Table.Cell>
+
+      {/* No rate. An order is priced per line by material, and inventing a
+          single blended rate here would be a number nobody agreed. */}
+      <Table.Cell className="text-right">
+        <Text size="small" className="text-ui-fg-muted">
+          —
+        </Text>
+      </Table.Cell>
+
+      <Table.Cell className="text-right">
+        {blocked ? (
+          <Text size="small" className="text-ui-fg-muted">
+            —
+          </Text>
+        ) : (
+          <NumberCell
+            label={`Amount for inventory order ${order.inventory_order_id}`}
+            placeholder="0"
+            value={amount || undefined}
+            onChange={(v) => onAmountChange(order.inventory_order_id, v)}
+          />
+        )}
+      </Table.Cell>
+    </Table.Row>
+  )
+}
 
 export const Component = PaymentSubmissionCreate
