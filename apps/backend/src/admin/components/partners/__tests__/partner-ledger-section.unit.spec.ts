@@ -198,3 +198,55 @@ describe("PartnerLedgerSection — acting on the warning (#1710)", () => {
     expect(html).not.toMatch(/as settling this payout/i)
   })
 })
+
+/**
+ * Applied credits on the ledger (#1712).
+ *
+ * 🔴 An applied credit has ALREADY reduced `outstanding`. If it does not reach
+ * the screen the footer shows a smaller amount owed than the payouts above add
+ * up to, with nothing explaining the difference — a reader either distrusts the
+ * panel or, worse, trusts the larger figure and pays it.
+ */
+describe("PartnerLedgerSection — applied credits (#1712)", () => {
+  it("names the credit that discharged part of a payout", () => {
+    const html = render(
+      [
+        payout({
+          recorded_against: [],
+          recorded_against_total: 0,
+          credited_amount: 1380,
+          credits_applied: [
+            {
+              credit_id: "cred_1",
+              amount: 1380,
+              reason: "Paid 30,000 against a 28,620 payout",
+              applied_at: "2026-09-02T00:00:00.000Z",
+            },
+          ],
+        }),
+      ],
+      totals({ credited: 1380, outstanding: 26820 })
+    )
+
+    expect(html).toContain("discharged by")
+    expect(html).toContain("Paid 30,000 against a 28,620 payout")
+  })
+
+  it("puts credited in the footer, beside paid and outstanding", () => {
+    const html = render(
+      [payout({ recorded_against: [], recorded_against_total: 0 })],
+      totals({ credited: 1380, outstanding: 26820 })
+    )
+    expect(html).toContain("credited")
+  })
+
+  /** Silent when there is nothing to say — a "₹0 credited" is noise. */
+  it("says nothing about credits when none were applied", () => {
+    const html = render(
+      [payout({ recorded_against: [], recorded_against_total: 0 })],
+      totals({ credited: 0 })
+    )
+    expect(html).not.toContain("credited")
+    expect(html).not.toContain("discharged by")
+  })
+})

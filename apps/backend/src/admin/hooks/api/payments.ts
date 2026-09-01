@@ -139,6 +139,31 @@ export type PartnerLedgerEntry = {
     inventory_order_name: string | null;
   }>;
   recorded_against_total?: number;
+  /**
+   * What has been SETTLED against this payout by payments a human linked to it
+   * (#1710). Capped at the payout's own amount.
+   *
+   * ⚠️ Was read by `payoutSettlementBadge` through its own local type while
+   * absent from THIS one — the #1679 shape, one edit away from a reader that
+   * silently sees `undefined`. Declared here now.
+   */
+  settled_amount?: number;
+  /**
+   * Credits a human APPLIED to this payout (#1712).
+   *
+   * 🔴 Declared here for the same reason as `recorded_against` above: a flag
+   * the server sends that the client TYPE never declares has zero readers
+   * (#1679). Unlike `recorded_against` this is NOT advisory — it has already
+   * reduced `outstanding`, so a panel that cannot see it shows a smaller
+   * amount owed with nothing on screen explaining why.
+   */
+  credits_applied?: Array<{
+    credit_id: string;
+    amount: number;
+    reason: string | null;
+    applied_at: string | null;
+  }>;
+  credited_amount?: number;
   // payment
   payment_type?: string | null;
   payment_date?: string | null;
@@ -158,6 +183,14 @@ export type PartnerLedgerResponse = {
     recorded: number;
     /** Of `recorded`, what sits against a source an UNPAID payout bills (#1710). */
     recorded_against_open: number;
+    /**
+     * Of `billed`, what applied credits discharged (#1712).
+     *
+     * ⚠️ Separate from `paid` on purpose. `paid` means money that transferred;
+     * a founder reconciling this panel against a bank statement must not find
+     * a figure no statement explains. `outstanding` is `billed - paid - credited`.
+     */
+    credited: number;
     currency: string | null;
   };
   count: number;
@@ -225,6 +258,97 @@ export const useSetPaymentSettles = (paymentId: string) => {
       // The ledger's totals move with this — `paid` and `outstanding` both
       // change — so a stale panel would show the old figures beside the new
       // state and read as if nothing happened.
+      queryClient.invalidateQueries({ queryKey: [PARTNER_LEDGER_QUERY_KEY] });
+      queryClient.invalidateQueries({ queryKey: adminPartnersQueryKeys.details() });
+    },
+  });
+};
+
+
+// ─── Partner credits (#1712) ────────────────────────────────────────────────
+
+/**
+ * Money a partner already holds that no payout consumed.
+ *
+ * ⚠️ `inventory_order_id` is the EARMARK — a second link the create route
+ * writes, which no read exposed until #1712's follow-up. It says where the
+ * money was meant to be consumed; it does not restrict which payout the credit
+ * may be applied to.
+ */
+export type PartnerCredit = {
+  id: string;
+  amount: number;
+  currency_code: string | null;
+  status: "Open" | "Applied" | "Cancelled" | string;
+  source_type: string | null;
+  reason: string | null;
+  source_submission_id: string | null;
+  applied_to_submission_id: string | null;
+  applied_at: string | null;
+  inventory_order_id: string | null;
+};
+
+export type PartnerCreditsResponse = {
+  credits: PartnerCredit[];
+  count: number;
+  /** Only `Open` credits — an `Applied` one has already reduced a payout. */
+  open_total: number;
+  currency: string | null;
+};
+
+export const PARTNER_CREDITS_QUERY_KEY = "partner-credits" as const;
+
+export const usePartnerCredits = (
+  partnerId: string,
+  options?: Omit<
+    UseQueryOptions<PartnerCreditsResponse, FetchError, PartnerCreditsResponse, QueryKey>,
+    "queryFn" | "queryKey"
+  >,
+) => {
+  const { data, ...rest } = useQuery({
+    queryKey: [PARTNER_CREDITS_QUERY_KEY, partnerId],
+    queryFn: async () =>
+      sdk.client.fetch<PartnerCreditsResponse>(
+        `/admin/partners/${partnerId}/credits`,
+        { method: "GET" },
+      ),
+    ...options,
+  });
+  return { ...data, ...rest };
+};
+
+/**
+ * Consume a credit against one payout (#1712).
+ *
+ * 🔑 The deliberate act. A credit is DISPLAYED beside `outstanding` and never
+ * netted against it automatically, because whether money already given
+ * discharges the next payout is a decision a human makes. This is where they
+ * make it.
+ *
+ * Forward-only — there is no unapply, so the panel confirms before calling.
+ */
+export const useApplyPartnerCredit = (partnerId: string, creditId: string) => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({ submission_id }: { submission_id: string }) =>
+      sdk.client.fetch<{
+        credit: PartnerCredit;
+        submission_id: string;
+        remaining_before: number;
+        remaining_after: number;
+      }>(`/admin/partners/${partnerId}/credits/${creditId}/apply`, {
+        method: "POST",
+        body: { submission_id },
+      }),
+    onSuccess: () => {
+      /**
+       * BOTH lists move: the credit leaves `open_total`, and the ledger's
+       * `credited` and `outstanding` change. Invalidating one would leave the
+       * other showing the pre-apply figures beside the new state — which reads
+       * as though nothing happened.
+       */
+      queryClient.invalidateQueries({ queryKey: [PARTNER_CREDITS_QUERY_KEY] });
       queryClient.invalidateQueries({ queryKey: [PARTNER_LEDGER_QUERY_KEY] });
       queryClient.invalidateQueries({ queryKey: adminPartnersQueryKeys.details() });
     },
