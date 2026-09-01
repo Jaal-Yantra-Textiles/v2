@@ -14,6 +14,7 @@ import { describePaymentLine } from "../../lib/payment-line-source"
 import {
   paymentSubmissionStatusColor,
   paymentSubmissionStatusLabel,
+  payoutSettlementBadge,
 } from "../../lib/payment-submission-status"
 
 /**
@@ -101,6 +102,8 @@ const PayoutRow = ({ entry }: { entry: PartnerLedgerEntry }) => {
     new Set((entry.lines || []).map((line) => describePaymentLine(line).label))
   )
 
+  const settlement = payoutSettlementBadge(entry)
+
   return (
     <div className="flex items-start justify-between py-3">
       <div className="flex flex-col gap-y-1">
@@ -108,6 +111,17 @@ const PayoutRow = ({ entry }: { entry: PartnerLedgerEntry }) => {
           <StatusBadge color={paymentSubmissionStatusColor(entry.status)}>
             {paymentSubmissionStatusLabel(entry.status)}
           </StatusBadge>
+          {settlement && (
+            /**
+             * 🔴 The money, said next to the approval state (#1712). Without
+             * this a fully-settled payout renders a bare "Pending" directly
+             * above a footer reading "paid", and the row reads as a
+             * double-count to anyone who trusts the badge.
+             */
+            <StatusBadge color={settlement.color}>
+              {settlement.label}
+            </StatusBadge>
+          )}
           <Text size="small" className="text-ui-fg-subtle">
             {labels.length ? labels.join(", ") : "No lines"}
           </Text>
