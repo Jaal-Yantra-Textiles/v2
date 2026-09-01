@@ -58,6 +58,10 @@ import {
   type StoredUIMessage,
 } from "./lib/design-conversations"
 import { pickDesignCanvas } from "./lib/design-pick"
+import {
+  countPendingToolParts,
+  sealPendingToolParts,
+} from "./lib/incomplete-turn"
 import { retrieveCustomerFresh } from "@lib/data/customer"
 
 /**
@@ -190,6 +194,49 @@ export default function DesignChat({
   const lenis = useLenis()
 
   const isStreaming = status === "submitted" || status === "streaming"
+
+  // ── Seal abandoned tool calls when a turn ends (#1725) ──
+  //
+  // The provider can end a turn while a tool call's argument JSON is still
+  // streaming. The SDK then never fires `tool-input-available`, so the tool
+  // never runs and the part is stuck at `input-streaming` for the rest of the
+  // session — a chip that spins forever, with no error and no way to retry.
+  //
+  // That silence is the dangerous part: the assistant's prose is written from
+  // its INTENT, so a turn whose `save_brief` was abandoned still says
+  // "Brief locked". Measured on production: one turn ended `finishReason:
+  // "tool-calls"` with zero executed calls, another was cut mid-word with no
+  // `finish` part at all. Neither reached `error`, so `useChat` reported both
+  // as ordinary completions.
+  //
+  // A turn is over once `status` leaves the streaming states. Anything still
+  // pending at that moment did not happen — mark it `output-error` so the
+  // chips in message-parts.tsx render the failure they already know how to
+  // render, and tell the maker to send the message again.
+  const [turnIncomplete, setTurnIncomplete] = React.useState(false)
+  const sealedRef = React.useRef<Set<string>>(new Set())
+
+  React.useEffect(() => {
+    if (isStreaming || messages.length === 0) return
+    const last = messages.at(-1) as any
+    if (!last || last.role !== "assistant") return
+    if (sealedRef.current.has(last.id)) return
+    if (!countPendingToolParts(last)) return
+
+    sealedRef.current.add(last.id)
+    setTurnIncomplete(true)
+    setMessages((prev) =>
+      prev.map((m) =>
+        (m as any).id === last.id ? sealPendingToolParts(m) : m
+      ) as any
+    )
+  }, [messages, isStreaming, setMessages])
+
+  // A fresh turn clears the warning — the maker acted on it.
+  React.useEffect(() => {
+    if (isStreaming) setTurnIncomplete(false)
+  }, [isStreaming])
+
   const isGenerating = messages.some(
     (m) =>
       m.role === "assistant" &&
@@ -267,7 +314,11 @@ export default function DesignChat({
   // ── Persist after each completed turn ──
   React.useEffect(() => {
     if (isStreaming || messages.length === 0) return
-    const signature = `${messages.length}:${(messages as any).at(-1)?.id ?? ""}`
+    // The pending count is part of the signature: sealing an abandoned tool
+    // call (#1725) changes neither the message count nor the id, and without
+    // it the mirror would persist the spinning version forever.
+    const last = (messages as any).at(-1)
+    const signature = `${messages.length}:${last?.id ?? ""}:${countPendingToolParts(last)}`
     if (persistedRef.current === signature) return
     persistedRef.current = signature
 
@@ -569,6 +620,33 @@ export default function DesignChat({
     [isStreaming, uploading, sendMessage]
   )
 
+  /**
+   * Re-send the last user turn after a cut-short stream (#1725).
+   *
+   * Deliberately re-sends rather than "resuming": a turn that ended with an
+   * abandoned tool call left no server-side state to resume from, and the
+   * tools the model was mid-way through calling are the ones that never ran.
+   */
+  const lastUserText = React.useMemo(() => {
+    for (let i = messages.length - 1; i >= 0; i--) {
+      const m = messages[i] as any
+      if (m.role !== "user") continue
+      const text = ((m.parts ?? []) as any[])
+        .filter((p) => p?.type === "text")
+        .map((p) => p.text)
+        .join("")
+      return text || null
+    }
+    return null
+  }, [messages])
+
+  const handleRetry = React.useCallback(() => {
+    if (!lastUserText || isStreaming || uploading) return
+    setTurnIncomplete(false)
+    setStickToBottom(true)
+    sendMessage({ text: lastUserText })
+  }, [lastUserText, isStreaming, uploading, sendMessage])
+
   const handlePickCanvas = async (canvasId: string) => {
     if (!designId || picking) return
     setPicking(true)
@@ -847,9 +925,22 @@ export default function DesignChat({
           <div className="flex flex-1 flex-col gap-3 px-4 py-4 sm:px-6">
             <div className="mx-auto flex w-full max-w-3xl flex-col gap-3">
               {messages.map(renderMessage)}
-              {error && (
-                <div className="rounded-xl border border-ui-tag-red-border bg-ui-tag-red-bg px-3 py-2 text-xs text-ui-tag-red-text">
-                  Something went wrong — try again.
+              {(error || turnIncomplete) && (
+                <div className="flex flex-wrap items-center gap-2 rounded-xl border border-ui-tag-red-border bg-ui-tag-red-bg px-3 py-2 text-xs text-ui-tag-red-text">
+                  <span>
+                    {error
+                      ? "Something went wrong — try again."
+                      : "That turn was cut short — some steps never ran, so anything the reply claims to have saved may not exist. Send it again."}
+                  </span>
+                  {lastUserText && !isStreaming && (
+                    <button
+                      type="button"
+                      onClick={handleRetry}
+                      className="rounded-md border border-ui-tag-red-border px-2 py-0.5 font-medium hover:bg-ui-tag-red-bg-hover"
+                    >
+                      Send again
+                    </button>
+                  )}
                 </div>
               )}
             </div>
