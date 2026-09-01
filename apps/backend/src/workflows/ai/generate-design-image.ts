@@ -381,8 +381,31 @@ const updateDesignWithAiMediaStep = createStep(
   }
 );
 
-// Step 4: Create a new design entry for AI generation history
-// Now uses createDesignWorkflow.runAsStep() for proper workflow composition
+/**
+ * Should this generation be filed as its own design record? (#1721)
+ *
+ * Exported and pure so the rule can be asserted directly. It used to be the
+ * word "Always" in a comment, and that is precisely why one design-chat session
+ * produced three designs on production: the real one, plus a row per generated
+ * image named `AI Design - <timestamp>`.
+ *
+ * Two conditions, and they mean different things:
+ *
+ *  - `uploadResult.media_id` — there is an actual stored image to file. No
+ *    image, no record; a failed generation should leave nothing behind.
+ *  - NO `design_id` on the input — nobody has already given this picture a
+ *    home. When the caller names a design, the workflow's commit step attaches
+ *    the image to it, and a second record for the same picture is a duplicate
+ *    that no list can tell apart from a real design.
+ *
+ * ⚠️ An EMPTY-STRING design_id counts as "no design", deliberately: the commit
+ * step gates on `!!design_id` too, so with `""` nothing attaches the image and
+ * the history record is the only trace it would leave.
+ */
+export const shouldCreateHistoryDesign = (data: {
+  input: { design_id?: string | null }
+  uploadResult?: { media_id?: string | null } | null
+}): boolean => !!data.uploadResult?.media_id && !data.input.design_id
 
 // Main workflow
 export const generateDesignAiImageWorkflow = createWorkflow(
@@ -436,9 +459,24 @@ export const generateDesignAiImageWorkflow = createWorkflow(
       return updateDesignWithAiMediaStep(updateDesignInput);
     });
 
-    // Step 4: Always create a design entry to save AI generation history
+    // Step 4: Save the generation as its own design — ONLY when it has no home
     // Uses createDesignWorkflow.runAsStep() for proper workflow composition
-    // This ensures customers can see their AI generations across sessions
+    //
+    // 🔴 This used to run unconditionally, and the comment said so ("Always
+    // create a design entry"). When the caller already supplied a `design_id`,
+    // Step 3 above attached the image to that design and Step 4 then minted a
+    // SECOND record for the same picture — one per image. A design chat asking
+    // for two takes produced three designs: the real one plus two rows named
+    // `AI Design - <timestamp>` (#1721, seen on production 2026-09-01).
+    //
+    // The history intent is right for a standalone generation, which otherwise
+    // leaves no trace a customer can find later. It is wrong the moment a
+    // design_id is given: the history already has a home, and the duplicate is
+    // indistinguishable from a real design in every list.
+    //
+    // ⚠️ #1698 made the chat's `create_design` TOOL idempotent per thread. This
+    // path is a second creator that fix never touched — enumerate every creator
+    // before calling a duplicate-record bug closed.
     const createDesignInput = transform(
       { input, mastraResult, uploadResult },
       (data) => {
@@ -485,8 +523,8 @@ export const generateDesignAiImageWorkflow = createWorkflow(
 
     const createDesignResult = when(
       "create-ai-design-history",
-      { uploadResult },
-      (data) => !!data.uploadResult?.media_id
+      { input, uploadResult },
+      (data) => shouldCreateHistoryDesign(data)
     ).then(() => {
       // Use createDesignWorkflow.runAsStep() for proper workflow composition
       return createDesignWorkflow.runAsStep({
@@ -503,8 +541,13 @@ export const generateDesignAiImageWorkflow = createWorkflow(
         // Always use the uploaded media URL if available
         preview_url: data.uploadResult?.media_url || data.mastraResult.image_url,
         media_id: data.uploadResult?.media_id,
-        // createDesignWorkflow returns the design object directly with an id property
-        design_id: data.createDesignResult?.id,
+        // createDesignWorkflow returns the design object directly with an id
+        // property. ⚠️ Falls back to the design the caller named: Step 4 no
+        // longer runs when one was supplied (#1721), and a response that
+        // dropped `design_id` in that case would look like "no design" to every
+        // caller that reads it — the duplicate would be gone and the answer
+        // would be wrong in a new way.
+        design_id: data.createDesignResult?.id || data.input.design_id,
         prompt_used: data.mastraResult.prompt_used,
         badges: data.input.badges,
         materials_prompt: data.input.materials_prompt,
