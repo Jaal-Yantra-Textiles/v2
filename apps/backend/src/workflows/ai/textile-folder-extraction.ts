@@ -43,6 +43,12 @@ export type TextileFolderExtractionInput = {
   persist?: boolean;
   /** Milliseconds to wait between photos. Default 60000 (1 photo/minute). */
   interval_ms?: number;
+  /**
+   * When set, only these media files are extracted (instead of every image in
+   * the folder). Used by the "retry failed" endpoint to re-run just the files
+   * that failed a previous folder extraction.
+   */
+  media_ids?: string[];
 };
 
 export type FolderMediaItem = {
@@ -148,7 +154,13 @@ const listFolderMediaStep = createStep(
       { select: ["id", "file_path", "file_type"], order: { created_at: "ASC" } } as any
     );
 
-    const images = (mediaFiles || []).filter((f: any) => f.file_type === "image" && f.file_path);
+    let images = (mediaFiles || []).filter((f: any) => f.file_type === "image" && f.file_path);
+
+    // Scope to an explicit subset (the "retry failed" path) when requested.
+    if (input.media_ids?.length) {
+      const wanted = new Set(input.media_ids);
+      images = images.filter((f: any) => wanted.has(f.id));
+    }
 
     if (images.length === 0) {
       throw new MedusaError(
@@ -441,6 +453,7 @@ export const textileFolderExtractionMedusaWorkflow = createWorkflow(
       gender: data.input.gender,
       persist: data.input.persist ?? false,
       interval_ms: data.input.interval_ms,
+      media_ids: data.input.media_ids,
     }));
 
     // Use runAsStep with backgroundExecution for the long rate-limited run
