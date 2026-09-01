@@ -42,10 +42,58 @@ export type PayableInventoryOrder = {
   amount: number
   /** Whether `amount` is below `receipts_total` because the ceiling bit. */
   capped_by_ceiling: boolean
+  /**
+   * Money already PAID against this order, from `internal_payments` (#1710).
+   *
+   * 🔴 The ceiling above measures claims against the ordered total. It has no
+   * term for payments at all — so an order we have already paid in full, but
+   * never billed, is offered as freshly payable. That is real on prod:
+   * `inv_order_01KKB850WN…` has INR 9,800 recorded since March, INR 0 claimed,
+   * and this route offered INR 5,800 of it.
+   *
+   * ⚠️ Reported, never subtracted. A payment on an order is not necessarily an
+   * advance against a payout — on that same order it is a full prepayment with
+   * no payout in existence. Whether it discharges a claim is a human's call,
+   * stated by linking the payment to the submission. Netting it here would
+   * silently underpay, which is this codebase's recurring failure mode.
+   */
+  recorded_total: number
+  /**
+   * Whether what has already been paid meets or exceeds what this row offers to
+   * bill. The signal a screen must not stay quiet about.
+   */
+  recorded_covers_amount: boolean
   order_date: string | null
   expected_delivery_date: string | null
   payable: boolean
   claims: Array<{ submission_id: string | null; status: string | null }>
+}
+
+/**
+ * What has actually been paid against one order.
+ *
+ * 🔑 `Failed` and `Cancelled` never moved money and must not warn. Everything
+ * else counts — including `Pending`, which is the status the partner portal
+ * writes. Over-warning costs a glance; under-warning is the double-pay this
+ * exists to prevent, so the doubt resolves toward saying something.
+ *
+ * PURE, so "have we already paid for this" can be tested without a graph.
+ */
+export const sumRecordedPayments = (payments: any): number => {
+  const rows = !payments ? [] : Array.isArray(payments) ? payments : [payments]
+  const DID_NOT_MOVE = new Set(["Failed", "Cancelled"])
+
+  return (
+    Math.round(
+      rows
+        .filter(Boolean)
+        .filter((p: any) => !DID_NOT_MOVE.has(String(p?.status ?? "")))
+        .reduce((acc: number, p: any) => {
+          const n = Number(p?.amount ?? 0)
+          return acc + (Number.isFinite(n) ? n : 0)
+        }, 0) * 100
+    ) / 100
+  )
 }
 
 export const listPayableInventoryOrders = async (
@@ -78,6 +126,15 @@ export const listPayableInventoryOrders = async (
       // — the two disagree by INR 4,050 on a real order and these are what the
       // concurrency guard reads (#1613).
       "inventory_orders.orderlines.line_fulfillments.quantity_delta",
+      /**
+       * 🔴 What has already been PAID against each order (#1710). Without this
+       * the route offers an order we have settled in full as if nothing had
+       * moved — a guard reading a field the query never fetched is dead, and a
+       * field never fetched at all cannot warn.
+       */
+      "inventory_orders.internal_payments.id",
+      "inventory_orders.internal_payments.amount",
+      "inventory_orders.internal_payments.status",
     ],
     filters: { id: partnerId },
   })
@@ -138,6 +195,12 @@ export const listPayableInventoryOrders = async (
           ? uncapped
           : Math.round(Math.min(uncapped, remaining) * 100) / 100
 
+      /**
+       * ⚠️ Computed per order and REPORTED, never folded into `amount`. See
+       * `recorded_total` on the type for why netting is refused here.
+       */
+      const recordedTotal = sumRecordedPayments(order.internal_payments)
+
       return {
         inventory_order_id: String(order.id),
         status: order.status ?? null,
@@ -151,6 +214,8 @@ export const listPayableInventoryOrders = async (
         remaining,
         amount,
         capped_by_ceiling: remaining != null && uncapped > remaining,
+        recorded_total: recordedTotal,
+        recorded_covers_amount: amount > 0 && recordedTotal >= amount,
         order_date: order.order_date ?? null,
         expected_delivery_date: order.expected_delivery_date ?? null,
         /**

@@ -74,6 +74,21 @@ wrong, that is a conversation to have before billing — the cap is not
 negotiable through this screen.
 :::
 
+:::danger "⚠ N already paid on this order"
+Someone has already recorded a payment against this order — possibly for these
+very goods. The row is **still tickable**, deliberately: a payment on an order
+is not always payment for the claim you are about to make (it may be an advance,
+a deposit, or money for a different delivery on the same order). But billing
+again for goods already settled is the mistake this row can cause, so check
+before you submit.
+
+This is not hypothetical. One live order shows **INR 9,800 paid since March
+against INR 0 ever billed** — so the screen was offering INR 5,800 of an order
+that had already been settled in full. The billable ceiling measures what has
+been *billed* against what was *ordered*; it has no knowledge of what has been
+*paid*. That is why the warning exists and why it is only a warning.
+:::
+
 :::warning Rows you cannot tick
 A greyed row says why underneath:
 
@@ -180,6 +195,23 @@ different questions. The order page is scoped to one order; the ledger is
 scoped to one partner. They should agree on any payment they can both see — if
 they do not, say so rather than trusting the larger number.
 :::
+
+## Quick reference
+
+## Why "paid" and "billed" are tracked separately
+
+A recurring source of confusion, worth stating plainly:
+
+- **Recording a payment never creates a payout.** The three places you can
+  record one — the partner page, the inventory order page, and the partner
+  portal's Submit Payment — all write a payment row and nothing else. No claim
+  is raised, nothing enters review.
+- **Approving a payout never records a payment.** Since #1638 approval writes no
+  payment row at all; `Paid` is set when the reconciliation is settled.
+
+So the two records are joined only when a human joins them. Everything above —
+the ledger warning, the "already paid on this order" note — exists because
+nothing does it automatically, and the system deliberately refuses to guess.
 
 ## Quick reference
 

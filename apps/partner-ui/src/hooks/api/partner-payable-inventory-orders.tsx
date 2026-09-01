@@ -39,6 +39,17 @@ export interface PayableInventoryOrder {
   amount: number
   /** Whether `amount` is below `receipts_total` because the ceiling bit. */
   capped_by_ceiling: boolean
+  /**
+   * Money already PAID against this order (#1710).
+   *
+   * 🔴 The billable ceiling measures CLAIMS against the ordered total and has
+   * no term for payments, so an order already settled but never billed is
+   * offered here as freshly payable. Live on prod: INR 9,800 recorded since
+   * March against INR 0 claimed, and this list offered INR 5,800 of it.
+   */
+  recorded_total: number
+  /** Whether what has already been paid meets or exceeds what this row bills. */
+  recorded_covers_amount: boolean
   order_date: string | null
   expected_delivery_date: string | null
   /**

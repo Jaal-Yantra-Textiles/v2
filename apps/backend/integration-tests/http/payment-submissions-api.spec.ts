@@ -4659,6 +4659,74 @@ setupSharedTestSuite(() => {
         expect(line.inventory_order_id).toBe(orderId)
       })
 
+      /**
+       * 🔴 The prod shape this warning exists for.
+       *
+       * `inv_order_01KKB850WN…` (Parmar): ordered 9,800, receipts 5,800,
+       * claimed **0**, and INR 9,800 PAID since March 2026. The billable
+       * ceiling measures claims against the ordered total and has no term for
+       * payments, so the route offered 5,800 of an order already settled in
+       * full — on a screen a partner can now reach.
+       */
+      it("reports money already PAID against an order it still offers to bill", async () => {
+        const stamp = Date.now() + 60
+        const owner = await createPartnerWithAuth(stamp)
+        const orderId = await seedOrderForPartner(
+          owner.partnerId,
+          `precorded-${stamp}`
+        )
+
+        const before = await api.get(
+          "/partners/payment-submissions/payable-inventory-orders",
+          { headers: owner.partnerHeaders }
+        )
+        const clean = before.data.payable_inventory_orders.find(
+          (o: any) => o.inventory_order_id === orderId
+        )
+        // The control: nothing paid yet, so nothing to warn about.
+        expect(clean.recorded_total).toBe(0)
+        expect(clean.recorded_covers_amount).toBe(false)
+
+        // Record a payment against the order — the exact call the inventory
+        // order's "Add payment" form makes, and the one that made #1710.
+        const paid = await api
+          .post(
+            "/admin/payments/link",
+            {
+              payment: {
+                amount: 1000,
+                status: "Completed",
+                payment_type: "Bank",
+                payment_date: new Date().toISOString(),
+              },
+              inventoryOrderIds: [orderId],
+            },
+            adminHeaders
+          )
+          .catch((e: any) => e.response)
+        expect(paid.status).toBe(201)
+
+        const after = await api.get(
+          "/partners/payment-submissions/payable-inventory-orders",
+          { headers: owner.partnerHeaders }
+        )
+        const row = after.data.payable_inventory_orders.find(
+          (o: any) => o.inventory_order_id === orderId
+        )
+
+        expect(row.recorded_total).toBe(1000)
+
+        /**
+         * ⚠️ And the offer is UNCHANGED. The warning is reported, never netted:
+         * a payment on an order is not necessarily an advance against a payout,
+         * and silently reducing what a partner may bill is the underpayment
+         * this codebase keeps producing (#1596, #1616, #1679).
+         */
+        expect(row.ordered_total).toBe(clean.ordered_total)
+        expect(row.remaining).toBe(clean.remaining)
+        expect(row.amount).toBe(clean.amount)
+      })
+
       it("still refuses a submission naming nothing at all", async () => {
         const res = await api
           .post(
