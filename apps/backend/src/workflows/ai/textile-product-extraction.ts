@@ -24,6 +24,15 @@ import MediaService from "../../modules/media/service";
 import type { MedusaContainer } from "@medusajs/framework";
 import { persistTextileAnalysis } from "../../modules/textile-analysis/lib/persist";
 import { TEXTILE_ANALYSIS_MODULE } from "../../modules/textile-analysis";
+import { resolveRoleVisionModels } from "../../mastra/services/ai-platforms";
+import {
+  setTextileModelsForRun,
+  clearTextileModelsForRun,
+  clearTextileCooldownForRun,
+} from "../../mastra/agents/textileExtractionAgent";
+
+/** Vision role the textile extraction resolves its provider ladder from. */
+const TEXTILE_VISION_ROLE = "ai_image_extraction";
 
 // ============================================
 // Types
@@ -146,7 +155,7 @@ export const runTextileMastraExtraction = async (input: {
   gender?: string;
   threadId?: string;
   resourceId?: string;
-}): Promise<TextileProductExtractionOutput> => {
+}, container?: MedusaContainer): Promise<TextileProductExtractionOutput> => {
   const workflow = mastra.getWorkflow("textileProductExtractionWorkflow");
   const run = await workflow.createRun();
 
@@ -154,16 +163,42 @@ export const runTextileMastraExtraction = async (input: {
   const threadId = input.threadId || `textile-thread-${Date.now()}`;
   const resourceId = input.resourceId || `textile-extraction:${Date.now()}`;
 
+  // Resolve the admin-configured vision ladder (Cloudflare → Groq → …) and
+  // hand the built models to the Mastra workflow by runId (the Mastra runtime
+  // has no container). Falls back to the OpenRouter `:free` ladder inside the
+  // workflow when no platform is configured.
+  if (container) {
+    try {
+      const resolved = await resolveRoleVisionModels(container, TEXTILE_VISION_ROLE);
+      if (resolved.length) {
+        setTextileModelsForRun(run.runId, resolved.map((r) => r.model));
+      }
+    } catch (e: any) {
+      console.warn(
+        `[textile-extraction] vision provider resolution failed, using free fallback: ${e?.message ?? e}`
+      );
+    }
+  }
+
   // Execute the workflow
-  const workflowResult = await run.start({
-    inputData: {
-      image_url: input.image_url,
-      hints: input.hints || [],
-      gender: (input.gender as any) || "unisex",
-      threadId,
-      resourceId,
-    },
-  });
+  let workflowResult: any;
+  try {
+    workflowResult = await run.start({
+      inputData: {
+        image_url: input.image_url,
+        hints: input.hints || [],
+        gender: (input.gender as any) || "unisex",
+        threadId,
+        resourceId,
+        run_id: run.runId,
+      },
+    });
+  } finally {
+    if (container) {
+      clearTextileModelsForRun(run.runId);
+      clearTextileCooldownForRun(run.runId);
+    }
+  }
 
   // Check validation step result
   if (workflowResult.steps.validateTextileExtraction?.status === "success") {
@@ -197,9 +232,12 @@ export const runTextileMastraExtraction = async (input: {
  */
 const runMastraTextileExtractionStep = createStep(
   "run-mastra-textile-extraction",
-  async (input: { image_url: string; hints?: string[]; gender?: string; threadId?: string; resourceId?: string }) => {
+  async (
+    input: { image_url: string; hints?: string[]; gender?: string; threadId?: string; resourceId?: string },
+    { container }
+  ) => {
     try {
-      return new StepResponse(await runTextileMastraExtraction(input));
+      return new StepResponse(await runTextileMastraExtraction(input, container));
     } catch (error: any) {
       if (error instanceof MedusaError) throw error;
       throw new MedusaError(

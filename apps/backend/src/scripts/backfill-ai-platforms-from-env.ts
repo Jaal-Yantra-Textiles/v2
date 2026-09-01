@@ -49,6 +49,7 @@ type ProviderType =
   | "cloudflare"
   | "vercel_ai_gateway"
   | "fal"
+  | "groq"
   | "custom"
 
 type Role =
@@ -56,6 +57,7 @@ type Role =
   | "ai_search_embed"
   | "ai_product_description"
   | "ai_image_gen"
+  | "ai_image_extraction"
 
 type PlatformPlan = {
   name: string
@@ -160,6 +162,34 @@ const planFromEnv = (): PlatformPlan[] => {
       // FAL's SDK chooses the endpoint per call; default_model is
       // informational only unless an admin wants to pin one.
       default_model: process.env.FAL_DEFAULT_MODEL,
+    })
+  }
+
+  // ── Vision extraction role: Cloudflare (default) → Groq ────────────────
+  // Both feed the textile extraction ladder; the textile workflow tries every
+  // platform for the role (default first) before the OpenRouter `:free` pool.
+  let visionDefaultClaimed = false
+  if (process.env.CLOUDFLARE_AI_ACCOUNT_ID && process.env.CLOUDFLARE_AI_TOKEN) {
+    plans.push({
+      name: "Cloudflare AI vision (env backfill)",
+      provider_type: "cloudflare",
+      role: "ai_image_extraction",
+      is_default: true,
+      api_key: process.env.CLOUDFLARE_AI_TOKEN,
+      account_id: process.env.CLOUDFLARE_AI_ACCOUNT_ID,
+      default_model: process.env.TEXTILE_VISION_CLOUDFLARE_MODEL ||
+        "@cf/meta/llama-3.2-11b-vision-instruct",
+    })
+    visionDefaultClaimed = true
+  }
+  if (process.env.GROQ_API_KEY) {
+    plans.push({
+      name: "Groq vision (env backfill)",
+      provider_type: "groq",
+      role: "ai_image_extraction",
+      is_default: !visionDefaultClaimed,
+      api_key: process.env.GROQ_API_KEY,
+      default_model: process.env.GROQ_DEFAULT_MODEL || "qwen/qwen3.6-27b",
     })
   }
 
