@@ -4144,6 +4144,11 @@ export default defineMiddlewares({
       method: "GET",
       middlewares: [],
     },
+    {
+      matcher: "/admin/medias/folder/:id/extract-features/retry",
+      method: "POST",
+      middlewares: [],
+    },
     // Person Types
     {
       matcher: "/admin/persontypes",
