@@ -190,3 +190,43 @@ export const usePartnerLedger = (
   });
   return { ...data, ...rest };
 };
+
+/**
+ * State that a payment settles a payout — or take it back (#1710).
+ *
+ * 🔑 The human act the ledger refuses to perform on its own. The panel WARNS
+ * that money sits against an order an unpaid payout bills; it will not decide
+ * that the money discharges the payout, because a payment on an order may be an
+ * advance, a deposit, or money for a different delivery. This is where a person
+ * says which — after which it counts toward `paid` and the payout is settled in
+ * PART.
+ */
+export const useSetPaymentSettles = (paymentId: string) => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({
+      payment_submission_id,
+      settles,
+    }: {
+      payment_submission_id: string;
+      settles: boolean;
+    }) =>
+      settles
+        ? sdk.client.fetch(`/admin/payments/${paymentId}/settles`, {
+            method: "POST",
+            body: { payment_submission_id },
+          })
+        : sdk.client.fetch(
+            `/admin/payments/${paymentId}/settles?payment_submission_id=${payment_submission_id}`,
+            { method: "DELETE" },
+          ),
+    onSuccess: () => {
+      // The ledger's totals move with this — `paid` and `outstanding` both
+      // change — so a stale panel would show the old figures beside the new
+      // state and read as if nothing happened.
+      queryClient.invalidateQueries({ queryKey: [PARTNER_LEDGER_QUERY_KEY] });
+      queryClient.invalidateQueries({ queryKey: adminPartnersQueryKeys.details() });
+    },
+  });
+};

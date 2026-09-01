@@ -36,3 +36,18 @@ export const ListPaymentsQuerySchema = z.object({
 export type ListPaymentsQuery = z.infer<typeof ListPaymentsQuerySchema>;
 
 export const ListPaymentsQuery = ListPaymentsQuerySchema;
+
+/**
+ * Which payout an existing payment settles (#1710).
+ *
+ * ⚠️ Its middleware entry MUST precede `/admin/payments/:id`. Matching is
+ * prefix-based and `UpdatePaymentSchema` is `.strict()`, so the update entry
+ * would otherwise claim this path and reject `payment_submission_id` as an
+ * unrecognised field — a 400 that looks like a bad request rather than a
+ * mis-ordered route.
+ */
+export const PaymentSettlesSchema = z.object({
+  payment_submission_id: z.string().min(1),
+})
+
+export type PaymentSettles = z.infer<typeof PaymentSettlesSchema>

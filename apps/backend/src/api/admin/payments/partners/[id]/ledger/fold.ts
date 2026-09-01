@@ -166,6 +166,15 @@ export type LedgerEntry = {
   recorded_against?: RecordedAgainst[]
   /** Sum of `recorded_against`. Advisory, for the same reason. */
   recorded_against_total?: number
+  /**
+   * What has been SETTLED against this payout — money a human linked to it
+   * (#1710). Unlike `recorded_against` this is not advisory: it enters `paid`.
+   *
+   * Capped at the payout's own amount. A INR 30,000 payment linked to a INR
+   * 28,200 payout settles 28,200 of it; the surplus belongs somewhere else and
+   * must not make the partner look overpaid on this row.
+   */
+  settled_amount?: number
 
   // ── payment only ───────────────────────────────────────────────────────
   payment_type?: string | null
@@ -180,7 +189,24 @@ export type LedgerEntry = {
 export type LedgerTotals = {
   /** Everything claimed and not rejected, at any status. */
   billed: number
-  /** Of that, what a `Paid` submission covers. */
+  /**
+   * Of that, what has actually been settled.
+   *
+   * Two ways a payout counts here, and they never double up:
+   *
+   *   1. its status is `Paid` — the whole amount, as before; or
+   *   2. payments have been LINKED to it, which settles it in PART.
+   *
+   * 🔴 (2) is what makes a partial payout expressible at all (#1710). A payout
+   * of INR 28,200 against which INR 20,000 has moved had no honest reading
+   * before: `Paid` claims 28,200 moved, and `Approved` claims nothing did. Both
+   * are wrong, and the second is the one that pays a partner twice.
+   *
+   * ⚠️ Only the DIRECT link counts — a human naming the payout a payment
+   * settles. A reconciliation-derived association is provenance, not a
+   * statement about how much is discharged, and letting it move `paid` would
+   * silently restate historical numbers nobody re-examined.
+   */
   paid: number
   /** Still owed. `billed - paid`. */
   outstanding: number
@@ -394,6 +420,31 @@ export const foldPartnerLedger = (input: {
       }
     }
 
+    /**
+     * Money a human LINKED to this payout, and so a statement that it is
+     * discharged in part (#1710).
+     *
+     * 🔴 ONLY `Completed` settles. This is the same rule as `PAID_STATUSES`
+     * above and it is load-bearing for the same reason (#1639): a payout must
+     * not read as settled before the transfer happened. `Pending` is the status
+     * the partner portal writes on a payment a partner records themselves — so
+     * counting it here would let a partner move their own `paid` figure by
+     * asserting they had been paid. The admin marking it `Completed` is the
+     * only control on that assertion, and it is deliberately a human act.
+     *
+     * ⚠️ Deliberately STRICTER than `recorded_against_open`, which counts
+     * Pending on purpose. A warning should over-fire; a settlement must not.
+     */
+    const SETTLES = new Set(["Completed"])
+    const settledRaw = payments
+      .filter((p) => p.submission_id === submission.id)
+      .filter((p) => SETTLES.has(String(p.status ?? "")))
+      .reduce((acc, p) => acc + num(p.amount), 0)
+
+    const submissionAmount = num(submission.total_amount)
+    const settledAmount =
+      Math.round(Math.min(settledRaw, submissionAmount) * 100) / 100
+
     return {
       id: `payout:${submission.id}`,
       kind: "payout",
@@ -432,6 +483,7 @@ export const foldPartnerLedger = (input: {
         (acc, r) => acc + r.amount,
         0
       ),
+      settled_amount: settledAmount,
     }
   })
 
@@ -471,9 +523,18 @@ export const foldPartnerLedger = (input: {
    */
   const live = payoutEntries.filter((e) => e.status !== "Rejected")
   const billed = live.reduce((acc, e) => acc + e.amount, 0)
-  const paid = live
-    .filter((e) => PAID_STATUSES.has(String(e.status)))
-    .reduce((acc, e) => acc + e.amount, 0)
+  /**
+   * 🔴 A payout counts as paid EITHER by status OR by what has been linked to
+   * it — never both, or a `Paid` payout with a linked payment would be counted
+   * twice and report a partner as overpaid.
+   *
+   * The status wins outright where it is set: `Paid` means the whole payout
+   * settled, whatever subset of payments happens to carry the link.
+   */
+  const paid = live.reduce((acc, e) => {
+    if (PAID_STATUSES.has(String(e.status))) return acc + e.amount
+    return acc + (e.settled_amount ?? 0)
+  }, 0)
 
   const currencies = new Set(live.map((e) => e.currency))
   for (const e of paymentEntries) currencies.add(e.currency)

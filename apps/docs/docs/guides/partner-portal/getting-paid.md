@@ -172,13 +172,33 @@ that an **unpaid** payout also bills:
 > ⚠ *INR 20,000 of that sits against orders an unpaid payout still bills —
 > settle or link it before paying again*
 
+:::tip Acting on it — "Mark N as settling this payout"
+Beside the warning, each recorded payment now carries a one-click action. Using
+it states that **this payment discharges this payout** — after which:
+
+- the money counts toward **paid**, so a payout of INR 28,200 with INR 20,000
+  linked reads *paid 20,000 · outstanding 8,200*
+- it stops being "recorded separately" and stops raising the warning
+- the payout stays **Approved**, which is now honest: partly settled, not
+  fully
+
+🔑 This is the only way a payout can be settled in **part**. Before it existed
+the model could only say `Approved` (0 paid, the reading that pays twice) or
+`Paid` (the whole amount, when only some of it moved). Neither was true.
+
+⚠️ Only a **Completed** payment settles anything. A `Pending` one — the status
+the partner portal writes — still raises the warning but contributes nothing to
+`paid`, because a partner must not be able to move their own paid figure by
+asserting they were paid. Marking it Completed is a separate, deliberate act.
+:::
+
 :::danger Do not pay past this line without checking
 The system deliberately **does not** subtract that money from `outstanding`. An
 advance and a payout can legitimately coexist, and no screen may quietly decide
 that one discharges the other. Only a human can say so — by linking the payment
-to the submission it settles (`paymentSubmissionIds` on
-`POST /admin/payments/link`). Once linked, it shows on the payout as
-"settled by" and drops out of "recorded separately".
+to the submission it settles (the "Mark … as settling this payout" action, or
+`POST /admin/payments/:id/settles`). Once linked, the money counts toward
+`paid` and drops out of "recorded separately".
 :::
 
 ### Where the ledger reads from

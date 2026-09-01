@@ -47,6 +47,7 @@ import type { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
 import { ContainerRegistrationKeys } from "@medusajs/framework/utils"
 
 import PartnerPaymentsLink from "../../../../../../links/partner-payments-link"
+import SubmissionPaymentLink from "../../../../../../links/submission-payment-link"
 import { PAYMENT_REPORTS_MODULE } from "../../../../../../modules/payment_reports"
 import { PAYMENT_SUBMISSIONS_MODULE } from "../../../../../../modules/payment_submissions"
 import type PaymentSubmissionsService from "../../../../../../modules/payment_submissions/service"
@@ -160,6 +161,63 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
   }
 
   /**
+   * ── 2b. the SAME orders, reached in ONE hop ──────────────────────────────
+   *
+   * 🔴 Belt and braces, and not paranoia. 2a traverses
+   * `partner → inventory_orders → internal_payments` — TWO link hops across
+   * three modules — and that resolved nothing in the integration environment
+   * while working on production. A traversal that returns no rows is
+   * indistinguishable from an order with no payments, so the failure is silent
+   * and the panel reports INR 0 recorded: the exact defect this route exists to
+   * fix, reintroduced by the query shape used to fix it.
+   *
+   * This is the query `/admin/inventory-orders/:id/payments` has always used —
+   * `inventory_orders` filtered by id, ONE hop to `internal_payments` — over
+   * the orders the submission LINES name. Those are precisely the orders a
+   * payout bills, so it covers every case that can raise a double-pay warning.
+   *
+   * ⚠️ It does NOT replace 2a: an order with no payout names no line, so only
+   * the partner traversal can find money sitting on it (Parmar's INR 9,800).
+   * The union dedupes by payment id, so running both costs nothing.
+   */
+  const linedOrderIds = [...orderNames.keys()]
+  const claimedOrderIds = Array.from(
+    new Set([
+      ...linedOrderIds,
+      ...items.map((i) => i.inventory_order_id).filter(Boolean).map(String),
+    ])
+  )
+
+  if (claimedOrderIds.length) {
+    try {
+      const { data } = await query.graph({
+        entity: "inventory_orders",
+        fields: [
+          "id",
+          "internal_payments.*",
+          "internal_payments.paid_to.*",
+          "internal_payments.attachments.*",
+        ],
+        filters: { id: claimedOrderIds },
+      })
+      for (const order of (data || []) as any[]) {
+        if (!order?.id) continue
+        const raw = order.internal_payments
+        const rows = !raw ? [] : Array.isArray(raw) ? raw : [raw]
+        sources.push({
+          rows: rows.filter(Boolean),
+          attribution: {
+            inventory_order_id: String(order.id),
+            inventory_order_name: orderNames.get(String(order.id)) ?? null,
+          },
+        })
+      }
+    } catch {
+      // Same reason again.
+    }
+  }
+
+  /**
    * ── 3. through the SUBMISSION link ─────────────────────────────────────
    *
    * The payout a payment explicitly settles. Empty until
@@ -168,27 +226,40 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
    */
   if (submissionIds.length) {
     try {
+      /**
+       * 🔴 Read through the LINK'S ENTRY POINT, not by traversing from
+       * `payment_submission`.
+       *
+       * `entity: "payment_submission", fields: ["payments.*"]` returns the
+       * submissions with NO `payments` key — silently, with no error. Two
+       * successful link writes and a 200 from `/settles` still read back as
+       * `paid: 0`, which is the same class of silent-absence this whole issue
+       * is about, and it is what made the link look unwritable for months.
+       *
+       * The entry-point form is what source 1 above uses (`PartnerPaymentsLink`)
+       * and what every working link read in this codebase uses. Same shape,
+       * same direction: filter on one side's id, select the other side.
+       */
       const { data } = await query.graph({
-        entity: "payment_submission",
+        entity: SubmissionPaymentLink.entryPoint,
         fields: [
-          "id",
-          "payments.*",
-          "payments.paid_to.*",
-          "payments.attachments.*",
+          "payment_submission_id",
+          "internal_payments.*",
+          "internal_payments.paid_to.*",
+          "internal_payments.attachments.*",
         ],
-        filters: { id: submissionIds },
+        filters: { payment_submission_id: submissionIds },
       })
-      for (const sub of (data || []) as any[]) {
-        const raw = sub?.payments
+      for (const row of (data || []) as any[]) {
+        const raw = row?.internal_payments
         const rows = !raw ? [] : Array.isArray(raw) ? raw : [raw]
         sources.push({
           rows: rows.filter(Boolean),
-          attribution: { submission_id: String(sub.id) },
+          attribution: { submission_id: String(row.payment_submission_id) },
         })
       }
     } catch {
-      // The link may not be traversable in every environment; the other two
-      // homes still answer.
+      // The other two homes still answer.
     }
   }
 

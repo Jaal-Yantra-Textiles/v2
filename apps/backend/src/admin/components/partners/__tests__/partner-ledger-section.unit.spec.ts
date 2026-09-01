@@ -23,6 +23,7 @@ const mockLedger = jest.fn()
 jest.mock("../../../hooks/api/payments", () => ({
   usePartnerLedger: (...args: any[]) => mockLedger(...args),
   useUpdatePayment: () => ({ mutateAsync: jest.fn(), isPending: false }),
+  useSetPaymentSettles: () => ({ mutateAsync: jest.fn(), isPending: false }),
 }))
 
 /**
@@ -168,5 +169,32 @@ describe("PartnerLedgerSection — the double-pay warning (#1710)", () => {
 
     expect(html).toMatch(/recorded against Parmar cotton/i)
     expect(html).toMatch(/no payout attached/i)
+  })
+})
+
+describe("PartnerLedgerSection — acting on the warning (#1710)", () => {
+  it("🔑 offers a way to SETTLE each payment the warning names", () => {
+    /**
+     * A warning with no action beside it becomes wallpaper. The route
+     * (`POST /admin/payments/:id/settles`) is the human statement the ledger
+     * refuses to infer — and a capability with no screen is no capability
+     * (#1612).
+     */
+    const html = text(render([payout()], totals()))
+
+    expect(html).toMatch(/Mark .* as settling this payout/i)
+    // One per payment named in the warning, not one for the row.
+    expect(html.match(/as settling this payout/gi)).toHaveLength(2)
+  })
+
+  it("offers nothing to settle when nothing is recorded against the payout", () => {
+    const html = text(
+      render(
+        [payout({ recorded_against: [], recorded_against_total: 0 })],
+        totals({ recorded: 0, recorded_against_open: 0 })
+      )
+    )
+
+    expect(html).not.toMatch(/as settling this payout/i)
   })
 })

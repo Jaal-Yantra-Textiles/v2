@@ -6,6 +6,7 @@ import { Link } from "react-router-dom"
 import { ActionMenu } from "../common/action-menu"
 import {
   usePartnerLedger,
+  useSetPaymentSettles,
   useUpdatePayment,
   type PartnerLedgerEntry,
 } from "../../hooks/api/payments"
@@ -41,6 +42,54 @@ const money = (amount: number | null | undefined, currency?: string | null) =>
 
 const day = (value: string | null | undefined) =>
   value ? new Date(value).toLocaleDateString() : null
+
+/**
+ * "This payment settles this payout" — one click, no picker (#1710).
+ *
+ * ⚠️ Deliberately NOT a free-form link builder. The only payments offered are
+ * the ones already sitting against an order this payout bills, which is the
+ * only case where the answer is likely to be yes. Anything else is a judgement
+ * that wants more context than a button.
+ */
+const SettlesButton = ({
+  paymentId,
+  submissionId,
+  amount,
+  currency,
+}: {
+  paymentId: string
+  submissionId: string
+  amount: number
+  currency: string
+}) => {
+  const { mutateAsync, isPending } = useSetPaymentSettles(paymentId)
+
+  return (
+    <button
+      type="button"
+      disabled={isPending}
+      data-testid={`settles-${paymentId}`}
+      className="text-ui-fg-interactive txt-compact-xsmall w-fit hover:underline disabled:opacity-50"
+      onClick={() => {
+        void (async () => {
+          try {
+            await mutateAsync({
+              payment_submission_id: submissionId,
+              settles: true,
+            })
+            toast.success(
+              `${money(amount, currency)} now counts against this payout`
+            )
+          } catch (e: any) {
+            toast.error(e?.message || "Could not link this payment")
+          }
+        })()
+      }}
+    >
+      Mark {money(amount, currency)} as settling this payout
+    </button>
+  )
+}
 
 /** A payout: a submission, with the work it bills named. */
 const PayoutRow = ({ entry }: { entry: PartnerLedgerEntry }) => {
@@ -95,15 +144,35 @@ const PayoutRow = ({ entry }: { entry: PartnerLedgerEntry }) => {
            * payout can legitimately coexist; only a human linking the payment
            * to this submission settles that question.
            */
-          <Text size="xsmall" className="text-ui-tag-orange-text">
-            ⚠ {money(entry.recorded_against_total!, entry.currency)} already
-            recorded against{" "}
-            {entry.recorded_against!.length === 1
-              ? entry.recorded_against![0].inventory_order_name ||
-                "the order this bills"
-              : `${entry.recorded_against!.length} payments on the order this bills`}{" "}
-            — check before paying
-          </Text>
+          <div className="flex flex-col gap-y-1">
+            <Text size="xsmall" className="text-ui-tag-orange-text">
+              ⚠ {money(entry.recorded_against_total!, entry.currency)} already
+              recorded against{" "}
+              {entry.recorded_against!.length === 1
+                ? entry.recorded_against![0].inventory_order_name ||
+                  "the order this bills"
+                : `${entry.recorded_against!.length} payments on the order this bills`}{" "}
+              — check before paying
+            </Text>
+            {/**
+             * 🔑 The action beside the warning (#1710).
+             *
+             * A warning with no way to act on it leaves the operator to go and
+             * do something elsewhere, which mostly means nothing happens — the
+             * warning becomes wallpaper. One click per payment turns "money is
+             * sitting here" into "this money settles this payout", which is
+             * the human statement the ledger refuses to infer.
+             */}
+            {entry.recorded_against!.map((r) => (
+              <SettlesButton
+                key={r.payment_id}
+                paymentId={r.payment_id}
+                submissionId={entry.submission_id!}
+                amount={r.amount}
+                currency={entry.currency}
+              />
+            ))}
+          </div>
         )}
       </div>
       <div className="flex flex-col items-end">
