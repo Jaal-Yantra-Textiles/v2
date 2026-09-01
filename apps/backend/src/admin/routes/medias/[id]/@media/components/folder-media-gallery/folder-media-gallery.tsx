@@ -1,4 +1,4 @@
-import { ArrowDownTray, ChatBubble, Tag, ThumbnailBadge, Trash, TriangleLeftMini, TriangleRightMini } from "@medusajs/icons"
+import { ArrowDownTray, ChatBubble, Swatch, Tag, ThumbnailBadge, Trash, TriangleLeftMini, TriangleRightMini } from "@medusajs/icons"
 import { Button, IconButton, Text, Tooltip, clx } from "@medusajs/ui"
 import { useCallback, useEffect, useState } from "react"
 import { useTranslation } from "react-i18next"
@@ -8,6 +8,7 @@ import { RouteFocusModal } from "../../../../../../components/modal/route-focus-
 import { getThumbUrl, isImageUrl } from "../../../../../../lib/media"
 import { MediaCommentsSection } from "../../../../../../components/media/folders/folder-comments-section"
 import { BindRawMaterialSection } from "../../../../../../components/media/bind-raw-material-section"
+import { TextileAnalysisSection } from "../../../../../../components/media/textile-analysis-section"
 
 export type FolderMediaGalleryProps = {
   folder: AdminMediaFolder
@@ -17,6 +18,7 @@ export const FolderMediaGallery = ({ folder }: FolderMediaGalleryProps) => {
   const [curr, setCurr] = useState<number>(0)
   const [commentsOpen, setCommentsOpen] = useState<boolean>(true)
   const [bindOpen, setBindOpen] = useState<boolean>(false)
+  const [analysisOpen, setAnalysisOpen] = useState<boolean>(false)
   const { t } = useTranslation()
   const { goToEdit } = useFolderMediaViewContext()
 
@@ -73,6 +75,7 @@ export const FolderMediaGallery = ({ folder }: FolderMediaGalleryProps) => {
             onClick={() => {
               setBindOpen((v) => !v)
               setCommentsOpen(false)
+              setAnalysisOpen(false)
             }}
             disabled={noMedia}
             variant={bindOpen ? "primary" : "transparent"}
@@ -90,6 +93,7 @@ export const FolderMediaGallery = ({ folder }: FolderMediaGalleryProps) => {
             onClick={() => {
               setCommentsOpen((v) => !v)
               setBindOpen(false)
+              setAnalysisOpen(false)
             }}
             disabled={noMedia}
             variant={commentsOpen ? "primary" : "transparent"}
@@ -99,6 +103,24 @@ export const FolderMediaGallery = ({ folder }: FolderMediaGalleryProps) => {
               {commentsOpen
                 ? t("media.hideComments", "Hide comments")
                 : t("media.showComments", "Show comments")}
+            </span>
+          </IconButton>
+          <IconButton
+            size="small"
+            type="button"
+            onClick={() => {
+              setAnalysisOpen((v) => !v)
+              setCommentsOpen(false)
+              setBindOpen(false)
+            }}
+            disabled={noMedia}
+            variant={analysisOpen ? "primary" : "transparent"}
+          >
+            <Swatch />
+            <span className="sr-only">
+              {analysisOpen
+                ? t("media.hideTextileAnalysis", "Hide textile analysis")
+                : t("media.showTextileAnalysis", "Show textile analysis")}
             </span>
           </IconButton>
           <IconButton size="small" type="button" onClick={handleDeleteCurrent} disabled={noMedia}>
@@ -139,6 +161,12 @@ export const FolderMediaGallery = ({ folder }: FolderMediaGalleryProps) => {
               mediaId={currentMedia.id}
               mediaName={currentMedia.file_name}
             />
+          </div>
+        )}
+        {/* Right: textile analysis panel for the current media file */}
+        {analysisOpen && currentMedia?.id && (
+          <div className="border-ui-border-base flex w-full max-w-sm shrink-0 flex-col overflow-y-auto border-l">
+            <TextileAnalysisSection key={currentMedia.id} mediaId={currentMedia.id} />
           </div>
         )}
       </RouteFocusModal.Body>

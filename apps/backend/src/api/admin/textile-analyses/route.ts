@@ -61,6 +61,30 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
     if (value) filters[field] = value
   }
 
+  // Reverse lookup: `media_id` → the analyses linked to those media files.
+  // Accepts ONE id or a comma-separated list, so the folder listing can ask
+  // "what did the model see in each of these photos" in a single request —
+  // the other direction from the analysis→media hydration below. Ids are
+  // case-sensitive (unlike the column filters), so trim but do NOT lowercase.
+  const requestedMediaIds = typeof q.media_id === "string"
+    ? q.media_id.split(",").map((s) => s.trim()).filter(Boolean)
+    : []
+  if (requestedMediaIds.length) {
+    const { data: mediaLinks = [] } = await query.graph({
+      entity: mediaTextileAnalysisLink.entryPoint,
+      fields: ["media_file_id", "textile_analysis_id"],
+      filters: { media_file_id: requestedMediaIds },
+    })
+    const analysisIds = (mediaLinks as any[])
+      .map((l) => l?.textile_analysis_id)
+      .filter(Boolean)
+    if (analysisIds.length) {
+      filters.id = { $in: analysisIds }
+    } else {
+      return res.json({ textile_analyses: [], count: 0, limit, offset })
+    }
+  }
+
   const [rows, count] = await service.listAndCountTextileAnalyses(filters, {
     take: limit,
     skip: offset,
