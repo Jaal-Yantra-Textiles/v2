@@ -228,7 +228,32 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
   // Pipe the AI-SDK UI-message stream into the Express response.
   // The SDK handles SSE framing, Content-Type, and flushes — we just
   // hand it the Node ServerResponse Medusa hands us.
-  result.pipeUIMessageStreamToResponse(res as any)
+  //
+  // `onError` here is NOT the same hook as `streamText`'s above. That one is
+  // observability only — it logs and swallows, and the client is left reading
+  // a stream that simply stops. This one decides what the CLIENT is told, so
+  // a mid-turn failure arrives as an `error` part instead of a clean EOF the
+  // browser cannot tell apart from success (#1725). The status line is
+  // already committed by the time anything can go wrong, so an error part is
+  // the only channel left.
+  result.pipeUIMessageStreamToResponse(res as any, {
+    onError: (err: unknown) => {
+      logAiUsage(logger, {
+        feature: "store/ai/chat",
+        role: "ai_search_chat",
+        provider: usage.providerType,
+        source: usage.source,
+        platformId: usage.platformId,
+        model: usage.modelId,
+        ok: false,
+        ms: Date.now() - startedAt,
+        error: err,
+      })
+      // Deliberately generic: this reaches a shopper. The provider's own
+      // message is in the log line above.
+      return "The design assistant's connection dropped mid-turn. Please send that message again."
+    },
+  } as any)
 }
 
 
