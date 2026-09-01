@@ -267,7 +267,7 @@ const processFolderMediaSequentiallyStep = createStep(
           gender: input.gender,
           threadId: `textile-folder-${input.folder_id}-${item.media_id}`,
           resourceId: `textile-extraction:folder:${input.folder_id}:${item.media_id}`,
-        });
+        }, container);
 
         if (input.persist) {
           await persistTextileExtractionResult(mediaService, item.media_id, extraction, container);

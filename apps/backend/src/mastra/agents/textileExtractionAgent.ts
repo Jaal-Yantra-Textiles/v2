@@ -132,4 +132,42 @@ export async function getTextileFallbackModels(): Promise<string[]> {
   }
 }
 
+/**
+ * Create a textile agent from an already-built AI-SDK model.
+ *
+ * The Medusa layer resolves the admin-configured vision providers
+ * (Cloudflare / Groq / custom OpenAI-compatible) and hands the built models
+ * down to the Mastra workflow via the per-run registry below — the Mastra
+ * runtime has no Medusa container, so it cannot resolve them itself.
+ */
+export async function createTextileAgentFromModel(model: any): Promise<Agent> {
+  return new Agent({
+    name: "textile-extraction-agent",
+    model: model as any,
+    instructions: TEXTILE_EXTRACTION_INSTRUCTIONS,
+  });
+}
+
+/**
+ * Per-run hand-off registry for resolved vision MODELS (not agents).
+ *
+ * Mirrors `setExtractionAgentForRun` in agents/index.ts, but stores the raw
+ * model list so BOTH extraction passes (observation + derivation) in a single
+ * Mastra run can build their own agent off the same resolved providers.
+ */
+const _textileModelsByRun = new Map<string, any[]>()
+
+export function setTextileModelsForRun(runId: string, models: any[]): void {
+  if (runId) _textileModelsByRun.set(runId, models ?? [])
+}
+
+export function getTextileModelsForRun(runId?: string): any[] {
+  if (!runId) return []
+  return _textileModelsByRun.get(runId) ?? []
+}
+
+export function clearTextileModelsForRun(runId?: string): void {
+  if (runId) _textileModelsByRun.delete(runId)
+}
+
 export { MAX_RETRIES, INITIAL_RETRY_DELAY_MS, MAX_RETRY_DELAY_MS };

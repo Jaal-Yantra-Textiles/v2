@@ -3,7 +3,9 @@ import { createWorkflow, createStep } from "@mastra/core/workflows";
 import { z } from "zod";
 import {
   createTextileAgentWithModel,
+  createTextileAgentFromModel,
   getTextileFallbackModels,
+  getTextileModelsForRun,
   isRateLimitError,
   sleep,
   MAX_RETRIES,
@@ -40,6 +42,9 @@ export const triggerSchema = z.object({
   gender: z.enum(["female", "male", "unisex"]).optional().default("unisex"),
   threadId: z.string().optional(),
   resourceId: z.string().optional(),
+  // Non-secret handle used to fetch the admin-resolved vision models that the
+  // Medusa layer stashed for this run (see setTextileModelsForRun).
+  run_id: z.string().optional(),
 });
 
 // ─────────────────────────────────────────────────────────────
@@ -242,17 +247,39 @@ const runVisionExtraction = async <T>(
   label: string,
   messages: any[],
   outputSchema: any,
-  context?: { threadId?: string; resourceId?: string }
+  context?: { threadId?: string; resourceId?: string; runId?: string }
 ): Promise<T> => {
+  let lastError: any = null;
+
+  // ── 1. Admin-configured vision providers (Cloudflare → Groq → …) ────────
+  // Built in the Medusa layer (which has the container) and stashed by runId.
+  // These generate PLAIN text and parse via readModelJsonOrThrow, because
+  // Groq/Cloudflare don't reliably honour AI-SDK `json_schema` structured
+  // output — the prompts already demand "ONLY a valid JSON object".
+  const configuredModels = getTextileModelsForRun(context?.runId);
+  for (let i = 0; i < configuredModels.length; i++) {
+    try {
+      const agent = await createTextileAgentFromModel(configuredModels[i]);
+      logger.info(`[${label}] Attempting configured vision provider #${i + 1}/${configuredModels.length}`);
+      const response = await agent.generate(messages);
+      const parsed = readModelJsonOrThrow(response, `${label}(configured#${i})`) as T;
+      logger.info(`[${label}] Successfully extracted with configured vision provider`);
+      return parsed;
+    } catch (error: any) {
+      lastError = error;
+      logger.warn(`[${label}] Error with configured vision provider: ${error?.message || String(error)}`);
+    }
+  }
+
+  // ── 2. OpenRouter `:free` fallback ladder ────────────────────────────────
   const availableModels = await getTextileFallbackModels();
-  logger.info(`[${label}] Available vision models: ${availableModels.slice(0, 5).join(", ")}`);
+  logger.info(`[${label}] Free vision models: ${availableModels.slice(0, 5).join(", ")}`);
 
   const stableResourceId =
     context?.resourceId && !String(context.resourceId).startsWith("textile-extraction:http")
       ? context.resourceId
       : `textile-extraction:${label}`;
 
-  let lastError: any = null;
   let modelIndex = 0;
 
   while (modelIndex < availableModels.length) {
@@ -373,7 +400,7 @@ Return ONLY a valid JSON object. Do not include markdown, commentary, or any tex
       "TextileObservation",
       messages,
       visualObservationsSchema,
-      { threadId: inputData.threadId, resourceId: inputData.resourceId }
+      { threadId: inputData.threadId, resourceId: inputData.resourceId, runId: inputData.run_id }
     );
 
     return observations;
@@ -394,11 +421,12 @@ const deriveProductFieldsStep = createStep({
     gender: z.enum(["female", "male", "unisex"]).optional().default("unisex"),
     threadId: z.string().optional(),
     resourceId: z.string().optional(),
+    run_id: z.string().optional(),
     observations: visualObservationsSchema,
   }),
   outputSchema: textileProductSchema,
   execute: async ({ inputData }) => {
-    const { image_url, hints, gender, threadId, resourceId, observations } = inputData;
+    const { image_url, hints, gender, threadId, resourceId, run_id, observations } = inputData;
 
     logger.info(`[TextileDerivation] Deriving product fields from observations for image: ${image_url.substring(0, 50)}...`);
 
@@ -496,7 +524,7 @@ Return ONLY a valid JSON object. Do not include markdown, commentary, or any tex
       "TextileDerivation",
       messages,
       textileProductSchema,
-      { threadId, resourceId }
+      { threadId, resourceId, runId: run_id }
     );
 
     return product;
@@ -632,6 +660,7 @@ export const textileProductExtractionWorkflow = createWorkflow({
       gender: init.gender || "unisex",
       threadId: init.threadId,
       resourceId: init.resourceId,
+      run_id: (init as any).run_id,
       observations: inputData,
     };
   })
