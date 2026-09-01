@@ -1,4 +1,4 @@
-import { Button, CommandBar, Container, Heading, Text, Tooltip, clx, toast } from "@medusajs/ui";
+import { Badge, Button, CommandBar, Container, Heading, Text, Tooltip, clx, toast } from "@medusajs/ui";
 import { AdminMediaFolder, MediaFile } from "../../../hooks/api/media-folders";
 import { Link } from "react-router-dom";
 import { MediaPlay, ThumbnailBadge, Sparkles, ShoppingBag } from "@medusajs/icons";
@@ -10,6 +10,8 @@ import { mediaFolderDetailQueryKeys } from "../../../hooks/api/media-folders/use
 import { getThumbUrl } from "../../../lib/media";
 import { TextileExtractionModal } from "../textile-extraction-modal";
 import { CreateProductFromMediaModal } from "../create-product-from-media-modal";
+import { useTextileAnalyses } from "../../../hooks/api/textile-analyses";
+import { useRetryFolderExtraction } from "../../../hooks/api/textile-extraction";
 
 const MAX_PRODUCT_PHOTOS = 4
 
@@ -25,6 +27,13 @@ export const FolderMediaSection = ({ folder }: FolderMediaSectionProps) => {
   const [createProductModalOpen, setCreateProductModalOpen] = useState(false)
   const queryClient = useQueryClient()
   const selectedCount = useMemo(() => Object.keys(selection).length, [selection])
+  const { mutateAsync: retryFailed, isPending: isRetrying } = useRetryFolderExtraction()
+
+  // Failed files from the last folder-wide extraction (mirrored into metadata).
+  const failedCount = useMemo(() => {
+    const errors = (folder.metadata?.folder_extraction as any)?.errors
+    return Array.isArray(errors) ? errors.length : 0
+  }, [folder.metadata])
 
   // Get selected image media files only (extraction only works on images)
   const selectedImageMediaIds = useMemo(() => {
@@ -41,6 +50,21 @@ export const FolderMediaSection = ({ folder }: FolderMediaSectionProps) => {
       .filter((media) => media.file_type === "image")
       .map((media) => media.id)
   }, [folder.media_files])
+
+  // Textile analyses for every image in the folder — one request, keyed by the
+  // linked media file, so each tile can badge what the vision model saw.
+  const { data: analysesData } = useTextileAnalyses(
+    allImageMediaIds.length ? { media_id: allImageMediaIds.join(","), limit: 200 } : undefined,
+    { enabled: allImageMediaIds.length > 0 }
+  )
+  const analysisByMediaId = useMemo(() => {
+    const map = new Map<string, any>()
+    for (const a of analysesData?.textile_analyses ?? []) {
+      const mid = a?.media?.id
+      if (mid && !map.has(mid)) map.set(mid, a)
+    }
+    return map
+  }, [analysesData])
 
   const toggleSelect = (id?: string) => (e?: React.MouseEvent) => {
     if (!id) return
@@ -123,6 +147,15 @@ export const FolderMediaSection = ({ folder }: FolderMediaSectionProps) => {
     setCreateProductModalOpen(true)
   }
 
+  const handleRetryFailed = async () => {
+    try {
+      await retryFailed(folder.id)
+      await queryClient.invalidateQueries({ queryKey: mediaFolderDetailQueryKeys.detail(folder.id) })
+    } catch (error: any) {
+      toast.error(error?.message || "Failed to retry extraction")
+    }
+  }
+
   return (
     <Container className="divide-y p-0">
       <div className="flex items-center justify-between px-6 py-4">
@@ -145,6 +178,15 @@ export const FolderMediaSection = ({ folder }: FolderMediaSectionProps) => {
                   icon: <Sparkles />,
                   onClick: handleExtractAll,
                 },
+                ...(failedCount > 0
+                  ? [
+                      {
+                        label: `Retry Failed (${failedCount})`,
+                        icon: <Sparkles />,
+                        onClick: handleRetryFailed,
+                      },
+                    ]
+                  : []),
               ],
             },
           ]}
@@ -155,6 +197,7 @@ export const FolderMediaSection = ({ folder }: FolderMediaSectionProps) => {
           {folder.media_files.map((media: MediaFile, index) => {
             const id = media.id // Only use real IDs; skip selection if absent
             const isSelected = !!selection[id]
+            const analysis = id ? analysisByMediaId.get(id) : undefined
             const tile = (
               <div
                 onClick={id ? toggleSelect(id) : undefined}
@@ -178,6 +221,20 @@ export const FolderMediaSection = ({ folder }: FolderMediaSectionProps) => {
                   className="size-full object-cover"
                   loading="lazy"
                 />
+                {analysis && (
+                  <div className="absolute bottom-1 left-1 flex max-w-[calc(100%-8px)] flex-wrap gap-1">
+                    {analysis.cloth_type && (
+                      <Badge size="2xsmall" color="blue">
+                        {analysis.cloth_type}
+                      </Badge>
+                    )}
+                    {analysis.pattern && (
+                      <Badge size="2xsmall" color="purple">
+                        {analysis.pattern}
+                      </Badge>
+                    )}
+                  </div>
+                )}
                 {isSelected && (
                   <div className="absolute inset-0 bg-black/20">
                     <div className="absolute right-2 top-2 h-5 w-5 rounded-full border-2 border-white bg-emerald-400/90" />
