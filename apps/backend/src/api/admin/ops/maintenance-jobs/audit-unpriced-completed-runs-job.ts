@@ -102,6 +102,24 @@ export function assessRunPricing(
 }
 
 /**
+ * PURE: whether a run has a partner who could be owed for it.
+ *
+ * 🔴 Runs come in parent/child pairs — the parent holds the total, the CHILD
+ * holds the partner and the money — so a parent is `partner_id: null` with
+ * `partner_cost_estimate: null` BY CONSTRUCTION. `payable-runs` never sees one
+ * because it filters on `partner_id`; an audit over every completed run has to
+ * exclude them explicitly or it reports the shape of the record as a debt.
+ *
+ * Measured on this job's first production run: 30 of 39 rows were parents,
+ * each the twin of a child reported one second apart.
+ */
+export function hasPartnerOwner(
+  run: { partner_id?: string | null } | null | undefined
+): boolean {
+  return !!String(run?.partner_id ?? "").trim()
+}
+
+/**
  * PURE: how long this work has been sitting unpriced, in whole days.
  *
  * `now` is a parameter rather than a `Date.now()` inside, so the report can be
@@ -142,7 +160,7 @@ export const auditUnpricedCompletedRunsJob: MaintenanceJob = {
   id: "audit-unpriced-completed-runs",
   label: "Find completed production runs that carry no agreed price",
   description:
-    `Report every COMPLETED production run whose partner_cost_estimate is absent or zero, so finished work with no agreed price stops waiting to be noticed. prod_run_01KP4ZVE3R sat unpriced for four months: nothing hid it — payable-runs lists it and the create grid badges it "no rate" — but all of that is PULL, visible only to someone who already opened that partner's payout screen, and a partner with unpriced work looks exactly like a partner with no work (#1712). 🔴 REPORTS ONLY AND CHANGES NOTHING, even with dry_run=false: a run's agreed price is a thing two people said to each other and is not derivable from anything in the database. design.estimated_cost is NOT it — that figure is per finished unit and routinely disagrees with what was agreed (#1554) — so it is reported beside each row as a STARTING POINT for the human who types the real number, and is written nowhere. Runs already claimed by a live payout are excluded (a Rejected submission releases its runs), as are provenance runs minted by a retail fulfilment, which are not billable labour (#1606). "No rate recorded" and "a zero was written" are counted separately on purpose: both are unpayable, but a stored 0 means something decided this, and a 0 passes every != null check and renders as a real payout of nothing. Scans up to 'limit' completed runs per call (default 200, max ${MAX_UNPRICED_RUN_SCAN}), newest first, and says so when the cap bites.`,
+    `Report every COMPLETED production run whose partner_cost_estimate is absent or zero, so finished work with no agreed price stops waiting to be noticed. prod_run_01KP4ZVE3R sat unpriced for four months: nothing hid it — payable-runs lists it and the create grid badges it "no rate" — but all of that is PULL, visible only to someone who already opened that partner's payout screen, and a partner with unpriced work looks exactly like a partner with no work (#1712). 🔴 REPORTS ONLY AND CHANGES NOTHING, even with dry_run=false: a run's agreed price is a thing two people said to each other and is not derivable from anything in the database. design.estimated_cost is NOT it — that figure is per finished unit and routinely disagrees with what was agreed (#1554) — so it is reported beside each row as a STARTING POINT for the human who types the real number, and is written nowhere. PARENT runs are excluded — runs come in parent/child pairs and the CHILD carries the partner and the money, so a parent is partner_id null with no estimate by construction (30 of 39 rows on the first production run were parents). Runs already claimed by a live payout are excluded (a Rejected submission releases its runs), as are provenance runs minted by a retail fulfilment, which are not billable labour (#1606). "No rate recorded" and "a zero was written" are counted separately on purpose: both are unpayable, but a stored 0 means something decided this, and a 0 passes every != null check and renders as a real payout of nothing. Scans up to 'limit' completed runs per call (default 200, max ${MAX_UNPRICED_RUN_SCAN}), newest first, and says so when the cap bites.`,
   params: [
     {
       name: "partner_id",
@@ -217,7 +235,26 @@ export const auditUnpricedCompletedRunsJob: MaintenanceJob = {
      * invent a payment for work nobody did (#1606, #1123).
      */
     const provenanceRuns = inScope.filter((r) => isProvenanceRun(r))
-    const candidates = inScope.filter((r) => !isProvenanceRun(r))
+    const nonProvenance = inScope.filter((r) => !isProvenanceRun(r))
+
+    /**
+     * 🔴 PARENT runs. Runs come in parent/child pairs — the parent holds the
+     * total, the CHILD holds the partner and the money — and a parent is
+     * `partner_id: null` with `partner_cost_estimate: null` by construction.
+     * `payable-runs` never sees one because it filters on `partner_id`; this
+     * job asks the question of every completed run, so without this it reports
+     * every parent as unpaid work.
+     *
+     * Measured on the first production run of this job: **30 of 39 rows were
+     * parents**, each the twin of a child reported one second apart. Nobody is
+     * owed for a parent, so "this has no agreed price" is not a finding about
+     * it — it is the shape of the record.
+     *
+     * Counted and reported, never silently dropped: a row this job holds back
+     * is a row an operator would otherwise have gone looking for.
+     */
+    const parentRuns = nonProvenance.filter((r) => !hasPartnerOwner(r))
+    const candidates = nonProvenance.filter((r) => hasPartnerOwner(r))
 
     const unpriced = candidates
       .map((run) => ({ run, ...assessRunPricing(run) }))
@@ -361,12 +398,12 @@ export const auditUnpricedCompletedRunsJob: MaintenanceJob = {
           truncated
             ? ` — TRUNCATED at the limit of ${limit}, so this is not the whole population; raise 'limit' or narrow by partner_id`
             : ""
-        }, excluded ${provenanceRuns.length} provenance run(s) and ${
+        }, excluded ${parentRuns.length} parent run(s) — the child carries the partner and the money — ${provenanceRuns.length} provenance run(s) and ${
           unpriced.length - reportable.length
         } already claimed by a live payout.`
       : `No unpriced completed runs found. Scanned ${inScope.length} completed run(s)${
           truncated ? ` — TRUNCATED at the limit of ${limit}` : ""
-        }, excluded ${provenanceRuns.length} provenance run(s).`
+        }, excluded ${parentRuns.length} parent run(s) and ${provenanceRuns.length} provenance run(s).`
 
     const logger: any = container.resolve(ContainerRegistrationKeys.LOGGER)
     logger?.info?.(`[audit-unpriced-completed-runs] ${summary}`)
