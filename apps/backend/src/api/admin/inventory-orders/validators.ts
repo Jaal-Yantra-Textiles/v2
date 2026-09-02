@@ -250,3 +250,23 @@ export const updateInventoryOrderLinesSchema = z.object({
 });
 
 export type UpdateInventoryOrderLines = z.infer<typeof updateInventoryOrderLinesSchema>;
+
+/**
+ * An amount on an order that is not goods (#1737).
+ *
+ * ⚠️ `amount` is POSITIVE and the `type` carries the direction. A signed amount
+ * would let one typo turn an obligation into a reduction with nothing in the
+ * way — see `lib/order-charges.ts`.
+ *
+ * The `note` requirement for the lowering types is enforced in the route, not
+ * here, so the message can name which type triggered it.
+ */
+export const createInventoryOrderChargeSchema = z.object({
+  type: z.enum(["tax", "shipping", "discount", "adjustment"]),
+  amount: z.number().positive("A charge amount must be positive — the type carries the direction"),
+  note: z.string().min(1).optional(),
+})
+
+export type CreateInventoryOrderCharge = z.infer<
+  typeof createInventoryOrderChargeSchema
+>

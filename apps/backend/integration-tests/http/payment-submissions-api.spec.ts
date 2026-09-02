@@ -4919,6 +4919,400 @@ setupSharedTestSuite(() => {
         })
       })
 
+      /**
+       * #1737 — stating that an EXISTING payment was recorded against an
+       * inventory order. The mirror of `/settles`, one entity over.
+       *
+       * 🔴 The measured gap: `inv_order_01K5QSCSK…` on production reads
+       * `recorded_total: 0` and is offered at its full 56,856.94 while 58,000
+       * has already been paid against it in two unlinked payments. Nothing
+       * could put a payment there — `inventoryOrderIds` writes only at
+       * creation, `UpdatePaymentSchema` is `.strict()`, and the backfill job
+       * only walks payments that came through a payout.
+       */
+      describe("POST /admin/payments/:id/records-against (#1737)", () => {
+        /** A payment with NO order link — the historical row this route is for. */
+        const recordStandalonePayment = async (
+          partnerId: string,
+          amount: number
+        ) => {
+          const res = await api
+            .post(
+              "/admin/payments/link",
+              {
+                payment: {
+                  amount,
+                  status: "Completed",
+                  payment_type: "Bank",
+                  payment_date: new Date().toISOString(),
+                },
+                partnerIds: [partnerId],
+              },
+              adminHeaders
+            )
+            .catch((e: any) => e.response)
+          expect(res.status).toBe(201)
+          return res.data.payment.id as string
+        }
+
+        const orderRow = async (partnerId: string, orderId: string) => {
+          const res = await api.get(
+            `/admin/payment-submissions/payable-inventory-orders?partner_id=${partnerId}`,
+            adminHeaders
+          )
+          expect(res.status).toBe(200)
+          return res.data.payable_inventory_orders.find(
+            (o: any) => o.inventory_order_id === orderId
+          )
+        }
+
+        it("arms the double-pay warning on an order money had already reached", async () => {
+          const stamp = Date.now() + 210
+          const owner = await createPartnerWithAuth(stamp)
+          const orderId = await seedOrderForPartner(owner.partnerId, `pra-${stamp}`)
+          const paymentId = await recordStandalonePayment(owner.partnerId, 400)
+
+          /**
+           * Before: the order has no idea. This is the production state of
+           * `inv_order_01K5QSCSK…` — paid, and reading as untouched.
+           */
+          const before = await orderRow(owner.partnerId, orderId)
+          expect(before.recorded_total).toBe(0)
+          expect(before.recorded_covers_amount).toBe(false)
+
+          const link = await api
+            .post(
+              `/admin/payments/${paymentId}/records-against`,
+              { inventory_order_id: orderId },
+              adminHeaders
+            )
+            .catch((e: any) => e.response)
+          expect(link.status).toBe(200)
+
+          const after = await orderRow(owner.partnerId, orderId)
+          expect(after.recorded_total).toBe(400)
+        })
+
+        /**
+         * 🔴 Recording is NOT settling. `payable-inventory-orders` reports
+         * `recorded_total` and refuses to subtract it, because a payment on an
+         * order may be an advance rather than a discharge — netting silently
+         * underpays, which is this codebase's recurring failure mode.
+         */
+        it("reports the money without reducing what the order still offers", async () => {
+          const stamp = Date.now() + 220
+          const owner = await createPartnerWithAuth(stamp)
+          const orderId = await seedOrderForPartner(owner.partnerId, `prb-${stamp}`)
+          const paymentId = await recordStandalonePayment(owner.partnerId, 400)
+
+          const before = await orderRow(owner.partnerId, orderId)
+          await api.post(
+            `/admin/payments/${paymentId}/records-against`,
+            { inventory_order_id: orderId },
+            adminHeaders
+          )
+          const after = await orderRow(owner.partnerId, orderId)
+
+          expect(after.amount).toBe(before.amount)
+          expect(after.recorded_total).toBe(400)
+        })
+
+        it("is idempotent — re-stating the same fact is not a 500", async () => {
+          /**
+           * ⚠️ `link.create` raises on the composite primary key, so a repeat
+           * would 500 without the dismiss-first (#1129).
+           */
+          const stamp = Date.now() + 230
+          const owner = await createPartnerWithAuth(stamp)
+          const orderId = await seedOrderForPartner(owner.partnerId, `prc-${stamp}`)
+          const paymentId = await recordStandalonePayment(owner.partnerId, 400)
+
+          for (const _ of [1, 2]) {
+            const res = await api
+              .post(
+                `/admin/payments/${paymentId}/records-against`,
+                { inventory_order_id: orderId },
+                adminHeaders
+              )
+              .catch((e: any) => e.response)
+            expect(res.status).toBe(200)
+          }
+
+          // Linked once, counted once — not 800.
+          expect((await orderRow(owner.partnerId, orderId)).recorded_total).toBe(400)
+        })
+
+        it("takes the statement back", async () => {
+          const stamp = Date.now() + 240
+          const owner = await createPartnerWithAuth(stamp)
+          const orderId = await seedOrderForPartner(owner.partnerId, `prd-${stamp}`)
+          const paymentId = await recordStandalonePayment(owner.partnerId, 400)
+
+          await api.post(
+            `/admin/payments/${paymentId}/records-against`,
+            { inventory_order_id: orderId },
+            adminHeaders
+          )
+          expect((await orderRow(owner.partnerId, orderId)).recorded_total).toBe(400)
+
+          const res = await api
+            .delete(
+              `/admin/payments/${paymentId}/records-against?inventory_order_id=${orderId}`,
+              adminHeaders
+            )
+            .catch((e: any) => e.response)
+          expect(res.status).toBe(200)
+          expect((await orderRow(owner.partnerId, orderId)).recorded_total).toBe(0)
+        })
+
+        /**
+         * 🔴 The guard that matters. Existence checks alone let partner A's
+         * money silence the double-pay warning on partner B's order — and a
+         * bulk reconciliation pass is exactly where an id gets typed wrong.
+         * This route exists because of such a pass.
+         */
+        it("refuses to record one partner's payment against another's order", async () => {
+          const stamp = Date.now() + 250
+          const a = await createPartnerWithAuth(stamp)
+          const b = await createPartnerWithAuth(stamp + 1)
+          const bOrderId = await seedOrderForPartner(b.partnerId, `pre-${stamp}`)
+          const aPaymentId = await recordStandalonePayment(a.partnerId, 400)
+
+          const res = await api
+            .post(
+              `/admin/payments/${aPaymentId}/records-against`,
+              { inventory_order_id: bOrderId },
+              adminHeaders
+            )
+            .catch((e: any) => e.response)
+
+          expect(res.status).toBe(400)
+          // And nothing was written.
+          expect((await orderRow(b.partnerId, bOrderId)).recorded_total).toBe(0)
+        })
+
+        it("refuses an order that does not exist, rather than linking to nothing", async () => {
+          const stamp = Date.now() + 260
+          const owner = await createPartnerWithAuth(stamp)
+          const paymentId = await recordStandalonePayment(owner.partnerId, 400)
+
+          const res = await api
+            .post(
+              `/admin/payments/${paymentId}/records-against`,
+              { inventory_order_id: "inv_order_does_not_exist" },
+              adminHeaders
+            )
+            .catch((e: any) => e.response)
+
+          expect(res.status).toBe(404)
+        })
+
+        it("accepts inventory_order_id at all — the route ordering trap", async () => {
+          /**
+           * 🔴 `/admin/payments/:id` POST carries a `.strict()` validator and
+           * matching is prefix-based. Registered after it, this body would be
+           * rejected as an unrecognised field — a 400 that reads like a bad
+           * request rather than a mis-ordered route.
+           */
+          const stamp = Date.now() + 270
+          const owner = await createPartnerWithAuth(stamp)
+          const orderId = await seedOrderForPartner(owner.partnerId, `prf-${stamp}`)
+          const paymentId = await recordStandalonePayment(owner.partnerId, 400)
+
+          const res = await api
+            .post(
+              `/admin/payments/${paymentId}/records-against`,
+              { inventory_order_id: orderId },
+              adminHeaders
+            )
+            .catch((e: any) => e.response)
+
+          expect(res.status).not.toBe(400)
+          expect(res.status).toBe(200)
+        })
+      })
+
+      /**
+       * #1737 — amounts on an order that are not goods. Three turned up in one
+       * reconciliation with no home: 200 of tax, 1,960 of shipping, an 829
+       * write-off. `metadata` was the only writable place, which is the trap
+       * #1557 closed.
+       */
+      describe("POST /admin/inventory-orders/:id/charges (#1737)", () => {
+        const orderRow = async (partnerId: string, orderId: string) => {
+          const res = await api.get(
+            `/admin/payment-submissions/payable-inventory-orders?partner_id=${partnerId}`,
+            adminHeaders
+          )
+          expect(res.status).toBe(200)
+          return res.data.payable_inventory_orders.find(
+            (o: any) => o.inventory_order_id === orderId
+          )
+        }
+
+        /**
+         * 🔴 The property that makes adding a term to a live money guard safe:
+         * an order with no charges is EXACTLY what it was before.
+         */
+        it("leaves an order with no charges exactly as it was", async () => {
+          const stamp = Date.now() + 310
+          const owner = await createPartnerWithAuth(stamp)
+          const orderId = await seedOrderForPartner(owner.partnerId, `chg0-${stamp}`)
+
+          const row = await orderRow(owner.partnerId, orderId)
+          expect(row.charges_total).toBe(0)
+          expect(row.payable_ceiling).toBe(row.ordered_total)
+        })
+
+        it("raises the ceiling by tax, and says so without touching ordered_total", async () => {
+          const stamp = Date.now() + 320
+          const owner = await createPartnerWithAuth(stamp)
+          const orderId = await seedOrderForPartner(owner.partnerId, `chg1-${stamp}`)
+          const before = await orderRow(owner.partnerId, orderId)
+
+          const res = await api
+            .post(
+              `/admin/inventory-orders/${orderId}/charges`,
+              { type: "tax", amount: 200 },
+              adminHeaders
+            )
+            .catch((e: any) => e.response)
+          expect(res.status).toBe(201)
+
+          const after = await orderRow(owner.partnerId, orderId)
+          expect(after.charges_total).toBe(200)
+          /** 🔑 GOODS is unchanged — the field did not silently widen. */
+          expect(after.ordered_total).toBe(before.ordered_total)
+          expect(after.payable_ceiling).toBe(before.payable_ceiling + 200)
+        })
+
+        it("lowers the ceiling by a discount", async () => {
+          const stamp = Date.now() + 330
+          const owner = await createPartnerWithAuth(stamp)
+          const orderId = await seedOrderForPartner(owner.partnerId, `chg2-${stamp}`)
+          const before = await orderRow(owner.partnerId, orderId)
+
+          const res = await api
+            .post(
+              `/admin/inventory-orders/${orderId}/charges`,
+              { type: "discount", amount: 100, note: "settled short by agreement" },
+              adminHeaders
+            )
+            .catch((e: any) => e.response)
+          expect(res.status).toBe(201)
+
+          const after = await orderRow(owner.partnerId, orderId)
+          expect(after.charges_total).toBe(-100)
+          expect(after.payable_ceiling).toBe(before.payable_ceiling - 100)
+        })
+
+        /**
+         * 🔴 The 829 write-off sat as an unexplained gap and read as an
+         * OVERpayment until a human remembered the shipping. A reduction with
+         * no reason is indistinguishable from an underpayment.
+         */
+        it("refuses a reduction that does not say why", async () => {
+          const stamp = Date.now() + 340
+          const owner = await createPartnerWithAuth(stamp)
+          const orderId = await seedOrderForPartner(owner.partnerId, `chg3-${stamp}`)
+
+          const res = await api
+            .post(
+              `/admin/inventory-orders/${orderId}/charges`,
+              { type: "discount", amount: 100 },
+              adminHeaders
+            )
+            .catch((e: any) => e.response)
+
+          expect(res.status).toBe(400)
+          expect((await orderRow(owner.partnerId, orderId)).charges_total).toBe(0)
+        })
+
+        /** A raise needs no note — tax is self-explanatory and always owed. */
+        it("does not demand a reason for a charge that raises what is owed", async () => {
+          const stamp = Date.now() + 350
+          const owner = await createPartnerWithAuth(stamp)
+          const orderId = await seedOrderForPartner(owner.partnerId, `chg4-${stamp}`)
+
+          const res = await api
+            .post(
+              `/admin/inventory-orders/${orderId}/charges`,
+              { type: "shipping", amount: 1960 },
+              adminHeaders
+            )
+            .catch((e: any) => e.response)
+
+          expect(res.status).toBe(201)
+        })
+
+        /**
+         * ⚠️ The amount is always positive; the TYPE carries the direction. A
+         * signed amount would let one typo turn an obligation into a reduction.
+         */
+        it("refuses a negative amount rather than inferring a direction from it", async () => {
+          const stamp = Date.now() + 360
+          const owner = await createPartnerWithAuth(stamp)
+          const orderId = await seedOrderForPartner(owner.partnerId, `chg5-${stamp}`)
+
+          const res = await api
+            .post(
+              `/admin/inventory-orders/${orderId}/charges`,
+              { type: "tax", amount: -200 },
+              adminHeaders
+            )
+            .catch((e: any) => e.response)
+
+          expect(res.status).toBe(400)
+        })
+
+        /**
+         * 🔴 The whole point: the screen and the write guard must agree. A tax
+         * charge has to make the claim `create` accepts LARGER, or the partner
+         * is silently short of the tax they invoiced.
+         */
+        it("lets a claim reach the tax the partner invoiced", async () => {
+          const stamp = Date.now() + 370
+          const owner = await createPartnerWithAuth(stamp)
+          const orderId = await seedOrderForPartner(owner.partnerId, `chg6-${stamp}`)
+          const row = await orderRow(owner.partnerId, orderId)
+          const goods = row.ordered_total
+
+          // Without the charge, billing goods + 50 is refused by the guard.
+          const refused = await api
+            .post(
+              "/partners/payment-submissions",
+              {
+                inventory_order_lines: [
+                  { inventory_order_id: orderId, amount: goods + 50 },
+                ],
+              },
+              { headers: owner.partnerHeaders }
+            )
+            .catch((e: any) => e.response)
+          expect(refused.status).toBe(400)
+
+          await api.post(
+            `/admin/inventory-orders/${orderId}/charges`,
+            { type: "tax", amount: 50 },
+            adminHeaders
+          )
+
+          // With it recorded, the same claim is accepted.
+          const accepted = await api
+            .post(
+              "/partners/payment-submissions",
+              {
+                inventory_order_lines: [
+                  { inventory_order_id: orderId, amount: goods + 50 },
+                ],
+              },
+              { headers: owner.partnerHeaders }
+            )
+            .catch((e: any) => e.response)
+          expect(accepted.status).toBe(201)
+        })
+      })
+
       it("still refuses a submission naming nothing at all", async () => {
         const res = await api
           .post(

@@ -1374,6 +1374,15 @@ const validateInventoryOrderLinesStep = createStep(
         "orderlines.price",
         "orderlines.material_name",
         "orderlines.line_fulfillments.quantity_delta",
+        /**
+         * 🔴 The amounts that are not goods (#1737). `assessInventoryOrderClaims`
+         * reads these to build the ceiling; without them here the guard sees
+         * `undefined`, silently falls back to bare `total_price`, and refuses a
+         * legitimate claim for the tax the partner is owed. A guard reading a
+         * field the query never fetched is dead code that types perfectly.
+         */
+        "charges.type",
+        "charges.amount",
       ],
       filters: { id: orderIds },
     })
