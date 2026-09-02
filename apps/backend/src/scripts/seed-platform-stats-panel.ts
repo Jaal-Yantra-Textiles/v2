@@ -10,11 +10,19 @@ import { STATS_MODULE } from "../modules/stats"
  * Adding a new section = editing this panel's options — no code change.
  * Seeded sections, all derived from live rows only (the `trailing` windows
  * follow the panel's `window_days`):
- *   orders       { processed, trailing, window_days }
- *   commission   { accrued, trailing, currency, window_days }
- *   arr          { amount, currency }
- *   aov          { amount, currency }
- *   subscription { paying_artisans, mrr, currency }
+ *   orders            { processed, trailing, window_days }
+ *   revenue           { total, currency }
+ *   commission        { accrued, trailing, currency, window_days }
+ *   partner_orders    { count, trailing, window_days }
+ *   partner_fees_net  { net, trailing, currency, window_days }
+ *   payouts_paid      { paid, count, currency }
+ *   payouts_approved  { approved, currency }
+ *   payouts_in_review { in_review, currency }
+ *   payouts_submissions { count }
+ *   arr               { amount, currency }
+ *   aov               { amount, currency }
+ *   subscription      { paying_artisans, mrr, currency }
+ *   subscriptions     { count }
  *
  * The panel is seeded PUBLIC (`metadata.public === true`) — the explicit
  * opt-in gate required by `GET /web/stats/panels/:id/data` — so marketing
@@ -27,12 +35,12 @@ import { STATS_MODULE } from "../modules/stats"
  * Usage:
  *   npx medusa exec ./src/scripts/seed-platform-stats-panel.ts
  */
-const DASHBOARD_NAME = "Platform Stats"
-const PANEL_NAME = "Platform snapshot"
+export const DASHBOARD_NAME = "Platform Stats"
+export const PANEL_NAME = "Platform snapshot"
 
-const OPERATION_OPTIONS = {
+export const OPERATION_OPTIONS = {
   currency: "INR",
-  window_days: 30,
+  window_days: 90,
   sections: {
     // Paid orders — every capture lands an order_transactions row
     // (reference "capture"), so "processed" is a generic count_distinct
@@ -51,6 +59,19 @@ const OPERATION_OPTIONS = {
       },
       echo: { window_days: true },
     },
+    // Total captured revenue — sum of capture transactions. Complements `aov`
+    // (avg) with the aggregate. Captured amount == order value for full-payment
+    // orders (the only graph-fetchable per-order money signal, per the `aov`
+    // note below).
+    revenue: {
+      entity: "order_transactions",
+      filters: { reference: "capture" },
+      currency_key: "currency_code",
+      aggregates: {
+        total: { fn: "sum", field: "amount" },
+      },
+      echo: { currency: true },
+    },
     // Platform commission — partner_fees lifecycle, currency-matched
     commission: {
       entity: "partner_fees",
@@ -66,6 +87,77 @@ const OPERATION_OPTIONS = {
       },
       echo: { currency: true, window_days: true },
     },
+    // Partner orders — every partner-linked order accrues a partner_fee row at
+    // order.placed (commission for work orders, retail_split for storefront
+    // orders), so a distinct order_id count IS the partner-order count.
+    partner_orders: {
+      entity: "partner_fees",
+      aggregates: {
+        count: { fn: "count_distinct", field: "order_id" },
+        trailing: {
+          fn: "count_distinct",
+          field: "order_id",
+          range: { date_field: "created_at" },
+        },
+      },
+      echo: { window_days: true },
+    },
+    // Net accrued platform commission — billable fees only (accrued + invoiced),
+    // which is the money the platform actually collects. Reversed/waived
+    // excluded, mirroring summarize-fees.ts `net`.
+    partner_fees_net: {
+      entity: "partner_fees",
+      filters: { status: { $in: ["accrued", "invoiced"] } },
+      currency_key: "currency_code",
+      aggregates: {
+        net: { fn: "sum", field: "fee_amount" },
+        trailing: {
+          fn: "sum",
+          field: "fee_amount",
+          range: { date_field: "accrued_at" },
+        },
+      },
+      echo: { currency: true, window_days: true },
+    },
+    // Partner payout pipeline — payment_submission lifecycle. `status` is the
+    // TitleCase enum (Draft/Pending/Under_Review/Approved/Rejected/Paid);
+    // `paid_at` (#1639) marks when money actually moved, so "Paid" is the
+    // settled flag, not merely authorised.
+    payouts_paid: {
+      entity: "payment_submissions",
+      filters: { status: "Paid" },
+      currency_key: "currency",
+      aggregates: {
+        paid: { fn: "sum", field: "total_amount" },
+        count: { fn: "count" },
+      },
+      echo: { currency: true },
+    },
+    payouts_approved: {
+      entity: "payment_submissions",
+      filters: { status: "Approved" },
+      currency_key: "currency",
+      aggregates: {
+        approved: { fn: "sum", field: "total_amount" },
+      },
+      echo: { currency: true },
+    },
+    payouts_in_review: {
+      entity: "payment_submissions",
+      filters: { status: { $in: ["Pending", "Under_Review"] } },
+      currency_key: "currency",
+      aggregates: {
+        in_review: { fn: "sum", field: "total_amount" },
+      },
+      echo: { currency: true },
+    },
+    // Total number of payment submissions across the whole pipeline.
+    payouts_submissions: {
+      entity: "payment_submissions",
+      aggregates: {
+        count: { fn: "count" },
+      },
+    },
     // Artisan subscriptions — MRR monthly-normalized (yearly / 12)
     subscription: {
       entity: "partner_subscriptions",
@@ -80,6 +172,15 @@ const OPERATION_OPTIONS = {
         },
       },
       echo: { currency: true },
+    },
+    // Raw active-subscription count — the headline "how many paying artisans"
+    // number, distinct from `subscription`'s MRR roll-up.
+    subscriptions: {
+      entity: "partner_subscriptions",
+      filters: { status: "active" },
+      aggregates: {
+        count: { fn: "count" },
+      },
     },
     // Average amount captured per paid order over the trailing window. AOV is
     // the captured payment amount (order_transactions with reference "capture"),
@@ -105,6 +206,24 @@ const OPERATION_OPTIONS = {
   },
 }
 
+// Non-dynamic panel fields, shared by the medusa-exec seed and the
+// data-plumbing maintenance job so the two can never drift.
+export const PLATFORM_STATS_PANEL_DEF = {
+  name: PANEL_NAME,
+  type: "metric" as const,
+  x: 0,
+  y: 0,
+  width: 12,
+  height: 3,
+  operation_type: "metric_sections",
+  operation_options: OPERATION_OPTIONS,
+  display: {},
+  cache_ttl_seconds: 300,
+  // Public opt-in (`metadata.public === true`) — required by the
+  // unauthenticated `GET /web/stats/panels/:id/data` gate.
+  metadata: { public: true },
+}
+
 export default async function seedPlatformStatsPanel({ container }: ExecArgs) {
   const logger = container.resolve(ContainerRegistrationKeys.LOGGER)
   const stats: any = container.resolve(STATS_MODULE)
@@ -117,7 +236,7 @@ export default async function seedPlatformStatsPanel({ container }: ExecArgs) {
       {
         name: DASHBOARD_NAME,
         description:
-          "Orders, commissions, ARR, AOV and artisan-subscription MRR — all derived from live rows.",
+          "Orders, commissions, partner orders, net fees, payouts, ARR, AOV and artisan-subscription MRR — all derived from live rows.",
         icon: "chart-no-axes-combined",
         color: "#10b981",
       },
@@ -129,19 +248,7 @@ export default async function seedPlatformStatsPanel({ container }: ExecArgs) {
 
   const payload = {
     dashboard_id: dashboard.id,
-    name: PANEL_NAME,
-    type: "metric" as const,
-    x: 0,
-    y: 0,
-    width: 12,
-    height: 3,
-    operation_type: "metric_sections",
-    operation_options: OPERATION_OPTIONS,
-    display: {},
-    cache_ttl_seconds: 300,
-    // Public opt-in (`metadata.public === true`) — required by the
-    // unauthenticated `GET /web/stats/panels/:id/data` gate.
-    metadata: { public: true },
+    ...PLATFORM_STATS_PANEL_DEF,
   }
 
   const currentPanels = await stats.listStatsPanels(
