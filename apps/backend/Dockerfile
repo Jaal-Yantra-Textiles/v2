@@ -105,6 +105,20 @@ RUN pnpm run build
 RUN pnpm deploy --legacy --filter=@jyt/backend --prod --ignore-scripts \
       --prefer-offline --store-dir "$PNPM_STORE_DIR" /prod-deps
 
+# --- native modules the --ignore-scripts above skipped ----------------------
+# `--ignore-scripts` keeps the deploy deterministic, but it also skips the
+# install script that fetches sharp's PLATFORM BINARY, so /prod-deps ships a
+# `sharp` package with no build/Release/sharp-linux-x64.node.
+#
+# 🔴 That gap was invisible for as long as nothing loaded sharp at BOOT. When
+# #1729 added a top-level `import sharp`, the server exited 1 on startup with
+# "Cannot find module '../build/Release/sharp-linux-x64.node'", the ECS
+# deployment circuit breaker rolled production back through two consecutive
+# deploys, and prod ran an older image with two commits' migrations already
+# applied. The image built, pushed, and passed every check — the only thing that
+# knew it was broken was the container, at runtime.
+RUN cd /prod-deps && pnpm rebuild sharp
+
 # `medusa build` copies apps/backend's dependencies verbatim into
 # .medusa/server/package.json, so the tree above is exactly what the compiled
 # server needs. That is an assumption about Medusa's build, not a guarantee —
@@ -115,6 +129,17 @@ const deps=Object.keys(require('/app/apps/backend/.medusa/server/package.json').
 const missing=deps.filter(d=>!require('fs').existsSync('/prod-deps/node_modules/'+d+'/package.json'));\
 if(missing.length){console.error('Missing from the deployed prod tree: '+missing.join(', '));process.exit(1);}\
 console.log('runtime dep check OK ('+deps.length+' deps)');"
+
+# The check above proves each dependency's package.json is PRESENT. That is not
+# the same as loadable: a native module can have a perfect package.json and no
+# binary, which is exactly how sharp shipped broken. Requiring it here loads the
+# binding, so the build fails loudly instead of producing an image that dies at
+# boot — the stated intent of the check above, extended to the failure mode that
+# got past it.
+RUN node -e "\
+const s=require('/prod-deps/node_modules/sharp');\
+if(typeof s!=='function'){console.error('sharp did not load as a function');process.exit(1);}\
+console.log('sharp native binding OK (libvips '+(s.versions&&s.versions.vips)+')');"
 
 # -----------------------------------------------------------------------------
 # Runtime image — ships only the compiled server and its prod deps.
