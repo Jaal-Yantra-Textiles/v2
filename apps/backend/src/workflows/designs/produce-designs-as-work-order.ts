@@ -3,7 +3,11 @@ import type { MedusaContainer } from "@medusajs/framework/types"
 
 import { createProductionRunWorkflow } from "../production-runs/create-production-run"
 import { sendProductionRunToProductionWorkflow } from "../production-runs/send-production-run-to-production"
-import { collateRunsIntoWorkOrder } from "../production-runs/dual-write-unified-run-order"
+import {
+  collateRunsIntoWorkOrder,
+  findOpenPartnerWorkOrder,
+  joinRunsIntoWorkOrder,
+} from "../production-runs/dual-write-unified-run-order"
 import { PRODUCTION_RUNS_MODULE } from "../../modules/production_runs"
 import type ProductionRunService from "../../modules/production_runs/service"
 
@@ -65,6 +69,19 @@ export async function produceDesignsAsWorkOrder(
     templateIds?: string[]
     /** Plan only: resolve what would happen and create nothing. */
     dryRun?: boolean
+    /**
+     * Where these runs' lines land (#1597).
+     *
+     * - `"partner-open"` (**default**) — append to the partner's most recent
+     *   open collated work-order when there is one, so a partner sent four
+     *   designs across a week gets ONE order rather than four. Falls back to
+     *   minting a fresh order when there is nothing open to join.
+     * - `"new"` — always mint a fresh order. The behaviour before this option
+     *   existed; keep it for a batch that must be billed on its own.
+     */
+    collate?: "partner-open" | "new"
+    /** Override the collation window. See WORK_ORDER_COLLATION_WINDOW_DAYS. */
+    collateWithinDays?: number
   }
 ): Promise<{
   created: number
@@ -75,6 +92,8 @@ export async function produceDesignsAsWorkOrder(
   designs: ProduceDesignReport[]
   dispatched: string[]
   not_dispatched: ProduceDesignReport[]
+  /** Whether the lines joined an existing work-order or minted a new one. */
+  work_order_joined?: boolean
 }> {
   const logger: any = container.resolve(ContainerRegistrationKeys.LOGGER)
   const runService = container.resolve(
@@ -255,9 +274,50 @@ export async function produceDesignsAsWorkOrder(
     { select: ["*"] }
   )
 
-  const projection = await collateRunsIntoWorkOrder(container, runs as any[], {
-    sourceOrderId: null,
-  })
+  /**
+   * #1597 — collate into the partner's open work-order by DEFAULT.
+   *
+   * The habitual path is one design at a time, so a partner sent four designs
+   * across a week ended up with four orders for what is operationally one batch
+   * of work. The collation machinery already existed (this very function) and
+   * only ever collated designs dispatched in the SAME call — the moment the
+   * choice was cheap was the one moment nothing offered it.
+   *
+   * ⚠️ The join is attempted, never assumed. If appending fails for any reason
+   * the runs are already created and dispatched, so falling back to a fresh
+   * order is the only outcome that leaves them visible — an exception here
+   * would strand dispatched work with no line on any order.
+   */
+  const collate = options?.collate ?? "partner-open"
+  let projection: Awaited<ReturnType<typeof collateRunsIntoWorkOrder>> | null =
+    null
+  let joined = false
+
+  if (collate === "partner-open") {
+    const open = await findOpenPartnerWorkOrder(container, partnerId, {
+      withinDays: options?.collateWithinDays,
+    })
+    if (open) {
+      try {
+        projection = await joinRunsIntoWorkOrder(
+          container,
+          open.order_id,
+          runs as any[]
+        )
+        joined = true
+      } catch (e: any) {
+        logger.warn(
+          `[produce-designs-as-work-order] could not join work-order ${open.order_id} (${e?.message}) — minting a new one`
+        )
+      }
+    }
+  }
+
+  if (!projection) {
+    projection = await collateRunsIntoWorkOrder(container, runs as any[], {
+      sourceOrderId: null,
+    })
+  }
 
   return {
     created: runIds.length,
@@ -267,5 +327,6 @@ export async function produceDesignsAsWorkOrder(
     designs: reports,
     dispatched: reports.filter((r) => r.dispatched).map((r) => r.design_id),
     not_dispatched: notDispatched,
+    work_order_joined: joined,
   }
 }

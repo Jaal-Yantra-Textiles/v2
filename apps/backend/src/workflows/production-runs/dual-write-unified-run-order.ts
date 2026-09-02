@@ -1,12 +1,18 @@
 import { ContainerRegistrationKeys, Modules } from "@medusajs/framework/utils"
 import { createStep, StepResponse } from "@medusajs/framework/workflows-sdk"
-import { createOrderWorkflow } from "@medusajs/medusa/core-flows"
+import {
+  createOrderWorkflow,
+  beginOrderEditOrderWorkflow,
+  orderEditAddNewItemWorkflow,
+  confirmOrderEditRequestWorkflow,
+} from "@medusajs/medusa/core-flows"
 import type { Link } from "@medusajs/modules-sdk"
 import type { LinkDefinition } from "@medusajs/framework/types"
 import type { MedusaContainer } from "@medusajs/framework/types"
 import { PRODUCTION_RUNS_MODULE } from "../../modules/production_runs"
 import { PARTNER_MODULE } from "../../modules/partner"
 import { DESIGN_MODULE } from "../../modules/designs"
+import PartnerOrderLink from "../../links/partner-order"
 import type ProductionRunService from "../../modules/production_runs/service"
 import {
   PARTNER_WORK_ORDERS_CHANNEL,
@@ -338,6 +344,43 @@ export const projectRunToUnifiedOrder = async (
 // every active run completed; canceled iff ALL runs cancelled; else pending.
 // (#826 follow-up: this stops a collated order stranding in "pending" forever
 // when one design was cancelled but the rest completed.)
+/**
+ * One work-order line per run — the design's name, its quantity, and pointers
+ * back to the run that produced it.
+ *
+ * 🔑 ONE home, because there are now two writers: `collateRunsIntoWorkOrder`
+ * creating a fresh order, and `joinRunsIntoWorkOrder` appending to one that
+ * already exists (#1597). Two builders would drift, and a line that describes
+ * itself differently depending on which door it came through is exactly how the
+ * run-line pricer ended up 22% apart from itself.
+ *
+ * ⚠️ `unit_price` divides a `total` estimate by quantity, because a core line
+ * item is priced per unit. `cost_type` is carried in metadata so nothing
+ * downstream has to re-derive which of the two it was (#1559).
+ */
+export const buildWorkOrderItems = (runs: any[]) =>
+  runs.map((run) => {
+    const quantity = Number(run.quantity) || 1
+    const estimate = Number(run.partner_cost_estimate) || 0
+    const unitPrice =
+      run.cost_type === "per_unit"
+        ? estimate
+        : quantity > 0
+        ? estimate / quantity
+        : estimate
+    return {
+      title: run.snapshot?.design?.name ?? `Design ${run.design_id}`,
+      quantity,
+      unit_price: unitPrice,
+      metadata: {
+        design_id: run.design_id,
+        production_run_id: run.id,
+        cost_type: run.cost_type ?? null,
+        legacy_cost_estimate: run.partner_cost_estimate ?? null,
+      },
+    }
+  })
+
 const aggregateCoreStatus = (runs: any[]): string => {
   if (!runs.length) return "pending"
   const active = runs.filter((r) => r.status !== "cancelled")
@@ -440,27 +483,7 @@ export const collateRunsIntoWorkOrder = async (
   const channel = await ensureWorkOrdersChannel(container)
 
   // One line item per run — self-describing (design name + run pointer).
-  const items = runs.map((run) => {
-    const quantity = Number(run.quantity) || 1
-    const estimate = Number(run.partner_cost_estimate) || 0
-    const unitPrice =
-      run.cost_type === "per_unit"
-        ? estimate
-        : quantity > 0
-        ? estimate / quantity
-        : estimate
-    return {
-      title: run.snapshot?.design?.name ?? `Design ${run.design_id}`,
-      quantity,
-      unit_price: unitPrice,
-      metadata: {
-        design_id: run.design_id,
-        production_run_id: run.id,
-        cost_type: run.cost_type ?? null,
-        legacy_cost_estimate: run.partner_cost_estimate ?? null,
-      },
-    }
-  })
+  const items = buildWorkOrderItems(runs)
 
   const { result: unified }: any = await createOrderWorkflow(container).run({
     input: {
@@ -585,6 +608,282 @@ export const collateRunsIntoWorkOrder = async (
   }
 
   return { unified_order_id: unified.id, line_count: items.length }
+}
+
+/**
+ * How recently a work-order must have been minted to still collect new designs.
+ *
+ * #1597's wording is "a **recently** minted, still-open order" — a partner sent
+ * four designs across a week should get one order, not four. An open order from
+ * three months ago is not the same batch of work, and quietly appending to it
+ * would make a payout line for today's design land on a claim someone may
+ * already be reconciling.
+ */
+export const WORK_ORDER_COLLATION_WINDOW_DAYS = 14
+
+/**
+ * The partner's most recent open collated design work-order, or null (#1597).
+ *
+ * ⚠️ `collated_design_order` lives in `metadata`, and `query.graph` cannot
+ * filter on a JSON subkey — so candidates are narrowed by things that ARE
+ * filterable (the partner link, then the order↔run link that IS the kind=design
+ * discriminator) and the metadata flag is checked in memory afterwards. A
+ * filter written against `metadata.x` would silently match nothing, which here
+ * would mean "always mint a new order" — the bug this exists to fix, restored
+ * invisibly.
+ *
+ * 🔴 Read through `PartnerOrderLink.entryPoint`, never by asking the order
+ * entity for a linked field: that returns no key at all, silently, and every
+ * partner would look like they had no open order.
+ *
+ * ⚠️ Known limitation, and it fails SAFE. The partner↔order link (D3) is
+ * written by `collateRunsIntoWorkOrder` only for partners whose runs reached
+ * `sent_to_partner` — i.e. dispatch succeeded for at least one design in the
+ * batch. A work-order whose every design failed to dispatch therefore carries
+ * no partner link and is invisible here, so the next dispatch mints a fresh
+ * order rather than joining it. That is the old behaviour, not a new fault:
+ * the cost is an extra order, never a line on the wrong one.
+ */
+export const findOpenPartnerWorkOrder = async (
+  container: MedusaContainer,
+  partnerId: string,
+  opts: { withinDays?: number } = {}
+): Promise<{ order_id: string; created_at: string } | null> => {
+  const logger: any = container.resolve(ContainerRegistrationKeys.LOGGER)
+  if (!partnerId) return null
+
+  const withinDays = opts.withinDays ?? WORK_ORDER_COLLATION_WINDOW_DAYS
+  const cutoff = Date.now() - withinDays * 24 * 60 * 60 * 1000
+
+  try {
+    const query: any = container.resolve(ContainerRegistrationKeys.QUERY)
+
+    const { data: linkRows } = await query.graph({
+      entity: PartnerOrderLink.entryPoint,
+      fields: ["order_id"],
+      filters: { partner_id: partnerId },
+    })
+    const orderIds = Array.from(
+      new Set(
+        (linkRows || [])
+          .map((r: any) => r?.order_id)
+          .filter(Boolean)
+          .map(String)
+      )
+    )
+    if (!orderIds.length) return null
+
+    const { data: orders } = await query.graph({
+      entity: "order",
+      fields: ["id", "status", "created_at", "metadata", "production_runs.id"],
+      filters: { id: orderIds },
+    })
+
+    const candidates = (orders || [])
+      .filter((o: any) => {
+        // A design work-order, by the discriminator link — not by metadata.
+        const runs = Array.isArray(o?.production_runs)
+          ? o.production_runs
+          : o?.production_runs
+          ? [o.production_runs]
+          : []
+        if (!runs.length) return false
+        // Collated ones only. A per-run order has no room for another design.
+        if (o?.metadata?.collated_design_order !== true) return false
+        // Open. `completed` and `canceled` are settled; anything else collects.
+        if (["completed", "canceled", "cancelled"].includes(String(o?.status ?? ""))) {
+          return false
+        }
+        const created = Date.parse(o?.created_at ?? "")
+        return Number.isFinite(created) && created >= cutoff
+      })
+      .sort(
+        (a: any, b: any) =>
+          Date.parse(b?.created_at ?? "") - Date.parse(a?.created_at ?? "")
+      )
+
+    const chosen = candidates[0]
+    return chosen
+      ? { order_id: String(chosen.id), created_at: String(chosen.created_at) }
+      : null
+  } catch (e: any) {
+    /**
+     * Best-effort: failing to FIND an order must fall back to creating one.
+     * The opposite — throwing — would make a lookup hiccup block dispatch
+     * entirely, and the dispatch is the thing that matters.
+     */
+    logger.warn(
+      `[orders-unification] open work-order lookup failed for partner ${partnerId}: ${e?.message}`
+    )
+    return null
+  }
+}
+
+/**
+ * Append runs to an EXISTING collated work-order (#1597).
+ *
+ * ## Why an order edit and not an insert
+ *
+ * The partner's order detail renders its line list from the core order's
+ * `items`. Linking a run without adding its line would put the run in
+ * `production_runs` and nowhere a human can see it — a capability with no
+ * screen, which this codebase has shipped before. Core owns `items`, and the
+ * only supported way to add one to a placed order is the edit flow:
+ * begin → add → confirm.
+ *
+ * ⚠️ NOT best-effort, unlike its sibling `collateRunsIntoWorkOrder`. A failed
+ * projection there leaves the legacy path intact; a failed append here would
+ * leave runs dispatched to a partner with no line on any order — invisible
+ * work. It throws, and `produceDesignsAsWorkOrder` falls back to minting a
+ * fresh order, which is the behaviour that existed before this function.
+ */
+export const joinRunsIntoWorkOrder = async (
+  container: MedusaContainer,
+  orderId: string,
+  runs: any[]
+): Promise<CollatedProjectionResult> => {
+  const logger: any = container.resolve(ContainerRegistrationKeys.LOGGER)
+  const items = buildWorkOrderItems(runs)
+
+  await beginOrderEditOrderWorkflow(container).run({
+    input: { order_id: orderId },
+  })
+  await orderEditAddNewItemWorkflow(container).run({
+    input: { order_id: orderId, items: items as any },
+  })
+  await confirmOrderEditRequestWorkflow(container).run({
+    input: { order_id: orderId },
+  })
+
+  const remoteLink = container.resolve(ContainerRegistrationKeys.LINK) as Link
+  const query: any = container.resolve(ContainerRegistrationKeys.QUERY)
+
+  // order↔run for each NEW run. These cannot already exist — the runs were
+  // created moments ago — so no existence check is needed here.
+  for (const run of runs) {
+    await remoteLink
+      .create([
+        {
+          [Modules.ORDER]: { order_id: orderId },
+          [PRODUCTION_RUNS_MODULE]: { production_runs_id: run.id },
+        },
+      ])
+      .catch((e: any) =>
+        logger.warn(
+          `[orders-unification] joined order↔run link failed for run ${run.id}: ${e?.message}`
+        )
+      )
+  }
+
+  /**
+   * 🔴 `link.create` is NOT idempotent, and unlike the create path this order
+   * already has design and partner links from the designs it collected before.
+   * Re-creating them would duplicate rows, so what is already linked is read
+   * first and only the genuinely new pairs are written.
+   */
+  const { data: existingRows } = await query
+    .graph({
+      entity: "order",
+      fields: ["id", "designs.id", "production_runs.id", "metadata"],
+      filters: { id: [orderId] },
+    })
+    .catch(() => ({ data: [] as any[] }))
+  const existingOrder = existingRows?.[0]
+  const linkedDesignIds = new Set(
+    (Array.isArray(existingOrder?.designs)
+      ? existingOrder.designs
+      : existingOrder?.designs
+      ? [existingOrder.designs]
+      : []
+    )
+      .map((d: any) => d?.id)
+      .filter(Boolean)
+      .map(String)
+  )
+
+  const newDesignIds = Array.from(
+    new Set(runs.map((r) => r.design_id).filter(Boolean).map(String))
+  ).filter((id) => !linkedDesignIds.has(id))
+
+  for (const designId of newDesignIds) {
+    await remoteLink
+      .create([
+        {
+          [DESIGN_MODULE]: { design_id: designId },
+          [Modules.ORDER]: { order_id: orderId },
+        },
+      ])
+      .catch((e: any) =>
+        logger.warn(
+          `[orders-unification] joined design link failed for ${designId}: ${e?.message}`
+        )
+      )
+  }
+
+  // design↔partner per (design, committed partner). Idempotent by nature of the
+  // create path's own comment ("a re-produce just re-hits it"), and only the
+  // designs new to this order are considered.
+  for (const run of runs) {
+    if (
+      !run.partner_id ||
+      !run.design_id ||
+      !newDesignIds.includes(String(run.design_id)) ||
+      !["sent_to_partner", "in_progress", "completed"].includes(run.status)
+    ) {
+      continue
+    }
+    await remoteLink
+      .create([
+        {
+          [DESIGN_MODULE]: { design_id: run.design_id },
+          [PARTNER_MODULE]: { partner_id: run.partner_id },
+        },
+      ])
+      .catch(() => {})
+  }
+
+  /**
+   * The order's own record of what it collates, and its rolled-up status —
+   * both recomputed across ALL its runs, old and new. A status derived from
+   * only the newly-added runs would report a half-finished order as pending.
+   */
+  const allRunIds = Array.from(
+    new Set([
+      ...((existingOrder?.metadata?.production_run_ids as string[]) || []),
+      ...runs.map((r) => String(r.id)),
+    ])
+  )
+
+  const runService: ProductionRunService = container.resolve(
+    PRODUCTION_RUNS_MODULE
+  )
+  const allRuns = (await runService
+    .listProductionRuns({ id: allRunIds } as any, { select: ["*"] })
+    .catch(() => runs)) as any[]
+
+  await patchUnifiedOrder(container, orderId, {
+    status: aggregateCoreStatus(allRuns),
+    metadata: {
+      ...(existingOrder?.metadata || {}),
+      production_run_ids: allRunIds,
+    },
+  })
+
+  const partnerStatus = aggregatePartnerStatus(allRuns)
+  if (partnerStatus) {
+    await setUnifiedOrderPartnerStatus(container, orderId, partnerStatus).catch(
+      (e: any) =>
+        logger.warn(
+          `[orders-unification] joined sidecar status write failed for ${orderId}: ${e?.message}`
+        )
+    )
+  }
+
+  logger.info(
+    `[orders-unification] collated ${runs.length} run(s) into existing work-order ${orderId} (now ${allRunIds.length} run(s))`
+  )
+
+  return { unified_order_id: orderId, line_count: items.length }
 }
 
 /**
