@@ -1,6 +1,7 @@
 import { useState, useMemo } from "react"
 import {
   Badge,
+  Checkbox,
   Button,
   Drawer,
   Input,
@@ -35,6 +36,8 @@ interface ProduceDesignsResponse {
     designs?: ProduceDesignReport[]
     dispatched?: string[]
     not_dispatched?: ProduceDesignReport[]
+    /** #1597 — whether the lines joined an existing work-order or minted one. */
+    work_order_joined?: boolean
   }
 }
 
@@ -64,6 +67,17 @@ export const SendToProductionDrawer = ({
   const [search, setSearch] = useState("")
   const [selectedPartnerId, setSelectedPartnerId] = useState("")
   const [isSending, setIsSending] = useState(false)
+  /**
+   * #1597 — off by default, because collating IS the default now.
+   *
+   * The habitual path is one design at a time, so a partner sent four designs
+   * across a week collected four work-orders for what is operationally one
+   * batch. The collation existed and only ever applied within a single
+   * dispatch; the moment the choice was cheap was the one moment nothing
+   * offered it. Ticking this restores the old behaviour for a batch that has
+   * to be billed on its own.
+   */
+  const [separateOrder, setSeparateOrder] = useState(false)
   /**
    * #1263 — the process the partner is being asked to run. Without it the
    * batch used to be created `sent_to_partner` with NO tasks: nothing for the
@@ -136,6 +150,13 @@ export const SendToProductionDrawer = ({
               design_ids: selectedDesigns.map((d) => d.id),
               partner_id: selectedPartnerId,
               template_ids: selectedTemplateIds,
+              /**
+               * #1597 — omitted would already mean "join the partner's open
+               * work-order"; sent explicitly so the screen's checkbox is the
+               * thing that decides, not a server default that could change
+               * underneath it.
+               */
+              collate: separateOrder ? "new" : "partner-open",
             },
           }
         )
@@ -164,7 +185,9 @@ export const SendToProductionDrawer = ({
         } to ${selectedPartner?.name || "partner"}`,
         {
           description: design_production.work_order_id
-            ? "One work-order created — open it to track production."
+            ? design_production.work_order_joined
+              ? "Added to this partner's open work-order — open it to track production."
+              : "One work-order created — open it to track production."
             : undefined,
           action: design_production.work_order_id
             ? {
@@ -192,6 +215,7 @@ export const SendToProductionDrawer = ({
     setSelectedPartnerId("")
     setSelectedTemplateIds([])
     setSearch("")
+    setSeparateOrder(false)
     onOpenChange(false)
   }
 
@@ -325,6 +349,31 @@ export const SendToProductionDrawer = ({
                   </button>
                 ))
               )}
+            </div>
+          </div>
+
+          {/*
+            #1597 — the collation choice, at the one moment it is cheap.
+            Unticked (the default) these designs join the partner's open
+            work-order if they have one minted in the last two weeks.
+          */}
+          <div className="border-ui-border-base flex items-start gap-x-2 rounded-lg border p-3">
+            <Checkbox
+              id="separate-work-order"
+              checked={separateOrder}
+              onCheckedChange={(v) => setSeparateOrder(v === true)}
+            />
+            <div className="flex flex-col">
+              <Label htmlFor="separate-work-order" weight="plus" size="small">
+                Start a separate work-order
+              </Label>
+              <Text size="xsmall" className="text-ui-fg-subtle">
+                {separateOrder
+                  ? "These designs get their own work-order, billed on its own."
+                  : `These designs join ${
+                      selectedPartner?.name || "the partner"
+                    }'s open work-order if they have a recent one — otherwise a new one is created.`}
+              </Text>
             </div>
           </div>
         </Drawer.Body>

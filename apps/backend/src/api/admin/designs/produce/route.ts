@@ -45,6 +45,13 @@ const ProduceBody = z
     template_ids: z.array(z.string().min(1)).optional(),
     /** Preview which design would get which templates; creates nothing. */
     dry_run: z.boolean().optional(),
+    /**
+     * #1597 — where these designs' lines land. Omitted means `partner-open`:
+     * join the partner's most recent open collated work-order instead of
+     * minting another. Pass `"new"` for a batch that must be billed on its own.
+     */
+    collate: z.enum(["partner-open", "new"]).optional(),
+    collate_within_days: z.number().int().positive().max(365).optional(),
   })
   .refine((b) => Boolean(b.design_ids?.length || b.designs?.length), {
     message: "Pass designs (preferred, per-design templates) or design_ids.",
@@ -70,6 +77,8 @@ export const POST = async (
       selections: body.designs,
       templateIds: body.template_ids,
       dryRun: body.dry_run,
+      collate: body.collate,
+      collateWithinDays: body.collate_within_days,
     }
   )
 
