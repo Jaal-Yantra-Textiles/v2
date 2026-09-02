@@ -41,6 +41,10 @@
 
 import { ContainerRegistrationKeys } from "@medusajs/framework/utils"
 import { runBillableCeiling, isOpenEndedRun } from "./run-billable-ceiling"
+import {
+  orderPayableCeiling,
+  type OrderCharge,
+} from "../../../modules/inventory_orders/lib/order-charges"
 
 export type PriorRunLine = {
   submission_id: string | null
@@ -753,7 +757,23 @@ export type OverclaimedInventoryOrder = {
 export function assessInventoryOrderClaims(input: {
   /** Requested amount per order, already summed across this submission. */
   requestedByOrder: Map<string, number>
-  orders: Map<string, { total_price?: number | string | null }>
+  orders: Map<
+    string,
+    {
+      total_price?: number | string | null
+      /**
+       * Amounts that are not goods — tax, shipping, a discount (#1737).
+       *
+       * ⚠️ Must be FETCHED by the caller. A guard reading a field the query
+       * never asked for is dead code that types perfectly (#1606).
+       *
+       * 🔑 Absent or empty leaves the ceiling EXACTLY `total_price`, so every
+       * order without charges behaves precisely as it did before this existed.
+       * That property is what makes adding a term to a live money guard safe.
+       */
+      charges?: OrderCharge[] | null
+    }
+  >
   claims: Map<string, InventoryOrderClaim>
 }): OverclaimedInventoryOrder[] {
   const overclaimed: OverclaimedInventoryOrder[] = []
@@ -776,8 +796,14 @@ export function assessInventoryOrderClaims(input: {
      * ABOVE the ordered total — so an amountless line, which defaults to the
      * receipts figure, is refused here rather than silently overpaying.
      */
-    const ordered = Number(order.total_price ?? 0)
-    const ceiling = Number.isFinite(ordered) ? ordered : 0
+    /**
+     * 🔴 Goods PLUS the charges that are not goods (#1737). `orderPayableCeiling`
+     * is the single owner of that arithmetic — `payable-inventory-orders`
+     * offers from the same function, because a screen offering a figure this
+     * guard then rejects is the defect `runPayableOffer` was extracted to
+     * prevent (#1616).
+     */
+    const ceiling = orderPayableCeiling(order, order.charges)
 
     // A ceiling of zero means the order is worth nothing we can read. Refusing
     // on that would block every payout on an unpriced order; the whole-order

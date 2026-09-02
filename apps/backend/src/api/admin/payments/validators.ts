@@ -51,3 +51,18 @@ export const PaymentSettlesSchema = z.object({
 })
 
 export type PaymentSettles = z.infer<typeof PaymentSettlesSchema>
+
+/**
+ * Which inventory order an existing payment was recorded against (#1737).
+ *
+ * ⚠️ Its middleware entry MUST precede `/admin/payments/:id`, for the same
+ * reason `/settles` does: matching is prefix-based and `UpdatePaymentSchema` is
+ * `.strict()`, so the update entry would otherwise claim this path and reject
+ * `inventory_order_id` as an unrecognised field — a 400 that reads like a bad
+ * request rather than a mis-ordered route.
+ */
+export const PaymentRecordsAgainstSchema = z.object({
+  inventory_order_id: z.string().min(1),
+})
+
+export type PaymentRecordsAgainst = z.infer<typeof PaymentRecordsAgainstSchema>

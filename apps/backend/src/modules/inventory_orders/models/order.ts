@@ -1,5 +1,6 @@
 import { model } from "@medusajs/framework/utils";
 import OrderLine from "./orderline";
+import OrderCharge from "./order-charge";
 
 const InventoryOrder = model.define("inventory_orders", {
   id: model.id({prefix: 'inv_order'}).primaryKey(),
@@ -23,6 +24,12 @@ const InventoryOrder = model.define("inventory_orders", {
   expected_delivery_date: model.dateTime().nullable(),
   order_date: model.dateTime().nullable(),
   orderlines: model.hasMany(() => OrderLine),
+  /**
+   * Amounts that are not goods — tax, shipping, a discount or a write-off
+   * (#1737). ⚠️ `total_price` above stays GOODS; the payable ceiling is derived
+   * from both in `lib/order-charges.ts`, never by folding them together.
+   */
+  charges: model.hasMany(() => OrderCharge),
   metadata: model.json().nullable(),
   shipping_address: model.json().nullable(),
   is_sample: model.boolean().default(false),

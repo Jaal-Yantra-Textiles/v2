@@ -191,7 +191,7 @@ import { updatePartnerMeSchema } from "./partners/me/validators";
 import { onboardingProfileUpdateSchema } from "./partners/onboarding-profile/validators";
 import { setLayoutConfigurationSchema } from "./partners/layouts/validators";
 import { AdminGetPartnersParamsSchema } from "./admin/persons/partner/validators";
-import { createInventoryOrdersSchema, listInventoryOrdersQuerySchema, ReadSingleInventoryOrderQuerySchema, updateInventoryOrdersSchema, updateInventoryOrderLinesSchema } from "./admin/inventory-orders/validators";
+import { createInventoryOrdersSchema, listInventoryOrdersQuerySchema, ReadSingleInventoryOrderQuerySchema, updateInventoryOrdersSchema, updateInventoryOrderLinesSchema, createInventoryOrderChargeSchema } from "./admin/inventory-orders/validators";
 import { createRawMaterialGroupSchema, updateRawMaterialGroupSchema, listRawMaterialGroupsQuerySchema, addGroupColorSchema, addGroupColorFullSchema, linkGroupColorsSchema, createGroupOrderSchema, readGroupQuerySchema } from "./admin/raw-material-groups/validators";
 import { pinDesignGroupSchema, updateDesignGroupSchema } from "./admin/designs/[id]/material-groups/validators";
 // Import already defined above
@@ -246,7 +246,7 @@ import {
   AdminUpdateFormSchema,
 } from "./admin/forms/validators";
 // Payments: schemas
-import { PaymentSchema, ListPaymentsQuerySchema, UpdatePaymentSchema, PaymentSettlesSchema } from "./admin/payments/validators";
+import { PaymentSchema, ListPaymentsQuerySchema, UpdatePaymentSchema, PaymentSettlesSchema, PaymentRecordsAgainstSchema } from "./admin/payments/validators";
 import { CreatePaymentAndLinkSchema } from "./admin/payments/link/validators";
 import { CreatePartnerCreditSchema } from "./admin/partners/[id]/credits/validators";
 import { ApplyPartnerCreditSchema } from "./admin/partners/[id]/credits/[creditId]/apply/validators";
@@ -3591,6 +3591,23 @@ export default defineMiddlewares({
       method: "DELETE",
       middlewares: [],
     },
+    /**
+     * #1737 — the mirror of `/settles`, one entity over. Same ordering rule:
+     * this MUST precede `/admin/payments/:id`, whose `.strict()` update schema
+     * would otherwise claim the path and reject `inventory_order_id`.
+     */
+    {
+      matcher: "/admin/payments/:id/records-against",
+      method: "POST",
+      middlewares: [
+        validateAndTransformBody(wrapSchema(PaymentRecordsAgainstSchema)),
+      ],
+    },
+    {
+      matcher: "/admin/payments/:id/records-against",
+      method: "DELETE",
+      middlewares: [],
+    },
     {
       matcher: "/admin/payments/:id",
       method: "POST",
@@ -4242,6 +4259,26 @@ export default defineMiddlewares({
       matcher: "/admin/inventory-orders",
       method: 'GET',
       middlewares: [validateAndTransformQuery(wrapSchema(listInventoryOrdersQuerySchema), {})]
+    },
+    /**
+     * #1737 — amounts on an order that are not goods.
+     *
+     * ⚠️ Registered BEFORE `/admin/inventory-orders/:id`: matching is
+     * prefix-based, and the `:id` GET carries a query validator that would
+     * otherwise claim this path. Same trap as `/settles` and
+     * `/records-against` on the payments side.
+     */
+    {
+      matcher: "/admin/inventory-orders/:id/charges",
+      method: "POST",
+      middlewares: [
+        validateAndTransformBody(wrapSchema(createInventoryOrderChargeSchema)),
+      ],
+    },
+    {
+      matcher: "/admin/inventory-orders/:id/charges",
+      method: "GET",
+      middlewares: [],
     },
     {
       matcher: "/admin/inventory-orders/:id",

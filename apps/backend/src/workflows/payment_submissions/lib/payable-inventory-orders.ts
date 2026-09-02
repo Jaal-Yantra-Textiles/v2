@@ -5,6 +5,10 @@ import { PAYMENT_SUBMISSIONS_MODULE } from "../../../modules/payment_submissions
 import type PaymentSubmissionsService from "../../../modules/payment_submissions/service"
 import { listPartnerClaims } from "./run-claims"
 import { valueInventoryOrderByReceipts } from "./inventory-order-value"
+import {
+  foldOrderCharges,
+  orderPayableCeiling,
+} from "../../../modules/inventory_orders/lib/order-charges"
 
 /**
  * What a partner is owed for GOODS, as opposed to for work (#1612, #1710).
@@ -28,8 +32,19 @@ export type PayableInventoryOrder = {
   status: string | null
   is_sample: boolean
   currency_code: string | null
-  /** What was ORDERED. This is the guard's ceiling. */
+  /**
+   * What was ORDERED — GOODS only, unchanged in meaning (#1737). Charges sit
+   * beside it in `charges_total`; `payable_ceiling` is what a claim may reach.
+   */
   ordered_total: number | null
+  /** Tax + shipping − discounts on this order, folded once (#1737). */
+  charges_total: number
+  /**
+   * What a claim against this order may not exceed: goods + charges. The SAME
+   * figure `assessInventoryOrderClaims` enforces — both call
+   * `orderPayableCeiling`, so the screen cannot offer what the guard refuses.
+   */
+  payable_ceiling: number | null
   /** What the RECEIPTS are worth, before any cap. */
   receipts_total: number
   received_quantity: number
@@ -135,6 +150,14 @@ export const listPayableInventoryOrders = async (
       "inventory_orders.internal_payments.id",
       "inventory_orders.internal_payments.amount",
       "inventory_orders.internal_payments.status",
+      /**
+       * 🔴 The amounts that are not goods (#1737). The ceiling this screen
+       * offers from MUST be the one `assessInventoryOrderClaims` enforces —
+       * a figure an operator reads must be the figure that gets written
+       * (#1616). Both now call `orderPayableCeiling`.
+       */
+      "inventory_orders.charges.type",
+      "inventory_orders.charges.amount",
     ],
     filters: { id: partnerId },
   })
@@ -175,7 +198,16 @@ export const listPayableInventoryOrders = async (
        * figure the guard rejects and the operator learns the rule from a 400.
        */
       const ordered = Number(order.total_price ?? 0)
-      const ceiling = Number.isFinite(ordered) && ordered > 0 ? ordered : null
+      /**
+       * 🔴 Goods PLUS the charges that are not goods (#1737), from the SAME
+       * function the write guard uses. Offering a figure `create` then rejects
+       * is the defect `runPayableOffer` was extracted to prevent (#1616), and
+       * the reverse — a guard that allows more than the screen offers — leaves
+       * a partner silently short of the tax they invoiced.
+       */
+      const withCharges = orderPayableCeiling(order, order.charges)
+      const ceiling =
+        Number.isFinite(withCharges) && withCharges > 0 ? withCharges : null
 
       const remaining =
         ceiling == null
@@ -234,7 +266,19 @@ export const listPayableInventoryOrders = async (
         status: order.status ?? null,
         is_sample: !!order.is_sample,
         currency_code: order.currency_code ?? null,
-        ordered_total: ceiling,
+        /**
+         * 🔴 GOODS, as it always meant. Charges are reported beside it rather
+         * than folded in — silently widening this field would be the
+         * one-column-two-meanings trap that already cost us `quantity` being a
+         * rate or a total (#1559). Read `payable_ceiling` for what a claim may
+         * reach.
+         */
+        ordered_total:
+          Number.isFinite(ordered) && ordered > 0 ? ordered : null,
+        /** Tax + shipping − discounts, folded once (#1737). */
+        charges_total: foldOrderCharges(order.charges).net,
+        /** What a claim against this order may not exceed: goods + charges. */
+        payable_ceiling: ceiling,
         receipts_total: uncapped,
         received_quantity: value.received_quantity,
         lines: value.lines,
