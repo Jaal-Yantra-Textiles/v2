@@ -270,3 +270,17 @@ export const createInventoryOrderChargeSchema = z.object({
 export type CreateInventoryOrderCharge = z.infer<
   typeof createInventoryOrderChargeSchema
 >
+
+/**
+ * Which partner an inventory order belongs to (#1737).
+ *
+ * ⚠️ Assignment only — `send-to-partner` is what COMMISSIONS work and tells the
+ * partner. See the route for why a historical record needs a quiet writer.
+ */
+export const assignInventoryOrderPartnerSchema = z.object({
+  partner_id: z.string().min(1),
+})
+
+export type AssignInventoryOrderPartner = z.infer<
+  typeof assignInventoryOrderPartnerSchema
+>
