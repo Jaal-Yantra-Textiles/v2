@@ -90,6 +90,7 @@ import { auditInventoryReceiptDriftJob } from "./audit-inventory-receipt-drift-j
 import { repairRoundedReceiptQuantitiesJob } from "./repair-rounded-receipt-quantities-job"
 import { backfillOrderLineMaterialJob } from "./backfill-order-line-material-job"
 import { auditPartnerPayoutQuantityJob } from "./audit-partner-payout-quantity-job"
+import { auditUnpricedCompletedRunsJob } from "./audit-unpriced-completed-runs-job"
 import { capFreeShippingBandJob } from "./cap-free-shipping-band-job"
 import { deleteOrphanStoreJob } from "./delete-orphan-store-job"
 import { restoreOrphanStoreJob } from "./restore-orphan-store-job"
@@ -5865,6 +5866,7 @@ export const MAINTENANCE_JOBS: MaintenanceJob[] = [
   repairRoundedReceiptQuantitiesJob,
   backfillOrderLineMaterialJob,
   auditPartnerPayoutQuantityJob,
+  auditUnpricedCompletedRunsJob,
   capFreeShippingBandJob,
   deleteOrphanStoreJob,
   restoreOrphanStoreJob,
