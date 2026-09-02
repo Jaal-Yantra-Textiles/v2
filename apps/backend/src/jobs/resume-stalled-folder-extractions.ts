@@ -62,8 +62,24 @@ import {
 /** Stop auto-resuming a folder after this many attempts. */
 export const MAX_RESUME_ATTEMPTS = 3
 
-/** Never resume more than this many folders in one pass. */
-const MAX_FOLDERS_PER_RUN = 5
+/**
+ * One folder per pass, and never alongside a live run.
+ *
+ * 🔴 The pacing knob protects the vision provider PER RUN. It says nothing
+ * about how many runs exist, so N concurrent resumes are N times the rate the
+ * knob was set to — which defeats the only reason the workflow sleeps between
+ * photos at all.
+ *
+ * Found immediately after the first version of this sweeper merged: production
+ * had **three** stalled folders, not the one that was reported (92 images
+ * outstanding between them). A cap of five would have started all three at
+ * once, tripling the request rate against a provider the interval exists to
+ * stay under.
+ *
+ * At a 30-minute cadence the queue still drains — it just drains in single
+ * file, which is what the pacing asked for.
+ */
+const MAX_FOLDERS_PER_RUN = 1
 
 export default async function resumeStalledFolderExtractions(
   container: MedusaContainer
@@ -85,17 +101,39 @@ export default async function resumeStalledFolderExtractions(
    * silently return every folder, which is the shape that turns a scoped sweep
    * into an unscoped one.
    */
-  const candidates = folders
+  const runs = folders
     .map((folder: any) => ({
       folder,
       progress: (folder?.metadata?.folder_extraction as FolderExtractionProgress) || null,
     }))
     .filter(({ progress }) => progress?.status === "running")
     .map((row) => ({ ...row, liveness: folderExtractionLiveness(row.progress) }))
-    .filter(({ liveness }) => liveness.stalled)
+
+  const candidates = runs.filter(({ liveness }) => liveness.stalled)
 
   if (!candidates.length) {
     logger.info("[resume-folder-extraction] No stalled folder extractions")
+    return
+  }
+
+  /**
+   * 🔴 Stand down entirely while ANY folder is genuinely extracting.
+   *
+   * The interval between photos is the whole rate-limit story, and it is
+   * per-run: two live runs are two requests per interval, whatever the knob
+   * says. The per-folder liveness check further down stops this sweep
+   * double-running one folder; this one stops it adding a second loop
+   * ALONGSIDE a healthy run on a different folder — the case the first version
+   * missed, and the case production was one pass away from hitting with three
+   * stalled folders sitting in the list.
+   */
+  const live = runs.filter(({ liveness }) => !liveness.stalled)
+  if (live.length) {
+    logger.info(
+      `[resume-folder-extraction] ${candidates.length} stalled folder(s) waiting, but ${
+        live[0].folder.id
+      } is still extracting — holding off so the pacing stays one photo per interval overall`
+    )
     return
   }
 
