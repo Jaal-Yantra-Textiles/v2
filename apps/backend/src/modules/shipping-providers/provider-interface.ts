@@ -326,4 +326,10 @@ export interface ShippingProviderClient {
 }
 
 /** Known carrier identifiers persisted on `fulfillment.data.carrier`. */
-export type CarrierId = "delhivery" | "shiprocket" | "bluedart" | "dtdc" | "shipglobal"
+export type CarrierId =
+  | "delhivery"
+  | "shiprocket"
+  | "bluedart"
+  | "dtdc"
+  | "shipglobal"
+  | "starfleet"

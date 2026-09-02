@@ -28,6 +28,7 @@ import { BlueDartProviderAdapter } from "./bluedart/adapter"
 import { DhlUnifiedTrackingClient } from "./dhl-unified-tracking"
 import { DtdcProviderAdapter } from "@jytextiles/medusa-plugin-dtdc-shipping/providers/dtdc/adapter"
 import { ShipglobalClient } from "./shipglobal/client"
+import { StarfleetClient, StarfleetConsignorKyc } from "./starfleet/client"
 
 /** Carriers `resolveShippingProvider` can return a live client for. */
 export const SUPPORTED_CARRIERS: CarrierId[] = [
@@ -36,6 +37,7 @@ export const SUPPORTED_CARRIERS: CarrierId[] = [
   "bluedart",
   "dtdc",
   "shipglobal",
+  "starfleet",
 ]
 
 /**
@@ -310,6 +312,54 @@ export async function resolveShippingProvider(
       username: username!,
       password: password!,
       service: cfg.service || process.env.SHIPGLOBAL_SERVICE,
+      fetchImpl,
+    })
+  }
+
+  if (id === "starfleet") {
+    // Delhivery International ("StarFleet") — OAuth2 password grant. Cross-border
+    // only; the pickup warehouse is env-specific (a prod warehouse does not exist
+    // in staging). See apps/docs/notes/STARFLEET_API.md.
+    const username = cfg.username || cfg.email || process.env.STARFLEET_USERNAME
+    const password =
+      readSecret(cfg, "password", encryption) || process.env.STARFLEET_PASSWORD
+    const clientId = cfg.client_id || process.env.STARFLEET_CLIENT_ID
+    const clientSecret =
+      readSecret(cfg, "client_secret", encryption) ||
+      process.env.STARFLEET_CLIENT_SECRET
+    if (!username || !password || !clientId || !clientSecret) {
+      throw new MedusaError(
+        MedusaError.Types.UNEXPECTED_STATE,
+        "Delhivery International (StarFleet) credentials not configured (no shipping platform record or STARFLEET_USERNAME + STARFLEET_PASSWORD + STARFLEET_CLIENT_ID + STARFLEET_CLIENT_SECRET)"
+      )
+    }
+
+    const consignorKyc: StarfleetConsignorKyc = {
+      document_id: cfg.document_id,
+      document_type: cfg.document_type,
+      iec: cfg.iec,
+      pan: readSecret(cfg, "pan", encryption),
+      gstin: readSecret(cfg, "gstin", encryption),
+      bank_ad_code: cfg.bank_ad_code,
+      bank_ifsc: cfg.bank_ifsc,
+      bank_ac: readSecret(cfg, "bank_ac", encryption),
+    }
+
+    const fetchImpl =
+      process.env.STARFLEET_STUB === "1"
+        ? require("./starfleet/stub-fetch").createStarfleetStubFetch()
+        : undefined
+
+    return new StarfleetClient({
+      username: username!,
+      password: password!,
+      client_id: clientId!,
+      client_secret: clientSecret!,
+      client_name: cfg.client_name || process.env.STARFLEET_CLIENT_NAME,
+      service_type: cfg.service_type || process.env.STARFLEET_SERVICE_TYPE,
+      pickup_warehouse_id:
+        cfg.pickup_warehouse_id || process.env.STARFLEET_PICKUP_WAREHOUSE_ID,
+      consignor_kyc: consignorKyc,
       fetchImpl,
     })
   }
