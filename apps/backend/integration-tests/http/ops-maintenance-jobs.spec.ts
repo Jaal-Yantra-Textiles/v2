@@ -125,6 +125,50 @@ setupSharedTestSuite(() => {
      * because the job has no write path at all. A job whose safety rests on a
      * caller passing dry_run is one keystroke from writing.
      */
+    /**
+     * #1712 defect 5 — a completed run with no agreed price was visible only
+     * to someone who already opened that partner's payout screen, so one sat
+     * at 0 for four months. The job that asks the question must be REACHABLE
+     * (a capability with no door is no capability) and must never write: the
+     * agreed price is not derivable from anything in the database.
+     */
+    it("GET lists the audit-unpriced-completed-runs job", async () => {
+      const res = await api.get("/admin/ops/maintenance-jobs", adminHeaders)
+      expect(res.status).toBe(200)
+      const job = res.data.jobs.find(
+        (j: any) => j.id === "audit-unpriced-completed-runs"
+      )
+      expect(job).toBeTruthy()
+      expect(job.params.map((p: any) => p.name).sort()).toEqual([
+        "limit",
+        "min_age_days",
+        "partner_id",
+      ])
+      expect(job.params.every((p: any) => p.required === false)).toBe(true)
+    })
+
+    it("POST audit-unpriced-completed-runs changes nothing even with dry_run=false", async () => {
+      const res = await api.post(
+        "/admin/ops/maintenance-jobs/audit-unpriced-completed-runs/run",
+        { dry_run: false, params: { limit: 50 } },
+        adminHeaders
+      )
+      expect(res.status).toBe(200)
+      expect(res.data.result.dry_run).toBe(false)
+      expect(res.data.result.applied).toBe(false)
+      expect(Array.isArray(res.data.result.changes)).toBe(true)
+    })
+
+    it("POST audit-unpriced-completed-runs rejects a limit above the scan cap", async () => {
+      await expect(
+        api.post(
+          "/admin/ops/maintenance-jobs/audit-unpriced-completed-runs/run",
+          { dry_run: true, params: { limit: 5000 } },
+          adminHeaders
+        )
+      ).rejects.toMatchObject({ response: { status: 400 } })
+    })
+
     it("POST audit-inventory-receipt-drift changes nothing even with dry_run=false", async () => {
       const res = await api.post(
         "/admin/ops/maintenance-jobs/audit-inventory-receipt-drift/run",
