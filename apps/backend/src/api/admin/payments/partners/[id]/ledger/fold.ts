@@ -80,6 +80,23 @@ export type PaymentLike = {
   inventory_order_name?: string | null
   /** The payout this payment settles, via the direct link (#1710). */
   submission_id?: string | null
+  /**
+   * EVERY payout this payment is linked to (#1712 defect 2).
+   *
+   * 🔴 `submission_id` is one field, and `mergePaymentSources` fills an absent
+   * field once — so a payment a human linked to TWO payouts arrived carrying
+   * only the first, and the second read as unsettled with nothing saying why.
+   * Measured: two payouts of 10,000 with one 10,000 payment linked to both gave
+   * `settled: 10000` and `settled: 0`, and `outstanding: 10000` on money that
+   * had already moved. An overstated `outstanding` is the direction that gets a
+   * partner paid twice.
+   *
+   * ⚠️ The recorded defect said `paid` DOUBLE-counts such a payment. It does
+   * not — the merge dropped the second link before any arithmetic saw it. The
+   * risk was real but the mechanism was the opposite one, and the fix has to
+   * close both: see the allocation below.
+   */
+  submission_ids?: string[] | null
 }
 
 /**
@@ -187,6 +204,15 @@ export type LedgerEntry = {
    * must not make the partner look overpaid on this row.
    */
   settled_amount?: number
+  /**
+   * Other payouts that share a payment with this one (#1712 defect 2).
+   *
+   * 🔑 Present only when a payment really is linked to more than one payout.
+   * Without it a payout shows less settled than the linked payment's face value
+   * and nothing on the row explains the gap — which reads as an arithmetic bug
+   * rather than as money already spent on another claim.
+   */
+  settled_shared_with?: string[]
   /**
    * Credits a human APPLIED to this payout (#1712).
    *
@@ -298,6 +324,17 @@ export type LedgerTotals = {
  * PURE, so the union that decides whether money is visible at all can be tested
  * without a graph behind it.
  */
+/**
+ * Accumulate rather than overwrite. `submission_id` keeps first-writer-wins for
+ * every existing reader; `submission_ids` is the complete set, and a payout is
+ * settled from THAT (#1712 defect 2).
+ */
+const addSubmissionId = (row: any, id: unknown) => {
+  if (typeof id !== "string" || !id) return
+  if (!Array.isArray(row.submission_ids)) row.submission_ids = []
+  if (!row.submission_ids.includes(id)) row.submission_ids.push(id)
+}
+
 export const mergePaymentSources = (
   sources: Array<{
     rows: any[]
@@ -316,9 +353,13 @@ export const mergePaymentSources = (
         for (const [k, v] of Object.entries(extra)) {
           if (v != null && existing[k] == null) existing[k] = v
         }
+        addSubmissionId(existing, extra.submission_id)
         continue
       }
-      byId.set(row.id, { ...row, ...extra })
+      const merged = { ...row, ...extra }
+      merged.submission_ids = []
+      addSubmissionId(merged, extra.submission_id)
+      byId.set(row.id, merged)
     }
   }
 
@@ -345,6 +386,17 @@ const iso = (v: unknown): string | null => {
  * founder a partner is settled while the transfer is still owed.
  */
 const PAID_STATUSES = new Set(["Paid"])
+
+/**
+ * Only a `Completed` payment settles anything.
+ *
+ * ⚠️ `Pending` is the status the partner portal writes on a payment a partner
+ * records themselves, so counting it would let a partner move their own `paid`
+ * figure by asserting they had been paid. The admin marking it `Completed` is
+ * the only control on that assertion.
+ */
+const SETTLES_ONLY_COMPLETED = (p: PaymentLike): boolean =>
+  String(p.status ?? "") === "Completed"
 
 export const foldPartnerLedger = (input: {
   submissions: SubmissionLike[]
@@ -433,6 +485,89 @@ export const foldPartnerLedger = (input: {
     paymentsByOrder.set(p.inventory_order_id, list)
   }
 
+  /**
+   * ── Allocating a payment across the payouts it settles (#1712 defect 2) ──
+   *
+   * A human may link ONE payment to TWO payouts — it is the obvious way to
+   * carry a surplus forward. Both readings of that were wrong before:
+   *
+   *   - the merge kept only the first link, so the second payout read
+   *     `settled: 0` and its money looked still owed. An overstated
+   *     `outstanding` is the direction that gets a partner paid twice.
+   *   - and had the merge kept both, each payout would have counted the
+   *     payment IN FULL, so `paid` would have claimed more money moved than
+   *     ever left the bank.
+   *
+   * Allocation closes both. Each payment is spent ONCE, across the payouts it
+   * names, and no payout receives more than it still claims. `recorded_against_open`
+   * has counted per PAYMENT since #1710 for the same reason; this gives `paid`
+   * the same protection.
+   *
+   * ⚠️ Order matters and is therefore FIXED — oldest payout first, id as the
+   * tie-break. An allocation that depended on graph row order would move money
+   * between payouts on a page refresh.
+   *
+   * 🔑 Only `Completed` payments allocate, the same rule as below: a payout must
+   * not read as settled before the transfer happened.
+   */
+  const SETTLING_STATUSES = new Set(["Completed"])
+  const allocationBySubmission = new Map<string, number>()
+  const sharedWithBySubmission = new Map<string, string[]>()
+
+  const submissionOrder = [...submissions].sort((a, b) => {
+    const at = iso(a.submitted_at) || iso(a.created_at) || ""
+    const bt = iso(b.submitted_at) || iso(b.created_at) || ""
+    return at === bt ? a.id.localeCompare(b.id) : at.localeCompare(bt)
+  })
+  const claimById = new Map(
+    submissionOrder.map((sub) => [sub.id, num(sub.total_amount)])
+  )
+  const headroom = new Map(claimById)
+
+  for (const p of payments) {
+    if (!SETTLES_ONLY_COMPLETED(p)) continue
+    const named = (
+      Array.isArray(p.submission_ids) && p.submission_ids.length
+        ? p.submission_ids
+        : p.submission_id
+          ? [p.submission_id]
+          : []
+    ).filter((id) => claimById.has(id))
+    if (!named.length) continue
+
+    let remaining = num(p.amount)
+    const ordered = submissionOrder
+      .map((sub) => sub.id)
+      .filter((id) => named.includes(id))
+
+    for (const id of ordered) {
+      if (remaining <= 0) break
+      const room = Math.max(0, headroom.get(id) ?? 0)
+      if (room <= 0) continue
+      const take = Math.round(Math.min(remaining, room) * 100) / 100
+      if (take <= 0) continue
+      allocationBySubmission.set(id, (allocationBySubmission.get(id) ?? 0) + take)
+      headroom.set(id, room - take)
+      remaining = Math.round((remaining - take) * 100) / 100
+    }
+
+    /**
+     * A payout that shares its payment with another says so. Without this a
+     * payout linked to a payment shows less settled than the payment's face
+     * value and nothing on the row explains the difference — which reads as an
+     * arithmetic bug rather than as money spent elsewhere.
+     */
+    if (ordered.length > 1) {
+      for (const id of ordered) {
+        const others = ordered.filter((o) => o !== id)
+        sharedWithBySubmission.set(
+          id,
+          Array.from(new Set([...(sharedWithBySubmission.get(id) ?? []), ...others]))
+        )
+      }
+    }
+  }
+
   const payoutEntries: LedgerEntry[] = submissions.map((submission) => {
     const settlingPaymentId = paymentBySubmission.get(submission.id)
     const settlingPayment = settlingPaymentId
@@ -483,15 +618,15 @@ export const foldPartnerLedger = (input: {
      * ⚠️ Deliberately STRICTER than `recorded_against_open`, which counts
      * Pending on purpose. A warning should over-fire; a settlement must not.
      */
-    const SETTLES = new Set(["Completed"])
-    const settledRaw = payments
-      .filter((p) => p.submission_id === submission.id)
-      .filter((p) => SETTLES.has(String(p.status ?? "")))
-      .reduce((acc, p) => acc + num(p.amount), 0)
-
-    const submissionAmount = num(submission.total_amount)
+    /**
+     * What the allocation above gave this payout. Already capped at the payout's
+     * own claim, so the `Math.min` the old code applied per payment is now a
+     * property of the allocation rather than a clamp that could silently absorb
+     * a surplus — the clamp that hid hrhandloom's 1,380 (#1712 defect 3).
+     */
     const settledAmount =
-      Math.round(Math.min(settledRaw, submissionAmount) * 100) / 100
+      Math.round((allocationBySubmission.get(submission.id) ?? 0) * 100) / 100
+    const settledSharedWith = sharedWithBySubmission.get(submission.id) ?? []
 
     /**
      * Credits a human applied to THIS payout, by the shared rule the admin
@@ -548,6 +683,7 @@ export const foldPartnerLedger = (input: {
         0
       ),
       settled_amount: settledAmount,
+      settled_shared_with: settledSharedWith.length ? settledSharedWith : undefined,
       credits_applied: appliedCredits,
       credited_amount: appliedCreditsTotal,
     }

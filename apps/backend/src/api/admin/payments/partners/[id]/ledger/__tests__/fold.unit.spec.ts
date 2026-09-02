@@ -735,3 +735,149 @@ describe("foldPartnerLedger — applied credits (#1712)", () => {
     expect(totals.outstanding).toBe(10000)
   })
 })
+
+/**
+ * One payment, two payouts (#1712 defect 2).
+ *
+ * 🔴 The recorded defect said `paid` DOUBLE-counts such a payment. Probed
+ * before fixing, and it did not: `mergePaymentSources` filled `submission_id`
+ * once, so the SECOND payout silently read `settled: 0` and its money looked
+ * still owed. An overstated `outstanding` is the direction that gets a partner
+ * paid twice, so the bug was real and the mechanism was the opposite one.
+ *
+ * The fix has to close both — every linked payout is settled, and the payment
+ * is still only spent once.
+ */
+describe("foldPartnerLedger — one payment linked to two payouts (#1712)", () => {
+  const subA = {
+    id: "sub_A",
+    status: "Approved",
+    total_amount: 10000,
+    currency: "inr",
+    submitted_at: "2026-08-01T00:00:00.000Z",
+  }
+  const subB = {
+    id: "sub_B",
+    status: "Approved",
+    total_amount: 10000,
+    currency: "inr",
+    submitted_at: "2026-08-02T00:00:00.000Z",
+  }
+  const row = { id: "pay_1", amount: 10000, status: "Completed" }
+
+  const linkedToBoth = () =>
+    mergePaymentSources([
+      { rows: [row], attribution: { submission_id: "sub_A" } },
+      { rows: [row], attribution: { submission_id: "sub_B" } },
+    ])
+
+  it("keeps EVERY payout the payment names, not just the first", () => {
+    const merged = linkedToBoth()
+    expect(merged).toHaveLength(1)
+    expect(merged[0].submission_ids).toEqual(["sub_A", "sub_B"])
+  })
+
+  /** The money that moved is 10,000. `paid` may never claim more than that. */
+  it("spends the payment ONCE — paid never exceeds the money that moved", () => {
+    const { totals } = foldPartnerLedger({
+      submissions: [subA, subB],
+      items: [],
+      payments: linkedToBoth(),
+      reconciliations: [],
+    })
+
+    expect(totals.billed).toBe(20000)
+    expect(totals.paid).toBe(10000)
+    expect(totals.outstanding).toBe(10000)
+  })
+
+  it("allocates oldest payout first, and says which payouts share the payment", () => {
+    const { entries } = foldPartnerLedger({
+      submissions: [subB, subA], // deliberately out of order
+      items: [],
+      payments: linkedToBoth(),
+      reconciliations: [],
+    })
+    const byId = Object.fromEntries(
+      entries.filter((e) => e.kind === "payout").map((e) => [e.submission_id, e])
+    )
+
+    expect(byId.sub_A.settled_amount).toBe(10000)
+    expect(byId.sub_B.settled_amount).toBe(0)
+    // The row explains its own zero rather than looking like an arithmetic bug.
+    expect(byId.sub_B.settled_shared_with).toEqual(["sub_A"])
+    expect(byId.sub_A.settled_shared_with).toEqual(["sub_B"])
+  })
+
+  /**
+   * ⚠️ Order is FIXED, not graph order. An allocation that moved money between
+   * payouts on a page refresh would be worse than either bug it replaces.
+   */
+  it("allocates the same way whichever order the submissions arrive in", () => {
+    const one = foldPartnerLedger({
+      submissions: [subA, subB], items: [], payments: linkedToBoth(), reconciliations: [],
+    })
+    const two = foldPartnerLedger({
+      submissions: [subB, subA], items: [], payments: linkedToBoth(), reconciliations: [],
+    })
+    const settled = (r: any) =>
+      Object.fromEntries(
+        r.entries.filter((e: any) => e.kind === "payout").map((e: any) => [e.submission_id, e.settled_amount])
+      )
+    expect(settled(one)).toEqual(settled(two))
+  })
+
+  it("spills the remainder onto the second payout when the first cannot absorb it", () => {
+    const small = { ...subA, total_amount: 4000 }
+    const { entries, totals } = foldPartnerLedger({
+      submissions: [small, subB],
+      items: [],
+      payments: linkedToBoth(),
+      reconciliations: [],
+    })
+    const byId = Object.fromEntries(
+      entries.filter((e) => e.kind === "payout").map((e) => [e.submission_id, e])
+    )
+
+    expect(byId.sub_A.settled_amount).toBe(4000)
+    expect(byId.sub_B.settled_amount).toBe(6000)
+    expect(totals.paid).toBe(10000)
+  })
+
+  /** A payout never absorbs more than it claims — the surplus is a credit's job. */
+  it("never allocates a payout more than its own claim", () => {
+    const big = { ...row, amount: 30000 }
+    const merged = mergePaymentSources([
+      { rows: [big], attribution: { submission_id: "sub_A" } },
+    ])
+    const { entries, totals } = foldPartnerLedger({
+      submissions: [subA], items: [], payments: merged, reconciliations: [],
+    })
+    expect(entries.find((e) => e.kind === "payout")!.settled_amount).toBe(10000)
+    expect(totals.paid).toBe(10000)
+    expect(totals.outstanding).toBe(0)
+  })
+
+  /** Pending is not money. A partner must not move their own `paid`. */
+  it("allocates nothing from a Pending payment", () => {
+    const merged = mergePaymentSources([
+      { rows: [{ ...row, status: "Pending" }], attribution: { submission_id: "sub_A" } },
+    ])
+    const { totals } = foldPartnerLedger({
+      submissions: [subA], items: [], payments: merged, reconciliations: [],
+    })
+    expect(totals.paid).toBe(0)
+  })
+
+  it("says nothing about sharing when a payment names one payout", () => {
+    const merged = mergePaymentSources([
+      { rows: [row], attribution: { submission_id: "sub_A" } },
+    ])
+    const { entries } = foldPartnerLedger({
+      submissions: [subA, subB], items: [], payments: merged, reconciliations: [],
+    })
+    for (const e of entries.filter((x) => x.kind === "payout")) {
+      expect(e.settled_shared_with).toBeUndefined()
+    }
+  })
+})

@@ -143,6 +143,60 @@ setupSharedTestSuite(() => {
 
   // ─── the cases ────────────────────────────────────────────────────────────
 
+  /**
+   * ── The fourth home (#1712 defect 4) ──────────────────────────────────
+   *
+   * 🔴 A payment carries `paid_to` — the bank account it was sent to — and that
+   * method belongs to a partner. Six of 35 production payments (52,974) carry
+   * ONLY that association: no partner link, no order link, no submission link.
+   * The ledger read the other three and reported nothing for money that was
+   * always attributable — Sharlho's page said 46,000 where the truth was 54,974.
+   *
+   * This has to be an integration test for the same reason as the rest of this
+   * file: the question is whether the READ reaches the money, and a link that
+   * writes fine and reads empty is indistinguishable from no money at all.
+   */
+  it("finds a payment attributable only through its paid_to payment method", async () => {
+    const partnerId = await createPartner("paid-to")
+
+    const pmRes = await api.post(
+      `/admin/payments/partners/${partnerId}/methods`,
+      {
+        type: "bank_account",
+        account_name: "Partner Primary",
+        account_number: "999888777",
+        bank_name: "Test Bank",
+        ifsc_code: "TEST0009999",
+      },
+      adminHeaders
+    )
+    expect(pmRes.status).toBe(201)
+    const methodId = pmRes.data.paymentMethod.id as string
+
+    // Deliberately NO partnerIds — this payment's only tie to the partner is
+    // the method it was paid to. That is the production shape.
+    const payRes = await api.post(
+      "/admin/payments/link",
+      {
+        payment: {
+          amount: 8974,
+          payment_type: "Bank",
+          payment_date: new Date("2026-07-01T00:00:00.000Z").toISOString(),
+          paid_to_id: methodId,
+        },
+      },
+      adminHeaders
+    )
+    expect(payRes.status).toBe(201)
+
+    const { totals, entries } = await ledger(partnerId)
+
+    expect(totals.recorded).toBe(8974)
+    expect(
+      entries.some((e: any) => e.kind === "payment" && e.amount === 8974)
+    ).toBe(true)
+  })
+
   it("renders a payout that has no internal_payments row behind it", async () => {
     // Since #1638 approval writes no payment row, so this is EVERY payout made
     // since. A panel reading `internal_payments` alone shows nothing here.

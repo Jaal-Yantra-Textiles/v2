@@ -47,8 +47,10 @@ import type { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
 import { ContainerRegistrationKeys } from "@medusajs/framework/utils"
 
 import PartnerCreditLink from "../../../../../../links/partner-credit-link"
+import PartnerPaymentMethodsLink from "../../../../../../links/partner-payment-methods-link"
 import PartnerPaymentsLink from "../../../../../../links/partner-payments-link"
 import SubmissionPaymentLink from "../../../../../../links/submission-payment-link"
+import { INTERNAL_PAYMENTS_MODULE } from "../../../../../../modules/internal_payments"
 import { PAYMENT_REPORTS_MODULE } from "../../../../../../modules/payment_reports"
 import { PAYMENT_SUBMISSIONS_MODULE } from "../../../../../../modules/payment_submissions"
 import type PaymentSubmissionsService from "../../../../../../modules/payment_submissions/service"
@@ -262,6 +264,54 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
     } catch {
       // The other two homes still answer.
     }
+  }
+
+  /**
+   * ── 4. through the PAYMENT METHOD (`paid_to`) ───────────────────────────
+   *
+   * 🔴 #1712 defect 4, and the same class as #1710 one link over. A payment
+   * carries `paid_to` — the bank account or wallet it was sent to — and that
+   * method is linked to the partner who owns it. Six of 35 production payments
+   * (52,974) carry ONLY that association: no partner link, no order link, no
+   * submission link. Five of them map to a partner (47,974), so `recorded`
+   * under-reported by that much and Sharlho's ledger read 46,000 where the
+   * truth is 54,974.
+   *
+   * The money was always attributable. The ledger simply had no path to it —
+   * which reads as "this partner was not paid", the reading that pays someone
+   * a second time.
+   *
+   * ⚠️ Listed LAST so it only ever fills in rows the other three homes missed.
+   * A payment reached through the partner keeps that provenance; this one adds
+   * nothing but its own existence, which is exactly what was missing.
+   *
+   * ⚠️ The method must belong to THIS partner. Scoped through the link, never
+   * by reading `paid_to` and trusting it — a method is shared by nothing today,
+   * but a read that assumed so would attribute another partner's money here.
+   */
+  try {
+    const { data: methodRows } = await query.graph({
+      entity: PartnerPaymentMethodsLink.entryPoint,
+      fields: ["internal_payment_details.id"],
+      filters: { partner_id },
+    })
+    const methodIds = (methodRows || [])
+      .map((r: any) => r?.internal_payment_details?.id)
+      .filter(Boolean)
+      .map(String)
+
+    if (methodIds.length) {
+      const internalPayments: any = req.scope.resolve(INTERNAL_PAYMENTS_MODULE)
+      const rows = (await internalPayments.listPayments(
+        { paid_to_id: methodIds },
+        { relations: ["paid_to", "attachments"] }
+      )) as any[]
+      sources.push({ rows: (rows || []).filter(Boolean) })
+    }
+  } catch {
+    // Same reason as every source above: an incomplete panel beats a broken
+    // one. Losing this source understates `recorded`, which is the state this
+    // block exists to fix — it cannot invent money that is not there.
   }
 
   const payments = mergePaymentSources(sources)
