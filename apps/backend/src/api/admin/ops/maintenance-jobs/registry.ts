@@ -78,6 +78,7 @@ import {
 } from "../../../../scripts/whatsapp-templates/meta-template-sync"
 import { seedEmailTemplatesJob } from "./seed-jobs"
 import { seedInvestorPanelsJob } from "./seed-investor-panels-job"
+import { seedPlatformStatsPanelJob } from "./seed-platform-stats-panel-job"
 import { replayFxFanoutJob } from "./fanout-fx-job"
 import { backfillQuoteTenancyJob } from "./backfill-quote-tenancy-job"
 import { backfillStoreCurrenciesJob } from "./backfill-store-currencies-job"
@@ -5908,6 +5909,7 @@ export const MAINTENANCE_JOBS: MaintenanceJob[] = [
   setPlatformTaxIdentityActiveJob,
   backfillFulfilledRetailRunsJob,
   seedInvestorPanelsJob,
+  seedPlatformStatsPanelJob,
   seedGoodsTransferTaskTemplateJob,
 ]
 
