@@ -35,11 +35,13 @@ import { PARTNER_MCP_TOOLS } from "../../../api/partners/mcp/lib/registry"
 import { ADMIN_MCP_TOOLS } from "../../../api/admin/mcp/lib/registry"
 import {
   PartnerMintQuoteShape,
+  QuoteLineShape,
   QuoteReadinessShape,
 } from "../../../api/partners/quotes/validators"
 import {
   QUOTE_MINT_BODY_PARAMS,
   QUOTE_MINT_READINESS_BODY_PARAMS,
+  QUOTE_MINT_WRITE_GUIDANCE,
   quoteMintSchemaProps,
   quoteReadinessSchemaProps,
 } from "../../../modules/partner-quote/tool-schema"
@@ -77,6 +79,30 @@ describe("quote MCP tools — the body vocabulary matches its validators (#1439)
       for (const key of Object.keys(quoteMintSchemaProps())) {
         expect(QUOTE_MINT_BODY_PARAMS).toContain(key)
       }
+    })
+
+    /**
+     * 🔴 The checks above are all TOP-LEVEL, and a quote's real vocabulary is
+     * mostly inside a line. That blind spot cost `unit_weight_grams`: the
+     * validator accepted it, the dispatcher forwarded it (the allowlist walks
+     * the body, not the line), and the tool schema never mentioned it — so the
+     * model was never told the one field a DESIGN line cannot be priced
+     * without. Freight is rated on the summed basket weight and refuses the
+     * whole basket on the first line it cannot weigh, and a design has no
+     * weight of its own. The tool could describe a design quote it could never
+     * successfully mint.
+     */
+    it("describes every field a LINE accepts", () => {
+      const described = Object.keys(
+        (quoteMintSchemaProps() as any).lines.items.properties
+      )
+      expect(described.sort()).toEqual(Object.keys(QuoteLineShape.shape).sort())
+    })
+
+    it("tells the model how a design line differs", () => {
+      // The two refusals a design line hits that a variant line never does.
+      expect(QUOTE_MINT_WRITE_GUIDANCE).toContain("unit_weight_grams")
+      expect(QUOTE_MINT_WRITE_GUIDANCE).toContain("design_id")
     })
   })
 

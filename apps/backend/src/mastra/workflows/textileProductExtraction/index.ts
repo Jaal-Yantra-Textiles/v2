@@ -3,7 +3,11 @@ import { createWorkflow, createStep } from "@mastra/core/workflows";
 import { z } from "zod";
 import {
   createTextileAgentWithModel,
+  createTextileAgentFromModel,
   getTextileFallbackModels,
+  getTextileModelsForRun,
+  getTextileCooldownForRun,
+  setTextileCooldownForRun,
   isRateLimitError,
   sleep,
   MAX_RETRIES,
@@ -12,6 +16,47 @@ import {
 } from "../../agents/textileExtractionAgent";
 import { PinoLogger } from "@mastra/loggers";
 import { readModelJsonOrThrow } from "../../../lib/ai/model-json";
+
+/**
+ * `sharp`, loaded LAZILY and never as a top-level import.
+ *
+ * 🔴 It is a NATIVE module, and the production image builds its dependency tree
+ * with `pnpm deploy --ignore-scripts` — which skips the install script that
+ * fetches the platform binary. So `node_modules/sharp` ships without
+ * `build/Release/sharp-linux-x64.node`, and a static `import sharp from "sharp"`
+ * turns that absence into:
+ *
+ *     Error starting server: Something went wrong installing the "sharp" module
+ *     Cannot find module '../build/Release/sharp-linux-x64.node'
+ *
+ * which exits the container with code 1 before it can serve a request. The ECS
+ * circuit breaker then rolled production back through two consecutive deploys
+ * (#1729), leaving migrations applied and the code that needed them not live.
+ *
+ * The binary is now installed in the image and asserted at build time, so this
+ * should not recur — but the import stays lazy regardless, because the caller
+ * ALREADY treats an unusable sharp as non-fatal: it warns and sends the
+ * original bytes. A top-level import defeated that design by failing before any
+ * of that code could run. An image-processing nicety must never be able to take
+ * the server down at boot.
+ *
+ * Cached after the first attempt, including the failure — a missing binary does
+ * not become present, and retrying the import per image would log once per
+ * request.
+ */
+let sharpModule: any | null | undefined
+const loadSharp = async (logger: any): Promise<any | null> => {
+  if (sharpModule !== undefined) return sharpModule
+  try {
+    sharpModule = (await import("sharp")).default
+  } catch (err) {
+    logger?.warn?.(
+      `[TextileExtraction] sharp is unavailable — images will be sent as fetched, so HEIC will still be rejected by the vision providers: ${err}`
+    )
+    sharpModule = null
+  }
+  return sharpModule
+}
 
 const logger = new PinoLogger();
 
@@ -96,6 +141,10 @@ const laxObject = <T extends z.ZodTypeAny>(inner: T) =>
     inner.nullable()
   )
 
+/** Longest-side cap for images sent to vision models — keeps the base64 body
+ * under Cloudflare's request-size ceiling and matches typical "high detail". */
+const MAX_IMAGE_DIM = 1024;
+
 // Input schema for the workflow
 export const triggerSchema = z.object({
   image_url: z
@@ -121,6 +170,9 @@ export const triggerSchema = z.object({
   gender: z.enum(["female", "male", "unisex"]).optional().default("unisex"),
   threadId: z.string().optional(),
   resourceId: z.string().optional(),
+  // Non-secret handle used to fetch the admin-resolved vision models that the
+  // Medusa layer stashed for this run (see setTextileModelsForRun).
+  run_id: z.string().optional(),
 });
 
 // ─────────────────────────────────────────────────────────────
@@ -257,7 +309,7 @@ const prepareImageForAgent = async (image_url: string): Promise<{ image: string;
   if (image_url.startsWith("http")) {
     try {
       const resp = await fetch(image_url);
-      const buf = Buffer.from(await resp.arrayBuffer());
+      let buf = Buffer.from(await resp.arrayBuffer());
 
       const isPng = buf[0] === 0x89 && buf[1] === 0x50 && buf[2] === 0x4e && buf[3] === 0x47;
       const isJpeg = buf[0] === 0xff && buf[1] === 0xd8;
@@ -272,6 +324,40 @@ const prepareImageForAgent = async (image_url: string): Promise<{ image: string;
       else {
         const ct = resp.headers.get("content-type") || "";
         if (ct.startsWith("image/")) mimeType = ct.split(";")[0].trim();
+      }
+
+      // 🔑 Normalise through sharp → JPEG. HEIC (iPhone) and other phone
+      // formats are rejected by almost every vision model (Cloudflare:
+      // "unrecognized image format", Minimax: "image/heic not supported"), and
+      // an oversized base64 body trips Cloudflare's request-size limit. Anything
+      // that isn't already JPEG/PNG/WebP is re-encoded, and everything is capped
+      // to MAX_IMAGE_DIM so the body stays small.
+      const needsReencode = !isJpeg && !isPng && !isWebp; // HEIC, GIF, TIFF, …
+      const sharp = await loadSharp(logger);
+      try {
+        if (!sharp) {
+          throw new Error(
+            "sharp is unavailable in this runtime — cannot re-encode"
+          );
+        }
+        const meta = await sharp(buf, { failOn: "none" }).metadata();
+        const tooBig =
+          (meta.width ?? 0) > MAX_IMAGE_DIM || (meta.height ?? 0) > MAX_IMAGE_DIM;
+        if (needsReencode || tooBig) {
+          buf = await sharp(buf, { failOn: "none" })
+            .rotate() // apply EXIF orientation
+            .resize({
+              width: MAX_IMAGE_DIM,
+              height: MAX_IMAGE_DIM,
+              fit: "inside",
+              withoutEnlargement: true,
+            })
+            .jpeg({ quality: 82 })
+            .toBuffer();
+          mimeType = "image/jpeg";
+        }
+      } catch (err) {
+        logger.warn(`[TextileExtraction] sharp re-encode failed, using original bytes: ${err}`);
       }
 
       const b64 = buf.toString("base64");
@@ -293,17 +379,75 @@ const runVisionExtraction = async <T>(
   label: string,
   messages: any[],
   outputSchema: any,
-  context?: { threadId?: string; resourceId?: string }
+  context?: { threadId?: string; resourceId?: string; runId?: string }
 ): Promise<T> => {
+  let lastError: any = null;
+
+  // ── 1. Admin-configured vision providers (Cloudflare → Groq → …) ────────
+  // Built in the Medusa layer (which has the container) and stashed by runId.
+  // These generate PLAIN text and parse via readModelJsonOrThrow, because
+  // Groq/Cloudflare don't reliably honour AI-SDK `json_schema` structured
+  // output — the prompts already demand "ONLY a valid JSON object".
+  //
+  // Rate-limit handling matches the free ladder below: a 429 retries the SAME
+  // provider with exponential backoff (a transient 429 must not cascade into
+  // the next provider and burn ITS rpm), and a provider that stays rate-limited
+  // after retries is cooled down for the rest of this run so the other passes
+  // and providers take over.
+  const configuredModels = getTextileModelsForRun(context?.runId);
+  const cooldown = getTextileCooldownForRun(context?.runId);
+  for (let i = 0; i < configuredModels.length; i++) {
+    if (cooldown.has(i)) {
+      logger.info(`[${label}] Configured provider #${i + 1} in cooldown — skipping`);
+      continue;
+    }
+
+    let retryCount = 0;
+    while (retryCount < MAX_RETRIES) {
+      try {
+        const agent = await createTextileAgentFromModel(configuredModels[i]);
+        logger.info(`[${label}] Attempting configured vision provider #${i + 1}/${configuredModels.length} (attempt ${retryCount + 1})`);
+        const response = await agent.generate(messages);
+        const parsed = readModelJsonOrThrow(response, `${label}(configured#${i})`) as T;
+        logger.info(`[${label}] Successfully extracted with configured vision provider`);
+        return parsed;
+      } catch (error: any) {
+        lastError = error;
+        const errorMsg = error?.message || String(error);
+        logger.warn(`[${label}] Error with configured provider #${i + 1} (attempt ${retryCount + 1}): ${errorMsg}`);
+
+        if (isRateLimitError(error)) {
+          retryCount++;
+          if (retryCount < MAX_RETRIES) {
+            const delay = Math.min(
+              INITIAL_RETRY_DELAY_MS * Math.pow(2, retryCount - 1) + Math.random() * 2000,
+              MAX_RETRY_DELAY_MS
+            );
+            logger.info(`[${label}] Rate limited on provider #${i + 1}. Waiting ${Math.round(delay / 1000)}s before retry...`);
+            await sleep(delay);
+          } else {
+            cooldown.add(i);
+            setTextileCooldownForRun(context?.runId ?? "", cooldown);
+            logger.warn(`[${label}] Provider #${i + 1} still rate-limited — cooling down for this run.`);
+            break;
+          }
+        } else {
+          logger.warn(`[${label}] Non-rate-limit error on provider #${i + 1}. Trying next provider...`);
+          break;
+        }
+      }
+    }
+  }
+
+  // ── 2. OpenRouter `:free` fallback ladder ────────────────────────────────
   const availableModels = await getTextileFallbackModels();
-  logger.info(`[${label}] Available vision models: ${availableModels.slice(0, 5).join(", ")}`);
+  logger.info(`[${label}] Free vision models: ${availableModels.slice(0, 5).join(", ")}`);
 
   const stableResourceId =
     context?.resourceId && !String(context.resourceId).startsWith("textile-extraction:http")
       ? context.resourceId
       : `textile-extraction:${label}`;
 
-  let lastError: any = null;
   let modelIndex = 0;
 
   while (modelIndex < availableModels.length) {
@@ -353,7 +497,14 @@ const runVisionExtraction = async <T>(
     }
   }
 
-  throw new Error(`[${label}] All vision models exhausted. Last error: ${lastError?.message || String(lastError)}`);
+  // Surface the provider's REAL reason, not just a wrapped "Provider returned
+  // error". The AI SDK buries the detail in `responseBody` (e.g. Cloudflare
+  // "unrecognized image format", Minimax "image/heic not supported"), which is
+  // the difference between a diagnosable failure and "[object Object]".
+  const lastDetail = lastError?.responseBody
+    ? `${lastError?.message ?? "error"} — ${String(lastError.responseBody).slice(0, 300)}`
+    : lastError?.message || String(lastError)
+  throw new Error(`[${label}] All vision models exhausted. Last error: ${lastDetail}`);
 };
 
 // ─────────────────────────────────────────────────────────────
@@ -424,7 +575,7 @@ Return ONLY a valid JSON object. Do not include markdown, commentary, or any tex
       "TextileObservation",
       messages,
       visualObservationsSchema,
-      { threadId: inputData.threadId, resourceId: inputData.resourceId }
+      { threadId: inputData.threadId, resourceId: inputData.resourceId, runId: inputData.run_id }
     );
 
     return observations;
@@ -445,11 +596,12 @@ const deriveProductFieldsStep = createStep({
     gender: z.enum(["female", "male", "unisex"]).optional().default("unisex"),
     threadId: z.string().optional(),
     resourceId: z.string().optional(),
+    run_id: z.string().optional(),
     observations: visualObservationsSchema,
   }),
   outputSchema: textileProductSchema,
   execute: async ({ inputData }) => {
-    const { image_url, hints, gender, threadId, resourceId, observations } = inputData;
+    const { image_url, hints, gender, threadId, resourceId, run_id, observations } = inputData;
 
     logger.info(`[TextileDerivation] Deriving product fields from observations for image: ${image_url.substring(0, 50)}...`);
 
@@ -547,7 +699,7 @@ Return ONLY a valid JSON object. Do not include markdown, commentary, or any tex
       "TextileDerivation",
       messages,
       textileProductSchema,
-      { threadId, resourceId }
+      { threadId, resourceId, runId: run_id }
     );
 
     return product;
@@ -683,6 +835,7 @@ export const textileProductExtractionWorkflow = createWorkflow({
       gender: init.gender || "unisex",
       threadId: init.threadId,
       resourceId: init.resourceId,
+      run_id: (init as any).run_id,
       observations: inputData,
     };
   })

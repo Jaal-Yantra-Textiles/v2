@@ -20,8 +20,9 @@ describe("openrouter.outputsText", () => {
     expect(outputsText(model("some/image-gen", ["image"]))).toBe(false)
   })
 
-  it("keeps multi-output models that include text", () => {
-    expect(outputsText(model("x/multi", ["text", "image"]))).toBe(true)
+  it("rejects multi-output models that also emit non-text (lyria advertises ['text','audio'])", () => {
+    expect(outputsText(model("x/multi", ["text", "image"]))).toBe(false)
+    expect(outputsText(model("google/lyria-3-pro-preview", ["text", "audio"]))).toBe(false)
   })
 
   it("keeps models that omit output_modalities (free chat models often do)", () => {

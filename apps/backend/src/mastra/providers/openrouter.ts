@@ -124,7 +124,11 @@ export function filterByOutputModality(
 export function outputsText(m: OpenRouterModel): boolean {
   const out = m.architecture?.output_modalities
   if (!out || out.length === 0) return true
-  return out.includes("text")
+  // Text-ONLY output. Models that also emit audio/image (e.g. `google/lyria-3-*`
+  // music generators advertise `["text","audio"]`) return un-parseable output —
+  // and, being non-`:free` "preview" models, get billed per attempt. Requiring
+  // every output modality to be "text" excludes them from the free ladder.
+  return out.includes("text") && out.every((modality) => modality === "text")
 }
 
 // Separate cache for vision models
@@ -146,7 +150,12 @@ export async function getFreeVisionModels(): Promise<OpenRouterModel[]> {
     const freeModels = filterFreeModels(allModels)
     // Must accept image INPUT and return text OUTPUT (see outputsText).
     const withImageInput = filterByInputModality(freeModels, ["image"])
-    cachedFreeVisionModels = withImageInput.filter(outputsText)
+    // `:free` only — a non-`:free` "preview" model (google/lyria-3-*, …) is
+    // listed at $0 in the catalog but billed per request. Restricting to the
+    // explicit `:free` suffix guarantees the fallback ladder never costs money.
+    cachedFreeVisionModels = withImageInput
+      .filter(outputsText)
+      .filter((m) => m.id.endsWith(":free"))
     visionCacheTimestamp = now
 
     // Sort by context length descending

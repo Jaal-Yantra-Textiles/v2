@@ -246,8 +246,10 @@ import {
   AdminUpdateFormSchema,
 } from "./admin/forms/validators";
 // Payments: schemas
-import { PaymentSchema, ListPaymentsQuerySchema, UpdatePaymentSchema } from "./admin/payments/validators";
+import { PaymentSchema, ListPaymentsQuerySchema, UpdatePaymentSchema, PaymentSettlesSchema } from "./admin/payments/validators";
 import { CreatePaymentAndLinkSchema } from "./admin/payments/link/validators";
+import { CreatePartnerCreditSchema } from "./admin/partners/[id]/credits/validators";
+import { ApplyPartnerCreditSchema } from "./admin/partners/[id]/credits/[creditId]/apply/validators";
 import { ListPaymentsByPersonQuerySchema } from "./admin/payments/persons/[id]/validators";
 import { ListPaymentsByPartnerQuerySchema } from "./admin/payments/partners/[id]/validators";
 import { ListPaymentMethodsByPersonQuerySchema, CreatePaymentMethodForPersonSchema } from "./admin/payments/persons/[id]/methods/validators";
@@ -3573,6 +3575,23 @@ export default defineMiddlewares({
     },
 
     {
+      /**
+       * 🔴 MUST precede `/admin/payments/:id` below (#1710). Matching is
+       * prefix-based and `UpdatePaymentSchema` is `.strict()`, so the update
+       * entry would otherwise claim this path and reject
+       * `payment_submission_id` as an unrecognised field — a 400 that reads
+       * like a bad request rather than a mis-ordered route.
+       */
+      matcher: "/admin/payments/:id/settles",
+      method: "POST",
+      middlewares: [validateAndTransformBody(wrapSchema(PaymentSettlesSchema))],
+    },
+    {
+      matcher: "/admin/payments/:id/settles",
+      method: "DELETE",
+      middlewares: [],
+    },
+    {
       matcher: "/admin/payments/:id",
       method: "POST",
       middlewares: [validateAndTransformBody(wrapSchema(UpdatePaymentSchema))],
@@ -3813,6 +3832,23 @@ export default defineMiddlewares({
      */
     {
       matcher: "/partners/payment-submissions/payable-runs",
+      method: "GET",
+      middlewares: [authenticate("partner", ["session", "bearer"])],
+    },
+    {
+      /**
+       * #1710 — the goods half of what a partner may bill for. Same placement
+       * rule as `payable-runs` above: before the list entry, whose query
+       * validator would otherwise claim this path.
+       */
+      matcher: "/partners/payment-submissions/payable-inventory-orders",
+      method: "GET",
+      middlewares: [authenticate("partner", ["session", "bearer"])],
+    },
+    // Partner Credits (#1712) — read-only. Auth is PER-ROUTE here: without this
+    // entry the route 401s, and both tsc and a green suite stay silent about it.
+    {
+      matcher: "/partners/credits",
       method: "GET",
       middlewares: [authenticate("partner", ["session", "bearer"])],
     },
@@ -4144,6 +4180,11 @@ export default defineMiddlewares({
       method: "GET",
       middlewares: [],
     },
+    {
+      matcher: "/admin/medias/folder/:id/extract-features/retry",
+      method: "POST",
+      middlewares: [],
+    },
     // Person Types
     {
       matcher: "/admin/persontypes",
@@ -4335,6 +4376,29 @@ export default defineMiddlewares({
       matcher: "/admin/partners",
       method: "POST",
       middlewares: [validateAndTransformBody(wrapSchema(PostPartnerSchema))],
+    },
+    // Admin Partner Credits (#1712) — money the partner already holds that no
+    // payout consumed. GET carries no body; POST is validated.
+    {
+      matcher: "/admin/partners/:id/credits",
+      method: "GET",
+      middlewares: [],
+    },
+    {
+      matcher: "/admin/partners/:id/credits",
+      method: "POST",
+      middlewares: [
+        validateAndTransformBody(wrapSchema(CreatePartnerCreditSchema)),
+      ],
+    },
+    // Applying a credit to a payout (#1712) — the deliberate act the model was
+    // built around. Never inferred by a fold; always a human naming the payout.
+    {
+      matcher: "/admin/partners/:id/credits/:creditId/apply",
+      method: "POST",
+      middlewares: [
+        validateAndTransformBody(wrapSchema(ApplyPartnerCreditSchema)),
+      ],
     },
     // Admin Partner Subscription
     {

@@ -105,6 +105,45 @@ RUN pnpm run build
 RUN pnpm deploy --legacy --filter=@jyt/backend --prod --ignore-scripts \
       --prefer-offline --store-dir "$PNPM_STORE_DIR" /prod-deps
 
+# --- native modules the --ignore-scripts above skipped ----------------------
+# `--ignore-scripts` keeps the deploy deterministic, but it also skips the
+# install script that fetches sharp's PLATFORM BINARY, so /prod-deps ships a
+# `sharp` package with no build/Release/sharp-linux-x64.node.
+#
+# 🔴 That gap was invisible for as long as nothing loaded sharp at BOOT. When
+# #1729 added a top-level `import sharp`, the server exited 1 on startup with
+# "Cannot find module '../build/Release/sharp-linux-x64.node'", the ECS
+# deployment circuit breaker rolled production back through two consecutive
+# deploys, and prod ran an older image with two commits' migrations already
+# applied. The image built, pushed, and passed every check — the only thing that
+# knew it was broken was the container, at runtime.
+#
+# ⚠️ `pnpm rebuild sharp` does NOT work here — measured, not assumed: in
+# /prod-deps it matches nothing, prints nothing, and exits 0, leaving the tree
+# exactly as broken as it found it. A command that silently does nothing is
+# indistinguishable from one that worked.
+#
+# The binary is already on disk. The BUILDER install at the top of this stage
+# runs with scripts enabled and its log shows sharp fetching and verifying it:
+#   sharp: Downloading libvips-8.14.5-linux-x64.tar.br
+#   sharp: Integrity check passed for linux-x64
+# So this copies what that install produced into the deployed tree, per sharp
+# version present, rather than trying to fetch it a second time. `build/` holds
+# the .node binding and `vendor/` the libvips shared objects it links against —
+# both are needed, and copying only the first fails at load with a missing .so.
+RUN set -eu; \
+    for dest in /prod-deps/node_modules/.pnpm/sharp@*/node_modules/sharp; do \
+      [ -d "$dest" ] || continue; \
+      ver=$(basename "$(dirname "$(dirname "$dest")")"); \
+      src="/app/node_modules/.pnpm/$ver/node_modules/sharp"; \
+      for dir in build vendor; do \
+        if [ -d "$src/$dir" ] && [ ! -d "$dest/$dir" ]; then \
+          cp -r "$src/$dir" "$dest/$dir"; \
+          echo "sharp: copied $dir for $ver"; \
+        fi; \
+      done; \
+    done
+
 # `medusa build` copies apps/backend's dependencies verbatim into
 # .medusa/server/package.json, so the tree above is exactly what the compiled
 # server needs. That is an assumption about Medusa's build, not a guarantee —
@@ -115,6 +154,26 @@ const deps=Object.keys(require('/app/apps/backend/.medusa/server/package.json').
 const missing=deps.filter(d=>!require('fs').existsSync('/prod-deps/node_modules/'+d+'/package.json'));\
 if(missing.length){console.error('Missing from the deployed prod tree: '+missing.join(', '));process.exit(1);}\
 console.log('runtime dep check OK ('+deps.length+' deps)');"
+
+# The check above proves each dependency's package.json is PRESENT. That is not
+# the same as loadable: a native module can have a perfect package.json and no
+# binary, which is exactly how sharp shipped broken.
+#
+# ⚠️ Reports, deliberately does NOT fail the build. Sharp is optional to this
+# server by design — the one caller warns and sends the original bytes — and
+# since #1729's import is lazy again, an absent binary can no longer stop the
+# process from booting. Making it build-fatal traded a degraded FEATURE for an
+# undeployable REPO, which is the worse failure: it blocked the two commits
+# whose migrations were already applied to production. The line below is how a
+# reader of the build log finds out; the runtime logs a warning on first use.
+RUN node -e "\
+try{\
+  const s=require('/prod-deps/node_modules/sharp');\
+  console.log('sharp native binding OK (libvips '+(s.versions&&s.versions.vips)+')');\
+}catch(e){\
+  console.warn('⚠️  sharp WILL NOT LOAD in the shipped image: '+e.message);\
+  console.warn('   The server still boots; HEIC/oversized images pass through un-transcoded and the vision providers reject them.');\
+}"
 
 # -----------------------------------------------------------------------------
 # Runtime image — ships only the compiled server and its prod deps.

@@ -506,6 +506,152 @@ export const ADMIN_MCP_TOOLS: AdminMcpToolDef[] = [
     inputSchema: obj({ ...PAGINATION }),
   },
 
+  /**
+   * The partner money surface (#1710/#1712).
+   *
+   * These five rows are one question asked five ways — "what does this partner
+   * still have coming, and what has already moved" — and each wraps a route
+   * whose answer is NOT reproducible by reading a table. `list_payments` above
+   * shows rows; none of these do. They show the FOLD, which is where the
+   * double-pay traps live.
+   */
+  {
+    name: "get_partner_ledger",
+    description:
+      "The whole money record for one partner: every payout (billed / paid / outstanding) plus every payment recorded against them, from all THREE homes a payment can live in (the partner link, the inventory-order link, and the payment method's `paid_to`). Read this BEFORE answering 'has this partner been paid' — the payout list alone said `recorded: 0` for a partner holding INR 121,777. 🔑 The figures are nested under `.totals`, not at the top level: a read of `.billed` returns undefined, which is a confident nothing. `recorded_against_open` is money already sitting against a source an UNPAID payout bills — reported BESIDE `outstanding`, never subtracted from it; whether it discharges the payout is a human decision, recorded with link_payment_to_payout.",
+    method: "GET",
+    path: "/admin/payments/partners/:id/ledger",
+    pathParams: ["id"],
+    inputSchema: obj({ id: STR("Partner id, e.g. 'partner_...'.") }, ["id"]),
+    nextSteps: [
+      "list_payable_runs",
+      "list_payable_inventory_orders",
+      "get_partner_credits",
+      "link_payment_to_payout",
+    ],
+  },
+  {
+    name: "list_payable_runs",
+    description:
+      "The completed production runs this partner can still be billed for — WORK, as opposed to goods. One row per run, carrying its billing status (`clear` / `partly_billed` / `billed` / `unknown`), produced vs ordered quantity, the agreed rate and how much of the run a prior payout already claimed. ⚠️ `unknown` means the run's billing history could not be verified, NOT that it is unbilled: billing it is how the same garments get paid for twice.",
+    method: "GET",
+    path: "/admin/payment-submissions/payable-runs",
+    queryParams: ["partner_id"],
+    inputSchema: obj(
+      {
+        partner_id: STR(
+          "Partner id. REQUIRED — this endpoint answers 'what can I pay THIS partner for', and the route refuses without it rather than returning every completed run on the platform."
+        ),
+      },
+      ["partner_id"]
+    ),
+    nextSteps: ["list_payable_inventory_orders", "get_partner_ledger"],
+  },
+  {
+    name: "list_payable_inventory_orders",
+    description:
+      "The inventory (purchase) orders this partner can still be billed for — GOODS, as opposed to work. Rows carry what the order is worth by RECEIPTS, what earlier payouts already claimed, and the remaining billable amount. 🔑 A `count: 0` here does NOT mean the partner is owed nothing: this route answers only about ORDERS, and their unbilled work may all be in runs (call list_payable_runs too). A partially received order is billable only for what actually arrived.",
+    method: "GET",
+    path: "/admin/payment-submissions/payable-inventory-orders",
+    queryParams: ["partner_id"],
+    inputSchema: obj(
+      {
+        partner_id: STR(
+          "Partner id. REQUIRED — the route refuses without it rather than listing every partner's orders."
+        ),
+      },
+      ["partner_id"]
+    ),
+    nextSteps: ["list_payable_runs", "get_partner_ledger"],
+  },
+  {
+    name: "get_partner_credits",
+    description:
+      "Money this partner ALREADY HOLDS that no payout has consumed — an overpayment, an adjustment or a goodwill credit. Returns the credit rows plus `open_total` (only `Open` credits; an `Applied` one has already reduced a payout). 🔑 Reported beside `outstanding`, never netted against it: applying a credit is a deliberate act, and a partner can hold a credit on one order while being genuinely owed money on another — use apply_partner_credit to make that decision. Each row carries `inventory_order_id`: the order the credit is EARMARKED against, or null when it is partner-wide. An earmark is where the founder decided the credit should be consumed; it does not restrict which payout it may be applied to.",
+    method: "GET",
+    path: "/admin/partners/:id/credits",
+    pathParams: ["id"],
+    inputSchema: obj({ id: STR("Partner id, e.g. 'partner_...'.") }, ["id"]),
+    nextSteps: ["apply_partner_credit", "get_partner_ledger"],
+  },
+  {
+    name: "apply_partner_credit",
+    description:
+      "Consume an Open credit against a specific payout — the deliberate act that turns money the partner already holds into a reduction of what they are still owed. The credit becomes `Applied`, stamps the payout it discharged, and the ledger's `credited` rises while `outstanding` falls by the same amount. Sensitive: requires confirm:true. 🔑 `paid` does NOT move — that figure means money that transferred, and a founder reconciling the ledger against a bank statement must not find a number no statement explains. 🔴 This is the SAFE way to carry a surplus forward; never link one payment to two payouts to do it, because `paid` sums per payout with only a per-payout clamp and the same money would count in full against both. ⚠️ A credit applies WHOLE — there is no partial application — so it is refused if it is larger than what the payout still claims, if the credit is not Open, or if the payout is Paid or Rejected. The refusal names both numbers.",
+    method: "POST",
+    path: "/admin/partners/:id/credits/:creditId/apply",
+    pathParams: ["id", "creditId"],
+    bodyParams: ["submission_id"],
+    previewPath: "/admin/partners/:id/credits",
+    write: true,
+    sensitive: true,
+    inputSchema: obj(
+      {
+        id: STR("Partner id who holds the credit."),
+        creditId: STR(
+          "The credit to consume. Must belong to this partner — the route reads it through the partner link and 404s otherwise, because `partner_credit` has no partner column and an id alone would happily apply someone else's money."
+        ),
+        submission_id: STR(
+          "The payout (payment submission) this credit discharges. Must belong to the SAME partner. Required — a credit applied to a partner in general reduces nothing and stamps a decision nobody can audit."
+        ),
+      },
+      ["id", "creditId", "submission_id"]
+    ),
+    sideEffects:
+      "Sets the credit to `Applied` and stamps `applied_to_submission_id` + `applied_at`. Moves `credited` and `outstanding` on the partner ledger; leaves `paid`, every payment, and the payout's own status and amount untouched. Forward-only — there is no unapply, because reversing a settled money decision is a new decision that belongs in a credit of its own.",
+    nextSteps: ["get_partner_ledger", "get_partner_credits"],
+  },
+  {
+    name: "link_payment_to_payout",
+    description:
+      "Record that an existing payment SETTLES a payout — the only way a payout can be settled in PART (the payout keeps its status; `paid` on the ledger moves by the payment's amount). Sensitive: requires confirm:true. 🔴 Never link one payment to TWO payouts to carry a surplus forward: `paid` sums per payout with only a per-payout clamp, so the same money would count in full against both. Record the surplus as a credit instead. 🔴 Only a `Completed` payment settles anything — two production rows are COMMITMENT rows (the exact ordered total, filed the day the order was created) and are not money that moved.",
+    method: "POST",
+    path: "/admin/payments/:id/settles",
+    pathParams: ["id"],
+    bodyParams: ["payment_submission_id"],
+    previewPath: "/admin/payments/:id",
+    write: true,
+    sensitive: true,
+    inputSchema: obj(
+      {
+        id: STR("Payment id (an `internal_payments` row) whose money settles the payout."),
+        payment_submission_id: STR(
+          "The payout (payment submission) this payment settles. Must belong to the SAME partner as the payment — the route refuses otherwise, because a payment discharging another partner's payout pays the wrong person and leaves a link nobody would question."
+        ),
+      },
+      ["id", "payment_submission_id"]
+    ),
+    sideEffects:
+      "Creates the payment↔payout link and moves `paid` / `outstanding` on the partner ledger. Repeating the same link is a no-op, not an error. Writes no payment and changes no payout status.",
+    nextSteps: ["get_partner_ledger"],
+  },
+  {
+    name: "unlink_payment_from_payout",
+    description:
+      "Undo a link_payment_to_payout — the payment no longer settles that payout, and the payout's `paid` falls back by that amount. Sensitive (every DELETE is): requires confirm:true. Use it when a payment was attributed to the wrong payout; it deletes no payment and no payout.",
+    method: "DELETE",
+    path: "/admin/payments/:id/settles",
+    pathParams: ["id"],
+    /**
+     * Query, not body: the route reads `payment_submission_id` from the query
+     * FIRST and its middleware entry registers no body validator. A DELETE body
+     * would work today and is one middleware edit away from being ignored.
+     */
+    queryParams: ["payment_submission_id"],
+    previewPath: "/admin/payments/:id",
+    write: true,
+    inputSchema: obj(
+      {
+        id: STR("Payment id whose settlement link is being removed."),
+        payment_submission_id: STR("The payout the payment should no longer settle."),
+      },
+      ["id", "payment_submission_id"]
+    ),
+    sideEffects:
+      "Removes the payment↔payout link and lowers `paid` on the partner ledger by that payment's amount.",
+    nextSteps: ["get_partner_ledger"],
+  },
+
   // ===== Marketing & analytics ============================================
   {
     name: "list_publishing_campaigns",

@@ -6,6 +6,7 @@ import { TwoColumnPage } from "../../../components/pages/two-column-pages"
 import { PartnerGeneralSection } from "../../../components/partners/partner-general-section"
 import { PartnerAdminsSection } from "../../../components/partners/partner-admins-section"
 import { PartnerLedgerSection } from "../../../components/partners/partner-ledger-section"
+import { PartnerCreditsSection } from "../../../components/partners/partner-credits-section"
 import { PartnerTasksSection } from "../../../components/partners/partner-tasks-section"
 import { PartnerFeedbacksSection } from "../../../components/partners/partner-feedbacks-section"
 import { PartnerStorefrontSection } from "../../../components/partners/partner-storefront-section"
@@ -65,6 +66,10 @@ const PartnerDetailPage = () => {
               `internal_payments` above, submissions below — which since #1638
               means each showed half the money with nothing saying so. */}
           <PartnerLedgerSection partnerId={partner.id} />
+          {/* Directly beneath the ledger, because the two are read together:
+              the ledger says what is still owed, and this says how much of it
+              money already in the partner's hands could discharge (#1712). */}
+          <PartnerCreditsSection partnerId={partner.id} />
           <PartnerTransactionFeesSection partnerId={partner.id} />
           <PartnerFeedbacksSection partnerId={partner.id} />
         </TwoColumnPage.Sidebar>

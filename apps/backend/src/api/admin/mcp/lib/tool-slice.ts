@@ -100,6 +100,16 @@ const PREFIX_DOMAINS: ReadonlyArray<readonly [string, AdminToolDomain]> = [
   // any conversation, so it lives in the always-present core slice.
   ["/admin/assistant/vision", "core"],
   ["/admin/payments", "money"],
+  // The payout side of money. Without this entry every payable-runs /
+  // payable-inventory-orders tool classifies as undefined and loads in NO
+  // slice — registered, callable in principle, and reachable from no ask.
+  ["/admin/payment-submissions", "money"],
+  /**
+   * A credit is money, not partner administration, so it rides the money slice
+   * rather than inheriting `partners` from the `/admin/partners` prefix above.
+   * Longer prefix wins, and this is the whole reason the match is longest-wins.
+   */
+  ["/admin/partners/:id/credits", "money"],
   ["/admin/publishing-campaigns", "marketing"],
   ["/admin/notifications", "marketing"],
   // Social posts and platform integrations belong to marketing — they are the
@@ -223,6 +233,16 @@ const DOMAIN_KEYWORDS: Record<Exclude<AdminToolDomain, "core">, string[]> = {
   money: [
     "payment", "payments", "payout", "payouts", "invoice", "invoices",
     "revenue", "settle", "settlement", "money", "paid", "unpaid", "balance",
+    // What a partner is still OWED, and what they already hold (#1710/#1712).
+    // An operator asks "what can I pay hrhandloom for?" or "does anyone hold a
+    // credit?" — neither sentence contains a word above, and the ledger is the
+    // one read that prevents paying for the same garments twice.
+    // Bare "pay" is deliberate: "what can I still PAY this partner for?" is the
+    // most natural phrasing of the question these tools exist to answer, and
+    // "paid" below does not match it — word boundaries are exact.
+    "pay", "pays", "paying", "owe", "owed", "owing", "outstanding", "ledger", "bill", "billed",
+    "billable", "payable", "credit", "credits", "overpaid", "overpayment",
+    "advance", "reconcile", "reconciliation", "settled", "unsettled",
   ],
   marketing: [
     "campaign", "campaigns", "newsletter", "email", "emails", "notification",

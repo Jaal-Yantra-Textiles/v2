@@ -83,6 +83,12 @@ export const POST = async (
       partner_id: partner.id,
       design_ids: body.design_ids || [],
       task_ids: body.task_ids || [],
+      /**
+       * Goods this partner delivered (#1710). The workflow values an amountless
+       * line from the typed receipts and refuses any order this partner does
+       * not own — see `assessInventoryOrderClaims`.
+       */
+      inventory_order_lines: body.inventory_order_lines,
       notes: body.notes,
       documents: body.documents,
       // Typed input, not folded into metadata — see the field's docs.

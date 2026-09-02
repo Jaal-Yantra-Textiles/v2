@@ -143,6 +143,9 @@ const PREFIX_DOMAINS: ReadonlyArray<readonly [string, PartnerToolDomain]> = [
   ["/partners/payments", "money"],
   ["/partners/payment-providers", "money"],
   ["/partners/payment-submissions", "money"],
+  // Money the partner already holds (#1712). Without an entry the tool
+  // classifies as undefined and loads in no slice at all.
+  ["/partners/credits", "money"],
   ["/partners/payment-collections", "money"],
 ]
 
@@ -291,6 +294,13 @@ const DOMAIN_KEYWORDS: Record<Exclude<PartnerToolDomain, "core">, string[]> = {
     "revenue", "settle", "settlement", "money", "paid", "unpaid", "balance",
     "submission", "payment submission", "payment provider", "payment providers",
     "payment collection", "payment collections", "mark as paid", "collect payment",
+    // What the partner may still bill for, and what they already hold. "what
+    // can I invoice for?" / "am I owed anything?" name none of the words above.
+    // Bare "pay" is deliberate: "what can I still PAY this partner for?" is the
+    // most natural phrasing of the question these tools exist to answer, and
+    // "paid" below does not match it — word boundaries are exact.
+    "pay", "pays", "paying", "owe", "owed", "owing", "outstanding", "bill", "billed", "billable",
+    "payable", "credit", "credits", "overpaid", "overpayment", "advance",
   ],
 }
 

@@ -58,7 +58,7 @@ export const CreateSocialPostSteps = () => {
   const { handleSuccess } = useRouteModal()
   const { mutateAsync: createPost, isPending: isPostPending } = useCreateSocialPost()
   const { mutateAsync: createCampaign, isPending: isCampaignPending } = useCreateCampaign()
-  const { socialPlatforms = [], isLoading: isPlatformsLoading } = useSocialPlatforms()
+  const { socialPlatforms = [], isLoading: isPlatformsLoading } = useSocialPlatforms({ category: "social" })
   const { products = [], isLoading: isProductsLoading } = useProducts({ limit: 100 })
   const { data: contentRulesData } = useContentRules()
   

@@ -373,3 +373,42 @@ export const useFolderExtractionStatus = (
     refetchInterval: options?.refetchInterval,
   });
 };
+
+/**
+ * Hook to retry the media files that FAILED a previous folder extraction.
+ * One call — the endpoint reads `folder_extraction.errors` and re-runs only
+ * those files (auto-confirmed), no separate trigger/confirm step.
+ */
+export const useRetryFolderExtraction = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (folderId: string) => {
+      const response = await fetch(
+        `/admin/medias/folder/${folderId}/extract-features/retry`,
+        { method: "POST" }
+      );
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.message || "Failed to retry extraction");
+      }
+      return response.json() as Promise<{
+        message: string;
+        transaction_id: string;
+        folder_id: string;
+        retried: number;
+      }>;
+    },
+    onSuccess: (data) => {
+      toast.success(data.message || "Retrying failed extractions");
+      queryClient.invalidateQueries({
+        queryKey: mediaFolderDetailQueryKeys.all,
+      });
+    },
+    onError: (error: any) => {
+      const message = error?.message || "Failed to retry extraction";
+      toast.error(message);
+      console.error("[useRetryFolderExtraction] Error:", error);
+    },
+  });
+};

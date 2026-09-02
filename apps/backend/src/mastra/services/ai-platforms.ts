@@ -44,6 +44,7 @@ export type AiProviderType =
   | "cloudflare"
   | "vercel_ai_gateway"
   | "fal"
+  | "groq"
   | "custom"
 
 export type AiRole =
@@ -123,6 +124,13 @@ const PROVIDER_DEFAULTS: Record<
     baseUrl: "https://gateway.ai.cloudflare.com/v1", // overridable; admin
     // can set api_config.base_url for the actual endpoint.
   },
+  groq: {
+    // OpenAI-compatible. Free tier has a generous per-day token budget; the
+    // qwen3.x models accept image input (vision) despite `/models` not
+    // advertising a `-vision` model.
+    baseUrl: "https://api.groq.com/openai/v1",
+    defaultModelHint: "qwen/qwen3.6-27b",
+  },
   fal: {
     // FAL has its own SDK — not OpenAI-compatible. The helper here is
     // only used to surface the API key; callers use the @fal-ai/client
@@ -154,6 +162,8 @@ const normalizeProviderType = (raw: unknown): AiProviderType | null => {
     case "fal_ai":
     case "fal-ai":
       return "fal"
+    case "groq":
+      return "groq"
     case "custom":
     case "openai_compatible":
     case "openai-compatible":
@@ -164,49 +174,14 @@ const normalizeProviderType = (raw: unknown): AiProviderType | null => {
 }
 
 /**
- * Resolve an AI platform from the DB for the given role. Returns null
- * if nothing is configured — caller falls back to env vars.
+ * Build a normalised `AiPlatformConfig` from a raw `social_platform` row.
+ * Returns null when the row can't be turned into a usable config (missing
+ * provider_type, api_key, or base_url) — callers skip those rows.
  */
-export const getAiPlatformForRole = async (
-  container: MedusaContainer,
-  role: AiRole
+const buildPlatformConfig = async (
+  chosen: any,
+  container: MedusaContainer
 ): Promise<AiPlatformConfig | null> => {
-  let socials: SocialsService
-  try {
-    socials = container.resolve(SOCIALS_MODULE) as unknown as SocialsService
-  } catch {
-    return null
-  }
-
-  let platforms: any[] = []
-  try {
-    platforms = await socials.listSocialPlatforms(
-      {
-        category: "ai",
-        status: "active",
-        // Filter narrows on the metadata.role tag the admin set. We
-        // can't easily filter `metadata.is_default` in the DAL, so we
-        // do that JS-side after the fetch.
-        metadata: { role },
-      } as any,
-      { take: 10 }
-    )
-  } catch (e) {
-    console.warn(
-      "[ai-platforms] listSocialPlatforms failed:",
-      (e as any)?.message ?? e
-    )
-    return null
-  }
-
-  // Pick the one explicitly marked as default for this role; if no
-  // explicit default, pick the most recently updated of the candidates.
-  const candidates = (platforms ?? []).filter(
-    (p) => p?.metadata?.is_default === true
-  )
-  const chosen = candidates[0] ?? platforms[0]
-  if (!chosen) return null
-
   const apiConfig = (chosen.api_config ?? {}) as Record<string, any>
   const meta = (chosen.metadata ?? {}) as Record<string, any>
 
@@ -264,6 +239,100 @@ export const getAiPlatformForRole = async (
     defaultModel: apiConfig.default_model ?? meta.default_model ?? null,
     accountId,
   }
+}
+
+/**
+ * Resolve an AI platform from the DB for the given role. Returns null
+ * if nothing is configured — caller falls back to env vars.
+ */
+export const getAiPlatformForRole = async (
+  container: MedusaContainer,
+  role: AiRole
+): Promise<AiPlatformConfig | null> => {
+  let socials: SocialsService
+  try {
+    socials = container.resolve(SOCIALS_MODULE) as unknown as SocialsService
+  } catch {
+    return null
+  }
+
+  let platforms: any[] = []
+  try {
+    platforms = await socials.listSocialPlatforms(
+      {
+        category: "ai",
+        status: "active",
+        // Filter narrows on the metadata.role tag the admin set. We
+        // can't easily filter `metadata.is_default` in the DAL, so we
+        // do that JS-side after the fetch.
+        metadata: { role },
+      } as any,
+      { take: 10 }
+    )
+  } catch (e) {
+    console.warn(
+      "[ai-platforms] listSocialPlatforms failed:",
+      (e as any)?.message ?? e
+    )
+    return null
+  }
+
+  // Pick the one explicitly marked as default for this role; if no
+  // explicit default, pick the most recently updated of the candidates.
+  const candidates = (platforms ?? []).filter(
+    (p) => p?.metadata?.is_default === true
+  )
+  const chosen = candidates[0] ?? platforms[0]
+  if (!chosen) return null
+
+  return buildPlatformConfig(chosen, container)
+}
+
+/**
+ * Resolve EVERY usable platform for a role — default first, then
+ * most-recently-updated — so a caller can build a fallback ladder across
+ * multiple configured providers (e.g. Cloudflare → Groq) instead of being
+ * limited to the single `is_default` row. Rows that don't resolve (missing
+ * key/base_url) are skipped. Empty when nothing is configured.
+ */
+export const getAiPlatformsForRole = async (
+  container: MedusaContainer,
+  role: AiRole
+): Promise<AiPlatformConfig[]> => {
+  let socials: SocialsService
+  try {
+    socials = container.resolve(SOCIALS_MODULE) as unknown as SocialsService
+  } catch {
+    return []
+  }
+
+  let platforms: any[] = []
+  try {
+    platforms = await socials.listSocialPlatforms(
+      { category: "ai", status: "active", metadata: { role } } as any,
+      { take: 50 }
+    )
+  } catch (e) {
+    console.warn(
+      "[ai-platforms] listSocialPlatforms failed:",
+      (e as any)?.message ?? e
+    )
+    return []
+  }
+
+  const ordered = (platforms ?? []).slice().sort((a, b) => {
+    const aDefault = a?.metadata?.is_default === true ? 1 : 0
+    const bDefault = b?.metadata?.is_default === true ? 1 : 0
+    if (aDefault !== bDefault) return bDefault - aDefault
+    return (Number(b?.updated_at) || 0) - (Number(a?.updated_at) || 0)
+  })
+
+  const configs: AiPlatformConfig[] = []
+  for (const chosen of ordered) {
+    const cfg = await buildPlatformConfig(chosen, container)
+    if (cfg) configs.push(cfg)
+  }
+  return configs
 }
 
 // ── AI SDK adapters ────────────────────────────────────────────────────
@@ -465,6 +534,29 @@ export const resolveRoleVisionModel = async (
     source: "free",
     modelId: visionId,
   }
+}
+
+/**
+ * Resolve a fallback LADDER of vision models for a role — every configured
+ * platform (default first), each as a built AI-SDK model. The caller appends
+ * its own free fallback at the end. Empty when no platform is configured.
+ *
+ * Used by the textile extraction so it can try Cloudflare → Groq → … before
+ * the auto-rotating OpenRouter `:free` model, instead of the single-default
+ * `resolveRoleVisionModel` lookup.
+ */
+export const resolveRoleVisionModels = async (
+  container: MedusaContainer,
+  role: AiRole
+): Promise<ResolvedRoleModel[]> => {
+  const configs = await getAiPlatformsForRole(container, role)
+  return configs.map((cfg) => ({
+    model: buildChatModel(cfg),
+    providerType: cfg.providerType,
+    source: "platform" as const,
+    platformId: cfg.platformId,
+    modelId: cfg.defaultModel ?? undefined,
+  }))
 }
 
 import { generateText } from "ai"
@@ -710,6 +802,7 @@ export const PROVIDER_TYPES: AiProviderType[] = [
   "dashscope",
   "cloudflare",
   "vercel_ai_gateway",
+  "groq",
   "custom",
 ]
 

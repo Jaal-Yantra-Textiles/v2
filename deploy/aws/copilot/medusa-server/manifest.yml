@@ -294,6 +294,23 @@ secrets:
   # reads creds from the `category:shipping` SocialPlatform record, so the
   # password/pickup are intentionally NOT wired as env here.
   SHIPROCKET_EMAIL: /jyt/prod/SHIPROCKET_EMAIL
+  # ShipGlobal fulfillment provider — the SAME arrangement as Shiprocket above,
+  # for the same reason. `medusa-config.prod.ts` registers the provider whenever
+  # SHIPGLOBAL_USERNAME is present IN THE CONTAINER ENV, and only that surfaces
+  # it in Fulfillment Providers.
+  #
+  # 🔴 A working carrier rate was NOT evidence the provider was registered.
+  # Quotes have been rating through ShipGlobal for weeks — a Sunda quote priced
+  # A$44.97 of freight off a live ShipGlobal rate — because
+  # `resolveShippingProvider` reads the `Shipping Global` platform record, which
+  # is a completely separate door. The provider itself was absent from
+  # /admin/fulfillment-providers the whole time, so no shipping option could be
+  # attached to it.
+  #
+  # The password stays OUT of here deliberately: the resolver reads it (and the
+  # service override) from the encrypted `category:shipping` SocialPlatform
+  # record, which is already configured and already working.
+  SHIPGLOBAL_USERNAME: /jyt/prod/SHIPGLOBAL_USERNAME
   STOREFRONT_REVALIDATE_SECRET: /jyt/prod/STOREFRONT_REVALIDATE_SECRET
   STORE_CORS: /jyt/prod/STORE_CORS
   # Enables the Store MCP cart/checkout/PayU *write* tools (POST /mcp + /store/mcp).

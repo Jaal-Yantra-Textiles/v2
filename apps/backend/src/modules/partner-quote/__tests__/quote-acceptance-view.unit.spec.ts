@@ -90,3 +90,71 @@ describe("composeQuoteAcceptance — the refusal", () => {
     expect(a.blocked_reason).toBeNull()
   })
 })
+
+/**
+ * A quote that cannot be PRICED is not a quote that is CLOSED (#1705).
+ *
+ * 🔴 The buyer route passed the view's `live_error` — a pricing failure — into
+ * `unusable_reason`, which means revoked/superseded/expired. So quote
+ * `01M1BPV6TM…`, minted that morning and valid for a fortnight, told its buyer
+ * "this quote is no longer open, ask for a fresh one" — both halves false, and
+ * the replacement would have failed identically.
+ *
+ * These pin the separation: both inputs still BLOCK, only one may claim the
+ * quote is over, and the pricing sentence must not send the buyer away.
+ */
+describe("composeQuoteAcceptance — priced vs closed", () => {
+  it("🔴 a pricing failure does NOT say the quote is no longer open", () => {
+    const a = composeQuoteAcceptance({
+      quote: { ...base },
+      gross_total: 1000,
+      pricing_error: "freight_unrated",
+    })
+    expect(a.can_accept).toBe(false)
+    expect(a.blocked_reason).not.toMatch(/no longer open/i)
+    // The specific harm: sending them for a replacement that fails the same way.
+    expect(a.blocked_reason).not.toMatch(/fresh one/i)
+    expect(a.blocked_reason).toMatch(/still open/i)
+    expect(a.blocked_reason).toMatch(/reply/i)
+  })
+
+  it("still refuses acceptance — a cart priced off a half we could not compute is worse", () => {
+    const a = composeQuoteAcceptance({
+      quote: { ...base },
+      gross_total: 1000,
+      pricing_error: "freight_unrated",
+    })
+    expect(a.can_accept).toBe(false)
+  })
+
+  it("a revoked quote keeps the lifecycle sentence even when pricing also failed", () => {
+    const a = composeQuoteAcceptance({
+      quote: { ...base },
+      gross_total: 1000,
+      unusable_reason: "revoked",
+      pricing_error: "freight_unrated",
+    })
+    expect(a.blocked_reason).toMatch(/no longer open/i)
+  })
+
+  it("an unrateable DESTINATION is explained as such, not as a pricing hiccup", () => {
+    // The destination gap is structural and permanent; the pricing one is
+    // transient. Telling a buyer to "reply and we will confirm it" about a
+    // route we have no online delivery for promises the wrong thing.
+    const a = composeQuoteAcceptance({
+      quote: { ...base, quoted_shipping_option_id: null },
+      gross_total: 1000,
+      pricing_error: "freight_unrated",
+    })
+    expect(a.blocked_reason).toMatch(/destination|route/i)
+  })
+
+  it("prices normally when nothing failed", () => {
+    const a = composeQuoteAcceptance({
+      quote: { ...base },
+      gross_total: 1000,
+      pricing_error: null,
+    })
+    expect(a.can_accept).toBe(true)
+  })
+})

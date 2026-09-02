@@ -448,6 +448,16 @@ export type QuoteView = {
   origin_country_code: string | null
   /** Set when the live half could not be built, so callers can say why. */
   live_error: string | null
+  /**
+   * The LIFECYCLE verdict from `quoteUnusableReason` — revoked, superseded,
+   * expired — or null while the quote still stands.
+   *
+   * 🔴 Exposed because it was not, and the buyer route reached for
+   * `live_error` instead when it needed this (#1705). A pricing failure is not
+   * a closed quote, and one field carrying both meanings printed "no longer
+   * open" on a quote minted an hour earlier.
+   */
+  unusable_reason: "revoked" | "superseded" | "expired" | null
 }
 
 /**
@@ -1647,5 +1657,6 @@ export async function buildQuoteView(
     expires_in_days: input.quote ? daysUntilExpiry(lifecycle, input.now) : null,
     origin_country_code: originCountry,
     live_error: liveError,
+    unusable_reason: unusableReason,
   }
 }
