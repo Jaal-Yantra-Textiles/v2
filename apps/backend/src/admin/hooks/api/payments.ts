@@ -149,6 +149,15 @@ export type PartnerLedgerEntry = {
    */
   settled_amount?: number;
   /**
+   * Other payouts that share a payment with this one (#1712 defect 2).
+   *
+   * Present only when a payment really is linked to more than one payout.
+   * Declared here so the panel can explain a payout showing less settled than
+   * the linked payment's face value — otherwise the gap reads as an arithmetic
+   * bug rather than as money already spent on another claim.
+   */
+  settled_shared_with?: string[];
+  /**
    * Credits a human APPLIED to this payout (#1712).
    *
    * 🔴 Declared here for the same reason as `recorded_against` above: a flag

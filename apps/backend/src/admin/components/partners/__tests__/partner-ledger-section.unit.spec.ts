@@ -250,3 +250,30 @@ describe("PartnerLedgerSection — applied credits (#1712)", () => {
     expect(html).not.toContain("discharged by")
   })
 })
+
+/** One payment across two payouts (#1712 defect 2) — the row explains itself. */
+describe("PartnerLedgerSection — a shared payment (#1712)", () => {
+  it("says a payout shares its payment, so a small settled figure is not a bug", () => {
+    const html = render(
+      [
+        payout({
+          recorded_against: [],
+          recorded_against_total: 0,
+          settled_amount: 0,
+          settled_shared_with: ["01M13T9OTHER"],
+        }),
+      ],
+      totals({ paid: 0 })
+    )
+    expect(html).toContain("shares a payment with")
+    expect(html).toContain("counted once")
+  })
+
+  it("says nothing when the payment is this payout's alone", () => {
+    const html = render(
+      [payout({ recorded_against: [], recorded_against_total: 0 })],
+      totals()
+    )
+    expect(html).not.toContain("shares a payment with")
+  })
+})

@@ -145,6 +145,19 @@ const PayoutRow = ({ entry }: { entry: PartnerLedgerEntry }) => {
               : ""}
           </Text>
         )}
+        {(entry.settled_shared_with?.length ?? 0) > 0 && (
+          /**
+           * 🔑 One payment, two payouts (#1712). The payment is spent once and
+           * allocated oldest-payout-first, so a payout can show less settled
+           * than the payment it is linked to. Saying so is the difference
+           * between "money went elsewhere" and "this screen cannot add up".
+           */
+          <Text size="xsmall" className="text-ui-fg-muted">
+            shares a payment with {entry.settled_shared_with!.length} other
+            payout{entry.settled_shared_with!.length > 1 ? "s" : ""} — the money
+            is counted once, oldest claim first
+          </Text>
+        )}
         {(entry.credited_amount ?? 0) > 0 && (
           /**
            * 🔴 An applied credit HAS already reduced `outstanding` (#1712).
