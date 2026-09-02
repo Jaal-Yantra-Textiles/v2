@@ -200,14 +200,37 @@ describe("resume-stalled-folder-extractions", () => {
    * 🔑 A cap that trims the list silently reads as "everything was handled" on
    * the next pass.
    */
-  it("caps how many folders it resumes in one pass, and names what it left", async () => {
+  /**
+   * 🔴 The pacing knob is PER RUN. Three stalled folders resumed together are
+   * three requests per interval, whatever the knob says — which defeats the
+   * only reason the workflow sleeps between photos. Production had exactly
+   * this: three stalled folders, 92 images outstanding between them.
+   */
+  it("resumes one folder per pass and names the ones it left", async () => {
     const stalled = Array.from({ length: 8 }, (_, i) => folderWith({}, `folder_${i}`))
     const { container, log } = containerWith(stalled)
 
     await resumeStalledFolderExtractions(container)
 
-    expect(mockRun).toHaveBeenCalledTimes(5)
+    expect(mockRun).toHaveBeenCalledTimes(1)
     expect(log.info).toHaveBeenCalledWith(expect.stringContaining("left for the next run"))
+  })
+
+  /**
+   * 🔴 The per-folder guard stops this sweep double-running ONE folder. This
+   * one stops it adding a second loop alongside a healthy run on a DIFFERENT
+   * folder — the case the first version of the sweeper missed.
+   */
+  it("stands down entirely while any other folder is genuinely extracting", async () => {
+    const { container, log } = containerWith([
+      folderWith({}, "stalled_folder"),
+      folderWith({ updated_at: minutesAgo(1) }, "live_folder"),
+    ])
+
+    await resumeStalledFolderExtractions(container)
+
+    expect(mockRun).not.toHaveBeenCalled()
+    expect(log.info).toHaveBeenCalledWith(expect.stringContaining("still extracting"))
   })
 
   it("keeps going when one folder fails to resume", async () => {
