@@ -46,6 +46,7 @@
 import type { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
 import { ContainerRegistrationKeys } from "@medusajs/framework/utils"
 
+import PartnerCreditLink from "../../../../../../links/partner-credit-link"
 import PartnerPaymentsLink from "../../../../../../links/partner-payments-link"
 import SubmissionPaymentLink from "../../../../../../links/submission-payment-link"
 import { PAYMENT_REPORTS_MODULE } from "../../../../../../modules/payment_reports"
@@ -287,11 +288,39 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
     }
   }
 
+  /**
+   * ── The partner's credits (#1712) ───────────────────────────────────────
+   *
+   * Money already given that no payout consumed. Read here so that a credit a
+   * human APPLIED to a payout actually reduces what that payout still claims —
+   * without this the fold would compute `credited: 0` forever and the apply
+   * route would stamp a decision no screen honoured. A guard reading a field
+   * the query never fetched is dead, and this is the query that fetches it.
+   *
+   * ⚠️ Through the LINK'S ENTRY POINT: `partner_credit` has no partner column.
+   *
+   * Best-effort, like every other source above. Losing credits understates
+   * `credited` and so OVERSTATES `outstanding` — the safe direction: it can
+   * make us look at a claim that is already discharged, never hide one.
+   */
+  let credits: any[] = []
+  try {
+    const { data } = await query.graph({
+      entity: PartnerCreditLink.entryPoint,
+      fields: ["partner_credit.*"],
+      filters: { partner_id },
+    })
+    credits = (data || []).map((r: any) => r?.partner_credit).filter(Boolean)
+  } catch {
+    credits = []
+  }
+
   const { entries, totals } = foldPartnerLedger({
     submissions,
     items,
     payments,
     reconciliations,
+    credits,
   })
 
   return res.status(200).json({ entries, totals, count: entries.length })

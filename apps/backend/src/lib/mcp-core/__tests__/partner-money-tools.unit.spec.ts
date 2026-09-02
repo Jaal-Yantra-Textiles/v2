@@ -252,3 +252,68 @@ describe("the ask an operator actually types reaches these tools", () => {
     )
   })
 })
+
+/**
+ * Applying a credit (#1712) — the write that turns money the partner already
+ * holds into a reduction of what they are still owed.
+ *
+ * The generic registry specs prove the row is well-formed. These prove it does
+ * the thing it was added for, and that the two guardrails around it are real:
+ * it is confirm-gated, and the partner surface cannot reach it.
+ */
+describe("admin: apply_partner_credit", () => {
+  const def = () => adminTool("apply_partner_credit")!
+
+  it("wraps the apply route as a sensitive write", () => {
+    expect(def()).toBeTruthy()
+    expect(def().method).toBe("POST")
+    expect(def().path).toBe("/admin/partners/:id/credits/:creditId/apply")
+    expect(def().write).toBe(true)
+    expect(isSensitive(def())).toBe(true)
+  })
+
+  /**
+   * 🔑 `pick()` is an allowlist walk: a field that reached neither queryParams
+   * nor bodyParams is dropped in SILENCE. `submission_id` is the whole
+   * instruction — dropped, the route would 400, and a future edit to where it
+   * reads its argument from would turn this into a no-op 200 that stamps
+   * nothing.
+   */
+  it("forwards submission_id in the body — the field that names the payout", () => {
+    expect(def().bodyParams).toContain("submission_id")
+  })
+
+  it("carries BOTH path params — a credit id alone names no partner", () => {
+    expect(def().pathParams).toEqual(["id", "creditId"])
+  })
+
+  it("requires all three inputs", () => {
+    expect(def().inputSchema.required).toEqual(
+      expect.arrayContaining(["id", "creditId", "submission_id"])
+    )
+  })
+
+  /**
+   * The partner surface is read-only by DECISION. A partner able to apply their
+   * own credit could declare their own payout discharged.
+   */
+  it("is not reachable from the partner surface", () => {
+    expect(partnerTool("apply_partner_credit")).toBeUndefined()
+  })
+
+  it("an operator's own words reach it", () => {
+    const names = selectAdminToolSlice(
+      "apply this partner's credit to the payout",
+      ADMIN_MCP_TOOLS
+    ).names
+    expect(names).toContain("apply_partner_credit")
+  })
+
+  /**
+   * ⚠️ A tool whose next step is not the screen that shows the change leaves
+   * the operator with a 200 and no way to see what moved.
+   */
+  it("points at the ledger afterwards, where credited and outstanding move", () => {
+    expect(def().nextSteps).toContain("get_partner_ledger")
+  })
+})

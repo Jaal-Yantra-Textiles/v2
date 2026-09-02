@@ -249,6 +249,7 @@ import {
 import { PaymentSchema, ListPaymentsQuerySchema, UpdatePaymentSchema, PaymentSettlesSchema } from "./admin/payments/validators";
 import { CreatePaymentAndLinkSchema } from "./admin/payments/link/validators";
 import { CreatePartnerCreditSchema } from "./admin/partners/[id]/credits/validators";
+import { ApplyPartnerCreditSchema } from "./admin/partners/[id]/credits/[creditId]/apply/validators";
 import { ListPaymentsByPersonQuerySchema } from "./admin/payments/persons/[id]/validators";
 import { ListPaymentsByPartnerQuerySchema } from "./admin/payments/partners/[id]/validators";
 import { ListPaymentMethodsByPersonQuerySchema, CreatePaymentMethodForPersonSchema } from "./admin/payments/persons/[id]/methods/validators";
@@ -4388,6 +4389,15 @@ export default defineMiddlewares({
       method: "POST",
       middlewares: [
         validateAndTransformBody(wrapSchema(CreatePartnerCreditSchema)),
+      ],
+    },
+    // Applying a credit to a payout (#1712) — the deliberate act the model was
+    // built around. Never inferred by a fold; always a human naming the payout.
+    {
+      matcher: "/admin/partners/:id/credits/:creditId/apply",
+      method: "POST",
+      middlewares: [
+        validateAndTransformBody(wrapSchema(ApplyPartnerCreditSchema)),
       ],
     },
     // Admin Partner Subscription

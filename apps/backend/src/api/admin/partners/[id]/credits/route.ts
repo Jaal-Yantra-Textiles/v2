@@ -33,9 +33,59 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
     filters: { partner_id: partnerId },
   })
 
-  const credits = (data || [])
+  const rows = (data || [])
     .map((row: any) => row?.partner_credit)
     .filter(Boolean)
+
+  /**
+   * ── The earmark ────────────────────────────────────────────────────────
+   *
+   * 🔴 The POST below writes TWO links — partner→credit and
+   * inventory_order→credit — and until this existed NO read exposed the
+   * second. `partner_credit.*` selects columns, and the earmark is a link, so
+   * the returned row simply had no such field: "this 1,380 is earmarked
+   * against order 01K36TE2WB" was a fact the database held and no surface
+   * showed. The same shape as the 1,380 itself was, one level down.
+   *
+   * Read through the LINK'S ENTRY POINT, filtered by the credit ids we already
+   * have. Traversing from `partner_credit` to a linked field returns no key at
+   * all, silently — the trap that made the submission link look unwritable for
+   * months.
+   *
+   * Best-effort: a credit with no earmark is the normal case, and a graph
+   * hiccup must not turn a panel that can answer "how much does this partner
+   * hold" into an error. It understates the earmark; it never invents one.
+   */
+  const earmarks = new Map<string, string>()
+  const creditIds = rows.map((c: any) => c?.id).filter(Boolean)
+  if (creditIds.length) {
+    try {
+      const { data: linked } = await query.graph({
+        entity: InventoryOrderPartnerCreditLink.entryPoint,
+        fields: ["inventory_orders_id", "partner_credit_id"],
+        filters: { partner_credit_id: creditIds },
+      })
+      for (const row of (linked || []) as any[]) {
+        if (!row?.partner_credit_id || !row?.inventory_orders_id) continue
+        earmarks.set(
+          String(row.partner_credit_id),
+          String(row.inventory_orders_id)
+        )
+      }
+    } catch {
+      // An unmarked credit reads as partner-wide, which is what it was before.
+    }
+  }
+
+  const credits = rows.map((c: any) => ({
+    ...c,
+    /**
+     * ⚠️ `null` means "no order named", never "we could not look". The two are
+     * indistinguishable to a reader, so the failure above is the one case where
+     * that matters — and it is why the catch understates rather than throws.
+     */
+    inventory_order_id: earmarks.get(String(c.id)) ?? null,
+  }))
 
   /**
    * `open_total` is what a reader actually needs — "how much does this partner

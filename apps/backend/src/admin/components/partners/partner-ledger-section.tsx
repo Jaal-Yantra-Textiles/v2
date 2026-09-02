@@ -145,6 +145,21 @@ const PayoutRow = ({ entry }: { entry: PartnerLedgerEntry }) => {
               : ""}
           </Text>
         )}
+        {(entry.credited_amount ?? 0) > 0 && (
+          /**
+           * 🔴 An applied credit HAS already reduced `outstanding` (#1712).
+           * Unlike the warning below it is not advisory, which is exactly why
+           * it must be on the row: without it the footer shows a smaller
+           * amount owed than the payouts above add up to, and nothing on
+           * screen explains the difference.
+           */
+          <Text size="xsmall" className="text-ui-tag-green-text">
+            {money(entry.credited_amount!, entry.currency)} discharged by{" "}
+            {entry.credits_applied!.length === 1
+              ? entry.credits_applied![0].reason || "a credit"
+              : `${entry.credits_applied!.length} credits`}
+          </Text>
+        )}
         {entry.status !== "Paid" && (entry.recorded_against_total ?? 0) > 0 && (
           /**
            * 🔴 #1710 — the line that stops someone being paid twice.
@@ -342,6 +357,11 @@ export const PartnerLedgerSection = ({ partnerId }: { partnerId: string }) => {
         <div className="px-6 py-3">
           <Text size="small" className="text-ui-fg-subtle">
             {money(totals!.paid, totals!.currency)} paid ·{" "}
+            {(totals!.credited ?? 0) > 0 && (
+              <>
+                {money(totals!.credited, totals!.currency)} credited ·{" "}
+              </>
+            )}
             {money(totals!.outstanding, totals!.currency)} outstanding
             {totals!.recorded > 0 && (
               <>
