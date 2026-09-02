@@ -60,6 +60,87 @@ const loadSharp = async (logger: any): Promise<any | null> => {
 
 const logger = new PinoLogger();
 
+/**
+ * Vision models on the free/rotating ladder routinely emit a SINGLE-value field
+ * (e.g. `visible_pattern`, `shot_type`, `cloth_type`) as an ARRAY (`["floral"]`)
+ * instead of a string. The observation pass hands its output straight into
+ * `deriveProductFields`' inputSchema, which strict-validates it — so an array
+ * there aborts the run with "Invalid input: expected string, received array".
+ *
+ * Coerce at the schema boundary: array → joined string, anything else non-string
+ * → null. `z.preprocess` keeps the JSON-schema OUTPUT hint as string|null (so the
+ * model is still told "emit a string"), while the validator tolerates an array.
+ */
+const scalarString = (description: string) =>
+  z.preprocess(
+    (val: unknown): string | null => {
+      if (val == null) return null
+      if (Array.isArray(val)) {
+        const joined = val
+          .filter((x): x is string => typeof x === "string")
+          .map((s) => s.trim())
+          .filter(Boolean)
+          .join(", ")
+        return joined || null
+      }
+      if (typeof val === "string") return val
+      // Numbers/booleans the model occasionally throws at a prose field.
+      return typeof val === "number" || typeof val === "boolean" ? String(val) : null
+    },
+    z.string().nullable().describe(description)
+  )
+
+/**
+ * Coerce a list field that a sloppy model may emit as a single comma-separated
+ * string (or a JSON-stringified array already handled upstream). Salvage rather
+ * than reject: array of strings stays, a lone string is split on commas/pipes.
+ */
+const stringList = (description: string) =>
+  z.preprocess(
+    (val: unknown): string[] => {
+      if (val == null) return []
+      if (Array.isArray(val)) {
+        return val
+          .filter((x): x is string => typeof x === "string")
+          .map((s) => s.trim())
+          .filter(Boolean)
+      }
+      if (typeof val === "string") {
+        return val.split(/[,|;\n]/).map((s) => s.trim()).filter(Boolean)
+      }
+      return []
+    },
+    z.array(z.string()).describe(description)
+  )
+
+/**
+ * Coerce a numeric field the model may hand back as a string ("0.8").
+ */
+const flexNumber = (description: string) =>
+  z.preprocess(
+    (val: unknown): number | null => {
+      if (val == null) return null
+      if (typeof val === "number") return Number.isFinite(val) ? val : null
+      if (typeof val === "string") {
+        const n = Number(val)
+        return Number.isFinite(n) ? n : null
+      }
+      return null
+    },
+    z.number().nullable().describe(description)
+  )
+
+/**
+ * Tolerate a nested object field arriving as null/array/string — treat anything
+ * that isn't a plain object as null, so a `fabric: "cotton"` or `face_raw: []`
+ * can't abort the run.
+ */
+const laxObject = <T extends z.ZodTypeAny>(inner: T) =>
+  z.preprocess(
+    (val: unknown) => (val && typeof val === "object" && !Array.isArray(val) ? val : null),
+    inner.nullable()
+  )
+
 /** Longest-side cap for images sent to vision models — keeps the base64 body
  * under Cloudflare's request-size ceiling and matches typical "high detail". */
 const MAX_IMAGE_DIM = 1024;
@@ -100,130 +181,100 @@ export const triggerSchema = z.object({
 // no e-commerce fields. This becomes ground truth for pass 2.
 // ─────────────────────────────────────────────────────────────
 export const visualObservationsSchema = z.object({
-  visible_colors: z
-    .array(z.string())
-    .optional()
-    .default([])
-    .describe("Every color visibly present, be specific e.g. 'navy blue', 'off-white'"),
-  visible_pattern: z
-    .string()
-    .nullable()
-    .optional()
-    .describe("Surface pattern as seen: solid, stripes, checks, floral, ikat, block-print, abstract… or null"),
-  pattern_description: z
-    .string()
-    .nullable()
-    .optional()
-    .describe("One or two sentences describing how the pattern looks (scale, repeat, placement)"),
-  design_elements: z
-    .array(z.string())
-    .optional()
-    .default([])
-    .describe("Observable design details: motifs, embroidery, borders, seams, buttons, zippers, tassels, prints"),
-  fabric: z
-    .object({
-      type_idea: z
-        .string()
-        .nullable()
-        .optional()
-        .describe("Best guess of fabric family from visual cues only (e.g. 'cotton-like', 'silk sheen')"),
-      texture: z.string().nullable().optional().describe("Visible texture: matte, glossy, slubbed, ribbed, woven, knit…"),
-      weave_or_knit: z.string().nullable().optional().describe("Visible weave/knit structure if discernible"),
-      perceived_weight: z
-        .string()
-        .nullable()
-        .optional()
-        .describe("Visual weight impression: lightweight/drapey, medium, heavyweight/structured"),
-      finish: z.string().nullable().optional().describe("Visible finish: sheen, washed, raw edge, printed, dyed…"),
+  visible_colors: stringList("Every color visibly present, be specific e.g. 'navy blue', 'off-white'").optional(),
+  visible_pattern: scalarString(
+    "Surface pattern as seen: solid, stripes, checks, floral, ikat, block-print, abstract… or null"
+  ).optional(),
+  pattern_description: scalarString(
+    "One or two sentences describing how the pattern looks (scale, repeat, placement)"
+  ).optional(),
+  design_elements: stringList(
+    "Observable design details: motifs, embroidery, borders, seams, buttons, zippers, tassels, prints"
+  ).optional(),
+  fabric: laxObject(
+    z.object({
+      type_idea: scalarString(
+        "Best guess of fabric family from visual cues only (e.g. 'cotton-like', 'silk sheen')"
+      ).optional(),
+      texture: scalarString("Visible texture: matte, glossy, slubbed, ribbed, woven, knit…").optional(),
+      weave_or_knit: scalarString("Visible weave/knit structure if discernible").optional(),
+      perceived_weight: scalarString(
+        "Visual weight impression: lightweight/drapey, medium, heavyweight/structured"
+      ).optional(),
+      finish: scalarString("Visible finish: sheen, washed, raw edge, printed, dyed…").optional(),
     })
-    .optional(),
-  visible_item: z
-    .string()
-    .nullable()
-    .optional()
-    .describe("What the item physically appears to be, described from what is seen (e.g. 'long tunic with side slits')"),
-  visible_text: z
-    .array(z.string())
-    .optional()
-    .default([])
-    .describe("Any text visible in the image: labels, tags, watermarks, brand marks"),
-  shot_type: z
-    .string()
-    .nullable()
-    .optional()
-    .describe("Framing as seen: full body, half body, flat lay, close-up detail, mannequin"),
-  not_visible_or_uncertain: z
-    .array(z.string())
-    .optional()
-    .default([])
-    .describe("Things that CANNOT be seen or confirmed (e.g. 'fabric composition not visible', 'no tag visible')"),
+  ).optional(),
+  visible_item: scalarString(
+    "What the item physically appears to be, described from what is seen (e.g. 'long tunic with side slits')"
+  ).optional(),
+  visible_text: stringList("Any text visible in the image: labels, tags, watermarks, brand marks").optional(),
+  shot_type: scalarString("Framing as seen: full body, half body, flat lay, close-up detail, mannequin").optional(),
+  not_visible_or_uncertain: stringList(
+    "Things that CANNOT be seen or confirmed (e.g. 'fabric composition not visible', 'no tag visible')"
+  ).optional(),
 });
 
 export type VisualObservations = z.infer<typeof visualObservationsSchema>;
 
 // Raw face details — internal use only, never shown to customers
-const faceRawSchema = z
-  .object({
-    estimated_age_range: z.string().nullable().optional(),
-    skin_tone: z.string().nullable().optional(),
-    hair_color: z.string().nullable().optional(),
-    hair_style: z.string().nullable().optional(),
-    eye_color: z.string().nullable().optional(),
-    facial_features: z.array(z.string()).optional().default([]),
+const faceRawSchema = laxObject(
+  z.object({
+    estimated_age_range: scalarString("e.g. '22–28', '30–35'").optional(),
+    skin_tone: scalarString("e.g. 'fair', 'medium', 'dark'").optional(),
+    hair_color: scalarString("e.g. 'dark brown', 'blonde', 'black'").optional(),
+    hair_style: scalarString("e.g. 'straight long', 'curly short', 'bun'").optional(),
+    eye_color: scalarString("e.g. 'brown', 'blue', 'green'").optional(),
+    facial_features: stringList("notable observable features").optional(),
   })
-  .nullable()
-  .optional();
+);
 
 // Raw body details — internal use only
-const bodyRawSchema = z
-  .object({
-    body_type: z.string().nullable().optional(),
-    estimated_height: z.string().nullable().optional(),
-    pose: z.string().nullable().optional(),
-    skin_tone: z.string().nullable().optional(),
+const bodyRawSchema = laxObject(
+  z.object({
+    body_type: scalarString("e.g. 'slim', 'athletic', 'petite'").optional(),
+    estimated_height: scalarString("e.g. 'tall', 'medium', 'short'").optional(),
+    pose: scalarString("e.g. 'standing front', 'sitting', 'walking'").optional(),
+    skin_tone: scalarString("e.g. 'fair', 'medium', 'dark'").optional(),
   })
-  .nullable()
-  .optional();
+);
 
 // Overall model/shot characteristics — internal use only
-const modelCharacteristicsSchema = z
-  .object({
-    gender_presentation: z.string().nullable().optional(),
-    styling: z.string().nullable().optional(),
-    overall_vibe: z.string().nullable().optional(),
-    shot_type: z.string().nullable().optional(),
+const modelCharacteristicsSchema = laxObject(
+  z.object({
+    gender_presentation: scalarString("e.g. 'feminine', 'masculine', 'androgynous'").optional(),
+    styling: scalarString("e.g. 'editorial high-fashion', 'casual street'").optional(),
+    overall_vibe: scalarString("e.g. 'luxury', 'sporty', 'bohemian'").optional(),
+    shot_type: scalarString("observed shot_type").optional(),
   })
-  .nullable()
-  .optional();
+);
 
 // Output schema for textile product extraction
 export const textileProductSchema = z.object({
   // ── Garment / product catalog fields ─────────────────────────
-  title: z.string(),
-  description: z.string(),
-  designer: z.string().nullable().optional(),
-  model_name: z.string().nullable().optional(),
-  cloth_type: z.string().nullable().optional(),
-  pattern: z.string().nullable().optional(),
-  fabric_weight: z.string().nullable().optional(),
-  care_instructions: z.array(z.string()).optional().default([]),
-  season: z.array(z.string()).optional().default([]),
-  occasion: z.array(z.string()).optional().default([]),
-  colors: z.array(z.string()).optional().default([]),
-  category: z.string().nullable().optional(),
-  suggested_price: z
-    .object({
-      amount: z.number(),
-      currency: z.string().default("USD"),
+  title: scalarString("Short, marketable product name").optional().default(""),
+  description: scalarString("Rich product description (2–3 sentences)").optional().default(""),
+  designer: scalarString("Brand or designer label only if visible").optional(),
+  model_name: scalarString("Specific model/SKU name if visible").optional(),
+  cloth_type: scalarString("Primary garment type").optional(),
+  pattern: scalarString("Use visible_pattern as-is").optional(),
+  fabric_weight: scalarString("perceived_weight: lightweight / medium-weight / heavyweight").optional(),
+  care_instructions: stringList("care symbols/instructions visible or inferable").optional(),
+  season: stringList("seasons consistent with observed fabric weight/texture").optional(),
+  occasion: stringList("occasions consistent with observed design and styling").optional(),
+  colors: stringList("copy visible_colors, be specific").optional(),
+  category: scalarString("broad clothing category").optional(),
+  suggested_price: laxObject(
+    z.object({
+      amount: flexNumber("numeric price amount"),
+      currency: scalarString("currency code").optional().default("USD"),
     })
-    .nullable()
-    .optional(),
-  seo_keywords: z.array(z.string()).optional().default([]),
-  target_audience: z.string().nullable().optional(),
-  confidence: z.number().min(0).max(1).optional(),
+  ).optional(),
+  seo_keywords: stringList("5–10 grounded keywords").optional(),
+  target_audience: scalarString("description of intended customer").optional(),
+  confidence: flexNumber("float 0–1").optional(),
 
   // ── Visual observations from the feedback-oriented first pass ─
-  visual_observations: visualObservationsSchema.nullable().optional(),
+  visual_observations: laxObject(visualObservationsSchema).optional(),
 
   // ── Raw internal fields — NOT for customer display ────────────
   face_raw: faceRawSchema,

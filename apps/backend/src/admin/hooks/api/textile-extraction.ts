@@ -352,7 +352,10 @@ export const useConfirmFolderExtraction = () => {
  */
 export const useFolderExtractionStatus = (
   folderId: string | undefined,
-  options?: { refetchInterval?: number; enabled?: boolean }
+  options?: {
+    refetchInterval?: number | false | ((query: any) => number | false | undefined)
+    enabled?: boolean
+  }
 ) => {
   return useQuery({
     queryKey: ["folder-extraction-status", folderId],
