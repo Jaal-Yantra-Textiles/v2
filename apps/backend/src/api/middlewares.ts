@@ -191,7 +191,7 @@ import { updatePartnerMeSchema } from "./partners/me/validators";
 import { onboardingProfileUpdateSchema } from "./partners/onboarding-profile/validators";
 import { setLayoutConfigurationSchema } from "./partners/layouts/validators";
 import { AdminGetPartnersParamsSchema } from "./admin/persons/partner/validators";
-import { createInventoryOrdersSchema, listInventoryOrdersQuerySchema, ReadSingleInventoryOrderQuerySchema, updateInventoryOrdersSchema, updateInventoryOrderLinesSchema, createInventoryOrderChargeSchema } from "./admin/inventory-orders/validators";
+import { createInventoryOrdersSchema, listInventoryOrdersQuerySchema, ReadSingleInventoryOrderQuerySchema, updateInventoryOrdersSchema, updateInventoryOrderLinesSchema, createInventoryOrderChargeSchema, assignInventoryOrderPartnerSchema } from "./admin/inventory-orders/validators";
 import { createRawMaterialGroupSchema, updateRawMaterialGroupSchema, listRawMaterialGroupsQuerySchema, addGroupColorSchema, addGroupColorFullSchema, linkGroupColorsSchema, createGroupOrderSchema, readGroupQuerySchema } from "./admin/raw-material-groups/validators";
 import { pinDesignGroupSchema, updateDesignGroupSchema } from "./admin/designs/[id]/material-groups/validators";
 // Import already defined above
@@ -4259,6 +4259,13 @@ export default defineMiddlewares({
       matcher: "/admin/inventory-orders",
       method: 'GET',
       middlewares: [validateAndTransformQuery(wrapSchema(listInventoryOrdersQuerySchema), {})]
+    },
+    {
+      matcher: "/admin/inventory-orders/:id/assign-partner",
+      method: "POST",
+      middlewares: [
+        validateAndTransformBody(wrapSchema(assignInventoryOrderPartnerSchema)),
+      ],
     },
     /**
      * #1737 — amounts on an order that are not goods.

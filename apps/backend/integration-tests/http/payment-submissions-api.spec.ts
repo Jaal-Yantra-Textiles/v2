@@ -5313,6 +5313,146 @@ setupSharedTestSuite(() => {
         })
       })
 
+      /**
+       * #1737 — assigning a partner to a HISTORICAL order without commissioning
+       * anything. `send-to-partner` is the only other writer of this link and
+       * it emits `inventory_order_assigned_to_partner` and parks
+       * `awaitOrderStart`/`awaitOrderCompletion` — right for new work, wrong for
+       * a delivery from five months ago.
+       */
+      describe("POST /admin/inventory-orders/:id/assign-partner (#1737)", () => {
+        /**
+         * An order created with NO partner link — the historical-record shape
+         * this route exists for. `seedOrderForPartner` cannot be used here: it
+         * goes through `send-to-partner`, which links the order as a side
+         * effect, and a test built on it would assert nothing.
+         */
+        const seedUnlinkedOrder = async (tag: string) => {
+          const inventoryItemId = await seedInventoryItem(tag)
+          const stockLocationId = await seedStockLocation()
+          const created = await api
+            .post(
+              "/admin/inventory-orders",
+              {
+                order_lines: [
+                  { inventory_item_id: inventoryItemId, quantity: 4, price: 250 },
+                ],
+                quantity: 4,
+                total_price: 1000,
+                status: "Pending",
+                expected_delivery_date: new Date().toISOString(),
+                order_date: new Date().toISOString(),
+                shipping_address: {},
+                stock_location_id: stockLocationId,
+              },
+              adminHeaders
+            )
+            .catch((e: any) => e.response)
+          expect(created.status).toBe(201)
+          return created.data.inventoryOrder.id as string
+        }
+
+        const visibleTo = async (partnerId: string, orderId: string) => {
+          const list = await api.get(
+            `/admin/payment-submissions/payable-inventory-orders?partner_id=${partnerId}`,
+            adminHeaders
+          )
+          expect(list.status).toBe(200)
+          return list.data.payable_inventory_orders.some(
+            (o: any) => o.inventory_order_id === orderId
+          )
+        }
+
+        /**
+         * 🔑 Without the link an order is invisible in every partner-scoped
+         * view: `payable-inventory-orders` reaches orders THROUGH the partner,
+         * because there is no partner column on an inventory order.
+         */
+        it("makes an unlinked order visible to its partner", async () => {
+          const stamp = Date.now() + 410
+          const owner = await createPartnerWithAuth(stamp)
+          const orderId = await seedUnlinkedOrder(`ap0-${stamp}`)
+
+          // It genuinely starts invisible — otherwise this asserts nothing.
+          expect(await visibleTo(owner.partnerId, orderId)).toBe(false)
+
+          const res = await api
+            .post(
+              `/admin/inventory-orders/${orderId}/assign-partner`,
+              { partner_id: owner.partnerId },
+              adminHeaders
+            )
+            .catch((e: any) => e.response)
+
+          expect(res.status).toBe(200)
+          /** Stated plainly on the response: nothing was commissioned. */
+          expect(res.data.notified).toBe(false)
+
+          expect(await visibleTo(owner.partnerId, orderId)).toBe(true)
+        })
+
+        it("is idempotent — re-stating the same assignment is not a 500", async () => {
+          const stamp = Date.now() + 420
+          const owner = await createPartnerWithAuth(stamp)
+          const orderId = await seedOrderForPartner(owner.partnerId, `ap1-${stamp}`)
+
+          for (const _ of [1, 2]) {
+            const res = await api
+              .post(
+                `/admin/inventory-orders/${orderId}/assign-partner`,
+                { partner_id: owner.partnerId },
+                adminHeaders
+              )
+              .catch((e: any) => e.response)
+            expect(res.status).toBe(200)
+          }
+        })
+
+        /**
+         * 🔴 Silently re-pointing an order would move a debt between partners,
+         * and the previous owner would simply stop seeing work they may already
+         * have billed.
+         */
+        it("refuses to move an order that already belongs to someone else", async () => {
+          const stamp = Date.now() + 430
+          const a = await createPartnerWithAuth(stamp)
+          const b = await createPartnerWithAuth(stamp + 1)
+          const orderId = await seedOrderForPartner(a.partnerId, `ap2-${stamp}`)
+
+          await api.post(
+            `/admin/inventory-orders/${orderId}/assign-partner`,
+            { partner_id: a.partnerId },
+            adminHeaders
+          )
+
+          const res = await api
+            .post(
+              `/admin/inventory-orders/${orderId}/assign-partner`,
+              { partner_id: b.partnerId },
+              adminHeaders
+            )
+            .catch((e: any) => e.response)
+
+          expect(res.status).toBe(400)
+        })
+
+        it("refuses a partner that does not exist", async () => {
+          const stamp = Date.now() + 440
+          const owner = await createPartnerWithAuth(stamp)
+          const orderId = await seedOrderForPartner(owner.partnerId, `ap3-${stamp}`)
+
+          const res = await api
+            .post(
+              `/admin/inventory-orders/${orderId}/assign-partner`,
+              { partner_id: "partner_does_not_exist" },
+              adminHeaders
+            )
+            .catch((e: any) => e.response)
+
+          expect(res.status).toBe(404)
+        })
+      })
+
       it("still refuses a submission naming nothing at all", async () => {
         const res = await api
           .post(
