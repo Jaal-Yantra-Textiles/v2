@@ -12,7 +12,10 @@ import { TextileExtractionModal } from "../textile-extraction-modal";
 import { CreateProductFromMediaModal } from "../create-product-from-media-modal";
 import { FolderExtractionProgress } from "./folder-extraction-progress";
 import { useTextileAnalyses } from "../../../hooks/api/textile-analyses";
-import { useRetryFolderExtraction } from "../../../hooks/api/textile-extraction";
+import {
+  useFolderExtractionStatus,
+  useResumeFolderExtraction,
+} from "../../../hooks/api/textile-extraction";
 
 const MAX_PRODUCT_PHOTOS = 4
 
@@ -28,13 +31,21 @@ export const FolderMediaSection = ({ folder }: FolderMediaSectionProps) => {
   const [createProductModalOpen, setCreateProductModalOpen] = useState(false)
   const queryClient = useQueryClient()
   const selectedCount = useMemo(() => Object.keys(selection).length, [selection])
-  const { mutateAsync: retryFailed, isPending: isRetrying } = useRetryFolderExtraction()
+  const { mutateAsync: resumeExtraction } = useResumeFolderExtraction()
 
-  // Failed files from the last folder-wide extraction (mirrored into metadata).
-  const failedCount = useMemo(() => {
-    const errors = (folder.metadata?.folder_extraction as any)?.errors
-    return Array.isArray(errors) ? errors.length : 0
-  }, [folder.metadata])
+  /**
+   * 🔴 This used to count `folder_extraction.errors` and offer "Retry Failed
+   * (N)". On production that read **1** while **44** images were outstanding:
+   * the run had died mid-loop when a deploy replaced its task, and the 43
+   * images it never reached are not errors (#1742). The outstanding count now
+   * comes from the server, which derives it the same way the resume itself
+   * does — from images with no analysis row — so the number on the button and
+   * the number actually processed cannot disagree.
+   */
+  const { data: extractionStatus } = useFolderExtractionStatus(folder.id)
+  const pendingCount = extractionStatus?.pending_count ?? 0
+  const extractionRunning =
+    extractionStatus?.progress?.status === "running" && !extractionStatus?.stalled
 
   // Get selected image media files only (extraction only works on images)
   const selectedImageMediaIds = useMemo(() => {
@@ -148,12 +159,12 @@ export const FolderMediaSection = ({ folder }: FolderMediaSectionProps) => {
     setCreateProductModalOpen(true)
   }
 
-  const handleRetryFailed = async () => {
+  const handleResumeExtraction = async () => {
     try {
-      await retryFailed(folder.id)
+      await resumeExtraction(folder.id)
       await queryClient.invalidateQueries({ queryKey: mediaFolderDetailQueryKeys.detail(folder.id) })
     } catch (error: any) {
-      toast.error(error?.message || "Failed to retry extraction")
+      toast.error(error?.message || "Failed to resume extraction")
     }
   }
 
@@ -180,12 +191,12 @@ export const FolderMediaSection = ({ folder }: FolderMediaSectionProps) => {
                   icon: <Sparkles />,
                   onClick: handleExtractAll,
                 },
-                ...(failedCount > 0
+                ...(pendingCount > 0 && !extractionRunning
                   ? [
                       {
-                        label: `Retry Failed (${failedCount})`,
+                        label: `Resume Extraction (${pendingCount})`,
                         icon: <Sparkles />,
-                        onClick: handleRetryFailed,
+                        onClick: handleResumeExtraction,
                       },
                     ]
                   : []),
