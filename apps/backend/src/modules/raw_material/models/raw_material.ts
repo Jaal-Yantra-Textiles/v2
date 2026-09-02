@@ -5,7 +5,23 @@ import RawMaterialGroup from "./raw_material_group";
 const RawMaterial = model.define("raw_materials", {
   id: model.id().primaryKey(),
   name: model.text().searchable().translatable(),
-  description: model.text().translatable(),
+  /**
+   * ⚠️ NULLABLE, matching `material_type` and `raw_material_group` (#1737).
+   *
+   * It was the only description in this module that was NOT, while the route
+   * validator marked it `.optional()`. Omitting it therefore reached MikroORM
+   * as a required-property violation and surfaced as an unhandled **500 with an
+   * HTML body** — `ValidationError: Value for RawMaterials.description is
+   * required` — rather than a 400 naming the field. A caller sees a server
+   * error and looks at their own payload.
+   *
+   * `split-inventory-item` hits the same path: it passes
+   * `rest.description ?? src?.description`, which is undefined whenever neither
+   * side has one. The AI extraction path escapes only because it hardcodes a
+   * fallback string — a description invented to satisfy a constraint is not a
+   * description.
+   */
+  description: model.text().translatable().nullable(),
   composition: model.text().translatable(), // e.g., "100% Cotton", "80% Polyester 20% Cotton"
   specifications: model.json().nullable(), // Technical specifications
   unit_of_measure: model.enum([
