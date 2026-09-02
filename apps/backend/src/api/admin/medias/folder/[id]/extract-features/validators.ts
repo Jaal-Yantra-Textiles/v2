@@ -16,6 +16,22 @@ export const ExtractFolderFeaturesRequestSchema = z.object({
    * Clamped between 5 seconds and 15 minutes.
    */
   interval_ms: z.number().int().positive().optional(),
+  /**
+   * Restrict the run to these media files (#1742).
+   *
+   * 🔴 The workflow has accepted `media_ids` since it was written, but this
+   * schema never declared it and the route never destructured it — so the only
+   * thing the API could ask for was "all 62 images", and a folder left half
+   * done by a deploy had no way back except paying for the whole folder again.
+   * A field the caller cannot send is a capability that does not exist.
+   */
+  media_ids: z.array(z.string()).optional(),
+  /**
+   * `pending` skips images that already have a `textile_analysis` row, which is
+   * what turns a re-run into a resume. Default `all` keeps the original
+   * behaviour for anyone deliberately re-extracting a folder.
+   */
+  scope: z.enum(["all", "pending"]).optional().default("all"),
 });
 
 export type ExtractFolderFeaturesRequest = z.infer<typeof ExtractFolderFeaturesRequestSchema>;

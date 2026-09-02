@@ -1,12 +1,26 @@
 /**
- * Retry the media files that FAILED a previous folder-wide extraction.
+ * Resume a folder-wide extraction — every image that still has no analysis.
  *
  *   POST /admin/medias/folder/:id/extract-features/retry
  *
- * Reads the failed media ids recorded in `folder.metadata.folder_extraction.errors`
- * and re-runs the folder extraction workflow scoped to just those files
- * (`media_ids`), auto-confirming so processing starts immediately — one call,
- * no separate confirm step.
+ * ## What this used to do, and why it could not finish the job (#1742)
+ *
+ * It read `folder.metadata.folder_extraction.errors` and re-ran exactly those
+ * files. On production that was **one** file out of the **44** outstanding: the
+ * run had died mid-loop when a deploy replaced its ECS task, so 43 images were
+ * never attempted at all — and an image nobody tried is not an error. No route
+ * in the system could reach them.
+ *
+ * Worse, it then re-initialised progress with `total: 1`, overwriting the
+ * "18 of 62 done, 1 failed" record with "0 of 1". The only place the
+ * outstanding work was counted was the thing being overwritten.
+ *
+ * 🔑 The work-list now comes from state — images with no `textile_analysis`
+ * row — which is the shape `backfillAllGeocodesWorkflow` has always used and
+ * the reason running it twice is harmless. A file the run failed on and a file
+ * the run never reached are the same thing to the work that remains.
+ *
+ * The URL keeps its name so existing callers and the admin bundle keep working.
  */
 import { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
 import { ContainerRegistrationKeys, MedusaError } from "@medusajs/framework/utils"
@@ -21,6 +35,10 @@ import {
   waitConfirmationTextileFolderExtractionStepId,
   FolderExtractionProgress,
 } from "../../../../../../../workflows/ai/textile-folder-extraction"
+import {
+  folderExtractionLiveness,
+  pendingFolderExtractionMedia,
+} from "../../../../../../../workflows/ai/lib/folder-extraction-resume"
 
 export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
   const logger: any = req.scope.resolve(ContainerRegistrationKeys.LOGGER)
@@ -33,23 +51,57 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
   }
 
   const progress = (folder.metadata?.folder_extraction as FolderExtractionProgress) || null
-  const failedMediaIds = (progress?.errors ?? [])
-    .map((e) => e?.media_id)
-    .filter(Boolean)
+  const { pending_media_ids, all_media_ids } = await pendingFolderExtractionMedia(
+    req.scope,
+    folder_id
+  )
 
-  if (!failedMediaIds.length) {
+  if (!pending_media_ids.length) {
     return res.json({
-      message: "No failed extractions to retry.",
+      message: "Nothing to resume — every image in this folder already has an analysis.",
       folder_id,
-      retried: 0,
+      resumed: 0,
+      pending_count: 0,
+      folder_total: all_media_ids.length,
     })
   }
 
-  // Re-run the folder extraction scoped to the failed files only.
+  /**
+   * ⚠️ Refuse while a run is genuinely alive, and say which. Two loops over the
+   * same folder would extract every pending image twice, in parallel, at double
+   * the provider rate the pacing exists to respect — and `link.create` is not
+   * idempotent, so each would leave its own duplicate analysis row.
+   *
+   * The test is liveness, not `status`: a `running` that has gone quiet past
+   * the threshold is exactly the case this route exists for, so it must NOT be
+   * treated as a run in progress.
+   */
+  const liveness = folderExtractionLiveness(progress)
+  if (progress?.status === "running" && !liveness.stalled) {
+    throw new MedusaError(
+      MedusaError.Types.NOT_ALLOWED,
+      `A folder extraction is still running here — last progress ${
+        liveness.silent_for_ms === null
+          ? "unknown"
+          : `${Math.round(liveness.silent_for_ms / 1000)}s ago`
+      }, and it is only presumed stalled after ${Math.round(
+        liveness.threshold_ms / 1000
+      )}s of silence. Wait for it to finish or stall.`
+    )
+  }
+
   const { transaction } = await textileFolderExtractionMedusaWorkflow(req.scope).run({
     input: {
       folder_id,
-      media_ids: failedMediaIds,
+      /**
+       * Both, deliberately. `media_ids` pins the run to the list this request
+       * measured and reported back, and `scope: "pending"` re-asks the question
+       * at the moment processing starts — so anything analysed in between (a
+       * single-image extraction, a concurrent resume that won the race) is
+       * dropped rather than paid for twice.
+       */
+      media_ids: pending_media_ids,
+      scope: "pending",
       persist: true,
       interval_ms: progress?.interval_ms,
     },
@@ -70,13 +122,17 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
   })
 
   logger.info(
-    `[FolderExtractFeatures/Retry] Retrying ${failedMediaIds.length} failed file(s) in folder ${folder_id}`
+    `[FolderExtractFeatures/Resume] Resuming ${pending_media_ids.length} of ${all_media_ids.length} file(s) in folder ${folder_id}`
   )
 
   return res.status(202).json({
-    message: `Retrying ${failedMediaIds.length} failed extraction(s).`,
+    message: `Resuming ${pending_media_ids.length} outstanding extraction(s).`,
     transaction_id: transaction.transactionId,
     folder_id,
-    retried: failedMediaIds.length,
+    resumed: pending_media_ids.length,
+    /** Kept for callers written against the old response. */
+    retried: pending_media_ids.length,
+    pending_count: pending_media_ids.length,
+    folder_total: all_media_ids.length,
   })
 }

@@ -31,6 +31,7 @@ import {
   persistTextileExtractionResult,
   TextileProductExtractionOutput,
 } from "./textile-product-extraction";
+import { pendingFolderExtractionMedia } from "./lib/folder-extraction-resume";
 
 // ============================================
 // Types
@@ -49,6 +50,19 @@ export type TextileFolderExtractionInput = {
    * that failed a previous folder extraction.
    */
   media_ids?: string[];
+  /**
+   * Which images in the folder this run is for (#1742).
+   *
+   * - `"all"` (default) — every image, the original behaviour.
+   * - `"pending"` — only images with no `textile_analysis` row yet, which is
+   *   what makes a re-run a RESUME rather than a full re-do. This is the same
+   *   question `getAllUngeocodedAddressesStep` asks for the geocode backfill:
+   *   derive the work from state and running twice becomes harmless.
+   *
+   * ⚠️ Applied AFTER `media_ids`, so the two compose: an explicit list is
+   * narrowed to the ones still outstanding rather than overriding the scope.
+   */
+  scope?: "all" | "pending";
 };
 
 export type FolderMediaItem = {
@@ -65,10 +79,16 @@ export type FolderMediaListOutput = {
   hints?: string[];
   gender?: string;
   persist: boolean;
+  scope: "all" | "pending";
+  /** Every image in the folder, whatever this run's scope is. */
+  folder_total: number;
+  /** Images already carrying a `textile_analysis` row when this run started. */
+  already_done: number;
 };
 
 export type FolderExtractionProgress = {
   status: "running" | "completed" | "failed";
+  /** Images THIS run is processing. For a resume that is the remainder, not the folder. */
   total: number;
   completed: number;
   failed: number;
@@ -78,6 +98,25 @@ export type FolderExtractionProgress = {
   finished_at?: string | null;
   last_media_id?: string | null;
   errors?: Array<{ media_id: string; error: string }>;
+  /**
+   * Folder-wide truth, so a resume does not erase the record of what came
+   * before it (#1742).
+   *
+   * 🔴 The retry route used to re-init progress with `total: 1` — the count of
+   * files in `errors[]` — which overwrote "18 of 62 done, 43 never attempted"
+   * with "0 of 1". The only place the outstanding work was counted was the
+   * thing being overwritten. These three fields are what a screen needs to say
+   * "18 + 3 of 62" instead of "3 of 44" and lose the folder.
+   */
+  scope?: "all" | "pending";
+  folder_total?: number;
+  already_done?: number;
+  /**
+   * How many times a stalled run has been resumed for this folder. Capped, the
+   * way `process-email-queue` caps `MAX_ATTEMPTS`: a folder whose images fail
+   * for a reason that will not change must stop costing vision calls.
+   */
+  resume_attempts?: number;
 };
 
 export type TextileFolderExtractionSummary = {
@@ -155,6 +194,7 @@ const listFolderMediaStep = createStep(
     );
 
     let images = (mediaFiles || []).filter((f: any) => f.file_type === "image" && f.file_path);
+    const folder_total = images.length;
 
     // Scope to an explicit subset (the "retry failed" path) when requested.
     if (input.media_ids?.length) {
@@ -162,10 +202,40 @@ const listFolderMediaStep = createStep(
       images = images.filter((f: any) => wanted.has(f.id));
     }
 
+    /**
+     * The resume scope (#1742): drop images that already carry a
+     * `textile_analysis` row, so re-running finishes the folder instead of
+     * re-doing it. Same idea as `getAllUngeocodedAddressesStep` — the work-list
+     * is a question about state, which is what makes the workflow safe to run
+     * again after a deploy has killed it mid-loop.
+     */
+    const scope: "all" | "pending" = input.scope === "pending" ? "pending" : "all";
+    let already_done = 0;
+
+    if (scope === "pending") {
+      const { done_media_ids } = await pendingFolderExtractionMedia(
+        container,
+        input.folder_id
+      );
+      const done = new Set(done_media_ids);
+      already_done = done_media_ids.length;
+      images = images.filter((f: any) => !done.has(String(f.id)));
+    }
+
     if (images.length === 0) {
+      /**
+       * ⚠️ Two different nothings, and they must not read the same.
+       *
+       * An empty FOLDER is a caller mistake worth a 400. A folder with nothing
+       * PENDING is a resume that has already succeeded — refusing it as invalid
+       * data would make the sweeper log an error every time it found a folder
+       * someone had finished by hand.
+       */
       throw new MedusaError(
         MedusaError.Types.INVALID_DATA,
-        `Folder ${input.folder_id} has no image files to extract features from`
+        scope === "pending"
+          ? `Folder ${input.folder_id} has no images left to extract — every image already has a textile analysis`
+          : `Folder ${input.folder_id} has no image files to extract features from`
       );
     }
 
@@ -178,6 +248,9 @@ const listFolderMediaStep = createStep(
       hints: input.hints,
       gender: input.gender,
       persist: input.persist ?? false,
+      scope,
+      folder_total,
+      already_done,
     });
   }
 );
@@ -191,6 +264,8 @@ const initFolderExtractionProgressStep = createStep(
   async (input: FolderMediaListOutput, { container }) => {
     const mediaService: MediaService = container.resolve(MEDIA_MODULE);
     const folder = await mediaService.retrieveFolder(input.folder_id);
+    const previous =
+      (folder.metadata?.folder_extraction as FolderExtractionProgress) || null;
 
     const progress: FolderExtractionProgress = {
       status: "running",
@@ -203,6 +278,21 @@ const initFolderExtractionProgressStep = createStep(
       finished_at: null,
       last_media_id: null,
       errors: [],
+      scope: input.scope,
+      folder_total: input.folder_total,
+      already_done: input.already_done,
+      /**
+       * Counted across runs, not reset (#1742). The counter exists to stop a
+       * folder being resumed forever, so a fresh run inheriting zero would
+       * defeat it — the same way `process-email-queue` counts attempts on the
+       * row rather than on the pass. Only an explicit full re-run clears it,
+       * because that is a human saying "start this folder over".
+       *
+       * ⚠️ Only the SWEEPER consults this. A human pressing Resume is never
+       * refused on a count: they can see the errors and are making the call.
+       */
+      resume_attempts:
+        input.scope === "pending" ? (previous?.resume_attempts ?? 0) + 1 : 0,
     };
 
     await mediaService.updateFolders({
@@ -454,6 +544,7 @@ export const textileFolderExtractionMedusaWorkflow = createWorkflow(
       persist: data.input.persist ?? false,
       interval_ms: data.input.interval_ms,
       media_ids: data.input.media_ids,
+      scope: data.input.scope,
     }));
 
     // Use runAsStep with backgroundExecution for the long rate-limited run

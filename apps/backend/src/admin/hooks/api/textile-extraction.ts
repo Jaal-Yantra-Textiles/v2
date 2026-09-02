@@ -255,12 +255,30 @@ export type FolderExtractionProgress = {
   finished_at?: string | null;
   last_media_id?: string | null;
   errors?: Array<{ media_id: string; error: string }>;
+  /** Folder-wide truth, so a resume run does not read as the whole folder. */
+  scope?: "all" | "pending";
+  folder_total?: number;
+  already_done?: number;
+  resume_attempts?: number;
 };
 
 export type ExtractFolderFeaturesStatusResponse = {
   folder_id: string;
   has_run: boolean;
   progress: FolderExtractionProgress | null;
+  /**
+   * A run that CLAIMS to be running but has written no progress in three
+   * intervals (ten-minute floor). The loop lives in one Node process, so a
+   * deploy kills it without ever writing "I stopped" — `status` alone cannot
+   * tell a live run from a dead one (#1742).
+   */
+  stalled?: boolean;
+  silent_for_ms?: number | null;
+  stall_threshold_ms?: number;
+  /** Images in the folder with no analysis yet — what a resume would process. */
+  pending_count?: number | null;
+  folder_total?: number | null;
+  resumable?: boolean;
 };
 
 /**
@@ -375,11 +393,15 @@ export const useFolderExtractionStatus = (
 };
 
 /**
- * Hook to retry the media files that FAILED a previous folder extraction.
- * One call — the endpoint reads `folder_extraction.errors` and re-runs only
- * those files (auto-confirmed), no separate trigger/confirm step.
+ * Hook to resume a folder extraction — every image that still has no analysis,
+ * whether it failed loudly or was never reached because a deploy killed the run
+ * mid-loop (#1742). One call, auto-confirmed.
+ *
+ * ⚠️ The endpoint used to re-run only `folder_extraction.errors`. On production
+ * that was 1 file out of 44 outstanding, because an image nobody tried is not
+ * an error.
  */
-export const useRetryFolderExtraction = () => {
+export const useResumeFolderExtraction = () => {
   const queryClient = useQueryClient();
 
   return useMutation({
@@ -390,25 +412,32 @@ export const useRetryFolderExtraction = () => {
       );
       if (!response.ok) {
         const error = await response.json();
-        throw new Error(error.message || "Failed to retry extraction");
+        throw new Error(error.message || "Failed to resume extraction");
       }
       return response.json() as Promise<{
         message: string;
-        transaction_id: string;
+        transaction_id?: string;
         folder_id: string;
+        resumed: number;
         retried: number;
+        pending_count: number;
+        folder_total: number;
       }>;
     },
     onSuccess: (data) => {
-      toast.success(data.message || "Retrying failed extractions");
+      toast.success(data.message || "Resuming outstanding extractions");
       queryClient.invalidateQueries({
         queryKey: mediaFolderDetailQueryKeys.all,
       });
+      queryClient.invalidateQueries({ queryKey: ["folder-extraction-status"] });
     },
     onError: (error: any) => {
-      const message = error?.message || "Failed to retry extraction";
+      const message = error?.message || "Failed to resume extraction";
       toast.error(message);
-      console.error("[useRetryFolderExtraction] Error:", error);
+      console.error("[useResumeFolderExtraction] Error:", error);
     },
   });
 };
+
+/** @deprecated Renamed to {@link useResumeFolderExtraction} — it resumes everything outstanding, not just failures. */
+export const useRetryFolderExtraction = useResumeFolderExtraction;

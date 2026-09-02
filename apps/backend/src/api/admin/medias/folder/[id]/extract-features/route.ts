@@ -47,6 +47,7 @@ import { ExtractFolderFeaturesRequestSchema, ExtractFolderFeaturesRequest } from
 import { textileFolderExtractionMedusaWorkflow } from "../../../../../../workflows/ai/textile-folder-extraction";
 import MediaService from "../../../../../../modules/media/service";
 import { MEDIA_MODULE } from "../../../../../../modules/media";
+import { pendingFolderExtractionMedia } from "../../../../../../workflows/ai/lib/folder-extraction-resume";
 
 export const POST = async (
   req: MedusaRequest<ExtractFolderFeaturesRequest>,
@@ -64,7 +65,7 @@ export const POST = async (
       throw new MedusaError(MedusaError.Types.INVALID_DATA, message || "Invalid request body");
     }
 
-    const { hints, gender, persist, interval_ms } = parsed.data;
+    const { hints, gender, persist, interval_ms, media_ids, scope } = parsed.data;
     const folder_id = req.params.id;
 
     // Verify folder exists and count extractable images for the response
@@ -88,6 +89,34 @@ export const POST = async (
       );
     }
 
+    /**
+     * 🔴 Refuse an empty `scope: "pending"` run HERE, at the door (#1742).
+     *
+     * `listFolderMediaStep` throws the same refusal, but it runs inside the
+     * background step AFTER confirmation — so the caller would get a cheerful
+     * 202 and a transaction id, confirm it, and only then have the run die
+     * where nobody is looking. The trigger already checks `imageCount` for
+     * exactly this reason; the pending count is the same check for the scope
+     * that was just added.
+     */
+    let pendingCount: number | null = null;
+    if (scope === "pending") {
+      const { pending_media_ids } = await pendingFolderExtractionMedia(
+        req.scope,
+        folder_id
+      );
+      pendingCount = media_ids?.length
+        ? pending_media_ids.filter((id) => media_ids.includes(id)).length
+        : pending_media_ids.length;
+
+      if (pendingCount === 0) {
+        throw new MedusaError(
+          MedusaError.Types.INVALID_DATA,
+          `Folder ${folder_id} has no images left to extract — every image already has a textile analysis`
+        );
+      }
+    }
+
     // Run the long-running workflow
     const { result, transaction } = await textileFolderExtractionMedusaWorkflow(req.scope).run({
       input: {
@@ -96,6 +125,8 @@ export const POST = async (
         gender,
         persist,
         interval_ms,
+        media_ids,
+        scope,
       },
     });
 
@@ -106,6 +137,9 @@ export const POST = async (
       status: "pending_confirmation",
       folder_id,
       total_images: imageCount,
+      /** What this run will actually process — the folder, unless it is scoped. */
+      scheduled_images: pendingCount ?? media_ids?.length ?? imageCount,
+      scope,
       summary: result,
     });
   } catch (error) {
