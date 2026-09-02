@@ -1,6 +1,7 @@
 import {
   assessRunPricing,
   daysSinceCompletion,
+  hasPartnerOwner,
 } from "../audit-unpriced-completed-runs-job"
 import { runPayableOffer } from "../../../../../workflows/production-runs/lib/run-payable"
 
@@ -123,5 +124,50 @@ describe("daysSinceCompletion", () => {
 
   it("does not report a future completion as a negative age", () => {
     expect(daysSinceCompletion("2026-10-01T00:00:00.000Z", now)).toBeNull()
+  })
+})
+
+/**
+ * 🔴 The defect the job's FIRST production run exposed. Runs come in
+ * parent/child pairs — the parent holds the total, the child holds the partner
+ * and the money — so a parent has `partner_id: null` and no estimate by
+ * construction. 30 of the 39 rows in that first run were parents, each the twin
+ * of a child reported one second apart, and every one of them read as a partner
+ * owed money for finished work.
+ */
+describe("hasPartnerOwner", () => {
+  it("keeps a child run, which carries the partner and the money", () => {
+    expect(
+      hasPartnerOwner({ partner_id: "01K5RM4ZQ0M2HMWQ120QMSX7AM" })
+    ).toBe(true)
+  })
+
+  it("excludes a parent run, whose partner_id is null by construction", () => {
+    expect(hasPartnerOwner({ partner_id: null })).toBe(false)
+    expect(hasPartnerOwner({})).toBe(false)
+    expect(hasPartnerOwner(null)).toBe(false)
+  })
+
+  /** `''` passes every `is not null` check — it is not an owner. */
+  it("treats a blank partner_id as no owner", () => {
+    expect(hasPartnerOwner({ partner_id: "" })).toBe(false)
+    expect(hasPartnerOwner({ partner_id: "   " })).toBe(false)
+  })
+
+  /**
+   * The real pair from production: same design, completed one second apart,
+   * the child naming the parent via `parent_run_id`.
+   */
+  it("splits the Cotton Dreams pair the way payable-runs does", () => {
+    const parent = { partner_id: null, partner_cost_estimate: null }
+    const child = {
+      partner_id: "01K5RM4ZQ0M2HMWQ120QMSX7AM",
+      partner_cost_estimate: null,
+    }
+    expect([parent, child].filter(hasPartnerOwner)).toEqual([child])
+    // Both are unpriced — the pricing verdict alone cannot tell them apart,
+    // which is exactly why the owner check has to be its own gate.
+    expect(assessRunPricing(parent).verdict).toBe("no_rate_recorded")
+    expect(assessRunPricing(child).verdict).toBe("no_rate_recorded")
   })
 })
