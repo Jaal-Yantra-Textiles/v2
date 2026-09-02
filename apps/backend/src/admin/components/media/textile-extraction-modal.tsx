@@ -22,6 +22,13 @@ import { Spinner } from "../ui/spinner";
 
 type Gender = "female" | "male" | "unisex";
 
+/** Human label for a folder-extraction pacing value (milliseconds). */
+const pacingLabel = (ms: number) => {
+  if (ms < 60000) return `${Math.round(ms / 1000)} seconds`
+  const min = ms / 60000
+  return min === 1 ? "1 minute" : `${min} minutes`
+}
+
 interface TextileExtractionModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -52,6 +59,7 @@ export const TextileExtractionModal = ({
   const [gender, setGender] = useState<Gender>("unisex");
   const [persist, setPersist] = useState(false);
   const [autoConfirm, setAutoConfirm] = useState(true);
+  const [intervalMs, setIntervalMs] = useState(60000);
 
   const singleExtractMutation = useExtractTextileFeatures();
   const confirmMutation = useConfirmExtraction();
@@ -77,6 +85,7 @@ export const TextileExtractionModal = ({
           hints: hintsArray.length > 0 ? hintsArray : undefined,
           gender,
           persist,
+          interval_ms: intervalMs,
         });
 
         if (autoConfirm && result.transaction_id) {
@@ -133,6 +142,7 @@ export const TextileExtractionModal = ({
     setGender("unisex");
     setPersist(false);
     setAutoConfirm(true);
+    setIntervalMs(60000);
     onOpenChange(false);
   };
 
@@ -169,9 +179,9 @@ export const TextileExtractionModal = ({
                   {isFolderMode ? (
                     <>
                       Runs as a long-running background job processing{" "}
-                      <strong>1 photo per minute</strong> so AI providers are never
-                      rate limited. Every image in the folder gets extracted —
-                      track progress from the folder page.
+                      <strong>{pacingLabel(intervalMs)}</strong> per photo so AI
+                      providers are never rate limited. Every image in the folder
+                      gets extracted — track progress from the folder page.
                     </>
                   ) : (
                     <>
@@ -240,6 +250,37 @@ export const TextileExtractionModal = ({
                 </div>
 
                 <div className="h-px bg-ui-border-base" />
+
+                {/* Pacing (folder mode only — one long-running, rate-limited job) */}
+                {isFolderMode && (
+                  <>
+                    <div className="flex flex-col gap-y-2">
+                      <Label htmlFor="interval" className="text-ui-fg-base">
+                        Pacing between photos
+                      </Label>
+                      <Text size="xsmall" className="text-ui-fg-subtle">
+                        How long to wait between each image so the AI provider is never rate limited
+                      </Text>
+                      <Select
+                        value={String(intervalMs)}
+                        onValueChange={(v) => setIntervalMs(Number(v))}
+                      >
+                        <Select.Trigger id="interval" className="w-56">
+                          <Select.Value />
+                        </Select.Trigger>
+                        <Select.Content>
+                          <Select.Item value="30000">30 seconds</Select.Item>
+                          <Select.Item value="60000">1 minute (recommended)</Select.Item>
+                          <Select.Item value="120000">2 minutes</Select.Item>
+                          <Select.Item value="300000">5 minutes</Select.Item>
+                          <Select.Item value="600000">10 minutes</Select.Item>
+                        </Select.Content>
+                      </Select>
+                    </div>
+
+                    <div className="h-px bg-ui-border-base" />
+                  </>
+                )}
 
                 {/* Extraction hints */}
                 <div className="flex flex-col gap-y-2">
