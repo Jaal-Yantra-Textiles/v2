@@ -16,7 +16,47 @@ import {
 } from "../../agents/textileExtractionAgent";
 import { PinoLogger } from "@mastra/loggers";
 import { readModelJsonOrThrow } from "../../../lib/ai/model-json";
-import sharp from "sharp";
+
+/**
+ * `sharp`, loaded LAZILY and never as a top-level import.
+ *
+ * 🔴 It is a NATIVE module, and the production image builds its dependency tree
+ * with `pnpm deploy --ignore-scripts` — which skips the install script that
+ * fetches the platform binary. So `node_modules/sharp` ships without
+ * `build/Release/sharp-linux-x64.node`, and a static `import sharp from "sharp"`
+ * turns that absence into:
+ *
+ *     Error starting server: Something went wrong installing the "sharp" module
+ *     Cannot find module '../build/Release/sharp-linux-x64.node'
+ *
+ * which exits the container with code 1 before it can serve a request. The ECS
+ * circuit breaker then rolled production back through two consecutive deploys
+ * (#1729), leaving migrations applied and the code that needed them not live.
+ *
+ * The binary is now installed in the image and asserted at build time, so this
+ * should not recur — but the import stays lazy regardless, because the caller
+ * ALREADY treats an unusable sharp as non-fatal: it warns and sends the
+ * original bytes. A top-level import defeated that design by failing before any
+ * of that code could run. An image-processing nicety must never be able to take
+ * the server down at boot.
+ *
+ * Cached after the first attempt, including the failure — a missing binary does
+ * not become present, and retrying the import per image would log once per
+ * request.
+ */
+let sharpModule: any | null | undefined
+const loadSharp = async (logger: any): Promise<any | null> => {
+  if (sharpModule !== undefined) return sharpModule
+  try {
+    sharpModule = (await import("sharp")).default
+  } catch (err) {
+    logger?.warn?.(
+      `[TextileExtraction] sharp is unavailable — images will be sent as fetched, so HEIC will still be rejected by the vision providers: ${err}`
+    )
+    sharpModule = null
+  }
+  return sharpModule
+}
 
 const logger = new PinoLogger();
 
@@ -242,7 +282,13 @@ const prepareImageForAgent = async (image_url: string): Promise<{ image: string;
       // that isn't already JPEG/PNG/WebP is re-encoded, and everything is capped
       // to MAX_IMAGE_DIM so the body stays small.
       const needsReencode = !isJpeg && !isPng && !isWebp; // HEIC, GIF, TIFF, …
+      const sharp = await loadSharp(logger);
       try {
+        if (!sharp) {
+          throw new Error(
+            "sharp is unavailable in this runtime — cannot re-encode"
+          );
+        }
         const meta = await sharp(buf, { failOn: "none" }).metadata();
         const tooBig =
           (meta.width ?? 0) > MAX_IMAGE_DIM || (meta.height ?? 0) > MAX_IMAGE_DIM;
