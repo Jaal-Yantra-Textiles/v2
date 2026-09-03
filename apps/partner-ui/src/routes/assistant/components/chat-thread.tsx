@@ -237,7 +237,11 @@ export const ChatThread = ({
   const transport = new DefaultChatTransport({
     api: `${backendUrl.replace(/\/$/, "")}/partners/assistant/chat`,
     credentials: "include",
-    headers: () => {
+    // Annotated: without it TS widens the ternary to
+    // `{ Authorization: string } | {}`, which is not assignable to the
+    // transport's `Record<string, string>` — a pre-existing error in this file
+    // that CI's changed-files typecheck attributes to whoever touches it next.
+    headers: (): Record<string, string> => {
       const token = authToken()
       return token ? { Authorization: `Bearer ${token}` } : {}
     },
