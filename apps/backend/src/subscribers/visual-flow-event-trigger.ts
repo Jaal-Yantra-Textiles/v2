@@ -272,6 +272,18 @@ export const config: SubscriberConfig = {
     "person.person.deleted",
     "person_address.created",
     "person_address.updated",
+
+    // CRM engagement-sweep transitions (#1355). Sole emitter:
+    // api/admin/ops/maintenance-jobs/crm-engagement-sweep-job.ts (run daily by
+    // jobs/sweep-crm-engagement.ts); fires only on a real engagement-state
+    // transition — follow-up due, contact stalled, contact replied, contact
+    // opted out. Same allowlist trap as partner_quote above: these were
+    // emitted while absent here, so every flow triggering on crm.* sat inert.
+    // The names are also asserted by quote-events-are-subscribed.unit.spec.ts.
+    "crm.follow_up_due",
+    "crm.contact_stalled",
+    "crm.contact_replied",
+    "crm.contact_opted_out",
     
     // Agreements
     "agreements.agreement.created",
