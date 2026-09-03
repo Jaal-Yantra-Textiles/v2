@@ -195,16 +195,6 @@ const ConversationThreadModal = () => {
               </div>
             </div>
 
-            {/* Awaiting reply banner */}
-            {conversation.metadata?.awaiting_reply && (
-              <div className="flex items-center gap-2 px-6 py-2 bg-ui-bg-highlight border-b border-ui-border-base text-sm text-ui-fg-muted">
-                <span className="inline-block w-2 h-2 rounded-full bg-orange-400 animate-pulse" />
-                <Text size="small">
-                  Waiting for partner to reply. Messages are queued and will be sent automatically once they respond.
-                </Text>
-              </div>
-            )}
-
             {/* Messages */}
             <div ref={scrollRef} className="flex-1 overflow-y-auto px-6 py-4 bg-ui-bg-subtle">
               {messages.length === 0 ? (
