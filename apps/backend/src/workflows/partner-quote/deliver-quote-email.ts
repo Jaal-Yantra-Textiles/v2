@@ -6,9 +6,11 @@ import { PARTNER_QUOTE_EVENTS } from "../../modules/partner-quote/events"
 import { buildQuoteEmailData } from "../../modules/partner-quote/lib/quote-email"
 import { resolveQuoteBuyerLink } from "../../modules/partner-quote/lib/quote-link"
 import { sendQuoteEmailWorkflow } from "../email/workflows/send-quote-email"
+import { sendQuoteIntroductionEmailWorkflow } from "../email/workflows/send-quote-introduction-email"
 
 /**
- * Send the minted quote to its buyer (#1420), and say honestly whether it went.
+ * Send the minted quote to its buyer (#1420), and say honestly whether it
+ * went. Introduce the partner first (#1486) — in code, not in a flow.
  *
  * ## Why this sits beside the mint rather than inside it
  *
@@ -157,18 +159,83 @@ export async function deliverQuoteEmail(
     )
   }
 
+  const quoteEmailData = buildQuoteEmailData({
+    quote,
+    partnerName: input.partnerName ?? null,
+    quoteUrl: buyerUrl,
+    lineCount: input.lineCount,
+    totalQuantity: input.totalQuantity,
+    now: new Date(),
+  })
+
+  /**
+   * Introduce the partner BEFORE the quote (#1486 slice 1).
+   *
+   * 🔴 This used to be delegated to a prod-configured visual flow listening on
+   * `partner_quote.minted` — and nothing in code ever sent it, so whether a
+   * buyer was introduced at all depended on infrastructure nobody had
+   * reviewed. It is sent here, in code, from the delivery path instead.
+   *
+   * ## Ordering is the point, and it is real
+   *
+   * Awaited, not fired and forgotten: the introduction's copy says "your
+   * quote follows shortly", and a quote that lands first — or concurrently —
+   * makes that a lie. Only after this resolves, one way or the other, does
+   * the quote send below run.
+   *
+   * ## A failed introduction must never cost the buyer their link
+   *
+   * The quote email is the only durable copy of the token; the introduction
+   * is a courtesy. So the failure is logged loudly — partner id, buyer email
+   * and the error, because "the introduction did not go" is a fact a human
+   * should be able to act on — and swallowed. The quote send then proceeds
+   * exactly as it would have.
+   *
+   * 🔑 No dedup yet (#1486 slice 1b, deliberately out of scope here): a visual
+   * flow configured on `partner_quote.minted` may still send its own
+   * introduction, and a buyer can be introduced once per quote. Making it
+   * once-per-(partner, buyer) needs a table this code does not have yet.
+   */
+  try {
+    const { result } = await sendQuoteIntroductionEmailWorkflow(scope).run({
+      input: {
+        email: to,
+        data: {
+          // The same builder as the quote email, so the two cannot disagree
+          // about who the partner is or how the destination reads.
+          partner_name: quoteEmailData.partner_name,
+          recipient_name: quoteEmailData.recipient_name,
+          recipient_company:
+            String(quote?.recipient_company ?? "").trim() || null,
+          line_count: quoteEmailData.line_count,
+          total_quantity: quoteEmailData.total_quantity,
+          destination: quoteEmailData.destination,
+          current_year: quoteEmailData.current_year,
+        },
+      },
+    })
+
+    if ((result as any)?.id === BOT_SUPPRESSED_SEND_ID) {
+      // Not an error: nothing was lost, and the quote send right after will
+      // report the crawler address loudly as ITS failure. But "delivered"
+      // would be a lie — a suppressed send must never read as sent (#1333).
+      logger.warn(
+        `[quote] introduction suppressed (known crawler address) quote=${quote.id} to=${to}`
+      )
+    } else {
+      logger.info(`[quote] introduction delivered quote=${quote.id} to=${to}`)
+    }
+  } catch (e: any) {
+    logger.error(
+      `[quote] introduction NOT delivered quote=${quote?.id} partner_id=${quote?.partner_id ?? null} to=${to}: ${e?.message ?? String(e)}`
+    )
+  }
+
   try {
     const { result } = await sendQuoteEmailWorkflow(scope).run({
       input: {
         email: to,
-        data: buildQuoteEmailData({
-          quote,
-          partnerName: input.partnerName ?? null,
-          quoteUrl: buyerUrl,
-          lineCount: input.lineCount,
-          totalQuantity: input.totalQuantity,
-          now: new Date(),
-        }),
+        data: quoteEmailData,
       },
     })
 
