@@ -44,8 +44,22 @@ Nothing relied on any of the three hatches, so each is now a refusal.
 ## The shape of the refusal
 
 **404**, with the same body an unknown token gets. A prober must not learn a
-token is real by being told they are on the wrong shop. A revoked quote is
-deliberately indistinguishable from an unknown one for the same reason.
+token is real by being told they are on the wrong shop.
+
+> ⚠️ **This indistinguishability covers the wrong-store case only — not
+> revocation.** An earlier version of this page claimed a revoked quote 404s
+> too. It does not: `quoteUnusableReason` returns `"revoked"`
+> (`apps/backend/src/modules/partner-quote/lib/token.ts`), the view is built
+> with `show_quoted` and `show_live` both false, and the route still returns
+> **200** with a `dead_link` document saying the partner withdrew the quote —
+> verified against a real revoked quote (see
+> `apps/storefront/src/app/[countryCode]/(main)/quotes/[token]/page.tsx`).
+> That is deliberate and kinder than a 404, but it means a prober *can*
+> distinguish a revoked token from an unknown one. Nothing actionable leaks
+> either way — the tokens are high-entropy and no price is rendered — so this
+> is a curiosity, not a hole. It is written down here because a security
+> property a document asserts and the code does not hold is worse than no
+> document at all.
 
 The *keyless* case never reaches this code — core rejects a missing
 `x-publishable-api-key` with a 400 before the route runs. So the "no sales
