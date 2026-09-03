@@ -74,16 +74,52 @@ class DtdcFulfillmentService extends AbstractFulfillmentProviderService {
     return true
   }
 
-  async canCalculate(data: CreateShippingOptionDTO): Promise<boolean> {
-    return true
+  /**
+   * 🔴 DTDC can NEVER back a calculated shipping option (#1422).
+   *
+   * This integration has no rate API — `carrier-capabilities.ts` records dtdc
+   * as `can_rate: false` on both domestic and international, and the client
+   * exposes no `getRates`. There is nothing to calculate from.
+   *
+   * It used to answer `true` here and `{ calculated_amount: 0 }` below. A zero
+   * is not "we could not quote": it is indistinguishable from a genuinely free
+   * lane, so the cart, the order and every downstream report read it as free
+   * shipping and the buyer was charged nothing to ship. That is the same
+   * defect #1417 found on Shiprocket, whose header comment
+   * (`modules/shipping-providers/shiprocket/flat-fallback.ts`) is the fullest
+   * account of why a silent zero is the worst available answer.
+   *
+   * Refusing here is what stops a calculated dtdc option being created at all.
+   */
+  async canCalculate(_data: CreateShippingOptionDTO): Promise<boolean> {
+    return false
   }
 
+  /**
+   * Unreachable through a correctly-created option, because `canCalculate`
+   * refuses. It throws rather than returning a number for the one case that
+   * can still reach it: a calculated option created BEFORE this fix.
+   *
+   * ⚠️ The trade is deliberate and it is not the same trade Shiprocket made.
+   * Shiprocket falls back to a flat rate because its failures are transient —
+   * a live rate API having a bad day — and a throw would take the whole
+   * shipping-options listing with it, including the manual flat option. DTDC
+   * has no rate API at ALL, so a calculated dtdc option is a standing
+   * misconfiguration rather than an outage, and there is no honest number to
+   * substitute: any flat amount invented here would be a price nobody chose,
+   * quoted to a buyer as if a carrier had said it. Failing loudly is what gets
+   * the option corrected; quoting zero is what shipped freight for free.
+   */
   async calculatePrice(
-    optionData: Record<string, unknown>,
-    data: Record<string, unknown>,
-    context: any
+    _optionData: Record<string, unknown>,
+    _data: Record<string, unknown>,
+    _context: any
   ): Promise<CalculatedShippingOptionPrice> {
-    return { calculated_amount: 0, is_calculated_price_tax_inclusive: false }
+    throw new Error(
+      "DTDC cannot price a calculated shipping option: this integration has no rate API (can_rate: false). " +
+        "Use a flat-rate shipping option for DTDC, or rate the lane with a carrier that quotes. " +
+        "Returning 0 here would quote the buyer free shipping (#1422)."
+    )
   }
 
   async createFulfillment(
