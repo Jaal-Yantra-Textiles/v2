@@ -197,7 +197,7 @@ const Header = () => {
   )
 }
 
-type WorkspaceType = "seller" | "manufacturer" | "individual" | "designer"
+export type WorkspaceType = "seller" | "manufacturer" | "individual" | "designer"
 
 /**
  * The sub-items under Orders, in one place (#1389 S3).
@@ -217,11 +217,10 @@ const ordersNavItems = (t: TFunction) => [
   { label: t("app.nav.main.quotes", "Quotes"), to: "/orders/quotes" },
 ]
 
-const useCoreRoutes = (
-  workspaceType?: WorkspaceType
+export const buildCoreRoutes = (
+  workspaceType: WorkspaceType | undefined,
+  t: TFunction
 ): Omit<INavItem, "pathname">[] => {
-  const { t } = useTranslation()
-
   // #338/#958 — Designer persona. A lean, design-first sidebar: the authoring
   // + production loop up top, with the full commerce surface present but
   // hidden by default (see DESIGNER_COMMERCE_ROUTE_IDS) and revealed on demand.
@@ -371,6 +370,13 @@ const useCoreRoutes = (
       ],
     },
   ]
+}
+
+const useCoreRoutes = (
+  workspaceType?: WorkspaceType
+): Omit<INavItem, "pathname">[] => {
+  const { t } = useTranslation()
+  return buildCoreRoutes(workspaceType, t)
 }
 
 const Searchbar = () => {
