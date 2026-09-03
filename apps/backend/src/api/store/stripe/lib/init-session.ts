@@ -8,10 +8,9 @@
  * orchestrator does the workflow I/O.
  */
 import { ContainerRegistrationKeys } from "@medusajs/framework/utils"
-import {
-  createPaymentCollectionForCartWorkflow,
-  createPaymentSessionsWorkflow,
-} from "@medusajs/medusa/core-flows"
+import { createPaymentSessionsWorkflow } from "@medusajs/medusa/core-flows"
+
+import { ensureCartPaymentCollection } from "../../../../lib/payments/ensure-cart-collection"
 import {
   resolvePartnerConnect,
   connectContext,
@@ -66,6 +65,9 @@ export async function ensureStripeSession(
         "region.payment_providers.id",
         "region.payment_providers.is_enabled",
         "payment_collection.id",
+        // #1451 — the seam refuses rather than reuse a collection whose amount
+        // disagrees with the payment schedule, so it must be able to see it.
+        "payment_collection.amount",
         "payment_collection.payment_sessions.id",
         "payment_collection.payment_sessions.provider_id",
         "payment_collection.payment_sessions.amount",
@@ -97,14 +99,15 @@ export async function ensureStripeSession(
     }
   }
 
-  // Ensure a payment collection.
-  let pcId: string | undefined = cart.payment_collection?.id
-  if (!pcId) {
-    const { result } = await createPaymentCollectionForCartWorkflow(scope).run({
-      input: { cart_id: cartId },
-    })
-    pcId = (result as any).id
-  }
+  /**
+   * Ensure a payment collection FOR THE RIGHT AMOUNT (#1451).
+   *
+   * This used to call core's `createPaymentCollectionForCartWorkflow`, which
+   * hardcodes `amount: cart.raw_total`. On a quote acceptance that ignored the
+   * deposit the buyer had just been promised and charged the whole total.
+   * `ensureCartPaymentCollection` makes that decision once, for both rails.
+   */
+  const { id: pcId } = await ensureCartPaymentCollection(scope, cart)
 
   // Ensure a Stripe session (initiatePayment → creates the PaymentIntent).
   let session = findStripeSession(cart.payment_collection?.payment_sessions)

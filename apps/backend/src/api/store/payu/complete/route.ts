@@ -1,9 +1,8 @@
 import { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
 import { ContainerRegistrationKeys, Modules } from "@medusajs/framework/utils"
-import {
-  completeCartWorkflow,
-  refreshPaymentCollectionForCartWorkflow,
-} from "@medusajs/medusa/core-flows"
+import { completeCartWorkflow } from "@medusajs/medusa/core-flows"
+
+import { refreshCartPaymentCollection } from "../../../../lib/payments/ensure-cart-collection"
 
 /**
  * POST /store/payu/complete
@@ -43,6 +42,7 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
     fields: [
       "id",
       "payment_collection.id",
+      "payment_collection.amount",
       "payment_collection.payment_sessions.*",
     ],
     filters: { id: cart_id },
@@ -125,10 +125,40 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
 async function refreshPaymentCollection(req: MedusaRequest, cartId: string) {
   const logger: any = req.scope.resolve(ContainerRegistrationKeys.LOGGER)
   try {
-    await refreshPaymentCollectionForCartWorkflow(req.scope).run({
-      input: { cart_id: cartId },
+    /**
+     * 🔴 NOT core's refresh directly (#1451).
+     *
+     * `refreshPaymentCollectionForCartWorkflow` resets the collection to
+     * `amount: cart.raw_total` whenever it differs from the cart total — which
+     * a DEPOSIT does by definition. This route refreshes on four paths, so a
+     * buyer retrying a failed deposit payment would silently be asked for the
+     * full total instead. `refreshCartPaymentCollection` drops the stale
+     * sessions (the part that is actually wanted here) and leaves a deposit
+     * amount alone; every other cart still goes through core's workflow.
+     */
+    const query: any = req.scope.resolve(ContainerRegistrationKeys.QUERY)
+    const { data } = await query.graph({
+      entity: "cart",
+      fields: [
+        "id",
+        "total",
+        "currency_code",
+        "payment_collection.id",
+        "payment_collection.amount",
+        "payment_collection.payment_sessions.id",
+      ],
+      filters: { id: cartId },
     })
-    logger.info(`[PayU Complete] Payment collection refreshed for cart ${cartId}`)
+    const cart = data?.[0]
+    if (!cart) {
+      logger.warn(`[PayU Complete] Cart ${cartId} not found for refresh`)
+      return
+    }
+    const { preserved_deposit } = await refreshCartPaymentCollection(req.scope, cart)
+    logger.info(
+      `[PayU Complete] Payment collection refreshed for cart ${cartId}` +
+        (preserved_deposit ? " (deposit amount preserved)" : "")
+    )
   } catch (e: any) {
     logger.error(`[PayU Complete] Failed to refresh payment collection: ${e.message}`)
   }
