@@ -339,7 +339,12 @@ describe("executeMcpPlan — sensitive steps are refused before anything runs (#
   })
 
   it("still runs a plan of ordinary writes and reads — the guard must not over-refuse", async () => {
-    const dispatch = jest.fn(async (name: string) => ok(name, { designs: [{ id: "d1" }] }))
+    // `_args` is declared even though it is unused: without it TS types
+    // `mock.calls` as a 1-tuple and the `[1][1]` assertion below does not
+    // COMPILE — which jest never notices but `check:prod-build` does.
+    const dispatch = jest.fn(async (name: string, _args: Record<string, unknown>) =>
+      ok(name, { designs: [{ id: "d1" }] })
+    )
 
     const r = await executeMcpPlan({
       ctx,
@@ -374,7 +379,7 @@ describe("executeMcpPlan — sensitive steps are refused before anything runs (#
    * them the two halves are related.
    */
   it("documents why `ok` was not a stop condition: a confirm response is ok:true and does not execute", async () => {
-    const dispatch = jest.fn(async (name: string) => {
+    const dispatch = jest.fn(async (name: string, _args: Record<string, unknown>) => {
       if (name === "mint_quote") {
         // Exactly what dispatchMcpTool returns for a sensitive, unconfirmed call.
         return { ok: true, tool: name, requires_confirmation: true } as any
