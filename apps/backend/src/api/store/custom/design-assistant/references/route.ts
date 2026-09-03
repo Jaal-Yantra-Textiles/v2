@@ -65,6 +65,22 @@ import { createDesignWorkflow } from "../../../../../workflows/designs/create-de
 const ALLOWED = /^image\/(png|jpe?g|webp|gif|avif|heic|heif)$/i
 const MAX_FILES = 8
 
+/**
+ * Encode a multer file's bytes for `uploadFilesWorkflow`.
+ *
+ * 🔴 base64, NOT "binary"/latin1 (#1759). The Medusa file provider
+ * (local-file / file-s3) format-detects the content string by attempting a
+ * base64 round-trip — if that succeeds it decodes as base64; otherwise it
+ * falls back to `Buffer.from(content, "utf8")`, which UTF-8-re-encodes every
+ * byte >= 0x80 and corrupts real images (magic bytes c3 bf c3 98 instead of
+ * ff d8 ff e0 — the upload still SUCCEEDS, the stored file is just mojibake,
+ * which is why no status assertion can catch it). Same failure mode #769
+ * fixed on the admin media routes; see
+ * workflows/whatsapp/whatsapp-media-helper.ts for the full autopsy.
+ */
+export const encodeUploadContent = (buffer: Buffer): string =>
+  buffer.toString("base64")
+
 export const POST = async (
   req: MedusaRequest & { files?: Express.Multer.File[] },
   res: MedusaResponse
@@ -166,7 +182,7 @@ export const POST = async (
           {
             filename: file.originalname,
             mimeType: file.mimetype,
-            content: file.buffer.toString("binary"),
+            content: encodeUploadContent(file.buffer),
             access: "public" as const,
           },
         ],
