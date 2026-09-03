@@ -237,7 +237,11 @@ export const ChatThread = ({
   const transport = new DefaultChatTransport({
     api: `${backendUrl.replace(/\/$/, "")}/partners/assistant/chat`,
     credentials: "include",
-    headers: () => {
+    // Annotated: without it TS widens the ternary to
+    // `{ Authorization: string } | {}`, which is not assignable to the
+    // transport's `Record<string, string>` — a pre-existing error in this file
+    // that CI's changed-files typecheck attributes to whoever touches it next.
+    headers: (): Record<string, string> => {
       const token = authToken()
       return token ? { Authorization: `Bearer ${token}` } : {}
     },
@@ -879,6 +883,23 @@ function ToolCard({
         toast.error(r.error || `Could not run ${label}`)
       }
     } catch (e: any) {
+      // Transport failed — but the POST may have already executed server-side
+      // (the failure was in the response, not necessarily the call), so the
+      // outcome is UNKNOWN, not "failed". Close the gate exactly like a
+      // resolved approval: a still-live Approve button here is the
+      // double-execution shape. Persisted too — a reopened chat must not
+      // re-offer an action whose attempt already happened, and the model must
+      // check state rather than assume nothing ran or blindly retry.
+      const unknownOutcome = {
+        ok: false,
+        tool: name,
+        error:
+          `Outcome unknown — the tool was submitted but the response did not arrive` +
+          ` (${e?.message || "transport error"}). It may have already run. Do not retry it blindly; check the current state first.`,
+      }
+      setResolved("approved")
+      setResult(unknownOutcome)
+      onResolved(unknownOutcome, "approved")
       toast.error(e?.message || `Could not run ${label}`)
     } finally {
       setConfirming(false)
