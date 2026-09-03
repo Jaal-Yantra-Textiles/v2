@@ -1414,15 +1414,12 @@ export const PARTNER_MCP_TOOLS: PartnerMcpToolDef[] = [
     ),
   },
   {
-    name: "get_storefront_analytics",
-    description: "Get storefront analytics (traffic / visits) for the partner's storefront.",
+    name: "get_storefront_settings",
+    description:
+      "Get the storefront's analytics configuration — provider (in_house / custom / off), custom head and body-end script blocks, and the Google site verification token. Returns settings only, NOT traffic or visit data.",
     method: "GET",
     path: "/partners/storefront/website/analytics",
-    queryParams: ["start", "end"],
-    inputSchema: obj({
-      start: STR("Optional ISO start date for the analytics window."),
-      end: STR("Optional ISO end date for the analytics window."),
-    }),
+    inputSchema: obj({}),
   },
   {
     name: "update_storefront_analytics",

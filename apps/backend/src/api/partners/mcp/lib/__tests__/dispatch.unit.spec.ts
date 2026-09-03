@@ -153,7 +153,7 @@ describe("partner-mcp registry + dispatch", () => {
       const names = new Set(PARTNER_MCP_TOOLS.map((t) => t.name))
       for (const n of [
         "get_storefront_status", "get_storefront_website",
-        "update_storefront_website", "get_storefront_analytics",
+        "update_storefront_website", "get_storefront_settings",
         "update_storefront_analytics", "list_storefront_pages",
         "get_storefront_page", "list_storefront_page_blocks",
         "add_storefront_page_blocks", "update_storefront_page_block",
@@ -180,6 +180,24 @@ describe("partner-mcp registry + dispatch", () => {
       expect(isSensitive(byName("add_storefront_page_blocks"))).toBe(false)
       expect(isSensitive(byName("update_storefront_page_block"))).toBe(false)
       expect(isSensitive(byName("delete_storefront_page_block"))).toBe(true)
+    })
+
+    it("get_storefront_settings returns analytics config, not traffic data (#726)", () => {
+      const names = new Set(PARTNER_MCP_TOOLS.map((t) => t.name))
+      expect(names.has("get_storefront_analytics")).toBe(false)
+      const t = PARTNER_MCP_TOOLS.find(
+        (x) => x.name === "get_storefront_settings"
+      )!
+      expect(t.method).toBe("GET")
+      expect(t.path).toBe("/partners/storefront/website/analytics")
+      // The old row pretended to be a time-ranged analytics query; the route
+      // reads no window, so the tool must not offer one.
+      expect(t.queryParams ?? []).toEqual([])
+      expect(t.inputSchema.properties).toEqual({})
+      // The description must say plainly what comes back: configuration,
+      // never a traffic report.
+      expect(t.description).toContain("configuration")
+      expect(t.description).toContain("NOT traffic")
     })
 
     it("covers store config (Tier 3) under /partners/stores/:id", () => {
