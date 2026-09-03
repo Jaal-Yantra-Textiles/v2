@@ -281,7 +281,8 @@ export const POST = async (
 
   // Structured multi-step planning. The model can emit ONE plan instead of
   // chaining tool calls itself; every step still goes through dispatchPartnerTool
-  // (dry_run / confirm rails + write gating). `resolve` steps consult the
+  // (dry_run rails + write gating); a plan naming a tool that needs CONFIRMATION
+  // is refused whole, before anything runs (#1757). `resolve` steps consult the
   // entity-memory cache so "customer by email" skips the lookup tool.
   const resolveEntity = cacheService && partnerId
     ? (type: string, by: string, value: string) =>
