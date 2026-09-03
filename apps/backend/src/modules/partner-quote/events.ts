@@ -1,5 +1,7 @@
 /**
- * Events the quote path emits (#1439).
+ * Events the quote path emits (#1439) — and, because the guard this file feeds
+ * is the only signal this failure mode ever produces, the CRM engagement-sweep
+ * names the subscriber must also carry (#1355).
  *
  * ## Why these are constants and not string literals at the emit site
  *
@@ -35,4 +37,37 @@ export const PARTNER_QUOTE_EVENTS = {
 
 export const PARTNER_QUOTE_EVENT_NAMES: readonly string[] = Object.values(
   PARTNER_QUOTE_EVENTS
+)
+
+/**
+ * CRM engagement-sweep events (#1355) — the same trap again, so the same guard
+ * covers them.
+ *
+ * `crm-engagement-sweep` (the maintenance job the daily `sweep-crm-engagement`
+ * schedule runs) is the sole emitter of these four names, and it emits only on
+ * a real engagement-state TRANSITION. They were emitted while absent from the
+ * subscriber's allowlist, so every flow triggering on `crm.*` sat inert — the
+ * exact failure the quote constants above were centralized to prevent.
+ *
+ * The emitter keeps its own local name map (`EVENT_BY_STATE` in
+ * `api/admin/ops/maintenance-jobs/crm-engagement-sweep-job.ts`) and is not
+ * coupled to this module, so these constants are the guard's copy, not the
+ * emitter's: `quote-events-are-subscribed.unit.spec.ts` asserts the subscriber
+ * carries every one of them. Adding a new crm.* event to the emitter means
+ * adding it here as well — that second line is the whole checklist, and
+ * skipping it is how #1355 happened.
+ */
+export const CRM_ENGAGEMENT_EVENTS = {
+  /** A contact's follow-up date passed with nobody having acted. */
+  FOLLOW_UP_DUE: "crm.follow_up_due",
+  /** A contact went quiet long enough to count as stalled. */
+  STALLED: "crm.contact_stalled",
+  /** An inbound reply moved the contact into `in_conversation`. */
+  REPLIED: "crm.contact_replied",
+  /** The contact asked not to be contacted (`do_not_contact`). */
+  OPTED_OUT: "crm.contact_opted_out",
+} as const
+
+export const CRM_ENGAGEMENT_EVENT_NAMES: readonly string[] = Object.values(
+  CRM_ENGAGEMENT_EVENTS
 )
