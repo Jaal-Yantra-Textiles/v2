@@ -41,7 +41,7 @@ const ISSUE = process.env.DAEMON_ISSUE || ""
 // itself. Default ON; set DAEMON_DELEGATE=0 to disable.
 const DELEGATE = process.env.DAEMON_DELEGATE !== "0"
 const DELEGATE_MODEL =
-  process.env.DAEMON_DELEGATE_MODEL || "opencode/deepseek-v4-flash-free"
+  process.env.DAEMON_DELEGATE_MODEL || "cloudflare-workers-ai/@cf/zai-org/glm-5.3"
 const LEDGER = join(HERE, "usage-ledger.jsonl")
 const MEMORY_DIR =
   process.env.DAEMON_MEMORY_DIR ||

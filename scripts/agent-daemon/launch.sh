@@ -19,7 +19,7 @@ export DAEMON_TASK="${DAEMON_TASK:-}"
 # Free-model delegation (opencode drafter, verified by the daemon). On by default;
 # set DAEMON_DELEGATE=0 to disable, or DAEMON_DELEGATE_MODEL to swap the free model.
 export DAEMON_DELEGATE="${DAEMON_DELEGATE:-1}"
-export DAEMON_DELEGATE_MODEL="${DAEMON_DELEGATE_MODEL:-opencode/deepseek-v4-flash-free}"
+export DAEMON_DELEGATE_MODEL="${DAEMON_DELEGATE_MODEL:-cloudflare-workers-ai/@cf/zai-org/glm-5.3}"
 
 # Self-heal: ensure the SDK is present (a prior destructive chunk may have nuked it).
 if [ ! -d node_modules/@anthropic-ai/claude-agent-sdk ]; then

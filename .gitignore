@@ -118,3 +118,12 @@ apps/backend/_pp_hb_e2e/
 
 # Local AI agent memory — never commit
 .ai-memory/
+
+
+# Backlog-audit inputs only. Verdicts stay VISIBLE to git so delegate.mjs can
+# see what the drafter wrote — its scope gate reads `git status`, which skips
+# ignored paths. Neither dir is ever committed.
+.audit/issues/
+
+# Delegate run transcripts and per-run results — noise, not history.
+scripts/agent-daemon/delegate-logs/
