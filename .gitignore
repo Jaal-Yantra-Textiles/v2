@@ -127,3 +127,6 @@ apps/backend/_pp_hb_e2e/
 
 # Delegate run transcripts and per-run results — noise, not history.
 scripts/agent-daemon/delegate-logs/
+
+# 🔴 Vendor credentials, endpoints and correspondence. This repo is PUBLIC.
+.audit/private/
