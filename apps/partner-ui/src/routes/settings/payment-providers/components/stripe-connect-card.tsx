@@ -95,6 +95,21 @@ export const StripeConnectCard = () => {
                   "Skip entering API keys. Connect a Stripe account through JYT to get paid faster, with payouts and refunds handled for you."
                 )}
           </Text>
+          {/*
+            #838 — DIRECT charges: the payment is created ON the partner's own
+            connected account (the `stripeAccount` request option), with JYT's
+            cut taken as `application_fee_amount`. The consequence that is not
+            obvious from "get paid faster" is that disputes and chargebacks are
+            raised against THAT account and are the partner's to answer. Said
+            here, before they connect, because the alternative is a partner
+            learning it from their first chargeback.
+          */}
+          <Text size="xsmall" className="text-ui-fg-muted max-w-[560px] mt-1">
+            {t(
+              "partner.stripeConnect.liability",
+              "Payments are charged on your own Stripe account, so any disputes or chargebacks are raised there and are yours to respond to. JYT's fee is deducted from each charge."
+            )}
+          </Text>
           {isActive && stripe_connect?.account_id && (
             <Text size="xsmall" className="text-ui-fg-muted font-mono mt-1">
               {stripe_connect.account_id}

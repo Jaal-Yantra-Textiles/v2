@@ -3824,6 +3824,7 @@
     "stripeConnect": {
       "heading": "JYT Stripe Connect",
       "payoutsPending": "payouts pending",
+      "liability": "Payments are charged on your own Stripe account, so any disputes or chargebacks are raised there and are yours to respond to. JYT's fee is deducted from each charge.",
       "badge": {
         "active": "Active",
         "pending": "Setup incomplete"
