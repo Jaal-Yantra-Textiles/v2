@@ -1,7 +1,7 @@
 # Free-model delegation (opencode drafter)
 
 The PR daemon can hand **well-scoped, low-risk subtasks** to a **free** opencode
-model (`opencode/deepseek-v4-flash-free` by default) instead of spending Claude
+model (`cloudflare-workers-ai/@cf/zai-org/glm-5.3` by default) instead of spending Claude
 subscription tokens. The free model is a **drafter**; the Claude daemon (or you,
 interactively) is the **verifier** and owns correctness.
 
@@ -27,9 +27,16 @@ node scripts/agent-daemon/delegate.mjs \
 ```
 - `--files` (optional but recommended): the only paths the drafter may touch.
   Anything else it writes is reported as `⚠ OUT-OF-SCOPE` and fails the run.
-- `--model <provider/model>`: override the free model
-  (`opencode models | grep free` → `mimo-v2.5-free`, `north-mini-code-free`,
-  `nemotron-3-ultra-free`).
+- `--model <provider/model>`: override the model.
+  ⚠️ **The model roster moves under you.** `opencode/deepseek-v4-flash-free` was
+  this file's default for months and **no longer exists** — `opencode models` no
+  longer lists it, so every delegate call would have failed at the first hop.
+  **Always run `opencode models` before trusting a model name written down here.**
+  Current default is `cloudflare-workers-ai/@cf/zai-org/glm-5.3` (paid, capable).
+  Other capable picks: `cloudflare-workers-ai/@cf/deepseek-ai/deepseek-v4-pro-0813`,
+  `cloudflare-workers-ai/@cf/moonshotai/kimi-k2.7-code`, `kimi-for-coding/k3-256k`.
+  Still-free tier: `opencode/nemotron-3-ultra-free`, `opencode/mimo-v2.5-free`,
+  `opencode/muse-spark-1.3-contributor-free`.
 - Exit `0` = ran clean **and** stayed in scope; `1` = errored, self-reported
   `DRAFT_BLOCKED`, or strayed out of scope.
 

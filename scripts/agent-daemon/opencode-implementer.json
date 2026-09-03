@@ -1,0 +1,50 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+  "agent": {
+    "jyt-implementer": {
+      "description": "Implementation sub-agent for the JYT daemon. Authors source + integration specs + Playwright e2e specs, and may RUN typecheck and per-file jest/integration specs to check its own work. It has NO git, NO gh, NO network, and NO installs: branch/commit/push/PR are done by the wrapper AFTER a human verifier reviews the diff. An unlisted bash command is DENIED, never queued for approval, so a headless run fails loudly instead of hanging.",
+      "mode": "primary",
+      "model": "cloudflare-workers-ai/@cf/zai-org/glm-5.3",
+      "temperature": 0.1,
+      "permission": {
+        "edit": "allow",
+        "webfetch": "deny",
+        "bash": {
+          "*": "deny",
+          "pnpm test:integration:http:shared*": "allow",
+          "npx jest*": "allow",
+          "pnpm exec jest*": "allow",
+          "yarn jest*": "allow",
+          "pnpm exec tsc*": "allow",
+          "npx tsc*": "allow",
+          "pnpm exec playwright test --list*": "allow",
+          "git*": "deny",
+          "gh*": "deny",
+          "curl*": "deny",
+          "wget*": "deny",
+          "aws*": "deny",
+          "ssh*": "deny",
+          "docker*": "deny",
+          "psql*": "deny",
+          "pnpm install*": "deny",
+          "npm install*": "deny",
+          "yarn install*": "deny",
+          "pnpm add*": "deny",
+          "npm i*": "deny",
+          "rm*": "deny",
+          "pkill*": "deny",
+          "kill*": "deny",
+          "pnpm dev*": "deny",
+          "yarn dev*": "deny",
+          "pnpm test:e2e*": "deny",
+          "npx playwright test*": "deny",
+          "pnpm exec playwright test*": "deny",
+          "npx vitest*": "allow",
+          "pnpm exec vitest*": "allow",
+          "pnpm --filter partner-ui test*": "allow",
+          "pnpm --filter partner-ui exec tsc*": "allow"
+        }
+      }
+    }
+  }
+}

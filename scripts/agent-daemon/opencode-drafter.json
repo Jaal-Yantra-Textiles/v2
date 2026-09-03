@@ -4,7 +4,7 @@
     "jyt-drafter": {
       "description": "Restricted free-model DRAFTER for the JYT PR daemon. Authors files only — git, package installs, and network are hard-denied at the permission layer. A senior verifier (the Claude daemon, or a human) reviews/tests its output before anything ships.",
       "mode": "primary",
-      "model": "opencode/deepseek-v4-flash-free",
+      "model": "cloudflare-workers-ai/@cf/zai-org/glm-5.3",
       "temperature": 0.1,
       "permission": {
         "edit": "allow",
