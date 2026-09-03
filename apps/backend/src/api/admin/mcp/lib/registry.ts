@@ -4391,7 +4391,7 @@ export const ADMIN_MCP_TOOLS: AdminMcpToolDef[] = [
       ]
     ),
     sideEffects:
-      "Creates a customer-group-scoped price list with a real expiry, sends the buyer an email containing the only copy of the quote link, and makes the quote acceptable into a cart. Re-quoting the same buyer STACKS price lists — the cheapest active one wins (#1435), so revoke the old quote first.",
+      "Creates a customer-group-scoped price list with a real expiry, sends the buyer an email containing the only copy of the quote link, and makes the quote acceptable into a cart. Re-minting for the same buyer SUPERSEDES their previous quote itself (#1435) — you do NOT need to revoke it first, and revoking first only costs the buyer a live link in the gap. Revoke a quote when it should not stand at all, not as a step before re-quoting.",
     nextSteps: ["get_quote", "revoke_quote"],
   },
   {

@@ -18,9 +18,17 @@ import { hashQuoteToken } from "../../../../../modules/partner-quote/lib/token"
  * deliberately MULTI-VIEW: forwarding it to procurement is the use case, not
  * an abuse of it.
  *
- * 🔑 An unknown token and a revoked one must be indistinguishable to a prober,
- * so both are 404. The row is looked up by sha256 — the raw token is never
- * stored, so a database read cannot reconstruct a working link.
+ * 🔑 An unknown token and a WRONG-STORE one are indistinguishable to a prober:
+ * both 404, with the same body. The row is looked up by sha256 — the raw token
+ * is never stored, so a database read cannot reconstruct a working link.
+ *
+ * ⚠️ A REVOKED token is NOT in that set, whatever earlier comments here said.
+ * It passes the lookup and the tenant guard and returns 200 with a `dead_link`
+ * document (`quoteUnusableReason` → "revoked"; `show_quoted`/`show_live` both
+ * false, acceptance refused), which is deliberate and kinder than a 404 —
+ * verified against a real revoked quote. Nothing actionable leaks: no price is
+ * rendered and the tokens are high-entropy. Do not "fix" it into a 404 without
+ * deciding that trade on purpose; do not write down that it already is one.
  */
 export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
   const service: any = req.scope.resolve(PARTNER_QUOTE_MODULE)
