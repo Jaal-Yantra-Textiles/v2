@@ -2,7 +2,7 @@ import { MedusaContainer } from "@medusajs/framework/types"
 import { ContainerRegistrationKeys } from "@medusajs/framework/utils"
 
 import { resolveShippingProvider } from "../modules/shipping-providers/resolver"
-import { normalizeDelhiveryWebhook } from "../modules/shipping-providers/delhivery/client"
+import type { ShippingProviderClient } from "../modules/shipping-providers/provider-interface"
 import { syncOrderShipmentTrackingWorkflow } from "../workflows/orders/sync-order-shipment-tracking"
 import { syncInventoryShipmentTrackingWorkflow } from "../workflows/inventory_orders/sync-inventory-shipment-tracking"
 
@@ -14,11 +14,12 @@ import { syncInventoryShipmentTrackingWorkflow } from "../workflows/inventory_or
  * by their account team, so until that happens a Delhivery parcel would sit at
  * "Awaiting shipping" in the UI forever no matter what the carrier knows.
  *
- * This closes that gap with the API we already have (`trackShipment`) and feeds
- * the SAME sync workflows the webhook uses, so both paths converge on identical
- * state. When the push is eventually enabled the webhook just gets there first
- * and this job finds nothing to change — the sync is forward-only and
- * idempotent, so the two never fight.
+ * This closes that gap with the resolved provider's `track` — the adapter
+ * returns the same normalized `TrackingResult` the webhook normalizers produce —
+ * and feeds the SAME sync workflows the webhook uses, so both paths converge on
+ * identical state. When the push is eventually enabled the webhook just gets
+ * there first and this job finds nothing to change — the sync is forward-only
+ * and idempotent, so the two never fight.
  *
  * Only open shipments are polled: anything already delivered or canceled is
  * terminal, and re-asking the carrier about it is pure quota burn.
@@ -31,7 +32,7 @@ export default async function pollDelhiveryTracking(container: MedusaContainer) 
   const logger: any = container.resolve(ContainerRegistrationKeys.LOGGER)
   const query: any = container.resolve(ContainerRegistrationKeys.QUERY)
 
-  let provider: any
+  let provider: ShippingProviderClient
   try {
     provider = await resolveShippingProvider(container, "delhivery")
   } catch (e: any) {
@@ -40,8 +41,13 @@ export default async function pollDelhiveryTracking(container: MedusaContainer) 
     logger.debug?.(`[delhivery-poll] provider unavailable: ${e?.message}`)
     return
   }
-  if (!provider?.trackShipment) {
-    logger.debug?.("[delhivery-poll] provider has no trackShipment — skipping")
+  if (typeof provider?.track !== "function") {
+    // Every ShippingProviderClient implements `track`, so a resolved provider
+    // without it is a misconfiguration, not a no-op — warn rather than debug, or
+    // the poll goes silently dead while looking like there was nothing to do.
+    logger.warn?.(
+      "[delhivery-poll] configured delhivery provider lacks a track method — misconfiguration, skipping poll"
+    )
     return
   }
 
@@ -70,22 +76,17 @@ export default async function pollDelhiveryTracking(container: MedusaContainer) 
   for (const fulfillment of open) {
     const awb = String(fulfillment.data.waybill)
     try {
-      const raw = await provider.trackShipment(awb)
-      // The pull response and the push payload share Delhivery's `Shipment`
-      // envelope, so one normalizer serves both. `ShipmentData` is the pull's
-      // outer array.
-      const shipment = raw?.ShipmentData?.[0] ?? raw
-      const tracking = normalizeDelhiveryWebhook(shipment)
-      if (!tracking.awb) {
-        tracking.awb = awb
-      }
+      // The adapter takes a ShipmentRef and returns the normalized
+      // TrackingResult directly — the exact shape the webhook normalizers
+      // emit — so no client-envelope unpacking happens here.
+      const tracking = await provider.track({ awb })
       checked++
 
       // Try inventory shipments first, then core orders — same order as the
       // webhook, so a given AWB always resolves the same way.
       const { result: inv } = await syncInventoryShipmentTrackingWorkflow(
         container
-      ).run({ input: { tracking: { ...tracking, raw: shipment } } })
+      ).run({ input: { tracking } })
       if (inv.matched) {
         if (inv.shipment_status_changed) advanced++
         continue
@@ -93,7 +94,7 @@ export default async function pollDelhiveryTracking(container: MedusaContainer) 
 
       const { result: order } = await syncOrderShipmentTrackingWorkflow(
         container
-      ).run({ input: { tracking: { ...tracking, raw: shipment } } })
+      ).run({ input: { tracking } })
       if (order.matched && order.status_changed) {
         advanced++
       }
