@@ -17,9 +17,10 @@
 import { ContainerRegistrationKeys, Modules } from "@medusajs/framework/utils"
 import {
   completeCartWorkflow,
-  createPaymentCollectionForCartWorkflow,
   createPaymentSessionsWorkflow,
 } from "@medusajs/medusa/core-flows"
+
+import { ensureCartPaymentCollection } from "../../../../lib/payments/ensure-cart-collection"
 
 export type CompleteResult = {
   order_id: string | null
@@ -79,9 +80,16 @@ export async function completeCartFromExternalPayment(
       "id",
       "completed_at",
       "metadata",
+      // Needed to plan the collection amount (#1451): a deposit is checked
+      // against the cart's own total and currency before it is charged.
+      "total",
+      "currency_code",
       "region.payment_providers.id",
       "region.payment_providers.is_enabled",
       "payment_collection.id",
+      // #1451 — the seam refuses rather than reuse a collection whose amount
+      // disagrees with the payment schedule, so it must be able to see it.
+      "payment_collection.amount",
       "payment_collection.payment_sessions.id",
       "payment_collection.payment_sessions.provider_id",
     ],
@@ -108,14 +116,11 @@ export async function completeCartFromExternalPayment(
     process.env.PAYU_LINK_COMPLETE_PROVIDER
   )
 
-  // Ensure a payment collection.
-  let pcId: string | undefined = cart.payment_collection?.id
-  if (!pcId) {
-    const { result } = await createPaymentCollectionForCartWorkflow(scope).run({
-      input: { cart_id: cartId },
-    })
-    pcId = (result as any).id
-  }
+  /**
+   * Ensure a payment collection FOR THE RIGHT AMOUNT (#1451) — the same seam
+   * the Stripe rail uses, so the two cannot disagree about what a deposit is.
+   */
+  const { id: pcId } = await ensureCartPaymentCollection(scope, cart)
 
   // Ensure a session on the chosen provider to authorize (paid out-of-band).
   const sessions: any[] = cart.payment_collection?.payment_sessions || []
