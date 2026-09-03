@@ -10,7 +10,13 @@
  * executor (lib/mcp-core/plan) runs it with reference substitution, map fan-out,
  * deterministic empty-result retry, and entity-memory `resolve` steps. Every
  * step still dispatches through the surface's real dispatcher, so the
- * dry_run / confirm / reason rails and scope checks apply per step.
+ * dry_run / reason rails and scope checks apply per step.
+ *
+ * 🔴 The CONFIRM rail is the exception, and it is handled by refusing the plan
+ * outright rather than per step (#1757): a plan naming a sensitive tool
+ * anywhere — including inside a map body or a resolve fallback — is rejected
+ * before anything runs. A confirm response is `ok: true` with `executed:
+ * false`, which the executor used to read as success and carry on past.
  *
  * Shared by the admin and partner assistants — a surface supplies its own
  * dispatcher and (optionally) its cache-backed entity resolver.
@@ -36,8 +42,14 @@ export const PLAN_TOOL_NAME = "run_plan"
 export const PLAN_TOOL_DESCRIPTION =
   "Run a MULTI-STEP plan over the tools you have, when a request needs several " +
   "calls chained together (look up an entity, then list/act on it; or repeat a " +
-  "tool for each item of a list). Each step still respects dry_run / confirm / " +
-  "reason rails. " +
+  "tool for each item of a list). Each step still respects the dry_run / reason " +
+  "rails and scope checks.\n" +
+  "🔴 A plan CANNOT contain a tool that needs confirmation (any sensitive or " +
+  "destructive write, e.g. minting a quote, cancelling, deleting). Naming one " +
+  "anywhere in the plan — including inside a map body or a resolve fallback — " +
+  "refuses the WHOLE plan and runs nothing. Call such a tool directly as a " +
+  "single call, so the confirmation can be shown and approved, and use a plan " +
+  "for the read steps around it. " +
   "A step is ONE of:\n" +
   "- Tool call: {\"tool\": name, \"args\": {...}, \"as\": name|null, \"extract\": \"path\"|null}. " +
   "\"as\" stores the full result under that name; \"extract\" pulls one value out of it " +

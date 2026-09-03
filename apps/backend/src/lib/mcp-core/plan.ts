@@ -16,9 +16,23 @@
  *   - deterministic retry: a list step that comes back empty is re-dispatched
  *     once with a broadened filter.
  *
- * Every step still goes through `dispatchMcpTool`, so the dry_run / confirm /
- * reason rails and scope checks apply per step — the plan cannot smuggle past
- * a guard that a single call could not.
+ * Every step still goes through `dispatchMcpTool`, so the dry_run / reason
+ * rails and scope checks apply per step.
+ *
+ * 🔴 The confirm rail was the exception, and this docblock used to claim
+ * otherwise (#1757). The rail WAS invoked and its answer thrown away: a
+ * sensitive step returns `{ ok: true, requires_confirmation: true }` without
+ * executing, and the executor's only stop condition was `ok`. So the sensitive
+ * step was skipped, the plan RAN ON, and every later step executed against
+ * `undefined` refs — while the `requires_confirmation` flag ended up nested
+ * under `value`, where no reader looks, so no approval card ever rendered.
+ *
+ * The fix is a refusal BEFORE anything runs (`findSensitivePlanSteps` below): a
+ * plan naming a sensitive tool is rejected whole, and the model is told to call
+ * that tool directly, where the confirm card already works. Deliberately not a
+ * mid-plan halt-and-resume — that needs plan state to survive an approval round
+ * trip, and it makes a partly-executed plan a thing that exists. A refusal
+ * cannot half-happen.
  *
  * Plan grammar (see McpPlanStep):
  *   {"tool": name, "args": {...}, "as": name|null, "extract": "path"|null}
@@ -31,6 +45,7 @@
  */
 import type { McpContext, McpToolDef, McpToolResult } from "./types"
 import { dispatchMcpTool } from "./dispatch"
+import { isSensitive } from "./schema"
 
 export type McpPlanStep = {
   tool?: string
@@ -148,7 +163,71 @@ export function broadenPlanArgs(args: Record<string, unknown>): Record<string, u
   return next
 }
 
+/**
+ * Every sensitive tool named anywhere in a plan, in step order, de-duplicated.
+ *
+ * 🔑 The recursion is the whole point. A guard that only walks the top-level
+ * steps is a guard a `map` body walks straight past, and `map` is exactly where
+ * a fan-out write would sit ("for each of these, cancel it"). Three places a
+ * tool name can hide:
+ *   - `steps[].tool`
+ *   - `steps[].steps[]` — a `map` body, arbitrarily nested
+ *   - `steps[].fallback.tool` — the tool a `resolve` runs on a memory miss
+ *
+ * An unknown tool name is NOT treated as sensitive: it is not in the registry,
+ * so dispatch will refuse it by name with a better message than this guard
+ * could give. Sensitivity is `isSensitive` — the same predicate the confirm
+ * rail uses — so this can never disagree with the gate it is standing in for.
+ */
+export function findSensitivePlanSteps(
+  steps: McpPlanStep[],
+  tools: McpToolDef[]
+): string[] {
+  const byName = new Map(tools.map((t) => [t.name, t]))
+  const found: string[] = []
+
+  const consider = (name?: string) => {
+    if (!name) return
+    const def = byName.get(name)
+    if (def && isSensitive(def) && !found.includes(name)) found.push(name)
+  }
+
+  const walk = (list: McpPlanStep[]) => {
+    for (const s of list ?? []) {
+      consider(s.tool)
+      consider(s.fallback?.tool)
+      if (s.steps?.length) walk(s.steps)
+    }
+  }
+
+  walk(steps)
+  return found
+}
+
+/** The refusal a plan containing a sensitive step gets, before anything runs. */
+export const sensitivePlanRefusal = (names: string[]): string =>
+  `${names.join(", ")} ${names.length > 1 ? "are sensitive tools" : "is a sensitive tool"} and cannot run inside a plan. ` +
+  `Nothing was executed. Call ${names.length > 1 ? "each of them" : "it"} directly as a single tool call, ` +
+  `so the confirmation can be shown and approved; use a plan for the read steps around it.`
+
 export async function executeMcpPlan(opts: ExecutePlanOptions): Promise<McpPlanResult> {
+  /**
+   * 🔴 Refuse before executing anything (#1757). This must sit ahead of the
+   * loop, not inside it: the defect was a plan that had already run steps by
+   * the time it met the gate, and a guard that stops mid-plan still leaves
+   * whatever ran behind it.
+   */
+  const sensitive = findSensitivePlanSteps(opts.plan.steps, opts.tools)
+  if (sensitive.length) {
+    return {
+      ok: false,
+      value: null,
+      toolCalls: 0,
+      retries: 0,
+      error: sensitivePlanRefusal(sensitive),
+    }
+  }
+
   const dispatch =
     opts.dispatch ??
     ((name: string, args: Record<string, unknown>) => dispatchMcpTool(opts.ctx, opts.tools, name, args))
