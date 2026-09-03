@@ -130,3 +130,7 @@ scripts/agent-daemon/delegate-logs/
 
 # 🔴 Vendor credentials, endpoints and correspondence. This repo is PUBLIC.
 .audit/private/
+
+# Wave sentinels — process state, written so a chained batch can wait on a FILE
+# rather than on `pgrep`, which matches the waiter's own command line and hangs.
+.audit/batches/

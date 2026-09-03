@@ -16,14 +16,36 @@
 # Sequential on purpose: two agents in one checkout each see the other's writes
 # as OUT-OF-SCOPE, because the change detector snapshots one shared git status.
 # Parallelism here needs a worktree per issue, which the issue dumps would then
-# have to be copied into. Not worth it for a read-only pass.
+# have to be copied into. Not worth it for a read-only pass. To parallelise a
+# WAVE, run this script in several checkouts at once (see ../jyt-audit-{b,c,d}).
+#
+# ── Chaining waves ────────────────────────────────────────────────────────────
+# Every run writes a sentinel at .audit/batches/<AUDIT_BATCH_NAME>.done when it
+# finishes, so a later wave can wait on it:
+#
+#   AUDIT_BATCH_NAME=wave1 bash scripts/agent-daemon/audit-batch.sh 1420 772 &
+#   while [ ! -f .audit/batches/wave1.done ]; do sleep 60; done
+#   AUDIT_BATCH_NAME=wave2 bash scripts/agent-daemon/audit-batch.sh 940 943
+#
+# 🔴 Do NOT chain with `pgrep -f "audit-batch.sh <N>"`. That pattern matches the
+# WAITER'S OWN command line — the shell running the pgrep loop has the string in
+# its argv — so the waiter sees itself, concludes the previous wave is still
+# running, and waits forever. It deadlocked a whole overnight run. A file on
+# disk cannot match itself.
 set -uo pipefail   # NOT -e: one bad issue must not kill the batch
 
 cd "$(dirname "$0")/../.."
 MODEL="${AUDIT_MODEL:-cloudflare-workers-ai/@cf/zai-org/glm-5.3}"
 REPORT=".audit/BATCH-REPORT.md"
 
-mkdir -p .audit/issues .audit/verdicts
+BATCH_NAME="${AUDIT_BATCH_NAME:-batch-$$}"
+SENTINEL=".audit/batches/${BATCH_NAME}.done"
+
+mkdir -p .audit/issues .audit/verdicts .audit/batches
+# Clear a stale sentinel from a previous run of the same name FIRST — otherwise a
+# waiter started before this script gets going sees the old one and proceeds
+# immediately, which is the deadlock's mirror image and harder to spot.
+rm -f "$SENTINEL"
 {
   echo "# Batch audit — $(date -u '+%Y-%m-%d %H:%M UTC')"
   echo
@@ -84,3 +106,9 @@ done
 
 echo
 cat "$REPORT"
+
+# Written LAST, after the report is complete on disk, so a chained wave that
+# starts the moment it appears cannot read a half-written report.
+date -u '+%Y-%m-%dT%H:%M:%SZ' > "$SENTINEL"
+echo
+echo "batch '$BATCH_NAME' finished — sentinel: $SENTINEL"
