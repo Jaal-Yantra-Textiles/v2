@@ -53,14 +53,34 @@ let mode = "draft"
 // REQUIRED for `implement`, and the only safe way to run two delegates at once —
 // two runs in one workspace each see the other's writes as OUT-OF-SCOPE.
 let worktreeSlug = ""
+/**
+ * --timeout <minutes>: hard wall-clock ceiling on the opencode run.
+ *
+ * 🔴 Not optional comfort. Eight audit runs in one session hung at 0.0% CPU for
+ * 20-40 minutes each and had to be found with `ps` and killed by PID — a
+ * headless batch script has no way to notice, so an unattended wave silently
+ * stops making progress and looks like it is still working. `spawnSync` takes a
+ * `timeout`, so the fix is a parameter, not a supervisor process.
+ *
+ * The default is generous on purpose: a real `implement` run that typechecks and
+ * runs jest can legitimately take 15+ minutes, and killing honest work is worse
+ * than waiting. Lower it for read-only `audit` waves, where nothing should take
+ * anywhere near that long.
+ */
+let timeoutMin = Number(process.env.DELEGATE_TIMEOUT_MIN || 40)
 const rest = []
 for (let i = 0; i < argv.length; i++) {
   if (argv[i] === "--model") model = argv[++i]
   else if (argv[i] === "--mode") mode = argv[++i]
   else if (argv[i] === "--worktree") worktreeSlug = argv[++i]
+  else if (argv[i] === "--timeout") timeoutMin = Number(argv[++i])
   else if (argv[i] === "--files")
     scope = argv[++i].split(",").map((s) => s.trim()).filter(Boolean)
   else rest.push(argv[i])
+}
+if (!Number.isFinite(timeoutMin) || timeoutMin <= 0) {
+  console.error(`delegate: --timeout must be a positive number of minutes (got '${timeoutMin}')`)
+  process.exit(2)
 }
 if (!["draft", "analysis", "audit", "implement", "review"].includes(mode)) {
   console.error(`delegate: --mode must be 'draft', 'analysis', 'audit', 'implement' or 'review' (got '${mode}')`)
@@ -71,7 +91,8 @@ if (!task) {
   console.error(
     'delegate: missing task prompt.\n' +
     '  node delegate.mjs [--mode draft|analysis|audit|implement|review] [--worktree <slug>] [--model <m>] [--files "a,b"] "<task>"\n' +
-    '  --mode implement REQUIRES --worktree; it is the only mode whose agent can run commands.'
+    '  --mode implement REQUIRES --worktree; it is the only mode whose agent can run commands.\n' +
+    '  --timeout <minutes> (default 40, or $DELEGATE_TIMEOUT_MIN) kills a hung run instead of waiting forever.'
   )
   process.exit(2)
 }
@@ -392,7 +413,7 @@ const ts = git(["rev-parse", "--short", "HEAD"]).slice(0, 7) + "-" + process.pid
 const logPath = join(LOG_DIR, `${ts}.log`)
 
 console.log(`[delegate] mode=${mode} model=${model} agent=jyt-drafter scope=${scope.join("|") || "(task-named)"}`)
-console.log(`[delegate] running opencode (free) — verifier owns correctness…`)
+console.log(`[delegate] running opencode (free) — verifier owns correctness… (watchdog ${timeoutMin}m)`)
 
 const run = spawnSync(
   "opencode",
@@ -411,6 +432,10 @@ const run = spawnSync(
     cwd: WORKDIR,
     encoding: "utf8",
     maxBuffer: 64 * 1024 * 1024,
+    // The watchdog. SIGKILL, not the default SIGTERM: the runs that hang here
+    // hang at 0.0% CPU and have already stopped responding to anything polite.
+    timeout: timeoutMin * 60 * 1000,
+    killSignal: "SIGKILL",
     env: {
       ...process.env,
       OPENCODE_CONFIG: CONFIG, // restricted agent lives here, not in the repo root
@@ -438,7 +463,16 @@ const inScope = (p) =>
 const outOfScope = scope.length ? changed.filter((p) => !inScope(p)) : []
 
 const blocked = /(^|\n)\s*DRAFT_BLOCKED:/.test(run.stdout || "")
-const ranClean = run.status === 0 && !blocked
+/**
+ * A watchdog kill is its own outcome, not a failed run. `spawnSync` reports it
+ * as `error.code === "ETIMEDOUT"` with `status === null`, which would otherwise
+ * read as an ordinary non-zero exit and tell the caller nothing about WHY.
+ * Whatever the agent had written by then is still in the workspace — the kill
+ * ends the run, it does not undo the edits — so the diff below is still worth
+ * reading, and may be a usable partial draft.
+ */
+const timedOut = run.error?.code === "ETIMEDOUT"
+const ranClean = run.status === 0 && !blocked && !timedOut
 
 /**
  * 🔴 In `implement` mode the required trailer is not paperwork — it is the only
@@ -458,7 +492,7 @@ const missingTrailer =
 const ok = ranClean && outOfScope.length === 0 && missingTrailer.length === 0
 
 const resultJson = JSON.stringify(
-  { ok, mode, model, changed, out_of_scope: outOfScope, blocked, missing_trailer: missingTrailer, log: logPath, status: run.status },
+  { ok, mode, model, changed, out_of_scope: outOfScope, blocked, timed_out: timedOut, timeout_min: timeoutMin, missing_trailer: missingTrailer, log: logPath, status: run.status },
   null, 2
 )
 // `last-result.json` is a SHARED name: a second delegate running concurrently in
@@ -469,6 +503,13 @@ writeFileSync(join(LOG_DIR, `result-${ts}.json`), resultJson)
 
 console.log(`\n[delegate] ── result ───────────────────────────────`)
 console.log(`[delegate] exit=${run.status} blocked=${blocked} changed=${changed.length} out_of_scope=${outOfScope.length}`)
+if (timedOut)
+  console.log(
+    `[delegate] ⏱ TIMED OUT after ${timeoutMin}m and was KILLED. This is the 0.0%-CPU hang, not slow work.\n` +
+    `[delegate]   Nothing it had already written was rolled back — the files below are a PARTIAL draft, and the\n` +
+    `[delegate]   trailer is missing because the run never reached it, so NOTHING here was tested. Re-run, or\n` +
+    `[delegate]   raise --timeout if the task genuinely needs longer.`
+  )
 if (missingTrailer.length)
   console.log(`[delegate] ⚠ MISSING REPORT SECTIONS: ${missingTrailer.join(" ")} — the agent did not say what it ran. Treat every claim of testing as UNPROVEN.`)
 if (changed.length) {

@@ -37,8 +37,17 @@ node scripts/agent-daemon/delegate.mjs \
   `cloudflare-workers-ai/@cf/moonshotai/kimi-k2.7-code`, `kimi-for-coding/k3-256k`.
   Still-free tier: `opencode/nemotron-3-ultra-free`, `opencode/mimo-v2.5-free`,
   `opencode/muse-spark-1.3-contributor-free`.
-- Exit `0` = ran clean **and** stayed in scope; `1` = errored, self-reported
-  `DRAFT_BLOCKED`, or strayed out of scope.
+- `--timeout <minutes>` (default **40**, or `$DELEGATE_TIMEOUT_MIN`): a hard
+  wall-clock ceiling, SIGKILL. 🔴 Not optional comfort — eight audit runs in one
+  session hung at **0.0% CPU for 20-40 minutes** each and had to be found with
+  `ps` and killed by PID, which a headless batch cannot do. A killed run reports
+  `⏱ TIMED OUT`, sets `timed_out: true` in the result JSON, and exits 1. Whatever
+  the agent had written is still on disk — a PARTIAL, untested draft. Lower it
+  for read-only `audit` waves; leave it high for `implement`, where a real
+  typecheck + jest run can honestly take 15+ minutes and killing good work is
+  worse than waiting.
+- Exit `0` = ran clean **and** stayed in scope; `1` = errored, timed out,
+  self-reported `DRAFT_BLOCKED`, or strayed out of scope.
 
 ## The verifier's job (always — a clean exit is NOT a correct result)
 1. `cat scripts/agent-daemon/delegate-logs/last-result.json` → `changed[]` / `out_of_scope[]`.
