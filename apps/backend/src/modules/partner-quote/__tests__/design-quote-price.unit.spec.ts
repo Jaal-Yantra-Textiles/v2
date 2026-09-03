@@ -69,6 +69,42 @@ describe("designQuoteUnitPrice", () => {
       expect(result.unit_price).toBeNull()
     })
 
+    /**
+     * #1454 — a guesstimate is a guess, and a quote is a firm price the buyer
+     * can accept and pay.
+     *
+     * It used to price like any other estimate: FX-converted, marked up, minted
+     * as the variant's listed price and FROZEN onto the quote. The buyer saw a
+     * firm number with nothing marking it as a guess — there is no `confidence`
+     * anywhere on `QuoteViewLine`, the frozen line, or the storefront. The only
+     * disclosure was a NON-BLOCKING partner-facing warning, which is a control
+     * only for the partner who reads it.
+     */
+    it("🔴 refuses a guesstimate — a guess must not become a firm quoted price (#1454)", () => {
+      const result = designQuoteUnitPrice({
+        total_estimated: 1000,
+        confidence: "guesstimate",
+      })
+      expect(result.unit_price).toBeNull()
+      expect(result.reason).toMatch(/guesstimate/i)
+      // Says what to DO about it, or the partner has a refusal and no path.
+      expect(result.reason).toMatch(/dial in/i)
+    })
+
+    it("does NOT refuse 'estimated' or 'exact' — the gate is between roughly-worked-out and guessed", () => {
+      // Guards the gate: a check written as `confidence !== "exact"` would pass
+      // the case above and silently block every ordinary design quote.
+      for (const confidence of ["estimated", "exact"]) {
+        const result = designQuoteUnitPrice({
+          total_estimated: 1000,
+          confidence,
+          markup_percent: 0,
+        })
+        expect(result.unit_price).toBe(1000)
+        expect(result.reason).toBeNull()
+      }
+    })
+
     it("refuses a FAILED conversion, and does not treat it as 'no conversion'", () => {
       const result = designQuoteUnitPrice({
         total_estimated: 1000,

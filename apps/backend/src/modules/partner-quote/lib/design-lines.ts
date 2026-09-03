@@ -631,7 +631,10 @@ export async function resolveDesignLinesForReadiness(
         message:
           `"${r.design_name ?? r.design_id}" has no product yet, so it will be quoted as made-to-order at ` +
           `${preview.unit_price} ${String(input.currency_code).toUpperCase()} per unit. ` +
-          `That figure is a ${preview.confidence ?? "guesstimate"} — dial it in if you know better.`,
+          // Only `exact` and `estimated` can reach this branch now — a
+          // guesstimate refuses to price and falls through to the BLOCKING
+          // case below (#1454). So the fallback word must not say "guesstimate".
+          `That figure is an ${preview.confidence ?? "estimate"} — dial it in if you know better.`,
         design_id: r.design_id,
         data: {
           candidates: r.candidates,

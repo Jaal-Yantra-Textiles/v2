@@ -42,7 +42,13 @@ export const DEFAULT_CUSTOM_DESIGN_MARKUP_PERCENT = 20
 export type DesignQuotePriceInput = {
   /** `total_estimated` from the estimator. Per finished unit (#1554). */
   total_estimated: number | null | undefined
-  /** The estimator's confidence. `none` is not an estimate at all. */
+  /**
+   * The estimator's confidence: `exact` | `estimated` | `guesstimate` | `none`.
+   *
+   * Two of the four refuse. `none` is the ABSENCE of an estimate (#1564);
+   * `guesstimate` is a guess, and a quote is a firm price the buyer can accept
+   * and pay (#1454). `exact` and `estimated` price normally.
+   */
   confidence?: string | null
   /**
    * Multiplier from the design's cost currency to the quote's. 1 when they
@@ -112,6 +118,31 @@ export function designQuoteUnitPrice(
   if (input.confidence === "none") {
     return refuse(
       "The cost estimate for this design has no basis, so it cannot be quoted."
+    )
+  }
+
+  /**
+   * 🔴 A `guesstimate` must not become a firm quoted price (#1454).
+   *
+   * It used to be priced like any other estimate — FX-converted, marked up,
+   * minted as the variant's listed price and FROZEN onto the quote. The buyer
+   * then saw a firm number with nothing on the page marking it as a guess:
+   * there is no `confidence` field on `QuoteViewLine`, on the frozen line, or
+   * anywhere in the storefront quotes module.
+   *
+   * The only disclosure was a partner-facing readiness WARNING — non-blocking,
+   * and therefore a control only for the partner who reads it. A warning is
+   * not a gate; the decision (#1454) was that this is a gate.
+   *
+   * Refused here rather than at the mint route because this is the one place
+   * every design price passes through, and a check at a route is a check the
+   * next route has to remember. `estimated` and `exact` still price normally —
+   * the line is between "we worked it out roughly" and "we guessed".
+   */
+  if (input.confidence === "guesstimate") {
+    return refuse(
+      "This design's cost is a guesstimate, and a quote is a firm price the buyer can accept and pay. " +
+        "Dial in a real cost for the design — a bill of materials, or a completed run to compare against — then quote it."
     )
   }
 
