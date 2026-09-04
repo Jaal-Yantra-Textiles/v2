@@ -2,6 +2,7 @@ import { AuthenticatedMedusaRequest, MedusaResponse } from "@medusajs/framework/
 import { ContainerRegistrationKeys } from "@medusajs/framework/utils"
 
 import { PARTNER_QUOTE_MODULE } from "../../../modules/partner-quote"
+import { resolveQuoteRegion } from "../../../modules/partner-quote/lib/resolve-region"
 import { resolveQuoteDesignLines } from "../../../modules/partner-quote/lib/design-lines"
 import { buildQuoteListQuery } from "../../../modules/partner-quote/lib/list-query"
 import { withEffectiveStatus } from "../../../modules/partner-quote/lib/token"
@@ -110,6 +111,20 @@ export const POST = async (
     sales_channel_id: (store as any).default_sales_channel_id,
   })
 
+  // #1787 — resolve the region BEFORE anything is frozen. Strict here: a
+  // quote is a commercial commitment, and one minted against the wrong
+  // region checks out through the wrong country's gateway. Refusing while
+  // the partner is present beats discovering it when the buyer is.
+  const mintRegion = await resolveQuoteRegion(
+    req.scope,
+    {
+      region_id: body.region_id ?? null,
+      currency_code: body.currency_code,
+      destination_country_code: body.destination_country_code,
+    },
+    { strict: true }
+  )
+
   const { result } = await mintQuoteWorkflow(req.scope).run({
     input: {
       partner_id: partner.id,
@@ -127,7 +142,11 @@ export const POST = async (
       destination_postal_code: body.destination_postal_code ?? null,
       destination_city: body.destination_city ?? null,
       currency_code: body.currency_code,
-      region_id: body.region_id ?? null,
+      // #1787 — derived when the caller did not name one, and REFUSED when
+      // currency and destination name no region (or two). The region decides
+      // which payment providers the buyer is offered; a quote frozen without
+      // one reached an Australian buyer as PayU-only and she could not pay.
+      region_id: mintRegion.region_id,
       carrier: body.carrier,
       duties_prepaid: body.duties_prepaid ?? false,
       // The number behind the promise (#1447). The validator has already
