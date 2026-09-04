@@ -14,6 +14,7 @@ const AU_CART = {
 }
 
 const AU_SCHEDULE = {
+  id: "sched_au",
   currency_code: "aud",
   total_due: "314.77",
   deposit_pct: 30,

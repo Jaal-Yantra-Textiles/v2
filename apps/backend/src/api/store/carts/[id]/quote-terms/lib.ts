@@ -1,4 +1,8 @@
-import { planCartCollection, type CollectionPlan } from "../../../../../lib/payments/deposit-collection"
+import {
+  planCartCollection,
+  type CollectionPlan,
+  type CollectionSchedule,
+} from "../../../../../lib/payments/deposit-collection"
 
 /**
  * What a buyer needs to be TOLD about a quote-bound cart, for
@@ -79,16 +83,18 @@ export function deriveQuoteCartTerms(
       }
     | null
     | undefined,
+  /**
+   * Extends `CollectionSchedule` — the exact shape the pricer reads — rather
+   * than restating it. A hand-written copy is how the two come to disagree
+   * about which fields are optional, and the pricer's opinion is the one that
+   * decides what the buyer is charged.
+   */
   schedule:
-    | {
+    | (CollectionSchedule & {
         deposit_pct?: number | string | null
-        deposit_amount?: number | string | null
-        deposit_status?: string | null
         balance_status?: string | null
         rail?: string | null
-        total_due?: number | string | null
-        currency_code?: string | null
-      }
+      })
     | null
     | undefined
 ): QuoteCartTerms {
