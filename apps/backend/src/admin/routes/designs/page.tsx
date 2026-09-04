@@ -24,7 +24,7 @@ import { BulkLinkPartnerDrawer } from "../../components/designs/bulk-link-partne
 import { BulkUpdateStatusDrawer } from "../../components/designs/bulk-update-status-drawer";
 import { BulkAssignTagsDrawer } from "../../components/designs/bulk-assign-tags-drawer";
 import { BulkDeleteDialog } from "../../components/designs/bulk-delete-dialog";
-import { SendToProductionDrawer } from "../../components/designs/send-to-production-drawer";
+import { CollateDesignsWizard } from "../../components/designs/collate-designs-wizard";
 import { useMemo, useState, useCallback, useEffect, Fragment } from "react";
 import { EntityActions } from "../../components/persons/personsActions";
 import { AdminDesign, useDesigns } from "../../hooks/api/designs";
@@ -859,7 +859,7 @@ const DesignsPage = () => {
           selectedDesigns={selectedDesigns}
           onComplete={clearSelection}
         />
-        <SendToProductionDrawer
+        <CollateDesignsWizard
           open={isSendToProductionOpen}
           onOpenChange={setIsSendToProductionOpen}
           selectedDesigns={selectedDesigns}
