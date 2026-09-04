@@ -38,6 +38,22 @@ const InventoryOrder = model.define("inventory_orders", {
   cancelled_at: model.dateTime().nullable(),
   cancellation_reason: model.text().nullable(),
   cancelled_by: model.text().nullable(),
+  /**
+   * #780 H7c — the workflow transaction id that currently owns this order's
+   * partner assignment, or null when unassigned.
+   *
+   * This is the claim a `send-to-partner` run takes atomically before it
+   * creates any task or messages the partner. A typed column rather than
+   * metadata for the same reason as the cancellation audit above: it is
+   * load-bearing state that must survive a later metadata replacement.
+   *
+   * The cross-partner case was never the hole — `Link.create` already refuses
+   * a second partner for one order (the singular-side uniqueness behind
+   * #1775). What this closes is two concurrent sends to the SAME partner,
+   * where the duplicate link is a silent no-op and both runs went on to
+   * duplicate the tasks, the partner notification, and the workflow.
+   */
+  partner_assignment_id: model.text().nullable(),
 }).cascades({
   delete: ['orderlines']
 });

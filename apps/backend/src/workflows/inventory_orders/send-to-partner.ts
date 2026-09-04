@@ -70,6 +70,75 @@ const validateInventoryOrderStep = createStep(
     }
 )
 
+/**
+ * #780 H7c — take an exclusive claim on this order's partner assignment.
+ *
+ * Runs BEFORE the link, the tasks and the partner notification, so a request
+ * that loses the race stops before it can duplicate any of them.
+ *
+ * The claim is a conditional update: only a row whose `partner_assignment_id`
+ * is still null is updated, so two concurrent sends resolve to exactly one
+ * winner in a single atomic statement. The zero-row result is the loser's
+ * signal — the same compare-and-set shape already merged on the partner start
+ * route (#780 A4), which this deliberately mirrors.
+ *
+ * ⚠️ Do not "simplify" this into a read-then-write. That is what it replaces.
+ */
+const claimPartnerAssignmentStep = createStep(
+    "claim-partner-assignment",
+    async (input: { inventoryOrderId: string }, { container, context }) => {
+        const pg = container.resolve(ContainerRegistrationKeys.PG_CONNECTION) as any
+        const transactionId = context.transactionId
+
+        // 🔴 This MUST be raw SQL. `updateInventoryOrders({ selector, data })`
+        // looks like a conditional update but is a read-then-write: two
+        // concurrent calls with the same `where ... is null` selector BOTH
+        // return a row (probed directly — 1 and 1, expected 1 and 0). A single
+        // UPDATE ... WHERE ... IS NULL is serialized by Postgres row locking,
+        // so the loser's predicate re-evaluates to false and it updates zero
+        // rows. See #780 — the same false-atomicity affects the A4 guard on the
+        // partner start route.
+        const claimed = await pg.raw(
+            `update inventory_orders
+                set partner_assignment_id = ?, updated_at = now()
+              where id = ?
+                and partner_assignment_id is null
+                and deleted_at is null
+             returning id`,
+            [transactionId, input.inventoryOrderId]
+        )
+        const rows = claimed?.rows ?? []
+
+        if (rows.length === 0) {
+            // Either another request claimed it microseconds ago, or the order
+            // was already assigned and the route pre-check did not see it.
+            throw new MedusaError(
+                MedusaError.Types.CONFLICT,
+                `Inventory order ${input.inventoryOrderId} is already assigned to a partner. Cancel the existing assignment before sending it again.`
+            )
+        }
+
+        return new StepResponse({ inventoryOrderId: input.inventoryOrderId, transactionId }, {
+            inventoryOrderId: input.inventoryOrderId,
+            transactionId,
+        })
+    },
+    async (claimed, { container }) => {
+        if (!claimed) {
+            return
+        }
+        const pg = container.resolve(ContainerRegistrationKeys.PG_CONNECTION) as any
+        // Release only our own claim — the transaction id is in the predicate,
+        // so a rollback can never clear an assignment another run owns.
+        await pg.raw(
+            `update inventory_orders
+                set partner_assignment_id = null, updated_at = now()
+              where id = ? and partner_assignment_id = ?`,
+            [claimed.inventoryOrderId, claimed.transactionId]
+        )
+    }
+)
+
 const validatePartnerStep = createStep(
     "validate-partner",
     async (input: SendInventoryOrderToPartnerInput, { container }) => {
@@ -335,8 +404,15 @@ export const sendInventoryOrderToPartnerWorkflow = createWorkflow(
         
         // Step 2: Validate the partner
         const partner = validatePartnerStep(input)
-        
-        // Idempotency removed: always create/update the link
+
+        // #780 H7c — claim the assignment before anything observable happens.
+        // A concurrent duplicate send fails here, so it cannot duplicate the
+        // tasks, the partner notification, or the awaiting workflow instance.
+        claimPartnerAssignmentStep({ inventoryOrderId: input.inventoryOrderId })
+
+        // The link itself is NOT the guard: Link.create refuses a second
+        // *partner* for one order (singular-side uniqueness, cf. #1775) but is
+        // a silent no-op for the same partner twice. The claim above covers it.
         linkInventoryOrderWithPartnerStep({
             inventoryOrderId: input.inventoryOrderId,
             partnerId: input.partnerId

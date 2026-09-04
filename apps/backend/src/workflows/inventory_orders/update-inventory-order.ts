@@ -4,7 +4,7 @@ import {
   StepResponse,
   WorkflowResponse,
 } from "@medusajs/framework/workflows-sdk";
-import { Modules, MedusaError } from "@medusajs/framework/utils";
+import { Modules, MedusaError, ContainerRegistrationKeys } from "@medusajs/framework/utils";
 import type { IEventBusModuleService } from "@medusajs/types";
 import InventoryOrderService from "../../modules/inventory_orders/service";
 import { ORDER_INVENTORY_MODULE } from "../../modules/inventory_orders";
@@ -71,6 +71,9 @@ type UpdateInventoryOrderStepInput = {
     cancelled_at?: Date | null;
     cancellation_reason?: string | null;
     cancelled_by?: string | null;
+    // #780 H7c — the partner-assignment claim. Cancelling an order releases it
+    // so the order can legitimately be sent to a partner again.
+    partner_assignment_id?: string | null;
   };
 };
 
@@ -96,20 +99,49 @@ export const updateInventoryOrderStep = createStep(
 
     let order: any;
     if (input.expectedCurrentStatus !== undefined) {
-      // #780 H7 — atomic compare-and-set: only rows still at the expected status
-      // are updated. Returns the updated rows (empty if none matched).
-      const updated = await inventoryOrderService.updateInventoryOrders({
-        selector: { id: input.id, status: input.expectedCurrentStatus },
-        data: { ...input.update },
-      });
-      const rows = Array.isArray(updated) ? updated : updated ? [updated] : [];
-      if (rows.length === 0) {
+      // #780 H7 — compare-and-set on the transition.
+      //
+      // 🔴 This is raw SQL on purpose, and it must stay that way. The original
+      // version of this guard used
+      //   updateInventoryOrders({ selector: { id, status: expected }, data })
+      // and its comment claimed that was atomic. It is not: the service reads
+      // the matching rows and then writes them, so two concurrent callers with
+      // the same selector BOTH match and BOTH write. Probed directly against
+      // the local DB — two racing claims returned 1 row and 1 row, where an
+      // atomic CAS returns 1 and 0. A single `UPDATE ... WHERE status =
+      // <expected>` is serialized by Postgres row locking, so the loser's
+      // predicate re-evaluates after the winner commits and it updates nothing.
+      if (input.update.status === undefined) {
+        throw new MedusaError(
+          MedusaError.Types.INVALID_DATA,
+          "expectedCurrentStatus requires a status change — the status write is the gate."
+        );
+      }
+
+      const pg = container.resolve(ContainerRegistrationKeys.PG_CONNECTION) as any;
+      const gated = await pg.raw(
+        `update inventory_orders
+            set status = ?, updated_at = now()
+          where id = ?
+            and status = ?
+            and deleted_at is null
+         returning id`,
+        [input.update.status, input.id, input.expectedCurrentStatus]
+      );
+      if ((gated?.rows ?? []).length === 0) {
         throw new MedusaError(
           MedusaError.Types.CONFLICT,
           `Inventory order ${input.id} is no longer in "${input.expectedCurrentStatus}" state (already updated by a concurrent request)`
         );
       }
-      order = rows[0];
+
+      // The transition is now owned by this caller. Apply the remaining fields
+      // through the service so serialisation and the returned shape are
+      // unchanged; re-writing the same status is a no-op.
+      order = await inventoryOrderService.updateInventoryOrders({
+        id: input.id,
+        ...input.update,
+      });
     } else {
       order = await inventoryOrderService.updateInventoryOrders({
         id: input.id,
