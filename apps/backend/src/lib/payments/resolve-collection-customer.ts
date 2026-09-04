@@ -1,5 +1,8 @@
 import { ContainerRegistrationKeys } from "@medusajs/framework/utils"
 
+import { PAYMENT_SCHEDULE_MODULE } from "../../modules/payment_schedule"
+import { planCartCollection, type CollectionPlan } from "./deposit-collection"
+
 /**
  * The customer a payment collection is being paid by, resolved from its cart.
  *
@@ -84,4 +87,70 @@ export const resolveCartCustomerId = async (
     .catch(() => ({ data: [] }))
 
   return carts?.[0]?.customer_id ?? undefined
+}
+
+
+/**
+ * Everything a payment session needs to know about the cart behind a
+ * collection: who is paying, and whether a balance follows.
+ *
+ * ## Why the plan, and not a second rule
+ *
+ * The store payment-sessions route has only a collection id in hand, so the
+ * tempting shortcut is to ask the schedule directly — "is `balance_amount`
+ * above zero?" — and decide from that. That would be a SECOND answer to a
+ * question `planCartCollection` already answers, and two answers to one
+ * question is how the deposit came to be charged three different ways.
+ *
+ * So the same pricer runs here as on the Stripe hosted-page rail, and the
+ * decision is read off `plan.basis` in both places.
+ *
+ * A cart that cannot be planned at all is not an error here — it simply means
+ * no card is kept. Refusing the session would break checkouts to protect a
+ * convenience.
+ */
+export const resolveCollectionPaymentContext = async (
+  scope: any,
+  collectionId: string
+): Promise<{ customer_id?: string; plan?: CollectionPlan }> => {
+  if (!collectionId) return {}
+
+  const query = scope.resolve(ContainerRegistrationKeys.QUERY)
+
+  const { data: links } = await query
+    .graph({
+      entity: "cart_payment_collection",
+      filters: { payment_collection_id: collectionId },
+      fields: ["cart_id"],
+    })
+    .catch(() => ({ data: [] }))
+
+  const cartId = links?.[0]?.cart_id
+  if (!cartId) return {}
+
+  const { data: carts } = await query
+    .graph({
+      entity: "cart",
+      filters: { id: cartId },
+      fields: ["id", "customer_id", "currency_code", "total"],
+    })
+    .catch(() => ({ data: [] }))
+
+  const cart = carts?.[0]
+  if (!cart) return {}
+
+  let plan: CollectionPlan | undefined
+  try {
+    const schedules: any = scope.resolve(PAYMENT_SCHEDULE_MODULE)
+    const schedule = await schedules.findByCartId(cart.id)
+    plan = planCartCollection({
+      cartTotal: cart.total,
+      cartCurrency: cart.currency_code,
+      schedule,
+    })
+  } catch {
+    plan = undefined
+  }
+
+  return { customer_id: cart.customer_id ?? undefined, plan }
 }
