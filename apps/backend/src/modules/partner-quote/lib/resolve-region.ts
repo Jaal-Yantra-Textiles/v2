@@ -152,7 +152,17 @@ export async function resolveQuoteRegion(
 
   const resolved = pickQuoteRegion((regions ?? []) as RegionLike[], input)
 
-  if (opts.strict && !resolved.region_id) {
+  /**
+   * 🔴 Narrow on `source`, not on `!region_id`.
+   *
+   * `RegionResolution` is a union whose failure branch is the only one carrying
+   * `reason`, and `source` is its discriminant. TypeScript narrows a union by
+   * truthiness only when the property is a literal type — `region_id: string`
+   * is not, so `!resolved.region_id` narrowed nothing and `resolved.reason`
+   * did not compile. That failed CI's `prod-build` job on every push, on `main`
+   * included, from the moment #1788 landed.
+   */
+  if (opts.strict && resolved.source === "none") {
     throw new MedusaError(
       MedusaError.Types.INVALID_DATA,
       `Cannot determine the region for this quote: ${resolved.reason}. ` +
