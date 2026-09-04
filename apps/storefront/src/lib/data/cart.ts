@@ -16,6 +16,7 @@ import {
 } from "./cookies"
 import { getRegion } from "./regions"
 import { getLocale } from "@lib/data/locale-actions"
+import type { QuoteCartTerms } from "types/quote-terms"
 
 /**
  * Retrieves a cart by its ID. If no ID is provided, it will use the cart ID from the cookies.
@@ -52,6 +53,71 @@ export async function retrieveCart(cartId?: string, fields?: string) {
     .catch(() => null)
 }
 
+/**
+ * Is this cart bound to a quote, and therefore NOT free to be re-regioned?
+ *
+ * 🔴 #1787. A browsing cart should follow the URL prefix — that is what the
+ * locale switcher is for. A quote cart must not: `acceptQuoteWorkflow` mints it
+ * against frozen prices, a fixed currency and a freight option rated in one
+ * specific lane, and stamps `metadata.quote_id` on it. Moving that cart to the
+ * region of whatever prefix the buyer happens to be under is not a locale
+ * preference, it is a silent re-pricing of an agreement they already accepted.
+ *
+ * A live example: an AUD quote opened under `/in/` was dragged into the
+ * India/INR region, which offered PayU instead of Stripe and scoped the
+ * checkout's country select to `in` — a required select with no option matching
+ * her `au` address, so the form refused to submit with nothing in any log.
+ *
+ * ⚠️ This file is a FORK of `apps/storefront-starter/src/lib/data/cart.ts` and
+ * carried the same defect. A fix here has two homes; change both.
+ *
+ * Not exported: this file is `"use server"`, where every export must be an
+ * async server action.
+ */
+const isQuoteBoundCart = (cart?: { metadata?: Record<string, unknown> | null } | null) =>
+  Boolean(cart?.metadata?.quote_id)
+
+/**
+ * The quote terms behind a cart, or null (#1787).
+ *
+ * 🔴 Never computes a deposit here. The backend derives it with the same
+ * function that creates the payment collection, so what the page promises and
+ * what the gateway charges cannot drift apart.
+ *
+ * Swallows failures on purpose: this decorates a cart page, and a cart must
+ * still render — at its plain total, which is always correct — if the lookup
+ * fails.
+ */
+export async function retrieveQuoteTerms(
+  cartId?: string
+): Promise<QuoteCartTerms | null> {
+  const id = cartId || (await getCartId())
+
+  if (!id) {
+    return null
+  }
+
+  const headers = {
+    ...(await getAuthHeaders()),
+  }
+
+  const next = {
+    ...(await getCacheOptions("carts")),
+  }
+
+  return sdk.client
+    .fetch<{ quote_terms: QuoteCartTerms }>(`/store/carts/${id}/quote-terms`, {
+      method: "GET",
+      headers,
+      // Tagged with the cart, so paying the deposit revalidates it. NOT
+      // force-cached: `deposit_status` flips from `pending` to `paid` and a
+      // stale copy would keep asking a buyer for money she has already sent.
+      next,
+    })
+    .then(({ quote_terms }) => quote_terms ?? null)
+    .catch(() => null)
+}
+
 export async function getOrSetCart(countryCode: string) {
   const region = await getRegion(countryCode)
 
@@ -59,7 +125,9 @@ export async function getOrSetCart(countryCode: string) {
     throw new Error(`Region not found for country code: ${countryCode}`)
   }
 
-  let cart = await retrieveCart(undefined, "id,region_id")
+  // `metadata` is fetched for the quote-cart guard below — without it the
+  // marker reads `undefined` on every cart and the guard is dead code.
+  let cart = await retrieveCart(undefined, "id,region_id,metadata")
 
   const headers = {
     ...(await getAuthHeaders()),
@@ -80,7 +148,7 @@ export async function getOrSetCart(countryCode: string) {
     revalidateTag(cartCacheTag)
   }
 
-  if (cart && cart?.region_id !== region.id) {
+  if (cart && cart?.region_id !== region.id && !isQuoteBoundCart(cart)) {
     await sdk.store.cart.update(cart.id, { region_id: region.id }, {}, headers)
     const cartCacheTag = await getCacheTag("carts")
     revalidateTag(cartCacheTag)
@@ -477,9 +545,18 @@ export async function updateRegion(countryCode: string, currentPath: string) {
   }
 
   if (cartId) {
-    await updateCart({ region_id: region.id })
-    const cartCacheTag = await getCacheTag("carts")
-    revalidateTag(cartCacheTag)
+    // #1787 — the locale switcher moves the STOREFRONT, and normally the cart
+    // with it. It must not move a quote cart: the prices, currency and freight
+    // on that cart were agreed, not browsed. The buyer still gets the locale
+    // they asked for; the quote they accepted simply does not follow them into
+    // it. See `isQuoteBoundCart`.
+    const cart = await retrieveCart(cartId, "id,region_id,metadata")
+
+    if (!isQuoteBoundCart(cart)) {
+      await updateCart({ region_id: region.id })
+      const cartCacheTag = await getCacheTag("carts")
+      revalidateTag(cartCacheTag)
+    }
   }
 
   const regionCacheTag = await getCacheTag("regions")

@@ -29,11 +29,22 @@ const QuoteTemplate = ({
   quote,
   token,
   countryCode,
+  checkoutCountryCode,
 }: {
   quote: QuoteView
   token: string
   countryCode: string
+  /**
+   * The prefix CHECKOUT must run under (#1787) — the quote's own destination,
+   * not the segment the buyer arrived on. Normally equal to `countryCode`,
+   * since the page redirects to agree them; they diverge only where the
+   * storefront has no region for the destination.
+   */
+  checkoutCountryCode?: string
 }) => {
+  // Links WITHIN the quote document stay on the current prefix; only the
+  // hand-off to checkout is forced to the quote's country.
+  const checkoutCountry = checkoutCountryCode ?? countryCode
   const {
     compare,
     recipient,
@@ -162,7 +173,7 @@ const QuoteTemplate = ({
             <QuoteAcceptPanel
               token={token}
               acceptance={acceptance}
-              countryCode={countryCode}
+              countryCode={checkoutCountry}
               /* 🔴 The basket AS PRICED ABOVE, not the quoted one. `quote.lines`
              already carries the buyer's dial — the backend re-priced the whole
              document through it — so handing these straight to the accept call
