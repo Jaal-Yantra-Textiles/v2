@@ -161,6 +161,7 @@ import {
   AdminApproveProductionRunReq,
   AdminAssignProductionRunPartnerReq,
   AdminRedispatchParkedRunsReq,
+  AdminRunApprovalsReq,
   AdminCreateProductionRunReq,
   AdminCancelProductionRunReq,
   AdminResumeDispatchProductionRunReq,
@@ -5089,6 +5090,18 @@ export default defineMiddlewares({
       matcher: "/admin/production-runs/redispatch-parked",
       method: "POST",
       middlewares: [validateAndTransformBody(wrapSchema(AdminRedispatchParkedRunsReq))],
+    },
+    {
+      /**
+       * #1805 — review what completed runs produced, in bulk.
+       *
+       * A static segment beside `redispatch-parked`. Nothing shadows it: every
+       * parameterised production-run matcher carries a second segment, so none
+       * of them can read "approvals" as an id.
+       */
+      matcher: "/admin/production-runs/approvals",
+      method: "POST",
+      middlewares: [validateAndTransformBody(wrapSchema(AdminRunApprovalsReq))],
     },
 
     {

@@ -96,6 +96,44 @@ const ProductionRun = model.define("production_runs", {
   short_close_reason: model.text().nullable(),
   short_closed_quantity: model.float().nullable(),
 
+  /**
+   * ===== The OUTPUT review (#1805) ====================================
+   *
+   * A completed run's goods are looked at before anything is listed for sale:
+   * approve creates the catalogue product, reject creates nothing.
+   *
+   * 🔴 A separate AXIS from `status`, deliberately. A rejected run stays
+   * `completed`, because it WAS completed — the partner made the goods and is
+   * still owed for `produced_quantity`, and billing (`payable-runs`, the
+   * short-close ceiling) keys on that status. Moving the run to a terminal
+   * `rejected` would quietly change what a partner may claim, and would erase
+   * the fact that the work happened at all.
+   *
+   * Null means nobody has looked yet — which is exactly what the review queue
+   * filters on. Before these columns existed, "rejected" was indistinguishable
+   * from "unreviewed", so a rejected run came back in the list forever.
+   *
+   * Typed columns, not metadata: this decides whether something goes on sale
+   * (#1557).
+   */
+  approval_decision: model.enum(["approved", "rejected"]).nullable(),
+  approval_decided_at: model.dateTime().nullable(),
+  /** Admin actor id, or "system". */
+  approval_decided_by: model.text().nullable(),
+  /**
+   * Why. REQUIRED by the route for a rejection — a rejection with no reason is
+   * the same dead end as no state at all, one step later.
+   */
+  approval_reason: model.text().nullable(),
+  /**
+   * What the approval PRODUCED. Names the catalogue product this run's output
+   * was listed as, so an approved run can say what became of it — and so a
+   * second run of the same design can be seen to share one product rather than
+   * having quietly minted a second variant.
+   */
+  approved_product_id: model.text().nullable(),
+  approved_variant_id: model.text().nullable(),
+
   // Cost
   partner_cost_estimate: model.float().nullable(),
   cost_type: model.enum(["per_unit", "total"]).default("total").nullable(),

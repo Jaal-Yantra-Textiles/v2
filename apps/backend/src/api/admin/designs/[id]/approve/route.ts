@@ -7,6 +7,10 @@ import type { IEventBusModuleService } from "@medusajs/types";
 import updateDesignWorkflow from "../../../../../workflows/designs/update-design";
 import { createProductFromDesignWorkflow } from "../../../../../workflows/designs/create-product-from-design";
 import designCustomerLink from "../../../../../links/design-customer-link";
+import {
+  readStoreCurrency,
+  resolveApprovalCurrency,
+} from "../../../../../workflows/production-runs/approve-run-output";
 
 /**
  * POST /admin/designs/:id/approve
@@ -34,7 +38,7 @@ export async function POST(
     const { data: designs } = await query.graph({
       entity: "design",
       filters: { id: designId },
-      fields: ["id", "name", "estimated_cost"],
+      fields: ["id", "name", "estimated_cost", "cost_currency"],
     });
 
     if (!designs || designs.length === 0) {
@@ -78,7 +82,17 @@ export async function POST(
           design_id: designId,
           estimated_cost: design.estimated_cost || 0,
           customer_id: customerId,
-          currency_code: "usd",
+          /**
+           * 🔴 Was hardcoded `"usd"` on a platform that trades in AUD and INR,
+           * so every approved design was listed in a currency nobody sells in
+           * (#1805). Resolved from the design's own `cost_currency` — what the
+           * work was costed in — with the store default behind it. The rule is
+           * shared with the bulk review so the two paths cannot disagree.
+           */
+          currency_code: resolveApprovalCurrency({
+            designCurrency: (design as any).cost_currency,
+            storeCurrency: await readStoreCurrency(req.scope),
+          }),
         },
       });
 

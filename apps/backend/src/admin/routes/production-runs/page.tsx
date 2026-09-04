@@ -1,15 +1,18 @@
 import {
+  Badge,
+  CommandBar,
   Container,
   DataTable,
   DataTableFilteringState,
   DataTablePaginationState,
+  DataTableRowSelectionState,
   Heading,
   StatusBadge,
   Text,
+  createDataTableColumnHelper,
   createDataTableFilterHelper,
   useDataTable,
 } from "@medusajs/ui"
-import { createColumnHelper } from "@tanstack/react-table"
 import { useCallback, useMemo, useState } from "react"
 import debounce from "lodash/debounce"
 import { Link, useNavigate } from "react-router-dom"
@@ -17,10 +20,19 @@ import { Link, useNavigate } from "react-router-dom"
 import { useProductionRuns, type AdminProductionRun } from "../../hooks/api/production-runs"
 import { usePartners } from "../../hooks/api/partners"
 import { productionRunStatusColor } from "../../lib/status-colors"
+import { RunOutputReviewPanel } from "../../components/production-runs/run-output-review-panel"
 
 const PAGE_SIZE = 20
 
-const columnHelper = createColumnHelper<AdminProductionRun>()
+/**
+ * 🔴 Medusa's OWN helper, not `@tanstack/react-table`'s.
+ *
+ * Only this one has `.select()`, and without that column the table renders no
+ * checkboxes at all — `rowSelection` state is wired, nothing can set it, and
+ * the bulk command bar can never open. Configuring the state is not the same as
+ * offering the control; the screen is the only place that difference shows.
+ */
+const columnHelper = createDataTableColumnHelper<AdminProductionRun>()
 
 const STATUS_OPTIONS = [
   "draft",
@@ -51,6 +63,9 @@ const ProductionRunsListPage = () => {
   })
   const [filtering, setFiltering] = useState<DataTableFilteringState>({})
   const [search, setSearch] = useState("")
+  const [rowSelection, setRowSelection] = useState<DataTableRowSelectionState>({})
+  /** Which review is open, if any (#1805). */
+  const [decision, setDecision] = useState<"approve" | "reject" | null>(null)
 
   const handleFilterChange = useCallback(
     debounce((nf: DataTableFilteringState) => {
@@ -76,6 +91,12 @@ const ProductionRunsListPage = () => {
       : (filtering.status as string)
     : undefined
 
+  const reviewFilter = filtering.approval_decision
+    ? Array.isArray(filtering.approval_decision)
+      ? (filtering.approval_decision[0] as string)
+      : (filtering.approval_decision as string)
+    : undefined
+
   const runTypeFilter = filtering.run_type
     ? Array.isArray(filtering.run_type)
       ? (filtering.run_type[0] as string)
@@ -95,6 +116,7 @@ const ProductionRunsListPage = () => {
     status: statusFilter,
     run_type: runTypeFilter,
     partner_id: partnerFilter,
+    approval_decision: reviewFilter,
     exclude_children: true,
   })
 
@@ -107,8 +129,14 @@ const ProductionRunsListPage = () => {
     [partners],
   )
 
+  const selectedRunIds = useMemo(
+    () => Object.keys(rowSelection).filter((k) => rowSelection[k]),
+    [rowSelection]
+  )
+
   const columns = useMemo(
     () => [
+      columnHelper.select(),
       columnHelper.accessor("id", {
         header: "Run",
         cell: ({ getValue }) => (
@@ -195,6 +223,34 @@ const ProductionRunsListPage = () => {
           )
         },
       }),
+      /**
+       * #1805 — the output review, as its own column.
+       *
+       * It is deliberately NOT folded into Status: a rejected run is still
+       * `completed`, because the work was done and the partner is still owed
+       * for it. Two facts, two columns — and "—" on a completed run is the
+       * queue's whole content: nobody has looked at it yet.
+       */
+      columnHelper.accessor("approval_decision", {
+        header: "Review",
+        cell: ({ row, getValue }) => {
+          const decided = getValue() as string | null | undefined
+          if (!decided) {
+            return row.original?.status === "completed" ? (
+              <Text size="small" className="text-ui-fg-subtle">
+                Awaiting review
+              </Text>
+            ) : (
+              <Text size="small" className="text-ui-fg-subtle">—</Text>
+            )
+          }
+          return (
+            <Badge size="2xsmall" color={decided === "approved" ? "green" : "orange"}>
+              {labelFor(decided)}
+            </Badge>
+          )
+        },
+      }),
       columnHelper.accessor("created_at", {
         header: "Created",
         cell: ({ getValue }) => {
@@ -236,6 +292,20 @@ const ProductionRunsListPage = () => {
         label: "Partner",
         options: partnerOptions,
       }),
+      /*
+        #1805 — "Awaiting review" + Status: Completed IS the review queue.
+        `none` rather than an empty value: absent means "any", and the queue
+        needs to ask for the runs nobody has decided about.
+      */
+      filterHelper.accessor("approval_decision", {
+        type: "select",
+        label: "Review",
+        options: [
+          { label: "Awaiting review", value: "none" },
+          { label: "Approved", value: "approved" },
+          { label: "Rejected", value: "rejected" },
+        ],
+      }),
     ],
     [partnerOptions],
   )
@@ -247,6 +317,10 @@ const ProductionRunsListPage = () => {
     filters,
     getRowId: (row) => row.id,
     onRowClick: (_, row) => navigate(`/production-runs/${row.id}`),
+    rowSelection: {
+      state: rowSelection,
+      onRowSelectionChange: setRowSelection,
+    },
     isLoading,
     pagination: {
       state: pagination,
@@ -288,6 +362,42 @@ const ProductionRunsListPage = () => {
         <DataTable.Table />
         <DataTable.Pagination />
       </DataTable>
+
+      {/*
+        #1805 — the output review, in bulk. Approve creates the catalogue
+        product (once per DESIGN, however many of its runs are selected);
+        reject creates nothing and records why.
+      */}
+      <CommandBar open={selectedRunIds.length > 0}>
+        <CommandBar.Bar>
+          <CommandBar.Value>{selectedRunIds.length} selected</CommandBar.Value>
+          <CommandBar.Seperator />
+          <CommandBar.Command
+            label="Approve"
+            shortcut="a"
+            action={() => setDecision("approve")}
+          />
+          <CommandBar.Seperator />
+          <CommandBar.Command
+            label="Reject"
+            shortcut="r"
+            action={() => setDecision("reject")}
+          />
+        </CommandBar.Bar>
+      </CommandBar>
+
+      <RunOutputReviewPanel
+        decision={decision}
+        runIds={selectedRunIds}
+        onClose={() => setDecision(null)}
+        /*
+         * Clear the selection once a decision has landed. Leaving it would
+         * offer the same runs for a second decision they can no longer take,
+         * and the second attempt would come back as a list of "Already
+         * approved" skips — technically correct, and unreadable as feedback.
+         */
+        onApplied={() => setRowSelection({})}
+      />
     </Container>
   )
 }

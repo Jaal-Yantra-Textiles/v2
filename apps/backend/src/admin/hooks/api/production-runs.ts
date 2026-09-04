@@ -57,6 +57,53 @@ export type AdminProductionRun = Record<string, any> & {
   short_closed_by?: string | null
   short_close_reason?: string | null
   short_closed_quantity?: number | null
+  /**
+   * #1805 — the OUTPUT review. Null means nobody has looked yet, which is what
+   * the review queue filters on. A rejected run stays `completed`: the work was
+   * done and the partner is still owed for it.
+   */
+  approval_decision?: "approved" | "rejected" | null
+  approval_decided_at?: string | null
+  approval_decided_by?: string | null
+  approval_reason?: string | null
+  approved_product_id?: string | null
+  approved_variant_id?: string | null
+}
+
+/** One run's fate in a bulk output review (#1805). */
+export type RunApprovalReport = {
+  run_id: string
+  design_id: string | null
+  design_name: string | null
+  status: string | null
+  outcome: "approved" | "rejected" | "skipped" | "failed"
+  reason?: string
+  product_id?: string | null
+  variant_id?: string | null
+  product_existed?: boolean
+  currency_code?: string
+  listed_price?: number
+}
+
+export type RunApprovalsResponse = {
+  run_approvals: {
+    decision: "approve" | "reject"
+    dry_run?: boolean
+    runs: RunApprovalReport[]
+    design_ids: string[]
+    created_product_ids: string[]
+    approved: string[]
+    rejected: string[]
+    skipped: string[]
+    failed: string[]
+  }
+}
+
+export type RunApprovalsPayload = {
+  run_ids: string[]
+  decision: "approve" | "reject"
+  reason?: string | null
+  dry_run?: boolean
 }
 
 export type AdminCreateDesignProductionRunResponse =
@@ -937,6 +984,44 @@ export const useReopenProductionRun = (
       queryClient.invalidateQueries({
         queryKey: [...productionRunQueryKeys.detail(runId), "activities"],
       })
+      options?.onSuccess?.(data, variables, _mutateResult, context)
+    },
+  })
+}
+
+/**
+ * Review what completed runs produced, in bulk (#1805).
+ *
+ * 🔴 `...options` BEFORE `onSuccess`, never after. Spread afterwards, a
+ * caller's own `onSuccess` REPLACES this one and the list silently keeps
+ * showing decided runs until a hard refresh — the defect #1800 found in 165
+ * hooks.
+ *
+ * 🔑 A `dry_run` call must invalidate NOTHING: it changed nothing, and
+ * refetching the list underneath a review the operator is reading is how a
+ * preview turns into a moving target.
+ */
+export const useRunApprovals = (
+  options?: UseMutationOptions<
+    RunApprovalsResponse,
+    FetchError,
+    RunApprovalsPayload
+  >
+) => {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: async (payload: RunApprovalsPayload) =>
+      sdk.client.fetch<RunApprovalsResponse>(
+        "/admin/production-runs/approvals",
+        { method: "POST", body: payload }
+      ),
+    ...options,
+    onSuccess: (data, variables, _mutateResult, context) => {
+      if (!variables.dry_run) {
+        queryClient.invalidateQueries({ queryKey: productionRunQueryKeys.lists() })
+        queryClient.invalidateQueries({ queryKey: designQueryKeys.lists() })
+      }
       options?.onSuccess?.(data, variables, _mutateResult, context)
     },
   })
