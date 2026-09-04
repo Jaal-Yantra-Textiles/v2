@@ -15,6 +15,21 @@ class PartnerQuoteService extends MedusaService({
    * prober.
    */
   async findByTokenHash(tokenHash: string) {
+    /**
+     * 🔴 Refuse an empty hash rather than asking with it.
+     *
+     * `listPartnerQuotes({ token_hash: undefined })` is not "no rows" — it is
+     * NO FILTER, and it would hand back the first quote in the table. That was
+     * survivable while every row was a real quote belonging to somebody; with
+     * drafts in the same table it would serve a buyer an unpriced draft, and
+     * with any row it is somebody else's quote entirely.
+     *
+     * Drafts are additionally unreachable here by construction — their
+     * `token_hash` is NULL and NULL matches nothing — but that is the second
+     * line, not the first.
+     */
+    if (!tokenHash) return null
+
     const rows = await this.listPartnerQuotes({ token_hash: tokenHash })
     return rows?.[0] || null
   }

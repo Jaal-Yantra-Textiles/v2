@@ -1,18 +1,16 @@
 import { zodResolver } from "@hookform/resolvers/zod"
 import {
   Button,
+  Container,
   Heading,
-  ProgressStatus,
-  ProgressTabs,
   Select,
   Text,
   toast,
 } from "@medusajs/ui"
-import { useState } from "react"
+import { useRef, useState } from "react"
 import { FieldPath, useForm } from "react-hook-form"
 
 import { Form } from "../../../components/common/form"
-import { RouteFocusModal } from "../../../components/modal/route-focus-modal"
 import { KeyboundForm } from "../../../components/utilitites/key-bound-form"
 import { usePartners } from "../../../hooks/api/partners"
 import {
@@ -25,12 +23,6 @@ import { ReadinessPanel } from "./readiness-panel"
 import {
   AdminQuoteCreateSchema,
   AdminQuoteCreateSchemaType,
-  QuoteBuyerFields,
-  QuoteBuyerSchema,
-  QuotePartnerFields,
-  QuotePartnerSchema,
-  QuoteProductFields,
-  QuoteProductsSchema,
 } from "./schema"
 import { BuyerStep } from "./steps/buyer-step"
 import { ProductsStep } from "./steps/products-step"
@@ -50,12 +42,28 @@ import { QuantitiesStep } from "./steps/quantities-step"
  * useless on the other, and the admin one could not be used against a real
  * catalogue at all.
  *
- * This is the partner's shape — `RouteFocusModal.Form` + `ProgressTabs`, one
- * step per question — with ONE extra leading step. An admin has no partner of
- * their own, and every quote is partner-scoped: the partner decides which
- * catalogue the variants come from and which location freight is quoted from,
- * so choosing products before a partner would build a basket that is then
- * rejected wholesale.
+ * ## Sections on a page, not steps in a modal
+ *
+ * This began as `RouteFocusModal.Form` + `ProgressTabs` — one step per
+ * question, mirroring the partner wizard. At 2,420 lines across its steps that
+ * had outgrown a modal: the operator could see exactly one answer at a time,
+ * could not glance back at the basket while typing a destination, and every
+ * mint navigated away from the list they started on.
+ *
+ * It is now the same four questions as SECTIONS down one page, in the layout of
+ * the quote detail route this very form produces — `TwoColumnPage` with the
+ * readiness verdict living in the sidebar rather than appearing, once, above a
+ * grid. Draft orders are the shape being borrowed.
+ *
+ * 🔑 What deliberately did NOT change: the quote is still minted by a SINGLE
+ * POST at the end. A draft order can persist section by section because its
+ * prices are just the variant's; a quote's are computed — freight, tax, duty,
+ * DDP, landed total — so a half-built quote row would be a quote with no price,
+ * which is the one thing a quote exists to carry.
+ *
+ * Order still matters even without gates. The partner decides which catalogue
+ * the variants come from and which location freight is quoted from, so it leads
+ * — pick products first and you build a basket that is then rejected wholesale.
  *
  * **Partner → Buyer → Products → Quantities.**
  *
@@ -68,27 +76,28 @@ import { QuantitiesStep } from "./steps/quantities-step"
  * a re-mint.
  */
 
-enum Tab {
-  PARTNER = "partner",
-  BUYER = "buyer",
-  PRODUCTS = "products",
-  QUANTITIES = "quantities",
-}
-
-const tabOrder = [Tab.PARTNER, Tab.BUYER, Tab.PRODUCTS, Tab.QUANTITIES] as const
-
-type TabState = Record<Tab, ProgressStatus>
-
-const initialTabState: TabState = {
-  [Tab.PARTNER]: "in-progress",
-  [Tab.BUYER]: "not-started",
-  [Tab.PRODUCTS]: "not-started",
-  [Tab.QUANTITIES]: "not-started",
-}
+/** The sections, in the order the page lays them out. */
+const SECTIONS = ["partner", "buyer", "products", "quantities"] as const
+type SectionId = (typeof SECTIONS)[number]
 
 export const MintQuoteForm = () => {
-  const [tab, setTab] = useState<Tab>(Tab.PARTNER)
-  const [tabState, setTabState] = useState<TabState>(initialTabState)
+  /**
+   * Scroll targets. With every section on the page, "you cannot mint yet"
+   * has somewhere to point — the refusal moves the page to the section that
+   * caused it instead of naming a step the operator must go and find.
+   */
+  const sectionRefs = useRef<Record<SectionId, HTMLDivElement | null>>({
+    partner: null,
+    buyer: null,
+    products: null,
+    quantities: null,
+  })
+
+  const goToSection = (id: SectionId) =>
+    sectionRefs.current[id]?.scrollIntoView({
+      behavior: "smooth",
+      block: "start",
+    })
   const [minted, setMinted] = useState<MintedQuoteResult | null>(
     null
   )
@@ -140,84 +149,6 @@ export const MintQuoteForm = () => {
   const { mutateAsync: checkReadiness, isPending: isChecking } =
     useAdminQuoteReadiness()
 
-  /**
-   * Validate only the fields belonging to the steps being skipped past.
-   * Same mechanism the partner wizard uses: a tab cannot be reached by
-   * clicking its header while an earlier one is incomplete, and the error is
-   * attached to the field rather than shouted in a toast.
-   */
-  const partialFormValidation = (
-    fields: readonly FieldPath<AdminQuoteCreateSchemaType>[],
-    schema: any
-  ) => {
-    form.clearErrors(fields as any)
-
-    const values = fields.reduce((acc, key) => {
-      acc[key] = form.getValues(key as any)
-      return acc
-    }, {} as Record<string, unknown>)
-
-    const validation = schema.safeParse(values)
-    if (validation.success) return true
-
-    for (const issue of validation.error.issues) {
-      form.setError(issue.path.join(".") as any, {
-        type: issue.code,
-        message: issue.message,
-      })
-    }
-    return false
-  }
-
-  const handleChangeTab = (update: Tab) => {
-    if (tab === update) return
-
-    // Going back is always allowed — an operator correcting an earlier answer
-    // must not be made to re-pass the steps after it.
-    if (tabOrder.indexOf(update) < tabOrder.indexOf(tab)) {
-      setTabState((prev) => ({ ...prev, [update]: "in-progress" }))
-      setTab(update)
-      return
-    }
-
-    for (const current of tabOrder.slice(0, tabOrder.indexOf(update))) {
-      if (current === Tab.PARTNER) {
-        if (!partialFormValidation(QuotePartnerFields, QuotePartnerSchema)) {
-          setTabState((prev) => ({ ...prev, [current]: "in-progress" }))
-          setTab(current)
-          return
-        }
-      } else if (current === Tab.BUYER) {
-        if (!partialFormValidation(QuoteBuyerFields, QuoteBuyerSchema)) {
-          setTabState((prev) => ({ ...prev, [current]: "in-progress" }))
-          setTab(current)
-          return
-        }
-      } else if (current === Tab.PRODUCTS) {
-        if (!partialFormValidation(QuoteProductFields, QuoteProductsSchema)) {
-          setTabState((prev) => ({ ...prev, [current]: "in-progress" }))
-          setTab(current)
-          return
-        }
-        if (!form.getValues("product_ids").length) {
-          toast.error("Pick at least one product.")
-          setTab(current)
-          return
-        }
-      }
-      setTabState((prev) => ({ ...prev, [current]: "completed" }))
-    }
-
-    setTabState((prev) => ({ ...prev, [update]: "in-progress" }))
-    setTab(update)
-  }
-
-  const handleNextTab = () => {
-    const i = tabOrder.indexOf(tab)
-    if (i === tabOrder.length - 1) return
-    handleChangeTab(tabOrder[i + 1])
-  }
-
   const handleSubmit = form.handleSubmit(async (data) => {
     /**
      * A blank or zero quantity means "not in this basket" — dropped, not sent
@@ -255,7 +186,7 @@ export const MintQuoteForm = () => {
       toast.error(
         "Set a quantity on at least one variant — a quote with no lines has nothing to price."
       )
-      setTab(Tab.QUANTITIES)
+      goToSection("quantities")
       return
     }
 
@@ -303,7 +234,7 @@ export const MintQuoteForm = () => {
 
     if (assessed && !assessed.ready) {
       toast.error("This quote cannot be minted yet — see the reasons above.")
-      setTab(Tab.QUANTITIES)
+      goToSection("quantities")
       return
     }
 
@@ -352,150 +283,132 @@ export const MintQuoteForm = () => {
     } as any)
   })
 
+  /**
+   * 🔴 A successful mint swaps the page for the panel and does NOT navigate.
+   *
+   * The raw token is returned by the API exactly once — only its sha256 is
+   * stored — so the panel holds the ONLY copy of the buyer's link. Every other
+   * create route calls `handleSuccess` here; doing that would discard the link
+   * and force a re-mint.
+   */
   if (minted) {
     return (
-      <RouteFocusModal.Body className="flex-1 overflow-y-auto">
+      <div className="flex w-full flex-col gap-y-3">
         <MintedPanel result={minted} />
-      </RouteFocusModal.Body>
+      </div>
     )
   }
 
-  return (
-    <RouteFocusModal.Form form={form}>
-      <ProgressTabs
-        value={tab}
-        onValueChange={(value) => handleChangeTab(value as Tab)}
-        className="flex h-full flex-col overflow-hidden"
+  /**
+   * A section is a container plus a scroll target — NOT a heading.
+   *
+   * 🔴 Wrapping each step in a titled header rendered "Buyer" twice and put
+   * "Items" directly above the step's own "Products": `BuyerStep`,
+   * `ProductsStep` and the rest were written for a modal that supplied no
+   * chrome, so they carry their own headings — and `BuyerStep` in fact carries
+   * THREE (Buyer, Freight source, Import duty). Only a render showed it; every
+   * test passed with the duplicate on screen.
+   *
+   * So the step owns its heading, and `title` is passed only where the body is
+   * inline JSX with no heading of its own.
+   */
+  const section = (
+    id: SectionId,
+    body: React.ReactNode,
+    header?: { title: string; description: string },
+    /**
+     * Whether the body needs the container's own inset.
+     *
+     * The steps were written as modal tabs: the form ones were given `p-16` by
+     * the tab that held them and so carry no padding of their own, while the
+     * table ones were deliberately full-bleed. Dropped into a `Container`
+     * unchanged, the form steps sat flush against the edge while the sections
+     * around them were inset — visible immediately on screen, invisible to
+     * every test.
+     */
+    padded = false
+  ) => (
+    <Container className={header ? "divide-y p-0" : "p-0"}>
+      <div
+        ref={(el) => {
+          sectionRefs.current[id] = el
+        }}
       >
-        <KeyboundForm onSubmit={handleSubmit} className="flex h-full flex-col">
-          <RouteFocusModal.Header>
-            <div className="-my-2 w-full max-w-[720px] border-l">
-              <ProgressTabs.List className="grid w-full grid-cols-4">
-                <ProgressTabs.Trigger
-                  status={tabState[Tab.PARTNER]}
-                  value={Tab.PARTNER}
-                >
-                  Partner
-                </ProgressTabs.Trigger>
-                <ProgressTabs.Trigger
-                  status={tabState[Tab.BUYER]}
-                  value={Tab.BUYER}
-                >
-                  Buyer
-                </ProgressTabs.Trigger>
-                <ProgressTabs.Trigger
-                  status={tabState[Tab.PRODUCTS]}
-                  value={Tab.PRODUCTS}
-                >
-                  Products
-                </ProgressTabs.Trigger>
-                <ProgressTabs.Trigger
-                  status={tabState[Tab.QUANTITIES]}
-                  value={Tab.QUANTITIES}
-                >
-                  Quantities
-                </ProgressTabs.Trigger>
-              </ProgressTabs.List>
-            </div>
-          </RouteFocusModal.Header>
+        {header && (
+          <div className="px-6 py-4">
+            <Heading level="h2">{header.title}</Heading>
+            <Text size="small" className="text-ui-fg-subtle">
+              {header.description}
+            </Text>
+          </div>
+        )}
+      </div>
+      <div className={header || padded ? "px-6 py-4" : ""}>{body}</div>
+    </Container>
+  )
 
-          {/*
-            ⚠️ `overflow-hidden` here and `overflow-y-auto` on each tab's
-            content, not the other way round: a FocusModal.Body does not scroll
-            on its own, and the grid steps manage their own height.
-          */}
-          <RouteFocusModal.Body className="size-full overflow-hidden">
-            <ProgressTabs.Content
-              className="size-full overflow-y-auto p-16"
-              value={Tab.PARTNER}
-            >
-              <div className="flex flex-col gap-y-8">
-                <div className="flex flex-col gap-y-1">
-                  <Heading level="h2">Partner</Heading>
-                  <Text size="small" className="text-ui-fg-subtle">
-                    Prices come from this partner's catalogue and freight from
-                    their location. Variants outside their store are rejected —
-                    that check is why this step comes first.
-                  </Text>
-                </div>
-
-                <Form.Field
-                  control={form.control}
-                  name="partner_id"
-                  render={({ field }) => (
-                    <Form.Item>
-                      <Form.Label>Partner</Form.Label>
-                      <Form.Control>
-                        <Select
-                          value={field.value}
-                          onValueChange={field.onChange}
-                        >
-                          <Select.Trigger>
-                            <Select.Value placeholder="Select a partner" />
-                          </Select.Trigger>
-                          <Select.Content>
-                            {((partners ?? []) as any[]).map((p) => (
-                              <Select.Item key={p.id} value={p.id}>
-                                {p.name || p.id}
-                              </Select.Item>
-                            ))}
-                          </Select.Content>
-                        </Select>
-                      </Form.Control>
-                      <Form.ErrorMessage />
-                    </Form.Item>
-                  )}
-                />
-              </div>
-            </ProgressTabs.Content>
-
-            <ProgressTabs.Content
-              className="size-full overflow-y-auto p-16"
-              value={Tab.BUYER}
-            >
-              <BuyerStep form={form} />
-            </ProgressTabs.Content>
-
-            <ProgressTabs.Content
-              className="size-full overflow-y-auto"
-              value={Tab.PRODUCTS}
-            >
-              <ProductsStep form={form} />
-            </ProgressTabs.Content>
-
-            <ProgressTabs.Content
-              className="size-full overflow-hidden"
-              value={Tab.QUANTITIES}
-            >
-              <div className="flex h-full flex-col overflow-y-auto">
-                {readiness && (
-                  <div className="px-6 pt-4 md:px-16">
-                    <ReadinessPanel readiness={readiness} />
-                  </div>
+  return (
+    <Form {...form}>
+      <KeyboundForm onSubmit={handleSubmit} className="flex w-full flex-col">
+        <div className="flex flex-col gap-x-4 gap-y-3 xl:flex-row xl:items-start">
+          {/* ---- main column: the four questions, all visible ---- */}
+          <div className="flex w-full flex-col gap-y-3">
+            {section(
+              "partner",
+              <Form.Field
+                control={form.control}
+                name="partner_id"
+                render={({ field }) => (
+                  <Form.Item>
+                    <Form.Label>Partner</Form.Label>
+                    <Form.Control>
+                      <Select value={field.value} onValueChange={field.onChange}>
+                        <Select.Trigger>
+                          <Select.Value placeholder="Select a partner" />
+                        </Select.Trigger>
+                        <Select.Content>
+                          {((partners ?? []) as any[]).map((p) => (
+                            <Select.Item key={p.id} value={p.id}>
+                              {p.name || p.id}
+                            </Select.Item>
+                          ))}
+                        </Select.Content>
+                      </Select>
+                    </Form.Control>
+                    <Form.ErrorMessage />
+                  </Form.Item>
                 )}
-                <div className="px-6 pt-4 md:px-16">
-                  <Text size="small" className="text-ui-fg-subtle">
-                    Leave the trade-price fields blank to quote at the catalog
-                    price. A unit price is read in the partner store's own
-                    currency and converted at mint; a discount is a percentage
-                    off the tier.
-                  </Text>
-                </div>
-                <QuantitiesStep form={form} />
-              </div>
-            </ProgressTabs.Content>
-          </RouteFocusModal.Body>
+              />,
+              {
+                title: "Partner",
+                description:
+                  "Prices come from this partner's catalogue and freight from their location. Variants outside their store are rejected — which is why this comes first.",
+              }
+            )}
 
-          <RouteFocusModal.Footer>
-            <div className="flex items-center justify-end gap-x-2">
-              <RouteFocusModal.Close asChild>
-                <Button variant="secondary" size="small">
-                  Cancel
-                </Button>
-              </RouteFocusModal.Close>
-              {tab === Tab.QUANTITIES ? (
+            {section("buyer", <BuyerStep form={form} />, undefined, true)}
+
+            {section("products", <ProductsStep form={form} />)}
+
+            {section("quantities", <QuantitiesStep form={form} />, {
+              title: "Quantities & pricing",
+              description:
+                "Leave the trade-price fields blank to quote at the catalog price. A unit price is read in the partner store's own currency and converted at mint; a discount is a percentage off the tier.",
+            })}
+          </div>
+
+          {/* ---- sidebar: the verdict, and the one button that mints ---- */}
+          <div className="flex w-full flex-col gap-y-3 xl:sticky xl:top-0 xl:max-w-[400px]">
+            <Container className="divide-y p-0">
+              <div className="px-6 py-4">
+                <Heading level="h2">Mint</Heading>
+                <Text size="small" className="text-ui-fg-subtle">
+                  Every line is priced and a carrier is asked for a rate before
+                  the quote is minted.
+                </Text>
+              </div>
+              <div className="flex items-center justify-end gap-x-2 px-6 py-4">
                 <Button
-                  key="submit"
                   type="submit"
                   variant="primary"
                   size="small"
@@ -503,21 +416,24 @@ export const MintQuoteForm = () => {
                 >
                   Mint quote
                 </Button>
-              ) : (
-                <Button
-                  key="next"
-                  type="button"
-                  variant="primary"
-                  size="small"
-                  onClick={handleNextTab}
-                >
-                  Continue
-                </Button>
-              )}
-            </div>
-          </RouteFocusModal.Footer>
-        </KeyboundForm>
-      </ProgressTabs>
-    </RouteFocusModal.Form>
+              </div>
+            </Container>
+
+            {/*
+              The readiness verdict lives here rather than above the grid, so a
+              refusal stays on screen while the operator fixes the line that
+              caused it.
+            */}
+            {readiness && (
+              <Container className="p-0">
+                <div className="px-6 py-4">
+                  <ReadinessPanel readiness={readiness} />
+                </div>
+              </Container>
+            )}
+          </div>
+        </div>
+      </KeyboundForm>
+    </Form>
   )
 }

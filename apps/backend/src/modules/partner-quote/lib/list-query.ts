@@ -183,7 +183,22 @@ export function buildQuoteListQuery(
   const filters: Record<string, unknown> = { ...scoped }
 
   const status = String(query.status ?? "").trim()
-  if (status) {
+  if (!status) {
+    /**
+     * 🔴 No status asked for means "the real quotes", NOT "everything".
+     *
+     * Nothing was applied here before, which was correct while every row was a
+     * real quote. With drafts in the same table it would put unpriced,
+     * half-built rows in the operator's ordinary list, mixed in with quotes a
+     * buyer is holding — and the count, the pager and the filter would all
+     * agree about a set nobody asked to see.
+     *
+     * Drafts are reachable, deliberately, at `?status=draft` — the way the
+     * admin keeps Orders and Drafts as separate lists rather than one list with
+     * a badge.
+     */
+    filters.status = { $ne: "draft" }
+  } else {
     const clause = buildQuoteStatusFilter(status, now)
     // `$and` may already be pinned by the caller; intersect rather than replace.
     const and = clause.$and as unknown[] | undefined
