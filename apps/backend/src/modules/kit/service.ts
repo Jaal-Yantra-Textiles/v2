@@ -102,6 +102,44 @@ class KitService extends MedusaService({ KitBroadcast }) {
     })
   }
 
+  /**
+   * Look a subscriber up by email. Returns the Kit record or `null`.
+   *
+   * `untagSubscriber` needs Kit's numeric subscriber id, and every other call
+   * here addresses people by email — so without this there was no way to reach
+   * the untag endpoint at all, which is why it sat uncalled (#1782).
+   *
+   * Kit answers 200 with an empty `subscribers` array for an address it does
+   * not know, so a miss is not an error.
+   */
+  async findSubscriberByEmail(email: string): Promise<any | null> {
+    const addr = String(email || "").trim().toLowerCase()
+    if (!addr) return null
+    const res = await this.request(
+      "GET",
+      `/subscribers?email_address=${encodeURIComponent(addr)}`
+    )
+    const rows: any[] = Array.isArray(res?.subscribers) ? res.subscribers : []
+    return rows[0] ?? null
+  }
+
+  /**
+   * Remove an address from the tag, resolving the subscriber id first.
+   *
+   * Returns what happened rather than throwing on a miss: `not_found` when Kit
+   * has never seen the address, which is a normal outcome when reconciling a
+   * suppression that predates the subscriber ever being synced.
+   */
+  async untagSubscriberByEmail(
+    email: string,
+    tagId?: string
+  ): Promise<{ untagged: boolean; reason: "ok" | "not_found"; subscriberId?: string }> {
+    const sub = await this.findSubscriberByEmail(email)
+    if (!sub?.id) return { untagged: false, reason: "not_found" }
+    await this.untagSubscriber(String(sub.id), tagId)
+    return { untagged: true, reason: "ok", subscriberId: String(sub.id) }
+  }
+
   /** Remove a subscriber from the tag (used to drop a now-suppressed address). */
   async untagSubscriber(subscriberId: string, tagId?: string): Promise<any> {
     const tag = tagId || this.blogTagId
