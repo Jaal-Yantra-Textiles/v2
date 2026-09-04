@@ -171,6 +171,48 @@ class KitService extends MedusaService({ KitBroadcast }) {
     return { id, raw }
   }
 
+  /**
+   * One page of the tag's subscribers. Cursor-paginated; pass the previous
+   * response's `pagination.end_cursor` as `after` to continue.
+   *
+   * This is the true broadcast audience — it includes people carried over from
+   * earlier sends who are no longer in our computed audience at all (#1782).
+   */
+  async listTagSubscribers(
+    opts: { tagId?: string; perPage?: number; after?: string } = {}
+  ): Promise<{ subscribers: any[]; nextCursor: string | null }> {
+    const tag = opts.tagId || this.blogTagId
+    if (!tag) {
+      throw new Error("No Kit tag id (pass tagId or set KIT_BLOG_TAG_ID)")
+    }
+    const qs = [`per_page=${opts.perPage ?? 100}`]
+    if (opts.after) qs.push(`after=${encodeURIComponent(opts.after)}`)
+    const res = await this.request("GET", `/tags/${tag}/subscribers?${qs.join("&")}`)
+    const subscribers: any[] = Array.isArray(res?.subscribers) ? res.subscribers : []
+    const nextCursor = res?.pagination?.has_next_page
+      ? String(res.pagination.end_cursor)
+      : null
+    return { subscribers, nextCursor }
+  }
+
+  /**
+   * Per-subscriber engagement totals: `sent`, `opened`, `clicked`, `bounced`,
+   * `last_sent` / `last_opened` / `last_clicked`, and `sends_since_last_open`
+   * — which is the cold streak our classifier otherwise derives from delivery
+   * events. Kit publishes no per-recipient open webhook, so this pull is the
+   * only route to engagement for newsletter contacts (#1785).
+   */
+  async getSubscriberStats(subscriberId: string): Promise<any | null> {
+    const res = await this.request("GET", `/subscribers/${subscriberId}/stats`)
+    return res?.subscriber?.stats ?? null
+  }
+
+  /** Every broadcast, newest first — the send dates the backfill dates deliveries from. */
+  async listBroadcasts(perPage = 50): Promise<any[]> {
+    const res = await this.request("GET", `/broadcasts?per_page=${perPage}`)
+    return Array.isArray(res?.broadcasts) ? res.broadcasts : []
+  }
+
   /** Poll aggregate stats for a broadcast (recipients/opens/clicks). */
   async getBroadcastStats(broadcastId: string): Promise<any> {
     return this.request("GET", `/broadcasts/${broadcastId}/stats`)

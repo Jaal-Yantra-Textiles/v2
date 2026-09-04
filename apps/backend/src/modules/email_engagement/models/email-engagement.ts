@@ -39,6 +39,21 @@ const EmailEngagement = model.define("email_engagement", {
     .enum(["engaged", "cooling", "dormant", "never_opened", "unknown"])
     .default("unknown"),
   status_computed_at: model.dateTime().nullable(),
+  /**
+   * The last snapshot Kit reported for this address (#1785).
+   *
+   * Kit hands out ABSOLUTE totals (`GET /v4/subscribers/{id}/stats`), while the
+   * counters above are folded one webhook event at a time. Keeping the last
+   * snapshot lets the backfill apply a DELTA: re-running it is a no-op, and the
+   * Mailjet/Resend history already in the row is never overwritten.
+   *
+   * Typed columns rather than `metadata` on purpose — these decide who receives
+   * a newsletter, and load-bearing state does not belong in an untyped blob.
+   */
+  kit_sent: model.number().default(0),
+  kit_opened: model.number().default(0),
+  kit_clicked: model.number().default(0),
+  kit_synced_at: model.dateTime().nullable(),
   metadata: model.json().nullable(),
 })
 
