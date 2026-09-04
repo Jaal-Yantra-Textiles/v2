@@ -39,6 +39,21 @@ const FLOW_NAME = "Cart Recovery — Hourly Discoverer"
 // process.env at flow-execution time because the execute_code sandbox does
 // not expose it consistently across runners.
 const STORE_URL = process.env.STORE_URL || "https://cicilabel.com"
+/**
+ * 🔴 The recovery link points at the BACKEND, not at a storefront.
+ *
+ * `STORE_URL` is one host for the whole platform, so every partner's buyer was
+ * sent to cicilabel.com — the wrong shop — and the path carried no country
+ * segment, so the storefront middleware substituted the DEFAULT region. That is
+ * how an AUD cart reached an India/INR checkout: PayU instead of Stripe, and an
+ * address form whose region-scoped country select silently refused to submit.
+ *
+ * `/r/cart/:id` resolves the cart's own partner storefront and region country
+ * and 302s there — in typed, tested backend code rather than in this sandboxed
+ * body. `STORE_URL` is still right for the unsubscribe link, which is
+ * platform-level and has no region.
+ */
+const BACKEND_URL = process.env.MEDUSA_BACKEND_URL || "https://v3.jaalyantra.com"
 
 // Idle thresholds expressed as hours so the classify code stays readable.
 // FLOOR is the minimum age of `updated_at` for a cart to be eligible.
@@ -81,6 +96,11 @@ const CEIL_MS  = ${IDLE_CEILING_HOURS} * 60 * 60 * 1000
 const MAX_SENDS = ${MAX_RECOVERY_EMAILS}
 const RESEND_GAP_MS = ${RESEND_GAP_HOURS} * 60 * 60 * 1000
 const STORE_URL = "${STORE_URL}"
+// 🔴 Interpolated in at seed time, exactly like STORE_URL above. The body is a
+// SANDBOX: a constant declared in this file's module scope does not exist here,
+// and referencing one throws \`BACKEND_URL is not defined\` at run time — with
+// nothing failing at compile time to warn you.
+const BACKEND_URL = "${BACKEND_URL}"
 
 const send_items = []
 const update_items = []
@@ -165,7 +185,7 @@ for (const cart of records) {
     template: "cart-abandoned",
     data: {
       customer_first_name: firstName,
-      cart_url: STORE_URL + "/checkout/cart/" + cart.id,
+      cart_url: BACKEND_URL + "/r/cart/" + cart.id,
       current_year: String(new Date().getFullYear()),
       unsubscribe_url: STORE_URL + "/unsubscribe?cart_id=" + cart.id,
     },
