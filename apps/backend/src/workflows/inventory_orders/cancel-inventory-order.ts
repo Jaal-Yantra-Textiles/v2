@@ -174,6 +174,9 @@ export const cancelInventoryOrderWorkflow = createWorkflow(
         cancelled_at: new Date(),
         cancellation_reason: input.reason ?? null,
         cancelled_by: input.cancelledBy ?? null,
+        // #780 H7c — release the partner-assignment claim. Without this a
+        // cancelled order could never be sent to a partner again.
+        partner_assignment_id: null,
       },
     }))
     updateInventoryOrderWorkflow.runAsStep({ input: updateInput })
