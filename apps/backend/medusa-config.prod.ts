@@ -1,6 +1,8 @@
 import { loadEnv, defineConfig, Modules } from "@medusajs/framework/utils";
 import path from "path";
 import { parseFlatFallbackAmounts } from "./src/modules/shipping-providers/shiprocket/flat-fallback"
+import { SOCIALS_MODULE } from "./src/modules/socials"
+import { ENCRYPTION_MODULE } from "./src/modules/encryption"
 
 loadEnv(process.env.NODE_ENV || 'development', process.cwd())
 
@@ -334,6 +336,18 @@ module.exports = defineConfig({
     },
     {
       resolve: "@medusajs/medusa/fulfillment",
+      /**
+       * 🔴 Load-bearing and invisible (#1451 follow-on). A fulfillment PROVIDER
+       * is built with the parent module's cradle — six default keys and nothing
+       * else — so without these two the Shiprocket service cannot read the
+       * carrier credentials in the `category:shipping` SocialPlatform record,
+       * and its rate calls fall back to env vars this manifest DELIBERATELY
+       * leaves unset. That is what made every live rate call in prod answer
+       * `422 — The password is required`.
+       *
+       * Drop these and the symptom returns silently.
+       */
+      dependencies: [SOCIALS_MODULE, ENCRYPTION_MODULE],
       options: {
         providers: [
           {

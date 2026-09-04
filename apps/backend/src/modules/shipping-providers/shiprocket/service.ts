@@ -15,7 +15,21 @@ import { deriveShiprocketRateContext } from "./rate-context"
 import { resolveShipmentPaymentMode } from "./payment-mode"
 import { FlatFallbackConfig, resolveFlatFallbackAmount } from "./flat-fallback"
 
-type InjectedDeps = { logger: Logger }
+/**
+ * 🔴 `socials` and `encryption` reach the provider ONLY because the fulfillment
+ * module declares `dependencies: [SOCIALS_MODULE, ENCRYPTION_MODULE]` in
+ * `medusa-config{,.prod}.ts`. A provider is constructed with the parent
+ * module's cradle, which otherwise carries six default keys and nothing else.
+ *
+ * Optional on purpose: if the declaration is ever dropped, this degrades to the
+ * env-configured client rather than throwing — but it says so loudly, because
+ * the failure it replaces was completely silent.
+ */
+type InjectedDeps = {
+  logger: Logger
+  socials?: any
+  encryption?: any
+}
 
 /**
  * Shiprocket fulfillment provider (#31).
@@ -31,20 +45,134 @@ class ShiprocketFulfillmentService extends AbstractFulfillmentProviderService {
 
   protected client: ShiprocketClient
   protected logger: Logger
+  protected deps: InjectedDeps
+  protected options: ShiprocketOptions & FlatFallbackConfig
+  /** Resolved once per process; a login per rate call would be absurd. */
+  protected platformClient: ShiprocketClient | null = null
+  protected platformLookupDone = false
   /** What an unquotable lane costs. See `flat-fallback.ts`. */
   protected fallbackConfig: FlatFallbackConfig
 
   constructor(
-    { logger }: InjectedDeps,
+    deps: InjectedDeps,
     options: ShiprocketOptions & FlatFallbackConfig
   ) {
     super()
+    const { logger } = deps
     this.logger = logger
+    this.deps = deps
+    this.options = options
     this.client = new ShiprocketClient(options)
     this.fallbackConfig = {
       flat_fallback_amounts: options?.flat_fallback_amounts,
       flat_fallback_amount: options?.flat_fallback_amount,
     }
+  }
+
+
+  /**
+   * The client that can actually authenticate.
+   *
+   * 🔴 This is the whole fix. `calculatePrice` used the client built from
+   * MODULE OPTIONS — i.e. env — and `SHIPROCKET_PASSWORD` is deliberately unset
+   * in both `.env` and the copilot manifest, because the credentials live in
+   * the `category:shipping` SocialPlatform record that `resolveShippingProvider`
+   * reads for label/pickup/track. So the carrier worked everywhere EXCEPT
+   * rating, which posted `password: undefined` and got
+   * `422 — password: The password is required` on every live rate call.
+   *
+   * Two credential paths, and the money-facing one was reading the blank half.
+   * This reads the same record the rest of the carrier does.
+   *
+   * Cached per process: a login round-trip per rate call would be absurd, and
+   * the record does not change between deploys.
+   */
+  protected async resolveClient(): Promise<ShiprocketClient> {
+    if (this.platformLookupDone) {
+      return this.platformClient ?? this.client
+    }
+    this.platformLookupDone = true
+
+    const socials = this.deps?.socials
+    if (!socials) {
+      // Loud on purpose: this branch means the `dependencies` declaration on
+      // the fulfillment module was dropped, and the symptom it causes (rates
+      // silently failing auth) is otherwise invisible.
+      this.logger?.warn?.(
+        "[shiprocket] no `socials` in the provider cradle — falling back to env credentials. " +
+          "Rating will fail auth unless SHIPROCKET_PASSWORD is set. Check `dependencies` on the fulfillment module."
+      )
+      return this.client
+    }
+
+    try {
+      const platforms = await socials.listSocialPlatforms({
+        category: "shipping",
+        status: "active",
+      })
+      const match = (platforms || []).find((p: any) => {
+        const cfg = (p.api_config as Record<string, any>) || {}
+        const type = String(
+          cfg.provider_type || cfg.provider || p.name || ""
+        ).toLowerCase()
+        return type === "shiprocket" || type.includes("shiprocket")
+      })
+
+      const cfg = (match?.api_config as Record<string, any>) || {}
+      const email = typeof cfg.email === "string" ? cfg.email : undefined
+      const password = await this.readSecret(cfg, "password")
+
+      if (!email || !password) {
+        this.logger?.warn?.(
+          `[shiprocket] shipping platform record ${
+            match ? "found but incomplete" : "not found"
+          } — falling back to env credentials for rating.`
+        )
+        return this.client
+      }
+
+      this.platformClient = new ShiprocketClient({
+        ...this.options,
+        email,
+        password,
+        pickup_location:
+          (typeof cfg.pickup_location === "string" && cfg.pickup_location) ||
+          this.options.pickup_location,
+      })
+      this.logger?.info?.(
+        `[shiprocket] rating credentials resolved from the shipping platform record (${email}).`
+      )
+      return this.platformClient
+    } catch (e: any) {
+      this.logger?.warn?.(
+        `[shiprocket] could not read the shipping platform record: ${
+          e?.message ?? e
+        } — falling back to env credentials.`
+      )
+      return this.client
+    }
+  }
+
+  /** Decrypt a secret field if the encryption module is present, else read it plain. */
+  protected async readSecret(
+    cfg: Record<string, any>,
+    field: string
+  ): Promise<string | undefined> {
+    // Mirrors `resolveShippingProvider`'s own `readSecret` exactly — same key
+    // names, same precedence. Inventing a second key here would create an
+    // affordance nothing writes, and the two readers of the same record must
+    // not disagree about where the secret lives.
+    const encrypted = cfg?.[`${field}_encrypted`]
+    if (encrypted && this.deps?.encryption?.decrypt) {
+      try {
+        const plain = await this.deps.encryption.decrypt(encrypted)
+        if (typeof plain === "string" && plain.length) return plain
+      } catch {
+        /* fall through to plaintext */
+      }
+    }
+    const plain = cfg?.[field]
+    return typeof plain === "string" && plain.length ? plain : undefined
   }
 
   async getFulfillmentOptions(): Promise<FulfillmentOption[]> {
@@ -114,7 +242,10 @@ class ShiprocketFulfillmentService extends AbstractFulfillmentProviderService {
     const rateContext = derived.context
 
     try {
-      const rates = await this.client.getRates({
+      // The credential-bearing client, not the env-built one — see
+      // `resolveClient`. This single line is what was answering 422.
+      const rateClient = await this.resolveClient()
+      const rates = await rateClient.getRates({
         origin_pincode: rateContext.origin_pincode,
         destination_pincode: rateContext.destination_pincode,
         destination_country: rateContext.destination_country,
