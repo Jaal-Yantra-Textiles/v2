@@ -1,7 +1,7 @@
 import { useForm, useFieldArray, useWatch } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "@medusajs/framework/zod";
-import { Button, DatePicker, Heading, Text, ProgressTabs, ProgressStatus, Select, toast, Switch, Label } from "@medusajs/ui";
+import { Button, DatePicker, Heading, Text, ProgressTabs, ProgressStatus, Select, toast, Switch, Label, Input } from "@medusajs/ui";
 import { useRouteModal } from "../modal/use-route-modal";
 import { useCreateInventoryOrder } from "../../hooks/api/inventory-orders";
 import { RouteFocusModal } from "../modal/route-focus-modal";
@@ -28,6 +28,8 @@ interface OrderLine {
   inventory_item_id: string;
   quantity: number;
   price: number;
+  // Per-unit extra charge on top of price (colour/dye job, finishing, …).
+  extra_cost?: number;
   batch_number?: number | null;
 }
 
@@ -47,7 +49,7 @@ export const CreateInventoryOrderComponent = () => {
       from_stock_location_id: undefined,
       is_sample: false,
       // Seed multiple empty rows so users can start filling without needing to add immediately
-      order_lines: Array.from({ length: 5 }, () => ({ inventory_item_id: "", quantity: 0, price: 0 })),
+      order_lines: Array.from({ length: 5 }, () => ({ inventory_item_id: "", quantity: 0, price: 0, extra_cost: 0 })),
     },
     resolver: zodResolver(inventoryOrderFormSchema),
   });
@@ -118,6 +120,11 @@ export const CreateInventoryOrderComponent = () => {
     .map((l) => l?.inventory_item_id)
     .filter(Boolean) as string[];
 
+  // Order-level tax, watched live for the footer grand total.
+  const watchedTax = useWatch({ control: form.control, name: "tax_amount" }) as
+    | number
+    | undefined;
+
   const { handleSuccess } = useRouteModal();
 
   const { mutateAsync, isPending } = useCreateInventoryOrder({
@@ -140,7 +147,14 @@ export const CreateInventoryOrderComponent = () => {
     const rows = source ?? (watchedForGroup ?? []);
     const validLines = rows.filter((line) => line?.inventory_item_id);
     const totalQuantity = validLines.reduce((sum: number, line) => sum + (Number(line.quantity) || 0), 0);
-    const totalPrice = validLines.reduce((sum: number, line) => sum + (Number(line.price) || 0) * (Number(line.quantity) || 0), 0);
+    // Per-unit price + per-unit extra cost (colour job), × quantity.
+    const totalPrice = validLines.reduce(
+      (sum: number, line) =>
+        sum +
+        ((Number(line.price) || 0) + (Number(line.extra_cost) || 0)) *
+          (Number(line.quantity) || 0),
+      0
+    );
     return { totalQuantity, totalPrice };
   };
 
@@ -162,12 +176,14 @@ export const CreateInventoryOrderComponent = () => {
       // untracked variant; `toOrderLineRef` sends the right field for each.
       order_lines: submittedLines
         .filter((l: OrderLine) => l.inventory_item_id)
-        .map(({ inventory_item_id, quantity, price, batch_number }: OrderLine) => ({
+        .map(({ inventory_item_id, quantity, price, extra_cost, batch_number }: OrderLine) => ({
           ...toOrderLineRef(inventory_item_id),
           quantity: Number(quantity) || 0,
           price: Number(price) || 0,
+          extra_cost: Number(extra_cost) || 0,
           batch_number: batch_number ?? null,
         })),
+      tax_amount: data.tax_amount != null ? Number(data.tax_amount) : undefined,
     };
     if (data.from_stock_location_id) {
       payload.from_stock_location_id = data.from_stock_location_id;
@@ -315,6 +331,35 @@ export const CreateInventoryOrderComponent = () => {
                     )}
                   />
                 </div>
+                {/* Order-level tax, recorded as an order charge (not folded into the goods total). */}
+                <div className="mt-4">
+                  <Form.Field
+                    control={form.control}
+                    name="tax_amount"
+                    render={({ field }) => (
+                      <Form.Item>
+                        <Form.Label>Tax (optional)</Form.Label>
+                        <Form.Control>
+                          <Input
+                            type="number"
+                            min={0}
+                            step="any"
+                            placeholder="0"
+                            value={field.value == null ? "" : field.value}
+                            onChange={(e) =>
+                              field.onChange(
+                                e.target.value === "" ? undefined : Number(e.target.value)
+                              )
+                            }
+                            onBlur={field.onBlur}
+                            ref={field.ref}
+                          />
+                        </Form.Control>
+                        <Form.ErrorMessage />
+                      </Form.Item>
+                    )}
+                  />
+                </div>
                 <div className="mt-4">
                   <Form.Field
                     control={form.control}
@@ -383,6 +428,16 @@ export const CreateInventoryOrderComponent = () => {
                   <div className="flex justify-between items-center">
                     <Text weight="plus">Total Order Price:</Text>
                     <Text weight="plus">₹{calculateTotals().totalPrice.toFixed(2)}</Text>
+                  </div>
+                  <div className="flex justify-between items-center mt-2">
+                    <Text weight="plus">Tax:</Text>
+                    <Text weight="plus">₹{(Number(watchedTax) || 0).toFixed(2)}</Text>
+                  </div>
+                  <div className="flex justify-between items-center mt-2 border-t pt-2">
+                    <Text weight="plus">Grand Total:</Text>
+                    <Text weight="plus">
+                      ₹{(calculateTotals().totalPrice + (Number(watchedTax) || 0)).toFixed(2)}
+                    </Text>
                   </div>
                 </div>
               </div>

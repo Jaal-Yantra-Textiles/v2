@@ -19,6 +19,8 @@ export type CreateOrderLineInput = {
   color?: string | null
   material_name?: string | null
   raw_material_id?: string | null
+  // Per-unit extra charge on top of `price` (colour job, finishing, …).
+  extra_cost?: number | null
 }
 
 export type OrderLinePayload = {
@@ -32,6 +34,8 @@ export type OrderLinePayload = {
   color: string | null
   material_name: string | null
   raw_material_id: string | null
+  // Per-unit extra charge on top of `price` (null ⇒ none).
+  extra_cost: number | null
 }
 
 /** The line ↔ inventory-item pairing used to create the module links. */
@@ -44,14 +48,19 @@ export type LineItemPair = {
  * Sum the per-unit line prices into an order total (#778 H9).
  *
  * `price` is the PER-UNIT price (matches the admin UI, validators, and registry
- * cost reads), so each line contributes `price × quantity`. Used as the fallback
- * order total when a caller (e.g. a visual flow) omits `total_price`.
+ * cost reads), so each line contributes `price × quantity`. `extra_cost` is a
+ * per-unit add-on billed on top of the price (colour job, …), so a line with one
+ * contributes `(price + extra_cost) × quantity`. Used as the fallback order total
+ * when a caller (e.g. a visual flow) omits `total_price`.
  */
 export const sumLineTotals = (
-  order_lines: Pick<CreateOrderLineInput, "price" | "quantity">[]
+  order_lines: Pick<CreateOrderLineInput, "price" | "quantity" | "extra_cost">[]
 ): number =>
   order_lines.reduce(
-    (sum, l) => sum + (Number(l.price) || 0) * (Number(l.quantity) || 0),
+    (sum, l) =>
+      sum +
+      ((Number(l.price) || 0) + (Number(l.extra_cost) || 0)) *
+        (Number(l.quantity) || 0),
     0
   )
 
@@ -71,6 +80,8 @@ export const buildOrderLinePayloads = (
     color: line.color ?? null,
     material_name: line.material_name ?? null,
     raw_material_id: line.raw_material_id ?? null,
+    // Per-unit extra charge on top of price (defaults to null when absent).
+    extra_cost: line.extra_cost ?? null,
   }))
 
 /** Denormalized color identity for one inventory_item's linked raw_material. */

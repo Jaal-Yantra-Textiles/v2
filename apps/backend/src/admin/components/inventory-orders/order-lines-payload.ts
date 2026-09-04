@@ -23,6 +23,8 @@ export interface EditableOrderLine {
   inventory_item_id: string;
   quantity: number;
   price: number;
+  // Per-unit extra charge on top of price (colour/dye job, finishing, …).
+  extra_cost?: number;
   batch_number?: number | null;
   /** True for rows that already exist in the database. */
   isExisting?: boolean;
@@ -35,6 +37,8 @@ export interface OrderLineUpdateEntry {
   variant_id?: string;
   quantity?: number;
   price?: number;
+  // Per-unit extra charge on top of price (colour/dye job, finishing, …).
+  extra_cost?: number;
   batch_number?: number | null;
   remove?: boolean;
 }
@@ -51,8 +55,12 @@ export function computeOrderLineTotals(lines: EditableOrderLine[]): {
 } {
   const valid = lines.filter((l) => l && l.inventory_item_id);
   const totalQuantity = valid.reduce((sum, l) => sum + (Number(l.quantity) || 0), 0);
+  // Per-unit price + per-unit extra cost (colour job), × quantity.
   const totalPrice = valid.reduce(
-    (sum, l) => sum + (Number(l.price) || 0) * (Number(l.quantity) || 0),
+    (sum, l) =>
+      sum +
+      ((Number(l.price) || 0) + (Number(l.extra_cost) || 0)) *
+        (Number(l.quantity) || 0),
     0
   );
   return { totalQuantity, totalPrice };
@@ -81,6 +89,7 @@ export function buildOrderLinesUpdatePayload(
     ...toOrderLineRef(line.inventory_item_id),
     quantity: Number(line.quantity) || 0,
     price: Number(line.price) || 0,
+    extra_cost: Number(line.extra_cost) || 0,
     batch_number: line.batch_number ?? null,
   }));
 

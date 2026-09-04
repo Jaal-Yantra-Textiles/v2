@@ -34,6 +34,17 @@ describe("sumLineTotals (#778 H9 — price is per-unit)", () => {
   it("is 0 for no lines", () => {
     expect(sumLineTotals([])).toBe(0)
   })
+
+  it("adds a per-unit extra_cost on top of price", () => {
+    // (100 + 20) × 3 = 360.
+    expect(
+      sumLineTotals([{ price: 100, extra_cost: 20, quantity: 3 }])
+    ).toBe(360)
+  })
+
+  it("treats a missing extra_cost as 0", () => {
+    expect(sumLineTotals([{ price: 100, quantity: 2 }])).toBe(200)
+  })
 })
 
 describe("buildOrderLinePayloads (#778 C3)", () => {
@@ -46,8 +57,8 @@ describe("buildOrderLinePayloads (#778 C3)", () => {
       "invord_1"
     )
     expect(payloads).toEqual([
-      { quantity: 10, price: 50, metadata: { sku: "A" }, inventory_orders: "invord_1", batch_number: null, color: null, material_name: null, raw_material_id: null },
-      { quantity: 4, price: 100, metadata: null, inventory_orders: "invord_1", batch_number: null, color: null, material_name: null, raw_material_id: null },
+      { quantity: 10, price: 50, metadata: { sku: "A" }, inventory_orders: "invord_1", batch_number: null, color: null, material_name: null, raw_material_id: null, extra_cost: null },
+      { quantity: 4, price: 100, metadata: null, inventory_orders: "invord_1", batch_number: null, color: null, material_name: null, raw_material_id: null, extra_cost: null },
     ])
   })
 
@@ -68,6 +79,18 @@ describe("buildOrderLinePayloads (#778 C3)", () => {
       "invord_1"
     )
     expect(payload).toMatchObject({ color: "Blue", material_name: "Cotton Poplin", raw_material_id: "rm_1" })
+  })
+
+  it("passes through a per-unit extra_cost, defaulting to null", () => {
+    const [withCost, withoutCost] = buildOrderLinePayloads(
+      [
+        { inventory_id: "iitem_1", quantity: 1, price: 100, extra_cost: 20 },
+        { inventory_id: "iitem_2", quantity: 1, price: 50 },
+      ],
+      "invord_1"
+    )
+    expect(withCost.extra_cost).toBe(20)
+    expect(withoutCost.extra_cost).toBeNull()
   })
 })
 

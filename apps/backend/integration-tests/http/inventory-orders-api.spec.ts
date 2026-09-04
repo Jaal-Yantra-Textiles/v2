@@ -134,6 +134,69 @@ setupSharedTestSuite(() => {
       });
     });
 
+    // Per-line extra cost (colour job, …) + order-level tax entered at create.
+    describe("POST /admin/inventory-orders — per-line extra_cost + order tax", () => {
+      it("persists a per-unit extra_cost and records the order tax as a charge", async () => {
+        const orderPayload = {
+          order_lines: [
+            { inventory_item_id: inventoryItemId, quantity: 2, price: 100, extra_cost: 25 },
+          ],
+          quantity: 2,
+          total_price: 250, // (100 + 25) × 2
+          tax_amount: 30,
+          status: "Pending",
+          expected_delivery_date: new Date().toISOString(),
+          order_date: new Date().toISOString(),
+          shipping_address: {},
+          stock_location_id: stockLocationId,
+          from_stock_location_id: fromStockLocationId,
+        };
+
+        const res = await api.post("/admin/inventory-orders", orderPayload, headers);
+        expect(res.status).toBe(201);
+        const orderId = res.data.inventoryOrder.id;
+
+        // The per-unit extra cost is persisted on the line (bigNumber → numeric).
+        const line = res.data.inventoryOrder.orderlines[0];
+        expect(Number(line.extra_cost)).toBe(25);
+
+        // The tax is recorded as an order charge of type "tax", raising the
+        // payable ceiling by exactly that amount (not folded into total_price).
+        const chargesRes = await api.get(`/admin/inventory-orders/${orderId}/charges`, headers);
+        expect(chargesRes.status).toBe(200);
+        expect(chargesRes.data.totals.raises).toBe(30);
+        expect(chargesRes.data.goods_total).toBe(250);
+        expect(chargesRes.data.payable_ceiling).toBe(280);
+      });
+
+      it("accepts lines without extra_cost and no tax (backwards-compatible)", async () => {
+        const orderPayload = {
+          order_lines: [
+            { inventory_item_id: inventoryItemId, quantity: 1, price: 100 },
+          ],
+          quantity: 1,
+          total_price: 100,
+          status: "Pending",
+          expected_delivery_date: new Date().toISOString(),
+          order_date: new Date().toISOString(),
+          shipping_address: {},
+          stock_location_id: stockLocationId,
+          from_stock_location_id: fromStockLocationId,
+        };
+
+        const res = await api.post("/admin/inventory-orders", orderPayload, headers);
+        expect(res.status).toBe(201);
+        const orderId = res.data.inventoryOrder.id;
+
+        expect(Number(res.data.inventoryOrder.orderlines[0].extra_cost)).toBe(0);
+
+        // No tax charge was written, so the ceiling equals the goods total.
+        const chargesRes = await api.get(`/admin/inventory-orders/${orderId}/charges`, headers);
+        expect(chargesRes.data.charges).toHaveLength(0);
+        expect(chargesRes.data.payable_ceiling).toBe(100);
+      });
+    });
+
     type OrderLine = { inventory_item_id: string; quantity: number; price: number };
     describe("GET /admin/inventory-orders", () => {
       let createdOrders = [] as any[];

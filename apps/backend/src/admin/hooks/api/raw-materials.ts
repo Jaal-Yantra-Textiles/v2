@@ -528,6 +528,9 @@ export type InventoryCatalogItem = InventoryItem & {
     id: string
     title?: string | null
     sku?: string | null
+    // #1744 — the variant's existing price (money amounts, one per currency),
+    // so the order-lines form can pre-fill `price` on pick.
+    prices?: Array<{ amount?: number | string | null; currency_code?: string | null }>
     product?: { id: string; title?: string | null; thumbnail?: string | null } | null
   }>
   kind?: InventoryCatalogKind

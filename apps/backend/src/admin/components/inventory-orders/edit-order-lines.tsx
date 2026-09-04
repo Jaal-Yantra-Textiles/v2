@@ -25,6 +25,8 @@ const editOrderLinesSchema = z.object({
         inventory_item_id: z.string().min(1, "Item is required"),
         quantity: z.number().min(1, "Quantity must be at least 1"),
         price: z.number().min(0, "Price must be non-negative"),
+        // Per-unit extra charge on top of price (colour/dye job, finishing, …).
+        extra_cost: z.number().min(0, "Extra cost must be non-negative").optional(),
         batch_number: z.number().int().positive().nullish(), // batch tag (separate-batch adds)
         isExisting: z.boolean().optional(), // Flag to mark existing lines
       })
@@ -39,6 +41,8 @@ interface OrderLine {
   inventory_item_id: string;
   quantity: number;
   price: number;
+  // Per-unit extra charge on top of price (colour/dye job, finishing, …).
+  extra_cost?: number;
   batch_number?: number | null;
   isExisting?: boolean;
 }
@@ -60,6 +64,7 @@ export const EditOrderLines = ({ inventoryOrder }: EditOrderLinesProps) => {
     inventory_item_id: line.inventory_items?.[0]?.id || line.inventory_item_id || "",
     quantity: line.quantity,
     price: line.price,
+    extra_cost: line.extra_cost ?? 0,
     batch_number: line.batch_number ?? null,
     isExisting: true, // Mark as existing
   }));
@@ -120,6 +125,7 @@ export const EditOrderLines = ({ inventoryOrder }: EditOrderLinesProps) => {
         inventory_item_id: formLine.inventory_item_id,
         quantity: Number(formLine.quantity) || 0,
         price: Number(formLine.price) || 0,
+        extra_cost: Number(formLine.extra_cost) || 0,
         batch_number: (formLine as any).batch_number ?? line.batch_number ?? null,
       };
     });
@@ -158,14 +164,14 @@ export const EditOrderLines = ({ inventoryOrder }: EditOrderLinesProps) => {
                     <AddMaterialGroupControl
                       existingItemIds={existingItemIds}
                       onAdd={(lines) =>
-                        lines.forEach((l) => append({ ...l, isExisting: false }))
+                        lines.forEach((l) => append({ ...l, extra_cost: 0, isExisting: false }))
                       }
                     />
                     <Button
                       size="small"
                       variant="secondary"
                       type="button"
-                      onClick={() => append({ inventory_item_id: "", quantity: 0, price: 0, isExisting: false })}
+                      onClick={() => append({ inventory_item_id: "", quantity: 0, price: 0, extra_cost: 0, isExisting: false })}
                     >
                       Add New Line
                     </Button>
@@ -185,7 +191,7 @@ export const EditOrderLines = ({ inventoryOrder }: EditOrderLinesProps) => {
                   inventoryItems={inventory_items}
                   defaultCurrencyCode="INR"
                   loading={isLoading}
-                  onAddNewRow={() => append({ inventory_item_id: "", quantity: 0, price: 0, isExisting: false })}
+                  onAddNewRow={() => append({ inventory_item_id: "", quantity: 0, price: 0, extra_cost: 0, isExisting: false })}
                   onRemoveRow={remove}
                 />
               </div>

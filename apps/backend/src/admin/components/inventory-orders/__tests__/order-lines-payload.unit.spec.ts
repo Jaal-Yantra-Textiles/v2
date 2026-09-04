@@ -27,6 +27,14 @@ describe("computeOrderLineTotals", () => {
     expect(totals.totalQuantity).toBe(18);
     expect(totals.totalPrice).toBe(10 * 100 + 5 * 200 + 3 * 50); // 2150
   });
+
+  it("adds a per-unit extra_cost on top of price", () => {
+    // (100 + 25) × 2 = 250.
+    const totals = computeOrderLineTotals([
+      { inventory_item_id: "iitem_X", quantity: 2, price: 100, extra_cost: 25 },
+    ]);
+    expect(totals.totalPrice).toBe(250);
+  });
 });
 
 describe("buildOrderLinesUpdatePayload", () => {
@@ -59,6 +67,13 @@ describe("buildOrderLinesUpdatePayload", () => {
     const created = payload.order_lines.filter((l) => !l.remove && !l.id);
     expect(created).toHaveLength(1);
     expect(created[0].inventory_item_id).toBe("iitem_D");
+  });
+
+  it("persists a per-unit extra_cost on the keep entry", () => {
+    const edited = [{ ...THREE[0], extra_cost: 30 }, THREE[1], THREE[2]];
+    const payload = buildOrderLinesUpdatePayload(THREE, edited);
+    const first = payload.order_lines.find((l) => l.id === "ordli_A");
+    expect(first).toMatchObject({ id: "ordli_A", extra_cost: 30 });
   });
 
   it("remove ONE line: exactly one removal marker for the dropped DB id", () => {

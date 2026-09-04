@@ -494,6 +494,106 @@ export const ADMIN_MCP_TOOLS: AdminMcpToolDef[] = [
       status: STR("Optional status filter."),
     }),
   },
+  {
+    name: "create_inventory_order",
+    description:
+      "Create an inventory order (a raw-material purchase / stock movement) with its order lines. Each line carries a per-unit `price` and an optional per-unit `extra_cost` (a colour/dye job or other finishing a partner charges on top); `tax_amount` is an ORDER-LEVEL tax recorded as a charge and must NOT be folded into `total_price`. Sensitive: requires confirm:true.",
+    method: "POST",
+    path: "/admin/inventory-orders",
+    write: true,
+    sensitive: true,
+    bodyParams: [
+      "order_lines",
+      "quantity",
+      "total_price",
+      "currency_code",
+      "status",
+      "expected_delivery_date",
+      "order_date",
+      "shipping_address",
+      "stock_location_id",
+      "from_stock_location_id",
+      "to_stock_location_id",
+      "is_sample",
+      "tax_amount",
+      "metadata",
+    ],
+    inputSchema: obj(
+      {
+        order_lines: {
+          type: "array",
+          description:
+            "The order lines. Each names an existing inventory item (inventory_item_id) OR an untracked product variant (variant_id), with quantity, per-unit price, and optional per-unit extra_cost (colour job).",
+          items: {
+            type: "object",
+            properties: {
+              inventory_item_id: STR(
+                "Existing inventory item id. Exactly one of inventory_item_id or variant_id."
+              ),
+              variant_id: STR(
+                "Untracked product variant id (the order write establishes its inventory item). Exactly one of inventory_item_id or variant_id."
+              ),
+              quantity: { type: "number", description: "Quantity to order." },
+              price: { type: "number", description: "Per-unit price." },
+              extra_cost: {
+                type: "number",
+                description:
+                  "Per-unit extra charge on top of price (colour/dye job, finishing). Defaults to 0.",
+              },
+              batch_number: {
+                type: "integer",
+                description: "Optional batch tag for separate-batch lines.",
+              },
+            },
+            required: ["quantity", "price"],
+            additionalProperties: false,
+          },
+        },
+        quantity: {
+          type: "number",
+          description: "Total quantity — the sum of line quantities.",
+        },
+        total_price: {
+          type: "number",
+          description:
+            "Total goods price: Σ (price + extra_cost) × quantity. Do NOT include tax here.",
+        },
+        currency_code: STR("ISO currency code, e.g. 'inr'. Defaults to inr."),
+        status: STR(
+          "Order status: Pending, Processing, Ready for Delivery, Shipped, Delivered, Cancelled. Typically 'Pending'."
+        ),
+        expected_delivery_date: STR("ISO date the order is expected to arrive."),
+        order_date: STR("ISO date of the order."),
+        shipping_address: {
+          type: "object",
+          description: "Shipping address object. Usually {} when unknown.",
+        },
+        stock_location_id: STR("Destination ('to') stock location id (required)."),
+        from_stock_location_id: STR("Optional source ('from') stock location id."),
+        to_stock_location_id: STR(
+          "Alias for the destination ('to') stock location — omit if stock_location_id is given."
+        ),
+        is_sample: BOOL("Whether this is a sample order (defaults false)."),
+        metadata: { type: "object", description: "Free-form metadata." },
+        tax_amount: {
+          type: "number",
+          description:
+            "Order-level tax, recorded as a charge of type 'tax'. Raises the payable ceiling; never folded into total_price.",
+        },
+      },
+      [
+        "order_lines",
+        "quantity",
+        "total_price",
+        "status",
+        "expected_delivery_date",
+        "order_date",
+        "shipping_address",
+        "stock_location_id",
+      ]
+    ),
+    nextSteps: ["list_inventory_orders"],
+  },
 
   // ===== Money =============================================================
   {

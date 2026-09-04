@@ -22,9 +22,13 @@ export const inventoryOrderFormSchema = z
         inventory_item_id: z.string(),
         quantity: z.number(),
         price: z.number(),
+        // Per-unit extra charge on top of `price` (colour/dye job, finishing, …).
+        extra_cost: z.number().optional(),
         batch_number: z.number().int().positive().nullish(), // batch tag (separate-batch adds)
       })
     ),
+    // Order-level tax entered at create time (recorded as an order charge).
+    tax_amount: z.number().nonnegative("Tax must be zero or positive").optional(),
   })
   .superRefine((data, ctx) => {
     const lines = data.order_lines ?? [];
