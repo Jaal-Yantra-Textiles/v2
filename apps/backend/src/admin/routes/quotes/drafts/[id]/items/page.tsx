@@ -1,6 +1,6 @@
 import { zodResolver } from "@hookform/resolvers/zod"
-import { Button, Heading, Text, toast } from "@medusajs/ui"
-import { useEffect, useMemo } from "react"
+import { Button, Heading, ProgressTabs, Text, toast } from "@medusajs/ui"
+import { useEffect, useMemo, useState } from "react"
 import { useForm, useWatch } from "react-hook-form"
 import { useParams } from "react-router-dom"
 
@@ -15,6 +15,7 @@ import {
   useQuoteDraft,
   useUpdateQuoteDraft,
 } from "../../../../../hooks/api/quotes"
+import { BulkDiscountPanel } from "../../../create/bulk-discount-panel"
 import { AdminLineDesignsPanel } from "../../../create/line-designs-panel"
 import {
   AdminQuoteCreateSchema,
@@ -24,6 +25,24 @@ import { ProductsStep } from "../../../create/steps/products-step"
 import { QuantitiesStep } from "../../../create/steps/quantities-step"
 
 const DESIGNS_MODAL_ID = "quote-draft-line-designs"
+
+/**
+ * Picking WHAT, then saying HOW MANY — two steps, not one scroll.
+ *
+ * Both are full-width tables. Stacked vertically the operator picked products
+ * at the top, scrolled past the whole catalogue page, and met a quantities grid
+ * for rows they could no longer see. Worse, the grid renders a row per variant
+ * of every SELECTED product, so before anything is ticked it is simply empty —
+ * a second table showing nothing, under a first table showing everything.
+ *
+ * As steps each one owns the modal while it is being answered, and the second
+ * cannot be reached before the first has an answer to give it.
+ */
+enum ItemsTab {
+  PRODUCTS = "products",
+  QUANTITIES = "quantities",
+  DISCOUNT = "discount",
+}
 
 /**
  * Editing a draft's items (#1446).
@@ -112,6 +131,8 @@ const DraftItemsForm = ({ draftId }: { draftId: string }) => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [draft?.id])
 
+  const [tab, setTab] = useState<ItemsTab>(ItemsTab.PRODUCTS)
+
   const { mutate: save, isPending } = useUpdateQuoteDraft(draftId, {
     onSuccess: () => {
       toast.success("Items saved.")
@@ -127,13 +148,30 @@ const DraftItemsForm = ({ draftId }: { draftId: string }) => {
    * which lines exist.
    */
   const pickedIds = useWatch({ control: form.control, name: "product_ids" })
+  /** What the first step has answered, watched so the second step reacts to it. */
+  const picked = (pickedIds ?? []) as any[]
   const { products } = useProducts({ limit: 100 } as any)
   const selectedProducts = useMemo(() => {
     const wanted = new Set(((pickedIds ?? []) as any[]).map((p) => p.id))
     return ((products ?? []) as any[]).filter((p) => wanted.has(p.id))
   }, [products, pickedIds])
 
-  const handleSubmit = form.handleSubmit(() => {
+  /**
+   * 🔴 NOT `form.handleSubmit`.
+   *
+   * The form is resolved against `AdminQuoteCreateSchema` — the WHOLE quote —
+   * because the steps it hosts are written against that shape. This modal
+   * hydrates only the partner, the lane and the basket, so `buyer_email`,
+   * `region_id` and the rest are absent and the schema fails. `handleSubmit`
+   * then never calls its callback: Save did nothing, silently, and the errors
+   * attached to fields this modal does not render — an error count with
+   * nothing on screen to point at.
+   *
+   * The basket is saved by reading the values directly, exactly as the draft
+   * page's drawers already do. The resolver stays for the DataGrid's own
+   * per-cell validation; it simply no longer gates a save it cannot judge.
+   */
+  const handleSave = () => {
     const values = form.getValues()
     const lines = Object.entries(values.quantities ?? {})
       .filter(([, qty]) => typeof qty === "number" && qty > 0)
@@ -152,7 +190,7 @@ const DraftItemsForm = ({ draftId }: { draftId: string }) => {
      * never empty it from another section.
      */
     save({ lines })
-  })
+  }
 
   /**
    * A skeleton, not a spinner and not nothing.
@@ -163,20 +201,67 @@ const DraftItemsForm = ({ draftId }: { draftId: string }) => {
    */
   if (isLoading || !draft) {
     return (
-      <RouteFocusModal.Body className="flex-1 overflow-y-auto p-6">
-        <TwoColumnPageSkeleton mainSections={2} sidebarSections={0} />
-      </RouteFocusModal.Body>
+      <>
+        {/*
+          🔴 The loading branch needs a `Title` too.
+          
+          The dialog is already mounted while the draft is being fetched, and a
+          branch that returns only a Body leaves Radix with an untitled dialog
+          for that whole window — which is exactly what a screen-reader user
+          meets first. The warning only appears on this route because only this
+          route has a loading branch.
+        */}
+        <RouteFocusModal.Header>
+          <RouteFocusModal.Title asChild>
+            <span className="sr-only">Edit items</span>
+          </RouteFocusModal.Title>
+        </RouteFocusModal.Header>
+        <RouteFocusModal.Body className="flex-1 overflow-y-auto p-6">
+          <TwoColumnPageSkeleton mainSections={2} sidebarSections={0} />
+        </RouteFocusModal.Body>
+      </>
     )
   }
 
   return (
     <RouteFocusModal.Form form={form}>
-      <KeyboundForm onSubmit={handleSubmit} className="flex h-full flex-col">
+      <ProgressTabs
+        value={tab}
+        onValueChange={(v) => setTab(v as ItemsTab)}
+        className="flex h-full flex-col overflow-hidden"
+      >
+        {/* Enter must not submit a schema this modal cannot satisfy. */}
+        <KeyboundForm
+          onSubmit={(e: any) => e.preventDefault()}
+          className="flex h-full flex-col"
+        >
         <RouteFocusModal.Header>
           <RouteFocusModal.Title asChild>
             <span className="sr-only">Edit items</span>
           </RouteFocusModal.Title>
-          <div className="flex w-full items-center justify-end gap-x-2">
+          <div className="flex w-full items-center justify-between gap-x-2">
+            <div className="-my-2 w-full max-w-[560px] border-l">
+              <ProgressTabs.List className="grid w-full grid-cols-3">
+                <ProgressTabs.Trigger
+                  status={picked.length ? "completed" : "in-progress"}
+                  value={ItemsTab.PRODUCTS}
+                >
+                  Products &amp; designs
+                </ProgressTabs.Trigger>
+                <ProgressTabs.Trigger
+                  status={tab === ItemsTab.QUANTITIES ? "in-progress" : "not-started"}
+                  value={ItemsTab.QUANTITIES}
+                >
+                  Quantities
+                </ProgressTabs.Trigger>
+                <ProgressTabs.Trigger
+                  status={tab === ItemsTab.DISCOUNT ? "in-progress" : "not-started"}
+                  value={ItemsTab.DISCOUNT}
+                >
+                  Discount
+                </ProgressTabs.Trigger>
+              </ProgressTabs.List>
+            </div>
             {/*
               🔴 `Trigger` and `Content` must share ONE `StackedFocusModal`
               root. With the trigger outside it, the click never reached the
@@ -228,12 +313,49 @@ const DraftItemsForm = ({ draftId }: { draftId: string }) => {
           </div>
         </RouteFocusModal.Header>
 
-        <RouteFocusModal.Body className="flex-1 overflow-y-auto">
-          <div className="flex flex-col gap-y-6">
+        <RouteFocusModal.Body className="flex-1 overflow-hidden">
+          <ProgressTabs.Content
+            className="size-full overflow-y-auto"
+            value={ItemsTab.PRODUCTS}
+          >
             <ProductsStep form={form} />
-            {/* The panel is lifted out of the step and stacked — see the header. */}
-            <QuantitiesStep form={form} showDesignPanel={false} />
-          </div>
+          </ProgressTabs.Content>
+
+          <ProgressTabs.Content
+            className="size-full overflow-y-auto"
+            value={ItemsTab.QUANTITIES}
+          >
+            {picked.length ? (
+              /* The design panel is lifted out and stacked — see the header. */
+              <QuantitiesStep
+                form={form}
+                showDesignPanel={false}
+                showBulkDiscount={false}
+              />
+            ) : (
+              <div className="px-6 py-8">
+                <Text size="small" className="text-ui-fg-subtle">
+                  Nothing picked yet. The grid shows a row per variant of the
+                  products you choose, so it has nothing to show until the first
+                  step has an answer.
+                </Text>
+              </div>
+            )}
+          </ProgressTabs.Content>
+
+          <ProgressTabs.Content
+            className="size-full overflow-y-auto"
+            value={ItemsTab.DISCOUNT}
+          >
+            <div className="px-6 py-6 md:px-16">
+              <Heading level="h2">Discount</Heading>
+              <Text size="small" className="text-ui-fg-subtle mb-6">
+                One percentage across the basket. A commercial decision, so it
+                gets its own step rather than a strip above the grid.
+              </Text>
+              <BulkDiscountPanel form={form} products={selectedProducts} />
+            </div>
+          </ProgressTabs.Content>
         </RouteFocusModal.Body>
 
         <RouteFocusModal.Footer>
@@ -243,13 +365,47 @@ const DraftItemsForm = ({ draftId }: { draftId: string }) => {
                 Cancel
               </Button>
             </RouteFocusModal.Close>
-            <Button type="submit" variant="primary" size="small" isLoading={isPending}>
+            {/*
+              🔴 Save is ALWAYS available, Continue is the extra.
+              
+              Gating Save behind the last step would make an operator who only
+              wanted to fix a quantity walk through Discount to persist it —
+              and steps exist here to stop two tables fighting for one screen,
+              not to impose an order on a basket that is already saved as a
+              whole.
+            */}
+            {tab !== ItemsTab.DISCOUNT && (
+              <Button
+                key="continue"
+                type="button"
+                variant="secondary"
+                size="small"
+                onClick={() =>
+                  setTab(
+                    tab === ItemsTab.PRODUCTS
+                      ? ItemsTab.QUANTITIES
+                      : ItemsTab.DISCOUNT
+                  )
+                }
+              >
+                Continue
+              </Button>
+            )}
+            <Button
+              key="submit"
+              type="button"
+              variant="primary"
+              size="small"
+              isLoading={isPending}
+              onClick={handleSave}
+            >
               Save
             </Button>
           </div>
         </RouteFocusModal.Footer>
 
-      </KeyboundForm>
+        </KeyboundForm>
+      </ProgressTabs>
     </RouteFocusModal.Form>
   )
 }

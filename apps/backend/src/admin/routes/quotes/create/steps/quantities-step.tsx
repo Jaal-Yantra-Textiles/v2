@@ -9,6 +9,7 @@ import { DataGridNumberCell } from "../../../../components/data-grid/components/
 import { DataGridReadonlyCell } from "../../../../components/data-grid/components/data-grid-readonly-cell"
 import { createDataGridHelper } from "../../../../components/data-grid/helpers/create-data-grid-column-helper"
 import { useProducts } from "../../../../hooks/api/products"
+import { BulkDiscountPanel } from "../bulk-discount-panel"
 import { AdminLineDesignsPanel } from "../line-designs-panel"
 import { AdminQuoteCreateSchemaType } from "../schema"
 
@@ -24,6 +25,15 @@ type Props = {
    * to reach it. Stacked, it opens over the grid it annotates.
    */
   showDesignPanel?: boolean
+  /**
+   * Render the basket-wide discount strip above the grid.
+   *
+   * Default `true` keeps every existing caller unchanged. The draft's items
+   * modal passes `false` and gives it a step of its own: above the grid it
+   * competed for the same width and read as a FILTER over the table rather
+   * than an action on it.
+   */
+  showBulkDiscount?: boolean
 }
 
 type Row = any
@@ -59,7 +69,11 @@ const columnHelper = createDataGridHelper<Row, AdminQuoteCreateSchemaType>()
  * and the header says so. A number typed against a USD quote is otherwise read
  * as dollars; the conversion happens once at mint, at a rate the quote records.
  */
-export const QuantitiesStep = ({ form, showDesignPanel = true }: Props) => {
+export const QuantitiesStep = ({
+  form,
+  showDesignPanel = true,
+  showBulkDiscount = true,
+}: Props) => {
   const ids = useWatch({ control: form.control, name: "product_ids" })
   const { products } = useProducts({ limit: 100 } as any)
 
@@ -205,71 +219,13 @@ export const QuantitiesStep = ({ form, showDesignPanel = true }: Props) => {
     []
   )
 
-  /**
-   * One percentage across the whole basket (#1446).
-   *
-   * 🔑 It writes into the per-line fields rather than becoming a quote-level
-   * discount of its own. The backend stores the override PER LINE with the
-   * rate and input it was reached by, because that is what makes a quoted
-   * number reproducible later — a basket-level percentage would have to be
-   * re-derived against catalogue prices that have since moved. So this is a
-   * typing shortcut with no server-side counterpart, which is exactly what it
-   * should be.
-   *
-   * It fills every variant of every selected product, including ones with no
-   * quantity yet: a line added afterwards would otherwise silently miss the
-   * discount the operator believes they applied to "everything".
-   */
-  const [bulkDiscount, setBulkDiscount] = useState<string>("")
-
-  const applyToAll = () => {
-    const percent = Number(bulkDiscount)
-    if (!Number.isFinite(percent) || percent <= 0 || percent > 100) return
-
-    const next: Record<string, number> = {}
-    for (const product of selected) {
-      for (const variant of (product.variants ?? []) as Row[]) {
-        next[variant.id] = percent
-      }
-    }
-
-    form.setValue("discounts", next, { shouldDirty: true })
-    // A flat unit price and a percentage are mutually exclusive per line, and
-    // the backend refuses both together. Applying a blanket percentage clears
-    // the prices it would otherwise collide with, rather than minting a basket
-    // that 400s on submit.
-    form.setValue("overrides", {}, { shouldDirty: true })
-  }
-
   return (
     <div className="flex h-full flex-col">
-      <div className="flex flex-wrap items-end gap-x-3 gap-y-2 px-6 pb-4 md:px-16">
-        <div className="flex flex-col gap-y-1">
-          <Label size="small">Discount % on every line</Label>
-          <Input
-            type="number"
-            min={0}
-            max={100}
-            className="w-32"
-            placeholder="e.g. 15"
-            value={bulkDiscount}
-            onChange={(e) => setBulkDiscount(e.target.value)}
-          />
+      {showBulkDiscount && (
+        <div className="px-6 pb-4 md:px-16">
+          <BulkDiscountPanel form={form} products={selected} />
         </div>
-        <Button
-          type="button"
-          variant="secondary"
-          size="small"
-          onClick={applyToAll}
-          disabled={!bulkDiscount}
-        >
-          Apply to all
-        </Button>
-        <Text size="small" className="text-ui-fg-subtle">
-          A shortcut for the column — every line is still quoted, stored and
-          audited individually, and any line can be overridden afterwards.
-        </Text>
-      </div>
+      )}
 
       <DataGrid
         columns={columns}

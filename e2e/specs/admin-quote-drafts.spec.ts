@@ -136,6 +136,12 @@ test.describe("Admin quote drafts (#1446)", () => {
     await page.waitForURL(/\/app\/quotes\/drafts\//, { timeout: 30000 })
 
     await expect(page.getByRole("heading", { name: "Summary" })).toBeVisible()
+    /**
+     * Shipping is its OWN card, as a draft order has — and its position is the
+     * point. The lane is quoted against the basket's weight, so it is asked
+     * after the items rather than buried mid-way through the buyer form.
+     */
+    await expect(page.getByRole("heading", { name: "Shipping" })).toBeVisible()
     await expect(page.getByRole("heading", { name: "Buyer" })).toBeVisible()
     await expect(page.getByRole("button", { name: "Mint quote" })).toBeVisible()
 
@@ -170,6 +176,36 @@ test.describe("Admin quote drafts (#1446)", () => {
     await page.waitForURL(/\/items$/, { timeout: 30000 })
 
     await expect(page.getByRole("dialog")).toHaveCount(1)
+
+    /**
+     * Two steps, not one scroll. Both halves are full-width tables, and the
+     * quantities grid renders a row per variant of the SELECTED products — so
+     * before anything is ticked it is empty. Stacked vertically that was a
+     * second table showing nothing beneath a first table showing everything.
+     */
+    await expect(page.getByRole("tab", { name: /Products/ })).toBeVisible()
+    await expect(page.getByRole("tab", { name: "Quantities" })).toBeVisible()
+    await expect(page.getByRole("button", { name: "Continue" })).toBeVisible()
+
+    await expect(page.getByRole("tab", { name: "Discount" })).toBeVisible()
+
+    /**
+     * 🔴 Save is available on EVERY step. It was briefly gated behind the last
+     * one, which made an operator who only wanted to fix a quantity walk
+     * through Discount to persist it.
+     */
+    await expect(page.getByRole("button", { name: "Save" })).toBeVisible()
+
+    await page.getByRole("checkbox").nth(1).click()
+    await page.getByRole("button", { name: "Continue" }).click()
+
+    /**
+     * The basket-wide discount is NOT a strip above the grid any more — there
+     * it competed for the same width and read as a filter over the table
+     * rather than an action on it.
+     */
+    await expect(page.getByPlaceholder("e.g. 15")).toHaveCount(0)
+
     await page.getByRole("button", { name: "Designs per line" }).click()
 
     // Stacked ON TOP — the editor underneath must still be there.
@@ -177,6 +213,40 @@ test.describe("Admin quote drafts (#1446)", () => {
       page.getByRole("heading", { name: "Designs per line" })
     ).toBeVisible({ timeout: 15000 })
     await expect(page.getByRole("dialog")).not.toHaveCount(0)
+  })
+
+  /**
+   * 🔴 The regression the founder hit: Save did nothing and showed an error
+   * count with nothing on screen.
+   *
+   * The form is resolved against the WHOLE quote schema, because the steps it
+   * hosts are written against that shape — but this modal hydrates only the
+   * partner, the lane and the basket. `form.handleSubmit` therefore never
+   * called its callback, and the errors attached to fields this modal does not
+   * render. The basket is saved by reading values directly instead.
+   */
+  test("🔑 saving the basket actually persists it", async ({ page }) => {
+    await login(page)
+    await openStartModal(page)
+    await page.getByText("Select a partner").click()
+    await page.getByRole("option", { name: /E2E Content Partner/ }).first().click()
+    await page.getByText("Select a region").click()
+    await page.getByRole("option", { name: /Singapore/ }).click()
+    await page.getByRole("button", { name: "Save" }).click()
+    await page.waitForURL(/\/app\/quotes\/drafts\//, { timeout: 30000 })
+
+    await page.locator('[aria-label="Open actions menu"]').nth(1).click()
+    await page.getByRole("menuitem", { name: /Edit items/ }).click()
+    await page.waitForURL(/\/items$/, { timeout: 30000 })
+
+    await page.getByRole("checkbox").nth(1).click()
+    await page.getByRole("button", { name: "Continue" }).click()
+    await page.locator('input[name^="quantities."]').first().fill("500")
+    await page.getByRole("button", { name: "Save" }).click()
+
+    // Back on the draft, and the units are on the record — not zero.
+    await page.waitForURL(/\/app\/quotes\/drafts\/[^/]+$/, { timeout: 30000 })
+    await expect(page.getByText("500")).toBeVisible({ timeout: 15000 })
   })
 
   test("the buyer drawer saves without emptying the basket", async ({ page }) => {
