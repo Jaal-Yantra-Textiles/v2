@@ -40,6 +40,14 @@ const QuoteAcceptPanel = ({
 }: {
   token: string
   acceptance: QuoteAcceptance
+  /**
+   * 🔴 The QUOTE's destination country, not the route segment (#1787). The
+   * caller resolves it; this panel must not fall back to `useParams`. Pushing
+   * to the segment the buyer happens to be under sent an AU buyer to
+   * `/in/checkout`, where payment providers resolve from India (PayU, never
+   * Stripe) and the address form's country select — scoped to the region —
+   * offered only `in` against her `au` address and silently refused to submit.
+   */
   countryCode: string
   /**
    * Outer spacing, owned by the LAYOUT rather than by this panel (#1439 S14).

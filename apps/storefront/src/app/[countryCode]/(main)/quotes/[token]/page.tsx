@@ -1,7 +1,8 @@
 import { Metadata } from "next"
-import { notFound } from "next/navigation"
+import { notFound, redirect } from "next/navigation"
 
 import { retrieveQuote } from "@lib/data/quotes"
+import { getRegion } from "@lib/data/regions"
 import { parseDialledLines } from "@lib/util/quote-lines"
 import QuoteTemplate from "@modules/quotes/templates"
 
@@ -89,8 +90,48 @@ export default async function QuotePage({ params, searchParams }: Props) {
     notFound()
   }
 
-  // 🔑 `countryCode` comes from the route segment, not from the quote. The
-  // storefront routes every page under it, so a checkout link built from the
-  // quote's DESTINATION would leave the locale the buyer is actually browsing.
-  return <QuoteTemplate quote={quote} token={token} countryCode={countryCode} />
+  /**
+   * 🔴 The quote decides the prefix, not the URL (#1787).
+   *
+   * This used to read: *"a checkout link built from the quote's DESTINATION
+   * would leave the locale the buyer is actually browsing"* — treating the
+   * route segment as authoritative. It is not, and a live buyer could not pay
+   * because of it. `buildQuoteBuyerUrl` mints the link under the quote's own
+   * country, but the middleware falls back to `NEXT_PUBLIC_DEFAULT_REGION` for
+   * any path whose first segment is not a known country, so a single
+   * un-prefixed internal link (the abandoned-cart recovery mail sends one) is
+   * enough to put an AU buyer on `/in`. From there the accept pushes to
+   * `/in/checkout`, the cart resolves payment providers from India — PayU, never
+   * Stripe — and the address form's region-scoped country select offers only
+   * `in` against her `au` address, silently refusing to submit.
+   *
+   * A quote is a document about one destination. There is no locale to preserve.
+   *
+   * ⚠️ Only redirect where the destination actually HAS a region: a prefix with
+   * no region would be rewritten by the middleware to the default one, which is
+   * the very state this is here to prevent.
+   */
+  const destination = quote.destination_country_code?.toLowerCase() || null
+  const destinationRegion = destination ? await getRegion(destination) : null
+
+  if (destinationRegion && destination && destination !== countryCode) {
+    // The dialled basket is part of what the buyer is looking at — dropping it
+    // on the redirect would reset their quantities to the quoted ones without
+    // saying so.
+    const dial = Array.isArray(lines) ? lines[0] : lines
+    const query = dial ? `?lines=${encodeURIComponent(dial)}` : ""
+    redirect(`/${destination}/quotes/${token}${query}`)
+  }
+
+  return (
+    <QuoteTemplate
+      quote={quote}
+      token={token}
+      countryCode={countryCode}
+      // Normally identical to `countryCode` — the redirect above has already
+      // agreed them. It differs only in the un-redirectable case: a destination
+      // this storefront has no region for.
+      checkoutCountryCode={destinationRegion && destination ? destination : countryCode}
+    />
+  )
 }
