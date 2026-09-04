@@ -280,7 +280,15 @@ const PartnerQuote = model.define("partner_quote", {
 
   // ===== Token + lifecycle ================================================
   // sha256(raw). The raw token is returned once, at mint.
-  token_hash: model.text().unique(),
+  /**
+   * The buyer's credential, sha256'd — null while the quote is a `draft`.
+   *
+   * Nullable is deliberate and load-bearing: `findByTokenHash` matches on this
+   * column, and NULL is never equal to anything, so a draft cannot be served to
+   * a buyer even if a token were guessed. Postgres admits many NULLs under a
+   * UNIQUE constraint, so drafts do not collide.
+   */
+  token_hash: model.text().unique().nullable(),
   /**
    * `superseded` means a NEWER quote to the same buyer replaced this one, and
    * this quote's price list has been expired so it can no longer price a cart.
@@ -288,7 +296,22 @@ const PartnerQuote = model.define("partner_quote", {
    * the buyer should be told a current one exists rather than that the partner
    * pulled the offer.
    */
-  status: model.enum(["active", "revoked", "superseded"]).default("active"),
+  /**
+   * 🔑 `draft` is the FIRST state, not a variant of `active`.
+   *
+   * A draft is an unpriced quote: the create modal has captured the partner,
+   * the region and where it ships, and nothing has been costed yet. It becomes
+   * `active` at mint, which is the moment prices are frozen and the buyer's
+   * token exists — see `token_hash`, which is null until then and is what makes
+   * a draft unreachable from the buyer's route.
+   *
+   * ⚠️ This is a CHECK constraint. A value added here without the matching
+   * migration does not fail at boot or in tsc — it fails at the INSERT, with a
+   * bare CheckConstraintViolationException and no field name.
+   */
+  status: model
+    .enum(["draft", "active", "revoked", "superseded"])
+    .default("active"),
   expires_at: model.dateTime().nullable(),
   /**
    * When this quote was last corrected in place, or null if never.

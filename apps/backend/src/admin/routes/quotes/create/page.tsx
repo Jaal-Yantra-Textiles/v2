@@ -1,22 +1,24 @@
-import { RouteFocusModal } from "../../../components/modal/route-focus-modal"
-
 import { MintQuoteForm } from "./mint-quote-form"
 
 /**
- * Minting lives in a focus modal, like every other create route on this admin.
+ * Minting is a PAGE, not a focus modal.
  *
- * It shipped as a plain `Container` on the page, which made it the one create
- * flow that navigated AWAY from wherever the operator was — and the quote list
- * is exactly the context you want back the moment a mint finishes.
+ * It shipped as a four-step wizard inside `RouteFocusModal` — the shape every
+ * other create route on this admin uses. That works for a form with a handful
+ * of fields; a quote is not that. The steps had grown to 2,420 lines, and a
+ * modal showed exactly one of the four questions at a time: the operator could
+ * not see the basket while typing a destination, nor re-read the buyer while
+ * setting quantities, and the readiness verdict appeared above a grid and
+ * scrolled away.
  *
- * 🔑 The hook lives in the CHILD. `useRouteModal` reads a context that
- * `RouteFocusModal` itself provides, so a component that renders the modal
- * cannot also call the hook — that is #1352, and it throws at render.
+ * As a page it is the same four questions as sections, laid out the way the
+ * quote DETAIL route is laid out — the create route now looks like the record
+ * it produces, which it never did before.
  */
 const MintQuotePage = () => (
-  <RouteFocusModal prev="/quotes">
+  <div className="flex w-full flex-col gap-y-3 p-3">
     <MintQuoteForm />
-  </RouteFocusModal>
+  </div>
 )
 
 export const handle = {

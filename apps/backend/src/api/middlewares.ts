@@ -324,7 +324,12 @@ import { PartnerCreateProductReq, PartnerArtisanProductDetailReq, PartnerProduct
 import { PartnerCreatePriceListReq, PartnerUpdatePriceListReq } from "./partners/price-lists/validators";
 import { AdjustQuoteReq, MintDesignVariantReq, PartnerMintQuoteReq, QuoteReadinessReq } from "./partners/quotes/validators";
 import { PartnerPostInquiryAnswersReq, PartnerPostInquirySubmitReq, PartnerListInquiriesQuery, PartnerPostCapabilitySampleReq, PartnerListCapabilitySamplesQuery } from "./partners/inquiries/validators";
-import { AdminMintQuoteReq, AdminQuoteReadinessReq } from "./admin/quotes/validators";
+import {
+  AdminCreateQuoteDraftReq,
+  AdminMintQuoteReq,
+  AdminQuoteReadinessReq,
+  AdminUpdateQuoteDraftReq,
+} from "./admin/quotes/validators";
 import { BATCH_VARIANT_FIELDS } from "../workflows/partner/batch-partner-variants";
 import { StoreMadeToSpecReq } from "./store/carts/[id]/made-to-spec/validators";
 import {
@@ -6143,6 +6148,24 @@ export default defineMiddlewares({
       matcher: "/admin/quotes",
       method: "POST",
       middlewares: [validateAndTransformBody(wrapSchema(AdminMintQuoteReq))],
+    },
+    /**
+     * Draft quotes (#1446).
+     *
+     * 🔴 Registered BEFORE `/admin/quotes/:id`, like `readiness` and `designs`
+     * above it. This file's ordering IS the contract: a static segment landing
+     * after the parameterised one is matched as an id called "drafts", and the
+     * body arrives unvalidated.
+     */
+    {
+      matcher: "/admin/quotes/drafts",
+      method: "POST",
+      middlewares: [validateAndTransformBody(wrapSchema(AdminCreateQuoteDraftReq))],
+    },
+    {
+      matcher: "/admin/quotes/drafts/:id",
+      method: "PATCH",
+      middlewares: [validateAndTransformBody(wrapSchema(AdminUpdateQuoteDraftReq))],
     },
     {
       matcher: "/admin/quotes/readiness",

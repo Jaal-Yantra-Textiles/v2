@@ -5,12 +5,27 @@ import * as path from "path"
 const SEED_FILE = path.resolve(__dirname, "../../apps/backend/.e2e-seed.json")
 
 /**
- * The admin mint wizard, driven through a browser (#1439 S4 / #1446).
+ * The admin mint page, driven through a browser (#1439 S4 / #1446).
  *
  * 🔑 Why this file exists: the wizard shipped in #1463 and had never been
  * opened in a browser. tsc sees a component that compiles; only a render shows
  * a step that will not advance, a hook called outside its provider (#1352), or
  * a modal body that does not scroll.
+ *
+ * ## It is no longer a wizard
+ *
+ * Minting was four `ProgressTabs` steps inside a `RouteFocusModal`. At 2,420
+ * lines across its steps that had outgrown a modal — one answer visible at a
+ * time, no way to glance at the basket while typing a destination, and the
+ * readiness verdict scrolling away above a grid. It is now the same four
+ * questions as SECTIONS on a page, in the layout of the quote detail route it
+ * produces.
+ *
+ * So the assertions that made sense against a wizard — a dialog, `tab` roles,
+ * `aria-selected`, a `Continue` button that gates — are gone, because the
+ * things they described are gone. What replaced them is the property that
+ * actually matters now: **every question is on screen at once**, and the
+ * button that mints stays reachable while you work further down the page.
  *
  * ## What this deliberately does NOT do
  *
@@ -20,13 +35,8 @@ const SEED_FILE = path.resolve(__dirname, "../../apps/backend/.e2e-seed.json")
  * `integration-tests/helpers/setup-quote-fixture.ts`, which already mints for
  * real against a container on every run. The arithmetic, the price-list rows
  * and the refusals are covered there.
- *
- * What is covered HERE is the half that suite cannot see: that it opens as a
- * modal at all, that the steps gate, and that picking a region INFERS the
- * currency instead of leaving two free-text boxes that can contradict each
- * other.
  */
-test.describe("Admin mint-quote wizard (#1446)", () => {
+test.describe("Admin mint-quote page (#1446)", () => {
   let seed: { email: string; password: string; parkedRunFreshPartnerName: string }
 
   test.beforeAll(() => {
@@ -52,64 +62,88 @@ test.describe("Admin mint-quote wizard (#1446)", () => {
     await page.waitForURL(/\/app\/(?!login)/, { timeout: 15000 })
   }
 
-  const openWizard = async (page: any) => {
+  const openMintPage = async (page: any) => {
     await page.goto("/app/quotes")
     await expect(page.getByRole("heading", { name: "Quotes" })).toBeVisible({
       timeout: 30000,
     })
     await page.getByRole("button", { name: "Mint quote" }).click()
-    // 🔑 A dialog, not a page. It shipped as a plain Container — the one
-    // create flow that navigated away from wherever the operator was.
-    await expect(page.getByRole("dialog")).toBeVisible({ timeout: 30000 })
+    await page.waitForURL(/\/app\/quotes\/create/, { timeout: 30000 })
   }
 
-  test("opens as a focus modal with all four steps", async ({ page }) => {
-    await login(page)
-    await openWizard(page)
-
-    for (const step of ["Partner", "Buyer", "Products", "Quantities"]) {
-      await expect(page.getByRole("tab", { name: step })).toBeVisible()
-    }
-  })
-
-  test("will not leave the Partner step until a partner is chosen", async ({
+  test("🔑 every question is on the page at once, and it is not a dialog", async ({
     page,
   }) => {
     await login(page)
-    await openWizard(page)
+    await openMintPage(page)
 
-    // Every quote is partner-scoped: the partner decides which catalogue the
-    // variants come from and which location freight is quoted from, so
-    // choosing products first would build a basket rejected wholesale.
-    await page.getByRole("button", { name: "Continue" }).click()
-    await expect(page.getByRole("tab", { name: "Partner" })).toHaveAttribute(
-      "aria-selected",
-      "true"
-    )
+    /**
+     * All four at the same time — the property the wizard could not have. A
+     * `toBeVisible` per heading with no navigation between them IS the
+     * assertion; if any one of these still lived behind a step, the others
+     * would not be on screen with it.
+     */
+    for (const section of [
+      "Partner",
+      "Buyer",
+      "Products",
+      "Quantities & pricing",
+    ]) {
+      await expect(
+        page.getByRole("heading", { name: section, exact: true })
+      ).toBeVisible({ timeout: 30000 })
+    }
 
-    await page.getByText("Select a partner").click()
-    await page.getByRole("option", { name: seed.parkedRunFreshPartnerName }).click()
-    await page.getByRole("button", { name: "Continue" }).click()
+    // It used to open as a focus modal over the list.
+    await expect(page.getByRole("dialog")).toHaveCount(0)
+  })
 
-    await expect(page.getByRole("tab", { name: "Buyer" })).toHaveAttribute(
-      "aria-selected",
-      "true",
-      { timeout: 15000 }
-    )
+  test("🔴 the buyer section is not duplicated by its own container", async ({
+    page,
+  }) => {
+    await login(page)
+    await openMintPage(page)
+
+    /**
+     * The steps were written for a modal that supplied no chrome, so they
+     * carry their own headings — `BuyerStep` in fact carries three. Wrapping
+     * each one in a titled section rendered "Buyer" twice and put "Items"
+     * directly above the step's own "Products". Every test passed with the
+     * duplicate on screen; only a render caught it.
+     */
+    await expect(
+      page.getByRole("heading", { name: "Buyer", exact: true })
+    ).toHaveCount(1)
+    await expect(
+      page.getByRole("heading", { name: "Products", exact: true })
+    ).toHaveCount(1)
+  })
+
+  test("the mint button stays reachable from the bottom of the page", async ({
+    page,
+  }) => {
+    await login(page)
+    await openMintPage(page)
+
+    const products = page.getByRole("heading", { name: "Products", exact: true })
+    await products.scrollIntoViewIfNeeded()
+
+    /**
+     * The sidebar is sticky. In the modal the footer button was always there
+     * too — but the readiness verdict was NOT, and a refusal scrolled off
+     * above the grid the operator had to fix. Both now stay put together.
+     */
+    await expect(page.getByRole("button", { name: "Mint quote" })).toBeVisible()
   })
 
   test("🔑 picking a region infers the currency and narrows the destinations", async ({
     page,
   }) => {
     await login(page)
-    await openWizard(page)
+    await openMintPage(page)
 
     await page.getByText("Select a partner").click()
     await page.getByRole("option", { name: seed.parkedRunFreshPartnerName }).click()
-    await page.getByRole("button", { name: "Continue" }).click()
-    await expect(page.getByText("Buyer", { exact: true }).first()).toBeVisible({
-      timeout: 15000,
-    })
 
     // Currency and destination used to be two free-text boxes, which let an
     // operator quote INR to a GB address — a combination no region supports.

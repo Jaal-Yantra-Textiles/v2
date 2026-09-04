@@ -11,6 +11,7 @@ import { ContainerRegistrationKeys } from "@medusajs/framework/utils"
 import { createPaymentSessionsWorkflow } from "@medusajs/medusa/core-flows"
 
 import { ensureCartPaymentCollection } from "../../../../lib/payments/ensure-cart-collection"
+import { saveCardSessionData } from "../../../../lib/payments/save-card-intent"
 import {
   resolvePartnerConnect,
   connectContext,
@@ -62,6 +63,12 @@ export async function ensureStripeSession(
         "currency_code",
         "total",
         "sales_channel_id",
+        /**
+         * 🔴 Without this the guard below is dead — a field the query never
+         * fetched cannot be read, and the session would go on being created
+         * with no customer, silently, exactly as it did before.
+         */
+        "customer_id",
         "region.payment_providers.id",
         "region.payment_providers.is_enabled",
         "payment_collection.id",
@@ -107,7 +114,7 @@ export async function ensureStripeSession(
    * deposit the buyer had just been promised and charged the whole total.
    * `ensureCartPaymentCollection` makes that decision once, for both rails.
    */
-  const { id: pcId } = await ensureCartPaymentCollection(scope, cart)
+  const { id: pcId, plan } = await ensureCartPaymentCollection(scope, cart)
 
   // Ensure a Stripe session (initiatePayment → creates the PaymentIntent).
   let session = findStripeSession(cart.payment_collection?.payment_sessions)
@@ -124,6 +131,23 @@ export async function ensureStripeSession(
       input: {
         payment_collection_id: pcId!,
         provider_id: provider,
+        /**
+         * 🔴 This path passed NO `customer_id` at all, so core's
+         * `when("customer-id-exists")` never fired and no Stripe Customer was
+         * ever created here — for guests or signed-in buyers alike.
+         *
+         * Without a Stripe Customer the card cannot be attached, and an
+         * unattached card cannot be charged later. Nothing complains at the
+         * time: the intent still reports `setup_future_usage`, still confirms,
+         * still reaches `requires_capture`. The refusal arrives at the balance.
+         */
+        customer_id: cart.customer_id ?? undefined,
+        /**
+         * Keep the card only when a balance is still owed — see
+         * `save-card-intent.ts`. Spread, so a full-payment cart sends no key
+         * at all rather than an explicit `undefined` the provider forwards.
+         */
+        data: { ...saveCardSessionData(plan) },
         context: {
           sales_channel_id: cart.sales_channel_id,
           ...connectContext(connect),

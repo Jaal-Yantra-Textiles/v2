@@ -13,6 +13,8 @@ import {
   resolvePartnerConnect,
   connectContext,
 } from "../../../../../modules/stripe-connect-payment/lib/resolve-connect"
+import { resolveCollectionPaymentContext } from "../../../../../lib/payments/resolve-collection-customer"
+import { saveCardSessionData } from "../../../../../lib/payments/save-card-intent"
 
 const DEFAULT_FIELDS = ["id", "currency_code", "amount", "*payment_sessions"]
 
@@ -82,12 +84,34 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
     }
   }
 
+  const { customer_id: cartCustomerId, plan } =
+    await resolveCollectionPaymentContext(req.scope, collectionId).catch(
+      () => ({ customer_id: undefined, plan: undefined })
+    )
+
   await createPaymentSessionsWorkflow(req.scope).run({
     input: {
       payment_collection_id: collectionId,
       provider_id,
-      customer_id: (req as any).auth_context?.actor_id,
-      data,
+      /**
+       * 🔴 From the CART, falling back to the authenticated caller — not the
+       * other way round, and never auth alone.
+       *
+       * `auth_context.actor_id` is undefined for a guest, and a B2B quote
+       * buyer is deliberately a guest. That made the account holder — and so
+       * the saved card — impossible for exactly the buyers we want to keep a
+       * card for. See `resolveCollectionCustomerId`.
+       */
+      customer_id: cartCustomerId ?? (req as any).auth_context?.actor_id,
+      /**
+       * The save-card flag is decided HERE, not accepted from the caller.
+       *
+       * A storefront that forgot to ask would silently lose the card, and the
+       * loss would not surface until the balance was due weeks later. The
+       * server knows whether a balance follows — so the server says so, and a
+       * caller-supplied value cannot turn it off.
+       */
+      data: { ...(data ?? {}), ...(plan ? saveCardSessionData(plan) : {}) },
       ...(context ? { context } : {}),
     },
   })

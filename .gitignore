@@ -134,3 +134,7 @@ scripts/agent-daemon/delegate-logs/
 # Wave sentinels — process state, written so a chained batch can wait on a FILE
 # rather than on `pgrep`, which matches the waiter's own command line and hangs.
 .audit/batches/
+
+# Local audit workspace — session notes, never source (public repo)
+.audit/
+e2e/screenshots/

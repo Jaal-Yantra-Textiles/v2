@@ -78,7 +78,12 @@ describe("buildQuoteListQuery", () => {
       // relation the field is absent and every row reads "0 lines · 0 units".
       relations: ["lines"],
     })
-    expect(filters).toEqual({})
+    /**
+     * 🔑 Not `{}` any more. A default list means "the real quotes" — drafts are
+     * unpriced rows the operator is still building, and they belong in their
+     * own list rather than beside quotes a buyer is holding (#1446).
+     */
+    expect(filters).toEqual({ status: { $ne: "draft" } })
   })
 
   it("clamps limit to a ceiling — `?limit=100000` is a table scan on request", () => {
