@@ -13,6 +13,7 @@ import {
   resolvePartnerConnect,
   connectContext,
 } from "../../../../../modules/stripe-connect-payment/lib/resolve-connect"
+import { resolveCollectionCustomerId } from "../../../../../lib/payments/resolve-collection-customer"
 
 const DEFAULT_FIELDS = ["id", "currency_code", "amount", "*payment_sessions"]
 
@@ -82,11 +83,25 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
     }
   }
 
+  const cartCustomerId = await resolveCollectionCustomerId(
+    req.scope,
+    collectionId
+  ).catch(() => undefined)
+
   await createPaymentSessionsWorkflow(req.scope).run({
     input: {
       payment_collection_id: collectionId,
       provider_id,
-      customer_id: (req as any).auth_context?.actor_id,
+      /**
+       * 🔴 From the CART, falling back to the authenticated caller — not the
+       * other way round, and never auth alone.
+       *
+       * `auth_context.actor_id` is undefined for a guest, and a B2B quote
+       * buyer is deliberately a guest. That made the account holder — and so
+       * the saved card — impossible for exactly the buyers we want to keep a
+       * card for. See `resolveCollectionCustomerId`.
+       */
+      customer_id: cartCustomerId ?? (req as any).auth_context?.actor_id,
       data,
       ...(context ? { context } : {}),
     },
