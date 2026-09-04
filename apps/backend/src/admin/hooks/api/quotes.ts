@@ -10,6 +10,21 @@ import {
 import { sdk } from "../../lib/config"
 import { queryKeysFactory } from "../../lib/query-key-factory"
 
+/**
+ * 🔴 In every mutation below, `...options` is spread BEFORE `onSuccess`.
+ *
+ * The other order — which 165 mutation hooks across this admin still use — means
+ * a caller that passes its own `onSuccess` **replaces** the hook's, and the
+ * cache invalidation inside it never runs. The symptom is not an error: the
+ * mutation succeeds, the toast fires, the page navigates, and the screen keeps
+ * showing the old row until a hard refresh.
+ *
+ * That is exactly what happened here — saving items on a draft left the Summary
+ * card saying "No items yet" while the row had 500 units on it.
+ *
+ * Spreading first lets the hook's own `onSuccess` win and call the caller's
+ * from inside it, so both run.
+ */
 const QUOTES_QUERY_KEY = "quotes" as const
 export const quoteQueryKeys = queryKeysFactory(QUOTES_QUERY_KEY)
 
@@ -232,11 +247,11 @@ export const useMintQuote = (
         method: "POST",
         body: payload,
       }),
+    ...options,
     onSuccess: (data, variables, _mutateResult, context) => {
       queryClient.invalidateQueries({ queryKey: quoteQueryKeys.lists() })
       options?.onSuccess?.(data, variables, _mutateResult, context)
     },
-    ...options,
   })
 }
 
@@ -255,6 +270,7 @@ export const useRevokeQuote = (
         `/admin/quotes/${id}/revoke`,
         { method: "POST" }
       ),
+    ...options,
     onSuccess: (data, variables, _mutateResult, context) => {
       queryClient.invalidateQueries({ queryKey: quoteQueryKeys.lists() })
       // The detail carries the status badge AND the activity timeline the
@@ -264,7 +280,6 @@ export const useRevokeQuote = (
       })
       options?.onSuccess?.(data, variables, _mutateResult, context)
     },
-    ...options,
   })
 }
 
@@ -410,6 +425,7 @@ export const useMintDesignVariant = (
         `/admin/quotes/designs/${payload.design_id}/variant`,
         { method: "POST", body: { currency_code: payload.currency_code } }
       ),
+    ...options,
     onSuccess: (data, variables, _mutateResult, context) => {
       // The design now resolves to a variant, so the picker's rows are stale.
       queryClient.invalidateQueries({
@@ -417,7 +433,6 @@ export const useMintDesignVariant = (
       })
       options?.onSuccess?.(data, variables, _mutateResult, context)
     },
-    ...options,
   })
 }
 
@@ -486,11 +501,11 @@ export const useCreateQuoteDraft = (
         method: "POST",
         body: payload,
       }),
+    ...options,
     onSuccess: (data, vars, _mutateResult, ctx) => {
       queryClient.invalidateQueries({ queryKey: quoteQueryKeys.lists() })
       options?.onSuccess?.(data, vars, _mutateResult, ctx)
     },
-    ...options,
   })
 }
 
@@ -513,13 +528,13 @@ export const useUpdateQuoteDraft = (
         `/admin/quotes/drafts/${id}`,
         { method: "PATCH", body: payload }
       ),
+    ...options,
     onSuccess: (data, vars, _mutateResult, ctx) => {
       queryClient.invalidateQueries({
         queryKey: quoteQueryKeys.detail(`draft-${id}`),
       })
       options?.onSuccess?.(data, vars, _mutateResult, ctx)
     },
-    ...options,
   })
 }
 
@@ -534,11 +549,11 @@ export const useMintQuoteDraft = (
         `/admin/quotes/drafts/${id}/mint`,
         { method: "POST" }
       ),
+    ...options,
     onSuccess: (data, vars, _mutateResult, ctx) => {
       queryClient.invalidateQueries({ queryKey: quoteQueryKeys.lists() })
       options?.onSuccess?.(data, vars, _mutateResult, ctx)
     },
-    ...options,
   })
 }
 
@@ -554,10 +569,10 @@ export const useDeleteQuoteDraft = (
         `/admin/quotes/drafts/${id}`,
         { method: "DELETE" }
       ),
+    ...options,
     onSuccess: (data, vars, _mutateResult, ctx) => {
       queryClient.invalidateQueries({ queryKey: quoteQueryKeys.lists() })
       options?.onSuccess?.(data, vars, _mutateResult, ctx)
     },
-    ...options,
   })
 }
