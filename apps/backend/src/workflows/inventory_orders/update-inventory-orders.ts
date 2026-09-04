@@ -8,13 +8,16 @@ import {
 } from "@medusajs/framework/workflows-sdk";
 import { ContainerRegistrationKeys, MedusaError, Modules } from "@medusajs/framework/utils";
 import type { Link } from "@medusajs/modules-sdk";
-import type { RemoteQueryFunction, UpdateInventoryLevelInput } from "@medusajs/types";
+import type { IEventBusModuleService, RemoteQueryFunction, UpdateInventoryLevelInput } from "@medusajs/types";
 import { createInventoryLevelsWorkflow, updateInventoryLevelsWorkflow } from "@medusajs/medusa/core-flows";
 import { ORDER_INVENTORY_MODULE } from "../../modules/inventory_orders";
 import InventoryOrderService from "../../modules/inventory_orders/service";
 import { FULLFILLED_ORDERS_MODULE } from "../../modules/fullfilled_orders";
 import type Fullfilled_ordersService from "../../modules/fullfilled_orders/service";
 import { mirrorUnifiedOrderStatusStep } from "./dual-write-unified-order";
+// #771 — reuse the singular file's pure event builder rather than restating the
+// delta rule; two copies of "did the status change" is how they drift apart.
+import { buildStatusChangedEvent } from "./update-inventory-order";
 import { reprojectInventoryMirrorItemsStep } from "./reproject-inventory-mirror-items";
 import { resolveExistingLevelsStep } from "./partner-complete-inventory-order";
 import inventoryOrdersStockLocations from "../../links/inventory-orders-stock-locations";
@@ -111,18 +114,78 @@ export const fetchOriginalOrderStep = createStep(
 );
 
 // Step 2: Update inventory order fields
+/**
+ * ⚠️ This is NOT the same step as `updateInventoryOrderStep` in the sibling file
+ * `update-inventory-order.ts` (singular). Both files export a step AND a
+ * workflow under identical names — importing from the wrong one silently gets
+ * you different behaviour. The admin PUT `/admin/inventory-orders/:id` resolves
+ * to THIS file.
+ *
+ * #771 — that duplication is how the generic admin edit came to skip the partner
+ * notification flow entirely: the singular file carried a comment claiming
+ * "every status transition routes through updateInventoryOrderStep, so this is
+ * the single choke point", which was false for this path. This step emitted
+ * nothing at all, so an admin moving an order to Shipped or Delivered notified
+ * nobody, with no event and no error to notice.
+ */
+/**
+ * The step body, exported so the WIRING is testable and not just the pure event
+ * builder beside it. #771's gap survived precisely because
+ * `buildStatusChangedEvent` had unit tests while nothing asserted that this path
+ * ever called it.
+ */
+export const applyInventoryOrderFieldUpdate = async (
+  input: { id: string; data: any },
+  container: any
+) => {
+  const inventoryOrderService: InventoryOrderService = container.resolve(ORDER_INVENTORY_MODULE);
+
+  // Capture the prior status only when a status change is intended, so a
+  // metadata-only edit costs no extra read. Mirrors the singular step. #771
+  let previousStatus: string | undefined;
+  if (input.data?.status !== undefined) {
+    try {
+      const existing = await inventoryOrderService.retrieveInventoryOrder(input.id, {
+        select: ["id", "status"],
+      });
+      previousStatus = (existing as any)?.status;
+    } catch {
+      /* best-effort — fall back to emitting without a previous_status */
+    }
+  }
+
+  const updatedOrder = await inventoryOrderService.updateInventoryOrders({
+    selector: { id: input.id },
+    data: { ...input.data },
+  });
+
+  // #771 — the status-changed event the partner notification flow triggers on.
+  // Guarded on an actual delta by `buildStatusChangedEvent`, so a metadata-only
+  // write stays silent. Best-effort: an event-bus failure must never fail an
+  // admin edit.
+  const rows = Array.isArray(updatedOrder) ? updatedOrder : updatedOrder ? [updatedOrder] : [];
+  const event = buildStatusChangedEvent(
+    input.id,
+    previousStatus,
+    (rows[0] as any)?.status,
+    input.data?.status !== undefined
+  );
+  if (event) {
+    try {
+      const eventBus = container.resolve(Modules.EVENT_BUS) as IEventBusModuleService;
+      await eventBus.emit(event);
+    } catch {
+      /* best-effort — never block the update if event emit fails */
+    }
+  }
+
+  return updatedOrder;
+};
+
 export const updateInventoryOrderStep = createStep(
   "update-inventory-order-fields-step",
   async (input: { id: string; data: any }, { container }) => {
-    const inventoryOrderService: InventoryOrderService = container.resolve(ORDER_INVENTORY_MODULE);
-    const updatedOrder = await inventoryOrderService.updateInventoryOrders({
-      selector: {
-        id: input.id
-      },
-      data: {
-        ...input.data
-      }
-    });
+    const updatedOrder = await applyInventoryOrderFieldUpdate(input, container);
     return new StepResponse(updatedOrder, null);
   },
   // Compensation: restore original order fields

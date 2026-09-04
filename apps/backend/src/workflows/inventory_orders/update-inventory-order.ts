@@ -15,9 +15,21 @@ import { mirrorUnifiedOrderStatusStep } from "./dual-write-unified-order";
  * generic `inventory_orders.inventory-orders.updated` on every write —
  * including metadata-only ones — which is too noisy to trigger partner
  * notification visual flows on. This fires only when the status actually
- * changes, carrying previous → new so a flow can branch/guard cleanly. Every
- * status transition (admin edit, partner start, partner complete) routes
- * through `updateInventoryOrderStep`, so this is the single choke point.
+ * changes, carrying previous → new so a flow can branch/guard cleanly.
+ *
+ * ⚠️ There is NO single choke point, and this comment used to claim there was.
+ * Two sibling files export a step AND a workflow under the SAME names:
+ *
+ *   update-inventory-order.ts  (this file) → partner start, ready-for-delivery,
+ *                                            cancel, tracking sync
+ *   update-inventory-orders.ts (plural)    → the generic admin PUT
+ *                                            /admin/inventory-orders/:id
+ *
+ * The plural one emitted nothing, so an admin status edit silently skipped the
+ * partner notification flow — no event, no error, nothing to notice. It now
+ * emits this same event via `buildStatusChangedEvent`. A third writer must emit
+ * too: importing "the" update workflow tells you nothing about which one you
+ * got. (#771)
  */
 export const INVENTORY_ORDER_STATUS_CHANGED_EVENT =
   "inventory_orders.inventory-order.status-changed";
