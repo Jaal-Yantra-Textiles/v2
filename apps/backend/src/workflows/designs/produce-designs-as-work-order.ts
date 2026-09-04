@@ -32,6 +32,12 @@ export type ProduceDesignReport = {
   run_id: string | null
   template_ids: string[]
   dispatched: boolean
+  /**
+   * #1803 — the quantity this design's run carries (defaults to 1). Reported
+   * so a dry run can show what would be created, not just which templates
+   * resolved: quantity is the one planned value the operator cannot infer.
+   */
+  quantity?: number
   /** Why this design was not dispatched, when it was not. */
   reason?: string
 }
@@ -140,19 +146,39 @@ export async function produceDesignsAsWorkOrder(
       run_id: null,
       template_ids: row.template_ids,
       dispatched: false,
+      quantity: row.quantity,
       reason: row.template_ids.length
         ? "dry run — nothing was created"
         : "no templates selected for this design",
     }))
+
+    /**
+     * #1803 — resolve WHICH work-order the lines would land on.
+     *
+     * `findOpenPartnerWorkOrder` is a read-only lookup, so a dry run can
+     * answer the question the operator actually asks before messaging a
+     * partner — "does this join their open batch, or start another order?"
+     * Previously a dry run always reported `work_order_id: null`, which reads
+     * as "a new order" and is wrong exactly when collation is doing its job.
+     */
+    let plannedWorkOrderId: string | null = null
+    if ((options?.collate ?? "partner-open") === "partner-open") {
+      const open = await findOpenPartnerWorkOrder(container, partnerId, {
+        withinDays: options?.collateWithinDays,
+      })
+      plannedWorkOrderId = open?.order_id ?? null
+    }
+
     return {
       created: 0,
       run_ids: [],
       design_ids: [],
-      work_order_id: null,
+      work_order_id: plannedWorkOrderId,
       dry_run: true,
       designs: preview,
       dispatched: [],
       not_dispatched: preview,
+      work_order_joined: Boolean(plannedWorkOrderId),
     }
   }
 
@@ -190,6 +216,7 @@ export async function produceDesignsAsWorkOrder(
           design_id: designId,
           run_id: null,
           template_ids: row.template_ids,
+          quantity: row.quantity,
           dispatched: false,
           reason: "run creation returned no run",
         })
@@ -225,6 +252,7 @@ export async function produceDesignsAsWorkOrder(
           design_id: designId,
           run_id: run.id,
           template_ids: row.template_ids,
+          quantity: row.quantity,
           dispatched: true,
         })
       } catch (e: any) {
@@ -235,6 +263,7 @@ export async function produceDesignsAsWorkOrder(
           design_id: designId,
           run_id: run.id,
           template_ids: row.template_ids,
+          quantity: row.quantity,
           dispatched: false,
           reason: e?.message || "dispatch failed",
         })
@@ -247,6 +276,7 @@ export async function produceDesignsAsWorkOrder(
         design_id: designId,
         run_id: null,
         template_ids: row.template_ids,
+        quantity: row.quantity,
         dispatched: false,
         reason: e?.message || "run creation failed",
       })
