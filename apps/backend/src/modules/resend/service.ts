@@ -12,6 +12,9 @@ import {
   botSuppressionLog,
   BOT_SUPPRESSED_SEND_ID,
 } from "../../lib/bot-recipients"
+import {
+  createSuppressionGuard,
+} from "../../lib/email-suppression-lookup"
 
 type InjectedDependencies = {
   logger: Logger
@@ -27,15 +30,26 @@ class ResendNotificationProviderService extends AbstractNotificationProviderServ
   protected readonly resendClient: Resend
   protected readonly options: ResendOptions
   protected readonly logger: Logger
+  protected readonly suppressionGuard: ReturnType<typeof createSuppressionGuard>
 
   constructor(
-    { logger }: InjectedDependencies,
+    deps: InjectedDependencies,
     options: ResendOptions
   ) {
     super()
+    const { logger } = deps
     this.resendClient = new Resend(options.api_key)
     this.options = options
     this.logger = logger
+    this.suppressionGuard = createSuppressionGuard({
+      // Arrives in the provider container because the notification module
+      // declares `dependencies: ["email_suppression"]` — see the lookup module
+      // and medusa-config.{dev,prod}.ts. #1339
+      suppressionService: (deps as any).email_suppression,
+      logger,
+      provider: "resend",
+      channel: (options as any).channels?.[0] ?? "email",
+    })
   }
 
   static validateOptions(options: Record<any, any>) {
@@ -65,6 +79,17 @@ class ResendNotificationProviderService extends AbstractNotificationProviderServ
         botSuppressionLog("resend", notification.to, notification.template, botVerdict)
       )
       return { id: BOT_SUPPRESSED_SEND_ID }
+    }
+
+    // Suppression ledger (#1339). Separate from the bot guard above: that one is
+    // a pure domain rule, this one asks what the ledger says about this address
+    // on THIS channel. Fails open and logs loudly — see the lookup module.
+    const suppression = await this.suppressionGuard(
+      notification.to,
+      notification.template
+    )
+    if (suppression.suppress) {
+      return { id: suppression.id }
     }
 
     let template: string | null = null
