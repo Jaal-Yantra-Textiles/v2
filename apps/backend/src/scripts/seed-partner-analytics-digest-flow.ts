@@ -21,10 +21,10 @@
  * `active` once those are live.
  *
  * Cadence (locked decision):
- *   Cron `30 3 * * 1` = 09:00 IST Monday when the container runs UTC.
- *   If the container runs in IST, change to `0 9 * * 1`. Confirm via `date`
+ *   Cron `30 3 * * 5` = 09:00 IST Friday when the container runs UTC.
+ *   If the container runs in IST, change to `0 9 * * 5`. Confirm via `date`
  *   on the deployed host before activating. Period defaults to last_7_days,
- *   so a Monday run covers the previous calendar-ish week. The digest is
+ *   so a Friday run covers the previous calendar-ish week. The digest is
  *   compared against the equal-length window immediately before it (S1).
  *
  * Thresholds:
@@ -47,8 +47,11 @@ import VisualFlowService from "../modules/visual_flows/service"
 
 const FLOW_NAME = "Partner Storefront Analytics Digest — Weekly"
 
-// Cron: 09:00 IST Monday assuming a UTC container (03:30 UTC).
-const DIGEST_CRON = "30 3 * * 1"
+// Cron: 09:00 IST Friday assuming a UTC container (03:30 UTC). Friday, not
+// Monday: the installed prod flow was moved to Friday by hand on the canvas
+// (label and cron both), and that operator choice is the live cadence 28
+// partners already receive. The def follows prod here rather than the reverse.
+const DIGEST_CRON = "30 3 * * 5"
 
 // ─── Canvas positions ────────────────────────────────────────────────────────
 const X_CENTER = 500
@@ -68,13 +71,13 @@ export const FLOW_DEF = {
   status: "draft" as const,
   trigger_type: "schedule" as const,
   trigger_config: {
-    cron: DIGEST_CRON, // 09:00 IST Monday assuming UTC container
+    cron: DIGEST_CRON, // 09:00 IST Friday assuming UTC container
   },
 
   canvas_state: {
     viewport: { x: 0, y: 0, zoom: 0.85 },
     nodes: [
-      { id: "trigger",         type: "trigger",   position: { x: X_CENTER, y: -20 },        data: { label: "Schedule — 09:00 IST Monday", triggerType: "schedule", triggerConfig: { cron: DIGEST_CRON } } },
+      { id: "trigger",         type: "trigger",   position: { x: X_CENTER, y: -20 },        data: { label: "Schedule — 09:00 IST Friday", triggerType: "schedule", triggerConfig: { cron: DIGEST_CRON } } },
       { id: "compute_digests", type: "operation", position: { x: X_CENTER, y: Y_DIGEST },   data: { label: "Compute Partner Digests", operationKey: "compute_digests", operationType: "partner_analytics_digest", options: { period: "last_7_days", max_partners: 200, continue_on_error: true } } },
       { id: "send_digests",    type: "operation", position: { x: X_CENTER, y: Y_DISPATCH }, data: { label: "Send Digest Emails",      operationKey: "send_digests",    operationType: "bulk_trigger_workflow", options: { workflow_name: "send-partner-digest-email", items: "{{ compute_digests.digests }}", input_template: { digest: "{{ item }}" }, continue_on_error: true, max_items: 200 } } },
       { id: "log_summary",     type: "operation", position: { x: X_CENTER, y: Y_LOG },      data: { label: "Log Summary",            operationKey: "log_summary",     operationType: "log", options: { message: "Partner digest run — partners={{ compute_digests.count }} with_storefront={{ compute_digests.with_storefront }} with_suggestions={{ compute_digests.with_suggestions }} suggestions={{ compute_digests.suggestion_count }} failed_compute={{ compute_digests.failed }} emails_triggered={{ send_digests.triggered }} emails_failed={{ send_digests.failed }}", level: "info" } } },
@@ -202,7 +205,7 @@ export default async function seedPartnerAnalyticsDigestFlow({
   console.log(`     (active) and set MAILEROO_FROM_DOMAIN / PARTNER_DASHBOARD_URL`)
   console.log(`     / FRONTEND_URL (S2 ops tail).`)
   console.log(`  3. Confirm the deployed container's local time matches the cron`)
-  console.log(`     assumption. This seed uses "${DIGEST_CRON}" = 09:00 IST Monday`)
+  console.log(`     assumption. This seed uses "${DIGEST_CRON}" = 09:00 IST Friday`)
   console.log(`     assuming UTC. If the container is in IST, edit to "0 9 * * 1".`)
   console.log(`  4. Flip flow status: draft → active in the admin editor.`)
 }
