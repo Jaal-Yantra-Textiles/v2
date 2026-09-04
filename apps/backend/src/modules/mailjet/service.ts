@@ -80,7 +80,7 @@ class MailjetNotificationProviderService extends AbstractNotificationProviderSer
     this.options = options
     this.logger = logger
     this.suppressionGuard = createSuppressionGuard({
-      pg: (deps as any).__pg_connection__,
+      suppressionService: (deps as any).email_suppression,
       logger,
       provider: "mailjet",
       channel: (options as any).channels?.[0] ?? "email_bulk",

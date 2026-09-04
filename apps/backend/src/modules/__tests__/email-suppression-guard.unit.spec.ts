@@ -20,11 +20,11 @@ const makeLogger = () => ({
   log: jest.fn(),
 })
 
-/** A pg double that returns rows only for the suppressed address. */
-const makePg = (reason: string) => ({
-  raw: jest.fn(async (_sql: string, bindings?: unknown[]) => {
-    const email = String((bindings ?? [])[0] ?? "")
-    return { rows: email === SUPPRESSED ? [{ reason }] : [] }
+/** A suppression-service double that returns rows only for the suppressed address. */
+const makeSuppressionService = (reason: string) => ({
+  listEmailSuppressions: jest.fn(async (filters: Record<string, unknown>) => {
+    const email = String((filters ?? {}).email ?? "")
+    return email === SUPPRESSED ? [{ reason }] : []
   }),
 })
 
@@ -51,7 +51,7 @@ describe("suppression ledger is enforced at every provider (#1339)", () => {
 
     it("does not call Resend for a hard-bounced address", async () => {
       const svc = new (load())(
-        { logger: makeLogger(), __pg_connection__: makePg("hard_bounce") },
+        { logger: makeLogger(), email_suppression: makeSuppressionService("hard_bounce") },
         { api_key: "re_test", from: "a@b.com", channels: ["email"] }
       )
 
@@ -63,7 +63,7 @@ describe("suppression ledger is enforced at every provider (#1339)", () => {
 
     it("still sends to an address with nothing on file", async () => {
       const svc = new (load())(
-        { logger: makeLogger(), __pg_connection__: makePg("hard_bounce") },
+        { logger: makeLogger(), email_suppression: makeSuppressionService("hard_bounce") },
         { api_key: "re_test", from: "a@b.com", channels: ["email"] }
       )
 
@@ -74,7 +74,7 @@ describe("suppression ledger is enforced at every provider (#1339)", () => {
 
     it("still sends to someone who only unsubscribed — they paid for the order", async () => {
       const svc = new (load())(
-        { logger: makeLogger(), __pg_connection__: makePg("unsubscribe") },
+        { logger: makeLogger(), email_suppression: makeSuppressionService("unsubscribe") },
         { api_key: "re_test", from: "a@b.com", channels: ["email"] }
       )
 
@@ -86,7 +86,7 @@ describe("suppression ledger is enforced at every provider (#1339)", () => {
     it("sends when the ledger is unreachable, rather than dropping real mail", async () => {
       const logger = makeLogger()
       const svc = new (load())(
-        { logger, __pg_connection__: undefined },
+        { logger, email_suppression: undefined },
         { api_key: "re_test", from: "a@b.com", channels: ["email"] }
       )
 
@@ -103,7 +103,7 @@ describe("suppression ledger is enforced at every provider (#1339)", () => {
 
     it("does not call Mailjet for an unsubscribed address", async () => {
       const svc = new (load())(
-        { logger: makeLogger(), __pg_connection__: makePg("unsubscribe") },
+        { logger: makeLogger(), email_suppression: makeSuppressionService("unsubscribe") },
         {
           api_key: "k",
           secret_key: "s",
@@ -120,7 +120,7 @@ describe("suppression ledger is enforced at every provider (#1339)", () => {
 
     it("drops the suppressed address out of a bulk batch", async () => {
       const svc = new (load())(
-        { logger: makeLogger(), __pg_connection__: makePg("hard_bounce") },
+        { logger: makeLogger(), email_suppression: makeSuppressionService("hard_bounce") },
         {
           api_key: "k",
           secret_key: "s",

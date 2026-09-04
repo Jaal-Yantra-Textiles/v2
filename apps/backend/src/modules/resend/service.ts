@@ -42,9 +42,10 @@ class ResendNotificationProviderService extends AbstractNotificationProviderServ
     this.options = options
     this.logger = logger
     this.suppressionGuard = createSuppressionGuard({
-      // `__pg_connection__` is in the provider container; the suppression MODULE
-      // is not (probed — see email-suppression-lookup.ts). #1339
-      pg: (deps as any).__pg_connection__,
+      // Arrives in the provider container because the notification module
+      // declares `dependencies: ["email_suppression"]` — see the lookup module
+      // and medusa-config.{dev,prod}.ts. #1339
+      suppressionService: (deps as any).email_suppression,
       logger,
       provider: "resend",
       channel: (options as any).channels?.[0] ?? "email",

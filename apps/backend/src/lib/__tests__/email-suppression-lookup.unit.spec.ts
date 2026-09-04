@@ -20,17 +20,18 @@ const makeLogger = () => ({
   debug: jest.fn((_msg: string) => undefined),
 })
 
-const pgReturning = (...reasons: string[]) => ({
-  raw: jest.fn(async (_sql: string, _bindings?: unknown[]) => ({
-    rows: reasons.map((reason) => ({ reason })),
-  })),
+const serviceReturning = (...reasons: string[]) => ({
+  listEmailSuppressions: jest.fn(
+    async (_filters: Record<string, unknown>, _config?: unknown) =>
+      reasons.map((reason) => ({ reason }))
+  ),
 })
 
 describe("email suppression guard", () => {
   it("suppresses a hard bounce on the transactional channel", async () => {
     const logger = makeLogger()
     const guard = createSuppressionGuard({
-      pg: pgReturning("hard_bounce"),
+      suppressionService: serviceReturning("hard_bounce"),
       logger: logger as any,
       provider: "resend",
       channel: "email",
@@ -50,7 +51,7 @@ describe("email suppression guard", () => {
   it("sends when the ledger has nothing on the address", async () => {
     const logger = makeLogger()
     const guard = createSuppressionGuard({
-      pg: pgReturning(),
+      suppressionService: serviceReturning(),
       logger: logger as any,
       provider: "resend",
       channel: "email",
@@ -66,7 +67,7 @@ describe("email suppression guard", () => {
     it("delivers a partner's mail after their spam complaint, and raises an alert", async () => {
       const logger = makeLogger()
       const guard = createSuppressionGuard({
-        pg: pgReturning("spam_complaint"),
+        suppressionService: serviceReturning("spam_complaint"),
         logger: logger as any,
         provider: "maileroo",
         channel: "email_partner",
@@ -82,7 +83,7 @@ describe("email suppression guard", () => {
     it("still blocks a partner address that hard-bounced", async () => {
       const logger = makeLogger()
       const guard = createSuppressionGuard({
-        pg: pgReturning("hard_bounce"),
+        suppressionService: serviceReturning("hard_bounce"),
         logger: logger as any,
         provider: "maileroo",
         channel: "email_partner",
@@ -95,13 +96,13 @@ describe("email suppression guard", () => {
   describe("failing open, loudly", () => {
     it("sends and logs an error when the query throws", async () => {
       const logger = makeLogger()
-      const pg = {
-        raw: jest.fn(async (_sql: string, _bindings?: unknown[]) => {
+      const service = {
+        listEmailSuppressions: jest.fn(async () => {
           throw new Error("connection terminated")
         }),
       }
       const guard = createSuppressionGuard({
-        pg,
+        suppressionService: service,
         logger: logger as any,
         provider: "resend",
         channel: "email",
@@ -118,7 +119,7 @@ describe("email suppression guard", () => {
     it("sends and says the guard is not running when there is no connection", async () => {
       const logger = makeLogger()
       const guard = createSuppressionGuard({
-        pg: undefined,
+        suppressionService: undefined,
         logger: logger as any,
         provider: "resend",
         channel: "email",
@@ -133,7 +134,7 @@ describe("email suppression guard", () => {
     it("does not repeat the missing-connection error on every send", async () => {
       const logger = makeLogger()
       const guard = createSuppressionGuard({
-        pg: null,
+        suppressionService: null,
         logger: logger as any,
         provider: "resend",
         channel: "email",
@@ -150,10 +151,10 @@ describe("email suppression guard", () => {
   describe("caching", () => {
     it("reuses a result within the TTL and re-queries after it", async () => {
       const logger = makeLogger()
-      const pg = pgReturning("hard_bounce")
+      const service = serviceReturning("hard_bounce")
       let clock = 1_000
       const lookup = createSuppressionLookup({
-        pg,
+        suppressionService: service,
         logger: logger as any,
         provider: "resend",
         now: () => clock,
@@ -161,18 +162,18 @@ describe("email suppression guard", () => {
 
       await lookup("x@example.com")
       await lookup("x@example.com")
-      expect(pg.raw).toHaveBeenCalledTimes(1)
+      expect(service.listEmailSuppressions).toHaveBeenCalledTimes(1)
 
       clock += SUPPRESSION_CACHE_TTL_MS + 1
       await lookup("x@example.com")
-      expect(pg.raw).toHaveBeenCalledTimes(2)
+      expect(service.listEmailSuppressions).toHaveBeenCalledTimes(2)
     })
 
     it("normalizes the address so casing and display names share a cache entry", async () => {
       const logger = makeLogger()
-      const pg = pgReturning()
+      const service = serviceReturning()
       const lookup = createSuppressionLookup({
-        pg,
+        suppressionService: service,
         logger: logger as any,
         provider: "resend",
       })
@@ -181,30 +182,30 @@ describe("email suppression guard", () => {
       await lookup("  foo@example.com ")
       await lookup("Foo Bar <foo@example.com>")
 
-      expect(pg.raw).toHaveBeenCalledTimes(1)
+      expect(service.listEmailSuppressions).toHaveBeenCalledTimes(1)
     })
 
     it("never queries for an empty address", async () => {
       const logger = makeLogger()
-      const pg = pgReturning()
-      const lookup = createSuppressionLookup({ pg, logger: logger as any, provider: "resend" })
+      const service = serviceReturning()
+      const lookup = createSuppressionLookup({ suppressionService: service, logger: logger as any, provider: "resend" })
 
       expect(await lookup("")).toEqual([])
-      expect(pg.raw).not.toHaveBeenCalled()
+      expect(service.listEmailSuppressions).not.toHaveBeenCalled()
     })
   })
 
   describe("bulk", () => {
     it("splits a batch into sendable and suppressed", async () => {
       const logger = makeLogger()
-      const pg = {
-        raw: jest.fn(async (_sql: string, bindings?: unknown[]) => {
-          const email = String((bindings ?? [])[0] ?? "")
-          return { rows: email === "dead@example.com" ? [{ reason: "hard_bounce" }] : [] }
+      const service = {
+        listEmailSuppressions: jest.fn(async (filters: Record<string, unknown>) => {
+          const email = String((filters ?? {}).email ?? "")
+          return email === "dead@example.com" ? [{ reason: "hard_bounce" }] : []
         }),
       }
       const guard = createSuppressionGuard({
-        pg,
+        suppressionService: service,
         logger: logger as any,
         provider: "mailjet",
         channel: "email_bulk",

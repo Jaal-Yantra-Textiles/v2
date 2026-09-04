@@ -1,20 +1,27 @@
 /**
  * Reads the `email_suppression` ledger from inside a notification provider (#1339).
  *
- * ── Why this is a raw query and not a module service ──────────────────────────
+ * ── How the provider reaches another module ───────────────────────────────────
  *
  * Notification providers are constructed as `new klass(cradle, options)` where
- * `cradle` is the NOTIFICATION MODULE'S OWN container — not the app container.
- * Probed directly by dumping the keys at construction:
+ * `cradle` is the NOTIFICATION MODULE'S OWN container, not the app container. By
+ * default that container holds only six injected keys — MANAGER, CONFIG_MODULE,
+ * LOGGER, PG_CONNECTION, EVENT_BUS, CACHING — so `email_suppression` is absent
+ * and a naive `container.resolve` inside a provider fails.
  *
- *   event_bus, logger, manager, configModule, __pg_connection__, caching,
- *   __providers__…, notificationModuleService, baseRepository, …
+ * The supported fix is `dependencies` on the module registration:
  *
- * `email_suppression` is NOT there, and no amount of declaring it as a
- * dependency puts it there — other modules are simply not resolvable from a
- * provider (the same boundary that hides fulfillment providers from the app
- * container). What IS there is `__pg_connection__`, a connection to the same
- * database. So the provider reads the one indexed column it needs directly.
+ *   { resolve: "@medusajs/medusa/notification",
+ *     dependencies: ["email_suppression"], options: { providers: [...] } }
+ *
+ * `loadInternalProvider` registers every declared dependency into the module's
+ * local container before the providers are built, so the service arrives in the
+ * cradle as `email_suppression`. Verified by dumping the cradle keys at
+ * construction with and without the declaration.
+ *
+ * ⚠️ That declaration lives in `medusa-config.dev.ts` and `medusa-config.prod.ts`.
+ * Without it the service is simply absent and this guard degrades to "not
+ * enforced" — loudly, see below, but silently in effect. Do not remove it.
  *
  * ── Fail OPEN, and loudly ─────────────────────────────────────────────────────
  *
@@ -55,17 +62,17 @@ export const normalizeSuppressionEmail = (raw: unknown): string => {
 /**
  * Build a cached lookup bound to one provider.
  *
- * `pg` is whatever `cradle.__pg_connection__` holds (a knex instance). It is
- * typed loosely on purpose: the provider must keep working if the key is
- * missing, which is exactly the case this guards.
+ * `suppressionService` is whatever `cradle.email_suppression` holds. It is typed
+ * loosely on purpose: the provider must keep working if the dependency was never
+ * declared, which is exactly the case the missing-service branch guards.
  */
 export function createSuppressionLookup(opts: {
-  pg: any
+  suppressionService: any
   logger: Logger
   provider: string
   now?: () => number
 }): SuppressionLookup {
-  const { pg, logger, provider } = opts
+  const { suppressionService, logger, provider } = opts
   const now = opts.now ?? (() => Date.now())
   const cache = new Map<string, CacheEntry>()
   let warnedMissingConnection = false
@@ -81,14 +88,14 @@ export function createSuppressionLookup(opts: {
       return hit.reasons
     }
 
-    if (!pg || typeof pg.raw !== "function") {
+    if (!suppressionService || typeof suppressionService.listEmailSuppressions !== "function") {
       // Loud, but only once per provider instance — a per-send error line here
       // would bury the log without telling anyone anything new.
       if (!warnedMissingConnection) {
         warnedMissingConnection = true
         logger.error(
           `[email-suppression-unavailable] provider=${provider} ` +
-            `reason="no __pg_connection__ in provider container" ` +
+            `reason="email_suppression not in the provider container — is it declared in the notification module's dependencies?" ` +
             `impact="suppression ledger is NOT being enforced on this channel"`
         )
       }
@@ -96,16 +103,17 @@ export function createSuppressionLookup(opts: {
     }
 
     try {
-      const result = await pg.raw(
-        `select distinct reason
-           from email_suppression
-          where lower(email) = ?
-            and deleted_at is null`,
-        [email]
+      // Writers normalize to lowercase (`normalizeEmail` in suppress-core), so
+      // an exact match on the normalized address is correct here.
+      const rows = await suppressionService.listEmailSuppressions(
+        { email },
+        { select: ["reason"] }
       )
-      const reasons = (result?.rows ?? [])
-        .map((r: any) => r?.reason)
-        .filter(Boolean) as SuppressionReason[]
+      const reasons = Array.from(
+        new Set(
+          (rows ?? []).map((r: any) => r?.reason).filter(Boolean)
+        )
+      ) as SuppressionReason[]
 
       if (cache.size >= SUPPRESSION_CACHE_MAX_ENTRIES) {
         cache.clear()
@@ -136,7 +144,7 @@ export function createSuppressionLookup(opts: {
  * with the prod mapping as the fallback.
  */
 export function createSuppressionGuard(opts: {
-  pg: any
+  suppressionService: any
   logger: Logger
   provider: string
   channel: string

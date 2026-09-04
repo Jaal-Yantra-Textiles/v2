@@ -83,7 +83,7 @@ class MailerooNotificationProviderService extends AbstractNotificationProviderSe
     this.options = options
     this.logger = logger
     this.suppressionGuard = createSuppressionGuard({
-      pg: (deps as any).__pg_connection__,
+      suppressionService: (deps as any).email_suppression,
       logger,
       provider: "maileroo",
       channel: (options as any).channels?.[0] ?? "email_partner",

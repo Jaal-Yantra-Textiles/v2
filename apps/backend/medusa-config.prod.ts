@@ -207,6 +207,10 @@ module.exports = defineConfig({
 
     {
       resolve: "@medusajs/medusa/notification",
+      // #1339 — puts the suppression ledger's service into the provider
+      // container. Without this the guard in each email provider degrades to
+      // "not enforced" (it logs [email-suppression-unavailable] and sends).
+      dependencies: ["email_suppression"],
       options: {
         providers: [
           {
