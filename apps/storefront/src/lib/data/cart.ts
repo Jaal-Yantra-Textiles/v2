@@ -16,6 +16,7 @@ import {
 } from "./cookies"
 import { getRegion } from "./regions"
 import { getLocale } from "@lib/data/locale-actions"
+import type { QuoteCartTerms } from "types/quote-terms"
 
 /**
  * Retrieves a cart by its ID. If no ID is provided, it will use the cart ID from the cookies.
@@ -75,6 +76,47 @@ export async function retrieveCart(cartId?: string, fields?: string) {
  */
 const isQuoteBoundCart = (cart?: { metadata?: Record<string, unknown> | null } | null) =>
   Boolean(cart?.metadata?.quote_id)
+
+/**
+ * The quote terms behind a cart, or null (#1787).
+ *
+ * 🔴 Never computes a deposit here. The backend derives it with the same
+ * function that creates the payment collection, so what the page promises and
+ * what the gateway charges cannot drift apart.
+ *
+ * Swallows failures on purpose: this decorates a cart page, and a cart must
+ * still render — at its plain total, which is always correct — if the lookup
+ * fails.
+ */
+export async function retrieveQuoteTerms(
+  cartId?: string
+): Promise<QuoteCartTerms | null> {
+  const id = cartId || (await getCartId())
+
+  if (!id) {
+    return null
+  }
+
+  const headers = {
+    ...(await getAuthHeaders()),
+  }
+
+  const next = {
+    ...(await getCacheOptions("carts")),
+  }
+
+  return sdk.client
+    .fetch<{ quote_terms: QuoteCartTerms }>(`/store/carts/${id}/quote-terms`, {
+      method: "GET",
+      headers,
+      // Tagged with the cart, so paying the deposit revalidates it. NOT
+      // force-cached: `deposit_status` flips from `pending` to `paid` and a
+      // stale copy would keep asking a buyer for money she has already sent.
+      next,
+    })
+    .then(({ quote_terms }) => quote_terms ?? null)
+    .catch(() => null)
+}
 
 export async function getOrSetCart(countryCode: string) {
   const region = await getRegion(countryCode)

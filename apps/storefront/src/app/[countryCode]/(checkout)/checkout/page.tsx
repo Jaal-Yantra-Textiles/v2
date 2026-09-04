@@ -1,4 +1,4 @@
-import { retrieveCart } from "@lib/data/cart"
+import { retrieveCart, retrieveQuoteTerms } from "@lib/data/cart"
 import { retrieveCustomer } from "@lib/data/customer"
 import PaymentWrapper from "@modules/checkout/components/payment-wrapper"
 import CheckoutForm from "@modules/checkout/templates/checkout-form"
@@ -18,14 +18,18 @@ export default async function Checkout() {
     return notFound()
   }
 
-  const customer = await retrieveCustomer()
+  // #1787 — the deposit must be visible here, not first met at Review.
+  const [customer, quoteTerms] = await Promise.all([
+    retrieveCustomer(),
+    retrieveQuoteTerms(cart.id),
+  ])
 
   return (
     <div className="grid grid-cols-1 small:grid-cols-[1fr_416px] content-container gap-x-40 py-12">
       <PaymentWrapper cart={cart}>
         <CheckoutForm cart={cart} customer={customer} />
       </PaymentWrapper>
-      <CheckoutSummary cart={cart} />
+      <CheckoutSummary cart={cart} quoteTerms={quoteTerms} />
     </div>
   )
 }
