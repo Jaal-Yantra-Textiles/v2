@@ -34,6 +34,15 @@ describe("partner-mcp per-ask tool slicing", () => {
       expect(orphans).toEqual([])
     })
 
+    it("keeps ID-card person onboarding on the always-present core slice", () => {
+      // /partners/people had NO prefix entry when the tool was added, which
+      // would have classified it `undefined` — reachable from no ask. `core`
+      // because adding a worker is onboarding, and core is always loaded.
+      expect(
+        toolDomain(PARTNER_MCP_TOOLS.find((t) => t.name === "add_person_from_id_card")!)
+      ).toBe("core")
+    })
+
     it("classifies store PRODUCTS as catalog, and store CONFIG as storefront", () => {
       // Store products live under /partners/stores/:id/products, but a partner
       // asks for them in product words ("update the price of my product"), never

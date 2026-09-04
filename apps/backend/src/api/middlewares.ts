@@ -234,6 +234,8 @@ import { sendToPartnerSchema } from "./admin/inventory-orders/[id]/send-to-partn
 import { EmailTemplateQueryParams, EmailTemplateSchema, UpdateEmailTemplateSchema } from "./admin/email-templates/validators";
 import { CreateAgreementSchema, UpdateAgreementSchema } from "./admin/agreements/validators";
 import { AdminImageExtractionReq } from "./admin/ai/image-extraction/validators";
+import { AdminIdExtractionReq } from "./admin/people/id-extraction/validators";
+import { PartnerIdExtractionReq } from "./partners/people/id-extraction/validators";
 import { AdminSendPersonAgreementReq } from "./admin/persons/[id]/agreements/validators";
 import { folderSchema, uploadMediaSchema } from "./admin/medias/validator";
 import { ExtractFeaturesRequestSchema } from "./admin/medias/extract-features/validators";
@@ -1536,6 +1538,17 @@ export default defineMiddlewares({
       middlewares: [
         createCorsPartnerMiddleware(),
         authenticate("partner", ["session", "bearer"]),
+      ],
+    },
+    // 🔴 A partner route 401s until it is named HERE — auth is per-route, and
+    // neither tsc nor a green suite says a word about the omission.
+    {
+      matcher: "/partners/people/id-extraction",
+      method: "POST",
+      middlewares: [
+        createCorsPartnerMiddleware(),
+        authenticate("partner", ["session", "bearer"]),
+        validateAndTransformBody(wrapSchema(PartnerIdExtractionReq)),
       ],
     },
     {
@@ -4059,6 +4072,14 @@ export default defineMiddlewares({
       matcher: "/admin/ai/image-extraction",
       method: "POST",
       middlewares: [validateAndTransformBody(wrapSchema(AdminImageExtractionReq))],
+    },
+    // ID card → person (vision extraction). Sibling of the image-extraction
+    // endpoint above; separate validator because the payload and the retention
+    // policy are different — see lib/people/id-card.ts.
+    {
+      matcher: "/admin/people/id-extraction",
+      method: "POST",
+      middlewares: [validateAndTransformBody(wrapSchema(AdminIdExtractionReq))],
     },
     // Inventory-nested alias of the image-extraction endpoint (#770) — the
     // canonical "Import From Image" path under the Inventory resource. Same

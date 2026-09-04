@@ -55,6 +55,14 @@ const PREFIX_DOMAINS: ReadonlyArray<readonly [string, PartnerToolDomain]> = [
   // product, check own usage from anywhere.
   ["/partners/ai", "core"],
   ["/partners/notifications", "core"],
+  /**
+   * The partner's own people (weavers, artisans on their roster).
+   *
+   * 🔴 Without this entry the row classifies as `undefined` and loads in NO
+   * slice — registered and reachable from no ask. `core` because adding a
+   * person is onboarding work, and core is always present.
+   */
+  ["/partners/people", "core"],
 
   // ---- orders: fulfilment + the whole post-purchase lifecycle ----
   ["/partners/orders", "orders"],

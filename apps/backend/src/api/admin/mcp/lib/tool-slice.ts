@@ -128,6 +128,17 @@ const PREFIX_DOMAINS: ReadonlyArray<readonly [string, AdminToolDomain]> = [
   // Stats dashboards + panels. Their own domain: a "create a stats panel"
   // ask is about the analytics surface, not any one business domain.
   ["/admin/stats", "stats"],
+  /**
+   * The people directory — weavers and artisans rostered under a partner.
+   *
+   * 🔴 Without this entry the ID-card extraction tool classifies as `undefined`
+   * and loads in NO slice: registered, callable in principle, and reachable
+   * from no ask. Same trap the payout tools fell into above.
+   *
+   * It rides `partners` because that is the ask it belongs to — "add this
+   * weaver to the partner" — not `customers`, which is the storefront buyer.
+   */
+  ["/admin/people", "partners"],
 ]
 
 /** Classify one tool by the route it wraps. */
@@ -194,6 +205,11 @@ const DOMAIN_KEYWORDS: Record<Exclude<AdminToolDomain, "core">, string[]> = {
     "maker", "makers", "artisan", "artisans", "weaver", "weavers", "vendor",
     "vendors", "onboard", "onboarding", "whatsapp", "subscription", "plan",
     "commission", "fee", "fees", "admin user", "verify", "verification",
+    // People onboarding from an identity document (#1787 follow-on). "id card"
+    // and "aadhaar" are what an operator actually types; without them the ask
+    // "add this weaver from her aadhaar" matches only on "weaver".
+    "people", "person", "id card", "identity", "aadhaar", "pan card",
+    "passport", "voter id", "driving licence", "driving license",
   ],
   designs: [
     "design", "designs", "designer", "moodboard", "tech pack", "techpack",
