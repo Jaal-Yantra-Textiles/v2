@@ -1540,6 +1540,17 @@ export default defineMiddlewares({
         authenticate("partner", ["session", "bearer"]),
       ],
     },
+    // The balance activation (#1451 follow-on). No body validator: the order
+    // comes from the path and the partner from the session, so there is nothing
+    // to validate and nothing to spoof.
+    {
+      matcher: "/partners/orders/:id/request-balance",
+      method: "POST",
+      middlewares: [
+        createCorsPartnerMiddleware(),
+        authenticate("partner", ["session", "bearer"]),
+      ],
+    },
     // 🔴 A partner route 401s until it is named HERE — auth is per-route, and
     // neither tsc nor a green suite says a word about the omission.
     {
