@@ -86,6 +86,35 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
         quantity: l.quantity,
         position: l.position ?? 0,
         ...(l.design_id ? { design_id: l.design_id } : {}),
+        /**
+         * The negotiated price the draft was saved with (#1806).
+         *
+         * 🔴 This is the layer the number died at last. The grid collected it,
+         * the validator accepted it, the mint has always known how to freeze it
+         * — and the body built here named five fields, so every draft minted at
+         * catalogue price no matter what the operator had typed.
+         *
+         * 🔑 `!= null` BEFORE `Number(...)`: `override_input_amount` is a
+         * bigNumber column and `Number(null)` is `0` — which would send a 0%
+         * discount, or worse a `0` flat price, on every ordinary line.
+         */
+        ...(l.override_input_amount != null &&
+        l.override_kind === "discount_percent"
+          ? { discount_percent: Number(l.override_input_amount) }
+          : {}),
+        ...(l.override_input_amount != null &&
+        l.override_kind === "override_unit_amount"
+          ? { override_unit_amount: Number(l.override_input_amount) }
+          : {}),
+        /**
+         * The operator-typed weight, for the lines the catalogue cannot weigh.
+         * Without it `buildShippingEstimate` refuses the WHOLE basket on the
+         * first weightless line — so a design-led draft that priced fine in the
+         * grid could not be minted at all.
+         */
+        ...(l.quoted_unit_weight_grams != null
+          ? { unit_weight_grams: Number(l.quoted_unit_weight_grams) }
+          : {}),
       })),
   }
 

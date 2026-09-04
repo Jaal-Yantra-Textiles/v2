@@ -16,6 +16,11 @@ import {
   useUpdateQuoteDraft,
 } from "../../../../../hooks/api/quotes"
 import { BulkDiscountPanel } from "../../../create/bulk-discount-panel"
+import {
+  basketFromDraftLines,
+  conflictingOverrides,
+  draftLinesFromForm,
+} from "../../../create/draft-lines"
 import { AdminLineDesignsPanel } from "../../../create/line-designs-panel"
 import {
   AdminQuoteCreateSchema,
@@ -106,16 +111,22 @@ const DraftItemsForm = ({ draftId }: { draftId: string }) => {
 
   useEffect(() => {
     if (!draft) return
-    const quantities: Record<string, number> = {}
-    const designByVariant: Record<string, string> = {}
-    const productIds: string[] = []
-    for (const line of draft.lines ?? []) {
-      quantities[line.variant_id] = line.quantity
-      if (line.design_id) designByVariant[line.variant_id] = line.design_id
-      if (line.product_id && !productIds.includes(line.product_id)) {
-        productIds.push(line.product_id)
-      }
-    }
+    /**
+     * 🔑 The trade price and the typed weight are hydrated too (#1806).
+     *
+     * They used not to be, and the modal reopened with blank price cells over
+     * lines that HAD a negotiated price — so the next Save, built from those
+     * blanks, erased it. The mapping is shared with the save that mirrors it;
+     * a round trip that loses a field is the same silent discard.
+     */
+    const {
+      quantities,
+      discounts,
+      overrides,
+      weights,
+      design_by_variant: designByVariant,
+      product_ids: productIds,
+    } = basketFromDraftLines(draft.lines as any)
     form.reset({
       ...form.getValues(),
       // 🔴 `?? ""` throughout: a null column handed to a controlled input makes
@@ -126,6 +137,9 @@ const DraftItemsForm = ({ draftId }: { draftId: string }) => {
       destination_country_code: (draft as any).destination_country_code ?? "",
       product_ids: productIds,
       quantities,
+      discounts,
+      overrides,
+      weights,
       design_by_variant: designByVariant,
     } as any)
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -173,16 +187,32 @@ const DraftItemsForm = ({ draftId }: { draftId: string }) => {
    */
   const handleSave = () => {
     const values = form.getValues()
-    const lines = Object.entries(values.quantities ?? {})
-      .filter(([, qty]) => typeof qty === "number" && qty > 0)
-      .map(([variant_id, quantity], index) => ({
-        variant_id,
-        quantity: quantity as number,
-        position: index,
-        ...(values.design_by_variant?.[variant_id]
-          ? { design_id: values.design_by_variant[variant_id] }
-          : {}),
-      }))
+
+    /**
+     * 🔴 Refused HERE, with the line in hand.
+     *
+     * Both rails' schemas refuse a line carrying a discount AND a flat price —
+     * "which one wins" is a question that should not have an answer. Forwarding
+     * the pair would meet the operator as a 400 naming a zod path instead of a
+     * sentence naming the row they need to clear.
+     */
+    const conflicts = conflictingOverrides(values as any)
+    if (conflicts.length) {
+      toast.error(
+        `Clear either the discount or the unit price on ${conflicts.length} line${
+          conflicts.length > 1 ? "s" : ""
+        } — a line takes one or the other, never both.`
+      )
+      return
+    }
+
+    /**
+     * The negotiated price travels with the line (#1806). Built by the shared
+     * mapping rather than inline: the draft page's Mint re-saves this same
+     * basket from its own form, and a second copy that forgot a column is how
+     * a price saved here was silently dropped on the way to the mint.
+     */
+    const lines = draftLinesFromForm(values as any)
 
     /**
      * An empty basket IS savable here — this modal OWNS the basket, so

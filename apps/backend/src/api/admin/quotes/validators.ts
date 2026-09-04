@@ -98,16 +98,41 @@ export const AdminUpdateQuoteDraftReq = AdminCreateQuoteDraftReq.partial().exten
   {
     lines: z
       .array(
-        z.object({
-          variant_id: z.string().min(1),
-          quantity: z.number().int().positive(),
-          product_id: z.string().nullish(),
-          design_id: z.string().nullish(),
-          position: z.number().int().min(0).nullish(),
-          unit_weight_grams: z.number().positive().nullish(),
-          discount_percent: z.number().min(0).max(100).nullish(),
-          override_unit_amount: z.number().positive().nullish(),
-        })
+        z
+          .object({
+            variant_id: z.string().min(1),
+            quantity: z.number().int().positive(),
+            product_id: z.string().nullish(),
+            design_id: z.string().nullish(),
+            position: z.number().int().min(0).nullish(),
+            unit_weight_grams: z.number().positive().nullish(),
+            discount_percent: z.number().min(0).max(100).nullish(),
+            override_unit_amount: z.number().positive().nullish(),
+          })
+          /**
+           * The same rule the MINT refuses on, applied where the number is
+           * first stored (#1806).
+           *
+           * "Which one wins" is not a question that should have an answer. The
+           * draft rail persists these and hands them to the mint later, so a
+           * pair accepted here would be refused minutes afterwards, at the
+           * mint, against a draft that looked saved — the error arriving one
+           * step away from the cell that caused it.
+           */
+          .refine(
+            (l) =>
+              !(
+                l.discount_percent !== null &&
+                l.discount_percent !== undefined &&
+                l.override_unit_amount !== null &&
+                l.override_unit_amount !== undefined
+              ),
+            {
+              message:
+                "A line takes either a discount_percent or an override_unit_amount, never both.",
+              path: ["override_unit_amount"],
+            }
+          )
       )
       .nullish(),
     duties_prepaid: z.boolean().nullish(),

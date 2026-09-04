@@ -16,14 +16,19 @@ const makeReq = (body: any, id = "pq_1") =>
     params: { id },
     validatedBody: body,
     scope: {
-      resolve: () => ({
-        retrievePartnerQuote,
-        updatePartnerQuotes,
-        listPartnerQuoteLines,
-        createPartnerQuoteLines,
-        deletePartnerQuoteLines,
-        deletePartnerQuotes,
-      }),
+      // The route resolves the graph too, to fill in the product a variant
+      // belongs to when the caller did not name one (#1806).
+      resolve: (key: string) =>
+        key === "query"
+          ? { graph: jest.fn().mockResolvedValue({ data: [] }) }
+          : ({
+              retrievePartnerQuote,
+              updatePartnerQuotes,
+              listPartnerQuoteLines,
+              createPartnerQuoteLines,
+              deletePartnerQuoteLines,
+              deletePartnerQuotes,
+            } as any),
     },
   }) as any
 
