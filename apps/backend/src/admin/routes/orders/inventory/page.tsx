@@ -11,11 +11,13 @@ import {
   Button,
   Badge,
   StatusBadge,
+  Tooltip,
+  TooltipProvider,
 } from "@medusajs/ui";
 import { Outlet, useNavigate, useSearchParams } from "react-router-dom";
 import { keepPreviousData } from "@tanstack/react-query";
 import { defineRouteConfig } from "@medusajs/admin-sdk";
-import { ToolsSolid, PencilSquare } from "@medusajs/icons";
+import { ToolsSolid, PencilSquare, InformationCircleSolid } from "@medusajs/icons";
 import CreateButton from "../../../components/creates/create-button";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { EntityActions } from "../../../components/persons/personsActions";
@@ -36,7 +38,47 @@ import {
 const columnHelper = createColumnHelper<AdminInventoryOrder>();
 export const useColumns = () => {
   const columns = useMemo(() => [
-    columnHelper.accessor("id", { header: "Order ID", enableSorting: true }),
+    columnHelper.display({
+      id: "partner",
+      header: "Partner",
+      // Derived via the partner-inventory-order link (not an order column) →
+      // not server-sortable. Replaces the "Order ID" column; line details ride
+      // in the tooltip.
+      cell: ({ row }) => {
+        const partner = row.original.partner;
+        const orderLines = (row.original as any).order_lines || [];
+        const name = partner?.name;
+        return (
+          <div className="flex items-center gap-1.5">
+            <span className="text-ui-fg-base">{name || "—"}</span>
+            {orderLines.length > 0 && (
+              <TooltipProvider>
+                <Tooltip
+                  content={
+                    <div className="flex flex-col gap-y-1">
+                      {orderLines.map((line: any, i: number) => {
+                        const label =
+                          line.material_name ||
+                          line.inventory_items?.[0]?.title ||
+                          line.inventory_items?.[0]?.sku ||
+                          "Item";
+                        return (
+                          <span key={line.id ?? i} className="text-ui-fg-base">
+                            {label} — Qty {line.quantity} × ₹{line.price}
+                          </span>
+                        );
+                      })}
+                    </div>
+                  }
+                >
+                  <InformationCircleSolid className="text-ui-fg-muted" />
+                </Tooltip>
+              </TooltipProvider>
+            )}
+          </div>
+        );
+      },
+    }),
     columnHelper.accessor("status", { header: "Status", enableSorting: true }),
     columnHelper.display({
       id: "work_status",
@@ -56,14 +98,6 @@ export const useColumns = () => {
     columnHelper.accessor("total_price", { header: "Total Price", enableSorting: true }),
     columnHelper.accessor("order_date", {
       header: "Order Date",
-      enableSorting: true,
-      cell: info => {
-        const val = info.getValue<string>();
-        return val ? new Date(val).toLocaleDateString() : "-";
-      },
-    }),
-    columnHelper.accessor("expected_delivery_date", {
-      header: "Expected Delivery",
       enableSorting: true,
       cell: info => {
         const val = info.getValue<string>();
