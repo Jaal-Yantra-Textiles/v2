@@ -440,3 +440,124 @@ export const useQuotableDesigns = (
 
   return { designs: data?.designs ?? [], count: data?.count ?? 0, ...rest }
 }
+
+// ─── Drafts (#1446) ─────────────────────────────────────────────────────────
+
+/**
+ * A draft is a REAL ROW from the first save, the way a draft order is.
+ *
+ * The create modal asks only for what the table's NOT NULL columns demand —
+ * partner, destination, currency — and every later section PATCHes the row it
+ * created. Nothing is held in the browser between sections.
+ */
+export type AdminQuoteDraft = AdminQuote & {
+  lines?: Array<{
+    id: string
+    variant_id: string
+    product_id?: string | null
+    design_id?: string | null
+    quantity: number
+    position?: number | null
+  }>
+}
+
+export const useQuoteDraft = (
+  id: string,
+  options?: Omit<UseQueryOptions<any, FetchError, any, any>, "queryFn" | "queryKey">
+) =>
+  useQuery({
+    queryKey: quoteQueryKeys.detail(`draft-${id}`),
+    queryFn: async () =>
+      sdk.client.fetch<{ draft: AdminQuoteDraft }>(
+        `/admin/quotes/drafts/${id}`,
+        { method: "GET" }
+      ),
+    enabled: !!id,
+    ...options,
+  })
+
+export const useCreateQuoteDraft = (
+  options?: UseMutationOptions<any, FetchError, Record<string, unknown>>
+) => {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (payload) =>
+      sdk.client.fetch<{ draft: AdminQuoteDraft }>("/admin/quotes/drafts", {
+        method: "POST",
+        body: payload,
+      }),
+    onSuccess: (data, vars, _mutateResult, ctx) => {
+      queryClient.invalidateQueries({ queryKey: quoteQueryKeys.lists() })
+      options?.onSuccess?.(data, vars, _mutateResult, ctx)
+    },
+    ...options,
+  })
+}
+
+/**
+ * One section saving its own answers.
+ *
+ * 🔑 Send ONLY the keys that section owns. The route writes exactly what it
+ * receives, so a section that helpfully restates its neighbours' fields will
+ * overwrite edits made after it last read them — and an absent `lines` key is
+ * what stops the buyer section emptying the basket.
+ */
+export const useUpdateQuoteDraft = (
+  id: string,
+  options?: UseMutationOptions<any, FetchError, Record<string, unknown>>
+) => {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (payload) =>
+      sdk.client.fetch<{ draft: AdminQuoteDraft }>(
+        `/admin/quotes/drafts/${id}`,
+        { method: "PATCH", body: payload }
+      ),
+    onSuccess: (data, vars, _mutateResult, ctx) => {
+      queryClient.invalidateQueries({
+        queryKey: quoteQueryKeys.detail(`draft-${id}`),
+      })
+      options?.onSuccess?.(data, vars, _mutateResult, ctx)
+    },
+    ...options,
+  })
+}
+
+export const useMintQuoteDraft = (
+  id: string,
+  options?: UseMutationOptions<any, FetchError, void>
+) => {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: () =>
+      sdk.client.fetch<AdminMintQuoteResponse>(
+        `/admin/quotes/drafts/${id}/mint`,
+        { method: "POST" }
+      ),
+    onSuccess: (data, vars, _mutateResult, ctx) => {
+      queryClient.invalidateQueries({ queryKey: quoteQueryKeys.lists() })
+      options?.onSuccess?.(data, vars, _mutateResult, ctx)
+    },
+    ...options,
+  })
+}
+
+
+export const useDeleteQuoteDraft = (
+  id: string,
+  options?: UseMutationOptions<any, FetchError, void>
+) => {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: () =>
+      sdk.client.fetch<{ id: string; deleted: boolean }>(
+        `/admin/quotes/drafts/${id}`,
+        { method: "DELETE" }
+      ),
+    onSuccess: (data, vars, _mutateResult, ctx) => {
+      queryClient.invalidateQueries({ queryKey: quoteQueryKeys.lists() })
+      options?.onSuccess?.(data, vars, _mutateResult, ctx)
+    },
+    ...options,
+  })
+}

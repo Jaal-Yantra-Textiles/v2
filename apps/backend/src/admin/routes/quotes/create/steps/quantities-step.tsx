@@ -12,7 +12,19 @@ import { useProducts } from "../../../../hooks/api/products"
 import { AdminLineDesignsPanel } from "../line-designs-panel"
 import { AdminQuoteCreateSchemaType } from "../schema"
 
-type Props = { form: UseFormReturn<AdminQuoteCreateSchemaType> }
+type Props = {
+  form: UseFormReturn<AdminQuoteCreateSchemaType>
+  /**
+   * Render the per-line design picker inline, below the grid.
+   *
+   * Default `true` keeps every existing caller unchanged. The draft's items
+   * modal passes `false` and lifts the panel into a `StackedFocusModal` on top
+   * of itself instead: inline, the panel competes with a full-width DataGrid
+   * for the same vertical space, and the operator has to scroll past every line
+   * to reach it. Stacked, it opens over the grid it annotates.
+   */
+  showDesignPanel?: boolean
+}
 
 type Row = any
 
@@ -47,7 +59,7 @@ const columnHelper = createDataGridHelper<Row, AdminQuoteCreateSchemaType>()
  * and the header says so. A number typed against a USD quote is otherwise read
  * as dollars; the conversion happens once at mint, at a rate the quote records.
  */
-export const QuantitiesStep = ({ form }: Props) => {
+export const QuantitiesStep = ({ form, showDesignPanel = true }: Props) => {
   const ids = useWatch({ control: form.control, name: "product_ids" })
   const { products } = useProducts({ limit: 100 } as any)
 
@@ -271,9 +283,10 @@ export const QuantitiesStep = ({ form }: Props) => {
       {/*
         Below the grid, not inside it (#1501): a design is picked from hundreds
         by NAME, which is a search, and the grid is a numeric keyboard surface
-        whose arrow-key navigation a combobox would fight.
+        whose arrow-key navigation a combobox would fight. The draft's items
+        modal turns this off and stacks the same panel over the grid instead.
       */}
-      <AdminLineDesignsPanel form={form} products={selected} />
+      {showDesignPanel && <AdminLineDesignsPanel form={form} products={selected} />}
     </div>
   )
 }
