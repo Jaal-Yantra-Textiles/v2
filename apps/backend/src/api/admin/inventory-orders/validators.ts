@@ -17,6 +17,8 @@ export const inventoryOrderLineInputSchema = z.object({
   // Allow decimal quantities >= 0 (0 allowed for empty seeded rows)
   quantity: z.number().nonnegative("Quantity must be zero or positive"),
   price: z.number().nonnegative("Price must be zero or positive"),
+  // Per-unit extra charge on top of `price` (colour/dye job, finishing, …).
+  extra_cost: z.number().nonnegative("Extra cost must be zero or positive").optional(),
   // Optional batch tag for the "keep batches as separate lines" quick-add mode.
   batch_number: z.number().int().positive().nullish(),
   metadata: z.record(z.string(), z.unknown()).optional(),
@@ -48,6 +50,9 @@ const inventoryOrdersBaseSchema = z.object({
   // Allow decimal order quantity (sum of line quantities)
   quantity: z.number().nonnegative("Order quantity must be zero or positive"),
   total_price: z.number().nonnegative("Total price must be zero or positive"),
+  // Order-level tax entered at create time. Written as an order charge of type
+  // "tax" (NOT folded into total_price) so the payable ceiling picks it up.
+  tax_amount: z.number().nonnegative("Tax must be zero or positive").optional(),
   // #778 H9 — ISO currency code; defaults to inr at the DB layer when omitted.
   currency_code: z.string().min(3).max(3).optional(),
   // System-only statuses (e.g. "Partial") are intentionally excluded — see
@@ -188,6 +193,8 @@ export const updateOrderLineSchema = z
     variant_id: z.string().optional(),
     quantity: z.number().optional(),
     price: z.number().optional(),
+    // Per-unit extra charge on top of `price` (see inventoryOrderLineInputSchema).
+    extra_cost: z.number().nonnegative().optional(),
     // Optional batch tag (see inventoryOrderLineInputSchema).
     batch_number: z.number().int().positive().nullish(),
     // Explicit removal marker for an existing line: the update workflow

@@ -28,6 +28,12 @@ interface CreateInventoryOrder {
   metadata?: Record<string, unknown>;
   shipping_address: Record<string, unknown>;
   is_sample: boolean;
+  /**
+   * Order-level tax entered at create time. Written as an `inventory_order_charge`
+   * of type `tax` in the same transaction, so it raises the payable ceiling via
+   * the existing `order-charges` fold (never folded into `total_price`).
+   */
+  tax_amount?: number;
 }
 
 interface CreateOrderLine {
@@ -39,6 +45,8 @@ interface CreateOrderLine {
   color?: string | null;
   material_name?: string | null;
   raw_material_id?: string | null;
+  // Per-unit extra charge on top of `price` (colour job, finishing, …).
+  extra_cost?: number | null;
 }
 
 class InventoryOrderService extends MedusaService({
@@ -109,11 +117,16 @@ class InventoryOrderService extends MedusaService({
     let order: InferTypeOf<typeof InventoryOrder>;
     let orderLines: OrderLinesResponse;
     try {
+      // `tax_amount` is not an inventory_order column — it is a charge that rides
+      // beside the order. Strip it before the order write so `createInventoryOrders`
+      // never sees an unknown field, then write it as a charge below in the SAME
+      // transaction (a failure there rolls the order back too).
+      const { tax_amount, ...orderFields } = inventory_order;
       // Both writes share `sharedContext` → same transaction. A failure on the
       // lines rolls the order back too (rethrow below keeps us inside the
       // transaction's failure path).
       order = (await this.createInventoryOrders(
-        { ...inventory_order },
+        { ...orderFields },
         sharedContext
       )) as InferTypeOf<typeof InventoryOrder>;
 
@@ -121,6 +134,20 @@ class InventoryOrderService extends MedusaService({
         buildOrderLinePayloads(order_lines, order.id),
         sharedContext
       )) as OrderLinesResponse;
+
+      // Order-level tax, recorded as a charge (NOT goods). `type: "tax"` is what
+      // makes `foldOrderCharges` count it as a raise to the payable ceiling.
+      if (tax_amount != null && Number(tax_amount) > 0) {
+        await this.createOrderCharges(
+          {
+            type: "tax",
+            amount: Number(tax_amount),
+            note: null,
+            inventory_orders_id: order.id,
+          },
+          sharedContext
+        );
+      }
     } catch (err: any) {
       throw new MedusaError(
         MedusaError.Types.INVALID_DATA,

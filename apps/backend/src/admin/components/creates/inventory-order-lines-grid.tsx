@@ -21,6 +21,9 @@ type PickedInventoryItem = InventoryItem & {
     id: string
     title?: string | null
     sku?: string | null
+    // #1744 — the variant's existing price (money amounts per currency), so
+    // picking a finished good pre-fills `price`.
+    prices?: Array<{ amount?: number | string | null; currency_code?: string | null }>
     product?: { id: string; title?: string | null; thumbnail?: string | null } | null
   }>
   kind?:
@@ -47,12 +50,15 @@ const ItemComboboxCell = ({
   options,
   loading,
   onSearch,
+  onItemPick,
 }: {
   form: UseFormReturn<any>;
   index: number;
   options: PickerOption[];
   loading?: boolean;
   onSearch?: (query: string) => void;
+  /** Called with the picked item id so the grid can pre-fill `price` (#1744). */
+  onItemPick?: (itemId: string) => void;
 }) => {
   const [query, setQuery] = useState("");
 
@@ -100,7 +106,11 @@ const ItemComboboxCell = ({
         >
           <Combobox
             value={(field.value as string) || ""}
-            onChange={(v) => field.onChange((v as string) ?? "")}
+            onChange={(v) => {
+              const id = (v as string) ?? "";
+              field.onChange(id);
+              if (id && onItemPick) onItemPick(id);
+            }}
             onBlur={field.onBlur}
             searchValue={query}
             onSearchValueChange={setQuery}
@@ -129,6 +139,8 @@ interface InventoryOrderLine {
   inventory_item_id: string;
   quantity: number;
   price: number;
+  // Per-unit extra charge on top of price (colour/dye job, finishing, …).
+  extra_cost?: number;
   batch_number?: number | null;
 }
 
@@ -318,6 +330,33 @@ export const InventoryOrderLinesGrid = <T extends { id: string; title?: string; 
     return map
   }, [mergedItems])
 
+  /**
+   * #1744 — the existing per-unit price to pre-fill when an item is picked.
+   *
+   * A raw-material-backed item prices from its material's `unit_cost`; a
+   * finished-good/variant item prices from the variant's money amounts,
+   * INR-matched (never "the first price" — a variant carries a row per
+   * currency, so prices[0] mixes INR with USD). Null when the item has no
+   * readable price, so the buyer's 0 stands rather than being overwritten.
+   */
+  const existingPriceFor = (itemId: string): number | null => {
+    const item = inventoryItemMap.get(itemId)
+    if (!item) return null
+    const unitCost = item.raw_materials?.unit_cost
+    if (unitCost != null && Number.isFinite(Number(unitCost))) {
+      return Number(unitCost)
+    }
+    const variant = (item.variants ?? [])[0]
+    const prices = variant?.prices ?? []
+    const inr = prices.find(
+      (p) => String(p?.currency_code ?? "").toLowerCase() === "inr"
+    )
+    const match = inr ?? prices[0]
+    return match?.amount != null && Number.isFinite(Number(match.amount))
+      ? Number(match.amount)
+      : null
+  }
+
   const columns: ColumnDef<InventoryOrderLine>[] = [
     columnHelper.column({
       id: "image",
@@ -367,6 +406,12 @@ export const InventoryOrderLinesGrid = <T extends { id: string; title?: string; 
             options={rowOptions}
             loading={loading}
             onSearch={onSearchItems}
+            onItemPick={(itemId) => {
+              const price = existingPriceFor(itemId)
+              if (price != null) {
+                form.setValue(`order_lines.${rowIndex}.price`, price)
+              }
+            }}
           />
         );
       },
@@ -540,6 +585,23 @@ export const InventoryOrderLinesGrid = <T extends { id: string; title?: string; 
       disableHiding: true,
     }),
     columnHelper.column({
+      id: "extra_cost",
+      name: "Extra Cost",
+      header: "Extra Cost",
+      // Per-unit charge a partner adds on top of price (colour job, finishing, …).
+      field: (context: any) => `order_lines.${context.row.index}.extra_cost`,
+      type: "number",
+      cell: (context: any) => {
+        return (
+          <DataGridCurrencyCell
+            context={context}
+            code={defaultCurrencyCode}
+          />
+        );
+      },
+      disableHiding: true,
+    }),
+    columnHelper.column({
       id: "actions",
       name: "Actions",
       header: "",
@@ -616,6 +678,9 @@ export const InventoryOrderLinesGrid = <T extends { id: string; title?: string; 
       }
       if (col.id === "price") {
         return { ...col, size: 220, maxSize: 320 }
+      }
+      if (col.id === "extra_cost") {
+        return { ...col, size: 200, maxSize: 300 }
       }
       if (col.id === "actions") {
         return { ...col, size: 120, maxSize: 140 }

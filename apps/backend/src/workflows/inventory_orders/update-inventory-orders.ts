@@ -53,6 +53,8 @@ export type UpdateInventoryOrderLineInput = {
   variant_id?: string;
   quantity?: number;
   price?: number;
+  // Per-unit extra charge on top of `price` (colour/dye job, finishing, …).
+  extra_cost?: number;
   batch_number?: number | null; // Batch tag for separate-batch quick-add lines
   remove?: boolean; // If true, remove this orderline
 };
@@ -266,7 +268,7 @@ export const updateOrderLinesStep = createStep(
     }
 
     const created: Array<{ id: string; inventory_item_id?: string }> = [];
-    const updated: Array<{ id: string; prevQuantity: number; prevPrice: any }> = [];
+    const updated: Array<{ id: string; prevQuantity: number; prevPrice: any; prevExtraCost: any }> = [];
     const removed: Array<{ id: string; inventory_item_id?: string; quantity: number; price: any }> = [];
 
     // Remove orderlines marked for removal
@@ -297,13 +299,14 @@ export const updateOrderLinesStep = createStep(
       if (line.id) {
         const prev = byId.get(line.id);
         // Capture prior values before overwriting so compensation restores them in place.
-        updated.push({ id: line.id, prevQuantity: prev?.quantity, prevPrice: prev?.price });
+        updated.push({ id: line.id, prevQuantity: prev?.quantity, prevPrice: prev?.price, prevExtraCost: prev?.extra_cost });
         // Update orderline fields
         await inventoryOrderService.updateOrderLines({
           selector: { id: line.id },
           data: {
             quantity: line.quantity,
             price: line.price,
+            ...(line.extra_cost !== undefined ? { extra_cost: line.extra_cost } : {}),
             ...(line.batch_number !== undefined ? { batch_number: line.batch_number } : {}),
           }
         });
@@ -315,6 +318,7 @@ export const updateOrderLinesStep = createStep(
           inventory_orders_id: input.order_id,
           quantity: line.quantity,
           price: line.price,
+          extra_cost: line.extra_cost ?? null,
           batch_number: line.batch_number ?? null,
           color: info?.color ?? null,
           material_name: info?.material_name ?? null,
@@ -349,7 +353,7 @@ export const updateOrderLinesStep = createStep(
   async (
     compensationData: {
       created: Array<{ id: string; inventory_item_id?: string }>;
-      updated: Array<{ id: string; prevQuantity: number; prevPrice: any }>;
+      updated: Array<{ id: string; prevQuantity: number; prevPrice: any; prevExtraCost: any }>;
       removed: Array<{ id: string; inventory_item_id?: string; quantity: number; price: any }>;
       order_id: string;
     },
@@ -372,7 +376,7 @@ export const updateOrderLinesStep = createStep(
     for (const u of compensationData.updated || []) {
       await inventoryOrderService.updateOrderLines({
         selector: { id: u.id },
-        data: { quantity: u.prevQuantity, price: u.prevPrice },
+        data: { quantity: u.prevQuantity, price: u.prevPrice, extra_cost: u.prevExtraCost },
       });
     }
     // Restore removed lines (same ids) + recreate their links

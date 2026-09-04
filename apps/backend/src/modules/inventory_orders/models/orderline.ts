@@ -6,6 +6,17 @@ const OrderLine = model.define("inventory_order_line", {
   // We are linking module links to order line with inventory and product
   quantity: model.float(),
   price: model.bigNumber(),
+  /**
+   * Per-unit extra charge a partner applies on top of `price` — a colour/dye
+   * job, a finishing step, any value-add they bill per piece. Null means "none".
+   *
+   * Per-UNIT, not a line total: like `price`, a line contributes
+   * `(price + extra_cost) × quantity` to the order total, so the colour job is
+   * part of the goods' agreed value rather than a separate obligation. Folded
+   * into `total_price` at write time, so the payable ceiling (goods + charges)
+   * picks it up without a second arithmetic path.
+   */
+  extra_cost: model.bigNumber().nullable(),
   // #817 S2 — color identity denormalized off the linked inventory_item's
   // raw_material at creation time, so an order line is self-describing (display
   // + filtering) without re-traversing line → inventory_item → raw_material.

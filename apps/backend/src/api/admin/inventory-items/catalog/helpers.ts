@@ -148,6 +148,11 @@ export const getInventoryCatalog = async (
         "variants.id",
         "variants.title",
         "variants.sku",
+        // #1744 — the variant's existing price, so the order-lines form can
+        // pre-fill `price` when a finished-goods variant is picked. Money
+        // amounts, one row per currency; the UI matches on INR (or first).
+        "variants.prices.amount",
+        "variants.prices.currency_code",
         "variants.product.id",
         "variants.product.title",
         "variants.product.thumbnail",
@@ -167,6 +172,10 @@ export const getInventoryCatalog = async (
         "variants.title",
         "variants.sku",
         "variants.manage_inventory",
+        // #1744 — same reason as the inventory_item sweep above: carry the
+        // untracked variant's price so the form can pre-fill it on pick.
+        "variants.prices.amount",
+        "variants.prices.currency_code",
         "variants.inventory_items.inventory_item_id",
         "variants.inventory_items.inventory.id",
       ],
@@ -236,6 +245,7 @@ export const getInventoryCatalog = async (
             id: variant.id,
             title: variant.title,
             sku: variant.sku,
+            prices: variant.prices ?? [],
             product: productId
               ? {
                   id: productId,

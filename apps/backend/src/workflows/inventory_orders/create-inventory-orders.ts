@@ -40,6 +40,8 @@ export interface InventoryOrderLineInput {
   variant_id?: string;
   quantity: number;
   price: number;
+  // Per-unit extra charge on top of `price` (colour/dye job, finishing, …).
+  extra_cost?: number;
   batch_number?: number | null;
   metadata?: Record<string, unknown>;
 }
@@ -57,6 +59,8 @@ export interface CreateInventoryOrderInput {
   metadata?: Record<string, unknown>;
   order_lines: InventoryOrderLineInput[];
   is_sample: boolean;
+  // Order-level tax, recorded as an order charge of type "tax" at create.
+  tax_amount?: number;
 }
 
 // --- Inventory Orders Steps ---
@@ -87,6 +91,7 @@ export const createInventoryOrderWithLinesStep = createStep(
       inventory_id: line.inventory_item_id,
       quantity: line.quantity,
       price: line.price,
+      extra_cost: line.extra_cost ?? null,
       batch_number: line.batch_number ?? null,
       metadata: line.metadata
     };

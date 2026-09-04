@@ -304,10 +304,13 @@ export const dualWriteUnifiedOrderStep = createStep(
       // UI, validators, and registry cost reads). Core also wants unit price, so
       // pass it straight through — do NOT divide by quantity (that was the money
       // bug: it under-priced every multi-unit line on the unified order).
+      // `extra_cost` (colour job, …) is a per-unit add-on folded into the legacy
+      // order's total, so it folds into the mirrored unit price too — otherwise
+      // the unified order understates the legacy order's value by the job cost.
       const items = orderLines.map((line: any, idx: number) => {
         const legacyLine = input.order_lines[idx]
         const quantity = Number(line.quantity)
-        const unitPrice = Number(line.price)
+        const unitPrice = Number(line.price) + Number(line.extra_cost || 0)
         return {
           title: titleByItemId.get(legacyLine?.inventory_item_id) ?? "Raw material",
           quantity,
