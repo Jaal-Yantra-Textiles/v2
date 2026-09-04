@@ -146,6 +146,7 @@ import {
   AI_ROLES,
 } from "../../../../mastra/services/ai-platforms"
 import { SOCIALS_MODULE } from "../../../../modules/socials"
+import { reconcileOrderBalancesJob } from "./reconcile-order-balances-job"
 import {
   buildAiPlatformCoverageReport,
   planAiPlatformNormalization,
@@ -5814,6 +5815,7 @@ export const seedGoodsTransferTaskTemplateJob: MaintenanceJob = {
 }
 
 export const MAINTENANCE_JOBS: MaintenanceJob[] = [
+  reconcileOrderBalancesJob,
   cancelInactiveProductionRunsJob,
   warnExpiringProductionRunsJob,
   remirrorCancelledRunStatusJob,

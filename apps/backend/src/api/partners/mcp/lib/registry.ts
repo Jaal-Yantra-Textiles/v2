@@ -209,6 +209,52 @@ const consumptionLogSchema = (withRun: boolean) =>
 export const PARTNER_MCP_TOOLS: PartnerMcpToolDef[] = [
   // ===== Profile & persona (onboarding) =====================================
   {
+    name: "add_person_from_id_card",
+    description:
+      "Read a photo of a worker's identity document (Aadhaar, PAN, passport, driving licence, voter ID) and add them to your people. Run it WITHOUT persist first and show the operator the draft and its warnings; only persist:true with confirm:true creates the record. The document number is kept masked to its last four digits, and nothing here verifies an identity. Sensitive — requires confirmation.",
+    method: "POST",
+    path: "/partners/people/id-extraction",
+    write: true,
+    sensitive: true,
+    bodyParams: [
+      "image_url",
+      "notes",
+      "id_number_policy",
+      "persist",
+      "confirm",
+      "person_type_ids",
+    ],
+    inputSchema: obj(
+      {
+        image_url: STR("URL or data URI of the identity document photo."),
+        notes: STR("Context from the operator, e.g. 'the card is glary on the left'."),
+        id_number_policy: {
+          type: "string",
+          enum: ["mask", "discard"],
+          description:
+            "What to keep of the document number. 'mask' (default) keeps only the last four digits; 'discard' keeps none. Storing the full number is deliberately not offered.",
+        },
+        persist: {
+          type: "boolean",
+          description: "Create the person. Default false — preview the draft first, always.",
+        },
+        confirm: {
+          type: "boolean",
+          description:
+            "Required alongside persist. Creating a person from a photograph is not undoable by the caller.",
+        },
+        person_type_ids: {
+          type: "array",
+          items: { type: "string" },
+          description: "Person-type ids to attach to the created person.",
+        },
+      },
+      ["image_url"]
+    ),
+    sideEffects:
+      "Without persist: reads the image with a vision model and returns a draft. Stores nothing. With persist+confirm: creates ONE person, links it to YOUR partner (taken from the session, never from the body) and best-effort creates their address. Relay the draft's warnings verbatim — they are the only signal that a field was dropped or doubted.",
+  },
+  {
     name: "get_partner_profile",
     description:
       "Get the current partner's profile (name, handle, workspace_type/persona, status, metadata). Call this first to understand who you are helping and how far onboarding has progressed.",

@@ -65,6 +65,11 @@ export type AiRole =
   // falls back to the auto-rotating OpenRouter free vision model. Previously
   // hardcoded to OPENROUTER_API_KEY which made the feature go dark when unset.
   | "ai_image_extraction"
+  // Identity-document OCR for people onboarding. Its own role so an operator
+  // can point a stronger OCR model at ID cards without disturbing the
+  // inventory extraction; the workflow falls back to the `ai_image_extraction`
+  // ladder when nothing is tagged here, so the feature works untagged.
+  | "ai_id_extraction"
   // Moodboard "Redesign" — Nano-Banana (gemini-2.5-flash-image) (#892).
   // Resolved by resolveRedesignCredentials: honours provider_type=openrouter
   // (google/gemini-2.5-flash-image) or a hand-tagged google platform; falls

@@ -42,6 +42,10 @@ export const KNOWN_AI_ROLES: KnownAiRole[] = [
     label: "Inventory image → items (vision extraction)",
   },
   {
+    value: "ai_id_extraction",
+    label: "ID card → person (vision OCR)",
+  },
+  {
     value: "ai_redesign",
     label: "Moodboard Redesign — Nano-Banana (gemini-2.5-flash-image)",
   },

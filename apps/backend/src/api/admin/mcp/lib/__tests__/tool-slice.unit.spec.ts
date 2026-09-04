@@ -33,6 +33,16 @@ describe("admin-mcp per-ask tool slicing", () => {
       expect(orphans).toEqual([])
     })
 
+    it("puts ID-card person onboarding on the partners slice", () => {
+      // /admin/people had NO prefix entry when the tool was added, which would
+      // have classified it `undefined` — registered, callable in principle, and
+      // reachable from no ask. It rides `partners` because "add this weaver to
+      // the partner" is the ask, not `customers` (the storefront buyer).
+      expect(
+        toolDomain(ADMIN_MCP_TOOLS.find((t) => t.name === "create_person_from_id_card")!)
+      ).toBe("partners")
+    })
+
     it("resolves the longest matching prefix, not the first", () => {
       // /admin/production-run-policy must not be swallowed by a shorter prefix,
       // and /admin/mcp/usage must land on observability rather than core.

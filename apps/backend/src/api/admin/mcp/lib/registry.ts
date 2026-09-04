@@ -3445,6 +3445,58 @@ export const ADMIN_MCP_TOOLS: AdminMcpToolDef[] = [
       "Reads the image with a separately-configured vision model and returns text. Stores nothing and changes no records. Failures are configuration problems, not transient ones — relay the message rather than retrying.",
   },
   {
+    name: "create_person_from_id_card",
+    description:
+      "Read a photo of an identity document (Aadhaar, PAN, passport, driving licence, voter ID) and turn it into a person on the weaver/artisan directory. Run it WITHOUT persist first and show the operator the draft and its warnings; only persist:true with confirm:true creates a record. The ID number is stored masked to its last four digits and nothing here verifies an identity. Sensitive: requires confirm:true.",
+    method: "POST",
+    path: "/admin/people/id-extraction",
+    write: true,
+    sensitive: true,
+    bodyParams: [
+      "image_url",
+      "notes",
+      "id_number_policy",
+      "persist",
+      "confirm",
+      "partner_id",
+      "person_type_ids",
+    ],
+    inputSchema: obj(
+      {
+        image_url: STR("URL or data URI of the identity document photo."),
+        notes: STR(
+          "Context from the operator, e.g. 'the card is laminated and glary on the left'."
+        ),
+        id_number_policy: {
+          type: "string",
+          enum: ["mask", "discard"],
+          description:
+            "What to keep of the document number. 'mask' (default) keeps only the last four digits; 'discard' keeps none. Storing the full number is deliberately not offered.",
+        },
+        persist: {
+          type: "boolean",
+          description:
+            "Create the person. Default false — preview the draft first, always.",
+        },
+        confirm: {
+          type: "boolean",
+          description: "Required alongside persist. Creating a person from a photograph is not undoable by the caller.",
+        },
+        partner_id: STR(
+          "Link the created person to this partner's roster."
+        ),
+        person_type_ids: {
+          type: "array",
+          items: { type: "string" },
+          description: "Person-type ids to attach to the created person.",
+        },
+      },
+      ["image_url"]
+    ),
+    sideEffects:
+      "Without persist: reads the image with a vision model and returns a draft. Stores nothing. With persist+confirm: creates ONE person (and its address, best-effort) and optionally links it to a partner. The draft's warnings are the operator's only signal that a field was dropped or doubted — relay them rather than summarising them away.",
+  },
+  {
     name: "extract_inventory_from_image",
     description:
       "Read a photo of fabric/trims/a delivery note and turn it into raw materials + inventory items. Run it with persist:false first to show the operator what was found; only persist:true creates records. Sensitive: requires confirm:true.",
