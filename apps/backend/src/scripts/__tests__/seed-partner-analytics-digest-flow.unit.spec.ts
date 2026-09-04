@@ -11,8 +11,10 @@ describe("seed-partner-analytics-digest-flow FLOW_DEF", () => {
   it("is a weekly schedule-triggered draft flow", () => {
     expect(FLOW_DEF.status).toBe("draft")
     expect(FLOW_DEF.trigger_type).toBe("schedule")
-    // Weekly Monday cron (day-of-week field = 1, single value, not a range).
-    expect(FLOW_DEF.trigger_config.cron).toBe("30 3 * * 1")
+    // Weekly Friday cron (day-of-week field = 5, single value, not a range).
+    // Friday, not Monday: the live prod flow was moved to Friday on the canvas
+    // and the def now follows it (#1782).
+    expect(FLOW_DEF.trigger_config.cron).toBe("30 3 * * 5")
     expect(
       (FLOW_DEF.canvas_state.nodes[0].data as any).triggerConfig.cron
     ).toBe(FLOW_DEF.trigger_config.cron)
