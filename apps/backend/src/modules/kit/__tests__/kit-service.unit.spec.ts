@@ -40,6 +40,57 @@ describe("KitService — HTTP client", () => {
     })
   })
 
+  it("findSubscriberByEmail GETs /subscribers?email_address= and returns the first row", async () => {
+    fetchMock.mockImplementation(async () => ({
+      ok: true,
+      status: 200,
+      text: async () =>
+        JSON.stringify({ subscribers: [{ id: 42, email_address: "a@x.com" }] }),
+    }))
+    const sub = await service.findSubscriberByEmail("A@X.com")
+    const [url, opts] = fetchMock.mock.calls[0]
+    expect(url).toBe("https://api.kit.com/v4/subscribers?email_address=a%40x.com")
+    expect(opts.method).toBe("GET")
+    expect(sub.id).toBe(42)
+  })
+
+  it("findSubscriberByEmail returns null when Kit knows the address not", async () => {
+    fetchMock.mockImplementation(async () => ({
+      ok: true,
+      status: 200,
+      text: async () => JSON.stringify({ subscribers: [], pagination: {} }),
+    }))
+    expect(await service.findSubscriberByEmail("ghost@x.com")).toBeNull()
+  })
+
+  it("untagSubscriberByEmail resolves the id, then DELETEs it off the tag", async () => {
+    fetchMock.mockImplementation(async (url: string, opts: any) => ({
+      ok: true,
+      status: 200,
+      text: async () =>
+        opts?.method === "GET"
+          ? JSON.stringify({ subscribers: [{ id: 42 }] })
+          : JSON.stringify({}),
+    }))
+    const out = await service.untagSubscriberByEmail("a@x.com")
+    expect(out).toEqual({ untagged: true, reason: "ok", subscriberId: "42" })
+    const [delUrl, delOpts] = fetchMock.mock.calls[1]
+    expect(delUrl).toBe("https://api.kit.com/v4/tags/123/subscribers/42")
+    expect(delOpts.method).toBe("DELETE")
+  })
+
+  it("untagSubscriberByEmail reports not_found WITHOUT issuing a DELETE", async () => {
+    fetchMock.mockImplementation(async () => ({
+      ok: true,
+      status: 200,
+      text: async () => JSON.stringify({ subscribers: [] }),
+    }))
+    const out = await service.untagSubscriberByEmail("ghost@x.com")
+    expect(out).toEqual({ untagged: false, reason: "not_found" })
+    // One call only — a miss must not fire a DELETE against an undefined id.
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+  })
+
   it("tagSubscriber POSTs to the configured tag", async () => {
     await service.tagSubscriber("a@x.com")
     const [url, opts] = fetchMock.mock.calls[0]
