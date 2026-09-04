@@ -1,5 +1,5 @@
 import { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
-import { MedusaError } from "@medusajs/framework/utils"
+import { ContainerRegistrationKeys, MedusaError } from "@medusajs/framework/utils"
 
 import { PARTNER_QUOTE_MODULE } from "../../../../../modules/partner-quote"
 
@@ -39,6 +39,110 @@ const loadDraft = async (req: MedusaRequest) => {
 
   return { service, quote }
 }
+
+/**
+ * A draft line, from the body a section sent (#1806).
+ *
+ * ## The negotiated price is stored, not dropped
+ *
+ * The grid has rendered a **Discount %** and a **Unit price** column since
+ * #1439 S7, this validator has accepted both since #1446, and this function's
+ * predecessor wrote five columns and threw the rest away. An operator typed a
+ * trade price, got *"Items saved."*, and the quote minted at retail — the
+ * failure that most defeats the purpose of a manual quote, made invisible by a
+ * toast that agreed with them.
+ *
+ * ## Why the existing columns and not new ones
+ *
+ * `override_kind` / `override_input_amount` are documented on the model as
+ * "what the partner actually TYPED, before any conversion" — which is exactly
+ * what a draft holds. Nothing on a draft is frozen: `quoted_unit_amount` and
+ * every other frozen column stays null until a mint, and a draft row is
+ * DELETED by the mint rather than promoted, so no row ever carries both
+ * meanings at once. A parallel set of `draft_*` columns would be the same
+ * three numbers under a second name, and two names for one fact is how they
+ * drift apart.
+ *
+ * 🔑 `quoted_weight_source: "manual"` is written beside a typed weight so the
+ * number can never be mistaken for one the catalogue answered — the same
+ * distinction the mint freezes, made at the moment the operator types it.
+ *
+ * ⚠️ The two price forms are mutually exclusive and the validator refuses the
+ * pair. The branch below still ranks them rather than trusting that, because
+ * "which one wins" must not depend on which schema the caller came through.
+ */
+/**
+ * The product each variant belongs to, for the lines that did not say.
+ *
+ * 🔴 `product_id` is not decoration on a draft line: the items modal rebuilds
+ * its PRODUCT selection from it, and the quantities grid renders a row per
+ * variant of the SELECTED products. Saved as null, a reopened draft showed an
+ * empty grid over a full basket — the operator could see no line, so the trade
+ * price could not be typed on one either.
+ *
+ * The browser cannot supply it reliably (the form holds a variant-keyed basket
+ * and a separate product list), and the server can always derive it. One graph
+ * call for the whole basket, and only when something is missing.
+ */
+const resolveProductIds = async (
+  req: MedusaRequest,
+  lines: any[]
+): Promise<Map<string, string>> => {
+  const wanted = [
+    ...new Set(
+      lines
+        .filter((l) => !l.product_id && l.variant_id)
+        .map((l) => String(l.variant_id))
+    ),
+  ]
+  if (!wanted.length) return new Map()
+
+  const query = req.scope.resolve(ContainerRegistrationKeys.QUERY) as any
+  const { data: variants = [] } = await query.graph({
+    entity: "variant",
+    fields: ["id", "product.id"],
+    filters: { id: wanted },
+  })
+
+  return new Map(
+    (variants ?? [])
+      .filter((v: any) => v?.product?.id)
+      .map((v: any) => [v.id as string, v.product.id as string])
+  )
+}
+
+const toLineRow =
+  (quoteId: string, products: Map<string, string> = new Map()) =>
+  (l: any, index: number) => {
+    const given = (v: unknown) => v !== null && v !== undefined
+    const hasOverride = given(l.override_unit_amount)
+    const hasDiscount = given(l.discount_percent)
+
+    return {
+      quote_id: quoteId,
+      variant_id: l.variant_id,
+      product_id: l.product_id ?? products.get(l.variant_id) ?? null,
+      design_id: l.design_id ?? null,
+      quantity: l.quantity,
+      position: l.position ?? index,
+
+      override_kind: hasOverride
+        ? "override_unit_amount"
+        : hasDiscount
+          ? "discount_percent"
+          : null,
+      override_input_amount: hasOverride
+        ? l.override_unit_amount
+        : hasDiscount
+          ? l.discount_percent
+          : null,
+
+      quoted_unit_weight_grams: given(l.unit_weight_grams)
+        ? l.unit_weight_grams
+        : null,
+      quoted_weight_source: given(l.unit_weight_grams) ? "manual" : null,
+    }
+  }
 
 export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
   const { service, quote } = await loadDraft(req)
@@ -103,15 +207,9 @@ export const PATCH = async (req: MedusaRequest, res: MedusaResponse) => {
       await service.deletePartnerQuoteLines(existing.map((l: any) => l.id))
     }
     if (body.lines.length) {
+      const products = await resolveProductIds(req, body.lines)
       await service.createPartnerQuoteLines(
-        body.lines.map((l: any, index: number) => ({
-          quote_id: quote.id,
-          variant_id: l.variant_id,
-          product_id: l.product_id ?? null,
-          design_id: l.design_id ?? null,
-          quantity: l.quantity,
-          position: l.position ?? index,
-        }))
+        body.lines.map(toLineRow(quote.id, products))
       )
     }
   }

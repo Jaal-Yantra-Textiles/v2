@@ -24,6 +24,10 @@ import {
   useMintQuoteDraft,
   useUpdateQuoteDraft,
 } from "../../../../hooks/api/quotes"
+import {
+  basketFromDraftLines,
+  draftLinesFromForm,
+} from "../../create/draft-lines"
 import { MintedPanel, type MintedQuoteResult } from "../../create/minted-panel"
 import { ReadinessPanel } from "../../create/readiness-panel"
 import {
@@ -33,6 +37,31 @@ import {
 import { BuyerStep } from "../../create/steps/buyer-step"
 import { ProductsStep } from "../../create/steps/products-step"
 import { QuantitiesStep } from "../../create/steps/quantities-step"
+
+/**
+ * How this line is being priced, in one phrase — or nothing at all.
+ *
+ * Reads the stored columns rather than the form, so it says what WAS SAVED.
+ * `override_input_amount` is a bigNumber: guard on `!= null` before coercing,
+ * because `Number(null)` is `0` and would print "0 off" on every ordinary line.
+ */
+const tradePrice = (line: any): string | null => {
+  const amount = line?.override_input_amount
+  if (amount == null) return null
+  const value = Number(amount)
+  if (!Number.isFinite(value)) return null
+  if (line.override_kind === "discount_percent") return `${value}% off catalogue`
+  if (line.override_kind === "override_unit_amount") {
+    /**
+     * 🔑 "store currency", never the quote's. An override is typed in the
+     * PARTNER STORE's default currency — the one the operator thinks in — and
+     * is converted once, at mint. Printing it beside the quote's INR badge with
+     * no qualifier would read as a number in a currency it is not in.
+     */
+    return `${value} per unit (agreed, store currency)`
+  }
+  return null
+}
 
 /**
  * A draft quote's page (#1446) — the draft ORDER detail page, mirrored.
@@ -134,17 +163,23 @@ export const DraftSections = ({ draft }: { draft: AdminQuoteDraft }) => {
    */
   useEffect(() => {
     if (!draft) return
-    const quantities: Record<string, number> = {}
-    const designByVariant: Record<string, string> = {}
-    const productIds: string[] = []
-
-    for (const line of draft.lines ?? []) {
-      quantities[line.variant_id] = line.quantity
-      if (line.design_id) designByVariant[line.variant_id] = line.design_id
-      if (line.product_id && !productIds.includes(line.product_id)) {
-        productIds.push(line.product_id)
-      }
-    }
+    /**
+     * 🔴 The trade price and the typed weight are hydrated here TOO (#1806).
+     *
+     * `handleMint` re-saves the basket from THIS form before pricing it, and
+     * the PATCH replaces the basket wholesale. So a hydration that stopped at
+     * quantities did not merely fail to show the negotiated price — pressing
+     * Mint overwrote the line the items modal had just saved it on, and the
+     * quote froze at retail. Hydrate what you are going to send back.
+     */
+    const {
+      quantities,
+      discounts,
+      overrides,
+      weights,
+      design_by_variant: designByVariant,
+      product_ids: productIds,
+    } = basketFromDraftLines(draft.lines as any)
 
     form.reset({
       ...form.getValues(),
@@ -165,6 +200,9 @@ export const DraftSections = ({ draft }: { draft: AdminQuoteDraft }) => {
       duties_prepaid: (draft as any).duties_prepaid ?? false,
       product_ids: productIds,
       quantities,
+      discounts,
+      overrides,
+      weights,
       design_by_variant: designByVariant,
     } as any)
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -197,20 +235,14 @@ export const DraftSections = ({ draft }: { draft: AdminQuoteDraft }) => {
   const { mutateAsync: checkReadiness, isPending: isChecking } =
     useAdminQuoteReadiness()
 
-  /** The basket as the grid currently holds it. */
-  const currentLines = () => {
-    const data = form.getValues()
-    return Object.entries(data.quantities ?? {})
-      .filter(([, qty]) => typeof qty === "number" && qty > 0)
-      .map(([variant_id, quantity], index) => ({
-        variant_id,
-        quantity: quantity as number,
-        position: index,
-        ...(data.design_by_variant?.[variant_id]
-          ? { design_id: data.design_by_variant[variant_id] }
-          : {}),
-      }))
-  }
+  /**
+   * The basket as the grid currently holds it — negotiated prices included.
+   *
+   * 🔑 The SAME mapping the items modal saves with. This is re-saved on the way
+   * to the mint, so anything it omits is not just missing from this call: it is
+   * deleted from the row the modal wrote it to.
+   */
+  const currentLines = () => draftLinesFromForm(form.getValues() as any)
 
   const saveBuyer = () => {
     const data = form.getValues() as any
@@ -255,10 +287,25 @@ export const DraftSections = ({ draft }: { draft: AdminQuoteDraft }) => {
       const data = form.getValues()
       const result = await checkReadiness({
         partner_id: data.partner_id,
+        /**
+         * 🔑 The readiness preflight prices the SAME basket the mint will, so
+         * it is given the same lines. Dropping `unit_weight_grams` here made it
+         * refuse exactly the design-led baskets an operator-typed weight exists
+         * to unblock — a preflight that fails what the mint would accept.
+         */
         lines: lines.map((l) => ({
           variant_id: l.variant_id,
           quantity: l.quantity,
           ...(l.design_id ? { design_id: l.design_id } : {}),
+          ...(l.discount_percent !== undefined
+            ? { discount_percent: l.discount_percent }
+            : {}),
+          ...(l.override_unit_amount !== undefined
+            ? { override_unit_amount: l.override_unit_amount }
+            : {}),
+          ...(l.unit_weight_grams !== undefined
+            ? { unit_weight_grams: l.unit_weight_grams }
+            : {}),
         })),
         destination_country_code: data.destination_country_code,
         destination_postal_code: data.destination_postal_code || null,
@@ -365,7 +412,21 @@ export const DraftSections = ({ draft }: { draft: AdminQuoteDraft }) => {
                   key={l.id}
                   className="grid grid-cols-[1fr_auto] items-center gap-x-4 px-6 py-3"
                 >
-                  <Text size="small">{l.variant_id}</Text>
+                  <div className="flex flex-col">
+                    <Text size="small">{l.variant_id}</Text>
+                    {/*
+                      🔑 The negotiated price, shown on the row it is stored on.
+                      A number the operator typed and cannot see afterwards is
+                      indistinguishable from one that was discarded — which is
+                      exactly what #1806 was: three layers dropped it and the
+                      toast still said "Items saved."
+                    */}
+                    {tradePrice(l) && (
+                      <Text size="xsmall" className="text-ui-fg-subtle">
+                        {tradePrice(l)}
+                      </Text>
+                    )}
+                  </div>
                   <Text size="small" className="text-ui-fg-subtle">
                     {l.quantity}×
                   </Text>
