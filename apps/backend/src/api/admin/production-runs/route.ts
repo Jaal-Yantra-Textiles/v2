@@ -265,6 +265,18 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
   if (q.run_type) {
     filters.run_type = q.run_type
   }
+  /**
+   * #1805 — the output-review queue.
+   *
+   * `"none"` is a real answer and the one the queue is built on: a completed
+   * run nobody has decided about yet. It cannot be spelled by omitting the
+   * param (that means "any"), and `null` cannot travel in a query string —
+   * hence the word.
+   */
+  if (q.approval_decision) {
+    filters.approval_decision =
+      q.approval_decision === "none" ? null : q.approval_decision
+  }
 
   const query = req.scope.resolve(ContainerRegistrationKeys.QUERY)
 

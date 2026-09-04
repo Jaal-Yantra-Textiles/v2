@@ -169,6 +169,47 @@ export const AdminFinishProductionRunReq = z.object({
   notes: z.string().max(1000).nullish(),
 })
 
+/**
+ * Reviewing what completed runs produced, in bulk (#1805).
+ *
+ * 🔴 A rejection MUST carry a reason. "Rejected" with nothing beside it is the
+ * same dead end as no state at all, one step later: the next person meets a run
+ * that was refused and cannot learn why, and the partner who made the goods
+ * cannot be told. An approval needs no reason — the product it created is the
+ * record.
+ *
+ * `run_ids` is bounded. A selection is something a person made on a screen; an
+ * unbounded list is how a mis-built client asks to decide the entire platform's
+ * production history in one call.
+ */
+export const AdminRunApprovalsReq = z
+  .object({
+    run_ids: z.array(z.string().trim().min(1)).min(1).max(200),
+    decision: z.enum(["approve", "reject"]),
+    reason: z.string().trim().max(1000).nullish(),
+    /**
+     * Resolve which runs map to which designs, which designs already have a
+     * product, and what each decision WOULD create — and create nothing. Same
+     * reason the collate wizard has one (#1803): the operator sees the shape of
+     * the batch before it happens.
+     */
+    dry_run: z.boolean().optional(),
+  })
+  .refine(
+    // A PREVIEW is not a decision, so it does not need the reason a decision
+    // does — an operator asks what a rejection would cover before writing the
+    // sentence that explains it.
+    (b) =>
+      b.dry_run === true ||
+      b.decision !== "reject" ||
+      Boolean(b.reason && b.reason.trim()),
+    {
+      message:
+        "A rejection needs a reason — it is the only record of why the output was refused, and the partner who made the goods has to be able to be told.",
+      path: ["reason"],
+    }
+  )
+
 export type AdminCreateProductionRunReq = z.infer<typeof AdminCreateProductionRunReq>
 export type AdminApproveProductionRunReq = z.infer<typeof AdminApproveProductionRunReq>
 export type AdminSendProductionRunToProductionReq = z.infer<typeof AdminSendProductionRunToProductionReq>
@@ -177,3 +218,4 @@ export type AdminResumeDispatchProductionRunReq = z.infer<typeof AdminResumeDisp
 export type AdminAssignProductionRunPartnerReq = z.infer<typeof AdminAssignProductionRunPartnerReq>
 export type AdminRedispatchParkedRunsReq = z.infer<typeof AdminRedispatchParkedRunsReq>
 export type AdminFinishProductionRunReq = z.infer<typeof AdminFinishProductionRunReq>
+export type AdminRunApprovalsReq = z.infer<typeof AdminRunApprovalsReq>
