@@ -177,11 +177,11 @@ export const useCreateExportLut = (
         `/admin/platform-tax-identities/${identityId}/export-luts`,
         { method: "POST", body: payload }
       ),
+    ...options,
     onSuccess: (data, variables, _mr, context) => {
       invalidateLutQueries(queryClient, identityId)
       options?.onSuccess?.(data, variables, _mr, context)
     },
-    ...options,
   })
 }
 
@@ -202,11 +202,11 @@ export const useUpdateExportLut = (
         `/admin/platform-tax-identities/${identityId}/export-luts/${lutId}`,
         { method: "POST", body: payload }
       ),
+    ...options,
     onSuccess: (data, variables, _mr, context) => {
       invalidateLutQueries(queryClient, identityId)
       options?.onSuccess?.(data, variables, _mr, context)
     },
-    ...options,
   })
 }
 
@@ -223,10 +223,10 @@ export const useDeleteExportLut = (
         `/admin/platform-tax-identities/${identityId}/export-luts/${lutId}`,
         { method: "DELETE" }
       ),
+    ...options,
     onSuccess: (data, variables, _mr, context) => {
       invalidateLutQueries(queryClient, identityId)
       options?.onSuccess?.(data, variables, _mr, context)
     },
-    ...options,
   })
 }

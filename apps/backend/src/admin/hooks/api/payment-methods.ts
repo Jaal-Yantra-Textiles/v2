@@ -39,6 +39,7 @@ export const useCreatePersonPaymentMethod = (
         `/admin/payments/persons/${personId}/methods`,
         { method: "POST", body: payload }
       ),
+    ...options,
     onSuccess: (data, variables, _mutateResult, context) => {
       queryClient.invalidateQueries({ queryKey: [PAYMENT_METHODS_QUERY_KEY, "person", personId] });
       // Invalidate person details (all variants) and specific person detail
@@ -46,7 +47,6 @@ export const useCreatePersonPaymentMethod = (
       queryClient.invalidateQueries({ queryKey: personsQueryKeys.detail(personId) });
       options?.onSuccess?.(data, variables, _mutateResult, context);
     },
-    ...options,
   });
 };
 
@@ -79,6 +79,7 @@ export const useCreatePartnerPaymentMethod = (
         `/admin/payments/partners/${partnerId}/methods`,
         { method: "POST", body: payload }
       ),
+    ...options,
     onSuccess: (data, variables, _mutateResult, context) => {
       // List of payment methods for this partner
       queryClient.invalidateQueries({ queryKey: [PAYMENT_METHODS_QUERY_KEY, "partner", partnerId] });
@@ -87,6 +88,5 @@ export const useCreatePartnerPaymentMethod = (
       queryClient.invalidateQueries({ queryKey: adminPartnersQueryKeys.detail(partnerId) });
       options?.onSuccess?.(data, variables, _mutateResult, context);
     },
-    ...options,
   });
 };

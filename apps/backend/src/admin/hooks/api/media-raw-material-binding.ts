@@ -82,6 +82,7 @@ export const useBindMediaRawMaterial = (
         `/admin/medias/file/${mediaId}/raw-material`,
         { method: "POST", body: payload }
       ),
+    ...options,
     onSuccess: (...args) => {
       queryClient.invalidateQueries({ queryKey: bindingQueryKey(mediaId) })
       queryClient.invalidateQueries({
@@ -89,7 +90,6 @@ export const useBindMediaRawMaterial = (
       })
       options?.onSuccess?.(...args)
     },
-    ...options,
   })
 }
 
@@ -112,6 +112,7 @@ export const useUnbindMediaRawMaterial = (
         `/admin/medias/file/${mediaId}/raw-material`,
         { method: "DELETE", body: payload }
       ),
+    ...options,
     onSuccess: (...args) => {
       queryClient.invalidateQueries({ queryKey: bindingQueryKey(mediaId) })
       queryClient.invalidateQueries({
@@ -119,6 +120,5 @@ export const useUnbindMediaRawMaterial = (
       })
       options?.onSuccess?.(...args)
     },
-    ...options,
   })
 }

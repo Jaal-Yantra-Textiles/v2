@@ -173,11 +173,11 @@ export const useCreateWebsite = (
         method: "POST",
         body: payload,
       }),
+    ...options,
     onSuccess: (data, variables, _mutateResult, context) => {
       queryClient.invalidateQueries({ queryKey: websiteQueryKeys.lists() });
       options?.onSuccess?.(data, variables, _mutateResult, context);
     },
-    ...options,
   });
 };
 
@@ -196,12 +196,12 @@ export const useUpdateWebsite = (
         method: "PUT",
         body: payload,
       }),
+    ...options,
     onSuccess: (data, variables, _mutateResult, context) => {
       queryClient.invalidateQueries({ queryKey: websiteQueryKeys.lists() });
       queryClient.invalidateQueries({ queryKey: websiteQueryKeys.detail(id) });
       options?.onSuccess?.(data, variables, _mutateResult, context);
     },
-    ...options,
   });
 };
 
@@ -225,12 +225,13 @@ export const useDeleteWebsite = (
       const { website } = await response.json();
       return website;
     },
-    onSuccess: () => {
+    ...options,
+    onSuccess: (data, variables, _mutateResult, context) => {
       queryClient.invalidateQueries({
         queryKey: websiteQueryKeys.lists(),
       });
+      options?.onSuccess?.(data, variables, _mutateResult, context);
     },
-    ...options,
   });
 };
 
@@ -294,12 +295,12 @@ export const useConfirmBlogSubscription = (
           body: {},
         }
       ),
+    ...options,
     onSuccess: (data, variables, _mutateResult, context) => {
       queryClient.invalidateQueries({ queryKey: pageQueryKeys.detail(pageId) });
       queryClient.invalidateQueries({ queryKey: websiteQueryKeys.detail(websiteId) });
       options?.onSuccess?.(data, variables, _mutateResult, context);
     },
-    ...options,
   });
 };
 

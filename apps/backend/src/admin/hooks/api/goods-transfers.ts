@@ -155,11 +155,11 @@ export const useCreateGoodsTransfer = (
         `/admin/production-runs/${productionRunId}/transfers`,
         { method: "POST", body: payload }
       ),
+    ...options,
     onSuccess: (data, variables, _mutateResult, context) => {
       invalidate(queryClient, productionRunId)
       options?.onSuccess?.(data, variables, _mutateResult, context)
     },
-    ...options,
   })
 }
 
@@ -185,11 +185,11 @@ export const useCancelGoodsTransfer = (
         `/admin/production-runs/${productionRunId}/transfers/${transferId}/cancel`,
         { method: "POST", body }
       ),
+    ...options,
     onSuccess: (data, variables, _mutateResult, context) => {
       invalidate(queryClient, productionRunId)
       options?.onSuccess?.(data, variables, _mutateResult, context)
     },
-    ...options,
   })
 }
 
@@ -209,10 +209,10 @@ export const useDeleteGoodsTransfer = (
         `/admin/production-runs/${productionRunId}/transfers/${transferId}`,
         { method: "DELETE" }
       ),
+    ...options,
     onSuccess: (data, variables, _mutateResult, context) => {
       invalidate(queryClient, productionRunId)
       options?.onSuccess?.(data, variables, _mutateResult, context)
     },
-    ...options,
   })
 }

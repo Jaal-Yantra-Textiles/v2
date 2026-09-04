@@ -137,6 +137,7 @@ export const useCreateMediaFolder = (
       );
       return response;
     },
+    ...options,
     onSuccess: (data, variables, _mutateResult, context) => {
       queryClient.invalidateQueries({ queryKey: mediaFoldersQueryKeys.all });
       // Refresh dictionaries used by Selects (folders, albums)
@@ -147,7 +148,6 @@ export const useCreateMediaFolder = (
       queryClient.invalidateQueries({ queryKey: mediasQueryKeys.all });
       options?.onSuccess?.(data, variables, _mutateResult, context);
     },
-    ...options,
   });
 };
 
@@ -168,11 +168,11 @@ export const useShareMediaFolder = (
         method: "POST",
       })
     },
+    ...options,
     onSuccess: (data, variables, _mutateResult, ctx) => {
       queryClient.invalidateQueries({ queryKey: mediaFolderDetailQueryKeys.detail(id) })
       options?.onSuccess?.(data, variables, _mutateResult, ctx)
     },
-    ...options,
   })
 }
 
@@ -188,11 +188,11 @@ export const useUnshareMediaFolder = (
         method: "DELETE",
       })
     },
+    ...options,
     onSuccess: (data, variables, _mutateResult, ctx) => {
       queryClient.invalidateQueries({ queryKey: mediaFolderDetailQueryKeys.detail(id) })
       options?.onSuccess?.(data, variables, _mutateResult, ctx)
     },
-    ...options,
   })
 }
 
@@ -215,10 +215,10 @@ export const useDeleteMediaFolder = (
         }
       );
     },
+    ...options,
     onSuccess: (data, variables, _mutateResult, context) => {
       queryClient.invalidateQueries({ queryKey: mediaFoldersQueryKeys.all });
       options?.onSuccess?.(data, variables, _mutateResult, context);
     },
-    ...options,
   });
 };

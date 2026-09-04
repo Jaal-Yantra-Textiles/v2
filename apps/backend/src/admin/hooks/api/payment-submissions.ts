@@ -530,13 +530,13 @@ export const useReviewPaymentSubmission = (
         `/admin/payment-submissions/${id}/review`,
         { method: "POST", body: payload }
       ) as Promise<{ payment_submission: PaymentSubmission; payment: any }>,
+    ...options,
     onSuccess: (data, variables, _mutateResult, context) => {
       queryClient.invalidateQueries({ queryKey: paymentSubmissionQueryKeys.lists() })
       queryClient.invalidateQueries({ queryKey: paymentSubmissionQueryKeys.detail(variables.id) })
       queryClient.invalidateQueries({ queryKey: reconciliationQueryKeys.lists() })
       options?.onSuccess?.(data, variables, _mutateResult, context)
     },
-    ...options,
   })
 }
 
@@ -554,11 +554,11 @@ export const useCreatePaymentSubmission = (
         `/admin/payment-submissions`,
         { method: "POST", body: payload }
       ) as Promise<{ payment_submission: PaymentSubmission }>,
+    ...options,
     onSuccess: (data, variables, _mutateResult, context) => {
       queryClient.invalidateQueries({ queryKey: paymentSubmissionQueryKeys.lists() })
       options?.onSuccess?.(data, variables, _mutateResult, context)
     },
-    ...options,
   })
 }
 
@@ -584,12 +584,12 @@ export const useSubmitPaymentSubmission = (
         `/admin/payment-submissions/${id}/submit`,
         { method: "POST", body: payload }
       ) as Promise<{ payment_submission: PaymentSubmission }>,
+    ...options,
     onSuccess: (data, variables, _mutateResult, context) => {
       queryClient.invalidateQueries({ queryKey: paymentSubmissionQueryKeys.lists() })
       queryClient.invalidateQueries({ queryKey: paymentSubmissionQueryKeys.detail(variables.id) })
       options?.onSuccess?.(data, variables, _mutateResult, context)
     },
-    ...options,
   })
 }
 
@@ -622,12 +622,12 @@ export const useUpdatePaymentSubmissionItem = (
         `/admin/payment-submissions/${id}/items/${item_id}`,
         { method: "PATCH", body: payload }
       ) as Promise<{ payment_submission: PaymentSubmission }>,
+    ...options,
     onSuccess: (data, variables, _mutateResult, context) => {
       queryClient.invalidateQueries({ queryKey: paymentSubmissionQueryKeys.lists() })
       queryClient.invalidateQueries({ queryKey: paymentSubmissionQueryKeys.detail(variables.id) })
       options?.onSuccess?.(data, variables, _mutateResult, context)
     },
-    ...options,
   })
 }
 
@@ -661,12 +661,12 @@ export const useAttachPaymentSubmissionDocuments = (
         `/admin/payment-submissions/${id}/documents`,
         { method: "POST", body: { documents } }
       ) as Promise<{ documents: any[]; added: number }>,
+    ...options,
     onSuccess: (data, variables, _mutateResult, context) => {
       queryClient.invalidateQueries({ queryKey: paymentSubmissionQueryKeys.lists() })
       queryClient.invalidateQueries({ queryKey: paymentSubmissionQueryKeys.detail(variables.id) })
       options?.onSuccess?.(data, variables, _mutateResult, context)
     },
-    ...options,
   })
 }
 
@@ -685,12 +685,12 @@ export const useDeletePaymentSubmissionDocument = (
         `/admin/payment-submissions/${id}/documents?document_id=${encodeURIComponent(document_id)}`,
         { method: "DELETE" }
       ) as Promise<{ documents: any[] }>,
+    ...options,
     onSuccess: (data, variables, _mutateResult, context) => {
       queryClient.invalidateQueries({ queryKey: paymentSubmissionQueryKeys.lists() })
       queryClient.invalidateQueries({ queryKey: paymentSubmissionQueryKeys.detail(variables.id) })
       options?.onSuccess?.(data, variables, _mutateResult, context)
     },
-    ...options,
   })
 }
 
@@ -709,12 +709,12 @@ export const useDeletePaymentSubmission = (
         `/admin/payment-submissions/${id}`,
         { method: "DELETE" }
       ) as Promise<{ id: string; deleted: boolean }>,
+    ...options,
     onSuccess: (data, variables, _mutateResult, context) => {
       queryClient.invalidateQueries({ queryKey: paymentSubmissionQueryKeys.lists() })
       queryClient.invalidateQueries({ queryKey: paymentSubmissionQueryKeys.detail(variables.id) })
       options?.onSuccess?.(data, variables, _mutateResult, context)
     },
-    ...options,
   })
 }
 
@@ -769,11 +769,11 @@ export const useCreateReconciliation = (
         `/admin/payment_reports/reconciliation`,
         { method: "POST", body: payload }
       ) as Promise<{ reconciliation: PaymentReconciliation }>,
+    ...options,
     onSuccess: (data, variables, _mutateResult, context) => {
       queryClient.invalidateQueries({ queryKey: reconciliationQueryKeys.lists() })
       options?.onSuccess?.(data, variables, _mutateResult, context)
     },
-    ...options,
   })
 }
 
@@ -787,12 +787,12 @@ export const useUpdateReconciliation = (
         `/admin/payment_reports/reconciliation/${id}`,
         { method: "PATCH", body: data }
       ) as Promise<{ reconciliation: PaymentReconciliation }>,
+    ...options,
     onSuccess: (data, variables, _mutateResult, context) => {
       queryClient.invalidateQueries({ queryKey: reconciliationQueryKeys.lists() })
       queryClient.invalidateQueries({ queryKey: reconciliationQueryKeys.detail(variables.id) })
       options?.onSuccess?.(data, variables, _mutateResult, context)
     },
-    ...options,
   })
 }
 
@@ -806,12 +806,12 @@ export const useSettleReconciliation = (
         `/admin/payment_reports/reconciliation/${id}/settle`,
         { method: "POST", body: data }
       ) as Promise<{ reconciliation: PaymentReconciliation }>,
+    ...options,
     onSuccess: (data, variables, _mutateResult, context) => {
       queryClient.invalidateQueries({ queryKey: reconciliationQueryKeys.lists() })
       queryClient.invalidateQueries({ queryKey: reconciliationQueryKeys.detail(variables.id) })
       options?.onSuccess?.(data, variables, _mutateResult, context)
     },
-    ...options,
   })
 }
 
@@ -881,6 +881,7 @@ export const useUpdatePaymentSubmissionNotes = (
         `/admin/payment-submissions/${id}`,
         { method: "PATCH", body: { notes } }
       ) as Promise<{ payment_submission: PaymentSubmission }>,
+    ...options,
     onSuccess: (data, variables, _mutateResult, context) => {
       queryClient.invalidateQueries({
         queryKey: paymentSubmissionQueryKeys.lists(),
@@ -890,6 +891,5 @@ export const useUpdatePaymentSubmissionNotes = (
       })
       options?.onSuccess?.(data, variables, _mutateResult, context)
     },
-    ...options,
   })
 }

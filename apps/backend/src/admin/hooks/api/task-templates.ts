@@ -134,13 +134,13 @@ export const useCreateTaskTemplate = (
         method: "POST",
         body: payload,
       }),
+    ...options,
     onSuccess: (data, variables, _mutateResult, context) => {
       queryClient.invalidateQueries({ queryKey: taskTemplateQueryKeys.lists() });
       if (options?.onSuccess) {
         (options.onSuccess as any)(data, variables, _mutateResult, context);
       }
     },
-    ...options,
   });
 };
 
@@ -159,13 +159,13 @@ export const useUpdateTaskTemplate = (
         method: "PUT",
         body: payload,
       }),
+    ...options,
     onSuccess: (data, variables, _mutateResult, context) => {
       queryClient.invalidateQueries({ queryKey: taskTemplateQueryKeys.detail(id)});
       if (options?.onSuccess) {
         (options.onSuccess as any)(data, variables, _mutateResult, context);
       }
     },
-    ...options,
   });
 };
 
@@ -179,12 +179,12 @@ export const useDeleteTaskTemplate = (
       sdk.client.fetch<AdminTaskTemplate>(`/admin/task-templates/${id}`, {
         method: "DELETE",
       }),
+    ...options,
     onSuccess: (data, variables, _mutateResult, context) => {
       queryClient.invalidateQueries({ queryKey: taskTemplateQueryKeys.lists()});
       if (options?.onSuccess) {
         (options.onSuccess as any)(data, variables, _mutateResult, context);
       }
     },
-    ...options,
   });
 };

@@ -149,11 +149,11 @@ export const useSyncInboundEmails = (
         method: "POST",
         body: payload,
       }),
+    ...options,
     onSuccess: (...args) => {
       queryClient.invalidateQueries({ queryKey: inboundEmailQueryKeys.lists() })
       options?.onSuccess?.(...args)
     },
-    ...options,
   })
 }
 
@@ -168,11 +168,11 @@ export const useExtractInboundEmail = (
         method: "POST",
         body: payload,
       }),
+    ...options,
     onSuccess: (...args) => {
       queryClient.invalidateQueries({ queryKey: inboundEmailQueryKeys.details() })
       options?.onSuccess?.(...args)
     },
-    ...options,
   })
 }
 
@@ -191,12 +191,12 @@ export const useExecuteInboundEmailAction = (
         method: "POST",
         body: payload,
       }),
+    ...options,
     onSuccess: (...args) => {
       queryClient.invalidateQueries({ queryKey: inboundEmailQueryKeys.lists() })
       queryClient.invalidateQueries({ queryKey: inboundEmailQueryKeys.details() })
       options?.onSuccess?.(...args)
     },
-    ...options,
   })
 }
 
@@ -211,11 +211,11 @@ export const useIgnoreInboundEmail = (
         `/admin/inbound-emails/${id}/ignore`,
         { method: "POST" }
       ),
+    ...options,
     onSuccess: (...args) => {
       queryClient.invalidateQueries({ queryKey: inboundEmailQueryKeys.lists() })
       queryClient.invalidateQueries({ queryKey: inboundEmailQueryKeys.details() })
       options?.onSuccess?.(...args)
     },
-    ...options,
   })
 }

@@ -148,6 +148,7 @@ export const useUpdatePersonType = (
           body: payload,
         },
       ),
+    ...options,
     onSuccess: (data, variables, _mutateResult, context) => {
       queryClient.invalidateQueries({ queryKey: personTypeQueryKeys.lists() });
       queryClient.invalidateQueries({
@@ -156,7 +157,6 @@ export const useUpdatePersonType = (
       });
       options?.onSuccess?.(data, variables, _mutateResult, context);
     },
-    ...options,
   });
 };
 /**
@@ -193,6 +193,7 @@ export const useDeletePersonType = (
         queryKey: personTypeQueryKeys.lists(),
       });
     },
+    ...options,
     onSuccess: async (data, variables, context) => {
       console.log("Delete onSuccess starting");
 
@@ -233,7 +234,6 @@ export const useDeletePersonType = (
         refetchType: "all",
       });
     },
-    ...options,
   });
 };
 
@@ -255,6 +255,7 @@ export const useBatchPersonGroups = (
           body: payload,
         },
       ),
+    ...options,
     onSuccess: (data, variables, _mutateResult, context) => {
       queryClient.invalidateQueries({
         queryKey: personTypeQueryKeys.lists(),
@@ -264,6 +265,5 @@ export const useBatchPersonGroups = (
       });
       options?.onSuccess?.(data, variables, _mutateResult, context);
     },
-    ...options,
   });
 };

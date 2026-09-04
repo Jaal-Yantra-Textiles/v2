@@ -117,11 +117,11 @@ export const useCreateAgreement = (
           body: payload,
         }
       ),
+    ...options,
     onSuccess: (data, variables, _mutateResult, context) => {
       queryClient.invalidateQueries({ queryKey: agreementQueryKeys.lists() });
       options?.onSuccess?.(data, variables, _mutateResult, context);
     },
-    ...options,
   });
 };
 
@@ -143,12 +143,12 @@ export const useUpdateAgreement = (
           body: payload,
         }
       ),
+    ...options,
     onSuccess: (data, variables, _mutateResult, context) => {
       queryClient.invalidateQueries({ queryKey: agreementQueryKeys.lists() });
       queryClient.invalidateQueries({ queryKey: agreementQueryKeys.detail(agreementId) });
       options?.onSuccess?.(data, variables, _mutateResult, context);
     },
-    ...options,
   });
 };
 
@@ -165,11 +165,11 @@ export const useDeleteAgreement = (
           method: "DELETE",
         }
       ),
+    ...options,
     onSuccess: (data, variables, _mutateResult, context) => {
       queryClient.invalidateQueries({ queryKey: agreementQueryKeys.lists() });
       queryClient.invalidateQueries({ queryKey: agreementQueryKeys.detail(agreementId) });
       options?.onSuccess?.(data, variables, _mutateResult, context);
     },
-    ...options,
   });
 };
