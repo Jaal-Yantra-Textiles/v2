@@ -18,6 +18,10 @@ import {
   botSuppressionLog,
   BOT_SUPPRESSED_SEND_ID,
 } from "../../lib/bot-recipients"
+import {
+  createSuppressionGuard,
+  partitionSuppressedRecipients,
+} from "../../lib/email-suppression-lookup"
 
 type InjectedDependencies = {
   logger: Logger
@@ -68,14 +72,22 @@ class MailerooNotificationProviderService extends AbstractNotificationProviderSe
   protected client_: MailerooClientType | null = null
   protected readonly options: MailerooOptions
   protected readonly logger: Logger
+  protected readonly suppressionGuard: ReturnType<typeof createSuppressionGuard>
 
   constructor(
-    { logger }: InjectedDependencies,
+    deps: InjectedDependencies,
     options: MailerooOptions
   ) {
     super()
+    const { logger } = deps
     this.options = options
     this.logger = logger
+    this.suppressionGuard = createSuppressionGuard({
+      pg: (deps as any).__pg_connection__,
+      logger,
+      provider: "maileroo",
+      channel: (options as any).channels?.[0] ?? "email_partner",
+    })
   }
 
   protected async getClient(): Promise<MailerooClientType> {
@@ -122,6 +134,17 @@ class MailerooNotificationProviderService extends AbstractNotificationProviderSe
         botSuppressionLog("maileroo", notification.to, notification.template, botVerdict)
       )
       return { id: BOT_SUPPRESSED_SEND_ID }
+    }
+
+    // Suppression ledger (#1339). Separate from the bot guard above: that one is
+    // a pure domain rule, this one asks what the ledger says about this address
+    // on THIS channel. Fails open and logs loudly — see the lookup module.
+    const suppression = await this.suppressionGuard(
+      notification.to,
+      notification.template
+    )
+    if (suppression.suppress) {
+      return { id: suppression.id }
     }
 
     const templateData = notification.data as any
@@ -204,6 +227,17 @@ class MailerooNotificationProviderService extends AbstractNotificationProviderSe
       return { email: entry.to, rule: verdict.rule, note: verdict.note }
     })
     entries = partitioned.send
+
+    // Suppression ledger (#1339). Same reasoning as the bot guard directly
+    // above: a hard-bounced address inside a 50-address batch damages sender
+    // reputation exactly as much as a single send, and bulk does not go through
+    // send(). Each drop is logged individually by the guard.
+    const ledgerPartitioned = await partitionSuppressedRecipients(
+      entries,
+      (e) => e.to,
+      this.suppressionGuard
+    )
+    entries = ledgerPartitioned.send
 
     const defaultFrom = this.options.from_email
     const defaultName = this.options.from_name || "Jaal Yantra Textiles"
