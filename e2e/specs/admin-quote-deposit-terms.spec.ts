@@ -76,16 +76,28 @@ test.describe("Quote deposit terms + payment schedule (#1439 S11)", () => {
     await page.getByRole("button", { name: "Mint quote" }).click()
     await expect(page.getByRole("dialog")).toBeVisible({ timeout: 30000 })
 
-    // Partner first: every quote is partner-scoped, and the Buyer step is not
-    // reachable until one is chosen.
+    /**
+     * The route to this field moved with #1446: the four-step wizard became a
+     * small create modal plus a draft page whose edits live in drawers. The
+     * deposit is a BUYER term, so it now sits in the buyer drawer — reached
+     * through the `…` menu, exactly as a draft order's customer card is
+     * edited. The assertions below are unchanged; only the walk to them is.
+     */
     await page.getByText("Select a partner").click()
     await page.getByRole("option", { name: seed.quotePartnerName }).click()
-    await page.getByRole("button", { name: "Continue" }).click()
+    await page.getByText("Select a region").click()
+    await page.getByRole("option").first().click()
+    await page.getByRole("button", { name: "Save" }).click()
+    await page.waitForURL(/\/app\/quotes\/drafts\//, { timeout: 30000 })
+
+    await page.locator('[aria-label="Open actions menu"]').last().click()
+    await page.getByRole("menuitem", { name: /Edit buyer/ }).click()
+    await expect(page.getByRole("dialog")).toBeVisible({ timeout: 15000 })
 
     const deposit = page.locator('input[name="deposit_pct"]')
     await expect(deposit).toBeVisible({ timeout: 15000 })
 
-    // Optional, and empty by default. A pre-filled 30 would be the wizard
+    // Optional, and empty by default. A pre-filled 30 would be the form
     // asserting terms nobody agreed to, and would then be frozen onto the
     // quote as though the partner had chosen it.
     await expect(deposit).toHaveValue("")

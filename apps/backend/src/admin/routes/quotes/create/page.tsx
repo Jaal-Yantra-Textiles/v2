@@ -1,28 +1,28 @@
-import { MintQuoteForm } from "./mint-quote-form"
+import { RouteFocusModal } from "../../../components/modal/route-focus-modal"
+
+import { CreateDraftForm } from "./create-draft-form"
 
 /**
- * Minting is a PAGE, not a focus modal.
+ * Starting a quote opens a DRAFT (#1446).
  *
- * It shipped as a four-step wizard inside `RouteFocusModal` — the shape every
- * other create route on this admin uses. That works for a form with a handful
- * of fields; a quote is not that. The steps had grown to 2,420 lines, and a
- * modal showed exactly one of the four questions at a time: the operator could
- * not see the basket while typing a destination, nor re-read the buyer while
- * setting quantities, and the readiness verdict appeared above a grid and
- * scrolled away.
+ * This used to be a four-step wizard that held every answer in the browser and
+ * created a fully priced quote in one POST at the very end. That is not the
+ * shape of the draft-order rail it is modelled on: there, a small modal
+ * captures only what makes the row, saves it, and everything else is edited on
+ * the draft afterwards.
  *
- * As a page it is the same four questions as sections, laid out the way the
- * quote DETAIL route is laid out — the create route now looks like the record
- * it produces, which it never did before.
+ * 🔑 The hook lives in the CHILD. `useRouteModal` reads a context that
+ * `RouteFocusModal` itself provides, so a component that renders the modal
+ * cannot also call the hook — that is #1352, and it throws at render.
  */
-const MintQuotePage = () => (
-  <div className="flex w-full flex-col gap-y-3 p-3">
-    <MintQuoteForm />
-  </div>
+const StartQuotePage = () => (
+  <RouteFocusModal prev="/quotes">
+    <CreateDraftForm />
+  </RouteFocusModal>
 )
 
 export const handle = {
-  breadcrumb: () => "Mint",
+  breadcrumb: () => "Start",
 }
 
-export default MintQuotePage
+export default StartQuotePage

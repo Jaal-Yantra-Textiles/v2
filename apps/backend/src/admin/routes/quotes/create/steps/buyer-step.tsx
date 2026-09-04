@@ -307,7 +307,25 @@ export const BuyerStep = ({ form }: Props) => {
             <Form.Item>
               <Form.Label>Destination country</Form.Label>
               <Form.Control>
+                {/*
+                  🔴 `key` on the region, so this REMOUNTS when the region
+                  arrives.
+
+                  Radix resolves a controlled `value` against the
+                  `Select.Item`s mounted at that moment. This list is derived
+                  from the region, so whenever the value lands before the
+                  region does — picking a region writes its first country, or a
+                  saved draft is hydrated before `useQuoteRegions` has resolved
+                  — Radix finds no match, shows the PLACEHOLDER, and never
+                  recovers once the items appear.
+
+                  The form then holds "sg" while the screen says "Select a
+                  country", and submitting answers "Pick where this ships" over
+                  a field that is not empty. Invisible to tsc and to every
+                  test; found by driving the form in a browser.
+                */}
                 <Select
+                  key={region?.id ?? "no-region"}
                   value={field.value}
                   onValueChange={field.onChange}
                   disabled={!region}
