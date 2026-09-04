@@ -184,11 +184,12 @@ export const useCreateBlock = (
           body: payload,
         }
       ),
-    onSuccess: () => {
+    ...options,
+    onSuccess: (data, variables, _mutateResult, context) => {
       queryClient.invalidateQueries({ queryKey: blockQueryKeys.lists() });
       queryClient.invalidateQueries({ queryKey: pageQueryKeys.detail(pageId) });
+      options?.onSuccess?.(data, variables, _mutateResult, context);
     },
-    ...options,
   });
 };
 
@@ -216,12 +217,13 @@ export const useUpdateBlock = (
           body: payload,
         }
       ),
-    onSuccess: () => {
+    ...options,
+    onSuccess: (data, variables, _mutateResult, context) => {
       queryClient.invalidateQueries({ queryKey: blockQueryKeys.detail(blockId) });
       queryClient.invalidateQueries({ queryKey: blockQueryKeys.lists() });
       queryClient.invalidateQueries({ queryKey: pageQueryKeys.detail(pageId) });
+      options?.onSuccess?.(data, variables, _mutateResult, context);
     },
-    ...options,
   });
 };
 
@@ -253,11 +255,12 @@ export const useUpdatePageBlock = (
           body: payload,
         }
       ),
-    onSuccess: () => {
+    ...options,
+    onSuccess: (data, variables, _mutateResult, context) => {
       queryClient.invalidateQueries({ queryKey: blockQueryKeys.lists() });
       queryClient.invalidateQueries({ queryKey: pageQueryKeys.detail(pageId) });
+      options?.onSuccess?.(data, variables, _mutateResult, context);
     },
-    ...options,
   });
 };
 
@@ -280,11 +283,12 @@ export const useDeletePageBlock = (
           method: "DELETE",
         }
       ),
-    onSuccess: () => {
+    ...options,
+    onSuccess: (data, variables, _mutateResult, context) => {
       queryClient.invalidateQueries({ queryKey: blockQueryKeys.lists() });
       queryClient.invalidateQueries({ queryKey: pageQueryKeys.detail(pageId) });
+      options?.onSuccess?.(data, variables, _mutateResult, context);
     },
-    ...options,
   });
 };
 
@@ -307,10 +311,11 @@ export const useDeleteBlock = (
           method: "DELETE",
         }
       ),
-    onSuccess: () => {
+    ...options,
+    onSuccess: (data, variables, _mutateResult, context) => {
       queryClient.invalidateQueries({ queryKey: blockQueryKeys.lists() });
       queryClient.invalidateQueries({ queryKey: pageQueryKeys.detail(pageId) });
+      options?.onSuccess?.(data, variables, _mutateResult, context);
     },
-    ...options,
   });
 };

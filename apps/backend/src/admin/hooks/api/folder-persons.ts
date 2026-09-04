@@ -73,12 +73,12 @@ export const useAssignPersonsToFolder = (
         }
       )
     },
+    ...options,
     onSuccess: (data, variables, _mutateResult, context) => {
       queryClient.invalidateQueries({ queryKey: folderPersonsQueryKeys.detail(folderId) })
       queryClient.invalidateQueries({ queryKey: mediaFolderDetailQueryKeys.detail(folderId) })
       options?.onSuccess?.(data, variables, _mutateResult, context)
     },
-    ...options,
   })
 }
 
@@ -102,11 +102,11 @@ export const useUnassignPersonsFromFolder = (
         }
       )
     },
+    ...options,
     onSuccess: (data, variables, _mutateResult, context) => {
       queryClient.invalidateQueries({ queryKey: folderPersonsQueryKeys.detail(folderId) })
       queryClient.invalidateQueries({ queryKey: mediaFolderDetailQueryKeys.detail(folderId) })
       options?.onSuccess?.(data, variables, _mutateResult, context)
     },
-    ...options,
   })
 }

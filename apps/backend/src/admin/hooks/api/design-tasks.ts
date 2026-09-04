@@ -164,6 +164,7 @@ export const useCreateDesignTask = (
           body: payload,
         }
       ),
+    ...options,
     onSuccess: (data, variables, _mutateResult, context) => {
       queryClient.invalidateQueries({ queryKey: designTasksQueryKeys.lists() });
       
@@ -175,7 +176,6 @@ export const useCreateDesignTask = (
       
       options?.onSuccess?.(data, variables, _mutateResult, context);
     },
-    ...options,
   });
 };
 
@@ -199,6 +199,7 @@ export const useUpdateDesignTask = (
           body: payload,
         }
       ),
+    ...options,
     onSuccess: (data, variables, _mutateResult, context) => {
       queryClient.invalidateQueries({ queryKey: designTasksQueryKeys.detail(taskId) });
       queryClient.invalidateQueries({ queryKey: designTasksQueryKeys.lists() });
@@ -211,7 +212,6 @@ export const useUpdateDesignTask = (
       
       options?.onSuccess?.(data, variables, _mutateResult, context);
     },
-    ...options,
   });
 };
 
@@ -230,10 +230,10 @@ export const useDeleteDesignTask = (
           method: "DELETE",
         }
       ),
+    ...options,
     onSuccess: (data, variables, _mutateResult, context) => {
       queryClient.invalidateQueries({ queryKey: designTasksQueryKeys.lists() });
       options?.onSuccess?.(data, variables, _mutateResult, context);
     },
-    ...options,
   });
 };

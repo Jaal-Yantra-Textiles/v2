@@ -177,15 +177,16 @@ export const useCreatePages = (
           body: payload,
         }
       ),
-    onSuccess: () => {
+    ...options,
+    onSuccess: (data, variables, _mutateResult, context) => {
       // Invalidate pages list queries
       queryClient.invalidateQueries({ queryKey: pageQueryKeys.lists() });
       
       // Invalidate both website list and detail queries
       queryClient.invalidateQueries({ queryKey: websiteQueryKeys.lists() });
       queryClient.invalidateQueries({ queryKey: websiteQueryKeys.detail(websiteId) });
+      options?.onSuccess?.(data, variables, _mutateResult, context);
     },
-    ...options,
   });
 };
 
@@ -253,15 +254,16 @@ export const useCreatePagesWithBlocks = (
 
       return response;
     },
-    onSuccess: () => {
+    ...options,
+    onSuccess: (data, variables, _mutateResult, context) => {
       // Invalidate pages list queries
       queryClient.invalidateQueries({ queryKey: pageQueryKeys.lists() });
       
       // Invalidate both website list and detail queries
       queryClient.invalidateQueries({ queryKey: websiteQueryKeys.lists() });
       queryClient.invalidateQueries({ queryKey: websiteQueryKeys.detail(websiteId) });
+      options?.onSuccess?.(data, variables, _mutateResult, context);
     },
-    ...options,
   });
 };
 
@@ -284,11 +286,12 @@ export const useUpdatePage = (
           body: payload,
         }
       ),
-    onSuccess: () => {
+    ...options,
+    onSuccess: (data, variables, _mutateResult, context) => {
       queryClient.invalidateQueries({ queryKey: pageQueryKeys.detail(pageId) });
       queryClient.invalidateQueries({ queryKey: pageQueryKeys.lists() });
+      options?.onSuccess?.(data, variables, _mutateResult, context);
     },
-    ...options,
   });
 };
 
@@ -306,11 +309,12 @@ export const useDeletePage = (
           method: "DELETE",
         }
       ),
-    onSuccess: () => {
+    ...options,
+    onSuccess: (data, variables, _mutateResult, context) => {
       queryClient.invalidateQueries({ queryKey: pageQueryKeys.lists() });
       queryClient.invalidateQueries({ queryKey: websiteQueryKeys.lists() });
       queryClient.invalidateQueries({ queryKey: websiteQueryKeys.detail(websiteId) });
+      options?.onSuccess?.(data, variables, _mutateResult, context);
     },
-    ...options,
   });
 };

@@ -97,12 +97,12 @@ export const useCreatePartnerTask = (
           body: payload,
         }
       ),
+    ...options,
     onSuccess: (data, variables, _mutateResult, context) => {
       queryClient.invalidateQueries({ queryKey: partnerTasksQueryKeys.lists() });
       queryClient.invalidateQueries({ queryKey: ["partners", partnerId] });
       options?.onSuccess?.(data, variables, _mutateResult, context);
     },
-    ...options,
   });
 };
 
@@ -123,12 +123,12 @@ export const useAssignPartnerTask = (
           method: "POST",
         }
       ),
+    ...options,
     onSuccess: (data, variables, _mutateResult, context) => {
       queryClient.invalidateQueries({ queryKey: partnerTasksQueryKeys.lists() });
       queryClient.invalidateQueries({ queryKey: ["partners", partnerId] });
       options?.onSuccess?.(data, variables, _mutateResult, context);
     },
-    ...options,
   });
 };
 
@@ -151,11 +151,11 @@ export const useUpdatePartnerTask = (
           body: payload,
         }
       ),
+    ...options,
     onSuccess: (data, variables, _mutateResult, context) => {
       queryClient.invalidateQueries({ queryKey: partnerTasksQueryKeys.lists() });
       queryClient.invalidateQueries({ queryKey: ["partners", partnerId] });
       options?.onSuccess?.(data, variables, _mutateResult, context);
     },
-    ...options,
   });
 };

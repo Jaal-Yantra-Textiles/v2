@@ -163,11 +163,11 @@ export const useCreateInventoryOrder = (
         method: "POST",
         body: payload,
       }),
+    ...options,
     onSuccess: (...args) => {
       queryClient.invalidateQueries({ queryKey: inventoryOrderQueryKeys.lists() });
       options?.onSuccess?.(...args);
     },
-    ...options,
   });
 };
 
@@ -182,12 +182,12 @@ export const useUpdateInventoryOrder = (
         method: "PUT",
         body: payload,
       }),
+    ...options,
     onSuccess: (...args) => {
       queryClient.invalidateQueries({ queryKey: inventoryOrderQueryKeys.lists() });
       queryClient.invalidateQueries({ queryKey: inventoryOrderQueryKeys.details() });
       options?.onSuccess?.(...args);
     },
-    ...options,
   });
 };
 
@@ -204,12 +204,12 @@ export const useMarkInventoryOrderReadyForDelivery = (
         method: "POST",
         body: {},
       }),
+    ...options,
     onSuccess: (...args) => {
       queryClient.invalidateQueries({ queryKey: inventoryOrderQueryKeys.detail(id) });
       queryClient.invalidateQueries({ queryKey: inventoryOrderQueryKeys.lists() });
       options?.onSuccess?.(...args);
     },
-    ...options,
   });
 };
 
@@ -240,12 +240,12 @@ export const useCreateInventoryOrderShipment = (
         method: "POST",
         body: payload,
       }),
+    ...options,
     onSuccess: (...args) => {
       queryClient.invalidateQueries({ queryKey: inventoryOrderQueryKeys.detail(id) });
       queryClient.invalidateQueries({ queryKey: inventoryOrderQueryKeys.lists() });
       options?.onSuccess?.(...args);
     },
-    ...options,
   });
 };
 
@@ -323,12 +323,12 @@ export const useCreateInventoryOrderTasks = (
         method: "POST",
         body: payload,
       }),
+    ...options,
     onSuccess: (...args) => {
       // invalidate inventory order detail and tasks queries
       queryClient.invalidateQueries({ queryKey: inventoryOrderQueryKeys.detail(id) });
       options?.onSuccess?.(...args);
     },
-    ...options,
   });
 };
 
@@ -342,11 +342,11 @@ export const useDeleteInventoryOrder = (
       sdk.client.fetch<AdminInventoryOrder>(`/admin/inventory-orders/${id}`, {
         method: "DELETE",
       }),
+    ...options,
     onSuccess: (...args) => {
       queryClient.invalidateQueries({ queryKey: inventoryOrderQueryKeys.lists() });
       options?.onSuccess?.(...args);
     },
-    ...options,
   });
 };
 
@@ -361,12 +361,12 @@ export const useSendInventoryOrderToPartner = (
         method: "POST",
         body: payload,
       }),
+    ...options,
     onSuccess: (...args) => {
       queryClient.invalidateQueries({ queryKey: inventoryOrderQueryKeys.detail(id) });
       queryClient.invalidateQueries({ queryKey: inventoryOrderQueryKeys.lists() });
       options?.onSuccess?.(...args);
     },
-    ...options,
   });
 };
 
@@ -403,6 +403,7 @@ export const useUpdateInventoryOrderLines = (
         method: "PUT",
         body,
       }),
+    ...options,
     onSuccess: async (data, variables, ...args) => {
       // Invalidate all queries related to inventory orders
       await queryClient.invalidateQueries({ queryKey: inventoryOrderQueryKeys.lists() });
@@ -414,7 +415,6 @@ export const useUpdateInventoryOrderLines = (
       });
       options?.onSuccess?.(data, variables, ...args);
     },
-    ...options,
   });
 };
 

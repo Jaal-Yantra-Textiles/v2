@@ -203,11 +203,11 @@ export const useCreateForm = (
         method: "POST",
         body: payload,
       }),
+    ...options,
     onSuccess: (data, variables, _mutateResult, context) => {
       queryClient.invalidateQueries({ queryKey: formsQueryKeys.lists() })
       options?.onSuccess?.(data, variables, _mutateResult, context)
     },
-    ...options,
   })
 }
 
@@ -223,12 +223,12 @@ export const useUpdateForm = (
         method: "POST",
         body: payload,
       }),
+    ...options,
     onSuccess: (data, variables, _mutateResult, context) => {
       queryClient.invalidateQueries({ queryKey: formsQueryKeys.lists() })
       queryClient.invalidateQueries({ queryKey: formsQueryKeys.detail(formId) })
       options?.onSuccess?.(data, variables, _mutateResult, context)
     },
-    ...options,
   })
 }
 
@@ -244,12 +244,12 @@ export const useSetFormFields = (
         method: "POST",
         body: payload,
       }),
+    ...options,
     onSuccess: (data, variables, _mutateResult, context) => {
       queryClient.invalidateQueries({ queryKey: formsQueryKeys.detail(formId) })
       queryClient.invalidateQueries({ queryKey: formsQueryKeys.lists() })
       options?.onSuccess?.(data, variables, _mutateResult, context)
     },
-    ...options,
   })
 }
 
@@ -264,12 +264,12 @@ export const useDeleteForm = (
       sdk.client.fetch<any>(`/admin/forms/${formId}`, {
         method: "DELETE",
       }),
+    ...options,
     onSuccess: (data, variables, _mutateResult, context) => {
       queryClient.invalidateQueries({ queryKey: formsQueryKeys.lists() })
       queryClient.invalidateQueries({ queryKey: formsQueryKeys.detail(formId) })
       options?.onSuccess?.(data, variables, _mutateResult, context)
     },
-    ...options,
   })
 }
 
@@ -335,11 +335,11 @@ export const useImportTourBookings = (
         headers: { "Content-Type": null as any },
       })
     },
+    ...options,
     onSuccess: (data, variables, _mutateResult, context) => {
       queryClient.invalidateQueries({ queryKey: formResponsesQueryKeys.list({ formId }) })
       queryClient.invalidateQueries({ queryKey: formResponsesQueryKeys.lists() })
       options?.onSuccess?.(data, variables, _mutateResult, context)
     },
-    ...options,
   })
 }

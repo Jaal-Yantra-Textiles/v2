@@ -68,10 +68,10 @@ export const useCreateMediaComment = (
         }
       )
     },
+    ...options,
     onSuccess: (data, variables, _mutateResult, context) => {
       queryClient.invalidateQueries({ queryKey: mediaCommentsQueryKeys.detail(mediaId) })
       options?.onSuccess?.(data, variables, _mutateResult, context)
     },
-    ...options,
   })
 }

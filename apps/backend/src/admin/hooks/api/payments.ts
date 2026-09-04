@@ -24,6 +24,7 @@ export const useCreatePaymentAndLink = (
         method: "POST",
         body: payload,
       }),
+    ...options,
     onSuccess: (data, variables, _mutateResult, context) => {
       // Invalidate common views that might reflect payment changes
       queryClient.invalidateQueries({ queryKey: ["persons"] });
@@ -56,7 +57,6 @@ export const useCreatePaymentAndLink = (
       }
       options?.onSuccess?.(data, variables, _mutateResult, context);
     },
-    ...options,
   });
 };
 
@@ -81,6 +81,7 @@ export const useUpdatePayment = (
         method: "POST",
         body: payload,
       }),
+    ...options,
     onSuccess: (data, variables, _mutateResult, context) => {
       // Ensure partner and person detail pages (which render payments) are refreshed
       queryClient.invalidateQueries({ queryKey: adminPartnersQueryKeys.details() });
@@ -90,7 +91,6 @@ export const useUpdatePayment = (
       queryClient.invalidateQueries({ queryKey: [PARTNER_LEDGER_QUERY_KEY] });
       options?.onSuccess?.(data, variables, _mutateResult, context);
     },
-    ...options,
   });
 };
 

@@ -81,6 +81,7 @@ export const useUpdateInventoryOrderTask = (
         method: "POST",
         body: payload,
       }) as Promise<AdminInventoryOrderTaskResponse>,
+    ...options,
     onSuccess: (...args) => {
       // invalidate task detail query
       queryClient.invalidateQueries({ queryKey: inventoryOrderTaskQueryKeys.detail(taskId) });
@@ -88,6 +89,5 @@ export const useUpdateInventoryOrderTask = (
       queryClient.invalidateQueries({ queryKey: inventoryOrderQueryKeys.detail(inventoryOrderId) });
       options?.onSuccess?.(...args);
     },
-    ...options,
   });
 };

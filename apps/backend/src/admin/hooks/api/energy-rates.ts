@@ -110,11 +110,11 @@ export const useCreateEnergyRate = (
         method: "POST",
         body: payload,
       }),
+    ...options,
     onSuccess: (data, variables, _mr, context) => {
       queryClient.invalidateQueries({ queryKey: energyRateQueryKeys.lists() })
       options?.onSuccess?.(data, variables, _mr, context)
     },
-    ...options,
   })
 }
 
@@ -130,12 +130,12 @@ export const useUpdateEnergyRate = (
         method: "POST",
         body: payload,
       }),
+    ...options,
     onSuccess: (data, variables, _mr, context) => {
       queryClient.invalidateQueries({ queryKey: energyRateQueryKeys.detail(id) })
       queryClient.invalidateQueries({ queryKey: energyRateQueryKeys.lists() })
       options?.onSuccess?.(data, variables, _mr, context)
     },
-    ...options,
   })
 }
 
@@ -150,10 +150,10 @@ export const useDeleteEnergyRate = (
       sdk.client.fetch<{ id: string; deleted: boolean }>(`/admin/energy-rates/${id}`, {
         method: "DELETE",
       }),
+    ...options,
     onSuccess: (data, variables, _mr, context) => {
       queryClient.invalidateQueries({ queryKey: energyRateQueryKeys.lists() })
       options?.onSuccess?.(data, variables, _mr, context)
     },
-    ...options,
   })
 }

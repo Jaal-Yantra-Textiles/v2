@@ -117,11 +117,11 @@ export const useCreateEmailTemplates = (
           body: payload,
         }
       ),
+    ...options,
     onSuccess: (data, variables, _mutateResult, context) => {
       queryClient.invalidateQueries({ queryKey: emailTemplatesQueryKeys.lists() });
       options?.onSuccess?.(data, variables, _mutateResult, context);
     },
-    ...options,
   });
 };
 
@@ -143,12 +143,12 @@ export const useUpdateEmailTemplate = (
           body: payload,
         }
       ),
+    ...options,
     onSuccess: (data, variables, _mutateResult, context) => {
       queryClient.invalidateQueries({ queryKey: emailTemplatesQueryKeys.lists() });
       queryClient.invalidateQueries({ queryKey: emailTemplatesQueryKeys.detail(emailTemplateId) });
       options?.onSuccess?.(data, variables, _mutateResult, context);
     },
-    ...options,
   });
 };
 
@@ -165,11 +165,11 @@ export const useDeleteEmailTemplate = (
           method: "DELETE",
         }
       ),
+    ...options,
     onSuccess: (data, variables, _mutateResult, context) => {
       queryClient.invalidateQueries({ queryKey: emailTemplatesQueryKeys.lists() });
       queryClient.invalidateQueries({ queryKey: emailTemplatesQueryKeys.detail(emailTemplateId) });
       options?.onSuccess?.(data, variables, _mutateResult, context);
     },
-    ...options,
   });
 };

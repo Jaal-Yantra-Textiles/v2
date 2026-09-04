@@ -189,13 +189,13 @@ export const useApproveDesign = (
         `/admin/designs/${designId}/approve`,
         { method: "POST", body: {} }
       ),
+    ...options,
     onSuccess: (...args) => {
       queryClient.invalidateQueries({
         queryKey: designOrdersQueryKeys.lists(),
       });
       options?.onSuccess?.(...args);
     },
-    ...options,
   });
 };
 
@@ -210,13 +210,13 @@ export const useCancelDesignOrder = (
         method: "POST",
         body: {},
       }),
+    ...options,
     onSuccess: (...args) => {
       queryClient.invalidateQueries({
         queryKey: designOrdersQueryKeys.lists(),
       });
       options?.onSuccess?.(...args);
     },
-    ...options,
   });
 };
 
@@ -255,6 +255,7 @@ export const useConvertDesignOrder = (
         `/admin/designs/orders/${lineItemId}/convert`,
         { method: "POST", body: payload }
       ),
+    ...options,
     onSuccess: (...args) => {
       queryClient.invalidateQueries({
         queryKey: designOrdersQueryKeys.lists(),
@@ -264,7 +265,6 @@ export const useConvertDesignOrder = (
       });
       options?.onSuccess?.(...args);
     },
-    ...options,
   });
 };
 
@@ -298,13 +298,13 @@ export const useProduceDesignOrder = (
         `/admin/orders/${orderId}/design/produce`,
         { method: "POST", body: payload }
       ),
+    ...options,
     onSuccess: (...args) => {
       queryClient.invalidateQueries({
         queryKey: designOrdersQueryKeys.lists(),
       });
       options?.onSuccess?.(...args);
     },
-    ...options,
   });
 };
 
@@ -430,13 +430,13 @@ export const useGenerateShiprocketLabel = (
         { method: "POST", body }
       );
     },
+    ...options,
     onSuccess: (...args) => {
       queryClient.invalidateQueries({
         queryKey: designOrdersQueryKeys.lists(),
       });
       options?.onSuccess?.(...args);
     },
-    ...options,
   });
 };
 
@@ -504,13 +504,13 @@ export const useAttachShiprocketAwb = (
         `/admin/orders/${orderId}/shiprocket-attach-awb`,
         { method: "POST", body: { awb } }
       ),
+    ...options,
     onSuccess: (...args) => {
       queryClient.invalidateQueries({
         queryKey: designOrdersQueryKeys.lists(),
       });
       options?.onSuccess?.(...args);
     },
-    ...options,
   });
 };
 
@@ -567,12 +567,12 @@ export const useCancelShipment = (
         `/admin/orders/${orderId}/fulfillments/${fulfillmentId}/cancel-shipment`,
         { method: "POST", body }
       ),
+    ...options,
     onSuccess: (...args) => {
       queryClient.invalidateQueries({
         queryKey: designOrdersQueryKeys.lists(),
       });
       options?.onSuccess?.(...args);
     },
-    ...options,
   });
 };

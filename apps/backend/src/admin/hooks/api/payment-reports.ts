@@ -151,11 +151,11 @@ export const useCreatePaymentReport = (
         method: "POST",
         body: payload,
       }) as Promise<{ payment_report: AdminPaymentReport }>,
+    ...options,
     onSuccess: (data, variables, _mutateResult, context) => {
       queryClient.invalidateQueries({ queryKey: paymentReportQueryKeys.lists() })
       options?.onSuccess?.(data, variables, _mutateResult, context)
     },
-    ...options,
   })
 }
 
@@ -169,12 +169,12 @@ export const useUpdatePaymentReport = (
         method: "PATCH",
         body: data,
       }) as Promise<{ payment_report: AdminPaymentReport }>,
+    ...options,
     onSuccess: (data, variables, _mutateResult, context) => {
       queryClient.invalidateQueries({ queryKey: paymentReportQueryKeys.lists() })
       queryClient.invalidateQueries({ queryKey: paymentReportQueryKeys.detail(variables.id) })
       options?.onSuccess?.(data, variables, _mutateResult, context)
     },
-    ...options,
   })
 }
 
@@ -188,11 +188,11 @@ export const useDeletePaymentReport = (
         method: "DELETE",
       })
     },
+    ...options,
     onSuccess: (data, variables, _mutateResult, context) => {
       queryClient.invalidateQueries({ queryKey: paymentReportQueryKeys.lists() })
       options?.onSuccess?.(data, variables, _mutateResult, context)
     },
-    ...options,
   })
 }
 

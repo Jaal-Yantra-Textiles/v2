@@ -98,12 +98,12 @@ export const useCreateViewConfiguration = (
         method: "POST",
         body: payload,
       }),
+    ...options,
     onSuccess: (data, variables, _mutateResult, context) => {
       queryClient.invalidateQueries({ queryKey: viewQueryKeys.list(entity) })
       queryClient.invalidateQueries({ queryKey: viewQueryKeys.active(entity) })
       options?.onSuccess?.(data, variables, _mutateResult, context)
     },
-    ...options,
   })
 }
 
@@ -128,6 +128,7 @@ export const useUpdateViewConfiguration = (
           body: payload,
         },
       ),
+    ...options,
     onSuccess: (data, variables, _mutateResult, context) => {
       queryClient.invalidateQueries({ queryKey: viewQueryKeys.list(entity) })
       queryClient.invalidateQueries({ queryKey: viewQueryKeys.active(entity) })
@@ -136,7 +137,6 @@ export const useUpdateViewConfiguration = (
       })
       options?.onSuccess?.(data, variables, _mutateResult, context)
     },
-    ...options,
   })
 }
 
@@ -150,12 +150,12 @@ export const useDeleteViewConfiguration = (
       sdk.client.fetch<{ success: boolean }>(`/admin/views/${entity}/configurations/${id}`, {
         method: "DELETE",
       }),
+    ...options,
     onSuccess: (data, variables, _mutateResult, context) => {
       queryClient.invalidateQueries({ queryKey: viewQueryKeys.list(entity) })
       queryClient.invalidateQueries({ queryKey: viewQueryKeys.active(entity) })
       options?.onSuccess?.(data, variables, _mutateResult, context)
     },
-    ...options,
   })
 }
 
@@ -172,11 +172,11 @@ export const useSetActiveViewConfiguration = (
           view_configuration_id: viewConfigurationId,
         },
       }),
+    ...options,
     onSuccess: (data, variables, _mutateResult, context) => {
       queryClient.invalidateQueries({ queryKey: viewQueryKeys.list(entity) })
       queryClient.invalidateQueries({ queryKey: viewQueryKeys.active(entity) })
       options?.onSuccess?.(data, variables, _mutateResult, context)
     },
-    ...options,
   })
 }

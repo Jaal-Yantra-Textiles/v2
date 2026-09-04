@@ -164,10 +164,10 @@ export const useRetryFailedEmail = (
         }
       )
     },
+    ...options,
     onSuccess: (data, variables, _mutateResult, context) => {
       queryClient.invalidateQueries({ queryKey: failedNotificationsQueryKeys.lists() });
       options?.onSuccess?.(data, variables, _mutateResult, context);
     },
-    ...options,
   });
 };

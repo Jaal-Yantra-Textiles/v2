@@ -115,12 +115,12 @@ export const useDeletePartner = (
       sdk.client.fetch<{ id: string; object: string; deleted: boolean }>(`/admin/partners/${id}`, {
         method: "DELETE",
       }),
+    ...options,
     onSuccess: (data, variables, _mutateResult, context) => {
       queryClient.invalidateQueries({ queryKey: partnersQueryKeys.lists() })
       queryClient.invalidateQueries({ queryKey: partnersQueryKeys.detail(id) })
       options?.onSuccess?.(data, variables, _mutateResult, context)
     },
-    ...options,
   })
 }
 
@@ -158,11 +158,11 @@ export const useCreatePartnerWithAdmin = (
         method: "POST",
         body: payload,
       }) as Promise<CreatePartnerWithAdminResponse>,
+    ...options,
     onSuccess: (data, variables, _mutateResult, context) => {
       queryClient.invalidateQueries({ queryKey: partnersQueryKeys.lists() })
       options?.onSuccess?.(data, variables, _mutateResult, context)
     },
-    ...options,
   })
 }
 

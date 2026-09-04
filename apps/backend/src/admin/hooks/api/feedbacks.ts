@@ -260,6 +260,7 @@ export const useCreateFeedback = (
       );
       return res;
     },
+    ...options,
     onSuccess: (data, variables, _mutateResult, context) => {
       queryClient.invalidateQueries({ queryKey: feedbacksQueryKeys.lists() });
       toast.success("Feedback created successfully");
@@ -271,7 +272,6 @@ export const useCreateFeedback = (
       });
       options?.onError?.(error, variables, _mutateResult, context);
     },
-    ...options,
   });
 };
 
@@ -299,11 +299,11 @@ export const useCreatePartnerFeedback = (
       );
       return res;
     },
+    ...options,
     onSuccess: (data, variables, _mutateResult, context) => {
       queryClient.invalidateQueries({ queryKey: feedbacksQueryKeys.lists() });
       options?.onSuccess?.(data, variables, _mutateResult, context);
     },
-    ...options,
   });
 };
 
@@ -331,11 +331,11 @@ export const useCreateTaskFeedback = (
       );
       return res;
     },
+    ...options,
     onSuccess: (data, variables, _mutateResult, context) => {
       queryClient.invalidateQueries({ queryKey: feedbacksQueryKeys.lists() });
       options?.onSuccess?.(data, variables, _mutateResult, context);
     },
-    ...options,
   });
 };
 
@@ -363,11 +363,11 @@ export const useCreateInventoryOrderFeedback = (
       );
       return res;
     },
+    ...options,
     onSuccess: (data, variables, _mutateResult, context) => {
       queryClient.invalidateQueries({ queryKey: feedbacksQueryKeys.lists() });
       options?.onSuccess?.(data, variables, _mutateResult, context);
     },
-    ...options,
   });
 };
 
@@ -395,6 +395,7 @@ export const useUpdateFeedback = (
       );
       return res;
     },
+    ...options,
     onSuccess: (data, variables, _mutateResult, context) => {
       queryClient.invalidateQueries({ queryKey: feedbacksQueryKeys.lists() });
       queryClient.invalidateQueries({ queryKey: feedbacksQueryKeys.detail(id) });
@@ -407,7 +408,6 @@ export const useUpdateFeedback = (
       });
       options?.onError?.(error, variables, _mutateResult, context);
     },
-    ...options,
   });
 };
 
@@ -426,6 +426,7 @@ export const useDeleteFeedback = (
         method: "DELETE",
       });
     },
+    ...options,
     onSuccess: (data, variables, _mutateResult, context) => {
       queryClient.invalidateQueries({ queryKey: feedbacksQueryKeys.lists() });
       queryClient.invalidateQueries({ queryKey: feedbacksQueryKeys.detail(id) });
@@ -438,6 +439,5 @@ export const useDeleteFeedback = (
       });
       options?.onError?.(error, variables, _mutateResult, context);
     },
-    ...options,
   });
 };

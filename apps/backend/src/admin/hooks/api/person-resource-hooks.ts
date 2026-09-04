@@ -147,6 +147,7 @@ export const createPersonResourceHooks = <
             body: payload,
           },
         ),
+      ...options,
       onSuccess: (data, variables, _mutateResult, context) => {
         queryClient.invalidateQueries({
           queryKey: queryKeys.listScope(personId),
@@ -167,7 +168,6 @@ export const createPersonResourceHooks = <
 
         options?.onSuccess?.(data, variables, _mutateResult, context)
       },
-      ...options,
     })
   }
 
@@ -191,6 +191,7 @@ export const createPersonResourceHooks = <
             body: payload,
           },
         ),
+      ...options,
       onSuccess: (data, variables, _mutateResult, context) => {
         queryClient.invalidateQueries({
           queryKey: queryKeys.listScope(personId),
@@ -206,7 +207,6 @@ export const createPersonResourceHooks = <
         })
         options?.onSuccess?.(data, variables, _mutateResult, context)
       },
-      ...options,
     })
   }
 
@@ -226,6 +226,7 @@ export const createPersonResourceHooks = <
           },
         )
       },
+      ...options,
       onSuccess: (data, variables, _mutateResult, context) => {
         queryClient.invalidateQueries({
           queryKey: queryKeys.listScope(personId),
@@ -241,7 +242,6 @@ export const createPersonResourceHooks = <
         })
         options?.onSuccess?.(data, variables, _mutateResult, context)
       },
-      ...options,
     })
   }
 
@@ -260,6 +260,7 @@ export const createPersonResourceHooks = <
           },
         )
       },
+      ...options,
       onSuccess: (data, resourceId, context) => {
         console.info(
           "[personResourceHooks] delete success",
@@ -306,7 +307,6 @@ export const createPersonResourceHooks = <
         )
         ;(options?.onSuccess as any)?.(data, resourceId, undefined, context)
       },
-      ...options,
     })
   }
 
