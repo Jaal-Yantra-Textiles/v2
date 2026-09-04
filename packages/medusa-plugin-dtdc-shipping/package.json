@@ -42,10 +42,10 @@
     ".medusa"
   ],
   "devDependencies": {
-    "@medusajs/cli": "2.19.0",
-    "@medusajs/framework": "2.19.0",
-    "@medusajs/medusa": "2.19.0",
-    "@medusajs/types": "2.19.0",
+    "@medusajs/cli": "2.20.1",
+    "@medusajs/framework": "2.20.1",
+    "@medusajs/medusa": "2.20.1",
+    "@medusajs/types": "2.20.1",
     "@swc/core": "1.5.7",
     "@swc/jest": "0.2.37",
     "@types/jest": "29.5.14",
@@ -54,8 +54,8 @@
     "typescript": "5.6.3"
   },
   "peerDependencies": {
-    "@medusajs/framework": "2.19.0",
-    "@medusajs/medusa": "2.19.0",
-    "@medusajs/types": "2.19.0"
+    "@medusajs/framework": "2.20.1",
+    "@medusajs/medusa": "2.20.1",
+    "@medusajs/types": "2.20.1"
   }
 }
