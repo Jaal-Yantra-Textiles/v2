@@ -173,20 +173,38 @@ export const GET = async (
       const graph: any = req.scope.resolve(ContainerRegistrationKeys.QUERY);
       const { data } = await graph.graph({
         entity: "inventory_orders",
-        fields: ["id", "order.unified_order_status.partner_status"],
+        fields: [
+          "id",
+          "order.unified_order_status.partner_status",
+          // Partner name + order lines for the list table (#1737 follow-up): the
+          // "Order ID" column was replaced with the partner name, whose line
+          // details ride in a tooltip. Both reach through links (partner via
+          // partner-inventory-order, lines via orderlines.*), so resolve them
+          // here and attach, mirroring unified_order_status below.
+          "partner.id",
+          "partner.name",
+          "orderlines.*",
+          "orderlines.inventory_items.*",
+        ],
         filters: { id: ids },
       });
-      const statusById = new Map<string, any>(
-        (data ?? []).map((io: any) => [io.id, io.order?.unified_order_status])
-      );
+      const byId = new Map<string, any>((data ?? []).map((io: any) => [io.id, io]));
       for (const row of rows) {
-        if (statusById.get(row.id)) {
-          row.unified_order_status = statusById.get(row.id);
+        const io = byId.get(row.id);
+        if (!io) continue;
+        if (io.order?.unified_order_status) {
+          row.unified_order_status = io.order.unified_order_status;
+        }
+        if (io.partner) {
+          row.partner = io.partner;
+        }
+        if (io.orderlines) {
+          row.order_lines = io.orderlines;
         }
       }
     }
   } catch {
-    // leave rows as-is; the column falls back to "—"
+    // leave rows as-is; the columns fall back to "—"
   }
 
   res.status(200).json({

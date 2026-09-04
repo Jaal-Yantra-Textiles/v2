@@ -269,6 +269,99 @@ setupSharedTestSuite(() => {
       });
     });
 
+    // #1737 follow-up — the list table's "Order ID" column was replaced with the
+    // partner name (line details in a tooltip), so GET /admin/inventory-orders
+    // must resolve + attach `partner` and `order_lines` per row without breaking
+    // the existing list contract.
+    describe("GET /admin/inventory-orders — partner + order lines for the list table", () => {
+      let listPartnerId: string;
+      let listPartnerName: string;
+      let listItemId: string;
+      let assignedOrderId: string;
+      let unassignedOrderId: string;
+
+      beforeEach(async () => {
+        const unique = `${Date.now()}${Math.random().toString(36).slice(2, 6)}`;
+        listPartnerName = `List Partner ${unique}`;
+
+        const partnerRes = await api.post(
+          "/admin/partners",
+          {
+            partner: { name: listPartnerName, handle: `list-partner-${unique}` },
+            admin: { email: `list-partner-${unique}@jyt.test`, first_name: "L", last_name: "P" },
+          },
+          headers
+        );
+        expect(partnerRes.status).toBe(201);
+        listPartnerId = partnerRes.data.partner.id;
+
+        const itemRes = await api.post("/admin/inventory-items", { title: `List Fabric ${unique}` }, headers);
+        expect(itemRes.status).toBe(200);
+        listItemId = itemRes.data.inventory_item.id;
+
+        const base = {
+          order_lines: [{ inventory_item_id: listItemId, quantity: 2, price: 100 }],
+          quantity: 2,
+          total_price: 200,
+          status: "Pending",
+          expected_delivery_date: new Date().toISOString(),
+          order_date: new Date().toISOString(),
+          shipping_address: {},
+          stock_location_id: stockLocationId,
+          from_stock_location_id: fromStockLocationId,
+        };
+
+        const assignedRes = await api.post("/admin/inventory-orders", base, headers);
+        expect(assignedRes.status).toBe(201);
+        assignedOrderId = assignedRes.data.inventoryOrder.id;
+
+        const assignRes = await api.post(
+          `/admin/inventory-orders/${assignedOrderId}/assign-partner`,
+          { partner_id: listPartnerId },
+          headers
+        );
+        expect(assignRes.status).toBe(200);
+
+        const unassignedRes = await api.post("/admin/inventory-orders", base, headers);
+        expect(unassignedRes.status).toBe(201);
+        unassignedOrderId = unassignedRes.data.inventoryOrder.id;
+      });
+
+      it("attaches the partner name and item lines to an assigned order", async () => {
+        const res = await api.get(`/admin/inventory-orders?q=${assignedOrderId}&limit=100`, headers);
+        expect(res.status).toBe(200);
+
+        const order = res.data.inventory_orders.find((o: any) => o.id === assignedOrderId);
+        expect(order).toBeDefined();
+
+        // Partner name reaches the list (the "Partner" column).
+        expect(order.partner).toBeDefined();
+        expect(order.partner.name).toBe(listPartnerName);
+
+        // Item lines reach the list (the tooltip).
+        expect(Array.isArray(order.order_lines)).toBe(true);
+        expect(order.order_lines.length).toBe(1);
+        expect(Number(order.order_lines[0].quantity)).toBe(2);
+        expect(Number(order.order_lines[0].price)).toBe(100);
+        expect(order.order_lines[0].inventory_items[0].id).toBe(listItemId);
+
+        // The list contract is unchanged for the same row.
+        expect(order.status).toBe("Pending");
+        expect(Number(order.quantity)).toBe(2);
+      });
+
+      it("still lists an unassigned order without a partner (no breakage)", async () => {
+        const res = await api.get(`/admin/inventory-orders?q=${unassignedOrderId}&limit=100`, headers);
+        expect(res.status).toBe(200);
+
+        const order = res.data.inventory_orders.find((o: any) => o.id === unassignedOrderId);
+        expect(order).toBeDefined();
+        expect(order.partner).toBeUndefined();
+        expect(Array.isArray(order.order_lines)).toBe(true);
+        expect(order.order_lines.length).toBe(1);
+      });
+    });
+
     describe("GET /admin/inventory-orders/:id", () => {
       let createdOrder: any;
       let createdOrderId: string;
