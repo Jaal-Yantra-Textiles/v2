@@ -11,7 +11,25 @@ import {
 } from "../../../../hooks/api/quote-buyer-sources"
 import { AdminQuoteCreateSchemaType } from "../schema"
 
-type Props = { form: UseFormReturn<AdminQuoteCreateSchemaType> }
+type Props = {
+  form: UseFormReturn<AdminQuoteCreateSchemaType>
+  /**
+   * Which blocks to render (#1446).
+   *
+   * This step holds three unrelated questions in one scroll: who the buyer is,
+   * which carrier is asked for a rate, and who pays the duty. On the draft page
+   * those are separate cards, because a draft ORDER keeps Customer and Shipping
+   * apart — you settle the buyer, add items, and only then add shipping.
+   *
+   * 🔑 A flag rather than three files. All three blocks share the same hooks —
+   * `region`, the carrier list, and `isDomesticLane`, which decides whether the
+   * duty block exists at all and is derived from the destination the BUYER
+   * block sets. Splitting the file would have duplicated that wiring.
+   *
+   * Default `"all"` leaves every existing caller rendering exactly what it did.
+   */
+  only?: "buyer" | "shipping" | "all"
+}
 
 /**
  * Step 2 — who the quote is for, and where it lands.
@@ -51,7 +69,9 @@ const DEFAULT_CARRIER = "__default__"
 /** The "type it yourself" branch, for a carrier registered after this build. */
 const OTHER_CARRIER = "__other__"
 
-export const BuyerStep = ({ form }: Props) => {
+export const BuyerStep = ({ form, only = "all" }: Props) => {
+  const showBuyer = only === "all" || only === "buyer"
+  const showShipping = only === "all" || only === "shipping"
   const [search, setSearch] = useState("")
   const { regions } = useQuoteRegions()
   const { options: buyers } = useQuoteBuyerOptions(search)
@@ -164,6 +184,8 @@ export const BuyerStep = ({ form }: Props) => {
 
   return (
     <div className="flex flex-col gap-y-8">
+      {showBuyer && (
+      <>
       <div className="flex flex-col gap-y-1">
         <Heading level="h2">Buyer</Heading>
         <Text size="small" className="text-ui-fg-subtle">
@@ -468,6 +490,11 @@ export const BuyerStep = ({ form }: Props) => {
         )}
       />
 
+      </>
+      )}
+
+      {showShipping && (
+      <>
       <div className="flex flex-col gap-y-1">
         <Heading level="h2">Freight source</Heading>
         <Text size="small" className="text-ui-fg-subtle">
@@ -822,6 +849,8 @@ export const BuyerStep = ({ form }: Props) => {
           </div>
         </div>
       ) : null}
+      </>
+      )}
     </div>
   )
 }

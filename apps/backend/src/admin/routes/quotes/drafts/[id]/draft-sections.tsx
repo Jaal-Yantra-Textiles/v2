@@ -92,7 +92,7 @@ export const DraftSections = ({ draft }: { draft: AdminQuoteDraft }) => {
   const navigate = useNavigate()
   const [minted, setMinted] = useState<MintedQuoteResult | null>(null)
   const [readiness, setReadiness] = useState<QuoteReadiness | null>(null)
-  const [drawer, setDrawer] = useState<null | "buyer">(null)
+  const [drawer, setDrawer] = useState<null | "buyer" | "shipping">(null)
 
   const form = useForm<AdminQuoteCreateSchemaType>({
     defaultValues: {
@@ -405,6 +405,57 @@ export const DraftSections = ({ draft }: { draft: AdminQuoteDraft }) => {
             </div>
           </Container>
 
+          {/*
+            Shipping, as its own card (#1446).
+            
+            A draft order has one, and its position is the point: you settle the
+            customer, add items, and only THEN add shipping — because the lane
+            is quoted against the basket's weight, so it cannot be answered
+            before the basket exists. It used to be buried in the middle of the
+            buyer form, asked before there was anything to ship.
+          */}
+          <Container className="divide-y p-0">
+            <div className="flex items-center justify-between px-6 py-4">
+              <Heading level="h2">Shipping</Heading>
+              <ActionMenu
+                groups={[
+                  {
+                    actions: [
+                      {
+                        icon: <PencilSquare />,
+                        label: "Edit shipping & duty",
+                        onClick: () => setDrawer("shipping"),
+                      },
+                    ],
+                  },
+                ]}
+              />
+            </div>
+            <Row
+              label="Rate source"
+              value={
+                (draft as any).quoted_freight_source ||
+                "Platform default — a carrier is asked at mint"
+              }
+            />
+            <Row
+              label="Duty"
+              value={
+                (draft as any).duties_prepaid
+                  ? "We pay the import duty (DDP)"
+                  : "Buyer is importer of record"
+              }
+            />
+            {!lines.length && (
+              <div className="px-6 py-4">
+                <Text size="small" className="text-ui-fg-subtle">
+                  The lane is quoted against the basket's weight, so add items
+                  first — a rate asked now would be a rate for nothing.
+                </Text>
+              </div>
+            )}
+          </Container>
+
           {readiness && (
             <Container className="p-0">
               <div className="px-6 py-4">
@@ -460,13 +511,42 @@ export const DraftSections = ({ draft }: { draft: AdminQuoteDraft }) => {
       </TwoColumnPage>
 
       {/* ---- editing happens here, not on the page ---- */}
+      <Drawer
+        open={drawer === "shipping"}
+        onOpenChange={(o) => !o && setDrawer(null)}
+      >
+        <Drawer.Content>
+          <Drawer.Header>
+            <Drawer.Title>Shipping & duty</Drawer.Title>
+          </Drawer.Header>
+          <Drawer.Body className="overflow-y-auto">
+            <BuyerStep form={form} only="shipping" />
+          </Drawer.Body>
+          <Drawer.Footer>
+            <Drawer.Close asChild>
+              <Button variant="secondary" size="small">
+                Cancel
+              </Button>
+            </Drawer.Close>
+            {/*
+              The same field list as the buyer drawer: both write columns the
+              draft owns, and `saveBuyer` sends no `lines` key — which is what
+              stops either of them emptying the basket.
+            */}
+            <Button size="small" isLoading={isSaving} onClick={saveBuyer}>
+              Save
+            </Button>
+          </Drawer.Footer>
+        </Drawer.Content>
+      </Drawer>
+
       <Drawer open={drawer === "buyer"} onOpenChange={(o) => !o && setDrawer(null)}>
         <Drawer.Content>
           <Drawer.Header>
             <Drawer.Title>Buyer & terms</Drawer.Title>
           </Drawer.Header>
           <Drawer.Body className="overflow-y-auto">
-            <BuyerStep form={form} />
+            <BuyerStep form={form} only="buyer" />
           </Drawer.Body>
           <Drawer.Footer>
             <Drawer.Close asChild>
