@@ -25,6 +25,7 @@ import {
   quoteFreightOptionName,
 } from "../../modules/partner-quote/lib/quote-freight-option"
 import { PARTNER_QUOTE_MODULE } from "../../modules/partner-quote"
+import { resolveQuoteRegion } from "../../modules/partner-quote/lib/resolve-region"
 import { PARTNER_QUOTE_EVENTS } from "../../modules/partner-quote/events"
 import { PAYMENT_SCHEDULE_MODULE } from "../../modules/payment_schedule"
 import { quoteUnusableReason } from "../../modules/partner-quote/lib/token"
@@ -402,9 +403,28 @@ const createQuoteCartStep = createStep(
       phone: input.shipping_address?.phone ?? null,
     }
 
+    // Not strict: this quote is already minted, so improve what we can and
+    // leave the existing fallback in place rather than refusing an accept
+    // the buyer is standing in front of.
+    const acceptRegionId =
+      quote.region_id ??
+      (
+        await resolveQuoteRegion(container, {
+          region_id: null,
+          currency_code: quote.currency_code,
+          destination_country_code: quote.destination_country_code,
+        })
+      ).region_id
+
     const { result: cart } = await createCartWorkflow(container).run({
       input: {
-        region_id: quote.region_id ?? store?.default_region_id ?? undefined,
+        // #1787 — the store default is right for a domestic INR quote and
+        // actively wrong for every foreign-currency one: payment providers
+        // are per region, so an AUD quote landing in the INR default region
+        // was offered PayU and never Stripe. Belt for the quotes already
+        // minted without a region (every one since 2026-08-24); the mint
+        // now refuses rather than storing null.
+        region_id: acceptRegionId ?? store?.default_region_id ?? undefined,
         currency_code: quote.currency_code,
         sales_channel_id: store.default_sales_channel_id,
         customer_id: quote.customer_id,
