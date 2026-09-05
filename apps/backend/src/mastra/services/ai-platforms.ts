@@ -45,6 +45,7 @@ export type AiProviderType =
   | "vercel_ai_gateway"
   | "fal"
   | "groq"
+  | "bazaarlink"
   | "custom"
 
 export type AiRole =
@@ -109,7 +110,7 @@ export type AiPlatformConfig = {
   accountId?: string
 }
 
-const PROVIDER_DEFAULTS: Record<
+export const PROVIDER_DEFAULTS: Record<
   AiProviderType,
   { baseUrl?: string; defaultModelHint?: string }
 > = {
@@ -132,9 +133,29 @@ const PROVIDER_DEFAULTS: Record<
   groq: {
     // OpenAI-compatible. Free tier has a generous per-day token budget; the
     // qwen3.x models accept image input (vision) despite `/models` not
-    // advertising a `-vision` model.
+    // advertising a `-vision` model — confirmed live, both qwen3.6-27b and
+    // qwen3.8-27b read a document photo.
+    //
+    // 🔴 The hint is 3.8, NOT 3.6. Measured on an ID-card image:
+    // `qwen3.6-27b` is a REASONING model — it emits `<think>` and spent even a
+    // 4000-token budget deliberating without finishing the answer, which is
+    // exactly the "model returns nothing" failure #1813 documented. Same
+    // prompt, same image, `qwen3.8-27b` answered correctly and cleanly.
     baseUrl: "https://api.groq.com/openai/v1",
-    defaultModelHint: "qwen/qwen3.6-27b",
+    defaultModelHint: "qwen/qwen3.8-27b",
+  },
+  bazaarlink: {
+    // OpenAI-compatible aggregator (169 models: Anthropic, Google, OpenAI,
+    // Qwen, GLM, DeepSeek, Moonshot…), so it needs no client of its own —
+    // `buildChatModel` already routes everything but OpenRouter through
+    // `createOpenAI` with this base URL.
+    //
+    // The hint is the one model that is BOTH free and vision-capable
+    // (`pricing.prompt` and `pricing.completion` are "0"). Measured on the
+    // same ID-card image as the Groq rungs above: correct transcription in
+    // 5.5s. 1M context.
+    baseUrl: "https://bazaarlink.ai/api/v1",
+    defaultModelHint: "qwen/qwen3.7-flash:free",
   },
   fal: {
     // FAL has its own SDK — not OpenAI-compatible. The helper here is
@@ -169,6 +190,10 @@ const normalizeProviderType = (raw: unknown): AiProviderType | null => {
       return "fal"
     case "groq":
       return "groq"
+    case "bazaarlink":
+    case "bazaar_link":
+    case "bazaar-link":
+      return "bazaarlink"
     case "custom":
     case "openai_compatible":
     case "openai-compatible":
@@ -808,6 +833,7 @@ export const PROVIDER_TYPES: AiProviderType[] = [
   "cloudflare",
   "vercel_ai_gateway",
   "groq",
+  "bazaarlink",
   "custom",
 ]
 

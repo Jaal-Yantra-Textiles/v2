@@ -50,6 +50,7 @@ type ProviderType =
   | "vercel_ai_gateway"
   | "fal"
   | "groq"
+  | "bazaarlink"
   | "custom"
 
 type Role =
@@ -189,7 +190,33 @@ const planFromEnv = (): PlatformPlan[] => {
       role: "ai_image_extraction",
       is_default: !visionDefaultClaimed,
       api_key: process.env.GROQ_API_KEY,
-      default_model: process.env.GROQ_DEFAULT_MODEL || "qwen/qwen3.6-27b",
+      /**
+       * 🔴 The fallback is `qwen3.8-27b`, not `qwen3.6-27b`. Measured against a
+       * document photo: 3.6 is a REASONING model that emits `<think>` and did
+       * not finish an answer inside a 4000-token budget — the "model returned
+       * nothing" shape #1813 spent a session on. 3.8 answered correctly.
+       * `GROQ_DEFAULT_MODEL` still wins if an operator sets it.
+       */
+      default_model: process.env.GROQ_DEFAULT_MODEL || "qwen/qwen3.8-27b",
+    })
+    visionDefaultClaimed = true
+  }
+  /**
+   * BazaarLink — an OpenAI-compatible aggregator. Worth a rung of its own
+   * because it is a SEPARATE ACCOUNT: the vision ladder's independence comes
+   * from rungs that cannot be throttled together, not from model variety
+   * (#1819 — one Cloudflare account already backs seven roles).
+   */
+  if (process.env.BAZAARLINK_API_KEY) {
+    plans.push({
+      name: "BazaarLink vision (env backfill)",
+      provider_type: "bazaarlink",
+      role: "ai_image_extraction",
+      is_default: !visionDefaultClaimed,
+      api_key: process.env.BAZAARLINK_API_KEY,
+      // The only model that is both free and vision-capable on the catalogue.
+      default_model:
+        process.env.BAZAARLINK_DEFAULT_MODEL || "qwen/qwen3.7-flash:free",
     })
   }
 
