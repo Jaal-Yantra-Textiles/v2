@@ -14,6 +14,10 @@ import {
   DtdcConsignmentType,
   DtdcAddress,
 } from "./types"
+import {
+  DTDC_DEFAULT_COMMODITY_ID,
+  resolveDtdcCommodityId,
+} from "./commodities"
 
 const SANDBOX_BOOKING_BASE = "https://alphademodashboardapi.shipsy.io"
 const LIVE_BOOKING_BASE = "https://pxapi.dtdc.in"
@@ -163,6 +167,7 @@ export class DtdcClient {
   private trackingPassword: string
   private trackingAccessToken: string | null
   private defaultServiceType: DtdcServiceType
+  private defaultCommodityId: string
   private fetch_: DtdcFetchLike
 
   constructor(options: DtdcOptions) {
@@ -172,6 +177,14 @@ export class DtdcClient {
     this.trackingPassword = options.tracking_password ?? ""
     this.trackingAccessToken = options.tracking_access_token ?? null
     this.defaultServiceType = options.default_service_type ?? "PRIORITY"
+    /**
+     * 🔴 Resolved once, and NOT silently defaulted to the old `"2"` (MOBILE).
+     * An unrecognised configured value falls to CLOTHING rather than to a
+     * number nobody chose — a wrong commodity is a mis-declared parcel.
+     */
+    this.defaultCommodityId =
+      resolveDtdcCommodityId(options.default_commodity_id) ??
+      DTDC_DEFAULT_COMMODITY_ID
 
     if (options.sandbox) {
       this.bookingBase = SANDBOX_BOOKING_BASE
@@ -313,7 +326,8 @@ export class DtdcClient {
       customer_reference_number: params.customer_reference_number,
       cod_collection_mode: params.cod_collection_mode ?? "",
       cod_amount: params.cod_amount != null ? String(params.cod_amount) : "",
-      commodity_id: params.commodity_id ?? "2",
+      commodity_id:
+        resolveDtdcCommodityId(params.commodity_id) ?? this.defaultCommodityId,
       description: params.description ?? "",
       reference_number: params.reference_number ?? "",
     }
