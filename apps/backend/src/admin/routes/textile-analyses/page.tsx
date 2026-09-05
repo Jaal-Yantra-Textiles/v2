@@ -1,8 +1,6 @@
 import { useMemo, useState } from "react"
-import { defineRouteConfig } from "@medusajs/admin-sdk"
-import { Swatch } from "@medusajs/icons"
+import { Link } from "react-router-dom"
 import {
-  Badge,
   Container,
   Heading,
   Input,
@@ -12,26 +10,7 @@ import {
 } from "@medusajs/ui"
 import { useQuery } from "@tanstack/react-query"
 import { sdk } from "../../lib/config"
-
-/**
- * Fabrics and garments, browsable by what a vision model saw in them.
- *
- * ## Why this screen exists
- *
- * The analysis was collected 37 times and read zero times. It lived in
- * `MediaFile.metadata.textile_extraction` — a JSON blob `query.graph` cannot
- * filter into — so the question it exists to answer ("what else do we have like
- * this?") could not be asked, and nothing anywhere rendered it. Every one of
- * those files also had a good title inside the blob and an EMPTY
- * `MediaFile.title` beside it.
- *
- * Typed columns made the question askable. This is the screen that asks it.
- *
- * 🔑 Pictures, not rows of text. The thing being chosen is cloth; a table of
- * `cloth_type | pattern | weight` describes fabric to someone who needs to SEE
- * it. The filters are the typed columns, and each is indexed — which is the
- * whole argument for them being columns.
- */
+import { getThumbUrl, isImageUrl } from "../../lib/media"
 
 type TextileAnalysis = {
   id: string
@@ -104,8 +83,7 @@ const TextileAnalysesPage = () => {
   /**
    * ⚠️ Blank values are DROPPED rather than sent. A `cloth_type=` in the query
    * string filters for the empty string and returns nothing — a filter that has
-   * been opened and cleared would silently empty the catalogue, which reads as
-   * "we hold no fabric like that" rather than "you asked for nothing".
+   * been opened and cleared would silently empty the catalogue.
    */
   const queryString = useMemo(() => {
     const params = new URLSearchParams()
@@ -113,7 +91,7 @@ const TextileAnalysesPage = () => {
       if (v && v !== ANY) params.set(k, v)
     }
     if (search.trim()) params.set("q", search.trim())
-    params.set("limit", "60")
+    params.set("limit", "200")
     return params.toString()
   }, [filters, search])
 
@@ -132,7 +110,8 @@ const TextileAnalysesPage = () => {
           <Heading level="h2">Textile library</Heading>
           <Text className="text-ui-fg-subtle" size="small">
             What a vision model saw in every fabric and garment photo we hold —
-            filterable by garment, pattern, weight and construction.
+            filterable by garment, pattern, weight and construction. Click a
+            tile to correct it.
           </Text>
         </div>
 
@@ -179,9 +158,9 @@ const TextileAnalysesPage = () => {
 
       <div className="px-6 py-4">
         {isLoading ? (
-          <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
-            {Array.from({ length: 8 }).map((_, i) => (
-              <Skeleton key={i} className="aspect-square w-full rounded-lg" />
+          <div className="grid grid-cols-3 gap-2 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-8">
+            {Array.from({ length: 16 }).map((_, i) => (
+              <Skeleton key={i} className="aspect-square w-full rounded-md" />
             ))}
           </div>
         ) : rows.length === 0 ? (
@@ -189,11 +168,6 @@ const TextileAnalysesPage = () => {
             <Text className="text-ui-fg-subtle">
               Nothing matches those filters.
             </Text>
-            {/*
-              🔑 Says WHY it might be empty. Until the backfill runs, this table
-              holds only what has been analysed since the module shipped — an
-              empty grid otherwise reads as "we own no such fabric".
-            */}
             <Text size="xsmall" className="text-ui-fg-muted">
               Photos analysed before this library existed are migrated by the
               `backfill-textile-analysis` maintenance job.
@@ -205,74 +179,40 @@ const TextileAnalysesPage = () => {
               {data?.count ?? rows.length} match
               {(data?.count ?? rows.length) === 1 ? "" : "es"}
             </Text>
-            <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
-              {rows.map((row) => (
-                <div
-                  key={row.id}
-                  className="shadow-elevation-card-rest bg-ui-bg-component flex flex-col gap-2 rounded-lg p-2"
-                  data-testid="textile-card"
-                >
-                  {row.media?.file_path ? (
-                    /* eslint-disable-next-line @next/next/no-img-element */
-                    <img
-                      src={row.media.file_path}
-                      alt={row.title ?? row.media.file_name}
-                      className="aspect-square w-full rounded-md object-cover"
-                    />
-                  ) : (
-                    <div className="bg-ui-bg-base-pressed flex aspect-square w-full items-center justify-center rounded-md">
-                      <Text size="xsmall" className="text-ui-fg-muted">
-                        no image
-                      </Text>
-                    </div>
-                  )}
-
-                  <Text size="xsmall" weight="plus" className="line-clamp-2">
-                    {row.title ?? row.media?.file_name ?? "Untitled"}
-                  </Text>
-
-                  <div className="flex flex-wrap gap-1">
-                    {row.cloth_type && (
-                      <Badge size="2xsmall" color="blue">
-                        {row.cloth_type}
-                      </Badge>
+            <div className="grid grid-cols-3 gap-2 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-8">
+              {rows.map((row) => {
+                const name = row.title ?? row.media?.file_name ?? "Untitled"
+                return (
+                  <Link
+                    key={row.id}
+                    to={`/textile-analyses/${row.id}`}
+                    className="group relative block aspect-square overflow-hidden rounded-md outline-none focus-visible:shadow-borders-interactive-with-focus"
+                    aria-label={name}
+                    title={name}
+                    data-testid="textile-card"
+                  >
+                    {row.media?.file_path && isImageUrl(row.media.file_path) ? (
+                      /* eslint-disable-next-line @next/next/no-img-element */
+                      <img
+                        src={getThumbUrl(row.media.file_path, {
+                          width: 256,
+                          quality: 65,
+                          fit: "cover",
+                        })}
+                        alt={name}
+                        loading="lazy"
+                        className="size-full object-cover transition-transform group-hover:scale-105"
+                      />
+                    ) : (
+                      <div className="bg-ui-bg-base-pressed flex size-full items-center justify-center rounded-md">
+                        <Text size="xsmall" className="text-ui-fg-muted">
+                          no image
+                        </Text>
+                      </div>
                     )}
-                    {row.pattern && (
-                      <Badge size="2xsmall" color="purple">
-                        {row.pattern}
-                      </Badge>
-                    )}
-                    {row.fabric_weight && (
-                      <Badge size="2xsmall" color="grey">
-                        {row.fabric_weight.replace(/-/g, " ")}
-                      </Badge>
-                    )}
-                    {/*
-                      Where this reading came from. Our own extraction over
-                      stock we hold and a stranger's storefront upload deserve
-                      different trust, and before the module the only thing
-                      telling them apart was which metadata key someone wrote.
-                    */}
-                    {row.source === "storefront_reference" && (
-                      <Badge size="2xsmall" color="orange">
-                        customer photo
-                      </Badge>
-                    )}
-                  </div>
-
-                  {/*
-                    ⚠️ Rendered only when the extractor actually gave a number.
-                    `confidence` is nullable and 0 is a real answer — printing
-                    "0%" for "did not say" would read as certainty about being
-                    wrong.
-                  */}
-                  {typeof row.confidence === "number" && (
-                    <Text size="xsmall" className="text-ui-fg-muted">
-                      {Math.round(row.confidence * 100)}% confident
-                    </Text>
-                  )}
-                </div>
-              ))}
+                  </Link>
+                )
+              })}
             </div>
           </>
         )}
@@ -280,10 +220,5 @@ const TextileAnalysesPage = () => {
     </Container>
   )
 }
-
-export const config = defineRouteConfig({
-  label: "Textile library",
-  icon: Swatch,
-})
 
 export default TextileAnalysesPage

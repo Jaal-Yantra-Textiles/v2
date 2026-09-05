@@ -20,6 +20,7 @@ import { z } from "@medusajs/framework/zod";
 import { personSchema, listPersonsQuerySchema, UpdatePersonSchema, ReadPersonQuerySchema } from "./admin/persons/validators";
 import { OpsMaintenanceRunSchema, OpsMaintenanceRunsQuerySchema, OpsMaintenanceBatchSchema, OpsMaintenanceBatchesQuerySchema } from "./admin/ops/maintenance-jobs/validators";
 import { AdminPostLocationOwnershipReq } from "./admin/location-ownership/validators";
+import { AdminUpdateTextileAnalysisSchema } from "./admin/textile-analyses/validators";
 import { getPersonResourceDefinition } from "./admin/persons/resources/registry";
 import { AdminGetOrdersOrderParams } from "@medusajs/medusa/api/admin/orders/validators";
 import { retrieveTransformQueryConfig as retrieveOrderTransformQueryConfig } from "@medusajs/medusa/api/admin/orders/query-config";
@@ -4799,6 +4800,21 @@ export default defineMiddlewares({
       matcher: "/admin/textile-analyses",
       method: "GET",
       middlewares: [],
+    },
+    {
+      // Single row, hydrated with its media file, for the edit modal.
+      matcher: "/admin/textile-analyses/:id",
+      method: "GET",
+      middlewares: [],
+    },
+    {
+      // Correct one analysis. Until this, the only writer was the extractor —
+      // a misread garment / pattern / weight could not be fixed by a human.
+      matcher: "/admin/textile-analyses/:id",
+      method: "PATCH",
+      middlewares: [
+        validateAndTransformBody(wrapSchema(AdminUpdateTextileAnalysisSchema)),
+      ],
     },
     {
       matcher: "/admin/designs/:id/consumption-logs",
