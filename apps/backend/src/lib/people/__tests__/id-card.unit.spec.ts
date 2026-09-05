@@ -3,6 +3,8 @@ import {
   normaliseIdCardExtraction,
   parseDateOfBirth,
   personCreateInputFromDraft,
+  isBlindRead,
+  describeVisionAttempts,
 } from "../id-card"
 
 /**
@@ -199,5 +201,87 @@ describe("personCreateInputFromDraft", () => {
   it("does not put the full ID number on the person record", () => {
     const input = personCreateInputFromDraft(normaliseIdCardExtraction(GOOD))
     expect(JSON.stringify(input)).not.toContain("123456789012")
+  })
+})
+
+/**
+ * A blind model and an unreadable photograph look identical in the response —
+ * both are HTTP 200 with an object of nulls (#1813).
+ */
+describe("isBlindRead", () => {
+  it("calls an all-null answer blind", () => {
+    expect(
+      isBlindRead({
+        first_name: null,
+        last_name: null,
+        id_number: null,
+        date_of_birth: null,
+        id_type: null,
+        confidence: 0.9,
+      })
+    ).toBe(true)
+  })
+
+  it("treats blank strings as nothing read", () => {
+    expect(isBlindRead({ first_name: "   ", last_name: "" })).toBe(true)
+  })
+
+  it("is not blind when ANY identifying field came back", () => {
+    expect(isBlindRead({ first_name: "Asha", last_name: null })).toBe(false)
+    expect(isBlindRead({ id_number: "1234 5678 9012" })).toBe(false)
+    expect(isBlindRead({ date_of_birth: "1984-02-11" })).toBe(false)
+  })
+
+  /** A confidence score alone is not a reading — models emit one regardless. */
+  it("ignores confidence when deciding", () => {
+    expect(isBlindRead({ confidence: 0.99 })).toBe(true)
+  })
+
+  it("survives a non-object answer", () => {
+    expect(isBlindRead(null)).toBe(true)
+    expect(isBlindRead("nope")).toBe(true)
+  })
+})
+
+describe("describeVisionAttempts", () => {
+  it("names the models that returned nothing", () => {
+    const msg = describeVisionAttempts({
+      read_empty: ["cloudflare/@cf/meta/llama-4-scout-17b-16e-instruct"],
+      skipped_text_only: [],
+    })
+
+    expect(msg).toContain("llama-4-scout")
+    expect(msg).toContain("returned nothing at all")
+  })
+
+  /** The dangerous class: a model that accepts an image and ignores it. */
+  it("says a text-only model was skipped and why", () => {
+    const msg = describeVisionAttempts({
+      read_empty: [],
+      skipped_text_only: ["cloudflare/@cf/zai-org/glm-5.2"],
+    })
+
+    expect(msg).toContain("glm-5.2")
+    expect(msg).toContain("cannot see images")
+  })
+
+  /**
+   * 🔴 The whole point: stop blaming the photograph when the model is the
+   * likelier cause.
+   */
+  it("points at the model before the picture", () => {
+    const msg = describeVisionAttempts({
+      read_empty: ["openrouter/free-vision"],
+      skipped_text_only: [],
+    })
+
+    expect(msg).toMatch(/vision model is the more likely cause than the picture/i)
+    expect(msg).toContain("ai_id_extraction")
+  })
+
+  it("says nothing when there is nothing to report", () => {
+    expect(
+      describeVisionAttempts({ read_empty: [], skipped_text_only: [] })
+    ).toBeNull()
   })
 })
