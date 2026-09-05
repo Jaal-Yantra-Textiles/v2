@@ -89,6 +89,31 @@ export interface AdminPersonsListResponse {
   persons: AdminPerson[];
 }
 
+/**
+ * A masked (PII-redacted) census weaver record, returned by GET /admin/persons
+ * when `include_weavers` is on. Shape mirrors the census reader's public
+ * projection: name + coords promoted, raw survey bag and contact/id values
+ * already stripped server-side.
+ */
+export interface AdminWeaver {
+  census_id: string | number;
+  name?: string | null;
+  state?: string | null;
+  district?: string | null;
+  block?: string | null;
+  village?: string | null;
+  gender?: string | null;
+  education?: string | null;
+  rural_urban?: string | null;
+  own_looms?: boolean | null;
+  natural_dye_used?: boolean | null;
+  mobile_masked?: string | null;
+  aadhaar_card_available?: boolean | null;
+  latitude?: number | null;
+  longitude?: number | null;
+  [key: string]: any;
+}
+
 export interface AdminPersonsListParams {
   limit: number;
   offset: number;
@@ -102,6 +127,20 @@ export interface AdminPersonsListParams {
   updated_at?: string;
   q?: string;
   withDeleted?: boolean;
+  include_weavers?: boolean;
+  region_state?: string;
+  district?: string;
+  block?: string;
+  village?: string;
+  gender?: string;
+  rural_urban?: string;
+  own_looms?: string;
+  natural_dye_used?: string;
+  education?: string;
+  ownership_type?: string;
+  household_type?: string;
+  dwelling_type?: string;
+  electricity?: string;
 }
 
 export interface AdminPersonType {

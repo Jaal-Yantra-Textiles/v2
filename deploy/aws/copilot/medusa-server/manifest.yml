@@ -203,6 +203,11 @@ secrets:
   # CRM_NODE_URL (variables, above). Store the SSM SecureString BEFORE the first
   # deploy that carries CRM_NODE_URL, else task start fails resolving this secret.
   CRM_NODE_TOKEN: /jyt/prod/CRM_NODE_TOKEN
+  # Census unmask — bearer for the reader node's token-gated /census/unmask/:id
+  # (decrypts the sensitive core; the HANDLOOM_ENCRYPTION_KEY itself never leaves
+  # the OCI node). Same value as CENSUS_UNMASK_TOKEN on the OCI census-node.service
+  # env. Store the SSM SecureString before the first deploy that uses unmask.
+  CENSUS_UNMASK_TOKEN: /jyt/prod/CENSUS_UNMASK_TOKEN
   DATABASE_URL: /jyt/prod/DATABASE_URL
   # DTDC domestic (India) — @jytextiles/medusa-plugin-dtdc-shipping.
   # 🔴 DTDC_API_KEY is the GATE: medusa-config registers the provider only when

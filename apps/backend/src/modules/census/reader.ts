@@ -147,6 +147,32 @@ export function maskWeaver<T extends Record<string, any> | null | undefined>(rec
   return out as T
 }
 
+/**
+ * Match a decoded record against a filter bag.
+ *
+ * `name` is a case-insensitive substring match over the promoted display name
+ * (the free-text search path — a weaver's name is not an indexed facet, so it
+ * must ride the residual predicate). Every other key is an exact equality, which
+ * is what the index families and the agg cells line up with. Shared by BOTH the
+ * bounded scan fallback and the index residual path so a `name` filter behaves
+ * identically on each.
+ */
+export function matchesWeaverFilters(
+  r: Record<string, any>,
+  filters: WeaverFilters
+): boolean {
+  for (const [k, v] of Object.entries(filters)) {
+    if (k === "name") {
+      const needle = String(v).trim().toLowerCase()
+      const hay = String(r.name ?? "").toLowerCase()
+      if (needle && !hay.includes(needle)) return false
+      continue
+    }
+    if (String(r[k]) !== String(v)) return false
+  }
+  return true
+}
+
 // Zero-pad census ids so the secondary index sorts lexicographically = numerically
 // (ids are < 10^10). MUST match the seeder/backfill's padding width.
 const ID_PAD = 10
@@ -270,6 +296,38 @@ export class CensusReader {
     }
     const rec = this.requireBee().sub("rec", { valueEncoding: "binary" })
     return await this.getDecoded(rec, String(id))
+  }
+
+  /**
+   * Resolve the FULL (unredacted) PII record for a census_id from the encrypted
+   * SENSITIVE core — proxy mode only. The decryption happens on the standalone
+   * reader node (which holds the sensitive core + HANDLOOM_ENCRYPTION_KEY), never
+   * in-process; Medusa just forwards the census_id with a bearer token.
+   *
+   * Fails closed: no proxy, no token, or a token mismatch all throw rather than
+   * return a masked record as if it were the real thing.
+   */
+  async unmaskWeaver(id: string | number): Promise<Record<string, any> | null> {
+    if (!this.proxyUrl) {
+      throw new Error(
+        "census unmask unavailable in embedded mode — set CENSUS_READER_URL to the reader node"
+      )
+    }
+    const token = process.env.CENSUS_UNMASK_TOKEN
+    if (!token) {
+      throw new Error("census unmask not configured — set CENSUS_UNMASK_TOKEN")
+    }
+    const res = await fetch(
+      `${this.proxyUrl}/census/unmask/${encodeURIComponent(String(id))}`,
+      { headers: { accept: "application/json", authorization: `Bearer ${token}` } }
+    )
+    if (res.status === 404) return null
+    if (res.status === 401) {
+      throw new Error("census unmask unauthorized — CENSUS_UNMASK_TOKEN mismatch")
+    }
+    if (!res.ok) throw new Error(`census unmask proxy → HTTP ${res.status}`)
+    const { weaver } = (await res.json()) as { weaver: Record<string, any> | null }
+    return weaver ?? null
   }
 
   /**
@@ -402,10 +460,6 @@ export class CensusReader {
     // Fallback: bounded in-memory scan over rec/* (only when the driver's index
     // family hasn't been backfilled yet). Decodes off-thread + yields to the
     // event loop so it can't freeze the server even at the MAX_SCAN ceiling.
-    const entries = Object.entries(filters)
-    const match = (r: Record<string, any>) =>
-      entries.every(([k, v]) => String(r[k]) === String(v))
-
     const weavers: Record<string, any>[] = []
     let count = 0
     let scanned = 0
@@ -417,7 +471,7 @@ export class CensusReader {
       }
       if (scanned % YIELD_EVERY === 0) await new Promise((r) => setImmediate(r))
       const r = maskWeaver(await this.decode(value))
-      if (!match(r)) continue
+      if (!matchesWeaverFilters(r, filters)) continue
       if (count >= offset && weavers.length < limit) weavers.push(r)
       count++
       // Early-exit once the page is full. Without a secondary index we can't
@@ -451,10 +505,7 @@ export class CensusReader {
     geoReady = false
   ) {
     const idx = bee.sub("idx", { valueEncoding: "binary" })
-    const residualEntries = Object.entries(driver.residual)
-    const hasResidual = residualEntries.length > 0
-    const residualMatch = (r: Record<string, any>) =>
-      residualEntries.every(([k, v]) => String(r[k]) === String(v))
+    const hasResidual = Object.keys(driver.residual).length > 0
 
     // Hydrate a page of index rows. With the geo payload backfilled, decode the
     // inline value carried on each row — no random rec/* seek, no fat-record
@@ -514,7 +565,7 @@ export class CensusReader {
         const hydrated = await hydratePage(batch)
         for (let j = 0; j < hydrated.length; j++) {
           const r = hydrated[j]
-          if (!r || !residualMatch(r)) continue
+          if (!r || !matchesWeaverFilters(r, driver.residual)) continue
           if (count >= offset && weavers.length < limit) {
             weavers.push(r)
             next = batch[j].id
