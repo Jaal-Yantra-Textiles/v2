@@ -5,8 +5,9 @@ import { placeOrder } from "@lib/data/cart"
 import { HttpTypes } from "@medusajs/types"
 import { Button } from "@medusajs/ui"
 import { useElements, useStripe } from "@stripe/react-stripe-js"
-import React, { useState } from "react"
+import React, { useContext, useState } from "react"
 import ErrorMessage from "../error-message"
+import { StripeContext } from "../payment-wrapper/stripe-wrapper"
 
 type PaymentButtonProps = {
   cart: HttpTypes.StoreCart
@@ -31,14 +32,23 @@ const PaymentButton: React.FC<PaymentButtonProps> = ({
   const activePaymentMethod =
     selectedPaymentMethod ?? paymentSession?.provider_id ?? ""
 
+  const stripeReady = useContext(StripeContext)
+
   switch (true) {
     case isStripeLike(activePaymentMethod):
-      return (
+      // `useStripe()`/`useElements()` throw outside an <Elements> provider, so
+      // never mount the Stripe button until PaymentWrapper has actually wrapped
+      // us (i.e. a Stripe session is pending and Stripe is loaded).
+      return stripeReady ? (
         <StripePaymentButton
           notReady={notReady}
           cart={cart}
           data-testid={dataTestId}
         />
+      ) : (
+        <Button disabled size="large">
+          Select a payment method
+        </Button>
       )
     case isPayU(activePaymentMethod):
       return (
