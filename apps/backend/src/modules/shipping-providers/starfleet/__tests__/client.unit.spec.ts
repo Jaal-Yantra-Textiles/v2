@@ -4,6 +4,7 @@ import {
   normalizeStarfleetTracking,
   scanTypeForAction,
   shipmentTypeForReason,
+  starfleetAuthScope,
   starfleetBaseUrl,
   starfleetTrackingUrl,
 } from "../client"
@@ -233,6 +234,48 @@ describe("starfleetBaseUrl", () => {
   it("treats anything else as staging rather than guessing", () => {
     for (const v of ["staging", "stage", "production", "live", "true", "1"]) {
       expect(starfleetBaseUrl(v)).toContain("api-stage-starfleet")
+    }
+  })
+})
+
+/**
+ * The OAuth scope, which is the single most breakable string in this client.
+ *
+ * A malformed scope does not get refused — it mints a token that 401s on every
+ * /package endpoint (gotcha #1), so the failure appears at the far end as an
+ * authorisation problem with the shipment rather than with the request for the
+ * token. That makes it worth asserting rather than eyeballing.
+ */
+describe("AUTH_SCOPE", () => {
+  it("no longer asks for the deprecated KYC upload path", () => {
+    expect(starfleetAuthScope()).not.toContain("upload-kyc-doc")
+  })
+
+  it("still asks for every endpoint the client actually calls", () => {
+    const scope = starfleetAuthScope()
+    for (const path of [
+      "^/package/batchGeneratePackages:POST$",
+      "^/package/batchGeneratePackages/.+:GET$",
+      "^/package/auth-track/.+:GET$",
+      "^/package/.+/invoice:GET$",
+      "^/package/.+/shipping-label:GET$",
+    ]) {
+      expect(scope).toContain(path)
+    }
+  })
+
+  /**
+   * Every entry is anchored at both ends. The KYC entry was the one exception —
+   * it opened with `^` and never closed with `$` — and it is also the one that
+   * turned out to be dead.
+   */
+  it("anchors every package rule at both ends", () => {
+    const rules = starfleetAuthScope()
+      .split(" ")
+      .filter((p) => p.startsWith("^/package"))
+    expect(rules.length).toBeGreaterThan(0)
+    for (const rule of rules) {
+      expect(rule.endsWith("$")).toBe(true)
     }
   })
 })

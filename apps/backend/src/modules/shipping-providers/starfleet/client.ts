@@ -12,7 +12,6 @@
  *   GET  /package/auth-track/{id}          → scans for 1..15 waybills
  *   GET  /package/{id}/shipping-label      → PDF  (⚠️ gated — see below)
  *   GET  /package/{id}/invoice             → PDF  (⚠️ gated — see below)
- *   POST /package/{id}/upload-kyc-doc      → KYC  (⚠️ gated — see below)
  *
  * Live-verified against api-stage-starfleet (a real AWB `DL001113245XB` was
  * manifested end-to-end). The full contract is in
@@ -36,8 +35,8 @@
  *  - invoice + shipping-label return `403 Unauthorized User` even with a valid
  *    token (per-user id_token, or shipment not label-ready). Methods exist but
  *    surface the carrier's 403 until Delhivery resolves it.
- *  - upload-kyc-doc returns `502 Internal server error` on their side. Method
- *    exists but surfaces it.
+ *  - upload-kyc-doc is DEPRECATED by Delhivery and not in use. It is not
+ *    called, and its path has been dropped from the requested OAuth scope.
  *  - No cancellation endpoint exists in the StarFleet surface — `cancelShipment`
  *    throws.
  */
@@ -82,12 +81,27 @@ const AUTH_AUDIENCE = "StarFleet"
 /**
  * The scope is wrapped in literal double-quotes on purpose — see gotcha #1.
  * Do NOT remove the quotes; a bare scope mints a token that 401s everywhere.
+ *
+ * ⚠️ `^/package/.+/upload-kyc-doc:POST` was here and has been REMOVED: Delhivery
+ * confirmed the KYC upload API is DEPRECATED and not in use. It was also the one
+ * entry with no trailing `$`, and the 502 it returned was read here as "their
+ * server is having a bad day" — it was a retired endpoint answering the only way
+ * it could. Requesting scope for a path the authorisation server may stop
+ * recognising puts the whole token mint at risk, and the token is what every
+ * other call depends on.
+ *
+ * 🔴 This exact string has NOT been re-verified against a live /auth/token since
+ * the removal. The scope is minted as a unit and a bad one fails by returning a
+ * token that 401s on every endpoint — not by refusing — so confirm one manifest
+ * against staging before relying on it in prod.
  */
 const AUTH_SCOPE =
   'starfleet openid profile email ^/package/batchGeneratePackages:POST$ ' +
   '^/package/batchGeneratePackages/.+:GET$ ^/package/auth-track/.+:GET$ ' +
-  '^/package/.+/invoice:GET$ ^/package/.+/shipping-label:GET$ ' +
-  '^/package/.+/upload-kyc-doc:POST'
+  '^/package/.+/invoice:GET$ ^/package/.+/shipping-label:GET$'
+
+/** The scope as sent, exposed so the shape can be asserted (see the spec). */
+export const starfleetAuthScope = (): string => AUTH_SCOPE
 /** Refresh a little under the documented 86400s (24h) so a token never expires
  *  mid-request. */
 const TOKEN_TTL_MS = 23 * 60 * 60 * 1000

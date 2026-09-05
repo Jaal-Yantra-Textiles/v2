@@ -28,7 +28,6 @@ export const starfleetStubState: {
   lastBatchBody?: any
   lastTrackPath?: string
   lastLabelPath?: string
-  lastKycPath?: string
 } = {}
 
 const parseBody = (init: any): any => {
@@ -116,10 +115,13 @@ export function createStarfleetStubFetch(): FetchLike {
       } as any
     }
 
-    if (url.endsWith("/upload-kyc-doc")) {
-      starfleetStubState.lastKycPath = url
-      return json({ success: true, message: "ok" })
-    }
+    /**
+     * ⚠️ `/upload-kyc-doc` deliberately has NO branch: Delhivery deprecated the
+     * endpoint. It falls through to the 404 below, which is what a retired path
+     * should look like to anything that still calls it. A stub that answers
+     * `{ success: true }` for an endpoint that no longer exists is worse than
+     * no stub — it certifies a call the carrier will never honour.
+     */
 
     return json({ message: "stub: not found" }, 404)
   }

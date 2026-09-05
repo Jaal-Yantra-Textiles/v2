@@ -19,7 +19,7 @@ grant_type=password
 username=<account>          # staging: JaalYantraTextilesPr-in-B2C · prod: 8e2306-JaalYantraTextilesPr-in
 password=<password>
 audience=StarFleet
-scope="starfleet openid profile email ^/package/batchGeneratePackages:POST$ ^/package/batchGeneratePackages/.+:GET$ ^/package/auth-track/.+:GET$ ^/package/.+/invoice:GET$ ^/package/.+/shipping-label:GET$ ^/package/.+/upload-kyc-doc:POST$"
+scope="starfleet openid profile email ^/package/batchGeneratePackages:POST$ ^/package/batchGeneratePackages/.+:GET$ ^/package/auth-track/.+:GET$ ^/package/.+/invoice:GET$ ^/package/.+/shipping-label:GET$"
 client_id=<client_id>
 client_secret=<client_secret>
 ```
@@ -52,7 +52,7 @@ value is also visible in the token's `client_name` claim (decode the JWT).
 | Track | GET | `/package/auth-track/{id}` | ✅ verified |
 | Invoice | GET | `/package/{id}/invoice` | ⚠️ 403 `Unauthorized User` |
 | Shipping label | GET | `/package/{id}/shipping-label` | ⚠️ 403 `Unauthorized User` |
-| Upload KYC | POST | `/package/{id}/upload-kyc-doc` | ⚠️ 502 `Internal server error` |
+| ~~Upload KYC~~ | ~~POST~~ | ~~`/package/{id}/upload-kyc-doc`~~ | 🔴 **DEPRECATED by Delhivery, not in use.** Removed from the requested scope; the client never calls it. The 502 it returned was a retired endpoint, not an outage. |
 
 `auth-track/{id}` accepts up to 15 comma-separated waybills.
 
@@ -114,8 +114,11 @@ bank block is account-level KYC (config), mandatory for `commercial` shipments.
   correctly-scoped token (track with the same token is 200). Either a per-user
   `id_token` requirement (our `id_token == access_token`, a client-level token
   with `user_type: "CL"`) or the shipment not being label/invoice-ready.
-- **upload-kyc-doc** → `502 Internal server error` (their gateway) for PNG and
-  PDF alike. Request contract is `dlv-image-type: Front|Back` +
+- **upload-kyc-doc** → 🔴 DEPRECATED by Delhivery and not in use. The `502` seen
+  during verification was a retired endpoint, not their gateway having a bad
+  day. Dropped from the OAuth scope; do not re-add it. ⚠️ This does NOT affect
+  the *consignor KYC fields* on the payload (gotcha #5) — those are still
+  mandatory for `commercial` shipments.
   `Content-Type: image/jpeg|png|jpg|application/pdf` + binary body →
   `{ success, message }`.
 
@@ -138,3 +141,13 @@ at the staging host do NOT fail at auth. They authenticate, and then
 `pickup_warehouse_id` resolves against a registry that has never heard of that
 warehouse — surfacing as a manifestation error that reads like bad shipment
 data. If a manifest fails on an unknown warehouse, check the host first.
+## ⚠️ The scope in this document and the scope in the code disagreed
+
+Until the KYC removal, this note showed `^/package/.+/upload-kyc-doc:POST$` with
+a closing `$` while `client.ts` sent it **without** one — the only entry in
+either list that was not anchored at both ends. Nobody noticed because a
+malformed scope does not fail at `/auth/token`; it mints a token that 401s on
+every `/package` call afterwards, so the symptom appears at the shipment.
+
+If you change the scope, change it in both places and verify with one real
+manifest. A green unit test cannot tell you the authorisation server accepted it.
