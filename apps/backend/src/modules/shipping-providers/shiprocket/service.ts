@@ -14,6 +14,12 @@ import { CreateShipmentInput, ShipmentItem } from "../provider-interface"
 import { deriveShiprocketRateContext } from "./rate-context"
 import { resolveShipmentPaymentMode } from "./payment-mode"
 import { FlatFallbackConfig, resolveFlatFallbackAmount } from "./flat-fallback"
+import {
+  SHIPROCKET_RATE_CURRENCY,
+  applyRateToCarrierAmount,
+  hasKnownCurrency,
+  needsRateConversion,
+} from "./rate-currency"
 
 /**
  * 🔴 `socials` and `encryption` reach the provider ONLY because the fulfillment
@@ -29,6 +35,14 @@ type InjectedDeps = {
   logger: Logger
   socials?: any
   encryption?: any
+  /**
+   * Reaches the provider the same way — via `dependencies` on the fulfillment
+   * module. Needed because Shiprocket quotes in rupees and `calculated_amount`
+   * is denominated in the cart's currency; see `rate-currency.ts`. Optional, and
+   * its absence sends a quote to the per-currency flat fallback rather than
+   * returning a rupee figure labelled as dollars.
+   */
+  fx_rates?: any
 }
 
 /**
@@ -270,8 +284,28 @@ class ShiprocketFulfillmentService extends AbstractFulfillmentProviderService {
         )
       }
 
+      /**
+       * 🔴 The carrier answers in RUPEES; this must be returned in the CART's
+       * currency. Prod measured an AU cart being quoted ₹890 as A$890.
+       */
+      const quoted = await this.toCartCurrency(
+        Number(recommended.amount),
+        currencyCode
+      )
+
+      if (quoted == null) {
+        return this.flatFallback(
+          destinationCountry,
+          `Shiprocket quoted ${recommended.amount} ${SHIPROCKET_RATE_CURRENCY} and it could not be converted to ${
+            currencyCode ?? "an unknown cart currency"
+          }`,
+          optionData,
+          currencyCode
+        )
+      }
+
       return {
-        calculated_amount: Number(recommended.amount),
+        calculated_amount: quoted,
         is_calculated_price_tax_inclusive: true,
       }
     } catch (e: any) {
@@ -282,6 +316,57 @@ class ShiprocketFulfillmentService extends AbstractFulfillmentProviderService {
         optionData,
         currencyCode
       )
+    }
+  }
+
+  /**
+   * Convert a rupee quote into the cart's currency, or answer null.
+   *
+   * Null means "do not use this number" and the caller drops to the flat
+   * fallback. It is deliberately null — not the raw amount — for an unknown
+   * currency, a missing FX module and an unavailable rate alike: those are all
+   * cases where the only figure available is in the wrong denomination, and
+   * returning it is the defect this replaces.
+   */
+  protected async toCartCurrency(
+    amount: number,
+    currencyCode: string | null
+  ): Promise<number | null> {
+    if (!hasKnownCurrency(currencyCode)) {
+      this.logger.warn(
+        `[shiprocket] rate ${amount} ${SHIPROCKET_RATE_CURRENCY} has no cart currency to convert into; using the flat fallback instead of quoting it raw.`
+      )
+      return null
+    }
+
+    if (!needsRateConversion(currencyCode)) {
+      return Number.isFinite(Number(amount)) ? Number(amount) : null
+    }
+
+    const target = String(currencyCode).toUpperCase()
+    const fx = this.deps.fx_rates
+
+    if (!fx?.getRate) {
+      this.logger.warn(
+        `[shiprocket] no fx_rates module in the provider cradle — declare it in the fulfillment module's \`dependencies\`. Falling back rather than quoting ${SHIPROCKET_RATE_CURRENCY} as ${target}.`
+      )
+      return null
+    }
+
+    try {
+      const rate = await fx.getRate(SHIPROCKET_RATE_CURRENCY, target)
+      const converted = applyRateToCarrierAmount(amount, rate)
+      if (converted == null) {
+        this.logger.warn(
+          `[shiprocket] unusable ${SHIPROCKET_RATE_CURRENCY}->${target} rate (${rate}); falling back.`
+        )
+      }
+      return converted
+    } catch (e: any) {
+      this.logger.warn(
+        `[shiprocket] no ${SHIPROCKET_RATE_CURRENCY}->${target} rate (${e?.message}); falling back.`
+      )
+      return null
     }
   }
 

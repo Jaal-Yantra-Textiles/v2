@@ -447,7 +447,14 @@ module.exports = defineConfig({
              * Drop these and the symptom returns silently. The service logs
              * loudly on the missing branch for that reason.
              */
-            dependencies: [SOCIALS_MODULE, ENCRYPTION_MODULE],
+            /**
+             * 🔴 `fx_rates` is here because Shiprocket quotes in RUPEES while
+             * `calculated_amount` is denominated in the CART's currency. Prod
+             * measured an AU cart being quoted ₹890 as A$890. Drop this key and
+             * the provider stops converting and falls back — loudly, but it
+             * stops quoting live rates. See shiprocket/rate-currency.ts.
+             */
+            dependencies: [SOCIALS_MODULE, ENCRYPTION_MODULE, "fx_rates"],
             options: {
               providers: [
                 {
