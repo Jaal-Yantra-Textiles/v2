@@ -1,4 +1,10 @@
-import { QueryKey, UseQueryOptions, useQuery } from "@tanstack/react-query"
+import {
+  QueryKey,
+  UseQueryOptions,
+  useMutation,
+  useQuery,
+  useQueryClient,
+} from "@tanstack/react-query"
 import { FetchError } from "@medusajs/js-sdk"
 import { sdk } from "../../lib/config"
 
@@ -19,6 +25,7 @@ export type AdminTextileAnalysis = {
   season?: string[] | null
   occasion?: string[] | null
   care_instructions?: string[] | null
+  target_audience?: string | null
   analyzed_at?: string | null
   media?: {
     id: string
@@ -33,10 +40,32 @@ export type AdminTextileAnalysisListResponse = {
   count: number
 }
 
+export type AdminTextileAnalysisResponse = {
+  textile_analysis: AdminTextileAnalysis
+}
+
 export type AdminTextileAnalysesQuery = {
   media_id?: string
   limit?: number
   offset?: number
+}
+
+export type AdminUpdateTextileAnalysis = {
+  source?: string
+  confidence?: number | null
+  cloth_type?: string | null
+  category?: string | null
+  pattern?: string | null
+  fabric_weight?: string | null
+  weave_or_knit?: string | null
+  primary_color?: string | null
+  title?: string | null
+  description?: string | null
+  target_audience?: string | null
+  colors?: string[] | null
+  season?: string[] | null
+  occasion?: string[] | null
+  care_instructions?: string[] | null
 }
 
 /**
@@ -64,5 +93,59 @@ export const useTextileAnalyses = (
         { method: "GET", query: query ?? {} }
       ),
     ...options,
+  })
+}
+
+/**
+ * Fetch a single analysis, hydrated with its media file. Used by the edit
+ * modal at `/textile-analyses/:id`.
+ */
+export const useTextileAnalysis = (
+  id?: string,
+  options?: Omit<
+    UseQueryOptions<
+      AdminTextileAnalysis,
+      FetchError,
+      AdminTextileAnalysis,
+      QueryKey
+    >,
+    "queryFn" | "queryKey"
+  >
+) => {
+  return useQuery({
+    queryKey: ["textile-analysis", id],
+    queryFn: async () => {
+      const res = await sdk.client.fetch<AdminTextileAnalysisResponse>(
+        `/admin/textile-analyses/${id}`
+      )
+      return res.textile_analysis
+    },
+    enabled: !!id,
+    ...options,
+  })
+}
+
+/**
+ * Correct a single analysis. Invalidates both the list and the single row so
+ * the library grid reflects the edit when the modal closes.
+ */
+export const useUpdateTextileAnalysis = () => {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: async ({
+      id,
+      ...data
+    }: { id: string } & AdminUpdateTextileAnalysis) => {
+      const res = await sdk.client.fetch<AdminTextileAnalysisResponse>(
+        `/admin/textile-analyses/${id}`,
+        { method: "PATCH", body: data }
+      )
+      return res.textile_analysis
+    },
+    onSuccess: (updated) => {
+      queryClient.invalidateQueries({ queryKey: ["textile-analyses"] })
+      queryClient.invalidateQueries({ queryKey: ["textile-analysis", updated.id] })
+    },
   })
 }

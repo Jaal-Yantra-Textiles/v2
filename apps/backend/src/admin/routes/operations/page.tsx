@@ -109,6 +109,11 @@ export default function OperationsHub() {
           description="Media folders, uploads, and shared assets."
           to="/medias"
         />
+        <QuickLinkCard
+          title="Textile library"
+          description="What a vision model saw in every fabric photo — correctable."
+          to="/textile-analyses"
+        />
       </Section>
     </Container>
   )
