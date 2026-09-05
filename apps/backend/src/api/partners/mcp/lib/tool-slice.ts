@@ -31,6 +31,7 @@ export type PartnerToolDomain =
   | "inventory"
   | "customers"
   | "money"
+  | "people"
 
 /**
  * Route prefix -> domain. Longest prefix wins, so a more specific entry is
@@ -63,6 +64,19 @@ const PREFIX_DOMAINS: ReadonlyArray<readonly [string, PartnerToolDomain]> = [
    * person is onboarding work, and core is always present.
    */
   ["/partners/people", "core"],
+  /**
+   * Batch ID extraction (#1816) is NOT core, deliberately.
+   *
+   * Core is always-on, and these six tools cost ~1300 tokens of every partner
+   * conversation whether or not anyone has photographed anything. The single
+   * `add_person_from_id_card` above stays core because adding one person is
+   * onboarding work; a paced background job over up to fifty cards is a task
+   * someone asks for in words, so it loads on the ask.
+   *
+   * Longest prefix wins, so this entry takes the batch routes without
+   * disturbing `/partners/people`.
+   */
+  ["/partners/people/id-extraction/batch", "people"],
 
   // ---- orders: fulfilment + the whole post-purchase lifecycle ----
   ["/partners/orders", "orders"],
@@ -297,6 +311,23 @@ const DOMAIN_KEYWORDS: Record<Exclude<PartnerToolDomain, "core">, string[]> = {
     "customer", "customers", "buyer", "buyers", "shopper", "shoppers",
     "group", "groups", "customer group", "customer groups", "address",
   ],
+  /**
+   * A partner photographing their roster says none of the words in `customers`
+   * — these are weavers and workers, not buyers — so folding this into that
+   * domain would have been both wrong and unreachable.
+   */
+  people: [
+    "id card", "id cards", "identity card", "identity document", "identity documents",
+    "aadhaar", "aadhar", "pan card", "voter id", "voter card", "driving licence",
+    "driving license", "passport",
+    "weaver", "weavers", "artisan", "artisans", "worker", "workers", "labour",
+    "roster", "staff", "my people", "these people", "add people", "add them",
+    "add these", "id proof", "identity proof", "enroll", "enrol", "onboard them",
+    "register them",
+    // What the operator calls the job itself.
+    "batch", "batches", "id batch", "extraction", "read the cards", "read these",
+    "photos of", "photographs of", "scan", "scanned",
+  ],
   money: [
     "payment", "payments", "payout", "payouts", "invoice", "invoices",
     "revenue", "settle", "settlement", "money", "paid", "unpaid", "balance",
@@ -426,4 +457,5 @@ export const SELECTABLE_DOMAINS: PartnerToolDomain[] = [
   "inventory",
   "customers",
   "money",
+  "people",
 ]

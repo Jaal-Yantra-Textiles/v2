@@ -8,6 +8,7 @@ import { formatDistance } from "date-fns"
 import { TFunction } from "i18next"
 import { useEffect, useState } from "react"
 import { useTranslation } from "react-i18next"
+import { Link } from "react-router-dom"
 
 import {
   notificationQueryKeys,
@@ -117,6 +118,7 @@ export const Notifications = () => {
                 key={notification.id}
                 notification={notification}
                 unread={notification.is_unread}
+                onNavigate={() => setOpen(false)}
               />
             )}
           />
@@ -129,10 +131,14 @@ export const Notifications = () => {
 const Notification = ({
   notification,
   unread,
+  onNavigate,
 }: {
   notification: PartnerNotification
   unread?: boolean
+  /** Close the drawer when a row navigates away. */
+  onNavigate?: () => void
 }) => {
+  const { t } = useTranslation()
   const data = notification.data as unknown as NotificationData | undefined
 
   // We need at least the title to render a notification in the feed
@@ -188,6 +194,22 @@ const Notification = ({
             url={data.file.url}
             hideThumbnail
           />
+        )}
+        {/**
+          * `data.url` has been on every partner notification since the helper
+          * was written and nothing has ever rendered it — the bell showed the
+          * text and dropped the way to act on it. Internal paths only: a row is
+          * written by a workflow, but rendering an arbitrary href from stored
+          * data is not something to start doing here.
+          */}
+        {!!data?.url && data.url.startsWith("/") && (
+          <Link
+            to={data.url}
+            onClick={onNavigate}
+            className="text-ui-fg-interactive txt-small hover:text-ui-fg-interactive-hover w-fit"
+          >
+            {t("notifications.view", "View")}
+          </Link>
         )}
       </div>
     </div>

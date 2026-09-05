@@ -385,6 +385,14 @@ describe("partner-mcp per-ask tool slicing", () => {
       // partner opened the chat about.
       "/partners/inquiries": "they asked if I can make this — what are the questions",
       "/partners/capabilities": "show the photos of what I have made before",
+      /**
+       * Batch ID extraction (#1816). The founder's own words for this were
+       * "if we upload like 10 photos can it handle this" — no partner says
+       * "extraction" or "batch" unprompted, so the ask that has to work is the
+       * one about the people, not about the job.
+       */
+      "/partners/people/id-extraction/batch":
+        "I have photographed the id cards of ten weavers, add them to my people",
     }
 
     const familiesInRegistry = [
@@ -447,5 +455,49 @@ describe("partner-mcp per-ask tool slicing", () => {
           .toEqual({ ask, tooBig: false })
       }
     })
+  })
+})
+
+/**
+ * Batch ID extraction (#1816) reachability.
+ *
+ * These six tools are deliberately NOT core — always-on they cost ~1300 tokens
+ * of every partner conversation. That saving is only honest if the asks a
+ * partner actually types still reach them, so the phrasings are asserted here
+ * rather than assumed.
+ */
+describe("batch id-extraction reachability", () => {
+  const idTools = (ask: string) =>
+    selectPartnerToolSlice(ask, PARTNER_MCP_TOOLS).names.filter((n) =>
+      n.includes("id_extraction")
+    )
+
+  it.each([
+    "I have photographed the id cards of ten weavers, add them to my people",
+    "add these workers to my roster",
+    "read the cards and add them",
+    "here are the aadhaar cards for my artisans",
+    "how is my batch going",
+    "did any of the id cards fail",
+  ])("reaches the batch tools from %j", (ask) => {
+    expect(idTools(ask).length).toBeGreaterThan(0)
+  })
+
+  it("stays out of conversations that are not about people", () => {
+    expect(idTools("how many shawls did I ship last month")).toEqual([])
+    expect(idTools("set the price of my cotton stole to 1200")).toEqual([])
+  })
+
+  /**
+   * 🔴 A known gap, asserted so it is a decision and not a surprise: the
+   * founder's own phrasing — "if we upload like 10 photos can it handle this"
+   * — names neither the people nor the documents, so it does NOT select these
+   * tools. Adding bare "photo"/"upload" would pull them into every design and
+   * product conversation, which is the always-on cost this domain exists to
+   * avoid. The model reaches them via `load_partner_tools`, and once loaded the
+   * domain is carried for the rest of the conversation.
+   */
+  it("does not select on a bare mention of uploading photos", () => {
+    expect(idTools("if we upload like 10 photos can it handle this")).toEqual([])
   })
 })
