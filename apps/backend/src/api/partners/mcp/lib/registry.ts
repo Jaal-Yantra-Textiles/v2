@@ -255,6 +255,143 @@ export const PARTNER_MCP_TOOLS: PartnerMcpToolDef[] = [
       "Without persist: reads the image with a vision model and returns a draft. Stores nothing. With persist+confirm: creates ONE person, links it to YOUR partner (taken from the session, never from the body) and best-effort creates their address. Relay the draft's warnings verbatim — they are the only signal that a field was dropped or doubted.",
   },
   {
+    name: "create_id_extraction_batch",
+    description:
+      "Read MANY identity documents together as one paced background job. Use this instead of calling add_person_from_id_card in a loop whenever the operator has shared more than one card — the photos are read one at a time on a rate limit, and the job survives being left alone. Pass the photo URLs already shared in this conversation. Returns immediately with a batch_id; NOTHING has been read yet when it returns. Roughly 20 seconds per photograph, so ten cards is about three minutes. It produces DRAFTS only — no person exists until approve_id_extraction_batch. Tell the operator how many photographs and roughly how long, then STOP — do not poll, and never say it has finished, because the reading happens after this tool returns. Sensitive — requires confirmation, because reading a stack of cards costs real provider budget.",
+    method: "POST",
+    path: "/partners/people/id-extraction/batch",
+    write: true,
+    sensitive: true,
+    bodyParams: [
+      "image_urls",
+      "notes",
+      "id_number_policy",
+      "person_type_ids",
+      "interval_ms",
+      "auto_confirm",
+    ],
+    inputSchema: obj(
+      {
+        image_urls: {
+          type: "array",
+          items: { type: "string" },
+          description:
+            "The identity-document photos, as URLs or data URIs, in the order the operator shared them. Capped at 50.",
+        },
+        notes: STR("Context from the operator, e.g. 'these are the weavers at the Islampur unit'."),
+        id_number_policy: {
+          type: "string",
+          enum: ["mask", "discard"],
+          description:
+            "What to keep of each document number. 'mask' (default) keeps only the last four digits; 'discard' keeps none. Storing the full number is deliberately not offered.",
+        },
+        person_type_ids: {
+          type: "array",
+          items: { type: "string" },
+          description: "Person-type ids to attach to every person created from this batch.",
+        },
+        interval_ms: INT(
+          "Milliseconds between photographs. Clamped server-side between 5000 and 600000; leave unset for the 20000 default."
+        ),
+        auto_confirm: BOOL(
+          "Start reading immediately. Pass true when the operator has already said to go ahead; otherwise leave it out and call confirm_id_extraction_batch after they have checked the photos are the right ones."
+        ),
+      },
+      ["image_urls"]
+    ),
+    sideEffects:
+      "Creates a batch and starts reading in the background when confirmed. Creates NO people — every photograph becomes a draft that a human approves separately. Costs one vision call per photograph.",
+    nextSteps: ["get_id_extraction_batch"],
+  },
+  {
+    name: "list_id_extraction_batches",
+    description:
+      "List this partner's ID-card batches, newest first, each with its counts (total, completed, failed, approved, pending). Use it when the operator asks about 'the batch' without saying which, or to find one they started in an earlier conversation.",
+    method: "GET",
+    path: "/partners/people/id-extraction/batch",
+    queryParams: ["limit", "offset"],
+    inputSchema: obj({
+      limit: INT("Max batches to return (default 20, max 100)."),
+      offset: INT("Pagination offset."),
+    }),
+  },
+  {
+    name: "get_id_extraction_batch",
+    description:
+      "The full report for one batch: its status, every photograph's own status, the draft read from each, and any per-item error. This is how you answer 'how is my batch going' and 'what did it find'. Report the three numbers that matter — completed, failed and OUTSTANDING — and read `outstanding` rather than trusting `status`: a batch whose background loop was killed still says 'running', and outstanding is the field that disagrees. Relay each draft's warnings verbatim; they are the only signal that a name was kept whole or a field was doubted. If drafts are waiting, show them WITH their warnings and ask which to approve — never approve on the operator's behalf.",
+    method: "GET",
+    path: "/partners/people/id-extraction/batch/:id",
+    pathParams: ["id"],
+    inputSchema: obj(
+      { id: STR("The batch id returned by create_id_extraction_batch.") },
+      ["id"]
+    ),
+    nextSteps: ["retry_id_extraction_batch", "approve_id_extraction_batch"],
+  },
+  {
+    name: "confirm_id_extraction_batch",
+    description:
+      "Start reading a batch that was created without auto_confirm. Use it once the operator has confirmed the photos are the right people. Reading then runs in the background.",
+    method: "POST",
+    path: "/partners/people/id-extraction/batch/:id/confirm",
+    pathParams: ["id"],
+    write: true,
+    inputSchema: obj({ id: STR("The batch id.") }, ["id"]),
+  },
+  {
+    name: "retry_id_extraction_batch",
+    description:
+      "Re-run the photographs in a batch that have not been read yet. scope 'failed' re-reads only the ones that errored; scope 'pending' finishes a batch whose background loop stopped early — which is what to use when get_id_extraction_batch reports outstanding items on a batch that claims to be finished. A retry RESUMES; it never re-reads a photograph that already produced a draft.",
+    method: "POST",
+    path: "/partners/people/id-extraction/batch/:id/retry",
+    pathParams: ["id"],
+    queryParams: ["scope"],
+    write: true,
+    inputSchema: obj(
+      {
+        id: STR("The batch id."),
+        scope: {
+          type: "string",
+          enum: ["failed", "pending"],
+          description:
+            "'failed' re-reads the errored photographs; 'pending' picks up ones never attempted. Default 'pending'.",
+        },
+      },
+      ["id"]
+    ),
+  },
+  {
+    name: "approve_id_extraction_batch",
+    description:
+      "Turn approved drafts into real people on this partner's roster, each linked to the partner and given the address read from their card. This is the ONLY door from a draft to a person. Show the operator every draft first — especially the ones carrying warnings — and pass `corrections` for any name they fix; a correction can also rescue a draft the reader itself refused. Omit item_ids to approve every usable draft, which you should only do after the operator has actually seen them. Sensitive — requires confirmation, and creating people from photographs is not undoable by you.",
+    method: "POST",
+    path: "/partners/people/id-extraction/batch/:id/approve",
+    pathParams: ["id"],
+    write: true,
+    sensitive: true,
+    bodyParams: ["item_ids", "corrections"],
+    inputSchema: obj(
+      {
+        id: STR("The batch id."),
+        item_ids: {
+          type: "array",
+          items: { type: "string" },
+          description:
+            "Which items to approve. Omit to approve every item that has a usable draft.",
+        },
+        corrections: {
+          type: "object",
+          additionalProperties: true,
+          description:
+            "Per-item field overrides, keyed by item id, e.g. {\"<item_id>\": {\"first_name\": \"Tapas\", \"last_name\": \"Ghosh\"}}. Use it whenever the operator corrects a name you read back to them.",
+        },
+      },
+      ["id"]
+    ),
+    sideEffects:
+      "Creates one person per approved draft, links each to YOUR partner (taken from the session, never the body), and best-effort creates their address. Records the source photo and the reader's confidence on the person so a wrong name can be traced back to the card.",
+  },
+  {
     name: "get_partner_profile",
     description:
       "Get the current partner's profile (name, handle, workspace_type/persona, status, metadata). Call this first to understand who you are helping and how far onboarding has progressed.",

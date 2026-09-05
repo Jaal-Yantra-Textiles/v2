@@ -4,6 +4,7 @@ import {
   MIN_ID_BATCH_INTERVAL_MS,
   MAX_ID_BATCH_INTERVAL_MS,
   MAX_ID_BATCH_IMAGES,
+  buildIdBatchBellMessage,
 } from "../id-extraction-batch"
 
 /**
@@ -71,5 +72,67 @@ describe("batch bounds", () => {
   it("caps a batch below the point where it is really a bulk import", () => {
     expect(MAX_ID_BATCH_IMAGES).toBeGreaterThanOrEqual(10)
     expect(MAX_ID_BATCH_IMAGES).toBeLessThanOrEqual(100)
+  })
+})
+
+/**
+ * The bell message (#1816 follow-up).
+ *
+ * These exist because the notification they replace said the same sentence
+ * regardless of outcome — "Batch <id> has drafts waiting for approval" — and
+ * was addressed to nobody, so nothing about it could be noticed in the UI.
+ */
+describe("buildIdBatchBellMessage", () => {
+  it("reports the counts, not a fixed sentence", () => {
+    const { title, description } = buildIdBatchBellMessage({
+      total: 10,
+      readable: 10,
+      failed: 0,
+      outstanding: 0,
+    })
+    expect(title).toBe("ID cards read — drafts waiting for you")
+    expect(description).toContain("10 of 10 read")
+    expect(description).not.toContain("failed")
+    expect(description).not.toContain("outstanding")
+  })
+
+  it("names the failures when some cards could not be read", () => {
+    const { title, description } = buildIdBatchBellMessage({
+      total: 10,
+      readable: 7,
+      failed: 3,
+      outstanding: 0,
+    })
+    expect(title).toBe("ID cards read — drafts waiting for you")
+    expect(description).toContain("7 of 10 read")
+    expect(description).toContain("3 failed")
+  })
+
+  /**
+   * The #1742 case: a deploy kills the loop, the batch row still says
+   * `running`, and the only field that disagrees is `outstanding`. If the bell
+   * cannot say this, the partner is told a truncated batch finished.
+   */
+  it("says a batch stopped early when work is still outstanding", () => {
+    const { title, description } = buildIdBatchBellMessage({
+      total: 10,
+      readable: 4,
+      failed: 0,
+      outstanding: 6,
+    })
+    expect(title).toBe("ID card batch stopped early")
+    expect(description).toContain("6 still outstanding")
+  })
+
+  it("does not invite a review when nothing was read", () => {
+    const { title, description } = buildIdBatchBellMessage({
+      total: 5,
+      readable: 0,
+      failed: 5,
+      outstanding: 0,
+    })
+    expect(title).toBe("ID card batch could not be read")
+    expect(description).toContain("Nothing was added")
+    expect(description).not.toContain("Review the drafts")
   })
 })

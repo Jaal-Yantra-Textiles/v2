@@ -44,12 +44,10 @@ import {
   transform,
 } from "@medusajs/framework/workflows-sdk";
 import { MedusaError } from "@medusajs/framework/utils";
-import {
-  notifyOnFailureStep,
-  sendNotificationsStep,
-} from "@medusajs/medusa/core-flows";
+import { notifyOnFailureStep } from "@medusajs/medusa/core-flows";
 
 import { PERSON_MODULE } from "../../modules/person";
+import { createPartnerNotification } from "../../lib/notifications/create-partner-notification";
 import { type IdNumberPolicy } from "../../lib/people/id-card";
 import {
   providerGateKey,
@@ -423,6 +421,116 @@ export const idExtractionBatchProcessingWorkflow = createWorkflow(
   }
 );
 
+/**
+ * Tell the partner the batch is done, with the numbers.
+ *
+ * 🔴 The counts are re-read from the rows here rather than carried out of the
+ * processing step. The loop can be killed mid-run by a deploy (#1742) and the
+ * batch row keeps saying `running`; a summary built from a remembered tally
+ * would then report work that never happened. `outstanding` is the field that
+ * disagrees with `status` when that happens, so it goes in the message.
+ *
+ * The bell is scoped by `receiver_id = partner.id`. Before this, both feed rows
+ * went out with `to: ""` and no receiver at all — written, and invisible to
+ * every partner. Measured on prod batch 01M1R4XVAEW82NBDY9TZ4SQY8N: the row
+ * exists at 06:47:56, and the partner's bell had shown nothing since May.
+ */
+/**
+ * The bell's words, as a pure function of the four counts.
+ *
+ * Separated from the step so the wording can be tested without a container —
+ * the same split `assistant/chat/attachments.ts` uses. The old text was one
+ * fixed sentence ("has drafts waiting for approval") sent whether ten cards
+ * read or none did, which is the failure mode worth a test: a summary that
+ * cannot say anything went wrong.
+ */
+export const buildIdBatchBellMessage = (counts: {
+  total: number;
+  readable: number;
+  failed: number;
+  outstanding: number;
+}): { title: string; description: string } => {
+  const { total, readable, failed, outstanding } = counts;
+
+  const title =
+    readable === 0 && failed > 0
+      ? "ID card batch could not be read"
+      : outstanding > 0
+      ? "ID card batch stopped early"
+      : "ID cards read — drafts waiting for you";
+
+  const parts = [`${readable} of ${total} read`];
+  if (failed > 0) parts.push(`${failed} failed`);
+  if (outstanding > 0) parts.push(`${outstanding} still outstanding`);
+
+  const description =
+    readable > 0
+      ? `${parts.join(", ")}. Review the drafts and approve the ones that look right — nobody is added to your people until you do.`
+      : `${parts.join(", ")}. Nothing was added. Retry the batch or re-photograph the cards.`;
+
+  return { title, description };
+};
+
+const notifyPartnerOfIdBatchStep = createStep(
+  "notify-partner-of-id-extraction-batch",
+  async (
+    input: { batch_id: string; partner_id?: string | null },
+    { container }
+  ) => {
+    if (!input.partner_id) {
+      // An admin-triggered batch has no bell to ring. Not an error.
+      return new StepResponse({ notified: false });
+    }
+
+    const service: any = container.resolve(PERSON_MODULE);
+    const items = await service.listIdExtractionBatchItems({
+      batch_id: input.batch_id,
+    });
+
+    const by = (status: string) =>
+      (items ?? []).filter((i: any) => i.status === status).length;
+
+    const total = (items ?? []).length;
+    const completed = by("completed");
+    const failed = by("failed");
+    const approved = by("approved");
+    const outstanding = total - completed - failed - approved;
+
+    const readable = completed + approved;
+    const { title, description } = buildIdBatchBellMessage({
+      total,
+      readable,
+      failed,
+      outstanding,
+    });
+
+    await createPartnerNotification(container, {
+      partner_id: input.partner_id,
+      title,
+      description,
+      resource_type: "id_extraction_batch",
+      resource_id: input.batch_id,
+      trigger_type: "id_extraction_batch.finished",
+      /**
+       * One bell row per batch per outcome. A retry of the same batch is a new
+       * outcome and should ring again; a replayed step is not.
+       */
+      idempotency_key: `id_extraction_batch:${input.batch_id}:${readable}:${failed}:${outstanding}`,
+      /**
+       * ⚠️ Points at a route that EXISTS. There is no batch screen yet (#1816
+       * shipped API + workflow only), and a bell row that 404s is worse than
+       * one that does not link. `/assistant` is where the operator can ask
+       * `get_id_extraction_batch` for the same report, which is the flow the
+       * founder asked for: read the bell, go back to the chat, ask.
+       */
+      url: `/assistant?batch=${input.batch_id}`,
+      data: { batch_id: input.batch_id, total, completed: readable, failed, outstanding, approved },
+    });
+
+    return new StepResponse({ notified: true, total, completed: readable, failed, outstanding });
+  }
+);
+
 // ============================================
 // Main workflow
 // ============================================
@@ -453,14 +561,26 @@ export const idExtractionBatchWorkflow = createWorkflow(
 
     waitConfirmationIdExtractionBatchStep();
 
-    const failureNotification = transform({ created }, (d) => [
+    /**
+     * ⚠️ Addressed to the partner, not to nobody. `receiver_id` is what the
+     * partner bell filters on; without it this row is written and unreadable.
+     */
+    const failureNotification = transform({ created, input }, (d) => [
       {
-        to: "",
+        to: d.input.partner_id ?? "",
         channel: "feed" as const,
-        template: "admin-ui" as const,
+        // Feed rows carry no template — the bell renders from `data`. See
+        // lib/notifications/create-partner-notification.
+        template: "" as const,
+        receiver_id: d.input.partner_id ?? null,
+        resource_type: "id_extraction_batch",
+        resource_id: d.created.batch_id,
+        trigger_type: "id_extraction_batch.failed",
         data: {
-          title: "ID batch extraction failed",
-          description: `Batch ${d.created.batch_id} could not be read.`,
+          title: "ID card batch could not be read",
+          description: `Batch ${d.created.batch_id} stopped before it could read the cards. Nobody was added to your people.`,
+          url: `/assistant?batch=${d.created.batch_id}`,
+          batch_id: d.created.batch_id,
         },
       },
     ]);
@@ -478,19 +598,18 @@ export const idExtractionBatchWorkflow = createWorkflow(
       .runAsStep({ input: processingInput })
       .config({ async: true, backgroundExecution: true });
 
-    const successNotification = transform({ created }, (d) => [
-      {
-        to: "",
-        channel: "feed" as const,
-        template: "admin-ui" as const,
-        data: {
-          title: "ID batch extraction finished",
-          description: `Batch ${d.created.batch_id} has drafts waiting for approval.`,
-        },
-      },
-    ]);
+    /**
+     * Runs after the background processing resumes this workflow, so the counts
+     * it reports are the finished ones. Verified by timestamps on prod batch
+     * 01M1R4XVAEW82NBDY9TZ4SQY8N: created 06:43:35, tenth card read 06:47:50,
+     * notification 06:47:56 — the async step does hold the continuation.
+     */
+    const notifyInput = transform({ created, input }, (d) => ({
+      batch_id: d.created.batch_id,
+      partner_id: d.input.partner_id ?? null,
+    }));
 
-    sendNotificationsStep(successNotification);
+    notifyPartnerOfIdBatchStep(notifyInput);
 
     return new WorkflowResponse(initialSummary);
   }

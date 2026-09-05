@@ -37,6 +37,7 @@ import { Sparkles, ArrowUpMini, Check, ExclamationCircle, XMarkMini, PaperClip, 
 
 import { sdk, backendUrl } from "../../../lib/client"
 import { queryClient } from "../../../lib/query-client"
+import { notificationQueryKeys } from "../../../hooks/api/notification"
 import {
   conversationsQueryKeys,
   type StoredMessage,
@@ -47,6 +48,10 @@ import {
   approvalNoteTool,
   resolveToolPart,
 } from "../../../lib/assistant-approval"
+import {
+  idExtractionBatchIdFrom,
+  watchIdExtractionBatch,
+} from "../../../lib/id-batch-toast"
 import { Markdown } from "./markdown"
 import { ToolData } from "./tool-data"
 
@@ -363,6 +368,28 @@ export const ChatThread = ({
       )
 
       if (action === "approved") {
+        /**
+         * Reading a stack of ID cards is the one approved tool whose work is
+         * not finished when the tool returns (#1816). It answers 202 with a
+         * `batch_id` and then reads one photograph roughly every 20 seconds in
+         * the background, so without this the partner is told "started" and
+         * then gets silence for three minutes.
+         *
+         * The toast is the optimistic view. The durable one is the notification
+         * the workflow posts when the batch settles, which is what the operator
+         * sees if they close the tab.
+         */
+        const batchId = idExtractionBatchIdFrom(name, result)
+        if (batchId) {
+          watchIdExtractionBatch(batchId, {
+            onSettled: () => {
+              queryClient.invalidateQueries({
+                queryKey: notificationQueryKeys.all,
+              })
+            },
+          })
+        }
+
         void sendMessage({ text: approvalNote(name, result) })
       }
     },
