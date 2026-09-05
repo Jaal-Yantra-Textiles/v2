@@ -4,6 +4,7 @@ import {
   normalizeStarfleetTracking,
   scanTypeForAction,
   shipmentTypeForReason,
+  starfleetBaseUrl,
   starfleetTrackingUrl,
 } from "../client"
 import { CreateShipmentInput } from "../../provider-interface"
@@ -207,5 +208,31 @@ describe("starfleetTrackingUrl", () => {
   })
   it("returns empty for a blank awb", () => {
     expect(starfleetTrackingUrl("")).toBe("")
+  })
+})
+/**
+ * Host selection.
+ *
+ * The client shipped with both hosts hardcoded to STAGING while its own tool
+ * description and the API note both named the prod host. Credentials for prod
+ * pointed at the sandbox do not fail loudly: they authenticate, and then
+ * `pickup_warehouse_id` resolves against a registry that does not contain the
+ * warehouse (gotcha #3), so it surfaces as a manifestation error instead.
+ */
+describe("starfleetBaseUrl", () => {
+  it("defaults to staging when unset, so prod is never reached by accident", () => {
+    expect(starfleetBaseUrl(undefined)).toContain("api-stage-starfleet")
+    expect(starfleetBaseUrl("")).toContain("api-stage-starfleet")
+  })
+
+  it("selects the prod host only on an explicit 'prod'", () => {
+    expect(starfleetBaseUrl("prod")).toBe("https://api-starfleet.delhivery.com")
+    expect(starfleetBaseUrl(" PROD ")).toBe("https://api-starfleet.delhivery.com")
+  })
+
+  it("treats anything else as staging rather than guessing", () => {
+    for (const v of ["staging", "stage", "production", "live", "true", "1"]) {
+      expect(starfleetBaseUrl(v)).toContain("api-stage-starfleet")
+    }
   })
 })

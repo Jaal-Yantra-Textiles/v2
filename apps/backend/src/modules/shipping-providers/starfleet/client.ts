@@ -54,8 +54,30 @@ import {
 import { isInternationalDestination } from "../destination"
 import { normalizeHsCode } from "../hs-code-resolution"
 
-const AUTH_URL = "https://api-stage-starfleet.delhivery.com/auth/token"
-const PACKAGE_BASE_URL = "https://api-stage-starfleet.delhivery.com/package"
+/**
+ * 🔴 StarFleet has two hosts and the warehouse registry is PER-ENVIRONMENT — a
+ * prod warehouse does not exist in staging and vice versa (gotcha #3). Pinning
+ * the host to staging, as this file first did, means prod credentials
+ * authenticate against the sandbox: `pickup_warehouse_id` then resolves to a
+ * warehouse that is not there, and the failure surfaces as a manifestation
+ * error rather than as "you are pointed at the wrong environment".
+ *
+ * Defaults to STAGING, so nothing changes for anyone until the var is set —
+ * enabling prod is a deliberate act, not a side effect of deploying.
+ */
+const STARFLEET_HOSTS = {
+  staging: "https://api-stage-starfleet.delhivery.com",
+  prod: "https://api-starfleet.delhivery.com",
+} as const
+
+export const starfleetBaseUrl = (env?: string): string =>
+  String(env ?? "").trim().toLowerCase() === "prod"
+    ? STARFLEET_HOSTS.prod
+    : STARFLEET_HOSTS.staging
+
+const HOST = starfleetBaseUrl(process.env.STARFLEET_ENV)
+const AUTH_URL = `${HOST}/auth/token`
+const PACKAGE_BASE_URL = `${HOST}/package`
 const AUTH_AUDIENCE = "StarFleet"
 /**
  * The scope is wrapped in literal double-quotes on purpose — see gotcha #1.

@@ -123,7 +123,18 @@ No cancellation endpoint exists in the scoped surface.
 
 ## Environment matrix
 
-| env | base | warehouse |
-|---|---|---|
-| staging | `api-stage-starfleet.delhivery.com` | created via `staging-express` `clientwarehouse/create` |
-| prod | `api-starfleet.delhivery.com` | prod warehouse (gates: wallet `InsufficientBalance`) |
+| env | `STARFLEET_ENV` | base | warehouse |
+|---|---|---|---|
+| staging | unset (default) | `api-stage-starfleet.delhivery.com` | created via `staging-express` `clientwarehouse/create` |
+| prod | `prod` | `api-starfleet.delhivery.com` | prod warehouse (gates: wallet `InsufficientBalance`) |
+
+🔴 The host is selected by `STARFLEET_ENV` and **defaults to staging**. Anything
+other than the exact string `prod` (case- and space-insensitive) stays on
+staging, so turning prod on is a deliberate act rather than a side effect of a
+deploy.
+
+⚠️ Because the warehouse registry is per-environment, prod credentials pointed
+at the staging host do NOT fail at auth. They authenticate, and then
+`pickup_warehouse_id` resolves against a registry that has never heard of that
+warehouse — surfacing as a manifestation error that reads like bad shipment
+data. If a manifest fails on an unknown warehouse, check the host first.
