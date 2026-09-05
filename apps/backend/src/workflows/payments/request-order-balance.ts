@@ -79,7 +79,7 @@ const ensureBalanceCollectionStep = createStep(
     }
 
     const { schedule_id, order_id, amount } = input.plan
-    const query = container.resolve(ContainerRegistrationKeys.QUERY)
+    const query: any = container.resolve(ContainerRegistrationKeys.QUERY)
     const logger: any = container.resolve(ContainerRegistrationKeys.LOGGER)
 
     /**
@@ -159,7 +159,7 @@ const ensureBalanceSessionStep = createStep(
       return new StepResponse({ ok: false })
     }
 
-    const query = container.resolve(ContainerRegistrationKeys.QUERY)
+    const query: any = container.resolve(ContainerRegistrationKeys.QUERY)
     const { data: collections } = await query.graph({
       entity: "payment_collection",
       fields: ["id", "payment_sessions.id", "payment_sessions.provider_id"],
