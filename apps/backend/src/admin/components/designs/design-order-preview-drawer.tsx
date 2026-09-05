@@ -10,6 +10,13 @@ import {
   Select,
 } from "@medusajs/ui"
 import type { DesignEstimatePreview } from "../../hooks/api/designs"
+import {
+  canCreateOrder,
+  hydrateEstimates,
+  money,
+  summariseEdits,
+  type EditableEstimate,
+} from "./design-order-preview-lib"
 
 const confidenceColor = (c: string): "green" | "orange" | "red" | "blue" => {
   switch (c) {
@@ -26,12 +33,6 @@ const formatCurrency = (amount: number, currency: string) => {
     currency: currency.toUpperCase(),
     minimumFractionDigits: 2,
   }).format(amount)
-}
-
-type EditableEstimate = {
-  material: string
-  production: string
-  unitPrice: string
 }
 
 const CURRENCY_OPTIONS = [
@@ -64,17 +65,15 @@ export const DesignOrderPreviewDrawer = ({
   const [edited, setEdited] = useState<Record<string, EditableEstimate>>({})
   const [overrideCurrency, setOverrideCurrency] = useState<string>("inr")
 
-  // Initialize from estimates — prices are stored as-is (not in cents)
+  /**
+   * 🔴 `null` is a real answer and must never reach `.toFixed()`. It used to,
+   * and the drawer died with `null is not an object` before rendering — see
+   * `design-order-preview-lib` for what that cost. The rules live there so they
+   * can be tested; this only wires them up.
+   */
   useEffect(() => {
-    const initial: Record<string, EditableEstimate> = {}
-    for (const est of estimates) {
-      initial[est.design_id] = {
-        material: est.material_cost.toFixed(2),
-        production: est.production_cost.toFixed(2),
-        unitPrice: est.unit_price.toFixed(2),
-      }
-    }
-    setEdited(initial)
+    setEdited(hydrateEstimates(estimates))
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [estimates])
 
   const updateField = (
@@ -92,31 +91,17 @@ export const DesignOrderPreviewDrawer = ({
       if (field === "material" || field === "production") {
         const mat = parseFloat(field === "material" ? value : next.material) || 0
         const prod = parseFloat(field === "production" ? value : next.production) || 0
-        next.unitPrice = (mat + prod).toFixed(2)
+        next.unitPrice = money(mat + prod)
       }
 
       return { ...prev, [designId]: next }
     })
   }
 
-  const { priceOverrides, computedTotal, hasChanges } = useMemo(() => {
-    const overrides: Record<string, number> = {}
-    let newTotal = 0
-    let changed = false
-
-    for (const est of estimates) {
-      const entry = edited[est.design_id]
-      const editedPrice = parseFloat(entry?.unitPrice || "0")
-      newTotal += editedPrice
-
-      if (editedPrice !== est.unit_price) {
-        overrides[est.design_id] = editedPrice
-        changed = true
-      }
-    }
-
-    return { priceOverrides: overrides, computedTotal: newTotal, hasChanges: changed }
-  }, [edited, estimates])
+  const { priceOverrides, computedTotal, hasChanges, unpriced } = useMemo(
+    () => summariseEdits(estimates, edited),
+    [edited, estimates]
+  )
 
   const handleConfirm = () => {
     onConfirm(priceOverrides, hasChanges ? overrideCurrency : undefined)
@@ -159,8 +144,16 @@ export const DesignOrderPreviewDrawer = ({
               const entry = edited[est.design_id]
               if (!entry) return null
 
-              const editedPrice = parseFloat(entry.unitPrice || "0")
-              const isModified = editedPrice !== est.unit_price
+              /**
+               * A blank field is "not answered yet", not 0 — so an untouched
+               * unpriceable line does not claim to have been "manual"ly priced.
+               */
+              const typedPrice =
+                entry.unitPrice.trim() === "" ? null : parseFloat(entry.unitPrice)
+              const isModified =
+                typedPrice != null &&
+                Number.isFinite(typedPrice) &&
+                typedPrice !== est.unit_price
 
               return (
                 <div
@@ -210,6 +203,15 @@ export const DesignOrderPreviewDrawer = ({
                     </div>
                   </div>
 
+                  {/* Stops describing the estimate once the operator has answered it. */}
+                  {est.unit_price == null && !isModified && (
+                    <Text size="xsmall" className="text-ui-fg-error mt-2">
+                      Not priced — this design has no bill of materials and no
+                      cost history, so nothing could be estimated from. Enter a
+                      unit price.
+                    </Text>
+                  )}
+
                   {est.unit_price === 0 && !isModified && (
                     <Text size="xsmall" className="text-ui-fg-error mt-2">
                       Estimated cost is zero — please enter a price.
@@ -220,12 +222,33 @@ export const DesignOrderPreviewDrawer = ({
             })}
           </div>
 
+          {/*
+            Say what is still missing, in the footer's own words. The per-row
+            message is easy to scroll past on a batch, and the disabled Create
+            button says nothing about WHY on its own.
+          */}
+          {unpriced.length > 0 && (
+            <Text size="xsmall" className="text-ui-fg-error mt-4">
+              {unpriced.length === 1
+                ? "1 design still needs a unit price."
+                : `${unpriced.length} designs still need a unit price.`}{" "}
+              An order cannot be created until every line has one — a blank line
+              is not a free one.
+            </Text>
+          )}
+
           <div className="flex items-center justify-between mt-6 pt-4 border-t border-ui-border-base">
             <Heading level="h3">Order Total</Heading>
             <Heading level="h3">{formatCurrency(computedTotal, currencyCode)}</Heading>
           </div>
 
-          {hasChanges && (
+          {/*
+            🔑 Only when there WAS one. The server's total covers priced lines
+            only, so on a batch of unpriceable designs it is 0 — and
+            "Original estimate: ₹0.00" reads as "we estimated it at nothing"
+            rather than "nothing could be estimated".
+          */}
+          {hasChanges && total > 0 && (
             <Text size="xsmall" className="text-ui-fg-subtle mt-1">
               Original estimate: {formatCurrency(total, currencyCode)}
             </Text>
@@ -238,11 +261,19 @@ export const DesignOrderPreviewDrawer = ({
               Cancel
             </Button>
           </Drawer.Close>
+          {/*
+            🔑 Refused while ANY line is unpriced, not merely while the total is
+            zero. The old gate let a batch through with one priced design and
+            one blank — and the workflow then threw on the blank, after the
+            click, naming a design the operator could no longer see.
+          */}
           <Button
             size="small"
             onClick={handleConfirm}
             isLoading={isConfirming}
-            disabled={computedTotal === 0}
+            disabled={
+              !canCreateOrder({ priceOverrides, computedTotal, hasChanges, unpriced })
+            }
           >
             Create Draft Order
           </Button>

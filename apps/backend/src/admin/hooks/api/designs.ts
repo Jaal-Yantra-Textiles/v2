@@ -1315,8 +1315,18 @@ export interface CreateDesignOrderResponse {
 export interface DesignEstimatePreview {
   design_id: string
   name: string
-  total_estimated: number
-  unit_price: number
+  /**
+   * 🔴 `null` when the estimator had nothing to price from — no bill of
+   * materials, no cost history (#1564). It is NOT zero: zero is a deliberate
+   * freebie, and the two must not be spelled the same way.
+   *
+   * These were typed `number` here while the route had returned `number | null`
+   * since #1564, so the preview drawer called `.toFixed(2)` on a null and threw
+   * `null is not an object` before it could render — hiding the one screen
+   * where the operator supplies the missing price the backend asks for.
+   */
+  total_estimated: number | null
+  unit_price: number | null
   confidence: string
   material_cost: number
   production_cost: number
@@ -1325,7 +1335,12 @@ export interface DesignEstimatePreview {
 export interface PreviewDesignOrderResponse {
   estimates: DesignEstimatePreview[]
   currency_code: string
+  /** Covers only the lines that could be priced — see `total_is_complete`. */
   total: number
+  /** The designs the estimator could not price. Named, not absorbed into 0. */
+  unpriceable?: { design_id: string; name: string }[]
+  /** False when any line has no price, so the total above is partial. */
+  total_is_complete?: boolean
 }
 
 export const usePreviewDesignOrder = (
