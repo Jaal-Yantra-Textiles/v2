@@ -9,6 +9,10 @@ import {
   paymentInfoMap,
 } from "@lib/constants"
 import compareAddresses from "@lib/util/compare-addresses"
+import {
+  foldPaymentMethods,
+  shouldShowMethodChooser,
+} from "@lib/util/payment-methods"
 import { CreditCard } from "@medusajs/icons"
 import type { HttpTypes } from "@medusajs/types"
 import {
@@ -58,6 +62,18 @@ export default function CheckoutPaymentSection({
   const [, setPaymentComplete] = useState(false)
   const [billingOpen, setBillingOpen] = useState(false)
   const [showBillingDetails, setShowBillingDetails] = useState(false)
+
+  /**
+   * What the shopper is asked to choose between — providers folded to real
+   * choices. A region with one way to pay gets no chooser at all: the tile
+   * said "Stripe", which is the processor's name and not an answer to "how am
+   * I paying?", and it sat above the card field doing nothing.
+   */
+  const buyerMethods = foldPaymentMethods(
+    availablePaymentMethods,
+    latestSession?.provider_id
+  )
+  const showMethodChooser = shouldShowMethodChooser(buyerMethods)
 
   const paidByGiftcard = !!(
     (cart as unknown as Record<string, unknown>)?.gift_cards &&
@@ -118,6 +134,24 @@ export default function CheckoutPaymentSection({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [receiptContextKey])
 
+  /**
+   * With no chooser there is nobody to click the tile, so the single method is
+   * selected here and its session opened — otherwise the card field would wait
+   * forever for a selection that cannot be made.
+   *
+   * ⚠️ Guarded on `!selectedPaymentMethod`: this must fire once, not on every
+   * render, and never over a selection the shopper (or a live session) already
+   * has.
+   */
+  useEffect(() => {
+    if (showMethodChooser || paidByGiftcard) return
+    if (selectedPaymentMethod) return
+    const only = buyerMethods[0]
+    if (!only) return
+    void handleSelectPayment(only.id)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [showMethodChooser, paidByGiftcard, selectedPaymentMethod, buyerMethods[0]?.id])
+
   // Stripe redirect return (redirect-based methods send the shopper to Stripe
   // and back to the checkout page with `?redirect_status=...`). On a successful
   // return we finalise the order.
@@ -172,8 +206,9 @@ export default function CheckoutPaymentSection({
         <div className="flex flex-col gap-y-3">
           <h2 className="h2-docs">Payment</h2>
 
+          {showMethodChooser && (
           <div className="flex gap-x-2 overflow-x-auto no-scrollbar pb-1">
-            {availablePaymentMethods.map((method) => {
+            {buyerMethods.map((method) => {
               const info = paymentInfoMap[method.id]
               const isSelected = selectedPaymentMethod === method.id
 
@@ -206,6 +241,7 @@ export default function CheckoutPaymentSection({
               )
             })}
           </div>
+          )}
 
           {/* Stripe card input */}
           {isStripeLike(selectedPaymentMethod) && (
@@ -286,6 +322,17 @@ export default function CheckoutPaymentSection({
   )
 }
 
+/**
+ * 🔴 The guard has to live in its own component, above the hooks.
+ *
+ * `useStripe()` THROWS when there is no `<Elements>` provider — it does not
+ * return null — so calling it before checking the context took the whole
+ * checkout page down with a runtime error rather than showing a skeleton. The
+ * check that was meant to prevent that sat two lines too late, which nothing
+ * noticed while a shopper had to click a tile before this rendered at all.
+ * With the tile gone it renders on load, so a missing `NEXT_PUBLIC_STRIPE_KEY`
+ * would break every checkout instead of degrading.
+ */
 function StripeInlineContainer({
   setError,
   setPaymentComplete,
@@ -294,12 +341,28 @@ function StripeInlineContainer({
   setPaymentComplete: (complete: boolean) => void
 }) {
   const stripeReady = useContext(StripeContext)
-  const stripe = useStripe()
-  const elements = useElements()
 
   if (!stripeReady) {
     return <SkeletonCardDetails />
   }
+
+  return (
+    <StripeInlineFields
+      setError={setError}
+      setPaymentComplete={setPaymentComplete}
+    />
+  )
+}
+
+function StripeInlineFields({
+  setError,
+  setPaymentComplete,
+}: {
+  setError: (error: string | null) => void
+  setPaymentComplete: (complete: boolean) => void
+}) {
+  const stripe = useStripe()
+  const elements = useElements()
 
   const returnUrl =
     typeof window !== "undefined"
@@ -373,7 +436,25 @@ function StripeInlineContainer({
       <LinkAuthenticationElement />
 
       <PaymentElement
-        options={{ layout: "accordion" }}
+        options={{
+          /**
+           * Card open, everything else listed under it.
+           *
+           * `defaultCollapsed: false` is the half that matters: a collapsed
+           * accordion opens on a row of method NAMES, so a shopper who only
+           * wants to type a card number has to pick "Card" first. Open, the
+           * card fields are already there and the other methods — whatever
+           * Stripe offers for this currency — are visible underneath.
+           */
+          layout: {
+            type: "accordion",
+            defaultCollapsed: false,
+            radios: true,
+            spacedAccordionItems: false,
+          },
+          // Card leads regardless of the order Stripe returns.
+          paymentMethodOrder: ["card"],
+        }}
         onChange={(e) => {
           setError(null)
           setPaymentComplete(e.complete)
