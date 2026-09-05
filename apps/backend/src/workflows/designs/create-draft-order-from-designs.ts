@@ -16,7 +16,12 @@ import {
 // ─── Types ───────────────────────────────────────────────────────────────────
 
 type CreateDraftOrderFromDesignsInput = {
-  customer_id: string
+  /**
+   * Who the order is for — or `null` for a draft with no buyer attached yet
+   * (#1817). Most designs carry no customer link, and a cart is perfectly able
+   * to acquire one later, at checkout or when the order is claimed.
+   */
+  customer_id: string | null
   design_ids: string[]
   currency_code?: string
   price_overrides?: Record<string, number>
@@ -198,7 +203,7 @@ const createDesignCartStep = createStep(
   "create-design-cart-step",
   async (
     input: {
-      customer_id: string
+      customer_id: string | null
       currency_code?: string
       estimates: DesignEstimate[]
     },
@@ -246,20 +251,32 @@ const createDesignCartStep = createStep(
       salesChannelId = salesChannels[0].id
     }
 
-    // Find the customer's email
-    const { data: customers } = await query.graph({
-      entity: "customer",
-      filters: { id: input.customer_id },
-      fields: ["id", "email"],
-    })
-    const customerEmail = customers?.[0]?.email
+    /**
+     * The customer's email, when there IS a customer.
+     *
+     * 🔴 Guarded on presence. `filters: { id: undefined }` is NOT "no rows" —
+     * an absent filter matches EVERYTHING, so a customer-less draft would have
+     * picked up whichever customer the database returned first and put a
+     * stranger's address on the order.
+     */
+    let customerEmail: string | undefined = undefined
+    if (input.customer_id) {
+      const { data: customers } = await query.graph({
+        entity: "customer",
+        filters: { id: input.customer_id },
+        fields: ["id", "email"],
+      })
+      customerEmail = customers?.[0]?.email
+    }
 
     // Create the cart
     const cart = await cartService.createCarts({
       region_id: region.id,
       currency_code: currencyCode,
-      customer_id: input.customer_id,
-      email: customerEmail,
+      customer_id: input.customer_id ?? null,
+      // Null, never a placeholder: an invented address is an unreachable buyer
+      // on a real order. Checkout collects it.
+      email: customerEmail ?? null,
       sales_channel_id: salesChannelId,
       metadata: {
         created_by: "admin",

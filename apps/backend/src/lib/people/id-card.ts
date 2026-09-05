@@ -220,6 +220,60 @@ const clampConfidence = (v: unknown): number => {
  *
  * PURE. Every decision about what survives the model's guess is made here.
  */
+/**
+ * Did the model actually LOOK at the card?
+ *
+ * 🔴 A vision call that reads nothing and a vision call that never saw the
+ * image are indistinguishable in the response: both come back HTTP 200 with an
+ * object of nulls. Cloudflare does exactly this for a text-only model — it
+ * accepts the image part, silently drops it, and answers from the text alone
+ * (see `api/admin/assistant/vision/guards.ts`, written against a live probe).
+ *
+ * So "every single field is empty" is treated as a FAILED read of that model
+ * rather than as a finding about the photograph. It is the difference between
+ * telling an operator their picture is blurry and telling them the model we
+ * asked is blind — and only one of those they can act on.
+ */
+export const isBlindRead = (raw: unknown): boolean => {
+  const r = (raw && typeof raw === "object" ? raw : {}) as Record<string, unknown>
+  const filled = [r.first_name, r.last_name, r.id_number, r.date_of_birth, r.id_type]
+  return !filled.some((v) => typeof v === "string" && v.trim() !== "")
+}
+
+/**
+ * What was actually tried, in a sentence an operator can act on.
+ *
+ * Without this the only message was "no name could be read from the image",
+ * which reads as a verdict on the PHOTOGRAPH. When the cause is a model that
+ * cannot see, that sentence sends someone off to retake a picture that was
+ * never the problem.
+ */
+export const describeVisionAttempts = (attempts: {
+  read_empty: string[]
+  skipped_text_only: string[]
+}): string | null => {
+  const parts: string[] = []
+
+  if (attempts.read_empty.length) {
+    parts.push(
+      `${attempts.read_empty.join(", ")} returned nothing at all for this image`
+    )
+  }
+  if (attempts.skipped_text_only.length) {
+    parts.push(
+      `${attempts.skipped_text_only.join(", ")} was skipped because it cannot see images — it accepts one and silently ignores it`
+    )
+  }
+
+  if (!parts.length) return null
+
+  return (
+    `No field could be read. ${parts.join("; ")}. ` +
+    `If the photo is clear, the vision model is the more likely cause than the picture: ` +
+    `check the ai_id_extraction / ai_image_extraction platforms in Settings → External Platforms.`
+  )
+}
+
 export const normaliseIdCardExtraction = (
   raw: unknown,
   opts: { id_number_policy?: IdNumberPolicy } = {}

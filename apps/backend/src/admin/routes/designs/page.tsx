@@ -641,13 +641,19 @@ const DesignsPage = () => {
       )
     );
 
-    if (customerIds.length === 0) {
-      toast.error("No customer linked", {
-        description:
-          "The selected designs aren't linked to a customer. Link a customer first, then create the order.",
-      });
-      return;
-    }
+    /**
+     * 🔑 No customer is an ORDINARY selection, not a refusal (#1817).
+     *
+     * This used to stop here and tell the operator to "link a customer first"
+     * — for an order they were creating precisely because there is not one
+     * yet. A design only carries a customer link when it was made for
+     * somebody; most are made for stock, from a brief, or out of the
+     * assistant, so the refusal fired on the common case. The draft is created
+     * with no buyer attached and acquires one at checkout.
+     *
+     * TWO customers is still refused: that is genuinely ambiguous, and a cart
+     * on the WRONG buyer is worse than one on none.
+     */
     if (customerIds.length > 1) {
       toast.error("Multiple customers selected", {
         description:
@@ -656,15 +662,22 @@ const DesignsPage = () => {
       return;
     }
 
-    const customerId = customerIds[0];
+    const customerId = customerIds[0] ?? null;
     const designIds = selectedDesigns.map((d) => d.id as string);
 
     setOrderCustomerId(customerId);
     setOrderDesignIds(designIds);
     setIsPreviewing(true);
     try {
+      /**
+       * The estimate never depended on the buyer — the customer route's own
+       * handler ignores its `:id`. With no customer there is simply no id to
+       * put in a path, so the customer-less twin is used.
+       */
       const preview = await sdk.client.fetch<PreviewDesignOrderResponse>(
-        `/admin/customers/${customerId}/design-order/preview`,
+        customerId
+          ? `/admin/customers/${customerId}/design-order/preview`
+          : `/admin/designs/draft-order/preview`,
         { method: "POST", body: { design_ids: designIds } }
       );
       setPreviewData(preview);
@@ -682,11 +695,13 @@ const DesignsPage = () => {
     priceOverrides: Record<string, number>,
     overrideCurrency?: string
   ) => {
-    if (!orderCustomerId || orderDesignIds.length === 0) return;
+    if (orderDesignIds.length === 0) return;
     setIsCreatingOrder(true);
     try {
       await sdk.client.fetch<CreateDesignOrderResponse>(
-        `/admin/customers/${orderCustomerId}/design-order`,
+        orderCustomerId
+          ? `/admin/customers/${orderCustomerId}/design-order`
+          : `/admin/designs/draft-order`,
         {
           method: "POST",
           body: {

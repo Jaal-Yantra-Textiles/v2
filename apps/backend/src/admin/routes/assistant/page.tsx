@@ -37,6 +37,8 @@ type Attachment = {
 
 /** Images only, and small enough that a vision model can actually read it. */
 const MAX_ATTACHMENT_BYTES = 10 * 1024 * 1024
+import { describeChatError } from "./chat-error"
+
 const MAX_ATTACHMENTS = 4
 
 /**
@@ -507,53 +509,6 @@ function estimateTokens(messages: any[]): number {
     }
   }
   return Math.ceil(chars / 4)
-}
-
-/**
- * Turn whatever `useChat` surfaced into something an operator can act on.
- *
- * A single "the assistant hit an error" line is useless when the real cause is
- * an expired admin session or one failing tool — the operator retries forever
- * against a problem retrying cannot fix. Transport/auth faults are separated
- * from model faults so the message can say what to actually do.
- */
-function describeChatError(error: unknown): { title: string; detail?: string; retryable: boolean } {
-  const raw = (error as any)?.message ? String((error as any).message) : ""
-
-  if (/\b401\b|unauthor/i.test(raw)) {
-    return {
-      title: "Your admin session expired.",
-      detail: "Reload the page to sign in again — retrying won't help until you do.",
-      retryable: false,
-    }
-  }
-  if (/\b503\b|not configured/i.test(raw)) {
-    return {
-      title: "The admin assistant isn't configured.",
-      detail:
-        "Add a platform with role ai_admin_assistant under Settings → External Platforms, or set OPENROUTER_API_KEY.",
-      retryable: false,
-    }
-  }
-  if (/\b429\b|rate limit/i.test(raw)) {
-    return {
-      title: "The model is rate-limited.",
-      detail: "Wait a moment before retrying.",
-      retryable: true,
-    }
-  }
-  if (/failed to fetch|network|ECONN/i.test(raw)) {
-    return {
-      title: "Couldn't reach the server.",
-      detail: "Check your connection, then retry.",
-      retryable: true,
-    }
-  }
-  return {
-    title: "The assistant hit an error.",
-    detail: raw || undefined,
-    retryable: true,
-  }
 }
 
 /** Tool calls that came back as errors, so the UI can name them. */
