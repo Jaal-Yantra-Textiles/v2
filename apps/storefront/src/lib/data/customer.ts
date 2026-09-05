@@ -63,6 +63,37 @@ export const retrieveCustomer =
       .catch(() => null)
   }
 
+export const retrieveCustomerAddresses =
+  async (): Promise<HttpTypes.StoreCustomerAddress[] | null> => {
+    const authHeaders = await getAuthHeaders()
+
+    if (!authHeaders) return null
+
+    const headers = {
+      ...authHeaders,
+    }
+
+    const next = {
+      ...(await getCacheOptions("addresses")),
+    }
+
+    return await sdk.client
+      .fetch<{ addresses: HttpTypes.StoreCustomerAddress[] }>(
+        `/store/customers/me/addresses`,
+        {
+          method: "GET",
+          query: {
+            fields: "*addresses",
+          },
+          headers,
+          next,
+          cache: "force-cache",
+        }
+      )
+      .then(({ addresses }) => addresses)
+      .catch(() => null)
+  }
+
 export const updateCustomer = async (body: HttpTypes.StoreUpdateCustomer) => {
   const headers = {
     ...(await getAuthHeaders()),
