@@ -156,31 +156,31 @@ importers:
         specifier: ^5.0.1
         version: 5.2.2(react-hook-form@7.71.2(react@18.3.1))
       '@jytextiles/medusa-plugin-dtdc-shipping':
-        specifier: latest
+        specifier: ^0.1.2
         version: 0.1.2(@medusajs/framework@2.20.1(@medusajs/cli@2.20.1(@types/node@20.19.34))(@types/node@20.19.34)(ioredis@5.9.3)(vite@7.3.6(@types/node@20.19.34)(jiti@1.21.7)(sass-embedded@1.97.3)(sass@1.97.3)(terser@5.46.0)(tsx@4.21.0)(yaml@2.9.0))(zod@4.2.0))(@medusajs/medusa@2.20.1)(@medusajs/types@2.20.1(ioredis@5.9.3)(vite@7.3.6(@types/node@20.19.34)(jiti@1.21.7)(sass-embedded@1.97.3)(sass@1.97.3)(terser@5.46.0)(tsx@4.21.0)(yaml@2.9.0)))
       '@jytextiles/medusa-plugin-etsy-sync':
-        specifier: latest
+        specifier: ^0.1.6
         version: 0.1.6(bd3a836d4506ea53d56f1e4017e6c7ee)
       '@jytextiles/medusa-plugin-faire-store-sync':
-        specifier: latest
+        specifier: ^0.2.14
         version: 0.2.14(bd3a836d4506ea53d56f1e4017e6c7ee)
       '@jytextiles/mikrohyperbee':
         specifier: workspace:*
         version: link:../../packages/mikrohyperbee
       '@mastra/core':
-        specifier: latest
+        specifier: ^1.52.1
         version: 1.52.1(@bufbuild/protobuf@2.11.0)(@grpc/grpc-js@1.14.3)(ai@5.0.138(zod@4.2.0))(express@5.2.1)(rxjs@7.8.2)(zod@4.2.0)
       '@mastra/evals':
-        specifier: latest
+        specifier: ^1.6.0
         version: 1.6.0(@mastra/core@1.52.1(@bufbuild/protobuf@2.11.0)(@grpc/grpc-js@1.14.3)(ai@5.0.138(zod@4.2.0))(express@5.2.1)(rxjs@7.8.2)(zod@4.2.0))
       '@mastra/loggers':
-        specifier: latest
+        specifier: ^1.2.0
         version: 1.2.0(@mastra/core@1.52.1(@bufbuild/protobuf@2.11.0)(@grpc/grpc-js@1.14.3)(ai@5.0.138(zod@4.2.0))(express@5.2.1)(rxjs@7.8.2)(zod@4.2.0))
       '@mastra/mcp':
         specifier: ^1.0.0
         version: 1.0.2(@mastra/core@1.52.1(@bufbuild/protobuf@2.11.0)(@grpc/grpc-js@1.14.3)(ai@5.0.138(zod@4.2.0))(express@5.2.1)(rxjs@7.8.2)(zod@4.2.0))(@types/json-schema@7.0.15)(zod@4.2.0)
       '@mastra/memory':
-        specifier: latest
+        specifier: ^1.23.1
         version: 1.23.1(@mastra/core@1.52.1(@bufbuild/protobuf@2.11.0)(@grpc/grpc-js@1.14.3)(ai@5.0.138(zod@4.2.0))(express@5.2.1)(rxjs@7.8.2)(zod@4.2.0))
       '@mastra/observability':
         specifier: ^1.2.1
@@ -610,7 +610,7 @@ importers:
         specifier: ^0.6.0
         version: 0.6.0
       mastra:
-        specifier: latest
+        specifier: ^1.20.1
         version: 1.20.1(@hono/node-server@1.19.9(hono@4.12.15))(@mastra/core@1.52.1(@bufbuild/protobuf@2.11.0)(@grpc/grpc-js@1.14.3)(ai@5.0.138(zod@4.2.0))(express@5.2.1)(rxjs@7.8.2)(zod@4.2.0))(rxjs@7.8.2)(typescript@5.9.3)(zod@4.2.0)
       pg-god:
         specifier: ^1.0.12
