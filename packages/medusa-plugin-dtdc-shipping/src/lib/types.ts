@@ -1,4 +1,10 @@
-export type DtdcServiceType = "PRIORITY" | "GROUND_EXPRESS"
+/**
+ * Re-exported from `service-types.ts`, which now carries all SIX values the
+ * live account offers rather than the two the sandbox did. Kept exported from
+ * here so existing imports keep working.
+ */
+export type { DtdcServiceType } from "./service-types"
+import type { DtdcServiceType } from "./service-types"
 
 export type DtdcLoadType = "NON-DOCUMENT" | "DOCUMENT"
 
