@@ -29,7 +29,7 @@ import {
  * What this writes:
  *   - category = "ai"
  *   - auth_type = "bearer"
- *   - metadata.provider_type ∈ {openrouter, dashscope, cloudflare, vercel_ai_gateway, custom}
+ *   - metadata.provider_type ∈ {openrouter, dashscope, cloudflare, vercel_ai_gateway, groq, bazaarlink, fal, custom}
  *   - metadata.role ∈ KNOWN_AI_ROLES (see ai-roles.ts) OR any custom slug
  *   - metadata.is_default = true/false
  *   - api_config.api_key (plaintext on the wire — the
@@ -48,6 +48,8 @@ const ProviderTypeEnum = z.enum([
   "cloudflare",
   "vercel_ai_gateway",
   "fal",
+  "groq",
+  "bazaarlink",
   "custom",
 ])
 
@@ -110,6 +112,8 @@ const PROVIDER_LABELS: Record<z.infer<typeof ProviderTypeEnum>, string> = {
   cloudflare: "Cloudflare Workers AI",
   vercel_ai_gateway: "Vercel AI Gateway",
   fal: "FAL (image gen)",
+  groq: "Groq",
+  bazaarlink: "BazaarLink",
   custom: "Custom (OpenAI-compatible)",
 }
 
@@ -118,6 +122,11 @@ const DEFAULT_MODEL_HINTS: Record<z.infer<typeof ProviderTypeEnum>, string> = {
   dashscope: "qwen-turbo  (chat) / text-embedding-v3 (embed)",
   cloudflare: "@cf/meta/llama-3.1-8b-instruct (chat) / @cf/baai/bge-base-en-v1.5 (embed)",
   vercel_ai_gateway: "openai/gpt-4o-mini",
+  // Both hints are vision-capable and were measured on a document photo.
+  // NOT qwen3.6-27b: it reasons in `<think>` and does not finish inside a
+  // sane token budget, which reads as "the model returned nothing" (#1813).
+  groq: "qwen/qwen3.8-27b (vision)",
+  bazaarlink: "qwen/qwen3.7-flash:free (vision, free)",
   fal: "fal-ai/flux/schnell — optional; FAL endpoint is chosen per-call",
   custom: "your-model-id",
 }
