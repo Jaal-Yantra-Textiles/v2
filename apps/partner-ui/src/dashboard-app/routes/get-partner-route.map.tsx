@@ -1102,6 +1102,33 @@ export function getPartnerRouteMap(): RouteObject[] {
                   ],
                 },
                 {
+                  // #1816 — where a stack of photographed ID cards is reviewed.
+                  // The batch notification deep-links straight to the detail;
+                  // it pointed at a screen that did not exist until now.
+                  path: "people/id-batches",
+                  handle: { breadcrumb: () => "ID card batches" },
+                  children: [
+                    {
+                      path: "",
+                      lazy: () =>
+                        import(
+                          "../../routes/settings/people/id-batches/id-batch-list"
+                        ),
+                    },
+                    {
+                      path: ":id",
+                      handle: {
+                        breadcrumb: (match?: UIMatch) =>
+                          match?.params?.id || "Batch",
+                      },
+                      lazy: () =>
+                        import(
+                          "../../routes/settings/people/id-batches/id-batch-detail"
+                        ),
+                    },
+                  ],
+                },
+                {
                   path: "payments",
                   lazy: () => import("../../routes/settings/payments"),
                   children: [

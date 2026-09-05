@@ -14,6 +14,7 @@
  *     the full viewport width on small screens.
  */
 import { useCallback, useEffect, useState } from "react"
+import { Navigate, useSearchParams } from "react-router-dom"
 import { Container, Heading, Text, Button, IconButton, toast } from "@medusajs/ui"
 import { Sparkles, Plus, Trash, Spinner, SidebarLeft, BarsThree, XMark } from "@medusajs/icons"
 
@@ -21,11 +22,21 @@ import { sdk } from "../../lib/client"
 import {
   usePartnerConversations,
   useDeleteConversation,
+  type ConversationSummary,
   type StoredMessage,
 } from "../../hooks/api/assistant-conversations"
 import { ChatThread } from "./components/chat-thread"
 
 export const Assistant = () => {
+  /**
+   * ID card batch notifications posted before the review screen existed carry
+   * `/assistant?batch=<id>` (#1816). The parameter was never read, so those
+   * bell rows landed the partner on a chat that said nothing about the batch.
+   * They are sent on to the screen that answers the question instead.
+   */
+  const [searchParams] = useSearchParams()
+  const legacyBatchId = searchParams.get("batch")
+
   const { conversations, isPending } = usePartnerConversations()
   const [activeId, setActiveId] = useState<string | null>(null)
   const [threadKey, setThreadKey] = useState(0)
@@ -110,6 +121,16 @@ export const Assistant = () => {
     window.addEventListener("keydown", onKey)
     return () => window.removeEventListener("keydown", onKey)
   }, [mobileOpen])
+
+  /**
+   * After every hook, never before — an early return above them would change
+   * the hook order between renders the moment the parameter appears.
+   */
+  if (legacyBatchId) {
+    return (
+      <Navigate replace to={`/settings/people/id-batches/${legacyBatchId}`} />
+    )
+  }
 
   const historyPanel = (
     <HistoryPanel
@@ -219,7 +240,12 @@ function HistoryPanel({
   onOpen,
   onDelete,
 }: {
-  conversations: any[]
+  /**
+   * Optional because the hook returns `undefined` until the first fetch lands —
+   * the panel already renders an empty state for it, and typing it as a
+   * present array made two call sites type-error.
+   */
+  conversations?: ConversationSummary[]
   isPending: boolean
   activeId: string | null
   isMobile: boolean

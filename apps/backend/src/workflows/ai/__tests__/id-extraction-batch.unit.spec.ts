@@ -5,6 +5,7 @@ import {
   MAX_ID_BATCH_INTERVAL_MS,
   MAX_ID_BATCH_IMAGES,
   buildIdBatchBellMessage,
+  idBatchReviewUrl,
 } from "../id-extraction-batch"
 
 /**
@@ -134,5 +135,25 @@ describe("buildIdBatchBellMessage", () => {
     expect(title).toBe("ID card batch could not be read")
     expect(description).toContain("Nothing was added")
     expect(description).not.toContain("Review the drafts")
+  })
+})
+
+/**
+ * The bell row's deep link (#1816).
+ *
+ * It shipped pointing at `/assistant?batch=<id>` — a route that existed and
+ * ignored the parameter, so the notification led to a screen that said nothing
+ * about the batch. What is asserted here is therefore not the string but the
+ * property that was missing: it addresses the batch, and it is not the chat.
+ */
+describe("idBatchReviewUrl", () => {
+  it("addresses the batch it belongs to", () => {
+    expect(idBatchReviewUrl("batch_01ABC")).toContain("batch_01ABC")
+  })
+
+  it("points at the review screen, not the assistant", () => {
+    const url = idBatchReviewUrl("batch_01ABC")
+    expect(url).toBe("/settings/people/id-batches/batch_01ABC")
+    expect(url.startsWith("/assistant")).toBe(false)
   })
 })

@@ -143,13 +143,22 @@ export const GET = async (
         const items = await service.listIdExtractionBatchItems({ batch_id: b.id })
         const by = (s: string) =>
           items.filter((i: any) => i.status === s).length
+        const failed = by("failed")
+        const pending = by("pending")
         return {
           ...b,
           total: items.length,
           completed: by("completed"),
-          failed: by("failed"),
+          failed,
           approved: by("approved"),
-          pending: by("pending"),
+          pending,
+          /**
+           * Same field, same meaning as the detail route: what is left to do,
+           * derived from the item rows. A list that showed only `status` could
+           * not tell a finished batch from one whose background loop a deploy
+           * killed while the row still said `running` (#1742).
+           */
+          outstanding: pending + failed,
         }
       } catch (e) {
         logger?.warn?.(`[id-extraction-batch] count failed for ${b.id}: ${e}`)
