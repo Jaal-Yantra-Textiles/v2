@@ -81,3 +81,25 @@ export const foldPaymentMethods = (
 export const shouldShowMethodChooser = (
   folded: BuyerPaymentMethod[]
 ): boolean => folded.length > 1
+
+/**
+ * Does the Express Checkout element have anything to show?
+ *
+ * 🔴 Stripe reports "nothing available" as `undefined`, not as an object of
+ * falses — but it is allowed to hand back an object, so both are checked. Get
+ * this wrong in the optimistic direction and the checkout renders a divider
+ * reading "or pay with card" with an empty space above it, which is the exact
+ * thing it was there to separate the card FROM.
+ *
+ * Until the element reports (the value is `null` here) the answer is no, so
+ * the wallet row and its divider never flash in and out on a card-only region.
+ */
+export const hasExpressMethods = (
+  available:
+    | Record<string, boolean>
+    | undefined
+    | null
+): boolean => {
+  if (!available) return false
+  return Object.values(available).some(Boolean)
+}

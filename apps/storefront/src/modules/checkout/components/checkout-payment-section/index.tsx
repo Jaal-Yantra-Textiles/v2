@@ -11,6 +11,7 @@ import {
 import compareAddresses from "@lib/util/compare-addresses"
 import {
   foldPaymentMethods,
+  hasExpressMethods,
   shouldShowMethodChooser,
 } from "@lib/util/payment-methods"
 import { CreditCard } from "@medusajs/icons"
@@ -22,7 +23,10 @@ import {
   useElements,
   useStripe,
 } from "@stripe/react-stripe-js"
-import type { StripeExpressCheckoutElementConfirmEvent } from "@stripe/stripe-js"
+import type {
+  StripeExpressCheckoutElementConfirmEvent,
+  StripeExpressCheckoutElementReadyEvent,
+} from "@stripe/stripe-js"
 import PaymentButton from "@modules/checkout/components/payment-button"
 import ErrorMessage from "@modules/checkout/components/error-message"
 import SkeletonCardDetails from "@modules/skeletons/components/skeleton-card-details"
@@ -364,6 +368,17 @@ function StripeInlineFields({
   const stripe = useStripe()
   const elements = useElements()
 
+  /**
+   * `null` until the Express Checkout element reports. A region where Stripe
+   * offers nothing but a card — which is most of them — should show the card
+   * and nothing else: no wallet row, and above all no "or pay with card"
+   * divider separating the card from an empty space.
+   */
+  const [expressMethods, setExpressMethods] = useState<
+    Record<string, boolean> | undefined | null
+  >(null)
+  const showExpress = hasExpressMethods(expressMethods)
+
   const returnUrl =
     typeof window !== "undefined"
       ? `${window.location.origin}${window.location.pathname}`
@@ -413,27 +428,57 @@ function StripeInlineFields({
 
   return (
     <div className="mt-2 flex flex-col gap-y-4">
-      <ExpressCheckoutElement
-        options={{
-          paymentMethods: {
-            applePay: "auto",
-            googlePay: "auto",
-            link: "auto",
-            paypal: "never",
-          },
-        }}
-        onConfirm={handleExpressConfirm}
-      />
-
-      <div className="flex items-center gap-x-3">
-        <span className="h-px flex-1 bg-ui-border-base" />
-        <span className="txt-compact-xsmall text-ui-fg-muted">
-          or pay with card
-        </span>
-        <span className="h-px flex-1 bg-ui-border-base" />
+      {/*
+        ⚠️ Always mounted, never conditionally rendered: `onReady` is the only
+        thing that says whether any wallet is available, and an element that is
+        not mounted never reports. So it stays in the tree and is collapsed to
+        nothing until it says it has something — height, not `display: none`,
+        so Stripe can still measure and paint it.
+      */}
+      <div
+        className={
+          showExpress
+            ? ""
+            : // `-mb-4` cancels the parent's `gap-y-4`: a zero-height child is
+              // still a flex child, so without it a card-only checkout keeps a
+              // 16px hole where the wallets would have been.
+              "h-0 overflow-hidden opacity-0 pointer-events-none -mb-4"
+        }
+      >
+        <ExpressCheckoutElement
+          options={{
+            paymentMethods: {
+              applePay: "auto",
+              googlePay: "auto",
+              link: "auto",
+              paypal: "never",
+            },
+          }}
+          onReady={(event: StripeExpressCheckoutElementReadyEvent) =>
+            setExpressMethods(event.availablePaymentMethods)
+          }
+          onConfirm={handleExpressConfirm}
+        />
       </div>
 
-      <LinkAuthenticationElement />
+      {/*
+        The divider and the Link email box exist to separate the wallets from
+        the card. With no wallets there is nothing to separate, and the shopper
+        should just be looking at the card.
+      */}
+      {showExpress && (
+        <>
+          <div className="flex items-center gap-x-3">
+            <span className="h-px flex-1 bg-ui-border-base" />
+            <span className="txt-compact-xsmall text-ui-fg-muted">
+              or pay with card
+            </span>
+            <span className="h-px flex-1 bg-ui-border-base" />
+          </div>
+
+          <LinkAuthenticationElement />
+        </>
+      )}
 
       <PaymentElement
         options={{

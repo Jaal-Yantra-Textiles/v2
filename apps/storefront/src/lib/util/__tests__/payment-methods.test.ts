@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest"
 
 import {
   foldPaymentMethods,
+  hasExpressMethods,
   shouldShowMethodChooser,
 } from "../payment-methods"
 
@@ -85,5 +86,44 @@ describe("shouldShowMethodChooser", () => {
 
   it("hides it when the region offers nothing", () => {
     expect(shouldShowMethodChooser([])).toBe(false)
+  })
+})
+
+describe("hasExpressMethods", () => {
+  it("says no before the element has reported", () => {
+    // The pre-ready state. Saying yes here flashes a wallet row and an
+    // "or pay with card" divider onto a card-only checkout.
+    expect(hasExpressMethods(null)).toBe(false)
+  })
+
+  it("says no when Stripe reports nothing available", () => {
+    // Stripe's own shape for "no payment methods can show".
+    expect(hasExpressMethods(undefined)).toBe(false)
+  })
+
+  it("says no when every wallet is false", () => {
+    expect(
+      hasExpressMethods({
+        applePay: false,
+        googlePay: false,
+        link: false,
+        paypal: false,
+        amazonPay: false,
+        klarna: false,
+      })
+    ).toBe(false)
+  })
+
+  it("says yes when a single wallet is available", () => {
+    expect(
+      hasExpressMethods({
+        applePay: false,
+        googlePay: true,
+        link: false,
+        paypal: false,
+        amazonPay: false,
+        klarna: false,
+      })
+    ).toBe(true)
   })
 })
