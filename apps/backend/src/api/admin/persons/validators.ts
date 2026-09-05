@@ -37,6 +37,29 @@ export const listPersonsQuerySchema = z.object({
     (val) => val === "true",
     z.boolean().optional().default(false)
   ),
+  // Toggle to include census (weavers node) records in the response. When true
+  // the route also resolves the `census` module and returns a masked `weavers`
+  // array alongside `persons`. See the route for the field mapping.
+  include_weavers: z.preprocess(
+    (val) => val === "true" || val === true,
+    z.boolean().optional().default(false)
+  ),
+  // Weaver filters (forwarded to the census reader when include_weavers is on).
+  // `region_state` is the census record's geographic state — kept distinct from
+  // the person lifecycle `state` field above so the two never collide.
+  region_state: z.string().optional(),
+  district: z.string().optional(),
+  block: z.string().optional(),
+  village: z.string().optional(),
+  gender: z.string().optional(),
+  rural_urban: z.string().optional(),
+  own_looms: z.string().optional(),
+  natural_dye_used: z.string().optional(),
+  education: z.string().optional(),
+  ownership_type: z.string().optional(),
+  household_type: z.string().optional(),
+  dwelling_type: z.string().optional(),
+  electricity: z.string().optional(),
   offset: z.preprocess(
     (val) => (val !== undefined && val !== null ? Number(val) : undefined),
     z.number().int().min(0).default(0)

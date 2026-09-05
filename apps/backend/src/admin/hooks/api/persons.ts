@@ -19,6 +19,7 @@ import {
   AdminPersonDeleteResponse,
   AdminPersonResponse,
   AdminUpdatePerson,
+  AdminWeaver,
 } from "./personandtype";
 
 export interface PersonDetails {
@@ -64,13 +65,25 @@ export const usePerson = (
   return { person: data?.person, ...rest };
 };
 
+export interface AdminPersonsListResponse {
+  persons: AdminPerson[];
+  count: number;
+  offset: number;
+  limit: number;
+  weavers?: AdminWeaver[];
+  weavers_count?: number;
+  census_connected?: boolean;
+  weavers_next?: string | null;
+  weavers_capped?: boolean;
+}
+
 export const usePersons = (
   query?: Record<string, any>,
   options?: Omit<
     UseQueryOptions<
-      PaginatedResponse<{ persons: AdminPerson[] }>,
+      AdminPersonsListResponse,
       FetchError,
-      PaginatedResponse<{ persons: AdminPerson[] }>,
+      AdminPersonsListResponse,
       QueryKey
     >,
     "queryFn" | "queryKey"
@@ -78,17 +91,21 @@ export const usePersons = (
 ) => {
   const { data, ...rest } = useQuery({
     queryFn: async () =>
-      sdk.client.fetch<PaginatedResponse<{ persons: AdminPerson[] }>>(
-        `/admin/persons`,
-        {
-          method: "GET",
-          query,
-        },
-      ),
+      sdk.client.fetch<AdminPersonsListResponse>(`/admin/persons`, {
+        method: "GET",
+        query,
+      }),
     queryKey: personsQueryKeys.list(query),
     ...options,
   });
-  return { persons: data?.persons, count: data?.count, ...rest };
+  return {
+    persons: data?.persons,
+    count: data?.count,
+    weavers: data?.weavers,
+    weaversCount: data?.weavers_count,
+    censusConnected: data?.census_connected,
+    ...rest,
+  };
 };
 
 export const useCreatePerson = (

@@ -1,5 +1,5 @@
 import { EllipsisHorizontal } from "@medusajs/icons"
-import { Container, Heading, Text, DataTable, useDataTable, createDataTableFilterHelper, DataTablePaginationState, DataTableFilteringState, Button, DropdownMenu, IconButton } from "@medusajs/ui";
+import { Container, Heading, Text, DataTable, useDataTable, createDataTableFilterHelper, createDataTableColumnHelper, DataTablePaginationState, DataTableFilteringState, Button, DropdownMenu, IconButton } from "@medusajs/ui";
 
 // Sort state is a single active sort — `null` means default backend order.
 type SortingState = { id: string; desc: boolean } | null
@@ -8,7 +8,8 @@ import CreateButton from "../../components/creates/create-button";
 import { usePersons } from "../../hooks/api/persons";
 import { useMemo, useState, useCallback } from "react";
 import { usePersonTableColumns } from "../../hooks/columns/usePersonTableColumns";
-import { AdminPerson, AdminPersonsListParams } from "../../hooks/api/personandtype";
+import { AdminPerson, AdminWeaver } from "../../hooks/api/personandtype";
+import { WeaverRevealCell } from "./components/weaver-reveal-cell";
 import debounce from "lodash/debounce";
 
 
@@ -24,6 +25,58 @@ export const useColumns = () => {
   );
 };
 
+// Person filters (exact-match fields the persons API understands).
+const PERSON_FILTER_FIELDS = ["email", "first_name", "last_name", "state"] as const;
+
+// Weaver filters — forwarded to the census reader when weavers are included.
+const WEAVER_FILTER_FIELDS = ["district", "gender", "region_state", "education"] as const;
+
+const weaverColumnHelper = createDataTableColumnHelper<AdminWeaver>();
+
+const weaverColumns = [
+  weaverColumnHelper.accessor("name", {
+    header: "Name",
+    cell: ({ getValue }) => (
+      <Text size="small">{getValue() || "—"}</Text>
+    ),
+  }),
+  weaverColumnHelper.accessor("district", {
+    header: "District",
+    cell: ({ getValue }) => (
+      <Text size="small" className="text-ui-fg-subtle">{getValue() || "—"}</Text>
+    ),
+  }),
+  weaverColumnHelper.accessor("state", {
+    header: "State",
+    cell: ({ getValue }) => (
+      <Text size="small" className="text-ui-fg-subtle">{getValue() || "—"}</Text>
+    ),
+  }),
+  weaverColumnHelper.accessor("gender", {
+    header: "Gender",
+    cell: ({ getValue }) => (
+      <Text size="small" className="text-ui-fg-subtle">{getValue() || "—"}</Text>
+    ),
+  }),
+  weaverColumnHelper.accessor("village", {
+    header: "Village",
+    cell: ({ getValue }) => (
+      <Text size="small" className="text-ui-fg-subtle">{getValue() || "—"}</Text>
+    ),
+  }),
+  weaverColumnHelper.accessor("education", {
+    header: "Education",
+    cell: ({ getValue }) => (
+      <Text size="small" className="text-ui-fg-subtle">{getValue() || "—"}</Text>
+    ),
+  }),
+  weaverColumnHelper.display({
+    id: "reveal",
+    header: "",
+    cell: ({ row }) => <WeaverRevealCell censusId={row.original.census_id} />,
+  }),
+];
+
 const PersonsPage = () => {
   const navigate = useNavigate();
   
@@ -34,6 +87,7 @@ const PersonsPage = () => {
   const [filtering, setFiltering] = useState<DataTableFilteringState>({});
   const [search, setSearch] = useState<string>("");
   const [includeDeleted, setIncludeDeleted] = useState<boolean>(false);
+  const [includeWeavers, setIncludeWeavers] = useState<boolean>(false);
   const [sorting, setSorting] = useState<SortingState>(null);
   
   // Debounced filter change handler to prevent rapid re-renders and API calls
@@ -56,14 +110,32 @@ const PersonsPage = () => {
   const offset = pagination.pageIndex * pagination.pageSize;
   
   // Sort state → backend `order` string. The API parses both
-  // "created_at:DESC" and "-created_at" shapes.
+  // "created_at:DESC" and "-created_at" shapes. Weavers are not orderable; the
+  // sort is only sent for the DB persons list.
   const orderParam = sorting?.id
     ? `${sorting.id}:${sorting.desc ? "DESC" : "ASC"}`
     : undefined
 
+  // Collapse the DataTable filter state (values can arrive as arrays) into the
+  // flat exact-match query params. Person and weaver filters are disjoint key
+  // sets, so a single reduction over the active mode is safe.
+  const filterParams = useMemo(() => {
+    const out: Record<string, string> = {};
+    const fields = includeWeavers ? WEAVER_FILTER_FIELDS : PERSON_FILTER_FIELDS;
+    for (const field of fields) {
+      const v = filtering[field];
+      const value = Array.isArray(v) ? v[0] : v;
+      if (typeof value === "string" && value !== "") out[field] = value;
+    }
+    return out;
+  }, [filtering, includeWeavers]);
+
   const {
     persons,
     count,
+    weavers,
+    weaversCount,
+    censusConnected,
     isLoading,
   } = usePersons(
     {
@@ -71,25 +143,9 @@ const PersonsPage = () => {
       offset: offset,
       q: search || undefined,
       withDeleted: includeDeleted,
+      include_weavers: includeWeavers || undefined,
       ...(orderParam ? { order: orderParam } : {}),
-      // Apply filtering only for known fields
-      ...(Object.keys(filtering).length > 0 ? 
-        Object.entries(filtering).reduce((acc: AdminPersonsListParams, [key, value]) => {
-          if (!value) return acc;
-          
-          // Handle different filter types appropriately
-          if (key === 'email') {
-            // Ensure email is a string, not an array
-            acc.email = Array.isArray(value) && value.length > 0 ? value[0] : value as string;
-          } else if (key === 'state') {
-            acc.state = Array.isArray(value) && value.length > 0 ? value[0] : value as string;
-          } else if (key === 'first_name') {
-            acc.first_name = Array.isArray(value) && value.length > 0 ? value[0] : value as string;
-          } else if (key === 'last_name') {
-            acc.last_name = Array.isArray(value) && value.length > 0 ? value[0] : value as string;
-          }
-          return acc;
-        }, {} as AdminPersonsListParams) : {}),
+      ...filterParams,
     },
     {
       // Use the staleTime option instead of keepPreviousData
@@ -99,11 +155,11 @@ const PersonsPage = () => {
 
   const columns = useColumns();
   
-  const filterHelper = createDataTableFilterHelper<AdminPerson>();
+  const personFilterHelper = createDataTableFilterHelper<AdminPerson>();
   
   // Create filters using the filterHelper
-  const filters = [
-    filterHelper.accessor("email", {
+  const personFilters = [
+    personFilterHelper.accessor("email", {
       type: "select",
       label: "Email",
       options: useMemo(() => {
@@ -119,7 +175,7 @@ const PersonsPage = () => {
         }));
       }, [persons]),
     }),
-    filterHelper.accessor("first_name", {
+    personFilterHelper.accessor("first_name", {
       type: "select",
       label: "First Name",
       options: useMemo(() => {
@@ -131,7 +187,7 @@ const PersonsPage = () => {
         }));
       }, [persons]),
     }),
-    filterHelper.accessor("last_name", {
+    personFilterHelper.accessor("last_name", {
       type: "select",
       label: "Last Name",
       options: useMemo(() => {
@@ -143,7 +199,7 @@ const PersonsPage = () => {
         }));
       }, [persons]),
     }),
-    filterHelper.accessor("state", {
+    personFilterHelper.accessor("state", {
       type: "select",
       label: "State",
       options: [
@@ -156,16 +212,72 @@ const PersonsPage = () => {
 
   ];
 
+  const weaverFilterHelper = createDataTableFilterHelper<AdminWeaver>();
+
+  // Weaver filters, options derived from the loaded (masked) weaver page.
+  const weaverFilters = [
+    weaverFilterHelper.accessor("district", {
+      type: "select",
+      label: "District",
+      options: useMemo(() => {
+        if (!weavers?.length) return [];
+        return [...new Set(weavers.map(w => w.district).filter(Boolean))].map(
+          (d) => ({ label: d as string, value: d as string })
+        );
+      }, [weavers]),
+    }),
+    weaverFilterHelper.accessor("gender", {
+      type: "select",
+      label: "Gender",
+      options: useMemo(() => {
+        if (!weavers?.length) return [];
+        return [...new Set(weavers.map(w => w.gender).filter(Boolean))].map(
+          (g) => ({ label: g as string, value: g as string })
+        );
+      }, [weavers]),
+    }),
+    weaverFilterHelper.accessor("region_state", {
+      type: "select",
+      label: "Region state",
+      options: useMemo(() => {
+        if (!weavers?.length) return [];
+        return [...new Set(weavers.map(w => w.state).filter(Boolean))].map(
+          (s) => ({ label: s as string, value: s as string })
+        );
+      }, [weavers]),
+    }),
+    weaverFilterHelper.accessor("education", {
+      type: "select",
+      label: "Education",
+      options: useMemo(() => {
+        if (!weavers?.length) return [];
+        return [...new Set(weavers.map(w => w.education).filter(Boolean))].map(
+          (e) => ({ label: e as string, value: e as string })
+        );
+      }, [weavers]),
+    }),
+  ];
+
+  // The table renders either DB persons or census weavers, never both at once.
+  // (Cast to `any` so the person/weaver column+data unions don't fight the
+  // DataTable's generic inference — the two shapes are never rendered together.)
+  const tableData = (includeWeavers ? (weavers ?? []) : (persons ?? [])) as any[];
+  const tableColumns = (includeWeavers ? weaverColumns : columns) as any;
+  const tableRowCount = includeWeavers ? (weaversCount ?? 0) : (count ?? 0);
+
   const table = useDataTable({
-    columns,
-    data: persons ?? [],
-    getRowId: (row) => row.id as string,
-    onRowClick: (_, row) => {
-      navigate(`/persons/${row.id}`);
-    },
-    rowCount: count ?? 0,
+    columns: tableColumns,
+    data: tableData,
+    getRowId: (row) => String(row.id ?? row.census_id),
+    // Weavers have no detail page; only DB persons navigate.
+    onRowClick: includeWeavers
+      ? undefined
+      : (_, row) => {
+          navigate(`/persons/${row.id}`);
+        },
+    rowCount: tableRowCount,
     isLoading: isLoading ?? false,
-    filters,
+    filters: includeWeavers ? weaverFilters : personFilters,
     pagination: {
       state: pagination,
       onPaginationChange: setPagination,
@@ -178,7 +290,7 @@ const PersonsPage = () => {
       state: filtering,
       onFilteringChange: handleFilterChange,
     },
-    sorting: {
+    sorting: includeWeavers ? undefined : {
       state: sorting,
       onSortingChange: setSorting,
     },
@@ -193,7 +305,9 @@ const PersonsPage = () => {
             <div>
               <Heading>Persons</Heading>
               <Text className="text-ui-fg-subtle" size="small">
-                Manage all your relationships from here
+                {includeWeavers
+                  ? "Handloom census weavers (masked records)"
+                  : "Manage all your relationships from here"}
               </Text>
             </div>
             <div className="flex items-center justify-center gap-x-2">
@@ -222,7 +336,7 @@ const PersonsPage = () => {
           {/* Search and filter section in its own container with divider */}
           <div className="flex items-start justify-between gap-x-4 px-6 py-4 border-t border-ui-border-base">
             <div className="w-full max-w-[60%] flex items-center gap-x-4">
-              <DataTable.FilterMenu tooltip="Filter persons" />
+              <DataTable.FilterMenu tooltip={includeWeavers ? "Filter weavers" : "Filter persons"} />
               <div className="flex items-center gap-x-2">
                 <input 
                   type="checkbox" 
@@ -235,11 +349,36 @@ const PersonsPage = () => {
                   Include deleted persons
                 </label>
               </div>
+              <div className="flex items-center gap-x-2">
+                <input 
+                  type="checkbox" 
+                  id="include-weavers" 
+                  checked={includeWeavers}
+                  onChange={(e) => {
+                    setIncludeWeavers(e.target.checked);
+                    setFiltering({});
+                  }}
+                  className="h-4 w-4 rounded border-ui-border-base text-ui-fg-interactive"
+                />
+                <label htmlFor="include-weavers" className="text-ui-fg-subtle text-sm">
+                  Include weavers
+                </label>
+              </div>
             </div>
             <div className="flex shrink-0 items-center gap-x-2">
-              <DataTable.Search placeholder="Search persons..." />
+              <DataTable.Search placeholder={includeWeavers ? "Search weavers..." : "Search persons..."} />
             </div>
           </div>
+
+          {includeWeavers && censusConnected === false && (
+            <div className="px-6 py-3 border-t border-ui-border-base">
+              <Text size="small" className="text-ui-fg-subtle">
+                Census reader not connected — weaver records are unavailable. The
+                service connects once the census P2P core replicates (or a
+                CENSUS_READER_URL proxy is configured).
+              </Text>
+            </div>
+          )}
           
           <DataTable.Table />
           <DataTable.Pagination />
@@ -260,4 +399,3 @@ export default PersonsPage;
 export const handle = {
   breadcrumb: () => "People",
 };
-

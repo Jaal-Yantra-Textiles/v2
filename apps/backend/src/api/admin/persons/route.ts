@@ -145,6 +145,39 @@ import { Person, ListPersonsQuery } from "./validators";
 import createPersonWorkflow from "../../../workflows/create-person";
 import { PersonAllowedFields, refetchPerson } from "./helpers";
 import { listAndCountPersonsWithFilterWorkflow } from "../../../workflows/persons/list-and-count-with-filter/list-and-count-with-filter";
+import { CENSUS_MODULE } from "../../../modules/census";
+import type CensusModuleService from "../../../modules/census/service";
+import type { WeaverFilters } from "../../../modules/census/reader";
+
+// Query-param → census record field map for the weaver (census node) filters.
+// `region_state` names the census record's geographic state, kept distinct from
+// the person lifecycle `state` filter so the two never collide on one endpoint.
+const WEAVER_FILTER_MAP: Record<string, keyof WeaverFilters> = {
+  region_state: "state",
+  district: "district",
+  block: "block",
+  village: "village",
+  gender: "gender",
+  rural_urban: "rural_urban",
+  own_looms: "own_looms",
+  natural_dye_used: "natural_dye_used",
+  education: "education",
+  ownership_type: "ownership_type",
+  household_type: "household_type",
+  dwelling_type: "dwelling_type",
+  electricity: "electricity",
+};
+
+const buildWeaverFilters = (query: Record<string, any>): WeaverFilters => {
+  const filters: WeaverFilters = {};
+  for (const [param, field] of Object.entries(WEAVER_FILTER_MAP)) {
+    const v = query[param];
+    if (v !== undefined && v !== "") filters[field] = v;
+  }
+  // Free-text search also matches a weaver's (masked) display name.
+  if (query.q !== undefined && query.q.trim() !== "") filters.name = query.q.trim();
+  return filters;
+};
 
 export const POST = async (
   req: MedusaRequest<Person> & {
@@ -219,11 +252,44 @@ export const GET = async (req: MedusaRequest<ListPersonsQuery>, res: MedusaRespo
     })
 
     
+    // When weavers are requested, resolve the census module and page the masked
+    // (PII-redacted) public records in parallel with the DB persons list. The
+    // reader is non-fatal: if it hasn't connected yet we return empty weavers and
+    // a `census_connected:false` flag so the UI can say why the column is empty.
+    let weavers: Record<string, any>[] = [];
+    let weaversCount = 0;
+    let censusConnected = false;
+    let weaversNext: string | null | undefined = undefined;
+    let weaversCapped = false;
+    if (query.include_weavers) {
+      const census = req.scope.resolve(CENSUS_MODULE) as CensusModuleService;
+      censusConnected = census.connected;
+      if (censusConnected) {
+        const result = await census.listAndCountWeavers(buildWeaverFilters(query), {
+          limit: query.limit,
+          offset: query.offset,
+        });
+        weavers = result.weavers;
+        weaversCount = result.count;
+        weaversNext = result.next;
+        weaversCapped = result.capped;
+      }
+    }
+
     res.status(200).json({
       persons: persons.data,
       count: persons.metadata?.count,
       offset: req.query.offset || 0,
       limit: req.query.limit || 10,
+      ...(query.include_weavers
+        ? {
+            weavers,
+            weavers_count: weaversCount,
+            census_connected: censusConnected,
+            ...(weaversNext ? { weavers_next: weaversNext } : {}),
+            ...(weaversCapped ? { weavers_capped: true } : {}),
+          }
+        : {}),
     });
   } catch (error) {
     res.status(400).json({ error: error.message });

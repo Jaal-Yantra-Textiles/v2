@@ -23,6 +23,7 @@
 // Public, PII-free data → no auth (the proxy sends none).
 
 import { createServer } from "node:http";
+import { brotliDecompressSync } from "node:zlib";
 
 import Corestore from "corestore";
 import Hyperswarm from "hyperswarm";
@@ -42,13 +43,29 @@ if (!keys.length) {
   process.exit(2);
 }
 
+// The SENSITIVE core (index 1) is opened WITH the encryption key when provided,
+// so /census/unmask can decrypt it. Absent the key it stays opaque — durability
+// mirror only, exactly as before. The key never leaves this host.
+const encHex = (process.env.HANDLOOM_ENCRYPTION_KEY || "").trim();
+const encryptionKey = encHex ? b4a.from(encHex, "hex") : null;
+
 const store = new Corestore(STORE_DIR);
 await store.ready();
 
-// read-only replicas of each core (no encryptionKey → sensitive stays opaque)
-const cores = keys.map((hex) => store.get({ key: b4a.from(hex, "hex") }));
+const cores = keys.map((hex, i) => {
+  if (i === 1 && encryptionKey) return store.get({ key: b4a.from(hex, "hex"), encryptionKey });
+  return store.get({ key: b4a.from(hex, "hex") });
+});
 await Promise.all(cores.map((c) => c.ready()));
 const publicCore = cores[0];
+const sensitiveCore = keys.length > 1 ? cores[1] : null;
+
+// Decryptable read handle over the sensitive core (only when the key is present).
+let sensBee = null;
+if (sensitiveCore && encryptionKey) {
+  sensBee = new Hyperbee(sensitiveCore, { keyEncoding: "utf-8", valueEncoding: "binary" });
+  await sensBee.ready();
+}
 
 const swarm = new Hyperswarm();
 swarm.on("connection", (conn) => {
@@ -160,6 +177,23 @@ const server = createServer(async (req, res) => {
       return send(res, 200, { stats: await reader.getStats(minCell != null ? { minCell } : {}) });
     }
 
+    // Token-gated unmask: full PII for one census_id, decrypted from the
+    // sensitive core with the encryption key held ONLY on this host.
+    if (parts[0] === "census" && parts[1] === "unmask") {
+      const token = process.env.CENSUS_UNMASK_TOKEN;
+      if (!token || !sensBee) {
+        return send(res, 503, { message: "unmask unavailable — set HANDLOOM_ENCRYPTION_KEY + CENSUS_UNMASK_TOKEN" });
+      }
+      if (req.headers["authorization"] !== `Bearer ${token}`) {
+        return send(res, 401, { message: "unauthorized" });
+      }
+      const id = decodeURIComponent(parts[2] || "");
+      if (!id) return send(res, 400, { message: "census_id required" });
+      const node = await sensBee.sub("rec", { valueEncoding: "binary" }).get(String(id));
+      if (!node) return send(res, 404, { message: `no census weaver with id ${id}` });
+      return send(res, 200, { weaver: JSON.parse(brotliDecompressSync(node.value).toString()) });
+    }
+
     if (parts[0] === "census" && parts[1] === "weavers") {
       if (parts[2]) {
         return send(res, 200, { weaver: await reader.retrieveWeaver(decodeURIComponent(parts[2])) });
@@ -197,4 +231,8 @@ const report = () => {
 setInterval(report, 5 * 60 * 1000);
 await new Promise((r) => setTimeout(r, 3000));
 report();
-console.log("census reader node: replicating + persisting all cores; serving public read API (sensitive stays opaque)");
+console.log(
+  sensBee
+    ? "census reader node: replicating + persisting all cores; serving public read API + token-gated /census/unmask"
+    : "census reader node: replicating + persisting all cores; serving public read API (no HANDLOOM_ENCRYPTION_KEY → unmask disabled)"
+);

@@ -153,6 +153,15 @@ async function mfaEnabledForRequest(req: MedusaRequest): Promise<boolean> {
 }
 
 /**
+ * True only when the request's auth identity has an ENABLED Medusa MFA factor.
+ * The census unmask endpoint reuses this gate (with the reveal being the request
+ * itself, no `reveal_secrets` flag needed). Fails closed on any error.
+ */
+export async function isMfaEnabled(req: MedusaRequest): Promise<boolean> {
+  return mfaEnabledForRequest(req)
+}
+
+/**
  * Merge incoming `api_config` over `existing`, restoring any secret the caller
  * omitted or left blank from the existing row (both plaintext and ciphertext
  * variants, plus nested OAuth1 bags). Returns the merged config.
