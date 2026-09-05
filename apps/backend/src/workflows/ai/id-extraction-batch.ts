@@ -444,6 +444,19 @@ export const idExtractionBatchProcessingWorkflow = createWorkflow(
  * read or none did, which is the failure mode worth a test: a summary that
  * cannot say anything went wrong.
  */
+/**
+ * Where a batch notification sends the partner.
+ *
+ * 🔴 One definition, used by both the success and the failure bell rows. The
+ * first version of this feature pointed them at `/assistant?batch=<id>` — a
+ * route that existed but ignored the parameter, so the deep link answered
+ * nothing. It is a constant here so the two rows cannot drift apart, and so a
+ * change to it is a change to a named thing rather than to two template
+ * literals four hundred lines apart.
+ */
+export const idBatchReviewUrl = (batchId: string): string =>
+  `/settings/people/id-batches/${batchId}`
+
 export const buildIdBatchBellMessage = (counts: {
   total: number;
   readable: number;
@@ -517,13 +530,13 @@ const notifyPartnerOfIdBatchStep = createStep(
        */
       idempotency_key: `id_extraction_batch:${input.batch_id}:${readable}:${failed}:${outstanding}`,
       /**
-       * ⚠️ Points at a route that EXISTS. There is no batch screen yet (#1816
-       * shipped API + workflow only), and a bell row that 404s is worse than
-       * one that does not link. `/assistant` is where the operator can ask
-       * `get_id_extraction_batch` for the same report, which is the flow the
-       * founder asked for: read the bell, go back to the chat, ask.
+       * ⚠️ Points at a route that EXISTS — now the review screen itself, which
+       * lists every draft with the reader's own warnings and the approve
+       * button. It replaced `/assistant?batch=`, and rows already in partners'
+       * bells still carry that older link: the assistant redirects it here
+       * rather than leaving them on a screen that ignores the parameter.
        */
-      url: `/assistant?batch=${input.batch_id}`,
+      url: idBatchReviewUrl(input.batch_id),
       data: { batch_id: input.batch_id, total, completed: readable, failed, outstanding, approved },
     });
 
@@ -579,7 +592,7 @@ export const idExtractionBatchWorkflow = createWorkflow(
         data: {
           title: "ID card batch could not be read",
           description: `Batch ${d.created.batch_id} stopped before it could read the cards. Nobody was added to your people.`,
-          url: `/assistant?batch=${d.created.batch_id}`,
+          url: idBatchReviewUrl(d.created.batch_id),
           batch_id: d.created.batch_id,
         },
       },

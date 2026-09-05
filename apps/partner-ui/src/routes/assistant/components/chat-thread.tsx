@@ -30,6 +30,7 @@
  *     going without exceeding the model's context budget.
  */
 import { useEffect, useRef, useState, useCallback, useMemo } from "react"
+import { useNavigate } from "react-router-dom"
 import { useChat } from "@ai-sdk/react"
 import { DefaultChatTransport } from "ai"
 import { Button, Text, IconButton, toast, Tooltip, Label, Kbd } from "@medusajs/ui"
@@ -201,6 +202,7 @@ export const ChatThread = ({
   onCreated,
   onCompacted,
 }: ChatThreadProps) => {
+  const navigate = useNavigate()
   const [input, setInput] = useState("")
   const [compacting, setCompacting] = useState(false)
   const [showContextBanner, setShowContextBanner] = useState(false)
@@ -387,13 +389,17 @@ export const ChatThread = ({
                 queryKey: notificationQueryKeys.all,
               })
             },
+            // The finished toast's "Review drafts" action. It was accepted by
+            // the watcher from the start and never supplied, because there was
+            // nowhere to send anybody (#1816).
+            onReview: (id) => navigate(`/settings/people/id-batches/${id}`),
           })
         }
 
         void sendMessage({ text: approvalNote(name, result) })
       }
     },
-    [setMessages, sendMessage]
+    [setMessages, sendMessage, navigate]
   )
 
   const handleSubmit = (e: React.FormEvent) => {
