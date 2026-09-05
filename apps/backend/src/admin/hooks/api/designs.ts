@@ -1563,3 +1563,69 @@ export const useCommitConsumption = (
     },
   })
 }
+
+/* ------------------------------------------------------------------------ *
+ * Design graph — the spine's neighbours as nodes and edges (#1847).
+ *
+ * The three edge states are the contract: `present` is a declared link with
+ * something on the other end, `derived` is true only through a shared record,
+ * and `absent` is a neighbour the model expects and has not got — the "future
+ * edge" that a list of rows can never show.
+ * ------------------------------------------------------------------------ */
+
+export type DesignGraphEdgeState = "present" | "derived" | "absent"
+
+export type DesignGraphProp = { key: string; value: string }
+
+export type DesignGraphNode = {
+  key: string
+  type: string
+  label: string
+  sublabel: string | null
+  state: DesignGraphEdgeState
+  count: number
+  status: string | null
+  href: string | null
+  props: DesignGraphProp[]
+  action: { label: string; href: string | null } | null
+}
+
+export type DesignGraphEdge = {
+  from: string
+  to: string
+  label: string
+  state: DesignGraphEdgeState
+  reason: string | null
+}
+
+export type AdminDesignGraphResponse = {
+  graph: {
+    spine: DesignGraphNode
+    nodes: DesignGraphNode[]
+    edges: DesignGraphEdge[]
+    summary: { links: number; absent: number; derived: number }
+  }
+}
+
+export const useDesignGraph = (
+  id: string,
+  options?: Omit<
+    UseQueryOptions<
+      AdminDesignGraphResponse,
+      FetchError,
+      AdminDesignGraphResponse,
+      QueryKey
+    >,
+    "queryFn" | "queryKey"
+  >,
+) => {
+  const { data, ...rest } = useQuery({
+    queryKey: [...designQueryKeys.detail(id), "graph"],
+    queryFn: async () =>
+      sdk.client.fetch<AdminDesignGraphResponse>(`/admin/designs/${id}/graph`, {
+        method: "GET",
+      }),
+    ...options,
+  })
+  return { ...data, ...rest }
+}
