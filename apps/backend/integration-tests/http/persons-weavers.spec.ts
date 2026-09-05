@@ -154,4 +154,33 @@ setupSharedTestSuite(() => {
       expect(res.status).toBe(403)
     })
   })
+
+  describe("GET /admin/census/states + /admin/census/weavers/:census_id", () => {
+    it("returns every geographic state from the census aggregates", async () => {
+      const res = await api.get("/admin/census/states", headers)
+
+      expect(res.status).toBe(200)
+      expect(res.data.states).toEqual([{ state: "KARNATAKA", count: null }])
+    })
+
+    it("returns the masked record for a single census_id", async () => {
+      const res = await api.get("/admin/census/weavers/1", headers)
+
+      expect(res.status).toBe(200)
+      expect(res.data.weaver).toMatchObject({
+        census_id: 1,
+        district: "BAGALKOT",
+        name: "Ramesh Patel",
+      })
+      expect(res.data.weaver.survey).toBeUndefined()
+    })
+
+    it("404s for an unknown census_id", async () => {
+      const res = await api
+        .get("/admin/census/weavers/999", headers)
+        .catch((e: any) => e.response)
+
+      expect(res.status).toBe(404)
+    })
+  })
 })
