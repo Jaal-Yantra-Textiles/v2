@@ -365,6 +365,13 @@ secrets:
   X_CLIENT_SECRET: /jyt/prod/X_CLIENT_SECRET
   X_REDIRECT_URI: /jyt/prod/X_REDIRECT_URI
   X_SCOPE: /jyt/prod/X_SCOPE
+  # #1238 — reference images for the assistant's idea->design flow. Server only:
+  # /admin/pinterest is an admin API route, not a worker job.
+  #
+  # ⚠️ Pinterest v5 access tokens EXPIRE AFTER 30 DAYS, so this parameter needs
+  # rotating (put-parameter + a task roll) roughly monthly, or the route starts
+  # 401ing. Verify a replacement with GET /v5/user_account BEFORE writing it.
+  PINTEREST_ACCESS_TOKEN: /jyt/prod/PINTEREST_ACCESS_TOKEN
 
 # Logging — 14-day retention to keep CW costs down.
 logging:
