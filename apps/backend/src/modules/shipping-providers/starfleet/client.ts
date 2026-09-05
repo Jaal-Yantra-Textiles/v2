@@ -61,18 +61,33 @@ import { normalizeHsCode } from "../hs-code-resolution"
  * warehouse that is not there, and the failure surfaces as a manifestation
  * error rather than as "you are pointed at the wrong environment".
  *
- * Defaults to STAGING, so nothing changes for anyone until the var is set —
- * enabling prod is a deliberate act, not a side effect of deploying.
+ * 🔴 DEFAULTS TO PROD (#1843). This read "defaults to STAGING, so prod is never
+ * reached by accident" — but the account's credentials are PROD credentials and
+ * do not exist in the sandbox at all, so the cautious default was the BROKEN
+ * one. Measured with the same four secrets:
+ *
+ *   api-stage-starfleet → 403 {"error": User profile is not active / User not found}
+ *   api-starfleet       → token, expires_in 86400
+ *
+ * A 403 read for a session as a wallet or scope problem was the wrong host all
+ * along. Nothing in SSM sets `STARFLEET_ENV` either, so a staging default meant
+ * prod would have pointed at the sandbox too — failing at MANIFEST time on a
+ * warehouse that is not in that environment's registry, which reads like bad
+ * shipment data rather than a misconfigured host.
+ *
+ * `STARFLEET_ENV=staging` (or `stage`) still selects the sandbox explicitly.
  */
 const STARFLEET_HOSTS = {
   staging: "https://api-stage-starfleet.delhivery.com",
   prod: "https://api-starfleet.delhivery.com",
 } as const
 
+const STAGING_ALIASES = new Set(["staging", "stage", "sandbox"])
+
 export const starfleetBaseUrl = (env?: string): string =>
-  String(env ?? "").trim().toLowerCase() === "prod"
-    ? STARFLEET_HOSTS.prod
-    : STARFLEET_HOSTS.staging
+  STAGING_ALIASES.has(String(env ?? "").trim().toLowerCase())
+    ? STARFLEET_HOSTS.staging
+    : STARFLEET_HOSTS.prod
 
 const HOST = starfleetBaseUrl(process.env.STARFLEET_ENV)
 const AUTH_URL = `${HOST}/auth/token`
