@@ -221,19 +221,26 @@ describe("starfleetTrackingUrl", () => {
  * warehouse (gotcha #3), so it surfaces as a manifestation error instead.
  */
 describe("starfleetBaseUrl", () => {
-  it("defaults to staging when unset, so prod is never reached by accident", () => {
-    expect(starfleetBaseUrl(undefined)).toContain("api-stage-starfleet")
-    expect(starfleetBaseUrl("")).toContain("api-stage-starfleet")
+  /**
+   * 🔴 The default is PROD, and these assertions are the inverse of what they
+   * were (#1843). The old "never reach prod by accident" default was measured
+   * to be the broken one: the account's credentials do not exist in the sandbox
+   * and staging answers 403 `User profile is not active / User not found`.
+   */
+  it("defaults to prod when unset, because the account only exists there", () => {
+    expect(starfleetBaseUrl(undefined)).toBe("https://api-starfleet.delhivery.com")
+    expect(starfleetBaseUrl("")).toBe("https://api-starfleet.delhivery.com")
   })
 
-  it("selects the prod host only on an explicit 'prod'", () => {
-    expect(starfleetBaseUrl("prod")).toBe("https://api-starfleet.delhivery.com")
-    expect(starfleetBaseUrl(" PROD ")).toBe("https://api-starfleet.delhivery.com")
-  })
-
-  it("treats anything else as staging rather than guessing", () => {
-    for (const v of ["staging", "stage", "production", "live", "true", "1"]) {
+  it("still selects the sandbox on an explicit staging alias", () => {
+    for (const v of ["staging", "stage", "sandbox", " STAGING ", "Stage"]) {
       expect(starfleetBaseUrl(v)).toContain("api-stage-starfleet")
+    }
+  })
+
+  it("keeps prod on 'prod' and on anything it does not recognise", () => {
+    for (const v of ["prod", " PROD ", "production", "live", "true", "1"]) {
+      expect(starfleetBaseUrl(v)).toBe("https://api-starfleet.delhivery.com")
     }
   })
 })
