@@ -399,7 +399,10 @@ import {
 import { webSubmitFormResponseSchema, webVerifyFormResponseSchema } from "./web/website/[domain]/forms/[handle]/validators";
 import { WebSaveTourItinerarySchema } from "./web/tour-visits/[token]/validators";
 import { LinkDesignsToCustomerSchema } from "./admin/customers/[id]/designs/validators";
-import { CreateDesignOrderSchema } from "./admin/customers/[id]/design-order/validators";
+import {
+  CreateDesignDraftOrderSchema,
+  CreateDesignOrderSchema,
+} from "./admin/customers/[id]/design-order/validators";
 import { listAbandonedCartsQuerySchema } from "./admin/abandoned-carts/validators";
 import {
   CreatePersonPropertySchema,
@@ -4636,6 +4639,28 @@ export default defineMiddlewares({
       method: "POST",
       middlewares: [
         validateAndTransformBody(wrapSchema(CancelPartnerAssignmentSchema)),
+      ],
+    },
+    /**
+     * #1817 — the same two, for designs with NO customer link.
+     *
+     * 🔴 Registered BEFORE `/admin/designs/:id`, like every other static
+     * segment under `/admin/designs`: a static path landing after the
+     * parameterised one is matched as an id called "draft-order", and the body
+     * arrives unvalidated.
+     */
+    {
+      matcher: "/admin/designs/draft-order",
+      method: "POST",
+      middlewares: [
+        validateAndTransformBody(wrapSchema(CreateDesignDraftOrderSchema)),
+      ],
+    },
+    {
+      matcher: "/admin/designs/draft-order/preview",
+      method: "POST",
+      middlewares: [
+        validateAndTransformBody(wrapSchema(CreateDesignOrderSchema)),
       ],
     },
     {

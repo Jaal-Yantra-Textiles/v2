@@ -122,8 +122,19 @@ const MAX_OUTPUT_TOKENS = 4000
  * A ladder behind a 100s edge limit has to fit inside it, and has to come back
  * with the reason rather than the gateway's guess.
  */
-const RUNG_TIMEOUT_MS = 25_000
-const LADDER_BUDGET_MS = 70_000
+/**
+ * ⚠️ 40s, not 25s. A vision model that reads a dense document is not fast:
+ * `describe_image` took 17.4s on this very card in prod, and the read_image
+ * probe measured gemma at 22-33s. A cap under those numbers would abort a model
+ * that was about to answer — trading a slow success for a fast failure.
+ */
+const RUNG_TIMEOUT_MS = 40_000
+/**
+ * Two 40s rungs would exceed this; the budget check clamps the second one to
+ * whatever is left, so the whole attempt still lands inside Cloudflare's 100s
+ * edge limit with room for the response.
+ */
+const LADDER_BUDGET_MS = 75_000
 
 const readIdCardStep = createStep(
   "read-id-card-with-vision",
