@@ -26,7 +26,20 @@ import {
 /** The `stock_location.metadata` key holding a carrier's pickup name. */
 export function carrierPickupMetadataKey(carrier: string): string | undefined {
   if (carrier === "shiprocket") return SHIPROCKET_PICKUP_METADATA_KEY
-  if (carrier === "delhivery") return DELHIVERY_WAREHOUSE_METADATA_KEY
+  /**
+   * 🔴 `starfleet` shares Delhivery's warehouse registry, and therefore its
+   * metadata key. Delhivery International has no warehouse-create endpoint of
+   * its own: a StarFleet pickup is registered through the DOMESTIC
+   * `clientwarehouse/create` and then referenced by that same name as
+   * `pickup_warehouse_id`.
+   *
+   * Without this entry `starfleet` fell through to the Shiprocket branch below
+   * and would have registered a SHIPROCKET nickname for a Delhivery warehouse —
+   * the exact defect this file was written to stop, on a third surface.
+   */
+  if (carrier === "delhivery" || carrier === "starfleet") {
+    return DELHIVERY_WAREHOUSE_METADATA_KEY
+  }
   return undefined
 }
 
@@ -49,7 +62,14 @@ export async function ensureCarrierPickup(
     : undefined
   if (recorded) return recorded
 
-  if (carrier === "delhivery") {
+  if (carrier === "delhivery" || carrier === "starfleet") {
+    /**
+     * ⚠️ The registry is PER-ENVIRONMENT: a warehouse created against
+     * Delhivery's staging host does not exist in prod, and vice versa. This
+     * registers wherever the DOMESTIC Delhivery client points, so that must
+     * agree with `STARFLEET_ENV` or the manifest fails on a warehouse the
+     * carrier has never heard of — and it reads like bad shipment data.
+     */
     const reg = await registerDelhiveryWarehouse(container, locationId, {
       email: opts?.email,
     })
