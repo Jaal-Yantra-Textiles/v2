@@ -51,6 +51,11 @@ import {
 
 import { PERSON_MODULE } from "../../modules/person";
 import { type IdNumberPolicy } from "../../lib/people/id-card";
+import {
+  providerGateKey,
+  resolveMaxConcurrency,
+  withProviderSlot,
+} from "../../lib/ai/provider-gate";
 import { extractPersonFromIdWorkflow } from "./extract-person-from-id";
 
 // ============================================
@@ -277,16 +282,44 @@ const processIdExtractionBatchStep = createStep(
          *
          * `persist: false` always: this path produces drafts, never people.
          */
-        const { result } = await extractPersonFromIdWorkflow(container).run({
-          input: {
-            image_url: item.image_url,
-            notes: batch.notes ?? null,
-            id_number_policy: (batch.id_number_policy ?? "mask") as IdNumberPolicy,
-            persist: false,
-            partner_id: batch.partner_id ?? null,
-            person_type_ids: null,
-          },
+        /**
+         * 🔑 #1819's acceptance test: this loop no longer manages its own
+         * pacing alone. The interval below is a floor; the GATE is the ceiling,
+         * and it is shared with every other process and every other feature on
+         * the same provider account.
+         *
+         * The gate is keyed on the vision ladder's own account. The ladder can
+         * fall through several rungs inside one call, so the key here is the
+         * ROLE's default account — a coarse gate that is honest about the
+         * common case, rather than a precise one that would need the ladder to
+         * report which rung it used before we could hold a slot for it.
+         */
+        const gateKey = providerGateKey({
+          providerType: "ai_image_extraction",
+          accountId: null,
+          baseUrl: null,
         });
+
+        const { result } = await withProviderSlot(
+          container,
+          gateKey,
+          () =>
+            extractPersonFromIdWorkflow(container).run({
+              input: {
+                image_url: item.image_url,
+                notes: batch.notes ?? null,
+                id_number_policy: (batch.id_number_policy ??
+                  "mask") as IdNumberPolicy,
+                persist: false,
+                partner_id: batch.partner_id ?? null,
+                person_type_ids: null,
+              },
+            }),
+          {
+            maxConcurrency: resolveMaxConcurrency("ai_image_extraction"),
+            label: `id-batch:${input.batch_id}`,
+          }
+        );
 
         const read = result as any;
 
