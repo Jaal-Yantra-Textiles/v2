@@ -343,7 +343,7 @@ importers:
         version: 2.5.6
       '@uploadthing/react':
         specifier: 7.1.0
-        version: 7.1.0(next@16.2.9(@babel/core@8.0.1)(@opentelemetry/api@1.9.0)(@playwright/test@1.61.1)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(sass@1.97.3))(react@18.3.1)(uploadthing@7.2.0(express@5.2.1)(next@16.2.9(@babel/core@8.0.1)(@opentelemetry/api@1.9.0)(@playwright/test@1.61.1)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(sass@1.97.3))(tailwindcss@3.4.19(tsx@4.21.0)(yaml@2.9.0)))
+        version: 7.1.0(next@16.2.9(@babel/core@7.29.7)(@opentelemetry/api@1.9.0)(@playwright/test@1.61.1)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(sass@1.97.3))(react@18.3.1)(uploadthing@7.2.0(express@5.2.1)(next@16.2.9(@babel/core@7.29.7)(@opentelemetry/api@1.9.0)(@playwright/test@1.61.1)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(sass@1.97.3))(tailwindcss@3.4.19(tsx@4.21.0)(yaml@2.9.0)))
       '@xenova/transformers':
         specifier: ^2.17.2
         version: 2.17.2
@@ -544,7 +544,7 @@ importers:
         version: 1.2.1
       uploadthing:
         specifier: 7.2.0
-        version: 7.2.0(express@5.2.1)(next@16.2.9(@babel/core@8.0.1)(@opentelemetry/api@1.9.0)(@playwright/test@1.61.1)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(sass@1.97.3))(tailwindcss@3.4.19(tsx@4.21.0)(yaml@2.9.0))
+        version: 7.2.0(express@5.2.1)(next@16.2.9(@babel/core@7.29.7)(@opentelemetry/api@1.9.0)(@playwright/test@1.61.1)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(sass@1.97.3))(tailwindcss@3.4.19(tsx@4.21.0)(yaml@2.9.0))
       use-file-picker:
         specifier: ^2.1.2
         version: 2.1.4(@types/react-dom@18.3.7(@types/react@18.3.28))(@types/react@18.3.28)(react@18.3.1)
@@ -1100,13 +1100,13 @@ importers:
         specifier: ^2.2.0
         version: 2.2.9(react-dom@19.0.4(react@19.0.4))(react@19.0.4)
       '@medusajs/icons':
-        specifier: latest
+        specifier: 2.18.0
         version: 2.18.0(react@19.0.4)
       '@medusajs/js-sdk':
-        specifier: latest
+        specifier: 2.18.0
         version: 2.18.0
       '@medusajs/ui':
-        specifier: latest
+        specifier: 4.2.0
         version: 4.2.0(@types/react-dom@19.0.3(@types/react@19.0.3))(@types/react@19.0.3)(react-dom@19.0.4(react@19.0.4))(react@19.0.4)(typescript@5.9.3)
       '@radix-ui/react-accordion':
         specifier: ^1.2.1
@@ -1191,10 +1191,10 @@ importers:
         specifier: ^7.17.5
         version: 7.29.0
       '@medusajs/types':
-        specifier: latest
-        version: 2.18.0(ioredis@5.9.3)(vite@5.4.21(@types/node@20.19.34)(sass-embedded@1.97.3)(sass@1.97.3)(terser@5.46.0))
+        specifier: 2.20.1
+        version: 2.20.1(ioredis@5.9.3)(vite@7.3.6(@types/node@20.19.34)(jiti@1.21.7)(sass-embedded@1.97.3)(sass@1.97.3)(terser@5.46.0)(tsx@4.21.0)(yaml@2.9.0))
       '@medusajs/ui-preset':
-        specifier: latest
+        specifier: 2.18.0
         version: 2.18.0(tailwindcss@3.4.19(tsx@4.21.0)(yaml@2.9.0))
       '@types/lodash':
         specifier: ^4.14.195
@@ -1243,7 +1243,7 @@ importers:
         version: 5.9.3
       vitest:
         specifier: ^4.0.18
-        version: 4.1.5(@opentelemetry/api@1.9.0)(@types/node@20.19.34)(happy-dom@18.0.1)
+        version: 4.1.5(@opentelemetry/api@1.9.0)(@types/node@20.19.34)(happy-dom@18.0.1)(vite@7.3.6(@types/node@20.19.34)(jiti@1.21.7)(sass-embedded@1.97.3)(sass@1.97.3)(terser@5.46.0)(tsx@4.21.0)(yaml@2.9.0))
 
   apps/storefront-starter:
     dependencies:
@@ -1251,14 +1251,14 @@ importers:
         specifier: ^2.2.0
         version: 2.2.9(react-dom@19.0.4(react@19.0.4))(react@19.0.4)
       '@medusajs/icons':
-        specifier: latest
-        version: 2.18.0(react@19.0.4)
+        specifier: 2.13.6
+        version: 2.13.6(react@19.0.4)
       '@medusajs/js-sdk':
-        specifier: latest
-        version: 2.18.0
+        specifier: 2.13.6
+        version: 2.13.6
       '@medusajs/ui':
-        specifier: latest
-        version: 4.2.0(@types/react-dom@19.0.3(@types/react@19.0.3))(@types/react@19.0.3)(react-dom@19.0.4(react@19.0.4))(react@19.0.4)(typescript@5.9.3)
+        specifier: 4.1.6
+        version: 4.1.6(@types/react-dom@19.0.3(@types/react@19.0.3))(@types/react@19.0.3)(react-dom@19.0.4(react@19.0.4))(react@19.0.4)(typescript@5.9.3)
       '@opennextjs/cloudflare':
         specifier: ^1.20.1
         version: 1.20.1(next@15.5.20(@babel/core@7.29.0)(@opentelemetry/api@1.9.0)(@playwright/test@1.61.1)(react-dom@19.0.4(react@19.0.4))(react@19.0.4)(sass@1.97.3))(wrangler@4.111.0)
@@ -1306,11 +1306,11 @@ importers:
         specifier: ^7.17.5
         version: 7.29.0
       '@medusajs/types':
-        specifier: latest
-        version: 2.18.0(ioredis@5.9.3)(vite@5.4.21(@types/node@20.19.34)(sass-embedded@1.97.3)(sass@1.97.3)(terser@5.46.0))
+        specifier: 2.13.6
+        version: 2.13.6(ioredis@5.9.3)(vite@5.4.21(@types/node@20.19.34)(sass-embedded@1.97.3)(sass@1.97.3)(terser@5.46.0))
       '@medusajs/ui-preset':
-        specifier: latest
-        version: 2.18.0(tailwindcss@3.4.19(tsx@4.21.0)(yaml@2.9.0))
+        specifier: 2.13.6
+        version: 2.13.6(tailwindcss@3.4.19(tsx@4.21.0)(yaml@2.9.0))
       '@types/lodash':
         specifier: ^4.14.195
         version: 4.17.24
@@ -1385,7 +1385,7 @@ importers:
         version: 2.20.1(@medusajs/cli@2.20.1(@types/node@20.19.34))(@types/node@20.19.34)(ioredis@5.9.3)(vite@7.3.6(@types/node@20.19.34)(jiti@1.21.7)(sass-embedded@1.97.3)(sass@1.97.3)(terser@5.46.0)(tsx@4.21.0)(yaml@2.9.0))(zod@4.2.0)
       '@medusajs/medusa':
         specifier: 2.20.1
-        version: 2.20.1(d8da4862ef1796a17afe8c4cc5d5f8b7)
+        version: 2.20.1(f8edb989ad9a1459b55473610cc719d8)
       '@medusajs/types':
         specifier: 2.20.1
         version: 2.20.1(ioredis@5.9.3)(vite@7.3.6(@types/node@20.19.34)(jiti@1.21.7)(sass-embedded@1.97.3)(sass@1.97.3)(terser@5.46.0)(tsx@4.21.0)(yaml@2.9.0))
@@ -5612,6 +5612,11 @@ packages:
     peerDependencies:
       '@medusajs/framework': 2.20.1
 
+  '@medusajs/icons@2.13.6':
+    resolution: {integrity: sha512-QvMZc44xPHCkpY0zjMl6dtJaMRVrJldes45dGzQhKmq8R3WC3Fkayo5HsJeplrTTfamcplqqJiugqayC3gCb4A==}
+    peerDependencies:
+      react: ^18.3.1
+
   '@medusajs/icons@2.14.2':
     resolution: {integrity: sha512-MdiX1Z3h9yMTqJ5Jmd4XC8goMzMttZJiDSPEBTzWAYpsfXn9G0Dp3bbFg2k7DiJPb4lOBzLPbw+LuwtnUCfpGA==}
     peerDependencies:
@@ -5643,6 +5648,10 @@ packages:
     engines: {node: '>=20'}
     peerDependencies:
       '@medusajs/framework': 2.20.1
+
+  '@medusajs/js-sdk@2.13.6':
+    resolution: {integrity: sha512-KclFGKmJN0+7QdMbHNQ0g5O6A5h+4Lyi4GI2a1WOKcx14447pEM6OyF+QZRSvi1yoS0cuLk3foYu5vTd1DOk2g==}
+    engines: {node: '>=20'}
 
   '@medusajs/js-sdk@2.14.2':
     resolution: {integrity: sha512-nNpkzcQU8WhPEcXIoh7ET+1y8qSaRsAeoYtci+naCdT7U0/f4jT4vpBH1vI5E3P+sWvSO+fAVvkhVoHc0OY+bQ==}
@@ -5884,8 +5893,8 @@ packages:
     peerDependencies:
       '@medusajs/framework': 2.20.1
 
-  '@medusajs/types@2.14.2':
-    resolution: {integrity: sha512-vWzzuG9hXrGMVhrwrUL+LiOi2cuvAoPRyDVdQeA7USdt7ooC+Tb6tWv6E9Sf1wFR3OoUa3S7Ft25qIXmVpV1AQ==}
+  '@medusajs/types@2.13.6':
+    resolution: {integrity: sha512-G6VASkY/rKjvDzHDXN/oxthkVz8uOPy8nYUaa/c6GzfeUJkz8diB+9RwnJeRqTgAtybX2eocKKunFRkqmLBUBg==}
     engines: {node: '>=20'}
     peerDependencies:
       ioredis: ^5.4.1
@@ -5896,8 +5905,8 @@ packages:
       vite:
         optional: true
 
-  '@medusajs/types@2.18.0':
-    resolution: {integrity: sha512-jOIBAPjkToJnXpfh++0s8W3Z1qspOg+yiwNR8qsFPFWuIlTfhzCbFk+LBTp7cvHiafsrkwTp1DsW4W3zfCerEg==}
+  '@medusajs/types@2.14.2':
+    resolution: {integrity: sha512-vWzzuG9hXrGMVhrwrUL+LiOi2cuvAoPRyDVdQeA7USdt7ooC+Tb6tWv6E9Sf1wFR3OoUa3S7Ft25qIXmVpV1AQ==}
     engines: {node: '>=20'}
     peerDependencies:
       ioredis: ^5.4.1
@@ -5932,6 +5941,11 @@ packages:
       vite:
         optional: true
 
+  '@medusajs/ui-preset@2.13.6':
+    resolution: {integrity: sha512-Fw/m8v0/PpGU/D46ZEUN2UzaAbMqb00Dn3QOvZsSzXa2+tSwWaA3Yg68O4Kk9I3v84pT0pfIzmBd/B9r5WLhjw==}
+    peerDependencies:
+      tailwindcss: ^3.4.3
+
   '@medusajs/ui-preset@2.14.2':
     resolution: {integrity: sha512-1+0xDeV8zJkmTN+vyHQY7YFF3JW+nmRETT5pnrJQtQOALVofYO0tM3hM8W15ahg8HJV8c5hKRVpoffplB1mU3w==}
     peerDependencies:
@@ -5946,6 +5960,12 @@ packages:
     resolution: {integrity: sha512-3aClodpFn+EnpZDjLHyYykkuA30c7cqq3oeuyl/hQlsv76Fhk9QGkbiL8OSxEw2HSnqqR2fOro6UXHpAs9a8DQ==}
     peerDependencies:
       tailwindcss: ^3.4.3
+
+  '@medusajs/ui@4.1.6':
+    resolution: {integrity: sha512-C8TRQZCicF6jlFIC4Oa07GWSBVNGhLGIod2me13cKXvvzC40LTEGJCnO2Fg0WasoixEGMtfihlgwYGpiWcsbPQ==}
+    peerDependencies:
+      react: ^18.3.1
+      react-dom: ^18.3.1
 
   '@medusajs/ui@4.1.9':
     resolution: {integrity: sha512-yMG+LfPH5hgmz5b/xbVYu1e9VPjqPl8uHU9I0IuLSVDiy+fqBlYbMtc8Ojk/UNeSpD8WPrp9aoLrPD+weL6Uvw==}
@@ -13595,10 +13615,6 @@ packages:
 
   eventsource-parser@3.0.6:
     resolution: {integrity: sha512-Vo1ab+QXPzZ4tCa8SwIHJFaSzy4R6SHf7BY79rFBDf0idraZWAkYrDjDj8uWaSm3S2TK+hJ7/t1CEmZ7jXw+pg==}
-    engines: {node: '>=18.0.0'}
-
-  eventsource-parser@3.1.0:
-    resolution: {integrity: sha512-kJezFj9YFAMLeORyi7aCLxLbD5/qWMQnoMVlVPyHIll7lgRJCc3JVln9Vgl9nwQi0YkMnhdGTMNn7CkRRAptMg==}
     engines: {node: '>=18.0.0'}
 
   eventsource-parser@3.1.1:
@@ -21563,7 +21579,7 @@ snapshots:
     dependencies:
       '@ai-sdk/provider': 2.0.3
       '@standard-schema/spec': 1.1.0
-      eventsource-parser: 3.1.0
+      eventsource-parser: 3.1.1
       zod: 4.2.0
 
   '@ai-sdk/provider-utils@3.0.30(zod@4.2.0)':
@@ -26503,19 +26519,6 @@ snapshots:
       '@standard-schema/utils': 0.3.0
       react-hook-form: 7.71.2(react@18.3.1)
 
-  '@hookform/resolvers@5.5.7(@sinclair/typebox@0.34.48)(@standard-schema/spec@1.1.0)(ajv-formats@2.1.1(ajv@8.13.0))(ajv@8.13.0)(effect@3.19.19)(joi@17.13.3)(react-hook-form@7.83.0(react@18.3.1))(zod@4.2.0)':
-    dependencies:
-      '@standard-schema/utils': 0.3.0
-      react-hook-form: 7.83.0(react@18.3.1)
-    optionalDependencies:
-      '@sinclair/typebox': 0.34.48
-      '@standard-schema/spec': 1.1.0
-      ajv: 8.13.0
-      ajv-formats: 2.1.1(ajv@8.13.0)
-      effect: 3.19.19
-      joi: 17.13.3
-      zod: 4.2.0
-
   '@hookform/resolvers@5.5.7(@sinclair/typebox@0.34.48)(@standard-schema/spec@1.1.0)(ajv-formats@2.1.1(ajv@8.18.0))(ajv@8.18.0)(effect@3.19.19)(joi@17.13.3)(react-hook-form@7.83.0(react@18.3.1))(zod@4.2.0)':
     dependencies:
       '@standard-schema/utils': 0.3.0
@@ -27508,11 +27511,11 @@ snapshots:
       - yaml
       - yup
 
-  '@medusajs/admin-bundler@2.20.1(@emotion/is-prop-valid@1.4.0)(@sinclair/typebox@0.34.48)(@standard-schema/spec@1.1.0)(@types/node@20.19.34)(@types/react-dom@19.0.3(@types/react@19.0.3))(@types/react@19.0.3)(ajv-formats@2.1.1(ajv@8.13.0))(ajv@8.13.0)(effect@3.19.19)(jiti@1.21.7)(joi@17.13.3)(sass-embedded@1.97.3)(sass@1.97.3)(terser@5.46.0)(tsx@4.21.0)(typescript@5.6.3)(yaml@2.9.0)':
+  '@medusajs/admin-bundler@2.20.1(@emotion/is-prop-valid@1.4.0)(@sinclair/typebox@0.34.48)(@standard-schema/spec@1.1.0)(@types/node@20.19.34)(@types/react-dom@19.0.3(@types/react@19.0.3))(@types/react@19.0.3)(ajv-formats@2.1.1(ajv@8.20.0))(ajv@8.20.0)(effect@3.19.19)(jiti@1.21.7)(joi@17.13.3)(sass-embedded@1.97.3)(sass@1.97.3)(terser@5.46.0)(tsx@4.21.0)(typescript@5.6.3)(yaml@2.9.0)':
     dependencies:
       '@medusajs/admin-shared': 2.20.1
       '@medusajs/admin-vite-plugin': 2.20.1(vite@7.3.6(@types/node@20.19.34)(jiti@1.21.7)(sass-embedded@1.97.3)(sass@1.97.3)(terser@5.46.0)(tsx@4.21.0)(yaml@2.9.0))
-      '@medusajs/dashboard': 2.20.1(@emotion/is-prop-valid@1.4.0)(@sinclair/typebox@0.34.48)(@standard-schema/spec@1.1.0)(@types/react-dom@19.0.3(@types/react@19.0.3))(@types/react@19.0.3)(ajv-formats@2.1.1(ajv@8.13.0))(ajv@8.13.0)(effect@3.19.19)(joi@17.13.3)(typescript@5.6.3)
+      '@medusajs/dashboard': 2.20.1(@emotion/is-prop-valid@1.4.0)(@sinclair/typebox@0.34.48)(@standard-schema/spec@1.1.0)(@types/react-dom@19.0.3(@types/react@19.0.3))(@types/react@19.0.3)(ajv-formats@2.1.1(ajv@8.20.0))(ajv@8.20.0)(effect@3.19.19)(joi@17.13.3)(typescript@5.6.3)
       '@vitejs/plugin-react': 5.2.0(vite@7.3.6(@types/node@20.19.34)(jiti@1.21.7)(sass-embedded@1.97.3)(sass@1.97.3)(terser@5.46.0)(tsx@4.21.0)(yaml@2.9.0))
       autoprefixer: 10.4.27(postcss@8.5.26)
       compression: 1.8.1
@@ -27920,7 +27923,7 @@ snapshots:
       - vest
       - yup
 
-  '@medusajs/dashboard@2.20.1(@emotion/is-prop-valid@1.4.0)(@sinclair/typebox@0.34.48)(@standard-schema/spec@1.1.0)(@types/react-dom@19.0.3(@types/react@19.0.3))(@types/react@19.0.3)(ajv-formats@2.1.1(ajv@8.13.0))(ajv@8.13.0)(effect@3.19.19)(joi@17.13.3)(typescript@5.6.3)':
+  '@medusajs/dashboard@2.20.1(@emotion/is-prop-valid@1.4.0)(@sinclair/typebox@0.34.48)(@standard-schema/spec@1.1.0)(@types/react-dom@19.0.3(@types/react@19.0.3))(@types/react@19.0.3)(ajv-formats@2.1.1(ajv@8.20.0))(ajv@8.20.0)(effect@3.19.19)(joi@17.13.3)(typescript@5.6.3)':
     dependencies:
       '@ariakit/react': 0.4.21(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
       '@babel/runtime': 7.29.7
@@ -27928,7 +27931,7 @@ snapshots:
       '@dnd-kit/sortable': 8.0.0(@dnd-kit/core@6.3.1(react-dom@18.3.1(react@18.3.1))(react@18.3.1))(react@18.3.1)
       '@dnd-kit/utilities': 3.2.2(react@18.3.1)
       '@hookform/error-message': 2.0.1(react-dom@18.3.1(react@18.3.1))(react-hook-form@7.83.0(react@18.3.1))(react@18.3.1)
-      '@hookform/resolvers': 5.5.7(@sinclair/typebox@0.34.48)(@standard-schema/spec@1.1.0)(ajv-formats@2.1.1(ajv@8.13.0))(ajv@8.13.0)(effect@3.19.19)(joi@17.13.3)(react-hook-form@7.83.0(react@18.3.1))(zod@4.2.0)
+      '@hookform/resolvers': 5.5.7(@sinclair/typebox@0.34.48)(@standard-schema/spec@1.1.0)(ajv-formats@2.1.1(ajv@8.20.0))(ajv@8.20.0)(effect@3.19.19)(joi@17.13.3)(react-hook-form@7.83.0(react@18.3.1))(zod@4.2.0)
       '@medusajs/admin-shared': 2.20.1
       '@medusajs/icons': 2.20.1(react@18.3.1)
       '@medusajs/js-sdk': 2.20.1
@@ -28073,11 +28076,11 @@ snapshots:
       - vest
       - yup
 
-  '@medusajs/draft-order@2.20.1(82b0b8c9109a1fe1b65d37da2aeb112e)':
+  '@medusajs/draft-order@2.20.1(570f948e5cdf076ce15d23f1d02f0132)':
     dependencies:
       '@ariakit/react': 0.4.21(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
       '@babel/runtime': 7.29.7
-      '@hookform/resolvers': 5.5.7(@sinclair/typebox@0.34.48)(@standard-schema/spec@1.1.0)(ajv-formats@2.1.1(ajv@8.13.0))(ajv@8.13.0)(effect@3.19.19)(joi@17.13.3)(react-hook-form@7.83.0(react@18.3.1))(zod@4.2.0)
+      '@hookform/resolvers': 5.5.7(@sinclair/typebox@0.34.48)(@standard-schema/spec@1.1.0)(ajv-formats@2.1.1(ajv@8.20.0))(ajv@8.20.0)(effect@3.19.19)(joi@17.13.3)(react-hook-form@7.83.0(react@18.3.1))(zod@4.2.0)
       '@medusajs/framework': 2.20.1(@medusajs/cli@2.20.1(@types/node@20.19.34))(@types/node@20.19.34)(ioredis@5.9.3)(vite@7.3.6(@types/node@20.19.34)(jiti@1.21.7)(sass-embedded@1.97.3)(sass@1.97.3)(terser@5.46.0)(tsx@4.21.0)(yaml@2.9.0))(zod@4.2.0)
       '@medusajs/js-sdk': 2.20.1
       '@tanstack/react-query': 5.90.21(react@18.3.1)
@@ -28092,7 +28095,7 @@ snapshots:
     optionalDependencies:
       '@medusajs/admin-sdk': 2.20.1
       '@medusajs/cli': 2.20.1(@types/node@20.19.34)
-      '@medusajs/dashboard': 2.20.1(@emotion/is-prop-valid@1.4.0)(@sinclair/typebox@0.34.48)(@standard-schema/spec@1.1.0)(@types/react-dom@19.0.3(@types/react@19.0.3))(@types/react@19.0.3)(ajv-formats@2.1.1(ajv@8.13.0))(ajv@8.13.0)(effect@3.19.19)(joi@17.13.3)(typescript@5.6.3)
+      '@medusajs/dashboard': 2.20.1(@emotion/is-prop-valid@1.4.0)(@sinclair/typebox@0.34.48)(@standard-schema/spec@1.1.0)(@types/react-dom@19.0.3(@types/react@19.0.3))(@types/react@19.0.3)(ajv-formats@2.1.1(ajv@8.20.0))(ajv@8.20.0)(effect@3.19.19)(joi@17.13.3)(typescript@5.6.3)
       '@medusajs/icons': 2.20.1(react@18.3.1)
       '@medusajs/test-utils': 2.20.1(@medusajs/core-flows@2.20.1(@medusajs/framework@2.20.1(@medusajs/cli@2.20.1(@types/node@20.19.34))(@types/node@20.19.34)(ioredis@5.9.3)(vite@7.3.6(@types/node@20.19.34)(jiti@1.21.7)(sass-embedded@1.97.3)(sass@1.97.3)(terser@5.46.0)(tsx@4.21.0)(yaml@2.9.0))(zod@4.2.0)))(@medusajs/framework@2.20.1(@medusajs/cli@2.20.1(@types/node@20.19.34))(@types/node@20.19.34)(ioredis@5.9.3)(vite@7.3.6(@types/node@20.19.34)(jiti@1.21.7)(sass-embedded@1.97.3)(sass@1.97.3)(terser@5.46.0)(tsx@4.21.0)(yaml@2.9.0))(zod@4.2.0))(@medusajs/medusa@2.20.1)
       '@medusajs/ui': 4.2.3(@types/react-dom@19.0.3(@types/react@19.0.3))(@types/react@19.0.3)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(typescript@5.6.3)
@@ -28266,6 +28269,10 @@ snapshots:
     dependencies:
       '@medusajs/framework': 2.20.1(@medusajs/cli@2.20.1(@types/node@20.19.34))(@types/node@20.19.34)(ioredis@5.9.3)(vite@7.3.6(@types/node@20.19.34)(jiti@1.21.7)(sass-embedded@1.97.3)(sass@1.97.3)(terser@5.46.0)(tsx@4.21.0)(yaml@2.9.0))(zod@4.2.0)
 
+  '@medusajs/icons@2.13.6(react@19.0.4)':
+    dependencies:
+      react: 19.0.4
+
   '@medusajs/icons@2.14.2(react@18.3.1)':
     dependencies:
       react: 18.3.1
@@ -28289,6 +28296,11 @@ snapshots:
   '@medusajs/inventory@2.20.1(@medusajs/framework@2.20.1(@medusajs/cli@2.20.1(@types/node@20.19.34))(@types/node@20.19.34)(ioredis@5.9.3)(vite@7.3.6(@types/node@20.19.34)(jiti@1.21.7)(sass-embedded@1.97.3)(sass@1.97.3)(terser@5.46.0)(tsx@4.21.0)(yaml@2.9.0))(zod@4.2.0))':
     dependencies:
       '@medusajs/framework': 2.20.1(@medusajs/cli@2.20.1(@types/node@20.19.34))(@types/node@20.19.34)(ioredis@5.9.3)(vite@7.3.6(@types/node@20.19.34)(jiti@1.21.7)(sass-embedded@1.97.3)(sass@1.97.3)(terser@5.46.0)(tsx@4.21.0)(yaml@2.9.0))(zod@4.2.0)
+
+  '@medusajs/js-sdk@2.13.6':
+    dependencies:
+      fetch-event-stream: 0.1.6
+      qs: 6.15.3
 
   '@medusajs/js-sdk@2.14.2':
     dependencies:
@@ -28697,12 +28709,12 @@ snapshots:
       - yaml
       - yup
 
-  '@medusajs/medusa@2.20.1(d8da4862ef1796a17afe8c4cc5d5f8b7)':
+  '@medusajs/medusa@2.20.1(f8edb989ad9a1459b55473610cc719d8)':
     dependencies:
       '@inquirer/checkbox': 2.5.0
       '@inquirer/confirm': 2.0.17
       '@inquirer/input': 2.3.0
-      '@medusajs/admin-bundler': 2.20.1(@emotion/is-prop-valid@1.4.0)(@sinclair/typebox@0.34.48)(@standard-schema/spec@1.1.0)(@types/node@20.19.34)(@types/react-dom@19.0.3(@types/react@19.0.3))(@types/react@19.0.3)(ajv-formats@2.1.1(ajv@8.13.0))(ajv@8.13.0)(effect@3.19.19)(jiti@1.21.7)(joi@17.13.3)(sass-embedded@1.97.3)(sass@1.97.3)(terser@5.46.0)(tsx@4.21.0)(typescript@5.6.3)(yaml@2.9.0)
+      '@medusajs/admin-bundler': 2.20.1(@emotion/is-prop-valid@1.4.0)(@sinclair/typebox@0.34.48)(@standard-schema/spec@1.1.0)(@types/node@20.19.34)(@types/react-dom@19.0.3(@types/react@19.0.3))(@types/react@19.0.3)(ajv-formats@2.1.1(ajv@8.20.0))(ajv@8.20.0)(effect@3.19.19)(jiti@1.21.7)(joi@17.13.3)(sass-embedded@1.97.3)(sass@1.97.3)(terser@5.46.0)(tsx@4.21.0)(typescript@5.6.3)(yaml@2.9.0)
       '@medusajs/analytics': 2.20.1(@medusajs/framework@2.20.1(@medusajs/cli@2.20.1(@types/node@20.19.34))(@types/node@20.19.34)(ioredis@5.9.3)(vite@7.3.6(@types/node@20.19.34)(jiti@1.21.7)(sass-embedded@1.97.3)(sass@1.97.3)(terser@5.46.0)(tsx@4.21.0)(yaml@2.9.0))(zod@4.2.0))
       '@medusajs/analytics-local': 2.20.1(@medusajs/framework@2.20.1(@medusajs/cli@2.20.1(@types/node@20.19.34))(@types/node@20.19.34)(ioredis@5.9.3)(vite@7.3.6(@types/node@20.19.34)(jiti@1.21.7)(sass-embedded@1.97.3)(sass@1.97.3)(terser@5.46.0)(tsx@4.21.0)(yaml@2.9.0))(zod@4.2.0))
       '@medusajs/analytics-posthog': 2.20.1(@medusajs/framework@2.20.1(@medusajs/cli@2.20.1(@types/node@20.19.34))(@types/node@20.19.34)(ioredis@5.9.3)(vite@7.3.6(@types/node@20.19.34)(jiti@1.21.7)(sass-embedded@1.97.3)(sass@1.97.3)(terser@5.46.0)(tsx@4.21.0)(yaml@2.9.0))(zod@4.2.0))(posthog-node@5.41.0(rxjs@7.8.2))
@@ -28720,7 +28732,7 @@ snapshots:
       '@medusajs/core-flows': 2.20.1(@medusajs/framework@2.20.1(@medusajs/cli@2.20.1(@types/node@20.19.34))(@types/node@20.19.34)(ioredis@5.9.3)(vite@7.3.6(@types/node@20.19.34)(jiti@1.21.7)(sass-embedded@1.97.3)(sass@1.97.3)(terser@5.46.0)(tsx@4.21.0)(yaml@2.9.0))(zod@4.2.0))
       '@medusajs/currency': 2.20.1(@medusajs/framework@2.20.1(@medusajs/cli@2.20.1(@types/node@20.19.34))(@types/node@20.19.34)(ioredis@5.9.3)(vite@7.3.6(@types/node@20.19.34)(jiti@1.21.7)(sass-embedded@1.97.3)(sass@1.97.3)(terser@5.46.0)(tsx@4.21.0)(yaml@2.9.0))(zod@4.2.0))
       '@medusajs/customer': 2.20.1(@medusajs/framework@2.20.1(@medusajs/cli@2.20.1(@types/node@20.19.34))(@types/node@20.19.34)(ioredis@5.9.3)(vite@7.3.6(@types/node@20.19.34)(jiti@1.21.7)(sass-embedded@1.97.3)(sass@1.97.3)(terser@5.46.0)(tsx@4.21.0)(yaml@2.9.0))(zod@4.2.0))
-      '@medusajs/draft-order': 2.20.1(82b0b8c9109a1fe1b65d37da2aeb112e)
+      '@medusajs/draft-order': 2.20.1(570f948e5cdf076ce15d23f1d02f0132)
       '@medusajs/event-bus-local': 2.20.1(@medusajs/framework@2.20.1(@medusajs/cli@2.20.1(@types/node@20.19.34))(@types/node@20.19.34)(ioredis@5.9.3)(vite@7.3.6(@types/node@20.19.34)(jiti@1.21.7)(sass-embedded@1.97.3)(sass@1.97.3)(terser@5.46.0)(tsx@4.21.0)(yaml@2.9.0))(zod@4.2.0))
       '@medusajs/event-bus-redis': 2.20.1(@medusajs/framework@2.20.1(@medusajs/cli@2.20.1(@types/node@20.19.34))(@types/node@20.19.34)(ioredis@5.9.3)(vite@7.3.6(@types/node@20.19.34)(jiti@1.21.7)(sass-embedded@1.97.3)(sass@1.97.3)(terser@5.46.0)(tsx@4.21.0)(yaml@2.9.0))(zod@4.2.0))
       '@medusajs/file': 2.20.1(@medusajs/framework@2.20.1(@medusajs/cli@2.20.1(@types/node@20.19.34))(@types/node@20.19.34)(ioredis@5.9.3)(vite@7.3.6(@types/node@20.19.34)(jiti@1.21.7)(sass-embedded@1.97.3)(sass@1.97.3)(terser@5.46.0)(tsx@4.21.0)(yaml@2.9.0))(zod@4.2.0))
@@ -29060,14 +29072,14 @@ snapshots:
     dependencies:
       '@medusajs/framework': 2.20.1(@medusajs/cli@2.20.1(@types/node@20.19.34))(@types/node@20.19.34)(ioredis@5.9.3)(vite@7.3.6(@types/node@20.19.34)(jiti@1.21.7)(sass-embedded@1.97.3)(sass@1.97.3)(terser@5.46.0)(tsx@4.21.0)(yaml@2.9.0))(zod@4.2.0)
 
-  '@medusajs/types@2.14.2(ioredis@5.9.3)(vite@5.4.21(@types/node@20.19.34)(sass-embedded@1.97.3)(sass@1.97.3)(terser@5.46.0))':
+  '@medusajs/types@2.13.6(ioredis@5.9.3)(vite@5.4.21(@types/node@20.19.34)(sass-embedded@1.97.3)(sass@1.97.3)(terser@5.46.0))':
     dependencies:
       bignumber.js: 9.3.1
     optionalDependencies:
       ioredis: 5.9.3
       vite: 5.4.21(@types/node@20.19.34)(sass-embedded@1.97.3)(sass@1.97.3)(terser@5.46.0)
 
-  '@medusajs/types@2.18.0(ioredis@5.9.3)(vite@5.4.21(@types/node@20.19.34)(sass-embedded@1.97.3)(sass@1.97.3)(terser@5.46.0))':
+  '@medusajs/types@2.14.2(ioredis@5.9.3)(vite@5.4.21(@types/node@20.19.34)(sass-embedded@1.97.3)(sass@1.97.3)(terser@5.46.0))':
     dependencies:
       bignumber.js: 9.3.1
     optionalDependencies:
@@ -29088,6 +29100,12 @@ snapshots:
       ioredis: 5.9.3
       vite: 7.3.6(@types/node@20.19.34)(jiti@1.21.7)(sass-embedded@1.97.3)(sass@1.97.3)(terser@5.46.0)(tsx@4.21.0)(yaml@2.9.0)
 
+  '@medusajs/ui-preset@2.13.6(tailwindcss@3.4.19(tsx@4.21.0)(yaml@2.9.0))':
+    dependencies:
+      '@tailwindcss/forms': 0.5.11(tailwindcss@3.4.19(tsx@4.21.0)(yaml@2.9.0))
+      tailwindcss: 3.4.19(tsx@4.21.0)(yaml@2.9.0)
+      tailwindcss-animate: 1.0.7(tailwindcss@3.4.19(tsx@4.21.0)(yaml@2.9.0))
+
   '@medusajs/ui-preset@2.14.2(tailwindcss@3.4.19(tsx@4.21.0)(yaml@2.9.0))':
     dependencies:
       '@tailwindcss/forms': 0.5.11(tailwindcss@3.4.19(tsx@4.21.0)(yaml@2.9.0))
@@ -29105,6 +29123,34 @@ snapshots:
       '@tailwindcss/forms': 0.5.11(tailwindcss@3.4.19(tsx@4.21.0)(yaml@2.9.0))
       tailwindcss: 3.4.19(tsx@4.21.0)(yaml@2.9.0)
       tailwindcss-animate: 1.0.7(tailwindcss@3.4.19(tsx@4.21.0)(yaml@2.9.0))
+
+  '@medusajs/ui@4.1.6(@types/react-dom@19.0.3(@types/react@19.0.3))(@types/react@19.0.3)(react-dom@19.0.4(react@19.0.4))(react@19.0.4)(typescript@5.9.3)':
+    dependencies:
+      '@dnd-kit/core': 6.3.1(react-dom@19.0.4(react@19.0.4))(react@19.0.4)
+      '@dnd-kit/sortable': 8.0.0(@dnd-kit/core@6.3.1(react-dom@19.0.4(react@19.0.4))(react@19.0.4))(react@19.0.4)
+      '@dnd-kit/utilities': 3.2.2(react@19.0.4)
+      '@medusajs/icons': 2.13.6(react@19.0.4)
+      '@radix-ui/react-dialog': 1.1.4(@types/react-dom@19.0.3(@types/react@19.0.3))(@types/react@19.0.3)(react-dom@19.0.4(react@19.0.4))(react@19.0.4)
+      '@radix-ui/react-dismissable-layer': 1.1.4(@types/react-dom@19.0.3(@types/react@19.0.3))(@types/react@19.0.3)(react-dom@19.0.4(react@19.0.4))(react@19.0.4)
+      '@tanstack/react-table': 8.20.5(react-dom@19.0.4(react@19.0.4))(react@19.0.4)
+      clsx: 2.1.1
+      copy-to-clipboard: 3.3.3
+      cva: 1.0.0-beta.1(typescript@5.9.3)
+      lodash.isequal: 4.5.0
+      prism-react-renderer: 2.4.1(react@19.0.4)
+      prismjs: 1.30.0
+      radix-ui: 1.1.2(@types/react-dom@19.0.3(@types/react@19.0.3))(@types/react@19.0.3)(react-dom@19.0.4(react@19.0.4))(react@19.0.4)
+      react: 19.0.4
+      react-aria: 3.46.0(react-dom@19.0.4(react@19.0.4))(react@19.0.4)
+      react-currency-input-field: 3.10.0(react@19.0.4)
+      react-dom: 19.0.4(react@19.0.4)
+      react-stately: 3.44.0(react@19.0.4)
+      sonner: 1.7.4(react-dom@19.0.4(react@19.0.4))(react@19.0.4)
+      tailwind-merge: 2.6.1
+    transitivePeerDependencies:
+      - '@types/react'
+      - '@types/react-dom'
+      - typescript
 
   '@medusajs/ui@4.1.9(@types/react-dom@18.3.7(@types/react@18.3.28))(@types/react@18.3.28)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(typescript@5.9.3)':
     dependencies:
@@ -31873,7 +31919,7 @@ snapshots:
 
   '@radix-ui/react-direction@1.0.0(react@18.3.1)':
     dependencies:
-      '@babel/runtime': 7.28.6
+      '@babel/runtime': 7.29.7
       react: 18.3.1
 
   '@radix-ui/react-direction@1.1.0(@types/react@18.3.28)(react@18.3.1)':
@@ -32939,7 +32985,7 @@ snapshots:
 
   '@radix-ui/react-primitive@1.0.1(react-dom@18.3.1(react@18.3.1))(react@18.3.1)':
     dependencies:
-      '@babel/runtime': 7.28.6
+      '@babel/runtime': 7.29.7
       '@radix-ui/react-slot': 1.0.1(react@18.3.1)
       react: 18.3.1
       react-dom: 18.3.1(react@18.3.1)
@@ -33103,7 +33149,7 @@ snapshots:
 
   '@radix-ui/react-roving-focus@1.0.2(react-dom@18.3.1(react@18.3.1))(react@18.3.1)':
     dependencies:
-      '@babel/runtime': 7.28.6
+      '@babel/runtime': 7.29.7
       '@radix-ui/primitive': 1.0.0
       '@radix-ui/react-collection': 1.0.1(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
       '@radix-ui/react-compose-refs': 1.0.0(react@18.3.1)
@@ -38529,14 +38575,14 @@ snapshots:
 
   '@uploadthing/mime-types@0.3.1': {}
 
-  '@uploadthing/react@7.1.0(next@16.2.9(@babel/core@8.0.1)(@opentelemetry/api@1.9.0)(@playwright/test@1.61.1)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(sass@1.97.3))(react@18.3.1)(uploadthing@7.2.0(express@5.2.1)(next@16.2.9(@babel/core@8.0.1)(@opentelemetry/api@1.9.0)(@playwright/test@1.61.1)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(sass@1.97.3))(tailwindcss@3.4.19(tsx@4.21.0)(yaml@2.9.0)))':
+  '@uploadthing/react@7.1.0(next@16.2.9(@babel/core@7.29.7)(@opentelemetry/api@1.9.0)(@playwright/test@1.61.1)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(sass@1.97.3))(react@18.3.1)(uploadthing@7.2.0(express@5.2.1)(next@16.2.9(@babel/core@7.29.7)(@opentelemetry/api@1.9.0)(@playwright/test@1.61.1)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(sass@1.97.3))(tailwindcss@3.4.19(tsx@4.21.0)(yaml@2.9.0)))':
     dependencies:
       '@uploadthing/shared': 7.1.0
       file-selector: 0.6.0
       react: 18.3.1
-      uploadthing: 7.2.0(express@5.2.1)(next@16.2.9(@babel/core@8.0.1)(@opentelemetry/api@1.9.0)(@playwright/test@1.61.1)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(sass@1.97.3))(tailwindcss@3.4.19(tsx@4.21.0)(yaml@2.9.0))
+      uploadthing: 7.2.0(express@5.2.1)(next@16.2.9(@babel/core@7.29.7)(@opentelemetry/api@1.9.0)(@playwright/test@1.61.1)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(sass@1.97.3))(tailwindcss@3.4.19(tsx@4.21.0)(yaml@2.9.0))
     optionalDependencies:
-      next: 16.2.9(@babel/core@8.0.1)(@opentelemetry/api@1.9.0)(@playwright/test@1.61.1)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(sass@1.97.3)
+      next: 16.2.9(@babel/core@7.29.7)(@opentelemetry/api@1.9.0)(@playwright/test@1.61.1)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(sass@1.97.3)
 
   '@uploadthing/shared@7.1.0':
     dependencies:
@@ -38601,11 +38647,13 @@ snapshots:
     optionalDependencies:
       vite: 5.4.21(@types/node@20.19.34)(sass-embedded@1.97.3)(sass@1.97.3)(terser@5.46.0)
 
-  '@vitest/mocker@4.1.5':
+  '@vitest/mocker@4.1.5(vite@7.3.6(@types/node@20.19.34)(jiti@1.21.7)(sass-embedded@1.97.3)(sass@1.97.3)(terser@5.46.0)(tsx@4.21.0)(yaml@2.9.0))':
     dependencies:
       '@vitest/spy': 4.1.5
       estree-walker: 3.0.3
       magic-string: 0.30.21
+    optionalDependencies:
+      vite: 7.3.6(@types/node@20.19.34)(jiti@1.21.7)(sass-embedded@1.97.3)(sass@1.97.3)(terser@5.46.0)(tsx@4.21.0)(yaml@2.9.0)
 
   '@vitest/pretty-format@2.1.9':
     dependencies:
@@ -38882,11 +38930,6 @@ snapshots:
   ajv-draft-04@1.0.0(ajv@8.20.0):
     optionalDependencies:
       ajv: 8.20.0
-
-  ajv-formats@2.1.1(ajv@8.13.0):
-    optionalDependencies:
-      ajv: 8.13.0
-    optional: true
 
   ajv-formats@2.1.1(ajv@8.18.0):
     optionalDependencies:
@@ -42107,13 +42150,11 @@ snapshots:
 
   eventsource-parser@3.0.6: {}
 
-  eventsource-parser@3.1.0: {}
-
   eventsource-parser@3.1.1: {}
 
   eventsource@3.0.7:
     dependencies:
-      eventsource-parser: 3.1.0
+      eventsource-parser: 3.1.1
 
   exceljs@4.4.0:
     dependencies:
@@ -46089,7 +46130,7 @@ snapshots:
       - '@babel/core'
       - babel-plugin-macros
 
-  next@16.2.9(@babel/core@8.0.1)(@opentelemetry/api@1.9.0)(@playwright/test@1.61.1)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(sass@1.97.3):
+  next@16.2.9(@babel/core@7.29.7)(@opentelemetry/api@1.9.0)(@playwright/test@1.61.1)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(sass@1.97.3):
     dependencies:
       '@next/env': 16.2.9
       '@swc/helpers': 0.5.15
@@ -46098,7 +46139,7 @@ snapshots:
       postcss: 8.4.31
       react: 18.3.1
       react-dom: 18.3.1(react@18.3.1)
-      styled-jsx: 5.1.6(@babel/core@8.0.1)(react@18.3.1)
+      styled-jsx: 5.1.6(@babel/core@7.29.7)(react@18.3.1)
     optionalDependencies:
       '@next/swc-darwin-arm64': 16.2.9
       '@next/swc-darwin-x64': 16.2.9
@@ -50307,12 +50348,12 @@ snapshots:
     optionalDependencies:
       '@babel/core': 7.29.0
 
-  styled-jsx@5.1.6(@babel/core@8.0.1)(react@18.3.1):
+  styled-jsx@5.1.6(@babel/core@7.29.7)(react@18.3.1):
     dependencies:
       client-only: 0.0.1
       react: 18.3.1
     optionalDependencies:
-      '@babel/core': 8.0.1
+      '@babel/core': 7.29.7
     optional: true
 
   stylehacks@6.1.1(postcss@8.5.6):
@@ -51200,7 +51241,7 @@ snapshots:
       semver-diff: 4.0.0
       xdg-basedir: 5.1.0
 
-  uploadthing@7.2.0(express@5.2.1)(next@16.2.9(@babel/core@8.0.1)(@opentelemetry/api@1.9.0)(@playwright/test@1.61.1)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(sass@1.97.3))(tailwindcss@3.4.19(tsx@4.21.0)(yaml@2.9.0)):
+  uploadthing@7.2.0(express@5.2.1)(next@16.2.9(@babel/core@7.29.7)(@opentelemetry/api@1.9.0)(@playwright/test@1.61.1)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(sass@1.97.3))(tailwindcss@3.4.19(tsx@4.21.0)(yaml@2.9.0)):
     dependencies:
       '@effect/platform': 0.69.8(effect@3.19.19)
       '@uploadthing/mime-types': 0.3.1
@@ -51208,7 +51249,7 @@ snapshots:
       effect: 3.19.19
     optionalDependencies:
       express: 5.2.1
-      next: 16.2.9(@babel/core@8.0.1)(@opentelemetry/api@1.9.0)(@playwright/test@1.61.1)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(sass@1.97.3)
+      next: 16.2.9(@babel/core@7.29.7)(@opentelemetry/api@1.9.0)(@playwright/test@1.61.1)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(sass@1.97.3)
       tailwindcss: 3.4.19(tsx@4.21.0)(yaml@2.9.0)
 
   upper-case-first@2.0.2:
@@ -51505,10 +51546,10 @@ snapshots:
       - supports-color
       - terser
 
-  vitest@4.1.5(@opentelemetry/api@1.9.0)(@types/node@20.19.34)(happy-dom@18.0.1):
+  vitest@4.1.5(@opentelemetry/api@1.9.0)(@types/node@20.19.34)(happy-dom@18.0.1)(vite@7.3.6(@types/node@20.19.34)(jiti@1.21.7)(sass-embedded@1.97.3)(sass@1.97.3)(terser@5.46.0)(tsx@4.21.0)(yaml@2.9.0)):
     dependencies:
       '@vitest/expect': 4.1.5
-      '@vitest/mocker': 4.1.5
+      '@vitest/mocker': 4.1.5(vite@7.3.6(@types/node@20.19.34)(jiti@1.21.7)(sass-embedded@1.97.3)(sass@1.97.3)(terser@5.46.0)(tsx@4.21.0)(yaml@2.9.0))
       '@vitest/pretty-format': 4.1.5
       '@vitest/runner': 4.1.5
       '@vitest/snapshot': 4.1.5
@@ -51525,6 +51566,7 @@ snapshots:
       tinyexec: 1.1.1
       tinyglobby: 0.2.16
       tinyrainbow: 3.1.0
+      vite: 7.3.6(@types/node@20.19.34)(jiti@1.21.7)(sass-embedded@1.97.3)(sass@1.97.3)(terser@5.46.0)(tsx@4.21.0)(yaml@2.9.0)
       why-is-node-running: 2.3.0
     optionalDependencies:
       '@opentelemetry/api': 1.9.0
