@@ -11,7 +11,14 @@ import {
 import compareAddresses from "@lib/util/compare-addresses"
 import { CreditCard } from "@medusajs/icons"
 import type { HttpTypes } from "@medusajs/types"
-import { PaymentElement } from "@stripe/react-stripe-js"
+import {
+  ExpressCheckoutElement,
+  LinkAuthenticationElement,
+  PaymentElement,
+  useElements,
+  useStripe,
+} from "@stripe/react-stripe-js"
+import type { StripeExpressCheckoutElementConfirmEvent } from "@stripe/stripe-js"
 import PaymentButton from "@modules/checkout/components/payment-button"
 import ErrorMessage from "@modules/checkout/components/error-message"
 import SkeletonCardDetails from "@modules/skeletons/components/skeleton-card-details"
@@ -27,9 +34,12 @@ interface CheckoutPaymentSectionProps {
 }
 
 function providerSubLabel(id: string) {
-  if (id.includes("stripe")) return "Stripe"
-  if (id.includes("paypal")) return "PayPal"
-  if (id.includes("payu")) return "PayU"
+  // Only the method-specific Stripe providers need a qualifier ("iDeal" /
+  // "Bancontact" → "via Stripe"). The generic providers (Stripe, PayU, PayPal)
+  // already carry their own title, so a sub-label would just repeat it.
+  if (id === "pp_stripe-ideal_stripe" || id === "pp_stripe-bancontact_stripe") {
+    return "Stripe"
+  }
   return ""
 }
 
@@ -284,13 +294,84 @@ function StripeInlineContainer({
   setPaymentComplete: (complete: boolean) => void
 }) {
   const stripeReady = useContext(StripeContext)
+  const stripe = useStripe()
+  const elements = useElements()
 
   if (!stripeReady) {
     return <SkeletonCardDetails />
   }
 
+  const returnUrl =
+    typeof window !== "undefined"
+      ? `${window.location.origin}${window.location.pathname}`
+      : ""
+
+  // Wallet (Apple Pay / Google Pay / Link) confirm — mirrors the regular card
+  // button's `stripe.confirmPayment` + placeOrder flow in payment-button.
+  const handleExpressConfirm = async (
+    event: StripeExpressCheckoutElementConfirmEvent
+  ) => {
+    if (!stripe || !elements) return
+
+    const { error, paymentIntent } = await stripe.confirmPayment({
+      elements,
+      confirmParams: { return_url: returnUrl },
+      redirect: "if_required",
+    })
+
+    if (error) {
+      const pi = error.payment_intent as
+        | { status?: string }
+        | undefined
+      if (
+        pi &&
+        (pi.status === "requires_capture" || pi.status === "succeeded")
+      ) {
+        placeOrder().catch((err: any) =>
+          setError(err?.message ?? "Payment failed")
+        )
+        return
+      }
+      event.paymentFailed({ reason: "fail", message: error.message })
+      setError(error.message ?? "Payment failed")
+      return
+    }
+
+    if (
+      paymentIntent &&
+      (paymentIntent.status === "requires_capture" ||
+        paymentIntent.status === "succeeded")
+    ) {
+      placeOrder().catch((err: any) =>
+        setError(err?.message ?? "Payment failed")
+      )
+    }
+  }
+
   return (
-    <div className="mt-2">
+    <div className="mt-2 flex flex-col gap-y-4">
+      <ExpressCheckoutElement
+        options={{
+          paymentMethods: {
+            applePay: "auto",
+            googlePay: "auto",
+            link: "auto",
+            paypal: "never",
+          },
+        }}
+        onConfirm={handleExpressConfirm}
+      />
+
+      <div className="flex items-center gap-x-3">
+        <span className="h-px flex-1 bg-ui-border-base" />
+        <span className="txt-compact-xsmall text-ui-fg-muted">
+          or pay with card
+        </span>
+        <span className="h-px flex-1 bg-ui-border-base" />
+      </div>
+
+      <LinkAuthenticationElement />
+
       <PaymentElement
         options={{ layout: "accordion" }}
         onChange={(e) => {
