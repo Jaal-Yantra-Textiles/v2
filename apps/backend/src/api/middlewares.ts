@@ -237,6 +237,10 @@ import { CreateAgreementSchema, UpdateAgreementSchema } from "./admin/agreements
 import { AdminImageExtractionReq } from "./admin/ai/image-extraction/validators";
 import { AdminIdExtractionReq } from "./admin/people/id-extraction/validators";
 import { PartnerIdExtractionReq } from "./partners/people/id-extraction/validators";
+import {
+  PartnerIdExtractionBatchReq,
+  PartnerIdExtractionBatchApproveReq,
+} from "./partners/people/id-extraction/batch/validators";
 import { AdminSendPersonAgreementReq } from "./admin/persons/[id]/agreements/validators";
 import { folderSchema, uploadMediaSchema } from "./admin/medias/validator";
 import { ExtractFeaturesRequestSchema } from "./admin/medias/extract-features/validators";
@@ -1569,6 +1573,63 @@ export default defineMiddlewares({
         createCorsPartnerMiddleware(),
         authenticate("partner", ["session", "bearer"]),
         validateAndTransformBody(wrapSchema(PartnerIdExtractionReq)),
+      ],
+    },
+    /**
+     * Batch ID extraction (#1816). Every one of these 401s until it is named
+     * here — including the GETs.
+     *
+     * ⚠️ The batch matcher must come BEFORE `/partners/people/id-extraction`
+     * would match it as a prefix; Medusa matches these in order.
+     */
+    {
+      matcher: "/partners/people/id-extraction/batch",
+      method: "POST",
+      middlewares: [
+        createCorsPartnerMiddleware(),
+        authenticate("partner", ["session", "bearer"]),
+        validateAndTransformBody(wrapSchema(PartnerIdExtractionBatchReq)),
+      ],
+    },
+    {
+      matcher: "/partners/people/id-extraction/batch",
+      method: "GET",
+      middlewares: [
+        createCorsPartnerMiddleware(),
+        authenticate("partner", ["session", "bearer"]),
+      ],
+    },
+    {
+      matcher: "/partners/people/id-extraction/batch/:id",
+      method: "GET",
+      middlewares: [
+        createCorsPartnerMiddleware(),
+        authenticate("partner", ["session", "bearer"]),
+      ],
+    },
+    {
+      matcher: "/partners/people/id-extraction/batch/:id/confirm",
+      method: "POST",
+      middlewares: [
+        createCorsPartnerMiddleware(),
+        authenticate("partner", ["session", "bearer"]),
+      ],
+    },
+    {
+      matcher: "/partners/people/id-extraction/batch/:id/retry",
+      method: "POST",
+      middlewares: [
+        createCorsPartnerMiddleware(),
+        authenticate("partner", ["session", "bearer"]),
+      ],
+    },
+    {
+      matcher: "/partners/people/id-extraction/batch/:id/approve",
+      method: "POST",
+      middlewares: [
+        createCorsPartnerMiddleware(),
+        authenticate("partner", ["session", "bearer"]),
+        validateAndTransformBody(wrapSchema(PartnerIdExtractionBatchApproveReq)),
       ],
     },
     {
