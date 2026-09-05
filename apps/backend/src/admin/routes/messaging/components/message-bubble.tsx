@@ -96,7 +96,23 @@ const RichContent = ({ text, isOutbound }: { text: string; isOutbound: boolean }
 
 function formatTime(dateStr: string): string {
   const d = new Date(dateStr)
-  return d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
+  const time = d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
+
+  const now = new Date()
+  const startOfDay = (x: Date) =>
+    new Date(x.getFullYear(), x.getMonth(), x.getDate()).getTime()
+  // Calendar-day diff (Math.round absorbs DST 23/25-hour days).
+  const dayDiff = Math.round((startOfDay(now) - startOfDay(d)) / 86_400_000)
+
+  if (dayDiff <= 0) return time
+  if (dayDiff === 1) return `Yesterday · ${time}`
+
+  const date = d.toLocaleDateString([], {
+    day: "numeric",
+    month: "short",
+    ...(d.getFullYear() !== now.getFullYear() ? { year: "numeric" } : {}),
+  })
+  return `${date} · ${time}`
 }
 
 function statusIcon(status: string): string {
