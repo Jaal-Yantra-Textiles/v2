@@ -403,6 +403,32 @@ module.exports = defineConfig({
                            * catching up with the one beside it.
                            */
                           automaticPaymentMethods: true,
+
+                          /**
+                           * 🔴 Without this the provider creates **manual-capture**
+                           * intents (`this.options_.capture ? "automatic" : "manual"`),
+                           * and Stripe excludes every method that cannot be
+                           * authorised-now-captured-later. Measured on the live API,
+                           * eur loses four:
+                           *
+                           *   automatic → card, bancontact, eps, giropay, ideal,
+                           *               klarna, link, satispay
+                           *   manual    → card, klarna, link, satispay
+                           *
+                           * iDeal, Bancontact, EPS and Giropay are single-use bank
+                           * redirects: funds move at authorisation, so they cannot
+                           * exist inside a manual-capture intent at all. No amount of
+                           * Dashboard configuration brings them back.
+                           *
+                           * 🔑 `./src/modules/stripe-connect-payment` beside this one
+                           * never sets `capture_method`, so Stripe defaults it to
+                           * automatic — the two providers serving the same storefront
+                           * disagreed. This is the stock one catching up, again.
+                           *
+                           * The charge is now taken at checkout rather than
+                           * authorised and captured later (#1840).
+                           */
+                          capture: true,
                         },
                       },
                     ]

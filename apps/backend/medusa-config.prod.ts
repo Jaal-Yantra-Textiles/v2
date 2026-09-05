@@ -296,6 +296,30 @@ module.exports = defineConfig({
             options: {
               apiKey: process.env.STRIPE_API_KEY,
               webhookSecret: process.env.STRIPE_WEBHOOK_SECRET,
+              /**
+               * 🔴 THIS FILE IS THE ONE PROD RUNS. `apps/backend/Dockerfile`
+               * does `cp medusa-config.prod.ts medusa-config.ts` before the
+               * build, so an option added only to `medusa-config.ts` is
+               * DISCARDED in the image. #1839 added `automaticPaymentMethods`
+               * to that file alone — it never reached prod. Both options below
+               * have TWO HOMES; change them in both or the change is inert.
+               *
+               * `automaticPaymentMethods` — without it the intent is created
+               * with neither `payment_method_types` nor
+               * `automatic_payment_methods`, and Stripe answers
+               * `payment_method_types: ["card"]`. There is no account-level
+               * default. (`./src/modules/stripe-connect-payment` has always set
+               * this on its own intents, which is why a Connect cart looked
+               * fine while the stock provider did not.)
+               *
+               * `capture` — false/absent creates MANUAL-capture intents, and
+               * Stripe then excludes every method whose funds move at
+               * authorisation. Measured: eur automatic → card, bancontact, eps,
+               * giropay, ideal, klarna, link, satispay; manual → card, klarna,
+               * link, satispay. The charge is now taken at checkout (#1840).
+               */
+              automaticPaymentMethods: true,
+              capture: true,
             },
           },
          ...(process.env.STRIPE_API_KEY &&
