@@ -371,6 +371,86 @@ import { createOpenAI } from "@ai-sdk/openai"
 import { createOpenRouter } from "@openrouter/ai-sdk-provider"
 
 /**
+ * 🔴 `@ai-sdk/openai` rewrites the `system` role to `developer`, and every
+ * provider we point it at is NOT OpenAI.
+ *
+ * The SDK decides a model is a "reasoning model" purely by name:
+ *
+ *   isReasoningModel = !(modelId.startsWith("gpt-3") || startsWith("gpt-4")
+ *                        || startsWith("chatgpt-4o") || startsWith("gpt-5-chat"))
+ *
+ * — and for a reasoning model it sends `systemMessageMode: "developer"`. So
+ * EVERY model id on this platform fails that test and gets `role: "developer"`
+ * on the wire: `qwen/qwen3.8-27b`, `@cf/meta/llama-3.2-11b-vision-instruct`,
+ * `qwen-vl-max`, all of them.
+ *
+ * Most OpenAI-compatible endpoints tolerate the unknown role. Groq does not —
+ * its chat template raises, and the caller sees:
+ *
+ *   failed to template request: failed to render text output:
+ *   minijinja: rendering failed: raise_exception: Unexpected message role.
+ *
+ * Captured by running the real `generateObject` against Groq with a fetch
+ * interceptor: `ROLES: developer -> user`. Hand-built requests using `system`
+ * succeed against the same key and model in plain, `json_schema` and tool
+ * modes — which is why this looked like a model problem and was not.
+ *
+ * `chat(modelId)` takes no settings, so the mode cannot be overridden through
+ * the SDK's API. `@ai-sdk/openai-compatible` would be the clean fix but the
+ * installed 2.0.30 implements spec v3 while `ai@5.0.138` requires v2.
+ *
+ * So the rewrite happens on the way out, which is provider-agnostic and
+ * survives an SDK upgrade changing the heuristic again.
+ *
+ * ⚠️ NOT applied to genuine OpenAI: real reasoning models there REQUIRE
+ * `developer` and reject `system`.
+ */
+const OPENAI_HOSTS = ["api.openai.com"]
+
+export const isOpenAiHost = (baseUrl?: string | null): boolean => {
+  if (!baseUrl) return false
+  try {
+    return OPENAI_HOSTS.includes(new URL(baseUrl).host.toLowerCase())
+  } catch {
+    return false
+  }
+}
+
+/**
+ * Rewrites `developer` back to `system` in an outgoing chat-completions body.
+ * Exported for the unit tests — the behaviour is worth asserting directly
+ * rather than only through a live provider.
+ */
+export const rewriteDeveloperRole = (body: string): string => {
+  try {
+    const parsed = JSON.parse(body)
+    if (!Array.isArray(parsed?.messages)) return body
+    let changed = false
+    for (const m of parsed.messages) {
+      if (m?.role === "developer") {
+        m.role = "system"
+        changed = true
+      }
+    }
+    return changed ? JSON.stringify(parsed) : body
+  } catch {
+    // A body we cannot parse is passed through untouched — this is a
+    // compatibility shim, not a gate.
+    return body
+  }
+}
+
+const systemRoleFetch: typeof fetch = async (input: any, init?: any) => {
+  if (init?.body && typeof init.body === "string") {
+    const next = rewriteDeveloperRole(init.body)
+    if (next !== init.body) {
+      init = { ...init, body: next }
+    }
+  }
+  return fetch(input, init)
+}
+
+/**
  * Build an AI SDK chat/language model from a resolved platform config.
  * Used with generateObject, generateText, streamText.
  *
@@ -395,6 +475,9 @@ export const buildChatModel = (
   const client = createOpenAI({
     baseURL: config.baseUrl,
     apiKey: config.apiKey,
+    // See `rewriteDeveloperRole` above: everything here is an OpenAI-COMPATIBLE
+    // endpoint, not OpenAI, and the SDK's `developer` role breaks Groq outright.
+    ...(isOpenAiHost(config.baseUrl) ? {} : { fetch: systemRoleFetch }),
   })
   // Use the chat-completions API explicitly. In @ai-sdk/openai v2 the default
   // callable `client(id)` targets the Responses API (sends an `input` field),
@@ -453,6 +536,9 @@ export const buildEmbeddingModel = (
   const client = createOpenAI({
     baseURL: config.baseUrl,
     apiKey: config.apiKey,
+    // See `rewriteDeveloperRole` above: everything here is an OpenAI-COMPATIBLE
+    // endpoint, not OpenAI, and the SDK's `developer` role breaks Groq outright.
+    ...(isOpenAiHost(config.baseUrl) ? {} : { fetch: systemRoleFetch }),
   })
   return client.embedding(id)
 }
