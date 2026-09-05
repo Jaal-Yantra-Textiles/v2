@@ -833,6 +833,39 @@
     "source": "custom_ts",
     "sourceFile": "src/workflows/agreements/update-agreement.ts"
   },
+  "approve-id-extraction-batch": {
+    "fields": [
+      {
+        "name": "batch_id",
+        "type": "id",
+        "required": true,
+        "placeholder": "{{ $last.batch_id }}"
+      },
+      {
+        "name": "item_ids",
+        "type": "string",
+        "required": false,
+        "placeholder": "{{ $last.item_ids }}",
+        "description": "Turning batch drafts into people — the human half of #1816. 🔴 This is a SEPARATE act on purpose. The reading workflow never creates a person, however confident the model sounded. In prod the same ID card read five times did not split the name identically (4x \"Tarun Debnath\", 1x \"Tarun\"); at one photo a time an operator catches that, at ten a time it seeds a roster with wrong names and nothing marks which ones. So the drafts sit until somebody says which are right. Partial success is the normal case and is reported per item, not thrown: approving eight of ten must not roll back the eight because the ninth had no surname. / import { createStep, createWorkflow, StepResponse, WorkflowResponse, WorkflowData, } from \"@medusajs/framework/workflows-sdk\"; import { ContainerRegistrationKeys, MedusaError } from \"@medusajs/framework/utils\"; import type { Link } from \"@medusajs/framework/modules-sdk\"; import { PERSON_MODULE } from \"../../modules/person\"; import { PARTNER_MODULE } from \"../../modules/partner\"; import { personCreateInputFromDraft, type PersonDraft, } from \"../../lib/people/id-card\"; export type ApproveIdExtractionBatchInput = { batch_id: string; /** Which items to approve. Omitted means every item that carries a usable draft — the \"accept the batch\" button."
+      },
+      {
+        "name": "corrections",
+        "type": "object",
+        "required": false,
+        "placeholder": "{}",
+        "description": "Turning batch drafts into people — the human half of #1816. 🔴 This is a SEPARATE act on purpose. The reading workflow never creates a person, however confident the model sounded. In prod the same ID card read five times did not split the name identically (4x \"Tarun Debnath\", 1x \"Tarun\"); at one photo a time an operator catches that, at ten a time it seeds a roster with wrong names and nothing marks which ones. So the drafts sit until somebody says which are right. Partial success is the normal case and is reported per item, not thrown: approving eight of ten must not roll back the eight because the ninth had no surname. / import { createStep, createWorkflow, StepResponse, WorkflowResponse, WorkflowData, } from \"@medusajs/framework/workflows-sdk\"; import { ContainerRegistrationKeys, MedusaError } from \"@medusajs/framework/utils\"; import type { Link } from \"@medusajs/framework/modules-sdk\"; import { PERSON_MODULE } from \"../../modules/person\"; import { PARTNER_MODULE } from \"../../modules/partner\"; import { personCreateInputFromDraft, type PersonDraft, } from \"../../lib/people/id-card\"; export type ApproveIdExtractionBatchInput = { batch_id: string; /** Which items to approve. Omitted means every item that carries a usable draft — the \"accept the batch\" button. / item_ids?: string[] | null; /** Edits keyed by item id, applied over the draft before the person is built. This is where an operator's correction of \"Tarun\" to \"Tarun Debnath\" lands."
+      },
+      {
+        "name": "partner_id",
+        "type": "id",
+        "required": false,
+        "placeholder": "{{ $last.partner_id }}",
+        "description": "Turning batch drafts into people — the human half of #1816. 🔴 This is a SEPARATE act on purpose. The reading workflow never creates a person, however confident the model sounded. In prod the same ID card read five times did not split the name identically (4x \"Tarun Debnath\", 1x \"Tarun\"); at one photo a time an operator catches that, at ten a time it seeds a roster with wrong names and nothing marks which ones. So the drafts sit until somebody says which are right. Partial success is the normal case and is reported per item, not thrown: approving eight of ten must not roll back the eight because the ninth had no surname. / import { createStep, createWorkflow, StepResponse, WorkflowResponse, WorkflowData, } from \"@medusajs/framework/workflows-sdk\"; import { ContainerRegistrationKeys, MedusaError } from \"@medusajs/framework/utils\"; import type { Link } from \"@medusajs/framework/modules-sdk\"; import { PERSON_MODULE } from \"../../modules/person\"; import { PARTNER_MODULE } from \"../../modules/partner\"; import { personCreateInputFromDraft, type PersonDraft, } from \"../../lib/people/id-card\"; export type ApproveIdExtractionBatchInput = { batch_id: string; /** Which items to approve. Omitted means every item that carries a usable draft — the \"accept the batch\" button. / item_ids?: string[] | null; /** Edits keyed by item id, applied over the draft before the person is built. This is where an operator's correction of \"Tarun\" to \"Tarun Debnath\" lands. / corrections?: Record<string, Partial<PersonDraft>> | null; /** Guard against approving someone else's batch. Filled from auth."
+      }
+    ],
+    "source": "custom_ts",
+    "sourceFile": "src/workflows/ai/approve-id-extraction-batch.ts"
+  },
   "describe-product-image": {
     "fields": [
       {
@@ -858,6 +891,12 @@
         "type": "string",
         "required": false,
         "placeholder": "{{ $last.providerNameContains }}"
+      },
+      {
+        "name": "system_prompt",
+        "type": "string",
+        "required": false,
+        "placeholder": "{{ $last.system_prompt }}"
       }
     ],
     "source": "custom_ts",
@@ -930,6 +969,64 @@
     "source": "custom_ts",
     "sourceFile": "src/workflows/ai/generate-design-image.ts"
   },
+  "id-extraction-batch-processing": {
+    "fields": [
+      {
+        "name": "image_urls",
+        "type": "array",
+        "required": false,
+        "placeholder": "{{ $last.image_urls }}",
+        "description": "Batch ID-card extraction as a long-running, rate-limited, resumable job (#1816). Asked by the founder: *\"if we upload like 10 photos can it handle this — maybe when many photos are uploaded it should run the long-running workflow and return them through rate limit and failure aware, with iteration to create the data out of it.\"* Today `add_person_from_id_card` is one image, one synchronous request, behind Cloudflare's 100s edge limit. Ten photos is ten of those, each its own chance to hit what #1813 hit — a 504 at 60s with the provider still retrying for another eleven minutes — and no record of which ones landed. The shape here is `textile-folder-extraction`'s, which was built for exactly this problem with photographs of cloth: 1. Trigger returns `202` + `transaction_id`; an async step suspends. 2. A confirm route resumes it; processing continues in the background. 3. One photo at a time on a configurable interval, so the provider is never hammered. 4. Per-item errors recorded, with a retry that re-runs only what failed. ## Two things this does differently, both deliberate 🔴 **It produces DRAFTS, never people.** The same ID card read five times in prod did not split the name identically — 4x \"Tarun Debnath\", 1x \"Tarun\". One photo at a time, an operator sees that and fixes it. Ten at a time, it seeds a roster with wrong names and nothing marks which. Approval is a separate, human act; see `approveIdExtractionBatchItemsWorkflow`. 🔑 **The work-list is a question about state, not a loop position.** Items carry their own `status`, so the processing step asks the database what is still `pending`. A deploy kills a long in-process loop without warning and leaves `status` saying `running` (#1742) — deriving the work from rows is what makes a resume finish the batch instead of re-doing it. / import { createStep, createWorkflow, StepResponse, WorkflowResponse, WorkflowData, transform, } from \"@medusajs/framework/workflows-sdk\"; import { MedusaError } from \"@medusajs/framework/utils\"; import { notifyOnFailureStep, sendNotificationsStep, } from \"@medusajs/medusa/core-flows\"; import { PERSON_MODULE } from \"../../modules/person\"; import { type IdNumberPolicy } from \"../../lib/people/id-card\"; import { extractPersonFromIdWorkflow } from \"./extract-person-from-id\"; // ============================================ // Types // ============================================ export type IdExtractionBatchInput = { /** The photographs, in the order the caller submitted them."
+      },
+      {
+        "name": "batch_id",
+        "type": "id",
+        "required": false,
+        "placeholder": "{{ $last.batch_id }}",
+        "description": "Batch ID-card extraction as a long-running, rate-limited, resumable job (#1816). Asked by the founder: *\"if we upload like 10 photos can it handle this — maybe when many photos are uploaded it should run the long-running workflow and return them through rate limit and failure aware, with iteration to create the data out of it.\"* Today `add_person_from_id_card` is one image, one synchronous request, behind Cloudflare's 100s edge limit. Ten photos is ten of those, each its own chance to hit what #1813 hit — a 504 at 60s with the provider still retrying for another eleven minutes — and no record of which ones landed. The shape here is `textile-folder-extraction`'s, which was built for exactly this problem with photographs of cloth: 1. Trigger returns `202` + `transaction_id`; an async step suspends. 2. A confirm route resumes it; processing continues in the background. 3. One photo at a time on a configurable interval, so the provider is never hammered. 4. Per-item errors recorded, with a retry that re-runs only what failed. ## Two things this does differently, both deliberate 🔴 **It produces DRAFTS, never people.** The same ID card read five times in prod did not split the name identically — 4x \"Tarun Debnath\", 1x \"Tarun\". One photo at a time, an operator sees that and fixes it. Ten at a time, it seeds a roster with wrong names and nothing marks which. Approval is a separate, human act; see `approveIdExtractionBatchItemsWorkflow`. 🔑 **The work-list is a question about state, not a loop position.** Items carry their own `status`, so the processing step asks the database what is still `pending`. A deploy kills a long in-process loop without warning and leaves `status` saying `running` (#1742) — deriving the work from rows is what makes a resume finish the batch instead of re-doing it. / import { createStep, createWorkflow, StepResponse, WorkflowResponse, WorkflowData, transform, } from \"@medusajs/framework/workflows-sdk\"; import { MedusaError } from \"@medusajs/framework/utils\"; import { notifyOnFailureStep, sendNotificationsStep, } from \"@medusajs/medusa/core-flows\"; import { PERSON_MODULE } from \"../../modules/person\"; import { type IdNumberPolicy } from \"../../lib/people/id-card\"; import { extractPersonFromIdWorkflow } from \"./extract-person-from-id\"; // ============================================ // Types // ============================================ export type IdExtractionBatchInput = { /** The photographs, in the order the caller submitted them. */ image_urls?: string[]; /** Set by the confirm/retry paths to work an existing batch."
+      },
+      {
+        "name": "partner_id",
+        "type": "id",
+        "required": false,
+        "placeholder": "{{ $last.partner_id }}"
+      },
+      {
+        "name": "notes",
+        "type": "string",
+        "required": false,
+        "placeholder": "{{ $last.notes }}"
+      },
+      {
+        "name": "id_number_policy",
+        "type": "string",
+        "required": false,
+        "placeholder": "{{ $last.id_number_policy }}"
+      },
+      {
+        "name": "person_type_ids",
+        "type": "string",
+        "required": false,
+        "placeholder": "{{ $last.person_type_ids }}"
+      },
+      {
+        "name": "interval_ms",
+        "type": "number",
+        "required": false,
+        "placeholder": "0",
+        "description": "Batch ID-card extraction as a long-running, rate-limited, resumable job (#1816). Asked by the founder: *\"if we upload like 10 photos can it handle this — maybe when many photos are uploaded it should run the long-running workflow and return them through rate limit and failure aware, with iteration to create the data out of it.\"* Today `add_person_from_id_card` is one image, one synchronous request, behind Cloudflare's 100s edge limit. Ten photos is ten of those, each its own chance to hit what #1813 hit — a 504 at 60s with the provider still retrying for another eleven minutes — and no record of which ones landed. The shape here is `textile-folder-extraction`'s, which was built for exactly this problem with photographs of cloth: 1. Trigger returns `202` + `transaction_id`; an async step suspends. 2. A confirm route resumes it; processing continues in the background. 3. One photo at a time on a configurable interval, so the provider is never hammered. 4. Per-item errors recorded, with a retry that re-runs only what failed. ## Two things this does differently, both deliberate 🔴 **It produces DRAFTS, never people.** The same ID card read five times in prod did not split the name identically — 4x \"Tarun Debnath\", 1x \"Tarun\". One photo at a time, an operator sees that and fixes it. Ten at a time, it seeds a roster with wrong names and nothing marks which. Approval is a separate, human act; see `approveIdExtractionBatchItemsWorkflow`. 🔑 **The work-list is a question about state, not a loop position.** Items carry their own `status`, so the processing step asks the database what is still `pending`. A deploy kills a long in-process loop without warning and leaves `status` saying `running` (#1742) — deriving the work from rows is what makes a resume finish the batch instead of re-doing it. / import { createStep, createWorkflow, StepResponse, WorkflowResponse, WorkflowData, transform, } from \"@medusajs/framework/workflows-sdk\"; import { MedusaError } from \"@medusajs/framework/utils\"; import { notifyOnFailureStep, sendNotificationsStep, } from \"@medusajs/medusa/core-flows\"; import { PERSON_MODULE } from \"../../modules/person\"; import { type IdNumberPolicy } from \"../../lib/people/id-card\"; import { extractPersonFromIdWorkflow } from \"./extract-person-from-id\"; // ============================================ // Types // ============================================ export type IdExtractionBatchInput = { /** The photographs, in the order the caller submitted them. */ image_urls?: string[]; /** Set by the confirm/retry paths to work an existing batch. */ batch_id?: string; partner_id?: string | null; notes?: string | null; id_number_policy?: IdNumberPolicy; person_type_ids?: string[] | null; /** Milliseconds between photos. Default 20000."
+      },
+      {
+        "name": "scope",
+        "type": "string",
+        "required": false,
+        "placeholder": "{{ $last.scope }}",
+        "description": "Batch ID-card extraction as a long-running, rate-limited, resumable job (#1816). Asked by the founder: *\"if we upload like 10 photos can it handle this — maybe when many photos are uploaded it should run the long-running workflow and return them through rate limit and failure aware, with iteration to create the data out of it.\"* Today `add_person_from_id_card` is one image, one synchronous request, behind Cloudflare's 100s edge limit. Ten photos is ten of those, each its own chance to hit what #1813 hit — a 504 at 60s with the provider still retrying for another eleven minutes — and no record of which ones landed. The shape here is `textile-folder-extraction`'s, which was built for exactly this problem with photographs of cloth: 1. Trigger returns `202` + `transaction_id`; an async step suspends. 2. A confirm route resumes it; processing continues in the background. 3. One photo at a time on a configurable interval, so the provider is never hammered. 4. Per-item errors recorded, with a retry that re-runs only what failed. ## Two things this does differently, both deliberate 🔴 **It produces DRAFTS, never people.** The same ID card read five times in prod did not split the name identically — 4x \"Tarun Debnath\", 1x \"Tarun\". One photo at a time, an operator sees that and fixes it. Ten at a time, it seeds a roster with wrong names and nothing marks which. Approval is a separate, human act; see `approveIdExtractionBatchItemsWorkflow`. 🔑 **The work-list is a question about state, not a loop position.** Items carry their own `status`, so the processing step asks the database what is still `pending`. A deploy kills a long in-process loop without warning and leaves `status` saying `running` (#1742) — deriving the work from rows is what makes a resume finish the batch instead of re-doing it. / import { createStep, createWorkflow, StepResponse, WorkflowResponse, WorkflowData, transform, } from \"@medusajs/framework/workflows-sdk\"; import { MedusaError } from \"@medusajs/framework/utils\"; import { notifyOnFailureStep, sendNotificationsStep, } from \"@medusajs/medusa/core-flows\"; import { PERSON_MODULE } from \"../../modules/person\"; import { type IdNumberPolicy } from \"../../lib/people/id-card\"; import { extractPersonFromIdWorkflow } from \"./extract-person-from-id\"; // ============================================ // Types // ============================================ export type IdExtractionBatchInput = { /** The photographs, in the order the caller submitted them. */ image_urls?: string[]; /** Set by the confirm/retry paths to work an existing batch. */ batch_id?: string; partner_id?: string | null; notes?: string | null; id_number_policy?: IdNumberPolicy; person_type_ids?: string[] | null; /** Milliseconds between photos. Default 20000. */ interval_ms?: number; /** Which items this run is for. - `\"pending\"` (default) — everything not yet read. Makes a re-run a RESUME. - `\"failed\"` — only the ones that failed, which is what the retry route wants."
+      }
+    ],
+    "source": "custom_ts",
+    "sourceFile": "src/workflows/ai/id-extraction-batch.ts"
+  },
   "image-extraction-medusa": {
     "fields": [
       {
@@ -971,6 +1068,57 @@
     ],
     "source": "custom_ts",
     "sourceFile": "src/workflows/ai/image-extraction.ts"
+  },
+  "textile-folder-extraction-processing": {
+    "fields": [
+      {
+        "name": "folder_id",
+        "type": "id",
+        "required": true,
+        "placeholder": "{{ $last.folder_id }}"
+      },
+      {
+        "name": "hints",
+        "type": "array",
+        "required": false,
+        "placeholder": "{{ $last.hints }}"
+      },
+      {
+        "name": "gender",
+        "type": "string",
+        "required": false,
+        "placeholder": "{{ $last.gender }}"
+      },
+      {
+        "name": "persist",
+        "type": "boolean",
+        "required": false,
+        "placeholder": "false"
+      },
+      {
+        "name": "interval_ms",
+        "type": "number",
+        "required": false,
+        "placeholder": "0",
+        "description": "Medusa Long-Running Workflow for Folder-Wide Textile Feature Extraction Extracts features from EVERY image in a media folder as one long-running, rate-limited background job: 1. Trigger API returns transaction_id (202 status) 2. Async step suspends workflow until confirmed 3. Confirm API resumes workflow 4. Processing runs in the background, one photo at a time with a configurable interval (default: 1 photo per minute) so the AI provider is never rate limited. 5. Progress is mirrored to the folder's metadata (folder_extraction) so the admin UI can poll status while the job runs. / import { createStep, createWorkflow, StepResponse, WorkflowResponse, WorkflowData, transform, } from \"@medusajs/framework/workflows-sdk\"; import { MedusaError } from \"@medusajs/framework/utils\"; import { notifyOnFailureStep, sendNotificationsStep } from \"@medusajs/medusa/core-flows\"; import { MEDIA_MODULE } from \"../../modules/media\"; import MediaService from \"../../modules/media/service\"; import { runTextileMastraExtraction, persistTextileExtractionResult, TextileProductExtractionOutput, } from \"./textile-product-extraction\"; import { pendingFolderExtractionMedia } from \"./lib/folder-extraction-resume\"; // ============================================ // Types // ============================================ export type TextileFolderExtractionInput = { folder_id: string; hints?: string[]; gender?: \"female\" | \"male\" | \"unisex\"; persist?: boolean; /** Milliseconds to wait between photos. Default 60000 (1 photo/minute)."
+      },
+      {
+        "name": "media_ids",
+        "type": "array",
+        "required": false,
+        "placeholder": "{{ $last.media_ids }}",
+        "description": "Medusa Long-Running Workflow for Folder-Wide Textile Feature Extraction Extracts features from EVERY image in a media folder as one long-running, rate-limited background job: 1. Trigger API returns transaction_id (202 status) 2. Async step suspends workflow until confirmed 3. Confirm API resumes workflow 4. Processing runs in the background, one photo at a time with a configurable interval (default: 1 photo per minute) so the AI provider is never rate limited. 5. Progress is mirrored to the folder's metadata (folder_extraction) so the admin UI can poll status while the job runs. / import { createStep, createWorkflow, StepResponse, WorkflowResponse, WorkflowData, transform, } from \"@medusajs/framework/workflows-sdk\"; import { MedusaError } from \"@medusajs/framework/utils\"; import { notifyOnFailureStep, sendNotificationsStep } from \"@medusajs/medusa/core-flows\"; import { MEDIA_MODULE } from \"../../modules/media\"; import MediaService from \"../../modules/media/service\"; import { runTextileMastraExtraction, persistTextileExtractionResult, TextileProductExtractionOutput, } from \"./textile-product-extraction\"; import { pendingFolderExtractionMedia } from \"./lib/folder-extraction-resume\"; // ============================================ // Types // ============================================ export type TextileFolderExtractionInput = { folder_id: string; hints?: string[]; gender?: \"female\" | \"male\" | \"unisex\"; persist?: boolean; /** Milliseconds to wait between photos. Default 60000 (1 photo/minute). */ interval_ms?: number; /** When set, only these media files are extracted (instead of every image in the folder). Used by the \"retry failed\" endpoint to re-run just the files that failed a previous folder extraction."
+      },
+      {
+        "name": "scope",
+        "type": "string",
+        "required": false,
+        "placeholder": "{{ $last.scope }}",
+        "description": "Medusa Long-Running Workflow for Folder-Wide Textile Feature Extraction Extracts features from EVERY image in a media folder as one long-running, rate-limited background job: 1. Trigger API returns transaction_id (202 status) 2. Async step suspends workflow until confirmed 3. Confirm API resumes workflow 4. Processing runs in the background, one photo at a time with a configurable interval (default: 1 photo per minute) so the AI provider is never rate limited. 5. Progress is mirrored to the folder's metadata (folder_extraction) so the admin UI can poll status while the job runs. / import { createStep, createWorkflow, StepResponse, WorkflowResponse, WorkflowData, transform, } from \"@medusajs/framework/workflows-sdk\"; import { MedusaError } from \"@medusajs/framework/utils\"; import { notifyOnFailureStep, sendNotificationsStep } from \"@medusajs/medusa/core-flows\"; import { MEDIA_MODULE } from \"../../modules/media\"; import MediaService from \"../../modules/media/service\"; import { runTextileMastraExtraction, persistTextileExtractionResult, TextileProductExtractionOutput, } from \"./textile-product-extraction\"; import { pendingFolderExtractionMedia } from \"./lib/folder-extraction-resume\"; // ============================================ // Types // ============================================ export type TextileFolderExtractionInput = { folder_id: string; hints?: string[]; gender?: \"female\" | \"male\" | \"unisex\"; persist?: boolean; /** Milliseconds to wait between photos. Default 60000 (1 photo/minute). */ interval_ms?: number; /** When set, only these media files are extracted (instead of every image in the folder). Used by the \"retry failed\" endpoint to re-run just the files that failed a previous folder extraction. / media_ids?: string[]; /** Which images in the folder this run is for (#1742). - `\"all\"` (default) — every image, the original behaviour. - `\"pending\"` — only images with no `textile_analysis` row yet, which is what makes a re-run a RESUME rather than a full re-do. This is the same question `getAllUngeocodedAddressesStep` asks for the geocode backfill: derive the work from state and running twice becomes harmless. ⚠️ Applied AFTER `media_ids`, so the two compose: an explicit list is narrowed to the ones still outstanding rather than overriding the scope."
+      }
+    ],
+    "source": "custom_ts",
+    "sourceFile": "src/workflows/ai/textile-folder-extraction.ts"
   },
   "textile-extraction-processing": {
     "fields": [
@@ -1929,6 +2077,82 @@
     "source": "custom_ts",
     "sourceFile": "src/workflows/delete-person.ts"
   },
+  "close-design-inquiry": {
+    "fields": [
+      {
+        "name": "inquiry_id",
+        "type": "id",
+        "required": true,
+        "placeholder": "{{ $last.inquiry_id }}"
+      },
+      {
+        "name": "chosen_partner_id",
+        "type": "id",
+        "required": false,
+        "placeholder": "{{ $last.chosen_partner_id }}",
+        "description": "Close an inquiry and take the brief back (#1531). 🔴 The revocation is the point, not a tidy-up. Being asked a question granted a partner read access to an unreleased design; leaving that access in place means every partner ever shown a brief can still read it, forever. That is the #1496 shape — a quote that rendered on every partner's storefront because nothing revoked access — and it must not repeat on designs. Only links this flow created are withdrawn: a `prospect` link is one we granted for the asking, while any other role means the partner was already working on this design and must be left exactly as they were. / export type CloseDesignInquiryInput = { inquiry_id: string /** The partner who will make the sample. Their access is KEPT and promoted from prospect to maker — they are about to be sent work, and taking the brief away at the moment they win it would be absurd."
+      },
+      {
+        "name": "chosen_role",
+        "type": "string",
+        "required": false,
+        "placeholder": "{{ $last.chosen_role }}",
+        "description": "Close an inquiry and take the brief back (#1531). 🔴 The revocation is the point, not a tidy-up. Being asked a question granted a partner read access to an unreleased design; leaving that access in place means every partner ever shown a brief can still read it, forever. That is the #1496 shape — a quote that rendered on every partner's storefront because nothing revoked access — and it must not repeat on designs. Only links this flow created are withdrawn: a `prospect` link is one we granted for the asking, while any other role means the partner was already working on this design and must be left exactly as they were. / export type CloseDesignInquiryInput = { inquiry_id: string /** The partner who will make the sample. Their access is KEPT and promoted from prospect to maker — they are about to be sent work, and taking the brief away at the moment they win it would be absurd. / chosen_partner_id?: string | null /** Role stamped on the chosen partner's link."
+      }
+    ],
+    "source": "custom_ts",
+    "sourceFile": "src/workflows/design-inquiries/close-design-inquiry.ts"
+  },
+  "create-design-inquiry": {
+    "fields": [
+      {
+        "name": "design_id",
+        "type": "id",
+        "required": true,
+        "placeholder": "{{ $last.design_id }}"
+      },
+      {
+        "name": "partner_ids",
+        "type": "array",
+        "required": true,
+        "placeholder": "{{ $last.partner_ids }}"
+      },
+      {
+        "name": "title",
+        "type": "string",
+        "required": false,
+        "placeholder": "{{ $last.title }}"
+      },
+      {
+        "name": "brief_note",
+        "type": "string",
+        "required": false,
+        "placeholder": "{{ $last.brief_note }}"
+      },
+      {
+        "name": "reference_media_ids",
+        "type": "array",
+        "required": false,
+        "placeholder": "{{ $last.reference_media_ids }}",
+        "description": "Ask a set of partners what they can make for a design (#1531). One inquiry, many partners, one generated set of questions — so two partners' answers are comparable side by side, which is the thing a WhatsApp thread per partner could never give. / export type CreateDesignInquiryInput = { design_id: string partner_ids: string[] title?: string brief_note?: string /** media_file ids for the references being shown to every invited partner."
+      },
+      {
+        "name": "categories",
+        "type": "array",
+        "required": false,
+        "placeholder": "{{ $last.categories }}",
+        "description": "Ask a set of partners what they can make for a design (#1531). One inquiry, many partners, one generated set of questions — so two partners' answers are comparable side by side, which is the thing a WhatsApp thread per partner could never give. / export type CreateDesignInquiryInput = { design_id: string partner_ids: string[] title?: string brief_note?: string /** media_file ids for the references being shown to every invited partner. */ reference_media_ids?: string[] /** Restrict the wizard to these spec categories. Absent = all of them."
+      },
+      {
+        "name": "created_by",
+        "type": "string",
+        "required": false,
+        "placeholder": "{{ $last.created_by }}"
+      }
+    ],
+    "source": "custom_ts",
+    "sourceFile": "src/workflows/design-inquiries/create-design-inquiry.ts"
+  },
   "cancel-partner-assignment": {
     "fields": [
       {
@@ -2107,6 +2331,18 @@
         "description": "The garment this design is (#938) — \"trousers\", \"saree\". Normalised on write. When omitted, the workflow infers it; when given, it is treated as MANUAL and no model may overwrite it."
       },
       {
+        "name": "concept_theme",
+        "type": "string",
+        "required": false,
+        "placeholder": "{{ $last.concept_theme }}"
+      },
+      {
+        "name": "aesthetic_keywords",
+        "type": "object",
+        "required": false,
+        "placeholder": "{}"
+      },
+      {
         "name": "origin_source",
         "type": "string",
         "required": false,
@@ -2134,7 +2370,8 @@
         "name": "customer_id",
         "type": "id",
         "required": true,
-        "placeholder": "{{ $last.customer_id }}"
+        "placeholder": "{{ $last.customer_id }}",
+        "description": "Who the order is for — or `null` for a draft with no buyer attached yet (#1817). Most designs carry no customer link, and a cart is perfectly able to acquire one later, at checkout or when the order is claimed."
       },
       {
         "name": "design_ids",
@@ -2159,7 +2396,7 @@
         "type": "string",
         "required": false,
         "placeholder": "{{ $last.override_currency }}",
-        "description": "Currency of price_overrides (e.g. \"inr\"). Defaults to store default."
+        "description": "Who the order is for — or `null` for a draft with no buyer attached yet (#1817). Most designs carry no customer link, and a cart is perfectly able to acquire one later, at checkout or when the order is claimed. / customer_id: string | null design_ids: string[] currency_code?: string price_overrides?: Record<string, number> /** Currency of price_overrides (e.g. \"inr\"). Defaults to store default."
       }
     ],
     "source": "custom_ts",
@@ -2182,14 +2419,36 @@
       {
         "name": "customer_id",
         "type": "id",
-        "required": true,
-        "placeholder": "{{ $last.customer_id }}"
+        "required": false,
+        "placeholder": "{{ $last.customer_id }}",
+        "description": "Create Product from Design Workflow Creates a purchasable product/variant from a customer's design. Strategy: 1. If design has a linked product → create variant on that product 2. If no linked product → create new product + variant The variant is linked to the design via design-variant-link, enabling production run creation when the order is placed. / type CreateProductFromDesignInput = { design_id: string; estimated_cost: number; /** Stamped onto the design↔variant link as provenance. Optional: the quote path mints a variant for work that has no buyer yet, which is the whole point of quoting it."
       },
       {
         "name": "currency_code",
         "type": "string",
         "required": false,
         "placeholder": "{{ $last.currency_code }}"
+      },
+      {
+        "name": "made_to_order",
+        "type": "boolean",
+        "required": false,
+        "placeholder": "false",
+        "description": "Create Product from Design Workflow Creates a purchasable product/variant from a customer's design. Strategy: 1. If design has a linked product → create variant on that product 2. If no linked product → create new product + variant The variant is linked to the design via design-variant-link, enabling production run creation when the order is placed. / type CreateProductFromDesignInput = { design_id: string; estimated_cost: number; /** Stamped onto the design↔variant link as provenance. Optional: the quote path mints a variant for work that has no buyer yet, which is the whole point of quoting it. / customer_id?: string; currency_code?: string; /** Make this a MADE-TO-ORDER variant: something that will be produced after it is bought, rather than something sitting on a shelf. Two things change, and both are required for the variant to be quotable: - `status: \"published\"` instead of `\"draft\"`. A draft product's variant is not purchasable, so an accepted quote would build a cart that cannot be completed — and acceptance is the step where that would first be noticed, by the buyer. - `manage_inventory: false`. The whole premise is that the production run is in the FUTURE, so stock is zero and always will be until the run happens. A managed variant at zero stock refuses the order. Off by default: the approve route creates a catalogue product that is reviewed before it goes live, and that behaviour is unchanged."
+      },
+      {
+        "name": "unit_price",
+        "type": "string",
+        "required": false,
+        "placeholder": "{{ $last.unit_price }}",
+        "description": "Create Product from Design Workflow Creates a purchasable product/variant from a customer's design. Strategy: 1. If design has a linked product → create variant on that product 2. If no linked product → create new product + variant The variant is linked to the design via design-variant-link, enabling production run creation when the order is placed. / type CreateProductFromDesignInput = { design_id: string; estimated_cost: number; /** Stamped onto the design↔variant link as provenance. Optional: the quote path mints a variant for work that has no buyer yet, which is the whole point of quoting it. / customer_id?: string; currency_code?: string; /** Make this a MADE-TO-ORDER variant: something that will be produced after it is bought, rather than something sitting on a shelf. Two things change, and both are required for the variant to be quotable: - `status: \"published\"` instead of `\"draft\"`. A draft product's variant is not purchasable, so an accepted quote would build a cart that cannot be completed — and acceptance is the step where that would first be noticed, by the buyer. - `manage_inventory: false`. The whole premise is that the production run is in the FUTURE, so stock is zero and always will be until the run happens. A managed variant at zero stock refuses the order. Off by default: the approve route creates a catalogue product that is reviewed before it goes live, and that behaviour is unchanged. / made_to_order?: boolean; /** The price to list, in major units and already in `currency_code`. Overrides `estimated_cost` when given. Both are now written verbatim — see `resolveListedPrice` for what changed and why."
+      },
+      {
+        "name": "sales_channel_id",
+        "type": "id",
+        "required": false,
+        "placeholder": "{{ $last.sales_channel_id }}",
+        "description": "Create Product from Design Workflow Creates a purchasable product/variant from a customer's design. Strategy: 1. If design has a linked product → create variant on that product 2. If no linked product → create new product + variant The variant is linked to the design via design-variant-link, enabling production run creation when the order is placed. / type CreateProductFromDesignInput = { design_id: string; estimated_cost: number; /** Stamped onto the design↔variant link as provenance. Optional: the quote path mints a variant for work that has no buyer yet, which is the whole point of quoting it. / customer_id?: string; currency_code?: string; /** Make this a MADE-TO-ORDER variant: something that will be produced after it is bought, rather than something sitting on a shelf. Two things change, and both are required for the variant to be quotable: - `status: \"published\"` instead of `\"draft\"`. A draft product's variant is not purchasable, so an accepted quote would build a cart that cannot be completed — and acceptance is the step where that would first be noticed, by the buyer. - `manage_inventory: false`. The whole premise is that the production run is in the FUTURE, so stock is zero and always will be until the run happens. A managed variant at zero stock refuses the order. Off by default: the approve route creates a catalogue product that is reviewed before it goes live, and that behaviour is unchanged. / made_to_order?: boolean; /** The price to list, in major units and already in `currency_code`. Overrides `estimated_cost` when given. Both are now written verbatim — see `resolveListedPrice` for what changed and why. / unit_price?: number | null; /** The sales channel the new product belongs in — the catalogue of whoever is quoting or selling it. 🔴 Until this existed the branch below read `listStores({})[0]` and used THAT store's default channel. On a platform with 15 stores that is whichever row Postgres returned first, which in practice was always the core \"Default Sales Channel\" — so every made-to-order design product ever minted landed in a catalogue belonging to nobody who was quoting it. All 12 on production did. `assertVariantsInStore` then refused the mint, and the readiness preflight refused before that, which is how a whole feature could be shipped, tested and never once produce a quotable design. Omitted, the store default is still the fallback: the approve path creates a catalogue product for the core store and that behaviour is unchanged."
       }
     ],
     "source": "custom_ts",
@@ -2257,21 +2516,28 @@
         "type": "string",
         "required": false,
         "placeholder": "{{ $last.production_cost_override }}",
-        "description": "Per-material commission (line cost × platform_fee_percent). Set when a fee applies. */ commission?: number; }; type EstimateCostInput = { design_id: string; inventory_item_ids?: string[]; /** Partner-entered production cost per finished unit. When provided it is the authoritative production figure — it overrides every derived estimate (including the DEFAULT_PRODUCTION_PERCENT fallback). Partner recalc route."
+        "description": "How much the returned figure is worth believing. 🔴 `none` is not a weaker estimate — it is the ABSENCE of one, and it is the only value for which `total_estimated` is null. The estimator used to report \"I found nothing\" as `total_estimated: 0` with `confidence: \"estimated\"`, as though it had looked and got an answer. `0` is not a small number here; it is a claim that the work is free, and every downstream reader believed it — including the storefront checkout, which turned it into a customer-facing price of zero. #1564 / type ConfidenceLevel = \"exact\" | \"estimated\" | \"guesstimate\" | \"none\"; /** Which rung of the production-cost waterfall produced the figure. Surfaced so a reader can tell a settled price from a borrowed one without re-deriving the precedence. `sample_run` in particular is a real partner rate for a PROTOTYPE, which usually costs more per unit than a production batch — useful, but never to be presented as the production price. #1568 / export type ProductionCostSource = | \"partner_entered\" | \"actual_run\" /** A sample run's MEASURED consumption, stored on the design as `cost_breakdown.source === \"sample_consumption\"`. Distinct from `sample_run` and genuinely strong: it is what the sample actually used, not what the partner quoted for it — which is why that path alone keeps confidence \"exact\". / | \"sample_consumption\" | \"sample_run\" | \"admin_estimate\" | \"similar_designs\" /** Comparable HISTORY priced this design because nothing else could: what designs of this type have actually settled at, and what products previously created from designs actually sell for. 🔴 Opt-in per caller (`allow_historical_basis`), and never a settled price. `similar_designs` above is deliberately NOT a pricing signal — see `hasPricingSignal` — because pricing one design off another's number is the silent substitution #1554 was. This rung is that same evidence used DELIBERATELY, by a caller that has no bill of materials to work from and has asked for a starting figure anyway, and it is labelled and capped at \"guesstimate\" exactly like the sample-run fallback (#1568). The storefront checkout and draft-order paths do not pass the flag, so their behaviour is unchanged (#1564). / | \"historical_comparables\" | \"default_percent\"; export type MaterialCostItem = { inventory_item_id?: string; component_design_id?: string; name: string; cost: number; quantity: number; cost_source: \"order_history\" | \"unit_cost\" | \"component_design\" | \"consumption_log\" | \"estimated\" | \"default\"; /** Per-material commission (line cost × platform_fee_percent). Set when a fee applies. */ commission?: number; }; /** One piece of evidence about what this KIND of work has cost before. `unit_amount` is always per finished unit, in the design's cost currency — the caller normalises, because a total divided by the wrong quantity is the #1554 family and must not be re-derived in three places. / export type HistoricalComparable = { /** Design id or product id, so a reader can go and look at the evidence. */ id: string; name: string | null; unit_amount: number; source: \"design_estimate\" | \"product_price\"; }; type EstimateCostInput = { design_id: string; inventory_item_ids?: string[]; /** Partner-entered production cost per finished unit. When provided it is the authoritative production figure — it overrides every derived estimate (including the DEFAULT_PRODUCTION_PERCENT fallback). Partner recalc route."
       },
       {
         "name": "platform_fee_percent",
         "type": "number",
         "required": false,
         "placeholder": "0",
-        "description": "Per-material commission (line cost × platform_fee_percent). Set when a fee applies. */ commission?: number; }; type EstimateCostInput = { design_id: string; inventory_item_ids?: string[]; /** Partner-entered production cost per finished unit. When provided it is the authoritative production figure — it overrides every derived estimate (including the DEFAULT_PRODUCTION_PERCENT fallback). Partner recalc route. / production_cost_override?: number | null; /** JYT platform commission as a percentage of material cost. Opt-in per caller — defaults to 0 so store/admin/draft-order flows are unaffected; only the partner recalc route passes DEFAULT_PLATFORM_FEE_PERCENT."
+        "description": "How much the returned figure is worth believing. 🔴 `none` is not a weaker estimate — it is the ABSENCE of one, and it is the only value for which `total_estimated` is null. The estimator used to report \"I found nothing\" as `total_estimated: 0` with `confidence: \"estimated\"`, as though it had looked and got an answer. `0` is not a small number here; it is a claim that the work is free, and every downstream reader believed it — including the storefront checkout, which turned it into a customer-facing price of zero. #1564 / type ConfidenceLevel = \"exact\" | \"estimated\" | \"guesstimate\" | \"none\"; /** Which rung of the production-cost waterfall produced the figure. Surfaced so a reader can tell a settled price from a borrowed one without re-deriving the precedence. `sample_run` in particular is a real partner rate for a PROTOTYPE, which usually costs more per unit than a production batch — useful, but never to be presented as the production price. #1568 / export type ProductionCostSource = | \"partner_entered\" | \"actual_run\" /** A sample run's MEASURED consumption, stored on the design as `cost_breakdown.source === \"sample_consumption\"`. Distinct from `sample_run` and genuinely strong: it is what the sample actually used, not what the partner quoted for it — which is why that path alone keeps confidence \"exact\". / | \"sample_consumption\" | \"sample_run\" | \"admin_estimate\" | \"similar_designs\" /** Comparable HISTORY priced this design because nothing else could: what designs of this type have actually settled at, and what products previously created from designs actually sell for. 🔴 Opt-in per caller (`allow_historical_basis`), and never a settled price. `similar_designs` above is deliberately NOT a pricing signal — see `hasPricingSignal` — because pricing one design off another's number is the silent substitution #1554 was. This rung is that same evidence used DELIBERATELY, by a caller that has no bill of materials to work from and has asked for a starting figure anyway, and it is labelled and capped at \"guesstimate\" exactly like the sample-run fallback (#1568). The storefront checkout and draft-order paths do not pass the flag, so their behaviour is unchanged (#1564). / | \"historical_comparables\" | \"default_percent\"; export type MaterialCostItem = { inventory_item_id?: string; component_design_id?: string; name: string; cost: number; quantity: number; cost_source: \"order_history\" | \"unit_cost\" | \"component_design\" | \"consumption_log\" | \"estimated\" | \"default\"; /** Per-material commission (line cost × platform_fee_percent). Set when a fee applies. */ commission?: number; }; /** One piece of evidence about what this KIND of work has cost before. `unit_amount` is always per finished unit, in the design's cost currency — the caller normalises, because a total divided by the wrong quantity is the #1554 family and must not be re-derived in three places. / export type HistoricalComparable = { /** Design id or product id, so a reader can go and look at the evidence. */ id: string; name: string | null; unit_amount: number; source: \"design_estimate\" | \"product_price\"; }; type EstimateCostInput = { design_id: string; inventory_item_ids?: string[]; /** Partner-entered production cost per finished unit. When provided it is the authoritative production figure — it overrides every derived estimate (including the DEFAULT_PRODUCTION_PERCENT fallback). Partner recalc route. / production_cost_override?: number | null; /** JYT platform commission as a percentage of material cost. Opt-in per caller — defaults to 0 so store/admin/draft-order flows are unaffected; only the partner recalc route passes DEFAULT_PLATFORM_FEE_PERCENT."
       },
       {
         "name": "default_material_cost",
         "type": "number",
         "required": false,
         "placeholder": "0",
-        "description": "Per-material commission (line cost × platform_fee_percent). Set when a fee applies. */ commission?: number; }; type EstimateCostInput = { design_id: string; inventory_item_ids?: string[]; /** Partner-entered production cost per finished unit. When provided it is the authoritative production figure — it overrides every derived estimate (including the DEFAULT_PRODUCTION_PERCENT fallback). Partner recalc route. / production_cost_override?: number | null; /** JYT platform commission as a percentage of material cost. Opt-in per caller — defaults to 0 so store/admin/draft-order flows are unaffected; only the partner recalc route passes DEFAULT_PLATFORM_FEE_PERCENT. / platform_fee_percent?: number; /** Fallback per-unit cost for a material with no resolved cost. Opt-in per caller — defaults to 0 (off) so store/admin/draft-order flows are unaffected; the partner recalc route passes DEFAULT_MATERIAL_COST."
+        "description": "How much the returned figure is worth believing. 🔴 `none` is not a weaker estimate — it is the ABSENCE of one, and it is the only value for which `total_estimated` is null. The estimator used to report \"I found nothing\" as `total_estimated: 0` with `confidence: \"estimated\"`, as though it had looked and got an answer. `0` is not a small number here; it is a claim that the work is free, and every downstream reader believed it — including the storefront checkout, which turned it into a customer-facing price of zero. #1564 / type ConfidenceLevel = \"exact\" | \"estimated\" | \"guesstimate\" | \"none\"; /** Which rung of the production-cost waterfall produced the figure. Surfaced so a reader can tell a settled price from a borrowed one without re-deriving the precedence. `sample_run` in particular is a real partner rate for a PROTOTYPE, which usually costs more per unit than a production batch — useful, but never to be presented as the production price. #1568 / export type ProductionCostSource = | \"partner_entered\" | \"actual_run\" /** A sample run's MEASURED consumption, stored on the design as `cost_breakdown.source === \"sample_consumption\"`. Distinct from `sample_run` and genuinely strong: it is what the sample actually used, not what the partner quoted for it — which is why that path alone keeps confidence \"exact\". / | \"sample_consumption\" | \"sample_run\" | \"admin_estimate\" | \"similar_designs\" /** Comparable HISTORY priced this design because nothing else could: what designs of this type have actually settled at, and what products previously created from designs actually sell for. 🔴 Opt-in per caller (`allow_historical_basis`), and never a settled price. `similar_designs` above is deliberately NOT a pricing signal — see `hasPricingSignal` — because pricing one design off another's number is the silent substitution #1554 was. This rung is that same evidence used DELIBERATELY, by a caller that has no bill of materials to work from and has asked for a starting figure anyway, and it is labelled and capped at \"guesstimate\" exactly like the sample-run fallback (#1568). The storefront checkout and draft-order paths do not pass the flag, so their behaviour is unchanged (#1564). / | \"historical_comparables\" | \"default_percent\"; export type MaterialCostItem = { inventory_item_id?: string; component_design_id?: string; name: string; cost: number; quantity: number; cost_source: \"order_history\" | \"unit_cost\" | \"component_design\" | \"consumption_log\" | \"estimated\" | \"default\"; /** Per-material commission (line cost × platform_fee_percent). Set when a fee applies. */ commission?: number; }; /** One piece of evidence about what this KIND of work has cost before. `unit_amount` is always per finished unit, in the design's cost currency — the caller normalises, because a total divided by the wrong quantity is the #1554 family and must not be re-derived in three places. / export type HistoricalComparable = { /** Design id or product id, so a reader can go and look at the evidence. */ id: string; name: string | null; unit_amount: number; source: \"design_estimate\" | \"product_price\"; }; type EstimateCostInput = { design_id: string; inventory_item_ids?: string[]; /** Partner-entered production cost per finished unit. When provided it is the authoritative production figure — it overrides every derived estimate (including the DEFAULT_PRODUCTION_PERCENT fallback). Partner recalc route. / production_cost_override?: number | null; /** JYT platform commission as a percentage of material cost. Opt-in per caller — defaults to 0 so store/admin/draft-order flows are unaffected; only the partner recalc route passes DEFAULT_PLATFORM_FEE_PERCENT. / platform_fee_percent?: number; /** Fallback per-unit cost for a material with no resolved cost. Opt-in per caller — defaults to 0 (off) so store/admin/draft-order flows are unaffected; the partner recalc route passes DEFAULT_MATERIAL_COST."
+      },
+      {
+        "name": "allow_historical_basis",
+        "type": "boolean",
+        "required": false,
+        "placeholder": "false",
+        "description": "How much the returned figure is worth believing. 🔴 `none` is not a weaker estimate — it is the ABSENCE of one, and it is the only value for which `total_estimated` is null. The estimator used to report \"I found nothing\" as `total_estimated: 0` with `confidence: \"estimated\"`, as though it had looked and got an answer. `0` is not a small number here; it is a claim that the work is free, and every downstream reader believed it — including the storefront checkout, which turned it into a customer-facing price of zero. #1564 / type ConfidenceLevel = \"exact\" | \"estimated\" | \"guesstimate\" | \"none\"; /** Which rung of the production-cost waterfall produced the figure. Surfaced so a reader can tell a settled price from a borrowed one without re-deriving the precedence. `sample_run` in particular is a real partner rate for a PROTOTYPE, which usually costs more per unit than a production batch — useful, but never to be presented as the production price. #1568 / export type ProductionCostSource = | \"partner_entered\" | \"actual_run\" /** A sample run's MEASURED consumption, stored on the design as `cost_breakdown.source === \"sample_consumption\"`. Distinct from `sample_run` and genuinely strong: it is what the sample actually used, not what the partner quoted for it — which is why that path alone keeps confidence \"exact\". / | \"sample_consumption\" | \"sample_run\" | \"admin_estimate\" | \"similar_designs\" /** Comparable HISTORY priced this design because nothing else could: what designs of this type have actually settled at, and what products previously created from designs actually sell for. 🔴 Opt-in per caller (`allow_historical_basis`), and never a settled price. `similar_designs` above is deliberately NOT a pricing signal — see `hasPricingSignal` — because pricing one design off another's number is the silent substitution #1554 was. This rung is that same evidence used DELIBERATELY, by a caller that has no bill of materials to work from and has asked for a starting figure anyway, and it is labelled and capped at \"guesstimate\" exactly like the sample-run fallback (#1568). The storefront checkout and draft-order paths do not pass the flag, so their behaviour is unchanged (#1564). / | \"historical_comparables\" | \"default_percent\"; export type MaterialCostItem = { inventory_item_id?: string; component_design_id?: string; name: string; cost: number; quantity: number; cost_source: \"order_history\" | \"unit_cost\" | \"component_design\" | \"consumption_log\" | \"estimated\" | \"default\"; /** Per-material commission (line cost × platform_fee_percent). Set when a fee applies. */ commission?: number; }; /** One piece of evidence about what this KIND of work has cost before. `unit_amount` is always per finished unit, in the design's cost currency — the caller normalises, because a total divided by the wrong quantity is the #1554 family and must not be re-derived in three places. / export type HistoricalComparable = { /** Design id or product id, so a reader can go and look at the evidence. */ id: string; name: string | null; unit_amount: number; source: \"design_estimate\" | \"product_price\"; }; type EstimateCostInput = { design_id: string; inventory_item_ids?: string[]; /** Partner-entered production cost per finished unit. When provided it is the authoritative production figure — it overrides every derived estimate (including the DEFAULT_PRODUCTION_PERCENT fallback). Partner recalc route. / production_cost_override?: number | null; /** JYT platform commission as a percentage of material cost. Opt-in per caller — defaults to 0 so store/admin/draft-order flows are unaffected; only the partner recalc route passes DEFAULT_PLATFORM_FEE_PERCENT. / platform_fee_percent?: number; /** Fallback per-unit cost for a material with no resolved cost. Opt-in per caller — defaults to 0 (off) so store/admin/draft-order flows are unaffected; the partner recalc route passes DEFAULT_MATERIAL_COST. / default_material_cost?: number; /** Let comparable history price the design when nothing else can. Opt-in per caller — defaults to false, so every existing caller is unaffected. The quote wizard passes it, because a custom design whose production run is in the future has no run, no sample and often no BOM, and \"no answer\" is not a useful thing to show a partner about to send a quote."
       }
     ],
     "source": "custom_ts",
@@ -3567,6 +3833,13 @@
         "type": "array",
         "required": false,
         "placeholder": "{{ $last.inventoryOrderIds }}"
+      },
+      {
+        "name": "paymentSubmissionIds",
+        "type": "array",
+        "required": false,
+        "placeholder": "{{ $last.paymentSubmissionIds }}",
+        "description": "The payout(s) this payment SETTLES (#1710). 🔴 The fact that ends the \"one fact, two homes\" class. Until this existed a payment could name a person, a partner or an inventory order — never the submission it was actually paying off — so the partner ledger read `recorded: 0` beside `outstanding: 28,200` on an order against which INR 20,000 had demonstrably moved. That is the reading that pays someone twice. ⚠️ The link it writes is `paym_subm_paym_subm_inte_paym_inte_paym-9812b09f`. It has existed and been migrated since the link was declared — the belief that Postgres's 63-byte identifier limit stopped it from being created was wrong (Medusa abbreviates each segment to four characters and appends a hash). The table was empty because nothing wrote it, not because it was missing."
       },
       {
         "name": "attachments",
@@ -5274,6 +5547,53 @@
     "source": "custom_ts",
     "sourceFile": "src/workflows/partner-quote/accept-quote.ts"
   },
+  "ensure-design-quote-variant": {
+    "fields": [
+      {
+        "name": "design_id",
+        "type": "id",
+        "required": true,
+        "placeholder": "{{ $last.design_id }}"
+      },
+      {
+        "name": "currency_code",
+        "type": "string",
+        "required": true,
+        "placeholder": "{{ $last.currency_code }}",
+        "description": "Make a CUSTOM design quotable, without inventing a second pricing path. ## The problem this solves A design could only be quoted once a product existed behind it, because `resolveDesignVariants` resolves a design to the VARIANT it is sold through and everything downstream — tiers, the minted price list, freight weight, the accepted cart — is keyed on that variant. A design whose production run is in the FUTURE has no product, so the picker greyed it out and told the partner to go and create one, which is a real step they have to do by hand for work they have not sold yet. ## Why minting a variant rather than quoting the design directly The obvious alternative is a quote line that carries the design's estimated cost and no variant. It is the wrong shape: - `planQuotePrices` DROPS any line with no `variant_id`, deliberately, so the quote would mint a price list that prices nothing; - `accept-quote` builds a real cart from `variant_id` line items, so there would be nothing to accept; - and it would be the second way to arrive at a number the buyer pays, which is exactly what `design-lines.ts` refuses. So the estimate becomes the PRICE OF A VARIANT, once, here — and from that point on a custom design is quoted by the same machinery as everything else. ## What it refuses 🔴 A design that cannot be priced does NOT get a variant. Minting one at a price of zero, or at \"we could not tell\", would put an active price row in front of a buyer — the #1564 failure with an extra step. The refusal carries the estimator's own words so the partner learns what is missing. / export type EnsureDesignQuoteVariantInput = { design_id: string /** The currency the quote is denominated in."
+      },
+      {
+        "name": "partner_id",
+        "type": "id",
+        "required": false,
+        "placeholder": "{{ $last.partner_id }}",
+        "description": "Make a CUSTOM design quotable, without inventing a second pricing path. ## The problem this solves A design could only be quoted once a product existed behind it, because `resolveDesignVariants` resolves a design to the VARIANT it is sold through and everything downstream — tiers, the minted price list, freight weight, the accepted cart — is keyed on that variant. A design whose production run is in the FUTURE has no product, so the picker greyed it out and told the partner to go and create one, which is a real step they have to do by hand for work they have not sold yet. ## Why minting a variant rather than quoting the design directly The obvious alternative is a quote line that carries the design's estimated cost and no variant. It is the wrong shape: - `planQuotePrices` DROPS any line with no `variant_id`, deliberately, so the quote would mint a price list that prices nothing; - `accept-quote` builds a real cart from `variant_id` line items, so there would be nothing to accept; - and it would be the second way to arrive at a number the buyer pays, which is exactly what `design-lines.ts` refuses. So the estimate becomes the PRICE OF A VARIANT, once, here — and from that point on a custom design is quoted by the same machinery as everything else. ## What it refuses 🔴 A design that cannot be priced does NOT get a variant. Minting one at a price of zero, or at \"we could not tell\", would put an active price row in front of a buyer — the #1564 failure with an extra step. The refusal carries the estimator's own words so the partner learns what is missing. / export type EnsureDesignQuoteVariantInput = { design_id: string /** The currency the quote is denominated in. */ currency_code: string /** Scopes visibility. Omit on the admin surface, as the picker does."
+      },
+      {
+        "name": "markup_percent",
+        "type": "number",
+        "required": false,
+        "placeholder": "0",
+        "description": "Make a CUSTOM design quotable, without inventing a second pricing path. ## The problem this solves A design could only be quoted once a product existed behind it, because `resolveDesignVariants` resolves a design to the VARIANT it is sold through and everything downstream — tiers, the minted price list, freight weight, the accepted cart — is keyed on that variant. A design whose production run is in the FUTURE has no product, so the picker greyed it out and told the partner to go and create one, which is a real step they have to do by hand for work they have not sold yet. ## Why minting a variant rather than quoting the design directly The obvious alternative is a quote line that carries the design's estimated cost and no variant. It is the wrong shape: - `planQuotePrices` DROPS any line with no `variant_id`, deliberately, so the quote would mint a price list that prices nothing; - `accept-quote` builds a real cart from `variant_id` line items, so there would be nothing to accept; - and it would be the second way to arrive at a number the buyer pays, which is exactly what `design-lines.ts` refuses. So the estimate becomes the PRICE OF A VARIANT, once, here — and from that point on a custom design is quoted by the same machinery as everything else. ## What it refuses 🔴 A design that cannot be priced does NOT get a variant. Minting one at a price of zero, or at \"we could not tell\", would put an active price row in front of a buyer — the #1564 failure with an extra step. The refusal carries the estimator's own words so the partner learns what is missing. / export type EnsureDesignQuoteVariantInput = { design_id: string /** The currency the quote is denominated in. */ currency_code: string /** Scopes visibility. Omit on the admin surface, as the picker does. */ partner_id?: string | null /** Override the 20% uplift. The wizard does not; ops might."
+      },
+      {
+        "name": "catalogue_sales_channel_id",
+        "type": "id",
+        "required": false,
+        "placeholder": "{{ $last.catalogue_sales_channel_id }}",
+        "description": "Make a CUSTOM design quotable, without inventing a second pricing path. ## The problem this solves A design could only be quoted once a product existed behind it, because `resolveDesignVariants` resolves a design to the VARIANT it is sold through and everything downstream — tiers, the minted price list, freight weight, the accepted cart — is keyed on that variant. A design whose production run is in the FUTURE has no product, so the picker greyed it out and told the partner to go and create one, which is a real step they have to do by hand for work they have not sold yet. ## Why minting a variant rather than quoting the design directly The obvious alternative is a quote line that carries the design's estimated cost and no variant. It is the wrong shape: - `planQuotePrices` DROPS any line with no `variant_id`, deliberately, so the quote would mint a price list that prices nothing; - `accept-quote` builds a real cart from `variant_id` line items, so there would be nothing to accept; - and it would be the second way to arrive at a number the buyer pays, which is exactly what `design-lines.ts` refuses. So the estimate becomes the PRICE OF A VARIANT, once, here — and from that point on a custom design is quoted by the same machinery as everything else. ## What it refuses 🔴 A design that cannot be priced does NOT get a variant. Minting one at a price of zero, or at \"we could not tell\", would put an active price row in front of a buyer — the #1564 failure with an extra step. The refusal carries the estimator's own words so the partner learns what is missing. / export type EnsureDesignQuoteVariantInput = { design_id: string /** The currency the quote is denominated in. */ currency_code: string /** Scopes visibility. Omit on the admin surface, as the picker does. */ partner_id?: string | null /** Override the 20% uplift. The wizard does not; ops might. */ markup_percent?: number /** The catalogue the minted product belongs in — the quoting partner's default sales channel. 🔑 Deliberately NOT `partner_id`. That field scopes VISIBILITY, and on the admin surface it is passed as null on purpose: a design is not owned by anyone before a production run, so an admin quotes any design for any partner. Whose catalogue the product lands in is a different question with a different answer, and folding the two together would either re-scope the picker or put the product in nobody's catalogue — which is exactly what happened while this input did not exist."
+      },
+      {
+        "name": "dry_run",
+        "type": "boolean",
+        "required": false,
+        "placeholder": "false",
+        "description": "Make a CUSTOM design quotable, without inventing a second pricing path. ## The problem this solves A design could only be quoted once a product existed behind it, because `resolveDesignVariants` resolves a design to the VARIANT it is sold through and everything downstream — tiers, the minted price list, freight weight, the accepted cart — is keyed on that variant. A design whose production run is in the FUTURE has no product, so the picker greyed it out and told the partner to go and create one, which is a real step they have to do by hand for work they have not sold yet. ## Why minting a variant rather than quoting the design directly The obvious alternative is a quote line that carries the design's estimated cost and no variant. It is the wrong shape: - `planQuotePrices` DROPS any line with no `variant_id`, deliberately, so the quote would mint a price list that prices nothing; - `accept-quote` builds a real cart from `variant_id` line items, so there would be nothing to accept; - and it would be the second way to arrive at a number the buyer pays, which is exactly what `design-lines.ts` refuses. So the estimate becomes the PRICE OF A VARIANT, once, here — and from that point on a custom design is quoted by the same machinery as everything else. ## What it refuses 🔴 A design that cannot be priced does NOT get a variant. Minting one at a price of zero, or at \"we could not tell\", would put an active price row in front of a buyer — the #1564 failure with an extra step. The refusal carries the estimator's own words so the partner learns what is missing. / export type EnsureDesignQuoteVariantInput = { design_id: string /** The currency the quote is denominated in. */ currency_code: string /** Scopes visibility. Omit on the admin surface, as the picker does. */ partner_id?: string | null /** Override the 20% uplift. The wizard does not; ops might. */ markup_percent?: number /** The catalogue the minted product belongs in — the quoting partner's default sales channel. 🔑 Deliberately NOT `partner_id`. That field scopes VISIBILITY, and on the admin surface it is passed as null on purpose: a design is not owned by anyone before a production run, so an admin quotes any design for any partner. Whose catalogue the product lands in is a different question with a different answer, and folding the two together would either re-scope the picker or put the product in nobody's catalogue — which is exactly what happened while this input did not exist. / catalogue_sales_channel_id?: string | null /** Answer the question without creating anything. 🔑 The readiness preflight uses this. A preflight that MINTS a product as a side effect of being asked \"would this work\" leaves real catalogue rows behind every time a partner opens the wizard and changes their mind — and the whole reason readiness exists is that it is safe to ask."
+      }
+    ],
+    "source": "custom_ts",
+    "sourceFile": "src/workflows/partner-quote/ensure-design-quote-variant.ts"
+  },
   "mint-partner-quote": {
     "fields": [
       {
@@ -5366,14 +5686,14 @@
         "type": "boolean",
         "required": false,
         "placeholder": "false",
-        "description": "The buyer's own registration, as stated. Recorded, never verified. */ buyer_tax_id?: string | null buyer_tax_id_type?: string | null partner_note?: string | null lines: Array<{ variant_id: string /** The design this line was picked as (#1486). Already resolved to `variant_id` by the route — carried here only so the frozen line can record which design the partner chose. It prices nothing. / design_id?: string | null quantity: number position?: number note?: string | null /** 0-100, off the live catalog price at this line's quantity (#1439 S7). */ discount_percent?: number | null /** A flat unit price, in the PARTNER STORE's default currency. */ override_unit_amount?: number | null }> destination_country_code: string destination_postal_code?: string | null destination_city?: string | null currency_code: string region_id?: string | null carrier?: string /** Quote as DDP — we pay the destination duty and import tax (#1447)."
+        "description": "The buyer's own registration, as stated. Recorded, never verified. */ buyer_tax_id?: string | null buyer_tax_id_type?: string | null partner_note?: string | null lines: Array<{ variant_id: string /** The design this line was picked as (#1486). Already resolved to `variant_id` by the route — carried here only so the frozen line can record which design the partner chose. It prices nothing. / design_id?: string | null quantity: number position?: number note?: string | null /** 0-100, off the live catalog price at this line's quantity (#1439 S7). */ discount_percent?: number | null /** A flat unit price, in the PARTNER STORE's default currency. */ override_unit_amount?: number | null /** The operator's own unit weight in grams, for a line the catalogue cannot weigh — a design quoted before its garment was ever weighed, or one of the 183 variants with no weight at either level. Prices this quote's freight only. It is frozen onto the line as `quoted_unit_weight_grams` with `quoted_weight_source: \"manual\"`, so the document records that a human supplied the figure, and it is never written back to the variant. / unit_weight_grams?: number | null }> destination_country_code: string destination_postal_code?: string | null destination_city?: string | null currency_code: string region_id?: string | null carrier?: string /** Quote as DDP — we pay the destination duty and import tax (#1447)."
       },
       {
         "name": "duty_total",
         "type": "string",
         "required": false,
         "placeholder": "{{ $last.duty_total }}",
-        "description": "The buyer's own registration, as stated. Recorded, never verified. */ buyer_tax_id?: string | null buyer_tax_id_type?: string | null partner_note?: string | null lines: Array<{ variant_id: string /** The design this line was picked as (#1486). Already resolved to `variant_id` by the route — carried here only so the frozen line can record which design the partner chose. It prices nothing. / design_id?: string | null quantity: number position?: number note?: string | null /** 0-100, off the live catalog price at this line's quantity (#1439 S7). */ discount_percent?: number | null /** A flat unit price, in the PARTNER STORE's default currency. */ override_unit_amount?: number | null }> destination_country_code: string destination_postal_code?: string | null destination_city?: string | null currency_code: string region_id?: string | null carrier?: string /** Quote as DDP — we pay the destination duty and import tax (#1447). */ duties_prepaid?: boolean /** The duty amount we are undertaking to pay, in the QUOTE currency, and the note saying how it was arrived at (#1447). Entered by hand because nothing can derive it yet: HS codes are incomplete and Shiprocket's tariff endpoint is gated on CSB-5 KYC. The validator refuses `duties_prepaid` without an amount, so no quote can promise duty cover and add nothing to the price."
+        "description": "The buyer's own registration, as stated. Recorded, never verified. */ buyer_tax_id?: string | null buyer_tax_id_type?: string | null partner_note?: string | null lines: Array<{ variant_id: string /** The design this line was picked as (#1486). Already resolved to `variant_id` by the route — carried here only so the frozen line can record which design the partner chose. It prices nothing. / design_id?: string | null quantity: number position?: number note?: string | null /** 0-100, off the live catalog price at this line's quantity (#1439 S7). */ discount_percent?: number | null /** A flat unit price, in the PARTNER STORE's default currency. */ override_unit_amount?: number | null /** The operator's own unit weight in grams, for a line the catalogue cannot weigh — a design quoted before its garment was ever weighed, or one of the 183 variants with no weight at either level. Prices this quote's freight only. It is frozen onto the line as `quoted_unit_weight_grams` with `quoted_weight_source: \"manual\"`, so the document records that a human supplied the figure, and it is never written back to the variant. / unit_weight_grams?: number | null }> destination_country_code: string destination_postal_code?: string | null destination_city?: string | null currency_code: string region_id?: string | null carrier?: string /** Quote as DDP — we pay the destination duty and import tax (#1447). */ duties_prepaid?: boolean /** The duty amount we are undertaking to pay, in the QUOTE currency, and the note saying how it was arrived at (#1447). Entered by hand because nothing can derive it yet: HS codes are incomplete and Shiprocket's tariff endpoint is gated on CSB-5 KYC. The validator refuses `duties_prepaid` without an amount, so no quote can promise duty cover and add nothing to the price."
       },
       {
         "name": "duty_basis",
@@ -5386,7 +5706,7 @@
         "type": "string",
         "required": false,
         "placeholder": "{{ $last.duty_rate_percent }}",
-        "description": "The buyer's own registration, as stated. Recorded, never verified. */ buyer_tax_id?: string | null buyer_tax_id_type?: string | null partner_note?: string | null lines: Array<{ variant_id: string /** The design this line was picked as (#1486). Already resolved to `variant_id` by the route — carried here only so the frozen line can record which design the partner chose. It prices nothing. / design_id?: string | null quantity: number position?: number note?: string | null /** 0-100, off the live catalog price at this line's quantity (#1439 S7). */ discount_percent?: number | null /** A flat unit price, in the PARTNER STORE's default currency. */ override_unit_amount?: number | null }> destination_country_code: string destination_postal_code?: string | null destination_city?: string | null currency_code: string region_id?: string | null carrier?: string /** Quote as DDP — we pay the destination duty and import tax (#1447). */ duties_prepaid?: boolean /** The duty amount we are undertaking to pay, in the QUOTE currency, and the note saying how it was arrived at (#1447). Entered by hand because nothing can derive it yet: HS codes are incomplete and Shiprocket's tariff endpoint is gated on CSB-5 KYC. The validator refuses `duties_prepaid` without an amount, so no quote can promise duty cover and add nothing to the price. / duty_total?: number | null duty_basis?: string | null /** The rate form, and the normal one. The amounts are computed by `buildQuoteView` against the basket it actually priced — duty on goods + freight, import tax on goods + freight + duty."
+        "description": "The buyer's own registration, as stated. Recorded, never verified. */ buyer_tax_id?: string | null buyer_tax_id_type?: string | null partner_note?: string | null lines: Array<{ variant_id: string /** The design this line was picked as (#1486). Already resolved to `variant_id` by the route — carried here only so the frozen line can record which design the partner chose. It prices nothing. / design_id?: string | null quantity: number position?: number note?: string | null /** 0-100, off the live catalog price at this line's quantity (#1439 S7). */ discount_percent?: number | null /** A flat unit price, in the PARTNER STORE's default currency. */ override_unit_amount?: number | null /** The operator's own unit weight in grams, for a line the catalogue cannot weigh — a design quoted before its garment was ever weighed, or one of the 183 variants with no weight at either level. Prices this quote's freight only. It is frozen onto the line as `quoted_unit_weight_grams` with `quoted_weight_source: \"manual\"`, so the document records that a human supplied the figure, and it is never written back to the variant. / unit_weight_grams?: number | null }> destination_country_code: string destination_postal_code?: string | null destination_city?: string | null currency_code: string region_id?: string | null carrier?: string /** Quote as DDP — we pay the destination duty and import tax (#1447). */ duties_prepaid?: boolean /** The duty amount we are undertaking to pay, in the QUOTE currency, and the note saying how it was arrived at (#1447). Entered by hand because nothing can derive it yet: HS codes are incomplete and Shiprocket's tariff endpoint is gated on CSB-5 KYC. The validator refuses `duties_prepaid` without an amount, so no quote can promise duty cover and add nothing to the price. / duty_total?: number | null duty_basis?: string | null /** The rate form, and the normal one. The amounts are computed by `buildQuoteView` against the basket it actually priced — duty on goods + freight, import tax on goods + freight + duty."
       },
       {
         "name": "import_tax_rate_percent",
@@ -5405,21 +5725,21 @@
         "type": "string",
         "required": false,
         "placeholder": "{{ $last.ddp_fee_total }}",
-        "description": "The buyer's own registration, as stated. Recorded, never verified. */ buyer_tax_id?: string | null buyer_tax_id_type?: string | null partner_note?: string | null lines: Array<{ variant_id: string /** The design this line was picked as (#1486). Already resolved to `variant_id` by the route — carried here only so the frozen line can record which design the partner chose. It prices nothing. / design_id?: string | null quantity: number position?: number note?: string | null /** 0-100, off the live catalog price at this line's quantity (#1439 S7). */ discount_percent?: number | null /** A flat unit price, in the PARTNER STORE's default currency. */ override_unit_amount?: number | null }> destination_country_code: string destination_postal_code?: string | null destination_city?: string | null currency_code: string region_id?: string | null carrier?: string /** Quote as DDP — we pay the destination duty and import tax (#1447). */ duties_prepaid?: boolean /** The duty amount we are undertaking to pay, in the QUOTE currency, and the note saying how it was arrived at (#1447). Entered by hand because nothing can derive it yet: HS codes are incomplete and Shiprocket's tariff endpoint is gated on CSB-5 KYC. The validator refuses `duties_prepaid` without an amount, so no quote can promise duty cover and add nothing to the price. / duty_total?: number | null duty_basis?: string | null /** The rate form, and the normal one. The amounts are computed by `buildQuoteView` against the basket it actually priced — duty on goods + freight, import tax on goods + freight + duty. / duty_rate_percent?: number | null import_tax_rate_percent?: number | null import_tax_total?: number | null /** The carrier's fee for advancing duty and tax. Always an amount."
+        "description": "The buyer's own registration, as stated. Recorded, never verified. */ buyer_tax_id?: string | null buyer_tax_id_type?: string | null partner_note?: string | null lines: Array<{ variant_id: string /** The design this line was picked as (#1486). Already resolved to `variant_id` by the route — carried here only so the frozen line can record which design the partner chose. It prices nothing. / design_id?: string | null quantity: number position?: number note?: string | null /** 0-100, off the live catalog price at this line's quantity (#1439 S7). */ discount_percent?: number | null /** A flat unit price, in the PARTNER STORE's default currency. */ override_unit_amount?: number | null /** The operator's own unit weight in grams, for a line the catalogue cannot weigh — a design quoted before its garment was ever weighed, or one of the 183 variants with no weight at either level. Prices this quote's freight only. It is frozen onto the line as `quoted_unit_weight_grams` with `quoted_weight_source: \"manual\"`, so the document records that a human supplied the figure, and it is never written back to the variant. / unit_weight_grams?: number | null }> destination_country_code: string destination_postal_code?: string | null destination_city?: string | null currency_code: string region_id?: string | null carrier?: string /** Quote as DDP — we pay the destination duty and import tax (#1447). */ duties_prepaid?: boolean /** The duty amount we are undertaking to pay, in the QUOTE currency, and the note saying how it was arrived at (#1447). Entered by hand because nothing can derive it yet: HS codes are incomplete and Shiprocket's tariff endpoint is gated on CSB-5 KYC. The validator refuses `duties_prepaid` without an amount, so no quote can promise duty cover and add nothing to the price. / duty_total?: number | null duty_basis?: string | null /** The rate form, and the normal one. The amounts are computed by `buildQuoteView` against the basket it actually priced — duty on goods + freight, import tax on goods + freight + duty. / duty_rate_percent?: number | null import_tax_rate_percent?: number | null import_tax_total?: number | null /** The carrier's fee for advancing duty and tax. Always an amount."
       },
       {
         "name": "freight_override_amount",
         "type": "string",
         "required": false,
         "placeholder": "{{ $last.freight_override_amount }}",
-        "description": "The buyer's own registration, as stated. Recorded, never verified. */ buyer_tax_id?: string | null buyer_tax_id_type?: string | null partner_note?: string | null lines: Array<{ variant_id: string /** The design this line was picked as (#1486). Already resolved to `variant_id` by the route — carried here only so the frozen line can record which design the partner chose. It prices nothing. / design_id?: string | null quantity: number position?: number note?: string | null /** 0-100, off the live catalog price at this line's quantity (#1439 S7). */ discount_percent?: number | null /** A flat unit price, in the PARTNER STORE's default currency. */ override_unit_amount?: number | null }> destination_country_code: string destination_postal_code?: string | null destination_city?: string | null currency_code: string region_id?: string | null carrier?: string /** Quote as DDP — we pay the destination duty and import tax (#1447). */ duties_prepaid?: boolean /** The duty amount we are undertaking to pay, in the QUOTE currency, and the note saying how it was arrived at (#1447). Entered by hand because nothing can derive it yet: HS codes are incomplete and Shiprocket's tariff endpoint is gated on CSB-5 KYC. The validator refuses `duties_prepaid` without an amount, so no quote can promise duty cover and add nothing to the price. / duty_total?: number | null duty_basis?: string | null /** The rate form, and the normal one. The amounts are computed by `buildQuoteView` against the basket it actually priced — duty on goods + freight, import tax on goods + freight + duty. / duty_rate_percent?: number | null import_tax_rate_percent?: number | null import_tax_total?: number | null /** The carrier's fee for advancing duty and tax. Always an amount. */ ddp_fee_total?: number | null /** Freight named by hand, in the QUOTE currency (#1439 S12). Replaces whatever the picker found, and satisfies the \"no freight option\" refusal — which is what makes a cross-border lane quotable at all today, since the carrier answers \"no serviceable couriers available for given weight\" and the stored option is flat at any weight."
+        "description": "The buyer's own registration, as stated. Recorded, never verified. */ buyer_tax_id?: string | null buyer_tax_id_type?: string | null partner_note?: string | null lines: Array<{ variant_id: string /** The design this line was picked as (#1486). Already resolved to `variant_id` by the route — carried here only so the frozen line can record which design the partner chose. It prices nothing. / design_id?: string | null quantity: number position?: number note?: string | null /** 0-100, off the live catalog price at this line's quantity (#1439 S7). */ discount_percent?: number | null /** A flat unit price, in the PARTNER STORE's default currency. */ override_unit_amount?: number | null /** The operator's own unit weight in grams, for a line the catalogue cannot weigh — a design quoted before its garment was ever weighed, or one of the 183 variants with no weight at either level. Prices this quote's freight only. It is frozen onto the line as `quoted_unit_weight_grams` with `quoted_weight_source: \"manual\"`, so the document records that a human supplied the figure, and it is never written back to the variant. / unit_weight_grams?: number | null }> destination_country_code: string destination_postal_code?: string | null destination_city?: string | null currency_code: string region_id?: string | null carrier?: string /** Quote as DDP — we pay the destination duty and import tax (#1447). */ duties_prepaid?: boolean /** The duty amount we are undertaking to pay, in the QUOTE currency, and the note saying how it was arrived at (#1447). Entered by hand because nothing can derive it yet: HS codes are incomplete and Shiprocket's tariff endpoint is gated on CSB-5 KYC. The validator refuses `duties_prepaid` without an amount, so no quote can promise duty cover and add nothing to the price. / duty_total?: number | null duty_basis?: string | null /** The rate form, and the normal one. The amounts are computed by `buildQuoteView` against the basket it actually priced — duty on goods + freight, import tax on goods + freight + duty. / duty_rate_percent?: number | null import_tax_rate_percent?: number | null import_tax_total?: number | null /** The carrier's fee for advancing duty and tax. Always an amount. */ ddp_fee_total?: number | null /** Freight named by hand, in the QUOTE currency (#1439 S12). Replaces whatever the picker found, and satisfies the \"no freight option\" refusal — which is what makes a cross-border lane quotable at all today, since the carrier answers \"no serviceable couriers available for given weight\" and the stored option is flat at any weight."
       },
       {
         "name": "freight_basis",
         "type": "string",
         "required": false,
         "placeholder": "{{ $last.freight_basis }}",
-        "description": "The buyer's own registration, as stated. Recorded, never verified. */ buyer_tax_id?: string | null buyer_tax_id_type?: string | null partner_note?: string | null lines: Array<{ variant_id: string /** The design this line was picked as (#1486). Already resolved to `variant_id` by the route — carried here only so the frozen line can record which design the partner chose. It prices nothing. / design_id?: string | null quantity: number position?: number note?: string | null /** 0-100, off the live catalog price at this line's quantity (#1439 S7). */ discount_percent?: number | null /** A flat unit price, in the PARTNER STORE's default currency. */ override_unit_amount?: number | null }> destination_country_code: string destination_postal_code?: string | null destination_city?: string | null currency_code: string region_id?: string | null carrier?: string /** Quote as DDP — we pay the destination duty and import tax (#1447). */ duties_prepaid?: boolean /** The duty amount we are undertaking to pay, in the QUOTE currency, and the note saying how it was arrived at (#1447). Entered by hand because nothing can derive it yet: HS codes are incomplete and Shiprocket's tariff endpoint is gated on CSB-5 KYC. The validator refuses `duties_prepaid` without an amount, so no quote can promise duty cover and add nothing to the price. / duty_total?: number | null duty_basis?: string | null /** The rate form, and the normal one. The amounts are computed by `buildQuoteView` against the basket it actually priced — duty on goods + freight, import tax on goods + freight + duty. / duty_rate_percent?: number | null import_tax_rate_percent?: number | null import_tax_total?: number | null /** The carrier's fee for advancing duty and tax. Always an amount. */ ddp_fee_total?: number | null /** Freight named by hand, in the QUOTE currency (#1439 S12). Replaces whatever the picker found, and satisfies the \"no freight option\" refusal — which is what makes a cross-border lane quotable at all today, since the carrier answers \"no serviceable couriers available for given weight\" and the stored option is flat at any weight. / freight_override_amount?: number | null /** Who quoted it and on what basis. Evidence, like `duty_basis`."
+        "description": "The buyer's own registration, as stated. Recorded, never verified. */ buyer_tax_id?: string | null buyer_tax_id_type?: string | null partner_note?: string | null lines: Array<{ variant_id: string /** The design this line was picked as (#1486). Already resolved to `variant_id` by the route — carried here only so the frozen line can record which design the partner chose. It prices nothing. / design_id?: string | null quantity: number position?: number note?: string | null /** 0-100, off the live catalog price at this line's quantity (#1439 S7). */ discount_percent?: number | null /** A flat unit price, in the PARTNER STORE's default currency. */ override_unit_amount?: number | null /** The operator's own unit weight in grams, for a line the catalogue cannot weigh — a design quoted before its garment was ever weighed, or one of the 183 variants with no weight at either level. Prices this quote's freight only. It is frozen onto the line as `quoted_unit_weight_grams` with `quoted_weight_source: \"manual\"`, so the document records that a human supplied the figure, and it is never written back to the variant. / unit_weight_grams?: number | null }> destination_country_code: string destination_postal_code?: string | null destination_city?: string | null currency_code: string region_id?: string | null carrier?: string /** Quote as DDP — we pay the destination duty and import tax (#1447). */ duties_prepaid?: boolean /** The duty amount we are undertaking to pay, in the QUOTE currency, and the note saying how it was arrived at (#1447). Entered by hand because nothing can derive it yet: HS codes are incomplete and Shiprocket's tariff endpoint is gated on CSB-5 KYC. The validator refuses `duties_prepaid` without an amount, so no quote can promise duty cover and add nothing to the price. / duty_total?: number | null duty_basis?: string | null /** The rate form, and the normal one. The amounts are computed by `buildQuoteView` against the basket it actually priced — duty on goods + freight, import tax on goods + freight + duty. / duty_rate_percent?: number | null import_tax_rate_percent?: number | null import_tax_total?: number | null /** The carrier's fee for advancing duty and tax. Always an amount. */ ddp_fee_total?: number | null /** Freight named by hand, in the QUOTE currency (#1439 S12). Replaces whatever the picker found, and satisfies the \"no freight option\" refusal — which is what makes a cross-border lane quotable at all today, since the carrier answers \"no serviceable couriers available for given weight\" and the stored option is flat at any weight. / freight_override_amount?: number | null /** Who quoted it and on what basis. Evidence, like `duty_basis`."
       },
       {
         "name": "ttl_days",
@@ -5432,7 +5752,7 @@
         "type": "string",
         "required": false,
         "placeholder": "{{ $last.deposit_pct }}",
-        "description": "The buyer's own registration, as stated. Recorded, never verified. */ buyer_tax_id?: string | null buyer_tax_id_type?: string | null partner_note?: string | null lines: Array<{ variant_id: string /** The design this line was picked as (#1486). Already resolved to `variant_id` by the route — carried here only so the frozen line can record which design the partner chose. It prices nothing. / design_id?: string | null quantity: number position?: number note?: string | null /** 0-100, off the live catalog price at this line's quantity (#1439 S7). */ discount_percent?: number | null /** A flat unit price, in the PARTNER STORE's default currency. */ override_unit_amount?: number | null }> destination_country_code: string destination_postal_code?: string | null destination_city?: string | null currency_code: string region_id?: string | null carrier?: string /** Quote as DDP — we pay the destination duty and import tax (#1447). */ duties_prepaid?: boolean /** The duty amount we are undertaking to pay, in the QUOTE currency, and the note saying how it was arrived at (#1447). Entered by hand because nothing can derive it yet: HS codes are incomplete and Shiprocket's tariff endpoint is gated on CSB-5 KYC. The validator refuses `duties_prepaid` without an amount, so no quote can promise duty cover and add nothing to the price. / duty_total?: number | null duty_basis?: string | null /** The rate form, and the normal one. The amounts are computed by `buildQuoteView` against the basket it actually priced — duty on goods + freight, import tax on goods + freight + duty. / duty_rate_percent?: number | null import_tax_rate_percent?: number | null import_tax_total?: number | null /** The carrier's fee for advancing duty and tax. Always an amount. */ ddp_fee_total?: number | null /** Freight named by hand, in the QUOTE currency (#1439 S12). Replaces whatever the picker found, and satisfies the \"no freight option\" refusal — which is what makes a cross-border lane quotable at all today, since the carrier answers \"no serviceable couriers available for given weight\" and the stored option is flat at any weight. / freight_override_amount?: number | null /** Who quoted it and on what basis. Evidence, like `duty_basis`. */ freight_basis?: string | null ttl_days?: number /** The deposit share of this deal, 0-100 (#1439 S11). Omit — or pass null — to fall through to the partner's house terms and then the platform's 30%. `0` is a real answer and is NOT treated as absent."
+        "description": "The buyer's own registration, as stated. Recorded, never verified. */ buyer_tax_id?: string | null buyer_tax_id_type?: string | null partner_note?: string | null lines: Array<{ variant_id: string /** The design this line was picked as (#1486). Already resolved to `variant_id` by the route — carried here only so the frozen line can record which design the partner chose. It prices nothing. / design_id?: string | null quantity: number position?: number note?: string | null /** 0-100, off the live catalog price at this line's quantity (#1439 S7). */ discount_percent?: number | null /** A flat unit price, in the PARTNER STORE's default currency. */ override_unit_amount?: number | null /** The operator's own unit weight in grams, for a line the catalogue cannot weigh — a design quoted before its garment was ever weighed, or one of the 183 variants with no weight at either level. Prices this quote's freight only. It is frozen onto the line as `quoted_unit_weight_grams` with `quoted_weight_source: \"manual\"`, so the document records that a human supplied the figure, and it is never written back to the variant. / unit_weight_grams?: number | null }> destination_country_code: string destination_postal_code?: string | null destination_city?: string | null currency_code: string region_id?: string | null carrier?: string /** Quote as DDP — we pay the destination duty and import tax (#1447). */ duties_prepaid?: boolean /** The duty amount we are undertaking to pay, in the QUOTE currency, and the note saying how it was arrived at (#1447). Entered by hand because nothing can derive it yet: HS codes are incomplete and Shiprocket's tariff endpoint is gated on CSB-5 KYC. The validator refuses `duties_prepaid` without an amount, so no quote can promise duty cover and add nothing to the price. / duty_total?: number | null duty_basis?: string | null /** The rate form, and the normal one. The amounts are computed by `buildQuoteView` against the basket it actually priced — duty on goods + freight, import tax on goods + freight + duty. / duty_rate_percent?: number | null import_tax_rate_percent?: number | null import_tax_total?: number | null /** The carrier's fee for advancing duty and tax. Always an amount. */ ddp_fee_total?: number | null /** Freight named by hand, in the QUOTE currency (#1439 S12). Replaces whatever the picker found, and satisfies the \"no freight option\" refusal — which is what makes a cross-border lane quotable at all today, since the carrier answers \"no serviceable couriers available for given weight\" and the stored option is flat at any weight. / freight_override_amount?: number | null /** Who quoted it and on what basis. Evidence, like `duty_basis`. */ freight_basis?: string | null ttl_days?: number /** The deposit share of this deal, 0-100 (#1439 S11). Omit — or pass null — to fall through to the partner's house terms and then the platform's 30%. `0` is a real answer and is NOT treated as absent."
       },
       {
         "name": "created_by",
@@ -5445,7 +5765,7 @@
         "type": "date",
         "required": false,
         "placeholder": "{{ $trigger.now }}",
-        "description": "The buyer's own registration, as stated. Recorded, never verified. */ buyer_tax_id?: string | null buyer_tax_id_type?: string | null partner_note?: string | null lines: Array<{ variant_id: string /** The design this line was picked as (#1486). Already resolved to `variant_id` by the route — carried here only so the frozen line can record which design the partner chose. It prices nothing. / design_id?: string | null quantity: number position?: number note?: string | null /** 0-100, off the live catalog price at this line's quantity (#1439 S7). */ discount_percent?: number | null /** A flat unit price, in the PARTNER STORE's default currency. */ override_unit_amount?: number | null }> destination_country_code: string destination_postal_code?: string | null destination_city?: string | null currency_code: string region_id?: string | null carrier?: string /** Quote as DDP — we pay the destination duty and import tax (#1447). */ duties_prepaid?: boolean /** The duty amount we are undertaking to pay, in the QUOTE currency, and the note saying how it was arrived at (#1447). Entered by hand because nothing can derive it yet: HS codes are incomplete and Shiprocket's tariff endpoint is gated on CSB-5 KYC. The validator refuses `duties_prepaid` without an amount, so no quote can promise duty cover and add nothing to the price. / duty_total?: number | null duty_basis?: string | null /** The rate form, and the normal one. The amounts are computed by `buildQuoteView` against the basket it actually priced — duty on goods + freight, import tax on goods + freight + duty. / duty_rate_percent?: number | null import_tax_rate_percent?: number | null import_tax_total?: number | null /** The carrier's fee for advancing duty and tax. Always an amount. */ ddp_fee_total?: number | null /** Freight named by hand, in the QUOTE currency (#1439 S12). Replaces whatever the picker found, and satisfies the \"no freight option\" refusal — which is what makes a cross-border lane quotable at all today, since the carrier answers \"no serviceable couriers available for given weight\" and the stored option is flat at any weight. / freight_override_amount?: number | null /** Who quoted it and on what basis. Evidence, like `duty_basis`. */ freight_basis?: string | null ttl_days?: number /** The deposit share of this deal, 0-100 (#1439 S11). Omit — or pass null — to fall through to the partner's house terms and then the platform's 30%. `0` is a real answer and is NOT treated as absent. / deposit_pct?: number | null created_by?: string | null /** Injected so the whole mint is deterministic under test."
+        "description": "The buyer's own registration, as stated. Recorded, never verified. */ buyer_tax_id?: string | null buyer_tax_id_type?: string | null partner_note?: string | null lines: Array<{ variant_id: string /** The design this line was picked as (#1486). Already resolved to `variant_id` by the route — carried here only so the frozen line can record which design the partner chose. It prices nothing. / design_id?: string | null quantity: number position?: number note?: string | null /** 0-100, off the live catalog price at this line's quantity (#1439 S7). */ discount_percent?: number | null /** A flat unit price, in the PARTNER STORE's default currency. */ override_unit_amount?: number | null /** The operator's own unit weight in grams, for a line the catalogue cannot weigh — a design quoted before its garment was ever weighed, or one of the 183 variants with no weight at either level. Prices this quote's freight only. It is frozen onto the line as `quoted_unit_weight_grams` with `quoted_weight_source: \"manual\"`, so the document records that a human supplied the figure, and it is never written back to the variant. / unit_weight_grams?: number | null }> destination_country_code: string destination_postal_code?: string | null destination_city?: string | null currency_code: string region_id?: string | null carrier?: string /** Quote as DDP — we pay the destination duty and import tax (#1447). */ duties_prepaid?: boolean /** The duty amount we are undertaking to pay, in the QUOTE currency, and the note saying how it was arrived at (#1447). Entered by hand because nothing can derive it yet: HS codes are incomplete and Shiprocket's tariff endpoint is gated on CSB-5 KYC. The validator refuses `duties_prepaid` without an amount, so no quote can promise duty cover and add nothing to the price. / duty_total?: number | null duty_basis?: string | null /** The rate form, and the normal one. The amounts are computed by `buildQuoteView` against the basket it actually priced — duty on goods + freight, import tax on goods + freight + duty. / duty_rate_percent?: number | null import_tax_rate_percent?: number | null import_tax_total?: number | null /** The carrier's fee for advancing duty and tax. Always an amount. */ ddp_fee_total?: number | null /** Freight named by hand, in the QUOTE currency (#1439 S12). Replaces whatever the picker found, and satisfies the \"no freight option\" refusal — which is what makes a cross-border lane quotable at all today, since the carrier answers \"no serviceable couriers available for given weight\" and the stored option is flat at any weight. / freight_override_amount?: number | null /** Who quoted it and on what basis. Evidence, like `duty_basis`. */ freight_basis?: string | null ttl_days?: number /** The deposit share of this deal, 0-100 (#1439 S11). Omit — or pass null — to fall through to the partner's house terms and then the platform's 30%. `0` is a real answer and is NOT treated as absent. / deposit_pct?: number | null created_by?: string | null /** Injected so the whole mint is deterministic under test."
       }
     ],
     "source": "custom_ts",
@@ -5622,6 +5942,30 @@
     "source": "custom_ts",
     "sourceFile": "src/workflows/partners/resolve-partner-website.ts"
   },
+  "set-default-payment-method": {
+    "fields": [
+      {
+        "name": "payment_method_id",
+        "type": "id",
+        "required": true,
+        "placeholder": "{{ $last.payment_method_id }}"
+      },
+      {
+        "name": "partner_id",
+        "type": "id",
+        "required": false,
+        "placeholder": "{{ $last.partner_id }}"
+      },
+      {
+        "name": "person_id",
+        "type": "id",
+        "required": false,
+        "placeholder": "{{ $last.person_id }}"
+      }
+    ],
+    "source": "custom_ts",
+    "sourceFile": "src/workflows/payment_methods/set-default-payment-method.ts"
+  },
   "create-payment-report": {
     "fields": [
       {
@@ -5700,6 +6044,30 @@
     "source": "custom_ts",
     "sourceFile": "src/workflows/payment_reports/list-payment_reports.ts"
   },
+  "settle-payment-reconciliation": {
+    "fields": [
+      {
+        "name": "reconciliation_id",
+        "type": "id",
+        "required": true,
+        "placeholder": "{{ $last.reconciliation_id }}"
+      },
+      {
+        "name": "settled_by",
+        "type": "string",
+        "required": true,
+        "placeholder": "{{ $last.settled_by }}"
+      },
+      {
+        "name": "notes",
+        "type": "string",
+        "required": false,
+        "placeholder": "{{ $last.notes }}"
+      }
+    ],
+    "source": "custom_ts",
+    "sourceFile": "src/workflows/payment_reports/settle-payment-reconciliation.ts"
+  },
   "update-payment-report": {
     "fields": [
       {
@@ -5760,25 +6128,94 @@
         "name": "metadata",
         "type": "object",
         "required": false,
-        "placeholder": "{}"
+        "placeholder": "{}",
+        "description": "⚠️ Free-form, and NOT where the money lives any more. The four fields below used to reach this workflow only through here, and every route validates `metadata` as `z.record(z.string(), z.any())` — which accepts anything. `design_quantities` and `design_quantites` both validated cleanly, and the typo fell through to \"absent means 1\" and billed a per-unit rate once (#1554 by spelling mistake, #1557). Reading them off `metadata` is kept ONLY as a fallback for callers that still post that way; the typed fields win outright. See `moneyOf` below."
+      },
+      {
+        "name": "quantities",
+        "type": "object",
+        "required": false,
+        "placeholder": "{}",
+        "description": "⚠️ Free-form, and NOT where the money lives any more. The four fields below used to reach this workflow only through here, and every route validates `metadata` as `z.record(z.string(), z.any())` — which accepts anything. `design_quantities` and `design_quantites` both validated cleanly, and the typo fell through to \"absent means 1\" and billed a per-unit rate once (#1554 by spelling mistake, #1557). Reading them off `metadata` is kept ONLY as a fallback for callers that still post that way; the typed fields win outright. See `moneyOf` below. / metadata?: Record<string, any> /** What the caller is asking to be paid, as typed inputs rather than blob keys. 🔑 These are the contract now. Each corresponds to a `metadata.design_*` key the workflow used to read, and an explicit field REPLACES the whole corresponding map rather than merging key-by-key — a caller that sends `quantities` must not still be overridden by a stale blob it never wrote. / /** Units billed per design. Absent means 1."
+      },
+      {
+        "name": "unit_amounts",
+        "type": "object",
+        "required": false,
+        "placeholder": "{}",
+        "description": "⚠️ Free-form, and NOT where the money lives any more. The four fields below used to reach this workflow only through here, and every route validates `metadata` as `z.record(z.string(), z.any())` — which accepts anything. `design_quantities` and `design_quantites` both validated cleanly, and the typo fell through to \"absent means 1\" and billed a per-unit rate once (#1554 by spelling mistake, #1557). Reading them off `metadata` is kept ONLY as a fallback for callers that still post that way; the typed fields win outright. See `moneyOf` below. / metadata?: Record<string, any> /** What the caller is asking to be paid, as typed inputs rather than blob keys. 🔑 These are the contract now. Each corresponds to a `metadata.design_*` key the workflow used to read, and an explicit field REPLACES the whole corresponding map rather than merging key-by-key — a caller that sends `quantities` must not still be overridden by a stale blob it never wrote. / /** Units billed per design. Absent means 1. */ quantities?: Record<string, number> /** Agreed rate per unit, per design. Beats the design's stored cost."
+      },
+      {
+        "name": "cost_overrides",
+        "type": "object",
+        "required": false,
+        "placeholder": "{}",
+        "description": "⚠️ Free-form, and NOT where the money lives any more. The four fields below used to reach this workflow only through here, and every route validates `metadata` as `z.record(z.string(), z.any())` — which accepts anything. `design_quantities` and `design_quantites` both validated cleanly, and the typo fell through to \"absent means 1\" and billed a per-unit rate once (#1554 by spelling mistake, #1557). Reading them off `metadata` is kept ONLY as a fallback for callers that still post that way; the typed fields win outright. See `moneyOf` below. / metadata?: Record<string, any> /** What the caller is asking to be paid, as typed inputs rather than blob keys. 🔑 These are the contract now. Each corresponds to a `metadata.design_*` key the workflow used to read, and an explicit field REPLACES the whole corresponding map rather than merging key-by-key — a caller that sends `quantities` must not still be overridden by a stale blob it never wrote. / /** Units billed per design. Absent means 1. */ quantities?: Record<string, number> /** Agreed rate per unit, per design. Beats the design's stored cost. */ unit_amounts?: Record<string, number> /** Typed line TOTAL per design. Wins outright; never multiplied by quantity."
+      },
+      {
+        "name": "task_cost_overrides",
+        "type": "object",
+        "required": false,
+        "placeholder": "{}",
+        "description": "⚠️ Free-form, and NOT where the money lives any more. The four fields below used to reach this workflow only through here, and every route validates `metadata` as `z.record(z.string(), z.any())` — which accepts anything. `design_quantities` and `design_quantites` both validated cleanly, and the typo fell through to \"absent means 1\" and billed a per-unit rate once (#1554 by spelling mistake, #1557). Reading them off `metadata` is kept ONLY as a fallback for callers that still post that way; the typed fields win outright. See `moneyOf` below. / metadata?: Record<string, any> /** What the caller is asking to be paid, as typed inputs rather than blob keys. 🔑 These are the contract now. Each corresponds to a `metadata.design_*` key the workflow used to read, and an explicit field REPLACES the whole corresponding map rather than merging key-by-key — a caller that sends `quantities` must not still be overridden by a stale blob it never wrote. / /** Units billed per design. Absent means 1. */ quantities?: Record<string, number> /** Agreed rate per unit, per design. Beats the design's stored cost. */ unit_amounts?: Record<string, number> /** Typed line TOTAL per design. Wins outright; never multiplied by quantity. */ cost_overrides?: Record<string, number> /** Typed line total per task."
+      },
+      {
+        "name": "rate_breakdown",
+        "type": "object",
+        "required": false,
+        "placeholder": "{}",
+        "description": "⚠️ Free-form, and NOT where the money lives any more. The four fields below used to reach this workflow only through here, and every route validates `metadata` as `z.record(z.string(), z.any())` — which accepts anything. `design_quantities` and `design_quantites` both validated cleanly, and the typo fell through to \"absent means 1\" and billed a per-unit rate once (#1554 by spelling mistake, #1557). Reading them off `metadata` is kept ONLY as a fallback for callers that still post that way; the typed fields win outright. See `moneyOf` below. / metadata?: Record<string, any> /** What the caller is asking to be paid, as typed inputs rather than blob keys. 🔑 These are the contract now. Each corresponds to a `metadata.design_*` key the workflow used to read, and an explicit field REPLACES the whole corresponding map rather than merging key-by-key — a caller that sends `quantities` must not still be overridden by a stale blob it never wrote. / /** Units billed per design. Absent means 1. */ quantities?: Record<string, number> /** Agreed rate per unit, per design. Beats the design's stored cost. */ unit_amounts?: Record<string, number> /** Typed line TOTAL per design. Wins outright; never multiplied by quantity. */ cost_overrides?: Record<string, number> /** Typed line total per task. */ task_cost_overrides?: Record<string, number> /** Per-piece prices within one design's line, keyed by design id (#1596). ⚠️ Typed only — never read from `metadata`. It has no legacy caller, so it never touches the untyped channel at all."
       },
       {
         "name": "status",
         "type": "string",
         "required": false,
         "placeholder": "{{ $last.status }}",
-        "description": "The status the submission lands in. \"Pending\" (the default) is a partner saying \"pay me for this\". \"Draft\" is the system pre-filling one FOR the partner — see `require_design_status` — which they then review and submit."
+        "description": "⚠️ Free-form, and NOT where the money lives any more. The four fields below used to reach this workflow only through here, and every route validates `metadata` as `z.record(z.string(), z.any())` — which accepts anything. `design_quantities` and `design_quantites` both validated cleanly, and the typo fell through to \"absent means 1\" and billed a per-unit rate once (#1554 by spelling mistake, #1557). Reading them off `metadata` is kept ONLY as a fallback for callers that still post that way; the typed fields win outright. See `moneyOf` below. / metadata?: Record<string, any> /** What the caller is asking to be paid, as typed inputs rather than blob keys. 🔑 These are the contract now. Each corresponds to a `metadata.design_*` key the workflow used to read, and an explicit field REPLACES the whole corresponding map rather than merging key-by-key — a caller that sends `quantities` must not still be overridden by a stale blob it never wrote. / /** Units billed per design. Absent means 1. */ quantities?: Record<string, number> /** Agreed rate per unit, per design. Beats the design's stored cost. */ unit_amounts?: Record<string, number> /** Typed line TOTAL per design. Wins outright; never multiplied by quantity. */ cost_overrides?: Record<string, number> /** Typed line total per task. */ task_cost_overrides?: Record<string, number> /** Per-piece prices within one design's line, keyed by design id (#1596). ⚠️ Typed only — never read from `metadata`. It has no legacy caller, so it never touches the untyped channel at all. / rate_breakdown?: Record<string, RateSlice[]> /** The status the submission lands in. \"Pending\" (the default) is a partner saying \"pay me for this\". \"Draft\" is the system pre-filling one FOR the partner — see `require_design_status` — which they then review and submit."
       },
       {
         "name": "require_design_status",
         "type": "boolean",
         "required": false,
         "placeholder": "false",
-        "description": "The status the submission lands in. \"Pending\" (the default) is a partner saying \"pay me for this\". \"Draft\" is the system pre-filling one FOR the partner — see `require_design_status` — which they then review and submit. / status?: \"Draft\" | \"Pending\" /** Whether the design's own status must be Approved / Commerce_Ready. Default true: a partner submitting by hand is asserting the design work is finished, and the design status is the check on that assertion. The run-completion auto-draft passes false, because there the proof of finished work is the COMPLETED PRODUCTION RUN itself — and completion sets the design to Technical_Review, so a status check would reject every single auto-draft. Only the auto path may set this; the partner-facing route never does."
+        "description": "⚠️ Free-form, and NOT where the money lives any more. The four fields below used to reach this workflow only through here, and every route validates `metadata` as `z.record(z.string(), z.any())` — which accepts anything. `design_quantities` and `design_quantites` both validated cleanly, and the typo fell through to \"absent means 1\" and billed a per-unit rate once (#1554 by spelling mistake, #1557). Reading them off `metadata` is kept ONLY as a fallback for callers that still post that way; the typed fields win outright. See `moneyOf` below. / metadata?: Record<string, any> /** What the caller is asking to be paid, as typed inputs rather than blob keys. 🔑 These are the contract now. Each corresponds to a `metadata.design_*` key the workflow used to read, and an explicit field REPLACES the whole corresponding map rather than merging key-by-key — a caller that sends `quantities` must not still be overridden by a stale blob it never wrote. / /** Units billed per design. Absent means 1. */ quantities?: Record<string, number> /** Agreed rate per unit, per design. Beats the design's stored cost. */ unit_amounts?: Record<string, number> /** Typed line TOTAL per design. Wins outright; never multiplied by quantity. */ cost_overrides?: Record<string, number> /** Typed line total per task. */ task_cost_overrides?: Record<string, number> /** Per-piece prices within one design's line, keyed by design id (#1596). ⚠️ Typed only — never read from `metadata`. It has no legacy caller, so it never touches the untyped channel at all. / rate_breakdown?: Record<string, RateSlice[]> /** The status the submission lands in. \"Pending\" (the default) is a partner saying \"pay me for this\". \"Draft\" is the system pre-filling one FOR the partner — see `require_design_status` — which they then review and submit. / status?: \"Draft\" | \"Pending\" /** Whether the design's own status must be Approved / Commerce_Ready. Default true: a partner submitting by hand is asserting the design work is finished, and the design status is the check on that assertion. The run-completion auto-draft passes false, because there the proof of finished work is the COMPLETED PRODUCTION RUN itself — and completion sets the design to Technical_Review, so a status check would reject every single auto-draft. Only the auto path may set this; the partner-facing route never does."
+      },
+      {
+        "name": "production_run_ids",
+        "type": "object",
+        "required": false,
+        "placeholder": "{}",
+        "description": "⚠️ Free-form, and NOT where the money lives any more. The four fields below used to reach this workflow only through here, and every route validates `metadata` as `z.record(z.string(), z.any())` — which accepts anything. `design_quantities` and `design_quantites` both validated cleanly, and the typo fell through to \"absent means 1\" and billed a per-unit rate once (#1554 by spelling mistake, #1557). Reading them off `metadata` is kept ONLY as a fallback for callers that still post that way; the typed fields win outright. See `moneyOf` below. / metadata?: Record<string, any> /** What the caller is asking to be paid, as typed inputs rather than blob keys. 🔑 These are the contract now. Each corresponds to a `metadata.design_*` key the workflow used to read, and an explicit field REPLACES the whole corresponding map rather than merging key-by-key — a caller that sends `quantities` must not still be overridden by a stale blob it never wrote. / /** Units billed per design. Absent means 1. */ quantities?: Record<string, number> /** Agreed rate per unit, per design. Beats the design's stored cost. */ unit_amounts?: Record<string, number> /** Typed line TOTAL per design. Wins outright; never multiplied by quantity. */ cost_overrides?: Record<string, number> /** Typed line total per task. */ task_cost_overrides?: Record<string, number> /** Per-piece prices within one design's line, keyed by design id (#1596). ⚠️ Typed only — never read from `metadata`. It has no legacy caller, so it never touches the untyped channel at all. / rate_breakdown?: Record<string, RateSlice[]> /** The status the submission lands in. \"Pending\" (the default) is a partner saying \"pay me for this\". \"Draft\" is the system pre-filling one FOR the partner — see `require_design_status` — which they then review and submit. / status?: \"Draft\" | \"Pending\" /** Whether the design's own status must be Approved / Commerce_Ready. Default true: a partner submitting by hand is asserting the design work is finished, and the design status is the check on that assertion. The run-completion auto-draft passes false, because there the proof of finished work is the COMPLETED PRODUCTION RUN itself — and completion sets the design to Technical_Review, so a status check would reject every single auto-draft. Only the auto path may set this; the partner-facing route never does. / require_design_status?: boolean /** Which completed production runs each design line pays for, keyed by design id. Optional — a hand-picked design line has no run behind it and stays exactly as it is today. 🔴 A typed input, never `metadata`. This is what stops the same finished run being paid for twice, and a guard that reads an untyped blob is one spelling mistake away from reading nothing at all (#1557)."
+      },
+      {
+        "name": "currency",
+        "type": "string",
+        "required": false,
+        "placeholder": "{{ $last.currency }}",
+        "description": "⚠️ Free-form, and NOT where the money lives any more. The four fields below used to reach this workflow only through here, and every route validates `metadata` as `z.record(z.string(), z.any())` — which accepts anything. `design_quantities` and `design_quantites` both validated cleanly, and the typo fell through to \"absent means 1\" and billed a per-unit rate once (#1554 by spelling mistake, #1557). Reading them off `metadata` is kept ONLY as a fallback for callers that still post that way; the typed fields win outright. See `moneyOf` below. / metadata?: Record<string, any> /** What the caller is asking to be paid, as typed inputs rather than blob keys. 🔑 These are the contract now. Each corresponds to a `metadata.design_*` key the workflow used to read, and an explicit field REPLACES the whole corresponding map rather than merging key-by-key — a caller that sends `quantities` must not still be overridden by a stale blob it never wrote. / /** Units billed per design. Absent means 1. */ quantities?: Record<string, number> /** Agreed rate per unit, per design. Beats the design's stored cost. */ unit_amounts?: Record<string, number> /** Typed line TOTAL per design. Wins outright; never multiplied by quantity. */ cost_overrides?: Record<string, number> /** Typed line total per task. */ task_cost_overrides?: Record<string, number> /** Per-piece prices within one design's line, keyed by design id (#1596). ⚠️ Typed only — never read from `metadata`. It has no legacy caller, so it never touches the untyped channel at all. / rate_breakdown?: Record<string, RateSlice[]> /** The status the submission lands in. \"Pending\" (the default) is a partner saying \"pay me for this\". \"Draft\" is the system pre-filling one FOR the partner — see `require_design_status` — which they then review and submit. / status?: \"Draft\" | \"Pending\" /** Whether the design's own status must be Approved / Commerce_Ready. Default true: a partner submitting by hand is asserting the design work is finished, and the design status is the check on that assertion. The run-completion auto-draft passes false, because there the proof of finished work is the COMPLETED PRODUCTION RUN itself — and completion sets the design to Technical_Review, so a status check would reject every single auto-draft. Only the auto path may set this; the partner-facing route never does. / require_design_status?: boolean /** Which completed production runs each design line pays for, keyed by design id. Optional — a hand-picked design line has no run behind it and stays exactly as it is today. 🔴 A typed input, never `metadata`. This is what stops the same finished run being paid for twice, and a guard that reads an untyped blob is one spelling mistake away from reading nothing at all (#1557). / production_run_ids?: Record<string, string[]> /** What the payout is denominated in. Absent means the partner's own `currency_code`, and `inr` if they have none — see `lib/submission-currency`, which owns that precedence. ⚠️ This is the currency of the SUBMISSION, not of its sources. A line priced in another currency is converted into this one at an FX rate that is recorded on the line, never applied silently."
       }
     ],
     "source": "custom_ts",
     "sourceFile": "src/workflows/payment_submissions/create-payment-submission.ts"
+  },
+  "delete-payment-submission": {
+    "fields": [
+      {
+        "name": "submission_id",
+        "type": "id",
+        "required": true,
+        "placeholder": "{{ $last.submission_id }}"
+      },
+      {
+        "name": "expected_partner_id",
+        "type": "id",
+        "required": false,
+        "placeholder": "{{ $last.expected_partner_id }}",
+        "description": "Remove a Draft payment submission (#1604). ## Draft only, and that restriction is the safety A Draft is machine-written: `auto-draft-payment-submission` mints one on every completed run, and when the sweep produces a bad one — the wrong design, a duplicate of a redo, a run whose price was later corrected — there was no way to remove it. They accumulate: seven of production's fifteen submissions are Drafts. Everything else is a decision somebody made. A Pending claim is a partner asking to be paid and its exit is `review`; an Approved or Paid submission is the record of money that moved, and deleting that record does not un-move it. So this refuses anything but a Draft rather than soft-deleting more widely and hoping the audit trail survives. 🔑 Soft delete, not a hard one — the run ids a draft claimed are evidence, and `softDelete` keeps the row queryable for anyone reconstructing why a design looked billed on a Tuesday. / export type DeletePaymentSubmissionInput = { submission_id: string /** When present, the submission must belong to this partner."
+      }
+    ],
+    "source": "custom_ts",
+    "sourceFile": "src/workflows/payment_submissions/delete-payment-submission.ts"
   },
   "review-payment-submission": {
     "fields": [
@@ -5833,6 +6270,84 @@
     ],
     "source": "custom_ts",
     "sourceFile": "src/workflows/payment_submissions/review-payment-submission.ts"
+  },
+  "submit-payment-submission": {
+    "fields": [
+      {
+        "name": "submission_id",
+        "type": "id",
+        "required": true,
+        "placeholder": "{{ $last.submission_id }}"
+      },
+      {
+        "name": "expected_partner_id",
+        "type": "id",
+        "required": false,
+        "placeholder": "{{ $last.expected_partner_id }}",
+        "description": "Turn a Draft payment submission into a real claim — Draft → Pending, in place. ## Why this exists (#1604, and the reason #1605 is a workaround) `auto-draft-payment-submission` writes a Draft on every completed run: the design, the partner, the rate, the quantity AND the run ids, all recorded. That draft is deliberately not a claim on anyone — the partner reviews it and submits when they're ready. Except there was no way to submit it. The only routes were create, review and two GETs, so \"submitting\" meant creating a SECOND submission by hand — which could not name the runs (the Draft already holds a live claim on them, so the run-level guard refuses), and therefore had to name none. #1602 closed the runless re-bill hole and, with it, the only path a drafted design had; #1605 reopened it by exempting Draft priors from that guard. That exemption is safe but it is not the answer: it means the strongest evidence we hold — the run ids the subscriber knew for certain — is thrown away every time a partner bills drafted work, and the line that reaches review reads `run_provenance: not_recorded`. Converting the Draft in place keeps the evidence and makes the runless path unnecessary. ## What it re-checks, and why it must A Draft can be minutes or months old. Between drafting and submitting, the same design or the same runs may have been billed by another submission. So every claim guard `create-payment-submission` runs is re-run here against the submission's OWN lines — with this submission excluded from the priors, since a claim cannot conflict with itself. 🔴 The same obligation lands on any future PATCH of `production_run_ids`. An edit route that skips these checks is an open window beside a locked door. / export type SubmitPaymentSubmissionInput = { submission_id: string /** When present, the submission must belong to this partner. The partner route passes it; the admin route does not, because an admin submitting on a partner's behalf is a legitimate (and, with 7 drafts stuck on production, necessary) operation."
+      },
+      {
+        "name": "notes",
+        "type": "string",
+        "required": false,
+        "placeholder": "{{ $last.notes }}",
+        "description": "Turn a Draft payment submission into a real claim — Draft → Pending, in place. ## Why this exists (#1604, and the reason #1605 is a workaround) `auto-draft-payment-submission` writes a Draft on every completed run: the design, the partner, the rate, the quantity AND the run ids, all recorded. That draft is deliberately not a claim on anyone — the partner reviews it and submits when they're ready. Except there was no way to submit it. The only routes were create, review and two GETs, so \"submitting\" meant creating a SECOND submission by hand — which could not name the runs (the Draft already holds a live claim on them, so the run-level guard refuses), and therefore had to name none. #1602 closed the runless re-bill hole and, with it, the only path a drafted design had; #1605 reopened it by exempting Draft priors from that guard. That exemption is safe but it is not the answer: it means the strongest evidence we hold — the run ids the subscriber knew for certain — is thrown away every time a partner bills drafted work, and the line that reaches review reads `run_provenance: not_recorded`. Converting the Draft in place keeps the evidence and makes the runless path unnecessary. ## What it re-checks, and why it must A Draft can be minutes or months old. Between drafting and submitting, the same design or the same runs may have been billed by another submission. So every claim guard `create-payment-submission` runs is re-run here against the submission's OWN lines — with this submission excluded from the priors, since a claim cannot conflict with itself. 🔴 The same obligation lands on any future PATCH of `production_run_ids`. An edit route that skips these checks is an open window beside a locked door. / export type SubmitPaymentSubmissionInput = { submission_id: string /** When present, the submission must belong to this partner. The partner route passes it; the admin route does not, because an admin submitting on a partner's behalf is a legitimate (and, with 7 drafts stuck on production, necessary) operation. / expected_partner_id?: string /** Optional partner note, recorded at the moment of submission."
+      }
+    ],
+    "source": "custom_ts",
+    "sourceFile": "src/workflows/payment_submissions/submit-payment-submission.ts"
+  },
+  "update-payment-submission-item": {
+    "fields": [
+      {
+        "name": "submission_id",
+        "type": "id",
+        "required": true,
+        "placeholder": "{{ $last.submission_id }}"
+      },
+      {
+        "name": "item_id",
+        "type": "id",
+        "required": true,
+        "placeholder": "{{ $last.item_id }}"
+      },
+      {
+        "name": "quantity",
+        "type": "number",
+        "required": false,
+        "placeholder": "0",
+        "description": "Correct one line on a payment submission (#1604). ## The gap this closes Until now a submission had exactly two exits — approve or reject, wholesale. Nothing could change a line. That is not hypothetical: `audit-partner-payout-quantity` refuses to write by design (\"the correction is a payment decision rather than a data repair\") and tells an operator to correct the line; there was no route to correct the line. On production two lines sit in exactly that state, reported as `unmatched` and untouchable. ## 🔴 The guards are the point, not the edit `production_run_ids` is the column that decides whether the same work can be billed twice. An edit route that writes it without re-running the claim checks is an open window beside a locked door: submit naming no runs        → refused by the guard submit clean, then PATCH runs in → completely unguarded So every check `create-payment-submission` runs over claimed runs runs here too, with this submission excluded from the priors. ## Status contract Copied verbatim from `audit-partner-payout-quantity`: writes are honoured only on Draft or Pending. Nothing Approved, Under_Review or Paid is ever edited — the money there has moved or been committed, and rewriting the row would make our record disagree with what was actually paid without putting a rupee in anyone's hand. / export type UpdatePaymentSubmissionItemInput = { submission_id: string item_id: string /** Units this line pays for."
+      },
+      {
+        "name": "unit_amount",
+        "type": "number",
+        "required": false,
+        "placeholder": "0",
+        "description": "Correct one line on a payment submission (#1604). ## The gap this closes Until now a submission had exactly two exits — approve or reject, wholesale. Nothing could change a line. That is not hypothetical: `audit-partner-payout-quantity` refuses to write by design (\"the correction is a payment decision rather than a data repair\") and tells an operator to correct the line; there was no route to correct the line. On production two lines sit in exactly that state, reported as `unmatched` and untouchable. ## 🔴 The guards are the point, not the edit `production_run_ids` is the column that decides whether the same work can be billed twice. An edit route that writes it without re-running the claim checks is an open window beside a locked door: submit naming no runs        → refused by the guard submit clean, then PATCH runs in → completely unguarded So every check `create-payment-submission` runs over claimed runs runs here too, with this submission excluded from the priors. ## Status contract Copied verbatim from `audit-partner-payout-quantity`: writes are honoured only on Draft or Pending. Nothing Approved, Under_Review or Paid is ever edited — the money there has moved or been committed, and rewriting the row would make our record disagree with what was actually paid without putting a rupee in anyone's hand. / export type UpdatePaymentSubmissionItemInput = { submission_id: string item_id: string /** Units this line pays for. */ quantity?: number /** The agreed rate per unit. `amount` becomes quantity x this."
+      },
+      {
+        "name": "amount",
+        "type": "number",
+        "required": false,
+        "placeholder": "0",
+        "description": "Correct one line on a payment submission (#1604). ## The gap this closes Until now a submission had exactly two exits — approve or reject, wholesale. Nothing could change a line. That is not hypothetical: `audit-partner-payout-quantity` refuses to write by design (\"the correction is a payment decision rather than a data repair\") and tells an operator to correct the line; there was no route to correct the line. On production two lines sit in exactly that state, reported as `unmatched` and untouchable. ## 🔴 The guards are the point, not the edit `production_run_ids` is the column that decides whether the same work can be billed twice. An edit route that writes it without re-running the claim checks is an open window beside a locked door: submit naming no runs        → refused by the guard submit clean, then PATCH runs in → completely unguarded So every check `create-payment-submission` runs over claimed runs runs here too, with this submission excluded from the priors. ## Status contract Copied verbatim from `audit-partner-payout-quantity`: writes are honoured only on Draft or Pending. Nothing Approved, Under_Review or Paid is ever edited — the money there has moved or been committed, and rewriting the row would make our record disagree with what was actually paid without putting a rupee in anyone's hand. / export type UpdatePaymentSubmissionItemInput = { submission_id: string item_id: string /** Units this line pays for. */ quantity?: number /** The agreed rate per unit. `amount` becomes quantity x this. */ unit_amount?: number /** An explicit line TOTAL. Wins over `unit_amount` exactly as a cost override does at create, and clears `unit_amount` for the same reason: there is no recorded rate behind a typed total, and dividing it back out invents one."
+      },
+      {
+        "name": "production_run_ids",
+        "type": "array",
+        "required": false,
+        "placeholder": "{{ $last.production_run_ids }}",
+        "description": "Correct one line on a payment submission (#1604). ## The gap this closes Until now a submission had exactly two exits — approve or reject, wholesale. Nothing could change a line. That is not hypothetical: `audit-partner-payout-quantity` refuses to write by design (\"the correction is a payment decision rather than a data repair\") and tells an operator to correct the line; there was no route to correct the line. On production two lines sit in exactly that state, reported as `unmatched` and untouchable. ## 🔴 The guards are the point, not the edit `production_run_ids` is the column that decides whether the same work can be billed twice. An edit route that writes it without re-running the claim checks is an open window beside a locked door: submit naming no runs        → refused by the guard submit clean, then PATCH runs in → completely unguarded So every check `create-payment-submission` runs over claimed runs runs here too, with this submission excluded from the priors. ## Status contract Copied verbatim from `audit-partner-payout-quantity`: writes are honoured only on Draft or Pending. Nothing Approved, Under_Review or Paid is ever edited — the money there has moved or been committed, and rewriting the row would make our record disagree with what was actually paid without putting a rupee in anyone's hand. / export type UpdatePaymentSubmissionItemInput = { submission_id: string item_id: string /** Units this line pays for. */ quantity?: number /** The agreed rate per unit. `amount` becomes quantity x this. */ unit_amount?: number /** An explicit line TOTAL. Wins over `unit_amount` exactly as a cost override does at create, and clears `unit_amount` for the same reason: there is no recorded rate behind a typed total, and dividing it back out invents one. / amount?: number /** The runs this line pays for. `[]` is a real value meaning \"this line names no runs\" — which is why it is checked against the runless guard rather than waved through as an absence."
+      },
+      {
+        "name": "metadata",
+        "type": "object",
+        "required": false,
+        "placeholder": "{}"
+      }
+    ],
+    "source": "custom_ts",
+    "sourceFile": "src/workflows/payment_submissions/update-payment-submission-item.ts"
   },
   "create-person-type": {
     "fields": [
@@ -6558,11 +7073,18 @@
         "placeholder": "{{ $last.notes }}"
       },
       {
+        "name": "replacesTransferId",
+        "type": "string",
+        "required": false,
+        "placeholder": "{{ $last.replacesTransferId }}",
+        "description": "#891 — move a production run's output from where it was made to wherever it needs to go next (a finishing partner, a QC/packaging warehouse, or stock). Reuses the shipment machinery wholesale: `resolveShippingProvider` (so both Shiprocket and Delhivery work here on day one), `ensureCarrierPickup` for the origin, `resolveInventoryDestinationAddress` for the destination, and an `inventory_shipment` row for the carrier refs so the existing tracking webhook needs no new routing. What's new is only the `goods_transfer` row recording the movement's intent. A carrier booking is OPTIONAL. A hop between two of our own locations is frequently someone driving a van, and that is still a real transfer whose inventory consequences matter — so `carrier: undefined` records a `draft` transfer with no AWB rather than refusing the movement. / export type CreateProductionRunTransferInput = { productionRunId: string /** Destination stock location. */ toLocationId: string /** Origin; defaults to the run's own goods location (see below). */ fromLocationId?: string reason?: \"finishing\" | \"qc\" | \"packaging\" | \"stock\" | \"customer\" | \"other\" /** Units moving in this hop; defaults to what the run produced. */ quantity?: number /** Book with this carrier. Omitted → a `draft` transfer with no carrier booking (a self-driven hop), which is a legitimate movement, not an error. / carrier?: string weightGrams?: number dimensionsCm?: Dimensions & { breadth?: number } preferredCourierId?: string | number /** Acting user's email recorded on a freshly-registered pickup (#427). */ actingEmail?: string notes?: string /** The cancelled hop this one replaces (#891 follow-up). 🔑 A re-booking is a NEW row, never an edit of the old one. The original carries an AWB the carrier really issued and really cancelled; rewriting it would erase the fact that the first attempt happened, and the transfer list is the only record of what physically moved. So both rows survive and point at each other — `replaces_transfer_id` here, `replaced_by_transfer_id` there. 🔴 Only a CANCELLED transfer can be replaced. Replacing a live one would leave two open movements for the same goods, and the second would silently double-count the moment inventory learns to follow a transfer (S3)."
+      },
+      {
         "name": "audience",
         "type": "string",
         "required": false,
         "placeholder": "{{ $last.audience }}",
-        "description": "#891 — move a production run's output from where it was made to wherever it needs to go next (a finishing partner, a QC/packaging warehouse, or stock). Reuses the shipment machinery wholesale: `resolveShippingProvider` (so both Shiprocket and Delhivery work here on day one), `ensureCarrierPickup` for the origin, `resolveInventoryDestinationAddress` for the destination, and an `inventory_shipment` row for the carrier refs so the existing tracking webhook needs no new routing. What's new is only the `goods_transfer` row recording the movement's intent. A carrier booking is OPTIONAL. A hop between two of our own locations is frequently someone driving a van, and that is still a real transfer whose inventory consequences matter — so `carrier: undefined` records a `draft` transfer with no AWB rather than refusing the movement. / export type CreateProductionRunTransferInput = { productionRunId: string /** Destination stock location. */ toLocationId: string /** Origin; defaults to the run's own goods location (see below). */ fromLocationId?: string reason?: \"finishing\" | \"qc\" | \"packaging\" | \"stock\" | \"customer\" | \"other\" /** Units moving in this hop; defaults to what the run produced. */ quantity?: number /** Book with this carrier. Omitted → a `draft` transfer with no carrier booking (a self-driven hop), which is a legitimate movement, not an error. / carrier?: string weightGrams?: number dimensionsCm?: Dimensions & { breadth?: number } preferredCourierId?: string | number /** Acting user's email recorded on a freshly-registered pickup (#427). */ actingEmail?: string notes?: string /** Who reads the error — carrier-account failures are not a partner's doing."
+        "description": "#891 — move a production run's output from where it was made to wherever it needs to go next (a finishing partner, a QC/packaging warehouse, or stock). Reuses the shipment machinery wholesale: `resolveShippingProvider` (so both Shiprocket and Delhivery work here on day one), `ensureCarrierPickup` for the origin, `resolveInventoryDestinationAddress` for the destination, and an `inventory_shipment` row for the carrier refs so the existing tracking webhook needs no new routing. What's new is only the `goods_transfer` row recording the movement's intent. A carrier booking is OPTIONAL. A hop between two of our own locations is frequently someone driving a van, and that is still a real transfer whose inventory consequences matter — so `carrier: undefined` records a `draft` transfer with no AWB rather than refusing the movement. / export type CreateProductionRunTransferInput = { productionRunId: string /** Destination stock location. */ toLocationId: string /** Origin; defaults to the run's own goods location (see below). */ fromLocationId?: string reason?: \"finishing\" | \"qc\" | \"packaging\" | \"stock\" | \"customer\" | \"other\" /** Units moving in this hop; defaults to what the run produced. */ quantity?: number /** Book with this carrier. Omitted → a `draft` transfer with no carrier booking (a self-driven hop), which is a legitimate movement, not an error. / carrier?: string weightGrams?: number dimensionsCm?: Dimensions & { breadth?: number } preferredCourierId?: string | number /** Acting user's email recorded on a freshly-registered pickup (#427). */ actingEmail?: string notes?: string /** The cancelled hop this one replaces (#891 follow-up). 🔑 A re-booking is a NEW row, never an edit of the old one. The original carries an AWB the carrier really issued and really cancelled; rewriting it would erase the fact that the first attempt happened, and the transfer list is the only record of what physically moved. So both rows survive and point at each other — `replaces_transfer_id` here, `replaced_by_transfer_id` there. 🔴 Only a CANCELLED transfer can be replaced. Replacing a live one would leave two open movements for the same goods, and the second would silently double-count the moment inventory learns to follow a transfer (S3). / replacesTransferId?: string /** Who reads the error — carrier-account failures are not a partner's doing."
       }
     ],
     "source": "custom_ts",
@@ -6584,9 +7106,10 @@
       },
       {
         "name": "quantity",
-        "type": "number",
+        "type": "string",
         "required": false,
-        "placeholder": "0"
+        "placeholder": "{{ $last.quantity }}",
+        "description": "The agreed quantity. Absent = 1, as always; explicit `null` = there is NO agreed amount, an open-ended run that opts out of the payment ceiling (#1676). The two are not interchangeable here."
       },
       {
         "name": "produced_quantity",
@@ -6641,7 +7164,7 @@
         "type": "array",
         "required": false,
         "placeholder": "{{ $last.materials }}",
-        "description": "The per-assignment material allocation: WHICH of the design's inventory items this run is actually sent out with, and how much of each. Omit to keep the historical behaviour — the whole design BOM stays available to the partner. Must be a subset of the design's linked inventory items."
+        "description": "The agreed quantity. Absent = 1, as always; explicit `null` = there is NO agreed amount, an open-ended run that opts out of the payment ceiling (#1676). The two are not interchangeable here. / quantity?: number | null // #1112 — for runs born already-`completed` (retail fulfillment), stamp the // produced yield up front instead of leaving it for the lifecycle to fill. produced_quantity?: number run_type?: \"production\" | \"sample\" product_id?: string variant_id?: string order_id?: string order_line_item_id?: string metadata?: Record<string, any> task_ids?: string[] /** The per-assignment material allocation: WHICH of the design's inventory items this run is actually sent out with, and how much of each. Omit to keep the historical behaviour — the whole design BOM stays available to the partner. Must be a subset of the design's linked inventory items."
       },
       {
         "name": "execution_mode",

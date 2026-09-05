@@ -5,6 +5,8 @@ import Address from "./models/person_address";
 import ContactDetail from "./models/person_contact";
 import Tag from "./models/person_tags";
 import PersonSub from "./models/person_subs";
+import IdExtractionBatch from "./models/id_extraction_batch";
+import IdExtractionBatchItem from "./models/id_extraction_batch_item";
 
 class PersonService extends MedusaService({
   Person,
@@ -12,6 +14,8 @@ class PersonService extends MedusaService({
   ContactDetail,
   Tag,
   PersonSub,
+  IdExtractionBatch,
+  IdExtractionBatchItem,
 }) {
   // Custom methods can be added here
   //
