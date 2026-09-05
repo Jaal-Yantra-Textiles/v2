@@ -1,6 +1,6 @@
 {
   "name": "@jytextiles/medusa-plugin-dtdc-shipping",
-  "version": "0.1.2",
+  "version": "0.2.0",
   "publishConfig": {
     "access": "public",
     "registry": "https://registry.npmjs.org/"

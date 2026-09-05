@@ -1,4 +1,10 @@
-export type DtdcServiceType = "PRIORITY" | "GROUND_EXPRESS"
+/**
+ * Re-exported from `service-types.ts`, which now carries all SIX values the
+ * live account offers rather than the two the sandbox did. Kept exported from
+ * here so existing imports keep working.
+ */
+export type { DtdcServiceType } from "./service-types"
+import type { DtdcServiceType } from "./service-types"
 
 export type DtdcLoadType = "NON-DOCUMENT" | "DOCUMENT"
 
@@ -14,6 +20,14 @@ export type DtdcOptions = {
   tracking_password?: string
   tracking_access_token?: string
   default_service_type?: DtdcServiceType
+  /**
+   * What the parcels contain, as a DTDC commodity id or one of the names in
+   * `commodities.ts` (e.g. "38" or "CLOTHING").
+   *
+   * 🔴 Set this. The wire default was `"2"` — MOBILE — so every waybill booked
+   * without it declared a mobile phone. See `commodities.ts`.
+   */
+  default_commodity_id?: string
   fetchImpl?: DtdcFetchLike
 }
 

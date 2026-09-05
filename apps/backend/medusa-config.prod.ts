@@ -446,6 +446,10 @@ module.exports = defineConfig({
                     tracking_access_token:
                       process.env.DTDC_TRACKING_ACCESS_TOKEN,
                     default_service_type: process.env.DTDC_DEFAULT_SERVICE_TYPE,
+                    // 🔴 On the waybill: what the parcel contains. The plugin's
+                    // old wire default was "2" = MOBILE. Id or name; unset
+                    // falls to CLOTHING.
+                    default_commodity_id: process.env.DTDC_DEFAULT_COMMODITY_ID,
                   },
                 },
               ]

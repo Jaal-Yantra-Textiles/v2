@@ -545,6 +545,15 @@ module.exports = defineConfig({
                             process.env.DTDC_TRACKING_ACCESS_TOKEN,
                           default_service_type:
                             process.env.DTDC_DEFAULT_SERVICE_TYPE,
+                          /**
+                           * 🔴 What the parcel CONTAINS, on the waybill. The
+                           * plugin's wire default used to be "2" = MOBILE, so a
+                           * textile parcel was declared as a phone. Accepts an
+                           * id ("38") or a name ("CLOTHING"); unset falls to
+                           * CLOTHING in the plugin.
+                           */
+                          default_commodity_id:
+                            process.env.DTDC_DEFAULT_COMMODITY_ID,
                         },
                       },
                     ]

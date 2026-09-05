@@ -560,7 +560,18 @@ export class StarfleetClient implements ShippingProviderClient {
       client_name: this.clientName(),
       service_type: this.options.service_type || "EXPORTS_EXPRESS",
       billing_mode: this.options.billing_mode || "E",
-      pickup_warehouse_id: this.options.pickup_warehouse_id,
+      /**
+       * 🔴 The SHIPMENT's pickup wins over the account-wide option.
+       *
+       * `pickup_warehouse_id` is the warehouse NAME, and
+       * `input.pickup_location_name` is that same name — the caller has already
+       * resolved it via `ensureCarrierPickup`, registering the location with
+       * Delhivery on the fly if it was new. Reading only the static option meant
+       * every partner's parcel manifested from ONE account-wide warehouse
+       * regardless of where it was actually collected.
+       */
+      pickup_warehouse_id:
+        input.pickup_location_name || this.options.pickup_warehouse_id,
       consignor_kyc: this.options.consignor_kyc,
     })
 

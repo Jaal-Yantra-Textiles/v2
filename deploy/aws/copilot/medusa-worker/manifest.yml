@@ -65,6 +65,19 @@ secrets:
   CLOUDFLARE_API_TOKEN: /jyt/prod/CLOUDFLARE_API_TOKEN
   CLOUDFLARE_ZONE_ID: /jyt/prod/CLOUDFLARE_ZONE_ID
   DATABASE_URL: /jyt/prod/DATABASE_URL
+  # DTDC domestic (India) — @jytextiles/medusa-plugin-dtdc-shipping.
+  # 🔴 DTDC_API_KEY is the GATE: medusa-config registers the provider only when
+  # it is set, so removing it silently unregisters the carrier rather than
+  # failing. DTDC_SANDBOX=false selects the LIVE hosts (pxapi.dtdc.in /
+  # blktracksvc.dtdc.com) over the demo ones.
+  DTDC_API_KEY: /jyt/prod/DTDC_API_KEY
+  DTDC_CUSTOMER_CODE: /jyt/prod/DTDC_CUSTOMER_CODE
+  DTDC_DEFAULT_COMMODITY_ID: /jyt/prod/DTDC_DEFAULT_COMMODITY_ID
+  DTDC_DEFAULT_SERVICE_TYPE: /jyt/prod/DTDC_DEFAULT_SERVICE_TYPE
+  DTDC_SANDBOX: /jyt/prod/DTDC_SANDBOX
+  DTDC_TRACKING_ACCESS_TOKEN: /jyt/prod/DTDC_TRACKING_ACCESS_TOKEN
+  DTDC_TRACKING_PASSWORD: /jyt/prod/DTDC_TRACKING_PASSWORD
+  DTDC_TRACKING_USERNAME: /jyt/prod/DTDC_TRACKING_USERNAME
   DELHIVERY_API_TOKEN: /jyt/prod/DELHIVERY_API_TOKEN
   ENCRYPTION_KEY: /jyt/prod/ENCRYPTION_KEY
   ENCRYPTION_KEY_VERSION: /jyt/prod/ENCRYPTION_KEY_VERSION
