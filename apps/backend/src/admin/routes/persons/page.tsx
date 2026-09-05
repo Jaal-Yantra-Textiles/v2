@@ -6,6 +6,7 @@ type SortingState = { id: string; desc: boolean } | null
 import { Link, Outlet, useNavigate } from "react-router-dom";
 import CreateButton from "../../components/creates/create-button";
 import { usePersons } from "../../hooks/api/persons";
+import { useCensusStates } from "../../hooks/api/census";
 import { useMemo, useState, useCallback } from "react";
 import { usePersonTableColumns } from "../../hooks/columns/usePersonTableColumns";
 import { AdminPerson, AdminWeaver } from "../../hooks/api/personandtype";
@@ -154,6 +155,10 @@ const PersonsPage = () => {
   );
 
   const columns = useColumns();
+
+  // Full geographic-state list (from the census aggregates) for the weaver
+  // "Region state" filter — every state, not just the few on the current page.
+  const { states } = useCensusStates();
   
   const personFilterHelper = createDataTableFilterHelper<AdminPerson>();
   
@@ -240,11 +245,9 @@ const PersonsPage = () => {
       type: "select",
       label: "Region state",
       options: useMemo(() => {
-        if (!weavers?.length) return [];
-        return [...new Set(weavers.map(w => w.state).filter(Boolean))].map(
-          (s) => ({ label: s as string, value: s as string })
-        );
-      }, [weavers]),
+        if (!states?.length) return [];
+        return states.map((s) => ({ label: s.state, value: s.state }));
+      }, [states]),
     }),
     weaverFilterHelper.accessor("education", {
       type: "select",
@@ -269,9 +272,11 @@ const PersonsPage = () => {
     columns: tableColumns,
     data: tableData,
     getRowId: (row) => String(row.id ?? row.census_id),
-    // Weavers have no detail page; only DB persons navigate.
+    // Persons open the person detail; weavers open the census-record detail.
     onRowClick: includeWeavers
-      ? undefined
+      ? (_, row) => {
+          navigate(`/persons/weavers/${row.original.census_id}`);
+        }
       : (_, row) => {
           navigate(`/persons/${row.id}`);
         },
