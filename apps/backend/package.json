@@ -88,6 +88,7 @@
     "@medusajs/cli": "2.20.1",
     "@medusajs/dashboard": "2.20.1",
     "@medusajs/draft-order": "2.20.1",
+    "@medusajs/js-sdk": "2.20.1",
     "@medusajs/framework": "2.20.1",
     "@medusajs/icons": "2.20.1",
     "@medusajs/index": "2.20.1",
