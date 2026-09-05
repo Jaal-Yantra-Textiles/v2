@@ -6,6 +6,10 @@ import {
 } from "../../lib/dtdc-client"
 import { DtdcOptions, DtdcServiceType } from "../../lib/types"
 import {
+  DTDC_SERVICE_TYPES,
+  resolveDtdcServiceType,
+} from "../../lib/service-types"
+import {
   CreateShipmentInput,
   LabelResult,
   ShipmentRef,
@@ -15,19 +19,55 @@ import {
   TrackingResult,
 } from "../../lib/provider-interface"
 
-/** Service-type inference: large/heavy consignments go surface, else air. */
-function serviceTypeFor(input: CreateShipmentInput): DtdcServiceType {
+/**
+ * Which DTDC service carries this parcel.
+ *
+ * Three sources, in order:
+ *
+ *  1. The CALLER's choice (`preferred_courier_id`) — the same field an operator
+ *     already picks a Shiprocket courier with, so the admin/partner path that
+ *     chooses a carrier service needs no new plumbing.
+ *  2. The CONFIGURED default (`default_service_type`), by returning undefined
+ *     and letting the client apply it.
+ *  3. Only then the weight/size heuristic.
+ *
+ * 🔴 Order 1 and 2 are the fix. This function used to return one of two
+ * hardcoded values unconditionally, so `default_service_type` had NO effect on
+ * this path and a caller could not choose at all. Those two values are the
+ * SANDBOX products; a live B2C account lists `B2C PRIORITY` and friends and
+ * does not list bare `PRIORITY`, so the heuristic could send a service the
+ * account does not have — and that is refused at booking, not at config time.
+ */
+function serviceTypeFor(
+  input: CreateShipmentInput,
+  hasConfiguredDefault: boolean
+): DtdcServiceType | undefined {
+  const chosen = resolveDtdcServiceType(
+    input.preferred_courier_id == null ? null : String(input.preferred_courier_id)
+  )
+  if (chosen) return chosen
+
+  // Defer to the configured default rather than overriding it with a guess.
+  if (hasConfiguredDefault) return undefined
+
   const length = input.dimensions_cm?.length ?? 0
   const heavy = input.weight_grams >= 10000 || length > 100
-  return heavy ? "GROUND_EXPRESS" : "PRIORITY"
+  return heavy
+    ? DTDC_SERVICE_TYPES.GROUND_EXPRESS
+    : DTDC_SERVICE_TYPES.PRIORITY
 }
 
 export class DtdcProviderAdapter implements ShippingProviderClient {
   readonly carrier = "dtdc"
   private client: DtdcClient
+  /** Whether the integrator chose a service, so the heuristic stays out of it. */
+  private hasConfiguredDefault: boolean
 
   constructor(options: DtdcOptions) {
     this.client = new DtdcClient(options)
+    this.hasConfiguredDefault = Boolean(
+      resolveDtdcServiceType(options.default_service_type)
+    )
   }
 
   async checkServiceability(destinationPincode: string): Promise<boolean> {
@@ -48,7 +88,7 @@ export class DtdcProviderAdapter implements ShippingProviderClient {
 
   async createShipment(input: CreateShipmentInput): Promise<ShipmentResult> {
     const result = await this.client.createShipment({
-      service_type_id: serviceTypeFor(input),
+      service_type_id: serviceTypeFor(input, this.hasConfiguredDefault),
       length: input.dimensions_cm?.length ?? 30,
       width: input.dimensions_cm?.width ?? 25,
       height: input.dimensions_cm?.height ?? 5,

@@ -41,6 +41,18 @@ export type CreateShipmentInput = {
   currency?: string
   product_description?: string
   tax_id?: string
+  /**
+   * The operator's chosen carrier service, mirroring the backend's
+   * `preferred_courier_id` (which Shiprocket reads as `courier_company_id`).
+   *
+   * DTDC is a single carrier with SIX services, so the choice that matters here
+   * is which product carries the parcel — `B2C PRIORITY` vs `B2C GROUND
+   * ECONOMY` and so on. Accepts an id or a name; see `service-types.ts`.
+   *
+   * When omitted the provider falls back to the configured default, and only
+   * then to the weight/size heuristic.
+   */
+  preferred_courier_id?: string | number
 }
 
 export type ShipmentRef = {

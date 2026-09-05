@@ -10,6 +10,7 @@ import {
 } from "@medusajs/framework/types"
 import { DtdcClient } from "../../lib/dtdc-client"
 import { DtdcOptions } from "../../lib/types"
+import { resolveDtdcServiceType } from "../../lib/service-types"
 import { Logger } from "@medusajs/framework/types"
 
 type InjectedDeps = { logger: Logger }
@@ -191,7 +192,14 @@ class DtdcFulfillmentService extends AbstractFulfillmentProviderService {
         return sum + unitPrice * ((item as any).quantity || 1)
       }, 0)
 
-      const serviceType = (data?.service_type as any) ?? "PRIORITY"
+      /**
+       * The fulfillment's own choice, else the CONFIGURED default — not a
+       * hardcoded "PRIORITY", which ignored `default_service_type` entirely and
+       * is not even a service a live B2C account lists. Undefined lets the
+       * client apply the configured value.
+       */
+      const serviceType =
+        resolveDtdcServiceType(data?.service_type as any) ?? undefined
       const result = await this.client.createShipment({
         service_type_id: serviceType,
         length: maxLength || 30,
