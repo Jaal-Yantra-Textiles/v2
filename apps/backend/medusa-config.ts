@@ -381,6 +381,28 @@ module.exports = defineConfig({
                         options: {
                           apiKey: process.env.STRIPE_API_KEY,
                           webhookSecret: process.env.STRIPE_WEBHOOK_SECRET,
+                          /**
+                           * 🔴 Without this the intent is created with NEITHER
+                           * `payment_method_types` NOR `automatic_payment_methods`,
+                           * and Stripe answers `payment_method_types: ["card"]`.
+                           * Measured, not assumed — an intent created exactly
+                           * the way this provider creates one came back card-only
+                           * every time. So the Payment Element could only ever
+                           * render a card field, in every region this provider
+                           * serves (America, Australia, Indonesia, Israel and
+                           * half of Europe).
+                           *
+                           * Enabled, Stripe returns what the account actually
+                           * supports for the currency: eur → card, klarna, link,
+                           * satispay; aud/usd → card, link. The rest is a
+                           * Dashboard setting, not a code change.
+                           *
+                           * 🔑 `./src/modules/stripe-connect-payment` has always
+                           * set `automatic_payment_methods: { enabled: true }`
+                           * on its own intents. This is the stock provider
+                           * catching up with the one beside it.
+                           */
+                          automaticPaymentMethods: true,
                         },
                       },
                     ]

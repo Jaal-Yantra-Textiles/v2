@@ -12,14 +12,16 @@ export const paymentInfoMap: Record<
   { title: string; icon: React.JSX.Element }
 > = {
   
+  // Named for what the shopper does, not for who processes it. "Stripe" told
+  // a buyer nothing about how they were paying, and sat above a card field.
   pp_stripe_stripe: {
-    title: "Stripe",
+    title: "Card & more",
     icon: <CreditCard />,
   },
   // Single buyer-facing "Stripe" — Connect (merchant-direct) + standard resolve
   // per the owning partner's onboarding status; the buyer never sees the split (#985).
   "pp_stripe-connect_stripe-connect": {
-    title: "Stripe",
+    title: "Card & more",
     icon: <CreditCard />,
   },
   "pp_medusa-payments_default": {
