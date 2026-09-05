@@ -129,8 +129,19 @@ export type CreateShipmentInput = {
    * carrier client fills retail-sale defaults. Ignored on domestic shipments.
    */
   customs?: CustomsDeclaration
-  /** Aggregator courier choice (Shiprocket `courier_company_id`). Ignored by
-   *  single-carrier providers. When omitted, the provider auto-selects. */
+  /**
+   * The operator's chosen carrier service. When omitted, the provider
+   * auto-selects.
+   *
+   * - Shiprocket (aggregator): the `courier_company_id` from a serviceability
+   *   call — WHICH courier carries it.
+   * - DTDC (single carrier, six services): the service type — `B2C PRIORITY`,
+   *   `B2C GROUND ECONOMY` and so on. Accepts an id or a name.
+   *
+   * ⚠️ No longer "ignored by single-carrier providers": DTDC reads it, so a
+   * value set for one carrier is not inert if the shipment is rebooked with
+   * another. An unrecognised value is ignored rather than forwarded.
+   */
   preferred_courier_id?: string | number
   product_description?: string
   /**
