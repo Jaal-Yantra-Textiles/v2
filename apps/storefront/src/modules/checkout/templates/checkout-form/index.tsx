@@ -1,38 +1,53 @@
 import { listCartShippingMethods } from "@lib/data/fulfillment"
-import { listCartPaymentMethods } from "@lib/data/payment"
-import { HttpTypes } from "@medusajs/types"
-import Addresses from "@modules/checkout/components/addresses"
-import Payment from "@modules/checkout/components/payment"
-import Review from "@modules/checkout/components/review"
-import Shipping from "@modules/checkout/components/shipping"
+import { listRegions } from "@lib/data/regions"
+import { retrieveCustomerAddresses } from "@lib/data/customer"
+import type { HttpTypes } from "@medusajs/types"
+import CheckoutShippingSection from "@modules/checkout/components/checkout-shipping-section"
+import CheckoutInfoRows from "@modules/checkout/components/checkout-info-rows"
+import CheckoutItemList from "@modules/checkout/components/checkout-item-list"
+import SignInPrompt from "@modules/checkout/components/sign-in-prompt"
 
 export default async function CheckoutForm({
   cart,
   customer,
+  countryCode,
 }: {
   cart: HttpTypes.StoreCart | null
   customer: HttpTypes.StoreCustomer | null
+  countryCode: string
 }) {
-  if (!cart) {
-    return null
-  }
+  if (!cart) return null
 
-  const shippingMethods = await listCartShippingMethods(cart.id)
-  const paymentMethods = await listCartPaymentMethods(cart.region?.id ?? "")
+  const [shippingOptions, regions, addresses] = await Promise.all([
+    listCartShippingMethods(cart.id),
+    listRegions(),
+    retrieveCustomerAddresses(),
+  ])
 
-  if (!shippingMethods || !paymentMethods) {
-    return null
-  }
+  const resolvedCountry =
+    countryCode ||
+    cart.shipping_address?.country_code ||
+    cart.region?.countries?.[0]?.iso_2 ||
+    ""
 
   return (
-    <div className="w-full grid grid-cols-1 gap-y-8">
-      <Addresses cart={cart} customer={customer} />
+    <div className="flex flex-col px-4 py-6 lg:pe-10 lg:py-10 lg:ps-0 gap-y-6">
+      {!customer && <SignInPrompt />}
 
-      <Shipping cart={cart} availableShippingMethods={shippingMethods} />
+      <CheckoutShippingSection
+        cart={cart}
+        availableShippingOptions={shippingOptions}
+        regions={regions ?? []}
+        currentCountry={resolvedCountry}
+      />
+      <CheckoutInfoRows
+        cart={cart}
+        customer={customer}
+        addresses={addresses}
+        availableShippingMethods={shippingOptions}
+      />
 
-      <Payment cart={cart} availablePaymentMethods={paymentMethods} />
-
-      <Review cart={cart} />
+      <CheckoutItemList cart={cart} />
     </div>
   )
 }

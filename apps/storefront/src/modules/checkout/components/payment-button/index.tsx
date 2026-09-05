@@ -10,11 +10,13 @@ import ErrorMessage from "../error-message"
 
 type PaymentButtonProps = {
   cart: HttpTypes.StoreCart
+  selectedPaymentMethod?: string
   "data-testid": string
 }
 
 const PaymentButton: React.FC<PaymentButtonProps> = ({
   cart,
+  selectedPaymentMethod,
   "data-testid": dataTestId,
 }) => {
   const notReady =
@@ -26,8 +28,11 @@ const PaymentButton: React.FC<PaymentButtonProps> = ({
 
   const paymentSession = cart.payment_collection?.payment_sessions?.[0]
 
+  const activePaymentMethod =
+    selectedPaymentMethod ?? paymentSession?.provider_id ?? ""
+
   switch (true) {
-    case isStripeLike(paymentSession?.provider_id):
+    case isStripeLike(activePaymentMethod):
       return (
         <StripePaymentButton
           notReady={notReady}
@@ -35,7 +40,7 @@ const PaymentButton: React.FC<PaymentButtonProps> = ({
           data-testid={dataTestId}
         />
       )
-    case isPayU(paymentSession?.provider_id):
+    case isPayU(activePaymentMethod):
       return (
         <PayUPaymentButton
           notReady={notReady}
@@ -43,7 +48,7 @@ const PaymentButton: React.FC<PaymentButtonProps> = ({
           data-testid={dataTestId}
         />
       )
-    case isManual(paymentSession?.provider_id):
+    case isManual(activePaymentMethod):
       return (
         <ManualTestPaymentButton notReady={notReady} data-testid={dataTestId} />
       )
@@ -189,7 +194,7 @@ const StripePaymentButton = ({
     // `return_url` (the checkout page), where the Payment step's redirect-return
     // effect finalises the order. The billing details Stripe needs are collected
     // by the PaymentElement itself, so we no longer hand-build a payment_method.
-    const returnUrl = `${window.location.origin}${window.location.pathname}?step=review`
+    const returnUrl = `${window.location.origin}${window.location.pathname}`
 
     const { error, paymentIntent } = await stripe.confirmPayment({
       elements,

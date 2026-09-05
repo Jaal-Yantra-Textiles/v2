@@ -1,41 +1,35 @@
-import { Heading } from "@medusajs/ui"
-
-import ItemsPreviewTemplate from "@modules/cart/templates/preview"
+import { listCartPaymentMethods } from "@lib/data/payment"
+import type { HttpTypes } from "@medusajs/types"
 import DiscountCode from "@modules/checkout/components/discount-code"
-import CartTotals from "@modules/common/components/cart-totals"
-import Divider from "@modules/common/components/divider"
+import CheckoutPaymentSection from "@modules/checkout/components/checkout-payment-section"
+import CheckoutTotals from "@modules/checkout/components/checkout-totals"
 import QuoteCartNotice from "@modules/cart/components/quote-cart-notice"
 import type { QuoteCartTerms } from "types/quote-terms"
 
-const CheckoutSummary = ({
+const CheckoutSummary = async ({
   cart,
   quoteTerms,
 }: {
-  cart: any
+  cart: HttpTypes.StoreCart
   /** #1787 — null for an ordinary cart. */
   quoteTerms?: QuoteCartTerms | null
 }) => {
+  const paymentMethods = await listCartPaymentMethods(cart.region?.id ?? "")
+
   return (
-    <div className="sticky top-0 flex flex-col-reverse small:flex-col gap-y-8 py-8 small:py-0 ">
-      <div className="w-full bg-white flex flex-col">
-        <Divider className="my-6 small:hidden" />
-        <Heading
-          level="h2"
-          className="flex flex-row text-3xl-regular items-baseline"
-        >
-          In your Cart
-        </Heading>
-        <Divider className="my-6" />
-        {/* Directly under the totals: the buyer has just read the full
-            amount, and this is the moment the "due today" figure has to
-            appear — not two steps later at Review. */}
-        <QuoteCartNotice terms={quoteTerms ?? null} className="mb-6" />
-        <CartTotals totals={cart} />
-        <ItemsPreviewTemplate cart={cart} />
-        <div className="my-6">
-          <DiscountCode cart={cart} />
-        </div>
-      </div>
+    <div className="flex flex-col gap-y-8 px-4 py-4 lg:py-10 lg:ps-10 bg-neutral-100 lg:-me-[9999px] lg:pe-[9999px]">
+      <CheckoutTotals cart={cart} />
+
+      {/* Directly under the totals: the buyer has just read the full amount,
+          and this is the moment the "due today" figure has to appear. */}
+      <QuoteCartNotice terms={quoteTerms ?? null} />
+
+      <DiscountCode cart={cart} />
+
+      <CheckoutPaymentSection
+        cart={cart}
+        availablePaymentMethods={paymentMethods ?? []}
+      />
     </div>
   )
 }
