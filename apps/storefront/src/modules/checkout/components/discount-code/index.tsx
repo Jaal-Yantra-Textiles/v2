@@ -86,7 +86,7 @@ const DiscountCode: React.FC<DiscountCodeProps> = ({ cart }) => {
   }
 
   return (
-    <div className="w-full bg-white flex flex-col">
+    <div className="w-full flex flex-col rounded-rounded border border-ui-border-base bg-white p-4">
       <div className="txt-medium">
         <form
           onSubmit={(e) => {
