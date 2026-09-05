@@ -136,6 +136,20 @@ export const CARRIER_CAPABILITIES: CarrierCapability[] = [
     notes:
       "Cross-border only (India → international). Rates (`/rates/calculate`), books (`/order/add`), labels (`/order/getLabel`), tracks (`/tools/tracking`) and cancels (`/order/cancelRefundOrder`) via HTTP Basic auth at app.shipglobal.in/apiv1. No domestic product, so it never appears in a domestic lane.",
   },
+  {
+    id: "starfleet",
+    label: "Delhivery International (StarFleet)",
+    integrated: true,
+    platform_account: true,
+    domestic: { can_rate: false, can_ship: false },
+    international: { can_rate: false, can_ship: true },
+    // `add_on_services.free_domicile` = "bill duties to shipper" = DDP, mapped
+    // from the order's incoterm — so the client can DECLARE DDP (whether the
+    // account is billed the duty is the usual commercial arrangement).
+    can_declare_ddp: true,
+    notes:
+      "Delhivery's cross-border product (India → international), OAuth2 password-grant at api-starfleet.delhivery.com. Manifests (batch + poll), tracks via auth-track, but has NO rate API (so it can only be a flat-priced option) and no cancellation. Label/invoice/KYC endpoints are still gated on Delhivery's side (403/502) — see apps/docs/notes/STARFLEET_API.md.",
+  },
 ]
 
 /** The Medusa fulfillment-provider id a carrier registers under. */
