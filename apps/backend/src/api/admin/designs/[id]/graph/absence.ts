@@ -85,3 +85,23 @@ export const daysWaiting = (
   if (!stamps.length) return null
   return Math.max(0, Math.floor((now - Math.min(...stamps)) / 86_400_000))
 }
+
+/**
+ * State for the product node.
+ *
+ * 🔴 The obvious composition — "if any run produced a product, the edge is
+ * present" — is WRONG, and only real data showed it: a design can carry one
+ * completed run that was listed and another that never was. Short-circuiting on
+ * the first hides exactly the queue this view exists to surface.
+ *
+ * The absent edge means "finished work with no product", so ANY outstanding run
+ * makes it absent, however many siblings succeeded.
+ */
+export const productNodeState = (
+  productCount: number,
+  outstandingCount: number
+): "present" | "absent" | "none" => {
+  if (outstandingCount > 0) return "absent"
+  if (productCount > 0) return "present"
+  return "none"
+}

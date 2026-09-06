@@ -9,6 +9,7 @@ import {
   expectsInventory,
   expectsPartner,
   expectsProductionRun,
+  productNodeState,
   runsAwaitingProduct,
 } from "./absence"
 
@@ -226,7 +227,9 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
 
   // ---- product: the motivating absent edge --------------------------------
 
-  if (productIds.length) {
+  const productState = productNodeState(productIds.length, outstandingRuns.length)
+
+  if (productState === "present") {
     push(
       {
         key: "product",
@@ -245,7 +248,7 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
       },
       { label: "approved_product_id", state: "present", reason: null }
     )
-  } else if (outstandingRuns.length) {
+  } else if (productState === "absent") {
     const waitingDays = daysWaiting(outstandingRuns)
 
     push(
@@ -253,13 +256,18 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
         key: "product",
         type: "product",
         label: "Product",
-        sublabel: "never created",
+        sublabel: productIds.length
+          ? `${productIds.length} listed, ${outstandingRuns.length} not`
+          : "never created",
         state: "absent",
         count: 0,
         status: null,
         href: null,
         props: [
-          { key: "runs finished", value: String(outstandingRuns.length) },
+          { key: "runs awaiting", value: String(outstandingRuns.length) },
+          ...(productIds.length
+            ? [{ key: "already listed", value: String(productIds.length) }]
+            : []),
           { key: "approved_product_id", value: "null" },
           ...(waitingDays !== null
             ? [{ key: "waiting", value: `${waitingDays} days` }]
@@ -275,7 +283,9 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
         label: "approved_product_id",
         state: "absent",
         reason:
-          "A run finished and no catalogue product was created from it. The column is written on approval and read by nothing, so this never appears in a list.",
+          productIds.length
+            ? "Some runs on this design were listed and others were not. The listed ones do not discharge the rest — each finished run owes its own product."
+            : "A run finished and no catalogue product was created from it. The column is written on approval and read by nothing, so this never appears in a list.",
       }
     )
   }

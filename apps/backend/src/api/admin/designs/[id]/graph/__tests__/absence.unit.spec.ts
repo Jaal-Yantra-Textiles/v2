@@ -4,6 +4,7 @@ import {
   expectsPartner,
   expectsProductionRun,
   runsAwaitingProduct,
+  productNodeState,
   type RunLike,
 } from "../absence"
 
@@ -138,5 +139,23 @@ describe("daysWaiting", () => {
     expect(
       daysWaiting([run({ updated_at: "2026-09-20T00:00:00.000Z" })], now)
     ).toBe(0)
+  })
+})
+
+describe("productNodeState — the mixed case real data caught", () => {
+  it("is absent when a run is outstanding even though a sibling produced one", () => {
+    expect(productNodeState(1, 1)).toBe("absent")
+  })
+
+  it("is present only when nothing is outstanding", () => {
+    expect(productNodeState(2, 0)).toBe("present")
+  })
+
+  it("is absent with no products at all and work finished", () => {
+    expect(productNodeState(0, 3)).toBe("absent")
+  })
+
+  it("draws no node when there is neither a product nor finished work", () => {
+    expect(productNodeState(0, 0)).toBe("none")
   })
 })
