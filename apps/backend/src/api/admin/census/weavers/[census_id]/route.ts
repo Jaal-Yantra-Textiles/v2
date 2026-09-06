@@ -3,13 +3,19 @@ import { MedusaError } from "@medusajs/framework/utils"
 
 import { CENSUS_MODULE } from "../../../../../modules/census"
 import type CensusModuleService from "../../../../../modules/census/service"
+import { PERSON_PROPERTY_MODULE } from "../../../../../modules/personproperty"
+import {
+  applyWeaverCorrections,
+  WeaverCorrection,
+} from "../../../../../modules/personproperty/lib/apply-weaver-corrections"
 
 /**
  * GET /admin/census/weavers/:census_id
  *
- * A single weaver's MASKED census record (PII-free — name/mobile/coords/religion
- * live only in the sensitive core, surfaced separately via …/unmask). Used by the
- * weaver detail view in the admin persons section.
+ * A single weaver's MASKED census record (PII-free), with any admin corrections
+ * overlayed at read time. The census core is never written to — corrections live
+ * as an appended list on the person_property record (keyed by census_id) and are
+ * applied here as a pure projection so the detail view shows corrected values.
  */
 export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
   const census = req.scope.resolve(CENSUS_MODULE) as CensusModuleService
@@ -29,5 +35,21 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
     )
   }
 
-  res.json({ weaver })
+  // Corrections are best-effort: a weaver with no person_property record (or a
+  // reader-mode where the property module is unavailable) simply has none.
+  let corrections: WeaverCorrection[] = []
+  try {
+    const propertyService: any = req.scope.resolve(PERSON_PROPERTY_MODULE)
+    const [property] = await propertyService.listAndCountPersonProperties(
+      { census_id: req.params.census_id },
+      { take: 1 }
+    )
+    corrections = (property?.corrections ?? []) as WeaverCorrection[]
+  } catch {
+    // no corrections — fall through with the raw record
+  }
+
+  const { weaver: effective, corrected_fields } = applyWeaverCorrections(weaver, corrections)
+
+  res.json({ weaver: effective, corrections, corrected_fields })
 }

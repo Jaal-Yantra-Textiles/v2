@@ -4013,6 +4013,14 @@ export default defineMiddlewares({
       method: "POST",
       middlewares: [validateAndTransformBody(wrapSchema(CreatePersonPropertySchema))],
     },
+    // Weaver edits upsert, addressed by census_id. Registered BEFORE the `:id`
+    // matcher below: matching is prefix-based, so `:id` would otherwise claim
+    // this two-segment path.
+    {
+      matcher: "/admin/person-properties/by-census/:census_id",
+      method: "POST",
+      middlewares: [validateAndTransformBody(wrapSchema(UpdatePersonPropertySchema))],
+    },
     {
       matcher: "/admin/person-properties/:id",
       method: "POST",

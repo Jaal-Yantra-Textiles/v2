@@ -6,6 +6,7 @@ import { TwoColumnPageSkeleton } from "../../../../components/table/skeleton"
 import { WeaverGeneralSection } from "../../../../components/persons/weaver-general-section"
 import { WeaverCensusSection } from "../../../../components/persons/weaver-census-section"
 import { WeaverRevealSection } from "../../../../components/persons/weaver-reveal-section"
+import { WeaverEditsSection } from "../../../../components/persons/weaver-edits-section"
 import { weaverLoader } from "./loader"
 
 const WeaverDetailPage = () => {
@@ -29,6 +30,7 @@ const WeaverDetailPage = () => {
       <TwoColumnPage.Main>
         <WeaverGeneralSection weaver={weaver} />
         <WeaverCensusSection weaver={weaver} />
+        <WeaverEditsSection censusId={census_id!} />
       </TwoColumnPage.Main>
       <TwoColumnPage.Sidebar>
         <WeaverRevealSection censusId={census_id!} />

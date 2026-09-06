@@ -43,6 +43,9 @@ export const personPropertyContract = defineContract("person_property", {
     sells_cooperative: { type: "boolean", nullable: true },
     sells_ecommerce: { type: "boolean", nullable: true },
     support_requirements: { type: "json", nullable: true },
+    social_media: { type: "json", nullable: true },
+    corrections: { type: "json", nullable: true },
+    custom_fields: { type: "json", nullable: true },
     metadata: { type: "json", nullable: true },
   },
   // The fields weavers are segmented by (equality secondary index).
