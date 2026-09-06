@@ -24,6 +24,8 @@ export interface PartnerPerson {
 export interface PartnerPeopleResponse {
   people: PartnerPerson[]
   count: number
+  /** Link rows pointing at a person that no longer exists (#1857). */
+  dangling?: number
 }
 
 const PARTNER_PEOPLE_QUERY_KEY = "partner_people" as const
@@ -46,9 +48,20 @@ export const usePartnerPeople = (
     ...options,
   })
 
+  /*
+   * 🔴 Filtered here as well as on the server. The route is fixed, but this
+   * hook is the last thing between a null row and `person.id` in a `.map`,
+   * and that deref did not blank the section — it blanked the entire partner
+   * page. Two layers, because the cost of the guard is a `filter` and the
+   * cost of missing it is every partner with a stale link becoming
+   * unreachable.
+   */
+  const people = (data?.people || []).filter((p): p is PartnerPerson => !!p?.id)
+
   return {
-    people: data?.people || [],
-    count: data?.count || 0,
+    people,
+    count: people.length,
+    dangling: data?.dangling ?? 0,
     ...rest,
   }
 }

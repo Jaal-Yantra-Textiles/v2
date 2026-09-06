@@ -32,9 +32,28 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
     throw new MedusaError(MedusaError.Types.NOT_FOUND, "Partner not found")
   }
 
+  /*
+   * 🔴 `query.graph` returns a NULL in place of every link row whose target
+   * no longer exists, so a partner carrying four dangling `people` links
+   * answered `{"people":[null,null,null,null],"count":4}`. The admin's
+   * PartnerPeopleSection mapped over that and read `.id` off a null, which
+   * took the WHOLE partner detail page down — not the section, the page:
+   * "An unexpected error occurred while rendering this page". Measured on
+   * `01M1RHS2347F5D9MYBPF3AB5SS` locally. This is #1857's dangling link rows
+   * arriving at a reader that trusted the link table.
+   *
+   * The nulls are dropped rather than forwarded, and counted separately.
+   * `count` now means "people you can actually open", which is what every
+   * caller already assumed it meant. A link row is not a record — and
+   * `dangling` says so out loud instead of quietly shrinking the list.
+   */
+  const rows = (partner.people || []) as (Record<string, any> | null)[]
+  const people = rows.filter((p): p is Record<string, any> => !!p?.id)
+
   return res.json({
-    people: partner.people || [],
-    count: (partner.people || []).length,
+    people,
+    count: people.length,
+    dangling: rows.length - people.length,
   })
 }
 
