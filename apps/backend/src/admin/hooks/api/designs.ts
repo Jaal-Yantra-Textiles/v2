@@ -1563,3 +1563,13 @@ export const useCommitConsumption = (
     },
   })
 }
+
+/* ------------------------------------------------------------------------ *
+ * Design graph — the spine's neighbours as nodes and edges (#1847).
+ *
+ * The three edge states are the contract: `present` is a declared link with
+ * something on the other end, `derived` is true only through a shared record,
+ * and `absent` is a neighbour the model expects and has not got — the "future
+ * edge" that a list of rows can never show.
+ * ------------------------------------------------------------------------ */
+

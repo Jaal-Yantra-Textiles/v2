@@ -4,6 +4,7 @@ import { useNavigate } from "react-router-dom";
 import { RouteModalForm } from "../route-modal-form";
 import { RouteModalProvider } from "../route-provider";
 import { StackedModalProvider } from "../stacked-modal/stacked-modal-provider";
+import { RouteChromeProvider } from "../chrome/route-chrome-provider";
 
 type RouteDrawerProps = PropsWithChildren<{
   prev?: string;
@@ -40,6 +41,10 @@ const Root = ({ prev = "..", children }: RouteDrawerProps) => {
   return (
     <Drawer open={open} onOpenChange={handleOpenChange}>
       <RouteModalProvider prev={prev}>
+        <RouteChromeProvider
+          variant="route-drawer"
+          parts={{ Header, Title, Description, Body, Footer, Close }}
+        >
         <StackedModalProvider onOpenChange={onStackedModalOpen}>
           <Drawer.Content
             aria-describedby={undefined}
@@ -50,6 +55,7 @@ const Root = ({ prev = "..", children }: RouteDrawerProps) => {
             {children}
           </Drawer.Content>
         </StackedModalProvider>
+        </RouteChromeProvider>
       </RouteModalProvider>
     </Drawer>
   );

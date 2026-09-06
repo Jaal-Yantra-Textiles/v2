@@ -1,6 +1,7 @@
 import { LoaderFunctionArgs, UIMatch, useLoaderData, useParams } from "react-router-dom";
 import { AdminDesignResponse, useDesign } from "../../../hooks/api/designs";
 import { DesignGeneralSection } from "../../../components/designs/design-general-section";
+import { DesignGraphSection } from "../../../components/designs/design-graph-section";
 import { DesignPartnerSummary } from "../../../components/designs/design-partner-summary";
 import { DesignDesignerInvitesSection } from "../../../components/designs/design-designer-invites-section";
 import { DesignTasksSummary } from "../../../components/designs/design-tasks-summary";
@@ -71,6 +72,11 @@ const DesignDetailPage = () => {
       >
         <TwoColumnPage.Main>
           <DesignGeneralSection design={design} />
+          {/* #1847 — the spine and its neighbours, including the edges that are
+              EXPECTED AND MISSING. Sits above the summaries deliberately: the
+              sections below each render what IS there, and the absent edge is
+              the one thing none of them can show. Nothing was removed. */}
+          <DesignGraphSection design={design} />
           <DesignProductionRunsSummary design={design} />
           <DesignTasksSummary design={design} />
           <DesignPartnerSummary design={design} />

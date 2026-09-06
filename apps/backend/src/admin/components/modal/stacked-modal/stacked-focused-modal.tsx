@@ -6,6 +6,7 @@ import {
   useEffect,
 } from "react"
 import { useStackedModal } from "./use-stacked-modal"
+import { StackedChromeProvider } from "../chrome/route-chrome-provider"
 
 
 type StackedFocusModalProps = PropsWithChildren<{
@@ -44,7 +45,24 @@ export const Root = ({
 
   return (
     <FocusModal open={getIsOpen(id)} onOpenChange={handleOpenChange}>
-      {children}
+      {/*
+        A form rendered in here gets THIS layer's chrome, and its "done" closes
+        only this layer — the drawer or page that opened it stays put.
+      */}
+      <StackedChromeProvider
+        parts={{ Header, Title, Description, Body, Footer, Close }}
+        /*
+         * 🔴 `handleOpenChange`, NOT `setIsOpen`. They look interchangeable —
+         * both close the layer — but only `handleOpenChange` also fires
+         * `onOpenChangeCallback`, which is how a caller learns the modal shut
+         * and refetches. Calling `setIsOpen` here closes the modal and tells
+         * nobody: the create succeeds, the layer closes, and the screen behind
+         * keeps its stale numbers.
+         */
+        onClose={() => handleOpenChange(false)}
+      >
+        {children}
+      </StackedChromeProvider>
     </FocusModal>
   )
 }
