@@ -4,8 +4,8 @@ import { z } from "@medusajs/framework/zod";
 import { Button, Heading, Input, Text, toast, Textarea, Select } from "@medusajs/ui";
 // React import not needed with new JSX runtime
 
-import { useRouteModal } from "../modal/use-route-modal";
-import { RouteFocusModal } from "../modal/route-focus-modal";
+import { useModalChrome } from "../modal/chrome/use-modal-chrome";
+import { RouteModalForm } from "../modal/route-modal-form";
 import { KeyboundForm } from "../utilitites/key-bound-form";
 import { useCreateMediaFolder } from "../../hooks/api/media-folders";
 import { Form } from "../common/form";
@@ -34,7 +34,12 @@ export const CreateMediaFolderComponent = () => {
   });
   
 
-  const { handleSuccess } = useRouteModal();
+  /**
+   * Chrome and "done" come from whichever shell is wrapping this form — the
+   * media `@create` route's focus modal, or a StackedFocusModal opened from an
+   * entity graph.
+   */
+  const Chrome = useModalChrome();
 
   const { mutateAsync, isPending } = useCreateMediaFolder();
 
@@ -60,7 +65,7 @@ export const CreateMediaFolderComponent = () => {
           toast.success(
             `Folder "${folder.name}" created successfully`,
           );
-          handleSuccess();
+          Chrome.onDone();
         } catch (error: any) {
           // Handle mutation error
           toast.error(error.message || 'Failed to create folder');
@@ -89,20 +94,27 @@ export const CreateMediaFolderComponent = () => {
   );
 
   return (
-    <RouteFocusModal.Form form={form}>
+    <RouteModalForm form={form}>
       <KeyboundForm
         onSubmit={handleSubmit}
         className="flex flex-1 flex-col overflow-hidden"
       >
-        <RouteFocusModal.Header>
+        <Chrome.Header>
+          {/*
+            Radix wants a title on the dialog itself, not just a heading in the
+            markup — without it screen readers announce an unnamed dialog.
+          */}
+          <Chrome.Title asChild>
+            <span className="sr-only">Create folder</span>
+          </Chrome.Title>
           <div className="flex items-center justify-between">
             <Heading>Create Folder</Heading>
           </div>
           <Text size="small" className="text-ui-fg-subtle">
             Create a new media folder
           </Text>
-        </RouteFocusModal.Header>
-        <RouteFocusModal.Body className="flex flex-1 flex-col gap-y-4 overflow-y-auto p-4">
+        </Chrome.Header>
+        <Chrome.Body className="flex flex-1 flex-col gap-y-4 overflow-y-auto p-4">
           <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
             <Form.Field
               control={form.control}
@@ -185,14 +197,14 @@ export const CreateMediaFolderComponent = () => {
           />
 
           {/* Independent file upload moved to CreateMediaFilesComponent */}
-        </RouteFocusModal.Body>
-        <RouteFocusModal.Footer>
+        </Chrome.Body>
+        <Chrome.Footer>
           <div className="flex items-center justify-end gap-x-2">
-            <RouteFocusModal.Close asChild>
+            <Chrome.Close asChild>
               <Button variant="secondary" type="button">
                 Cancel
               </Button>
-            </RouteFocusModal.Close>
+            </Chrome.Close>
             <Button 
               type="submit" 
               isLoading={isPending}
@@ -201,8 +213,8 @@ export const CreateMediaFolderComponent = () => {
               Create Folder
             </Button>
           </div>
-        </RouteFocusModal.Footer>
+        </Chrome.Footer>
       </KeyboundForm>
-    </RouteFocusModal.Form>
+    </RouteModalForm>
   );
 };

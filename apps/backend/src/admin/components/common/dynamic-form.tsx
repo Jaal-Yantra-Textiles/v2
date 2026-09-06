@@ -7,6 +7,7 @@ import { z } from "@medusajs/framework/zod";
 import { Form } from "./form";
 import { KeyboundForm } from "../utilitites/key-bound-form";
 import { RouteDrawer } from "../modal/route-drawer/route-drawer";
+import type { ModalChromeValue } from "../modal/chrome/modal-chrome-context";
 import { useEffect, useState } from "react";
 import isEqual from "lodash/isEqual";
 
@@ -39,6 +40,19 @@ export type FormConfig<T extends FieldValues> = {
     gridCols?: number;
   };
   isPending?: boolean;
+  /**
+   * The shell's chrome, when this form is being rendered somewhere other than
+   * its own route drawer — a StackedFocusModal opened from the entity graph,
+   * for instance.
+   *
+   * 🔴 Opt-in on purpose. `showDrawer` hardcodes `RouteDrawer.Body` /
+   * `.Footer` / `.Close`, which inside a focus modal renders drawer markup and
+   * a Close that belongs to a Drawer root that is not there — the cancel
+   * button then does nothing at all. Passing the chrome the surrounding shell
+   * published swaps those three parts and leaves all 25 existing callers on
+   * exactly the components they render today.
+   */
+  chrome?: ModalChromeValue;
 };
 
 export const DynamicForm = <T extends FieldValues>({
@@ -48,7 +62,13 @@ export const DynamicForm = <T extends FieldValues>({
   customValidation,
   layout = { showDrawer: true, gridCols: 1 },
   isPending = false,
+  chrome,
 }: FormConfig<T>) => {
+  // No chrome supplied means "my own route drawer", which is what every
+  // existing caller means.
+  const Body = chrome?.Body ?? RouteDrawer.Body;
+  const Footer = chrome?.Footer ?? RouteDrawer.Footer;
+  const Close = chrome?.Close ?? RouteDrawer.Close;
   // Track if form has been modified from initial values
   const [formDirty, setFormDirty] = useState(false);
   const { t } = useTranslation();
@@ -284,7 +304,7 @@ export const DynamicForm = <T extends FieldValues>({
         className="flex flex-1 flex-col overflow-hidden"
       >
         {layout.showDrawer ? (
-          <RouteDrawer.Body className="flex flex-1 flex-col gap-y-8 overflow-y-auto">
+          <Body className="flex flex-1 flex-col gap-y-8 overflow-y-auto">
             {fields.map((field) => (
               <div
                 key={field.name}
@@ -293,7 +313,7 @@ export const DynamicForm = <T extends FieldValues>({
                 {renderField(field)}
               </div>
             ))}
-          </RouteDrawer.Body>
+          </Body>
         ) : (
           <div className="flex flex-1 flex-col gap-y-8">
             {fields.map((field) => (
@@ -308,13 +328,13 @@ export const DynamicForm = <T extends FieldValues>({
         )}
         
         {layout.showDrawer ? (
-          <RouteDrawer.Footer>
+          <Footer>
             <div className="flex items-center justify-end gap-x-2">
-              <RouteDrawer.Close asChild>
+              <Close asChild>
                 <Button size="small" variant="secondary">
                   {t("actions.cancel")}
                 </Button>
-              </RouteDrawer.Close>
+              </Close>
               <Button 
                 size="small" 
                 type="submit" 
@@ -325,7 +345,7 @@ export const DynamicForm = <T extends FieldValues>({
                 {t("actions.save")}
               </Button>
             </div>
-          </RouteDrawer.Footer>
+          </Footer>
         ) : (
           <div className="mt-4 flex justify-end gap-x-2">
             <Button 
