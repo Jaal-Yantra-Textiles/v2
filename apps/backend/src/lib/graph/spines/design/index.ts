@@ -2,6 +2,10 @@ import { ContainerRegistrationKeys, MedusaError } from "@medusajs/framework/util
 
 import designOrderLink from "../../../../links/design-order-link"
 import designMediaFolderLink from "../../../../links/design-media-folder-link"
+import productDesignLink from "../../../../links/product-design-link"
+import designConsumptionLogLink from "../../../../links/design-consumption-log"
+import designPersonLink from "../../../../links/designs-person-link"
+import designRawMaterialGroupLink from "../../../../links/design-raw-material-group"
 import { GraphBuilder, asArray, money } from "../../builder"
 import type { EdgeState, Graph, GraphNode, SpineContext, SpineDescriptor } from "../../types"
 import {
@@ -10,6 +14,8 @@ import {
   expectsInventory,
   expectsPartner,
   expectsProductionRun,
+  expectsSpecification,
+  expectsConsumptionLog,
   productNodeState,
   runsAwaitingProduct,
 } from "./absence"
@@ -54,6 +60,14 @@ const resolveDesignGraph = async ({ scope, id }: SpineContext): Promise<Graph> =
       "tasks.*",
       "inventory_items.*",
       "customers.*",
+      // Intra-module hasMany relations — these resolve straight off the entity
+      // (probed: every key comes back populated). Only MODULE LINKS need the
+      // entryPoint treatment below.
+      "specifications.*",
+      "colors.*",
+      "size_sets.*",
+      "components.*",
+      "used_in.*",
     ],
   })
 
@@ -71,6 +85,11 @@ const resolveDesignGraph = async ({ scope, id }: SpineContext): Promise<Graph> =
   const customers = asArray<any>(design.customers)
   const mediaFiles = asArray<any>(design.media_files)
   const moodboard = asArray<any>(design.moodboard)
+  const specifications = asArray<any>(design.specifications)
+  const colors = asArray<any>(design.colors)
+  const sizeSets = asArray<any>(design.size_sets)
+  const components = asArray<any>(design.components)
+  const usedIn = asArray<any>(design.used_in)
 
   const { data: runs } = await query.graph({
     entity: "production_runs",
@@ -79,8 +98,24 @@ const resolveDesignGraph = async ({ scope, id }: SpineContext): Promise<Graph> =
   })
   const runList = asArray<any>(runs)
 
-  // Orders and media folders travel through their link tables, not the entity.
-  const [{ data: orderLinks }, { data: folderLinks }] = await Promise.all([
+  /**
+   * Everything that travels through a LINK TABLE rather than the entity.
+   *
+   * 🔴 Read through `entryPoint`, never as a field hop off `designs`: a
+   * `query.graph` hop from an entity to a linked field can come back with NO
+   * KEY AT ALL rather than an error, and an empty graph is the one failure
+   * this resolver must never render as "nothing there".
+   *
+   * One round trip for all of them — they are independent.
+   */
+  const [
+    { data: orderLinks },
+    { data: folderLinks },
+    { data: productLinks },
+    { data: consumptionLinks },
+    { data: personLinks },
+    { data: materialGroupLinks },
+  ] = await Promise.all([
     query.graph({
       entity: designOrderLink.entryPoint,
       filters: { design_id: designId },
@@ -91,9 +126,35 @@ const resolveDesignGraph = async ({ scope, id }: SpineContext): Promise<Graph> =
       filters: { design_id: designId },
       fields: ["folder_id"],
     }),
+    query.graph({
+      entity: productDesignLink.entryPoint,
+      filters: { design_id: designId },
+      fields: ["product_id"],
+    }),
+    query.graph({
+      entity: designConsumptionLogLink.entryPoint,
+      filters: { design_id: designId },
+      fields: ["consumption_log_id"],
+    }),
+    query.graph({
+      entity: designPersonLink.entryPoint,
+      filters: { design_id: designId },
+      fields: ["person_id", "role"],
+    }),
+    query.graph({
+      entity: designRawMaterialGroupLink.entryPoint,
+      filters: { design_id: designId },
+      fields: ["raw_material_group_id", "resolved_raw_material_id"],
+    }),
   ])
   const orderIds = asArray<any>(orderLinks).map((l) => l.order_id).filter(Boolean)
   const folderIds = asArray<any>(folderLinks).map((l) => l.folder_id).filter(Boolean)
+  const linkedProductIds = asArray<any>(productLinks).map((l) => l.product_id).filter(Boolean)
+  const consumptionIds = asArray<any>(consumptionLinks)
+    .map((l) => l.consumption_log_id)
+    .filter(Boolean)
+  const people = asArray<any>(personLinks)
+  const materialGroups = asArray<any>(materialGroupLinks)
 
   // ---- derived facts the absence rules key on -----------------------------
 
@@ -182,7 +243,11 @@ const resolveDesignGraph = async ({ scope, id }: SpineContext): Promise<Graph> =
 
   // ---- product: the motivating absent edge --------------------------------
 
-  const productState = productNodeState(productIds.length, outstandingRuns.length)
+  const productState = productNodeState(
+    productIds.length,
+    outstandingRuns.length,
+    linkedProductIds.length
+  )
 
   if (productState === "present") {
     push(
@@ -202,6 +267,38 @@ const resolveDesignGraph = async ({ scope, id }: SpineContext): Promise<Graph> =
         action: null,
       },
       { label: "approved_product_id", state: "present", reason: null }
+    )
+  } else if (productState === "derived") {
+    /**
+     * Joined through `product_design` with no run having written
+     * `approved_product_id`. A real relationship, but not this node's column —
+     * so it draws dashed, and says which path it came down. Reading it as
+     * "present" would claim a run produced it; reading it as "none" would deny
+     * a link that exists.
+     */
+    push(
+      {
+        key: "product",
+        type: "product",
+        label: "Product",
+        sublabel: `${linkedProductIds.length} linked directly`,
+        state: "derived",
+        count: linkedProductIds.length,
+        status: null,
+        href: `/products/${linkedProductIds[0]}`,
+        props: [
+          { key: "via", value: "product_design" },
+          { key: "approved_product_id", value: "null" },
+          { key: "product id", value: String(linkedProductIds[0]) },
+        ],
+        action: null,
+      },
+      {
+        label: "product_design",
+        state: "derived",
+        reason:
+          "This design is joined to a catalogue product through the product_design link, but no production run wrote approved_product_id. The product exists; it is not recorded as any run's output.",
+      }
     )
   } else if (productState === "absent") {
     const waitingDays = daysWaiting(outstandingRuns)
@@ -423,6 +520,214 @@ const resolveDesignGraph = async ({ scope, id }: SpineContext): Promise<Graph> =
         action: null,
       },
       { label: "customer", state: "present", reason: null }
+    )
+  }
+
+  // ---- specifications (the tech-pack) -------------------------------------
+
+  if (specifications.length) {
+    push(
+      {
+        key: "specifications",
+        type: "specification",
+        label: "Specifications",
+        sublabel: `${specifications.length} detail${specifications.length === 1 ? "" : "s"}`,
+        state: "present",
+        count: specifications.length,
+        status: null,
+        href: `/designs/${designId}`,
+        props: specifications.slice(0, 4).map((sp) => ({
+          key: sp.name || sp.type || sp.id,
+          value: String(sp.value ?? sp.description ?? "—").slice(0, 40),
+        })),
+        action: null,
+      },
+      { label: "specifications", state: "present", reason: null }
+    )
+  } else if (expectsSpecification(design.status, specifications.length)) {
+    push(
+      {
+        key: "specifications",
+        type: "specification",
+        label: "Specifications",
+        sublabel: "none recorded",
+        state: "absent",
+        count: 0,
+        status: null,
+        href: `/designs/${designId}`,
+        props: [{ key: "design status", value: String(design.status) }],
+        action: { label: "Add construction detail", href: null },
+      },
+      {
+        label: "specifications",
+        state: "absent",
+        reason:
+          "The design is committed and carries no construction detail, so a tech-pack cannot be generated from it.",
+      }
+    )
+  }
+
+  // ---- consumption --------------------------------------------------------
+
+  if (consumptionIds.length) {
+    push(
+      {
+        key: "consumption",
+        type: "consumption_log",
+        label: "Consumption",
+        sublabel: `${consumptionIds.length} log${consumptionIds.length === 1 ? "" : "s"}`,
+        state: "present",
+        count: consumptionIds.length,
+        status: null,
+        href: `/designs/${designId}`,
+        props: [{ key: "logs", value: String(consumptionIds.length) }],
+        action: null,
+      },
+      { label: "consumption_log", state: "present", reason: null }
+    )
+  } else if (expectsConsumptionLog(runList, consumptionIds.length)) {
+    push(
+      {
+        key: "consumption",
+        type: "consumption_log",
+        label: "Consumption",
+        sublabel: "never recorded",
+        state: "absent",
+        count: 0,
+        status: null,
+        href: `/designs/${designId}`,
+        props: [
+          {
+            key: "finished runs",
+            value: String(runList.filter((r) => String(r.status) === "completed").length),
+          },
+          { key: "produced", value: String(producedTotal) },
+        ],
+        action: null,
+      },
+      {
+        label: "consumption_log",
+        state: "absent",
+        reason:
+          "A run finished and no material consumption was ever logged against this design, so what it actually cost cannot be known — only estimated.",
+      }
+    )
+  }
+
+  // ---- raw material groups ------------------------------------------------
+
+  if (materialGroups.length) {
+    const resolved = materialGroups.filter((g) => g.resolved_raw_material_id).length
+    push(
+      {
+        key: "materials",
+        type: "raw_material_group",
+        label: "Material groups",
+        sublabel: `${materialGroups.length} pinned`,
+        state: "present",
+        count: materialGroups.length,
+        status: null,
+        href: `/designs/${designId}`,
+        props: [
+          { key: "groups", value: String(materialGroups.length) },
+          // The colour stays unresolved until production picks one (#817 S4).
+          { key: "resolved at production", value: `${resolved} of ${materialGroups.length}` },
+        ],
+        action: null,
+      },
+      { label: "raw_material_group", state: "present", reason: null }
+    )
+  }
+
+  // ---- people -------------------------------------------------------------
+
+  if (people.length) {
+    push(
+      {
+        key: "people",
+        type: "person",
+        label: "People",
+        sublabel: `${people.length} linked`,
+        state: "present",
+        count: people.length,
+        status: null,
+        href: `/designs/${designId}`,
+        props: people.slice(0, 4).map((pl) => ({
+          key: String(pl.person_id).slice(0, 18),
+          value: String(pl.role ?? "—"),
+        })),
+        action: null,
+      },
+      { label: "person", state: "present", reason: null }
+    )
+  }
+
+  // ---- colours and sizes --------------------------------------------------
+
+  if (colors.length || sizeSets.length) {
+    push(
+      {
+        key: "palette",
+        type: "palette",
+        label: "Colours & sizes",
+        sublabel: `${colors.length} colour${colors.length === 1 ? "" : "s"}, ${sizeSets.length} size set${sizeSets.length === 1 ? "" : "s"}`,
+        state: "present",
+        count: colors.length + sizeSets.length,
+        status: null,
+        href: `/designs/${designId}`,
+        props: [
+          { key: "colours", value: String(colors.length) },
+          { key: "size sets", value: String(sizeSets.length) },
+        ],
+        action: null,
+      },
+      { label: "colors / size_sets", state: "present", reason: null }
+    )
+  }
+
+  // ---- bundles ------------------------------------------------------------
+
+  if (components.length || usedIn.length) {
+    push(
+      {
+        key: "components",
+        type: "design_component",
+        label: "Bundled designs",
+        sublabel: `${components.length} in, ${usedIn.length} out`,
+        state: "present",
+        count: components.length + usedIn.length,
+        status: null,
+        href: `/designs/${designId}`,
+        props: [
+          { key: "components", value: String(components.length) },
+          { key: "used in", value: String(usedIn.length) },
+        ],
+        action: null,
+      },
+      { label: "components / used_in", state: "present", reason: null }
+    )
+  }
+
+  // ---- revision lineage ---------------------------------------------------
+
+  if (design.revised_from_id) {
+    push(
+      {
+        key: "revision",
+        type: "design",
+        label: "Revised from",
+        sublabel: `revision ${design.revision_number ?? 1}`,
+        state: "present",
+        count: 1,
+        status: null,
+        href: `/designs/${design.revised_from_id}`,
+        props: [
+          { key: "revision", value: String(design.revision_number ?? 1) },
+          { key: "parent", value: String(design.revised_from_id).slice(0, 18) },
+        ],
+        action: null,
+      },
+      { label: "revised_from_id", state: "present", reason: null }
     )
   }
 

@@ -10,5 +10,9 @@ import { EntityGraph } from "../graph/entity-graph"
  * no second component, and no second copy of the rules to fall out of step.
  */
 export const DesignGraphSection = ({ design }: { design: AdminDesign }) => (
-  <EntityGraph spine="design" id={design.id} />
+  <EntityGraph
+    spine="design"
+    id={design.id}
+    expandHref={`/designs/${design.id}/graph`}
+  />
 )

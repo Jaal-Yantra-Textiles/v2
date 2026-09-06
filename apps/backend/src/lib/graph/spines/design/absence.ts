@@ -99,9 +99,47 @@ export const daysWaiting = (
  */
 export const productNodeState = (
   productCount: number,
-  outstandingCount: number
-): "present" | "absent" | "none" => {
+  outstandingCount: number,
+  linkedProductCount: number = 0
+): "present" | "absent" | "derived" | "none" => {
   if (outstandingCount > 0) return "absent"
   if (productCount > 0) return "present"
+  // 🔴 A design can be joined to a product through `product_design` without
+  // any run ever writing `approved_product_id`. That is a REAL relationship
+  // and the graph must not call it nothing — but it is not the run's output
+  // either, so it is `derived`: true through a shared record, not through the
+  // column this node is about.
+  //
+  // Order matters. An outstanding run still owes its own product even when the
+  // design is linked to some other one, so `absent` is tested first and this
+  // can never mask it.
+  if (linkedProductCount > 0) return "derived"
   return "none"
 }
+
+/**
+ * A committed design with no specification cannot produce a tech-pack — the
+ * construction panel says as much on screen ("Add at least one so a tech-pack
+ * can be generated"). Uncommitted designs owe nothing.
+ */
+export const expectsSpecification = (
+  designStatus: string | null | undefined,
+  specificationCount: number
+): boolean =>
+  COMMITTED_DESIGN_STATUSES.has(String(designStatus)) && specificationCount === 0
+
+/**
+ * Work that FINISHED and recorded no material consumption. Distinct from the
+ * inventory rule: inventory absent means nothing is linked to cost against,
+ * this means something is linked and the actual draw was never written, so the
+ * design's real cost is unknowable rather than merely uncomputed.
+ *
+ * Keyed on finished runs only — a run still in progress has not consumed its
+ * material yet, and dashing that edge would cry wolf on every live run.
+ */
+export const expectsConsumptionLog = (
+  runs: RunLike[],
+  consumptionLogCount: number
+): boolean =>
+  consumptionLogCount === 0 &&
+  runs.some((r) => FINISHED_RUN_STATUSES.has(String(r.status)))
