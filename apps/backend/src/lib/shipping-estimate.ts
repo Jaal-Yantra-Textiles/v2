@@ -761,7 +761,17 @@ export async function buildShippingEstimate(
   let calculatedError: string | null = null
   let cacheHit = false
 
-  const cacheService: any = scope.resolve(Modules.CACHE)
+  /**
+   * The CACHING module, not the deprecated Cache module — its API is an
+   * options object, NOT the old positional `get(key)` / `set(key, value, ttl)`.
+   * The migration guide says "get/set remain the same"; that is the NAMES, and
+   * the signatures differ:
+   *
+   *   get({ key })                 not  get(key)
+   *   set({ key, data, ttl })      not  set(key, data, ttl)
+   *   clear({ key })               not  invalidate(key)
+   */
+  const cacheService: any = scope.resolve(Modules.CACHING)
 
   /**
    * One carrier call per LEG, cached per leg.
@@ -786,7 +796,7 @@ export async function buildShippingEstimate(
     const legKey =
       `shipping-estimate:${carrier}:${q.origin_pincode}:` +
       `${q.destination_pincode}:${q.destination_country || ""}:${q.weight_grams}`
-    const hit = await cacheService.get(legKey).catch(() => null)
+    const hit = await cacheService.get({ key: legKey }).catch(() => null)
     if (hit) {
       cacheHit = true
       return hit as any[]
@@ -799,7 +809,9 @@ export async function buildShippingEstimate(
       )
     }
     const rates = (await provider.getRates(q)) || []
-    await cacheService.set(legKey, rates, 900).catch(() => {})
+    await cacheService
+      .set({ key: legKey, data: rates, ttl: 900 })
+      .catch(() => {})
     return rates
   }
 
