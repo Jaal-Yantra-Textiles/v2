@@ -6,6 +6,7 @@ import {
 } from "@medusajs/framework/workflows-sdk"
 import { linkSalesChannelsToApiKeyWorkflow } from "@medusajs/medusa/core-flows"
 import { ContainerRegistrationKeys, MedusaError } from "@medusajs/framework/utils"
+import type { Link } from "@medusajs/framework/modules-sdk"
 import { PARTNER_MODULE } from "../../modules/partner"
 import PartnerService from "../../modules/partner/service"
 import {
@@ -256,6 +257,40 @@ const softDeletePartnerStep = createStep(
   }
 )
 
+
+/**
+ * Dismiss every link this partner sits in (#1857).
+ *
+ * This workflow already unlinks publishable keys from sales channels, for exactly
+ * this reason — the 2026-08-21 orphan where a surviving key expanded to
+ * `sales_channels: [null]` and 404'd every storefront. The partner's OWN links got
+ * no such treatment: prod carries five live partner-region rows and a partner-store
+ * pair whose partner is soft-deleted.
+ *
+ * 🔴 Scoped to `partner_id` deliberately. The stores, channels and products this
+ * workflow also soft-deletes have their own links, many of them core-managed, and
+ * cascading those is a wider blast radius than the evidence asks for.
+ *
+ * `Link.delete` is the CASCADE form: it dismisses link rows across every module
+ * that links to this one, so nothing here has to enumerate them — the failure
+ * mode of naming links one at a time is that the file then LOOKS handled while
+ * the unnamed ones keep leaking. `Link.restore` is the inverse, and runs as the
+ * compensation so a restored record does not come back stripped of its links.
+ */
+const dismissPartnerLinksStep = createStep(
+  "dismissPartnerLinksStep",
+  async (input: { id: string }, { container }) => {
+    const link: Link = container.resolve(ContainerRegistrationKeys.LINK);
+    await link.delete({ [PARTNER_MODULE]: { partner_id: input.id } });
+    return new StepResponse({ id: input.id }, { id: input.id });
+  },
+  async (undo: { id: string } | undefined, { container }) => {
+    if (!undo?.id) return;
+    const link: Link = container.resolve(ContainerRegistrationKeys.LINK);
+    await link.restore({ [PARTNER_MODULE]: { partner_id: undo.id } }).catch(() => {});
+  },
+);
+
 /**
  * Soft-delete a partner and everything that is meaningless without it.
  *
@@ -276,6 +311,7 @@ export const deletePartnerWorkflow = createWorkflow(
 
     deletePartnerAdminsStep(input)
     softDeletePartnerStep(input)
+    dismissPartnerLinksStep({ id: input.id })
 
     // The plan is what the caller wants back: not just "deleted: true", but
     // exactly what travelled with the partner and what was deliberately left
