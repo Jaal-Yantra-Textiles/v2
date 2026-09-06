@@ -22,6 +22,27 @@ export const CreatePersonPropertySchema = z.object({
   sells_cooperative: z.boolean().nullish(),
   sells_ecommerce: z.boolean().nullish(),
   support_requirements: z.array(z.string()).nullish(),
+  social_media: z
+    .array(
+      z.object({
+        platform: z.string().min(1),
+        handle: z.string().optional(),
+        url: z.string().optional(),
+      })
+    )
+    .nullish(),
+  corrections: z
+    .array(
+      z.object({
+        field: z.string().min(1),
+        note: z.string().optional(),
+        corrected_value: z.unknown().optional(),
+        corrected_at: z.string().optional(),
+        corrected_by: z.string().optional(),
+      })
+    )
+    .nullish(),
+  custom_fields: z.record(z.string(), z.unknown()).nullish(),
   metadata: z.record(z.string(), z.unknown()).nullish(),
 });
 

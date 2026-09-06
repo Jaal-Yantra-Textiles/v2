@@ -38,6 +38,16 @@ const PersonProperty = model.define("person_property", {
   // Support needs (array of labels)
   support_requirements: model.json().nullable(),
 
+  // ── Admin "edit / changes" surface (stored here, NOT in the read-only census
+  // core) ────────────────────────────────────────────────────────────────────
+  // Social handles, e.g. [{ platform: "instagram", handle: "@xyz", url: "…" }].
+  social_media: model.json().nullable(),
+  // Correction flags — append-only list of "this census field is wrong", e.g.
+  // [{ field: "own_looms", note: "…", corrected_value: false, corrected_at, corrected_by }].
+  corrections: model.json().nullable(),
+  // Arbitrary admin additions, e.g. { "yarn_source": "Bhilwara" }.
+  custom_fields: model.json().nullable(),
+
   metadata: model.json().nullable(),
 });
 
