@@ -3,14 +3,13 @@ import { Container, Heading, Text, DataTable, useDataTable, createDataTableFilte
 
 // Sort state is a single active sort — `null` means default backend order.
 type SortingState = { id: string; desc: boolean } | null
-import { Link, Outlet, useNavigate } from "react-router-dom";
+import { Link, Outlet, useNavigate, useSearchParams } from "react-router-dom";
 import CreateButton from "../../components/creates/create-button";
 import { usePersons } from "../../hooks/api/persons";
 import { useCensusStates } from "../../hooks/api/census";
-import { useMemo, useState, useCallback } from "react";
+import { useMemo, useCallback } from "react";
 import { usePersonTableColumns } from "../../hooks/columns/usePersonTableColumns";
 import { AdminPerson, AdminWeaver } from "../../hooks/api/personandtype";
-import { WeaverRevealCell } from "./components/weaver-reveal-cell";
 import debounce from "lodash/debounce";
 
 
@@ -31,6 +30,10 @@ const PERSON_FILTER_FIELDS = ["email", "first_name", "last_name", "state"] as co
 
 // Weaver filters — forwarded to the census reader when weavers are included.
 const WEAVER_FILTER_FIELDS = ["district", "gender", "region_state", "education"] as const;
+
+const ALL_FILTER_FIELDS = [...PERSON_FILTER_FIELDS, ...WEAVER_FILTER_FIELDS];
+
+const DEFAULT_PAGE_SIZE = 10;
 
 const weaverColumnHelper = createDataTableColumnHelper<AdminWeaver>();
 
@@ -71,65 +74,130 @@ const weaverColumns = [
       <Text size="small" className="text-ui-fg-subtle">{getValue() || "—"}</Text>
     ),
   }),
-  weaverColumnHelper.display({
-    id: "reveal",
-    header: "",
-    cell: ({ row }) => <WeaverRevealCell censusId={row.original.census_id} />,
-  }),
 ];
 
 const PersonsPage = () => {
   const navigate = useNavigate();
-  
-  const [pagination, setPagination] = useState<DataTablePaginationState>({
-    pageSize: 10,
-    pageIndex: 0,
-  });
-  const [filtering, setFiltering] = useState<DataTableFilteringState>({});
-  const [search, setSearch] = useState<string>("");
-  const [includeDeleted, setIncludeDeleted] = useState<boolean>(false);
-  const [includeWeavers, setIncludeWeavers] = useState<boolean>(false);
-  const [sorting, setSorting] = useState<SortingState>(null);
-  
-  // Debounced filter change handler to prevent rapid re-renders and API calls
+  const [searchParams, setSearchParams] = useSearchParams();
+
+  // ── Sticky URL state — every filter/toggle/pagination lives in the query
+  // string so it survives reload and is deep-linkable. ────────────────────────
+  const q = searchParams.get("q") ?? "";
+  const includeWeavers = searchParams.get("weavers") === "true";
+  const includeDeleted = searchParams.get("deleted") === "true";
+  const pageIndex = Math.max(0, (parseInt(searchParams.get("page") || "1", 10) || 1) - 1);
+  const pageSize = Math.min(
+    100,
+    Math.max(1, parseInt(searchParams.get("limit") || String(DEFAULT_PAGE_SIZE), 10) || DEFAULT_PAGE_SIZE)
+  );
+  const orderParam = searchParams.get("order") ?? undefined;
+
+  const filtering: DataTableFilteringState = {};
+  for (const f of ALL_FILTER_FIELDS) {
+    const v = searchParams.get(f);
+    if (v) filtering[f] = v;
+  }
+
+  const sorting: SortingState = (() => {
+    if (!orderParam) return null;
+    const [id, dir] = orderParam.split(":");
+    return id ? { id, desc: dir === "DESC" } : null;
+  })();
+
+  // Mutate the URL params in place (replace, so filters don't spam history).
+  const updateParams = useCallback(
+    (mutate: (p: URLSearchParams) => void) => {
+      setSearchParams((prev) => {
+        const next = new URLSearchParams(prev);
+        mutate(next);
+        return next;
+      }, { replace: true });
+    },
+    [setSearchParams]
+  );
+
+  const resetPage = (p: URLSearchParams) => p.delete("page");
+
+  const handlePaginationChange = useCallback(
+    (newPagination: DataTablePaginationState) => {
+      updateParams((p) => {
+        if (newPagination.pageIndex > 0) p.set("page", String(newPagination.pageIndex + 1));
+        else p.delete("page");
+        if (newPagination.pageSize !== DEFAULT_PAGE_SIZE) p.set("limit", String(newPagination.pageSize));
+        else p.delete("limit");
+      });
+    },
+    [updateParams]
+  );
+
   const handleFilterChange = useCallback(
     debounce((newFilters: DataTableFilteringState) => {
-      setFiltering(newFilters);
+      updateParams((p) => {
+        for (const f of ALL_FILTER_FIELDS) p.delete(f);
+        for (const [k, v] of Object.entries(newFilters)) {
+          const val = Array.isArray(v) ? v[0] : v;
+          if (typeof val === "string" && val !== "") p.set(k, val);
+        }
+        resetPage(p);
+      });
     }, 300),
-    []
+    [updateParams]
   );
 
-  // Debounced search change handler
   const handleSearchChange = useCallback(
     debounce((newSearch: string) => {
-      setSearch(newSearch);
+      updateParams((p) => {
+        if (newSearch) p.set("q", newSearch);
+        else p.delete("q");
+        resetPage(p);
+      });
     }, 300),
-    []
+    [updateParams]
   );
-  
-  // Calculate the offset based on pagination
-  const offset = pagination.pageIndex * pagination.pageSize;
-  
-  // Sort state → backend `order` string. The API parses both
-  // "created_at:DESC" and "-created_at" shapes. Weavers are not orderable; the
-  // sort is only sent for the DB persons list.
-  const orderParam = sorting?.id
-    ? `${sorting.id}:${sorting.desc ? "DESC" : "ASC"}`
-    : undefined
 
-  // Collapse the DataTable filter state (values can arrive as arrays) into the
-  // flat exact-match query params. Person and weaver filters are disjoint key
-  // sets, so a single reduction over the active mode is safe.
-  const filterParams = useMemo(() => {
-    const out: Record<string, string> = {};
-    const fields = includeWeavers ? WEAVER_FILTER_FIELDS : PERSON_FILTER_FIELDS;
-    for (const field of fields) {
-      const v = filtering[field];
-      const value = Array.isArray(v) ? v[0] : v;
-      if (typeof value === "string" && value !== "") out[field] = value;
-    }
-    return out;
-  }, [filtering, includeWeavers]);
+  const handleSortingChange = useCallback(
+    (s: SortingState) => {
+      updateParams((p) => {
+        if (s && s.id) p.set("order", `${s.id}:${s.desc ? "DESC" : "ASC"}`);
+        else p.delete("order");
+      });
+    },
+    [updateParams]
+  );
+
+  const handleIncludeDeletedChange = useCallback(
+    (checked: boolean) => {
+      updateParams((p) => {
+        if (checked) p.set("deleted", "true");
+        else p.delete("deleted");
+        resetPage(p);
+      });
+    },
+    [updateParams]
+  );
+
+  const handleIncludeWeaversChange = useCallback(
+    (checked: boolean) => {
+      updateParams((p) => {
+        if (checked) p.set("weavers", "true");
+        else p.delete("weavers");
+        // Filters are mode-specific; clear them when switching persons ↔ weavers.
+        for (const f of ALL_FILTER_FIELDS) p.delete(f);
+        resetPage(p);
+      });
+    },
+    [updateParams]
+  );
+
+  // ── Query the backend from the URL-derived state ────────────────────────────
+  const offset = pageIndex * pageSize;
+
+  const filterQuery: Record<string, string> = {};
+  for (const f of ALL_FILTER_FIELDS) {
+    const v = filtering[f];
+    const val = Array.isArray(v) ? v[0] : v;
+    if (typeof val === "string" && val !== "") filterQuery[f] = val;
+  }
 
   const {
     persons,
@@ -140,13 +208,13 @@ const PersonsPage = () => {
     isLoading,
   } = usePersons(
     {
-      limit: pagination.pageSize,
-      offset: offset,
-      q: search || undefined,
+      limit: pageSize,
+      offset,
+      q: q || undefined,
       withDeleted: includeDeleted,
       include_weavers: includeWeavers || undefined,
       ...(orderParam ? { order: orderParam } : {}),
-      ...filterParams,
+      ...filterQuery,
     },
     {
       // Use the staleTime option instead of keepPreviousData
@@ -219,7 +287,7 @@ const PersonsPage = () => {
 
   const weaverFilterHelper = createDataTableFilterHelper<AdminWeaver>();
 
-  // Weaver filters, options derived from the loaded (masked) weaver page.
+  // Weaver filters; the state filter is sourced from ALL census states.
   const weaverFilters = [
     weaverFilterHelper.accessor("district", {
       type: "select",
@@ -284,11 +352,11 @@ const PersonsPage = () => {
     isLoading: isLoading ?? false,
     filters: includeWeavers ? weaverFilters : personFilters,
     pagination: {
-      state: pagination,
-      onPaginationChange: setPagination,
+      state: { pageIndex, pageSize },
+      onPaginationChange: handlePaginationChange,
     },
     search: {
-      state: search,
+      state: q,
       onSearchChange: handleSearchChange,
     },
     filtering: {
@@ -297,7 +365,7 @@ const PersonsPage = () => {
     },
     sorting: includeWeavers ? undefined : {
       state: sorting,
-      onSortingChange: setSorting,
+      onSortingChange: handleSortingChange,
     },
   });
 
@@ -347,7 +415,7 @@ const PersonsPage = () => {
                   type="checkbox" 
                   id="include-deleted" 
                   checked={includeDeleted}
-                  onChange={(e) => setIncludeDeleted(e.target.checked)}
+                  onChange={(e) => handleIncludeDeletedChange(e.target.checked)}
                   className="h-4 w-4 rounded border-ui-border-base text-ui-fg-interactive"
                 />
                 <label htmlFor="include-deleted" className="text-ui-fg-subtle text-sm">
@@ -359,10 +427,7 @@ const PersonsPage = () => {
                   type="checkbox" 
                   id="include-weavers" 
                   checked={includeWeavers}
-                  onChange={(e) => {
-                    setIncludeWeavers(e.target.checked);
-                    setFiltering({});
-                  }}
+                  onChange={(e) => handleIncludeWeaversChange(e.target.checked)}
                   className="h-4 w-4 rounded border-ui-border-base text-ui-fg-interactive"
                 />
                 <label htmlFor="include-weavers" className="text-ui-fg-subtle text-sm">
