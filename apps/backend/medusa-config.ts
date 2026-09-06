@@ -253,7 +253,18 @@ module.exports = defineConfig({
       resolve: "./src/modules/investor",
     },
 
-    // Production-ready modules
+    // Production-ready modules.
+    //
+    // ⚠️ These stay OFF here on purpose — a dev machine is one process, so the
+    // in-memory fallbacks behave identically and nobody needs Redis running to
+    // boot the app. `medusa-config.prod.ts` DOES register `cache-redis`, and
+    // that divergence is deliberate rather than drift.
+    //
+    // 🔴 It is also why the MFA lockout could not reproduce locally: MFA
+    // challenges live in `Modules.CACHE` (`auth:mfa:challenge:<id>`), not in
+    // Postgres, so with two server tasks behind the ALB an in-memory cache
+    // loses the challenge whenever the verify request lands on the other task.
+    // One process here, one cache, always found.
     // {
     //   resolve: "@medusajs/medusa/cache-redis",
     //   options: {
