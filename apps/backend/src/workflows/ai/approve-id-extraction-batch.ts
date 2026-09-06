@@ -227,11 +227,44 @@ const approveItemsStep = createStep(
 
     return new StepResponse(
       { batch_id: input.batch_id, approved, skipped, results },
-      { created_person_ids }
+      { created_person_ids, partner_id: batch.partner_id ?? null }
     );
   },
-  async (undo: { created_person_ids: string[] } | undefined, { container }) => {
+  /*
+   * 🔴 DISMISS THE LINKS BEFORE DELETING THE PEOPLE.
+   *
+   * This compensation used to call `deletePeople` alone — a HARD delete — on
+   * people this step had already linked to the partner above. The person rows
+   * went; the link rows stayed. That is a machine for producing exactly the
+   * shape #1857 describes: a link table pointing at records that do not exist.
+   *
+   * It is not a bookkeeping detail. Four such rows on one partner made
+   * `GET /admin/partners/:id/people` answer `[null,null,null,null]` and took
+   * the entire partner detail page down in the admin. The reader is guarded
+   * now, but a reader-side guard does not stop the rows appearing — this does.
+   *
+   * Dismissal is best-effort and per-person: a link that was never created
+   * (the `link_error` path above) must not abort the rollback of the ones that
+   * were, and a failed dismissal must not leave the people behind either.
+   */
+  async (
+    undo: { created_person_ids: string[]; partner_id: string | null } | undefined,
+    { container }
+  ) => {
     if (!undo?.created_person_ids?.length) return;
+
+    if (undo.partner_id) {
+      const link: Link = container.resolve(ContainerRegistrationKeys.LINK);
+      for (const personId of undo.created_person_ids) {
+        await link
+          .dismiss({
+            [PARTNER_MODULE]: { partner_id: undo.partner_id },
+            [PERSON_MODULE]: { person_id: personId },
+          })
+          .catch(() => {});
+      }
+    }
+
     const service: any = container.resolve(PERSON_MODULE);
     await service.deletePeople(undo.created_person_ids).catch(() => {});
   }
