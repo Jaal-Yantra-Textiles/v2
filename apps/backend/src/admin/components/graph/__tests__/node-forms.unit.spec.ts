@@ -1,7 +1,7 @@
 import {
+  actionRail,
   hasAffordance,
   nodeAffordance,
-  showsActionRail,
   type AffordanceNode,
   type FormRegistry,
 } from "../node-forms"
@@ -124,45 +124,52 @@ describe("nodeAffordance", () => {
   })
 
   describe("the action rail", () => {
-    it("🔴 stands down where a create form is offered — two buttons, one a trap", () => {
-      const a = nodeAffordance(
-        node({
-          key: "inventory",
-          state: "absent",
-          action: { label: "Link inventory", href: "/designs/d1/addinv" },
-        }),
-        registry
-      )
+    const SPINE_HREF = "/designs/d1"
 
-      expect(a.create).toBe(true)
-      expect(showsActionRail(a)).toBe(false)
-    })
+    const rail = (
+      key: string,
+      state: AffordanceNode["state"],
+      href: string | null,
+      action: AffordanceNode["action"] = null
+    ) => actionRail(nodeAffordance(node({ key, state, action }), registry), { href, action }, SPINE_HREF)
 
-    it("stands down where an edit form is offered", () => {
-      expect(showsActionRail(nodeAffordance(node({ key: "design" }), registry))).toBe(
-        false
-      )
-    })
-
-    it("stays for a node with no form of its own", () => {
+    it("🔴 does not repeat a form — two buttons, one of them navigates away", () => {
+      // The absent inventory node: a create form is offered, and its href is
+      // only the design page, so there is nothing else worth a button.
       expect(
-        showsActionRail(
-          nodeAffordance(
-            node({
-              key: "product",
-              state: "absent",
-              action: { label: "List this run as a product", href: "/designs/d1/runs" },
-            }),
-            registry
-          )
-        )
-      ).toBe(true)
+        rail("inventory", "absent", SPINE_HREF, {
+          label: "Link inventory",
+          href: "/designs/d1/addinv",
+        })
+      ).toBe("none")
     })
 
-    it("stays for a plain present node, which is where 'Open' lives", () => {
-      expect(showsActionRail(nodeAffordance(node({ key: "orders" }), registry))).toBe(
-        true
-      )
+    it("🔴 KEEPS a real drill-in beside a form — it is the only route left to the list", () => {
+      // Tasks has a create form AND a sub-page. Suppressing the whole rail here
+      // stranded `/designs/:id/tasks` the moment the summary section came off
+      // the design page.
+      expect(rail("tasks", "present", "/designs/d1/tasks")).toBe("open")
+    })
+
+    it("names the missing step where no form is registered", () => {
+      expect(
+        rail("product", "absent", SPINE_HREF, {
+          label: "List this run as a product",
+          href: "/designs/d1/production-runs",
+        })
+      ).toBe("action")
+    })
+
+    it("opens a neighbour that has its own page", () => {
+      expect(rail("revision", "present", "/designs/other-design")).toBe("open")
+    })
+
+    it("🔴 refuses an 'Open' that points back at the page the graph is about", () => {
+      expect(rail("components", "present", SPINE_HREF)).toBe("none")
+    })
+
+    it("renders nothing for a node with neither an action nor a page", () => {
+      expect(rail("consumption", "present", null)).toBe("none")
     })
   })
 
