@@ -5,6 +5,7 @@ import { SingleColumnPage } from "../../../components/pages/single-column-pages"
 import { WebsiteGeneralSection } from "../../../components/websites/website-general-section";
 import { WebsitePagesSection } from "../../../components/websites/website-pages-section";
 import { WebsiteBlogSection } from "../../../components/websites/website-blog-section";
+import { EntityGraph } from "../../../components/graph/entity-graph";
 import { websiteLoader } from "./loader";
 
 const WebsiteDetailPage = () => {
@@ -37,6 +38,26 @@ const WebsiteDetailPage = () => {
   return (
     <SingleColumnPage data={website} hasOutlet={true} showJSON showMetadata={true}>
       <WebsiteGeneralSection website={website} />
+      {/*
+        #1855 — the content spine. Above the sections for the same reason it is
+        on the design and partner pages: both of them render what IS there.
+
+        The absence that earns this graph its place is a NEWSLETTER PUBLISHED
+        AND NEVER SENT. The page is written, marked Published, and appears in
+        every list of published pages exactly like one that went out — while
+        `sent_to_subscribers` is false and not a single subscriber received it.
+        The work is finished; only the send is missing, and nothing else in the
+        admin distinguishes the two.
+
+        🔴 Nothing removed here. The website page has three sections and the
+        graph has to earn each one, the way it did on the design page.
+      */}
+      <EntityGraph
+        spine="website"
+        id={website.id}
+        title="Graph"
+        expandHref={`/websites/${website.id}/graph`}
+      />
       <WebsitePagesSection website={website} />
       <WebsiteBlogSection website={website} />
     </SingleColumnPage>

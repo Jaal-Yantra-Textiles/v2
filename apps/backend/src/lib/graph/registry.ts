@@ -2,6 +2,8 @@ import { MedusaError } from "@medusajs/framework/utils"
 
 import { designSpine } from "./spines/design"
 import { partnerSpine } from "./spines/partner"
+import { socialPlatformSpine } from "./spines/social-platform"
+import { websiteSpine } from "./spines/website"
 import type { Graph, NodeItem, SpineDescriptor } from "./types"
 
 /**
@@ -19,6 +21,8 @@ import type { Graph, NodeItem, SpineDescriptor } from "./types"
 export const SPINES: Record<string, SpineDescriptor> = {
   [designSpine.key]: designSpine,
   [partnerSpine.key]: partnerSpine,
+  [websiteSpine.key]: websiteSpine,
+  [socialPlatformSpine.key]: socialPlatformSpine,
 }
 
 export const SPINE_KEYS = Object.keys(SPINES)
