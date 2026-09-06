@@ -4590,6 +4590,13 @@ export default defineMiddlewares({
       method: "POST",
       middlewares: [],
     },
+    // Admin Partner Disable — take the storefront domains down and set status
+    // inactive, without deleting the partner or its products/orders.
+    {
+      matcher: "/admin/partners/:id/disable",
+      method: "POST",
+      middlewares: [],
+    },
     // Admin Partner Admins routes
     {
       matcher: "/admin/partners/:id/admins",
@@ -5592,6 +5599,17 @@ export default defineMiddlewares({
       matcher: "/admin/stores",
       method: "POST",
       middlewares: [validateAndTransformBody(wrapSchema(createStoreSchema))],
+    },
+    // Store disable/enable — flip the store's default sales channel `is_disabled`.
+    {
+      matcher: "/admin/stores/:id/disable",
+      method: "POST",
+      middlewares: [],
+    },
+    {
+      matcher: "/admin/stores/:id/enable",
+      method: "POST",
+      middlewares: [],
     },
     // Email Templates 
     {

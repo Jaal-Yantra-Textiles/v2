@@ -386,6 +386,41 @@ export const ADMIN_MCP_TOOLS: AdminMcpToolDef[] = [
     queryParams: ["limit", "offset"],
     inputSchema: obj({ ...PAGINATION }),
   },
+  {
+    name: "disable_store",
+    description:
+      "Disable a store's storefront by disabling its default sales channel (is_disabled=true), so its products stop being purchasable. Reversible — use enable_store to switch it back on. Sensitive: requires confirm:true.",
+    method: "POST",
+    path: "/admin/stores/:id/disable",
+    pathParams: ["id"],
+    previewPath: "/admin/stores/:id",
+    write: true,
+    sensitive: true,
+    inputSchema: obj(
+      { id: STR("Store id to disable, e.g. 'store_...'. Get it from list_stores.") },
+      ["id"]
+    ),
+    sideEffects:
+      "Sets is_disabled=true on the store's default sales channel. Does NOT delete the store, its products or the channel.",
+    nextSteps: ["enable_store", "list_stores"],
+  },
+  {
+    name: "enable_store",
+    description:
+      "Re-enable a store's storefront by enabling its default sales channel (is_disabled=false). The reverse of disable_store. Sensitive: requires confirm:true.",
+    method: "POST",
+    path: "/admin/stores/:id/enable",
+    pathParams: ["id"],
+    previewPath: "/admin/stores/:id",
+    write: true,
+    sensitive: true,
+    inputSchema: obj(
+      { id: STR("Store id to enable, e.g. 'store_...'.") },
+      ["id"]
+    ),
+    sideEffects: "Sets is_disabled=false on the store's default sales channel.",
+    nextSteps: ["disable_store", "list_stores"],
+  },
 
   // ===== Designs & production ==============================================
   {
@@ -1922,6 +1957,21 @@ export const ADMIN_MCP_TOOLS: AdminMcpToolDef[] = [
       },
       ["id"]
     ),
+  },
+  {
+    name: "disable_partner",
+    description:
+      "Disable a partner WITHOUT deleting them: detach their storefront domain(s) (provider domain + our DNS) and set status to 'inactive', so the storefront goes dark. Reversible — products, orders, admins and the hosting project all survive, and the partner can be re-enabled by setting status back to 'active' via update_partner. Sensitive: requires confirm:true.",
+    method: "POST",
+    path: "/admin/partners/:id/disable",
+    pathParams: ["id"],
+    previewPath: "/admin/partners/:id",
+    write: true,
+    sensitive: true,
+    inputSchema: obj({ id: STR("Partner id to disable, e.g. 'partner_...'.") }, ["id"]),
+    sideEffects:
+      "Detaches the partner's storefront subdomain and custom domain from the hosting provider, removes our DNS record, clears the storefront domain columns, and sets status='inactive'. Does NOT delete products, orders, admins or the hosting project.",
+    nextSteps: ["get_partner", "update_partner"],
   },
   {
     name: "delete_partner",

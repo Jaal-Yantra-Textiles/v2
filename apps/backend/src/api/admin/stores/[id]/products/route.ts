@@ -67,7 +67,7 @@ export const POST = async (
   // than create an unattributable product in someone's shop.
   const { data: partnerRows } = await query.graph({
     entity: "partner",
-    fields: ["id", "name"],
+    fields: ["id", "name", "status"],
     filters: { stores: { id: storeId } },
   })
   const ownerPartner = partnerRows?.[0]
@@ -75,6 +75,14 @@ export const POST = async (
     throw new MedusaError(
       MedusaError.Types.INVALID_DATA,
       `Store ${storeId} is not linked to a partner, so a product created in it could not be attributed to an owner`
+    )
+  }
+  // A disabled partner must not have products added on their behalf — the same
+  // gate that keeps a disabled partner from doing business anywhere else.
+  if (ownerPartner.status === "inactive") {
+    throw new MedusaError(
+      MedusaError.Types.NOT_ALLOWED,
+      `Partner ${ownerPartner.id} is inactive — re-enable the partner before adding products to their store`
     )
   }
 
