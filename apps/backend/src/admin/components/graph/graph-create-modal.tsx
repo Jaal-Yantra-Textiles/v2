@@ -4,7 +4,7 @@ import { Link } from "react-router-dom"
 
 import type { GraphNode } from "../../hooks/api/graph"
 import { StackedFocusModal } from "../modal/stacked-modal/stacked-focused-modal"
-import { createFormFor, editFormFor, registryFor } from "./graph-forms"
+import { createFormFor, editFormFor, registryFor, withArticle } from "./graph-forms"
 import { nodeAffordance } from "./node-forms"
 
 /**
@@ -50,9 +50,21 @@ const useGraphRefetchOnClose = () => {
 export const GraphCreateModal = ({
   node,
   spine,
+  isPlaceholder = false,
 }: {
   node: GraphNode
   spine: string
+  /**
+   * This node is not on the canvas at all — the spine can hold this neighbour
+   * and has none, so it was synthesised to offer the create form.
+   *
+   * 🔴 It changes the WORDS, and the words matter. A placeholder is modelled
+   * as `absent` so the affordance rules treat it correctly, but "Create the
+   * MISSING bundled design" would tell the reader something is wrong when
+   * nothing is: a real absent edge means the model expected a neighbour and
+   * there is none, while this only means you opened the menu.
+   */
+  isPlaceholder?: boolean
 }) => {
   const onOpenChange = useGraphRefetchOnClose()
   const affordance = nodeAffordance(node, registryFor(spine))
@@ -67,8 +79,9 @@ export const GraphCreateModal = ({
   // across the JSX branch.
   const action = node.action
   const modalId = `graph-create-${node.key}`
-  const triggerLabel =
-    node.state === "absent"
+  const triggerLabel = isPlaceholder
+    ? `Add ${withArticle(node.label.toLowerCase())}`
+    : node.state === "absent"
       ? `Create the missing ${node.label.toLowerCase()}`
       : `Add to ${node.label.toLowerCase()}`
 

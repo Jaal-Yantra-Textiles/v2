@@ -134,18 +134,32 @@ type AddAnother = {
   href: (id: string) => string
 }
 
+/**
+ * A create form plus the words that name the thing it creates.
+ *
+ * 🔴 The label is REGISTERED, not derived from a node — because the node may
+ * not exist. A neighbour with no rows yet is drawn nowhere on the canvas, so
+ * the only way to offer "add one" is to know its name without one. That is the
+ * whole reason this stopped being a bare `ComponentType`.
+ */
+type CreateForm = {
+  Form: ComponentType
+  /** Singular, lower case: "task", "partner", "inventory item". */
+  label: string
+}
+
 type SpineForms = {
-  create: Record<string, ComponentType>
+  create: Record<string, CreateForm>
   edit: Record<string, EditForm>
   addAnother: Record<string, AddAnother>
 }
 
 const DESIGN_FORMS: SpineForms = {
   create: {
-    tasks: CreateDesignTaskComponent,
-    partners: DesignPartnerCreateForm,
-    inventory: DesignInventoryCreateForm,
-    components: DesignComponentCreateForm,
+    tasks: { Form: CreateDesignTaskComponent, label: "task" },
+    partners: { Form: DesignPartnerCreateForm, label: "partner" },
+    inventory: { Form: DesignInventoryCreateForm, label: "inventory item" },
+    components: { Form: DesignComponentCreateForm, label: "bundled design" },
   },
   addAnother: {
     /*
@@ -206,8 +220,38 @@ export const registryFor = (spine: string): FormRegistry => {
   }
 }
 
-export const createFormFor = (spine: string, key: string): ComponentType | undefined =>
-  formsFor(spine).create[key]
+export const createFormFor = (
+  spine: string,
+  key: string
+): ComponentType | undefined => formsFor(spine).create[key]?.Form
+
+/**
+ * Everything this spine can create, whether or not a node for it is drawn.
+ *
+ * 🔴 This exists because the canvas can only act on nodes it DRAWS, and a
+ * neighbour with nothing in it is drawn nowhere: no components on a design
+ * means no `components` node, which would leave no route at all to adding the
+ * first one once the summary card comes off. That is exactly how step 3
+ * stranded `/designs/:id/tasks` — a card removed while the only remaining
+ * route to it was removed alongside.
+ */
+/**
+ * "a task", "an inventory item".
+ *
+ * Trivial, and it earns its place: the labels are registered per spine and
+ * some of them begin with a vowel, so a hardcoded "a" reads as a typo on
+ * exactly the entries nobody remembers to check.
+ */
+export const withArticle = (label: string): string =>
+  `${/^[aeiou]/i.test(label) ? "an" : "a"} ${label}`
+
+export const creatableFor = (
+  spine: string
+): { key: string; label: string }[] =>
+  Object.entries(formsFor(spine).create).map(([key, { label }]) => ({
+    key,
+    label,
+  }))
 
 export const editFormFor = (spine: string, key: string): EditForm | undefined =>
   formsFor(spine).edit[key]

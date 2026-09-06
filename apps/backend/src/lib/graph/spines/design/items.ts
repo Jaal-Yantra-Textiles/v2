@@ -69,7 +69,17 @@ const inventoryItems = async (
     label: String(i.title || i.sku || i.id),
     sublabel: i.sku ? String(i.sku) : null,
     status: null,
-    href: `/inventory/${i.id}`,
+    /*
+     * 🔴 The DESIGN-scoped drawer, not `/inventory/:id`.
+     *
+     * What is worth editing from here is the LINK — planned quantity, stock
+     * location, consumed-at — which is a fact about this design's use of the
+     * item, not about the item. Sending the reader to the global inventory
+     * page would open the right record and show none of the fields the design
+     * page's own inventory card exists to edit, which is the card this row is
+     * meant to replace.
+     */
+    href: `/designs/${designId}/inventory/${i.id}`,
     props: [
       ...(i.sku ? [{ key: "sku", value: String(i.sku) }] : []),
       ...(i.hs_code ? [{ key: "hs code", value: String(i.hs_code) }] : []),

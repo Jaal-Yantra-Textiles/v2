@@ -1,6 +1,6 @@
 import { useMemo } from "react"
 import { useSearchParams } from "react-router-dom"
-import { Badge, Button, Heading, Skeleton, Text } from "@medusajs/ui"
+import { Badge, Button, DropdownMenu, Heading, Skeleton, Text } from "@medusajs/ui"
 
 import { useEntityGraph, type GraphNode } from "../../hooks/api/graph"
 import { RouteDrawer } from "../modal/route-drawer/route-drawer"
@@ -12,7 +12,7 @@ import {
   NodeInspectorHeader,
 } from "./node-inspector"
 import { GraphCreateModal, GraphEditModal } from "./graph-create-modal"
-import { addAnotherFor, registryFor } from "./graph-forms"
+import { addAnotherFor, creatableFor, registryFor, withArticle } from "./graph-forms"
 import { NodeAddAnother, NodeItemList } from "./node-items"
 import { actionRail, nodeAffordance } from "./node-forms"
 
@@ -78,11 +78,52 @@ export const GraphWorkspace = ({ spine, id, title = "Graph", selfHref }: Props) 
     setParams(next, { replace: true })
   }
 
+  /**
+   * A neighbour this spine can create but has none of yet.
+   *
+   * 🔴 The canvas can only act on nodes it DRAWS, and a neighbour with nothing
+   * in it is drawn nowhere — a design with no components emits no `components`
+   * node. Without this, removing the summary card that held "add a component"
+   * would leave NO route to creating the first one. That is precisely how step
+   * 3 stranded two sub-pages: a card retired while the only remaining route to
+   * its job went with it.
+   *
+   * Modelled as `absent`, which is honest — the model can hold this neighbour
+   * and there is none — so `nodeAffordance` offers the create form and refuses
+   * the edit form without needing to know the node is synthetic.
+   */
+  const placeholderNode = (key: string): GraphNode | undefined => {
+    const entry = creatableFor(spine).find((c) => c.key === key)
+    if (!entry) {
+      return undefined
+    }
+    return {
+      key,
+      type: key,
+      label: entry.label.replace(/^./, (c) => c.toUpperCase()),
+      sublabel: "none yet",
+      state: "absent",
+      count: 0,
+      status: null,
+      href: null,
+      props: [],
+      action: null,
+    }
+  }
+
   const active: GraphNode | undefined = !selectedKey
     ? undefined
     : selectedKey === spineKey
       ? graph?.spine
-      : nodes.find((n) => n.key === selectedKey)
+      : (nodes.find((n) => n.key === selectedKey) ?? placeholderNode(selectedKey))
+
+  /*
+   * True only for a neighbour the graph did not draw. Its member list is
+   * skipped: there is nothing to list, and "Nothing linked yet" under a node
+   * that exists only to offer a create form is noise.
+   */
+  const isPlaceholder =
+    !!active && active.key !== spineKey && !nodes.some((n) => n.key === active.key)
 
   const activeEdge =
     active && active.key !== spineKey
@@ -106,9 +147,24 @@ export const GraphWorkspace = ({ spine, id, title = "Graph", selfHref }: Props) 
    * no rows — and render "Nothing linked yet" beneath a node that is a real,
    * present neighbour.
    */
-  const listsItems = !!active && (graph?.itemNodes ?? []).includes(active.key)
+  /*
+   * 🔴 `count > 0`, not merely "this node can list members".
+   *
+   * An absent node has none by definition, so the list rendered "Nothing
+   * linked yet." directly beneath the sentence already explaining that a run
+   * exists and no inventory item is linked — the same fact twice, the second
+   * time less usefully. `0` is not `null`: the node is real, it simply has
+   * nothing to enumerate.
+   */
+  const listsItems =
+    !!active &&
+    !isPlaceholder &&
+    active.count > 0 &&
+    (graph?.itemNodes ?? []).includes(active.key)
 
   const another = active ? addAnotherFor(spine, active.key) : undefined
+
+  const creatable = creatableFor(spine)
 
   if (isLoading) {
     return (
@@ -158,9 +214,54 @@ export const GraphWorkspace = ({ spine, id, title = "Graph", selfHref }: Props) 
             </Badge>
           )}
         </div>
-        <Button variant="secondary" size="small" onClick={toggleAbsent}>
-          {showAbsent ? "Hide absent edges" : "Show absent edges"}
-        </Button>
+        <div className="flex items-center gap-x-2">
+          <Button variant="secondary" size="small" onClick={toggleAbsent}>
+            {showAbsent ? "Hide absent edges" : "Show absent edges"}
+          </Button>
+          {/*
+            Everything this spine can create, listed whether or not a node for
+            it is on the canvas. Selecting one opens the real node if it exists
+            and a placeholder if it does not, so "add the first" and "add
+            another" are the same gesture.
+          */}
+          {creatable.length > 0 && (
+            <DropdownMenu>
+              <DropdownMenu.Trigger asChild>
+                <Button variant="primary" size="small">
+                  Add
+                </Button>
+              </DropdownMenu.Trigger>
+              <DropdownMenu.Content>
+                {creatable.map((c) => {
+                  const existing = nodes.find((n) => n.key === c.key)
+                  /*
+                   * 🔴 `count > 0`, not merely "a node exists". An ABSENT node
+                   * is drawn and empty — the inventory node on a design that
+                   * expects inventory and has none — so keying on existence
+                   * rendered "Add to inventory items  0", which asks the reader
+                   * to add to a collection the same row says is empty. What
+                   * decides the wording is whether there is anything to add TO.
+                   */
+                  const hasSome = !!existing && existing.count > 0
+                  return (
+                    <DropdownMenu.Item key={c.key} onClick={() => select(c.key)}>
+                      <span className="flex w-full items-center justify-between gap-x-4">
+                        <span>
+                          {hasSome ? `Add to ${c.label}s` : `Add ${withArticle(c.label)}`}
+                        </span>
+                        {hasSome && (
+                          <Text size="xsmall" className="text-ui-fg-muted">
+                            {existing!.count}
+                          </Text>
+                        )}
+                      </span>
+                    </DropdownMenu.Item>
+                  )
+                })}
+              </DropdownMenu.Content>
+            </DropdownMenu>
+          )}
+        </div>
       </div>
 
       {/*
@@ -212,7 +313,7 @@ export const GraphWorkspace = ({ spine, id, title = "Graph", selfHref }: Props) 
                   `${active.label} on ${graph.spine.label}, ${active.state}.`}
               </span>
             </RouteDrawer.Description>
-            <NodeInspectorHeader node={active} />
+            <NodeInspectorHeader node={active} isPlaceholder={isPlaceholder} />
           </RouteDrawer.Header>
           <RouteDrawer.Body className="p-0">
             <NodeInspectorBody node={active} edge={activeEdge} />
@@ -222,6 +323,15 @@ export const GraphWorkspace = ({ spine, id, title = "Graph", selfHref }: Props) 
               that already has neighbours, so "which ones" comes before "add
               one more".
             */}
+            {isPlaceholder && (
+              <div className="border-t px-6 py-3">
+                <Text size="small" className="text-ui-fg-subtle">
+                  {/* Spine-agnostic: this component serves every spine. */}
+                  There are none yet. Nothing is wrong — the graph draws a node
+                  only once there is something on the other end of the edge.
+                </Text>
+              </div>
+            )}
             {listsItems && (
               <NodeItemList spine={spine} id={id} node={active} />
             )}
@@ -229,7 +339,11 @@ export const GraphWorkspace = ({ spine, id, title = "Graph", selfHref }: Props) 
               Create first, then edit: on an absent node only the first of the
               two renders, and it is the one the dashed edge is asking for.
             */}
-            <GraphCreateModal node={active} spine={spine} />
+            <GraphCreateModal
+              node={active}
+              spine={spine}
+              isPlaceholder={isPlaceholder}
+            />
             <GraphEditModal node={active} spine={spine} />
             {/*
               The rail never repeats a form, and never offers an "Open" that
