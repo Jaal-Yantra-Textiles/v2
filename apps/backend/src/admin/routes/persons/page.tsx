@@ -95,7 +95,11 @@ const PersonsPage = () => {
   const filtering: DataTableFilteringState = {};
   for (const f of ALL_FILTER_FIELDS) {
     const v = searchParams.get(f);
-    if (v) filtering[f] = v;
+    // `null` = filter absent. An empty-string value is a select filter that
+    // was added but has no value yet — it must stay visible (as `[]`) so the
+    // DataTable renders its chip and auto-opens the picker.
+    if (v === null) continue;
+    filtering[f] = v === "" ? [] : [v];
   }
 
   const sorting: SortingState = (() => {
@@ -135,8 +139,14 @@ const PersonsPage = () => {
       updateParams((p) => {
         for (const f of ALL_FILTER_FIELDS) p.delete(f);
         for (const [k, v] of Object.entries(newFilters)) {
-          const val = Array.isArray(v) ? v[0] : v;
-          if (typeof val === "string" && val !== "") p.set(k, val);
+          if (Array.isArray(v)) {
+            // Select filters arrive as string[]; an empty array is a just-added
+            // filter with no value, serialised as an empty param so the read
+            // side can reconstruct `[]` and keep the picker chip alive.
+            p.set(k, v[0] ?? "");
+          } else if (typeof v === "string" && v !== "") {
+            p.set(k, v);
+          }
         }
         resetPage(p);
       });
