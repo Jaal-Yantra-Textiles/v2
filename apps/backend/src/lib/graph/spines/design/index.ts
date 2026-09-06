@@ -1,8 +1,9 @@
-import { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
 import { ContainerRegistrationKeys, MedusaError } from "@medusajs/framework/utils"
 
-import designOrderLink from "../../../../../links/design-order-link"
-import designMediaFolderLink from "../../../../../links/design-media-folder-link"
+import designOrderLink from "../../../../links/design-order-link"
+import designMediaFolderLink from "../../../../links/design-media-folder-link"
+import { GraphBuilder, asArray, money } from "../../builder"
+import type { EdgeState, Graph, GraphNode, SpineContext, SpineDescriptor } from "../../types"
 import {
   COMMITTED_DESIGN_STATUSES,
   daysWaiting,
@@ -14,16 +15,13 @@ import {
 } from "./absence"
 
 /**
- * GET /admin/designs/:id/graph
+ * The DESIGN spine (#1847).
  *
- * The design spine as NODES and EDGES, for the graph view on the design page.
- *
- * Three edge states, and the third is the whole point:
- *
- *   present  — a declared link with something on the other end.
- *   derived  — true only through a shared record (two hops), never a link file.
- *   absent   — the model expects a neighbour here and there isn't one. A
- *              "future edge": it names the action that would create it.
+ * Lifted out of `GET /admin/designs/:id/graph` unchanged so the admin canvas
+ * and the MCP `get_entity_neighbours` tool resolve neighbours through one
+ * implementation. The node and edge construction below is the prototype's,
+ * verbatim; what changed is that it now returns a `Graph` instead of writing a
+ * response, and pushes through the shared `GraphBuilder`.
  *
  * An absent edge is the thing a list of rows can never show. The motivating
  * case is `production_run.approved_product_id` — written by
@@ -31,51 +29,13 @@ import {
  * that was never listed for sale is indistinguishable from one that was.
  *
  * 🔴 Absences are asserted ONLY where the model genuinely expects the
- * neighbour (see `absentReasons` below). A graph that cries wolf on every
- * empty relation is worse than no graph: the reader stops believing the
- * dashed edges, which are the ones worth believing.
+ * neighbour (see `absence.ts`). A graph that cries wolf on every empty
+ * relation is worse than no graph: the reader stops believing the dashed
+ * edges, which are the ones worth believing.
  */
-
-type EdgeState = "present" | "derived" | "absent"
-
-type GraphProp = { key: string; value: string }
-
-type GraphNode = {
-  key: string
-  type: string
-  label: string
-  sublabel: string | null
-  state: EdgeState
-  count: number
-  status: string | null
-  href: string | null
-  props: GraphProp[]
-  /** Present only on an absent node: what would bring it into existence. */
-  action: { label: string; href: string | null } | null
-}
-
-type GraphEdge = {
-  from: string
-  to: string
-  /** The real link field or column name — never "related to". */
-  label: string
-  state: EdgeState
-  /** Why this edge is absent or derived. Null on a present edge. */
-  reason: string | null
-}
-
-const asArray = <T>(v: T | T[] | null | undefined): T[] =>
-  Array.isArray(v) ? v.filter(Boolean) : v ? [v] : []
-
-const money = (v: unknown, currency?: string | null): string | null => {
-  const n = typeof v === "string" ? Number(v) : (v as number)
-  if (!Number.isFinite(n)) return null
-  return `${(currency || "").toUpperCase()} ${Number(n).toLocaleString()}`.trim()
-}
-
-export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
-  const designId = req.params.id
-  const query = req.scope.resolve(ContainerRegistrationKeys.QUERY) as any
+const resolveDesignGraph = async ({ scope, id }: SpineContext): Promise<Graph> => {
+  const designId = id
+  const query = scope.resolve(ContainerRegistrationKeys.QUERY) as any
 
   /**
    * The relations read straight off the entity are exactly the four the design
@@ -149,13 +109,8 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
   // synonyms that would silently count nothing.
   const doneTasks = tasks.filter((t) => String(t.status) === "completed").length
 
-  const nodes: GraphNode[] = []
-  const edges: GraphEdge[] = []
-
-  const push = (node: GraphNode, edge: Omit<GraphEdge, "from" | "to">) => {
-    nodes.push(node)
-    edges.push({ from: "design", to: node.key, ...edge })
-  }
+  const builder = new GraphBuilder("design")
+  const push = builder.push.bind(builder)
 
   // ---- production runs ----------------------------------------------------
 
@@ -473,7 +428,7 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
 
   // ---- the spine ----------------------------------------------------------
 
-  const spine = {
+  const spine: GraphNode = {
     key: "design",
     type: "design",
     label: design.name || designId,
@@ -504,16 +459,11 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
     action: null,
   }
 
-  res.json({
-    graph: {
-      spine,
-      nodes,
-      edges,
-      summary: {
-        links: edges.filter((e) => e.state === "present").length,
-        absent: edges.filter((e) => e.state === "absent").length,
-        derived: edges.filter((e) => e.state === "derived").length,
-      },
-    },
-  })
+  return builder.build(spine)
+}
+
+export const designSpine: SpineDescriptor = {
+  key: "design",
+  label: "Design",
+  resolve: resolveDesignGraph,
 }
