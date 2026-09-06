@@ -12,7 +12,7 @@ import {
 } from "./node-inspector"
 import { GraphCreateModal, GraphEditModal } from "./graph-create-modal"
 import { registryFor } from "./graph-forms"
-import { nodeAffordance, showsActionRail } from "./node-forms"
+import { actionRail, nodeAffordance } from "./node-forms"
 
 /**
  * The graph as the WORKSPACE rather than a card in a column (#1847 step 2).
@@ -90,6 +90,12 @@ export const GraphWorkspace = ({ spine, id, title = "Graph", selfHref }: Props) 
   // What this node offers: a create form, an edit form, or the action rail that
   // names the step. The rules are in `node-forms` and tested there.
   const affordance = active ? nodeAffordance(active, registryFor(spine)) : undefined
+
+  // What the rail underneath the form buttons should say, if anything.
+  const rail =
+    active && affordance
+      ? actionRail(affordance, active, graph?.spine.href ?? null)
+      : "none"
 
   if (isLoading) {
     return (
@@ -199,13 +205,12 @@ export const GraphWorkspace = ({ spine, id, title = "Graph", selfHref }: Props) 
             <GraphCreateModal node={active} spine={spine} />
             <GraphEditModal node={active} spine={spine} />
             {/*
-              The link-out rail only where no form was offered — it navigates,
-              which from in here means closing the graph to reach a route that
-              opens the same form.
+              The rail never repeats a form, and never offers an "Open" that
+              lands on the page this graph is about — but a real drill-in stays,
+              because with the summary sections gone it is the only route to the
+              full list.
             */}
-            {affordance && showsActionRail(affordance) && (
-              <NodeInspectorActions node={active} />
-            )}
+            <NodeInspectorActions node={active} mode={rail} />
           </RouteDrawer.Body>
         </RouteDrawer>
       )}

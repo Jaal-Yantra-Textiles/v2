@@ -2,6 +2,7 @@ import { Badge, Button, Heading, Text } from "@medusajs/ui"
 import { Link } from "react-router-dom"
 
 import type { GraphEdge, GraphNode } from "../../hooks/api/graph"
+import type { ActionRail } from "./node-forms"
 
 /**
  * What one node says about itself: its properties, why its edge is dashed, and
@@ -47,19 +48,33 @@ export const NodeInspectorBody = ({
 
 /**
  * The action rail. An absent node's action names the thing that would create
- * the missing neighbour; a present one just opens it.
+ * the missing neighbour; `open` is a drill-in to the neighbour's own page.
+ *
+ * `mode` is decided by `actionRail` in `node-forms.ts` — which of the two (if
+ * either) earns a button depends on whether a form is already offered beside
+ * it and on whether the href goes anywhere new. Defaults to the old behaviour
+ * for the in-page inspector, which offers no forms.
  *
  * An action with no href renders DISABLED rather than being hidden — the
  * reader should still learn what the missing step is called even where the
  * admin has no route for it yet.
  */
-export const NodeInspectorActions = ({ node }: { node: GraphNode }) => {
-  if (!node.action && !node.href) {
+export const NodeInspectorActions = ({
+  node,
+  mode,
+}: {
+  node: GraphNode
+  mode?: ActionRail
+}) => {
+  const resolved: ActionRail = mode ?? (node.action ? "action" : node.href ? "open" : "none")
+
+  if (resolved === "none") {
     return null
   }
+
   return (
     <div className="border-t px-6 py-3">
-      {node.action ? (
+      {resolved === "action" && node.action ? (
         node.action.href ? (
           <Link to={node.action.href}>
             <Button variant="secondary" size="small">
@@ -71,13 +86,13 @@ export const NodeInspectorActions = ({ node }: { node: GraphNode }) => {
             {node.action.label}
           </Button>
         )
-      ) : (
-        <Link to={node.href!}>
+      ) : node.href ? (
+        <Link to={node.href}>
           <Button variant="secondary" size="small">
             Open
           </Button>
         </Link>
-      )}
+      ) : null}
     </div>
   )
 }

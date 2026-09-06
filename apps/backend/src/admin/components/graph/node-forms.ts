@@ -75,13 +75,42 @@ export const nodeAffordance = (
 export const hasAffordance = (a: NodeAffordance) => a.create || a.edit || a.action
 
 /**
- * Whether the node's own action rail — the link out to the flow that would
- * create this neighbour — still earns its place.
+ * What the node's action rail should render underneath the form buttons.
  *
- * 🔴 It does not once a form is offered. Both buttons do the same job, but the
- * rail's NAVIGATES: pressed from inside the workspace it tears the graph down
- * to go to a route that opens the very form sitting next to it. Rendered live,
+ *   - `action` — the link out to the flow that creates this neighbour.
+ *   - `open`   — a drill-in to the neighbour's own page.
+ *   - `none`   — nothing worth a button.
+ *
+ * 🔴 The rail must not repeat a form. Both do the same job, but the rail's
+ * button NAVIGATES: pressed from inside the workspace it tears the graph down
+ * to reach a route that opens the very form sitting next to it. Rendered live,
  * the absent inventory node showed "Create the missing inventory" directly
- * above "Link inventory" — two buttons, one of them a trap.
+ * above "Link inventory".
+ *
+ * 🔴 And "Open" must not point back at the page the graph is about. Several
+ * nodes carry the spine's own href as a fallback — from in here that button
+ * closes the workspace to arrive where you already were. But where the href is
+ * a REAL drill-in (`/designs/:id/tasks`, the partner list, the design a
+ * revision came from) it is kept even when a form is offered: the form creates
+ * a neighbour, the drill-in reads the ones that exist, and after the summary
+ * sections came off the page this is the only route left to them.
  */
-export const showsActionRail = (a: NodeAffordance) => !a.create && !a.edit
+export type ActionRail = "action" | "open" | "none"
+
+export const actionRail = (
+  affordance: NodeAffordance,
+  node: { href: string | null; action: { label: string; href: string | null } | null },
+  spineHref: string | null
+): ActionRail => {
+  const hasForm = affordance.create || affordance.edit
+
+  if (!hasForm && node.action) {
+    return "action"
+  }
+
+  if (node.href && node.href !== spineHref) {
+    return "open"
+  }
+
+  return "none"
+}
