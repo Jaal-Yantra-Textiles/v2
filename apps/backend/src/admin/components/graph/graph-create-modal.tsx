@@ -1,8 +1,27 @@
+import type { ComponentType } from "react"
+import { useQueryClient } from "@tanstack/react-query"
 import { Button, Heading, Text } from "@medusajs/ui"
 import { Link } from "react-router-dom"
 
 import type { GraphNode } from "../../hooks/api/graph"
 import { StackedFocusModal } from "../modal/stacked-modal/stacked-focused-modal"
+import { CreateDesignTaskComponent } from "../creates/create-design-task"
+
+/**
+ * Node type → the real create form for it.
+ *
+ * These are the SAME components their own routes render. They became usable
+ * here by taking their chrome from context instead of importing
+ * `RouteFocusModal` directly, so one form now serves both surfaces and there
+ * is no second copy to drift.
+ *
+ * 🔴 A form only belongs here once it is chrome-agnostic. Added before that,
+ * it renders focus-modal markup inside a stacked modal and NAVIGATES on
+ * success, closing the graph that opened it.
+ */
+const CREATE_FORMS: Record<string, ComponentType> = {
+  task: CreateDesignTaskComponent,
+}
 
 /**
  * CREATE, stacked on top of the node drawer (#1847 step 2).
@@ -22,25 +41,67 @@ import { StackedFocusModal } from "../modal/stacked-modal/stacked-focused-modal"
  * opened it, and the create step is exactly where that context is worth most.
  */
 export const GraphCreateModal = ({ node }: { node: GraphNode }) => {
-  if (node.state !== "absent" || !node.action) {
+  const queryClient = useQueryClient()
+  const CreateForm = CREATE_FORMS[node.type]
+
+  // Something to create here means either a real form for this node type, or
+  // an absent edge whose action names the step. Neither: nothing to offer.
+  if (!CreateForm && (node.state !== "absent" || !node.action)) {
     return null
   }
 
+  // Bound once so the fallback branch narrows: inside it there is no form, so
+  // the guard above guarantees an action — but that is not something TS can
+  // see across the JSX branch.
+  const action = node.action
   const modalId = `graph-create-${node.key}`
+  const triggerLabel =
+    node.state === "absent"
+      ? `Create the missing ${node.label.toLowerCase()}`
+      : `Add to ${node.label.toLowerCase()}`
 
   return (
     <div className="border-t px-6 py-3">
-      <StackedFocusModal id={modalId}>
+      <StackedFocusModal
+        id={modalId}
+        /*
+         * 🔴 Refetch the graph when this layer closes.
+         *
+         * The create hooks invalidate their own resource's keys and know
+         * nothing about `["graph", …]`, so without this the neighbour is
+         * created, the modal closes onto the graph — and the node still reads
+         * its old count. Save works, screen stale: the exact failure that
+         * `...options` after `onSuccess` produces in 165 admin hooks.
+         *
+         * Invalidating on CLOSE rather than on success covers every form
+         * uniformly, including ones that create more than one thing before the
+         * user is done.
+         */
+        onOpenChangeCallback={(open) => {
+          if (!open) {
+            queryClient.invalidateQueries({ queryKey: ["graph"] })
+          }
+        }}
+      >
         <StackedFocusModal.Trigger asChild>
           <Button variant="primary" size="small">
-            Create the missing {node.label.toLowerCase()}
+            {triggerLabel}
           </Button>
         </StackedFocusModal.Trigger>
 
         <StackedFocusModal.Content>
+          {CreateForm ? (
+            /*
+              The form supplies its own header, body and footer through the
+              chrome context this stacked modal provides, and its success
+              closes only this layer — the drawer and the graph stay put.
+            */
+            <CreateForm />
+          ) : action ? (
+            <>
           <StackedFocusModal.Header>
             <StackedFocusModal.Title asChild>
-              <Heading level="h2">{node.action.label}</Heading>
+              <Heading level="h2">{action.label}</Heading>
             </StackedFocusModal.Title>
             <StackedFocusModal.Description>
               {node.label} is expected here and does not exist.
@@ -64,7 +125,7 @@ export const GraphCreateModal = ({ node }: { node: GraphNode }) => {
               ))}
             </div>
 
-            {node.action.href ? (
+            {action.href ? (
               <Text size="small" className="text-ui-fg-subtle">
                 This opens the flow that creates it. The edge stops being dashed
                 once the neighbour exists.
@@ -89,19 +150,21 @@ export const GraphCreateModal = ({ node }: { node: GraphNode }) => {
                   Cancel
                 </Button>
               </StackedFocusModal.Close>
-              {node.action.href ? (
-                <Link to={node.action.href}>
+              {action.href ? (
+                <Link to={action.href}>
                   <Button variant="primary" size="small">
-                    {node.action.label}
+                    {action.label}
                   </Button>
                 </Link>
               ) : (
                 <Button variant="primary" size="small" disabled>
-                  {node.action.label}
+                  {action.label}
                 </Button>
               )}
             </div>
           </StackedFocusModal.Footer>
+            </>
+          ) : null}
         </StackedFocusModal.Content>
       </StackedFocusModal>
     </div>

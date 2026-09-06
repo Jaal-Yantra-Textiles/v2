@@ -14,8 +14,8 @@ import {
 } from "@medusajs/ui";
 import { useTranslation } from "react-i18next";
 import { useParams } from "react-router-dom";
-import { useRouteModal } from "../modal/use-route-modal";
-import { RouteFocusModal } from "../modal/route-focus-modal";
+import { RouteModalForm } from "../modal/route-modal-form";
+import { useModalChrome } from "../modal/chrome/use-modal-chrome";
 import { Form } from "../common/form";
 import { Plus, Minus, ChevronDown } from "@medusajs/icons";
 import { KeyboundForm } from "../utilitites/key-bound-form";
@@ -66,7 +66,12 @@ const dependencyOptions = [
 export const CreateDesignTaskComponent = () => {
   const { t } = useTranslation();
   const { id } = useParams();
-  const { handleSuccess } = useRouteModal();
+  /**
+   * Chrome comes from whichever shell is wrapping this form — its own route's
+   * focus modal, or a StackedFocusModal opened from the design graph. The form
+   * no longer decides.
+   */
+  const Chrome = useModalChrome();
   const [isMainTaskExpanded, setIsMainTaskExpanded] = useState(true);
   const { mutateAsync: createTask, isPending } = useCreateDesignTask(id!);
 
@@ -114,7 +119,10 @@ export const CreateDesignTaskComponent = () => {
       await createTask(taskPayload, {
         onSuccess: () => {
           toast.success(t("tasks.create.success"));
-          handleSuccess(`/designs/${id}`);
+          // At its own route this navigates back to the design, as before.
+          // Inside a stacked modal it just closes that layer and the path is
+          // ignored, leaving the graph underneath standing.
+          Chrome.onDone(`/designs/${id}`);
         },
         onError: (error) => {
           toast.error(error.message);
@@ -127,21 +135,21 @@ export const CreateDesignTaskComponent = () => {
   });
 
   return (
-    <RouteFocusModal.Form form={form}>
+    <RouteModalForm form={form}>
       <KeyboundForm
         onSubmit={handleSubmit}
         className="flex flex-1 flex-col overflow-hidden"
       >
-        <RouteFocusModal.Header>
+        <Chrome.Header>
           <div>
             <Heading>{t("tasks.create.title")}</Heading>
             <Text size="small" className="text-ui-fg-subtle">
               {t("tasks.create.subtitle")}
             </Text>
           </div>
-        </RouteFocusModal.Header>
+        </Chrome.Header>
 
-        <RouteFocusModal.Body className="flex flex-1 flex-col items-center overflow-y-auto px-4 py-6 sm:px-6 sm:py-10">
+        <Chrome.Body className="flex flex-1 flex-col items-center overflow-y-auto px-4 py-6 sm:px-6 sm:py-10">
           <div className="flex w-full max-w-[720px] flex-col gap-y-8">
             {/* Main Task Section */}
             <div className="relative rounded-lg border border-ui-border-base bg-ui-bg-base p-6">
@@ -448,15 +456,15 @@ export const CreateDesignTaskComponent = () => {
               </div>
             )}
           </div>
-        </RouteFocusModal.Body>
+        </Chrome.Body>
 
-        <RouteFocusModal.Footer>
+        <Chrome.Footer>
           <div className="flex items-center justify-end gap-x-2">
-            <RouteFocusModal.Close asChild>
+            <Chrome.Close asChild>
               <Button size="small" variant="secondary">
                 {t("actions.cancel")}
               </Button>
-            </RouteFocusModal.Close>
+            </Chrome.Close>
             <Button
               size="small"
               variant="primary"
@@ -466,8 +474,8 @@ export const CreateDesignTaskComponent = () => {
               {t("actions.create")}
             </Button>
           </div>
-        </RouteFocusModal.Footer>
+        </Chrome.Footer>
       </KeyboundForm>
-    </RouteFocusModal.Form>
+    </RouteModalForm>
   );
 };

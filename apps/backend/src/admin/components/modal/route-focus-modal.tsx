@@ -5,6 +5,7 @@ import { RouteModalForm } from "./route-modal-form";
 import { useRouteModal } from "./use-route-modal";
 import { RouteModalProvider } from "./route-provider";
 import { StackedModalProvider } from "./stacked-modal/stacked-modal-provider";
+import { RouteChromeProvider } from "./chrome/route-chrome-provider";
 
 type RouteFocusModalProps = PropsWithChildren<{
   prev?: string;
@@ -41,9 +42,14 @@ const Root = ({ prev = "..", children }: RouteFocusModalProps) => {
   return (
     <FocusModal open={open} onOpenChange={handleOpenChange}>
       <RouteModalProvider prev={prev}>
-        <StackedModalProvider onOpenChange={onStackedModalOpen}>
-          <Content stackedModalOpen={stackedModalOpen}>{children}</Content>
-        </StackedModalProvider>
+        <RouteChromeProvider
+          variant="route-focus"
+          parts={{ Header, Title, Description, Body, Footer, Close }}
+        >
+          <StackedModalProvider onOpenChange={onStackedModalOpen}>
+            <Content stackedModalOpen={stackedModalOpen}>{children}</Content>
+          </StackedModalProvider>
+        </RouteChromeProvider>
       </RouteModalProvider>
     </FocusModal>
   );
