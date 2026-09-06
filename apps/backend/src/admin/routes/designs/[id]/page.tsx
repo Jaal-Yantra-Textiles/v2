@@ -5,11 +5,8 @@ import { DesignGraphSection } from "../../../components/designs/design-graph-sec
 import { DesignDesignerInvitesSection } from "../../../components/designs/design-designer-invites-section";
 import { DesignMediaSection } from "../../../components/designs/design-media-section";
 import { DesignMediaFolderSection } from "../../../components/designs/design-media-folder-section";
-import { DesignInventorySection } from "../../../components/designs/design-inventory-section";
 import { DesignConsumptionLogsSection } from "../../../components/designs/design-consumption-logs-section";
 import { DesignAttributesSection } from "../../../components/designs/design-attributes-section";
-import { DesignProductionRunsSummary } from "../../../components/designs/design-production-runs-summary";
-import { DesignComponentsSection } from "../../../components/designs/design-components-section";
 import { DesignConstructionSection } from "../../../components/designs/design-construction-section";
 import { TwoColumnPageSkeleton } from "../../../components/table/skeleton";
 import { TwoColumnPage } from "../../../components/pages/two-column-pages";
@@ -72,39 +69,49 @@ const DesignDetailPage = () => {
           <DesignGeneralSection design={design} />
           {/*
             #1847 — the spine and its neighbours, including the edges that are
-            EXPECTED AND MISSING. Sits at the top because every section below it
-            renders what IS there, and an absent edge is the one thing none of
-            them can show.
+            EXPECTED AND MISSING. Sits at the top because every section below
+            it renders what IS there, and an absent edge is the one thing none
+            of them can show.
 
-            🔴 STEP 3: the Tasks and Partners summary cards are GONE. Both were
-            a count, a preview and a link — all of which the graph now says
-            better, and both of their actions (create a task, link a partner)
-            open inside the workspace. What is still here stays for a reason,
-            not by inertia:
+            🔴 STEP 6: production runs, inventory and bundled designs are GONE.
+            Each came off only once the graph did its whole job, and the test
+            was the same three questions each time — what does the card SHOW
+            that the graph does not, what does it DO that the graph cannot, and
+            what is it the only route to?
 
-              - production runs — the graph can send an unstarted design to
-                production, but it has nowhere to create ANOTHER run beside the
-                ones that exist. This card is the only route to that.
-              - inventory, bundled designs — the graph adds; only these can
-                REMOVE, and inventory's per-item drawer (planned quantity,
-                stock location) has no representation on an aggregate node.
+              - production runs — was kept purely to hold "create another run".
+                The graph's `runs` node now offers "Start another run", and its
+                href still reaches the full list.
+              - inventory — the graph lists the items, unlinks them, and its
+                rows now open `/designs/:id/inventory/:id`, the same drawer the
+                card opened for planned quantity and stock location.
+              - bundled designs — listed both directions, with removal on the
+                inbound side (the outbound row belongs to the PARENT design and
+                its endpoint would 404 from here).
+
+            🔴 And the trap that made this safe: the canvas can only act on
+            nodes it DRAWS, so a design with no components emits no `components`
+            node and removing the card would have left NO route to adding the
+            first one. The workspace's "Add" menu lists everything the spine can
+            create whether or not a node for it is drawn. Step 3 stranded two
+            sub-pages exactly this way.
+
+            What stays, still for a reason and not by inertia:
+
               - consumption logs, construction — whole editors, not summaries.
-              - media — deliberately unregistered in the graph: a design holds
-                one folder and linking repoints it, so "add" would silently
-                replace.
-              - designer invites — not on the graph at all.
+              - media, media folder — deliberately unregistered in the graph: a
+                design holds ONE folder and linking REPOINTS it, so "add" would
+                silently replace what is already there.
+              - designer invites — not on the graph at all yet.
           */}
           <DesignGraphSection design={design} />
-          <DesignProductionRunsSummary design={design} />
           <DesignDesignerInvitesSection design={design} />
-          <DesignInventorySection design={design} />
           <DesignConsumptionLogsSection design={design} />
         </TwoColumnPage.Main>
         <TwoColumnPage.Sidebar>
           <DesignAttributesSection design={design} />
           <DesignMediaFolderSection design={design} />
           <DesignMediaSection design={design} />
-          <DesignComponentsSection design={design} />
           <DesignConstructionSection design={design} />
         </TwoColumnPage.Sidebar>  
         </TwoColumnPage>

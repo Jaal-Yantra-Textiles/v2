@@ -97,7 +97,23 @@ export const NodeInspectorActions = ({
   )
 }
 
-export const NodeInspectorHeader = ({ node }: { node: GraphNode }) => (
+export const NodeInspectorHeader = ({
+  node,
+  isPlaceholder = false,
+}: {
+  node: GraphNode
+  /**
+   * 🔴 A placeholder is `absent` for the AFFORDANCE rules — the model can hold
+   * this neighbour and there is none, which is exactly what unlocks the create
+   * form and blocks the edit form. But it must not be `absent` in the WORDS.
+   *
+   * Rendered, the red "absent" badge sat directly above the sentence saying
+   * "Nothing is wrong", which is a contradiction the reader has to resolve.
+   * A real absent edge means the model EXPECTED a neighbour and it is not
+   * there; a placeholder only means someone opened the Add menu.
+   */
+  isPlaceholder?: boolean
+}) => (
   <div className="flex items-start justify-between gap-x-2 px-6 py-4">
     <div className="flex flex-col">
       <Text size="xsmall" className="text-ui-fg-muted uppercase">
@@ -110,9 +126,13 @@ export const NodeInspectorHeader = ({ node }: { node: GraphNode }) => (
     <Badge
       size="2xsmall"
       rounded="full"
-      color={node.state === "absent" ? "red" : "grey"}
+      color={!isPlaceholder && node.state === "absent" ? "red" : "grey"}
     >
-      {node.state === "absent" ? "absent" : (node.sublabel ?? "linked")}
+      {isPlaceholder
+        ? "none yet"
+        : node.state === "absent"
+          ? "absent"
+          : (node.sublabel ?? "linked")}
     </Badge>
   </div>
 )

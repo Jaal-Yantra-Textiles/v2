@@ -3,7 +3,8 @@ import { Badge, Button, Container, Heading, Skeleton, Text } from "@medusajs/ui"
 import { Link } from "react-router-dom"
 
 import { useEntityGraph, type GraphNode } from "../../hooks/api/graph"
-import { GraphCanvas } from "./graph-canvas"
+import { GraphCanvas, canvasSize } from "./graph-canvas"
+import { GraphViewport } from "./graph-viewport"
 import {
   NodeInspectorActions,
   NodeInspectorBody,
@@ -144,18 +145,46 @@ export const EntityGraph = ({ spine, id, title = "Graph", expandHref }: Props) =
       </div>
 
       <div className="flex flex-col lg:flex-row">
-        <div className="flex-1 overflow-x-auto">
-          <GraphCanvas
-            spine={graph.spine}
-            spineKey={spineKey}
-            nodes={visible}
-            edges={edges}
-            selectedKey={activeKey}
-            onSelect={setSelected}
-          />
+        {/*
+          🔴 The card gets the viewport too, now that it is the PRIMARY view of
+          a design rather than a preview above the sections.
+          `overflow-x-auto` was survivable while the summary cards below still
+          said everything — the reader could ignore a cramped canvas. With
+          those cards gone it is the only thing on the page that says it, and a
+          graph you cannot pan is a graph that hides its own far column behind
+          the inspector.
+
+          A fixed height, because a `TwoColumnPage` slot has no height of its
+          own to fill: without one the viewport measures zero, `fitScale`
+          returns its unmeasured fallback, and nothing is drawn.
+        */}
+        {/*
+          🔴 `min-w-0` is load-bearing. A flex child's default `min-width:auto`
+          refuses to shrink below its content, and the balanced layout is ~760px
+          wide — so the canvas pushed the inspector down to about 110px. The
+          badge clipped to "ab", and the sentence explaining WHY an edge is
+          dashed wrapped to two words a line. That sentence is the single most
+          valuable thing in the card, and it was the first casualty.
+        */}
+        <div className="flex h-[420px] min-w-0 flex-1 flex-col">
+          <GraphViewport
+            content={canvasSize(visible, "balanced")}
+            fitKey={`${visible.length}:${showAbsent}`}
+          >
+            <GraphCanvas
+              spine={graph.spine}
+              spineKey={spineKey}
+              nodes={visible}
+              edges={edges}
+              selectedKey={activeKey}
+              onSelect={setSelected}
+              layout="balanced"
+            />
+          </GraphViewport>
         </div>
 
-        <div className="w-full border-t lg:w-[280px] lg:border-l lg:border-t-0">
+        {/* `shrink-0`, for the same reason: 280px is a floor, not a wish. */}
+        <div className="w-full shrink-0 border-t lg:w-[280px] lg:border-l lg:border-t-0">
           {active && (
             <>
               <NodeInspectorHeader node={active} />
