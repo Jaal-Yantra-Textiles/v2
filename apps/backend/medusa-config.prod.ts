@@ -164,6 +164,35 @@ module.exports = defineConfig({
         ],
       },
     },  
+    /**
+     * 🔴 The legacy CACHE module, on Redis. Load-bearing for auth, and NOT the
+     * same thing as `@medusajs/medusa/caching` registered above.
+     *
+     * `Modules.CACHE` ("cache") and `Modules.CACHING` ("caching") are distinct
+     * keys. Registering only `caching` leaves `cache` on Medusa's default
+     * in-memory fallback — measured, not assumed:
+     *
+     *   RESOLVED cache:   InMemoryCacheService
+     *   AUTH cache_:      InMemoryCacheService
+     *
+     * `@medusajs/auth` keeps two pieces of CROSS-REQUEST state in `cache`:
+     *
+     *   auth:mfa:challenge:<id>   the MFA challenge (createAuthMfaChallenge_ →
+     *                             verifyAuthMfaChallenge_)
+     *   OAuth `setState`/`getState` for providers that require state
+     *
+     * Prod runs TWO medusa-server tasks behind the ALB, so an in-memory cache
+     * means the challenge is written to one task's process memory and the
+     * verify request lands on the other roughly half the time — surfacing as
+     * `MFA challenge with id "..." was not found`, and as an intermittent OAuth
+     * state failure. It cannot reproduce on a single-process dev machine.
+     */
+    {
+      resolve: "@medusajs/medusa/cache-redis",
+      options: {
+        redisUrl: process.env.REDIS_URL,
+      },
+    },
     {
       resolve: "@medusajs/medusa/event-bus-redis",
       options: {
