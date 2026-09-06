@@ -6,10 +6,10 @@ import productDesignLink from "../../../../links/product-design-link"
 import designConsumptionLogLink from "../../../../links/design-consumption-log"
 import designPersonLink from "../../../../links/designs-person-link"
 import designRawMaterialGroupLink from "../../../../links/design-raw-material-group"
-import { GraphBuilder, asArray, money } from "../../builder"
+import { GraphBuilder, asArray, money, resolveExisting } from "../../builder"
+import { DESIGN_ITEM_NODES, resolveDesignItems } from "./items"
 import type { EdgeState, Graph, GraphNode, SpineContext, SpineDescriptor } from "../../types"
 import {
-  COMMITTED_DESIGN_STATUSES,
   daysWaiting,
   expectsInventory,
   expectsPartner,
@@ -39,6 +39,10 @@ import {
  * relation is worse than no graph: the reader stops believing the dashed
  * edges, which are the ones worth believing.
  */
+/** Is this id in the resolved set? Kept tiny so the filters above read cleanly. */
+const orNull = (resolved: string[], id: unknown): boolean =>
+  !!id && resolved.includes(String(id))
+
 const resolveDesignGraph = async ({ scope, id }: SpineContext): Promise<Graph> => {
   const designId = id
   const query = scope.resolve(ContainerRegistrationKeys.QUERY) as any
@@ -147,14 +151,53 @@ const resolveDesignGraph = async ({ scope, id }: SpineContext): Promise<Graph> =
       fields: ["raw_material_group_id", "resolved_raw_material_id"],
     }),
   ])
-  const orderIds = asArray<any>(orderLinks).map((l) => l.order_id).filter(Boolean)
+  const rawOrderIds = asArray<any>(orderLinks).map((l) => l.order_id).filter(Boolean)
   const folderIds = asArray<any>(folderLinks).map((l) => l.folder_id).filter(Boolean)
-  const linkedProductIds = asArray<any>(productLinks).map((l) => l.product_id).filter(Boolean)
-  const consumptionIds = asArray<any>(consumptionLinks)
+  const rawProductIds = asArray<any>(productLinks).map((l) => l.product_id).filter(Boolean)
+  const rawConsumptionIds = asArray<any>(consumptionLinks)
     .map((l) => l.consumption_log_id)
     .filter(Boolean)
-  const people = asArray<any>(personLinks)
-  const materialGroups = asArray<any>(materialGroupLinks)
+  const personLinkRows = asArray<any>(personLinks)
+  const materialGroupRows = asArray<any>(materialGroupLinks)
+
+  /*
+   * 🔴 Keep only the ids with a record behind them.
+   *
+   * A LINK ROW IS NOT A RECORD. Measured on the partner spine against the
+   * local database, where four `people` link rows pointed at person ids that
+   * do not exist and two `submissions` links at submissions that were gone —
+   * so the node said "4 linked" and the drawer listed none. Every node here
+   * built from a link table had the same defect, and it makes the node claim
+   * `present`, which this feature DEFINES as "a declared link with something
+   * on the other end".
+   *
+   * The `media` folder ids are left alone: that node counts FILES off the
+   * design entity, and the folder count is a secondary prop rather than the
+   * thing the edge asserts.
+   */
+  const [orderIds, linkedProductIds, consumptionIds, personIds, materialGroupIds] =
+    await Promise.all([
+      resolveExisting(query, "order", rawOrderIds),
+      resolveExisting(query, "product", rawProductIds),
+      resolveExisting(query, "consumption_log", rawConsumptionIds),
+      resolveExisting(
+        query,
+        "person",
+        personLinkRows.map((l) => l.person_id).filter(Boolean)
+      ),
+      resolveExisting(
+        query,
+        "raw_material_group",
+        materialGroupRows.map((l) => l.raw_material_group_id).filter(Boolean)
+      ),
+    ])
+
+  // Keep the link rows (they carry `role` / `resolved_raw_material_id`), but
+  // only for the ids that actually resolved.
+  const people = personLinkRows.filter((l) => orNull(personIds, l.person_id))
+  const materialGroups = materialGroupRows.filter((l) =>
+    orNull(materialGroupIds, l.raw_material_group_id)
+  )
 
   // ---- derived facts the absence rules key on -----------------------------
 
@@ -164,7 +207,6 @@ const resolveDesignGraph = async ({ scope, id }: SpineContext): Promise<Graph> =
   )
   const outstandingRuns = runsAwaitingProduct(runList)
 
-  const committed = COMMITTED_DESIGN_STATUSES.has(String(design.status))
   // The task enum is pending | in_progress | completed | cancelled | accepted |
   // assigned — "completed" is the only terminal-done value, so don't invent
   // synonyms that would silently count nothing.
@@ -212,31 +254,45 @@ const resolveDesignGraph = async ({ scope, id }: SpineContext): Promise<Graph> =
       },
       { label: "design_id", state: "present", reason: null }
     )
-  } else {
+  } else if (expectsProductionRun(design.status, runList.length)) {
+    /*
+     * 🔴 Drawn ONLY when a run is genuinely expected.
+     *
+     * This branch used to fall through to a `present` node with a count of
+     * zero, a sublabel of "not started" and a null action — on every design
+     * that has not been committed yet, which is most of them. By this
+     * feature's own definition a `present` edge is "a declared link with
+     * SOMETHING ON THE OTHER END", and there was nothing: the node asserted a
+     * neighbour that does not exist, said nothing the spine's own status did
+     * not already say, and offered no action.
+     *
+     * It is the same defect as counting link rows instead of records, in a
+     * different disguise, and it survived three steps of this feature because
+     * a node that is merely POINTLESS looks identical to one that is wrong.
+     * Nothing is lost by dropping it: `expectsProductionRun` is exactly
+     * "committed && no runs", so the case that carried the "Send to
+     * production" action is precisely the case still drawn below.
+     */
     push(
       {
         key: "runs",
         type: "production_run",
         label: "Production runs",
-        sublabel: committed ? "none yet" : "not started",
-        state: expectsProductionRun(design.status, runList.length) ? "absent" : "present",
+        sublabel: "none yet",
+        state: "absent",
         count: 0,
         status: null,
         href: `/designs/${designId}/production-runs`,
         props: [{ key: "design status", value: String(design.status) }],
-        action: committed
-          ? {
-              label: "Send to production",
-              href: `/designs/${designId}/production-run`,
-            }
-          : null,
+        action: {
+          label: "Send to production",
+          href: `/designs/${designId}/production-run`,
+        },
       },
       {
         label: "design_id",
-        state: expectsProductionRun(design.status, runList.length) ? "absent" : "present",
-        reason: committed
-          ? `Design is ${design.status} and no run has been created.`
-          : null,
+        state: "absent",
+        reason: `Design is ${design.status} and no run has been created.`,
       }
     )
   }
@@ -771,4 +827,12 @@ export const designSpine: SpineDescriptor = {
   key: "design",
   label: "Design",
   resolve: resolveDesignGraph,
+  /*
+   * The members behind each aggregate node, fetched only when a drawer opens
+   * (#1847 step 4). Kept in its own file: `resolve` above is already 700 lines
+   * of node construction, and the two answer different questions — which edges
+   * exist, and which records are on the far end of one of them.
+   */
+  items: resolveDesignItems,
+  itemNodes: DESIGN_ITEM_NODES,
 }

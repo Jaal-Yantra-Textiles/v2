@@ -17,6 +17,7 @@ import { PartnerWhatsAppSection } from "../../../components/partners/partner-wha
 import { PartnerEmailVerificationSection } from "../../../components/partners/partner-email-verification-section"
 import { PartnerTransactionFeesSection } from "../../../components/partners/partner-transaction-fees-section"
 import type { AdminPartner } from "../../../hooks/api/partners-admin"
+import { EntityGraph } from "../../../components/graph/entity-graph"
 import { partnerLoader } from "./loader"
 
 const PartnerDetailPage = () => {
@@ -44,6 +45,30 @@ const PartnerDetailPage = () => {
       <TwoColumnPage data={partner} hasOutlet={true} showJSON showMetadata>
         <TwoColumnPage.Main>
           <PartnerGeneralSection partner={partner} />
+          {/*
+            #1847 — the partner and its neighbours, including the edges that
+            are EXPECTED AND MISSING. Above the fourteen sections below it for
+            the same reason it sits above the design's: every one of them
+            renders what IS there.
+
+            Two absences on this spine that no list in the platform can show:
+            a partner with no admin (nobody can sign in, so work assigned to
+            them stops dead while the assignment reads as successful), and a
+            partner with delivered work and no payment method (the payout has
+            nowhere to land). Measured on the local database, eight partners
+            are in the second state.
+
+            🔴 NOTHING has been removed here yet. The design page's step 3
+            taught that retiring a card can strand the only route to a
+            sub-page; the sections come off this one on evidence, per card,
+            once the graph genuinely does that card's job.
+          */}
+          <EntityGraph
+            spine="partner"
+            id={partner.id}
+            title="Graph"
+            expandHref={`/partners/${partner.id}/graph`}
+          />
           <PartnerInspectionSection partnerId={partner.id} />
           <PartnerTasksSection partnerId={partner.id} />
           <PartnerStorefrontSection partnerId={partner.id} />

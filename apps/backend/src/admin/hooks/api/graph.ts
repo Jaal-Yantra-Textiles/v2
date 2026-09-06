@@ -1,4 +1,11 @@
-import { QueryKey, useQuery, UseQueryOptions } from "@tanstack/react-query"
+import {
+  QueryKey,
+  useMutation,
+  UseMutationOptions,
+  useQuery,
+  useQueryClient,
+  UseQueryOptions,
+} from "@tanstack/react-query"
 import { FetchError } from "@medusajs/js-sdk"
 
 import { sdk } from "../../lib/config"
@@ -41,6 +48,8 @@ export type AdminGraphResponse = {
     nodes: GraphNode[]
     edges: GraphEdge[]
     summary: { links: number; absent: number; derived: number }
+    /** Node keys whose members can be listed. See `Graph.itemNodes` server-side. */
+    itemNodes: string[]
   }
 }
 
@@ -65,4 +74,115 @@ export const useEntityGraph = (
     ...options,
   })
   return { ...data, ...rest }
+}
+
+/**
+ * One MEMBER of an aggregate node, and how to detach it.
+ *
+ * Mirrors `NodeItem` / `NodeItemRemoval` in `src/lib/graph/types.ts`.
+ *
+ * 🔴 `remove.path` is built by the SERVER and used verbatim. The client never
+ * assembles it: the four removal endpoints behind these rows take four
+ * different shapes (a link-row id, a record id, a body with a list, a body
+ * with a flag), and a client that guessed between them would send a
+ * well-formed request to the wrong record.
+ */
+export type NodeItemRemoval = {
+  method: "DELETE" | "POST"
+  path: string
+  body: Record<string, unknown> | null
+  label: string
+  confirm: string
+}
+
+export type NodeItem = {
+  id: string
+  label: string
+  sublabel: string | null
+  status: string | null
+  href: string | null
+  props: GraphProp[]
+  remove: NodeItemRemoval | null
+}
+
+export type AdminGraphItemsResponse = { items: NodeItem[] }
+
+export const graphItemsQueryKey = (spine: string, id: string, node: string) =>
+  ["graph", spine, id, "items", node] as const
+
+/**
+ * The rows behind one node.
+ *
+ * `enabled` is the caller's, because the drawer mounts for EVERY node and only
+ * some of them have members. Fetching unconditionally would fire a request per
+ * selection and answer `[]` for the single-record nodes — cheap, but it would
+ * also make "no members" and "not loaded yet" the same state on screen.
+ */
+export const useGraphNodeItems = (
+  spine: string,
+  id: string,
+  node: string,
+  options?: Omit<
+    UseQueryOptions<
+      AdminGraphItemsResponse,
+      FetchError,
+      AdminGraphItemsResponse,
+      QueryKey
+    >,
+    "queryFn" | "queryKey"
+  >,
+) => {
+  const { data, ...rest } = useQuery({
+    queryKey: graphItemsQueryKey(spine, id, node),
+    queryFn: async () =>
+      sdk.client.fetch<AdminGraphItemsResponse>(
+        `/admin/graph/${spine}/${id}/items/${node}`,
+        { method: "GET" },
+      ),
+    ...options,
+  })
+  return { items: data?.items ?? [], ...rest }
+}
+
+/**
+ * Detach one member, through the endpoint the server named.
+ *
+ * 🔴 Invalidates BOTH the item list and the graph itself. Removing the last
+ * inventory item does not just shorten a list — it can flip the node from
+ * `present` to `absent` and add a dashed edge to the canvas. Invalidating only
+ * the rows would leave the graph behind the drawer asserting a link that no
+ * longer exists, which is precisely the class of lie this whole view was built
+ * to remove.
+ *
+ * 🔴 `...options` goes BEFORE `onSuccess`, never after. Spread last, it
+ * overwrites the invalidation with the caller's handler and the screen stays
+ * stale until a hard refresh — the bug that was live in 165 admin hooks.
+ */
+export const useRemoveGraphNodeItem = (
+  spine: string,
+  id: string,
+  node: string,
+  options?: UseMutationOptions<unknown, FetchError, NodeItemRemoval>,
+) => {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (removal: NodeItemRemoval) =>
+      sdk.client.fetch(removal.path, {
+        method: removal.method,
+        ...(removal.body ? { body: removal.body } : {}),
+      }),
+    ...options,
+    /*
+     * Forwarded with a rest spread rather than the three named parameters:
+     * react-query's mutation callbacks gained a fourth argument, and naming
+     * three would quietly drop it for every caller that passes an `onSuccess`.
+     */
+    onSuccess: (...args: Parameters<NonNullable<typeof options>["onSuccess"] & {}>) => {
+      queryClient.invalidateQueries({
+        queryKey: graphItemsQueryKey(spine, id, node),
+      })
+      queryClient.invalidateQueries({ queryKey: graphQueryKeys.detail(spine, id) })
+      options?.onSuccess?.(...args)
+    },
+  })
 }
