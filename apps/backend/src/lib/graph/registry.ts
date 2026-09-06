@@ -1,5 +1,6 @@
 import { MedusaError } from "@medusajs/framework/utils"
 
+import { queueSpine } from "./queues"
 import { designSpine } from "./spines/design"
 import { partnerSpine } from "./spines/partner"
 import { socialPlatformSpine } from "./spines/social-platform"
@@ -23,6 +24,13 @@ export const SPINES: Record<string, SpineDescriptor> = {
   [partnerSpine.key]: partnerSpine,
   [websiteSpine.key]: websiteSpine,
   [socialPlatformSpine.key]: socialPlatformSpine,
+  /*
+   * The queue spine is centred on a POPULATION, not a record: its `id` is the
+   * queue's name. It sits in this same registry on purpose — every surface
+   * downstream (route, hook, canvas, drawer) is spine-agnostic, so a cohort
+   * board needs no route and no client change of its own.
+   */
+  [queueSpine.key]: queueSpine,
 }
 
 export const SPINE_KEYS = Object.keys(SPINES)
@@ -54,7 +62,18 @@ export const resolveGraph = async (
    * `itemNodes` disagreed with its `items()` would render drawers that fetch
    * nothing, or nodes whose rows exist and are never asked for.
    */
-  return { ...graph, itemNodes: spine.itemNodes ?? [] }
+  /*
+   * 🔴 The spine's declaration wins, and the RESOLVER's is the fallback — it
+   * used to be `?? []`, which silently discarded anything a resolver set.
+   * A record spine knows its listable nodes up front and declares them here.
+   * A QUEUE cannot: its nodes are `design:<id>`, one per member of a cohort
+   * that does not exist until the graph is built, so it fills `itemNodes` from
+   * the graph it just resolved. Overwriting that with `[]` left every node in
+   * the queue with a drawer that would never ask for its rows — and, because
+   * "no members" and "not loaded" look identical on screen, it would have
+   * looked like a queue whose designs simply had no candidate products.
+   */
+  return { ...graph, itemNodes: spine.itemNodes ?? graph.itemNodes ?? [] }
 }
 
 /**

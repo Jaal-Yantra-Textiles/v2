@@ -38,6 +38,7 @@ import {
   ContainerRegistrationKeys,
   MedusaError,
 } from "@medusajs/framework/utils"
+import type { Link } from "@medusajs/framework/modules-sdk"
 
 import { CONSUMPTION_LOG_MODULE } from "../../../../../../modules/consumption_log"
 import { OPS_AUDIT_MODULE } from "../../../../../../modules/ops_audit"
@@ -145,6 +146,22 @@ export const DELETE = async (req: MedusaRequest, res: MedusaResponse) => {
   const { id: designId, logId } = req.params
   const { service, log } = await loadOwnedLog(req, designId, logId)
   assertNotApplied(log)
+
+  /*
+   * 🔴 Dismiss the links BEFORE the row goes (#1857).
+   *
+   * A consumption log sits in three link tables — design, inventory item and
+   * production run — and this is a HARD delete, so once the row is gone every
+   * one of those links points at nothing. `query.graph` then hands each reader
+   * a NULL where a log should be, and prod carries exactly one such row in each
+   * of the three: one deletion, three lying tables.
+   *
+   * Before rather than after, for the reason the partner deletion documents at
+   * length: unlinking first means the dangling state never exists, not even
+   * between two awaits, and not at all if the delete then fails.
+   */
+  const link: Link = req.scope.resolve(ContainerRegistrationKeys.LINK)
+  await link.delete({ [CONSUMPTION_LOG_MODULE]: { consumption_log_id: logId } })
 
   await service.deleteConsumptionLogs(logId)
 

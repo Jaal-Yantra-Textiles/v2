@@ -30,7 +30,7 @@ export const PartnerPeopleSection = ({
   partnerId,
 }: PartnerPeopleSectionProps) => {
   const [linkModalOpen, setLinkModalOpen] = useState(false)
-  const { people, isLoading } = usePartnerPeople(partnerId)
+  const { people, isLoading, dangling } = usePartnerPeople(partnerId)
   const unlinkMutation = useUnlinkPeopleFromPartner(partnerId)
   const prompt = usePrompt()
 
@@ -98,6 +98,21 @@ export const PartnerPeopleSection = ({
             >
               No people linked
             </Text>
+            {/*
+              🔴 Say it, rather than let "none" stand for two different facts.
+              This partner HAS link rows — they point at people that no longer
+              exist (#1857). Before the null filter went in, those rows took
+              the whole page down; silently rendering "No people linked" over
+              them would trade a crash for a quieter untruth, which is the
+              exact failure this graph work exists to remove.
+            */}
+            {dangling > 0 && (
+              <Text size="xsmall" className="text-ui-fg-muted text-center">
+                {dangling} link {dangling === 1 ? "row points" : "rows point"} at
+                a person that no longer exists, and {dangling === 1 ? "was" : "were"}{" "}
+                left out.
+              </Text>
+            )}
             <Text size="small" className="text-ui-fg-muted text-center">
               Link people to this partner so they can access shared folders and
               upload files through the partner portal.

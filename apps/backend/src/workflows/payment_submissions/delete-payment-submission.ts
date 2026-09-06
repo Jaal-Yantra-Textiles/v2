@@ -4,7 +4,8 @@ import {
   StepResponse,
   WorkflowResponse,
 } from "@medusajs/framework/workflows-sdk"
-import { MedusaError } from "@medusajs/framework/utils"
+import { ContainerRegistrationKeys, MedusaError } from "@medusajs/framework/utils"
+import type { Link } from "@medusajs/framework/modules-sdk"
 
 import { PAYMENT_SUBMISSIONS_MODULE } from "../../modules/payment_submissions"
 import PaymentSubmissionsService from "../../modules/payment_submissions/service"
@@ -117,12 +118,41 @@ const softDeleteSubmissionStep = createStep(
   }
 )
 
+
+/**
+ * Dismiss every link this submission sits in (#1857).
+ *
+ * A Draft is soft-deleted here, on purpose — the run ids it claimed are evidence.
+ * But a soft-deleted submission is invisible to `query.graph`, so its links to the
+ * partner and to the designs it billed keep pointing at a NULL. Prod carries one
+ * such row in each of those two tables.
+ *
+ * `Link.delete` is the CASCADE form — it dismisses link rows across every
+ * module that links to this one, so nothing here enumerates them. Naming links
+ * one at a time is what let the design workflow look solved while nineteen of
+ * its twenty link tables kept leaking. `Link.restore` is the compensation.
+ */
+const dismissSubmissionLinksStep = createStep(
+  "dismissSubmissionLinksStep",
+  async (input: { id: string }, { container }) => {
+    const link: Link = container.resolve(ContainerRegistrationKeys.LINK)
+    await link.delete({ [PAYMENT_SUBMISSIONS_MODULE]: { payment_submission_id: input.id } })
+    return new StepResponse({ id: input.id }, { id: input.id })
+  },
+  async (undo: { id: string } | undefined, { container }) => {
+    if (!undo?.id) return
+    const link: Link = container.resolve(ContainerRegistrationKeys.LINK)
+    await link.restore({ [PAYMENT_SUBMISSIONS_MODULE]: { payment_submission_id: undo.id } }).catch(() => {})
+  },
+)
+
 export const deletePaymentSubmissionWorkflow = createWorkflow(
   "delete-payment-submission",
   (input: DeletePaymentSubmissionInput) => {
     const submission = validateSubmissionForDeleteStep(input)
 
     softDeleteSubmissionStep({ submission_id: input.submission_id })
+    dismissSubmissionLinksStep({ id: input.submission_id })
 
     return new WorkflowResponse({
       id: input.submission_id,

@@ -4,6 +4,7 @@ import {
   ArrowUpRightOnBox,
   Buildings,
   ChatBubbleLeftRight,
+  ExclamationCircle,
   Globe,
   Photo,
   Plus,
@@ -22,6 +23,7 @@ import { mediasEntityConfig } from "./entities/medias"
 import { websitesEntityConfig } from "./entities/websites"
 import { personsEntityConfig } from "./entities/persons"
 import { messagingEntityConfig } from "./entities/messaging"
+import { queuesEntityConfig } from "./entities/queues"
 import type { EntityPanelConfig } from "./EntityPanel"
 
 export type EntityKey =
@@ -32,6 +34,7 @@ export type EntityKey =
   | "websites"
   | "persons"
   | "messaging"
+  | "queues"
 
 type IconType = ComponentType<{ className?: string }>
 
@@ -84,6 +87,12 @@ export const ENTITY_REGISTRY: Record<EntityKey, EntityRegistryEntry> = {
     description: "Conversations and messaging.",
     icon: ChatBubbleLeftRight,
     config: messagingEntityConfig,
+  },
+  queues: {
+    label: "Queues",
+    description: "Finished work with nothing to sell it.",
+    icon: ExclamationCircle,
+    config: queuesEntityConfig,
   },
 }
 

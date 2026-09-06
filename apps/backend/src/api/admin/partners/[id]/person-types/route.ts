@@ -28,9 +28,25 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
     throw new MedusaError(MedusaError.Types.NOT_FOUND, "Partner not found")
   }
 
+  /*
+   * The same null-forwarding shape the `people` route carried, guarded before
+   * it can bite: `query.graph` answers with a null per link row whose target is
+   * gone, and any reader that maps over one and reads `.id` takes its page down
+   * rather than its section.
+   *
+   * ⚠️ Unlike the people route, this one is NOT verified against real data —
+   * `partner_partner_person_type_person_type` holds 0 rows locally, dangling or
+   * otherwise, so the guard could not be exercised. It is here because the
+   * shape is identical and the cost is a filter, not because it was seen to
+   * fire.
+   */
+  const rows = (partner.person_types || []) as (Record<string, any> | null)[]
+  const person_types = rows.filter((p): p is Record<string, any> => !!p?.id)
+
   return res.json({
-    person_types: partner.person_types || [],
-    count: (partner.person_types || []).length,
+    person_types,
+    count: person_types.length,
+    dangling: rows.length - person_types.length,
   })
 }
 

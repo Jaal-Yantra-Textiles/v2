@@ -117,6 +117,7 @@ const Desk = () => {
     websites: 0,
     persons: 0,
     messaging: 0,
+    queues: 0,
   })
   /**
    * Frozen at mount and consumed by the factory on each panel mount.
