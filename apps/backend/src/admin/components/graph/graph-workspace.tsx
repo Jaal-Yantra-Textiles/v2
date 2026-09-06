@@ -10,7 +10,9 @@ import {
   NodeInspectorBody,
   NodeInspectorHeader,
 } from "./node-inspector"
-import { GraphCreateModal } from "./graph-create-modal"
+import { GraphCreateModal, GraphEditModal } from "./graph-create-modal"
+import { registryFor } from "./graph-forms"
+import { nodeAffordance, showsActionRail } from "./node-forms"
 
 /**
  * The graph as the WORKSPACE rather than a card in a column (#1847 step 2).
@@ -84,6 +86,10 @@ export const GraphWorkspace = ({ spine, id, title = "Graph", selfHref }: Props) 
     active && active.key !== spineKey
       ? edges.find((e) => e.to === active.key)
       : undefined
+
+  // What this node offers: a create form, an edit form, or the action rail that
+  // names the step. The rules are in `node-forms` and tested there.
+  const affordance = active ? nodeAffordance(active, registryFor(spine)) : undefined
 
   if (isLoading) {
     return (
@@ -186,8 +192,20 @@ export const GraphWorkspace = ({ spine, id, title = "Graph", selfHref }: Props) 
           </RouteDrawer.Header>
           <RouteDrawer.Body className="p-0">
             <NodeInspectorBody node={active} edge={activeEdge} />
-            <GraphCreateModal node={active} />
-            <NodeInspectorActions node={active} />
+            {/*
+              Create first, then edit: on an absent node only the first of the
+              two renders, and it is the one the dashed edge is asking for.
+            */}
+            <GraphCreateModal node={active} spine={spine} />
+            <GraphEditModal node={active} spine={spine} />
+            {/*
+              The link-out rail only where no form was offered — it navigates,
+              which from in here means closing the graph to reach a route that
+              opens the same form.
+            */}
+            {affordance && showsActionRail(affordance) && (
+              <NodeInspectorActions node={active} />
+            )}
           </RouteDrawer.Body>
         </RouteDrawer>
       )}

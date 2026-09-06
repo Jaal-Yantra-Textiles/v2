@@ -8,10 +8,10 @@ import {
   toast,
 } from "@medusajs/ui";
 import { XMarkMini, Plus } from "@medusajs/icons";
-import { RouteDrawer } from "../modal/route-drawer/route-drawer";
+
 import { SketchPicker } from "react-color";
 import { useUpdateDesign, AdminDesign } from "../../hooks/api/designs";
-import { useRouteModal } from "../modal/use-route-modal";
+import { useModalChrome } from "../modal/chrome/use-modal-chrome";
 
 interface ColorEntry {
   name: string;
@@ -63,7 +63,11 @@ export const ColorPaletteEditor = ({ design }: { design: AdminDesign }) => {
   const { mutateAsync: updateDesign, isPending: isSaving } = useUpdateDesign(
     design.id
   );
-  const { handleSuccess } = useRouteModal();
+  /**
+   * Body and footer come from the shell: the `@edit-color-palette` drawer at
+   * its own route, or the design graph's stacked modal.
+   */
+  const Chrome = useModalChrome();
 
   const [colors, setColors] = useState<ColorEntry[]>(() =>
     getInitialColors(design)
@@ -164,7 +168,7 @@ export const ColorPaletteEditor = ({ design }: { design: AdminDesign }) => {
         })),
       });
       toast.success(`Color palette saved with ${colors.length} colors`);
-      handleSuccess();
+      Chrome.onDone();
     } catch (error) {
       toast.error("Failed to save color palette");
       console.error(error);
@@ -173,7 +177,7 @@ export const ColorPaletteEditor = ({ design }: { design: AdminDesign }) => {
 
   return (
     <>
-      <RouteDrawer.Body className="flex flex-1 flex-col gap-y-6 overflow-y-auto">
+      <Chrome.Body className="flex flex-1 flex-col gap-y-6 overflow-y-auto">
         {/* Current palette */}
         {colors.length > 0 && (
           <div className="flex flex-col gap-y-2">
@@ -325,15 +329,15 @@ export const ColorPaletteEditor = ({ design }: { design: AdminDesign }) => {
             </Button>
           </div>
         </div>
-      </RouteDrawer.Body>
+      </Chrome.Body>
 
-      <RouteDrawer.Footer>
+      <Chrome.Footer>
         <div className="flex items-center justify-end gap-x-2">
-          <RouteDrawer.Close asChild>
+          <Chrome.Close asChild>
             <Button size="small" variant="secondary">
               Cancel
             </Button>
-          </RouteDrawer.Close>
+          </Chrome.Close>
           <Button
             size="small"
             type="button"
@@ -343,7 +347,7 @@ export const ColorPaletteEditor = ({ design }: { design: AdminDesign }) => {
             Save
           </Button>
         </div>
-      </RouteDrawer.Footer>
+      </Chrome.Footer>
     </>
   );
 };

@@ -10,7 +10,7 @@ import {
   toast
 } from "@medusajs/ui"
 import { useState, useMemo, useCallback, useEffect } from "react"
-import { RouteFocusModal } from "../../modal/route-focus-modal"
+import { useModalChrome } from "../../modal/chrome/use-modal-chrome"
 import { AdminPartner, usePartners } from "../../../hooks/api/partners"
 import { usePartnerColumns } from "../send-to-partner/hooks/use-partner-columns"
 import { useLinkDesignToPartner } from "../../../hooks/api/designs"
@@ -21,7 +21,17 @@ interface LinkDesignPartnerFormProps {
 
 const filterHelper = createDataTableFilterHelper<AdminPartner>()
 
+/**
+ * 🔴 This component no longer renders its own modal ROOT.
+ *
+ * It used to open a `RouteFocusModal` itself, which made it unusable anywhere
+ * but its own route: rendered inside another modal it would have stacked a
+ * second focus modal over the first. The shell now owns the root — the
+ * `@linkPartner` route, or the design graph's stacked modal — and this form
+ * only fills in the chrome that shell publishes.
+ */
 export const LinkDesignPartnerForm = ({ designId }: LinkDesignPartnerFormProps) => {
+  const Chrome = useModalChrome()
   const [selectedRows, setSelectedRows] = useState<Record<string, boolean>>({})
   const [isCommandBarOpen, setIsCommandBarOpen] = useState(false)
   const [pagination, setPagination] = useState<DataTablePaginationState>({
@@ -160,8 +170,12 @@ export const LinkDesignPartnerForm = ({ designId }: LinkDesignPartnerFormProps) 
   }, [selectedPartnerIds, selectedCount, linkPartners])
 
   return (
-    <RouteFocusModal>
-      <RouteFocusModal.Header></RouteFocusModal.Header>
+    <>
+      <Chrome.Header>
+        <Chrome.Title asChild>
+          <span className="sr-only">Link partners to this design</span>
+        </Chrome.Title>
+      </Chrome.Header>
       <CommandBar open={isCommandBarOpen}>
         <CommandBar.Bar>
           <CommandBar.Value>{selectedCount} selected</CommandBar.Value>
@@ -188,6 +202,6 @@ export const LinkDesignPartnerForm = ({ designId }: LinkDesignPartnerFormProps) 
         <DataTable.Table />
         <DataTable.Pagination />
       </DataTable>
-    </RouteFocusModal>
+    </>
   )
 }

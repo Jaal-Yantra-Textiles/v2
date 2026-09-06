@@ -12,7 +12,7 @@ import {
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { useNavigate } from "react-router-dom"
 
-import { RouteFocusModal } from "../modal/route-focus-modal"
+import { useModalChrome } from "../modal/chrome/use-modal-chrome"
 import { InventoryItem, useInventoryWithRawMaterials } from "../../hooks/api/raw-materials"
 import { useDesignInventory, useLinkDesignInventory } from "../../hooks/api/designs"
 import { useInventoryColumns } from "./hooks/use-inventory-columns"
@@ -75,7 +75,13 @@ const createSelectionConfig = (item: InventoryItem): SelectedRowConfig => {
   }
 }
 
+/**
+ * 🔴 No modal ROOT of its own — see `LinkDesignPartnerForm` for the same note.
+ * The `@addinv` route or the design graph's stacked modal owns the shell; this
+ * fills in the chrome it publishes.
+ */
 export function DesignInventoryTable({ designId }: DesignInventoryTableProps) {
+  const Chrome = useModalChrome()
   const [selectedRows, setSelectedRows] = useState<Record<string, SelectedRowConfig>>({})
   const [isCommandBarOpen, setIsCommandBarOpen] = useState(false)
   const prevSelectedCount = useRef(0)
@@ -388,8 +394,12 @@ export function DesignInventoryTable({ designId }: DesignInventoryTableProps) {
   }, [isCommandBarOpen])
 
   return (
-    <RouteFocusModal>
-      <RouteFocusModal.Header />
+    <>
+      <Chrome.Header>
+        <Chrome.Title asChild>
+          <span className="sr-only">Link inventory to this design</span>
+        </Chrome.Title>
+      </Chrome.Header>
       <CommandBar open={isCommandBarOpen}>
         <CommandBar.Bar>
           <CommandBar.Value>{selectedCount} selected</CommandBar.Value>
@@ -419,6 +429,6 @@ export function DesignInventoryTable({ designId }: DesignInventoryTableProps) {
         <DataTable.Table />
         <DataTable.Pagination />
       </DataTable>
-    </RouteFocusModal>
+    </>
   )
 }

@@ -1,7 +1,7 @@
 import { useTranslation } from "react-i18next";
 import { z } from "@medusajs/framework/zod";
 import { DynamicForm, type FieldConfig } from "../common/dynamic-form";
-import { useRouteModal } from "../modal/use-route-modal";
+import { useModalChrome } from "../modal/chrome/use-modal-chrome";
 import {
   useUpdateDesign,
   useInferDesignProductType,
@@ -136,7 +136,12 @@ const DatePickerField = ({ value, onChange }: any) => (
 
 export const EditDesignForm = ({ design }: EditDesignFormProps) => {
   const { t } = useTranslation();
-  const { handleSuccess } = useRouteModal();
+  /**
+   * The shell decides what this form is wrapped in and what "saved" means:
+   * its own `@edit` drawer navigates back to the design, the graph's stacked
+   * modal closes one layer and leaves the canvas standing.
+   */
+  const chrome = useModalChrome();
   const { mutateAsync, isPending } = useUpdateDesign(design.id);
 
   const handleSubmit = async (data: DesignFormData) => {
@@ -165,7 +170,10 @@ export const EditDesignForm = ({ design }: EditDesignFormProps) => {
               name: design.name,
             })
           );
-          handleSuccess();
+          // At the design's own route this navigates back as it always has.
+          // Opened from the graph it closes only that layer — the `path` is
+          // ignored there, so the workspace underneath survives the save.
+          chrome.onDone();
         },
         onError: (error) => {
           toast.error(error.message);
@@ -263,6 +271,7 @@ export const EditDesignForm = ({ design }: EditDesignFormProps) => {
       onSubmit={handleSubmit}
       isPending={isPending}
       layout={{ showDrawer: true, gridCols: 1 }}
+      chrome={chrome}
     />
   );
 };
