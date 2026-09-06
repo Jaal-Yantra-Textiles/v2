@@ -201,7 +201,7 @@ describe("consumption logs", () => {
   const logQuery = (log: any) =>
     stubQuery({
       [CONSUMPTION_ENTRY]: [{ consumption_log_id: log.id }],
-      consumption_logs: [log],
+      consumption_log: [log],
     })
 
   it("offers deletion while no stock has moved", async () => {

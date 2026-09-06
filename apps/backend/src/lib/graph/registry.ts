@@ -1,6 +1,7 @@
 import { MedusaError } from "@medusajs/framework/utils"
 
 import { designSpine } from "./spines/design"
+import { partnerSpine } from "./spines/partner"
 import type { Graph, NodeItem, SpineDescriptor } from "./types"
 
 /**
@@ -11,10 +12,13 @@ import type { Graph, NodeItem, SpineDescriptor } from "./types"
  * That is the whole point of the registry: the surfaces consume the resolver,
  * so they cannot drift apart as spines are added.
  *
- * Next in line is Partner — the biggest node in the platform at 18 links.
+ * Partner joined as the second spine and cost exactly that: one entry here
+ * and a resolver. No route, no hook, no client change — which is the claim the
+ * registry was making all along, now tested by something other than its author.
  */
 export const SPINES: Record<string, SpineDescriptor> = {
   [designSpine.key]: designSpine,
+  [partnerSpine.key]: partnerSpine,
 }
 
 export const SPINE_KEYS = Object.keys(SPINES)

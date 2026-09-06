@@ -296,7 +296,7 @@ const consumptionItems = async (
   if (!ids.length) return []
 
   const { data: logs } = await query.graph({
-    entity: "consumption_logs",
+    entity: "consumption_log",
     filters: { id: ids },
     fields: ["*"],
   })
@@ -351,7 +351,7 @@ const materialGroupItems = async (
   if (!ids.length) return []
 
   const { data: groups } = await query.graph({
-    entity: "raw_material_groups",
+    entity: "raw_material_group",
     filters: { id: ids },
     fields: ["*"],
   })
@@ -424,7 +424,7 @@ const peopleItems = async (query: any, designId: string): Promise<NodeItem[]> =>
   if (!ids.length) return []
 
   const { data: people } = await query.graph({
-    entity: "people",
+    entity: "person",
     filters: { id: ids },
     fields: ["id", "first_name", "last_name", "email"],
   })
