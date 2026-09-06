@@ -82,6 +82,25 @@ export const placeBalanced = (nodes: GraphNode[]) => {
   return { placed, height: Math.max(height, 220), width, spineX }
 }
 
+/**
+ * The canvas's natural, unscaled size — without rendering it.
+ *
+ * The viewport has to know how big the content is in order to fit it, and it
+ * cannot measure a child it has not laid out yet. Both layouts already compute
+ * this internally; exposing it keeps ONE arithmetic for the size, rather than
+ * a second estimate in the viewport that drifts the moment a constant here
+ * changes.
+ */
+export const canvasSize = (
+  nodes: GraphNode[],
+  layout: "columns" | "balanced" = "columns",
+  maxRows = 4
+): { width: number; height: number } => {
+  const { width, height } =
+    layout === "balanced" ? placeBalanced(nodes) : place(nodes, maxRows)
+  return { width, height }
+}
+
 export const stateStyles = (state: string, selected: boolean) => {
   const base =
     "absolute box-border rounded-lg px-3 py-2 text-left transition-shadow cursor-pointer"

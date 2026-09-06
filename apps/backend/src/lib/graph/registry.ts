@@ -1,7 +1,7 @@
 import { MedusaError } from "@medusajs/framework/utils"
 
 import { designSpine } from "./spines/design"
-import type { Graph, SpineDescriptor } from "./types"
+import type { Graph, NodeItem, SpineDescriptor } from "./types"
 
 /**
  * Every spine the graph can centre on.
@@ -39,5 +39,42 @@ export const resolveGraph = async (
       `Unknown graph spine "${spineKey}". Known spines: ${SPINE_KEYS.join(", ")}`
     )
   }
-  return spine.resolve({ scope, id })
+  const graph = await spine.resolve({ scope, id })
+  /*
+   * Attached HERE rather than in each spine's `build()` call, so a spine that
+   * gains an item resolver cannot forget to advertise it — a graph whose
+   * `itemNodes` disagreed with its `items()` would render drawers that fetch
+   * nothing, or nodes whose rows exist and are never asked for.
+   */
+  return { ...graph, itemNodes: spine.itemNodes ?? [] }
+}
+
+/**
+ * The members behind one aggregate node.
+ *
+ * 🔴 An unknown SPINE is a 404, exactly as above — but an unknown NODE is an
+ * empty list, not an error. The two are genuinely different questions. A bad
+ * spine key means the caller asked for something that does not exist; a node
+ * with no item resolver means "this aggregate has no rows worth listing",
+ * which is a legitimate answer for the nodes that are a single record
+ * (`product`, `revision`) or a pure count (`palette`). Raising here would turn
+ * every one of those into a red panel in the drawer.
+ */
+export const resolveGraphItems = async (
+  scope: any,
+  spineKey: string,
+  id: string,
+  nodeKey: string
+): Promise<NodeItem[]> => {
+  const spine = SPINES[spineKey]
+  if (!spine) {
+    throw new MedusaError(
+      MedusaError.Types.NOT_FOUND,
+      `Unknown graph spine "${spineKey}". Known spines: ${SPINE_KEYS.join(", ")}`
+    )
+  }
+  if (!spine.items) {
+    return []
+  }
+  return spine.items({ scope, id }, nodeKey)
 }

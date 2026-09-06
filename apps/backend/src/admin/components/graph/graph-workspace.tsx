@@ -4,14 +4,16 @@ import { Badge, Button, Heading, Skeleton, Text } from "@medusajs/ui"
 
 import { useEntityGraph, type GraphNode } from "../../hooks/api/graph"
 import { RouteDrawer } from "../modal/route-drawer/route-drawer"
-import { GraphCanvas } from "./graph-canvas"
+import { GraphCanvas, canvasSize } from "./graph-canvas"
+import { GraphViewport } from "./graph-viewport"
 import {
   NodeInspectorActions,
   NodeInspectorBody,
   NodeInspectorHeader,
 } from "./node-inspector"
 import { GraphCreateModal, GraphEditModal } from "./graph-create-modal"
-import { registryFor } from "./graph-forms"
+import { addAnotherFor, registryFor } from "./graph-forms"
+import { NodeAddAnother, NodeItemList } from "./node-items"
 import { actionRail, nodeAffordance } from "./node-forms"
 
 /**
@@ -97,6 +99,17 @@ export const GraphWorkspace = ({ spine, id, title = "Graph", selfHref }: Props) 
       ? actionRail(affordance, active, graph?.spine.href ?? null)
       : "none"
 
+  /*
+   * 🔴 Ask for members only where the SERVER says there are members to list.
+   * `graph.itemNodes` is the spine's own declaration. Inferring it from
+   * `count > 0` would fetch on `product` and `revision` — single records with
+   * no rows — and render "Nothing linked yet" beneath a node that is a real,
+   * present neighbour.
+   */
+  const listsItems = !!active && (graph?.itemNodes ?? []).includes(active.key)
+
+  const another = active ? addAnotherFor(spine, active.key) : undefined
+
   if (isLoading) {
     return (
       <div className="flex h-full w-full flex-col gap-y-4 p-8">
@@ -151,13 +164,18 @@ export const GraphWorkspace = ({ spine, id, title = "Graph", selfHref }: Props) 
       </div>
 
       {/*
-        🔴 Fewer rows here, not more. `maxRows` is the point at which a SECOND
-        COLUMN starts, so raising it stacks everything into one tall column and
-        wastes the width the modal exists to provide — which is exactly what
-        the first render of this screen did. Four keeps the neighbours spread
-        across columns; the room the workspace buys is horizontal.
+        Pan and zoom, so the canvas is no longer limited to what fits.
+
+        🔴 `fitKey` varies with the SHAPE of what is drawn — the visible node
+        count and whether absent edges are shown — not with the graph object.
+        Keyed on the object it would refit on every parent render and snatch
+        the reader's pan back; keyed on nothing, toggling absent edges would
+        leave half the graph off-screen.
       */}
-      <div className="flex flex-1 items-center justify-center overflow-auto p-6">
+      <GraphViewport
+        content={canvasSize(visible, "balanced")}
+        fitKey={`${visible.length}:${showAbsent}`}
+      >
         <GraphCanvas
           spine={graph.spine}
           spineKey={spineKey}
@@ -167,7 +185,7 @@ export const GraphWorkspace = ({ spine, id, title = "Graph", selfHref }: Props) 
           onSelect={select}
           layout="balanced"
         />
-      </div>
+      </GraphViewport>
 
       {/*
         READ and EDIT live in the drawer; CREATE is a StackedFocusModal opened
@@ -199,6 +217,15 @@ export const GraphWorkspace = ({ spine, id, title = "Graph", selfHref }: Props) 
           <RouteDrawer.Body className="p-0">
             <NodeInspectorBody node={active} edge={activeEdge} />
             {/*
+              The members, and the only place in the graph that can take one
+              off. Above the create form on purpose: the reader clicked a node
+              that already has neighbours, so "which ones" comes before "add
+              one more".
+            */}
+            {listsItems && (
+              <NodeItemList spine={spine} id={id} node={active} />
+            )}
+            {/*
               Create first, then edit: on an absent node only the first of the
               two renders, and it is the one the dashed edge is asking for.
             */}
@@ -210,6 +237,17 @@ export const GraphWorkspace = ({ spine, id, title = "Graph", selfHref }: Props) 
               because with the summary sections gone it is the only route to the
               full list.
             */}
+            {/*
+              Present-node-only, and never on an absent one where the create
+              form or the rail below is already asking for the same thing.
+            */}
+            {another && (
+              <NodeAddAnother
+                node={active}
+                label={another.label}
+                href={another.href(id)}
+              />
+            )}
             <NodeInspectorActions node={active} mode={rail} />
           </RouteDrawer.Body>
         </RouteDrawer>

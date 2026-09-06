@@ -7,6 +7,7 @@ import designConsumptionLogLink from "../../../../links/design-consumption-log"
 import designPersonLink from "../../../../links/designs-person-link"
 import designRawMaterialGroupLink from "../../../../links/design-raw-material-group"
 import { GraphBuilder, asArray, money } from "../../builder"
+import { DESIGN_ITEM_NODES, resolveDesignItems } from "./items"
 import type { EdgeState, Graph, GraphNode, SpineContext, SpineDescriptor } from "../../types"
 import {
   COMMITTED_DESIGN_STATUSES,
@@ -771,4 +772,12 @@ export const designSpine: SpineDescriptor = {
   key: "design",
   label: "Design",
   resolve: resolveDesignGraph,
+  /*
+   * The members behind each aggregate node, fetched only when a drawer opens
+   * (#1847 step 4). Kept in its own file: `resolve` above is already 700 lines
+   * of node construction, and the two answer different questions — which edges
+   * exist, and which records are on the far end of one of them.
+   */
+  items: resolveDesignItems,
+  itemNodes: DESIGN_ITEM_NODES,
 }

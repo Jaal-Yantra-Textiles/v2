@@ -28,6 +28,8 @@ export class GraphBuilder {
       nodes: this.nodes,
       edges: this.edges,
       summary: summarise(this.edges),
+      // Filled in by the registry, which is where the spine's declaration is.
+      itemNodes: [],
     }
   }
 }

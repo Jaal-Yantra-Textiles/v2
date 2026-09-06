@@ -116,9 +116,28 @@ type EditForm = {
   title: string
 }
 
+/**
+ * The "and another" action on a node that already has members.
+ *
+ * Distinct from a create FORM, which opens inside the graph, and from an
+ * absent node's action, which names a step that does not exist yet. This is
+ * the third case the workspace had no answer for: the neighbour is present and
+ * the reader wants one more of it.
+ *
+ * 🔴 It exists because of one node. `runs` is the only card the design page
+ * could not give up — the graph could send an UNSTARTED design to production,
+ * but had nowhere to start a second run beside the ones already there, so the
+ * production-runs summary stayed purely to hold that button.
+ */
+type AddAnother = {
+  label: string
+  href: (id: string) => string
+}
+
 type SpineForms = {
   create: Record<string, ComponentType>
   edit: Record<string, EditForm>
+  addAnother: Record<string, AddAnother>
 }
 
 const DESIGN_FORMS: SpineForms = {
@@ -127,6 +146,19 @@ const DESIGN_FORMS: SpineForms = {
     partners: DesignPartnerCreateForm,
     inventory: DesignInventoryCreateForm,
     components: DesignComponentCreateForm,
+  },
+  addAnother: {
+    /*
+     * A run's own flow, not a form in the drawer: starting a run picks a
+     * partner, a quantity and an execution mode across several screens, and
+     * half of that is a decision rather than a field. The graph's job here is
+     * to say the step exists and get you to it — the same judgement that keeps
+     * `runs`, `product` and `specifications` out of the form registry below.
+     */
+    runs: {
+      label: "Start another run",
+      href: (id: string) => `/designs/${id}/production-run`,
+    },
   },
   edit: {
     design: {
@@ -161,7 +193,7 @@ const SPINE_FORMS: Record<string, SpineForms> = {
   design: DESIGN_FORMS,
 }
 
-const EMPTY: SpineForms = { create: {}, edit: {} }
+const EMPTY: SpineForms = { create: {}, edit: {}, addAnother: {} }
 
 const formsFor = (spine: string): SpineForms => SPINE_FORMS[spine] ?? EMPTY
 
@@ -179,3 +211,8 @@ export const createFormFor = (spine: string, key: string): ComponentType | undef
 
 export const editFormFor = (spine: string, key: string): EditForm | undefined =>
   formsFor(spine).edit[key]
+
+export const addAnotherFor = (
+  spine: string,
+  key: string
+): AddAnother | undefined => formsFor(spine).addAnother[key]
