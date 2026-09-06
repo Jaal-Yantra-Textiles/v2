@@ -253,6 +253,28 @@ module.exports = defineConfig({
       resolve: "./src/modules/investor",
     },
 
+    /**
+     * The CACHING module (`Modules.CACHING`) — the replacement for the
+     * deprecated Cache module. Registered with NO provider on purpose: the
+     * module ships a memory provider as its default, so dev needs no Redis.
+     * `medusa-config.prod.ts` gives it the Redis provider.
+     *
+     * ⚠️ Distinct from `cache-redis` below, which is the DEPRECATED Cache
+     * module and stays registered in prod only because `@medusajs/auth` still
+     * reads it for MFA challenges and OAuth state (#1849). Measured, with
+     * prod's exact module set: registering `caching` leaves `cache` on the
+     * in-memory fallback, and Auth holds that fallback.
+     */
+    {
+      resolve: "@medusajs/medusa/caching",
+      options: {
+        // 🔴 `in_memory.enable` is REQUIRED. The module does NOT fall back to
+        // its memory provider on its own — with no providers and this unset it
+        // THROWS at boot: "No providers have been configured and the built in
+        // memory cache has not been enabled." Verified by booting without it.
+        in_memory: { enable: true },
+      },
+    },
     // Production-ready modules.
     //
     // ⚠️ These stay OFF here on purpose — a dev machine is one process, so the
