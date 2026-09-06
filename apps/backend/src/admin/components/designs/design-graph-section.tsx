@@ -71,7 +71,7 @@ const stateStyles = (state: string, selected: boolean) => {
 }
 
 export const DesignGraphSection = ({ design }: Props) => {
-  const { graph, isLoading } = useDesignGraph(design.id)
+  const { graph, isLoading, isError, error } = useDesignGraph(design.id)
   const [selected, setSelected] = useState<string | null>(null)
   const [showAbsent, setShowAbsent] = useState(true)
 
@@ -118,8 +118,32 @@ export const DesignGraphSection = ({ design }: Props) => {
     )
   }
 
-  if (!graph) {
-    return null
+  /**
+   * 🔴 This returned `null` on failure, so a broken graph made the whole
+   * section VANISH after its skeleton — indistinguishable from "not built yet",
+   * and undiagnosable without opening devtools. A section that cannot load must
+   * say so on screen: silence is the one state that teaches the reader nothing.
+   */
+  if (isError || !graph) {
+    return (
+      <Container className="divide-y p-0">
+        <div className="flex items-center justify-between px-6 py-4">
+          <Heading level="h2">Graph</Heading>
+          <Badge size="2xsmall" color="red" rounded="full">
+            unavailable
+          </Badge>
+        </div>
+        <div className="px-6 py-4">
+          <Text size="small" className="text-ui-fg-subtle">
+            The graph could not be loaded.
+          </Text>
+          <Text size="xsmall" className="text-ui-fg-muted mt-1 break-words">
+            {(error as Error | undefined)?.message ??
+              "The request returned no graph."}
+          </Text>
+        </div>
+      </Container>
+    )
   }
 
   const spineY = Math.max(CANVAS_PAD, height / 2 - NODE_H / 2)
