@@ -17,6 +17,7 @@ import WebsitePageMetadataEdit from "../../websites/[id]/pages/[pageId]/@metadat
 import WebsitePagePublicMetadataEdit from "../../websites/[id]/pages/[pageId]/@public-metadata/edit/page"
 import WebsitePageBlockNew from "../../websites/[id]/pages/[pageId]/@blocks/new/page"
 import WebsitePageBlockEdit from "../../websites/[id]/pages/[pageId]/@blocks/[blockId]/page"
+import WebsiteGraph from "../../websites/[id]/@graph/page"
 import type { EntityPanelConfig } from "../EntityPanel"
 
 /**
@@ -43,6 +44,7 @@ export const websitesEntityConfig: EntityPanelConfig = {
         { path: "blog", element: <WebsiteBlog /> },
         { path: "metadata", element: <WebsiteMetadata /> },
         { path: "metadata/edit", element: <WebsiteMetadataEdit /> },
+        { path: "graph", element: <WebsiteGraph /> },
       ],
     },
     { path: "/websites/:id/analytics", element: <WebsiteAnalytics /> },

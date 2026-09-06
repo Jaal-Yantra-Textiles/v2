@@ -21,6 +21,10 @@ import DesignTasksNew from "../../designs/[id]/@tasks/new/page"
 import DesignTasksTemplates from "../../designs/[id]/@tasks/templates/page"
 import DesignTaskDetail from "../../designs/[id]/@tasks/[taskId]/page"
 import DesignInventoryDetail from "../../designs/[id]/@inventory/[inventoryId]/page"
+import DesignGraph from "../../designs/[id]/@graph/page"
+import DesignPartnersList from "../../designs/[id]/partners/page"
+import DesignProductionRunsList from "../../designs/[id]/production-runs/page"
+import DesignTasksList from "../../designs/[id]/tasks/page"
 import type { EntityPanelConfig } from "../EntityPanel"
 
 /**
@@ -62,7 +66,22 @@ export const designsEntityConfig: EntityPanelConfig = {
         { path: "tasks/templates", element: <DesignTasksTemplates /> },
         { path: "tasks/:taskId", element: <DesignTaskDetail /> },
         { path: "inventory/:inventoryId", element: <DesignInventoryDetail /> },
+        /*
+         * 🔴 The graph, and the three lists it is now the only route to.
+         *
+         * #1859 retired the production-runs, inventory and bundled-design
+         * cards because the graph does their job — but the graph route was
+         * never registered here, so inside a Desk panel "Open workspace" hit
+         * the recovery card and those capabilities left the workspace with the
+         * cards. Registering the graph without its drill-ins would only move
+         * the dead end one click later: the run and task nodes link out to
+         * these lists.
+         */
+        { path: "graph", element: <DesignGraph /> },
       ],
     },
+    { path: "/designs/:id/partners", element: <DesignPartnersList /> },
+    { path: "/designs/:id/production-runs", element: <DesignProductionRunsList /> },
+    { path: "/designs/:id/tasks", element: <DesignTasksList /> },
   ],
 }

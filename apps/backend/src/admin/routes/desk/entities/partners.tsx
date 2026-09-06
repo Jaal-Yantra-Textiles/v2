@@ -8,6 +8,7 @@ import PartnerTasksViewCanvas from "../../partners/[id]/@tasks/view-canvas/page"
 import PartnerTasksNew from "../../partners/[id]/@tasks/new/page"
 import PartnerFeedbacksEdit from "../../partners/[id]/@feedbacks/edit/page"
 import PartnerMetadataEdit from "../../partners/[id]/@metadata/edit/page"
+import PartnerGraph from "../../partners/[id]/@graph/page"
 import type { EntityPanelConfig } from "../EntityPanel"
 
 export const partnersEntityConfig: EntityPanelConfig = {
@@ -31,6 +32,7 @@ export const partnersEntityConfig: EntityPanelConfig = {
         { path: "tasks/new", element: <PartnerTasksNew /> },
         { path: "feedbacks/edit", element: <PartnerFeedbacksEdit /> },
         { path: "metadata/edit", element: <PartnerMetadataEdit /> },
+        { path: "graph", element: <PartnerGraph /> },
       ],
     },
   ],
