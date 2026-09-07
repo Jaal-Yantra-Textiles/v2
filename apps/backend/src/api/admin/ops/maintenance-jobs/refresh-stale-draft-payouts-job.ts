@@ -1,5 +1,6 @@
 import { PAYMENT_SUBMISSIONS_MODULE } from "../../../../modules/payment_submissions"
 import { assessRunPayout } from "../../../../workflows/production-runs/lib/run-payable"
+import { hydrateRunKind } from "../../../../workflows/production-runs/lib/run-kind"
 import {
   assessDraftLine,
   summarizeDraftSweep,
@@ -141,7 +142,9 @@ export const refreshStaleDraftPayoutsJob: MaintenanceJob = {
         if (!payoutCache.has(runId)) {
           try {
             const run = await runService.retrieveProductionRun(runId)
-            const payout = assessRunPayout(run)
+            // #1877 — the rollup guard needs a fetched child count; see
+            // `run-kind.ts`.
+            const payout = assessRunPayout(await hydrateRunKind(container, run))
             /**
              * 🔑 Narrowed on `eligible`, because the ineligible branch of
              * `PayoutEligibility` carries only a `reason` — it has no money
