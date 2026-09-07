@@ -1,11 +1,12 @@
 {
   "name": "@jyt/analytics",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "private": true,
   "description": "JYT client-side analytics tracking script. CDN-deployed.",
   "license": "MIT",
   "scripts": {
     "build": "node scripts/build.js",
+    "test": "node __tests__/analytics.behaviour.mjs",
     "clean": "rimraf dist"
   },
   "devDependencies": {

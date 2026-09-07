@@ -43,6 +43,11 @@ jobs:
         # (terser), so it needs none of the backend's native deps.
         run: pnpm install --frozen-lockfile --filter @jyt/analytics
 
+      - name: Verify tracker behaviour
+        # This artifact goes straight to the CDN and runs on customers' pages,
+        # so the gate has to be here — nothing else in CI looks at it.
+        run: pnpm --filter @jyt/analytics test
+
       - name: Build analytics script
         run: pnpm --filter @jyt/analytics build
 
