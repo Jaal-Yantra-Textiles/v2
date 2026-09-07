@@ -19,7 +19,23 @@
   'use strict';
 
   // Configuration
-  const script = document.currentScript;
+  //
+  // `document.currentScript` is null inside a module script and in any deferred
+  // callback. Reading an attribute off null throws, which kills the tracker
+  // before it sends anything — the silent-death case that looks identical to
+  // "analytics is fine, this page just had no traffic". Fall back to locating
+  // our own tag by the attribute only we set.
+  const script =
+    document.currentScript ||
+    document.querySelector('script[data-website-id]');
+
+  if (!script) {
+    if (console && console.warn) {
+      console.warn('[Analytics] Could not locate the tracking script tag');
+    }
+    return;
+  }
+
   const websiteId = script.getAttribute('data-website-id');
   const apiUrl = script.getAttribute('data-api-url') || 'https://v3.jaalyantra.com';
   const enableJourney = script.getAttribute('data-enable-journey') !== 'false';
@@ -38,16 +54,52 @@
     return;
   }
 
+  // localStorage and sessionStorage do not merely return null when they are
+  // unavailable — they THROW: Safari private mode, a sandboxed iframe, and any
+  // browser where the user has blocked site data. Every read below is evaluated
+  // inside the object literal being sent, so an unguarded throw does not
+  // degrade one field, it destroys the whole event.
+  function storageGet(store, key) {
+    try {
+      return window[store].getItem(key);
+    } catch (e) {
+      return null;
+    }
+  }
+
+  function storageSet(store, key, value) {
+    try {
+      window[store].setItem(key, value);
+    } catch (e) {
+      // An id we cannot persist is still perfectly usable for this page load.
+    }
+  }
+
+  function storageRemove(store, key) {
+    try {
+      window[store].removeItem(key);
+    } catch (e) {
+      // Nothing to remove if the store is unreachable.
+    }
+  }
+
+  // When storage is unreachable these keep one id for the life of the page.
+  // Without them every call would mint a fresh id and a single pageview would
+  // report as several unrelated visitors — worse data than the crash.
+  let cachedVisitorId = null;
+  let cachedSessionId = null;
+
   // Generate or retrieve visitor ID (persistent across sessions)
   function getVisitorId() {
     const key = 'jyt_visitor_id';
-    let visitorId = localStorage.getItem(key);
+    let visitorId = storageGet('localStorage', key) || cachedVisitorId;
 
     if (!visitorId) {
       visitorId = 'visitor_' + Math.random().toString(36).substring(2) + Date.now().toString(36);
-      localStorage.setItem(key, visitorId);
+      storageSet('localStorage', key, visitorId);
     }
 
+    cachedVisitorId = visitorId;
     return visitorId;
   }
 
@@ -58,22 +110,27 @@
     const sessionTimeout = 30 * 60 * 1000; // 30 minutes
 
     const now = Date.now();
-    const lastActivity = parseInt(sessionStorage.getItem(timestampKey) || '0');
+    const storedActivity = storageGet('sessionStorage', timestampKey);
 
-    // Check if session expired
-    if (now - lastActivity > sessionTimeout) {
-      sessionStorage.removeItem(key);
+    // Only expire on a timestamp we actually read. Treating an ABSENT one as 0
+    // would expire the session on every single call once storage is
+    // unreachable, which is exactly when the cache below is holding the id.
+    if (storedActivity && now - parseInt(storedActivity) > sessionTimeout) {
+      storageRemove('sessionStorage', key);
+      cachedSessionId = null;
     }
 
-    let sessionId = sessionStorage.getItem(key);
+    let sessionId = storageGet('sessionStorage', key) || cachedSessionId;
 
     if (!sessionId) {
       sessionId = 'session_' + Math.random().toString(36).substring(2) + Date.now().toString(36);
-      sessionStorage.setItem(key, sessionId);
+      storageSet('sessionStorage', key, sessionId);
     }
 
+    cachedSessionId = sessionId;
+
     // Update last activity timestamp
-    sessionStorage.setItem(timestampKey, now.toString());
+    storageSet('sessionStorage', timestampKey, now.toString());
 
     return sessionId;
   }
@@ -93,7 +150,7 @@
 
     // Store UTM params for later use (for conversions)
     if (Object.keys(utm).length > 0) {
-      sessionStorage.setItem('jyt_utm', JSON.stringify(utm));
+      storageSet('sessionStorage', 'jyt_utm', JSON.stringify(utm));
     }
 
     return Object.keys(utm).length > 0 ? utm : undefined;
@@ -102,7 +159,7 @@
   // Get stored UTM params (for conversions that happen after initial landing)
   function getStoredUTMParams() {
     try {
-      const stored = sessionStorage.getItem('jyt_utm');
+      const stored = storageGet('sessionStorage', 'jyt_utm');
       return stored ? JSON.parse(stored) : {};
     } catch (e) {
       return {};
@@ -152,25 +209,49 @@
 
   // Send data to endpoint
   function sendData(endpoint, data) {
-    // Use sendBeacon for reliability (works even when page is closing)
+    const body = JSON.stringify(data);
+
+    // Use sendBeacon for reliability (works even when page is closing).
+    // It returns FALSE when the user agent refuses the payload — over the queue
+    // limit, or the queue is full — and the event is then dropped on the floor.
+    // Treat that as "not sent" and fall through to fetch rather than assuming it
+    // went. sendBeacon can never see the response, so a rejected request is
+    // invisible on this path by design.
     if (navigator.sendBeacon) {
-      const blob = new Blob([JSON.stringify(data)], { type: 'application/json' });
-      navigator.sendBeacon(endpoint, blob);
-    } else {
-      // Fallback to fetch
-      fetch(endpoint, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(data),
-        keepalive: true,
-      }).catch(function(err) {
+      const blob = new Blob([body], { type: 'application/json' });
+      if (navigator.sendBeacon(endpoint, blob)) {
+        return;
+      }
+    }
+
+    // fetch: the fallback for old browsers AND the retry when sendBeacon
+    // refused the payload above.
+    fetch(endpoint, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: body,
+      keepalive: true,
+    })
+      .then(function(res) {
+        // The server answers 400 only when the REQUEST was wrong (#1884); its
+        // own failures still come back 200 so that our outage never surfaces as
+        // an error on a customer's page. So a 4xx here is always our tracking
+        // setup at fault and is worth one line — `fetch` does not reject on it,
+        // which is why this went unnoticed.
+        if (!res.ok && console && console.warn) {
+          console.warn(
+            '[Analytics] Event rejected (' + res.status + '), dropped:',
+            endpoint
+          );
+        }
+      })
+      .catch(function(err) {
         if (console && console.error) {
           console.error('[Analytics] Failed to send data:', err);
         }
       });
-    }
   }
 
   // Track pageview
@@ -565,7 +646,7 @@
   // Identify user (for logged-in users)
   function identify(personId, traits = {}) {
     // Store person ID for journey tracking
-    sessionStorage.setItem('jyt_person_id', personId);
+    storageSet('sessionStorage', 'jyt_person_id', personId);
 
     trackEvent('identify', {
       person_id: personId,
@@ -587,7 +668,7 @@
 
   // Get stored person ID
   function getPersonId() {
-    return sessionStorage.getItem('jyt_person_id') || null;
+    return storageGet('sessionStorage', 'jyt_person_id') || null;
   }
 
   // Expose API for custom tracking
