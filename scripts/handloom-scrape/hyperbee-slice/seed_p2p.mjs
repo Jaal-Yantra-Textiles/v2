@@ -31,6 +31,10 @@ import { idxRelKeys, geoPayload, eqAggKeys, EQ_AGG_PREFIX } from "./census_index
 const DATA_DIR = "../data/live";
 const STORE_DIR = process.env.P2P_STORE || "./p2p-store";
 const MIN_CELL = 5;                       // k-anonymity: suppress aggregate cells below this
+// Inline geo payload on index values — see backfill_index.mjs for the arithmetic.
+// Both writers read this same flag so the store never ends up half-populated.
+const EMIT_GEO_PAYLOAD = process.env.IDX_GEO === "1";
+const EMPTY_IDX_VALUE = Buffer.from("");
 
 // fields that must NEVER enter the public core (encrypted core only)
 const SENSITIVE = ["mobile", "name", "head_of_household", "latitude", "longitude",
@@ -215,11 +219,17 @@ async function ingestCore(bee, file, sens) {
       r.profile_photo_url = photos.get(String(r.census_id));
     const { pub: pubRow, sensitive } = splitRecord(r);
     recPuts.push([String(r.census_id), brotliCompressSync(Buffer.from(JSON.stringify(sens ? sensitive : pubRow)))]);
-    // Carry the lean display payload inline on every index family value so the
-    // reader browses without a fat rec/* seek (see census_index.geoPayload). The
-    // payload is identical across a record's families → encode once.
+    // Optionally carry the lean display payload inline on every index family value
+    // so the reader browses without a fat rec/* seek (see census_index.geoPayload).
+    // OFF by default, gated on the SAME flag as backfill_index.mjs (which carries the
+    // arithmetic): ~288 B across ~18 families is ~5 KB of COPIES per weaver, of fields
+    // that already live in rec/*. The two writers must agree or the store drifts into
+    // a half-payload state nobody planned. The reader only reads these values when
+    // meta/idx-geo-version is set, which the keys-only backfill never sets.
     if (!sens) {
-      const idxVal = brotliCompressSync(Buffer.from(JSON.stringify(geoPayload(pubRow))));
+      const idxVal = EMIT_GEO_PAYLOAD
+        ? brotliCompressSync(Buffer.from(JSON.stringify(geoPayload(pubRow))))
+        : EMPTY_IDX_VALUE;
       for (const rk of idxRelKeys(pubRow)) idxPuts.push([rk, idxVal]);
     }
     bumpInto(delta, r, sens);
