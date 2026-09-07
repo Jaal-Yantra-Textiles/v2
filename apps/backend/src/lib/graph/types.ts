@@ -85,7 +85,14 @@ export type NodeItem = {
 export type NodeItemRemoval = {
   method: "DELETE" | "POST"
   path: string
-  /** Sent as the JSON body on a POST. Null on a DELETE. */
+  /**
+   * Sent as the JSON body, or null where the route needs none.
+   *
+   * 🔴 Not "null on a DELETE". `DELETE /admin/partners/:id/people` takes
+   * `{ person_ids }` — the admin's own unlink hook has always sent it that
+   * way, and the client here forwards `body` on whatever method is named. The
+   * shape of the existing route decides this, not the verb.
+   */
   body: Record<string, unknown> | null
   /** The words on the button. "Remove", "Unlink", "Cancel assignment". */
   label: string

@@ -16,7 +16,17 @@ import type { ComponentType } from "react"
  * graph". A form asks the context what to render with and what "done" means,
  * and the shell answers.
  */
-export type ModalChromeVariant = "route-focus" | "route-drawer" | "stacked"
+/**
+ * `drawer` is a PLAIN drawer opened by a section's own button, not by a route.
+ * It exists so a form does not have to be moved to a route before a second
+ * surface can reuse it — the alternative was a second copy of the form living
+ * in the section, which is how the trade price ended up with two homes.
+ */
+export type ModalChromeVariant =
+  | "route-focus"
+  | "route-drawer"
+  | "stacked"
+  | "drawer"
 
 export type ModalChromeValue = {
   variant: ModalChromeVariant

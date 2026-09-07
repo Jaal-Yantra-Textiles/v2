@@ -3,6 +3,7 @@ import { ContainerRegistrationKeys, MedusaError, Modules } from "@medusajs/frame
 import { updateApiKeysWorkflow, deleteApiKeysWorkflow, revokeApiKeysWorkflow } from "@medusajs/medusa/core-flows"
 import { getPartnerFromAuthContext } from "../../helpers"
 import { PartnerUpdateApiKeyReq } from "../validators"
+import { presentRows } from "../../../../lib/links/dangling"
 
 async function validateApiKeyOwnership(partner: any, apiKeyId: string, container: any) {
   const query = container.resolve(ContainerRegistrationKeys.QUERY)
@@ -13,7 +14,7 @@ async function validateApiKeyOwnership(partner: any, apiKeyId: string, container
     fields: ["id", "stores.*"],
     filters: { id: partner.id },
   })
-  const stores = partnerData?.[0]?.stores || []
+  const stores = presentRows(partnerData?.[0]?.stores)
   const salesChannelIds = stores
     .map((s: any) => s.default_sales_channel_id)
     .filter(Boolean)

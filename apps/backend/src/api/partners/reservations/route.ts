@@ -2,6 +2,7 @@ import { AuthenticatedMedusaRequest, MedusaResponse } from "@medusajs/framework/
 import { ContainerRegistrationKeys, Modules, MedusaError } from "@medusajs/framework/utils"
 
 import { applyReservationListFilters } from "./list-filters"
+import { presentRows } from "../../../lib/links/dangling"
 
 /**
  * GET /partners/reservations
@@ -30,7 +31,7 @@ export const GET = async (
     filters: { id: partnerId },
   })
 
-  const salesChannelId = partners?.[0]?.stores?.[0]?.default_sales_channel_id
+  const salesChannelId = presentRows(partners?.[0]?.stores)[0]?.default_sales_channel_id
   if (!salesChannelId) {
     return res.json({ reservations: [], count: 0, limit: 20, offset: 0 })
   }
@@ -126,7 +127,7 @@ export const POST = async (
     filters: { id: partnerId },
   })
 
-  const salesChannelId = partners?.[0]?.stores?.[0]?.default_sales_channel_id
+  const salesChannelId = presentRows(partners?.[0]?.stores)[0]?.default_sales_channel_id
   if (salesChannelId) {
     const { data: channels } = await query.graph({
       entity: "sales_channels",

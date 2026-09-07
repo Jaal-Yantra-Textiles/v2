@@ -18,6 +18,7 @@ import {
   isMissingLifecycleTransaction,
 } from "./lib/lifecycle-signal-errors"
 import { lifecycleWorkflowId } from "./run-production-run-lifecycle"
+import { presentRows } from "../../lib/links/dangling"
 
 // ---------------------------------------------------------------------------
 // Types
@@ -242,7 +243,14 @@ export const resolvePartnerLocationStep = createStep(
       filters: { id: input.partner_id },
     })
 
-    const scId = partners?.[0]?.stores?.[0]?.default_sales_channel_id
+    /*
+     * 🔴 The first PRESENT store, not `stores[0]` (#1857). A dangling
+     * `partner_partner_stores_store` row resolves to a null in this array, and
+     * `null?.default_sales_channel_id` is `undefined` — so the step returns no
+     * stock location and the run is dispatched against nothing, while a real
+     * store sits at index 1. Optional chaining turns the fault into silence.
+     */
+    const scId = presentRows(partners?.[0]?.stores)[0]?.default_sales_channel_id
     if (scId) {
       const { data: channels } = await query.graph({
         entity: "sales_channels",

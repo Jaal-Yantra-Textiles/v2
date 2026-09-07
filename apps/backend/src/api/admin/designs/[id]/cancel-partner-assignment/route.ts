@@ -1,5 +1,6 @@
 import { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
 import { ContainerRegistrationKeys, MedusaError } from "@medusajs/framework/utils"
+import { presentRows } from "../../../../../lib/links/dangling"
 import { cancelPartnerAssignmentWorkflow } from "../../../../../workflows/designs/cancel-partner-assignment"
 import type { CancelPartnerAssignmentReq } from "./validators"
 
@@ -35,7 +36,14 @@ export const POST = async (
   if (!design) {
     throw new MedusaError(MedusaError.Types.NOT_FOUND, "Design not found")
   }
-  if (!(design.partners || []).some((p: any) => p.id === partner_id)) {
+  /*
+   * 🔴 `presentRows`, not `design.partners`. A dangling `design_partners_link`
+   * row arrives here as a NULL in the array, and `p.id` on it throws — a 500
+   * on the one route whose whole job is undoing a link (#1857). The graph's
+   * partner drawer now calls this endpoint, so a partner with any dangling
+   * design link could not unassign ANY of them.
+   */
+  if (!presentRows(design.partners).some((p) => p.id === partner_id)) {
     throw new MedusaError(
       MedusaError.Types.NOT_FOUND,
       "Partner is not linked to this design"

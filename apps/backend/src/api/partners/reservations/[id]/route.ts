@@ -1,5 +1,6 @@
 import { AuthenticatedMedusaRequest, MedusaResponse } from "@medusajs/framework/http"
 import { ContainerRegistrationKeys, Modules, MedusaError } from "@medusajs/framework/utils"
+import { presentRows } from "../../../../lib/links/dangling"
 
 /**
  * Verify reservation belongs to a partner's stock locations.
@@ -24,7 +25,7 @@ async function verifyReservationOwnership(
     filters: { id: partnerId },
   })
 
-  const salesChannelId = partners?.[0]?.stores?.[0]?.default_sales_channel_id
+  const salesChannelId = presentRows(partners?.[0]?.stores)[0]?.default_sales_channel_id
   if (!salesChannelId) {
     throw new MedusaError(MedusaError.Types.NOT_FOUND, "Reservation not found")
   }

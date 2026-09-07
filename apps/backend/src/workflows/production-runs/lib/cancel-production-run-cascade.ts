@@ -6,6 +6,7 @@ import { PRODUCTION_RUNS_MODULE } from "../../../modules/production_runs"
 import type ProductionRunService from "../../../modules/production_runs/service"
 import { TASKS_MODULE } from "../../../modules/tasks"
 import { mirrorRunStatusToUnifiedOrder } from "../dual-write-unified-run-order"
+import { presentRows } from "../../../lib/links/dangling"
 
 /**
  * Cancelling a run, in ONE place.
@@ -55,7 +56,7 @@ export const cancelSingleRun = async (
       fields: ["tasks.id", "tasks.status"],
       filters: { id: runId },
     })
-    const tasks = runData?.[0]?.tasks || []
+    const tasks = presentRows(runData?.[0]?.tasks)
 
     for (const task of tasks) {
       if (task.status !== "completed" && task.status !== "cancelled") {

@@ -17,10 +17,11 @@ import { Plus } from "@medusajs/icons"
 import {
   partnersQueryKeys,
   useUpdatePartner,
-  useAddPartnerAdmin,
   useUpdatePartnerAdmin,
 } from "../../hooks/api/partners-admin"
 import { Select } from "@medusajs/ui"
+import { AddPartnerAdminForm } from "../creates/create-partner-admin"
+import { DrawerChromeProvider } from "../modal/chrome/route-chrome-provider"
 import {
   PARTNER_ADMIN_LANGUAGES,
   getLanguageDisplayName,
@@ -107,15 +108,13 @@ export const PartnerAdminsSection = ({
   const [password, setPassword] = useState("")
   const [confirmPassword, setConfirmPassword] = useState("")
 
-  // Add admin drawer state
+  /*
+   * Add admin drawer. The FORM inside it lives in
+   * `components/creates/create-partner-admin` so the partner graph opens the
+   * same one this section does (#1856) — the drawer supplies the chrome and
+   * what "done" means, and nothing else about the form is duplicated here.
+   */
   const [addDrawerOpen, setAddDrawerOpen] = useState(false)
-  const [newEmail, setNewEmail] = useState("")
-  const [newFirstName, setNewFirstName] = useState("")
-  const [newLastName, setNewLastName] = useState("")
-  const [newPhone, setNewPhone] = useState("")
-  const [newRole, setNewRole] = useState<"admin" | "manager" | "owner">("admin")
-  const [newPassword, setNewPassword] = useState("")
-  const { mutateAsync: addAdmin, isPending: isAdding } = useAddPartnerAdmin(partnerId)
 
   // Set-language drawer state
   const [languageDrawerOpen, setLanguageDrawerOpen] = useState(false)
@@ -213,15 +212,15 @@ export const PartnerAdminsSection = ({
         <Button
           variant="secondary"
           size="small"
-          onClick={() => {
-            setNewEmail("")
-            setNewFirstName("")
-            setNewLastName("")
-            setNewPhone("")
-            setNewRole("admin")
-            setNewPassword("")
-            setAddDrawerOpen(true)
-          }}
+          /*
+           * 🔴 No field resets here any more. They used to clear six pieces of
+           * state this section owned; the form owns them now, and the drawer
+           * unmounts its content when closed, so every open starts blank on
+           * its own. Left behind, the six `setNew*` calls referenced nothing —
+           * and `medusa build` compiled the admin CLEAN anyway. Only opening
+           * the drawer said "setNewEmail is not defined".
+           */
+          onClick={() => setAddDrawerOpen(true)}
         >
           <Plus className="mr-1" />
           Add Admin
@@ -399,115 +398,27 @@ export const PartnerAdminsSection = ({
           </Drawer.Footer>
         </Drawer.Content>
       </Drawer>
-      <Drawer open={addDrawerOpen} onOpenChange={(o) => (!o ? setAddDrawerOpen(false) : setAddDrawerOpen(true))}>
+      <Drawer open={addDrawerOpen} onOpenChange={setAddDrawerOpen}>
         <Drawer.Content className="max-w-md">
-          <Drawer.Header>
-            <Drawer.Title>Add Admin</Drawer.Title>
-            <Drawer.Description>
-              Create a new admin for this partner. They will receive a welcome email with login credentials.
-            </Drawer.Description>
-          </Drawer.Header>
-          <Drawer.Body className="overflow-y-auto">
-            <div className="flex flex-col gap-y-4">
-              <div>
-                <Text size="small" className="text-ui-fg-subtle mb-1">Email *</Text>
-                <Input
-                  type="email"
-                  value={newEmail}
-                  onChange={(e) => setNewEmail(e.target.value)}
-                  placeholder="admin@partner.com"
-                />
-              </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <Text size="small" className="text-ui-fg-subtle mb-1">First name</Text>
-                  <Input
-                    value={newFirstName}
-                    onChange={(e) => setNewFirstName(e.target.value)}
-                    placeholder="John"
-                  />
-                </div>
-                <div>
-                  <Text size="small" className="text-ui-fg-subtle mb-1">Last name</Text>
-                  <Input
-                    value={newLastName}
-                    onChange={(e) => setNewLastName(e.target.value)}
-                    placeholder="Doe"
-                  />
-                </div>
-              </div>
-              <div>
-                <Text size="small" className="text-ui-fg-subtle mb-1">Phone</Text>
-                <Input
-                  value={newPhone}
-                  onChange={(e) => setNewPhone(e.target.value)}
-                  placeholder="+91 98765 43210"
-                  type="tel"
-                />
-              </div>
-              <div>
-                <Text size="small" className="text-ui-fg-subtle mb-1">Role</Text>
-                <Select value={newRole} onValueChange={(v) => setNewRole(v as any)}>
-                  <Select.Trigger>
-                    <Select.Value />
-                  </Select.Trigger>
-                  <Select.Content>
-                    <Select.Item value="admin">Admin</Select.Item>
-                    <Select.Item value="manager">Manager</Select.Item>
-                    <Select.Item value="owner">Owner</Select.Item>
-                  </Select.Content>
-                </Select>
-              </div>
-              <div>
-                <Text size="small" className="text-ui-fg-subtle mb-1">Password (leave blank to auto-generate)</Text>
-                <Input
-                  type="password"
-                  value={newPassword}
-                  onChange={(e) => setNewPassword(e.target.value)}
-                  placeholder="Auto-generated if empty"
-                  autoComplete="new-password"
-                />
-              </div>
-            </div>
-          </Drawer.Body>
-          <Drawer.Footer>
-            <div className="flex w-full items-center justify-end gap-x-2">
-              <Drawer.Close asChild>
-                <Button variant="secondary" size="small" disabled={isAdding}>Cancel</Button>
-              </Drawer.Close>
-              <Button
-                size="small"
-                isLoading={isAdding}
-                onClick={async () => {
-                  if (!newEmail.trim()) {
-                    toast.error("Email is required")
-                    return
-                  }
-                  try {
-                    const result = await addAdmin({
-                      email: newEmail.trim(),
-                      first_name: newFirstName.trim() || undefined,
-                      last_name: newLastName.trim() || undefined,
-                      phone: newPhone.trim() || undefined,
-                      role: newRole,
-                      password: newPassword || undefined,
-                    })
-                    toast.success("Admin added", {
-                      description: `Welcome email sent to ${newEmail}. ${result.temp_password ? `Temp password: ${result.temp_password}` : ""}`,
-                    })
-                    setAddDrawerOpen(false)
-                    await queryClient.invalidateQueries({ queryKey: partnersQueryKeys.details() })
-                  } catch (e: any) {
-                    toast.error("Failed to add admin", {
-                      description: e?.message || "Could not create admin",
-                    })
-                  }
-                }}
-              >
-                Add Admin
-              </Button>
-            </div>
-          </Drawer.Footer>
+          {/*
+            🔴 The chrome is published to the form rather than wrapped around a
+            copy of it. `onDone` closes THIS drawer — there is no route to
+            unwind — so the same component serves the section and the graph's
+            stacked modal without either knowing about the other.
+          */}
+          <DrawerChromeProvider
+            parts={{
+              Header: Drawer.Header,
+              Title: Drawer.Title,
+              Description: Drawer.Description,
+              Body: Drawer.Body,
+              Footer: Drawer.Footer,
+              Close: Drawer.Close,
+            }}
+            onClose={() => setAddDrawerOpen(false)}
+          >
+            <AddPartnerAdminForm partnerId={partnerId} />
+          </DrawerChromeProvider>
         </Drawer.Content>
       </Drawer>
     </Container>

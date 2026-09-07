@@ -1,4 +1,5 @@
 import { ContainerRegistrationKeys } from "@medusajs/framework/utils"
+import { presentRows } from "./links/dangling"
 
 /**
  * #485 — multi-store currency resolution.
@@ -77,7 +78,14 @@ export async function resolveStoreCurrency(
         fields: ["id", "stores.supported_currencies.*"],
         filters: { id: partnerId },
       })
-      const partnerStore = data?.[0]?.stores?.[0]
+      /*
+       * 🔴 The first PRESENT store (#1857). A dangling store link at index 0
+       * made this fall through to the platform store's currency — the partner
+       * would be priced in the wrong currency with nothing logged, which is
+       * the shape of the ShipRocket AUD/INR fault (#1834) arriving by a
+       * different door.
+       */
+      const partnerStore = presentRows(data?.[0]?.stores)[0]
       const code = partnerStore?.supported_currencies?.find(
         (c: any) => c?.is_default
       )?.currency_code

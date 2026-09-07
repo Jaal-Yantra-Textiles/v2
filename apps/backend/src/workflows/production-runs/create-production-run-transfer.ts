@@ -25,6 +25,7 @@ import {
   buildTransferShipmentInput,
   transferQuantity,
 } from "./lib/goods-transfer-shipment"
+import { presentRows } from "../../lib/links/dangling"
 
 /**
  * #891 — move a production run's output from where it was made to wherever it
@@ -151,7 +152,9 @@ export async function resolveRunGoodsLocation(
       fields: ["stores.default_sales_channel_id"],
       filters: { id: run.partner_id },
     })
-    const scId = partners?.[0]?.stores?.[0]?.default_sales_channel_id
+    // The first PRESENT store — see partner-run-steps for what a null here
+    // costs (#1857).
+    const scId = presentRows(partners?.[0]?.stores)[0]?.default_sales_channel_id
     if (!scId) return undefined
     const { data: channels } = await query.graph({
       entity: "sales_channels",

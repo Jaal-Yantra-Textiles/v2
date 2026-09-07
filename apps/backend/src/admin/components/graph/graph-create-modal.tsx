@@ -4,7 +4,13 @@ import { Link } from "react-router-dom"
 
 import type { GraphNode } from "../../hooks/api/graph"
 import { StackedFocusModal } from "../modal/stacked-modal/stacked-focused-modal"
-import { createFormFor, editFormFor, registryFor, withArticle } from "./graph-forms"
+import {
+  createFormFor,
+  createLabelFor,
+  editFormFor,
+  registryFor,
+  withArticle,
+} from "./graph-forms"
 import { nodeAffordance } from "./node-forms"
 
 /**
@@ -79,10 +85,19 @@ export const GraphCreateModal = ({
   // across the JSX branch.
   const action = node.action
   const modalId = `graph-create-${node.key}`
+  /*
+   * 🔴 The absent branch names what the FORM creates, not what the node is.
+   * The node's label is the aggregate — "Payment methods" — so this read
+   * "Create the missing payment methods" above a form that creates one. The
+   * registered label is singular by contract, which is exactly what this
+   * sentence needs; where there is no form there is no button either, so the
+   * fallback only ever serves the action card's own wording.
+   */
+  const createLabel = createLabelFor(spine, node.key)
   const triggerLabel = isPlaceholder
     ? `Add ${withArticle(node.label.toLowerCase())}`
     : node.state === "absent"
-      ? `Create the missing ${node.label.toLowerCase()}`
+      ? `Create the missing ${(createLabel ?? node.label).toLowerCase()}`
       : `Add to ${node.label.toLowerCase()}`
 
   return (

@@ -9,6 +9,7 @@ import {
 import { PRODUCTION_RUNS_MODULE } from "../../modules/production_runs"
 import type ProductionRunService from "../../modules/production_runs/service"
 import { TASKS_MODULE } from "../../modules/tasks"
+import { presentRows } from "../../lib/links/dangling"
 
 /**
  * #1093 — move a run into the admin reassignment queue.
@@ -125,7 +126,7 @@ const cancelReassignedTasksStep = createStep(
       filters: { id: input.production_run_id },
     })
     let cancelled = 0
-    for (const t of data?.[0]?.tasks || []) {
+    for (const t of presentRows<{ id: string; status?: string }>(data?.[0]?.tasks)) {
       if (t.status !== "completed" && t.status !== "cancelled") {
         await taskService.updateTasks({ id: t.id, status: "cancelled" })
         cancelled++

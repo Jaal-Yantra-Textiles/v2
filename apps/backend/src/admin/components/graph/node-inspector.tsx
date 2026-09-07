@@ -62,9 +62,18 @@ export const NodeInspectorBody = ({
 export const NodeInspectorActions = ({
   node,
   mode,
+  selfHref,
+  workspaceHref,
 }: {
   node: GraphNode
   mode?: ActionRail
+  /**
+   * The page this graph is embedded IN. Any action whose href equals it is a
+   * link back to where the reader already is.
+   */
+  selfHref?: string
+  /** The full-page workspace, where the forms live. */
+  workspaceHref?: string
 }) => {
   const resolved: ActionRail = mode ?? (node.action ? "action" : node.href ? "open" : "none")
 
@@ -72,11 +81,45 @@ export const NodeInspectorActions = ({
     return null
   }
 
+  /*
+   * 🔴 An action that points at the page you are on is a dead button.
+   *
+   * Every absent node on the PARTNER spine names `/partners/:id` as where to
+   * go — which is correct for a reader coming from a list, and useless in the
+   * card embedded on that very page: "Add a payment method" rendered as a link
+   * to the partner page, from the partner page. Nothing errors; the button
+   * simply does nothing, which is the same shape as the superseded link-out
+   * that kept rendering beside its replacement (#1854).
+   *
+   * The words are kept and the destination is corrected: the workspace, opened
+   * on this node, which is where its create form actually is. Where there is
+   * no workspace to send them to, the button is dropped rather than left dead.
+   */
+  const actionHref = node.action?.href
+  const isSelfLink = !!actionHref && !!selfHref && actionHref === selfHref
+  const redirected = isSelfLink
+    ? workspaceHref
+      ? `${workspaceHref}?node=${encodeURIComponent(node.key)}`
+      : null
+    : actionHref
+
+  if (resolved === "action" && isSelfLink && !redirected) {
+    return null
+  }
+
+  /*
+   * Nothing left to draw — return null rather than an empty bordered strip.
+   * A 12px rule under the card reads as a section that failed to load.
+   */
+  if (resolved === "open" && (!node.href || node.href === selfHref)) {
+    return null
+  }
+
   return (
     <div className="border-t px-6 py-3">
       {resolved === "action" && node.action ? (
-        node.action.href ? (
-          <Link to={node.action.href}>
+        redirected ? (
+          <Link to={redirected}>
             <Button variant="secondary" size="small">
               {node.action.label}
             </Button>
@@ -86,7 +129,12 @@ export const NodeInspectorActions = ({
             {node.action.label}
           </Button>
         )
-      ) : node.href ? (
+      ) : node.href && node.href !== selfHref ? (
+        /*
+         * 🔴 `!== selfHref` for the same reason. Most present nodes on the
+         * partner spine carry the partner's own page as their href, so "Open"
+         * offered to open the page it is rendered on.
+         */
         <Link to={node.href}>
           <Button variant="secondary" size="small">
             Open

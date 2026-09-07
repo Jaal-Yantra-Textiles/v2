@@ -3,6 +3,9 @@ import { Skeleton, Text } from "@medusajs/ui"
 import { useParams } from "react-router-dom"
 
 import ColorPaletteEditor from "../edits/edit-color-palette"
+import { AddPartnerAdminForm } from "../creates/create-partner-admin"
+import { AddPartnerPaymentMethodForm } from "../creates/create-partner-payment-method"
+import { LinkPartnerPeopleForm } from "../forms/link-partner-people/link-partner-people-form"
 import { AddDesignComponentForm } from "../creates/create-design-component"
 import { CreateDesignTaskComponent } from "../creates/create-design-task"
 import { DesignInventoryTable } from "../designs/design-inventory-table"
@@ -203,8 +206,79 @@ const DESIGN_FORMS: SpineForms = {
    */
 }
 
+/**
+ * The partner id, from the workspace's own route (`/partners/:id/graph`).
+ *
+ * The same adapter shape as the design's, and for the same reason: the forms
+ * keep taking an explicit `partnerId`, so the section on the partner page can
+ * go on rendering them without a URL shaped like the graph's.
+ */
+const usePartnerId = () => useParams().id!
+
+const PartnerAdminCreateForm = () => {
+  const partnerId = usePartnerId()
+  return <AddPartnerAdminForm partnerId={partnerId} />
+}
+
+const PartnerPaymentMethodCreateForm = () => {
+  const partnerId = usePartnerId()
+  return <AddPartnerPaymentMethodForm partnerId={partnerId} />
+}
+
+const PartnerPeopleCreateForm = () => {
+  const partnerId = usePartnerId()
+  return <LinkPartnerPeopleForm partnerId={partnerId} />
+}
+
+/**
+ * The PARTNER spine's forms (#1856).
+ *
+ * 🔴 The first two exist because this spine's two absence rules were unfixable
+ * from the graph that stated them. "No admin — nobody can sign in" and
+ * "delivered work, no account to pay it into" are the only two absences on the
+ * platform that no list can show, and until now the absent node's sole
+ * affordance was an action card pointing at `/partners/:id` — the page the
+ * graph is embedded in. From the full-page workspace that button tears the
+ * graph down to arrive where you already were.
+ *
+ * That is also why ZERO partner cards came off in #1856's first pass: the
+ * three questions ask what a card DOES that the graph cannot, and until this
+ * registry entry existed the answer for every one of them was "create".
+ */
+const PARTNER_FORMS: SpineForms = {
+  create: {
+    admins: { Form: PartnerAdminCreateForm, label: "admin" },
+    payment_methods: {
+      Form: PartnerPaymentMethodCreateForm,
+      label: "payment method",
+    },
+    people: { Form: PartnerPeopleCreateForm, label: "person" },
+  },
+  addAnother: {},
+  edit: {},
+  /*
+   * Deliberately NOT registered:
+   *
+   * - `partner` itself. The edit form is a multi-tab page (`partners/[id]`
+   *   general section) rather than a body-and-footer form, so it is not
+   *   chrome-agnostic and would render its own shell inside the stacked one.
+   * - `runs`, `designs`, `orders`, `products`, `inventory_orders`,
+   *   `submissions`. None of these is created FROM a partner: a run belongs to
+   *   the design that ordered it, an order to a customer, a submission to the
+   *   work it bills. Registering a form here would put the partner at the
+   *   start of a flow it is only ever the object of.
+   * - `stores`, `subscriptions`. Both are provisioning flows with steps of
+   *   their own; the absent `stores` node keeps its action card.
+   * - `whatsapp`, `domain`. Both are `derived` — the value is already on the
+   *   record and unverified. What is missing is a verification, not a
+   *   neighbour, and `nodeAffordance` correctly offers neither create nor the
+   *   action card on a derived node.
+   */
+}
+
 const SPINE_FORMS: Record<string, SpineForms> = {
   design: DESIGN_FORMS,
+  partner: PARTNER_FORMS,
 }
 
 const EMPTY: SpineForms = { create: {}, edit: {}, addAnother: {} }
@@ -252,6 +326,20 @@ export const creatableFor = (
     key,
     label,
   }))
+
+/**
+ * The registered, SINGULAR name of what a node's create form makes.
+ *
+ * 🔴 Not `node.label`. A node's label is the aggregate's ("Payment methods",
+ * "Tasks"), so the absent node's button rendered "Create the missing payment
+ * methodS" over a form that creates exactly one. Only rendering says so — the
+ * string is assembled from a label that is correct everywhere else on the
+ * card, and no test was ever going to spell it out.
+ */
+export const createLabelFor = (
+  spine: string,
+  key: string
+): string | undefined => formsFor(spine).create[key]?.label
 
 export const editFormFor = (spine: string, key: string): EditForm | undefined =>
   formsFor(spine).edit[key]

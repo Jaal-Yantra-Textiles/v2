@@ -58,3 +58,32 @@ export const StackedChromeProvider = ({
     <ModalChromeContext.Provider value={value}>{children}</ModalChromeContext.Provider>
   )
 }
+
+/**
+ * Publishes a PLAIN drawer's chrome — one a section opens with its own button
+ * rather than by navigating.
+ *
+ * 🔴 This is what lets a section and the graph share ONE form. Without it the
+ * only reusable shells were the route ones, so a form living inside a
+ * section's `<Drawer>` had to be duplicated to appear anywhere else. `onDone`
+ * closes that drawer; there is nothing to navigate to and nothing to unwind.
+ */
+export const DrawerChromeProvider = ({
+  parts,
+  onClose,
+  children,
+}: PropsWithChildren<{ parts: Parts; onClose: () => void }>) => {
+  const value = useMemo<ModalChromeValue>(
+    () => ({
+      variant: "drawer",
+      ...parts,
+      onDone: () => onClose(),
+    }),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [onClose]
+  )
+
+  return (
+    <ModalChromeContext.Provider value={value}>{children}</ModalChromeContext.Provider>
+  )
+}

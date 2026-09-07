@@ -189,7 +189,19 @@ export const EntityGraph = ({ spine, id, title = "Graph", expandHref }: Props) =
             <>
               <NodeInspectorHeader node={active} />
               <NodeInspectorBody node={active} edge={activeEdge} />
-              <NodeInspectorActions node={active} />
+              {/*
+                🔴 The card is embedded ON the spine's own page, so it must not
+                offer to navigate there. `graph.spine.href` IS that page — an
+                action or an "Open" pointing at it is a button that does
+                nothing, and on the partner spine that is almost every node.
+                Where a workspace exists the action is redirected into it, on
+                this node, which is where the create form lives.
+              */}
+              <NodeInspectorActions
+                node={active}
+                selfHref={graph.spine.href ?? undefined}
+                workspaceHref={expandHref}
+              />
             </>
           )}
         </div>
