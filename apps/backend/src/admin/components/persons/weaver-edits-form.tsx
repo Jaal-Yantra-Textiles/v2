@@ -17,6 +17,28 @@ import { useRouteModal } from "../modal/use-route-modal"
  * (MikroHyperbee KV, append-only) — never the read-only census core.
  */
 export const WeaverEditsForm = ({ censusId }: { censusId: string | number }) => {
+  return (
+    <RouteDrawer>
+      <RouteDrawer.Header>
+        <RouteDrawer.Title asChild>
+          <Heading>Edits &amp; changes</Heading>
+        </RouteDrawer.Title>
+        <RouteDrawer.Description className="sr-only">
+          Additions to this census record
+        </RouteDrawer.Description>
+      </RouteDrawer.Header>
+      <WeaverEditsFormBody censusId={censusId} />
+    </RouteDrawer>
+  )
+}
+
+/**
+ * Rendered INSIDE <RouteDrawer> so it sits within the RouteModalProvider that
+ * RouteDrawer mounts. Calling useRouteModal() in the parent component (which
+ * renders <RouteDrawer>) threw "useRouteModal must be used within a
+ * RouteModalProvider" and crashed the whole edits drawer.
+ */
+const WeaverEditsFormBody = ({ censusId }: { censusId: string | number }) => {
   const { handleSuccess } = useRouteModal()
   const { data, isLoading } = useWeaverProperty(censusId)
   const update = useUpdateWeaverProperty(censusId)
@@ -88,16 +110,7 @@ export const WeaverEditsForm = ({ censusId }: { censusId: string | number }) => 
   }
 
   return (
-    <RouteDrawer>
-      <RouteDrawer.Header>
-        <RouteDrawer.Title asChild>
-          <Heading>Edits &amp; changes</Heading>
-        </RouteDrawer.Title>
-        <RouteDrawer.Description className="sr-only">
-          Additions to this census record
-        </RouteDrawer.Description>
-      </RouteDrawer.Header>
-
+    <>
       <RouteDrawer.Body className="flex flex-1 flex-col gap-y-6 overflow-y-auto">
         {isLoading ? <Text size="small" className="text-ui-fg-subtle">Loading…</Text> : null}
 
@@ -194,6 +207,6 @@ export const WeaverEditsForm = ({ censusId }: { censusId: string | number }) => 
           </Button>
         </div>
       </RouteDrawer.Footer>
-    </RouteDrawer>
+    </>
   )
 }
