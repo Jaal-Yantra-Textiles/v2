@@ -130,6 +130,7 @@ import { reconcileConsumptionVsProductionJob } from "./reconcile-consumption-vs-
 import { backfillGoogleAdsHistoryJob } from "./backfill-google-ads-history-job"
 import { backfillDesignSizeSetsJob } from "./backfill-design-size-sets-job"
 import { backfillPartnerShippingOptionsJob } from "./backfill-partner-shipping-options-job"
+import { compactFxPriceMetaJob } from "./compact-fx-price-meta-job"
 import { repairShippingOptionStoreVisibilityJob } from "./repair-shipping-option-store-visibility-job"
 import { backfillOpenOrderRequiresShippingJob } from "./backfill-open-order-requires-shipping-job"
 import { cleanOrderFulfillmentDataJob } from "./clean-order-fulfillment-data-job"
@@ -5906,6 +5907,7 @@ export const MAINTENANCE_JOBS: MaintenanceJob[] = [
   backfillDesignSizeSetsJob,
   backfillPartnerShippingOptionsJob,
   repairShippingOptionStoreVisibilityJob,
+  compactFxPriceMetaJob,
   backfillOpenOrderRequiresShippingJob,
   backfillProductShippingProfilesJob,
   normalizeArtisanProductsJob,
