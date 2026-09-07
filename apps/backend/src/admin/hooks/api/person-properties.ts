@@ -101,10 +101,23 @@ export const useUpdateWeaverProperty = (
         `/admin/person-properties/by-census/${censusId}`,
         { method: "POST", body: payload }
       ),
+    /*
+     * 🔴 `...options` goes BEFORE `onSuccess`, never after. Spread last it
+     * overwrites this handler with the caller's, the invalidation never runs,
+     * and the save works while the screen stays stale until a hard refresh —
+     * the defect that was live in 165 admin hooks (#1800).
+     */
+    ...options,
     onSuccess: (data, variables, _mutateResult, context) => {
       queryClient.invalidateQueries({ queryKey: [...PROPERTY_QUERY_KEY, censusId] })
+      /*
+       * 🔴 And the census weaver too. `GET /admin/census/weavers/:id` overlays
+       * these corrections at read time, so it — not this query — is what shows
+       * the corrected value. Invalidating only the property left the very view
+       * the correction was written for displaying the old figure.
+       */
+      queryClient.invalidateQueries({ queryKey: ["census", "weaver", censusId] })
       options?.onSuccess?.(data, variables, _mutateResult, context)
     },
-    ...options,
   })
 }

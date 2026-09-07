@@ -40,11 +40,18 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
   let corrections: WeaverCorrection[] = []
   try {
     const propertyService: any = req.scope.resolve(PERSON_PROPERTY_MODULE)
-    const [property] = await propertyService.listAndCountPersonProperties(
+    /*
+     * 🔴 `listAndCount*` returns `[rows, count]`. Read as `[property]` this was
+     * an ARRAY, `property?.corrections` was undefined, and the overlay below
+     * silently applied nothing — the read-time correction, which is the whole
+     * point of this route, never once fired. The `catch` made it quieter still:
+     * there was no error to see, just a weaver that ignored its corrections.
+     */
+    const [rows] = await propertyService.listAndCountPersonProperties(
       { census_id: req.params.census_id },
       { take: 1 }
     )
-    corrections = (property?.corrections ?? []) as WeaverCorrection[]
+    corrections = (rows?.[0]?.corrections ?? []) as WeaverCorrection[]
   } catch {
     // no corrections — fall through with the raw record
   }
