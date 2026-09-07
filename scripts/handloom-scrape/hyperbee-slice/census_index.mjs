@@ -37,6 +37,22 @@ export const ID_PAD = 10
 // range-scan an empty family). MUST match reader.ts FACET_IDX_META/ALL_IDX_META.
 export const IDX_VERSION = "idx-v1"
 export const IDX_ALL_VERSION = "idxall-v1"
+// Name facet family (`idx/name/<normalized>/<pad10(id)>`) — added later than the
+// others so it rolls out independently; MUST match reader.ts NAME_IDX_META.
+export const IDX_NAME_VERSION = "idxname-v1"
+// Equality facet families (`idx/<field>/<value>/<pad10(id)>` for each field in
+// EQ_FIELDS) — added later, gated independently (reader.ts EQ_IDX_META). These
+// are the remaining filterable equality dims that previously rode a residual
+// O(corpus) scan. MUST match reader.ts EQ_FACETS (same set).
+export const IDX_EQ_VERSION = "idxeq-v1"
+// Filterable equality facets indexed beyond state/gender/sd. Exact-equality
+// lookups (not prefix scans), so their values ride the key verbatim. Booleans
+// are stringified ("true"/"false"). Values must not contain "/" (unlikely here).
+export const EQ_FIELDS = [
+  "district", "block", "village", "rural_urban", "education",
+  "ownership_type", "household_type", "dwelling_type",
+  "own_looms", "natural_dye_used", "electricity",
+]
 // Bumped when the index VALUE format changes. v1 stored empty values (keys only,
 // so browse range-scanned the index for ids then hydrated each fat rec/* record);
 // "geo-v1" stores an inline display payload in every family value so browse reads
@@ -45,6 +61,14 @@ export const IDX_ALL_VERSION = "idxall-v1"
 // meta/idx-geo-version is set. MUST match reader.ts GEO_IDX_META.
 export const IDX_GEO_VERSION = "geo-v1"
 export const padId = (id) => String(id).padStart(ID_PAD, "0")
+
+// Normalise a weaver name into a facet value that is safe as a range-scanned key:
+// lowercased, runs of anything that isn't a Unicode letter/digit collapsed to a
+// single "_" (so no byte sorts below "/" 0x2f and breaks the `prefix/`→`prefix:`
+// range). MUST match reader.ts `normalizeName` exactly or the index and the
+// reader will compute different prefixes and never match.
+export const normalizeName = (n) =>
+  String(n ?? "").toLowerCase().replace(/[^\p{L}\p{N}]+/gu, "_").replace(/^_+|_+$/g, "")
 
 const EMPTY = Buffer.from("")
 
@@ -96,6 +120,20 @@ export function idxRelKeys(r) {
   if (r.state) keys.push(`state/${r.state}/${p}`)
   if (r.gender) keys.push(`gender/${r.gender}/${p}`)
   if (r.state && r.district) keys.push(`sd/${r.state}|${r.district}/${p}`)
+  // equality facets — exact-equality families. Skip null/empty; booleans are
+  // emitted for both true and false (so `own_looms=false` is filterable).
+  for (const f of EQ_FIELDS) {
+    const v = r[f]
+    if (v === null || v === undefined || v === "") continue
+    keys.push(`${f}/${String(v)}/${p}`)
+  }
+  // name facet — the free-text search family. Name lives at top level (promoted
+  // by the parser) or inside the raw survey bag, exactly as geoPayload resolves it.
+  const nm = r.name ?? r.survey?.Name ?? r.survey?.name
+  if (typeof nm === "string" && nm.trim()) {
+    const n = normalizeName(nm)
+    if (n) keys.push(`name/${n}/${p}`)
+  }
   return keys
 }
 
@@ -116,11 +154,13 @@ export async function backfillIndex(bee, { subKey, decode, encodePayload, batchS
   const meta = bee.sub("meta", { valueEncoding: "utf-8" })
   const facetsDone = (await meta.get("idx-version"))?.value === IDX_VERSION
   const allDone = (await meta.get("idx-all-version"))?.value === IDX_ALL_VERSION
+  const nameDone = (await meta.get("idx-name-version"))?.value === IDX_NAME_VERSION
+  const eqDone = (await meta.get("idx-eq-version"))?.value === IDX_EQ_VERSION
   // Only emit inline payloads when the caller wired an encoder; without it we
   // preserve the legacy keys-only behaviour (empty values) for old callers.
   const emitGeo = typeof encodePayload === "function"
   const geoDone = (await meta.get("idx-geo-version"))?.value === IDX_GEO_VERSION
-  if (facetsDone && allDone && (!emitGeo || geoDone)) {
+  if (facetsDone && allDone && nameDone && eqDone && (!emitGeo || geoDone)) {
     return { indexed: 0, alreadyDone: true }
   }
 
@@ -128,11 +168,12 @@ export async function backfillIndex(bee, { subKey, decode, encodePayload, batchS
   // must re-walk the whole corpus — a legacy cursor is parked at the end and
   // would emit nothing. Track the geo pass under its OWN cursor so a crash mid-
   // backfill resumes instead of restarting. Legacy (no-geo) runs keep using the
-  // old cursor and its facet/all-only reset rule. Puts are idempotent overwrites,
-  // so re-emitting keys is always harmless.
+  // old cursor and its facet/all-only reset rule. A missing family added later
+  // (name / eq) forces a fresh walk in EITHER mode for the same reason. Puts are
+  // idempotent overwrites, so re-emitting keys is always harmless.
   const CURSOR = emitGeo ? "idx-geo-cursor" : "idx-backfill-cursor"
   const cursorNode =
-    !emitGeo && facetsDone && !allDone ? null : await meta.get(CURSOR)
+    (!emitGeo && facetsDone && !allDone) || !nameDone || !eqDone ? null : await meta.get(CURSOR)
   let resumeAfter = cursorNode ? cursorNode.value : null
 
   const rec = bee.sub("rec", { valueEncoding: "binary" })
@@ -176,8 +217,10 @@ export async function backfillIndex(bee, { subKey, decode, encodePayload, batchS
 
   await meta.put("idx-version", IDX_VERSION)
   await meta.put("idx-all-version", IDX_ALL_VERSION)
+  await meta.put("idx-name-version", IDX_NAME_VERSION)
+  await meta.put("idx-eq-version", IDX_EQ_VERSION)
   if (emitGeo) await meta.put("idx-geo-version", IDX_GEO_VERSION)
-  log(`[idx-backfill] DONE — ${indexed} records indexed, idx-version=${IDX_VERSION}, idx-all-version=${IDX_ALL_VERSION}${emitGeo ? `, idx-geo-version=${IDX_GEO_VERSION}` : ""}`)
+  log(`[idx-backfill] DONE — ${indexed} records indexed, idx-version=${IDX_VERSION}, idx-all-version=${IDX_ALL_VERSION}, idx-name-version=${IDX_NAME_VERSION}, idx-eq-version=${IDX_EQ_VERSION}${emitGeo ? `, idx-geo-version=${IDX_GEO_VERSION}` : ""}`)
   return { indexed, alreadyDone: false }
 }
 
@@ -210,9 +253,9 @@ if (_isMain && process.argv.includes("--test")) {
   const records = [
     // id 10 carries coords in the raw survey bag (as the fast parser leaves them)
     // → the payload must promote them to typed lat/long.
-    { census_id: 10, state: "KARNATAKA", district: "BAGALKOT", gender: "Male", village: "ILKAL", survey: { Name: "SHANTAVVA", Latitude: "16.1329", Longitude: "75.9587" } },
-    { census_id: 11, state: "KARNATAKA", district: "BAGALKOT", gender: "Female" },
-    { census_id: 12, state: "KARNATAKA", district: "BELGAUM", gender: "Male" },
+    { census_id: 10, state: "KARNATAKA", district: "BAGALKOT", gender: "Male", village: "ILKAL", education: "Middle", own_looms: true, survey: { Name: "SHANTAVVA", Latitude: "16.1329", Longitude: "75.9587" } },
+    { census_id: 11, state: "KARNATAKA", district: "BAGALKOT", gender: "Female", education: "Middle", own_looms: false },
+    { census_id: 12, state: "KARNATAKA", district: "BELGAUM", gender: "Male", education: "High", own_looms: true },
     { census_id: 13, state: "PUNJAB", district: "AMRITSAR", gender: "Female" },
     { census_id: 14, state: "KARNATAKA", district: "BAGALKOT", gender: "Male" },
   ]
@@ -230,6 +273,8 @@ if (_isMain && process.argv.includes("--test")) {
   ok("idx-version flag set", (await bee.sub("meta", { valueEncoding: "utf-8" }).get("idx-version"))?.value === "idx-v1")
   ok("idx-all-version flag set", (await bee.sub("meta", { valueEncoding: "utf-8" }).get("idx-all-version"))?.value === "idxall-v1")
   ok("idx-geo-version flag set", (await bee.sub("meta", { valueEncoding: "utf-8" }).get("idx-geo-version"))?.value === "geo-v1")
+  ok("idx-name-version flag set", (await bee.sub("meta", { valueEncoding: "utf-8" }).get("idx-name-version"))?.value === "idxname-v1")
+  ok("idx-eq-version flag set", (await bee.sub("meta", { valueEncoding: "utf-8" }).get("idx-eq-version"))?.value === "idxeq-v1")
 
   // whole-corpus `all` family → every id, ascending (powers the unfiltered browse).
   const idxAll = bee.sub("idx", { valueEncoding: "binary" })
@@ -270,13 +315,44 @@ if (_isMain && process.argv.includes("--test")) {
   }
   ok("cursor (after=11) yields the next ids", JSON.stringify(after) === JSON.stringify([12, 14]))
 
+  // name facet — the reader range-scans the NAME part with a "\uffff" upper bound
+  // (not the id-suffix ":" bound used by state/gender/sd), so both exact and
+  // prefix queries resolve by scanning `name/<query>` → `name/<query>\uffff`.
+  const nameExact = []
+  for await (const { key } of idx.createReadStream({ gte: "name/shantavva", lt: "name/shantavva\uffff" })) {
+    nameExact.push(Number(key.slice(key.lastIndexOf("/") + 1)))
+  }
+  ok("name index returns the SHANTAVVA id (exact)", JSON.stringify(nameExact) === JSON.stringify([10]))
+  const namePrefixIds = []
+  for await (const { key } of idx.createReadStream({ gte: "name/shant", lt: "name/shant\uffff" })) {
+    namePrefixIds.push(Number(key.slice(key.lastIndexOf("/") + 1)))
+  }
+  ok("name index supports a prefix range scan", JSON.stringify(namePrefixIds) === JSON.stringify([10]))
+
+  // equality facets — exact-equality lookups (same ":" id-suffix bound as state/gender).
+  const eqEducation = []
+  for await (const { key } of idx.createReadStream({ gte: "education/Middle/", lt: "education/Middle:" })) {
+    eqEducation.push(Number(key.slice(key.lastIndexOf("/") + 1)))
+  }
+  ok("education facet returns the 'Middle' ids", JSON.stringify(eqEducation) === JSON.stringify([10, 11]))
+  const eqOwnTrue = []
+  for await (const { key } of idx.createReadStream({ gte: "own_looms/true/", lt: "own_looms/true:" })) {
+    eqOwnTrue.push(Number(key.slice(key.lastIndexOf("/") + 1)))
+  }
+  ok("own_looms=true facet returns loom owners", JSON.stringify(eqOwnTrue) === JSON.stringify([10, 12]))
+  const eqOwnFalse = []
+  for await (const { key } of idx.createReadStream({ gte: "own_looms/false/", lt: "own_looms/false:" })) {
+    eqOwnFalse.push(Number(key.slice(key.lastIndexOf("/") + 1)))
+  }
+  ok("own_looms=false facet returns non-owners", JSON.stringify(eqOwnFalse) === JSON.stringify([11]))
+
   // idempotent: a second backfill is a no-op.
   const again = await backfillIndex(bee, { subKey, decode })
   ok("second backfill is a no-op (already done)", again.alreadyDone === true)
 
-  // forward emission helper (all + state + gender + sd = 4 for a full record).
-  ok("idxRelKeys emits 4 families for a full record", idxRelKeys(records[0]).length === 4)
-  ok("idxRelKeys skips district family when district missing", idxRelKeys({ census_id: 9, state: "GOA", gender: "Male" }).length === 3)
+  // forward emission helper — record 10: all + state + gender + sd + 4 eq (district, village, education, own_looms) + name = 9.
+  ok("idxRelKeys emits 9 families for a full named record", idxRelKeys(records[0]).length === 9)
+  ok("idxRelKeys skips district+name+eq families when missing", idxRelKeys({ census_id: 9, state: "GOA", gender: "Male" }).length === 3)
   ok("idxRelKeys still emits the all family for a bare record", idxRelKeys({ census_id: 9 }).length === 1 && idxRelKeys({ census_id: 9 })[0] === "all/0000000009")
 
   await store.close()
