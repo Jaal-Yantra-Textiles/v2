@@ -108,6 +108,18 @@ export type PairMeasurement = {
   total: number
   /** Of those, how many point at a target the graph cannot see. */
   orphans: number
+  /**
+   * One of the offending pointer values, verbatim.
+   *
+   * 🔴 This exists because three sweeps in a row put a NON-defect on top and
+   * the count could not say so. `payment_schedule.cart_id` read 23 of 27 —
+   * and every one of the 23 was `cart_e2e_<stamp>`, fabricated by
+   * `e2e/helpers/e2e-seed.ts`, which needs a text key and not a cart. Prod
+   * holds 4 rows and 0 orphans. A single sample value answers in one glance
+   * the question the count takes a session to answer: is this a pointer that
+   * broke, or a string that was never a pointer?
+   */
+  sample: string | null
 }
 
 /** PURE: how a measured pair is classified. Exported for unit tests. */
@@ -122,6 +134,14 @@ export function classifyPair(table: string, column: string): PairClass {
  * catastrophe — every one of the known false positives measured 100%. Saying
  * so on the line is what stops the next reader ranking it first all over
  * again.
+ *
+ * 🔴 And the line carries a SAMPLE VALUE, because the rate is not always the
+ * tell. `payment_schedule.cart_id` measured 23 of 27 — a partial rate, no
+ * classification, top of the sweep — and the sample would have read
+ * `cart_e2e_1787467149960`: an id the e2e seed fabricates, in a database that
+ * is not prod. Three sweeps have now been topped by something that was not a
+ * defect. Two of them were answered by reading code; this one is answered by
+ * looking at the string.
  */
 export function describePair(m: PairMeasurement, klass: PairClass): string {
   const pct = m.total ? Math.round((m.orphans / m.total) * 100) : 0
@@ -130,7 +150,10 @@ export function describePair(m: PairMeasurement, klass: PairClass): string {
       ? " — 100%, the signature of an id that never pointed here"
       : ""
   const known = CLASSIFIED[`${m.table}.${m.column}`]
-  return `${m.orphans} of ${m.total} point at a ${m.target} that is not visible (${pct}%)${shape}${
+  // The value itself, because a count cannot tell a broken pointer from a
+  // string that was never one — and the shape of the id usually can.
+  const sample = m.sample ? ` · e.g. \`${m.sample}\`` : ""
+  return `${m.orphans} of ${m.total} point at a ${m.target} that is not visible (${pct}%)${shape}${sample}${
     known ? ` · ${klass}: ${known.reason}` : ""
   }`
 }
@@ -223,7 +246,8 @@ export const auditDanglingLinksJob: MaintenanceJob = {
       const sql = `
         select
           count(*) filter (where s."${col}" is not null) as total,
-          count(*) filter (where s."${col}" is not null and t."id" is null) as orphans
+          count(*) filter (where s."${col}" is not null and t."id" is null) as orphans,
+          min(s."${col}") filter (where s."${col}" is not null and t."id" is null) as sample
         from "${src}" s
         left join "${tgt}" t on t."id" = s."${col}" ${tgtLive}
         where true ${srcLive}
@@ -251,6 +275,7 @@ export const auditDanglingLinksJob: MaintenanceJob = {
         target: tgt,
         total: Number(row?.total ?? 0),
         orphans: Number(row?.orphans ?? 0),
+        sample: row?.sample == null ? null : String(row.sample),
       }
       if (m.orphans < min_orphans) {
         continue

@@ -24,6 +24,7 @@ const measure = (over: Partial<PairMeasurement> = {}): PairMeasurement => ({
   target: "some",
   total: 10,
   orphans: 3,
+  sample: null,
   ...over,
 })
 
@@ -71,6 +72,37 @@ describe("describePair", () => {
 
   it("survives a pair with no rows rather than dividing by zero", () => {
     expect(describePair(measure({ total: 0, orphans: 0 }), "unexplained")).toContain("(0%)")
+  })
+
+  /*
+   * 🔴 The third false positive to top this sweep, and the first the RATE
+   * could not explain. `payment_schedule.cart_id` read 23 of 27 — partial,
+   * unclassified, ranked first — and every offending value was
+   * `cart_e2e_<stamp>`, written by `e2e/helpers/e2e-seed.ts` in a database
+   * that is not prod (prod: 4 rows, 0 orphans). The count took a session to
+   * read. The string takes a glance, so the line has to carry one.
+   */
+  it("carries a sample of the offending value, which the rate cannot supply", () => {
+    const note = describePair(
+      measure({
+        table: "payment_schedule",
+        column: "cart_id",
+        target: "cart",
+        total: 27,
+        orphans: 23,
+        sample: "cart_e2e_1787467149960",
+      }),
+      "unexplained"
+    )
+    expect(note).toContain("23 of 27")
+    // 85% — no shape hint at all, which is exactly why the value is needed.
+    expect(note).not.toContain("never pointed here")
+    expect(note).toContain("cart_e2e_1787467149960")
+  })
+
+  it("says nothing about a sample when there is none to show", () => {
+    const note = describePair(measure({ sample: null }), "unexplained")
+    expect(note).not.toContain("e.g.")
   })
 })
 
