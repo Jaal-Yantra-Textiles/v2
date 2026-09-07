@@ -75,13 +75,20 @@ const NAME_IDX_META = "idx-name-version"
 // Equality facet families (`idx/<field>/<value>/*`) — added later, gated
 // independently. MUST match census_index.mjs (meta key "idx-eq-version").
 const EQ_IDX_META = "idx-eq-version"
-// Filterable equality facets indexed beyond state/gender/sd. MUST match
-// census_index.mjs EQ_FIELDS (same set). Exact-equality lookups.
+// Filterable equality facets indexed beyond state/gender/sd. Exact-equality
+// lookups. ORDER MATTERS — the first of these present in a query drives the
+// scan, so they run most-selective-first. MUST match census_index.mjs EQ_FIELDS
+// exactly, same members AND same order (a unit test asserts it).
 const EQ_FACETS = [
-  "district", "block", "village", "rural_urban", "education",
-  "ownership_type", "household_type", "dwelling_type",
+  "village", "block", "district", "education", "ownership_type",
+  "household_type", "dwelling_type", "rural_urban",
   "own_looms", "natural_dye_used", "electricity",
 ] as const
+// Equality-facet aggregate cells: `agg/eq/<field>/<value>`, written by the same
+// backfill/seeder pass that emits the families. Namespaced under `eq/` so they
+// never collide with the seeder's analytics dims (`district/<state>|<district>`).
+// MUST match census_index.mjs EQ_AGG_PREFIX.
+const EQ_AGG_PREFIX = "eq"
 // Set once the backfill has written the inline DISPLAY PAYLOAD into every index
 // family value (see census_index.mjs geoPayload). When present, browse decodes
 // that small payload straight off the ordered index scan instead of doing a
@@ -422,15 +429,25 @@ export class CensusReader {
     if (gender) {
       return { prefix: `gender/${gender}/`, aggKey: `gender/${gender}`, residual: without("gender"), metaKey: FACET_IDX_META }
     }
-    // Equality facets (district-alone, block, village, education, …). Exact-
-    // equality range-scan over `idx/<field>/<value>/*` so a filter on these no
-    // longer rides the O(corpus) residual scan. The field stays in residual so the
-    // equality predicate double-checks within the (already narrowed) family, and
-    // the count stays "estimated" (no per-facet agg cell).
+    // Equality facets (village, block, district-alone, education, …). Exact-
+    // equality range-scan over `idx/<field>/<value>/*` with the count lifted from
+    // the family's own `agg/eq/<field>/<value>` cell in O(1). The driving field is
+    // dropped from the residual — keeping it would force the residual branch to
+    // hydrate and brotli-inflate the whole family up to MAX_SCAN just to arrive at
+    // a count, which is the same per-request ceiling as the corpus scan it
+    // replaces (a narrower scan of the same size is not a faster request).
+    // Dropping it is safe: the family range is `<field>/<value>/` → `<field>/<value>/:`,
+    // and every key under it is that value's own id suffix (all digits, and ":" is
+    // the first byte above "9") — nothing from a neighbouring value can appear.
     for (const field of EQ_FACETS) {
       const v = filters[field]
       if (v === null || v === undefined || v === "") continue
-      return { prefix: `${field}/${String(v)}/`, aggKey: null, residual: { ...filters }, metaKey: EQ_IDX_META }
+      return {
+        prefix: `${field}/${String(v)}/`,
+        aggKey: `${EQ_AGG_PREFIX}/${field}/${String(v)}`,
+        residual: without(field),
+        metaKey: EQ_IDX_META,
+      }
     }
     // Name — the free-text search facet. Range-scan the `name/*` family by prefix
     // so a name search is O(page) instead of the O(corpus) residual scan that
@@ -564,6 +581,10 @@ export class CensusReader {
     // for name prefix, `<name>/<query…>/<padId>`), so derive it from the last
     // "/" rather than the fixed family prefix.
     const idOf = (key: string) => String(Number(key.slice(key.lastIndexOf("/") + 1)))
+    // A name is indexed under its full normalized form AND each of its tokens, so
+    // one record can match a prefix scan several times ("Ram Ramesh" answers `ram`
+    // three ways). Dedupe by id or the same weaver is paged out repeatedly.
+    const seen: Set<string> | null = driver.nameQuery != null ? new Set() : null
 
     // sub-relative range. Facets bound the all-digit id suffix with ":" (0x3a,
     // first byte above "9"). A name prefix search instead bounds the NAME part
@@ -592,8 +613,13 @@ export class CensusReader {
           capped = true
           break
         }
+        const id = idOf(key)
+        if (seen) {
+          if (seen.has(id)) continue
+          seen.add(id)
+        }
         if (count >= offset && pageRows.length < limit) {
-          pageRows.push({ id: idOf(key), value })
+          pageRows.push({ id, value })
         }
         count++
         if (pageRows.length >= limit) break
@@ -629,7 +655,12 @@ export class CensusReader {
           capped = true
           break
         }
-        batch.push({ id: idOf(key), value })
+        const id = idOf(key)
+        if (seen) {
+          if (seen.has(id)) continue
+          seen.add(id)
+        }
+        batch.push({ id, value })
         if (batch.length >= HYDRATE_BATCH) await drain()
       }
       if (batch.length) await drain()
@@ -649,6 +680,12 @@ export class CensusReader {
         estimated = false
       }
     }
+
+    // A name scan is ordered by (token, id), not by id, so an id-shaped `after`
+    // cursor cannot resume it. Emit no cursor at all rather than one the next
+    // request would silently ignore and hand back page one forever — name paging
+    // rides `offset`.
+    if (driver.nameQuery != null) next = null
 
     return {
       weavers,

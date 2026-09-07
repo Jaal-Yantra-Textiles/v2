@@ -48,11 +48,30 @@ export const IDX_EQ_VERSION = "idxeq-v1"
 // Filterable equality facets indexed beyond state/gender/sd. Exact-equality
 // lookups (not prefix scans), so their values ride the key verbatim. Booleans
 // are stringified ("true"/"false"). Values must not contain "/" (unlikely here).
+// ORDER MATTERS: the reader drives its scan off the FIRST of these present in a
+// query, so they run most-selective-first (a village family is thousands of rows,
+// an electricity family is millions). MUST match reader.ts EQ_FACETS exactly —
+// same members, same order (a unit test asserts it).
 export const EQ_FIELDS = [
-  "district", "block", "village", "rural_urban", "education",
-  "ownership_type", "household_type", "dwelling_type",
+  "village", "block", "district", "education", "ownership_type",
+  "household_type", "dwelling_type", "rural_urban",
   "own_looms", "natural_dye_used", "electricity",
 ]
+// Equality-facet aggregate cells live at `agg/eq/<field>/<value>`. Namespaced
+// under `eq/` so they never collide with the seeder's analytics dims (its
+// `district/<state>|<district>` vs this `eq/district/<district>`) and so a fresh
+// backfill can reset the whole group without touching them. These are what let
+// the reader answer an equality-facet count in O(1) instead of draining the
+// family to MAX_SCAN. MUST match reader.ts EQ_AGG_PREFIX.
+export const EQ_AGG_PREFIX = "eq"
+// Cursor generation. The backfill checkpoints under a cursor key carrying this
+// suffix, so ADDING a family — which requires a fresh whole-corpus walk — starts
+// from an absent key, while an interrupted run of the CURRENT generation still
+// resumes from its checkpoint. Bump whenever the emitted family SET or the value
+// format changes. (Before this existed, "a family is missing" was itself the
+// reset rule, which meant every crash before completion restarted from zero —
+// the one thing a multi-million-record walk cannot afford.)
+export const IDX_CURSOR_GENERATION = "g2"
 // Bumped when the index VALUE format changes. v1 stored empty values (keys only,
 // so browse range-scanned the index for ids then hydrated each fat rec/* record);
 // "geo-v1" stores an inline display payload in every family value so browse reads
@@ -132,7 +151,28 @@ export function idxRelKeys(r) {
   const nm = r.name ?? r.survey?.Name ?? r.survey?.name
   if (typeof nm === "string" && nm.trim()) {
     const n = normalizeName(nm)
-    if (n) keys.push(`name/${n}/${p}`)
+    // The full normalized name AND each token. A prefix range-scan over the full
+    // name alone finds "Mustaq Ahmed" for `mustaq` but NOT "Abdul Mustaq" — a
+    // silent zero-row answer where the old substring scan was merely slow. One
+    // key per token fixes that for ~2 extra keys a record. A record can therefore
+    // appear under several name keys for one query, so the READER dedupes by id.
+    for (const t of new Set(n ? [n, ...n.split("_")] : [])) {
+      if (t) keys.push(`name/${t}/${p}`)
+    }
+  }
+  return keys
+}
+
+/** Equality-facet aggregate cells for one record — `eq/<field>/<value>`, one per
+ * populated facet. Emitted by BOTH the backfill and the seeder's incremental
+ * ingest so the counts stay exact as the corpus grows. */
+export function eqAggKeys(r) {
+  const keys = []
+  if (r == null) return keys
+  for (const f of EQ_FIELDS) {
+    const v = r[f]
+    if (v === null || v === undefined || v === "") continue
+    keys.push(`${EQ_AGG_PREFIX}/${f}/${String(v)}`)
   }
   return keys
 }
@@ -164,35 +204,59 @@ export async function backfillIndex(bee, { subKey, decode, encodePayload, batchS
     return { indexed: 0, alreadyDone: true }
   }
 
-  // The geo generation rewrites EVERY family value (payload, not empty), so it
-  // must re-walk the whole corpus — a legacy cursor is parked at the end and
-  // would emit nothing. Track the geo pass under its OWN cursor so a crash mid-
-  // backfill resumes instead of restarting. Legacy (no-geo) runs keep using the
-  // old cursor and its facet/all-only reset rule. A missing family added later
-  // (name / eq) forces a fresh walk in EITHER mode for the same reason. Puts are
+  // A new family SET (or a new value format) has to re-walk the whole corpus — a
+  // cursor from the previous generation is parked at the end and would emit
+  // nothing. That is expressed as the cursor KEY carrying the generation, so a
+  // fresh walk starts from an absent key while an interrupted run of THIS
+  // generation resumes from its own checkpoint. Geo and legacy (keys-only) runs
+  // keep separate cursors because they write different values. Puts are
   // idempotent overwrites, so re-emitting keys is always harmless.
-  const CURSOR = emitGeo ? "idx-geo-cursor" : "idx-backfill-cursor"
-  const cursorNode =
-    (!emitGeo && facetsDone && !allDone) || !nameDone || !eqDone ? null : await meta.get(CURSOR)
+  const CURSOR = `${emitGeo ? "idx-geo-cursor" : "idx-backfill-cursor"}-${IDX_CURSOR_GENERATION}`
+  const cursorNode = await meta.get(CURSOR)
   let resumeAfter = cursorNode ? cursorNode.value : null
 
   const rec = bee.sub("rec", { valueEncoding: "binary" })
+  const aggSub = bee.sub("agg", { valueEncoding: "utf-8" })
+
+  if (resumeAfter == null) {
+    // A fresh whole-corpus walk counts every record again, so eq cells left by a
+    // previous generation (or by a run that was reset) would double-count. Clear
+    // ONLY the `eq/*` group — the seeder's analytics dims share this sub. "0"
+    // (0x30) is the first byte above "/" (0x2f), so it upper-bounds the prefix.
+    const stale = []
+    for await (const { key } of aggSub.createReadStream({ gte: `${EQ_AGG_PREFIX}/`, lt: `${EQ_AGG_PREFIX}0` })) stale.push(key)
+    for (const k of stale) await aggSub.del(k)
+    if (stale.length) log(`[idx-backfill] cleared ${stale.length} stale ${EQ_AGG_PREFIX}/* agg cells before a fresh walk`)
+  }
+
   // rec sub keys are the unpadded census_id strings; resume strictly after the
   // last processed key (Hyperbee streams in key order).
   const range = resumeAfter != null ? { gt: resumeAfter } : {}
 
   let indexed = 0
   let pending = [] // [relKey, valueBuffer]
+  let aggDelta = new Map() // eq agg key -> count within THIS batch
   let lastKey = resumeAfter
 
   const flush = async () => {
-    if (pending.length === 0) return
+    if (pending.length === 0 && aggDelta.size === 0) return
+    // Fold this batch's equality-facet counts into the stored cells BEFORE opening
+    // the batch (single writer → no race), so the counts land atomically with the
+    // records they came from AND the cursor that will skip those records on
+    // resume — a crash can neither double-count nor lose a count.
+    const newAgg = []
+    for (const [k, d] of aggDelta) {
+      const cur = await aggSub.get(k)
+      newAgg.push([k, (cur ? Number(cur.value) : 0) + d])
+    }
     const batch = bee.batch({ keyEncoding: "binary", valueEncoding: "binary" })
     for (const [relKey, val] of pending) await batch.put(subKey("idx", relKey), val)
+    for (const [k, v] of newAgg) await batch.put(subKey("agg", k), Buffer.from(String(v)))
     // checkpoint the cursor in the SAME batch → backfill is itself crash-exact.
     if (lastKey != null) await batch.put(subKey("meta", CURSOR), Buffer.from(String(lastKey)))
     await batch.flush()
     pending = []
+    aggDelta = new Map()
   }
 
   let sinceFlush = 0
@@ -206,6 +270,7 @@ export async function backfillIndex(bee, { subKey, decode, encodePayload, batchS
     }
     const val = emitGeo ? encodePayload(geoPayload(record)) : EMPTY
     for (const rk of idxRelKeys(record)) pending.push([rk, val])
+    for (const ak of eqAggKeys(record)) aggDelta.set(ak, (aggDelta.get(ak) || 0) + 1)
     indexed++
     if (++sinceFlush >= batchSize) {
       await flush()
@@ -255,7 +320,7 @@ if (_isMain && process.argv.includes("--test")) {
     // → the payload must promote them to typed lat/long.
     { census_id: 10, state: "KARNATAKA", district: "BAGALKOT", gender: "Male", village: "ILKAL", education: "Middle", own_looms: true, survey: { Name: "SHANTAVVA", Latitude: "16.1329", Longitude: "75.9587" } },
     { census_id: 11, state: "KARNATAKA", district: "BAGALKOT", gender: "Female", education: "Middle", own_looms: false },
-    { census_id: 12, state: "KARNATAKA", district: "BELGAUM", gender: "Male", education: "High", own_looms: true },
+    { census_id: 12, state: "KARNATAKA", district: "BELGAUM", gender: "Male", education: "High", own_looms: true, survey: { Name: "ABDUL MUSTAQ" } },
     { census_id: 13, state: "PUNJAB", district: "AMRITSAR", gender: "Female" },
     { census_id: 14, state: "KARNATAKA", district: "BAGALKOT", gender: "Male" },
   ]
@@ -328,6 +393,17 @@ if (_isMain && process.argv.includes("--test")) {
     namePrefixIds.push(Number(key.slice(key.lastIndexOf("/") + 1)))
   }
   ok("name index supports a prefix range scan", JSON.stringify(namePrefixIds) === JSON.stringify([10]))
+  // a NON-leading token must be findable — the whole point of emitting tokens.
+  const nameToken = []
+  for await (const { key } of idx.createReadStream({ gte: "name/mustaq", lt: "name/mustaq\uffff" })) {
+    nameToken.push(Number(key.slice(key.lastIndexOf("/") + 1)))
+  }
+  ok("name index finds a record by a NON-leading token", JSON.stringify(nameToken) === JSON.stringify([12]))
+  const nameFull = []
+  for await (const { key } of idx.createReadStream({ gte: "name/abdul_mustaq", lt: "name/abdul_mustaq\uffff" })) {
+    nameFull.push(Number(key.slice(key.lastIndexOf("/") + 1)))
+  }
+  ok("name index still answers the full multi-word name", JSON.stringify(nameFull) === JSON.stringify([12]))
 
   // equality facets — exact-equality lookups (same ":" id-suffix bound as state/gender).
   const eqEducation = []
@@ -346,6 +422,15 @@ if (_isMain && process.argv.includes("--test")) {
   }
   ok("own_looms=false facet returns non-owners", JSON.stringify(eqOwnFalse) === JSON.stringify([11]))
 
+  // equality-facet AGG cells — what makes an eq-facet count O(1) instead of a
+  // drain to MAX_SCAN. Namespaced under `eq/` so they never collide with the
+  // seeder's own `district/<state>|<district>` analytics dim.
+  const aggS = bee.sub("agg", { valueEncoding: "utf-8" })
+  const aggN = async (k) => Number((await aggS.get(k))?.value ?? -1)
+  ok("eq agg counts the education family", (await aggN("eq/education/Middle")) === 2)
+  ok("eq agg counts a boolean facet", (await aggN("eq/own_looms/true")) === 2 && (await aggN("eq/own_looms/false")) === 1)
+  ok("eq agg is namespaced under eq/", (await aggN("eq/district/BAGALKOT")) === 3 && (await aggN("district/BAGALKOT")) === -1)
+
   // idempotent: a second backfill is a no-op.
   const again = await backfillIndex(bee, { subKey, decode })
   ok("second backfill is a no-op (already done)", again.alreadyDone === true)
@@ -356,6 +441,43 @@ if (_isMain && process.argv.includes("--test")) {
   ok("idxRelKeys still emits the all family for a bare record", idxRelKeys({ census_id: 9 }).length === 1 && idxRelKeys({ census_id: 9 })[0] === "all/0000000009")
 
   await store.close()
+
+  // ── resumability: a run interrupted BEFORE its completion flags are set must
+  // resume from its checkpoint, not restart the corpus. On a 3.5M-record walk
+  // with the seeder stopped, a restart-from-zero is the difference between a
+  // recoverable crash and a lost window.
+  const DIR2 = "./.idx-selftest-resume"
+  rmSync(DIR2, { recursive: true, force: true })
+  const store2 = new Corestore(DIR2)
+  const core2 = store2.get({ name: "idx-resume" })
+  await core2.ready()
+  const bee2 = new Hyperbee(core2, { keyEncoding: "utf-8", valueEncoding: "binary" })
+  await bee2.ready()
+  const rec2 = bee2.sub("rec", { valueEncoding: "binary" })
+  for (let i = 1; i <= 40; i++) {
+    await rec2.put(String(i).padStart(10, "0"), enc({ census_id: i, state: "GOA", gender: "Male", education: "Middle", name: "Weaver " + i }))
+  }
+  const meta2 = bee2.sub("meta", { valueEncoding: "utf-8" })
+  // a previous generation completed; this generation's run then died at record 30.
+  await meta2.put("idx-version", IDX_VERSION)
+  await meta2.put("idx-all-version", IDX_ALL_VERSION)
+  await meta2.put("idx-geo-version", IDX_GEO_VERSION)
+  await meta2.put(`idx-geo-cursor-${IDX_CURSOR_GENERATION}`, String(30).padStart(10, "0"))
+  const resumed = await backfillIndex(bee2, { subKey, decode, encodePayload, batchSize: 5, log: () => {} })
+  ok("an interrupted backfill resumes from its checkpoint", resumed.indexed === 10)
+
+  // a genuinely new generation has no cursor of its own → it re-walks everything.
+  await meta2.del("idx-name-version")
+  await meta2.del("idx-eq-version")
+  await meta2.del(`idx-geo-cursor-${IDX_CURSOR_GENERATION}`)
+  const fresh = await backfillIndex(bee2, { subKey, decode, encodePayload, batchSize: 5, log: () => {} })
+  ok("a new family generation re-walks the whole corpus", fresh.indexed === 40)
+  // and that re-walk must not double-count the eq cells it already wrote.
+  const agg2 = bee2.sub("agg", { valueEncoding: "utf-8" })
+  ok("a re-walk resets eq agg instead of double-counting", Number((await agg2.get("eq/education/Middle"))?.value) === 40)
+
+  await store2.close()
+  rmSync(DIR2, { recursive: true, force: true })
   rmSync(DIR, { recursive: true, force: true })
   console.log(`\n✅ ${pass}/${pass} — census index emission + resumable backfill + range query hold.`)
   process.exit(0)

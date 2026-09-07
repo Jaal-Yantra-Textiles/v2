@@ -26,7 +26,7 @@ import { readdirSync, writeFileSync, existsSync, createReadStream, openSync, fst
 import { createInterface } from "node:readline";
 import { join } from "node:path";
 import assert from "node:assert";
-import { idxRelKeys, geoPayload } from "./census_index.mjs";
+import { idxRelKeys, geoPayload, eqAggKeys, EQ_AGG_PREFIX } from "./census_index.mjs";
 
 const DATA_DIR = "../data/live";
 const STORE_DIR = process.env.P2P_STORE || "./p2p-store";
@@ -80,6 +80,11 @@ function bumpInto(m, r, sens) {
   for (const ch of ["local_market", "master_weaver", "cooperative", "ecommerce"])
     if (r[`sells_${ch}`]) inc(`sales/${ch}`);
   for (const t of ["pit", "frame", "loin", "other"]) add(`loom_type/${t}`, r[`${t}_loom_count`]);
+  // equality-facet counts (`eq/<field>/<value>`) — the cells the reader lifts an
+  // O(1) total from for a village/education/own_looms browse. Maintained on the
+  // incremental path too, or the backfill's counts would go stale the moment the
+  // next chunk lands.
+  for (const k of eqAggKeys(r)) inc(k);
   add(`total/looms_owned`, r.total_looms_owned);
   add(`total/weavers`, 1);
 }
@@ -281,6 +286,9 @@ export async function readStats(pub, { minCell = MIN_CELL } = {}) {
   const dims = {};
   for await (const { key, value } of pub.sub("agg", { valueEncoding: "utf-8" }).createReadStream()) {
     const [dim, ...rest] = key.split("/");
+    // `eq/*` cells are a READER index (one per facet VALUE — hundreds of thousands
+    // of villages), not an analytics dim. They would swamp this feed.
+    if (dim === EQ_AGG_PREFIX) continue;
     const label = rest.join("/");
     const count = Number(value);
     (dims[dim] ??= {})[label] = dim === "total" || dim === "loom_type" ? count
