@@ -1907,7 +1907,9 @@ export const ADMIN_MCP_TOOLS: AdminMcpToolDef[] = [
           description: "Partner data: { name (required), handle, logo, status, is_verified, workspace_type }.",
           properties: {
             name: STR("Partner name (required)."),
-            handle: STR("Unique handle (auto-derived if omitted)."),
+            handle: STR(
+              "Unique handle. Omitted/blank derives one as partner_<name-slug> (suffixed -2, -3, … if taken); an explicit handle that already exists is a 422."
+            ),
             logo: STR("Logo URL."),
             status: STR("'active' | 'inactive' | 'pending' (defaults to 'pending')."),
             is_verified: { type: "boolean", description: "Verification flag (defaults to false)." },
