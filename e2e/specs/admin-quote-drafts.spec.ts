@@ -246,7 +246,19 @@ test.describe("Admin quote drafts (#1446)", () => {
 
     // Back on the draft, and the units are on the record — not zero.
     await page.waitForURL(/\/app\/quotes\/drafts\/[^/]+$/, { timeout: 30000 })
-    await expect(page.getByText("500")).toBeVisible({ timeout: 15000 })
+    /*
+     * 🔴 `500×`, the QUANTITY cell, not a bare "500".
+     *
+     * The row renders the units as `500×` beside a right-aligned amount, and
+     * on a database where that amount is also 500 the bare match resolved to
+     * two elements and Playwright's strict mode failed the case — reporting
+     * "500 is not visible" about a basket that had persisted perfectly.
+     *
+     * `{ exact: true }` would have silenced it and asserted the wrong thing:
+     * it selects the AMOUNT, so the case would pass with the quantity at zero,
+     * which is the single outcome this test exists to catch.
+     */
+    await expect(page.getByText("500×")).toBeVisible({ timeout: 15000 })
   })
 
   test("the buyer drawer saves without emptying the basket", async ({ page }) => {

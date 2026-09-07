@@ -62,7 +62,15 @@ test.describe("Partner ledger panel (#1612)", () => {
    * accessible-name match would swallow.
    */
   const ledgerPanel = (page: any) =>
-    page.locator(`[data-partner-id="${seed.ledgerPartnerId}"]`)
+    page.locator(
+      /*
+       * 🔴 `data-panel` too. The partner id alone matched TWO containers once
+       * the credits section (#1730) started stamping it as well, and strict
+       * mode then failed the assertion with "the ledger panel is not visible"
+       * — about a panel that was on screen the whole time.
+       */
+      `[data-panel="partner-ledger"][data-partner-id="${seed.ledgerPartnerId}"]`
+    )
 
   const openPartner = async (page: any) => {
     await login(page)

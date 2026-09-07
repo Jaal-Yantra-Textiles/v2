@@ -377,6 +377,53 @@ async function seedAdminQuotes(container: any): Promise<{
   })
   const partner = Array.isArray(createdPartner) ? createdPartner[0] : createdPartner
 
+  /**
+   * 🔴 The store, without which this partner cannot be quoted AT ALL.
+   *
+   * `POST /admin/quotes/drafts` and `POST /admin/quotes` both refuse a partner
+   * with no store — "a quote is priced against a store's catalogue and shipped
+   * from its location" — and the refusal is correct. The fixture was the thing
+   * that was wrong: it created a quote partner that no quote route would
+   * accept, so the mint wizard's Save 500'd, `waitForURL` timed out 30s later,
+   * and `admin-quote-deposit-terms` failed pointing at a navigation.
+   *
+   * A seed defect wearing the costume of a broken screen, exactly like the
+   * gate partner's missing store defaults below. This took e2e red on `main`
+   * for every branch, which is why it is fixed here rather than filed.
+   */
+  const quoteQuery = container.resolve(ContainerRegistrationKeys.QUERY)
+  const quoteLink = container.resolve(ContainerRegistrationKeys.LINK)
+  const [{ data: qRegions }, { data: qChannels }, { data: qLocations }] =
+    await Promise.all([
+      quoteQuery.graph({ entity: "region", fields: ["id"] }),
+      quoteQuery.graph({ entity: "sales_channel", fields: ["id"] }),
+      quoteQuery.graph({ entity: "stock_location", fields: ["id"] }),
+    ])
+  const qRegionId = qRegions?.[0]?.id
+  const qChannelId = qChannels?.[0]?.id
+  const qLocationId = qLocations?.[0]?.id
+  if (!qRegionId || !qChannelId || !qLocationId) {
+    throw new Error(
+      `E2E seed: the quote partner's store needs a region (${qRegionId}), a sales channel (${qChannelId}) and a stock location (${qLocationId}). Run the demo seed first: \`medusa exec ./src/scripts/seed.ts\`.`
+    )
+  }
+
+  const quoteStoreModule: any = container.resolve(Modules.STORE)
+  const createdQuoteStore: any = await quoteStoreModule.createStores({
+    name: `E2E Quote Store ${stamp}`,
+    default_sales_channel_id: qChannelId,
+    default_location_id: qLocationId,
+    default_region_id: qRegionId,
+  })
+  const quoteStoreId = Array.isArray(createdQuoteStore)
+    ? createdQuoteStore[0].id
+    : createdQuoteStore.id
+
+  await quoteLink.create({
+    partner: { partner_id: partner.id },
+    store: { store_id: quoteStoreId },
+  })
+
   // Stamped company names: the spec SEARCHES for these, and the search reaches
   // the server (#1461), so a duplicate from a previous seed would make a
   // one-row assertion flap.

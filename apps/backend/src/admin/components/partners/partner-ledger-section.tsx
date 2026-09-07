@@ -340,7 +340,19 @@ export const PartnerLedgerSection = ({ partnerId }: { partnerId: string }) => {
   const showTotals = !!totals?.currency && rows.length > 0
 
   return (
-    <Container className="divide-y p-0" data-partner-id={partnerId}>
+    /*
+     * 🔴 `data-panel` as well as the partner id. The id alone stopped being an
+     * identifier the moment a SECOND panel on this page stamped it too — the
+     * credits section (#1730) copied this line, and `[data-partner-id=...]`
+     * then matched two elements, which Playwright's strict mode refuses. The
+     * spec failed reporting that the ledger panel was not visible, when in
+     * fact it was visible twice over.
+     */
+    <Container
+      className="divide-y p-0"
+      data-panel="partner-ledger"
+      data-partner-id={partnerId}
+    >
       <div className="flex items-center justify-between px-6 py-4">
         <div className="flex items-center gap-x-2">
           <Heading level="h2">Payments</Heading>
