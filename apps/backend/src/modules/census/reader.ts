@@ -68,6 +68,27 @@ class TtlLru<V> {
 // an empty `idx/all/*` family and return nothing).
 const FACET_IDX_META = "idx-version"
 const ALL_IDX_META = "idx-all-version"
+// Name facet family (`idx/name/*`) — added later, gates independently so a name
+// search only rides the index once its backfill has emitted it. MUST match
+// census_index.mjs (meta key "idx-name-version").
+const NAME_IDX_META = "idx-name-version"
+// Equality facet families (`idx/<field>/<value>/*`) — added later, gated
+// independently. MUST match census_index.mjs (meta key "idx-eq-version").
+const EQ_IDX_META = "idx-eq-version"
+// Filterable equality facets indexed beyond state/gender/sd. Exact-equality
+// lookups. ORDER MATTERS — the first of these present in a query drives the
+// scan, so they run most-selective-first. MUST match census_index.mjs EQ_FIELDS
+// exactly, same members AND same order (a unit test asserts it).
+const EQ_FACETS = [
+  "village", "block", "district", "education", "ownership_type",
+  "household_type", "dwelling_type", "rural_urban",
+  "own_looms", "natural_dye_used", "electricity",
+] as const
+// Equality-facet aggregate cells: `agg/eq/<field>/<value>`, written by the same
+// backfill/seeder pass that emits the families. Namespaced under `eq/` so they
+// never collide with the seeder's analytics dims (`district/<state>|<district>`).
+// MUST match census_index.mjs EQ_AGG_PREFIX.
+const EQ_AGG_PREFIX = "eq"
 // Set once the backfill has written the inline DISPLAY PAYLOAD into every index
 // family value (see census_index.mjs geoPayload). When present, browse decodes
 // that small payload straight off the ordered index scan instead of doing a
@@ -177,6 +198,14 @@ export function matchesWeaverFilters(
 // (ids are < 10^10). MUST match the seeder/backfill's padding width.
 const ID_PAD = 10
 const padId = (id: string | number) => String(id).padStart(ID_PAD, "0")
+
+// Normalise a name into a facet value safe as a range-scanned key — lowercased,
+// runs of anything that isn't a Unicode letter/digit collapsed to "_" (so no
+// byte sorts below "/" 0x2f and breaks the prefix range). MUST match
+// census_index.mjs `normalizeName` exactly or the index and reader compute
+// different prefixes and never match.
+export const normalizeName = (n: unknown) =>
+  String(n ?? "").toLowerCase().replace(/[^\p{L}\p{N}]+/gu, "_").replace(/^_+|_+$/g, "")
 
 /**
  * Read-only query surface over the handloom census PUBLIC core (masked, PII-free
@@ -375,13 +404,15 @@ export class CensusReader {
    */
   private resolveIndexDriver(filters: WeaverFilters): {
     prefix: string
-    aggKey: string
+    aggKey: string | null
     residual: WeaverFilters
     metaKey: string
+    nameQuery?: string
   } {
     const state = filters.state != null ? String(filters.state) : null
     const district = filters.district != null ? String(filters.district) : null
     const gender = filters.gender != null ? String(filters.gender) : null
+    const name = filters.name != null && String(filters.name).trim() !== "" ? String(filters.name) : null
 
     const without = (...keys: string[]): WeaverFilters => {
       const r = { ...filters }
@@ -397,6 +428,34 @@ export class CensusReader {
     }
     if (gender) {
       return { prefix: `gender/${gender}/`, aggKey: `gender/${gender}`, residual: without("gender"), metaKey: FACET_IDX_META }
+    }
+    // Equality facets (village, block, district-alone, education, …). Exact-
+    // equality range-scan over `idx/<field>/<value>/*` with the count lifted from
+    // the family's own `agg/eq/<field>/<value>` cell in O(1). The driving field is
+    // dropped from the residual — keeping it would force the residual branch to
+    // hydrate and brotli-inflate the whole family up to MAX_SCAN just to arrive at
+    // a count, which is the same per-request ceiling as the corpus scan it
+    // replaces (a narrower scan of the same size is not a faster request).
+    // Dropping it is safe: the family range is `<field>/<value>/` → `<field>/<value>/:`,
+    // and every key under it is that value's own id suffix (all digits, and ":" is
+    // the first byte above "9") — nothing from a neighbouring value can appear.
+    for (const field of EQ_FACETS) {
+      const v = filters[field]
+      if (v === null || v === undefined || v === "") continue
+      return {
+        prefix: `${field}/${String(v)}/`,
+        aggKey: `${EQ_AGG_PREFIX}/${field}/${String(v)}`,
+        residual: without(field),
+        metaKey: EQ_IDX_META,
+      }
+    }
+    // Name — the free-text search facet. Range-scan the `name/*` family by prefix
+    // so a name search is O(page) instead of the O(corpus) residual scan that
+    // timed the request out (504). `name` stays in residual so the substring
+    // predicate double-checks within the (already name-narrowed) range; the count
+    // stays "estimated" (there is no agg cell for a name prefix).
+    if (name) {
+      return { prefix: "name/", nameQuery: normalizeName(name), aggKey: null, residual: { ...filters }, metaKey: NAME_IDX_META }
     }
     // No indexed facet → browse the whole corpus in id order. Exact total comes
     // from the O(1) `total/weavers` aggregate; any non-facet filters (district
@@ -500,7 +559,7 @@ export class CensusReader {
   private async listViaIndex(
     bee: Bee,
     rec: Sub,
-    driver: { prefix: string; aggKey: string; residual: WeaverFilters },
+    driver: { prefix: string; aggKey: string | null; residual: WeaverFilters; nameQuery?: string },
     { limit, offset, after }: { limit: number; offset: number; after?: string | number },
     geoReady = false
   ) {
@@ -518,12 +577,24 @@ export class CensusReader {
         ? Promise.all(rows.map((r) => this.decodeIndexRow(rec, r.id, r.value)))
         : this.hydrateInOrder(rec, rows.map((r) => r.id))
 
-    // sub-relative range over `<prefix><paddedId>`. ":" (0x3a) is the first byte
-    // above "9" (0x39), so it upper-bounds the all-digit id suffix.
+    // id is always the final "/"-delimited segment (`<family>/<value>/<padId>` or,
+    // for name prefix, `<name>/<query…>/<padId>`), so derive it from the last
+    // "/" rather than the fixed family prefix.
+    const idOf = (key: string) => String(Number(key.slice(key.lastIndexOf("/") + 1)))
+    // A name is indexed under its full normalized form AND each of its tokens, so
+    // one record can match a prefix scan several times ("Ram Ramesh" answers `ram`
+    // three ways). Dedupe by id or the same weaver is paged out repeatedly.
+    const seen: Set<string> | null = driver.nameQuery != null ? new Set() : null
+
+    // sub-relative range. Facets bound the all-digit id suffix with ":" (0x3a,
+    // first byte above "9"). A name prefix search instead bounds the NAME part
+    // with "\uffff" (a byte beyond any letter) — `name/<query>…` up to `name/<query>\uffff`.
     const range: { gte?: string; gt?: string; lt: string } =
-      after != null
-        ? { gt: `${driver.prefix}${padId(after)}`, lt: `${driver.prefix}:` }
-        : { gte: driver.prefix, lt: `${driver.prefix}:` }
+      driver.nameQuery != null
+        ? { gte: `name/${driver.nameQuery}`, lt: `name/${driver.nameQuery}\uffff` }
+        : after != null
+          ? { gt: `${driver.prefix}${padId(after)}`, lt: `${driver.prefix}:` }
+          : { gte: driver.prefix, lt: `${driver.prefix}:` }
 
     const weavers: Record<string, any>[] = []
     let count = 0
@@ -542,8 +613,13 @@ export class CensusReader {
           capped = true
           break
         }
+        const id = idOf(key)
+        if (seen) {
+          if (seen.has(id)) continue
+          seen.add(id)
+        }
         if (count >= offset && pageRows.length < limit) {
-          pageRows.push({ id: String(Number(key.slice(driver.prefix.length))), value })
+          pageRows.push({ id, value })
         }
         count++
         if (pageRows.length >= limit) break
@@ -579,7 +655,12 @@ export class CensusReader {
           capped = true
           break
         }
-        batch.push({ id: String(Number(key.slice(driver.prefix.length))), value })
+        const id = idOf(key)
+        if (seen) {
+          if (seen.has(id)) continue
+          seen.add(id)
+        }
+        batch.push({ id, value })
         if (batch.length >= HYDRATE_BATCH) await drain()
       }
       if (batch.length) await drain()
@@ -590,7 +671,7 @@ export class CensusReader {
     // matches actually scanned (flagged estimated / capped).
     let total = count
     let estimated = hasResidual
-    if (!hasResidual) {
+    if (!hasResidual && driver.aggKey) {
       const aggNode = await bee
         .sub("agg", { valueEncoding: "utf-8" })
         .get(driver.aggKey)
@@ -599,6 +680,12 @@ export class CensusReader {
         estimated = false
       }
     }
+
+    // A name scan is ordered by (token, id), not by id, so an id-shaped `after`
+    // cursor cannot resume it. Emit no cursor at all rather than one the next
+    // request would silently ignore and hand back page one forever — name paging
+    // rides `offset`.
+    if (driver.nameQuery != null) next = null
 
     return {
       weavers,
