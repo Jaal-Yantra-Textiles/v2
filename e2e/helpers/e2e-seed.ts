@@ -2253,6 +2253,63 @@ async function seedRateBreakdownSubmission(container: any): Promise<{
 const SEED_PASSWORD = "e2etest123!"
 const SEED_FILE = path.resolve(__dirname, "../../apps/backend/.e2e-seed.json")
 
+
+/**
+ * A partner whose two CONTROL cards are both drawable (#1856, #1857).
+ *
+ * 🔴 This fixture exists because the states cannot be found in real data.
+ * Measured on the local database while wiring the act rail: of **338 partners,
+ * exactly one had a WhatsApp number and it was verified, and ZERO had a custom
+ * domain**. Both cards were therefore unreachable, and an affordance nobody can
+ * exercise is the #1855 trap — four marketing rules shipped against tables with
+ * no rows in them.
+ *
+ * The two fields are set unverified on purpose. `whatsappUnverified` and
+ * `domainUnverified` are what put the cards on the partner spine at all, and
+ * the spec's whole subject is the button those cards now carry.
+ */
+export async function seedActRailPartner(container: any): Promise<{
+  partnerId: string
+  partnerName: string
+  whatsappNumber: string
+  customDomain: string
+}> {
+  // 🔴 The literal, like every other partner fixture in this file. The seed
+  // does not import the module constants, and a bare `PARTNER_MODULE` here is
+  // a ReferenceError that kills the seed — which means EVERY spec fails before
+  // it runs, and the failure reads like the module is unregistered.
+  const partnerModule: any = container.resolve("partner")
+  const stamp = Date.now()
+
+  /*
+   * A number that is syntactically real and belongs to nobody. The spec
+   * CANCELS the confirm rather than pressing through — the endpoint behind
+   * this card sends a live WhatsApp template — but a seed that put a real
+   * number here would be one misread assertion away from messaging a stranger.
+   */
+  const whatsappNumber = `9199${String(stamp).slice(-8)}`
+  const customDomain = `e2e-${stamp}.example.test`
+
+  const created = await partnerModule.createPartners({
+    name: `E2E Act Rail Partner ${stamp}`,
+    handle: `e2e-act-rail-${stamp}`,
+    status: "active",
+    is_verified: true,
+    whatsapp_number: whatsappNumber,
+    whatsapp_verified: false,
+    custom_domain: customDomain,
+    custom_domain_verified: false,
+  })
+  const row = Array.isArray(created) ? created[0] : created
+
+  return {
+    partnerId: row.id as string,
+    partnerName: row.name as string,
+    whatsappNumber,
+    customDomain,
+  }
+}
+
 export default async function e2eSeed({ container }: ExecArgs) {
   const logger = container.resolve(ContainerRegistrationKeys.LOGGER)
   const userModule = container.resolve(Modules.USER)
@@ -2457,6 +2514,9 @@ export default async function e2eSeed({ container }: ExecArgs) {
   logger.info("E2E seed: creating payment-methods partner + two methods (settings/payments spec)...")
   const paymentMethods = await seedPaymentMethodsPartner(container)
 
+  logger.info("E2E seed: creating act-rail partner (unverified WhatsApp + domain)...")
+  const actRail = await seedActRailPartner(container)
+
   const seedData = {
     email,
     password: SEED_PASSWORD,
@@ -2514,6 +2574,15 @@ export default async function e2eSeed({ container }: ExecArgs) {
     paymentsEditMethodName: paymentMethods.editMethodName,
     paymentsDeleteMethodId: paymentMethods.deleteMethodId,
     paymentsDeleteMethodName: paymentMethods.deleteMethodName,
+    /*
+     * #1856/#1857 act rail — consumed by admin-graph-act-rail.spec.ts (admin,
+     * CI). NOT single-use: the spec cancels every confirm, so the partner is
+     * left exactly as seeded and the fixture survives a re-run.
+     */
+    actRailPartnerId: actRail.partnerId,
+    actRailPartnerName: actRail.partnerName,
+    actRailWhatsappNumber: actRail.whatsappNumber,
+    actRailCustomDomain: actRail.customDomain,
     // #1363 per-assignment material allocation — consumed by
     // production-run-material-allocation.spec.ts (admin, CI). SINGLE-USE like
     // every other run fixture: the spec approves the run, and an approved run
