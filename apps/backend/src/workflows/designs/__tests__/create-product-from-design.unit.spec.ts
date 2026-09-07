@@ -1,4 +1,4 @@
-import { resolveListedPrice } from "../create-product-from-design"
+import { designOptionValue, resolveListedPrice } from "../create-product-from-design"
 
 /**
  * The price a design is listed at. Medusa 2.x amounts are DECIMAL major units —
@@ -48,5 +48,35 @@ describe("resolveListedPrice", () => {
     expect(
       resolveListedPrice({ estimated_cost: 10, unit_price: Number("nope") })
     ).toBe(0)
+  })
+})
+
+describe("designOptionValue — #1874", () => {
+  it("claims the design's own name, so two designs on one product differ", () => {
+    const a = designOptionValue({ id: "des_a", name: "Kalamkari Stole" }, ["Custom"])
+    const b = designOptionValue({ id: "des_b", name: "Ajrakh Stole" }, ["Custom", a])
+    expect(a).toBe("Kalamkari Stole")
+    expect(b).toBe("Ajrakh Stole")
+    // The whole point: the tuple Medusa resolves a variant by is now distinct.
+    expect(a).not.toBe(b)
+  })
+
+  it("never returns a value the product already carries", () => {
+    // Two designs sharing a name would otherwise collide exactly as "Custom" did.
+    const first = designOptionValue({ id: "des_aaa111", name: "Stole" }, [])
+    const second = designOptionValue({ id: "des_bbb222", name: "Stole" }, [first])
+    expect(first).toBe("Stole")
+    expect(second).toBe("Stole (bbb222)")
+    expect(second).not.toBe(first)
+  })
+
+  it("falls back to the id when a design has no usable name", () => {
+    expect(designOptionValue({ id: "des_x", name: "" })).toBe("Design des_x")
+    expect(designOptionValue({ id: "des_x", name: "   " })).toBe("Design des_x")
+    expect(designOptionValue({ id: "des_x", name: null })).toBe("Design des_x")
+  })
+
+  it("does not reuse the legacy literal that caused the collision", () => {
+    expect(designOptionValue({ id: "des_a", name: "Kalamkari" }, ["Custom"])).not.toBe("Custom")
   })
 })

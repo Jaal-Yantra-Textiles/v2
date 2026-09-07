@@ -529,6 +529,9 @@ export const completeProductionRunWorkflow = createWorkflow(
           production_run_id: data.input.production_run_id,
           design_id: r.design_id,
           partner_id: data.input.partner_id,
+          // #1872 — the run's own variant, when it has one. Falls back to the
+          // design lookup inside the step.
+          variant_id: r.variant_id ?? null,
           good_quantity: goodQty,
           location_id: data.partnerLocation.location_id,
           order_id: r.order_id || null,

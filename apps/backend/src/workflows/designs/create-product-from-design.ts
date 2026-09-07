@@ -87,6 +87,31 @@ type CreateProductFromDesignOutput = {
 };
 
 /**
+ * PURE: the option value an appended variant claims on the product it joins.
+ *
+ * 🔴 #1874. Every appended variant used to claim the literal `"Custom"` on every
+ * option. A design-created product carries one option, `Type`, whose only value
+ * is `Custom` — so the second design appended to a product produced an option
+ * tuple IDENTICAL to the first. Titles differed, SKUs differed by a millisecond,
+ * and the tuple Medusa actually resolves a variant by did not.
+ *
+ * The design's own name is the natural value: it is already what the variant
+ * title carries, and it is what a human picking from a dropdown would expect to
+ * see. Two designs sharing a name fall back to a short id suffix rather than
+ * colliding — rare, and better than silently producing a duplicate.
+ *
+ * Exported for tests.
+ */
+export const designOptionValue = (
+  design: { id: string; name?: string | null },
+  existingValues: readonly string[] = []
+): string => {
+  const base = String(design.name ?? "").trim() || `Design ${design.id}`
+  if (!existingValues.includes(base)) return base
+  return `${base} (${String(design.id).slice(-6)})`
+}
+
+/**
  * PURE: the amount written to `variant.prices[].amount`. Exported for tests.
  *
  * Medusa 2.x prices are DECIMAL major units — the seed lists a €10 shirt as
@@ -178,34 +203,37 @@ const createProductAndVariantStep = createStep(
       const variantOptions: Record<string, string> = {};
 
       if (productOptions.length > 0) {
-        // For each existing option, add "Custom" as a new value if it doesn't exist
+        // Each option gains a value that identifies THIS design, so a product can
+        // accumulate one variant per design without two of them claiming the same
+        // tuple (#1874).
         for (const option of productOptions) {
           const existingValues = option.values?.map((v: any) => v.value) || [];
+          const value = designOptionValue(design, existingValues);
 
-          // Add "Custom" value if it doesn't exist
-          if (!existingValues.includes("Custom")) {
+          if (!existingValues.includes(value)) {
             await productService.upsertProductOptions([
               {
                 id: option.id,
                 product_id: product_id,
                 title: option.title,
-                values: [...existingValues, "Custom"],
+                values: [...existingValues, value],
               },
             ]);
           }
 
-          variantOptions[option.title] = "Custom";
+          variantOptions[option.title] = value;
         }
       } else {
         // If product has no options, create a default one
+        const value = designOptionValue(design);
         await productService.upsertProductOptions([
           {
             product_id: product_id,
             title: "Type",
-            values: ["Custom"],
+            values: [value],
           },
         ]);
-        variantOptions["Type"] = "Custom";
+        variantOptions["Type"] = value;
       }
 
       const variantData = {
