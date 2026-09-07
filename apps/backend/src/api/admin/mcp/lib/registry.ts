@@ -2156,6 +2156,141 @@ export const ADMIN_MCP_TOOLS: AdminMcpToolDef[] = [
     inputSchema: obj({ id: STR("Partner id, e.g. 'partner_...'.") }, ["id"]),
     sideEffects: "Marks the partner admin's email verified so they can log in without clicking the email link.",
   },
+
+  // ---- Capability library + onboarding questionnaire: the admin half of the
+  // partner surfaces (#1531 / #648). Until these existed, "what can this
+  // partner make" and "how far did onboarding get" were questions the admin
+  // assistant could not touch — the capability library and the questionnaire
+  // were reachable only behind partner auth, so an operator onboarding a
+  // partner over WhatsApp had no way to file what was said.
+  {
+    name: "list_partner_capabilities",
+    description:
+      "List a partner's capability samples — photographs of things they have actually made, with the technique and material beside each. Read this BEFORE asking a partner for a new photograph: they have usually already shown you the thing they are being asked about. Filter by technique or material to answer 'who can do kani in pashmina' style questions for THIS partner. Each row carries captured_at — when the work was actually on the loom, NOT when it was recorded — and the source (partner wizard/WhatsApp vs an admin typing it up).",
+    method: "GET",
+    path: "/admin/partners/:id/capabilities",
+    pathParams: ["id"],
+    queryParams: ["technique", "material", "limit", "offset"],
+    inputSchema: obj(
+      {
+        id: STR("Partner id, e.g. 'partner_...'."),
+        technique: STR("Filter by technique, e.g. 'kani twill'."),
+        material: STR("Filter by material, e.g. 'pashmina'."),
+        limit: { type: "integer", description: "Max results (default 20, max 100)." },
+        offset: { type: "integer", description: "Pagination offset." },
+      },
+      ["id"]
+    ),
+    nextSteps: ["create_partner_capability", "delete_partner_capability"],
+  },
+  {
+    name: "create_partner_capability",
+    description:
+      "Record a capability sample for a partner: a photograph of something they have made, with the textile facts beside it (technique, material, notes). Use when a partner shows work in a conversation and you are filing it as evidence — the sample OUTLIVES the conversation and is what future 'can they make this' searches run against. The photograph must be UPLOADED FIRST — pass the resulting media ids as media_file_ids, this tool cannot receive a file. 🔑 ASK when the photo was taken and pass it as captured_at: a photo typed up three weeks later describes a capability that may already be gone, and when it is omitted the route defaults it to now and says so in captured_at_defaulted. Sensitive: requires confirm:true.",
+    method: "POST",
+    path: "/admin/partners/:id/capabilities",
+    pathParams: ["id"],
+    write: true,
+    sensitive: true,
+    bodyParams: ["title", "technique", "material", "media_file_ids", "notes", "captured_at"],
+    inputSchema: obj(
+      {
+        id: STR("Partner id, e.g. 'partner_...'."),
+        title: STR("What this is, in the partner's own words (required), e.g. 'kani twill, off-white'."),
+        technique: STR("The weaving technique, e.g. 'kani twill'."),
+        material: STR("The material, e.g. 'pashmina'."),
+        media_file_ids: {
+          type: "array",
+          items: { type: "string" },
+          description:
+            "Ids of already-uploaded photographs. 🔴 There is no way to pass a file through this tool. Without ids the sample is a title with no evidence, which is exactly what the library exists to stop.",
+        },
+        notes: STR("Free-form notes about this sample."),
+        captured_at: STR("ISO date the photograph was TAKEN (ask, do not default silently)."),
+      },
+      ["id", "title"]
+    ),
+    sideEffects:
+      "Adds a permanent sample to the partner's library, stamped source='admin'. Does NOT attach itself to anything; it is searchable by technique and material from then on.",
+    nextSteps: ["list_partner_capabilities"],
+  },
+  {
+    name: "delete_partner_capability",
+    description:
+      "Delete a capability sample from a partner's library — a wrong or obsolete entry. Sensitive (every DELETE is): requires confirm:true. Use list_partner_capabilities first to find the sample id. The sample must belong to the named partner; another partner's id is a 404, not a deletion. The uploaded photographs are NOT deleted.",
+    method: "DELETE",
+    path: "/admin/partners/:id/capabilities/:sampleId",
+    pathParams: ["id", "sampleId"],
+    previewPath: "/admin/partners/:id/capabilities",
+    write: true,
+    inputSchema: obj(
+      {
+        id: STR("Partner id, e.g. 'partner_...'."),
+        sampleId: STR("Capability sample id, e.g. 'pcap_...'. Get it from list_partner_capabilities."),
+      },
+      ["id", "sampleId"]
+    ),
+    sideEffects: "Removes the sample row. The uploaded photographs survive — other samples may reference them.",
+    nextSteps: ["list_partner_capabilities"],
+  },
+  {
+    name: "get_partner_onboarding_profile",
+    description:
+      "Read a partner's onboarding questionnaire (what they sell, price range, person type, team size, payment/selling mode, commission, supplier capability, completion flag). Returns null when the partner has not started the wizard — a partner with no profile is an ordinary state, not an error. Use to see how far onboarding has progressed and what is still missing.",
+    method: "GET",
+    path: "/admin/partners/:id/onboarding-profile",
+    pathParams: ["id"],
+    inputSchema: obj({ id: STR("Partner id, e.g. 'partner_...'.") }, ["id"]),
+    nextSteps: ["update_partner_onboarding_profile"],
+  },
+  {
+    name: "update_partner_onboarding_profile",
+    description:
+      "Upsert a partner's onboarding questionnaire — file answers the partner gave outside the wizard (a call, WhatsApp) rather than making them complete it themselves. Only supplied fields are written, so you can record one answer at a time. Use dry_run to see the current answers first. Sensitive: requires confirm:true.",
+    method: "PUT",
+    path: "/admin/partners/:id/onboarding-profile",
+    pathParams: ["id"],
+    previewPath: "/admin/partners/:id/onboarding-profile",
+    write: true,
+    sensitive: true,
+    bodyParams: [
+      "what_they_sell",
+      "price_range",
+      "has_inventory_info",
+      "does_stock",
+      "does_weaving",
+      "person_type",
+      "team_size",
+      "payment_collection",
+      "selling_mode",
+      "commission_bps",
+      "supplies_to_platform",
+      "completed",
+    ],
+    inputSchema: obj(
+      {
+        id: STR("Partner id, e.g. 'partner_...'."),
+        what_they_sell: STR("'apparel' | 'home_textiles' | 'fabric' | 'yarn' | 'accessories' | 'other'."),
+        price_range: STR("'economy' | 'mid' | 'premium' | 'luxury'."),
+        has_inventory_info: BOOL("Whether they can share inventory info."),
+        does_stock: BOOL("Whether they hold stock themselves."),
+        does_weaving: BOOL("Whether they do weaving in-house."),
+        person_type: STR("'individual' | 'business' | 'manufacturer' | 'wholesaler' | 'retailer' | 'artisan' | 'other'."),
+        team_size: INT("How many people work in their team (0–100000)."),
+        payment_collection: STR("'through_us' (JYT collects customer payments) | 'themselves'."),
+        selling_mode: STR("'dedicated_storefront' | 'core_channel_listing' (listing on the core channel at an agreed commission)."),
+        commission_bps: INT(
+          "Agreed commission in basis points (1000 = 10.00%, max 10000). This is the per-partner BILLING override — what the platform keeps on this partner's sales. Set it deliberately, never incidentally."
+        ),
+        supplies_to_platform: BOOL("Whether the platform places production/inventory orders WITH this partner (a supplier) — orthogonal to selling_mode."),
+        completed: BOOL("Mark the questionnaire complete."),
+      },
+      ["id"]
+    ),
+    sideEffects:
+      "Creates the profile on first save, updates it thereafter. commission_bps overrides the platform default fee rate for this partner.",
+    nextSteps: ["get_partner_onboarding_profile"],
+  },
   {
     name: "get_partner_product_proposal",
     description:

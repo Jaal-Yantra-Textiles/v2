@@ -299,6 +299,10 @@ import { AdminPostDesignTaskAssignReq } from "./admin/designs/[id]/tasks/[taskId
 import { AdminPostPartnerTaskAssignReq } from "./admin/partners/[id]/tasks/[taskId]/assign/validators";
 import { AdminCreatePartnerTaskReq, AdminUpdatePartnerTaskReq } from "./admin/partners/[id]/tasks/validators";
 import {
+  AdminListPartnerCapabilitiesQuery,
+  AdminCreatePartnerCapabilityReq,
+} from "./admin/partners/[id]/capabilities/validators";
+import {
   ListPaymentsByPartnerQuerySchema as PartnerListPaymentsByPartnerQuerySchema,
   ListPaymentMethodsByPartnerQuerySchema as PartnerListPaymentMethodsByPartnerQuerySchema,
   CreatePaymentMethodForPartnerSchema as PartnerCreatePaymentMethodForPartnerSchema,
@@ -4664,6 +4668,37 @@ export default defineMiddlewares({
     {
       matcher: "/admin/partners/:id/bypass-email-verification",
       method: "POST",
+    },
+    // Admin Partner Capabilities (#1531) — the partner's capability library,
+    // surfaced for an operator. POST is validated; DELETE carries no body.
+    {
+      matcher: "/admin/partners/:id/capabilities",
+      method: "GET",
+      middlewares: [
+        validateAndTransformQuery(wrapSchema(AdminListPartnerCapabilitiesQuery), {}),
+      ],
+    },
+    {
+      matcher: "/admin/partners/:id/capabilities",
+      method: "POST",
+      middlewares: [
+        validateAndTransformBody(wrapSchema(AdminCreatePartnerCapabilityReq)),
+      ],
+    },
+    {
+      matcher: "/admin/partners/:id/capabilities/:sampleId",
+      method: "DELETE",
+    },
+    // Admin Partner Onboarding Profile — the upsert behind the admin-assistant
+    // filing of questionnaire answers a partner gave outside the wizard. Same
+    // schema the partner's own PUT registers, so the two surfaces cannot
+    // disagree about what an answer looks like.
+    {
+      matcher: "/admin/partners/:id/onboarding-profile",
+      method: "PUT",
+      middlewares: [
+        validateAndTransformBody(wrapSchema(onboardingProfileUpdateSchema)),
+      ],
     },
     {
       matcher: "/admin/persons/partner",

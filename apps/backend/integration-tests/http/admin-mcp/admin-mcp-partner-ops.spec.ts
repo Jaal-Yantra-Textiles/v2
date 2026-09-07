@@ -65,6 +65,11 @@ setupSharedTestSuite(() => {
         "create_partner_feedback",
         "link_partner_people",
         "create_partner_subscription",
+        "list_partner_capabilities",
+        "create_partner_capability",
+        "delete_partner_capability",
+        "get_partner_onboarding_profile",
+        "update_partner_onboarding_profile",
       ]) {
         expect(names).toContain(name)
       }
@@ -223,6 +228,91 @@ setupSharedTestSuite(() => {
       expect(payload.ok).toBe(true)
       expect(payload.data.fees).toEqual([])
       expect(payload.data.summary).toBeDefined()
+    })
+
+    it("create_partner_capability files a sample readable via list_partner_capabilities (confirm required)", async () => {
+      const empty = await callTool("list_partner_capabilities", { id: partnerId })
+      expect(parse(empty).data.samples).toEqual([])
+      expect(parse(empty).data.count).toBe(0)
+
+      // Without confirm: sensitive write is only planned, never executed.
+      const unconfirmed = await callTool("create_partner_capability", {
+        id: partnerId,
+        title: "kani twill, off-white",
+        technique: "kani twill",
+      })
+      const unconfirmedPayload = parse(unconfirmed)
+      expect(unconfirmedPayload.requires_confirmation).toBe(true)
+      expect(unconfirmedPayload.plan.method).toBe("POST")
+      expect(unconfirmedPayload.plan.path).toBe(
+        `/admin/partners/${partnerId}/capabilities`
+      )
+
+      const stillEmpty = await callTool("list_partner_capabilities", { id: partnerId })
+      expect(parse(stillEmpty).data.count).toBe(0)
+
+      // With confirm: executes against the wrapped route, stamped source='admin'.
+      const created = await callTool("create_partner_capability", {
+        id: partnerId,
+        title: "kani twill, off-white",
+        technique: "kani twill",
+        material: "pashmina",
+        confirm: true,
+      })
+      const createdPayload = parse(created)
+      expect(createdPayload.ok).toBe(true)
+      expect(createdPayload.data.sample.source).toBe("admin")
+      expect(createdPayload.data.captured_at_defaulted).toBe(true)
+
+      const listed = await callTool("list_partner_capabilities", { id: partnerId })
+      const samples = parse(listed).data.samples
+      expect(samples).toHaveLength(1)
+      expect(samples[0].id).toBe(createdPayload.data.sample.id)
+      expect(samples[0].technique).toBe("kani twill")
+    })
+
+    it("update_partner_onboarding_profile files answers readable via get_partner_onboarding_profile", async () => {
+      const before = await callTool("get_partner_onboarding_profile", { id: partnerId })
+      expect(parse(before).data.onboarding_profile).toBeNull()
+
+      const updated = await callTool("update_partner_onboarding_profile", {
+        id: partnerId,
+        does_weaving: true,
+        selling_mode: "core_channel_listing",
+        confirm: true,
+      })
+      expect(parse(updated).ok).toBe(true)
+
+      const after = await callTool("get_partner_onboarding_profile", { id: partnerId })
+      const profile = parse(after).data.onboarding_profile
+      expect(profile.does_weaving).toBe(true)
+      expect(profile.selling_mode).toBe("core_channel_listing")
+    })
+
+    it("delete_partner_capability removes a sample and previews the library first", async () => {
+      const created = await callTool("create_partner_capability", {
+        id: partnerId,
+        title: "to remove",
+        confirm: true,
+      })
+      const sampleId = parse(created).data.sample.id
+
+      // A DELETE is confirm-gated like every other mutation.
+      const unconfirmed = await callTool("delete_partner_capability", {
+        id: partnerId,
+        sampleId,
+      })
+      expect(parse(unconfirmed).requires_confirmation).toBe(true)
+
+      const deleted = await callTool("delete_partner_capability", {
+        id: partnerId,
+        sampleId,
+        confirm: true,
+      })
+      expect(parse(deleted).ok).toBe(true)
+
+      const after = await callTool("list_partner_capabilities", { id: partnerId })
+      expect(parse(after).data.count).toBe(0)
     })
   })
 })
