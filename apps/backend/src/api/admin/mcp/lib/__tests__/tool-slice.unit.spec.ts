@@ -43,6 +43,35 @@ describe("admin-mcp per-ask tool slicing", () => {
       ).toBe("partners")
     })
 
+    it("classifies the capability + onboarding-profile tools as partners", () => {
+      const domainOf = (name: string) =>
+        toolDomain(ADMIN_MCP_TOOLS.find((t) => t.name === name)!)
+      expect(domainOf("list_partner_capabilities")).toBe("partners")
+      expect(domainOf("create_partner_capability")).toBe("partners")
+      expect(domainOf("delete_partner_capability")).toBe("partners")
+      expect(domainOf("get_partner_onboarding_profile")).toBe("partners")
+      expect(domainOf("update_partner_onboarding_profile")).toBe("partners")
+    })
+
+    it("loads the capability + onboarding tools for a partners ask", () => {
+      // "record this kani twill capability" names no partner-domain noun the
+      // keyword list knew before "capability" was added — without the word,
+      // the ask lights no slice and the tools never load.
+      const slice = selectAdminToolSlice(
+        "record this kani twill capability for the loom partner",
+        ADMIN_MCP_TOOLS
+      )
+      expect(slice.names).toContain("create_partner_capability")
+      expect(slice.names).toContain("list_partner_capabilities")
+
+      const onboarding = selectAdminToolSlice(
+        "file the onboarding questionnaire answers he gave on the call",
+        ADMIN_MCP_TOOLS
+      )
+      expect(onboarding.names).toContain("update_partner_onboarding_profile")
+      expect(onboarding.names).toContain("get_partner_onboarding_profile")
+    })
+
     it("resolves the longest matching prefix, not the first", () => {
       // /admin/production-run-policy must not be swallowed by a shorter prefix,
       // and /admin/mcp/usage must land on observability rather than core.

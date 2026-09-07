@@ -205,6 +205,10 @@ const DOMAIN_KEYWORDS: Record<Exclude<AdminToolDomain, "core">, string[]> = {
     "maker", "makers", "artisan", "artisans", "weaver", "weavers", "vendor",
     "vendors", "onboard", "onboarding", "whatsapp", "subscription", "plan",
     "commission", "fee", "fees", "admin user", "verify", "verification",
+    // The capability library — "what can this partner actually make" is the
+    // ask the samples exist to answer, and it need not contain the word
+    // "partner" at all ("record this kani twill capability").
+    "capability", "capabilities",
     // People onboarding from an identity document (#1787 follow-on). "id card"
     // and "aadhaar" are what an operator actually types; without them the ask
     // "add this weaver from her aadhaar" matches only on "weaver".

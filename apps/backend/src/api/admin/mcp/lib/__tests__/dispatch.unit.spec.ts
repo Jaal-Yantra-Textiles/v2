@@ -260,6 +260,147 @@ describe("admin-mcp registry + dispatch", () => {
     })
   })
 
+  describe("partner capability + onboarding tools: the admin half of the partner surfaces", () => {
+    it("registers the capability reads and the onboarding read", () => {
+      const reads = [
+        ["list_partner_capabilities", "/admin/partners/:id/capabilities"],
+        ["get_partner_onboarding_profile", "/admin/partners/:id/onboarding-profile"],
+      ] as const
+      for (const [name, path] of reads) {
+        const def = ADMIN_MCP_TOOLS.find((t) => t.name === name)
+        expect(def).toBeTruthy()
+        expect(def!.method ?? "GET").toBe("GET")
+        expect(def!.path).toBe(path)
+        expect(def!.write).toBeFalsy()
+        expect(isSensitive(def!)).toBe(false)
+      }
+    })
+
+    it("registers the capability + onboarding writes as sensitive (confirm only)", () => {
+      const writes = [
+        ["create_partner_capability", "POST", "/admin/partners/:id/capabilities"],
+        [
+          "update_partner_onboarding_profile",
+          "PUT",
+          "/admin/partners/:id/onboarding-profile",
+        ],
+      ] as const
+      for (const [name, method, path] of writes) {
+        const def = ADMIN_MCP_TOOLS.find((t) => t.name === name)
+        expect(def).toBeTruthy()
+        expect(def!.write).toBe(true)
+        expect(def!.method).toBe(method)
+        expect(def!.path).toBe(path)
+        expect(isSensitive(def!)).toBe(true)
+        expect(isDangerous(def!)).toBe(false)
+      }
+    })
+
+    it("registers delete_partner_capability as a DELETE (confirm, not dangerous)", () => {
+      const def = ADMIN_MCP_TOOLS.find((t) => t.name === "delete_partner_capability")
+      expect(def).toBeTruthy()
+      expect(def!.method).toBe("DELETE")
+      expect(def!.path).toBe("/admin/partners/:id/capabilities/:sampleId")
+      expect(def!.pathParams).toEqual(["id", "sampleId"])
+      expect(def!.write).toBe(true)
+      expect(isSensitive(def!)).toBe(true) // every DELETE is confirm-gated
+      expect(isDangerous(def!)).toBe(false)
+      expect(def!.previewPath).toBe("/admin/partners/:id/capabilities")
+    })
+
+    it("update_partner_onboarding_profile declares a previewPath for dry_run", () => {
+      const def = ADMIN_MCP_TOOLS.find(
+        (t) => t.name === "update_partner_onboarding_profile"
+      )!
+      expect(def.previewPath).toBe("/admin/partners/:id/onboarding-profile")
+    })
+
+    it("update_partner_onboarding_profile advertises every questionnaire field the route accepts", () => {
+      const def = ADMIN_MCP_TOOLS.find(
+        (t) => t.name === "update_partner_onboarding_profile"
+      )!
+      expect(def.bodyParams).toEqual([
+        "what_they_sell",
+        "price_range",
+        "has_inventory_info",
+        "does_stock",
+        "does_weaving",
+        "person_type",
+        "team_size",
+        "payment_collection",
+        "selling_mode",
+        "commission_bps",
+        "supplies_to_platform",
+        "completed",
+      ])
+    })
+
+    it("create_partner_capability dry_run previews the plan without executing", async () => {
+      const res = await dispatchAdminTool(
+        { baseUrl: "http://localhost:9999" },
+        "create_partner_capability",
+        {
+          id: "partner_1",
+          title: "kani twill, off-white",
+          technique: "kani twill",
+          dry_run: true,
+        }
+      )
+      expect(res.ok).toBe(true)
+      expect(res.dry_run).toBe(true)
+      expect(res.plan?.method).toBe("POST")
+      expect(res.plan?.path).toBe("/admin/partners/partner_1/capabilities")
+      expect((res.plan?.body as any)?.title).toBe("kani twill, off-white")
+    })
+
+    it("create_partner_capability without confirm returns requires_confirmation, not executed", async () => {
+      const res = await dispatchAdminTool(
+        { baseUrl: "http://localhost:9999" },
+        "create_partner_capability",
+        { id: "partner_1", title: "kani twill, off-white" }
+      )
+      expect(res.requires_confirmation).toBe(true)
+      expect(res.plan?.path).toBe("/admin/partners/partner_1/capabilities")
+    })
+
+    it("update_partner_onboarding_profile dry_run previews the plan", async () => {
+      const res = await dispatchAdminTool(
+        { baseUrl: "http://localhost:9999" },
+        "update_partner_onboarding_profile",
+        { id: "partner_1", does_weaving: true, dry_run: true }
+      )
+      expect(res.ok).toBe(true)
+      expect(res.dry_run).toBe(true)
+      expect(res.plan?.method).toBe("PUT")
+      expect(res.plan?.path).toBe("/admin/partners/partner_1/onboarding-profile")
+      expect((res.plan?.body as any)?.does_weaving).toBe(true)
+    })
+
+    it("delete_partner_capability substitutes both id and sampleId path params", async () => {
+      const res = await dispatchAdminTool(
+        { baseUrl: "http://localhost:9999" },
+        "delete_partner_capability",
+        { id: "partner_1", sampleId: "pcap_1", dry_run: true }
+      )
+      expect(res.ok).toBe(true)
+      expect(res.plan?.path).toBe(
+        "/admin/partners/partner_1/capabilities/pcap_1"
+      )
+    })
+
+    it("list_partner_capabilities forwards technique and material as query params", async () => {
+      const def = ADMIN_MCP_TOOLS.find(
+        (t) => t.name === "list_partner_capabilities"
+      )!
+      expect(def.queryParams).toEqual([
+        "technique",
+        "material",
+        "limit",
+        "offset",
+      ])
+    })
+  })
+
   describe("orders ops (#1165): fulfillment, shipping and order edits", () => {
     it("registers the order read companions", () => {
       const reads = [
