@@ -7,6 +7,7 @@ import type { MedusaRequest, MedusaResponse } from "@medusajs/framework/http";
 import { ContainerRegistrationKeys } from "@medusajs/framework/utils";
 import { z } from "@medusajs/framework/zod";
 import { AD_PLANNING_MODULE } from "../../../../modules/ad-planning";
+import { handleTrackingError } from "../../lib/tracking-error-response";
 
 // Validator for journey tracking request
 export const TrackJourneySchema = z.object({
@@ -128,8 +129,22 @@ export const POST = async (
     });
   } catch (error) {
     const logger: any = req.scope.resolve(ContainerRegistrationKeys.LOGGER);
+
+    // Malformed input → one warn line + 400. Ours → error level + 200 swallow.
+    if (
+      handleTrackingError({
+        error,
+        body: req.body,
+        logger,
+        label: "track-journey",
+        res,
+      })
+    ) {
+      return;
+    }
+
     logger.error("Journey tracking error:", error as Error);
-    // Don't expose errors to client for security
+    // Don't expose OUR failures to the client.
     res.status(200).json({
       success: true,
       message: "Journey event received",

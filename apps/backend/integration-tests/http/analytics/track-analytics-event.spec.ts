@@ -352,16 +352,32 @@ setupSharedTestSuite(({ api, getContainer }) => {
           expect(response.data.success).toBe(true);
         });
 
-        it("should validate required fields", async () => {
+        it("should reject missing required fields with a 400", async () => {
           const incompleteData = {
             website_id: websiteId,
             // Missing required fields
           };
 
-          const response = await api.post("/web/analytics/track", incompleteData);
+          const response = await api.post(
+            "/web/analytics/track",
+            incompleteData,
+            { validateStatus: () => true } as any
+          );
 
-          // Validation should fail but still return 200 for security
-          expect(response.status).toBe(200);
+          /**
+           * Was 200 "for security". That conflated a malformed request with a
+           * successful one, so a storefront with a broken tracker looked
+           * identical to a bot and nobody could tell. The caller's mistake is
+           * now the caller's 400; only OUR failures are still swallowed into a
+           * 200 (see tracking-error-contract.spec.ts).
+           */
+          expect(response.status).toBe(400);
+          expect(response.data.success).toBe(false);
+          // event_type/channel carry schema defaults, so they are NOT reported
+          // missing — only the genuinely absent fields are.
+          expect(response.data.fields).toEqual(
+            expect.arrayContaining(["pathname", "visitor_id", "session_id"])
+          );
         });
       });
 
