@@ -314,6 +314,18 @@ export type StockFinishedGoodsInput = {
   order_id: string | null
   order_line_item_id: string | null
   run_quantity: number
+  /**
+   * #1872 — the run's OWN variant, when it has one.
+   *
+   * `production_runs` has carried `variant_id` and `product_id` since it was
+   * written, and nothing ever read them: this step re-derived the target from
+   * `design_product_variant[0]` instead. A design with two variants would
+   * therefore bank every customer's goods onto whichever variant came back
+   * first. Prod has no such design today (#1871), which is why this has never
+   * bitten — but #1874 is what makes a design able to accumulate variants, so
+   * the two land together.
+   */
+  variant_id?: string | null
 }
 
 type StockRollbackData = {
@@ -332,14 +344,37 @@ export const stockFinishedGoodsStep = createStep(
     const query = container.resolve(ContainerRegistrationKeys.QUERY) as any
     const inventoryService = container.resolve(Modules.INVENTORY) as any
 
-    // Resolve design → variant → inventory item
-    const { data: designVariants } = await query.graph({
-      entity: "design_product_variant",
-      filters: { design_id: input.design_id },
-      fields: ["product_variant_id"],
+    /**
+     * A run with children is an AGGREGATE, not work (#1877). Its
+     * `produced_quantity` is the rollup of children that each bank their own
+     * output, so stocking it would count the same goods twice. The cascade in
+     * `complete-production-run` completes a parent by a direct service update
+     * and never runs this workflow for it — this guard is what makes that
+     * property explicit rather than incidental, for anyone who completes a
+     * parent directly.
+     */
+    const { data: children } = await query.graph({
+      entity: "production_runs",
+      filters: { parent_run_id: input.production_run_id },
+      fields: ["id"],
     })
+    if (children?.length) {
+      return new StepResponse({ stocked: false }, null as StockRollbackData)
+    }
 
-    const variantId = designVariants?.[0]?.product_variant_id
+    // The run's own variant wins; the design lookup is the fallback for the runs
+    // that predate it (16 of 131 carry the column today).
+    let variantId: string | undefined = input.variant_id ?? undefined
+
+    if (!variantId) {
+      const { data: designVariants } = await query.graph({
+        entity: "design_product_variant",
+        filters: { design_id: input.design_id },
+        fields: ["product_variant_id"],
+      })
+      variantId = designVariants?.[0]?.product_variant_id
+    }
+
     if (!variantId) {
       return new StepResponse({ stocked: false }, null as StockRollbackData)
     }
