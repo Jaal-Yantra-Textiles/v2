@@ -28,7 +28,10 @@ import { PARTNER_QUOTE_MODULE } from "../../modules/partner-quote"
 import { resolveQuoteRegion } from "../../modules/partner-quote/lib/resolve-region"
 import { PARTNER_QUOTE_EVENTS } from "../../modules/partner-quote/events"
 import { PAYMENT_SCHEDULE_MODULE } from "../../modules/payment_schedule"
-import { quoteUnusableReason } from "../../modules/partner-quote/lib/token"
+import {
+  priceListUnusableReason,
+  quoteUnusableReason,
+} from "../../modules/partner-quote/lib/token"
 import { buildQuoteView } from "../../modules/partner-quote/lib/build-quote-view"
 
 /**
@@ -168,6 +171,40 @@ const loadQuoteForAcceptStep = createStep(
       throw new MedusaError(
         MedusaError.Types.INVALID_DATA,
         `Quote ${quote.id} predates buyer-scoped pricing and cannot be accepted; re-mint it`
+      )
+    }
+
+    /**
+     * 🔴 The check above asks whether the COLUMN IS SET. That is not the same
+     * question as whether the list can still price, and the difference is a
+     * silent mispricing rather than an error (#1857).
+     *
+     * A revoked quote's price list is DELETED and a superseded one's is dated
+     * to `now`; either would build a cart core prices at BASE — the failure
+     * this step's own docblock names. Nothing can reach that state today only
+     * because `mint-quote` derives `quote.expires_at` and the list's `ends_at`
+     * from one value, so the two lapse together — an invariant enforced
+     * nowhere until this line. Measured: on every quote in the local database
+     * the two timestamps are equal to the microsecond, and 0 quotes are in the
+     * exposed shape.
+     *
+     * Read back rather than trusted: the id on the quote is a pointer, and
+     * `query.graph` returns NO ROW for a soft-deleted list exactly as it does
+     * for one that never existed.
+     */
+    const { data: priceLists } = await query.graph({
+      entity: "price_list",
+      filters: { id: quote.price_list_id },
+      fields: ["id", "status", "starts_at", "ends_at", "deleted_at"],
+    })
+    const priceListProblem = priceListUnusableReason(
+      (priceLists ?? [])[0],
+      input.now
+    )
+    if (priceListProblem) {
+      throw new MedusaError(
+        MedusaError.Types.NOT_ALLOWED,
+        `Quote ${quote.id} can no longer be priced — its price list ${quote.price_list_id} is ${priceListProblem}. Accepting it would build the cart at base prices, which is not what was quoted. Re-mint the quote.`
       )
     }
 

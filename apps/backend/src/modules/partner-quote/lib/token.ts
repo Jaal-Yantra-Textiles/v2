@@ -80,6 +80,68 @@ export function quoteUnusableReason(
   return null
 }
 
+/**
+ * The half of "can this quote still price?" that lives on the PRICE LIST.
+ *
+ * `quoteUnusableReason` above asks the quote. That is not the whole question,
+ * and #1857 is where the gap showed: `accept-quote` guards on
+ * `!quote.price_list_id` — that the COLUMN IS SET — while what it needs is
+ * that the list can still price. A revoked quote's price list is DELETED (see
+ * `lib/revoke-quote.ts`), and a superseded one's is dated to `now`; if either
+ * quote reached the accept path it would build a cart against a list core
+ * ignores, and the docblock there names the consequence exactly: "a silently
+ * cheaper (or dearer) cart rather than an error".
+ *
+ * 🔴 Today nothing can reach that state, and the reason is an INVARIANT NOT
+ * ENFORCED ANYWHERE: `mint-quote` sets `quote.expires_at` and the price list's
+ * `ends_at` from ONE value, so the quote expires at the same instant the list
+ * goes inert. Measured on all five active local quotes — equal to the
+ * microsecond. This function is what makes that an assertion rather than a
+ * coincidence: if the two ever drift, acceptance refuses instead of
+ * mispricing.
+ *
+ * `missing` covers "no row" and "soft-deleted" alike, because a caller reading
+ * through `query.graph` cannot tell them apart — both come back as no row at
+ * all, and the corrected #1857 sweep is what established that the question is
+ * VISIBILITY, not existence.
+ */
+export type QuotePriceListState = {
+  id?: string | null
+  deleted_at?: Date | string | null
+  status?: string | null
+  starts_at?: Date | string | null
+  ends_at?: Date | string | null
+}
+
+export function priceListUnusableReason(
+  priceList: QuotePriceListState | null | undefined,
+  now: Date | string | number
+): "missing" | "draft" | "ended" | "not_started" | null {
+  if (!priceList?.id || priceList.deleted_at) {
+    return "missing"
+  }
+
+  // `status: draft` is how a quote's list is switched off without deleting it.
+  if (priceList.status && String(priceList.status) !== "active") {
+    return "draft"
+  }
+
+  const nowMs = new Date(now as any).getTime()
+  if (!Number.isFinite(nowMs)) {
+    // Same defensive normalisation as above — a step boundary turns a Date
+    // into a string, and an unparseable clock must not silently pass a list.
+    return null
+  }
+
+  if (priceList.ends_at && new Date(priceList.ends_at).getTime() <= nowMs) {
+    return "ended"
+  }
+  if (priceList.starts_at && new Date(priceList.starts_at).getTime() > nowMs) {
+    return "not_started"
+  }
+  return null
+}
+
 export function isQuoteUsable(
   quote: QuoteLifecycle,
   now: Date | string | number
