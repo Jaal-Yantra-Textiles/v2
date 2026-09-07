@@ -99,12 +99,28 @@ export type ActionRail = "action" | "open" | "none"
 
 export const actionRail = (
   affordance: NodeAffordance,
-  node: { href: string | null; action: { label: string; href: string | null } | null },
+  node: {
+    href: string | null
+    action: { label: string; href: string | null } | null
+    /** #1857. A node that RUNS something already answers its own question. */
+    act?: { previewBody: unknown | null; applyBody: unknown | null } | null
+  },
   spineHref: string | null
 ): ActionRail => {
   const hasForm = affordance.create || affordance.edit
 
-  if (!hasForm && node.action) {
+  /*
+   * 🔴 The rail must not repeat the ACT, for the same reason it must not
+   * repeat a form — and this one was worse, because the two are word for word
+   * identical. Rendered, the partner's WhatsApp node showed "Verify the
+   * number" twice: the act, which sends the template, directly above the old
+   * `action`, which has a null href and is therefore a DEAD DISABLED BUTTON.
+   *
+   * That is #1854 exactly — a new affordance that did not replace the old one
+   * and kept rendering beside it. `open` survives, because a drill-in to the
+   * neighbour's own page is a different question from running a job.
+   */
+  if (!hasForm && node.action && !node.act) {
     return "action"
   }
 
@@ -113,4 +129,51 @@ export const actionRail = (
   }
 
   return "none"
+}
+
+/**
+ * What the ACT rail renders (#1857).
+ *
+ *   - `preview-then-apply` — a dry run exists; the first press previews and
+ *     Apply is unreachable until one comes back.
+ *   - `confirm-once`       — there IS no dry run. One button, behind the
+ *     confirm, and pressing it does the thing.
+ *   - `none`               — this node runs nothing.
+ *
+ * 🔴 The distinction is the whole safety property, and getting it backwards is
+ * invisible on screen. The first version pressed preview unconditionally, so
+ * an act with `previewBody: null` would have POSTed to the real endpoint with
+ * no body while the button still said preview. The two acts that arrived next
+ * were "verify the WhatsApp number", which SENDS A MESSAGE to a real partner,
+ * and "verify the domain", which pushes live DNS. Neither has a dry run, and
+ * for both the safe-looking press was the entire action.
+ */
+export type ActRail = "preview-then-apply" | "confirm-once" | "none"
+
+export const actRail = (
+  act: { previewBody: unknown | null; applyBody: unknown | null } | null | undefined
+): ActRail => {
+  if (!act) {
+    return "none"
+  }
+  return act.previewBody !== null ? "preview-then-apply" : "confirm-once"
+}
+
+/**
+ * Whether the Apply button may be drawn yet.
+ *
+ * 🔴 `previewed` is required and is not the same as "a preview exists". An
+ * Apply drawn before the operator has read what would change is the guard
+ * removed — and on this board the reason for the guard is that three sweeps
+ * running were topped by a pair that turned out to be correct state.
+ */
+export const canApply = (
+  act: { previewBody: unknown | null; applyBody: unknown | null } | null | undefined,
+  previewed: boolean
+): boolean => {
+  if (!act || act.applyBody === null) {
+    return false
+  }
+  // With no dry run there is no separate Apply — the single button IS the act.
+  return actRail(act) === "preview-then-apply" && previewed
 }

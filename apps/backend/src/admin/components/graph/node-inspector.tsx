@@ -4,6 +4,7 @@ import { Link } from "react-router-dom"
 
 import { useRunGraphNodeAct } from "../../hooks/api/graph"
 import type { GraphEdge, GraphNode, NodeActResult } from "../../hooks/api/graph"
+import { actRail, canApply } from "./node-forms"
 import type { ActionRail } from "./node-forms"
 
 /**
@@ -249,6 +250,24 @@ export const NodeInspectorAct = ({
     return null
   }
 
+  /*
+   * 🔴 `previewBody: null` means THERE IS NO DRY RUN — not "preview with an
+   * empty body".
+   *
+   * The first version pressed preview unconditionally, so an act with no
+   * preview would have POSTed to the real endpoint with no body while the
+   * button still said preview. For the two acts that arrived next — verify a
+   * WhatsApp number, which SENDS A MESSAGE to a real partner, and re-verify a
+   * custom domain, which pushes DNS — the safe-looking press was the whole
+   * action. Caught before either was wired, and only because writing the
+   * second kind of act forced the question.
+   *
+   * With no preview there is exactly one button and it is the act itself,
+   * behind the confirm. With a preview, the apply cannot be reached until one
+   * has come back.
+   */
+  const hasPreview = actRail(act) === "preview-then-apply"
+
   const runApply = async () => {
     /*
      * 🔴 The confirm sentence is the SERVER's. A generic "Are you sure?" would
@@ -259,7 +278,14 @@ export const NodeInspectorAct = ({
     const ok = await prompt({
       title: act.label,
       description: act.confirm,
-      confirmText: "Apply",
+      /*
+       * The act's own words where there was nothing to preview. "Apply" is
+       * right for the second half of a preview-then-apply pair and wrong for a
+       * single press that SENDS A WHATSAPP MESSAGE — the confirm's last word
+       * should be the thing about to happen, not a stage of a flow this act
+       * does not have.
+       */
+      confirmText: hasPreview ? "Apply" : act.label,
     })
     if (ok) {
       mutate({ act, apply: true })
@@ -269,18 +295,28 @@ export const NodeInspectorAct = ({
   return (
     <div className="border-t px-6 py-3">
       <div className="flex flex-wrap items-center gap-2">
-        <Button
-          variant="secondary"
-          size="small"
-          isLoading={isPending}
-          onClick={() => mutate({ act, apply: false })}
-        >
-          {preview ? "Preview again" : act.label}
-        </Button>
+        {hasPreview ? (
+          <Button
+            variant="secondary"
+            size="small"
+            isLoading={isPending}
+            onClick={() => mutate({ act, apply: false })}
+          >
+            {preview ? "Preview again" : act.label}
+          </Button>
+        ) : (
+          /*
+           * No dry run exists, so the label IS the action and it goes through
+           * the confirm. `danger`, because nothing here previews first.
+           */
+          <Button variant="danger" size="small" isLoading={isPending} onClick={runApply}>
+            {act.label}
+          </Button>
+        )}
         {/*
           Only after a preview, and only where there is something to apply.
         */}
-        {preview && act.applyBody && (
+        {canApply(act, !!preview) && (
           <Button variant="danger" size="small" disabled={isPending} onClick={runApply}>
             Apply
           </Button>

@@ -569,7 +569,34 @@ const resolvePartnerGraph = async ({ scope, id }: SpineContext): Promise<Graph> 
           { key: "number", value: String(partner.whatsapp_number) },
           { key: "verified", value: "no" },
         ],
+        /*
+         * 🔴 Kept, and now DEAD ON PURPOSE — it renders disabled because
+         * `href` is null, and the working affordance is the act below. The
+         * words stay so a reader still learns what the missing step is called
+         * where the rail is rendered without acts.
+         */
         action: { label: "Verify the number", href: null },
+        /*
+         * The act #1856 was waiting for. `POST /admin/partners/:id/
+         * whatsapp-verify` has existed all along; the graph could name the
+         * step and not take it.
+         *
+         * 🔴 NO PREVIEW, and that is not an omission. This endpoint SENDS A
+         * WHATSAPP TEMPLATE to a real partner — there is no dry run of a
+         * message that has already left. So `previewBody` is null, which the
+         * rail renders as a single confirmed press, and the confirm says what
+         * the partner will receive.
+         */
+        act: {
+          method: "POST",
+          path: `/admin/partners/${partnerId}/whatsapp-verify`,
+          previewBody: null,
+          applyBody: { phone: String(partner.whatsapp_number) },
+          label: "Verify the number",
+          confirm: `Sends a WhatsApp welcome template to ${String(
+            partner.whatsapp_number
+          )} and starts the consent flow. The partner receives a real message — there is no preview and it cannot be recalled.`,
+        },
       },
       {
         label: "whatsapp_number",
@@ -596,6 +623,24 @@ const resolvePartnerGraph = async ({ scope, id }: SpineContext): Promise<Graph> 
           { key: "verified", value: "no" },
         ],
         action: { label: "Verify the domain", href: null },
+        /*
+         * `POST /admin/partners/:id/storefront/domain/verify` — re-checks
+         * ownership with the hosting provider and, for Vercel partners inside
+         * the Cloudflare zone we control, pushes the DNS Vercel recommends so
+         * the domain self-heals.
+         *
+         * 🔴 No preview here either: it WRITES DNS. Nothing about it is a read.
+         */
+        act: {
+          method: "POST",
+          path: `/admin/partners/${partnerId}/storefront/domain/verify`,
+          previewBody: null,
+          applyBody: {},
+          label: "Verify the domain",
+          confirm: `Re-checks ${String(
+            partner.custom_domain
+          )} with the hosting provider and, on Vercel, pushes the DNS it recommends through Cloudflare. This changes live DNS records — there is no dry run.`,
+        },
       },
       {
         label: "custom_domain",
