@@ -2564,6 +2564,43 @@ export default async function e2eSeed({ container }: ExecArgs) {
   logger.info("E2E seed: creating act-rail partner (unverified WhatsApp + domain)...")
   const actRail = await seedActRailPartner(container)
 
+  /**
+   * 🔴 The parked run is re-asserted LAST, because something later in this
+   * seed moves it.
+   *
+   * Measured: the fixture is created `awaiting_reassignment` and read back
+   * `approved` with its `cancelled_reason` cleared, updated 90 seconds after
+   * creation — i.e. while this seed was still running, not during the specs.
+   * The result is a fixture whose state depends on seeding order, so
+   * `production-run-reassign` passes on one seed and fails on the next looking
+   * for "awaiting reassignment" on a run that is no longer parked.
+   *
+   * A seed's contract is the state of its fixtures at the moment it writes the
+   * file. This makes that true rather than hoping nothing downstream reaches
+   * back — and it throws if the re-force does not stick, so a fixture that
+   * cannot be parked is a loud seed failure instead of a silent spec one.
+   */
+  const runsForCheck: any = container.resolve("production_runs")
+  const parkedNow = await runsForCheck.retrieveProductionRun(parkedRun.runId)
+  if (parkedNow?.status !== "awaiting_reassignment") {
+    logger.warn(
+      `E2E seed: parked run ${parkedRun.runId} drifted to "${parkedNow?.status}" during seeding — re-parking it.`
+    )
+    await runsForCheck.updateProductionRuns({
+      id: parkedRun.runId,
+      status: "awaiting_reassignment",
+      partner_id: null,
+      previous_partner_id: parkedRun.lapsedPartnerId,
+      cancelled_reason: "Declined by partner (capacity): Machine servicing",
+    })
+    const reparked = await runsForCheck.retrieveProductionRun(parkedRun.runId)
+    if (reparked?.status !== "awaiting_reassignment") {
+      throw new Error(
+        `E2E seed: could not park run ${parkedRun.runId} — it reads "${reparked?.status}". production-run-reassign.spec.ts cannot pass against this fixture.`
+      )
+    }
+  }
+
   const seedData = {
     email,
     password: SEED_PASSWORD,
