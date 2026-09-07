@@ -67,6 +67,85 @@ setupSharedTestSuite(({ api, getContainer }) => {
       expect(res.data.partner_admin.email).toBe(payload.admin.email)
     })
 
+    test("POST /admin/partners without a handle derives partner_<name-slug>", async () => {
+      // The MCP tool has always advertised "auto-derived if omitted"; until the
+      // prod 500s of 2026-09-07 nothing derived it — the workflow passed
+      // undefined to MikroORM's required column and the route answered 500.
+      const unique = Date.now()
+      const payload = {
+        partner: {
+          name: `JP Handloom ${unique}`,
+          // no handle on purpose
+        },
+        admin: {
+          email: `partner-nohandle-${unique}@jyt.test`,
+          first_name: "Admin",
+          last_name: "User",
+        },
+      }
+
+      const res = await api.post("/admin/partners", payload, adminHeaders)
+
+      expect(res.status).toBe(201)
+      expect(res.data.partner.handle).toBe(`partner_jp-handloom-${unique}`)
+    })
+
+    test("POST /admin/partners with a duplicate admin email returns 422, not a 500", async () => {
+      const unique = Date.now()
+      const email = `partner-dupe-email-${unique}@jyt.test`
+
+      const first = {
+        partner: { name: `First ${unique}`, handle: `dupe-email-first-${unique}` },
+        admin: { email, first_name: "First", last_name: "Admin" },
+      }
+      const ok = await api.post("/admin/partners", first, adminHeaders)
+      expect(ok.status).toBe(201)
+
+      // Same email, different partner: the unique column on partner_admin is
+      // a validation question and must be answered before the first insert.
+      const second = {
+        partner: {
+          name: `Second ${unique}`,
+          handle: `dupe-email-second-${unique}`,
+        },
+        admin: { email, first_name: "Second", last_name: "Admin" },
+      }
+      const err = await api
+        .post("/admin/partners", second, adminHeaders)
+        .catch((e: any) => e)
+
+      expect(err.response.status).toBe(422)
+      expect(err.response.data?.message).toBe(
+        `A partner admin with email "${email}" already exists. Please use a different email.`
+      )
+    })
+
+    test("POST /admin/partners with an explicit taken handle returns the duplicate message", async () => {
+      const unique = Date.now()
+      const handle = `explicit-taken-${unique}`
+      const first = {
+        partner: { name: `Taken ${unique}`, handle },
+        admin: { email: `taken-first-${unique}@jyt.test`, first_name: "A", last_name: "B" },
+      }
+      const ok = await api.post("/admin/partners", first, adminHeaders)
+      expect(ok.status).toBe(201)
+
+      // No handle on the second — it derives partner_taken-<unique>, which is
+      // free; so instead assert the EXPLICIT path: same handle again.
+      const second = {
+        partner: { name: `Taken Again ${unique}`, handle },
+        admin: { email: `taken-second-${unique}@jyt.test`, first_name: "A", last_name: "B" },
+      }
+      const err = await api
+        .post("/admin/partners", second, adminHeaders)
+        .catch((e: any) => e)
+
+      expect(err.response.status).toBe(422)
+      expect(err.response.data?.message).toBe(
+        `A partner with handle "${handle}" already exists. Please use a unique handle.`
+      )
+    })
+
     test("POST /admin/partners with duplicate handle returns 422", async () => {
       const unique = Date.now()
       const baseHandle = `acme-admin-dupe-${unique}`
