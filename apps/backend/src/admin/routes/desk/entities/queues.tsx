@@ -1,3 +1,4 @@
+import DanglingPointersQueuePage from "../../queues/dangling-pointers/page"
 import ProductsAwaitingQueuePage from "../../queues/products-awaiting/page"
 import type { EntityPanelConfig } from "../EntityPanel"
 
@@ -20,6 +21,10 @@ export const queuesEntityConfig: EntityPanelConfig = {
     {
       path: "/queues/products-awaiting",
       element: <ProductsAwaitingQueuePage />,
+    },
+    {
+      path: "/queues/dangling-pointers",
+      element: <DanglingPointersQueuePage />,
     },
   ],
 }

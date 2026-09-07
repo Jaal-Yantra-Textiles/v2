@@ -1,6 +1,7 @@
 import { MedusaError } from "@medusajs/framework/utils"
 
 import type { Graph, NodeItem, SpineContext, SpineDescriptor } from "../types"
+import { danglingPointersItems, resolveDanglingPointers } from "./dangling-pointers"
 import { productsAwaitingItems, resolveProductsAwaiting } from "./products-awaiting"
 
 /**
@@ -34,6 +35,18 @@ const QUEUES: Record<string, QueueDescriptor> = {
     label: "Products awaiting creation",
     resolve: resolveProductsAwaiting,
     items: productsAwaitingItems,
+  },
+  /*
+   * A queue whose members are not records at all but `table.column` PAIRS
+   * (#1857). It is here rather than in a surface of its own because the
+   * registry's claim — a board costs a resolver and an entry — holds for a
+   * population of columns exactly as it did for a cohort of designs.
+   */
+  "dangling-pointers": {
+    key: "dangling-pointers",
+    label: "Dangling pointers",
+    resolve: resolveDanglingPointers,
+    items: danglingPointersItems,
   },
 }
 
