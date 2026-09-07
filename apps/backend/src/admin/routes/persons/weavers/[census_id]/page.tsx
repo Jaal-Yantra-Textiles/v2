@@ -1,4 +1,5 @@
-import { LoaderFunctionArgs, UIMatch, useLoaderData, useParams } from "react-router-dom"
+import { LoaderFunctionArgs, Link, UIMatch, useLoaderData, useParams } from "react-router-dom"
+import { Button, Container, Heading, Text } from "@medusajs/ui"
 
 import { useWeaver } from "../../../../hooks/api/census"
 import { TwoColumnPage } from "../../../../components/pages/two-column-pages"
@@ -6,7 +7,6 @@ import { TwoColumnPageSkeleton } from "../../../../components/table/skeleton"
 import { WeaverGeneralSection } from "../../../../components/persons/weaver-general-section"
 import { WeaverCensusSection } from "../../../../components/persons/weaver-census-section"
 import { WeaverRevealSection } from "../../../../components/persons/weaver-reveal-section"
-import { WeaverEditsSection } from "../../../../components/persons/weaver-edits-section"
 import { weaverLoader } from "./loader"
 
 const WeaverDetailPage = () => {
@@ -26,11 +26,21 @@ const WeaverDetailPage = () => {
   const weaver = data.weaver
 
   return (
-    <TwoColumnPage data={weaver} hasOutlet={false} showJSON>
+    <TwoColumnPage data={weaver} hasOutlet showJSON>
       <TwoColumnPage.Main>
         <WeaverGeneralSection weaver={weaver} />
         <WeaverCensusSection weaver={weaver} />
-        <WeaverEditsSection censusId={census_id!} />
+        <Container className="flex items-center justify-between px-6 py-4">
+          <div className="flex flex-col gap-y-1">
+            <Heading level="h2">Edits &amp; changes</Heading>
+            <Text size="small" className="text-ui-fg-subtle">
+              Social media, corrections and custom fields for this record
+            </Text>
+          </div>
+          <Button size="small" variant="secondary" asChild>
+            <Link to="edits">Edit</Link>
+          </Button>
+        </Container>
       </TwoColumnPage.Main>
       <TwoColumnPage.Sidebar>
         <WeaverRevealSection censusId={census_id!} />
