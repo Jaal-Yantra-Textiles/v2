@@ -80,6 +80,7 @@ import type { MedusaRequest, MedusaResponse } from "@medusajs/framework/http";
 import { ContainerRegistrationKeys } from "@medusajs/framework/utils";
 import { z } from "@medusajs/framework/zod";
 import { trackAnalyticsEventWorkflow } from "../../../../workflows/analytics/track-analytics-event";
+import { handleTrackingError } from "../../lib/tracking-error-response";
 import {
   getIngestRedis,
   isBatchIngestEnabled,
@@ -245,8 +246,27 @@ export const POST = async (
       message: "Event tracked",
     });
   } catch (error) {
+    /**
+     * A malformed body is the CALLER's problem: one warn line and a 400 (#1877
+     * follow-on). Only an unexpected failure — our database or buffer down —
+     * keeps the error-level log and the 200 swallow, because this endpoint runs
+     * inside a <script> on someone else's page.
+     */
+    if (
+      handleTrackingError({
+        error,
+        body: req.body,
+        logger,
+        label: "analytics-track",
+        res,
+      })
+    ) {
+      return;
+    }
+
     logger.error("Analytics tracking error:", error as Error);
-    // Don't expose errors to client for security
+    // Don't expose OUR failures to the client — a broken write path must not
+    // surface as a console error on a customer's storefront.
     res.status(200).json({
       success: true,
       message: "Event received",
