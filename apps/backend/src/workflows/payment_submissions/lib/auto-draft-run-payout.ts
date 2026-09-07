@@ -3,6 +3,7 @@ import type { MedusaContainer } from "@medusajs/framework/types"
 
 import { PAYMENT_SUBMISSIONS_MODULE } from "../../../modules/payment_submissions"
 import { assessRunPayout } from "../../production-runs/lib/run-payable"
+import { hydrateRunKind } from "../../production-runs/lib/run-kind"
 import { createPaymentSubmissionWorkflow } from "../create-payment-submission"
 
 /**
@@ -88,6 +89,11 @@ export const autoDraftRunPayout = async (
   } catch {
     return { drafted: false, reason: "run_not_found", source }
   }
+
+  // #1877 — `assessRunPayout` refuses a ROLLUP, but only if it is told the run
+  // has children. `child_run_count` is fetched, not stored; without this the
+  // guard is dead code that types perfectly.
+  run = await hydrateRunKind(container, run)
 
   const payout = assessRunPayout(run)
   if (!payout.eligible) {

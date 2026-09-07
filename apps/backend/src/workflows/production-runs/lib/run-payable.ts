@@ -12,6 +12,7 @@
 // a partner's output figure therefore does NOT move the money — deliberately.
 
 import { isProvenanceRun } from "../../consumption-logs/lib/reconcile-production-consumption"
+import { isAggregateRun } from "./run-kind"
 
 export type RunForPayout = {
   id?: string
@@ -27,6 +28,15 @@ export type RunForPayout = {
    * never asked for is dead code that types perfectly.
    */
   metadata?: Record<string, any> | null
+  /**
+   * #1877 — how many runs name this one as their parent. A run with children is
+   * a ROLLUP: its `quantity` is the sum of theirs, and they are each payable in
+   * their own right.
+   *
+   * ⚠️ Not a column. `hydrateRunKind` fills it in, and a caller that forgets
+   * gets the pre-#1877 answer rather than a wrong one — see `run-kind.ts`.
+   */
+  child_run_count?: number | null
 }
 
 /**
@@ -307,6 +317,29 @@ export const assessRunPayout = (
    */
   if (isProvenanceRun(run)) {
     return { eligible: false, reason: "provenance_run" }
+  }
+
+  /**
+   * A ROLLUP is a heading over other runs, not a job (#1877). Its `quantity` is
+   * the SUM of its children's, and each of those children is payable in its own
+   * right — so billing the parent too pays the partner for the sum AND for
+   * every part of it.
+   *
+   * Measured on prod (#1871) and again on the local database while writing
+   * this (398 runs, 22 parents, 0 of them priced): no parent carries a
+   * `partner_cost_estimate` at any status, so this has never fired. That is the whole problem — the only
+   * thing standing between the platform and a double payout was an ABSENCE.
+   * One admin typing a cost into a parent's drawer, or any path that propagates
+   * costs down a bundle, removes it. `runPayableAmount` would then bill the
+   * summed quantity on top of the children that already billed their share.
+   *
+   * ⚠️ Ordered BEFORE the `no_cost` check deliberately: a parent that acquires
+   * a cost must be refused for being a parent, not incidentally for having no
+   * money on it. The reason a caller logs should survive the day someone fills
+   * that field in.
+   */
+  if (isAggregateRun(run)) {
+    return { eligible: false, reason: "aggregate_run" }
   }
 
   const amount = runPayableAmount(run)

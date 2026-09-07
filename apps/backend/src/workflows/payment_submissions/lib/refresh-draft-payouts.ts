@@ -1,5 +1,6 @@
 import { PAYMENT_SUBMISSIONS_MODULE } from "../../../modules/payment_submissions"
 import { assessRunPayout } from "../../production-runs/lib/run-payable"
+import { hydrateRunKind } from "../../production-runs/lib/run-kind"
 
 /**
  * Re-price the unclaimed DRAFT payouts that were pre-filled from a run, after
@@ -51,7 +52,9 @@ export const refreshUnclaimedDraftPayouts = async (
   const runService: any = scope.resolve("production_runs")
   const run = await runService.retrieveProductionRun(runId)
 
-  const payout = assessRunPayout(run)
+  // #1877 — see `run-kind.ts`: the rollup guard reads a count that has to be
+  // fetched, so a caller that skips this gets no guard at all.
+  const payout = assessRunPayout(await hydrateRunKind(scope, run))
   if (!payout.eligible) {
     // No payable figure any more (rate cleared, run reopened). Leaving the
     // Draft alone is safer than zeroing it: a zero payout reads as a decision
