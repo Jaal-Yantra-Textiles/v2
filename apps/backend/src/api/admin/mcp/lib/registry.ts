@@ -1637,34 +1637,56 @@ export const ADMIN_MCP_TOOLS: AdminMcpToolDef[] = [
   {
     name: "update_product_option",
     description: [
-      "Rewrite a product option's list of allowed values — the '33s', '60lea Colour' choices a variant is matched to. Sensitive: requires confirm:true.",
+      "Add or remove the values a product option allows — the '33s', '60lea Colour' choices a variant is matched to. Sensitive: requires confirm:true.",
       "🔑 This is the tool that unblocks `create_product_variant`. That tool matches a variant to option values that ALREADY EXIST and core will not invent one, so a variant naming a new value cannot be created until the value is added here first.",
-      "⚠️ `values` REPLACES the option's entire value list — it is not an append. Call `get_product` first and send every existing value PLUS the new one. Sending only the new value drops the rest, and any variant matched to a dropped value loses its option.",
-      "Find the option id and its current values under `product.options[]` from `get_product`.",
+      "✅ ADDITIVE, not a rewrite: `add` appends and `remove` deletes by VALUE ID. Values you do not mention are untouched, so there is no need to resend the existing list and no way to drop one by omission.",
+      "⚠️ `remove` takes option-value IDs (`optval_...`), not the value strings. Removing a value that a variant is matched to leaves that variant without its option.",
+      "Find the option id under `product.options[].id` and the value ids under `product.options[].values[].id`, both from `get_product`.",
     ].join("\n"),
     method: "POST",
-    path: "/admin/products/:id/options/:option_id",
-    pathParams: ["id", "option_id"],
+    // The batch endpoint is the ONLY route core exposes for editing an
+    // option's values. There is no `/admin/products/:id/options/:option_id`
+    // — this row pointed at one until #1907, which is why every call 404'd
+    // while every registry test stayed green: they check the registry's own
+    // consistency and its prose, never that the route on the other end exists.
+    path: "/admin/products/:id/options/batch",
+    pathParams: ["id"],
     previewPath: "/admin/products/:id",
     write: true,
     sensitive: true,
-    bodyParams: ["title", "values"],
+    bodyParams: ["update"],
     inputSchema: obj(
       {
         id: STR("Product id, e.g. 'prod_...'."),
-        option_id: STR("Option id, e.g. 'opt_...'. Read it from product.options[].id."),
-        title: STR("Option title. Omit to leave it unchanged."),
-        values: {
+        update: {
           type: "array",
           description:
-            "The option's COMPLETE resulting value list, e.g. ['0s','10s','20s','30s','33s','60s']. Every value you want to keep must appear — omitted values are removed.",
-          items: { type: "string" },
+            "One entry per option being edited. Each is { product_option_id: 'opt_...', add?: ['33s'], remove?: ['optval_...'] } — `add` takes value STRINGS, `remove` takes value IDS.",
+          items: {
+            type: "object",
+            properties: {
+              product_option_id: STR("Option id, e.g. 'opt_...'."),
+              add: {
+                type: "array",
+                description: "Value strings to add, e.g. ['33s'].",
+                items: { type: "string" },
+              },
+              remove: {
+                type: "array",
+                description:
+                  "Option-value IDs to delete, e.g. ['optval_...']. NOT the value strings.",
+                items: { type: "string" },
+              },
+            },
+            required: ["product_option_id"],
+            additionalProperties: false,
+          },
         },
       },
-      ["id", "option_id", "values"]
+      ["id", "update"]
     ),
     sideEffects:
-      "Replaces the option's value list. Values omitted from `values` are removed, and a variant matched to a removed value loses that option. Adding a value is inert on its own until a variant claims it.",
+      "Adds or deletes option values in place. Adding one is inert until a variant claims it; deleting one strips that option from any variant matched to it.",
     nextSteps: ["create_product_variant", "get_product"],
   },
   {
