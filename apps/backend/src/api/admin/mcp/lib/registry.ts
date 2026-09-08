@@ -1639,7 +1639,8 @@ export const ADMIN_MCP_TOOLS: AdminMcpToolDef[] = [
     description: [
       "Add or remove the values a product option allows — the '33s', '60lea Colour' choices a variant is matched to. Sensitive: requires confirm:true.",
       "🔑 This is the tool that unblocks `create_product_variant`. That tool matches a variant to option values that ALREADY EXIST and core will not invent one, so a variant naming a new value cannot be created until the value is added here first.",
-      "✅ ADDITIVE, not a rewrite: `add` appends and `remove` deletes by VALUE ID. Values you do not mention are untouched, so there is no need to resend the existing list and no way to drop one by omission.",
+      "✅ ADDITIVE, not a rewrite: `add` appends and `remove` deletes. Values you do not mention are untouched, so there is no need to resend the existing list and no way to drop one by omission.",
+      "🔴 `add` entries must be OBJECTS — `add: [{ value: '33s' }]`. A bare string is read as the id of an ALREADY-EXISTING value, so `add: ['33s']` fails with \"you tried to set relationship product_option_value_id: 33s, but such entity does not exist\": an error naming a relationship the caller never mentioned, which reads like a data problem rather than a shape problem.",
       "⚠️ `remove` takes option-value IDs (`optval_...`), not the value strings. Removing a value that a variant is matched to leaves that variant without its option.",
       "Find the option id under `product.options[].id` and the value ids under `product.options[].values[].id`, both from `get_product`.",
     ].join("\n"),
@@ -1661,15 +1662,21 @@ export const ADMIN_MCP_TOOLS: AdminMcpToolDef[] = [
         update: {
           type: "array",
           description:
-            "One entry per option being edited. Each is { product_option_id: 'opt_...', add?: ['33s'], remove?: ['optval_...'] } — `add` takes value STRINGS, `remove` takes value IDS.",
+            "One entry per option being edited. Each is { product_option_id: 'opt_...', add?: [{ value: '33s' }], remove?: ['optval_...'] }. `add` entries are OBJECTS carrying the new value string; a bare string there means an existing value ID and fails. `remove` takes value IDs.",
           items: {
             type: "object",
             properties: {
               product_option_id: STR("Option id, e.g. 'opt_...'."),
               add: {
                 type: "array",
-                description: "Value strings to add, e.g. ['33s'].",
-                items: { type: "string" },
+                description:
+                  "New values to add, each as an OBJECT: [{ value: '33s' }]. A bare string is interpreted as an existing option-value id, not as a new value.",
+                items: {
+                  type: "object",
+                  properties: { value: STR("The new option value, e.g. '33s'.") },
+                  required: ["value"],
+                  additionalProperties: false,
+                },
               },
               remove: {
                 type: "array",
@@ -2133,7 +2140,7 @@ export const ADMIN_MCP_TOOLS: AdminMcpToolDef[] = [
       "Add a NEW variant to an existing product (title, options, prices, sku, inventory flags). Sensitive: requires confirm:true. " +
       "Use this when a product needs another colourway/count/size — `create_product` makes a whole new product, and `update_product_variant` can only change one that already exists. " +
       "🔑 `options` must name values the product's options ALREADY have: core matches the variant to existing option values and will not invent one, so add the value to the product option first if it is new. " +
-      "Leave `manage_inventory` off for a variant a partner supplies — an inventory order line naming that variant is what creates its inventory item at our end.",
+      "🔴 Pass `manage_inventory: false` EXPLICITLY for a variant a partner supplies. Core defaults it to TRUE, so omitting the flag does NOT leave it off — and a tracked variant with no stock is refused at checkout, where its untracked siblings sell freely. An inventory order line naming the variant is what creates its inventory item at our end.",
     method: "POST",
     path: "/admin/products/:product_id/variants",
     pathParams: ["product_id"],
@@ -2164,7 +2171,7 @@ export const ADMIN_MCP_TOOLS: AdminMcpToolDef[] = [
         prices: {
           type: "array",
           description:
-            "Prices per currency, e.g. [{ amount: 165, currency_code: \'inr\' }]. A variant with no price cannot be sold, but can still be ordered on an inventory order (the line carries its own price).",
+            "Prices per currency, e.g. [{ amount: 165, currency_code: \'inr\' }]. REQUIRED by core even when the variant has no price: send [] rather than omitting the key, or the call is refused with \"Field 'prices' is required\". A variant with no price cannot be sold, but can still be ordered on an inventory order (the line carries its own price).",
           items: {
             type: "object",
             properties: {
