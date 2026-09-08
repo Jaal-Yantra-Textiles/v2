@@ -21,6 +21,7 @@ import { useProductionRuns, type AdminProductionRun } from "../../hooks/api/prod
 import { usePartners } from "../../hooks/api/partners"
 import { productionRunStatusColor } from "../../lib/status-colors"
 import { RunOutputReviewPanel } from "../../components/production-runs/run-output-review-panel"
+import { shouldExcludeChildRuns } from "../../lib/run-review"
 
 const PAGE_SIZE = 20
 
@@ -109,6 +110,23 @@ const ProductionRunsListPage = () => {
       : (filtering.partner_id as string)
     : undefined
 
+  /*
+    #1898 — this list hid child runs unconditionally, and a child run carries
+    its own `approval_decision`. 28 of 70 completed runs on prod were children,
+    so the review queue could never be emptied from here: approval writes the
+    decision onto the runs in the SELECTION, and an invisible run is never in
+    one. Default stays parents-only — a parent is the aggregator an operator
+    normally wants — but it is now a choice, and asking for the review queue
+    turns it off, because "awaiting review" must mean every run awaiting review.
+  */
+  const scopeFilter = filtering.run_scope
+    ? Array.isArray(filtering.run_scope)
+      ? (filtering.run_scope[0] as string)
+      : (filtering.run_scope as string)
+    : undefined
+
+  const excludeChildren = shouldExcludeChildRuns({ scopeFilter, reviewFilter })
+
   const { production_runs, count, isLoading, isError, error } = useProductionRuns({
     limit: pagination.pageSize,
     offset,
@@ -117,7 +135,7 @@ const ProductionRunsListPage = () => {
     run_type: runTypeFilter,
     partner_id: partnerFilter,
     approval_decision: reviewFilter,
-    exclude_children: true,
+    exclude_children: excludeChildren,
   })
 
   const { partners = [] } = usePartners({ limit: 100, offset: 0 })
@@ -304,6 +322,19 @@ const ProductionRunsListPage = () => {
           { label: "Awaiting review", value: "none" },
           { label: "Approved", value: "approved" },
           { label: "Rejected", value: "rejected" },
+        ],
+      }),
+      /*
+        #1898 — child runs were unreachable. Left unset this follows the review
+        filter, so the queue shows everything awaiting a decision and every
+        other view stays parents-only, as before.
+      */
+      filterHelper.accessor("run_scope", {
+        type: "select",
+        label: "Scope",
+        options: [
+          { label: "Parent runs only", value: "parents" },
+          { label: "Include child runs", value: "all" },
         ],
       }),
     ],
