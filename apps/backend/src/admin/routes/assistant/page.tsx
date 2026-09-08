@@ -10,16 +10,31 @@
  *
  * This lives alongside the legacy V4 hybrid-resolver chat (routes/chats) rather
  * than replacing it, per the epic's one-release deprecation window.
+ *
+ * History is NOT a sidebar any more: it opens as a route modal over the chat
+ * (`/assistant/history`), and the media picker rides the same mechanism
+ * (`assistant/media`) so picking library images does not disturb the thread.
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { defineRouteConfig } from "@medusajs/admin-sdk"
-import { ChatBubbleLeftRight, Sparkles, ArrowUpMini, Spinner, Check, ExclamationCircle, ArrowPathMini, SquareTwoStack, Plus, Trash, Photo, TriangleDownMini, TriangleRightMini } from "@medusajs/icons"
+import { ChatBubbleLeftRight, Sparkles, ArrowUpMini, Spinner, Check, ExclamationCircle, ArrowPathMini, SquareTwoStack, Plus, Trash, Photo, SquaresPlus, Clock, TriangleDownMini, TriangleRightMini } from "@medusajs/icons"
 import { Container, Heading, Text, Button, Textarea, IconButton, Badge, Table, toast } from "@medusajs/ui"
 import { useChat } from "@ai-sdk/react"
 import { DefaultChatTransport } from "ai"
+import { Outlet, useNavigate } from "react-router-dom"
 import { API_BASE_URL } from "../../lib/config"
 import { runAdminMcpTool, type AdminToolResult } from "../../lib/assistant-mcp"
 import { Markdown } from "../../components/markdown"
+import { getThumbUrl } from "../../lib/media"
+import {
+  MAX_ATTACHMENTS,
+  CONVERSATIONS_URL,
+  apiFetch,
+  useAssistantPage,
+  AssistantPageContext,
+  type AssistantAttachment,
+  type StoredMessage,
+} from "./_components/assistant-page-context"
 
 const SUGGESTIONS = [
   "Give me a snapshot of the platform",
@@ -28,18 +43,9 @@ const SUGGESTIONS = [
   "What production runs are open?",
 ]
 
-/** An uploaded image the operator attached to the next message. */
-type Attachment = {
-  url: string
-  name: string
-  mime_type: string
-}
-
 /** Images only, and small enough that a vision model can actually read it. */
 const MAX_ATTACHMENT_BYTES = 10 * 1024 * 1024
 import { describeChatError } from "./chat-error"
-
-const MAX_ATTACHMENTS = 4
 
 /**
  * Upload one image and return the reference the chat route stores.
@@ -48,7 +54,7 @@ const MAX_ATTACHMENTS = 4
  * the path that must never regress to latin1, or every image ≥ 0x80 arrives
  * corrupted and unreadable by any vision model (#769/#789).
  */
-async function uploadAttachment(file: File): Promise<Attachment> {
+async function uploadAttachment(file: File): Promise<AssistantAttachment> {
   const form = new FormData()
   form.append("files", file)
 
@@ -418,6 +424,40 @@ const getText = (parts: any[] | undefined): string =>
     .map((p) => p.text)
     .join("")
 
+/**
+ * Thumbnails for the files a user message carried — uploaded or picked from
+ * the media library. The file parts ride on the message itself (sent via
+ * `sendMessage({ files })`), so they render here immediately, persist with the
+ * conversation, and are stripped server-side before the model sees anything.
+ */
+const AttachmentThumbs = ({ parts }: { parts: any[] | undefined }) => {
+  const files = (parts || []).filter(
+    (p) => p?.type === "file" && typeof p.url === "string"
+  )
+  if (!files.length) return null
+  return (
+    <div className="mt-1 flex flex-wrap gap-1.5">
+      {files.map((f: any, i: number) =>
+        String(f.mediaType || "").startsWith("image/") ? (
+          <img
+            key={`${f.url}-${i}`}
+            src={getThumbUrl(f.url, { width: 320, quality: 70, fit: "cover" })}
+            alt={f.filename || "attachment"}
+            className="h-16 w-16 rounded-md object-cover"
+          />
+        ) : (
+          <span
+            key={`${f.url}-${i}`}
+            className="bg-ui-bg-base-pressed max-w-[160px] truncate rounded-md px-2 py-1 text-xs"
+          >
+            {f.filename || f.url}
+          </span>
+        )
+      )}
+    </div>
+  )
+}
+
 /** Copy-to-clipboard affordance for an assistant answer. */
 const CopyButton = ({ text }: { text: string }) => {
   const [copied, setCopied] = useState(false)
@@ -444,28 +484,6 @@ const CopyButton = ({ text }: { text: string }) => {
 }
 
 // ─── Conversation persistence (history) ──────────────────────────────────────
-
-type ConversationSummary = {
-  id: string
-  title: string
-  created_at?: string
-  updated_at?: string
-}
-
-type StoredMessage = { id: string; role: string; parts: any[] }
-
-const CONVERSATIONS_URL = `${API_BASE_URL.replace(/\/$/, "")}/admin/assistant/conversations`
-
-/** Admin session cookie authenticates; small typed fetch wrapper. */
-async function apiFetch<T>(url: string, init?: RequestInit): Promise<T> {
-  const res = await fetch(url, {
-    credentials: "include",
-    headers: { "content-type": "application/json" },
-    ...init,
-  })
-  if (!res.ok) throw new Error(`${res.status} ${res.statusText}`)
-  return (await res.json()) as T
-}
 
 /** First user message → conversation title (trimmed to a sane length). */
 function deriveTitle(messages: any[]): string {
@@ -571,10 +589,20 @@ const AssistantChat = ({
     JSON.stringify(initialMessages.map((m) => [m.id, m.parts?.length]))
   )
 
-  // Attachments for the turn currently being sent. A ref, not state, because
-  // the transport closure is built once and must read the value at send time —
-  // and because clearing it must not race the re-render that follows send.
-  const pendingAttachmentsRef = useRef<Attachment[]>([])
+  // Attachments live on the page (shared context) rather than here, because
+  // the media picker on /assistant/media must be able to add to them while
+  // this component stays the one that SENDS them. A ref, not state, for the
+  // pending copy, because the transport closure is built once and must read
+  // the value at send time — and because clearing it must not race the
+  // re-render that follows send.
+  const {
+    attachments,
+    addAttachments,
+    removeAttachment,
+    clearAttachments,
+  } = useAssistantPage()
+  const pendingAttachmentsRef = useRef<AssistantAttachment[]>([])
+  const navigate = useNavigate()
 
   const transport = useMemo(
     () =>
@@ -616,7 +644,6 @@ const AssistantChat = ({
 
   const [autoScroll, setAutoScroll] = useState(true)
   const [queued, setQueued] = useState<string[]>([])
-  const [attachments, setAttachments] = useState<Attachment[]>([])
   const [uploading, setUploading] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const [compacting, setCompacting] = useState(false)
@@ -715,9 +742,22 @@ const AssistantChat = ({
 
     if (attachments.length) {
       pendingAttachmentsRef.current = attachments
-      setAttachments([])
+      clearAttachments()
+      // File parts ride on the message so thumbnails render in the thread and
+      // persist with it — the server strips them before the model sees
+      // anything; the top-level `attachments` field is what it reads.
+      sendMessage({
+        text: t || "(see attached)",
+        files: attachments.map((a) => ({
+          type: "file" as const,
+          mediaType: a.mime_type,
+          filename: a.name,
+          url: a.url,
+        })),
+      })
+      return
     }
-    sendMessage({ text: t || "(see attached)" })
+    sendMessage({ text: t })
   }
 
   /** Validate, upload, and hold images for the next send. */
@@ -754,19 +794,19 @@ const AssistantChat = ({
       try {
         const settled = await Promise.allSettled(accepted.map(uploadAttachment))
         const ok = settled
-          .filter((s): s is PromiseFulfilledResult<Attachment> => s.status === "fulfilled")
+          .filter((s): s is PromiseFulfilledResult<AssistantAttachment> => s.status === "fulfilled")
           .map((s) => s.value)
         settled
           .filter((s): s is PromiseRejectedResult => s.status === "rejected")
           .forEach((s) =>
             toast.error(`Could not attach: ${s.reason?.message ?? "upload failed"}`)
           )
-        if (ok.length) setAttachments((a) => [...a, ...ok])
+        if (ok.length) addAttachments(ok)
       } finally {
         setUploading(false)
       }
     },
-    [attachments.length]
+    [attachments.length, addAttachments]
   )
 
   useEffect(() => {
@@ -870,11 +910,14 @@ const AssistantChat = ({
                 }
               >
                 {m.role === "user" ? (
-                  text ? (
-                    <Text size="small" className="whitespace-pre-wrap">
-                      {text}
-                    </Text>
-                  ) : null
+                  <>
+                    {text ? (
+                      <Text size="small" className="whitespace-pre-wrap">
+                        {text}
+                      </Text>
+                    ) : null}
+                    <AttachmentThumbs parts={m.parts} />
+                  </>
                 ) : (
                   <>
                     {/*
@@ -999,9 +1042,7 @@ const AssistantChat = ({
                 <IconButton
                   size="2xsmall"
                   variant="transparent"
-                  onClick={() =>
-                    setAttachments((list) => list.filter((_, idx) => idx !== i))
-                  }
+                  onClick={() => removeAttachment(a.url)}
                 >
                   <Trash />
                 </IconButton>
@@ -1032,6 +1073,14 @@ const AssistantChat = ({
             onClick={() => fileInputRef.current?.click()}
           >
             <Photo />
+          </IconButton>
+          <IconButton
+            variant="transparent"
+            disabled={attachments.length >= MAX_ATTACHMENTS}
+            onClick={() => navigate("/assistant/media")}
+            title="Pick from the media library"
+          >
+            <SquaresPlus />
           </IconButton>
           <Textarea
             placeholder={
@@ -1084,100 +1133,23 @@ const AssistantChat = ({
   )
 }
 
-// ─── History sidebar ─────────────────────────────────────────────────────────
-
-const HistorySidebar = ({
-  conversations,
-  activeId,
-  loading,
-  onNew,
-  onSelect,
-  onDelete,
-}: {
-  conversations: ConversationSummary[]
-  activeId: string | null
-  loading: boolean
-  onNew: () => void
-  onSelect: (id: string) => void
-  onDelete: (id: string) => void
-}) => (
-  <div className="border-ui-border-base flex w-64 shrink-0 flex-col border-r">
-    <div className="border-ui-border-base border-b p-3">
-      <Button variant="secondary" size="small" className="w-full" onClick={onNew}>
-        <Plus /> New chat
-      </Button>
-    </div>
-    <div className="min-h-0 flex-1 overflow-y-auto p-2">
-      {loading ? (
-        <Text size="xsmall" className="text-ui-fg-muted px-2 py-1">
-          Loading…
-        </Text>
-      ) : conversations.length === 0 ? (
-        <Text size="xsmall" className="text-ui-fg-muted px-2 py-1">
-          No conversations yet.
-        </Text>
-      ) : (
-        conversations.map((c) => (
-          <div
-            key={c.id}
-            className={`group flex items-center gap-1 rounded-md px-2 py-1.5 ${
-              c.id === activeId ? "bg-ui-bg-base-pressed" : "hover:bg-ui-bg-base-hover"
-            }`}
-          >
-            <button
-              type="button"
-              onClick={() => onSelect(c.id)}
-              className="text-ui-fg-subtle hover:text-ui-fg-base flex-1 truncate text-left text-sm"
-              title={c.title}
-            >
-              {c.title}
-            </button>
-            <button
-              type="button"
-              onClick={() => onDelete(c.id)}
-              className="text-ui-fg-muted hover:text-ui-fg-error opacity-0 transition-opacity group-hover:opacity-100"
-              aria-label="Delete conversation"
-            >
-              <Trash className="h-3.5 w-3.5" />
-            </button>
-          </div>
-        ))
-      )}
-    </div>
-  </div>
-)
-
-// ─── Page (two-pane: history + chat) ─────────────────────────────────────────
+// ─── Page (chat; history + media picker open as route modals) ────────────────
 
 const AssistantPage = () => {
-  const [conversations, setConversations] = useState<ConversationSummary[]>([])
-  const [loading, setLoading] = useState(true)
+  const navigate = useNavigate()
   const [activeId, setActiveId] = useState<string | null>(null)
   const [initialMessages, setInitialMessages] = useState<StoredMessage[]>([])
   // Bumping this remounts <AssistantChat>, resetting useChat for a fresh thread
   // or a freshly-loaded conversation.
   const [threadKey, setThreadKey] = useState(0)
-
-  const refreshList = useCallback(async () => {
-    try {
-      const { conversations } = await apiFetch<{
-        conversations: ConversationSummary[]
-      }>(CONVERSATIONS_URL)
-      setConversations(conversations)
-    } catch {
-      // Non-fatal: the chat still works without the history list.
-    } finally {
-      setLoading(false)
-    }
-  }, [])
-
-  useEffect(() => {
-    void refreshList()
-  }, [refreshList])
+  // Pending attachments for the next send — held here (not inside the chat) so
+  // the media picker route modal can add to them; see _components/context.
+  const [attachments, setAttachments] = useState<AssistantAttachment[]>([])
 
   const startNew = useCallback(() => {
     setActiveId(null)
     setInitialMessages([])
+    setAttachments([])
     setThreadKey((k) => k + 1)
   }, [])
 
@@ -1188,6 +1160,7 @@ const AssistantPage = () => {
       }>(`${CONVERSATIONS_URL}/${id}`)
       setActiveId(id)
       setInitialMessages(conversation.messages || [])
+      setAttachments([])
       setThreadKey((k) => k + 1)
     } catch {
       toast.error("Could not open that conversation.")
@@ -1198,24 +1171,55 @@ const AssistantPage = () => {
     async (id: string) => {
       try {
         await apiFetch(`${CONVERSATIONS_URL}/${id}`, { method: "DELETE" })
-        setConversations((prev) => prev.filter((c) => c.id !== id))
         if (id === activeId) startNew()
-      } catch {
+      } catch (e) {
         toast.error("Could not delete that conversation.")
+        // Let the caller (the history modal) undo its optimistic removal.
+        throw e
       }
     },
     [activeId, startNew]
   )
 
-  const onCreated = useCallback(
-    (id: string, title: string) => {
-      setActiveId(id)
-      setConversations((prev) => [
-        { id, title },
-        ...prev.filter((c) => c.id !== id),
-      ])
-    },
-    []
+  const onCreated = useCallback((id: string) => {
+    setActiveId(id)
+  }, [])
+
+  const addAttachments = useCallback((files: AssistantAttachment[]) => {
+    // The picker enforces the cap in the UI; the slice is a backstop so the
+    // promise the server validator sees (max 8, max 4 here) can never be broken.
+    if (!files.length) return
+    setAttachments((prev) => [...prev, ...files].slice(0, MAX_ATTACHMENTS))
+  }, [])
+
+  const removeAttachment = useCallback((url: string) => {
+    setAttachments((prev) => prev.filter((a) => a.url !== url))
+  }, [])
+
+  const clearAttachments = useCallback(() => setAttachments([]), [])
+
+  const pageValue = useMemo(
+    () => ({
+      attachments,
+      addAttachments,
+      removeAttachment,
+      clearAttachments,
+      maxAttachments: MAX_ATTACHMENTS,
+      activeId,
+      openConversation,
+      deleteConversation,
+      startNew,
+    }),
+    [
+      attachments,
+      addAttachments,
+      removeAttachment,
+      clearAttachments,
+      activeId,
+      openConversation,
+      deleteConversation,
+      startNew,
+    ]
   )
 
   return (
@@ -1228,23 +1232,35 @@ const AssistantPage = () => {
             Ask about orders, partners, production and more — it reads the Admin API for you.
           </Text>
         </div>
+        <div className="ml-auto flex items-center gap-2">
+          <Button
+            variant="secondary"
+            size="small"
+            onClick={() => navigate("/assistant/history")}
+          >
+            <Clock /> History
+          </Button>
+          <Button variant="secondary" size="small" onClick={startNew}>
+            <Plus /> New chat
+          </Button>
+        </div>
       </div>
-      <div className="flex min-h-0 flex-1">
-        <HistorySidebar
-          conversations={conversations}
-          activeId={activeId}
-          loading={loading}
-          onNew={startNew}
-          onSelect={openConversation}
-          onDelete={deleteConversation}
-        />
+      <AssistantPageContext.Provider value={pageValue}>
         <AssistantChat
           key={threadKey}
           conversationId={activeId}
           initialMessages={initialMessages}
           onCreated={onCreated}
         />
-      </div>
+        {/*
+          History (/assistant/history) and the media picker (/assistant/media)
+          are @-child routes, so they render here — inside this provider — as
+          route focus modals OVER the chat. Rendering the Outlet after the chat
+          is what keeps the thread mounted (useChat state included) while a
+          modal is open.
+        */}
+        <Outlet />
+      </AssistantPageContext.Provider>
     </Container>
   )
 }
