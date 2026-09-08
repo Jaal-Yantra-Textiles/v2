@@ -264,6 +264,10 @@ export async function GET(
             inventory_item_id: line.inventory_item_id,
             quantity: line.quantity,
             price: line.price,
+            // #1894 — the dye/finishing charge is part of what the partner is
+            // paid. The query already fetches it; dropping it here is what made
+            // the rows disagree with the order total rendered beneath them.
+            extra_cost: line.extra_cost ?? null,
             metadata: line.metadata ?? null,
             created_at: line.created_at,
             updated_at: line.updated_at,

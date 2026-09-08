@@ -116,6 +116,11 @@ export const InventoryOrderLinesSection = ({ inventoryOrder }: { inventoryOrder:
                         </Badge>
                       )}
                       <Badge size="small" className="text-ui-fg-subtle">Price: ₹{line.price}</Badge>
+                      {/* #1894 — the finishing charge is billed per unit and was
+                          invisible here, so the badges did not explain the total. */}
+                      {Number(line.extra_cost) > 0 && (
+                        <Badge size="small" className="text-ui-fg-subtle">Finishing: ₹{line.extra_cost}</Badge>
+                      )}
                       <Badge size="small" className="text-ui-fg-subtle">Quantity: {line.quantity}</Badge>
                     </div>
                   </div>

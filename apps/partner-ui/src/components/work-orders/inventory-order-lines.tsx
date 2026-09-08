@@ -7,6 +7,7 @@ const COLLAPSED_LINE_COUNT = 6
 
 import { getLocaleAmount, getStylizedAmount } from "../../lib/money-amount-helpers"
 import { Thumbnail } from "../common/thumbnail"
+import { lineTotal, lineUnitPrice } from "./line-money"
 
 const fmt = (n: number) => {
   if (!Number.isFinite(n)) {
@@ -105,7 +106,15 @@ export const InventoryOrderLines = ({
         const fulfilled = lineFulfilled(line)
         const remaining = Math.max(0, requested - fulfilled)
         const price = Number(line?.price) || 0
-        const subtitle = [line?.color, sku ? `SKU ${sku}` : null]
+        // #1894 — extra_cost is the per-unit dye/finishing charge. The order
+        // total below these rows includes it, so the rows must too.
+        const extraCost = Number(line?.extra_cost) || 0
+        const unitPrice = lineUnitPrice(line)
+        const subtitle = [
+          line?.color,
+          sku ? `SKU ${sku}` : null,
+          extraCost > 0 ? `${unitMoney(price)} + ${unitMoney(extraCost)} finishing` : null,
+        ]
           .filter(Boolean)
           .join(" · ")
 
@@ -150,7 +159,7 @@ export const InventoryOrderLines = ({
             {/* Right: money block — mirrors core "unit  {qty}x  total" grid */}
             <div className="grid grid-cols-3 items-center gap-x-4">
               <div className="flex items-center justify-end">
-                <Text size="small">{price > 0 ? unitMoney(price) : "—"}</Text>
+                <Text size="small">{unitPrice > 0 ? unitMoney(unitPrice) : "—"}</Text>
               </div>
               <div className="flex items-center justify-end">
                 <Text size="small">
@@ -159,7 +168,7 @@ export const InventoryOrderLines = ({
               </div>
               <div className="flex items-center justify-end">
                 <Text size="small" weight="plus" className="text-ui-fg-base text-nowrap">
-                  {price > 0 ? totalMoney(price * requested) : "—"}
+                  {unitPrice > 0 ? totalMoney(lineTotal(line, requested)) : "—"}
                 </Text>
               </div>
             </div>
