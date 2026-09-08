@@ -5448,6 +5448,57 @@
     "source": "custom_ts",
     "sourceFile": "src/workflows/partner/create-partner-admin.ts"
   },
+  "create-partner-capability": {
+    "fields": [
+      {
+        "name": "partner_id",
+        "type": "id",
+        "required": true,
+        "placeholder": "{{ $last.partner_id }}",
+        "description": "The partner whose library this lands in. Always the caller's to name — never from a body the end user could point at a competitor."
+      },
+      {
+        "name": "title",
+        "type": "string",
+        "required": true,
+        "placeholder": "{{ $last.title }}"
+      },
+      {
+        "name": "technique",
+        "type": "string",
+        "required": false,
+        "placeholder": "{{ $last.technique }}"
+      },
+      {
+        "name": "material",
+        "type": "string",
+        "required": false,
+        "placeholder": "{{ $last.material }}"
+      },
+      {
+        "name": "media_file_ids",
+        "type": "string",
+        "required": false,
+        "placeholder": "{{ $last.media_file_ids }}",
+        "description": "The partner whose library this lands in. Always the caller's to name — never from a body the end user could point at a competitor. / partner_id: string title: string technique?: string | null material?: string | null /** media_file ids — the photograph itself must be uploaded beforehand."
+      },
+      {
+        "name": "notes",
+        "type": "string",
+        "required": false,
+        "placeholder": "{{ $last.notes }}"
+      },
+      {
+        "name": "captured_at",
+        "type": "date",
+        "required": false,
+        "placeholder": "{{ $trigger.captured_at }}",
+        "description": "The partner whose library this lands in. Always the caller's to name — never from a body the end user could point at a competitor. / partner_id: string title: string technique?: string | null material?: string | null /** media_file ids — the photograph itself must be uploaded beforehand. */ media_file_ids?: string[] | null notes?: string | null /** When the photographed work was actually on the loom. NOT created_at: a photo typed up three weeks later describes a capability that may already be gone, and the library is only trustworthy if it says how stale it is. The route defaults this to now and SAYS SO in the response."
+      }
+    ],
+    "source": "custom_ts",
+    "sourceFile": "src/workflows/partner/create-partner-capability.ts"
+  },
   "create-partner-product": {
     "fields": [
       {
@@ -5502,6 +5553,60 @@
     "source": "custom_ts",
     "sourceFile": "src/workflows/partner/create-partner-product.ts"
   },
+  "delete-partner-capability": {
+    "fields": [
+      {
+        "name": "partner_id",
+        "type": "id",
+        "required": true,
+        "placeholder": "{{ $last.partner_id }}"
+      },
+      {
+        "name": "sample_id",
+        "type": "id",
+        "required": true,
+        "placeholder": "{{ $last.sample_id }}"
+      }
+    ],
+    "source": "custom_ts",
+    "sourceFile": "src/workflows/partner/delete-partner-capability.ts"
+  },
+  "list-partner-capabilities": {
+    "fields": [
+      {
+        "name": "partner_id",
+        "type": "id",
+        "required": true,
+        "placeholder": "{{ $last.partner_id }}"
+      },
+      {
+        "name": "technique",
+        "type": "string",
+        "required": false,
+        "placeholder": "{{ $last.technique }}"
+      },
+      {
+        "name": "material",
+        "type": "string",
+        "required": false,
+        "placeholder": "{{ $last.material }}"
+      },
+      {
+        "name": "limit",
+        "type": "number",
+        "required": false,
+        "placeholder": "0"
+      },
+      {
+        "name": "offset",
+        "type": "number",
+        "required": false,
+        "placeholder": "0"
+      }
+    ],
+    "source": "custom_ts",
+    "sourceFile": "src/workflows/partner/list-partner-capabilities.ts"
+  },
   "list-partner-people": {
     "fields": [
       {
@@ -5513,6 +5618,25 @@
     ],
     "source": "custom_ts",
     "sourceFile": "src/workflows/partner/list-partner-people.ts"
+  },
+  "upsert-partner-onboarding-profile": {
+    "fields": [
+      {
+        "name": "partner_id",
+        "type": "id",
+        "required": true,
+        "placeholder": "{{ $last.partner_id }}"
+      },
+      {
+        "name": "data",
+        "type": "string",
+        "required": true,
+        "placeholder": "{{ $last.data }}",
+        "description": "Only the supplied fields are written, so a caller can file one answer at a time — same partial-progress semantics as the partner's own wizard."
+      }
+    ],
+    "source": "custom_ts",
+    "sourceFile": "src/workflows/partner/upsert-partner-onboarding-profile.ts"
   },
   "accept-quote": {
     "fields": [
@@ -5880,6 +6004,18 @@
     ],
     "source": "custom_ts",
     "sourceFile": "src/workflows/partners/delete-partner.ts"
+  },
+  "disable-partner": {
+    "fields": [
+      {
+        "name": "id",
+        "type": "id",
+        "required": true,
+        "placeholder": "{{ $last.id }}"
+      }
+    ],
+    "source": "custom_ts",
+    "sourceFile": "src/workflows/partners/disable-partner.ts"
   },
   "get-partner-storefront-status": {
     "fields": [
