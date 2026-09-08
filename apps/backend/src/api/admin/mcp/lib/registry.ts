@@ -540,6 +540,67 @@ export const ADMIN_MCP_TOOLS: AdminMcpToolDef[] = [
     pathParams: ["id"],
     inputSchema: obj({ id: STR("Stock location id, e.g. 'sloc_...'.") }, ["id"]),
   },
+  // ---- Id producers: readers for the ids other tools demand --------------
+  // Regions, sales channels and payment submissions were all demanded by
+  // tools here with no way to be found — the same hole the stock locations
+  // above fell into. A region id is needed to price a cart or quote; a
+  // product is only purchasable through a sales channel it is linked to;
+  // and link_payment_to_payout, unlink_payment_from_payout and
+  // apply_partner_credit all take a payment submission id.
+  {
+    name: "list_regions",
+    description:
+      "List sales regions (paginated), each with its currency and the countries it covers. Supports free-text search via q. A region id is needed to price a cart or a quote, and nothing else surfaces it — start here whenever a tool asks for a `region_id`.",
+    method: "GET",
+    path: "/admin/regions",
+    queryParams: ["limit", "offset", "q"],
+    inputSchema: obj({ ...PAGINATION }),
+  },
+  {
+    name: "get_region",
+    description:
+      "Get a single sales region by id (currency, countries, metadata).",
+    method: "GET",
+    path: "/admin/regions/:id",
+    pathParams: ["id"],
+    inputSchema: obj({ id: STR("Region id, e.g. 'reg_...'.") }, ["id"]),
+  },
+  {
+    name: "list_sales_channels",
+    description:
+      "List sales channels (paginated). Supports free-text search via q. A product is only purchasable through a sales channel it is linked to — use this to find a channel id, or to see which storefronts a product can sell through.",
+    method: "GET",
+    path: "/admin/sales-channels",
+    queryParams: ["limit", "offset", "q"],
+    inputSchema: obj({ ...PAGINATION }),
+  },
+  {
+    name: "get_sales_channel",
+    description:
+      "Get a single sales channel by id (name, description, is_disabled).",
+    method: "GET",
+    path: "/admin/sales-channels/:id",
+    pathParams: ["id"],
+    inputSchema: obj({ id: STR("Sales channel id, e.g. 'sc_...'.") }, ["id"]),
+  },
+  {
+    name: "list_payment_submissions",
+    description:
+      "List payment submissions — payouts (paginated). Supports free-text search via q and an optional status filter. The payout id this produces is required by link_payment_to_payout, unlink_payment_from_payout and apply_partner_credit — the three tools that act on a payout.",
+    method: "GET",
+    path: "/admin/payment-submissions",
+    queryParams: ["limit", "offset", "q", "status"],
+    inputSchema: obj({ ...PAGINATION, status: STR("Optional status filter.") }),
+  },
+  {
+    name: "get_payment_submission",
+    description:
+      "Get a single payment submission (payout) by id, with its lines, status and the partner it pays.",
+    method: "GET",
+    path: "/admin/payment-submissions/:id",
+    pathParams: ["id"],
+    inputSchema: obj({ id: STR("Payment submission id.") }, ["id"]),
+  },
   {
     name: "list_inventory_items",
     description: "List inventory items (paginated). Supports free-text search via q.",

@@ -59,6 +59,11 @@ const PREFIX_DOMAINS: ReadonlyArray<readonly [string, AdminToolDomain]> = [
   ["/admin/quotes", "orders"],
   ["/admin/products", "catalog"],
   ["/admin/stores", "catalog"],
+  // Regions and sales channels are storefront configuration that sits beside
+  // stores — same slice, same conversation. An unclassified tool loads in NO
+  // slice: registered, callable in principle, and reachable from no ask.
+  ["/admin/regions", "catalog"],
+  ["/admin/sales-channels", "catalog"],
   /**
    * Taxonomy. Categories and collections are how the catalogue is ORGANISED,
    * so they ride with it — an operator filing a product is having a catalogue
