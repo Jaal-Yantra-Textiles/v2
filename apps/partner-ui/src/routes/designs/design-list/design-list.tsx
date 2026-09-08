@@ -10,6 +10,7 @@ import { _DataTable } from "../../../components/table/data-table/data-table"
 import {
   usePartnerDesigns,
   PartnerDesign,
+  PartnerDesignEngagement,
   DesignBucket,
   DesignBucketFacets,
 } from "../../../hooks/api/partner-designs"
@@ -31,6 +32,33 @@ const WORK_BUCKETS: Array<{ value: DesignBucket; label: string }> = [
   { value: "completed", label: "Completed" },
   { value: "all", label: "All" },
 ]
+
+/**
+ * The Source badge. A design lands on this dashboard the moment an admin links
+ * it, so "listed" never meant "yours to work on": on production one partner had
+ * 34 linked designs with only 16 carrying a run of theirs. `partner_engagement`
+ * comes from the server (`partner-design-engagement.ts`); the UI only labels it.
+ */
+const ENGAGEMENT_BADGES: Record<
+  PartnerDesignEngagement,
+  { label: string; color: "green" | "blue" | "grey"; hint: string }
+> = {
+  owned: {
+    label: "Yours",
+    color: "green",
+    hint: "You created this design.",
+  },
+  assigned: {
+    label: "Assigned",
+    color: "blue",
+    hint: "You have a production run on this design — this is work for you.",
+  },
+  shared: {
+    label: "Shared",
+    color: "grey",
+    hint: "Shared with you for reference. No production run is assigned to you (work may be in-house or with another partner).",
+  },
+}
 
 const DESIGN_STATUS_OPTIONS = [
   { label: "Conceptual", value: "Conceptual" },
@@ -234,15 +262,39 @@ export const DesignList = () => {
           <span className="font-medium">{getValue() || "-"}</span>
         ),
       }),
-      columnHelper.accessor((row) => (row as any)?.is_owner, {
-        id: "source",
-        header: () => "Source",
-        cell: ({ getValue }) => (
-          <Badge size="2xsmall" color={getValue() ? "green" : "grey"}>
-            {getValue() ? "Yours" : "Assigned"}
-          </Badge>
-        ),
-      }),
+      columnHelper.accessor(
+        (row) => (row as any)?.partner_engagement as PartnerDesignEngagement | undefined,
+        {
+          id: "source",
+          header: () => "Source",
+          // Was "Yours"/"Assigned" keyed on is_owner alone — which called every
+          // design an admin merely LINKED "Assigned", whether or not the partner
+          // was ever given work on it. `partner_engagement` separates the two,
+          // and an owned design that also carries a run shows both badges rather
+          // than one label swallowing the other. Nothing is hidden or filtered.
+          cell: ({ getValue, row }) => {
+            const engagement = getValue()
+            const hasRun = !!(row.original as any)?.has_partner_run
+            const badge = ENGAGEMENT_BADGES[engagement ?? "shared"]
+            return (
+              <div className="flex flex-wrap items-center gap-1">
+                <Tooltip content={badge.hint}>
+                  <Badge size="2xsmall" color={badge.color}>
+                    {badge.label}
+                  </Badge>
+                </Tooltip>
+                {engagement === "owned" && hasRun && (
+                  <Tooltip content={ENGAGEMENT_BADGES.assigned.hint}>
+                    <Badge size="2xsmall" color={ENGAGEMENT_BADGES.assigned.color}>
+                      {ENGAGEMENT_BADGES.assigned.label}
+                    </Badge>
+                  </Tooltip>
+                )}
+              </div>
+            )
+          },
+        }
+      ),
       columnHelper.accessor((row) => row?.partner_info?.partner_status, {
         id: "next_action",
         header: () => "Next Action",

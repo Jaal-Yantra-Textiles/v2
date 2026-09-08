@@ -11,6 +11,10 @@ import {
   applyDesignListFilters,
   type DesignBucket,
 } from "../../api/partners/designs/list-filters"
+import {
+  derivePartnerEngagement,
+  partnerRunsForDesign,
+} from "./partner-design-engagement"
 
 // #843 — the partner designs listing, lifted out of `GET /partners/designs`
 // into a workflow so the admin inspection mirror (`GET /admin/partners/:id/
@@ -167,6 +171,16 @@ export const resolvePartnerDesignRunsStep = createStep(
             "id",
             "design_id",
             "status",
+            // Ownership columns. `partner_id` is what decides whether a run is
+            // THIS partner's — the filter above already scopes the read, but the
+            // derivation re-checks it rather than trusting the caller, because
+            // this same mapper runs over rows from the admin mirror too.
+            // `execution_mode`/`sub_partner_id` are carried for legibility when
+            // debugging an in-house or outsourced run. See
+            // `partner-design-engagement.ts`.
+            "partner_id",
+            "execution_mode",
+            "sub_partner_id",
             "accepted_at",
             "started_at",
             "finished_at",
@@ -193,12 +207,14 @@ export const resolvePartnerDesignRunsStep = createStep(
  * migrated all marked designs onto production runs. A design with no runs is
  * "incoming". See V1_PARTNER_DESIGN_REMOVAL_PLAN.md.
  */
-const buildPartnerDesignView = (
+export const buildPartnerDesignView = (
   linkData: any,
   partnerId: string,
   partnerRuns: any[]
 ) => {
   const design = linkData.design
+
+  const engagement = derivePartnerEngagement(design, partnerId, partnerRuns)
 
   const tasks = design.tasks || []
   const isPartnerWorkflowTask = (t: any) =>
@@ -224,9 +240,10 @@ const buildPartnerDesignView = (
   let partnerFinishedAt: string | null = null
   let partnerCompletedAt: string | null = null
 
-  const runsForDesign = partnerRuns
-    .filter((r: any) => r.design_id === design.id)
-    .sort(
+  // Only runs that are genuinely THIS partner's: a run pulled in-house
+  // (`partner_id: null`, `execution_mode: "in_house"`) leaves the design linked
+  // to the partner but is not their work, and neither is another partner's run.
+  const runsForDesign = partnerRunsForDesign(partnerRuns, design.id, partnerId).sort(
       (a: any, b: any) =>
         new Date(b.created_at || 0).getTime() -
         new Date(a.created_at || 0).getTime()
@@ -278,9 +295,15 @@ const buildPartnerDesignView = (
     // Whether the partner in scope OWNS this design (vs merely being assigned
     // to it). A bare truthiness check on `owner_partner_id` would mislabel a
     // design owned by another partner but assigned to this one — #920.
-    is_owner:
-      design.owner_partner_id != null &&
-      design.owner_partner_id === partnerId,
+    is_owner: engagement.engagement === "owned",
+    // Is this design work the partner must DO, or was it only shared with them?
+    // A link row alone puts a design on the dashboard, so "linked" said nothing
+    // about expectation. `partner_engagement` is the label; `has_partner_run`
+    // is kept separate so an OWNED design that also has a run reports both
+    // facts instead of one overwriting the other.
+    partner_engagement: engagement.engagement,
+    has_partner_run: engagement.has_partner_run,
+    partner_run_count: engagement.partner_run_count,
   }
 }
 
