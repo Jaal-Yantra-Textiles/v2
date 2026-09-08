@@ -1095,8 +1095,10 @@ export const ADMIN_MCP_TOOLS: AdminMcpToolDef[] = [
   {
     name: "assign_inventory_order_partner",
     description:
-      "Assign an inventory (purchase) order to the partner supplying it — this is what makes the order appear in that partner's portal and in their payables. Sensitive: requires confirm:true. " +
-      "An order created without it is unassigned: the goods are recorded but nobody is billed for them, and list_payable_inventory_orders will not show it.",
+      "Record WHICH partner supplied an inventory order, and nothing else — the link that makes it appear in their portal and their payables. Sensitive: requires confirm:true. " +
+      "🔴 This COMMISSIONS NOTHING. No message, no event, no workflow, no status change: the partner is not told the order exists. It is for backfilling work that is already done or already agreed offline. " +
+      "🔑 To actually give a partner NEW work, use `send_inventory_order_to_partner` — that one writes the same link AND messages them AND starts the await-start/await-completion workflow. Reaching for this tool when you meant that one leaves an order that looks assigned in every view and that the partner has never heard of. " +
+      "An order with neither is unassigned outright: the goods are recorded, nobody is billed, and list_payable_inventory_orders will not show it.",
     method: "POST",
     path: "/admin/inventory-orders/:id/assign-partner",
     pathParams: ["id"],
@@ -1110,6 +1112,57 @@ export const ADMIN_MCP_TOOLS: AdminMcpToolDef[] = [
         partner_id: STR("Partner supplying the goods, e.g. '01K77...'. Both ends are validated."),
       },
       ["id", "partner_id"]
+    ),
+    sideEffects:
+      "Writes the partner link only. The partner receives no notification and no workflow is started.",
+    nextSteps: ["list_payable_inventory_orders"],
+  },
+  {
+    name: "send_inventory_order_to_partner",
+    description:
+      "Commission an inventory order to a partner: writes the partner link, MESSAGES the partner, and starts the await-start / await-completion workflow that tracks their progress. Sensitive: requires confirm:true. " +
+      "🔴 This one reaches a REAL PERSON outside the platform — a partner is notified that they owe us these goods. It is not undoable by deleting a row. " +
+      "🔑 Only valid from status `Pending`; the workflow refuses anything else. It is the tool that moves an order into production. " +
+      "Use `assign_inventory_order_partner` instead when recording work already done or agreed offline — that one writes the same link and tells nobody. " +
+      "⚠️ Confirm the LINES are final first (update_inventory_order_lines): the partner is messaged about the order as it stands, and a later edit does not re-notify them.",
+    method: "POST",
+    path: "/admin/inventory-orders/:id/send-to-partner",
+    pathParams: ["id"],
+    previewPath: "/admin/inventory-orders/:id",
+    write: true,
+    sensitive: true,
+    // Deliberately NOT `tier: "write"`. The roster is limited to tools with no
+    // money, no carrier and no third-party message; this one messages a
+    // partner, so a write-scoped credential must not reach it.
+    bodyParams: ["partnerId", "notes"],
+    inputSchema: obj(
+      {
+        id: STR("Inventory order id, e.g. 'inv_order_...'. Must be in Pending status."),
+        partnerId: STR(
+          "Partner to commission, e.g. '01K77...'. NOTE the camelCase — this route takes `partnerId`, while assign_inventory_order_partner takes `partner_id`."
+        ),
+        notes: STR("Optional instructions included in the message to the partner."),
+      },
+      ["id", "partnerId"]
+    ),
+    sideEffects:
+      "Notifies the partner and parks a workflow awaiting their start and completion. The notification cannot be recalled.",
+    nextSteps: ["list_inventory_orders", "list_payable_inventory_orders"],
+  },
+  {
+    name: "mark_inventory_order_ready_for_delivery",
+    description:
+      "Mark an inventory order 'Ready for Delivery' — goods packed, before any shipment or AWB exists. Sensitive: requires confirm:true. " +
+      "🔑 Allowed ONLY from status `Partial`: completion must be recorded first. From `Processing` it is refused, because that means started with nothing yet fulfilled, and marking it ready would claim goods are packed before any were produced. A fully completed order goes straight to `Shipped` on its own and never passes through here.",
+    method: "POST",
+    path: "/admin/inventory-orders/:id/ready-for-delivery",
+    pathParams: ["id"],
+    previewPath: "/admin/inventory-orders/:id",
+    write: true,
+    sensitive: true,
+    inputSchema: obj(
+      { id: STR("Inventory order id, e.g. 'inv_order_...'. Must be in Partial status.") },
+      ["id"]
     ),
   },
   {
