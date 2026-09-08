@@ -99,9 +99,17 @@ describe("resolveApprovalCurrency", () => {
     ).toBe("inr")
   })
 
-  it("falls back to the store, then to usd", () => {
+  it("falls back to the store, then to INR — never usd (#1914)", () => {
+    /*
+     * "usd" survived the original fix as the last resort, which still
+     * mis-priced any design that never recorded a currency. Production is
+     * costed in INR (the unified order carries `currency_assumed: true` for
+     * the same reason), so a design with no stated currency was costed in INR
+     * whatever the fallback claimed.
+     */
     expect(resolveApprovalCurrency({ storeCurrency: "AUD" })).toBe("aud")
-    expect(resolveApprovalCurrency({})).toBe("usd")
+    expect(resolveApprovalCurrency({})).toBe("inr")
+    expect(resolveApprovalCurrency({})).not.toBe("usd")
   })
 })
 
@@ -161,10 +169,17 @@ describe("applyRunApprovals — approving", () => {
 
     await applyRunApprovals(container, { runIds: ["run_1"], decision: "approve" })
 
+    /*
+     * 850 is the design's estimate; 1190 is that estimate marked up (#1914).
+     * This fixture logs no consumption, so `cost_per_unit` is null and the
+     * estimate is the only cost available — the run's own cost would win if it
+     * had one. The listed price is never the bare cost: that was selling at
+     * cost, which is what the markup exists to stop.
+     */
     expect(createProductRun.mock.calls[0][0].input).toMatchObject({
       design_id: "des_1",
       currency_code: "inr",
-      estimated_cost: 850,
+      estimated_cost: 1190,
     })
   })
 
@@ -200,8 +215,56 @@ describe("applyRunApprovals — approving", () => {
       decision: "approve",
     })
 
-    expect(emit).toHaveBeenCalledTimes(1)
-    expect(emit.mock.calls[0][0].data.design_id).toBe("des_1")
+    /*
+     * Count design.approved SPECIFICALLY, not every emit. Approval now also
+     * asks for the FX fanout (#1914), so a bare call count measures two
+     * different events with one number and would fail for a reason that has
+     * nothing to do with partner notifications.
+     */
+    const approved = emit.mock.calls.filter(
+      (c: any[]) => c[0]?.name === "design.approved"
+    )
+    expect(approved).toHaveLength(1)
+    expect(approved[0][0].data.design_id).toBe("des_1")
+  })
+
+  /**
+   * 🔴 #1900's single-currency defect, at its source.
+   *
+   * Medusa's pricing module emits no `price.created` event, so every path that
+   * writes a variant price must ASK for the fanout. Only the partner routes
+   * ever did — the design -> product path emitted nothing, so every
+   * design-approved product was listed in exactly one currency and read as
+   * "not available" in every other region.
+   */
+  it("asks for the FX fanout on a product it created", async () => {
+    listProductionRuns.mockResolvedValue([completedRun("run_1", "des_1")])
+    stubGraph({ des_1: design("des_1", { cost_currency: "inr" }) })
+
+    await applyRunApprovals(container, { runIds: ["run_1"], decision: "approve" })
+
+    const fanout = emit.mock.calls.filter(
+      (c: any[]) => c[0]?.name === "fx.fanout_requested"
+    )
+    expect(fanout).toHaveLength(1)
+    expect(fanout[0][0].data.variant_ids).toEqual(["var_new"])
+  })
+
+  it("does NOT ask for a fanout when the product already existed", async () => {
+    // Nothing was priced, so there is nothing to convert — and waking the
+    // worker for an empty job is what the helper's own guard avoids.
+    listProductionRuns.mockResolvedValue([completedRun("run_1", "des_1")])
+    stubGraph({
+      des_1: design("des_1", {
+        products: [{ id: "prod_existing", variants: [{ id: "var_existing" }] }],
+      }),
+    })
+
+    await applyRunApprovals(container, { runIds: ["run_1"], decision: "approve" })
+
+    expect(
+      emit.mock.calls.filter((c: any[]) => c[0]?.name === "fx.fanout_requested")
+    ).toHaveLength(0)
   })
 
   it("records the decision on every run of the design", async () => {

@@ -2,6 +2,12 @@ import { ContainerRegistrationKeys, Modules } from "@medusajs/framework/utils"
 import type { IEventBusModuleService } from "@medusajs/types"
 
 import { PRODUCTION_RUNS_MODULE } from "../../modules/production_runs"
+import { computeRunCostSummary } from "../../modules/production_runs/cost-summary"
+import { requestVariantPriceFanout } from "../fx/fanout-variant-prices"
+import {
+  resolveApprovalCurrency as resolveCurrency,
+  resolveApprovalPrice,
+} from "./approval-pricing"
 import { createProductFromDesignWorkflow } from "../designs/create-product-from-design"
 import updateDesignWorkflow from "../designs/update-design"
 
@@ -70,6 +76,10 @@ export type RunApprovalReport = {
   product_existed?: boolean
   currency_code?: string
   listed_price?: number
+  /** Which cost the listed price was derived from: run_cost | design_estimate. */
+  price_source?: string | null
+  /** The pre-markup cost per unit behind `listed_price`. */
+  unit_cost?: number | null
 }
 
 export type RunApprovalResult = {
@@ -88,21 +98,29 @@ export type RunApprovalResult = {
 }
 
 /**
- * PURE. The currency a design's product is listed in. Exported for tests.
- *
- * 🔴 The approve route hardcoded `"usd"` on a platform trading in AUD and INR,
- * so every approved design was listed in a currency nobody sells in. The
- * design's own `cost_currency` is what the work was costed in and is the only
- * figure with a claim to authority here; the store default is a fallback for
- * designs costed before that column was filled in, and `"usd"` survives only as
- * the last resort it always was.
+ * The currency and the price rule both live in `approval-pricing.ts` now — one
+ * definition, exercised without a container. Re-exported here because the
+ * design approve route and this workflow's own spec import it from this module,
+ * and a second copy of a money rule is how two surfaces start disagreeing.
  */
-export function resolveApprovalCurrency(input: {
-  designCurrency?: string | null
-  storeCurrency?: string | null
-}): string {
-  const pick = input.designCurrency || input.storeCurrency || "usd"
-  return String(pick).trim().toLowerCase()
+export {
+  APPROVAL_MARKUP,
+  resolveApprovalCurrency,
+  resolveApprovalPrice,
+} from "./approval-pricing"
+
+/** The store the FX fanout is scoped to. Null is survivable; see the call site. */
+export async function readStoreId(container: any): Promise<string | null> {
+  try {
+    const query = container.resolve(ContainerRegistrationKeys.QUERY) as any
+    const { data: stores = [] } = await query.graph({
+      entity: "store",
+      fields: ["id"],
+    })
+    return stores?.[0]?.id ?? null
+  } catch {
+    return null
+  }
 }
 
 /** The store's default currency, for designs that never recorded their own. */
@@ -267,6 +285,14 @@ export async function applyRunApprovals(
   // ---- 3. Approve: one product per DESIGN, however many runs --------------
   const storeCurrency = await readStoreCurrency(container)
 
+  /**
+   * The FX fanout is scoped to a store's `supported_currencies`, so it needs the
+   * store id — read once here rather than per design. A store we cannot read
+   * costs the fanout, not the approval: the base price is still written and
+   * `replay-fx-fanout` can materialise the rest later.
+   */
+  const storeId = await readStoreId(container)
+
   /** design_id → the runs of that design in this batch, in the order given. */
   const byDesign = new Map<string, any[]>()
   for (const run of eligible) {
@@ -281,8 +307,10 @@ export async function applyRunApprovals(
     let product_id: string | null = null
     let variant_id: string | null = null
     let productExisted = false
-    let currency = resolveApprovalCurrency({ storeCurrency })
+    let currency = resolveCurrency({ storeCurrency })
     let price = 0
+    let priceSource: string | null = null
+    let unitCost: number | null = null
 
     try {
       const { data: designs = [] } = await query.graph({
@@ -303,11 +331,52 @@ export async function applyRunApprovals(
         throw new Error(`Design not found: ${designId}`)
       }
 
-      currency = resolveApprovalCurrency({
+      currency = resolveCurrency({
         designCurrency: design.cost_currency,
         storeCurrency,
       })
-      price = Number(design.estimated_cost ?? 0) || 0
+      /**
+       * 🔴 The price comes from what the RUN cost, not from an estimate typed
+       * on the design months earlier — and never from `?? 0`.
+       *
+       * `computeRunCostSummary` derives `cost_per_unit` from real consumption
+       * logs (material, energy, labour, partner estimate). A run with no logs
+       * has `null` there and the design's estimate answers instead; a design
+       * with neither is REFUSED below rather than listed at zero, because a
+       * price of 0 is a claim and #1900 caught one on the storefront.
+       *
+       * Costed per run and reduced to the DEAREST, because the product is one
+       * listing for every run of the design: pricing off the cheapest run
+       * would under-price every other unit sold under the same variant.
+       */
+      let runCostPerUnit: number | null = null
+      for (const r of designRuns) {
+        try {
+          const summary = await computeRunCostSummary(container, r.id)
+          const perUnit = Number(summary?.cost_per_unit)
+          if (Number.isFinite(perUnit) && perUnit > 0) {
+            runCostPerUnit = Math.max(runCostPerUnit ?? 0, perUnit)
+          }
+        } catch {
+          // A run we cannot cost is not a reason to fail the batch; the other
+          // runs and the design's estimate still answer.
+        }
+      }
+
+      const priced = resolveApprovalPrice({
+        runCostPerUnit,
+        designEstimatedCost: Number(design.estimated_cost ?? 0),
+      })
+      if (!priced) {
+        throw new Error(
+          `Cannot price design ${designId}: no run of it has a costed ` +
+            `consumption log and the design has no estimated_cost. Record ` +
+            `consumption or set an estimate — approving would list it at 0.`
+        )
+      }
+      price = priced.price
+      priceSource = priced.source
+      unitCost = priced.cost
 
       const linked = design.products?.[0]
       productExisted = Boolean(linked?.id)
@@ -333,6 +402,28 @@ export async function applyRunApprovals(
         product_id = result?.product_id ?? null
         variant_id = result?.variant_id ?? null
         if (product_id) createdProductIds.push(product_id)
+
+        /**
+         * 🔴 Materialise the other currencies. Medusa's pricing module emits no
+         * `price.created` event, so every path that writes a variant price has
+         * to ASK for the fanout itself — and only the partner routes ever did.
+         * The design -> product path (this one) emitted nothing, so every
+         * design-approved product has been listed in exactly one currency and
+         * reads as "not available" in every other region. That is #1900's
+         * single-currency defect, and it was never a fault in the FX code.
+         *
+         * Requested, not run inline: the handler is a subscriber so the work
+         * lands on the WORKER. Running this fanout on the request path
+         * OOM-killed prod twice on 2026-08-19 (exit 137). `requestVariantPriceFanout`
+         * never throws, and the workflow skips currencies a price_set already
+         * carries, so a re-approval is idempotent.
+         */
+        if (variant_id && storeId) {
+          await requestVariantPriceFanout(container, {
+            storeId,
+            variantIds: [variant_id],
+          })
+        }
       }
 
       if (!input.dryRun) {
@@ -385,6 +476,8 @@ export async function applyRunApprovals(
           product_existed: productExisted,
           currency_code: currency,
           listed_price: price,
+          price_source: priceSource,
+          unit_cost: unitCost,
         })
       }
     } catch (e: any) {
