@@ -1,4 +1,4 @@
-import { designOptionValue, resolveListedPrice } from "../create-product-from-design"
+import { designOptionValue, designProductNaming, resolveListedPrice } from "../create-product-from-design"
 
 /**
  * The price a design is listed at. Medusa 2.x amounts are DECIMAL major units —
@@ -78,5 +78,47 @@ describe("designOptionValue — #1874", () => {
 
   it("does not reuse the legacy literal that caused the collision", () => {
     expect(designOptionValue({ id: "des_a", name: "Kalamkari" }, ["Custom"])).not.toBe("Custom")
+  })
+})
+
+describe("designProductNaming — the product stops being called 'Custom'", () => {
+  const design = {
+    id: "01KWKHSQ8FDGSKNW4FNY3K5FF0",
+    name: "Embroidered jacket",
+    design_type: "Original",
+  }
+
+  it("titles the product after the design, with no 'Custom Design - ' prefix", () => {
+    // The real product this replaced was titled "Custom Design - Embroidered jacket".
+    expect(designProductNaming(design).title).toBe("Embroidered jacket")
+    expect(designProductNaming(design).title).not.toMatch(/Custom Design/)
+  })
+
+  it("uses design_type as the option title instead of the generic 'Type'", () => {
+    expect(designProductNaming(design).optionTitle).toBe("Original")
+  })
+
+  it("never claims the literal 'Custom' as an option value (#1874)", () => {
+    // The value the appended branch already avoids: two designs on one product
+    // resolved to an identical option tuple.
+    const n = designProductNaming(design)
+    expect(n.optionValue).toBe("Embroidered jacket")
+    expect(n.optionValue).not.toBe("Custom")
+    expect(n.variantTitle).not.toBe("Custom Design")
+  })
+
+  it("agrees with designOptionValue, so the two branches cannot drift apart", () => {
+    expect(designProductNaming(design).optionValue).toBe(designOptionValue(design))
+  })
+
+  it("falls back to 'Type' for an unclassified design rather than an empty option title", () => {
+    expect(designProductNaming({ id: "d1", name: "Stole" }).optionTitle).toBe("Type")
+    expect(
+      designProductNaming({ id: "d1", name: "Stole", design_type: "  " }).optionTitle
+    ).toBe("Type")
+  })
+
+  it("still names a design with no name at all", () => {
+    expect(designProductNaming({ id: "des_x" }).title).toBe("Design des_x")
   })
 })

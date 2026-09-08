@@ -717,7 +717,7 @@ export const ADMIN_MCP_TOOLS: AdminMcpToolDef[] = [
     name: "update_inventory_order_lines",
     description:
       "Change an existing inventory order's lines — quantity, per-unit price, per-unit extra_cost (the colour/dye job), batch tag — add new lines, or remove one. Sensitive: requires confirm:true. ALWAYS dry_run first. " +
-      "🔑 The `order_lines` array is the DESIRED FINAL STATE of the lines you send: keep an existing line by sending its `id`, add one by omitting `id` (naming an inventory_item_id or an untracked variant_id), and remove one with `{ id, remove: true }`. " +
+      "🔑 The `order_lines` array is the DESIRED FINAL STATE of the lines you send: keep an existing line by sending its `id`, add one by omitting `id`, and remove one with `{ id, remove: true }`. ⚠️ EVERY line you keep or add must ALSO carry its `inventory_item_id` (or `variant_id`) — the validator rejects the whole request without it, `id` alone is not enough. Read the ids off get_order/list_inventory_orders and send them back. Do NOT respond to that 400 by dropping the `id`: that stops being an edit and becomes a delete-and-recreate of the line. " +
       "⚠️ `data.quantity` and `data.total_price` are NOT recomputed for you — send the new totals, where total_price is Σ (price + extra_cost) × quantity across the lines you are left with. " +
       "Use get_order/list_inventory_orders first to read the current line ids.",
     method: "PUT",
@@ -1265,6 +1265,59 @@ export const ADMIN_MCP_TOOLS: AdminMcpToolDef[] = [
     ),
     sideEffects: "Publishing a product makes it live on the storefront.",
     nextSteps: ["get_product", "list_product_categories", "set_category_products"],
+  },
+  {
+    name: "list_design_products",
+    description: [
+      "Which products were created FROM a design — the reverse lookup that did not exist.",
+      "`create_product_from_design` writes a product↔design link and stamps `metadata.design_id`, but nothing read either direction: get_design returns no products and list_products cannot filter on metadata. Finding a design's product meant free-text searching titles, which silently misses any product whose title was edited.",
+      "Use it before approving a run: approval REUSES an existing product for the design rather than creating another, so what this returns is what the approval will bless — including its price.",
+    ].join("\n"),
+    method: "GET",
+    path: "/admin/designs/:id/products",
+    pathParams: ["id"],
+    inputSchema: obj(
+      { id: STR("Design id, e.g. '01KWKHSQ8FDGSKNW4FNY3K5FF0'.") },
+      ["id"]
+    ),
+    nextSteps: ["get_product", "get_design", "list_production_runs"],
+  },
+  {
+    name: "review_production_run_output",
+    description: [
+      "Decide whether what a COMPLETED production run produced is acceptable — the output review queue (#1805). Sensitive: requires confirm:true.",
+      "🔑 ALWAYS pass `preview: true` first. The preview resolves which runs map to which designs, which designs ALREADY have a product and so will be skipped, and what each would be listed at — and creates nothing. Approving blind is a bulk write on the live catalogue.",
+      "⚠️ `preview`, NOT `dry_run`: `dry_run` is this MCP's own flag and never reaches the route, so it returns the planned request instead of the report.",
+      "Approve creates the catalogue product ONCE PER DESIGN however many of its runs are selected, and reuses the design's existing product if it has one — so a design whose product is mispriced is blessed, not corrected. Check list_design_products first.",
+      "Reject records the refusal and creates nothing. A rejected run STAYS `completed`: the partner made the goods and is still owed for `produced_quantity`. A reason is required to reject.",
+      "Runs with no `design_id` can only be rejected, never approved — they come back `skipped`.",
+      "Answers with a PER-RUN report, not a bare success: read it rather than assuming the whole batch landed.",
+    ].join("\n"),
+    method: "POST",
+    path: "/admin/production-runs/approvals",
+    write: true,
+    sensitive: true,
+    bodyParams: ["run_ids", "decision", "reason", "preview"],
+    inputSchema: obj(
+      {
+        run_ids: {
+          type: "array",
+          description: "Production run ids to decide on, 1-200.",
+          items: { type: "string" },
+        },
+        decision: STR("'approve' | 'reject'."),
+        reason: STR(
+          "Why the output was refused. REQUIRED to reject (unless previewing) — it is the only record the partner who made the goods can be shown."
+        ),
+        preview: BOOL(
+          "Resolve and report what the decision would do, changing nothing. Do this first."
+        ),
+      },
+      ["run_ids", "decision"]
+    ),
+    sideEffects:
+      "Approve creates a product per design (reusing an existing one) and stamps approval_decision on every selected run. Reject stamps the refusal only. Neither changes run status, and neither affects payout — billing keys on `completed`.",
+    nextSteps: ["list_production_runs", "list_design_products", "get_product"],
   },
   {
     name: "update_product_option",

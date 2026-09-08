@@ -112,6 +112,48 @@ export const designOptionValue = (
 }
 
 /**
+ * PURE: how a design-created product is NAMED. Exported for tests.
+ *
+ * 🔴 This branch hardcoded `title: "Custom Design - <name>"`, an option `Type`
+ * whose only value was the literal `"Custom"`, and a variant titled
+ * `"Custom Design"`. Three problems:
+ *
+ *  - The `Custom Design - ` prefix said nothing the `is_custom_design` metadata
+ *    does not, and it is what shows in the catalogue, the order line and the
+ *    partner portal.
+ *  - `design_type` (Original / Derivative / Custom / Collaboration) was already
+ *    on the design and went unused, while the option was called "Type".
+ *  - The literal `"Custom"` is the exact value #1874 removed from the APPENDED
+ *    branch, because two designs on one product then resolved to an identical
+ *    option tuple. This branch kept writing it, so a product created here and
+ *    appended to later carried `["Custom", "<other design>"]` — the first
+ *    variant named after nothing in particular.
+ *
+ * The design's own name is the value in both branches now, via the same helper.
+ */
+export const designProductNaming = (design: {
+  id: string
+  name?: string | null
+  design_type?: string | null
+}): {
+  title: string
+  optionTitle: string
+  optionValue: string
+  variantTitle: string
+} => {
+  const optionValue = designOptionValue(design)
+  return {
+    title: optionValue,
+    // The design's own classification, when it has one. "Type" is the fallback
+    // rather than the default, so an unclassified design still gets a sane
+    // option rather than an empty title.
+    optionTitle: String(design.design_type ?? "").trim() || "Type",
+    optionValue,
+    variantTitle: optionValue,
+  }
+}
+
+/**
  * PURE: the amount written to `variant.prices[].amount`. Exported for tests.
  *
  * Medusa 2.x prices are DECIMAL major units — the seed lists a €10 shirt as
@@ -293,8 +335,18 @@ const createProductAndVariantStep = createStep(
 
       // Create new product for this custom design
       // Medusa 2.0 requires options for products with variants
+      // #1874's rule applies here too: the option value a variant claims must
+      // be the DESIGN's, not the literal "Custom". This branch still hardcoded
+      // it, so a product created here and then appended to by a second design
+      // ended up with an option list of ["Custom", "<other design>"] — the
+      // first variant named after nothing in particular.
+      const naming = designProductNaming(design)
+
       const productInput = {
-        title: `Custom Design - ${design.name}`,
+        // The design's own name, not "Custom Design - <name>". The prefix said
+        // nothing the `is_custom_design` metadata does not, and it read badly
+        // everywhere the title is shown. `design_type` rides in metadata below.
+        title: naming.title,
         description: design.description || `Custom design: ${design.name}`,
         // Draft is not purchasable. A made-to-order product has to be live for
         // the cart an accepted quote builds to be completable at all.
@@ -313,17 +365,17 @@ const createProductAndVariantStep = createStep(
         sales_channels: [{ id: salesChannelId }],
         options: [
           {
-            title: "Type",
-            values: ["Custom"],
+            title: naming.optionTitle,
+            values: [naming.optionValue],
           },
         ],
         variants: [
           {
-            title: "Custom Design",
+            title: naming.variantTitle,
             sku: `CUSTOM-${design.id}`,
             manage_inventory: manageInventory,
             options: {
-              Type: "Custom",
+              [naming.optionTitle]: naming.optionValue,
             },
             prices: [
               {

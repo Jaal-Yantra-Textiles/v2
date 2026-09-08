@@ -194,6 +194,17 @@ export const AdminRunApprovalsReq = z
      * the batch before it happens.
      */
     dry_run: z.boolean().optional(),
+    /**
+     * The same request as `dry_run`, under a name a proxy can pass through.
+     *
+     * 🔴 The admin MCP owns `dry_run` as its OWN flag: it intercepts and
+     * returns the planned request without ever calling this route, so the
+     * report `dry_run` produces here — which runs map to which designs, which
+     * already have a product, what each would list at — was unreachable from a
+     * tool. A bulk approve you cannot preview is a blind write on production,
+     * and the preview is the point of this endpoint, not a courtesy.
+     */
+    preview: z.boolean().optional(),
   })
   .refine(
     // A PREVIEW is not a decision, so it does not need the reason a decision
@@ -201,6 +212,7 @@ export const AdminRunApprovalsReq = z
     // sentence that explains it.
     (b) =>
       b.dry_run === true ||
+      b.preview === true ||
       b.decision !== "reject" ||
       Boolean(b.reason && b.reason.trim()),
     {
