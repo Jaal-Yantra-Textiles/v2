@@ -25,6 +25,9 @@ export type PartnerDesignPartnerInfo = {
   assigned_partner_id?: string
 }
 
+/** #1901 — the three engagement states; see `partner_engagement` below. */
+export type PartnerDesignEngagement = "owned" | "assigned" | "shared"
+
 export type PartnerDesign = Record<string, any> & {
   id: string
   name?: string | null
@@ -41,6 +44,20 @@ export type PartnerDesign = Record<string, any> & {
    * design regardless of who is viewing.
    */
   is_owner?: boolean
+  /**
+   * Is this design work the partner is expected to DO, or was it only shared
+   * with them? A `design_partners_link` row alone puts a design on this
+   * dashboard, so being listed said nothing about expectation.
+   *   owned    — the partner created it
+   *   assigned — the partner holds a production run on it
+   *   shared   — linked only; no run of theirs (an in-house run does NOT count)
+   * Derived server-side in `partner-design-engagement.ts`; never re-derive it
+   * from `production_runs` in the UI.
+   */
+  partner_engagement?: PartnerDesignEngagement
+  /** True iff at least one run on this design belongs to this partner. */
+  has_partner_run?: boolean
+  partner_run_count?: number
 }
 
 /** #6 — the partner "work" tab buckets (server-side lens over the same set). */
@@ -165,9 +182,9 @@ export const useCreatePartnerDesign = (
         { method: "POST", body: payload }
       )
     },
-    onSuccess: async (data, variables, context) => {
+    onSuccess: async (data, variables, onMutateResult, context) => {
       await queryClient.invalidateQueries({ queryKey: partnerDesignsQueryKeys.lists() })
-      options?.onSuccess?.(data, variables, context)
+      options?.onSuccess?.(data, variables, onMutateResult, context)
     },
     ...options,
   })
@@ -188,10 +205,10 @@ export const useUpdatePartnerDesign = (
         { method: "PUT", body: payload }
       )
     },
-    onSuccess: async (data, variables, context) => {
+    onSuccess: async (data, variables, onMutateResult, context) => {
       await queryClient.invalidateQueries({ queryKey: partnerDesignsQueryKeys.lists() })
       await queryClient.invalidateQueries({ queryKey: partnerDesignsQueryKeys.detail(id) })
-      options?.onSuccess?.(data, variables, context)
+      options?.onSuccess?.(data, variables, onMutateResult, context)
     },
     ...options,
   })
@@ -212,9 +229,9 @@ export const useDeletePartnerDesign = (
         { method: "DELETE" }
       )
     },
-    onSuccess: async (data, variables, context) => {
+    onSuccess: async (data, variables, onMutateResult, context) => {
       await queryClient.invalidateQueries({ queryKey: partnerDesignsQueryKeys.lists() })
-      options?.onSuccess?.(data, variables, context)
+      options?.onSuccess?.(data, variables, onMutateResult, context)
     },
     ...options,
   })
@@ -246,9 +263,9 @@ export const useGenerateMoodboard = (
         { method: "POST" }
       )
     },
-    onSuccess: async (data, variables, context) => {
+    onSuccess: async (data, variables, onMutateResult, context) => {
       await queryClient.invalidateQueries({ queryKey: partnerDesignsQueryKeys.detail(id) })
-      options?.onSuccess?.(data, variables, context)
+      options?.onSuccess?.(data, variables, onMutateResult, context)
     },
     ...options,
   })
@@ -417,10 +434,10 @@ export const useCreateConstructionDetail = (
         `/partners/designs/${id}/construction-details`,
         { method: "POST", body }
       ),
-    onSuccess: async (data, variables, context) => {
+    onSuccess: async (data, variables, onMutateResult, context) => {
       // Refreshes the detail list, the block-availability list and the catalog.
       await queryClient.invalidateQueries({ queryKey: partnerDesignsQueryKeys.detail(id) })
-      options?.onSuccess?.(data, variables, context)
+      options?.onSuccess?.(data, variables, onMutateResult, context)
     },
     ...options,
   })
@@ -437,9 +454,9 @@ export const useDeleteConstructionDetail = (
         `/partners/designs/${id}/construction-details/${detailId}`,
         { method: "DELETE" }
       ),
-    onSuccess: async (data, variables, context) => {
+    onSuccess: async (data, variables, onMutateResult, context) => {
       await queryClient.invalidateQueries({ queryKey: partnerDesignsQueryKeys.detail(id) })
-      options?.onSuccess?.(data, variables, context)
+      options?.onSuccess?.(data, variables, onMutateResult, context)
     },
     ...options,
   })
@@ -462,11 +479,11 @@ export const useSeedMoodboard = (
         { method: "POST" }
       )
     },
-    onSuccess: async (data, variables, context) => {
+    onSuccess: async (data, variables, onMutateResult, context) => {
       if (data?.moodboard) {
         await queryClient.invalidateQueries({ queryKey: partnerDesignsQueryKeys.detail(id) })
       }
-      options?.onSuccess?.(data, variables, context)
+      options?.onSuccess?.(data, variables, onMutateResult, context)
     },
     ...options,
   })
@@ -488,9 +505,9 @@ export const useSaveMoodboard = (
         { method: "PUT", body: { moodboard } }
       )
     },
-    onSuccess: async (data, variables, context) => {
+    onSuccess: async (data, variables, onMutateResult, context) => {
       await queryClient.invalidateQueries({ queryKey: partnerDesignsQueryKeys.detail(id) })
-      options?.onSuccess?.(data, variables, context)
+      options?.onSuccess?.(data, variables, onMutateResult, context)
     },
     ...options,
   })
@@ -523,9 +540,9 @@ export const useUpdatePartnerBrief = (
         { method: "PUT", body: payload }
       )
     },
-    onSuccess: async (data, variables, context) => {
+    onSuccess: async (data, variables, onMutateResult, context) => {
       await queryClient.invalidateQueries({ queryKey: partnerDesignsQueryKeys.detail(id) })
-      options?.onSuccess?.(data, variables, context)
+      options?.onSuccess?.(data, variables, onMutateResult, context)
     },
     ...options,
   })
@@ -570,9 +587,9 @@ export const useAttachPartnerDesignMedia = (
         }
       )
     },
-    onSuccess: async (data, variables, context) => {
+    onSuccess: async (data, variables, onMutateResult, context) => {
       await queryClient.invalidateQueries({ queryKey: partnerDesignsQueryKeys.detail(id) })
-      options?.onSuccess?.(data, variables, context)
+      options?.onSuccess?.(data, variables, onMutateResult, context)
     },
     ...options,
   })
