@@ -94,6 +94,11 @@ const PREFIX_DOMAINS: ReadonlyArray<readonly [string, AdminToolDomain]> = [
   // that needs a location id — "order 40 m to the Dharamshala warehouse",
   // "this order's route is reversed" — is already an inventory conversation.
   ["/admin/stock-locations", "inventory"],
+  // Held-but-not-consumed stock (#1905). A reservation is only ever discussed
+  // alongside the level it draws down, so it rides the same slice — split out,
+  // an ask about "why can't I sell these 40 m" would reach the level tools and
+  // not the thing actually holding them.
+  ["/admin/reservations", "inventory"],
   ["/admin/raw-material-groups", "inventory"],
   // Photo -> raw materials + inventory. Classified as inventory because that is
   // what it CREATES; the image is just the input format.

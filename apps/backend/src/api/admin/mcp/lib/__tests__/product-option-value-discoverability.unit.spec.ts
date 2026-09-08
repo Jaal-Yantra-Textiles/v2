@@ -50,9 +50,25 @@ describe("product option values are reachable (#1894)", () => {
     )
   })
 
-  it("warns that values REPLACES rather than appends — the trap that destroys existing variants' options", () => {
+  /**
+   * #1907. This assertion used to demand the opposite — that the description
+   * warn `values` REPLACES the whole list. That warning described
+   * `POST /admin/products/:id/options/:option_id`, a route that never existed
+   * in core or in this repo, so the tool 404'd on every real call while this
+   * spec stayed green. Core's only door to an option's values is the batch
+   * endpoint, and it is ADDITIVE: `add` appends, `remove` deletes by value id,
+   * and anything unmentioned is left alone.
+   *
+   * The destructive-rewrite footgun is therefore gone, not merely documented.
+   * `registry-routes-exist.unit.spec` now pins the route's existence, which is
+   * the check whose absence let this ship.
+   */
+  it("is additive — values are added, not rewritten by omission", () => {
     const d = byName("update_product_option")!.description
-    expect(d).toMatch(/REPLACES/)
-    expect(d).toMatch(/not an append/i)
+    expect(d).toMatch(/ADDITIVE/)
+    expect(d).not.toMatch(/REPLACES/)
+    // `remove` takes ids, and saying so is the whole guard against a model
+    // sending the value string and silently removing nothing.
+    expect(d).toMatch(/optval_/)
   })
 })
