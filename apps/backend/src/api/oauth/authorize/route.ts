@@ -33,6 +33,7 @@ import {
 import { MCP_OAUTH_MODULE } from "../../../modules/mcp_oauth"
 import type McpOauthService from "../../../modules/mcp_oauth/service"
 import { redirectUriRegistered } from "../../../lib/mcp-oauth"
+import { loginOutcome } from "./login-outcome"
 
 const esc = (value: unknown): string =>
   String(value ?? "")
@@ -192,7 +193,7 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
   label.opt{display:flex;gap:.6rem;align-items:flex-start;border:1px solid #d4d4d8;border-radius:.5rem;padding:.6rem .75rem;margin:.4rem 0;cursor:pointer}
   label.opt.sel{border-color:#111}
   label.opt small{color:#666}
-  input[type=email],input[type=password]{width:100%;box-sizing:border-box;padding:.55rem .6rem;border:1px solid #d4d4d8;border-radius:.4rem;font-size:1rem;background:transparent;color:inherit}
+  select,input[type=email],input[type=password],input#mfaCode{width:100%;box-sizing:border-box;padding:.55rem .6rem;border:1px solid #d4d4d8;border-radius:.4rem;font-size:1rem;background:transparent;color:inherit}
   .field{margin:.6rem 0}
   button{width:100%;padding:.7rem;border:0;border-radius:.45rem;background:#111;color:#fff;font-size:1rem;cursor:pointer;margin-top:1rem}
   @media(prefers-color-scheme:dark){button{background:#eee;color:#111}}
@@ -210,11 +211,26 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
 </div>
 
 <form id="f">
-  <div class="field"><input type="email" id="email" placeholder="Admin email" autocomplete="username" required></div>
-  <div class="field"><input type="password" id="password" placeholder="Password" autocomplete="current-password" required></div>
+  <div id="credentials">
+    <div class="field"><input type="email" id="email" placeholder="Admin email" autocomplete="username" required></div>
+    <div class="field"><input type="password" id="password" placeholder="Password" autocomplete="current-password" required></div>
 
-  <p style="margin:1.25rem 0 .25rem"><strong>Access level</strong></p>
-  ${options}
+    <p style="margin:1.25rem 0 .25rem"><strong>Access level</strong></p>
+    ${options}
+  </div>
+
+  <!-- Second factor. Hidden until the sign-in response asks for one; the access
+       level chosen above is kept and re-sent after verification. -->
+  <div id="mfa" hidden>
+    <p class="sub" id="mfaHint">Enter the 6-digit code from your authenticator app.</p>
+    <div class="field" id="mfaMethodField" hidden>
+      <select id="mfaMethod"></select>
+    </div>
+    <div class="field">
+      <input id="mfaCode" placeholder="Verification code" inputmode="numeric"
+             autocomplete="one-time-code" autocapitalize="off" spellcheck="false">
+    </div>
+  </div>
 
   <button type="submit" id="go">Approve</button>
   <div class="err" id="err"></div>
@@ -224,6 +240,9 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
 
 <script>
   var P = ${JSON.stringify(params)};
+  // Embedded verbatim from src/api/oauth/authorize/login-outcome.ts so the rule
+  // the unit tests exercise is the rule the browser runs — see that file.
+  ${loginOutcome.toString()}
   var f = document.getElementById('f'), err = document.getElementById('err'), go = document.getElementById('go');
   document.addEventListener('change', function (e) {
     if (e.target.name !== 'level') return;
@@ -238,24 +257,122 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
     if (P.state) u.searchParams.set('state', P.state);
     location.href = u.toString();
   });
+  // Set once the first factor passes and a second is required. Its 'token' is
+  // ACTORLESS token from the sign-in response: it carries no actor_id, so it is
+  // useless to /oauth/authorize/consent (which runs authenticate("user")) and is
+  // good for exactly one thing — authorizing the challenge verification.
+  var pending = null;
+
+  var mfaBox = document.getElementById('mfa');
+  var mfaCode = document.getElementById('mfaCode');
+  var mfaMethod = document.getElementById('mfaMethod');
+  var mfaMethodField = document.getElementById('mfaMethodField');
+  var mfaHint = document.getElementById('mfaHint');
+  var credentials = document.getElementById('credentials');
+
+  var METHOD_LABEL = { totp: 'Authenticator app', recovery_code: 'Recovery code' };
+  var label = function (m) { return METHOD_LABEL[m] || m; };
+
+  var hintFor = function (m) {
+    return m === 'recovery_code'
+      ? 'Enter one of your unused recovery codes.'
+      : 'Enter the 6-digit code from your authenticator app.';
+  };
+
+  // Show the second-factor step. The access-level radios are hidden but NOT
+  // removed, so the choice made before the code prompt is still what gets sent.
+  function enterMfa(challenge, token) {
+    pending = { challenge: challenge, token: token };
+    var methods = (challenge && challenge.methods) || [];
+    credentials.hidden = true;
+    mfaBox.hidden = false;
+
+    mfaMethod.innerHTML = '';
+    methods.forEach(function (m) {
+      var o = document.createElement('option');
+      o.value = m; o.textContent = label(m);
+      mfaMethod.appendChild(o);
+    });
+    // Only worth a control when there is a genuine choice to make.
+    mfaMethodField.hidden = methods.length < 2;
+    mfaHint.textContent = hintFor(methods[0]);
+    go.textContent = 'Verify';
+    mfaCode.value = '';
+    mfaCode.focus();
+  }
+
+  // Drop back to the credential step: a challenge is single-use and time-boxed,
+  // so once it is spent or expired the only way forward is a fresh sign-in.
+  function resetToCredentials(message) {
+    pending = null;
+    mfaBox.hidden = true;
+    credentials.hidden = false;
+    go.textContent = 'Approve';
+    err.textContent = message || '';
+  }
+
+  mfaMethod.addEventListener('change', function () {
+    mfaHint.textContent = hintFor(mfaMethod.value);
+    mfaCode.value = '';
+    mfaCode.focus();
+  });
+
   f.addEventListener('submit', async function (e) {
     e.preventDefault();
-    err.textContent = ''; go.disabled = true; go.textContent = 'Authorizing…';
+    err.textContent = ''; go.disabled = true;
+    go.textContent = pending ? 'Verifying…' : 'Authorizing…';
     try {
-      var login = await fetch('/auth/user/emailpass', {
-        method: 'POST', headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({
-          email: document.getElementById('email').value,
-          password: document.getElementById('password').value
-        })
-      });
-      var loginBody = await login.json().catch(function () { return {}; });
-      if (!login.ok || !loginBody.token) throw new Error(loginBody.message || 'Sign-in failed.');
+      var token;
+
+      if (pending) {
+        // Second factor. 'method' is required by the API even when the challenge
+        // offers only one.
+        var code = (mfaCode.value || '').trim();
+        if (!code) throw new Error('Enter your verification code.');
+        var method = mfaMethodField.hidden
+          ? ((pending.challenge.methods || [])[0] || 'totp')
+          : mfaMethod.value;
+
+        var verify = await fetch('/auth/mfa/challenges/' + encodeURIComponent(pending.challenge.id) + '/verify', {
+          method: 'POST',
+          headers: { 'content-type': 'application/json', authorization: 'Bearer ' + pending.token },
+          body: JSON.stringify({ method: method, code: code })
+        });
+        var verifyBody = await verify.json().catch(function () { return {}; });
+        if (!verify.ok || !verifyBody.token) {
+          var msg = verifyBody.message || 'That code was not accepted.';
+          // A spent or expired challenge cannot be retried in place.
+          if (verify.status === 404 || /expired|not found/i.test(msg)) {
+            resetToCredentials(msg + ' Please sign in again.');
+            go.disabled = false;
+            return;
+          }
+          throw new Error(msg);
+        }
+        token = verifyBody.token;
+      } else {
+        var login = await fetch('/auth/user/emailpass', {
+          method: 'POST', headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({
+            email: document.getElementById('email').value,
+            password: document.getElementById('password').value
+          })
+        });
+        var loginBody = await login.json().catch(function () { return {}; });
+        var outcome = loginOutcome(login.ok, loginBody);
+        if (outcome.kind === 'error') throw new Error(outcome.message);
+        if (outcome.kind === 'mfa') {
+          enterMfa(outcome.challenge, outcome.token);
+          go.disabled = false;
+          return;
+        }
+        token = outcome.token;
+      }
 
       var level = (document.querySelector('input[name=level]:checked') || {}).value || 'read';
       var consent = await fetch('/oauth/authorize/consent', {
         method: 'POST',
-        headers: { 'content-type': 'application/json', authorization: 'Bearer ' + loginBody.token },
+        headers: { 'content-type': 'application/json', authorization: 'Bearer ' + token },
         body: JSON.stringify({
           client_id: P.client_id, redirect_uri: P.redirect_uri,
           code_challenge: P.code_challenge, code_challenge_method: P.code_challenge_method,
@@ -267,7 +384,8 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
       location.href = out.redirect_to;
     } catch (e2) {
       err.textContent = e2.message || String(e2);
-      go.disabled = false; go.textContent = 'Approve';
+      go.disabled = false;
+      go.textContent = pending ? 'Verify' : 'Approve';
     }
   });
 </script>`)
