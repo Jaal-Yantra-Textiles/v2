@@ -89,6 +89,80 @@ describe("valueInventoryOrderByReceipts", () => {
     expect(singleLine?.amount).toBe(7980)
   })
 
+  /**
+   * Every other fixture in this file has NO `extra_cost`, which is exactly why
+   * the whole suite stayed green while a payout was computed from `price`
+   * alone. A fixture that cannot carry the charge cannot see it go missing.
+   */
+  describe("extra_cost — the per-unit colour/finishing charge is owed too", () => {
+    it("bills (price + extra_cost) per received unit, not price alone", () => {
+      const value = valueInventoryOrderByReceipts([
+        {
+          id: "l1",
+          quantity: 12,
+          price: 255,
+          extra_cost: 120,
+          line_fulfillments: [{ quantity_delta: 12 }],
+        },
+      ])
+
+      // 12 x (255 + 120). Pricing from `price` alone bills 3,060 — short by 1,440.
+      expect(value.lines[0]?.unit_price).toBe(375)
+      expect(value.lines[0]?.amount).toBe(4500)
+      expect(value.total).toBe(4500)
+    })
+
+    it("reproduces the GOF Asia order: 73 m of dyed cloth is 65,800, not 57,760", () => {
+      const gof = [
+        { id: "muslin100", quantity: 12, price: 255, extra_cost: 120 },
+        { id: "muslin150", quantity: 12, price: 285, extra_cost: 120 },
+        { id: "matka", quantity: 11, price: 1460, extra_cost: 120 },
+        { id: "mulberryDT", quantity: 13, price: 690, extra_cost: 120 },
+        { id: "mulberry3PLY", quantity: 13, price: 1230, extra_cost: 120 },
+        { id: "linen60", quantity: 12, price: 795, extra_cost: 120 },
+      ].map((l) => ({ ...l, line_fulfillments: [{ quantity_delta: l.quantity }] }))
+
+      // Dropping extra_cost bills 57,760 — 8,040 of dye work unpaid on one order.
+      expect(valueInventoryOrderByReceipts(gof).total).toBe(65800)
+    })
+
+    it("charges extra_cost only on what was RECEIVED, not on what was ordered", () => {
+      const value = valueInventoryOrderByReceipts([
+        {
+          id: "l1",
+          quantity: 20,
+          price: 100,
+          extra_cost: 50,
+          line_fulfillments: [{ quantity_delta: 8 }],
+        },
+      ])
+
+      // 8 x 150, never 20 x 150. A short delivery owes the dye it actually did.
+      expect(value.total).toBe(1200)
+      expect(value.received_quantity).toBe(8)
+    })
+
+    it("treats a null or absent extra_cost as zero rather than NaN", () => {
+      const value = valueInventoryOrderByReceipts([
+        { id: "l1", quantity: 5, price: 100, extra_cost: null, line_fulfillments: [{ quantity_delta: 5 }] },
+        { id: "l2", quantity: 5, price: 100, line_fulfillments: [{ quantity_delta: 5 }] },
+      ])
+
+      expect(value.total).toBe(1000)
+      expect(value.lines.every((l) => Number.isFinite(l.amount))).toBe(true)
+    })
+
+    it("bills a line whose whole value is the colour job", () => {
+      const value = valueInventoryOrderByReceipts([
+        { id: "l1", quantity: 10, price: 0, extra_cost: 80, line_fulfillments: [{ quantity_delta: 10 }] },
+      ])
+
+      // price 0 is not "no line" — dyeing customer-supplied cloth is real work.
+      // A `price > 0` guard anywhere in this path would pay 0 for it.
+      expect(value.total).toBe(800)
+    })
+  })
+
   it("drops lines with no receipt instead of billing them at zero", () => {
     const value = valueInventoryOrderByReceipts(PARTIAL_ORDER_LINES)
 

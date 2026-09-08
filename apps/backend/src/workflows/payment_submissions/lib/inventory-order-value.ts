@@ -18,6 +18,18 @@
  * underpays by orders of magnitude. Cf. the `quantity`-is-a-rate-or-a-total
  * confusion that made a report tell operators to corrupt correct data (#1559).
  *
+ * ⚠️ That Σ check is only an identity because **every `extra_cost` on that
+ * order was null**. The real invariant is Σ((price + extra_cost) × quantity) =
+ * `total_price`; the shorter form matched because the sample could not tell the
+ * two apart. It read as proof for months while the money was wrong — if you
+ * re-verify against a live order, pick one with a colour job on it.
+ *
+ * 🔴 **`extra_cost` is owed too.** The per-unit colour/dye/finishing charge is
+ * part of the agreed unit value, so the unit price here is
+ * `price + extra_cost`. Callers must SELECT `orderlines.extra_cost`: this
+ * function cannot add a field the query never fetched, which is why the fix
+ * for this had to land in three places at once.
+ *
  * 🔴 **Receipts come from the typed `line_fulfillments` rows, NEVER from
  * `metadata.partner_delivery_history`.** `partner-complete-inventory-order`
  * dual-writes both, and on the one order examined by hand they DISAGREE: the
@@ -42,6 +54,16 @@ export type InventoryOrderLineForValue = {
   quantity?: number | null
   /** 🔴 PER UNIT. */
   price?: number | null
+  /**
+   * 🔴 ALSO PER UNIT, and it is part of what the partner is owed.
+   *
+   * The per-unit colour/dye/finishing charge (`inventory_order_line.extra_cost`).
+   * A line's agreed value is `(price + extra_cost) × quantity` — that is how
+   * `total_price` is folded at write time, and how the admin create/edit forms
+   * and `dual-write-unified-order` price it. Valuing a receipt from `price`
+   * alone silently underpays every order that carries a colour job.
+   */
+  extra_cost?: number | null
   material_name?: string | null
   line_fulfillments?: FulfillmentEvent[] | null
 }
@@ -89,7 +111,14 @@ export function valueInventoryOrderByReceipts(
 
     if (received === 0) continue
 
-    const unitPrice = num(line.price)
+    // The unit the partner is owed is the AGREED unit: goods + the per-unit
+    // colour/finishing charge. `price` alone is only the goods half, and every
+    // other pricer in the codebase folds both (`create-inventory-order`,
+    // `order-lines-payload`, `dual-write-unified-order:313`). This was the
+    // outlier, and both the offer (`list_payable_inventory_orders`) and the
+    // bill (`create-payment-submission`) read it — so they agreed with each
+    // other and understated together.
+    const unitPrice = num(line.price) + num(line.extra_cost)
 
     valued.push({
       line_id: String(line.id),
