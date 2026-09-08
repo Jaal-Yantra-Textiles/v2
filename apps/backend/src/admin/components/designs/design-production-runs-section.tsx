@@ -1,9 +1,12 @@
 import { Container, Heading, Skeleton, Text, Badge, Button, toast, usePrompt } from "@medusajs/ui"
 import { Plus } from "@medusajs/icons"
+import { useState } from "react"
 import { Link, useNavigate } from "react-router-dom"
 
 import { AdminDesign, useApproveDesign } from "../../hooks/api/designs"
 import { useProductionRuns, useCancelProductionRun } from "../../hooks/api/production-runs"
+import { RunOutputReviewPanel } from "../production-runs/run-output-review-panel"
+import { runsAwaitingOutputReview } from "../../lib/run-review"
 import { productionRunStatusColor as statusColor } from "../../lib/status-colors"
 
 interface DesignProductionRunsSectionProps {
@@ -26,6 +29,24 @@ export const DesignProductionRunsSection = ({ design }: DesignProductionRunsSect
   }
 
   const isInReview = design.status === "Technical_Review"
+
+  /*
+    #1898 — two DIFFERENT approvals were being conflated here.
+
+    The button below is the DESIGN approve (POST /admin/designs/:id/approve):
+    it sets the design's status and creates the product listing. Reviewing what
+    a completed run PRODUCED is a separate axis — `run.approval_decision`,
+    added by #1805 — and this page had no control for it at all.
+
+    So a design already `Approved` showed no button (correct for the design
+    approve, whose skip list in complete-production-run.ts deliberately leaves
+    the status alone) while its completed runs sat undecided with nowhere to
+    decide them. The global queue was no help either: it hid child runs.
+
+    Gate this on the runs themselves, never on design.status.
+  */
+  const runsAwaitingReview = runsAwaitingOutputReview(runs as any[])
+  const [reviewDecision, setReviewDecision] = useState<"approve" | "reject" | null>(null)
   const prompt = usePrompt()
   const approveMutation = useApproveDesign(design.id)
 
@@ -64,6 +85,46 @@ export const DesignProductionRunsSection = ({ design }: DesignProductionRunsSect
           </Button>
         </Link>
       </div>
+
+      {/* #1898 — output review, gated on the runs and not on design.status. */}
+      {runsAwaitingReview.length > 0 && (
+        <div className="mx-3 mb-3 rounded-md border border-ui-border-base bg-ui-bg-subtle px-4 py-3">
+          <div className="flex items-center justify-between gap-x-4">
+            <div>
+              <Text size="small" weight="plus" className="text-ui-fg-base">
+                {runsAwaitingReview.length === 1
+                  ? "1 run awaiting output review"
+                  : `${runsAwaitingReview.length} runs awaiting output review`}
+              </Text>
+              <Text size="xsmall" className="text-ui-fg-subtle">
+                Completed, but nobody has decided whether what they produced is
+                acceptable. Approving lists the design as a product; rejecting
+                records the decision and still leaves the partner owed for the
+                work.
+              </Text>
+            </div>
+            <div className="flex shrink-0 items-center gap-x-2">
+              <Button
+                size="small"
+                variant="secondary"
+                onClick={() => setReviewDecision("reject")}
+              >
+                Reject
+              </Button>
+              <Button size="small" onClick={() => setReviewDecision("approve")}>
+                Review output
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      <RunOutputReviewPanel
+        decision={reviewDecision}
+        runIds={runsAwaitingReview.map((r) => String(r.id))}
+        onClose={() => setReviewDecision(null)}
+        onApplied={() => setReviewDecision(null)}
+      />
 
       {/* Review banner */}
       {isInReview && (
