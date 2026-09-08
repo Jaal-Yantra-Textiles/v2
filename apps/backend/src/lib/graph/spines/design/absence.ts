@@ -52,6 +52,29 @@ export const runsAwaitingProduct = (runs: RunLike[]): RunLike[] => {
   return out
 }
 
+/**
+ * Runs whose output was reviewed and turned down.
+ *
+ * Keyed on `approval_decision` alone, which is a SEPARATE AXIS from `status`:
+ * a rejected run stays `completed`, because the work WAS done and the partner
+ * is still owed for it — which is exactly why no status-based view can see a
+ * rejection. The decision is recorded; nothing that filters on status reads
+ * it. This is the one definition of "rejected", living with the design spine's
+ * other run rules so that any surface that needs it imports it rather than
+ * restating it. Deduplicated, like its neighbour.
+ */
+export const runsRejected = (runs: RunLike[]): RunLike[] => {
+  const seen = new Set<string>()
+  const out: RunLike[] = []
+  for (const r of runs) {
+    if (r.approval_decision !== "rejected") continue
+    if (seen.has(r.id)) continue
+    seen.add(r.id)
+    out.push(r)
+  }
+  return out
+}
+
 /** A design that has been committed to should have at least one run. */
 export const expectsProductionRun = (
   designStatus: string | null | undefined,

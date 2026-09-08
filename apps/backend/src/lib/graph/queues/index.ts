@@ -2,6 +2,7 @@ import { MedusaError } from "@medusajs/framework/utils"
 
 import type { Graph, NodeItem, SpineContext, SpineDescriptor } from "../types"
 import { productsAwaitingItems, resolveProductsAwaiting } from "./products-awaiting"
+import { runsRejectedItems, resolveRunsRejected } from "./runs-rejected"
 
 /**
  * QUEUES: graphs centred on a population rather than on one record (#1856).
@@ -34,6 +35,12 @@ const QUEUES: Record<string, QueueDescriptor> = {
     label: "Products awaiting creation",
     resolve: resolveProductsAwaiting,
     items: productsAwaitingItems,
+  },
+  "runs-rejected": {
+    key: "runs-rejected",
+    label: "Rejected production runs",
+    resolve: resolveRunsRejected,
+    items: runsRejectedItems,
   },
 }
 

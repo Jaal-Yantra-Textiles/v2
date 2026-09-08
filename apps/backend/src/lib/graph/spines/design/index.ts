@@ -18,6 +18,7 @@ import {
   expectsConsumptionLog,
   productNodeState,
   runsAwaitingProduct,
+  runsRejected,
 } from "./absence"
 
 /**
@@ -206,6 +207,7 @@ const resolveDesignGraph = async ({ scope, id }: SpineContext): Promise<Graph> =
     new Set(runsWithProduct.map((r) => r.approved_product_id))
   )
   const outstandingRuns = runsAwaitingProduct(runList)
+  const rejectedRuns = runsRejected(runList)
 
   // The task enum is pending | in_progress | completed | cancelled | accepted |
   // assigned — "completed" is the only terminal-done value, so don't invent
@@ -294,6 +296,63 @@ const resolveDesignGraph = async ({ scope, id }: SpineContext): Promise<Graph> =
         state: "absent",
         reason: `Design is ${design.status} and no run has been created.`,
       }
+    )
+  }
+
+  /**
+   * Rejected output, which no status-based view on this page can show.
+   *
+   * `approval_decision` is a SEPARATE AXIS from `status`: a rejected run stays
+   * `completed`, because the work WAS done and the partner is still owed for
+   * it. So the "Production runs" node above counts a rejected run among its
+   * completed ones and says nothing about the decision — the rejection is
+   * recorded and read by nothing that keys on status.
+   *
+   * 🔴 Uses the SHARED predicate, `runsRejected`, the same one the
+   * `runs-rejected` cohort board imports. A design page that disagreed with
+   * that board about whether a run was rejected is the exact fault the
+   * feature exists to remove, and a second copy of the rule is how it happens.
+   *
+   * Drawn ONLY when there is at least one, for the reason the empty `runs`
+   * branch above was deleted: a `present` node with a count of zero asserts a
+   * neighbour that does not exist, and a node that is merely pointless looks
+   * identical to one that is wrong.
+   */
+  if (rejectedRuns.length) {
+    const rejectedUnits = rejectedRuns.reduce(
+      (sum, r: any) => sum + (Number(r.rejected_quantity) || 0),
+      0
+    )
+    push(
+      {
+        key: "runs_rejected",
+        type: "production_run",
+        label: "Rejected output",
+        // The count goes IN the sublabel: the canvas draws `sublabel ?? count`,
+        // so a sublabel that omitted it would hide the number it replaces.
+        sublabel: `${rejectedRuns.length} rejected run${
+          rejectedRuns.length === 1 ? "" : "s"
+        }${rejectedUnits ? `, ${rejectedUnits} unit${rejectedUnits === 1 ? "" : "s"}` : ""}`,
+        state: "present",
+        count: rejectedRuns.length,
+        status: null,
+        href: `/designs/${designId}/production-runs`,
+        props: [
+          { key: "rejected runs", value: String(rejectedRuns.length) },
+          ...(rejectedUnits
+            ? [{ key: "units rejected", value: String(rejectedUnits) }]
+            : []),
+          {
+            key: "still counted completed",
+            value: String(
+              rejectedRuns.filter((r: any) => String(r.status) === "completed")
+                .length
+            ),
+          },
+        ],
+        action: null,
+      },
+      { label: "approval_decision", state: "present", reason: null }
     )
   }
 
