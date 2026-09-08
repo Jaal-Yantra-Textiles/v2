@@ -34,7 +34,10 @@ export const POST = async (
     // Who decided. `auth_context` is the admin acting; "system" only when a
     // job ever calls this.
     actorId: req.auth_context?.actor_id ?? null,
-    dryRun: Boolean(body.dry_run),
+    // Either flag means preview. `||` and not `??`: an explicit
+    // `dry_run: false` beside `preview: true` must still preview, and a
+    // nullish check would let the false win.
+    dryRun: Boolean(body.dry_run) || Boolean(body.preview),
   })
 
   res.status(200).json({ run_approvals: result })
