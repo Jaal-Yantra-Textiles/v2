@@ -64,7 +64,9 @@ export const useColumns = () => {
                           "Item";
                         return (
                           <span key={line.id ?? i} className="text-ui-fg-base">
-                            {label} — Qty {line.quantity} × ₹{line.price}
+                            {label} — Qty {line.quantity} × ₹
+                            {(Number(line.price) || 0) +
+                              (Number(line.extra_cost) || 0)}
                           </span>
                         );
                       })}
