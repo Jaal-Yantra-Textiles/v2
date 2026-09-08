@@ -1,8 +1,13 @@
-import { test, expect } from "@playwright/test"
+import { test, expect, request as pwRequest } from "@playwright/test"
 import * as fs from "fs"
 import * as path from "path"
 
 const SEED_FILE = path.resolve(__dirname, "../../apps/backend/.e2e-seed.json")
+const BASE = "http://localhost:9000"
+
+/** Escapes a region label so it can be used as a `getByRole` name match. */
+const rx = (literal: string) =>
+  new RegExp(literal.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"))
 
 /**
  * Starting a quote, through a browser (#1439 S4 / #1446).
@@ -36,13 +41,71 @@ const SEED_FILE = path.resolve(__dirname, "../../apps/backend/.e2e-seed.json")
 test.describe("Admin quote drafts (#1446)", () => {
   let seed: { email: string; password: string }
 
-  test.beforeAll(() => {
+  /**
+   * 🔴 The region is DERIVED, never named.
+   *
+   * Every case below used to click `/Singapore/`. Nothing in this repo creates
+   * a Singapore region: `apps/backend/src/scripts/seed.ts`, which the e2e job
+   * runs, creates exactly ONE — "Europe" (eur; gb, de, dk, se, fr, es, it) —
+   * and `e2e/helpers/e2e-seed.ts` creates none, it only reads `regions[0]`. So
+   * five cases sat for 120s waiting for an option that could not exist, on
+   * this branch, on the other open PRs and on `main`, while passing on the one
+   * database that had a hand-made Singapore region.
+   *
+   * Hardcoding "Europe" instead only moves the problem one database over: what
+   * these cases actually need is a region that DECLARES COUNTRIES — picking
+   * one writes its first country into the form, and Save refuses a draft with
+   * no destination — and a region's country list is database state, not a
+   * name. A region with an empty list is a legitimate thing to have here (the
+   * form renders a whole warning for it), so a name is never a safe proxy.
+   *
+   * It therefore asks the API which region is usable and builds the label from
+   * the same two fields `create-draft-form.tsx` renders into the option.
+   */
+  let regionOption: RegExp
+
+  test.beforeAll(async () => {
     if (!fs.existsSync(SEED_FILE)) {
       throw new Error(
         `E2E seed file not found at ${SEED_FILE}. Run "pnpm e2e:seed" first.`
       )
     }
     seed = JSON.parse(fs.readFileSync(SEED_FILE, "utf-8"))
+
+    const api = await pwRequest.newContext({ baseURL: BASE })
+    const auth = await api.post("/auth/user/emailpass", {
+      data: { email: seed.email, password: seed.password },
+    })
+    expect(auth.ok()).toBeTruthy()
+    const token = (await auth.json()).token
+
+    const res = await api.get(
+      "/admin/regions?limit=100&fields=id,name,currency_code,countries.iso_2",
+      { headers: { Authorization: `Bearer ${token}` } }
+    )
+    expect(res.ok()).toBeTruthy()
+    const regions: any[] = (await res.json()).regions ?? []
+    await api.dispose()
+
+    const usable = regions.find((r) => (r.countries ?? []).length > 0)
+    /**
+     * A loud, actionable failure instead of five 120s timeouts pointing at a
+     * Select — the exact shape of red this file just spent months in.
+     */
+    if (!usable) {
+      throw new Error(
+        `No region declares a country, so the draft modal has no destination to pick and this spec cannot run. Regions seen: ${
+          regions
+            .map((r) => `${r.name}(${(r.countries ?? []).length})`)
+            .join(", ") || "none"
+        }. Run \`pnpm run seed\` in apps/backend.`
+      )
+    }
+
+    // Exactly what the Select renders: `{name} · {CURRENCY}`.
+    regionOption = rx(
+      `${usable.name} · ${String(usable.currency_code).toUpperCase()}`
+    )
   })
 
   const login = async (page: any) => {
@@ -103,8 +166,8 @@ test.describe("Admin quote drafts (#1446)", () => {
     await expect(currency).toHaveValue("")
 
     await page.getByText("Select a region").click()
-    // A region that declares countries — at least one of ours declares none.
-    await page.getByRole("option", { name: /Singapore/ }).click()
+    // Derived in beforeAll: a region that DECLARES COUNTRIES. Some do not.
+    await page.getByRole("option", { name: regionOption }).click()
 
     // The region wrote the currency; nobody typed it.
     await expect(currency).not.toHaveValue("")
@@ -122,7 +185,7 @@ test.describe("Admin quote drafts (#1446)", () => {
     await page.getByText("Select a partner").click()
     await page.getByRole("option", { name: /E2E Content Partner/ }).first().click()
     await page.getByText("Select a region").click()
-    await page.getByRole("option", { name: /Singapore/ }).click()
+    await page.getByRole("option", { name: regionOption }).click()
 
     await page.getByRole("button", { name: "Save" }).click()
 
@@ -167,7 +230,7 @@ test.describe("Admin quote drafts (#1446)", () => {
     await page.getByText("Select a partner").click()
     await page.getByRole("option", { name: /E2E Content Partner/ }).first().click()
     await page.getByText("Select a region").click()
-    await page.getByRole("option", { name: /Singapore/ }).click()
+    await page.getByRole("option", { name: regionOption }).click()
     await page.getByRole("button", { name: "Save" }).click()
     await page.waitForURL(/\/app\/quotes\/drafts\//, { timeout: 30000 })
 
@@ -231,7 +294,7 @@ test.describe("Admin quote drafts (#1446)", () => {
     await page.getByText("Select a partner").click()
     await page.getByRole("option", { name: /E2E Content Partner/ }).first().click()
     await page.getByText("Select a region").click()
-    await page.getByRole("option", { name: /Singapore/ }).click()
+    await page.getByRole("option", { name: regionOption }).click()
     await page.getByRole("button", { name: "Save" }).click()
     await page.waitForURL(/\/app\/quotes\/drafts\//, { timeout: 30000 })
 
@@ -246,7 +309,19 @@ test.describe("Admin quote drafts (#1446)", () => {
 
     // Back on the draft, and the units are on the record — not zero.
     await page.waitForURL(/\/app\/quotes\/drafts\/[^/]+$/, { timeout: 30000 })
-    await expect(page.getByText("500")).toBeVisible({ timeout: 15000 })
+    /*
+     * 🔴 `500×`, the QUANTITY cell, not a bare "500".
+     *
+     * The row renders the units as `500×` beside a right-aligned amount, and
+     * on a database where that amount is also 500 the bare match resolved to
+     * two elements and Playwright's strict mode failed the case — reporting
+     * "500 is not visible" about a basket that had persisted perfectly.
+     *
+     * `{ exact: true }` would have silenced it and asserted the wrong thing:
+     * it selects the AMOUNT, so the case would pass with the quantity at zero,
+     * which is the single outcome this test exists to catch.
+     */
+    await expect(page.getByText("500×")).toBeVisible({ timeout: 15000 })
   })
 
   test("the buyer drawer saves without emptying the basket", async ({ page }) => {
@@ -256,7 +331,7 @@ test.describe("Admin quote drafts (#1446)", () => {
     await page.getByText("Select a partner").click()
     await page.getByRole("option", { name: /E2E Content Partner/ }).first().click()
     await page.getByText("Select a region").click()
-    await page.getByRole("option", { name: /Singapore/ }).click()
+    await page.getByRole("option", { name: regionOption }).click()
     await page.getByRole("button", { name: "Save" }).click()
     await page.waitForURL(/\/app\/quotes\/drafts\//, { timeout: 30000 })
 

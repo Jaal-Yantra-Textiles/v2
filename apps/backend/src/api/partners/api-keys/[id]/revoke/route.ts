@@ -2,6 +2,7 @@ import { AuthenticatedMedusaRequest, MedusaResponse } from "@medusajs/framework/
 import { ContainerRegistrationKeys, MedusaError } from "@medusajs/framework/utils"
 import { revokeApiKeysWorkflow } from "@medusajs/medusa/core-flows"
 import { getPartnerFromAuthContext } from "../../../helpers"
+import { presentRows } from "../../../../../lib/links/dangling"
 
 export const POST = async (
   req: AuthenticatedMedusaRequest,
@@ -24,7 +25,7 @@ export const POST = async (
     fields: ["id", "stores.*"],
     filters: { id: partner.id },
   })
-  const stores = partnerData?.[0]?.stores || []
+  const stores = presentRows(partnerData?.[0]?.stores)
   const salesChannelIds = stores
     .map((s: any) => s.default_sales_channel_id)
     .filter(Boolean)

@@ -32,6 +32,37 @@ export type GraphNode = {
   href: string | null
   props: GraphProp[]
   action: { label: string; href: string | null } | null
+  /** A job this node can RUN. Mirrors `NodeAct` in `src/lib/graph/types.ts`. */
+  act?: NodeAct | null
+}
+
+/**
+ * A two-press operation offered on a node: preview, then apply.
+ *
+ * 🔴 Both bodies come from the SERVER and are sent verbatim — the client never
+ * flips `dry_run` itself. The whole point of shipping two named bodies is that
+ * the call which writes is a different value chosen by a different press, not
+ * the same object with a mutated flag.
+ */
+export type NodeAct = {
+  method: "POST"
+  path: string
+  previewBody: Record<string, unknown> | null
+  /** Null where the act has nothing to apply — render no apply button at all. */
+  applyBody: Record<string, unknown> | null
+  label: string
+  confirm: string
+}
+
+/** What a maintenance-job run answers with. */
+export type NodeActResult = {
+  result: {
+    job_id: string
+    dry_run: boolean
+    applied: boolean
+    summary: string
+    changes: Array<{ id: string; note?: string }>
+  }
 }
 
 export type GraphEdge = {
@@ -183,6 +214,42 @@ export const useRemoveGraphNodeItem = (
       })
       queryClient.invalidateQueries({ queryKey: graphQueryKeys.detail(spine, id) })
       options?.onSuccess?.(...args)
+    },
+  })
+}
+
+/**
+ * Run the job a node offers, through the path the server named.
+ *
+ * 🔴 Invalidates the graph and the node's rows on success, and does it for the
+ * PREVIEW as well as the apply. A dry run writes nothing, but the sweep behind
+ * this board records a run — so the board's "last swept" is stale the moment a
+ * preview returns, and a board that states a time it no longer means is worse
+ * than one that states none.
+ *
+ * 🔴 `...options` BEFORE `onSuccess`. Spread after, the caller's handler
+ * silently replaces the invalidation and the screen stays stale until a hard
+ * refresh — the defect that was live in 165 admin hooks (#1800).
+ */
+export const useRunGraphNodeAct = (
+  spine: string,
+  id: string,
+  options?: UseMutationOptions<NodeActResult, FetchError, { act: NodeAct; apply: boolean }>,
+) => {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: ({ act, apply }: { act: NodeAct; apply: boolean }) => {
+      const body = apply ? act.applyBody : act.previewBody
+      return sdk.client.fetch<NodeActResult>(act.path, {
+        method: act.method,
+        ...(body ? { body } : {}),
+      })
+    },
+    ...options,
+    onSuccess: (...args: Parameters<NonNullable<typeof options>["onSuccess"] & {}>) => {
+      queryClient.invalidateQueries({ queryKey: graphQueryKeys.detail(spine, id) })
+      queryClient.invalidateQueries({ queryKey: ["graph", spine, id, "items"] })
+      return options?.onSuccess?.(...args)
     },
   })
 }

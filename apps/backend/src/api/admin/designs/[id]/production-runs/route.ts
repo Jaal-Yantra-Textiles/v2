@@ -109,6 +109,7 @@ import { approveProductionRunWorkflow } from "../../../../../workflows/productio
 import { autoDispatchApprovedChildren } from "../../../production-runs/auto-dispatch-approved-children"
 
 import type { AdminCreateDesignProductionRunReq } from "./validators"
+import { presentRows } from "../../../../../lib/links/dangling"
 
 export const POST = async (
   req: MedusaRequest<AdminCreateDesignProductionRunReq>,
@@ -141,7 +142,17 @@ export const POST = async (
       filters: { id: designId },
       fields: ["partners.id", "partners.name"],
     })
-    const linkedPartners = designs?.[0]?.partners || []
+    /*
+     * 🔴 Dangling link rows must not get a share of the quantity (#1857). A
+     * null here is a `design_partners_link` row whose partner is gone or
+     * soft-deleted; unfiltered it counts toward `linkedPartners.length`, so
+     * every real partner's split shrinks and one child run is created with
+     * `partner_id: undefined`. Nothing throws — the run is simply smaller than
+     * asked for, which is the hardest kind of wrong to notice.
+     */
+    const linkedPartners = presentRows<{ id: string; name?: string }>(
+      designs?.[0]?.partners
+    )
 
     if (linkedPartners.length && body.quantity != null) {
       // Single partner: assign full quantity

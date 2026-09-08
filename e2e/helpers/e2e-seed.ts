@@ -377,6 +377,53 @@ async function seedAdminQuotes(container: any): Promise<{
   })
   const partner = Array.isArray(createdPartner) ? createdPartner[0] : createdPartner
 
+  /**
+   * 🔴 The store, without which this partner cannot be quoted AT ALL.
+   *
+   * `POST /admin/quotes/drafts` and `POST /admin/quotes` both refuse a partner
+   * with no store — "a quote is priced against a store's catalogue and shipped
+   * from its location" — and the refusal is correct. The fixture was the thing
+   * that was wrong: it created a quote partner that no quote route would
+   * accept, so the mint wizard's Save 500'd, `waitForURL` timed out 30s later,
+   * and `admin-quote-deposit-terms` failed pointing at a navigation.
+   *
+   * A seed defect wearing the costume of a broken screen, exactly like the
+   * gate partner's missing store defaults below. This took e2e red on `main`
+   * for every branch, which is why it is fixed here rather than filed.
+   */
+  const quoteQuery = container.resolve(ContainerRegistrationKeys.QUERY)
+  const quoteLink = container.resolve(ContainerRegistrationKeys.LINK)
+  const [{ data: qRegions }, { data: qChannels }, { data: qLocations }] =
+    await Promise.all([
+      quoteQuery.graph({ entity: "region", fields: ["id"] }),
+      quoteQuery.graph({ entity: "sales_channel", fields: ["id"] }),
+      quoteQuery.graph({ entity: "stock_location", fields: ["id"] }),
+    ])
+  const qRegionId = qRegions?.[0]?.id
+  const qChannelId = qChannels?.[0]?.id
+  const qLocationId = qLocations?.[0]?.id
+  if (!qRegionId || !qChannelId || !qLocationId) {
+    throw new Error(
+      `E2E seed: the quote partner's store needs a region (${qRegionId}), a sales channel (${qChannelId}) and a stock location (${qLocationId}). Run the demo seed first: \`medusa exec ./src/scripts/seed.ts\`.`
+    )
+  }
+
+  const quoteStoreModule: any = container.resolve(Modules.STORE)
+  const createdQuoteStore: any = await quoteStoreModule.createStores({
+    name: `E2E Quote Store ${stamp}`,
+    default_sales_channel_id: qChannelId,
+    default_location_id: qLocationId,
+    default_region_id: qRegionId,
+  })
+  const quoteStoreId = Array.isArray(createdQuoteStore)
+    ? createdQuoteStore[0].id
+    : createdQuoteStore.id
+
+  await quoteLink.create({
+    partner: { partner_id: partner.id },
+    store: { store_id: quoteStoreId },
+  })
+
   // Stamped company names: the spec SEARCHES for these, and the search reaches
   // the server (#1461), so a duplicate from a previous seed would make a
   // one-row assertion flap.
@@ -2253,6 +2300,63 @@ async function seedRateBreakdownSubmission(container: any): Promise<{
 const SEED_PASSWORD = "e2etest123!"
 const SEED_FILE = path.resolve(__dirname, "../../apps/backend/.e2e-seed.json")
 
+
+/**
+ * A partner whose two CONTROL cards are both drawable (#1856, #1857).
+ *
+ * 🔴 This fixture exists because the states cannot be found in real data.
+ * Measured on the local database while wiring the act rail: of **338 partners,
+ * exactly one had a WhatsApp number and it was verified, and ZERO had a custom
+ * domain**. Both cards were therefore unreachable, and an affordance nobody can
+ * exercise is the #1855 trap — four marketing rules shipped against tables with
+ * no rows in them.
+ *
+ * The two fields are set unverified on purpose. `whatsappUnverified` and
+ * `domainUnverified` are what put the cards on the partner spine at all, and
+ * the spec's whole subject is the button those cards now carry.
+ */
+export async function seedActRailPartner(container: any): Promise<{
+  partnerId: string
+  partnerName: string
+  whatsappNumber: string
+  customDomain: string
+}> {
+  // 🔴 The literal, like every other partner fixture in this file. The seed
+  // does not import the module constants, and a bare `PARTNER_MODULE` here is
+  // a ReferenceError that kills the seed — which means EVERY spec fails before
+  // it runs, and the failure reads like the module is unregistered.
+  const partnerModule: any = container.resolve("partner")
+  const stamp = Date.now()
+
+  /*
+   * A number that is syntactically real and belongs to nobody. The spec
+   * CANCELS the confirm rather than pressing through — the endpoint behind
+   * this card sends a live WhatsApp template — but a seed that put a real
+   * number here would be one misread assertion away from messaging a stranger.
+   */
+  const whatsappNumber = `9199${String(stamp).slice(-8)}`
+  const customDomain = `e2e-${stamp}.example.test`
+
+  const created = await partnerModule.createPartners({
+    name: `E2E Act Rail Partner ${stamp}`,
+    handle: `e2e-act-rail-${stamp}`,
+    status: "active",
+    is_verified: true,
+    whatsapp_number: whatsappNumber,
+    whatsapp_verified: false,
+    custom_domain: customDomain,
+    custom_domain_verified: false,
+  })
+  const row = Array.isArray(created) ? created[0] : created
+
+  return {
+    partnerId: row.id as string,
+    partnerName: row.name as string,
+    whatsappNumber,
+    customDomain,
+  }
+}
+
 export default async function e2eSeed({ container }: ExecArgs) {
   const logger = container.resolve(ContainerRegistrationKeys.LOGGER)
   const userModule = container.resolve(Modules.USER)
@@ -2457,6 +2561,46 @@ export default async function e2eSeed({ container }: ExecArgs) {
   logger.info("E2E seed: creating payment-methods partner + two methods (settings/payments spec)...")
   const paymentMethods = await seedPaymentMethodsPartner(container)
 
+  logger.info("E2E seed: creating act-rail partner (unverified WhatsApp + domain)...")
+  const actRail = await seedActRailPartner(container)
+
+  /**
+   * 🔴 The parked run is re-asserted LAST, because something later in this
+   * seed moves it.
+   *
+   * Measured: the fixture is created `awaiting_reassignment` and read back
+   * `approved` with its `cancelled_reason` cleared, updated 90 seconds after
+   * creation — i.e. while this seed was still running, not during the specs.
+   * The result is a fixture whose state depends on seeding order, so
+   * `production-run-reassign` passes on one seed and fails on the next looking
+   * for "awaiting reassignment" on a run that is no longer parked.
+   *
+   * A seed's contract is the state of its fixtures at the moment it writes the
+   * file. This makes that true rather than hoping nothing downstream reaches
+   * back — and it throws if the re-force does not stick, so a fixture that
+   * cannot be parked is a loud seed failure instead of a silent spec one.
+   */
+  const runsForCheck: any = container.resolve("production_runs")
+  const parkedNow = await runsForCheck.retrieveProductionRun(parkedRun.runId)
+  if (parkedNow?.status !== "awaiting_reassignment") {
+    logger.warn(
+      `E2E seed: parked run ${parkedRun.runId} drifted to "${parkedNow?.status}" during seeding — re-parking it.`
+    )
+    await runsForCheck.updateProductionRuns({
+      id: parkedRun.runId,
+      status: "awaiting_reassignment",
+      partner_id: null,
+      previous_partner_id: parkedRun.lapsedPartnerId,
+      cancelled_reason: "Declined by partner (capacity): Machine servicing",
+    })
+    const reparked = await runsForCheck.retrieveProductionRun(parkedRun.runId)
+    if (reparked?.status !== "awaiting_reassignment") {
+      throw new Error(
+        `E2E seed: could not park run ${parkedRun.runId} — it reads "${reparked?.status}". production-run-reassign.spec.ts cannot pass against this fixture.`
+      )
+    }
+  }
+
   const seedData = {
     email,
     password: SEED_PASSWORD,
@@ -2514,6 +2658,15 @@ export default async function e2eSeed({ container }: ExecArgs) {
     paymentsEditMethodName: paymentMethods.editMethodName,
     paymentsDeleteMethodId: paymentMethods.deleteMethodId,
     paymentsDeleteMethodName: paymentMethods.deleteMethodName,
+    /*
+     * #1856/#1857 act rail — consumed by admin-graph-act-rail.spec.ts (admin,
+     * CI). NOT single-use: the spec cancels every confirm, so the partner is
+     * left exactly as seeded and the fixture survives a re-run.
+     */
+    actRailPartnerId: actRail.partnerId,
+    actRailPartnerName: actRail.partnerName,
+    actRailWhatsappNumber: actRail.whatsappNumber,
+    actRailCustomDomain: actRail.customDomain,
     // #1363 per-assignment material allocation — consumed by
     // production-run-material-allocation.spec.ts (admin, CI). SINGLE-USE like
     // every other run fixture: the spec approves the run, and an approved run

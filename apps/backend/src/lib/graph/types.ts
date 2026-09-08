@@ -30,6 +30,58 @@ export type GraphNode = {
   props: GraphProp[]
   /** Present only on an absent node: what would bring it into existence. */
   action: { label: string; href: string | null } | null
+  /**
+   * A job this node can RUN, as opposed to a page it can send you to.
+   *
+   * 🔴 The gap this closes (#1856 → #1857). Until now a node had exactly two
+   * affordances: a registered create/edit form, or `action` — a LINK. That is
+   * enough for a spine whose absences are records somebody fills in, and it is
+   * nothing at all for a node whose answer is an operation: compact these
+   * markers, re-run this sweep, reconcile these balances. The partner spine
+   * has been carrying four cards drawn `derived` for exactly this reason —
+   * verify, provision, apply — and the dangling board cannot exist without it,
+   * because a board that can only report is the report it was meant to replace.
+   *
+   * OPTIONAL, deliberately: four spines already build `GraphNode` literals by
+   * hand and a required field would make adding an affordance a rename across
+   * all of them. Absent means "this node runs nothing", which is the truth for
+   * every node that predates this.
+   */
+  act?: NodeAct | null
+}
+
+/**
+ * A two-press operation offered on a node: preview, then apply.
+ *
+ * Modelled on `NodeItemRemoval` and for the same reason — the SERVER builds
+ * the path and both bodies, and the client sends them verbatim. A client that
+ * assembled a call to `/admin/ops/maintenance-jobs/:id/run` would be choosing,
+ * from the browser, which job runs and whether it writes.
+ *
+ * 🔴 The two bodies are separate fields rather than one body plus a flag. A
+ * single body the client mutates to flip `dry_run` is one typo away from
+ * applying what the reader asked to preview, and that typo is invisible in
+ * review. Here the destructive call is a different value, named as such,
+ * chosen by a different press.
+ */
+export type NodeAct = {
+  method: "POST"
+  path: string
+  /** The safe call. For a maintenance job this carries `dry_run: true`. */
+  previewBody: Record<string, unknown> | null
+  /**
+   * The call that writes, or NULL where the act has nothing to apply — a
+   * read-only job like the sweep itself. Null must render no apply button at
+   * all rather than a disabled one: a greyed-out "Apply" implies a write that
+   * is merely unavailable, when in fact there is none.
+   */
+  applyBody: Record<string, unknown> | null
+  label: string
+  /**
+   * What the reader is told before the apply press. Empty where `applyBody`
+   * is null and nothing is being confirmed.
+   */
+  confirm: string
 }
 
 export type GraphEdge = {
@@ -85,7 +137,14 @@ export type NodeItem = {
 export type NodeItemRemoval = {
   method: "DELETE" | "POST"
   path: string
-  /** Sent as the JSON body on a POST. Null on a DELETE. */
+  /**
+   * Sent as the JSON body, or null where the route needs none.
+   *
+   * 🔴 Not "null on a DELETE". `DELETE /admin/partners/:id/people` takes
+   * `{ person_ids }` — the admin's own unlink hook has always sent it that
+   * way, and the client here forwards `body` on whatever method is named. The
+   * shape of the existing route decides this, not the verb.
+   */
   body: Record<string, unknown> | null
   /** The words on the button. "Remove", "Unlink", "Cancel assignment". */
   label: string

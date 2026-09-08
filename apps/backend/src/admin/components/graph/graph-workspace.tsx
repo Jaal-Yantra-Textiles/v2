@@ -7,6 +7,7 @@ import { RouteDrawer } from "../modal/route-drawer/route-drawer"
 import { GraphCanvas, canvasSize } from "./graph-canvas"
 import { GraphViewport } from "./graph-viewport"
 import {
+  NodeInspectorAct,
   NodeInspectorActions,
   NodeInspectorBody,
   NodeInspectorHeader,
@@ -362,6 +363,16 @@ export const GraphWorkspace = ({ spine, id, title = "Graph", selfHref }: Props) 
                 href={another.href(id)}
               />
             )}
+            {/*
+              The ACT rail sits BESIDE the action rail, not inside it (#1857).
+              They answer different questions — the action rail names a page
+              that would create the missing neighbour, the act rail runs a job
+              against the one that is wrong — and a node can legitimately have
+              both. Folding the act into `actionRail`'s three-way choice would
+              have made them exclusive, and the node that most needs the job is
+              exactly the node that also has somewhere to send you.
+            */}
+            <NodeInspectorAct node={active} spine={spine} id={id} />
             <NodeInspectorActions node={active} mode={rail} />
           </RouteDrawer.Body>
         </RouteDrawer>

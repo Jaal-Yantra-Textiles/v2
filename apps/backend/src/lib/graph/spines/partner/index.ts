@@ -463,21 +463,66 @@ const resolvePartnerGraph = async ({ scope, id }: SpineContext): Promise<Graph> 
     )
   }
 
+  /*
+   * ---- people, and the link rows that resolve to nobody ------------------
+   *
+   * 🔴 `dangling` is DRAWN, not just excluded (#1857).
+   *
+   * Counting link rows was the original fault: a node read "4 linked" against
+   * four rows whose people do not exist. Filtering them out fixed the lie and
+   * introduced a quieter one — with every row dangling, `personIds` is empty
+   * and NO node is emitted at all, so the partner that provoked this whole
+   * issue draws a graph with nothing wrong on it. "Nobody was ever linked" and
+   * "four links point at nobody" are different facts and must not render the
+   * same.
+   */
+  const danglingPeople = linkedPersonIds.length - personIds.length
+
   if (personIds.length) {
     push(
       {
         key: "people",
         type: "person",
         label: "People",
-        sublabel: `${personIds.length} linked`,
+        sublabel: danglingPeople
+          ? `${personIds.length} linked, ${danglingPeople} missing`
+          : `${personIds.length} linked`,
         state: "present",
         count: personIds.length,
         status: null,
         href: `/partners/${partnerId}`,
-        props: [{ key: "people", value: String(personIds.length) }],
+        props: [
+          { key: "people", value: String(personIds.length) },
+          ...(danglingPeople
+            ? [{ key: "dangling links", value: String(danglingPeople) }]
+            : []),
+        ],
         action: null,
       },
       { label: "partner_person", state: "present", reason: null }
+    )
+  } else if (danglingPeople) {
+    push(
+      {
+        key: "people",
+        type: "person",
+        label: "People",
+        sublabel: `${danglingPeople} ${danglingPeople === 1 ? "link points" : "links point"} at nobody`,
+        state: "absent",
+        count: 0,
+        status: null,
+        href: `/partners/${partnerId}`,
+        props: [
+          { key: "link rows", value: String(linkedPersonIds.length) },
+          { key: "people that exist", value: "0" },
+        ],
+        action: { label: "Link a person", href: `/partners/${partnerId}` },
+      },
+      {
+        label: "partner_person",
+        state: "absent",
+        reason: `This partner has ${danglingPeople} ${danglingPeople === 1 ? "link row" : "link rows"} to people that no longer exist or have been deleted, and nobody it can actually reach. Anything counting the link table reports this partner as having people; nothing can open one.`,
+      }
     )
   }
 
@@ -524,7 +569,34 @@ const resolvePartnerGraph = async ({ scope, id }: SpineContext): Promise<Graph> 
           { key: "number", value: String(partner.whatsapp_number) },
           { key: "verified", value: "no" },
         ],
+        /*
+         * 🔴 Kept, and now DEAD ON PURPOSE — it renders disabled because
+         * `href` is null, and the working affordance is the act below. The
+         * words stay so a reader still learns what the missing step is called
+         * where the rail is rendered without acts.
+         */
         action: { label: "Verify the number", href: null },
+        /*
+         * The act #1856 was waiting for. `POST /admin/partners/:id/
+         * whatsapp-verify` has existed all along; the graph could name the
+         * step and not take it.
+         *
+         * 🔴 NO PREVIEW, and that is not an omission. This endpoint SENDS A
+         * WHATSAPP TEMPLATE to a real partner — there is no dry run of a
+         * message that has already left. So `previewBody` is null, which the
+         * rail renders as a single confirmed press, and the confirm says what
+         * the partner will receive.
+         */
+        act: {
+          method: "POST",
+          path: `/admin/partners/${partnerId}/whatsapp-verify`,
+          previewBody: null,
+          applyBody: { phone: String(partner.whatsapp_number) },
+          label: "Verify the number",
+          confirm: `Sends a WhatsApp welcome template to ${String(
+            partner.whatsapp_number
+          )} and starts the consent flow. The partner receives a real message — there is no preview and it cannot be recalled.`,
+        },
       },
       {
         label: "whatsapp_number",
@@ -551,6 +623,24 @@ const resolvePartnerGraph = async ({ scope, id }: SpineContext): Promise<Graph> 
           { key: "verified", value: "no" },
         ],
         action: { label: "Verify the domain", href: null },
+        /*
+         * `POST /admin/partners/:id/storefront/domain/verify` — re-checks
+         * ownership with the hosting provider and, for Vercel partners inside
+         * the Cloudflare zone we control, pushes the DNS Vercel recommends so
+         * the domain self-heals.
+         *
+         * 🔴 No preview here either: it WRITES DNS. Nothing about it is a read.
+         */
+        act: {
+          method: "POST",
+          path: `/admin/partners/${partnerId}/storefront/domain/verify`,
+          previewBody: null,
+          applyBody: {},
+          label: "Verify the domain",
+          confirm: `Re-checks ${String(
+            partner.custom_domain
+          )} with the hosting provider and, on Vercel, pushes the DNS it recommends through Cloudflare. This changes live DNS records — there is no dry run.`,
+        },
       },
       {
         label: "custom_domain",

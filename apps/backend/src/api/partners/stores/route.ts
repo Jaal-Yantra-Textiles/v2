@@ -205,6 +205,7 @@ import { ContainerRegistrationKeys, MedusaError } from "@medusajs/framework/util
 import { PartnerCreateStoreReq } from "./validators"
 import { createStoreWithDefaultsWorkflow } from "../../../workflows/stores/create-store-with-defaults"
 import { getPartnerFromAuthContext } from "../helpers"
+import { presentRows } from "../../../lib/links/dangling"
 
 export const GET = async (
   req: AuthenticatedMedusaRequest,
@@ -228,7 +229,7 @@ export const GET = async (
     filters: { id: partner.id },
   })
 
-  const stores = (data?.[0]?.stores || []) as any[]
+  const stores = presentRows(data?.[0]?.stores) as any[]
 
   if (!stores.length) {
     return res.status(200).json({

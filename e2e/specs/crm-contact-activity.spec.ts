@@ -41,10 +41,30 @@ test.describe("CRM contact detail", () => {
       )
     }
     seed = JSON.parse(fs.readFileSync(SEED_FILE, "utf-8"))
+    /*
+     * 🔴 Loud on CI, skipped locally — and the difference is deliberate.
+     *
+     * The CRM is a Hyperbee node, not Postgres. Without `CRM_HYPERBEE=true`
+     * (or `CRM_NODE_URL`) the module never registers, the seed logs
+     * "[crm] disabled" and writes `crmPersonId: null`, and these screens render
+     * an empty state that would let a broken section pass — which is why this
+     * has always thrown rather than skipped.
+     *
+     * But CI sets it and a developer's machine does not, so on every local run
+     * these three specs failed for a reason nobody could act on. A red that
+     * everyone learns to ignore costs more than it protects: it is the noise a
+     * real failure has to be spotted against.
+     *
+     * So: on CI a missing fixture is still a hard failure, because there it
+     * means the CRM actually broke. Locally it is a skip that says why.
+     */
     if (!seed.crmPersonId) {
-      throw new Error(
-        "E2E seed missing crmPersonId — re-run the seed with CRM_HYPERBEE=true."
-      )
+      const why =
+        "CRM fixtures absent — the seed logged \"[crm] disabled\". Set CRM_HYPERBEE=true (or CRM_NODE_URL) and re-seed to run these."
+      if (process.env.CI) {
+        throw new Error(`E2E seed missing crmPersonId on CI. ${why}`)
+      }
+      test.skip(true, why)
     }
   })
 

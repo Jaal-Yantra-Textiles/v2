@@ -10,18 +10,26 @@ import type { NodeItem, SpineContext } from "../../types"
 /**
  * The members behind a partner's aggregate nodes.
  *
- * 🔴 Nothing here offers a `remove`, and that is a decision rather than an
- * omission. Detaching a partner's work is not the mirror of detaching a
- * design's: a run belongs to the design that ordered it, a submission is a
- * financial record, a payment method may already have been paid to, and a
- * person may be linked from either side. Every one of those has a route of its
- * own with its own guards; surfacing a bin icon here would either duplicate
- * that logic or bypass it.
+ * 🔴 Only TWO of these offer a `remove`, and the split is the point (#1856).
+ * Detaching a partner's work is not the blanket mirror of detaching a design's:
+ * a run belongs to the design that ordered it, a submission is a financial
+ * record, an order is history. A bin icon on those would either duplicate the
+ * guards their own routes already run or bypass them.
+ *
+ * What DOES detach is the two relationships the partner is genuinely a party
+ * to — the people linked to it, and its design assignments — and both name an
+ * EXISTING admin endpoint rather than carrying unlink logic of their own.
+ * `admins`, `payment_methods`, `submissions` and `runs` deliberately carry
+ * none: the first two have no delete route at all (only `POST` and `PATCH`
+ * exist), and inventing one here would put a destructive path in the graph
+ * before it exists anywhere else.
  *
  * The rows are worth listing regardless — "which four designs?" is exactly the
  * question the count provokes, and answering it is most of what the drawer is
  * for.
  */
+
+const s = (n: number, word: string) => (n === 1 ? word : `${word}s`)
 
 const designItems = async (query: any, partnerId: string): Promise<NodeItem[]> => {
   const { data: links } = await query.graph({
@@ -32,27 +40,70 @@ const designItems = async (query: any, partnerId: string): Promise<NodeItem[]> =
   const ids = asArray<any>(links).map((l) => l.design_id).filter(Boolean)
   if (!ids.length) return []
 
-  const { data: designs } = await query.graph({
-    entity: "designs",
-    filters: { id: ids },
-    fields: ["id", "name", "status", "design_type", "priority"],
-  })
+  const [{ data: designs }, { data: runs }] = await Promise.all([
+    query.graph({
+      entity: "designs",
+      filters: { id: ids },
+      fields: ["id", "name", "status", "design_type", "priority"],
+    }),
+    /*
+     * The partner's runs, so the confirm text can say what unlinking costs.
+     * Filtered by partner rather than by design: this is the removal of THIS
+     * partner from the design, and the design's other partners' runs are none
+     * of its business.
+     */
+    query.graph({
+      entity: "production_runs",
+      filters: { partner_id: partnerId },
+      fields: ["id", "design_id", "status"],
+    }),
+  ])
 
-  return asArray<any>(designs).map((d) => ({
-    id: String(d.id),
-    label: String(d.name ?? d.id),
-    sublabel:
-      [d.design_type, d.priority ? `${d.priority} priority` : null]
-        .filter(Boolean)
-        .join(" · ") || null,
-    status: d.status ? String(d.status) : null,
-    href: `/designs/${d.id}`,
-    props: [
-      ...(d.design_type ? [{ key: "type", value: String(d.design_type) }] : []),
-      ...(d.priority ? [{ key: "priority", value: String(d.priority) }] : []),
-    ],
-    remove: null,
-  }))
+  const runList = asArray<any>(runs)
+
+  return asArray<any>(designs).map((d) => {
+    const live = runList.filter(
+      (r) =>
+        r.design_id === d.id &&
+        !["cancelled", "completed"].includes(String(r.status))
+    )
+    return {
+      id: String(d.id),
+      label: String(d.name ?? d.id),
+      sublabel:
+        [d.design_type, d.priority ? `${d.priority} priority` : null]
+          .filter(Boolean)
+          .join(" · ") || null,
+      status: d.status ? String(d.status) : null,
+      href: `/designs/${d.id}`,
+      props: [
+        ...(d.design_type ? [{ key: "type", value: String(d.design_type) }] : []),
+        ...(d.priority ? [{ key: "priority", value: String(d.priority) }] : []),
+        { key: "live runs", value: String(live.length) },
+      ],
+      /*
+       * 🔴 The SAME endpoint the design spine's partner row uses, with the two
+       * ids swapped round. That is the whole reason this is safe to offer from
+       * here: `cancel-partner-assignment` already verifies the partner is
+       * linked, cancels their live runs and open tasks, and compensates. A
+       * second unlink path for the same link table is exactly the fault
+       * `delete-design` was carrying — one of twenty tables handled by name.
+       *
+       * 🔴 And it is NOT called "Unlink" when runs are live. The workflow
+       * cancels production; a button whose label hides that is the worst thing
+       * that could sit in this drawer, so the count is in the sentence.
+       */
+      remove: {
+        method: "POST" as const,
+        path: `/admin/designs/${d.id}/cancel-partner-assignment`,
+        body: { partner_id: partnerId, unlink: true },
+        label: live.length ? "Cancel assignment" : "Unlink",
+        confirm: live.length
+          ? `Cancel this partner's assignment on ${d.name || "this design"}? ${live.length} live ${s(live.length, "run")} of theirs and the open tasks on ${live.length === 1 ? "it" : "them"} are cancelled, and the partner is unlinked.`
+          : `Unlink this partner from ${d.name || "this design"}? No live runs are affected.`,
+      },
+    }
+  })
 }
 
 const runItems = async (query: any, partnerId: string): Promise<NodeItem[]> => {
@@ -171,15 +222,34 @@ const peopleItems = async (query: any, partnerId: string): Promise<NodeItem[]> =
     fields: ["id", "first_name", "last_name", "email"],
   })
 
-  return asArray<any>(people).map((p) => ({
-    id: String(p.id),
-    label: [p.first_name, p.last_name].filter(Boolean).join(" ") || String(p.id),
-    sublabel: p.email ? String(p.email) : null,
-    status: null,
-    href: `/persons/${p.id}`,
-    props: p.email ? [{ key: "email", value: String(p.email) }] : [],
-    remove: null,
-  }))
+  return asArray<any>(people).map((p) => {
+    const name =
+      [p.first_name, p.last_name].filter(Boolean).join(" ") || String(p.id)
+    return {
+      id: String(p.id),
+      label: name,
+      sublabel: p.email ? String(p.email) : null,
+      status: null,
+      href: `/persons/${p.id}`,
+      props: p.email ? [{ key: "email", value: String(p.email) }] : [],
+      /*
+       * 🔴 A `DELETE` that carries a BODY. `/admin/partners/:id/people` takes
+       * `{ person_ids }` on both POST and DELETE, and the admin's own unlink
+       * hook has always sent it that way — so this is the route's real shape,
+       * not a new one. It dismisses the link and leaves the person standing,
+       * which is why the sentence says so out loud: the neighbouring row in
+       * this same drawer ("Cancel assignment") does cancel real work, and the
+       * two must not read alike.
+       */
+      remove: {
+        method: "DELETE" as const,
+        path: `/admin/partners/${partnerId}/people`,
+        body: { person_ids: [String(p.id)] },
+        label: "Unlink",
+        confirm: `Unlink ${name} from this partner? The person record is untouched — they lose access to the partner's shared folders.`,
+      },
+    }
+  })
 }
 
 const adminItems = async (query: any, partnerId: string): Promise<NodeItem[]> => {

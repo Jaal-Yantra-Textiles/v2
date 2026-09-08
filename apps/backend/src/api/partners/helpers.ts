@@ -2,6 +2,7 @@ import { MedusaContainer } from "@medusajs/framework"
 import { ContainerRegistrationKeys, MedusaError, Modules } from "@medusajs/framework/utils"
 import partnerOrderLink from "../../links/partner-order"
 import { pickPartnerShipFromLocation } from "./lib/ship-from-location"
+import { presentRows } from "../../lib/links/dangling"
 
 export const refetchPartner = async (
     partnerId: string,
@@ -65,7 +66,13 @@ export const validatePartnerStoreAccess = async (
         filters: { id: partner.id },
     })
 
-    const stores = (data?.[0]?.stores || []) as any[]
+    /*
+     * 🔴 Only the stores that RESOLVED (#1857). A dangling
+     * `partner_partner_stores_store` row arrives as a null: `s.id` on it
+     * throws a 500 in the ownership check below, and where it lands at index 0
+     * it makes a partner who HAS a store look like one that has none.
+     */
+    const stores = presentRows(data?.[0]?.stores) as any[]
     const store = stores.find((s: any) => s.id === storeId)
 
     if (!store) {
@@ -106,7 +113,13 @@ export const getPartnerStore = async (
         filters: { id: partner.id },
     })
 
-    const stores = (data?.[0]?.stores || []) as any[]
+    /*
+     * 🔴 Only the stores that RESOLVED (#1857). A dangling
+     * `partner_partner_stores_store` row arrives as a null: `s.id` on it
+     * throws a 500 in the ownership check below, and where it lands at index 0
+     * it makes a partner who HAS a store look like one that has none.
+     */
+    const stores = presentRows(data?.[0]?.stores) as any[]
     if (!stores.length) {
         throw new MedusaError(
             MedusaError.Types.NOT_FOUND,
@@ -149,7 +162,13 @@ export const tryGetPartnerStore = async (
         filters: { id: partner.id },
     })
 
-    const stores = (data?.[0]?.stores || []) as any[]
+    /*
+     * 🔴 Only the stores that RESOLVED (#1857). A dangling
+     * `partner_partner_stores_store` row arrives as a null: `s.id` on it
+     * throws a 500 in the ownership check below, and where it lands at index 0
+     * it makes a partner who HAS a store look like one that has none.
+     */
+    const stores = presentRows(data?.[0]?.stores) as any[]
     return { partner, store: stores[0] || null }
 }
 

@@ -10,6 +10,7 @@ import { DESIGN_MODULE } from "../../modules/designs"
 import { PARTNER_MODULE } from "../../modules/partner"
 import { TASKS_MODULE } from "../../modules/tasks"
 import { PRODUCTION_RUNS_MODULE } from "../../modules/production_runs"
+import { presentRows } from "../../lib/links/dangling"
 
 export type CancelPartnerAssignmentInput = {
   design_id: string
@@ -53,7 +54,14 @@ const cancelPartnerRunsStep = createStep(
         fields: ["tasks.id", "tasks.status"],
         filters: { id: run.id },
       })
-      for (const t of rd?.[0]?.tasks || []) {
+      /*
+       * 🔴 Present tasks only (#1857). A dangling `production_run_task` link
+       * resolves to a null here, and `t.status` on it throws INSIDE a step
+       * that has already cancelled runs — the compensation would then run over
+       * a partially cancelled cascade. This is reachable from the partner
+       * graph's "Cancel assignment" row.
+       */
+      for (const t of presentRows<{ id: string; status?: string }>(rd?.[0]?.tasks)) {
         if (t.status !== "completed" && t.status !== "cancelled") {
           await taskService.updateTasks({ id: t.id, status: "cancelled" })
           cancelledTasks++

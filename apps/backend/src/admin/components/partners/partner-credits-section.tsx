@@ -271,7 +271,12 @@ export const PartnerCreditsSection = ({ partnerId }: { partnerId: string }) => {
       })
 
   return (
-    <Container className="divide-y p-0" data-partner-id={partnerId}>
+    /* Its own name — see the note in `partner-ledger-section.tsx`. */
+    <Container
+      className="divide-y p-0"
+      data-panel="partner-credits"
+      data-partner-id={partnerId}
+    >
       <div className="flex items-center justify-between px-6 py-4">
         <div className="flex items-center gap-x-2">
           <Heading level="h2">Credits</Heading>

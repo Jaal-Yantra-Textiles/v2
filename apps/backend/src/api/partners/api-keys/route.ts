@@ -3,6 +3,7 @@ import { ContainerRegistrationKeys, MedusaError, Modules } from "@medusajs/frame
 import { createApiKeysWorkflow, linkSalesChannelsToApiKeyWorkflow } from "@medusajs/medusa/core-flows"
 import { getPartnerFromAuthContext } from "../helpers"
 import { PartnerCreateApiKeyReq } from "./validators"
+import { presentRows } from "../../../lib/links/dangling"
 
 async function getPartnerSalesChannelIds(partner: any, container: any): Promise<string[]> {
   const query = container.resolve(ContainerRegistrationKeys.QUERY)
@@ -12,7 +13,7 @@ async function getPartnerSalesChannelIds(partner: any, container: any): Promise<
     filters: { id: partner.id },
   })
 
-  const stores = data?.[0]?.stores || []
+  const stores = presentRows(data?.[0]?.stores)
   return stores
     .map((s: any) => s.default_sales_channel_id)
     .filter(Boolean)
