@@ -1372,6 +1372,10 @@ const validateInventoryOrderLinesStep = createStep(
         "orderlines.id",
         "orderlines.quantity",
         "orderlines.price",
+        // Per-unit colour/finishing charge — part of what is owed. Must match
+        // the field list in `payable-inventory-orders.ts`, or the offer and the
+        // bill price the same order differently.
+        "orderlines.extra_cost",
         "orderlines.material_name",
         "orderlines.line_fulfillments.quantity_delta",
         /**

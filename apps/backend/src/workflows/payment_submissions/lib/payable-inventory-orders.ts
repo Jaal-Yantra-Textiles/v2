@@ -136,6 +136,10 @@ export const listPayableInventoryOrders = async (
       "inventory_orders.orderlines.id",
       "inventory_orders.orderlines.quantity",
       "inventory_orders.orderlines.price",
+      // Per-unit colour/finishing charge. Owed alongside `price`, so the payable
+      // ceiling this list offers must fetch it — `valueInventoryOrderByReceipts`
+      // cannot add a field the query dropped.
+      "inventory_orders.orderlines.extra_cost",
       "inventory_orders.orderlines.material_name",
       // 🔴 The receipts. The typed rows, never `metadata.partner_delivery_history`
       // — the two disagree by INR 4,050 on a real order and these are what the
