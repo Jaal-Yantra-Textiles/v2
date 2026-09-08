@@ -182,9 +182,9 @@ export const useCreatePartnerDesign = (
         { method: "POST", body: payload }
       )
     },
-    onSuccess: async (data, variables, context) => {
+    onSuccess: async (data, variables, onMutateResult, context) => {
       await queryClient.invalidateQueries({ queryKey: partnerDesignsQueryKeys.lists() })
-      options?.onSuccess?.(data, variables, context)
+      options?.onSuccess?.(data, variables, onMutateResult, context)
     },
     ...options,
   })
@@ -205,10 +205,10 @@ export const useUpdatePartnerDesign = (
         { method: "PUT", body: payload }
       )
     },
-    onSuccess: async (data, variables, context) => {
+    onSuccess: async (data, variables, onMutateResult, context) => {
       await queryClient.invalidateQueries({ queryKey: partnerDesignsQueryKeys.lists() })
       await queryClient.invalidateQueries({ queryKey: partnerDesignsQueryKeys.detail(id) })
-      options?.onSuccess?.(data, variables, context)
+      options?.onSuccess?.(data, variables, onMutateResult, context)
     },
     ...options,
   })
@@ -229,9 +229,9 @@ export const useDeletePartnerDesign = (
         { method: "DELETE" }
       )
     },
-    onSuccess: async (data, variables, context) => {
+    onSuccess: async (data, variables, onMutateResult, context) => {
       await queryClient.invalidateQueries({ queryKey: partnerDesignsQueryKeys.lists() })
-      options?.onSuccess?.(data, variables, context)
+      options?.onSuccess?.(data, variables, onMutateResult, context)
     },
     ...options,
   })
@@ -263,9 +263,9 @@ export const useGenerateMoodboard = (
         { method: "POST" }
       )
     },
-    onSuccess: async (data, variables, context) => {
+    onSuccess: async (data, variables, onMutateResult, context) => {
       await queryClient.invalidateQueries({ queryKey: partnerDesignsQueryKeys.detail(id) })
-      options?.onSuccess?.(data, variables, context)
+      options?.onSuccess?.(data, variables, onMutateResult, context)
     },
     ...options,
   })
@@ -434,10 +434,10 @@ export const useCreateConstructionDetail = (
         `/partners/designs/${id}/construction-details`,
         { method: "POST", body }
       ),
-    onSuccess: async (data, variables, context) => {
+    onSuccess: async (data, variables, onMutateResult, context) => {
       // Refreshes the detail list, the block-availability list and the catalog.
       await queryClient.invalidateQueries({ queryKey: partnerDesignsQueryKeys.detail(id) })
-      options?.onSuccess?.(data, variables, context)
+      options?.onSuccess?.(data, variables, onMutateResult, context)
     },
     ...options,
   })
@@ -454,9 +454,9 @@ export const useDeleteConstructionDetail = (
         `/partners/designs/${id}/construction-details/${detailId}`,
         { method: "DELETE" }
       ),
-    onSuccess: async (data, variables, context) => {
+    onSuccess: async (data, variables, onMutateResult, context) => {
       await queryClient.invalidateQueries({ queryKey: partnerDesignsQueryKeys.detail(id) })
-      options?.onSuccess?.(data, variables, context)
+      options?.onSuccess?.(data, variables, onMutateResult, context)
     },
     ...options,
   })
@@ -479,11 +479,11 @@ export const useSeedMoodboard = (
         { method: "POST" }
       )
     },
-    onSuccess: async (data, variables, context) => {
+    onSuccess: async (data, variables, onMutateResult, context) => {
       if (data?.moodboard) {
         await queryClient.invalidateQueries({ queryKey: partnerDesignsQueryKeys.detail(id) })
       }
-      options?.onSuccess?.(data, variables, context)
+      options?.onSuccess?.(data, variables, onMutateResult, context)
     },
     ...options,
   })
@@ -505,9 +505,9 @@ export const useSaveMoodboard = (
         { method: "PUT", body: { moodboard } }
       )
     },
-    onSuccess: async (data, variables, context) => {
+    onSuccess: async (data, variables, onMutateResult, context) => {
       await queryClient.invalidateQueries({ queryKey: partnerDesignsQueryKeys.detail(id) })
-      options?.onSuccess?.(data, variables, context)
+      options?.onSuccess?.(data, variables, onMutateResult, context)
     },
     ...options,
   })
@@ -540,9 +540,9 @@ export const useUpdatePartnerBrief = (
         { method: "PUT", body: payload }
       )
     },
-    onSuccess: async (data, variables, context) => {
+    onSuccess: async (data, variables, onMutateResult, context) => {
       await queryClient.invalidateQueries({ queryKey: partnerDesignsQueryKeys.detail(id) })
-      options?.onSuccess?.(data, variables, context)
+      options?.onSuccess?.(data, variables, onMutateResult, context)
     },
     ...options,
   })
@@ -587,9 +587,9 @@ export const useAttachPartnerDesignMedia = (
         }
       )
     },
-    onSuccess: async (data, variables, context) => {
+    onSuccess: async (data, variables, onMutateResult, context) => {
       await queryClient.invalidateQueries({ queryKey: partnerDesignsQueryKeys.detail(id) })
-      options?.onSuccess?.(data, variables, context)
+      options?.onSuccess?.(data, variables, onMutateResult, context)
     },
     ...options,
   })

@@ -200,7 +200,7 @@ export const DesignList = () => {
   // partner's "incoming" work is complete across all pages (was previously
   // filtered client-side over just the current page). facets carry the
   // per-bucket counts for the tab badges.
-  const { designs, count = 0, facets, isPending, isError, error } = usePartnerDesigns(
+  const { designs, count = 0, facets, isPending, isError } = usePartnerDesigns(
     {
       limit: PAGE_SIZE,
       offset,
