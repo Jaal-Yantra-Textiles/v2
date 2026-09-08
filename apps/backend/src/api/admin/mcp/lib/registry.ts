@@ -1267,6 +1267,39 @@ export const ADMIN_MCP_TOOLS: AdminMcpToolDef[] = [
     nextSteps: ["get_product", "list_product_categories", "set_category_products"],
   },
   {
+    name: "update_product_option",
+    description: [
+      "Rewrite a product option's list of allowed values — the '33s', '60lea Colour' choices a variant is matched to. Sensitive: requires confirm:true.",
+      "🔑 This is the tool that unblocks `create_product_variant`. That tool matches a variant to option values that ALREADY EXIST and core will not invent one, so a variant naming a new value cannot be created until the value is added here first.",
+      "⚠️ `values` REPLACES the option's entire value list — it is not an append. Call `get_product` first and send every existing value PLUS the new one. Sending only the new value drops the rest, and any variant matched to a dropped value loses its option.",
+      "Find the option id and its current values under `product.options[]` from `get_product`.",
+    ].join("\n"),
+    method: "POST",
+    path: "/admin/products/:id/options/:option_id",
+    pathParams: ["id", "option_id"],
+    previewPath: "/admin/products/:id",
+    write: true,
+    sensitive: true,
+    bodyParams: ["title", "values"],
+    inputSchema: obj(
+      {
+        id: STR("Product id, e.g. 'prod_...'."),
+        option_id: STR("Option id, e.g. 'opt_...'. Read it from product.options[].id."),
+        title: STR("Option title. Omit to leave it unchanged."),
+        values: {
+          type: "array",
+          description:
+            "The option's COMPLETE resulting value list, e.g. ['0s','10s','20s','30s','33s','60s']. Every value you want to keep must appear — omitted values are removed.",
+          items: { type: "string" },
+        },
+      },
+      ["id", "option_id", "values"]
+    ),
+    sideEffects:
+      "Replaces the option's value list. Values omitted from `values` are removed, and a variant matched to a removed value loses that option. Adding a value is inert on its own until a variant claims it.",
+    nextSteps: ["create_product_variant", "get_product"],
+  },
+  {
     name: "bulk_update_products",
     description: [
       "Update MANY products, their variants and their stock levels in one call. Sensitive: requires confirm:true. ALWAYS dry_run first — the plan names every product and variant it would touch, with the before/after quantity at each location, and there is no undo once it fires.",
