@@ -102,7 +102,21 @@ describe("admin MCP tool tiers", () => {
         "create_crm_opportunity",
         "create_crm_task",
         "create_design",
+        // The inventory item's own lifecycle (#1905). All seven move stock
+        // figures inside the platform: no money leaves, no carrier is booked,
+        // nobody outside is messaged. They stay `sensitive`, and two of them
+        // need that gate badly — `update_inventory_level` writes an ABSOLUTE
+        // count over an existing one, and `split_inventory_item` divides a lot
+        // in two with no link back. A write-scoped credential may reach them;
+        // a model still cannot fire one without confirm:true.
+        "create_inventory_item",
         "create_raw_material_group",
+        "create_reservation",
+        "delete_reservation",
+        "set_inventory_level",
+        "split_inventory_item",
+        "update_inventory_level",
+        "update_inventory_raw_material",
         "log_crm_activity",
         "log_crm_note",
         "link_design_inventory",

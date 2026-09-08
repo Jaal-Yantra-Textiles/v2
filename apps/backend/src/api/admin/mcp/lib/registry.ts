@@ -548,6 +548,321 @@ export const ADMIN_MCP_TOOLS: AdminMcpToolDef[] = [
     queryParams: ["limit", "offset", "q"],
     inputSchema: obj({ ...PAGINATION }),
   },
+  /**
+   * The inventory item's own lifecycle — #1905.
+   *
+   * `list_inventory_items` existed alone: a reader with no way to open one row,
+   * create one, place it at a location, count it, hold it, or divide it. Every
+   * one of those is a real route, and the raw-material tools below demand an
+   * `iitem_` id that only these produce for a good we did not buy on an order.
+   *
+   * ⚠️ The ordinary path to an inventory item is NOT `create_inventory_item`.
+   * A partner-supplied variant carries `manage_inventory: false` and has no
+   * item row at all; adding an inventory-order line that names the variant is
+   * what creates it (`ensureLineInventoryItems`, #1662 — idempotent, and
+   * deliberately not compensated). Reach for `create_inventory_item` only for
+   * stock that arrives outside an order.
+   */
+  {
+    name: "get_inventory_item",
+    description:
+      "Get one inventory item by id, with its location levels and raw-material data. Read. Call it before any level, reservation or split write — the stocked quantity you are about to change is only visible here.",
+    method: "GET",
+    path: "/admin/inventory-items/:id",
+    pathParams: ["id"],
+    inputSchema: obj({ id: STR("Inventory item id, e.g. 'iitem_...'.") }, ["id"]),
+  },
+  {
+    name: "create_inventory_item",
+    description:
+      "Create a standalone inventory item — stock that exists at our end without a product variant or a purchase order behind it. Sensitive: requires confirm:true. " +
+      "🔑 This is the UNUSUAL door. A partner-supplied variant has no inventory item until an inventory-order line names it, and that path also links the item to the variant; an item created here is linked to NOTHING and will not appear against any product. Prefer create_inventory_order / update_inventory_order_lines with a `variant_id` unless the stock genuinely arrived outside an order. " +
+      "`location_levels` places it and counts it in the same call, using a `sloc_` id from list_stock_locations — otherwise the item exists in no warehouse and every consumption read returns zero.",
+    method: "POST",
+    path: "/admin/inventory-items",
+    write: true,
+    sensitive: true,
+    tier: "write",
+    bodyParams: [
+      "title",
+      "sku",
+      "description",
+      "unit_of_measure",
+      "requires_shipping",
+      "hs_code",
+      "origin_country",
+      "mid_code",
+      "material",
+      "weight",
+      "length",
+      "height",
+      "width",
+      "thumbnail",
+      "metadata",
+      "location_levels",
+    ],
+    inputSchema: obj(
+      {
+        title: STR("What the item is called, e.g. '33s Kala Cotton'."),
+        sku: STR("Optional SKU."),
+        description: STR("Optional longer description."),
+        unit_of_measure: STR("Unit the quantity is counted in, e.g. 'Meter'."),
+        requires_shipping: BOOL("Whether the item physically ships."),
+        hs_code: STR("HS/HSN customs code."),
+        origin_country: STR("ISO-2 country of origin, e.g. 'IN'."),
+        mid_code: STR("Manufacturer Identification (MID) code."),
+        material: STR("Material description for customs."),
+        weight: INT("Weight in grams."),
+        length: INT("Length in centimetres."),
+        height: INT("Height in centimetres."),
+        width: INT("Width in centimetres."),
+        thumbnail: STR("Thumbnail image URL."),
+        metadata: { type: "object", description: "Free-form metadata." },
+        location_levels: {
+          type: "array",
+          description:
+            "Where this stock sits and how much of it, created with the item. Each entry is { location_id (sloc_..., from list_stock_locations), stocked_quantity?, incoming_quantity? }. An item with no level is held nowhere.",
+          items: {
+            type: "object",
+            properties: {
+              location_id: STR("Stock location id, e.g. 'sloc_...'."),
+              stocked_quantity: INT("Units physically on hand at this location."),
+              incoming_quantity: INT("Units expected but not yet received."),
+            },
+            required: ["location_id"],
+            additionalProperties: false,
+          },
+        },
+      },
+      []
+    ),
+    nextSteps: ["set_inventory_level", "add_inventory_raw_material"],
+  },
+  {
+    name: "list_inventory_levels",
+    description:
+      "List an inventory item's location levels — which warehouses hold it, and the stocked / reserved / incoming counts at each. Read. This is the only place the per-location split is visible: `list_inventory_items` shows the item, not where it is.",
+    method: "GET",
+    path: "/admin/inventory-items/:id/location-levels",
+    pathParams: ["id"],
+    queryParams: ["limit", "offset"],
+    inputSchema: obj(
+      {
+        id: STR("Inventory item id, e.g. 'iitem_...'."),
+        limit: INT("Max results (default 20)."),
+        offset: INT("Pagination offset."),
+      },
+      ["id"]
+    ),
+  },
+  {
+    name: "set_inventory_level",
+    description:
+      "Associate an inventory item with a stock location and set its opening counts — the level row that makes the item exist AT a warehouse. Sensitive: requires confirm:true. " +
+      "Read the `sloc_` id from list_stock_locations first: it is not guessable, and a level written at the wrong end reads as a delivery that never arrived. " +
+      "Use this to place stock somewhere for the FIRST time; `update_inventory_level` changes a location it already sits at, and re-creating an existing level is refused. " +
+      "🔑 `stocked_quantity` is an ABSOLUTE count, not a delta.",
+    method: "POST",
+    path: "/admin/inventory-items/:id/location-levels",
+    pathParams: ["id"],
+    previewPath: "/admin/inventory-items/:id/location-levels",
+    write: true,
+    sensitive: true,
+    tier: "write",
+    bodyParams: ["location_id", "stocked_quantity", "incoming_quantity"],
+    inputSchema: obj(
+      {
+        id: STR("Inventory item id, e.g. 'iitem_...'."),
+        location_id: STR(
+          "Stock location id, e.g. 'sloc_...'. Read it from list_stock_locations — it is not guessable, and a level written at the wrong end reads as a delivery that never arrived."
+        ),
+        stocked_quantity: INT("Units physically on hand. ABSOLUTE, not a delta."),
+        incoming_quantity: INT("Units expected but not yet received."),
+      },
+      ["id", "location_id"]
+    ),
+    nextSteps: ["list_inventory_levels"],
+  },
+  {
+    name: "update_inventory_level",
+    description:
+      "Change the counts on a location an inventory item ALREADY sits at. Sensitive: requires confirm:true. " +
+      "🔑 `stocked_quantity` is an ABSOLUTE count, not a delta — sending 10 against a level of 40 sets it to 10 and loses 30 units of stock. Read list_inventory_levels first and send the number you want to end up with. " +
+      "It cannot move stock between locations: that is a split, or a level at each end.",
+    method: "POST",
+    path: "/admin/inventory-items/:id/location-levels/:location_id",
+    pathParams: ["id", "location_id"],
+    previewPath: "/admin/inventory-items/:id/location-levels",
+    write: true,
+    sensitive: true,
+    tier: "write",
+    bodyParams: ["stocked_quantity", "incoming_quantity"],
+    inputSchema: obj(
+      {
+        id: STR("Inventory item id, e.g. 'iitem_...'."),
+        location_id: STR("Stock location id the level is held at, e.g. 'sloc_...'."),
+        stocked_quantity: INT("Units on hand AFTER this write. Absolute, not a delta."),
+        incoming_quantity: INT("Units expected but not yet received. Absolute."),
+      },
+      ["id", "location_id"]
+    ),
+    sideEffects:
+      "Overwrites the stored count outright. A wrong number here is indistinguishable from a real stock movement afterwards.",
+    nextSteps: ["list_inventory_levels"],
+  },
+  {
+    name: "list_reservations",
+    description:
+      "List stock reservations — quantities held at a location against an order line or held manually, so they cannot be sold twice. Read. Filter by inventory_item_id, location_id or line_item_id. A level's `reserved_quantity` is the sum of these; this is where you see WHO holds it.",
+    method: "GET",
+    path: "/admin/reservations",
+    queryParams: [
+      "limit",
+      "offset",
+      "inventory_item_id",
+      "location_id",
+      "line_item_id",
+    ],
+    inputSchema: obj({
+      limit: INT("Max results (default 20)."),
+      offset: INT("Pagination offset."),
+      inventory_item_id: STR("Filter to one inventory item, e.g. 'iitem_...'."),
+      location_id: STR("Filter to one stock location, e.g. 'sloc_...'."),
+      line_item_id: STR("Filter to the order line the stock is held for."),
+    }),
+  },
+  {
+    name: "create_reservation",
+    description:
+      "Hold a quantity of an inventory item at a location so it cannot be sold or consumed elsewhere. Sensitive: requires confirm:true. " +
+      "The stock stays where it is — a reservation moves nothing and changes no stocked_quantity; it raises `reserved_quantity`, which is what makes the rest unavailable. " +
+      "Leave `line_item_id` unset for a manual hold (a sample pulled for a buyer, cloth set aside for a run); set it to bind the hold to an order line.",
+    method: "POST",
+    path: "/admin/reservations",
+    write: true,
+    sensitive: true,
+    tier: "write",
+    bodyParams: [
+      "inventory_item_id",
+      "location_id",
+      "quantity",
+      "line_item_id",
+      "description",
+      "metadata",
+    ],
+    inputSchema: obj(
+      {
+        inventory_item_id: STR("Inventory item to hold, e.g. 'iitem_...'."),
+        location_id: STR("Stock location the hold is taken at, e.g. 'sloc_...'."),
+        quantity: INT("Units to hold. Must not exceed what is available at that location."),
+        line_item_id: STR(
+          "Order line this hold is for. Omit for a manual hold with no order behind it."
+        ),
+        description: STR("Why the stock is held — the only record a later reader gets."),
+        metadata: { type: "object", description: "Free-form metadata." },
+      },
+      ["inventory_item_id", "location_id", "quantity"]
+    ),
+    nextSteps: ["list_reservations"],
+  },
+  {
+    name: "delete_reservation",
+    description:
+      "Release a reservation, returning the held quantity to available stock. DELETE, so sensitive: requires confirm:true. Deleting the hold does NOT change stocked_quantity — nothing is consumed, the stock simply stops being spoken for.",
+    method: "DELETE",
+    path: "/admin/reservations/:id",
+    pathParams: ["id"],
+    previewPath: "/admin/reservations/:id",
+    write: true,
+    sensitive: true,
+    tier: "write",
+    inputSchema: obj({ id: STR("Reservation id, e.g. 'res_...'.") }, ["id"]),
+    nextSteps: ["list_reservations"],
+  },
+  {
+    name: "split_inventory_item",
+    description:
+      "Divide an inventory item in two: `quantity` units leave the source and become a NEW item titled `new_title`, carrying a copy of the source's raw-material record. Sensitive: requires confirm:true. " +
+      "This is how one bolt of greige becomes 'dyed' and 'undyed', or how a partner's delivery is separated into gradings — the two halves then price, move and get consumed independently. " +
+      "🔑 `location_id` takes the whole split from that ONE location; omit it and the split is taken proportionally across every location the item sits at. " +
+      "`raw_material_overrides` is what makes the new half a different material (its colour, grade or name) rather than a second row of the same thing — without it the copy is indistinguishable from its source.",
+    method: "POST",
+    path: "/admin/inventory-items/:id/split",
+    pathParams: ["id"],
+    previewPath: "/admin/inventory-items/:id",
+    write: true,
+    sensitive: true,
+    tier: "write",
+    bodyParams: ["quantity", "new_title", "location_id", "raw_material_overrides"],
+    inputSchema: obj(
+      {
+        id: STR("Inventory item to split, e.g. 'iitem_...'."),
+        quantity: INT(
+          "Units to move OUT of the source into the new item. Positive, and no more than the source holds."
+        ),
+        new_title: STR("Title of the item created by the split."),
+        location_id: STR(
+          "Take the whole split from this location only. Omit to split proportionally across every location."
+        ),
+        raw_material_overrides: {
+          type: "object",
+          description:
+            "What differs about the new half: { name?, color?, composition?, grade?, description?, extra? } — `extra` is a flat string map merged into the copied specifications. Anything omitted is inherited from the source.",
+        },
+      },
+      ["id", "quantity", "new_title"]
+    ),
+    sideEffects:
+      "Creates a second inventory item and decrements the source. The two are not linked afterwards — nothing records that they were once one lot beyond the titles you give them.",
+    nextSteps: ["list_inventory_levels", "get_inventory_item"],
+  },
+  {
+    name: "get_raw_material",
+    description:
+      "Get one raw material by id, with its material type. Read. The id comes from list_raw_materials or get_inventory_item. Call this before update_inventory_raw_material — the update is a partial, but `specifications` and `media` REPLACE wholesale, so you cannot write a correct partial without seeing what is stored.",
+    method: "GET",
+    path: "/admin/inventory-items/:id/rawmaterials/:rawMaterialId",
+    pathParams: ["id", "rawMaterialId"],
+    inputSchema: obj(
+      {
+        id: STR("Inventory item id, e.g. 'iitem_...'."),
+        rawMaterialId: STR("Raw material id (from list_raw_materials / get_inventory_item)."),
+      },
+      ["id", "rawMaterialId"]
+    ),
+    nextSteps: ["update_inventory_raw_material"],
+  },
+  {
+    name: "update_inventory_raw_material",
+    description:
+      "Update an existing raw material — its attributes (colour, grade, width, weight, composition), its specifications, its cost, and its photos. Sensitive: requires confirm:true. " +
+      "A PARTIAL update: fields you omit are left alone. But `specifications` and `media` are whole values, so passing either REPLACES what is stored — read get_raw_material first and send the merged object, or you will delete the keys you did not resend. " +
+      "🔑 Photos live at `media.files`, an array of URLs: `{ \"files\": [\"https://...jpg\"] }`. `{ \"files\": [] }` is the shape a material gets when someone opened the media form and saved nothing — it is NOT a photographed material, though it passes any `media != null` check. " +
+      "🔑 The free-form attribute store is `specifications` (the fabrics here use gi_status / technique / weave_type, and often comb, loom, pick, artist, weight). The `attributes` column is unused — do not reach for it.",
+    method: "PUT",
+    path: "/admin/inventory-items/:id/rawmaterials/:rawMaterialId",
+    pathParams: ["id", "rawMaterialId"],
+    previewPath: "/admin/inventory-items/:id/rawmaterials/:rawMaterialId",
+    write: true,
+    sensitive: true,
+    tier: "write",
+    bodyParams: ["rawMaterialData"],
+    inputSchema: obj(
+      {
+        id: STR("Inventory item id, e.g. 'iitem_...'."),
+        rawMaterialId: STR("Raw material id to update."),
+        rawMaterialData: {
+          type: "object",
+          description:
+            "The fields to change. Any of: name, description, composition, color, grade, width, weight, unit_of_measure (Meter|Yard|Kilogram|Gram|Piece|Roll|Other), unit_cost, cost_currency, minimum_order_quantity, lead_time_days, certification, usage_guidelines, storage_requirements, status (Active|Discontinued|Under_Review|Development), material_type or material_type_id, metadata, specifications (REPLACES), media (REPLACES; { files: [url] }).",
+        },
+      },
+      ["id", "rawMaterialId", "rawMaterialData"]
+    ),
+    sideEffects:
+      "Replaces `specifications` and `media` outright when either is passed. Omit a key to leave it untouched.",
+    nextSteps: ["get_raw_material"],
+  },
   {
     name: "list_inventory_orders",
     description:
@@ -4104,7 +4419,10 @@ export const ADMIN_MCP_TOOLS: AdminMcpToolDef[] = [
   {
     name: "add_inventory_raw_material",
     description:
-      "Attach raw-material data (composition, unit of measure, cost, material type) to an existing inventory item. Sensitive: requires confirm:true.",
+      "Attach raw-material data (composition, unit of measure, cost, material type) to an existing inventory item. Sensitive: requires confirm:true. " +
+      "🔑 Give it PHOTOS at the same time: `media` is `{ \"files\": [\"https://...jpg\"] }`. When the stock is a partner's product, reuse that product's own image URLs (get_product -> images[].url) rather than leaving it unphotographed — a material with no picture cannot be told apart from another grading of the same cloth. " +
+      "⚠️ `{ \"files\": [] }` is what a material gets when the media form is saved empty; it satisfies any `media != null` check while showing nothing, so send real URLs or omit the key. " +
+      "🔑 The free-form attribute store is `specifications` (the fabrics here use gi_status / technique / weave_type, often with comb, loom, pick, artist, weight). The `attributes` column is unused.",
     method: "POST",
     path: "/admin/inventory-items/:id/rawmaterials",
     pathParams: ["id"],
@@ -4119,11 +4437,12 @@ export const ADMIN_MCP_TOOLS: AdminMcpToolDef[] = [
         rawMaterialData: {
           type: "object",
           description:
-            "{ name, composition, unit_of_measure?, unit_cost?, material_type? (a category NAME, find-or-create) or material_type_id?, specifications?, media? }.",
+            "Required: name, composition. Optional: description, color, grade, width, weight, unit_of_measure (Meter|Yard|Kilogram|Gram|Piece|Roll|Other), unit_cost, cost_currency, minimum_order_quantity, lead_time_days, certification, usage_guidelines, storage_requirements, status (Active|Discontinued|Under_Review|Development), material_type (a category NAME, find-or-create) or material_type_id, metadata, specifications (the attribute store), media ({ files: [url] }).",
         },
       },
       ["id", "rawMaterialData"]
     ),
+    nextSteps: ["get_raw_material", "update_inventory_raw_material"],
   },
   {
     name: "list_raw_material_groups",
