@@ -509,6 +509,37 @@ export const ADMIN_MCP_TOOLS: AdminMcpToolDef[] = [
   },
 
   // ===== Inventory =========================================================
+  /**
+   * Stock locations were the one id this registry ASKED FOR and gave no way to
+   * find. `create_inventory_order` requires `stock_location_id`;
+   * `extract_inventory_from_image` and the repair jobs take one too — five
+   * call sites, and nothing that lists them. An agent could only supply an id
+   * it had been handed out of band, which in practice meant the work stopped.
+   *
+   * A tool that demands an identifier must be reachable from a tool that
+   * produces it. When it isn't, the gap is invisible: nothing errors, the
+   * caller simply cannot start.
+   */
+  {
+    name: "list_stock_locations",
+    description:
+      "List stock locations — our own warehouses AND partner-held locations, with their addresses. Read. " +
+      "Start here whenever a tool needs a `stock_location_id` (create_inventory_order, the route-repair jobs, inventory extraction): the id is not guessable and nothing else surfaces it. " +
+      "🔑 The name is the only thing that distinguishes ours from a partner's here — use `set-location-ownership` (Data Plumbing) to read which are core, since consumption is only ever deducted from a core location.",
+    method: "GET",
+    path: "/admin/stock-locations",
+    queryParams: ["limit", "offset", "q"],
+    inputSchema: obj({ ...PAGINATION }),
+  },
+  {
+    name: "get_stock_location",
+    description:
+      "Get one stock location by id, with its address and metadata. Read. Use it to confirm a location is the one you meant before pointing an inventory order at it — a reversed route posts stock at the wrong end and reads as a delivery that never arrived.",
+    method: "GET",
+    path: "/admin/stock-locations/:id",
+    pathParams: ["id"],
+    inputSchema: obj({ id: STR("Stock location id, e.g. 'sloc_...'.") }, ["id"]),
+  },
   {
     name: "list_inventory_items",
     description: "List inventory items (paginated). Supports free-text search via q.",

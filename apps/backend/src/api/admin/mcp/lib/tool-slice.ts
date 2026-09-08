@@ -90,6 +90,10 @@ const PREFIX_DOMAINS: ReadonlyArray<readonly [string, AdminToolDomain]> = [
   ["/admin/task-templates", "production"],
   ["/admin/inventory-items", "inventory"],
   ["/admin/inventory-orders", "inventory"],
+  // Where stock physically sits. Rides the inventory slice because every ask
+  // that needs a location id — "order 40 m to the Dharamshala warehouse",
+  // "this order's route is reversed" — is already an inventory conversation.
+  ["/admin/stock-locations", "inventory"],
   ["/admin/raw-material-groups", "inventory"],
   // Photo -> raw materials + inventory. Classified as inventory because that is
   // what it CREATES; the image is just the input format.
