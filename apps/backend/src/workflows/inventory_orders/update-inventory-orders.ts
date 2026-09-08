@@ -267,7 +267,7 @@ export const updateOrderLinesStep = createStep(
       );
     }
 
-    const created: Array<{ id: string; inventory_item_id?: string }> = [];
+    const created: Array<{ id: string; inventory_item_id?: string; variant_id?: string | null }> = [];
     const updated: Array<{ id: string; prevQuantity: number; prevPrice: any; prevExtraCost: any }> = [];
     const removed: Array<{ id: string; inventory_item_id?: string; quantity: number; price: any }> = [];
 
@@ -339,7 +339,29 @@ export const updateOrderLinesStep = createStep(
             }
           });
         }
-        created.push({ id: created_line.id, inventory_item_id: line.inventory_item_id });
+        // #1873 — a line added through UPDATE resolves a variant the same way
+        // create does (above, via ensureLineInventoryItems), so it must record
+        // the variant the same way too. Without this the association survives
+        // one door and dies at the other.
+        if (line.variant_id) {
+          await remoteLink.create({
+            [ORDER_INVENTORY_MODULE]: {
+              inventory_order_line_id: created_line.id
+            },
+            [Modules.PRODUCT]: {
+              product_variant_id: line.variant_id
+            },
+            data: {
+              order_line_id: created_line.id,
+              variant_id: line.variant_id
+            }
+          });
+        }
+        created.push({
+          id: created_line.id,
+          inventory_item_id: line.inventory_item_id,
+          variant_id: line.variant_id,
+        });
       }
     }
     // Return new state and save the precise per-line ops for compensation
@@ -352,7 +374,7 @@ export const updateOrderLinesStep = createStep(
   //   - lines we REMOVED → restore them by id + recreate their links (stable ids)
   async (
     compensationData: {
-      created: Array<{ id: string; inventory_item_id?: string }>;
+      created: Array<{ id: string; inventory_item_id?: string; variant_id?: string | null }>;
       updated: Array<{ id: string; prevQuantity: number; prevPrice: any; prevExtraCost: any }>;
       removed: Array<{ id: string; inventory_item_id?: string; quantity: number; price: any }>;
       order_id: string;
@@ -369,6 +391,15 @@ export const updateOrderLinesStep = createStep(
         await remoteLink.dismiss({
           [ORDER_INVENTORY_MODULE]: { inventory_order_line_id: c.id },
           [Modules.INVENTORY]: { inventory_item_id: c.inventory_item_id },
+        });
+      }
+      // #1873 — a link this step created must be dismissed by this step's
+      // compensation, or a rolled-back update leaves a variant link pointing at
+      // a soft-deleted line.
+      if (c.variant_id) {
+        await remoteLink.dismiss({
+          [ORDER_INVENTORY_MODULE]: { inventory_order_line_id: c.id },
+          [Modules.PRODUCT]: { product_variant_id: c.variant_id },
         });
       }
     }

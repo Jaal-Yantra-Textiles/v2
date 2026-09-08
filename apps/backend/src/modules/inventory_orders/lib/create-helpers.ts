@@ -21,6 +21,17 @@ export type CreateOrderLineInput = {
   raw_material_id?: string | null
   // Per-unit extra charge on top of `price` (colour job, finishing, …).
   extra_cost?: number | null
+  /**
+   * #1873 — the product variant this line was ordered as, when the caller named
+   * one instead of an inventory item. `ensureLineInventoryItems` resolves it to
+   * `inventory_id`; this keeps WHICH variant that was, so the order can still
+   * answer "what product was this for" afterwards.
+   *
+   * Never persisted on the line: `buildOrderLinePayloads` is an allowlist and
+   * does not pass it through. It exists to build the line↔variant link.
+   * Raw-material lines leave it null, which is honest — they have no product.
+   */
+  variant_id?: string | null
 }
 
 export type OrderLinePayload = {
@@ -169,6 +180,38 @@ export const buildInventoryLineLinkPairs = (
     order_line_id: line.id,
     inventory_item_id: order_lines[i].inventory_id,
   }))
+}
+
+/** One line paired with the product variant it was ordered as (#1873). */
+export type LineVariantPair = {
+  order_line_id: string
+  variant_id: string
+}
+
+/**
+ * #1873 — pair created lines with the variant each was ordered as.
+ *
+ * Same contract as `buildInventoryLineLinkPairs`: positional, but only behind
+ * the count guard that makes the position meaningful (#778 C3). Lines with no
+ * variant are DROPPED rather than paired to null — a link row must mean "this
+ * line is that variant", and a raw-material line genuinely is not one.
+ */
+export const buildInventoryLineVariantPairs = (
+  createdLines: { id: string }[],
+  order_lines: CreateOrderLineInput[]
+): LineVariantPair[] => {
+  if (createdLines.length !== order_lines.length) {
+    throw new MedusaError(
+      MedusaError.Types.UNEXPECTED_STATE,
+      `Inventory order line count mismatch: created ${createdLines.length} lines for ${order_lines.length} inputs`
+    )
+  }
+  return createdLines.flatMap((line, i) => {
+    const variantId = order_lines[i].variant_id
+    return variantId
+      ? [{ order_line_id: line.id, variant_id: String(variantId) }]
+      : []
+  })
 }
 
 /** One order line as the material backfill sees it (#1613 scope item 4). */

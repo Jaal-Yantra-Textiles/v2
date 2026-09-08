@@ -93,6 +93,11 @@ export const createInventoryOrderWithLinesStep = createStep(
       price: line.price,
       extra_cost: line.extra_cost ?? null,
       batch_number: line.batch_number ?? null,
+      // #1873 — the SECOND place the variant was lost. This mapping builds the
+      // service input field by field, so keeping `variant_id` on the ensured
+      // line upstream achieves nothing unless it is named here too. Null for a
+      // raw-material line, which has no product.
+      variant_id: (line as any).variant_id ?? null,
       metadata: line.metadata
     };
     });
@@ -205,6 +210,53 @@ export const linkInventoryItemsWithLinesStep = createStep(
   }
 );
 
+/**
+ * #1873 — link each line to the product variant it was ordered as.
+ *
+ * Separate from `linkInventoryItemsWithLinesStep` rather than folded into it:
+ * the two links answer different questions (what to stock vs what it was for),
+ * and only some lines have a variant at all. Pairs come from the create step,
+ * never from re-zipping arrays by index (#778 C3).
+ */
+export const linkVariantsWithLinesStep = createStep(
+  "link-variants-with-lines-step",
+  async (
+    input: { order_id: string; variant_pairs: { order_line_id: string; variant_id: string }[] },
+    { container }
+  ) => {
+    const pairs = input.variant_pairs ?? [];
+    if (!pairs.length) {
+      // No line named a variant — a pure raw-material order. Nothing to link,
+      // and an empty `create` call is not worth making.
+      return new StepResponse([], []);
+    }
+    const remoteLink = container.resolve(ContainerRegistrationKeys.LINK) as Link;
+    const links: LinkDefinition[] = pairs.map(({ order_line_id, variant_id }) => ({
+      [ORDER_INVENTORY_MODULE]: {
+        inventory_order_line_id: order_line_id,
+      },
+      [Modules.PRODUCT]: {
+        product_variant_id: variant_id,
+      },
+      data: {
+        order_line_id,
+        variant_id,
+      },
+    }));
+    await remoteLink.create(links);
+    return new StepResponse(links, links);
+  },
+  async (links, { container }) => {
+    if (!links?.length) return;
+    const remoteLink = container.resolve(ContainerRegistrationKeys.LINK) as Link;
+    try {
+      await remoteLink.dismiss(links as any);
+    } catch {
+      /* best-effort link cleanup */
+    }
+  }
+);
+
 export const linkInventoryOrderWithStockLocation = createStep(
   "link-inventory-order-with-stock-location",
   async (input: { order_id: string; stock_location_id: string }, { container }) => {
@@ -285,7 +337,13 @@ export const ensureOrderLineInventoryItemsStep = createStep(
     );
 
     return new StepResponse({
-      order_lines: lines.map(({ enabled_variant_id, actions, variant_id, ...line }) => ({
+      // #1873 — `variant_id` is KEPT. It used to be destructured out here, which
+      // is where the association died: the line was written with a real item id
+      // and no record of the variant it was ordered as, so the order could never
+      // say which product it was for. It is not a line column and cannot become
+      // one by accident — `buildOrderLinePayloads` is an allowlist — it rides
+      // along only far enough to build the line↔variant link.
+      order_lines: lines.map(({ enabled_variant_id, actions, ...line }) => ({
         ...line,
         inventory_item_id: line.inventory_item_id,
       })),
@@ -331,12 +389,22 @@ export const createInventoryOrderWorkflow = createWorkflow(
           // Explicit line→item pairing from the create step (#778 C3) — not a
           // positional zip of separately-derived id arrays.
           line_pairs: created.lineItemPairs ?? [],
+          // #1873 — same provenance, for the line→variant link. Empty unless a
+          // line was ordered by naming a variant.
+          variant_pairs: created.lineVariantPairs ?? [],
           order: created.order,
           orderLines: created.orderLines,
         }
       }
     );
     const links = linkInventoryItemsWithLinesStep(linkInput);
+
+    // #1873 — record WHICH product variant each line was ordered as, alongside
+    // the inventory item it resolved to.
+    linkVariantsWithLinesStep({
+      order_id: linkInput.order_id,
+      variant_pairs: linkInput.variant_pairs,
+    });
 
     // Determine the to-location id from alias or stock_location_id
     const toLocationId = transform({ input }, ({ input }) => (

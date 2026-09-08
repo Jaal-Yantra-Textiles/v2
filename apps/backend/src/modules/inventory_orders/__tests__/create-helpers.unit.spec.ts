@@ -1,6 +1,7 @@
 import {
   buildOrderLinePayloads,
   buildInventoryLineLinkPairs,
+  buildInventoryLineVariantPairs,
   sumLineTotals,
   buildMaterialLookupByInventoryId,
   enrichOrderLinesWithMaterial,
@@ -290,5 +291,77 @@ describe("planMaterialBackfill (#1613 scope item 4)", () => {
       { line_id: "ol_2", inventory_item_id: "iitem_2", field: "material_name", after: "Muga Silk" },
       { line_id: "ol_2", inventory_item_id: "iitem_2", field: "raw_material_id", after: "rm_2" },
     ])
+  })
+})
+
+describe("buildInventoryLineVariantPairs (#1873)", () => {
+  const line = (id: string) => ({ id })
+  const input = (inventory_id: string, variant_id?: string | null) => ({
+    inventory_id,
+    quantity: 1,
+    price: 10,
+    ...(variant_id !== undefined ? { variant_id } : {}),
+  })
+
+  it("pairs a line to the variant it was ordered as", () => {
+    expect(
+      buildInventoryLineVariantPairs([line("ol_1")], [input("iitem_1", "variant_1")])
+    ).toEqual([{ order_line_id: "ol_1", variant_id: "variant_1" }])
+  })
+
+  it("DROPS a line with no variant rather than pairing it to null", () => {
+    // A raw-material line genuinely has no product. An absent link row says
+    // that; a row pointing at null would be a link to nothing.
+    expect(
+      buildInventoryLineVariantPairs([line("ol_1")], [input("iitem_1")])
+    ).toEqual([])
+    expect(
+      buildInventoryLineVariantPairs([line("ol_1")], [input("iitem_1", null)])
+    ).toEqual([])
+  })
+
+  it("keeps each line with its OWN variant when only some lines have one", () => {
+    // The regression this guards: dropping unpaired lines by filtering the
+    // INPUT first would shift every later line onto the wrong variant.
+    const pairs = buildInventoryLineVariantPairs(
+      [line("ol_1"), line("ol_2"), line("ol_3")],
+      [input("iitem_1"), input("iitem_2", "variant_2"), input("iitem_3", "variant_3")]
+    )
+    expect(pairs).toEqual([
+      { order_line_id: "ol_2", variant_id: "variant_2" },
+      { order_line_id: "ol_3", variant_id: "variant_3" },
+    ])
+  })
+
+  it("throws on a length mismatch instead of silently mis-pairing", () => {
+    expect(() =>
+      buildInventoryLineVariantPairs(
+        [line("ol_1")],
+        [input("iitem_1", "variant_1"), input("iitem_2", "variant_2")]
+      )
+    ).toThrow(/line count mismatch/i)
+  })
+
+  it("is empty for an order where no line named a variant", () => {
+    expect(
+      buildInventoryLineVariantPairs(
+        [line("ol_1"), line("ol_2")],
+        [input("iitem_1"), input("iitem_2")]
+      )
+    ).toEqual([])
+  })
+})
+
+describe("buildOrderLinePayloads x variant_id (#1873)", () => {
+  it("does NOT persist variant_id on the line — it has no such column", () => {
+    // The whole reason variant_id can ride along on the service input safely:
+    // this allowlist is the persistence boundary. If it ever started passing
+    // unknown keys through, the create would fail on an unknown field.
+    const [payload] = buildOrderLinePayloads(
+      [{ inventory_id: "iitem_1", quantity: 2, price: 5, variant_id: "variant_1" }],
+      "order_1"
+    )
+    expect(payload).not.toHaveProperty("variant_id")
+    expect(payload).toMatchObject({ quantity: 2, price: 5, inventory_orders: "order_1" })
   })
 })
