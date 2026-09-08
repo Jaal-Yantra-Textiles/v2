@@ -1,3 +1,5 @@
+import { ContainerRegistrationKeys } from "@medusajs/framework/utils"
+import lineVariantLink from "../../src/links/inventory-order-lines-product-variants"
 import { setupSharedTestSuite, getSharedTestEnv } from "./shared-test-setup"
 import { createAdminUser, getAuthHeaders } from "../helpers/create-admin-user"
 
@@ -413,6 +415,85 @@ setupSharedTestSuite(() => {
       )
       expect(rowsForVariant).toHaveLength(1)
       expect(rowsForVariant[0].kind).toBe("product")
+    })
+
+    it("records WHICH variant the line was ordered as, not just the item it resolved to (#1873)", async () => {
+      const marker = unique()
+      const { variantId } = await seedUntrackedVariantProduct(
+        `Traceable Greige ${marker}`,
+        `TRC-${marker}`
+      )
+
+      const order = await api.post(
+        "/admin/inventory-orders",
+        {
+          order_lines: [{ variant_id: variantId, quantity: 12, price: 90 }],
+          quantity: 12,
+          total_price: 1080,
+          status: "Pending",
+          expected_delivery_date: new Date().toISOString(),
+          order_date: new Date().toISOString(),
+          shipping_address: {},
+          stock_location_id: stockLocationId,
+        },
+        headers
+      )
+      expect(order.status).toBe(201)
+
+      const lineId = order.data.inventoryOrder.orderlines[0].id
+      expect(lineId).toBeTruthy()
+
+      // Read the link through its OWN entry point. Asking the order line entity
+      // for a linked field returns no key at all rather than an error, so a
+      // traversal from the entity could not tell "no link" from "wrong query".
+      const container = getContainer()
+      const query: any = container.resolve(ContainerRegistrationKeys.QUERY)
+      const { data: links } = await query.graph({
+        entity: lineVariantLink.entryPoint,
+        filters: { inventory_order_line_id: lineId },
+        fields: ["inventory_order_line_id", "product_variant_id"],
+      })
+
+      // The association the order used to throw away: before #1873 the line was
+      // written with a real inventory_item_id and NO record of the variant, so
+      // the order could not say which product it was for.
+      expect(links).toHaveLength(1)
+      expect(links[0].product_variant_id).toBe(variantId)
+      expect(links[0].inventory_order_line_id).toBe(lineId)
+    })
+
+    it("leaves a raw-material line with no variant link at all (#1873)", async () => {
+      const marker = unique()
+      const inventoryItemId = await seedRawMaterialItem(`Plain Cotton ${marker}`)
+
+      const order = await api.post(
+        "/admin/inventory-orders",
+        {
+          order_lines: [{ inventory_item_id: inventoryItemId, quantity: 5, price: 20 }],
+          quantity: 5,
+          total_price: 100,
+          status: "Pending",
+          expected_delivery_date: new Date().toISOString(),
+          order_date: new Date().toISOString(),
+          shipping_address: {},
+          stock_location_id: stockLocationId,
+        },
+        headers
+      )
+      expect(order.status).toBe(201)
+      const lineId = order.data.inventoryOrder.orderlines[0].id
+
+      const container = getContainer()
+      const query: any = container.resolve(ContainerRegistrationKeys.QUERY)
+      const { data: links } = await query.graph({
+        entity: lineVariantLink.entryPoint,
+        filters: { inventory_order_line_id: lineId },
+        fields: ["product_variant_id"],
+      })
+
+      // Absent, not null-valued: a raw material genuinely has no product, and a
+      // link row pointing at nothing would be a worse answer than no row.
+      expect(links || []).toHaveLength(0)
     })
 
     it("refuses a line that names both an item and a variant", async () => {

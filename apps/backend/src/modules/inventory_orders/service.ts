@@ -15,6 +15,7 @@ import { InferTypeOf, Context } from "@medusajs/framework/types"
 import {
   buildOrderLinePayloads,
   buildInventoryLineLinkPairs,
+  buildInventoryLineVariantPairs,
 } from "./lib/create-helpers";
 export type OrderLinesResponse = InferTypeOf<typeof OrderLine>[]
 
@@ -156,8 +157,12 @@ class InventoryOrderService extends MedusaService({
     }
 
     const lineItemPairs = buildInventoryLineLinkPairs(orderLines, order_lines);
+    // #1873 — computed here for the same reason as the item pairing: the
+    // correspondence between an input line and the row it became is only known
+    // at creation time. Empty when no line named a variant (raw materials).
+    const lineVariantPairs = buildInventoryLineVariantPairs(orderLines, order_lines);
 
-    return { order, orderLines, lineItemPairs };
+    return { order, orderLines, lineItemPairs, lineVariantPairs };
   }
 } 
 
