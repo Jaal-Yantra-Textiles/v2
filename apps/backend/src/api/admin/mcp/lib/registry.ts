@@ -683,6 +683,90 @@ export const ADMIN_MCP_TOOLS: AdminMcpToolDef[] = [
     nextSteps: ["list_payable_inventory_orders", "get_partner_ledger"],
   },
   {
+    name: "update_inventory_order_lines",
+    description:
+      "Change an existing inventory order's lines — quantity, per-unit price, per-unit extra_cost (the colour/dye job), batch tag — add new lines, or remove one. Sensitive: requires confirm:true. ALWAYS dry_run first. " +
+      "🔑 The `order_lines` array is the DESIRED FINAL STATE of the lines you send: keep an existing line by sending its `id`, add one by omitting `id` (naming an inventory_item_id or an untracked variant_id), and remove one with `{ id, remove: true }`. " +
+      "⚠️ `data.quantity` and `data.total_price` are NOT recomputed for you — send the new totals, where total_price is Σ (price + extra_cost) × quantity across the lines you are left with. " +
+      "Use get_order/list_inventory_orders first to read the current line ids.",
+    method: "PUT",
+    path: "/admin/inventory-orders/:id/order-lines",
+    pathParams: ["id"],
+    previewPath: "/admin/inventory-orders/:id",
+    write: true,
+    sensitive: true,
+    bodyParams: ["data", "order_lines"],
+    inputSchema: obj(
+      {
+        id: STR("Inventory order id, e.g. 'inv_order_...'."),
+        data: {
+          type: "object",
+          description:
+            "Order-level totals AFTER the change: { quantity, total_price }. Not derived from the lines — a stale total here is what makes an order disagree with its own lines.",
+          properties: {
+            quantity: { type: "number", description: "Sum of the resulting line quantities." },
+            total_price: {
+              type: "number",
+              description: "Σ (price + extra_cost) × quantity. Excludes tax.",
+            },
+          },
+        },
+        order_lines: {
+          type: "array",
+          description:
+            "The resulting lines. Existing line -> include its `id`; new line -> omit `id` and name inventory_item_id OR variant_id; removal -> { id, remove: true }.",
+          items: {
+            type: "object",
+            properties: {
+              id: { type: "string", description: "Existing order-line id. Omit for a new line." },
+              inventory_item_id: {
+                type: "string",
+                description: "Existing inventory item id (new lines).",
+              },
+              variant_id: {
+                type: "string",
+                description:
+                  "Untracked product variant id (new lines) — the write establishes its inventory item.",
+              },
+              quantity: { type: "number", description: "Line quantity." },
+              price: { type: "number", description: "Per-unit price." },
+              extra_cost: {
+                type: "number",
+                description: "Per-unit extra charge on top of price (colour/dye job, finishing).",
+              },
+              batch_number: { type: "number", description: "Optional batch tag." },
+              remove: {
+                type: "boolean",
+                description: "Soft-delete this existing line and dismiss its links. Needs `id`.",
+              },
+            },
+          },
+        },
+      },
+      ["id", "order_lines"]
+    ),
+  },
+  {
+    name: "assign_inventory_order_partner",
+    description:
+      "Assign an inventory (purchase) order to the partner supplying it — this is what makes the order appear in that partner's portal and in their payables. Sensitive: requires confirm:true. " +
+      "An order created without it is unassigned: the goods are recorded but nobody is billed for them, and list_payable_inventory_orders will not show it.",
+    method: "POST",
+    path: "/admin/inventory-orders/:id/assign-partner",
+    pathParams: ["id"],
+    previewPath: "/admin/inventory-orders/:id",
+    write: true,
+    sensitive: true,
+    bodyParams: ["partner_id"],
+    inputSchema: obj(
+      {
+        id: STR("Inventory order id, e.g. 'inv_order_...'."),
+        partner_id: STR("Partner supplying the goods, e.g. '01K77...'. Both ends are validated."),
+      },
+      ["id", "partner_id"]
+    ),
+  },
+  {
     name: "list_payable_inventory_orders",
     description:
       "The inventory (purchase) orders this partner can still be billed for — GOODS, as opposed to work. Rows carry what the order is worth by RECEIPTS, what earlier payouts already claimed, and the remaining billable amount. 🔑 A `count: 0` here does NOT mean the partner is owed nothing: this route answers only about ORDERS, and their unbilled work may all be in runs (call list_payable_runs too). A partially received order is billable only for what actually arrived.",
@@ -1588,6 +1672,64 @@ export const ADMIN_MCP_TOOLS: AdminMcpToolDef[] = [
     ),
     sideEffects:
       "Writes customs codes onto live catalogue records. Labels resolve HSN from the DB at generation time, so this immediately affects EXISTING orders too — no backfill needed.",
+  },
+  {
+    name: "create_product_variant",
+    description:
+      "Add a NEW variant to an existing product (title, options, prices, sku, inventory flags). Sensitive: requires confirm:true. " +
+      "Use this when a product needs another colourway/count/size — `create_product` makes a whole new product, and `update_product_variant` can only change one that already exists. " +
+      "🔑 `options` must name values the product's options ALREADY have: core matches the variant to existing option values and will not invent one, so add the value to the product option first if it is new. " +
+      "Leave `manage_inventory` off for a variant a partner supplies — an inventory order line naming that variant is what creates its inventory item at our end.",
+    method: "POST",
+    path: "/admin/products/:product_id/variants",
+    pathParams: ["product_id"],
+    previewPath: "/admin/products/:product_id",
+    write: true,
+    sensitive: true,
+    bodyParams: [
+      "title",
+      "sku",
+      "options",
+      "prices",
+      "manage_inventory",
+      "allow_backorder",
+      "variant_rank",
+      "metadata",
+      ...PHYSICAL_AND_CUSTOMS_BODY_PARAMS,
+    ],
+    inputSchema: obj(
+      {
+        product_id: STR("Product to add the variant to, e.g. 'prod_...'."),
+        title: STR("Variant title, e.g. '33s Kala Cotton'."),
+        sku: STR("Optional SKU."),
+        options: {
+          type: "object",
+          description:
+            "Option values for this variant, keyed by OPTION TITLE — e.g. { \'HandSpun HandWoven\': \'33s\' }. Each value must already exist on that product option.",
+        },
+        prices: {
+          type: "array",
+          description:
+            "Prices per currency, e.g. [{ amount: 165, currency_code: \'inr\' }]. A variant with no price cannot be sold, but can still be ordered on an inventory order (the line carries its own price).",
+          items: {
+            type: "object",
+            properties: {
+              amount: { type: "number", description: "Price amount." },
+              currency_code: { type: "string", description: "ISO currency, e.g. 'inr'." },
+            },
+            required: ["amount", "currency_code"],
+          },
+        },
+        ...physicalAndCustomsSchemaProps(),
+        manage_inventory: BOOL(
+          "Track stock for this variant. Leave false/unset for partner-supplied goods."
+        ),
+        allow_backorder: BOOL("Allow ordering beyond stock."),
+        variant_rank: { type: "number", description: "Display order among the product's variants." },
+        metadata: { type: "object", description: "Optional key/value metadata." },
+      },
+      ["product_id", "title"]
+    ),
   },
   {
     name: "update_product_variant",
