@@ -2,6 +2,10 @@ import { ExecArgs } from "@medusajs/framework/types"
 import { ContainerRegistrationKeys } from "@medusajs/framework/utils"
 import { PRODUCTION_RUNS_MODULE } from "../modules/production_runs"
 import type ProductionRunService from "../modules/production_runs/service"
+import {
+  computeParentRollup,
+  parentTotalsPatch,
+} from "../workflows/production-runs/lib/parent-run-rollup"
 
 /**
  * Repair — complete parent production runs left STUCK after all their
@@ -21,6 +25,15 @@ import type ProductionRunService from "../modules/production_runs/service"
  * if the parent is in a stuck (non-terminal) status, marks it completed
  * and reconciles its totals from the children (fixes parent/child
  * quantity mismatch). completed_at = latest child completed_at.
+ *
+ * It ALSO repairs parents that are already `completed` but carry
+ * `produced_quantity: null` — the signal-driven cascade in
+ * `run-production-run-lifecycle.ts` completed parents without reconciling
+ * totals, so seven prod parents read `completed` with a null output while
+ * their children each state a real number. Those were previously skipped as
+ * "already correct". Only the output is written, only from what the children
+ * actually STATED (no fall back to the ordered quantity), and `status` /
+ * `completed_at` are left untouched.
  *
  * By default it does NOT touch parents that are already `cancelled`
  * (those may have been cancelled intentionally). Pass specific ids via
@@ -96,11 +109,13 @@ export default async function repairStuckParentProductionRuns({
   let completed = 0
   let skippedNotAllDone = 0
   let skippedTerminal = 0
+  let outputBackfilled = 0
+  let skippedNoOutputAnywhere = 0
   const errors: Array<{ parent_id: string; error: string }> = []
 
   for (const [parentId, kids] of byParent) {
-    const allCompleted = kids.every((c) => String(c.status) === "completed")
-    if (!allCompleted) {
+    const rollup = computeParentRollup(kids)
+    if (!rollup.all_completed) {
       skippedNotAllDone++
       continue
     }
@@ -112,7 +127,61 @@ export default async function repairStuckParentProductionRuns({
 
     const status = String(parent.status)
     if (status === "completed") {
-      continue // already correct
+      /**
+       * `completed` was treated as "already correct" and skipped. It is not:
+       * the signal-driven cascade in `run-production-run-lifecycle.ts`
+       * completed parents WITHOUT reconciling totals, so a parent can read
+       * `completed` with `produced_quantity: null` while every child states a
+       * real number. Seven such parents exist in production. Skipping them is
+       * what made this repair unable to reach the very rows it was written
+       * for.
+       *
+       * Only the OUTPUT is repaired here, and only from what the children
+       * actually stated — `allowFallback` is off, so a child that never
+       * reported output contributes nothing rather than having its ORDERED
+       * quantity silently promoted into a production figure. `status` and
+       * `completed_at` are left exactly as they are: this parent is already
+       * terminal and re-dating it would rewrite history.
+       */
+      const producedNow = Number(parent.produced_quantity)
+      const alreadyStated =
+        parent.produced_quantity != null && Number.isFinite(producedNow)
+      if (alreadyStated) continue
+
+      if (rollup.produced_stated <= 0) {
+        // Nothing anywhere states output — neither parent nor any child. There
+        // is nothing to roll up and inventing a number would be worse than the
+        // null. Reported, not written.
+        skippedNoOutputAnywhere++
+        continue
+      }
+
+      const patch = parentTotalsPatch(rollup)
+      const otag = `parent ${parentId} (completed, produced null→${rollup.produced_stated}${
+        rollup.children_missing_produced
+          ? `, ${rollup.children_missing_produced} child(ren) state none`
+          : ""
+      })`
+
+      if (dryRun) {
+        logger.info(`WOULD backfill output ${otag}`)
+        outputBackfilled++
+        continue
+      }
+
+      try {
+        await service.updateProductionRuns({
+          id: parentId,
+          produced_quantity: patch.produced_quantity,
+        } as any)
+        logger.info(`Backfilled output ${otag}`)
+        outputBackfilled++
+      } catch (err) {
+        const message = err instanceof Error ? err.message : String(err)
+        logger.error(`Failed ${otag}: ${message}`)
+        errors.push({ parent_id: parentId, error: message })
+      }
+      continue
     }
 
     const isStuck = STUCK_STATUSES.includes(status)
@@ -123,21 +192,9 @@ export default async function repairStuckParentProductionRuns({
       continue
     }
 
-    // Reconcile totals from children.
-    const sum = (key: string, fallback?: string) =>
-      kids.reduce((acc, c) => {
-        const v = c?.[key] ?? (fallback ? c?.[fallback] : undefined)
-        return acc + (Number.isFinite(Number(v)) ? Number(v) : 0)
-      }, 0)
-    const quantityTotal = sum("quantity")
-    const producedTotal = sum("produced_quantity", "quantity")
-    const latestMs = kids
-      .map((c) => c?.completed_at)
-      .filter(Boolean)
-      .map((d) => new Date(d).getTime())
-      .reduce((a, b) => Math.max(a, b), 0)
-
-    const tag = `parent ${parentId} (${status} → completed, qty ${parent.quantity}→${quantityTotal}, produced→${producedTotal})${isForced ? " [forced]" : ""}`
+    // Reconcile totals from children — same helper the two live cascades use.
+    const totals = parentTotalsPatch(rollup, { allowFallback: true })
+    const tag = `parent ${parentId} (${status} → completed, qty ${parent.quantity}→${rollup.quantity}, produced→${totals.produced_quantity ?? 0})${isForced ? " [forced]" : ""}`
 
     if (dryRun) {
       logger.info(`WOULD complete ${tag}`)
@@ -149,10 +206,9 @@ export default async function repairStuckParentProductionRuns({
       await service.updateProductionRuns({
         id: parentId,
         status: "completed" as any,
-        completed_at: latestMs ? new Date(latestMs) : new Date(),
+        completed_at: rollup.completed_at ?? new Date(),
         cancelled_at: null,
-        ...(quantityTotal > 0 ? { quantity: quantityTotal } : {}),
-        ...(producedTotal > 0 ? { produced_quantity: producedTotal } : {}),
+        ...totals,
       } as any)
       logger.info(`Completed ${tag}`)
       completed++
@@ -167,6 +223,8 @@ export default async function repairStuckParentProductionRuns({
   logger.info("─── Repair summary ───")
   logger.info(`parents_scanned        = ${byParent.size}`)
   logger.info(`completed              = ${completed}${dryRun ? " (DRY RUN)" : ""}`)
+  logger.info(`output_backfilled      = ${outputBackfilled}${dryRun ? " (DRY RUN)" : ""} (already-completed parents whose produced_quantity was null)`)
+  logger.info(`skipped_no_output      = ${skippedNoOutputAnywhere} (completed, produced null, and no child states any)`)
   logger.info(`skipped_children_open  = ${skippedNotAllDone}`)
   logger.info(`skipped_terminal       = ${skippedTerminal} (cancelled/other, not forced)`)
   logger.info(`errors                 = ${errors.length}`)

@@ -31,6 +31,10 @@ import {
   type PartnerRunInput,
 } from "./partner-run-steps"
 import { mirrorUnifiedRunOrderStatusStep } from "./dual-write-unified-run-order"
+import {
+  computeParentRollup,
+  parentTotalsPatch,
+} from "./lib/parent-run-rollup"
 
 // ---------------------------------------------------------------------------
 // Types
@@ -396,10 +400,8 @@ const cascadeParentCompletionStep = createStep(
       } as any)) as any[]
       if (!children?.length) return
 
-      const allCompleted = children.every(
-        (c) => String(c?.status || "") === "completed"
-      )
-      if (!allCompleted) return
+      const rollup = computeParentRollup(children)
+      if (!rollup.all_completed) return
 
       const parent = (await service
         .retrieveProductionRun(parentRunId)
@@ -409,25 +411,13 @@ const cascadeParentCompletionStep = createStep(
 
       // Reconcile parent totals from the children so the rollup matches
       // what was actually produced (fixes the parent/child qty mismatch).
-      const sum = (key: string, fallback?: string) =>
-        children.reduce((acc, c) => {
-          const v = c?.[key] ?? (fallback ? c?.[fallback] : undefined)
-          return acc + (Number.isFinite(Number(v)) ? Number(v) : 0)
-        }, 0)
-      const producedTotal = sum("produced_quantity", "quantity")
-      const quantityTotal = sum("quantity")
-      const latestCompletedAt = children
-        .map((c) => c?.completed_at)
-        .filter(Boolean)
-        .map((d) => new Date(d).getTime())
-        .reduce((a, b) => Math.max(a, b), 0)
-
+      // Shared with the lifecycle cascade and the repair script so the three
+      // cannot disagree about what a parent's totals are.
       await service.updateProductionRuns({
         id: parentRunId,
         status: "completed" as any,
-        completed_at: latestCompletedAt ? new Date(latestCompletedAt) : new Date(),
-        ...(quantityTotal > 0 ? { quantity: quantityTotal } : {}),
-        ...(producedTotal > 0 ? { produced_quantity: producedTotal } : {}),
+        completed_at: rollup.completed_at ?? new Date(),
+        ...parentTotalsPatch(rollup, { allowFallback: true }),
       })
     })
 
