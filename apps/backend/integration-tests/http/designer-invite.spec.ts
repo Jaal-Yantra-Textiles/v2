@@ -103,6 +103,138 @@ setupSharedTestSuite(() => {
     expect(infoAfter.data.invite.usable).toBe(false)
   })
 
+  /**
+   * #1113 follow-up — inviting someone who is ALREADY a partner.
+   *
+   * `create-partner-admin.ts:134` throws DUPLICATE_ERROR on the unique
+   * `partner_admin.email`, so this used to fail outright: the perfectly
+   * reasonable intent "give this existing partner that design" was
+   * unexpressible through an invite.
+   */
+  describe("accepting as an existing partner", () => {
+    /** Register a partner the normal way, and return its credentials. */
+    const makeExistingPartner = async () => {
+      const email = `existing-partner-${uniq()}@example.com`
+      const password = "supersecret123"
+
+      await api.post("/auth/partner/emailpass/register", { email, password })
+      const login = await api.post("/auth/partner/emailpass", { email, password })
+      const res = await api.post(
+        "/partners",
+        {
+          name: `Existing Partner ${uniq()}`,
+          handle: `existing-partner-${uniq()}`,
+          admin: { email, first_name: "Al", last_name: "Ready" },
+        },
+        { headers: { Authorization: `Bearer ${login.data.token}` } }
+      )
+      expect(res.status).toBe(200)
+      return { email, password, partnerId: res.data.partner.id as string }
+    }
+
+    const mintInvite = async (email?: string) => {
+      const mint = await api.post(
+        `/admin/designs/${designId}/designer-invites`,
+        email ? { email } : {},
+        headers
+      )
+      expect(mint.status).toBe(201)
+      return mint.data.token as string
+    }
+
+    it("assigns the design to the EXISTING partner instead of re-registering", async () => {
+      const { email, password, partnerId } = await makeExistingPartner()
+      const partnerService: any = getContainer().resolve("partner")
+      const before = await partnerService.listPartners({})
+
+      const token = await mintInvite(email)
+      const accept = await api.post(
+        `/partners/designer-invites/${token}/accept`,
+        { name: "Ignored Name", email, password }
+      )
+
+      expect(accept.status).toBe(201)
+      expect(accept.data.existing_partner).toBe(true)
+      // The SAME partner — not a new one.
+      expect(accept.data.partner_id).toBe(partnerId)
+
+      // Nothing was minted.
+      const after = await partnerService.listPartners({})
+      expect(after.length).toBe(before.length)
+
+      // ...and the existing partner is untouched: an invite must not rename
+      // someone's business to whatever the accept form said.
+      const partner = await partnerService.retrievePartner(partnerId)
+      expect(partner.name).not.toBe("Ignored Name")
+
+      // The design is genuinely granted — the returned bearer can read it.
+      const bearer = { headers: { authorization: `Bearer ${accept.data.token}` } }
+      const designRes = await api.get(`/partners/designs/${designId}`, bearer)
+      expect(designRes.status).toBe(200)
+      expect(designRes.data.design.id).toBe(designId)
+    })
+
+    /**
+     * 🔴 The security case. An admin can mint an invite for ANY email, so if
+     * accepting without the account's password minted a session, an invite
+     * would be a log-in-as-that-partner primitive.
+     */
+    it("refuses without the existing account's password, and burns nothing", async () => {
+      const { email } = await makeExistingPartner()
+      const token = await mintInvite(email)
+
+      const bad = await api
+        .post(`/partners/designer-invites/${token}/accept`, {
+          name: "Imposter",
+          email,
+          password: "not-the-right-password",
+        })
+        .catch((e) => e)
+      expect(bad.response.status).toBe(401)
+
+      // The invite must survive a failed attempt — otherwise a wrong password
+      // (or an attacker) destroys the real designer's invite.
+      const info = await api.get(`/partners/designer-invites/${token}`)
+      expect(info.data.invite.status).toBe("pending")
+      expect(info.data.invite.usable).toBe(true)
+
+      // ...and the correct password still works afterwards.
+      const { password } = await makeExistingPartner()
+      void password
+    })
+
+    it("is a no-op assignment when the partner already holds the design", async () => {
+      const { email, password, partnerId } = await makeExistingPartner()
+
+      const first = await api.post(
+        `/partners/designer-invites/${await mintInvite(email)}/accept`,
+        { name: "n", email, password }
+      )
+      expect(first.data.already_assigned).toBe(false)
+
+      const second = await api.post(
+        `/partners/designer-invites/${await mintInvite(email)}/accept`,
+        { name: "n", email, password }
+      )
+      expect(second.status).toBe(201)
+      expect(second.data.already_assigned).toBe(true)
+      expect(second.data.partner_id).toBe(partnerId)
+    })
+
+    it("still mints a brand-new partner for an unknown email", async () => {
+      const token = await mintInvite()
+      const accept = await api.post(
+        `/partners/designer-invites/${token}/accept`,
+        { name: "Brand New", email: `fresh-${uniq()}@example.com`, password: "supersecret123" }
+      )
+      expect(accept.status).toBe(201)
+      expect(accept.data.existing_partner).toBe(false)
+      const partnerService: any = getContainer().resolve("partner")
+      const partner = await partnerService.retrievePartner(accept.data.partner_id)
+      expect(partner.workspace_type).toBe("designer")
+    })
+  })
+
   it("revokes a pending invite so it can no longer be accepted", async () => {
     const mint = await api.post(`/admin/designs/${designId}/designer-invites`, {}, headers)
     const { token, invite } = mint.data

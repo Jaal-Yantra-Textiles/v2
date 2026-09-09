@@ -15,6 +15,9 @@ import { createPartnerAdminWithRegistrationWorkflow } from "../../../../../workf
 import { seedDesignMoodboardIfEmpty } from "../../../../../workflows/designs/moodboard/seed-design-moodboard"
 import { DESIGN_MODULE } from "../../../../../modules/designs"
 import { PARTNER_MODULE } from "../../../../../modules/partner"
+import designPartnerLink from "../../../../../links/design-partners-link"
+import { Modules } from "@medusajs/framework/utils"
+import type { IAuthModuleService } from "@medusajs/types"
 import { AcceptDesignerInviteReq } from "./validators"
 
 function slugify(name: string): string {
@@ -31,11 +34,25 @@ function slugify(name: string): string {
 /**
  * Accept a scoped designer invite (#1113 S1) — the "invite a stranger" path.
  *
- * Mints a brand-new `designer` partner (auth identity + partner shell + admin,
- * email pre-verified via the registration workflow), grants that partner the
- * invited design via the design↔partner link the partner design routes already
- * honor, marks the invite accepted, then returns a Medusa partner session
- * bearer + a redirect to the design's authoring surface — no separate login.
+ * Two paths, decided by whether the email is already a partner admin.
+ *
+ * **New designer** — mints a `designer` partner (auth identity + partner shell
+ * + admin, email pre-verified), grants the design, burns the invite, returns a
+ * session bearer + redirect. No separate login.
+ *
+ * **Existing partner** — does NOT re-register. `create-partner-admin.ts:134`
+ * throws DUPLICATE_ERROR on a taken email, so inviting someone who is already
+ * a partner used to fail outright even though the intent — "give this partner
+ * that design" — was perfectly expressible. It now identifies the partner and
+ * assigns the design to them as they are: no new partner, no new admin, name
+ * and handle untouched.
+ *
+ * 🔴 The existing-partner path REQUIRES the account's real password. Without
+ * that check, holding an invite token addressed to an existing partner would
+ * mint a session for their account — and an admin can mint an invite for any
+ * email, so it would be a login-as-partner primitive rather than an invite.
+ * A wrong password is rejected BEFORE anything is linked or burned, so a
+ * failed attempt costs the invite nothing.
  *
  * @route POST /partners/designer-invites/:token/accept
  */
@@ -46,6 +63,7 @@ export const POST = async (
   const { name, email, password } = req.validatedBody
 
   const service: any = req.scope.resolve(DESIGNER_INVITE_MODULE)
+  const query = req.scope.resolve(ContainerRegistrationKeys.QUERY) as any
   const invite = await service.findByTokenHash(hashInviteToken(req.params.token))
 
   if (!invite) {
@@ -65,41 +83,106 @@ export const POST = async (
     )
   }
 
-  // 1. Mint the designer partner (registers emailpass auth + verifies email).
-  const handle = `${slugify(name)}-${crypto.randomBytes(3).toString("hex")}`
-  const nameParts = name.trim().split(/\s+/)
-  const firstName = nameParts[0]
-  const lastName = nameParts.slice(1).join(" ") || nameParts[0]
-  const { result } = await createPartnerAdminWithRegistrationWorkflow(req.scope).run({
-    input: {
-      partner: {
-        name,
-        handle,
-        workspace_type: "designer",
-        status: "active",
-        is_verified: true,
-      },
-      admin: {
-        email,
-        first_name: firstName,
-        last_name: lastName,
-        role: "owner",
-      },
-      tempPassword: password,
-    },
-  })
+  // 1. Who is accepting — an existing partner, or a stranger?
+  const partnerService: any = req.scope.resolve(PARTNER_MODULE)
+  const [existingAdmin] = await partnerService.listPartnerAdmins(
+    { email },
+    { relations: ["partner"] }
+  )
 
-  const partnerId: string = result.partnerWithAdmin.createdPartner.id
-  const authIdentityId: string = result.registered.authIdentityId
+  let partnerId: string
+  let authIdentityId: string
+  let existingPartner = false
+
+  if (existingAdmin) {
+    /**
+     * Already a partner. Do not re-register — `create-partner-admin.ts:134`
+     * would throw DUPLICATE_ERROR on the unique email, which is what made
+     * inviting an existing partner impossible.
+     *
+     * Prove they are who they say first. `authenticate` is the same check the
+     * normal partner login performs, so an invite grants exactly the access a
+     * password already would — and nothing more.
+     */
+    const authModule = req.scope.resolve(Modules.AUTH) as IAuthModuleService
+    const auth = await authModule
+      .authenticate("emailpass", {
+        body: { email, password },
+      } as any)
+      .catch(() => null as any)
+
+    if (!auth?.success || !auth?.authIdentity?.id) {
+      throw new MedusaError(
+        MedusaError.Types.UNAUTHORIZED,
+        "An account already exists for this email. Enter that account's password to accept this invite."
+      )
+    }
+
+    const resolvedPartnerId =
+      existingAdmin.partner?.id ?? existingAdmin.partner_id ?? null
+    if (!resolvedPartnerId) {
+      throw new MedusaError(
+        MedusaError.Types.UNEXPECTED_STATE,
+        `Partner admin ${existingAdmin.id} is not attached to a partner.`
+      )
+    }
+
+    partnerId = String(resolvedPartnerId)
+    authIdentityId = String(auth.authIdentity.id)
+    existingPartner = true
+  } else {
+    // Mint the designer partner (registers emailpass auth + verifies email).
+    const handle = `${slugify(name)}-${crypto.randomBytes(3).toString("hex")}`
+    const nameParts = name.trim().split(/\s+/)
+    const firstName = nameParts[0]
+    const lastName = nameParts.slice(1).join(" ") || nameParts[0]
+    const { result } = await createPartnerAdminWithRegistrationWorkflow(
+      req.scope
+    ).run({
+      input: {
+        partner: {
+          name,
+          handle,
+          workspace_type: "designer",
+          status: "active",
+          is_verified: true,
+        },
+        admin: {
+          email,
+          first_name: firstName,
+          last_name: lastName,
+          role: "owner",
+        },
+        tempPassword: password,
+      },
+    })
+
+    partnerId = result.partnerWithAdmin.createdPartner.id
+    authIdentityId = result.registered.authIdentityId
+  }
 
   // 2. Grant the invited design to the new partner (the assignment link the
   //    partner design GET route already checks).
   const remoteLink = req.scope.resolve(ContainerRegistrationKeys.LINK) as any
-  await remoteLink.create({
-    [DESIGN_MODULE]: { design_id: invite.design_id },
-    [PARTNER_MODULE]: { partner_id: partnerId },
-    data: { role: invite.role || "designer" },
+  /**
+   * Read before writing. A brand-new partner cannot already hold the design,
+   * but an existing one very well might — they may have been assigned it by
+   * an admin, or accepted an earlier invite to it. `remoteLink.create` is not
+   * idempotent, so a second create is an error, not a no-op.
+   */
+  const { data: heldAlready = [] } = await query.graph({
+    entity: designPartnerLink.entryPoint,
+    fields: ["design_id", "partner_id"],
+    filters: { design_id: invite.design_id, partner_id: partnerId },
   })
+  const alreadyAssigned = (heldAlready || []).length > 0
+  if (!alreadyAssigned) {
+    await remoteLink.create({
+      [DESIGN_MODULE]: { design_id: invite.design_id },
+      [PARTNER_MODULE]: { partner_id: partnerId },
+      data: { role: invite.role || "designer" },
+    })
+  }
 
   // 3. Burn the invite.
   await service.updateDesignerInvites({
@@ -150,5 +233,12 @@ export const POST = async (
     partner_id: partnerId,
     design_id: invite.design_id,
     redirect: `/designs/${invite.design_id}/moodboard`,
+    /**
+     * So the client can say "added to your existing account" rather than
+     * "welcome, your account is ready" — and can tell an assignment that
+     * changed nothing from one that granted new access.
+     */
+    existing_partner: existingPartner,
+    already_assigned: alreadyAssigned,
   })
 }
