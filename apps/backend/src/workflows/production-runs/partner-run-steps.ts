@@ -18,6 +18,7 @@ import {
   isMissingLifecycleTransaction,
 } from "./lib/lifecycle-signal-errors"
 import { lifecycleWorkflowId } from "./run-production-run-lifecycle"
+import { resolveLineItemDesignId } from "../../lib/resolve-line-item-production"
 
 // ---------------------------------------------------------------------------
 // Types
@@ -418,10 +419,35 @@ export const stockFinishedGoodsStep = createStep(
           fields: ["items.*"],
         })
         const items = orders?.[0]?.items || []
-        const designItem = items.find(
-          (i: any) => i.metadata?.design_id === input.design_id && i.variant_id === variantId
-        )
-        lineItemId = designItem?.id
+        /**
+         * Was a `metadata.design_id` + `variant_id` match. Two problems: the
+         * string is provenance and goes stale the moment an item is re-pointed
+         * (#1921), and requiring `variant_id === variantId` cannot match a
+         * design-order item, which has no variant at all — the same nullity
+         * that made #1918's five items invisible.
+         *
+         * Resolve each item properly and prefer a variant match when one
+         * exists, since a design with two variants must still bank onto the
+         * right one. Falling back to a design match without a variant is what
+         * lets a design-order item be reserved at all.
+         */
+        let designItem: any = null
+        let designItemNoVariant: any = null
+        for (const i of items) {
+          const { designId: itemDesignId } = await resolveLineItemDesignId(
+            query,
+            { lineItemId: i.id, variantId: i.variant_id, metadata: i.metadata }
+          )
+          if (itemDesignId !== input.design_id) continue
+          if (i.variant_id === variantId) {
+            designItem = i
+            break
+          }
+          if (!i.variant_id && !designItemNoVariant) {
+            designItemNoVariant = i
+          }
+        }
+        lineItemId = (designItem ?? designItemNoVariant)?.id
       }
 
       if (lineItemId) {

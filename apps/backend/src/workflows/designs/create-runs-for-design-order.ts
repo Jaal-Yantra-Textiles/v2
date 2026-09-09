@@ -6,6 +6,7 @@ import { createProductionRunWorkflow } from "../production-runs/create-productio
 import { projectDesignOrderToUnifiedOrder } from "../production-runs/dual-write-unified-run-order"
 import { PRODUCTION_RUNS_MODULE } from "../../modules/production_runs"
 import type ProductionRunService from "../../modules/production_runs/service"
+import { resolveLineItemDesignId } from "../../lib/resolve-line-item-production"
 
 /**
  * #826 S3 (step 1) — fan out one production_run per design line item on a
@@ -39,6 +40,7 @@ export async function createRunsForDesignOrder(
   work_order_id: string | null
 }> {
   const logger: any = container.resolve(ContainerRegistrationKeys.LOGGER)
+  const query: any = container.resolve(ContainerRegistrationKeys.QUERY)
   const orderService = container.resolve(Modules.ORDER) as IOrderModuleService
   const runService = container.resolve(
     PRODUCTION_RUNS_MODULE
@@ -67,9 +69,22 @@ export async function createRunsForDesignOrder(
 
   for (const item of items) {
     const lineItemId = item?.id
-    // Design lines are the title-only items carrying design_id in metadata.
-    const designId = item?.metadata?.design_id as string | undefined
-    if (!lineItemId || !designId || alreadyProduced.has(lineItemId)) {
+    if (!lineItemId || alreadyProduced.has(lineItemId)) {
+      continue
+    }
+    /**
+     * Design lines used to be found by reading `metadata.design_id` directly.
+     * That string is provenance — what the item was ORDERED as — so after an
+     * order edit re-points an item (#1921) it names the design the customer is
+     * no longer getting, and this path would have produced the wrong one.
+     * `resolveLineItemDesignId` prefers the link and falls back to the string
+     * for orders the backfill has not reached (#1919).
+     */
+    const { designId } = await resolveLineItemDesignId(query, {
+      lineItemId,
+      metadata: item?.metadata,
+    })
+    if (!designId) {
       continue
     }
 

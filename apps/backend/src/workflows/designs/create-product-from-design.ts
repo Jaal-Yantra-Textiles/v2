@@ -11,6 +11,7 @@ import {
 } from "@medusajs/medusa/core-flows";
 import { DESIGN_MODULE } from "../../modules/designs";
 import type { Link } from "@medusajs/modules-sdk";
+import { resolveLineItemDesignId } from "../../lib/resolve-line-item-production"
 
 /**
  * Create Product from Design Workflow
@@ -504,7 +505,18 @@ const createProductAndVariantStep = createStep(
 
             const items = orderData?.[0]?.items || [];
             for (const item of items) {
-              if (item.metadata?.design_id === input.design_id && !item.variant_id) {
+              /**
+               * Was `item.metadata?.design_id === input.design_id`. The link
+               * wins now (#1919), so an item re-pointed to a different design
+               * is no longer stamped with THIS design's variant just because
+               * its provenance string still names it. `!item.variant_id` still
+               * gates it: this only ever fills in a variant that is missing.
+               */
+              const { designId: itemDesignId } = await resolveLineItemDesignId(
+                query,
+                { lineItemId: item.id, metadata: item.metadata }
+              );
+              if (itemDesignId === input.design_id && !item.variant_id) {
                 await orderService.updateOrderLineItems(item.id, {
                   variant_id,
                   product_id,

@@ -5,6 +5,7 @@ import { sendOrderConfirmationWorkflow } from "../workflows/email/send-notificat
 import { sendPartnerOrderPlacedWorkflow } from "../workflows/email/workflows/send-partner-order-email"
 import { createProductionRunWorkflow } from "../workflows/production-runs/create-production-run"
 import { linkDesignsToOrder } from "../workflows/designs/link-designs-to-order"
+import { linkDesignsToOrderItems } from "../workflows/designs/link-designs-to-order-items"
 import {
   hasProductionRunForLineItem,
   resolveLineItemDesignId,
@@ -115,11 +116,23 @@ export default async function orderPlacedHandler({
         continue
       }
 
-      // Resolve the design (variant-level custom design takes priority over the
-      // product-level association). Shared with the fulfillment path (#1112).
+      /**
+       * Resolve the design. The per-item LINK now wins over the variant- and
+       * product-level associations (#1919), so an item re-pointed by an order
+       * edit resolves to what it is for NOW rather than what its variant
+       * happens to be attached to.
+       *
+       * 🔴 This does NOT widen which items get a run. The `!productId` guard
+       * above still skips design-only items, deliberately: making those
+       * produce automatically is #1923, and it is gated on #1920's explicit
+       * no-produce flag. Removing the guard here would start auto-producing
+       * every converted design order.
+       */
       const { designId, isCustomDesign } = await resolveLineItemDesignId(query, {
         productId,
         variantId,
+        lineItemId,
+        metadata: item?.metadata,
       })
 
       if (isCustomDesign) {
@@ -175,6 +188,31 @@ export default async function orderPlacedHandler({
   } catch (e: any) {
     logger.warn(
       `[order.placed] Failed to create design-order links for order ${data.id}: ${e?.message || e}`
+    )
+  }
+
+  /**
+   * ...and the per-ITEM links (#1919). The order-level links above can say
+   * which designs a purchase involved; they cannot say which item is which,
+   * which is what re-pointing a deviated order needs. Runs BEFORE any
+   * consumer of `resolveLineItemDesignId` on a later event, so by the time
+   * anything asks "which design is this item?" the link is there.
+   */
+  try {
+    const { linked, unresolved } = await linkDesignsToOrderItems(container, data.id)
+    if (linked > 0) {
+      logger.info(
+        `[order.placed] Linked ${linked} design(s) to line items on order ${data.id}`
+      )
+    }
+    for (const u of unresolved) {
+      logger.warn(
+        `[order.placed] item ${u.line_item_id} names design ${u.design_id} but ${u.reason} — left unlinked on order ${data.id}`
+      )
+    }
+  } catch (e: any) {
+    logger.warn(
+      `[order.placed] Failed to create design-order-ITEM links for order ${data.id}: ${e?.message || e}`
     )
   }
 }

@@ -141,6 +141,7 @@ import { linkArtisanDetailRowsJob } from "./link-artisan-detail-rows-job"
 import { setPlatformTaxIdentityActiveJob } from "./set-platform-tax-identity-active-job"
 import { backfillFulfilledRetailRunsJob } from "./backfill-fulfilled-retail-runs-job"
 import { backfillParentRunProducedQuantityJob } from "./backfill-parent-run-produced-quantity-job"
+import { backfillDesignOrderItemLinksJob } from "./backfill-design-order-item-links-job"
 import { refreshStaleDraftPayoutsJob } from "./refresh-stale-draft-payouts-job"
 import {
   sweepAiPlatformsByCategory,
@@ -5914,6 +5915,7 @@ export const MAINTENANCE_JOBS: MaintenanceJob[] = [
   setPlatformTaxIdentityActiveJob,
   backfillFulfilledRetailRunsJob,
   backfillParentRunProducedQuantityJob,
+  backfillDesignOrderItemLinksJob,
   seedInvestorPanelsJob,
   seedPlatformStatsPanelJob,
   seedGoodsTransferTaskTemplateJob,

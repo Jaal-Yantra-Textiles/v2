@@ -10,6 +10,7 @@ import { ContainerRegistrationKeys } from "@medusajs/framework/utils"
 import { getOrdersListWorkflow } from "@medusajs/medusa/core-flows"
 import partnerOrderLink from "../../links/partner-order"
 import { resolveDesignThumbnail } from "../../lib/design-thumbnail"
+import { resolveLineItemDesignId } from "../../lib/resolve-line-item-production"
 
 // Chunk 5 (T3.4, #342): the kind-aware partner orders listing, lifted out of the
 // route handler into a workflow so the scoping/discrimination logic is reusable
@@ -155,7 +156,17 @@ export const attachOrderDesignSummariesStep = createStep(
         }
       }
       for (const item of asArray(row?.items)) {
-        const designId = item?.metadata?.design_id
+        /**
+         * The per-item LINK first, `metadata.design_id` only as the fallback
+         * (#1919). A re-pointed item would otherwise show the partner the
+         * design the order NO LONGER concerns, which on this screen is the
+         * design they are being asked to make.
+         */
+        const { designId } = await resolveLineItemDesignId(query, {
+          lineItemId: item?.id,
+          variantId: item?.variant_id,
+          metadata: item?.metadata,
+        })
         if (designId) {
           ids.add(String(designId))
         }
