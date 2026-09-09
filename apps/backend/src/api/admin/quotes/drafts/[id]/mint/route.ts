@@ -55,7 +55,35 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
     )
   }
 
+  /**
+   * The hand-typed freight rate, forwarded from the request (#1956).
+   *
+   * 🔴 Without this an unrateable lane cannot be minted through the draft door
+   * AT ALL. `quote-readiness` refuses with `freight_needs_manual_rate` whenever
+   * the carrier returns no rates and only a flat fallback exists, and the
+   * message it prints names the remedy outright: "Look up the real rate (DHL and
+   * the like) and type it in." `POST /admin/quotes` accepts exactly that field —
+   * but this route builds its body purely from the stored draft, and the draft
+   * has nowhere to keep a freight override (there is no freight field on the
+   * draft PATCH validator). So the operator was told to type in a number that
+   * this door had no way to receive.
+   *
+   * That is the same shape as #1806: a body assembled from a fixed list of
+   * fields, where the missing name is invisible at every layer that "passes".
+   * It is also why `admin-quote-draft-trade-price` has been red in CI for a
+   * month while passing on every developer machine — a laptop with carrier
+   * credentials gets real rates and never reaches the guard.
+   *
+   * Forwarded, not persisted: the ordinary mint validates and records it
+   * (`quoted_freight_source` / `_basis`), so this adds no second contract. A
+   * draft that should REMEMBER a typed rate is a separate slice.
+   */
+  const freightOverride = (req.body as any)?.freight_override_amount
+
   const body = {
+    ...(freightOverride != null
+      ? { freight_override_amount: Number(freightOverride) }
+      : {}),
     partner_id: draft.partner_id,
     buyer_email: draft.email_sent_to,
     recipient_name: draft.recipient_name,

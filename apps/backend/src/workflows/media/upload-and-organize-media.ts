@@ -57,7 +57,38 @@ export const createFolderStep = createStep(
       folderData.level = 0;
     }
     
-    const folder = await service.createFolders(folderData);
+    /**
+     * Find-or-create, because `slug` is unique and two callers can arrive at
+     * once (#1956).
+     *
+     * `generate-design-image` uploads its two A/B takes CONCURRENTLY. Each one
+     * looks for the `ai-designs` folder, both find nothing, and both then
+     * insert — so the second died on the unique constraint with "Folder with
+     * slug: ai-designs, already exists" and took the whole generation down. A
+     * caller-side lookup cannot close that window; only the step that does the
+     * insert can.
+     *
+     * 🔴 The compensation id is returned ONLY for a folder this step actually
+     * created. Reusing someone else's folder and then soft-deleting it on
+     * rollback would destroy a folder — and every file filed under it — that
+     * this workflow did not own.
+     */
+    const existing = await service.listFolders({ slug });
+    if (existing?.length) {
+      return new StepResponse(existing[0], undefined);
+    }
+
+    let folder: any;
+    try {
+      folder = await service.createFolders(folderData);
+    } catch (e: any) {
+      // Lost the race between the lookup above and this insert. Re-read rather
+      // than fail: the folder now exists and is exactly what we wanted. Any
+      // other error is not ours to swallow.
+      const raced = await service.listFolders({ slug });
+      if (!raced?.length) throw e;
+      return new StepResponse(raced[0], undefined);
+    }
     return new StepResponse(folder, folder.id);
   },
   async (folderId: string | undefined, { container }) => {

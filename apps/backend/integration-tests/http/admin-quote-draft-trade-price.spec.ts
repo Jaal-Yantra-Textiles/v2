@@ -162,8 +162,27 @@ setupSharedTestSuite(() => {
         )
       )
 
+      /**
+       * 🔴 The freight override is not decoration — without it this test is a
+       * carrier-availability test wearing a pricing test's clothes.
+       *
+       * `quote-readiness` refuses the mint with `freight_needs_manual_rate`
+       * whenever the carrier returns no rates and only a flat fallback exists.
+       * A developer machine has carrier credentials, gets real rates, and never
+       * reaches that guard; CI has none, so this 400d on every run for a month
+       * (#1956) while passing for everyone locally. Typing the rate in is what
+       * the guard's own message tells an operator to do, and it makes the
+       * outcome the same on both.
+       *
+       * The subject here is the NEGOTIATED UNIT PRICE. Freight is incidental to
+       * it, and must not be allowed to decide whether the assertion runs.
+       */
       const res = await loud("mint", () =>
-        api.post(`/admin/quotes/drafts/${draftId}/mint`, {}, adminHeaders)
+        api.post(
+          `/admin/quotes/drafts/${draftId}/mint`,
+          { freight_override_amount: 1200 },
+          adminHeaders
+        )
       )
 
       const quoteId = res.data.quote.id

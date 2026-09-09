@@ -68,6 +68,34 @@ const promptEnhancerAgent = new Agent({
     "Create detailed, professional prompts suitable for text-to-image generation.",
 });
 
+/**
+ * A platform's credentials, handed down from the Medusa container because the
+ * Mastra runtime has no container of its own.
+ *
+ * 🔴 `.nullish()`, not `.optional()`. `generate-design-image.ts` initialises
+ * both configs to `null` and leaves them null when no AI platform is configured
+ * and no Cloudflare env fallback is set — which is every fresh database,
+ * including CI's. `.optional()` accepts `undefined` and REJECTS `null`, so the
+ * workflow died at input validation ("expected object, received null") before
+ * reaching the env provider chain it documents as the fallback, and before the
+ * `isTestEnvironment()` stub that exists precisely so this runs without
+ * credentials. That was two of the four specs red on `main` for a month (#1956).
+ *
+ * Every consumer already reads these through `?.`, so a null is safe once it is
+ * allowed through. Declared once rather than inlined three times — the three
+ * copies were identical, and a fix applied to two of them would have been worse
+ * than no fix at all.
+ */
+const platformConfigSchema = z
+  .object({
+    provider_type: z.string().optional(),
+    api_key: z.string().optional(),
+    account_id: z.string().optional(),
+    base_url: z.string().optional(),
+    model: z.string().nullable().optional(),
+  })
+  .nullish();
+
 // Trigger schema (workflow input)
 export const triggerSchema = z.object({
   mode: z.enum(["preview", "commit"]).default("preview"),
@@ -143,15 +171,7 @@ export const triggerSchema = z.object({
   // `resolveImageProvider` decides whether it is usable here — Cloudflare and
   // FAL both are; anything else falls through to the env provider chain and
   // SAYS SO rather than pretending the admin's choice was honoured.
-  image_gen_config: z
-    .object({
-      provider_type: z.string().optional(),
-      api_key: z.string().optional(),
-      account_id: z.string().optional(),
-      base_url: z.string().optional(),
-      model: z.string().nullable().optional(),
-    })
-    .optional(),
+  image_gen_config: platformConfigSchema,
   /**
    * The TEXT model that rewrites the brief into an image prompt.
    *
@@ -165,15 +185,7 @@ export const triggerSchema = z.object({
    * "use the image platform for text" cannot work there at all. The caller
    * resolves a text-capable platform from the container and hands it down.
    */
-  prompt_model_config: z
-    .object({
-      provider_type: z.string().optional(),
-      api_key: z.string().optional(),
-      account_id: z.string().optional(),
-      base_url: z.string().optional(),
-      model: z.string().nullable().optional(),
-    })
-    .optional(),
+  prompt_model_config: platformConfigSchema,
 });
 
 // Final output schema (workflow output)
@@ -252,15 +264,7 @@ const step1OutputSchema = z.object({
   // Passthrough fields needed by subsequent steps
   mode: z.enum(["preview", "commit"]),
   customer_id: z.string(),
-  image_gen_config: z
-    .object({
-      provider_type: z.string().optional(),
-      api_key: z.string().optional(),
-      account_id: z.string().optional(),
-      base_url: z.string().optional(),
-      model: z.string().nullable().optional(),
-    })
-    .optional(),
+  image_gen_config: platformConfigSchema,
 });
 
 /** Cloudflare text model for prompt enhancement (same account/token as image gen). */
