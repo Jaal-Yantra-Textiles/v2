@@ -202,6 +202,69 @@ setupSharedTestSuite(() => {
       expect(res.data.designs[0].design_source).toBe("order_link")
     })
 
+    /**
+     * 🔴 Prod order #3. Five `design_order` rows naming what was originally
+     * commissioned — three of those designs now `Superseded` — plus three lines
+     * re-pointed to new designs. A blind union lists eight designs for a
+     * five-line order and the widget cannot tell which are still being made.
+     */
+    it("lets the LINE ITEMS win, and keeps the commissioned design separately", async () => {
+      const container = getContainer()
+      const stamp = Date.now()
+
+      const commissioned = await makeDesign(`Union Old ${stamp}`)
+      const repointed = await makeDesign(`Union New ${stamp}`)
+
+      const { result: order }: any = await createOrderWorkflow(container).run({
+        input: {
+          status: "pending",
+          email: `union-${stamp}@jyt.test`,
+          region_id: regionId,
+          currency_code: "inr",
+          items: [
+            {
+              title: "Re-pointed line",
+              quantity: 1,
+              unit_price: 100,
+              metadata: { design_id: repointed },
+            },
+          ] as any,
+        } as any,
+      })
+
+      const remoteLink = container.resolve(
+        ContainerRegistrationKeys.LINK
+      ) as any
+      // The ORDER-level link still names what was commissioned — nothing
+      // re-points it, which is the whole defect.
+      await remoteLink.create({
+        [DESIGN_MODULE]: { design_id: commissioned },
+        [Modules.ORDER]: { order_id: order.id },
+      })
+      // ...and the LINE now stands for the new design.
+      await remoteLink.create({
+        [DESIGN_MODULE]: { design_id: repointed },
+        [Modules.ORDER]: { order_line_item_id: order.items[0].id },
+      })
+
+      const res = await api.get(
+        `/admin/orders/${order.id}/design`,
+        adminHeaders
+      )
+      expect(res.status).toBe(200)
+
+      // What the order stands for NOW — not both.
+      expect(res.data.designs.map((d: any) => d.id)).toEqual([repointed])
+      expect(res.data.designs[0].order_line_item_ids).toEqual([
+        order.items[0].id,
+      ])
+      // The commissioned one is kept, out of the way, not lost.
+      expect(res.data.unlinked_designs.map((d: any) => d.id)).toEqual([
+        commissioned,
+      ])
+      expect(res.data.unlinked_designs[0].order_line_item_ids).toEqual([])
+    })
+
     it("returns the backwards-compatible empty shape for an order with no designs at all", async () => {
       const stamp = Date.now()
       const { result: order }: any = await createOrderWorkflow(

@@ -8,6 +8,7 @@ import { EMAIL_TEMPLATES_MODULE } from "../../src/modules/email_templates"
 import { emailTemplatesData } from "../../src/scripts/seed-email-templates"
 import { linkDesignsToOrderItems } from "../../src/workflows/designs/link-designs-to-order-items"
 import designOrderLineItemLink from "../../src/links/design-order-line-item-link"
+import { PRODUCTION_RUNS_MODULE } from "../../src/modules/production_runs"
 
 jest.setTimeout(120 * 1000)
 
@@ -280,6 +281,73 @@ setupSharedTestSuite(() => {
       expect(html).toContain(`No longer includes Batch O3 ${stamp}`)
       // The headline speaks about the whole order, not one garment.
       expect(rows[0].data.headline).toContain("designs")
+    })
+
+    /**
+     * 🔴 The claim that reached a real customer.
+     *
+     * Order #3's items carry a null `variant_id` (#1918), so no run was ever
+     * stamped with their `order_line_item_id` — while each of their designs had
+     * TWO completed runs. The line-only lookup reported "not started yet", and
+     * that sentence was emailed to Aline about garments that had been finished.
+     */
+    it("does not claim 'not started' when the design has runs the LINE does not", async () => {
+      const container = getContainer()
+      const stamp = Date.now()
+      const designA = await makeDesign(`Run State A ${stamp}`)
+      const designB = await makeDesign(`Run State B ${stamp}`)
+
+      const { result: order }: any = await createOrderWorkflow(container).run({
+        input: {
+          is_draft_order: true,
+          status: "draft",
+          no_notification: true,
+          email: `run-state-${stamp}@jyt.test`,
+          region_id: regionId,
+          currency_code: "inr",
+          items: [
+            {
+              title: "Made, but not against this line",
+              quantity: 1,
+              unit_price: 100,
+              metadata: { design_id: designA },
+            },
+          ] as any,
+        } as any,
+      })
+      await linkDesignsToOrderItems(container, order.id)
+
+      // A COMPLETED run for the design, carrying no order_line_item_id —
+      // exactly the shape prod is in.
+      const runService: any = container.resolve(PRODUCTION_RUNS_MODULE)
+      await runService.createProductionRuns({
+        design_id: designA,
+        status: "completed",
+        quantity: 1,
+        // Required by the model; the run's content is irrelevant here — only
+        // that a run for this DESIGN exists while carrying no line id.
+        snapshot: {},
+        captured_at: new Date(),
+      })
+
+      const preview = await api.post(
+        `/admin/designs/orders/${order.items[0].id}/design`,
+        { design_id: designB, dry_run: true },
+        adminHeaders
+      )
+      expect(preview.status).toBe(200)
+
+      const line = preview.data.notice.lines[0]
+      // Not "not_started": we have no record for this LINE, and saying nothing
+      // was begun about a finished garment is the lie this prevents.
+      expect(line.production_state).toBe("unknown")
+      expect(line.production_label).not.toMatch(/not started/i)
+      // And not "made" either — a run for the design is not proof it was made
+      // for THIS order.
+      expect(line.production_label).not.toMatch(/already made/i)
+      expect(line.reassuring).toBe(false)
+      expect(preview.data.notice.any_not_started).toBe(false)
+      expect(preview.data.notice.any_unknown).toBe(true)
     })
 
     it("refuses a change whose lines belong to another order — before writing", async () => {

@@ -77,26 +77,57 @@ export async function GET(
     // could still answer.
   }
 
-  const designIds = [
-    ...new Set([
-      ...(orderDesignLinks ?? []).map((link: any) => String(link.design_id)),
-      ...Object.keys(lineItemsByDesign),
-    ]),
-  ].filter(Boolean)
+  /**
+   * 🔴 The LINE ITEMS win when they have an opinion.
+   *
+   * Unioning both sources blindly is wrong on a re-pointed order. Prod order #3
+   * has five `design_order` rows naming what was ORIGINALLY commissioned — three
+   * of those designs are now `Superseded` — plus three lines re-pointed to new
+   * designs. A union lists eight designs for a five-line order, three of them
+   * no longer being made, and the widget cannot tell them apart.
+   *
+   * So `designs` is what the order stands for NOW, and an order-level design
+   * that no line resolves to is returned separately as `unlinked_designs`
+   * rather than silently dropped: it is what was commissioned, and losing that
+   * is the provenance #1919 exists to keep. When no line resolves at all — a
+   * commissioning order with title-only items — the order-level link is the
+   * only answer there is, so it becomes the answer.
+   */
+  const fromLines = Object.keys(lineItemsByDesign)
+  const fromOrderLink: string[] = [
+    ...new Set(
+      (orderDesignLinks ?? []).map((link: any) => String(link.design_id))
+    ),
+  ].filter((id): id is string => Boolean(id))
 
-  if (!designIds.length) {
+  const designIds = fromLines.length ? fromLines : fromOrderLink
+  const unlinkedIds = fromLines.length
+    ? fromOrderLink.filter((id) => !lineItemsByDesign[id])
+    : []
+
+  if (!designIds.length && !unlinkedIds.length) {
     // Backwards-compatible: still return singular `design: null` + new `designs: []`
     res.status(200).json({ design: null, designs: [] })
     return
   }
 
+  const designFields = [
+    "id",
+    "name",
+    "status",
+    "description",
+    "thumbnail_url",
+    "estimated_cost",
+  ]
   const { data: designs } = await query.graph({
     entity: "design",
-    filters: { id: designIds },
-    fields: ["id", "name", "status", "description", "thumbnail_url", "estimated_cost"],
+    filters: { id: [...designIds, ...unlinkedIds] },
+    fields: designFields,
   })
 
-  const result = designs || []
+  const byId: Record<string, any> = {}
+  for (const d of designs || []) byId[String(d.id)] = d
+  const result = designIds.map((id) => byId[id]).filter(Boolean)
 
   /**
    * The CART line item each design was commissioned on, so the order page can
@@ -142,5 +173,19 @@ export async function GET(
     // Backwards-compatible singular field
     design: withLinks[0] ?? null,
     designs: withLinks,
+    /**
+     * Named by the order-level link, on no line any more — what was
+     * commissioned before a re-point. Kept out of `designs` so the widget shows
+     * the order as it stands, and returned so the history is not lost.
+     */
+    unlinked_designs: unlinkedIds
+      .map((id) => byId[id])
+      .filter(Boolean)
+      .map((d: any) => ({
+        ...d,
+        design_order_line_item_id: lineItemByDesign[String(d.id)] ?? null,
+        order_line_item_ids: [],
+        design_source: "order_link",
+      })),
   })
 }
