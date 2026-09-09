@@ -214,6 +214,7 @@ import {
   UpdateExportLutSchema,
 } from "./admin/platform-tax-identities/validators";
 import { CreatePlatformCostConfigSchema } from "./admin/platform-cost-config/validators";
+import { ChangeOrderItemDesignSchema } from "./admin/designs/orders/[lineItemId]/design/validators";
 import { createPlanSchema, updatePlanSchema, createSubscriptionSchema } from "./admin/partner-plans/validators";
 import { subscribeSchema as partnerSubscribeSchema } from "./partners/subscription/validators";
 import { AdminPostInventoryOrderTasksReq } from "./admin/inventory-orders/[id]/tasks/validators";
@@ -2901,6 +2902,15 @@ export default defineMiddlewares({
       matcher: "/admin/platform-tax-identities",
       method: "GET",
       middlewares: [],
+    },
+    {
+      // #1918 — attach / replace / detach the design behind an ORDER line item.
+      // `design_id: null` detaches; omitting the field is rejected by the route.
+      matcher: "/admin/designs/orders/:lineItemId/design",
+      method: "POST",
+      middlewares: [
+        validateAndTransformBody(wrapSchema(ChangeOrderItemDesignSchema)),
+      ],
     },
     {
       matcher: "/admin/platform-cost-config",

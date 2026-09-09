@@ -1,0 +1,283 @@
+import { ContainerRegistrationKeys, Modules } from "@medusajs/framework/utils"
+import type { MedusaContainer } from "@medusajs/framework/types"
+
+import {
+  getProductionRunForLineItem,
+  resolveLineItemDesignId,
+} from "../../lib/resolve-line-item-production"
+import { repointOrderItemDesign } from "./link-designs-to-order-items"
+import {
+  buildDesignChangeNotice,
+  type DesignChange,
+  nextItemMetadata,
+  type DesignChangeNotice,
+} from "./lib/design-change-notice"
+
+/**
+ * #1918 — attach or detach the design behind an order line item, and tell the
+ * customer what changed.
+ *
+ * `repointOrderItemDesign` has existed since #1919 and had ZERO callers: the
+ * mechanism was built and no door was ever opened onto it. This is that door.
+ *
+ * ## Why the notice is computed BEFORE the write
+ *
+ * The previous design and the production run have to be read while the link
+ * still points at them. Reading afterwards would report the new state as though
+ * it were the old one, and the email would tell the customer nothing changed.
+ *
+ * ## Why the email is best-effort and the write is not
+ *
+ * The link write is the operation the admin asked for; the email is a courtesy
+ * about it. A notification provider being down must not leave the order
+ * pointing at the wrong design — so the write is committed first and a failed
+ * send is reported in the result rather than thrown. The reverse ordering would
+ * make the customer's inbox authoritative over the order.
+ */
+
+export type ChangeOrderItemDesignInput = {
+  line_item_id: string
+  /** The design to point the item at. `null` DETACHES it. */
+  design_id: string | null
+  /** Skip the customer email — for a correction the customer should not see. */
+  notify?: boolean
+  dry_run?: boolean
+}
+
+export type ChangeOrderItemDesignResult = {
+  line_item_id: string
+  action: "attached" | "detached" | "replaced" | "unchanged"
+  previous_design_id: string | null
+  /** Where the previous design came from: "link" (movable) or "metadata" (provenance only). */
+  previous_design_source: string | null
+  new_design_id: string | null
+  removed_links: number
+  created_link: boolean
+  /** Whether `metadata.design_id` was brought into step with the link. */
+  metadata_updated: boolean
+  notice: DesignChangeNotice
+  email: { sent: boolean; to: string | null; reason?: string }
+  dry_run: boolean
+}
+
+/**
+ * Read the design the item currently stands for, and WHERE that came from.
+ *
+ * Uses `resolveLineItemDesignId` rather than reading the link directly, because
+ * an item can carry a design without carrying a LINK: anything predating the
+ * #1919 backfill has only `metadata.design_id`. Reading the link alone reports
+ * such an item as design-less, and the email would then tell the customer a
+ * garment was "attached" when it was really re-pointed — losing the fact that
+ * something was there before.
+ *
+ * `source` is carried out to the caller because it changes what the write
+ * means: from `"link"` this is a move, from `"metadata"` it is the first link
+ * this item has ever had.
+ */
+async function readCurrentDesign(
+  query: any,
+  lineItemId: string,
+  item: { product_id?: string | null; variant_id?: string | null; metadata?: any }
+): Promise<{ id: string; name: string | null; source: string | null } | null> {
+  const resolved = await resolveLineItemDesignId(query, {
+    productId: item?.product_id ?? null,
+    variantId: item?.variant_id ?? null,
+    lineItemId,
+    metadata: item?.metadata ?? null,
+  })
+  if (!resolved.designId) return null
+
+  const { data: designs } = await query.graph({
+    entity: "design",
+    fields: ["id", "name"],
+    filters: { id: resolved.designId },
+  })
+  return {
+    id: resolved.designId,
+    name: designs?.[0]?.name ?? null,
+    source: resolved.source,
+  }
+}
+
+/** The order this item belongs to, with the customer's email and the title. */
+async function readItemContext(
+  query: any,
+  lineItemId: string
+): Promise<{
+  order_id: string | null
+  item: any | null
+  item_title: string | null
+  display_id: number | null
+  email: string | null
+  customer_first_name: string | null
+} | null> {
+  const { data: orders } = await query.graph({
+    entity: "order",
+    fields: [
+      "id",
+      "display_id",
+      "email",
+      "customer.first_name",
+      "items.id",
+      "items.title",
+      "items.product_id",
+      "items.variant_id",
+      "items.metadata",
+    ],
+    filters: { items: { id: lineItemId } },
+  })
+  const order = orders?.[0]
+  if (!order) return null
+  const item = (order.items || []).find((i: any) => String(i.id) === lineItemId)
+  return {
+    order_id: order.id ?? null,
+    item: item ?? null,
+    item_title: item?.title ?? null,
+    display_id: order.display_id ?? null,
+    email: order.email ?? null,
+    customer_first_name: order.customer?.first_name ?? null,
+  }
+}
+
+export async function changeOrderItemDesign(
+  container: MedusaContainer,
+  input: ChangeOrderItemDesignInput
+): Promise<ChangeOrderItemDesignResult> {
+  const query = container.resolve(ContainerRegistrationKeys.QUERY) as any
+  const logger: any = container.resolve(ContainerRegistrationKeys.LOGGER)
+  const lineItemId = input.line_item_id
+  const dryRun = Boolean(input.dry_run)
+
+  // ── Read the world BEFORE touching it ────────────────────────────────────
+  // Context first: the design resolver needs the item's product/variant/metadata,
+  // so this one read cannot be parallelised with the other two.
+  const ctx = await readItemContext(query, lineItemId)
+  const [previous, run] = await Promise.all([
+    readCurrentDesign(query, lineItemId, ctx?.item ?? {}),
+    getProductionRunForLineItem(query, lineItemId),
+  ])
+
+  let next: { id: string; name: string | null } | null = null
+  if (input.design_id) {
+    const { data: designs } = await query.graph({
+      entity: "design",
+      fields: ["id", "name"],
+      filters: { id: input.design_id },
+    })
+    if (!designs?.length) {
+      throw new Error(`Design ${input.design_id} does not exist`)
+    }
+    next = { id: String(designs[0].id), name: designs[0].name ?? null }
+  }
+
+  const change: DesignChange = {
+    line_item_id: lineItemId,
+    item_title: ctx?.item_title ?? null,
+    previous_design: previous,
+    new_design: next,
+    run,
+  }
+  const notice = buildDesignChangeNotice([change])
+  const action = notice.lines[0].action
+
+  // ── Write ────────────────────────────────────────────────────────────────
+  const { removed, created } = await repointOrderItemDesign(
+    container,
+    lineItemId,
+    input.design_id,
+    { dryRun }
+  )
+
+  /**
+   * Keep `metadata.design_id` in step with the link (founder decision,
+   * 2026-09-09).
+   *
+   * #1919 froze this string as pure provenance and made the link the answer.
+   * That left the two disagreeing after a re-point — and `metadata.design_id`
+   * is still read over HTTP by partner-ui, which cannot be migrated yet. So a
+   * re-point that did not write it would move the design everywhere EXCEPT the
+   * surface a partner actually looks at.
+   *
+   * 🔴 The original is preserved once, under `original_design_id`, before the
+   * first overwrite. Losing what an item was ORDERED as is irreversible, and
+   * the whole reason #1918 could be diagnosed at all was that the string still
+   * said what the order originally meant. Written only when absent, so repeated
+   * re-points keep the FIRST value rather than the previous one.
+   */
+  let metadataUpdated = false
+  if (!dryRun && action !== "unchanged") {
+    try {
+      const orderService: any = container.resolve(Modules.ORDER)
+      const nextMeta = nextItemMetadata(
+        ctx?.item?.metadata as Record<string, any> | null,
+        input.design_id ?? null
+      )
+
+      await orderService.updateOrderLineItems(lineItemId, { metadata: nextMeta })
+      metadataUpdated = true
+    } catch (e: any) {
+      // Reported, not thrown: the LINK is authoritative and is already
+      // committed. A failed metadata sync leaves the two disagreeing, which is
+      // exactly the state #1919 built the link to survive.
+      logger?.warn?.(
+        `[design-change] link re-pointed on ${lineItemId} but metadata.design_id sync failed: ${e?.message ?? e}`
+      )
+    }
+  }
+
+  // ── Tell the customer (best-effort, never blocks the write) ──────────────
+  const wantsEmail = input.notify !== false && notice.should_send && !dryRun
+  let email: ChangeOrderItemDesignResult["email"] = {
+    sent: false,
+    to: ctx?.email ?? null,
+  }
+  if (!wantsEmail) {
+    email.reason = dryRun
+      ? "dry run"
+      : input.notify === false
+        ? "notify disabled"
+        : "nothing changed"
+  } else if (!ctx?.email) {
+    // Reported, not thrown: an order with no email is a data gap, not a reason
+    // to refuse the re-point the admin asked for.
+    email.reason = "order has no email address"
+  } else {
+    try {
+      const notificationService: any = container.resolve("notification")
+      await notificationService.createNotifications({
+        to: ctx.email,
+        channel: "email",
+        template: "design-order-changed",
+        data: {
+          order_id: ctx.order_id,
+          display_id: ctx.display_id,
+          customer_first_name: ctx.customer_first_name,
+          headline: notice.headline,
+          all_in_hand: notice.all_in_hand,
+          any_not_started: notice.any_not_started,
+          lines: notice.changed_lines,
+        },
+      })
+      email.sent = true
+    } catch (e: any) {
+      email.reason = `send failed: ${e?.message ?? String(e)}`
+      logger?.warn?.(
+        `[design-change] re-point of ${lineItemId} committed but email failed: ${email.reason}`
+      )
+    }
+  }
+
+  return {
+    line_item_id: lineItemId,
+    action,
+    previous_design_id: previous?.id ?? null,
+    previous_design_source: previous?.source ?? null,
+    new_design_id: next?.id ?? null,
+    removed_links: removed,
+    created_link: created,
+    metadata_updated: metadataUpdated,
+    notice,
+    email,
+    dry_run: dryRun,
+  }
+}
