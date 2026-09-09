@@ -48,7 +48,17 @@ const OrderCarrierShipmentWidget = ({
 export const config = defineWidgetConfig({
   // Directly above the read-only tracking widget (`order.details.after`), so the
   // action and its result still read as one section.
-  zone: "order.details.after",
+  /**
+   * TOP of the main column, not the bottom.
+   *
+   * `order.details.after` renders after EVERYTHING Medusa puts in that column,
+   * including the Metadata and JSON blocks — so booking a shipment sat below
+   * two debug panels. There is no zone between the fulfillments and those
+   * blocks (the SDK defines only before/after and their `side` counterparts),
+   * so `before` is the only position that puts a shipping ACTION above
+   * developer detail.
+   */
+  zone: "order.details",
 })
 
 export default OrderCarrierShipmentWidget

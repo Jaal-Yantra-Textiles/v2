@@ -1,4 +1,8 @@
-import { ContainerRegistrationKeys, Modules } from "@medusajs/framework/utils"
+import {
+  ContainerRegistrationKeys,
+  MedusaError,
+  Modules,
+} from "@medusajs/framework/utils"
 import type { MedusaContainer } from "@medusajs/framework/types"
 
 import {
@@ -6,6 +10,7 @@ import {
   resolveLineItemDesignId,
 } from "../../lib/resolve-line-item-production"
 import { repointOrderItemDesign } from "./link-designs-to-order-items"
+import { sendDesignOrderChangedEmailWorkflow } from "../email/workflows/send-design-order-changed-email"
 import {
   buildDesignChangeNotice,
   type DesignChange,
@@ -56,6 +61,42 @@ export type ChangeOrderItemDesignResult = {
   /** Whether `metadata.design_id` was brought into step with the link. */
   metadata_updated: boolean
   notice: DesignChangeNotice
+  email: { sent: boolean; to: string | null; reason?: string }
+  dry_run: boolean
+}
+
+/** One line's move, inside a batch. */
+export type DesignChangeRequest = {
+  line_item_id: string
+  /** The design to point the item at. `null` DETACHES it. */
+  design_id: string | null
+}
+
+export type ChangeOrderDesignsInput = {
+  changes: DesignChangeRequest[]
+  /**
+   * The order these lines must belong to. Checked BEFORE anything is written,
+   * so a caller addressing the wrong order is refused rather than half-applied.
+   */
+  order_id?: string
+  /** Skip the customer email — for a correction the customer should not see. */
+  notify?: boolean
+  dry_run?: boolean
+}
+
+/** What happened to one line. The email is reported once, for the batch. */
+export type ChangedItemResult = Omit<
+  ChangeOrderItemDesignResult,
+  "notice" | "email" | "dry_run"
+>
+
+export type ChangeOrderDesignsResult = {
+  order_id: string | null
+  display_id: number | null
+  items: ChangedItemResult[]
+  /** ONE notice covering every line in this change. */
+  notice: DesignChangeNotice
+  /** ONE email for the whole change — not one per line. */
   email: { sent: boolean; to: string | null; reason?: string }
   dry_run: boolean
 }
@@ -118,6 +159,11 @@ async function readItemContext(
       "display_id",
       "email",
       "customer.first_name",
+      // Same chain the order-placed email uses. `customer.first_name` alone is
+      // null for a guest order and for a customer record with no name, and
+      // Handlebars renders that as "Hi ," without complaining.
+      "shipping_address.first_name",
+      "billing_address.first_name",
       "items.id",
       "items.title",
       "items.product_id",
@@ -135,20 +181,30 @@ async function readItemContext(
     item_title: item?.title ?? null,
     display_id: order.display_id ?? null,
     email: order.email ?? null,
-    customer_first_name: order.customer?.first_name ?? null,
+    customer_first_name:
+      order.customer?.first_name ||
+      order.shipping_address?.first_name ||
+      order.billing_address?.first_name ||
+      (order.email ? String(order.email).split("@")[0] : null) ||
+      "there",
   }
 }
 
-export async function changeOrderItemDesign(
-  container: MedusaContainer,
-  input: ChangeOrderItemDesignInput
-): Promise<ChangeOrderItemDesignResult> {
-  const query = container.resolve(ContainerRegistrationKeys.QUERY) as any
-  const logger: any = container.resolve(ContainerRegistrationKeys.LOGGER)
-  const lineItemId = input.line_item_id
-  const dryRun = Boolean(input.dry_run)
+/**
+ * Everything ONE line's change depends on, read while the link still points at
+ * the OLD design. Reading after the write would report the new state as though
+ * it were the old one, and the email would tell the customer nothing changed.
+ */
+async function readChange(
+  query: any,
+  req: DesignChangeRequest
+): Promise<{
+  ctx: Awaited<ReturnType<typeof readItemContext>>
+  change: DesignChange
+  previousSource: string | null
+}> {
+  const lineItemId = req.line_item_id
 
-  // ── Read the world BEFORE touching it ────────────────────────────────────
   // Context first: the design resolver needs the item's product/variant/metadata,
   // so this one read cannot be parallelised with the other two.
   const ctx = await readItemContext(query, lineItemId)
@@ -158,33 +214,46 @@ export async function changeOrderItemDesign(
   ])
 
   let next: { id: string; name: string | null } | null = null
-  if (input.design_id) {
+  if (req.design_id) {
     const { data: designs } = await query.graph({
       entity: "design",
       fields: ["id", "name"],
-      filters: { id: input.design_id },
+      filters: { id: req.design_id },
     })
     if (!designs?.length) {
-      throw new Error(`Design ${input.design_id} does not exist`)
+      throw new Error(`Design ${req.design_id} does not exist`)
     }
     next = { id: String(designs[0].id), name: designs[0].name ?? null }
   }
 
-  const change: DesignChange = {
-    line_item_id: lineItemId,
-    item_title: ctx?.item_title ?? null,
-    previous_design: previous,
-    new_design: next,
-    run,
+  return {
+    ctx,
+    previousSource: previous?.source ?? null,
+    change: {
+      line_item_id: lineItemId,
+      item_title: ctx?.item_title ?? null,
+      previous_design: previous,
+      new_design: next,
+      run,
+    },
   }
-  const notice = buildDesignChangeNotice([change])
-  const action = notice.lines[0].action
+}
 
-  // ── Write ────────────────────────────────────────────────────────────────
+/** Move ONE line's design. Says nothing to the customer — that is the batch's job. */
+async function writeChange(
+  container: MedusaContainer,
+  logger: any,
+  read: Awaited<ReturnType<typeof readChange>>,
+  action: ChangedItemResult["action"],
+  dryRun: boolean
+): Promise<ChangedItemResult> {
+  const lineItemId = read.change.line_item_id
+  const designId = read.change.new_design?.id ?? null
+
   const { removed, created } = await repointOrderItemDesign(
     container,
     lineItemId,
-    input.design_id,
+    designId,
     { dryRun }
   )
 
@@ -209,8 +278,8 @@ export async function changeOrderItemDesign(
     try {
       const orderService: any = container.resolve(Modules.ORDER)
       const nextMeta = nextItemMetadata(
-        ctx?.item?.metadata as Record<string, any> | null,
-        input.design_id ?? null
+        read.ctx?.item?.metadata as Record<string, any> | null,
+        designId
       )
 
       await orderService.updateOrderLineItems(lineItemId, { metadata: nextMeta })
@@ -225,9 +294,125 @@ export async function changeOrderItemDesign(
     }
   }
 
-  // ── Tell the customer (best-effort, never blocks the write) ──────────────
+  return {
+    line_item_id: lineItemId,
+    action,
+    previous_design_id: read.change.previous_design?.id ?? null,
+    previous_design_source: read.previousSource,
+    new_design_id: designId,
+    removed_links: removed,
+    created_link: created,
+    metadata_updated: metadataUpdated,
+  }
+}
+
+/**
+ * Change the designs on an order — ONE change, ONE email.
+ *
+ * This is the shape Medusa itself uses for an order edit: actions accumulate
+ * on a single order change and exactly one `order-edit.confirmed` event is
+ * emitted when it is applied, no matter how many lines moved. Re-pointing
+ * three designs one call at a time sent the customer three separate emails
+ * about one decision.
+ *
+ * `buildDesignChangeNotice` was always built for this — it takes an ARRAY, and
+ * its headline deliberately weakens to the worst-off garment across the whole
+ * set ("they're all already in hand" only when every one of them is). Only the
+ * caller was ever per-item.
+ *
+ * ## Order of operations
+ *
+ * Every line is READ first, and the batch is refused before any write if the
+ * lines do not all belong to one order — one email addresses one customer
+ * about one order, so a batch spanning two is a caller mistake, not something
+ * to half-apply.
+ *
+ * Writes are then sequential and NOT transactional: link writes have no shared
+ * transaction here. A failure part-way leaves the earlier lines moved, so the
+ * error carries how many were applied rather than pretending nothing happened.
+ */
+export async function changeOrderDesigns(
+  container: MedusaContainer,
+  input: ChangeOrderDesignsInput
+): Promise<ChangeOrderDesignsResult> {
+  const query = container.resolve(ContainerRegistrationKeys.QUERY) as any
+  const logger: any = container.resolve(ContainerRegistrationKeys.LOGGER)
+  const dryRun = Boolean(input.dry_run)
+  const requests = input.changes ?? []
+
+  if (!requests.length) {
+    throw new MedusaError(
+      MedusaError.Types.INVALID_DATA,
+      "No changes supplied — send at least one line to change."
+    )
+  }
+
+  const seen = new Set<string>()
+  for (const req of requests) {
+    if (!req?.line_item_id) {
+      throw new MedusaError(
+        MedusaError.Types.INVALID_DATA,
+        "Every change needs a line_item_id."
+      )
+    }
+    if (seen.has(req.line_item_id)) {
+      // Two moves of one line in a single change is ambiguous — the second
+      // would silently win, and the customer would be told about both.
+      throw new MedusaError(
+        MedusaError.Types.INVALID_DATA,
+        `Line item ${req.line_item_id} appears twice in the same change.`
+      )
+    }
+    seen.add(req.line_item_id)
+  }
+
+  // ── Read every line BEFORE touching any of them ──────────────────────────
+  const reads = await Promise.all(requests.map((req) => readChange(query, req)))
+
+  const orderIds = [
+    ...new Set(reads.map((r) => r.ctx?.order_id).filter(Boolean)),
+  ] as string[]
+  if (orderIds.length > 1) {
+    throw new MedusaError(
+      MedusaError.Types.INVALID_DATA,
+      `These line items belong to ${orderIds.length} different orders. One change covers one order.`
+    )
+  }
+  if (input.order_id && orderIds[0] && orderIds[0] !== input.order_id) {
+    // Before the write, deliberately: applied first, this would move designs on
+    // whichever order the lines DO belong to and report the mistake afterwards.
+    throw new MedusaError(
+      MedusaError.Types.INVALID_DATA,
+      `Those line items belong to order ${orderIds[0]}, not ${input.order_id}.`
+    )
+  }
+
+  const notice = buildDesignChangeNotice(reads.map((r) => r.change))
+  const ctx = reads[0]?.ctx ?? null
+
+  // ── Write ────────────────────────────────────────────────────────────────
+  const items: ChangedItemResult[] = []
+  for (let i = 0; i < reads.length; i++) {
+    try {
+      items.push(
+        await writeChange(
+          container,
+          logger,
+          reads[i],
+          notice.lines[i].action,
+          dryRun
+        )
+      )
+    } catch (e: any) {
+      throw new Error(
+        `Changed ${items.length} of ${reads.length} lines, then failed on ${reads[i].change.line_item_id}: ${e?.message ?? e}`
+      )
+    }
+  }
+
+  // ── Tell the customer ONCE, about the whole change ───────────────────────
   const wantsEmail = input.notify !== false && notice.should_send && !dryRun
-  let email: ChangeOrderItemDesignResult["email"] = {
+  const email: ChangeOrderDesignsResult["email"] = {
     sent: false,
     to: ctx?.email ?? null,
   }
@@ -243,41 +428,80 @@ export async function changeOrderItemDesign(
     email.reason = "order has no email address"
   } else {
     try {
-      const notificationService: any = container.resolve("notification")
-      await notificationService.createNotifications({
-        to: ctx.email,
-        channel: "email",
-        template: "design-order-changed",
-        data: {
-          order_id: ctx.order_id,
-          display_id: ctx.display_id,
-          customer_first_name: ctx.customer_first_name,
-          headline: notice.headline,
-          all_in_hand: notice.all_in_hand,
-          any_not_started: notice.any_not_started,
-          lines: notice.changed_lines,
+      /**
+       * Through the workflow, so the DB template is FETCHED AND RENDERED.
+       *
+       * 🔴 This used to call `createNotifications` with the template key
+       * alone. The provider needs `_template_html_content` on the payload;
+       * without it it falls back to a generic "Notification from Jaal Yantra
+       * Textiles" shell and reports success. The row was written and
+       * `email.sent` was true, so nothing here and no test could tell that the
+       * customer never received the sentence the confirm dialog quoted.
+       *
+       * `order_display_id` is passed alongside `display_id`: the template
+       * declares the former, and a key the template does not know renders as
+       * an empty string with no error.
+       */
+      await sendDesignOrderChangedEmailWorkflow(container).run({
+        input: {
+          to: ctx.email,
+          data: {
+            order_id: ctx.order_id,
+            display_id: ctx.display_id,
+            order_display_id: ctx.display_id,
+            customer_first_name: ctx.customer_first_name,
+            headline: notice.headline,
+            all_in_hand: notice.all_in_hand,
+            any_not_started: notice.any_not_started,
+            lines: notice.changed_lines,
+            current_year: new Date().getFullYear(),
+          },
         },
       })
       email.sent = true
     } catch (e: any) {
       email.reason = `send failed: ${e?.message ?? String(e)}`
       logger?.warn?.(
-        `[design-change] re-point of ${lineItemId} committed but email failed: ${email.reason}`
+        `[design-change] ${items.length} line(s) re-pointed on order ${ctx.order_id} but email failed: ${email.reason}`
       )
     }
   }
 
   return {
-    line_item_id: lineItemId,
-    action,
-    previous_design_id: previous?.id ?? null,
-    previous_design_source: previous?.source ?? null,
-    new_design_id: next?.id ?? null,
-    removed_links: removed,
-    created_link: created,
-    metadata_updated: metadataUpdated,
+    order_id: ctx?.order_id ?? null,
+    display_id: ctx?.display_id ?? null,
+    items,
     notice,
     email,
     dry_run: dryRun,
+  }
+}
+
+/**
+ * One line, one email — a batch of exactly one.
+ *
+ * Kept as its own door because the MCP tool, the admin route and everything
+ * written against #1918 address a single line item. It is now a thin wrapper:
+ * there is one implementation of what a design change means, so the single and
+ * batch paths cannot drift.
+ */
+export async function changeOrderItemDesign(
+  container: MedusaContainer,
+  input: ChangeOrderItemDesignInput
+): Promise<ChangeOrderItemDesignResult> {
+  const result = await changeOrderDesigns(container, {
+    changes: [
+      { line_item_id: input.line_item_id, design_id: input.design_id },
+    ],
+    notify: input.notify,
+    dry_run: input.dry_run,
+  })
+
+  const item = result.items[0]
+  return {
+    ...item,
+    notice: result.notice,
+    email: result.email,
+    dry_run: result.dry_run,
   }
 }

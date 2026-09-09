@@ -1,110 +1,108 @@
 import { defineWidgetConfig } from "@medusajs/admin-sdk"
-import { Container, Text, Badge, Heading, Button, Skeleton, toast } from "@medusajs/ui"
-import { PencilSquare } from "@medusajs/icons"
+import { Container, Text, Badge, Heading, Skeleton, StatusBadge } from "@medusajs/ui"
+import { PencilSquare, SquareTwoStack } from "@medusajs/icons"
 import { DetailWidgetProps } from "@medusajs/framework/types"
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
+import { useQuery } from "@tanstack/react-query"
 import { sdk } from "../lib/config"
 import { ActionMenu } from "../components/common/action-menu"
+
+/**
+ * Custom designs on an order — a compact read-only list (#1918).
+ *
+ * ## Why there is no Approve button here
+ *
+ * There used to be one. This is the ORDER page: it answers "what did the
+ * customer buy and where is it", not "is this drawing good enough to make".
+ * Approving a design from here mixed a design-review decision into a commerce
+ * screen, where the surrounding context gives no basis for making it.
+ *
+ * Approval lives on the design and on the design order, which is also where the
+ * lines can be re-pointed. This widget's job is to say WHICH designs this order
+ * involves, what state each is in, and where to go to act — nothing more.
+ */
 
 type DesignType = {
   id: string
   name: string
   status: string
-  description?: string
   thumbnail_url?: string
-  estimated_cost?: number
+  /** The cart line item its design-order screen is keyed on. May be null. */
+  design_order_line_item_id?: string | null
 }
 
-type AdminOrder = {
-  id: string
-}
+type AdminOrder = { id: string }
 
-const getStatusColor = (status: string): "green" | "blue" | "orange" | "grey" | "red" | "purple" => {
+const statusColor = (
+  status: string
+): "green" | "blue" | "orange" | "grey" | "red" | "purple" => {
   switch (status) {
     case "Commerce_Ready":
       return "green"
     case "Approved":
       return "blue"
     case "In_Development":
+    case "Sample_Production":
       return "orange"
-    case "Conceptual":
-      return "grey"
-    case "Rejected":
-      return "red"
-    case "On_Hold":
+    case "Technical_Review":
       return "purple"
+    case "Rejected":
+    case "Revision":
+      return "red"
     default:
       return "grey"
   }
 }
 
-const DesignCard = ({
-  design,
-  orderId,
-}: {
-  design: DesignType
-  orderId: string
-}) => {
-  const queryClient = useQueryClient()
-
-  const { mutateAsync: approve, isPending } = useMutation({
-    mutationFn: (designId: string) =>
-      sdk.client.fetch(`/admin/designs/${designId}/approve`, {
-        method: "POST",
-      }),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["order-design", orderId] })
-      toast.success("Design approved")
-    },
-    onError: (err: any) => {
-      toast.error(err?.message || "Failed to approve design")
-    },
-  })
-
-  return (
-    <div className="px-6 py-4 space-y-3">
-      {design.thumbnail_url && (
+const DesignRow = ({ design }: { design: DesignType }) => (
+  <div className="flex items-center justify-between gap-x-3 px-6 py-3">
+    <div className="flex min-w-0 items-center gap-x-3">
+      {design.thumbnail_url ? (
         <img
           src={design.thumbnail_url}
-          alt={design.name}
-          className="w-full rounded-lg object-cover"
+          alt=""
+          className="size-8 shrink-0 rounded object-cover"
         />
+      ) : (
+        <div className="bg-ui-bg-component size-8 shrink-0 rounded" />
       )}
-      <div className="flex items-center justify-between">
-        <Text weight="plus">{design.name}</Text>
-        <Badge color={getStatusColor(design.status)}>{design.status}</Badge>
-      </div>
-      {design.description && (
-        <Text className="text-ui-fg-subtle">{design.description}</Text>
-      )}
-      {design.estimated_cost != null && (
-        <Text>Est. cost: ${design.estimated_cost}</Text>
-      )}
-      <div className="flex items-center gap-x-2">
-        <Button
-          size="small"
-          disabled={design.status === "Approved" || isPending}
-          onClick={() => approve(design.id)}
-        >
-          {design.status === "Approved" ? "Approved ✓" : "Approve Design"}
-        </Button>
-        <ActionMenu
-          groups={[
-            {
-              actions: [
-                {
-                  label: "View Design",
-                  icon: <PencilSquare />,
-                  to: `/designs/${design.id}`,
-                },
-              ],
-            },
-          ]}
-        />
-      </div>
+      <Text size="small" className="truncate">
+        {design.name}
+      </Text>
     </div>
-  )
-}
+    <div className="flex shrink-0 items-center gap-x-2">
+      <StatusBadge color={statusColor(design.status)}>
+        {String(design.status ?? "").replace(/_/g, " ")}
+      </StatusBadge>
+      <ActionMenu
+        groups={[
+          {
+            actions: [
+              {
+                label: "View design",
+                icon: <PencilSquare />,
+                to: `/designs/${design.id}`,
+              },
+              /*
+                Only when we know the cart line item its design-order screen is
+                keyed on. A link built from the order or design id would 404,
+                and an action that navigates nowhere is worse than none.
+              */
+              ...(design.design_order_line_item_id
+                ? [
+                    {
+                      label: "Edit lines on the design order",
+                      icon: <SquareTwoStack />,
+                      to: `/design-orders/${design.design_order_line_item_id}`,
+                    },
+                  ]
+                : []),
+            ],
+          },
+        ]}
+      />
+    </div>
+  </div>
+)
 
 const OrderDesignWidget = ({ data: order }: DetailWidgetProps<AdminOrder>) => {
   const { data, isLoading } = useQuery({
@@ -118,23 +116,27 @@ const OrderDesignWidget = ({ data: order }: DetailWidgetProps<AdminOrder>) => {
 
   const designs = data?.designs || (data?.design ? [data.design] : [])
 
-  if (!isLoading && designs.length === 0) return null
+  // Nothing to say about an order with no designs — an empty card is noise.
+  if (!isLoading && designs.length === 0) {
+    return null
+  }
 
   return (
     <Container className="divide-y p-0">
-      <div className="px-6 py-4 flex items-center justify-between">
-        <Heading level="h2">Custom Designs</Heading>
-        {designs.length > 1 && (
-          <Badge size="2xsmall" color="blue">
+      <div className="flex items-center justify-between px-6 py-4">
+        <Heading level="h2">Custom designs</Heading>
+        {designs.length > 0 && (
+          <Badge size="2xsmall" color="grey">
             {designs.length}
           </Badge>
         )}
       </div>
-      {isLoading && <Skeleton className="h-32 mx-6 my-4" />}
-      {designs.length > 0 && (
+      {isLoading && !designs.length ? (
+        <Skeleton className="mx-6 my-4 h-16" />
+      ) : (
         <div className="divide-y">
           {designs.map((design) => (
-            <DesignCard key={design.id} design={design} orderId={order.id} />
+            <DesignRow key={design.id} design={design} />
           ))}
         </div>
       )}

@@ -56,6 +56,35 @@ export type DesignOrderItem = {
 };
 
 /** Single design-order detail (returned by GET /admin/designs/orders/:lineItemId) */
+/** #1918 — one ORDER line item: what was ordered, what arrived, which design. */
+export type OrderItemRow = {
+  id: string;
+  title: string | null;
+  subtitle: string | null;
+  thumbnail: string | null;
+  ordered: number | null;
+  delivered: number | null;
+  shipped: number | null;
+  fulfilled: number | null;
+  state: "delivered" | "shipped" | "made" | "outstanding";
+  state_label: string;
+  design: { id: string; name: string | null; source: string | null } | null;
+  original_design_id: string | null;
+  /** False when the line has no variant — Medusa's order edit cannot touch it. */
+  editable: boolean;
+  uneditable_reason: string | null;
+};
+
+export type OrderItemsSummary = {
+  items: OrderItemRow[];
+  ordered_total: number;
+  delivered_total: number;
+  outstanding_total: number;
+  has_outstanding: boolean;
+  verdict: "all_delivered" | "in_progress" | "owed";
+  verdict_label: string;
+};
+
 export type DesignOrderDetail = {
   design: {
     id: string;
@@ -79,6 +108,8 @@ export type DesignOrderDetail = {
   quantity: number;
   added_at: string;
   metadata: Record<string, any> | null;
+  /** #1918 — null when the commission has not become an order yet. */
+  order_items: OrderItemsSummary | null;
   order: {
     id: string;
     display_id: number;
@@ -574,5 +605,107 @@ export const useCancelShipment = (
       });
       options?.onSuccess?.(...args);
     },
+  });
+};
+
+/**
+ * #1918 — attach, replace or DETACH the design behind an ORDER line item.
+ *
+ * ⚠️ Takes an ORDER line item id (`ordli_`), NOT the cart line item (`cali_`)
+ * this page is routed on. The cart-level link dies at checkout; only the order
+ * side can be re-pointed after payment, which is the whole point.
+ *
+ * `design_id: null` detaches. The field is always sent — the route rejects a
+ * missing one rather than reading it as a detach.
+ */
+/**
+ * #1918 — apply EVERY design change on an order as one change, and one email.
+ *
+ * The per-line hook above still exists and still works; it is a batch of one.
+ * What it cannot do is describe three re-points as one decision — called three
+ * times it sends the customer three emails, each about a third of it. This
+ * mirrors Medusa's own order edit, where actions accumulate on a single change
+ * and one notification goes out when it is applied.
+ */
+export const useChangeOrderDesigns = (
+  /** The CART line item this page is keyed on — for cache invalidation only. */
+  pageLineItemId: string
+) => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (vars: {
+      order_id: string;
+      changes: Array<{ line_item_id: string; design_id: string | null }>;
+      notify?: boolean;
+      dry_run?: boolean;
+    }) =>
+      sdk.client.fetch<any>(`/admin/orders/${vars.order_id}/design-changes`, {
+        method: "POST",
+        body: {
+          changes: vars.changes,
+          notify: vars.notify,
+          dry_run: vars.dry_run,
+        },
+      }),
+    onSuccess: () => {
+      // Same three caches as the single-line mutation: this page + modal, the
+      // list, and the core order page's "Custom designs" widget by prefix.
+      queryClient.invalidateQueries({
+        queryKey: designOrdersQueryKeys.detail(pageLineItemId),
+      });
+      queryClient.invalidateQueries({ queryKey: designOrdersQueryKeys.lists() });
+      queryClient.invalidateQueries({ queryKey: ["order-design"] });
+    },
+    /**
+     * 🔴 No `...options` spread after onSuccess — see the hook below (#1800).
+     */
+  });
+};
+
+export const useChangeOrderItemDesign = (
+  /** The CART line item this page is keyed on — for cache invalidation only. */
+  pageLineItemId: string
+) => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (vars: {
+      order_line_item_id: string;
+      design_id: string | null;
+      notify?: boolean;
+      dry_run?: boolean;
+    }) =>
+      sdk.client.fetch<any>(
+        `/admin/designs/orders/${vars.order_line_item_id}/design`,
+        {
+          method: "POST",
+          body: {
+            design_id: vars.design_id,
+            notify: vars.notify,
+            dry_run: vars.dry_run,
+          },
+        }
+      ),
+    onSuccess: () => {
+      // The design-order page behind this modal (and the modal's own table,
+      // which share this key).
+      queryClient.invalidateQueries({
+        queryKey: designOrdersQueryKeys.detail(pageLineItemId),
+      });
+      // The list, whose rows carry the design name.
+      queryClient.invalidateQueries({ queryKey: designOrdersQueryKeys.lists() });
+      /*
+        🔴 And the CORE order page's "Custom designs" widget, which is keyed
+        ["order-design", orderId] — a different cache entry entirely. Without
+        this, detaching a design here leaves the order page still listing it,
+        and the two screens disagree until a hard refresh. Invalidated by
+        PREFIX because this mutation knows the line item, not the order id.
+      */
+      queryClient.invalidateQueries({ queryKey: ["order-design"] });
+    },
+    /**
+     * 🔴 No `...options` spread after onSuccess. Doing so silently overrides
+     * the invalidation and the screen goes stale until a hard refresh — the bug
+     * #1800 found in 165 admin hooks.
+     */
   });
 };
