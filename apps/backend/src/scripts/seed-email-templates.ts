@@ -1767,6 +1767,42 @@ export const emailTemplatesData = [
   },
 
   {
+    name: "Design Order Changed",
+    template_key: "design-order-changed",
+    from: "orders@jaalyantra.com",
+    subject: "A change to the designs on your order #{{order_display_id}}",
+    html_content: `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"></head>
+<body style="margin:0;padding:0;font-family:Inter,-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:#FAFAFA;">
+<div style="max-width:640px;margin:0 auto;background:#FFFFFF;border:1px solid #E4E4E7;border-radius:12px;overflow:hidden;margin-top:24px;margin-bottom:24px;">
+  <div style="background:#27272A;padding:32px;text-align:center;">
+    <h1 style="color:#FFFFFF;font-size:20px;font-weight:600;margin:0;">A change to your order</h1>
+  </div>
+  <div style="padding:32px;">
+    <p style="color:#18181B;font-size:16px;font-weight:500;margin:0;">Hi {{customer_first_name}},</p>
+    <p style="color:#52525B;font-size:14px;line-height:1.6;margin:12px 0;">{{headline}}</p>
+    <table style="width:100%;border-collapse:collapse;margin:16px 0;">
+      <tr><th align="left" style="color:#71717A;font-size:12px;font-weight:500;padding:8px 0;border-bottom:1px solid #E4E4E7;">Item</th><th align="left" style="color:#71717A;font-size:12px;font-weight:500;padding:8px 0;border-bottom:1px solid #E4E4E7;">Design</th><th align="left" style="color:#71717A;font-size:12px;font-weight:500;padding:8px 0;border-bottom:1px solid #E4E4E7;">Where it is</th></tr>
+      {{#each lines}}
+      <tr>
+        <td style="color:#18181B;font-size:13px;padding:10px 0;border-bottom:1px solid #F4F4F5;">{{item_title}}</td>
+        <td style="color:#52525B;font-size:13px;padding:10px 0;border-bottom:1px solid #F4F4F5;">{{#if new_design_name}}{{#if previous_design_name}}{{previous_design_name}} &rarr; {{/if}}{{new_design_name}}{{else}}No longer includes {{previous_design_name}}{{/if}}</td>
+        <td style="color:#52525B;font-size:13px;padding:10px 0;border-bottom:1px solid #F4F4F5;">{{production_label}}</td>
+      </tr>
+      {{/each}}
+    </table>
+    {{#if any_not_started}}<p style="color:#71717A;font-size:13px;margin-top:16px;">Where a piece had not been started yet, it will be made to the new design from the outset.</p>{{/if}}
+    <p style="color:#71717A;font-size:13px;margin-top:16px;">Your order number is unchanged: <strong style="color:#18181B;">#{{order_display_id}}</strong>. Reply to this email if any of this is not what you expected.</p>
+  </div>
+  <div style="background:#FAFAFA;padding:20px 32px;text-align:center;border-top:1px solid #E4E4E7;">
+    <p style="color:#71717A;font-size:11px;margin:0;">&copy; {{current_year}} Jaal Yantra Textiles</p>
+  </div>
+</div></body></html>`,
+    variables: { customer_first_name: "Customer's first name", order_display_id: "Order display ID", headline: "The one sentence the email leads with", lines: "The changed lines (item_title, previous_design_name, new_design_name, production_label)", all_in_hand: "True when every changed garment is made or being made", any_not_started: "True when a changed garment has no production behind it", current_year: "Current year" },
+    template_type: "design_order_changed",
+    is_active: true,
+  },
+
+  {
     name: "Order Edit Confirmed",
     template_key: "order-edit-confirmed",
     from: "orders@jaalyantra.com",

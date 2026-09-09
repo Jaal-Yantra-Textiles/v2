@@ -6,6 +6,7 @@ import {
   resolveLineItemDesignId,
 } from "../../lib/resolve-line-item-production"
 import { repointOrderItemDesign } from "./link-designs-to-order-items"
+import { sendDesignOrderChangedEmailWorkflow } from "../email/workflows/send-design-order-changed-email"
 import {
   buildDesignChangeNotice,
   type DesignChange,
@@ -118,6 +119,11 @@ async function readItemContext(
       "display_id",
       "email",
       "customer.first_name",
+      // Same chain the order-placed email uses. `customer.first_name` alone is
+      // null for a guest order and for a customer record with no name, and
+      // Handlebars renders that as "Hi ," without complaining.
+      "shipping_address.first_name",
+      "billing_address.first_name",
       "items.id",
       "items.title",
       "items.product_id",
@@ -135,7 +141,12 @@ async function readItemContext(
     item_title: item?.title ?? null,
     display_id: order.display_id ?? null,
     email: order.email ?? null,
-    customer_first_name: order.customer?.first_name ?? null,
+    customer_first_name:
+      order.customer?.first_name ||
+      order.shipping_address?.first_name ||
+      order.billing_address?.first_name ||
+      (order.email ? String(order.email).split("@")[0] : null) ||
+      "there",
   }
 }
 
@@ -243,19 +254,34 @@ export async function changeOrderItemDesign(
     email.reason = "order has no email address"
   } else {
     try {
-      const notificationService: any = container.resolve("notification")
-      await notificationService.createNotifications({
-        to: ctx.email,
-        channel: "email",
-        template: "design-order-changed",
-        data: {
-          order_id: ctx.order_id,
-          display_id: ctx.display_id,
-          customer_first_name: ctx.customer_first_name,
-          headline: notice.headline,
-          all_in_hand: notice.all_in_hand,
-          any_not_started: notice.any_not_started,
-          lines: notice.changed_lines,
+      /**
+       * Through the workflow, so the DB template is FETCHED AND RENDERED.
+       *
+       * 🔴 This used to call `createNotifications` with the template key
+       * alone. The provider needs `_template_html_content` on the payload;
+       * without it it falls back to a generic "Notification from Jaal Yantra
+       * Textiles" shell and reports success. The row was written and
+       * `email.sent` was true, so nothing here and no test could tell that the
+       * customer never received the sentence the confirm dialog quoted.
+       *
+       * `order_display_id` is passed alongside `display_id`: the template
+       * declares the former, and a key the template does not know renders as
+       * an empty string with no error.
+       */
+      await sendDesignOrderChangedEmailWorkflow(container).run({
+        input: {
+          to: ctx.email,
+          data: {
+            order_id: ctx.order_id,
+            display_id: ctx.display_id,
+            order_display_id: ctx.display_id,
+            customer_first_name: ctx.customer_first_name,
+            headline: notice.headline,
+            all_in_hand: notice.all_in_hand,
+            any_not_started: notice.any_not_started,
+            lines: notice.changed_lines,
+            current_year: new Date().getFullYear(),
+          },
         },
       })
       email.sent = true
