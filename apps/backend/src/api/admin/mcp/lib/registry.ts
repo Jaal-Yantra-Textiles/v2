@@ -3530,6 +3530,35 @@ export const ADMIN_MCP_TOOLS: AdminMcpToolDef[] = [
       ["id", "taskId"]
     ),
   },
+  {
+    name: "change_order_item_design",
+    description:
+      "Attach, replace or DETACH the design behind an order line item, and email the customer what changed. Sensitive: requires confirm:true. 🔑 This is the ORDER line-item link (#1919) — the older cart-level link dies at checkout, which is why a paid order could never be re-pointed before. Send `design_id` to attach or replace; send an explicit **null** to detach. Omitting `design_id` is REJECTED, because a forgotten field and a deliberate detach must not look the same when the result is unlinking a garment somebody paid for. Detaching keeps the item's `metadata.design_id` provenance, so 'unlinked' stays distinguishable from 'never had a design'. 🔑 ALWAYS run with `dry_run: true` first: it returns the exact change AND the email the customer would receive, including each garment's real production state, without writing or sending. The email tells the customer the truth per garment — 'already made' only when a run actually completed; a cancelled run or no run at all is reported as not started, never as reassurance. Use `notify: false` for a correction the customer should not see.",
+    method: "POST",
+    path: "/admin/designs/orders/:lineItemId/design",
+    pathParams: ["lineItemId"],
+    write: true,
+    sensitive: true,
+    bodyParams: ["design_id", "notify", "dry_run"],
+    inputSchema: obj(
+      {
+        lineItemId: STR(
+          "The ORDER line item id (starts `ordli_`), from get_order or list_order_designs. NOT a cart line item (`cali_`) and not the order id."
+        ),
+        design_id: STR(
+          "The design to point this item at. Send an explicit null to DETACH. Required — omitting it is an error, not a detach."
+        ),
+        notify: BOOL(
+          "Whether to email the customer what changed. Defaults to true. Set false only for a correction the customer should not see."
+        ),
+        dry_run: BOOL(
+          "Preview the change and the email WITHOUT writing the link or sending anything. Do this first."
+        ),
+      },
+      ["lineItemId"]
+    ),
+  },
+
   // ---- Platform cost config (#1939) --------------------------------------
   {
     name: "get_platform_cost_config",
