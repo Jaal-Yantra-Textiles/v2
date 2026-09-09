@@ -642,9 +642,21 @@ export const useChangeOrderItemDesign = (
         }
       ),
     onSuccess: () => {
+      // The design-order page behind this modal (and the modal's own table,
+      // which share this key).
       queryClient.invalidateQueries({
         queryKey: designOrdersQueryKeys.detail(pageLineItemId),
       });
+      // The list, whose rows carry the design name.
+      queryClient.invalidateQueries({ queryKey: designOrdersQueryKeys.lists() });
+      /*
+        🔴 And the CORE order page's "Custom designs" widget, which is keyed
+        ["order-design", orderId] — a different cache entry entirely. Without
+        this, detaching a design here leaves the order page still listing it,
+        and the two screens disagree until a hard refresh. Invalidated by
+        PREFIX because this mutation knows the line item, not the order id.
+      */
+      queryClient.invalidateQueries({ queryKey: ["order-design"] });
     },
     /**
      * 🔴 No `...options` spread after onSuccess. Doing so silently overrides

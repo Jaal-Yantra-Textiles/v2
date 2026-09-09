@@ -141,11 +141,23 @@ export const RunCard = ({
   design,
   partnerName,
   currencyCode,
+  compact = false,
 }: {
   run: any
   design?: any
   partnerName?: string | null
   currencyCode?: string
+  /**
+   * Stages only: the progress bar and the action menu, without the quantity /
+   * cost / partner line or the "Now / Partner's next" hints.
+   *
+   * The design-order page is a CUSTOMER-facing conversation about a commission,
+   * where the useful answer is "how far along is it" — the partner's internal
+   * cost and next step are noise there. `design-work-orders` is the operator's
+   * board and keeps all of it, which is why this is a flag rather than a
+   * deletion: the two surfaces want different amounts of the same run.
+   */
+  compact?: boolean
 }) => {
   const status = String(run.status || "")
   const title = design?.name || run?.snapshot?.design?.name || `Design ${run.design_id}`
@@ -201,13 +213,15 @@ export const RunCard = ({
               {status.replace(/_/g, " ")}
             </StatusBadge>
           </div>
-          {/* Important design details */}
-          <Text size="xsmall" className="text-ui-fg-subtle">
-            Qty {run.quantity ?? "—"}
-            {cost ? ` · ${cost}` : ""}
-            {targetDate ? ` · due ${targetDate}` : ""}
-            {` · ${partnerName ? partnerName : "Unassigned"}`}
-          </Text>
+          {/* Operator detail — omitted on the compact, commission-facing view. */}
+          {!compact && (
+            <Text size="xsmall" className="text-ui-fg-subtle">
+              Qty {run.quantity ?? "—"}
+              {cost ? ` · ${cost}` : ""}
+              {targetDate ? ` · due ${targetDate}` : ""}
+              {` · ${partnerName ? partnerName : "Unassigned"}`}
+            </Text>
+          )}
         </div>
         {/* Lifecycle actions (approve / dispatch / cost / cancel / tasks) live on
             the canonical run page — link there instead of duplicating them.
@@ -263,7 +277,8 @@ export const RunCard = ({
 
       <MiniStepper run={run} />
 
-      {/* Now + what the partner will do next ("up ahead") */}
+      {/* Now + what the partner will do next ("up ahead"). Operator detail. */}
+      {!compact && (
       <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
         <Text size="xsmall" className="text-ui-fg-subtle">
           Now: <span className="text-ui-fg-base">{adminStatusHint(run)}</span>
@@ -278,6 +293,7 @@ export const RunCard = ({
           </div>
         )}
       </div>
+      )}
     </div>
   )
 }
@@ -294,11 +310,14 @@ export const ProductionRunList = ({
   designById = {},
   partnerNameById = {},
   currencyCode,
+  compact = false,
 }: {
   runs: any[]
   designById?: Record<string, any>
   partnerNameById?: Record<string, string>
   currencyCode?: string
+  /** Stages + actions only. Defaults FALSE so design-work-orders is unchanged. */
+  compact?: boolean
 }) => (
   <>
     {runs.map((run: any) => (
@@ -308,6 +327,7 @@ export const ProductionRunList = ({
         design={designById[run.design_id]}
         partnerName={run.partner_id ? partnerNameById[run.partner_id] : null}
         currencyCode={currencyCode}
+        compact={compact}
       />
     ))}
   </>
@@ -318,8 +338,14 @@ export const ProductionRunList = ({
 /**
  * #826 — the admin mirror of the collated production lifecycle. Once a design
  * order is produced, this lists every per-design run (fanned out from the ONE
- * commissioning order) with its status, a progress stepper, the important design
- * details, and — surfaced for the operator — what the PARTNER will do next.
+ * commissioning order) as its STAGES ONLY — a status badge, the progress
+ * stepper and the run's action menu.
+ *
+ * Quantity, cost, partner and "what the partner does next" are deliberately NOT
+ * here: this page is the customer's commission, and that is operator detail. It
+ * still exists, unchanged, on `design-work-orders` and the run page — the same
+ * `RunCard` renders both, switched by `compact`, so there is one implementation
+ * and the operator loses nothing.
  */
 export const DesignOrderProductionSection = ({
   designOrder,
@@ -384,6 +410,13 @@ export const DesignOrderProductionSection = ({
             design={designById[run.design_id]}
             partnerName={run.partner_id ? partnerNameById[run.partner_id] : null}
             currencyCode={currencyCode}
+            /*
+              The design order is the CUSTOMER's commission, so this shows the
+              stages and nothing else. Cost, quantity, partner and the partner's
+              next step are the operator's business and stay on
+              design-work-orders and the run page, which pass no `compact`.
+            */
+            compact
           />
         ))
       )}

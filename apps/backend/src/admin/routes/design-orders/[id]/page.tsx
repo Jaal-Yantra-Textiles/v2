@@ -44,7 +44,6 @@ import {
   getStatusBadgeColor,
 } from "../../../lib/work-status"
 import { DesignOrderProductionSection } from "../../../components/designs/design-order-production-section"
-import { DesignOrderItemsSection } from "../../../components/designs/design-order-items-section"
 
 // ─── Status helpers ─────────────────────────────────────────────────────────
 
@@ -152,6 +151,19 @@ const DesignOrderHeaderSection = ({ designOrder }: { designOrder: any }) => {
               label: "View Order",
               icon: <ShoppingBag />,
               to: `/orders/${designOrder.order.id}`,
+            }]
+          : []),
+        /*
+          #1918 — change or detach the design on each ordered line.
+          Only offered once the commission is an ORDER: before checkout the
+          binding is a cart-level link that dies at payment, so there is
+          nothing durable to re-point.
+        */
+        ...(hasOrder
+          ? [{
+              label: "Edit Items",
+              icon: <SquareTwoStack />,
+              to: `/design-orders/${designOrder.line_item_id}/edits`,
             }]
           : []),
         {
@@ -904,19 +916,16 @@ const DesignOrderDetailPage = () => {
         <DesignOrderHeaderSection designOrder={designOrder} />
         <LineItemSection designOrder={designOrder} />
         <OrderSection designOrder={designOrder} lineItemId={id!} />
-        {/*
-          #1918 — the ORDER's items with their designs. Renders nothing until
-          the commission has become an order, since there is nothing to attach
-          a design to before then.
-        */}
-        <DesignOrderItemsSection
-          summary={designOrder.order_items}
-          pageLineItemId={id!}
-        />
-        <DesignOrderProductionSection designOrder={designOrder} />
       </TwoColumnPage.Main>
       <TwoColumnPage.Sidebar>
         <CustomerSection designOrder={designOrder} />
+        {/*
+          Production sits beside the customer, not in the main column: on a
+          commission the stages are something you GLANCE at while reading the
+          order, not the body of the page. It is the compact variant, so this
+          is the stage bar and the run's action menu only.
+        */}
+        <DesignOrderProductionSection designOrder={designOrder} />
         <CheckoutLinkSection designOrder={designOrder} />
         <DesignThumbnailSection designOrder={designOrder} />
       </TwoColumnPage.Sidebar>

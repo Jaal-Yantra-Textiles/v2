@@ -1,7 +1,6 @@
 import {
   Badge,
   Button,
-  Container,
   Heading,
   Input,
   Label,
@@ -393,12 +392,12 @@ export const CarrierShipmentForm = ({ orderId }: { orderId: string }) => {
 
   if (isLoading) {
     return (
-      <Container className="divide-y p-0">
+      <div className="divide-y">
         <div className="flex flex-col gap-y-3 px-6 py-4">
           <Skeleton className="h-5 w-40" />
           <Skeleton className="h-4 w-64" />
         </div>
-      </Container>
+      </div>
     )
   }
 
@@ -409,7 +408,7 @@ export const CarrierShipmentForm = ({ orderId }: { orderId: string }) => {
   // sat two days waiting for a pickup booked by hand on Delhivery's dashboard.
   if (existing.awb) {
     return (
-      <Container className="divide-y p-0">
+      <div className="divide-y">
         <div className="flex items-center justify-between px-6 py-4">
           <div className="flex items-center gap-x-2">
             <TruckFast className="text-ui-fg-subtle" />
@@ -567,19 +566,18 @@ export const CarrierShipmentForm = ({ orderId }: { orderId: string }) => {
             </div>
           </div>
         ) : null}
-      </Container>
+      </div>
     )
   }
 
   return (
-    <Container className="divide-y p-0">
-      <div className="flex items-center justify-between px-6 py-4">
-        <div className="flex items-center gap-x-2">
-          <TruckFast className="text-ui-fg-subtle" />
-          <Heading level="h2">Carrier Shipment</Heading>
-        </div>
-      </div>
-
+    /*
+      No heading row: the focus modal already titles itself "Book a carrier
+      shipment". Repeating "Carrier Shipment" immediately underneath was the
+      card header left over from when this rendered as a Container on the order
+      page, and two titles in a row read as a rendering fault.
+    */
+    <div className="divide-y">
       <div className="flex flex-col gap-y-4 px-6 py-4">
         <Text size="small" className="text-ui-fg-subtle">
           Generate a real carrier label (AWB) for this order, or attach one that
@@ -750,7 +748,7 @@ export const CarrierShipmentForm = ({ orderId }: { orderId: string }) => {
           </Text>
         </div>
       </div>
-    </Container>
+    </div>
   )
 }
 
