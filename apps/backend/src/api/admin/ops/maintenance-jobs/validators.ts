@@ -7,6 +7,18 @@ import { z } from "@medusajs/framework/zod"
  */
 export const OpsMaintenanceRunSchema = z.object({
   dry_run: z.boolean().optional(),
+  /**
+   * The same request as `dry_run`, under a name a proxy can pass through.
+   *
+   * 🔴 The admin MCP owns `dry_run` as its OWN flag: `mcp-core/dispatch.ts`
+   * intercepts it and returns the PLANNED REQUEST without ever calling this
+   * route. So through a tool, `dry_run: true` never produced a change set and
+   * `dry_run: false` was the only way to reach the job — a blind write on
+   * production, with the preview that is the entire point of this endpoint
+   * unreachable. `preview` survives the dispatcher and means exactly what
+   * `dry_run` means here. (Same fix as #1805 on review_production_run_output.)
+   */
+  preview: z.boolean().optional(),
   // Per-job params are validated inside each job's own schema; here we only
   // accept an object. NOTE: zod v4 requires the two-arg z.record form
   // (z.record(z.any()) leaves the value schema undefined → "_zod" crash when
@@ -96,3 +108,28 @@ export const OpsMaintenanceBatchesQuerySchema = z.object({
 export type OpsMaintenanceBatchesQuery = z.infer<
   typeof OpsMaintenanceBatchesQuerySchema
 >
+
+/**
+ * PURE: does this body ask for a preview or an apply? Exported for unit tests.
+ *
+ * Two spellings mean the same thing (`preview` exists because the MCP
+ * dispatcher eats `dry_run` — see the schema), so the rule has to be stated
+ * once rather than guessed at each call site.
+ *
+ *   · neither given            → preview. Safe by default.
+ *   · either one explicitly true → preview. A caller that sends a
+ *     contradictory `{preview: false, dry_run: true}` gets the SAFE reading,
+ *     never the write.
+ *   · otherwise                → whichever was given, `preview` first.
+ *
+ * The middle rule is what stops `preview: false` from being swallowed by
+ * `dry_run`'s default and making an apply impossible — and equally stops a
+ * stray `dry_run: true` from being overridden into a write.
+ */
+export function resolveDryRun(body: {
+  preview?: boolean
+  dry_run?: boolean
+}): boolean {
+  if (body.preview === true || body.dry_run === true) return true
+  return body.preview ?? body.dry_run ?? true
+}

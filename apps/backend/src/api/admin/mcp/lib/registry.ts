@@ -4867,20 +4867,23 @@ export const ADMIN_MCP_TOOLS: AdminMcpToolDef[] = [
   {
     name: "run_maintenance_job",
     description:
-      "Run a Data Plumbing maintenance job. SAFE BY DEFAULT: dry_run defaults to true and previews the exact change set without writing — always preview and show the operator the changes before applying. Pass dry_run:false to apply, which requires confirm:true. Per-job params are validated by the job itself; call list_maintenance_jobs first for the schema.",
+      "Run a Data Plumbing maintenance job. SAFE BY DEFAULT: the job previews unless you say otherwise — always call with preview:true first and show the operator the exact change set before applying. Pass preview:false to apply, which requires confirm:true. Use `preview`, NOT `dry_run`: `dry_run` is this surface's own flag and is intercepted before the job runs, so it returns a planned request rather than the job's real change set. Per-job params are validated by the job itself; call list_maintenance_jobs first for the schema.",
     method: "POST",
     path: "/admin/ops/maintenance-jobs/:id/run",
     pathParams: ["id"],
-    bodyParams: ["dry_run", "params"],
+    // NOT `dry_run` — that name is the dispatcher's own and never arrives at
+    // the route, so the job's change set was unreachable from a tool. See the
+    // note on `preview` in the ops maintenance-job validators.
+    bodyParams: ["preview", "params"],
     write: true,
     sensitive: true,
     inputSchema: obj(
       {
         id: STR("Maintenance job id, e.g. 'repair-inventory-order-route'."),
-        dry_run: {
+        preview: {
           type: "boolean",
           description:
-            "Preview only. Defaults to true — pass false to actually apply.",
+            "Preview only — returns the job's real change set without writing. Defaults to true; pass false to actually apply.",
         },
         params: {
           type: "object",
@@ -4892,7 +4895,7 @@ export const ADMIN_MCP_TOOLS: AdminMcpToolDef[] = [
       ["id"]
     ),
     sideEffects:
-      "With dry_run:false, mutates production data as described by the job. Every run is written to the ops_maintenance_run audit log.",
+      "With preview:false, mutates production data as described by the job. Every run is written to the ops_maintenance_run audit log.",
     nextSteps: ["list_maintenance_job_runs"],
   },
 
