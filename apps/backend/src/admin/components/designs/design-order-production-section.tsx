@@ -362,11 +362,24 @@ export const DesignOrderProductionSection = ({
 
   const hasRuns = production_runs.length > 0
 
-  // Design details map (this line + its siblings) to enrich each run.
+  /**
+   * Design details map (this line + its siblings) to enrich each run.
+   *
+   * 🔴 #1946 — keyed on `run.design_id`, and a run minted BEFORE a re-point
+   * still carries the design it was commissioned as. So both are indexed: the
+   * design the line stands for now, and the one it was ordered as. Indexing
+   * only the current one leaves every older run card falling back to its
+   * snapshot name with no link, no target date and no cost.
+   */
   const designById: Record<string, any> = {}
-  if (designOrder?.design?.id) designById[designOrder.design.id] = designOrder.design
+  const index = (d: any) => {
+    if (d?.id) designById[d.id] = d
+  }
+  index(designOrder?.design)
+  index(designOrder?.commissioned_design)
   for (const s of designOrder?.sibling_items ?? []) {
-    if (s?.design?.id) designById[s.design.id] = s.design
+    index(s?.design)
+    index(s?.commissioned_design)
   }
 
   const partnerIds = Array.from(

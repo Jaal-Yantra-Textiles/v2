@@ -120,6 +120,136 @@ export async function GET(
         }
       : null
 
+    /**
+     * #1946 — what each line stands for NOW, read from the ORDER.
+     *
+     * Everything above resolves through `design_line_item`, the CART-level link
+     * whose own docblock says it dies at checkout. That link is deliberately
+     * never rewritten: it records what was COMMISSIONED, which is the question
+     * #1919 kept it around to answer.
+     *
+     * It is not the question this page asks once the order exists. Edit Items
+     * re-points the ORDER-level link, so after a change the two genuinely
+     * disagree — and Items, plus Production through `designById`, went on
+     * showing the design the customer is no longer getting. No cache
+     * invalidation could have fixed that; the data differs.
+     *
+     * The bridge is `metadata.source_cart_line_item_id`, stamped on every order
+     * item by `convert-design-order`. Cart line -> order line -> the canonical
+     * resolver, which already ranks the order link above the provenance string.
+     * No new link, and nothing overwritten.
+     *
+     * Best-effort in both directions: an order we cannot read leaves the
+     * commissioned view standing rather than blanking the screen.
+     */
+    let orderItems: ReturnType<typeof summariseOrderItems> | null = null
+    /** cart line item id -> what the ORDER says that line is now. */
+    const currentByCartLine = new Map<
+      string,
+      {
+        orderItemId: string
+        design: { id: string; name: string | null; source: string | null } | null
+      }
+    >()
+    if (order?.id) {
+      try {
+        const { data: fullOrders } = await query.graph({
+          entity: "order",
+          filters: { id: order.id },
+          fields: [
+            "id",
+            "items.id",
+            "items.title",
+            "items.subtitle",
+            "items.thumbnail",
+            "items.quantity",
+            "items.unit_price",
+            "items.variant_id",
+            "items.product_id",
+            "items.metadata",
+            // Both: `items.quantity` comes back null in this graph shape, and
+            // the detail row is what actually carries it.
+            "items.detail.quantity",
+            "items.detail.fulfilled_quantity",
+            "items.detail.shipped_quantity",
+            "items.detail.delivered_quantity",
+          ],
+        })
+        const rawItems: any[] = fullOrders?.[0]?.items || []
+        const rows = await Promise.all(
+          rawItems.map(async (it: any) => {
+            // Through the canonical resolver, so a pre-#1919 item resolves from
+            // its metadata string instead of reading as design-less.
+            const resolved = await resolveLineItemDesignId(query, {
+              productId: it.product_id ?? null,
+              variantId: it.variant_id ?? null,
+              lineItemId: it.id,
+              metadata: it.metadata ?? null,
+            }).catch(() => ({ designId: null, source: null } as any))
+
+            let designRef: { id: string; name: string | null; source: string | null } | null = null
+            if (resolved?.designId) {
+              const { data: ds } = await query.graph({
+                entity: "design",
+                fields: ["id", "name"],
+                filters: { id: resolved.designId },
+              })
+              designRef = {
+                id: resolved.designId,
+                name: ds?.[0]?.name ?? null,
+                source: resolved.source ?? null,
+              }
+            }
+
+            const sourceCartLine = it?.metadata?.source_cart_line_item_id
+            if (typeof sourceCartLine === "string" && sourceCartLine) {
+              currentByCartLine.set(sourceCartLine, {
+                orderItemId: it.id,
+                design: designRef,
+              })
+            }
+            return buildOrderItemRow(it, designRef)
+          })
+        )
+        orderItems = summariseOrderItems(rows)
+      } catch (e) {
+        logger.warn(`[design-order detail] Failed to build order items view: ${e}`)
+      }
+    }
+
+    /**
+     * The design this page presents.
+     *
+     * The order wins wherever it has an opinion. The commissioned design stands
+     * in only when there is no order line to ask — never to paper over a
+     * DETACHED line, which is reported as detached instead of quietly showing
+     * what it used to be.
+     */
+    const currentPrimary = currentByCartLine.get(lineItemId)
+    const currentDesignId = currentPrimary?.design?.id ?? null
+    const primaryDetached = Boolean(currentPrimary) && !currentPrimary?.design
+    let presentedDesign = design
+    if (currentDesignId && currentDesignId !== designId) {
+      const { data: currentDesigns } = await query
+        .graph({
+          entity: "design",
+          filters: { id: currentDesignId },
+          fields: [
+            "id",
+            "name",
+            "status",
+            "description",
+            "thumbnail_url",
+            "estimated_cost",
+            "design_type",
+            "priority",
+            "target_completion_date",
+          ],
+        })
+        .catch(() => ({ data: [] }))
+      if (currentDesigns?.[0]) presentedDesign = currentDesigns[0]
+    }
+
     // 3. Fetch line item details from cart module
     const cartService = req.scope.resolve(Modules.CART) as any
     let lineItem: any = null
@@ -189,6 +319,11 @@ export async function GET(
       line_item_id: string;
       price: number;
       metadata: any;
+      /** The order says this line no longer stands for any design (#1946). */
+      detached?: boolean;
+      /** What it was ordered as, when that is not what it is now (#1946). */
+      commissioned_design_id?: string | null;
+      commissioned_design?: { id: string; name: string; status: string; estimated_cost?: number } | null;
     }> = []
 
     if (lineItem?.cart_id) {
@@ -206,10 +341,23 @@ export async function GET(
             filters: { line_item_id: allCartLineItemIds },
             fields: ["design_id", "line_item_id"],
           })
+          /**
+           * #1946 — a sibling shows what it stands for NOW, by the same
+           * precedence as the primary: the order's binding where there is one,
+           * the commissioned design where there is not.
+           *
+           * A DETACHED sibling still gets a row — it is a paid line and hiding
+           * it would be a worse lie than showing it with the design it was
+           * ordered as and saying so — so both ids are collected.
+           */
           const siblingDesignIds = [...new Set(
             (siblingLinks || [])
               .filter((l: any) => l.line_item_id !== lineItemId)
-              .map((l: any) => l.design_id)
+              .flatMap((l: any) => [
+                l.design_id,
+                currentByCartLine.get(l.line_item_id)?.design?.id,
+              ])
+              .filter(Boolean)
           )] as string[]
 
           if (siblingDesignIds.length > 0) {
@@ -223,7 +371,10 @@ export async function GET(
 
             for (const link of siblingLinks || []) {
               if (link.line_item_id === lineItemId) continue
-              const d = siblingDesignById[link.design_id]
+              const current = currentByCartLine.get(link.line_item_id)
+              const detached = Boolean(current) && !current?.design
+              const shownId = current?.design?.id ?? link.design_id
+              const d = siblingDesignById[shownId]
               const li = (cartLineItems || []).find((i: any) => i.id === link.line_item_id)
               if (d) {
                 siblingItems.push({
@@ -231,6 +382,28 @@ export async function GET(
                   line_item_id: link.line_item_id,
                   price: li?.unit_price ?? 0,
                   metadata: li?.metadata ?? null,
+                  detached,
+                  commissioned_design_id:
+                    link.design_id && link.design_id !== shownId ? link.design_id : null,
+                  /**
+                   * The design this line was ORDERED as, as an object.
+                   *
+                   * 🔴 Production keys `designById` on `run.design_id`, and a
+                   * run minted before a re-point still carries the ORIGINAL
+                   * design. Returning only the current one emptied that lookup
+                   * and every run card fell back to its snapshot name, losing
+                   * the link, target date and cost. Both are returned so any
+                   * run resolves — caught by rendering the page, not by a test.
+                   */
+                  commissioned_design:
+                    link.design_id && link.design_id !== shownId
+                      ? (() => {
+                          const c = siblingDesignById[link.design_id]
+                          return c
+                            ? { id: c.id, name: c.name, status: c.status, estimated_cost: c.estimated_cost }
+                            : null
+                        })()
+                      : null,
                 })
               }
             }
@@ -242,77 +415,6 @@ export async function GET(
     }
 
     // 6. Build checkout URL for pending items
-    /**
-     * #1918 — the ORDER's items, with the design each stands for and how far
-     * each has actually got.
-     *
-     * The page above is keyed on a CART line item (`cali_`), through the
-     * `design_line_item` link — which by its own definition dies at checkout.
-     * That is fine for showing what was commissioned, and useless for acting on
-     * a paid order. These rows come from the ORDER (`ordli_`), which is the only
-     * side that survives, and are what the attach/detach control writes against.
-     *
-     * Best-effort: an order we cannot read must not blank the whole screen, so
-     * a failure yields no rows rather than a 500.
-     */
-    let orderItems: ReturnType<typeof summariseOrderItems> | null = null
-    if (order?.id) {
-      try {
-        const { data: fullOrders } = await query.graph({
-          entity: "order",
-          filters: { id: order.id },
-          fields: [
-            "id",
-            "items.id",
-            "items.title",
-            "items.subtitle",
-            "items.thumbnail",
-            "items.quantity",
-            "items.variant_id",
-            "items.product_id",
-            "items.metadata",
-            // Both: `items.quantity` comes back null in this graph shape, and
-            // the detail row is what actually carries it.
-            "items.detail.quantity",
-            "items.detail.fulfilled_quantity",
-            "items.detail.shipped_quantity",
-            "items.detail.delivered_quantity",
-          ],
-        })
-        const rawItems: any[] = fullOrders?.[0]?.items || []
-        const rows = await Promise.all(
-          rawItems.map(async (it: any) => {
-            // Through the canonical resolver, so a pre-#1919 item resolves from
-            // its metadata string instead of reading as design-less.
-            const resolved = await resolveLineItemDesignId(query, {
-              productId: it.product_id ?? null,
-              variantId: it.variant_id ?? null,
-              lineItemId: it.id,
-              metadata: it.metadata ?? null,
-            }).catch(() => ({ designId: null, source: null } as any))
-
-            let designRef: { id: string; name: string | null; source: string | null } | null = null
-            if (resolved?.designId) {
-              const { data: ds } = await query.graph({
-                entity: "design",
-                fields: ["id", "name"],
-                filters: { id: resolved.designId },
-              })
-              designRef = {
-                id: resolved.designId,
-                name: ds?.[0]?.name ?? null,
-                source: resolved.source ?? null,
-              }
-            }
-            return buildOrderItemRow(it, designRef)
-          })
-        )
-        orderItems = summariseOrderItems(rows)
-      } catch (e) {
-        logger.warn(`[design-order detail] Failed to build order items view: ${e}`)
-      }
-    }
-
     const storeUrl = process.env.STORE_URL || "https://cicilabel.com"
     const checkoutUrl = !order && lineItem?.cart_id
       ? `${storeUrl}/checkout/cart/${lineItem.cart_id}`
@@ -320,9 +422,34 @@ export async function GET(
 
     res.status(200).json({
       design_order: {
-        design: design
-          ? { id: design.id, name: design.name, status: design.status, description: design.description, thumbnail_url: design.thumbnail_url, estimated_cost: design.estimated_cost, design_type: design.design_type }
+        design: presentedDesign
+          ? { id: presentedDesign.id, name: presentedDesign.name, status: presentedDesign.status, description: presentedDesign.description, thumbnail_url: presentedDesign.thumbnail_url, estimated_cost: presentedDesign.estimated_cost, design_type: presentedDesign.design_type }
           : { id: designId, name: "Unknown", status: "" },
+        /**
+         * What this line was COMMISSIONED as, when that is no longer what it
+         * is. Production needs it to draw a run minted before the re-point.
+         */
+        commissioned_design:
+          design && design.id !== presentedDesign?.id
+            ? { id: design.id, name: design.name, status: design.status, estimated_cost: design.estimated_cost, design_type: design.design_type, thumbnail_url: design.thumbnail_url }
+            : null,
+        /**
+         * #1946 — where the design above came from, so the screen can say so
+         * rather than presenting a re-pointed line as if nothing happened.
+         *
+         * `commissioned_design_id` is the CART link: what the customer
+         * originally asked for. It is never rewritten, which is exactly why it
+         * cannot also be the answer to "what are we making".
+         */
+        design_binding: {
+          source: currentPrimary
+            ? (currentPrimary.design?.source ?? "detached")
+            : "cart",
+          detached: primaryDetached,
+          commissioned_design_id: designId,
+          changed: Boolean(currentDesignId && currentDesignId !== designId),
+          order_line_item_id: currentPrimary?.orderItemId ?? null,
+        },
         customer: customer
           ? { id: customer.id, email: customer.email, first_name: customer.first_name, last_name: customer.last_name }
           : null,

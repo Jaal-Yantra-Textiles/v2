@@ -1,5 +1,5 @@
 import { useState } from "react"
-import { useParams, UIMatch } from "react-router-dom"
+import { useParams, UIMatch, Link } from "react-router-dom"
 import {
   Container,
   Heading,
@@ -243,10 +243,110 @@ const LineItemRow = ({ title, price, currencyCode, confidence }: {
   </div>
 )
 
+/**
+ * #1946 — one line of the Items list, as the ORDER now has it.
+ *
+ * Carries the design underneath the title because that is the thing that
+ * changes: after a re-point the title still says what was bought and only the
+ * design says what is being made.
+ */
+const OrderItemRow = ({
+  item,
+  currencyCode,
+}: {
+  item: any
+  currencyCode: string
+}) => (
+  <div className="flex items-center justify-between px-6 py-3">
+    <div className="flex flex-col gap-y-1">
+      <div className="flex items-center gap-x-2">
+        <Text size="small" weight="plus">{item.title}</Text>
+        {(item.ordered ?? 0) > 1 && (
+          <Badge size="2xsmall" color="grey">×{item.ordered}</Badge>
+        )}
+      </div>
+      <div className="flex items-center gap-x-2">
+        {/*
+          The design line is dropped when it would only repeat the title — a
+          design order names its line after the design, so every unchanged row
+          otherwise printed the same words twice.
+        */}
+        {item.design ? (
+          item.design.name !== item.title && (
+            <Link
+              to={`/designs/${item.design.id}`}
+              className="text-ui-fg-subtle hover:text-ui-fg-base txt-small"
+            >
+              {item.design.name || item.design.id}
+            </Link>
+          )
+        ) : (
+          <Text size="xsmall" className="text-ui-fg-muted">No design</Text>
+        )}
+        {/*
+          Detached and changed are different facts and were reading as one:
+          a line with no design showed "No design · Changed", which says the
+          design moved rather than that it was taken off.
+        */}
+        {item.original_design_id && !item.design && (
+          <Badge size="2xsmall" color="red">Detached</Badge>
+        )}
+        {item.design &&
+          item.original_design_id &&
+          item.original_design_id !== item.design.id && (
+            <Badge size="2xsmall" color="orange">Changed</Badge>
+          )}
+      </div>
+    </div>
+    <Text size="small" weight="plus">
+      {formatCurrency(item.unit_price ?? 0, currencyCode)}
+    </Text>
+  </div>
+)
+
 const LineItemSection = ({ designOrder }: { designOrder: any }) => {
   const currencyCode = designOrder.currency_code || designOrder.order?.currency_code || "inr"
   const siblings = designOrder.sibling_items || []
   const totalPrice = designOrder.total_price ?? designOrder.price
+
+  /**
+   * #1946 — once the order exists, IT is the list of items.
+   *
+   * The cart-derived list below is what was commissioned: it cannot show a line
+   * added by an order edit (there is no cart line to derive it from) and it
+   * priced every line from the cart. Kept as the pre-checkout view, where it is
+   * the only list there is.
+   */
+  const orderRows: any[] = designOrder.order_items?.items ?? []
+  if (orderRows.length > 0) {
+    const orderTotal = orderRows.reduce(
+      (sum: number, r: any) => sum + (r.unit_price ?? 0) * (r.ordered ?? 1),
+      0
+    )
+    return (
+      <Container className="divide-y p-0">
+        <div className="flex items-center justify-between px-6 py-4">
+          <Heading level="h2">Items</Heading>
+          <Badge size="2xsmall" color="grey">{orderRows.length}</Badge>
+        </div>
+        {orderRows.map((item: any) => (
+          <OrderItemRow key={item.id} item={item} currencyCode={currencyCode} />
+        ))}
+        <div className="flex items-center justify-between px-6 py-3 bg-ui-bg-subtle">
+          {/* "Items total", not "Total": the order's total also carries
+              shipping and tax, and the two sat inches apart disagreeing. */}
+          <Text size="small" weight="plus">Items total</Text>
+          <Text size="small" weight="plus">{formatCurrency(orderTotal, currencyCode)}</Text>
+        </div>
+        <div className="grid grid-cols-2 gap-4 px-6 py-3">
+          <div>
+            <Text size="xsmall" className="text-ui-fg-subtle mb-1">Added</Text>
+            <Text size="small">{designOrder.added_at ? formatDate(designOrder.added_at) : "—"}</Text>
+          </div>
+        </div>
+      </Container>
+    )
+  }
 
   return (
     <Container className="divide-y p-0">

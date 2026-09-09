@@ -35,6 +35,7 @@ export type RawOrderItem = {
   subtitle?: string | null
   thumbnail?: string | null
   quantity?: number | string | null
+  unit_price?: number | string | null
   variant_id?: string | null
   product_id?: string | null
   metadata?: Record<string, any> | null
@@ -94,6 +95,13 @@ export type OrderItemRow = {
   thumbnail: string | null
   /** What the customer bought. */
   ordered: number | null
+  /**
+   * What this line costs, per unit, as the ORDER records it.
+   *
+   * #1946 — the Items section used to price itself from the CART line, which
+   * is the one place a re-pointed or newly ADDED line does not exist.
+   */
+  unit_price: number | null
   /** What has actually reached them. Null when never tracked. */
   delivered: number | null
   shipped: number | null
@@ -126,6 +134,7 @@ export function buildOrderItemRow(
     subtitle: item.subtitle ?? null,
     thumbnail: item.thumbnail ?? null,
     ordered: readQty(item.quantity) ?? readQty(item?.detail?.quantity),
+    unit_price: readQty(item.unit_price),
     delivered: readQty(item?.detail?.delivered_quantity),
     shipped: readQty(item?.detail?.shipped_quantity),
     fulfilled: readQty(item?.detail?.fulfilled_quantity),
