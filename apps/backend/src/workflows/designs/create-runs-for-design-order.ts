@@ -14,10 +14,13 @@ import { resolveLineItemDesignId } from "../../lib/resolve-line-item-production"
  *
  * A design commissioning order (created by createDraftOrderFromDesignsWorkflow +
  * convert-design-order) carries one TITLE-ONLY line item per design, each with
- * `metadata.design_id`. Auto-run-creation is DELIBERATELY off for these (the
- * line items have no product_id precisely so order-placed skips them — see
- * convert-design-order header). Producing a design order is therefore an
- * explicit admin step: this function.
+ * `metadata.design_id`. Auto-run-creation is DELIBERATELY off for these: since
+ * #1920 every such item is stamped `metadata.no_auto_produce: true`, and both
+ * automatic doors (order.placed, order.fulfillment_created) honour it.
+ *
+ * 🔑 This function is the EXPLICIT door and ignores the flag by design — it IS
+ * the admin saying "produce this now". Do not add an `isAutoProduceSuppressed`
+ * check here; doing so would make design orders unproduceable altogether.
  *
  * Each run is stamped with `order_id` = the commissioning order and
  * `order_line_item_id` = its design line. `order_id` is the group key the

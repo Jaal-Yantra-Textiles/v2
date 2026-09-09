@@ -8,6 +8,7 @@ import { linkDesignsToOrder } from "../workflows/designs/link-designs-to-order"
 import { linkDesignsToOrderItems } from "../workflows/designs/link-designs-to-order-items"
 import {
   hasProductionRunForLineItem,
+  isAutoProduceSuppressed,
   resolveLineItemDesignId,
 } from "../lib/resolve-line-item-production"
 import { lineItemIdsNeedingShippingFlag } from "../lib/requires-shipping"
@@ -107,7 +108,28 @@ export default async function orderPlacedHandler({
       const variantId = item?.variant_id
       const quantity = item?.quantity
 
-      if (!lineItemId || !productId) {
+      if (!lineItemId) {
+        continue
+      }
+
+      /**
+       * #1920 — the EXPLICIT no-auto-produce veto, checked first and on its own
+       * terms. `convert-design-order` stamps it on every item of an admin-
+       * converted design order; producing one of those is an explicit admin
+       * step (`createRunsForDesignOrder`), never a side-effect of placement.
+       *
+       * This is deliberately independent of `productId`: when #1923 widens the
+       * guard below so design-only items DO produce, this flag is what still
+       * holds the converted orders back.
+       */
+      if (isAutoProduceSuppressed(item?.metadata)) {
+        logger.info(
+          `[order.placed] Line item ${lineItemId} carries no_auto_produce — skipping production run creation (#1920)`
+        )
+        continue
+      }
+
+      if (!productId) {
         continue
       }
 
@@ -123,10 +145,11 @@ export default async function orderPlacedHandler({
        * happens to be attached to.
        *
        * 🔴 This does NOT widen which items get a run. The `!productId` guard
-       * above still skips design-only items, deliberately: making those
-       * produce automatically is #1923, and it is gated on #1920's explicit
-       * no-produce flag. Removing the guard here would start auto-producing
-       * every converted design order.
+       * above still skips design-only items; making those produce
+       * automatically is #1923. The converted design orders that MUST stay
+       * unproduced now say so themselves, via the no_auto_produce check above
+       * (#1920), so #1923 can lift the productId guard without unleashing
+       * them.
        */
       const { designId, isCustomDesign } = await resolveLineItemDesignId(query, {
         productId,

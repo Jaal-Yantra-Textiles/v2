@@ -13,6 +13,7 @@ import {
 } from "@medusajs/medusa/core-flows"
 import { DESIGN_MODULE } from "../../modules/designs"
 import designLineItemLink from "../../links/design-line-item-link"
+import { NO_AUTO_PRODUCE_METADATA_KEY } from "../../lib/resolve-line-item-production"
 
 /**
  * #404 (#31) PR-A — admin "Convert to Order" for a design order.
@@ -36,9 +37,13 @@ import designLineItemLink from "../../links/design-line-item-link"
  * it composes core workflows the same way the partner routes do.
  *
  * PLACED side-effects (order-placed.ts) are deliberately safe here:
- *  - Line items are TITLE-ONLY (no product_id/variant_id), so the subscriber's
- *    production-run branch (`if (!productId) continue`) is skipped — converting
- *    a customer design order must NOT spawn a production work-order.
+ *  - Every order item is stamped `metadata.no_auto_produce: true` (#1920), so
+ *    the subscriber's production-run branch skips it BY DECISION rather than by
+ *    the accident of a missing product_id — converting a customer design order
+ *    must NOT spawn a production work-order. Producing one is an explicit admin
+ *    step (`createRunsForDesignOrder`), which ignores the flag on purpose.
+ *  - Line items remain TITLE-ONLY (no product_id/variant_id); that is now a
+ *    consequence of the cart's shape, not the thing suppressing production.
  *  - The cartless draft has no order↔cart link, so the subscriber's cart-based
  *    linkDesignsToOrder finds nothing; we link the design(s) EXPLICITLY below.
  *  - `no_notification: true` suppresses the customer order-confirmation email on
@@ -166,8 +171,9 @@ export async function convertDesignOrderToOrder(
     )
   }
 
-  // 3. Build TITLE-ONLY order items (see header: keeps the PLACED subscriber
-  // from spawning a production run for a customer design order).
+  // 3. Build TITLE-ONLY order items, each carrying the EXPLICIT no-auto-produce
+  // veto (#1920). The title-only shape is still what the cart gives us, but it
+  // is no longer what STOPS the production run: the flag is, and it says so.
   const orderItems = lineItems.map((li) => ({
     title: li.title,
     quantity: li.quantity,
@@ -175,6 +181,8 @@ export async function convertDesignOrderToOrder(
     metadata: {
       ...(li.metadata || {}),
       source_cart_line_item_id: li.id,
+      [NO_AUTO_PRODUCE_METADATA_KEY]: true,
+      no_auto_produce_reason: "design-order-convert",
     },
   }))
 
