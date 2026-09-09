@@ -198,3 +198,46 @@ export function isOwnedProvenanceRun(
   if (!run) return false
   return run.metadata?.source === "order.fulfillment_created"
 }
+
+/**
+ * #1920 (item 3) — "do not auto-produce this line item", as an EXPLICIT flag.
+ *
+ * Until now the suppression was an EMERGENT PROPERTY of a missing field:
+ * `convert-design-order.ts` builds TITLE-ONLY order items, so the automatic
+ * run-creation paths hit `if (!productId) continue` and skipped them. Nothing
+ * anywhere said "don't produce this" — the absence of a `product_id` said it,
+ * by accident.
+ *
+ * That coincidence is load-bearing in two directions and wrong in both:
+ *
+ *  · #1919 made design-order items RESOLVABLE, so the `!productId` guard now
+ *    looks like dead weight. Remove it without this flag and every converted
+ *    design order starts auto-producing customer orders.
+ *  · The same absent field ALSO suppressed five paid-for design items on
+ *    `order_01KNP520PT94BN8SC0JKZ6ZVJ9` that SHOULD have produced (#1918).
+ *    One condition was standing in for two opposite intentions.
+ *
+ * So: the intention is now written down. `no_auto_produce: true` on an order
+ * item's metadata means an AUTOMATIC door must not create a run for it. It says
+ * nothing about the EXPLICIT door — `createRunsForDesignOrder` is precisely the
+ * admin saying "produce this now", and deliberately ignores the flag.
+ *
+ * Absence of the flag is not permission on its own; it just means this
+ * particular veto was never cast.
+ */
+export const NO_AUTO_PRODUCE_METADATA_KEY = "no_auto_produce"
+
+/**
+ * True when the item carries an explicit no-auto-produce veto.
+ *
+ * Accepts the boolean `true` and the string `"true"`: metadata is JSONB and
+ * round-trips through the admin UI, MCP tools and CSV-ish imports, any of which
+ * can hand back a string. Everything else — `false`, `"false"`, `0`, `""`,
+ * `null`, absent — is NOT a veto.
+ */
+export function isAutoProduceSuppressed(
+  metadata?: Record<string, any> | null
+): boolean {
+  const raw = metadata?.[NO_AUTO_PRODUCE_METADATA_KEY]
+  return raw === true || raw === "true"
+}

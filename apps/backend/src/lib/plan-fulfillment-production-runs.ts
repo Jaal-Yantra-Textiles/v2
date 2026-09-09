@@ -5,7 +5,9 @@
 //
 // Per fulfilled line item:
 //   - no run yet            → CREATE a completed provenance run (design-backed
-//                             or product-only), born terminal (goods shipped).
+//                             or product-only), born terminal (goods shipped),
+//                             UNLESS the item carries #1920's explicit
+//                             `no_auto_produce` veto.
 //   - run still pre-prod    → COMPLETE it (the order.placed run for a
 //     (draft/pending_review)  design-backed line never went through production;
 //                             the goods shipped from stock — #1126).
@@ -13,6 +15,7 @@
 
 import {
   getProductionRunForLineItem,
+  isAutoProduceSuppressed,
   resolveLineItemDesignId,
 } from "./resolve-line-item-production"
 
@@ -77,6 +80,16 @@ export async function planLineItemRunAction(
       }
     }
     // Already in production or completed — leave it untouched.
+    return null
+  }
+
+  /**
+   * #1920 — an explicit no-auto-produce veto blocks CREATION only, and only
+   * here at the automatic door. It is checked AFTER the existing-run branch on
+   * purpose: completing a run that an admin already created explicitly is not
+   * auto-production, and a shipped design order should still close its run.
+   */
+  if (isAutoProduceSuppressed(metadata)) {
     return null
   }
 
