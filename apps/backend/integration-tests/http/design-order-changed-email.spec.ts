@@ -350,6 +350,117 @@ setupSharedTestSuite(() => {
       expect(preview.data.notice.any_unknown).toBe(true)
     })
 
+    /**
+     * #1953 — bind the work to the line by COMMISSIONING it, not by claiming
+     * somebody else's run. `order_line_item_id` is written at creation and
+     * nowhere else, so a new run is the only binding that cannot mis-attribute
+     * a garment when a design is reused across customers.
+     */
+    it("commissions a run for each moved line, stamped with the line it is for", async () => {
+      const container = getContainer()
+      const stamp = Date.now()
+      const designA = await makeDesign(`Run Mint A ${stamp}`)
+      const designB = await makeDesign(`Run Mint B ${stamp}`)
+
+      const { result: order }: any = await createOrderWorkflow(container).run({
+        input: {
+          is_draft_order: true,
+          status: "draft",
+          no_notification: true,
+          email: `run-mint-${stamp}@jyt.test`,
+          region_id: regionId,
+          currency_code: "inr",
+          items: [
+            {
+              title: "To be made",
+              quantity: 1,
+              unit_price: 100,
+              metadata: { design_id: designA },
+            },
+            {
+              title: "To be detached",
+              quantity: 1,
+              unit_price: 100,
+              metadata: { design_id: designA },
+            },
+          ] as any,
+        } as any,
+      })
+      await linkDesignsToOrderItems(container, order.id)
+      const [moved, detached] = order.items
+
+      // Preview writes nothing, and says so.
+      const preview = await api.post(
+        `/admin/orders/${order.id}/design-changes`,
+        {
+          changes: [{ line_item_id: moved.id, design_id: designB }],
+          production: { mode: "new", quantity: 3 },
+          dry_run: true,
+        },
+        adminHeaders
+      )
+      expect(preview.status).toBe(200)
+      expect(preview.data.items[0].production_run_id).toBeNull()
+      expect(preview.data.items[0].production_skipped_reason).toBe("dry run")
+
+      const res = await api.post(
+        `/admin/orders/${order.id}/design-changes`,
+        {
+          changes: [
+            { line_item_id: moved.id, design_id: designB },
+            { line_item_id: detached.id, design_id: null },
+          ],
+          production: { mode: "new", quantity: 3 },
+          notify: false,
+        },
+        adminHeaders
+      )
+      expect(res.status).toBe(200)
+
+      const movedResult = res.data.items.find(
+        (i: any) => i.line_item_id === moved.id
+      )
+      const detachedResult = res.data.items.find(
+        (i: any) => i.line_item_id === detached.id
+      )
+
+      // The moved line got a run...
+      expect(movedResult.production_run_id).toEqual(expect.any(String))
+      // ...and the DETACHED line did not. There is nothing to make.
+      expect(detachedResult.production_run_id).toBeNull()
+      expect(detachedResult.production_skipped_reason).toMatch(/detached/i)
+
+      // The run is stamped with the line it belongs to — the identity that
+      // makes it this customer's rather than merely this design's.
+      const query: any = container.resolve(ContainerRegistrationKeys.QUERY)
+      const { data: runs } = await query.graph({
+        entity: "production_runs",
+        fields: ["id", "design_id", "order_id", "order_line_item_id", "quantity"],
+        filters: { order_line_item_id: moved.id },
+      })
+      expect(runs).toHaveLength(1)
+      expect(runs[0].id).toBe(movedResult.production_run_id)
+      expect(runs[0].design_id).toBe(designB)
+      expect(runs[0].order_id).toBe(order.id)
+      expect(Number(runs[0].quantity)).toBe(3)
+
+      // Asking twice does not commission twice — the line already has its run.
+      const again = await api.post(
+        `/admin/orders/${order.id}/design-changes`,
+        {
+          changes: [{ line_item_id: moved.id, design_id: designA }],
+          production: { mode: "new" },
+          notify: false,
+        },
+        adminHeaders
+      )
+      expect(again.status).toBe(200)
+      expect(again.data.items[0].production_run_id).toBeNull()
+      expect(again.data.items[0].production_skipped_reason).toMatch(
+        /already has run/i
+      )
+    })
+
     it("refuses a change whose lines belong to another order — before writing", async () => {
       const container = getContainer()
       const stamp = Date.now()

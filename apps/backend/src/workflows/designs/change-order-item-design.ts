@@ -11,6 +11,7 @@ import {
   resolveLineItemDesignId,
 } from "../../lib/resolve-line-item-production"
 import { repointOrderItemDesign } from "./link-designs-to-order-items"
+import { createProductionRunWorkflow } from "../production-runs/create-production-run"
 import { sendDesignOrderChangedEmailWorkflow } from "../email/workflows/send-design-order-changed-email"
 import {
   buildDesignChangeNotice,
@@ -73,8 +74,28 @@ export type DesignChangeRequest = {
   design_id: string | null
 }
 
+/**
+ * What production should do about the change (#1953).
+ *
+ * 🔴 "new", never "adopt". A run's identity is its `order_line_item_id`, and
+ * that is written at CREATION and nowhere else — so the only way to bind work
+ * to a line without guessing is to commission work FOR that line. Claiming an
+ * existing unstamped run would be an attribution decision: an unattributed
+ * completed run may genuinely be another customer's, and designs are reused.
+ * Minting a run cannot take anybody's goods.
+ */
+export type ProductionDecision = {
+  /** "none" (default) leaves production untouched, exactly as before. */
+  mode?: "none" | "new"
+  /** Agreed quantity. Absent = 1; explicit null = open-ended (#1676). */
+  quantity?: number | null
+  partner_id?: string | null
+}
+
 export type ChangeOrderDesignsInput = {
   changes: DesignChangeRequest[]
+  /** Applied to every line this change actually moves. */
+  production?: ProductionDecision
   /**
    * The order these lines must belong to. Checked BEFORE anything is written,
    * so a caller addressing the wrong order is refused rather than half-applied.
@@ -89,7 +110,12 @@ export type ChangeOrderDesignsInput = {
 export type ChangedItemResult = Omit<
   ChangeOrderItemDesignResult,
   "notice" | "email" | "dry_run"
->
+> & {
+  /** The run commissioned for this line by this change, if any (#1953). */
+  production_run_id?: string | null
+  /** Why no run was created, when one was asked for. */
+  production_skipped_reason?: string | null
+}
 
 export type ChangeOrderDesignsResult = {
   order_id: string | null
@@ -426,6 +452,82 @@ export async function changeOrderDesigns(
       throw new Error(
         `Changed ${items.length} of ${reads.length} lines, then failed on ${reads[i].change.line_item_id}: ${e?.message ?? e}`
       )
+    }
+  }
+
+  /**
+   * ── Commission the work, when asked (#1953) ─────────────────────────────
+   *
+   * A run is minted per line that actually MOVED and now stands for a design.
+   * A detached line gets none — there is nothing to make.
+   *
+   * Per-line and non-fatal: the links are already committed, so a run that
+   * cannot be created is REPORTED against its line rather than thrown, which
+   * would leave the caller believing the whole change failed when the part it
+   * asked for first has already happened.
+   *
+   * The existing-run check is a courtesy, not the guarantee. The partial unique
+   * index on `order_line_item_id` is the guarantee, and it is the reason two
+   * concurrent callers cannot both commission the same line.
+   */
+  if (input.production?.mode === "new" && !dryRun) {
+    for (let i = 0; i < items.length; i++) {
+      const item = items[i]
+      const designId = item.new_design_id
+      if (!designId) {
+        item.production_run_id = null
+        item.production_skipped_reason =
+          item.action === "detached"
+            ? "line was detached — nothing to make"
+            : "line has no design"
+        continue
+      }
+      if (item.action === "unchanged") {
+        item.production_run_id = null
+        item.production_skipped_reason = "line did not change"
+        continue
+      }
+
+      const existing = await getProductionRunForLineItem(
+        query,
+        item.line_item_id
+      ).catch(() => null)
+      if (existing) {
+        item.production_run_id = null
+        item.production_skipped_reason = `line already has run ${existing.id}`
+        continue
+      }
+
+      try {
+        const { result } = await createProductionRunWorkflow(container).run({
+          input: {
+            design_id: designId,
+            order_id: ctx?.order_id ?? undefined,
+            order_line_item_id: item.line_item_id,
+            quantity:
+              input.production.quantity === undefined
+                ? undefined
+                : input.production.quantity,
+            partner_id: input.production.partner_id ?? undefined,
+            metadata: {
+              source: "design-change",
+              previous_design_id: item.previous_design_id,
+            },
+          },
+        })
+        item.production_run_id = (result as any)?.id ?? null
+      } catch (e: any) {
+        item.production_run_id = null
+        item.production_skipped_reason = `run creation failed: ${e?.message ?? e}`
+        logger?.warn?.(
+          `[design-change] design moved on ${item.line_item_id} but the run could not be created: ${e?.message ?? e}`
+        )
+      }
+    }
+  } else if (input.production?.mode === "new" && dryRun) {
+    for (const item of items) {
+      item.production_run_id = null
+      item.production_skipped_reason = "dry run"
     }
   }
 
