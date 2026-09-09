@@ -6,6 +6,11 @@ import { ContainerRegistrationKeys, Modules } from "@medusajs/framework/utils"
 import designLineItemLink from "../../../../../links/design-line-item-link"
 import designCustomerLink from "../../../../../links/design-customer-link"
 import designOrderLink from "../../../../../links/design-order-link"
+import { resolveLineItemDesignId } from "../../../../../lib/resolve-line-item-production"
+import {
+  buildOrderItemRow,
+  summariseOrderItems,
+} from "../order-items-view"
 
 /**
  * GET /admin/designs/orders/:lineItemId
@@ -237,6 +242,77 @@ export async function GET(
     }
 
     // 6. Build checkout URL for pending items
+    /**
+     * #1918 — the ORDER's items, with the design each stands for and how far
+     * each has actually got.
+     *
+     * The page above is keyed on a CART line item (`cali_`), through the
+     * `design_line_item` link — which by its own definition dies at checkout.
+     * That is fine for showing what was commissioned, and useless for acting on
+     * a paid order. These rows come from the ORDER (`ordli_`), which is the only
+     * side that survives, and are what the attach/detach control writes against.
+     *
+     * Best-effort: an order we cannot read must not blank the whole screen, so
+     * a failure yields no rows rather than a 500.
+     */
+    let orderItems: ReturnType<typeof summariseOrderItems> | null = null
+    if (order?.id) {
+      try {
+        const { data: fullOrders } = await query.graph({
+          entity: "order",
+          filters: { id: order.id },
+          fields: [
+            "id",
+            "items.id",
+            "items.title",
+            "items.subtitle",
+            "items.thumbnail",
+            "items.quantity",
+            "items.variant_id",
+            "items.product_id",
+            "items.metadata",
+            // Both: `items.quantity` comes back null in this graph shape, and
+            // the detail row is what actually carries it.
+            "items.detail.quantity",
+            "items.detail.fulfilled_quantity",
+            "items.detail.shipped_quantity",
+            "items.detail.delivered_quantity",
+          ],
+        })
+        const rawItems: any[] = fullOrders?.[0]?.items || []
+        const rows = await Promise.all(
+          rawItems.map(async (it: any) => {
+            // Through the canonical resolver, so a pre-#1919 item resolves from
+            // its metadata string instead of reading as design-less.
+            const resolved = await resolveLineItemDesignId(query, {
+              productId: it.product_id ?? null,
+              variantId: it.variant_id ?? null,
+              lineItemId: it.id,
+              metadata: it.metadata ?? null,
+            }).catch(() => ({ designId: null, source: null } as any))
+
+            let designRef: { id: string; name: string | null; source: string | null } | null = null
+            if (resolved?.designId) {
+              const { data: ds } = await query.graph({
+                entity: "design",
+                fields: ["id", "name"],
+                filters: { id: resolved.designId },
+              })
+              designRef = {
+                id: resolved.designId,
+                name: ds?.[0]?.name ?? null,
+                source: resolved.source ?? null,
+              }
+            }
+            return buildOrderItemRow(it, designRef)
+          })
+        )
+        orderItems = summariseOrderItems(rows)
+      } catch (e) {
+        logger.warn(`[design-order detail] Failed to build order items view: ${e}`)
+      }
+    }
+
     const storeUrl = process.env.STORE_URL || "https://cicilabel.com"
     const checkoutUrl = !order && lineItem?.cart_id
       ? `${storeUrl}/checkout/cart/${lineItem.cart_id}`
@@ -276,6 +352,8 @@ export async function GET(
             }
           : null,
         checkout_url: checkoutUrl,
+        /** #1918 — ordered vs delivered, per item, with each item's design. */
+        order_items: orderItems,
       },
     })
   } catch (error) {

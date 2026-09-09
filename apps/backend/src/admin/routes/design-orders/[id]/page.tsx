@@ -44,6 +44,7 @@ import {
   getStatusBadgeColor,
 } from "../../../lib/work-status"
 import { DesignOrderProductionSection } from "../../../components/designs/design-order-production-section"
+import { DesignOrderItemsSection } from "../../../components/designs/design-order-items-section"
 
 // ─── Status helpers ─────────────────────────────────────────────────────────
 
@@ -903,6 +904,15 @@ const DesignOrderDetailPage = () => {
         <DesignOrderHeaderSection designOrder={designOrder} />
         <LineItemSection designOrder={designOrder} />
         <OrderSection designOrder={designOrder} lineItemId={id!} />
+        {/*
+          #1918 — the ORDER's items with their designs. Renders nothing until
+          the commission has become an order, since there is nothing to attach
+          a design to before then.
+        */}
+        <DesignOrderItemsSection
+          summary={designOrder.order_items}
+          pageLineItemId={id!}
+        />
         <DesignOrderProductionSection designOrder={designOrder} />
       </TwoColumnPage.Main>
       <TwoColumnPage.Sidebar>

@@ -239,5 +239,225 @@ setupSharedTestSuite(() => {
       expect(res.unresolved).toHaveLength(1)
       expect(res.unresolved[0].reason).toMatch(/no longer exists/)
     })
+
+    /**
+     * #1918 — the HTTP door onto the link, and the notice that goes with it.
+     *
+     * ⚠️ These exercise a DIFFERENT layer from the cases above, and the two
+     * behave differently on purpose:
+     *
+     *   · `repointOrderItemDesign` (above) moves the LINK only. The item's
+     *     `metadata.design_id` is left exactly as it was — which is what the
+     *     "provenance survives" assertions there are about.
+     *
+     *   · `POST .../design` (here) additionally brings `metadata.design_id`
+     *     into step with the link, because partner-ui still reads that string
+     *     over HTTP and cannot be migrated yet. Provenance moves to
+     *     `original_design_id` rather than being lost.
+     *
+     * A reader who assumes the metadata rule from the cases above will be
+     * wrong about this one, so both are asserted rather than inferred.
+     */
+    describe("#1918 — POST /admin/designs/orders/:lineItemId/design", () => {
+      /** Read the item back FROM THE DATABASE, never from the create response. */
+      const readItem = async (orderId: string, itemId: string) => {
+        const container = getContainer()
+        const query: any = container.resolve(ContainerRegistrationKeys.QUERY)
+        const { data } = await query.graph({
+          entity: "order",
+          fields: ["id", "items.id", "items.metadata"],
+          filters: { id: orderId },
+        })
+        return (data?.[0]?.items || []).find((i: any) => i.id === itemId)
+      }
+
+      const linkRows = async (itemId: string) => {
+        const container = getContainer()
+        const query: any = container.resolve(ContainerRegistrationKeys.QUERY)
+        const { data } = await query.graph({
+          entity: designOrderLineItemLink.entryPoint,
+          fields: ["design_id"],
+          filters: { order_line_item_id: itemId },
+        })
+        return data || []
+      }
+
+      it("requires design_id — omitting it is NOT a detach", async () => {
+        const a = await makeDesign(`Route Req ${Date.now()}`)
+        const order = await makeDesignOrder([a])
+        const err = await api
+          .post(
+            `/admin/designs/orders/${order.items[0].id}/design`,
+            {},
+            adminHeaders
+          )
+          .catch((e: any) => e.response)
+        // A forgotten field must never silently unlink a paid-for garment.
+        expect(err.status).toBe(400)
+        expect(await linkRows(order.items[0].id)).toHaveLength(0)
+      })
+
+      it("404s on a design that does not exist, and writes nothing", async () => {
+        const a = await makeDesign(`Route 404 ${Date.now()}`)
+        const order = await makeDesignOrder([a])
+        const container = getContainer()
+        await linkDesignsToOrderItems(container, order.id)
+
+        const err = await api
+          .post(
+            `/admin/designs/orders/${order.items[0].id}/design`,
+            { design_id: "01DESIGN_DOES_NOT_EXIST", notify: false },
+            adminHeaders
+          )
+          .catch((e: any) => e.response)
+        expect(err.status).toBe(404)
+        // The original link is untouched.
+        const rows = await linkRows(order.items[0].id)
+        expect(rows.map((r: any) => r.design_id)).toEqual([a])
+      })
+
+      it("dry_run reports the change and writes NOTHING", async () => {
+        const a = await makeDesign(`Route Dry A ${Date.now()}`)
+        const b = await makeDesign(`Route Dry B ${Date.now()}`)
+        const order = await makeDesignOrder([a])
+        const item = order.items[0]
+        await linkDesignsToOrderItems(getContainer(), order.id)
+
+        const res = await api.post(
+          `/admin/designs/orders/${item.id}/design`,
+          { design_id: b, dry_run: true },
+          adminHeaders
+        )
+        expect(res.status).toBe(200)
+        expect(res.data.action).toBe("replaced")
+        expect(res.data.dry_run).toBe(true)
+        expect(res.data.email.sent).toBe(false)
+        expect(res.data.metadata_updated).toBe(false)
+
+        // Nothing moved.
+        const rows = await linkRows(item.id)
+        expect(rows.map((r: any) => r.design_id)).toEqual([a])
+        expect((await readItem(order.id, item.id)).metadata.design_id).toBe(a)
+      })
+
+      it("attaches, and brings metadata.design_id into step with the link", async () => {
+        const a = await makeDesign(`Route Att A ${Date.now()}`)
+        const b = await makeDesign(`Route Att B ${Date.now()}`)
+        const order = await makeDesignOrder([a])
+        const item = order.items[0]
+        await linkDesignsToOrderItems(getContainer(), order.id)
+
+        const res = await api.post(
+          `/admin/designs/orders/${item.id}/design`,
+          { design_id: b, notify: false },
+          adminHeaders
+        )
+        expect(res.status).toBe(200)
+        expect(res.data.action).toBe("replaced")
+        expect(res.data.previous_design_id).toBe(a)
+        expect(res.data.previous_design_source).toBe("link")
+        expect(res.data.metadata_updated).toBe(true)
+
+        const rows = await linkRows(item.id)
+        expect(rows.map((r: any) => r.design_id)).toEqual([b])
+
+        const stored = await readItem(order.id, item.id)
+        expect(stored.metadata.design_id).toBe(b)
+        // Provenance is not lost — it moves, it does not disappear.
+        expect(stored.metadata.original_design_id).toBe(a)
+      })
+
+      it("detaches: link gone, design_id null, provenance kept", async () => {
+        const a = await makeDesign(`Route Det ${Date.now()}`)
+        const order = await makeDesignOrder([a])
+        const item = order.items[0]
+        await linkDesignsToOrderItems(getContainer(), order.id)
+
+        const res = await api.post(
+          `/admin/designs/orders/${item.id}/design`,
+          { design_id: null, notify: false },
+          adminHeaders
+        )
+        expect(res.status).toBe(200)
+        expect(res.data.action).toBe("detached")
+        expect(res.data.new_design_id).toBeNull()
+
+        expect(await linkRows(item.id)).toHaveLength(0)
+
+        const stored = await readItem(order.id, item.id)
+        /**
+         * NULL, not absent. `updateOrderLineItems` MERGES metadata and cannot
+         * remove a key — a `delete` on the payload is silently ignored. Both
+         * in-repo readers guard on `typeof === "string"`, so a null correctly
+         * stops resolving.
+         */
+        expect(stored.metadata.design_id).toBeNull()
+        expect(stored.metadata.original_design_id).toBe(a)
+      })
+
+      it("🔴 keeps the FIRST design as provenance across repeated re-points", async () => {
+        const first = await makeDesign(`Route P1 ${Date.now()}`)
+        const second = await makeDesign(`Route P2 ${Date.now()}`)
+        const third = await makeDesign(`Route P3 ${Date.now()}`)
+        const order = await makeDesignOrder([first])
+        const item = order.items[0]
+        await linkDesignsToOrderItems(getContainer(), order.id)
+
+        for (const d of [second, third]) {
+          const r = await api.post(
+            `/admin/designs/orders/${item.id}/design`,
+            { design_id: d, notify: false },
+            adminHeaders
+          )
+          expect(r.status).toBe(200)
+        }
+
+        const stored = await readItem(order.id, item.id)
+        expect(stored.metadata.design_id).toBe(third)
+        // "What did the customer order?" has ONE answer however often it moves.
+        expect(stored.metadata.original_design_id).toBe(first)
+      })
+
+      it("🔴 does not claim production for an item with no run", async () => {
+        const a = await makeDesign(`Route Notice A ${Date.now()}`)
+        const b = await makeDesign(`Route Notice B ${Date.now()}`)
+        const order = await makeDesignOrder([a])
+        const item = order.items[0]
+        await linkDesignsToOrderItems(getContainer(), order.id)
+
+        const res = await api.post(
+          `/admin/designs/orders/${item.id}/design`,
+          { design_id: b, notify: false },
+          adminHeaders
+        )
+        const line = res.data.notice.changed_lines[0]
+        // This is the state four of Aline's five items are in.
+        expect(line.production_state).toBe("not_started")
+        expect(line.reassuring).toBe(false)
+        expect(res.data.notice.all_in_hand).toBe(false)
+        expect(res.data.notice.headline).not.toMatch(/already in hand/i)
+      })
+
+      it("resolves a pre-backfill item from its metadata, not as design-less", async () => {
+        const a = await makeDesign(`Route Pre ${Date.now()}`)
+        const b = await makeDesign(`Route Pre B ${Date.now()}`)
+        // NOTE: linkDesignsToOrderItems deliberately NOT run — this item has a
+        // metadata string and no link, exactly like anything predating #1919.
+        const order = await makeDesignOrder([a])
+        const item = order.items[0]
+
+        const res = await api.post(
+          `/admin/designs/orders/${item.id}/design`,
+          { design_id: b, notify: false },
+          adminHeaders
+        )
+        expect(res.status).toBe(200)
+        // Reading the LINK alone would report "attached" and lose the fact that
+        // a design was already there.
+        expect(res.data.action).toBe("replaced")
+        expect(res.data.previous_design_id).toBe(a)
+        expect(res.data.previous_design_source).toBe("metadata")
+      })
+    })
   })
 })
