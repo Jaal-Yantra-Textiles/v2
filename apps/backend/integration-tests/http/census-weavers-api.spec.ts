@@ -63,6 +63,15 @@ const geoProj = (r: Record<string, any>) => {
   }
 }
 
+// Equality-facet fields the reader indexes (must match reader.ts EQ_FACETS, which
+// a unit test asserts against census_index.mjs EQ_FIELDS). `state`/`gender` are
+// dedicated facet families, not EQ facets; everything else filterable is one.
+const EQ_FACETS = [
+  "village", "block", "district", "education", "ownership_type",
+  "household_type", "dwelling_type", "rural_urban",
+  "own_looms", "natural_dye_used", "electricity",
+]
+
 /** Build rec + agg + (optionally) idx/meta subs from a record set. */
 function buildSubs(
   records: Array<Record<string, any>>,
@@ -70,7 +79,8 @@ function buildSubs(
 ) {
   const rec: Array<[string, any]> = records.map((r) => [String(r.census_id), enc(r)])
 
-  // agg counts (utf-8 values) for state / gender / district(state|district).
+  // agg counts (utf-8 values) for state / gender / district(state|district) and
+  // the equality facets (`eq/<field>/<value>`), mirroring the seeder.
   const agg = new Map<string, number>()
   const bump = (k: string) => agg.set(k, (agg.get(k) || 0) + 1)
   for (const r of records) {
@@ -78,6 +88,10 @@ function buildSubs(
     bump(`state/${r.state}`)
     bump(`gender/${r.gender}`)
     bump(`district/${r.state}|${r.district}`)
+    for (const field of EQ_FACETS) {
+      const v = r[field]
+      if (v != null && v !== "") bump(`eq/${field}/${v}`)
+    }
   }
   const aggEntries: Array<[string, any]> = [...agg].map(([k, v]) => [k, String(v)])
 
@@ -93,11 +107,15 @@ function buildSubs(
       idx.push([`state/${r.state}/${p}`, val])
       idx.push([`gender/${r.gender}/${p}`, val])
       idx.push([`sd/${r.state}|${r.district}/${p}`, val])
+      for (const field of EQ_FACETS) {
+        const v = r[field]
+        if (v != null && v !== "") idx.push([`${field}/${v}/${p}`, val])
+      }
     }
     subs.idx = idx
     subs.meta = geo
-      ? [["idx-version", "idx-v1"], ["idx-all-version", "idxall-v1"], ["idx-geo-version", "geo-v1"]]
-      : [["idx-version", "idx-v1"], ["idx-all-version", "idxall-v1"]]
+      ? [["idx-version", "idx-v1"], ["idx-all-version", "idxall-v1"], ["idx-geo-version", "geo-v1"], ["idx-eq-version", "idxeq-v1"]]
+      : [["idx-version", "idx-v1"], ["idx-all-version", "idxall-v1"], ["idx-eq-version", "idxeq-v1"]]
   }
 
   return subs
@@ -255,13 +273,17 @@ setupSharedTestSuite(() => {
       expect(p2.data.weavers.map((w: any) => w.census_id)).toEqual([12, 13])
     })
 
-    it("applies a non-facet residual filter over the `all` family", async () => {
+    it("browses an equality facet (education) via the index with an O(1) agg count", async () => {
+      // `education` is now an indexed equality facet (reader.ts EQ_FACETS), not a
+      // residual filter — it rides `idx/education/*` with the count lifted from
+      // `agg/eq/education/Primary` in O(1), so `estimated` is absent.
       const res = await api.get("/web/census/weavers?education=Primary", {
         validateStatus: () => true,
       })
       expect(res.status).toBe(200)
       expect(res.data.indexed).toBe(true)
-      expect(res.data.estimated).toBe(true) // residual → count is scanned matches
+      expect(res.data.count).toBe(2) // exact from agg/eq/education/Primary
+      expect(res.data.estimated).toBeUndefined()
       expect(res.data.weavers.map((w: any) => w.census_id).sort()).toEqual([11, 14])
     })
   })
