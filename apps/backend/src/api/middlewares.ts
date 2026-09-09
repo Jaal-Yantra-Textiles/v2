@@ -215,6 +215,7 @@ import {
 } from "./admin/platform-tax-identities/validators";
 import { CreatePlatformCostConfigSchema } from "./admin/platform-cost-config/validators";
 import { ChangeOrderItemDesignSchema } from "./admin/designs/orders/[lineItemId]/design/validators";
+import { ChangeOrderDesignsSchema } from "./admin/orders/[id]/design-changes/validators"
 import { createPlanSchema, updatePlanSchema, createSubscriptionSchema } from "./admin/partner-plans/validators";
 import { subscribeSchema as partnerSubscribeSchema } from "./partners/subscription/validators";
 import { AdminPostInventoryOrderTasksReq } from "./admin/inventory-orders/[id]/tasks/validators";
@@ -2910,6 +2911,16 @@ export default defineMiddlewares({
       method: "POST",
       middlewares: [
         validateAndTransformBody(wrapSchema(ChangeOrderItemDesignSchema)),
+      ],
+    },
+    {
+      // #1918 — the same change for EVERY line at once, as one change and one
+      // email. Mirrors Medusa's order edit, where actions accumulate on one
+      // change and a single event is emitted when it is applied.
+      matcher: "/admin/orders/:id/design-changes",
+      method: "POST",
+      middlewares: [
+        validateAndTransformBody(wrapSchema(ChangeOrderDesignsSchema)),
       ],
     },
     {

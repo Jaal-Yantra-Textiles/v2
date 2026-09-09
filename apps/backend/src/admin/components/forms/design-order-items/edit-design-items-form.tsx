@@ -1,6 +1,7 @@
 import { useCallback, useMemo, useState } from "react"
 import {
   Badge,
+  Button,
   Checkbox,
   CommandBar,
   DataTable,
@@ -21,7 +22,7 @@ import { StackedFocusModal } from "../../modal/stacked-modal/stacked-focused-mod
 import { useStackedModal } from "../../modal/stacked-modal/use-stacked-modal"
 import {
   useDesignOrder,
-  useChangeOrderItemDesign,
+  useChangeOrderDesigns,
   type OrderItemRow,
 } from "../../../hooks/api/design-orders"
 import { useDesigns, type AdminDesign } from "../../../hooks/api/designs"
@@ -77,7 +78,7 @@ const DesignPickerModal = ({
   isPending,
 }: {
   target: OrderItemRow | null
-  onReplace: (designId: string) => void
+  onReplace: (designId: string, designName: string | null) => void
   isPending: boolean
 }) => {
   const [search, setSearch] = useState("")
@@ -248,11 +249,14 @@ const DesignPickerModal = ({
           <CommandBar.Command
             action={() => {
               if (selected) {
-                onReplace(selected)
+                const picked = (designs ?? []).find(
+                  (d: AdminDesign) => d.id === selected
+                )
+                onReplace(selected, picked?.name ?? null)
                 setSelected(null)
               }
             }}
-            label={isPending ? "Replacing…" : "Replace"}
+            label={isPending ? "Staging…" : "Replace"}
             shortcut="r"
             disabled={isPending}
           />
@@ -270,13 +274,40 @@ export const EditDesignItemsForm = ({
   const prompt = usePrompt()
   const { setIsOpen } = useStackedModal()
   const { designOrder, isLoading } = useDesignOrder(pageLineItemId)
-  const { mutateAsync, isPending } = useChangeOrderItemDesign(pageLineItemId)
+  const { mutateAsync, isPending } = useChangeOrderDesigns(pageLineItemId)
   const [selectedItem, setSelectedItem] = useState<string | null>(null)
+  /**
+   * Staged, not applied. Line item id -> the design it will point at (null
+   * detaches).
+   *
+   * 🔴 This is the whole point of the rewrite. Applying each line as it was
+   * picked sent the customer one email PER LINE — three re-points, three
+   * emails, each describing a third of one decision. Medusa's own order edit
+   * stages actions on a single change and notifies once when it is applied;
+   * this now does the same.
+   */
+  const [staged, setStaged] = useState<Record<string, string | null>>({})
+  /**
+   * design id -> name, for the designs picked in THIS session. The staged row
+   * has to be readable before it is applied, and the picked design is not on
+   * the order yet so no server row carries its name.
+   */
+  const [stagedNames, setStagedNames] = useState<Record<string, string>>({})
 
+  const orderId: string | null = designOrder?.order?.id ?? null
   const rows: OrderItemRow[] = designOrder?.order_items?.items ?? []
   const target = useMemo(
     () => rows.find((r) => r.id === selectedItem) ?? null,
     [rows, selectedItem]
+  )
+
+  const stagedEntries = useMemo(
+    () =>
+      Object.entries(staged).map(([line_item_id, design_id]) => ({
+        line_item_id,
+        design_id,
+      })),
+    [staged]
   )
 
   const pickItem = useCallback((id: string) => {
@@ -285,21 +316,56 @@ export const EditDesignItemsForm = ({
     setSelectedItem((prev) => (prev === id ? null : id))
   }, [])
 
-  const change = async (
+  /** Stage one line's move. Nothing is written and nobody is emailed yet. */
+  const stage = (
     row: OrderItemRow,
     designId: string | null,
-    verb: "Replace" | "Detach"
+    designName?: string | null
   ) => {
+    if (designId && designName) {
+      setStagedNames((prev) => ({ ...prev, [designId]: designName }))
+    }
+    setStaged((prev) => {
+      const next = { ...prev }
+      /**
+       * Staging a line back onto the design it already has is not a change —
+       * it is an undo. Keeping it would send the customer a line saying a
+       * design changed to itself.
+       */
+      if ((row.design?.id ?? null) === designId) {
+        delete next[row.id]
+      } else {
+        next[row.id] = designId
+      }
+      return next
+    })
+    setSelectedItem(null)
+  }
+
+  const unstage = (lineItemId: string) => {
+    setStaged((prev) => {
+      const next = { ...prev }
+      delete next[lineItemId]
+      return next
+    })
+  }
+
+  /** Apply every staged move as ONE change, with ONE email. */
+  const apply = async () => {
+    if (!orderId || !stagedEntries.length) {
+      return
+    }
+
     /**
      * Preview first, so the confirm dialog can quote the sentence the customer
-     * will actually receive. The wording depends on whether the garment has a
-     * production run, and an admin deserves to see it before it is sent.
+     * will actually receive — now one sentence about the whole change, which
+     * is the sentence that will actually be sent.
      */
     let headline = ""
     try {
       const preview: any = await mutateAsync({
-        order_line_item_id: row.id,
-        design_id: designId,
+        order_id: orderId,
+        changes: stagedEntries,
         dry_run: true,
       })
       headline = preview?.notice?.headline ?? ""
@@ -307,19 +373,28 @@ export const EditDesignItemsForm = ({
       // A failed preview costs context in the dialog, not the operation.
     }
 
+    const deliveredCount = stagedEntries.filter(
+      (c) => rows.find((r) => r.id === c.line_item_id)?.state === "delivered"
+    ).length
+
     const confirmed = await prompt({
-      title: `${verb} design`,
+      title:
+        stagedEntries.length === 1
+          ? "Apply 1 design change"
+          : `Apply ${stagedEntries.length} design changes`,
       description: [
-        `${verb} the design on “${row.title ?? row.id}”.`,
-        row.state === "delivered"
-          ? "⚠️ This line has already been DELIVERED — changing its design does not change what the customer received."
+        stagedEntries.length === 1
+          ? "One line will be re-pointed."
+          : `${stagedEntries.length} lines will be re-pointed, and the customer gets ONE email about all of them.`,
+        deliveredCount
+          ? `⚠️ ${deliveredCount} of these ${deliveredCount === 1 ? "lines has" : "lines have"} already been DELIVERED — changing the design does not change what the customer received.`
           : "",
         "The order itself is not changed: price, quantity and totals stay as they are.",
         headline ? `The customer will be told: “${headline}”` : "",
       ]
         .filter(Boolean)
         .join("\n\n"),
-      confirmText: verb,
+      confirmText: "Apply",
       cancelText: "Cancel",
     })
     if (!confirmed) {
@@ -327,11 +402,19 @@ export const EditDesignItemsForm = ({
     }
 
     try {
-      await mutateAsync({ order_line_item_id: row.id, design_id: designId })
+      const res: any = await mutateAsync({
+        order_id: orderId,
+        changes: stagedEntries,
+      })
+      setStaged({})
       setSelectedItem(null)
-      toast.success(`Design ${verb.toLowerCase()}d. The customer has been told.`)
+      toast.success(
+        res?.email?.sent
+          ? `${stagedEntries.length === 1 ? "1 line" : `${stagedEntries.length} lines`} re-pointed. The customer has been told, once.`
+          : `${stagedEntries.length === 1 ? "1 line" : `${stagedEntries.length} lines`} re-pointed. No email was sent: ${res?.email?.reason ?? "unknown reason"}.`
+      )
     } catch (e: any) {
-      toast.error(e?.message ?? `Could not ${verb.toLowerCase()} the design`)
+      toast.error(e?.message ?? "Could not apply the design changes")
     }
   }
 
@@ -369,8 +452,43 @@ export const EditDesignItemsForm = ({
       }),
       itemColumns.accessor("design", {
         header: "Design",
-        cell: ({ row }) =>
-          row.original.design ? (
+        cell: ({ row }) => {
+          /*
+            A staged move is shown where the design is, marked as pending. The
+            row must not read as already changed — nothing has been written and
+            the customer has not been told until Apply.
+          */
+          const isStaged = Object.prototype.hasOwnProperty.call(
+            staged,
+            row.original.id
+          )
+          const stagedId = isStaged ? staged[row.original.id] : undefined
+          const stagedName = stagedId
+            ? (stagedNames[stagedId] ?? stagedId)
+            : null
+
+          if (isStaged) {
+            return (
+              <div className="flex flex-col gap-y-1">
+                <div className="flex items-center gap-x-2">
+                  <Text size="small" className="truncate">
+                    {stagedId ? stagedName : "None"}
+                  </Text>
+                  <Badge size="2xsmall" color="orange">
+                    Pending
+                  </Badge>
+                </div>
+                <Text size="xsmall" className="text-ui-fg-muted truncate">
+                  now:{" "}
+                  {row.original.design
+                    ? (row.original.design.name ?? row.original.design.id)
+                    : "None"}
+                </Text>
+              </div>
+            )
+          }
+
+          return row.original.design ? (
             <div className="flex flex-col">
               <Text size="small" className="truncate">
                 {row.original.design.name ?? row.original.design.id}
@@ -387,7 +505,8 @@ export const EditDesignItemsForm = ({
             <Badge size="2xsmall" color="grey">
               None
             </Badge>
-          ),
+          )
+        },
       }),
       itemColumns.accessor("state", {
         header: "Status",
@@ -398,7 +517,7 @@ export const EditDesignItemsForm = ({
         ),
       }),
     ],
-    [selectedItem, pickItem]
+    [selectedItem, pickItem, staged, stagedNames]
   )
 
   const table = useDataTable({
@@ -430,9 +549,10 @@ export const EditDesignItemsForm = ({
               <div>
                 <Heading level="h2">Designs on this order</Heading>
                 <Text size="small" className="text-ui-fg-subtle">
-                  Select a line, then Change or Detach. This re-points the line
-                  only — prices, quantities and totals are untouched; update
-                  those separately once the designs are finished.
+                  Select a line, then Change or Detach. Nothing is sent until
+                  you Apply — every change goes together, and the customer gets
+                  one email about all of them. This re-points the lines only:
+                  prices, quantities and totals are untouched.
                 </Text>
               </div>
             </DataTable.Toolbar>
@@ -440,6 +560,45 @@ export const EditDesignItemsForm = ({
           </DataTable>
         )}
       </RouteFocusModal.Body>
+
+      {/*
+        The footer is the only door that writes. Staged moves are visible in
+        the table and reversible until this is pressed — which is what makes
+        one email about the whole change possible.
+      */}
+      <RouteFocusModal.Footer>
+        <div className="flex w-full items-center justify-end gap-x-3">
+          {stagedEntries.length > 0 ? (
+            <Text size="small" className="text-ui-fg-subtle mr-auto">
+              {stagedEntries.length === 1
+                ? "1 change staged — the customer will get one email."
+                : `${stagedEntries.length} changes staged — the customer will get one email.`}
+            </Text>
+          ) : null}
+          <Button
+            size="small"
+            variant="secondary"
+            disabled={!stagedEntries.length || isPending}
+            onClick={() => {
+              setStaged({})
+              setSelectedItem(null)
+            }}
+          >
+            Discard
+          </Button>
+          <Button
+            size="small"
+            disabled={!stagedEntries.length || !orderId || isPending}
+            onClick={() => void apply()}
+          >
+            {isPending
+              ? "Applying…"
+              : stagedEntries.length > 1
+                ? `Apply ${stagedEntries.length} changes`
+                : "Apply"}
+          </Button>
+        </div>
+      </RouteFocusModal.Footer>
 
       <CommandBar open={Boolean(target)}>
         <CommandBar.Bar>
@@ -452,9 +611,18 @@ export const EditDesignItemsForm = ({
           />
           {target?.design ? (
             <CommandBar.Command
-              action={() => target && change(target, null, "Detach")}
+              action={() => target && stage(target, null)}
               label="Detach design"
               shortcut="d"
+              disabled={isPending}
+            />
+          ) : null}
+          {target &&
+          Object.prototype.hasOwnProperty.call(staged, target.id) ? (
+            <CommandBar.Command
+              action={() => target && unstage(target.id)}
+              label="Undo staged"
+              shortcut="u"
               disabled={isPending}
             />
           ) : null}
@@ -464,10 +632,10 @@ export const EditDesignItemsForm = ({
       <DesignPickerModal
         target={target}
         isPending={isPending}
-        onReplace={(designId) => {
+        onReplace={(designId, designName) => {
           setIsOpen(PICKER_ID, false)
           if (target) {
-            void change(target, designId, "Replace")
+            stage(target, designId, designName)
           }
         }}
       />

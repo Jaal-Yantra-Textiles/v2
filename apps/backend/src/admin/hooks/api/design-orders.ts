@@ -618,6 +618,50 @@ export const useCancelShipment = (
  * `design_id: null` detaches. The field is always sent — the route rejects a
  * missing one rather than reading it as a detach.
  */
+/**
+ * #1918 — apply EVERY design change on an order as one change, and one email.
+ *
+ * The per-line hook above still exists and still works; it is a batch of one.
+ * What it cannot do is describe three re-points as one decision — called three
+ * times it sends the customer three emails, each about a third of it. This
+ * mirrors Medusa's own order edit, where actions accumulate on a single change
+ * and one notification goes out when it is applied.
+ */
+export const useChangeOrderDesigns = (
+  /** The CART line item this page is keyed on — for cache invalidation only. */
+  pageLineItemId: string
+) => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (vars: {
+      order_id: string;
+      changes: Array<{ line_item_id: string; design_id: string | null }>;
+      notify?: boolean;
+      dry_run?: boolean;
+    }) =>
+      sdk.client.fetch<any>(`/admin/orders/${vars.order_id}/design-changes`, {
+        method: "POST",
+        body: {
+          changes: vars.changes,
+          notify: vars.notify,
+          dry_run: vars.dry_run,
+        },
+      }),
+    onSuccess: () => {
+      // Same three caches as the single-line mutation: this page + modal, the
+      // list, and the core order page's "Custom designs" widget by prefix.
+      queryClient.invalidateQueries({
+        queryKey: designOrdersQueryKeys.detail(pageLineItemId),
+      });
+      queryClient.invalidateQueries({ queryKey: designOrdersQueryKeys.lists() });
+      queryClient.invalidateQueries({ queryKey: ["order-design"] });
+    },
+    /**
+     * 🔴 No `...options` spread after onSuccess — see the hook below (#1800).
+     */
+  });
+};
+
 export const useChangeOrderItemDesign = (
   /** The CART line item this page is keyed on — for cache invalidation only. */
   pageLineItemId: string
