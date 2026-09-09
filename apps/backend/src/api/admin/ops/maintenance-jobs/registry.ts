@@ -6,6 +6,12 @@ import { DESIGN_MODULE } from "../../../../modules/designs"
 import { PRODUCTION_RUNS_MODULE } from "../../../../modules/production_runs"
 import { TASKS_MODULE } from "../../../../modules/tasks"
 import { TEMPLATE_DEF } from "../../../../scripts/seed-goods-transfer-task-template"
+import {
+  PHOTOSHOOT_CATEGORY_DEF,
+  PHOTOSHOOT_CATEGORY_NAME,
+  PHOTOSHOOT_TEMPLATE_DEFS,
+  photoshootBudget,
+} from "../../../../scripts/seed-photoshoot-task-templates"
 import { CONSUMPTION_LOG_MODULE } from "../../../../modules/consumption_log"
 import { RAW_MATERIAL_MODULE } from "../../../../modules/raw_material"
 import { buildGroupColorTitle } from "../../../../modules/raw_material/lib/group-order-helpers"
@@ -5816,6 +5822,124 @@ export const seedGoodsTransferTaskTemplateJob: MaintenanceJob = {
   },
 }
 
+// seed-photoshoot-task-templates (#1920) — install the "Photo Shoot" category
+// and its four templates. The shoot is the gate between "we made it" and "we
+// can sell it" (approval only reaches Commerce_Ready once the design's media
+// folder holds an image), and it was the one step in that chain with no task
+// behind it — 23 templates in prod and not one covering it.
+//
+// Idempotent in BOTH directions: an existing category is reused rather than
+// duplicated, and an existing template of the same name is left ALONE. Operators
+// edit durations, costs and wording, and a re-run must never undo that. Partial
+// installs re-run safely — only what is missing gets created.
+// ---------------------------------------------------------------------------
+
+export const seedPhotoshootTaskTemplatesJob: MaintenanceJob = {
+  id: "seed-photoshoot-task-templates",
+  label: "Install the 'Photo Shoot' task category and templates",
+  description:
+    "Create the Photo Shoot category and its four templates — styling, capture, retouch, upload (#1920). A produced garment is not sellable until it has been photographed, which is why run approval only reaches Commerce_Ready once the design's media folder holds an image; these make that work assignable, schedulable and COSTED, which it was not before. Each carries a starting estimated_cost and estimated_duration that operators are expected to tune. Dry-run reports exactly what is missing; apply creates only that. Never overwrites an existing category or template.",
+  params: [],
+  run: async (container, { dry_run }) => {
+    const taskService: any = container.resolve(TASKS_MODULE)
+
+    // 1. The category, found by name or created once.
+    const existingCategories = await taskService.listTaskCategories({
+      name: [PHOTOSHOOT_CATEGORY_NAME],
+    })
+    let categoryId: string | null = existingCategories?.[0]?.id ?? null
+    const categoryExisted = Boolean(categoryId)
+
+    if (!categoryId && !dry_run) {
+      const created = await taskService.createTaskCategories(
+        PHOTOSHOOT_CATEGORY_DEF as any
+      )
+      categoryId = (Array.isArray(created) ? created[0] : created)?.id ?? null
+    }
+
+    // 2. Which templates are already there. One read for all of them, so a
+    //    partial install is reported as a partial install rather than a clash.
+    const names = PHOTOSHOOT_TEMPLATE_DEFS.map((t) => t.name)
+    const existingTemplates = await taskService.listTaskTemplates({ name: names })
+    const present = new Set(
+      (existingTemplates ?? []).map((t: any) => t.name).filter(Boolean)
+    )
+    const missing = PHOTOSHOOT_TEMPLATE_DEFS.filter((t) => !present.has(t.name))
+
+    const changes: any[] = []
+
+    if (!categoryExisted) {
+      changes.push({
+        entity: "task_category",
+        id: categoryId ?? "(new)",
+        field: "created",
+        after: { name: PHOTOSHOOT_CATEGORY_NAME },
+      })
+    }
+
+    for (const def of missing) {
+      let createdId: string | null = null
+      if (!dry_run) {
+        const created = await taskService.createTaskTemplates({
+          ...def,
+          // `category_id` only when we have one — a template with no category
+          // is valid, and is better than one pointing at nothing.
+          ...(categoryId ? { category_id: categoryId } : {}),
+        } as any)
+        createdId = (Array.isArray(created) ? created[0] : created)?.id ?? null
+      }
+      changes.push({
+        entity: "task_template",
+        id: createdId ?? "(new)",
+        field: "created",
+        after: {
+          name: def.name,
+          stage: def.metadata.stage,
+          estimated_cost: def.estimated_cost,
+          cost_currency: def.cost_currency,
+          estimated_duration: def.estimated_duration,
+        },
+      })
+    }
+
+    const budget = photoshootBudget()
+    const budgetNote = `One full shoot budgets ${budget.cost} ${
+      budget.currency ?? ""
+    } and ${budget.minutes} minutes across the four steps.`.trim()
+
+    if (!changes.length) {
+      return {
+        job_id: seedPhotoshootTaskTemplatesJob.id,
+        dry_run,
+        applied: false,
+        summary: `Photo Shoot category and all ${names.length} templates already installed — nothing to do, and nothing overwritten. Edit them under Settings → Task Templates. ${budgetNote}`,
+        changes: [],
+      }
+    }
+
+    const what = [
+      categoryExisted ? null : `the "${PHOTOSHOOT_CATEGORY_NAME}" category`,
+      missing.length
+        ? `${missing.length} of ${names.length} template(s) (${missing
+            .map((m) => m.name)
+            .join(", ")})`
+        : null,
+    ]
+      .filter(Boolean)
+      .join(" and ")
+
+    return {
+      job_id: seedPhotoshootTaskTemplatesJob.id,
+      dry_run,
+      applied: !dry_run,
+      summary: dry_run
+        ? `Would create ${what} — nothing written. ${budgetNote}`
+        : `Created ${what}. Attach them to a production run's dispatch step list to schedule the shoot. ${budgetNote}`,
+      changes,
+    }
+  },
+}
+
 export const MAINTENANCE_JOBS: MaintenanceJob[] = [
   reconcileOrderBalancesJob,
   cancelInactiveProductionRunsJob,
@@ -5919,6 +6043,7 @@ export const MAINTENANCE_JOBS: MaintenanceJob[] = [
   seedInvestorPanelsJob,
   seedPlatformStatsPanelJob,
   seedGoodsTransferTaskTemplateJob,
+  seedPhotoshootTaskTemplatesJob,
 ]
 
 export const getMaintenanceJob = (id: string): MaintenanceJob | undefined =>
