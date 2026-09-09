@@ -46,6 +46,7 @@ export async function POST(
     const result = await changeOrderDesigns(req.scope, {
       changes: body.changes,
       order_id: orderId,
+      production: body.production,
       notify: body.notify,
       dry_run: body.dry_run,
     })

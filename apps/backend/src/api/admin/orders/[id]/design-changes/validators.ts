@@ -20,6 +20,18 @@ export const ChangeOrderDesignsSchema = z.object({
       })
     )
     .min(1, "Send at least one line to change."),
+  /**
+   * What production should do (#1953). `mode: "new"` commissions a run for
+   * every line this change actually moves — the only way to bind work to a
+   * line without guessing whose work it is.
+   */
+  production: z
+    .object({
+      mode: z.enum(["none", "new"]).optional(),
+      quantity: z.number().nullable().optional(),
+      partner_id: z.string().trim().min(1).nullable().optional(),
+    })
+    .optional(),
   /** Skip the customer email — for a correction they should not see. */
   notify: z.boolean().optional(),
   /** Preview the change and the email without performing either. */
