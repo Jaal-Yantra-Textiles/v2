@@ -3746,6 +3746,75 @@ export const ADMIN_MCP_TOOLS: AdminMcpToolDef[] = [
     ],
   },
   {
+    name: "create_task_template",
+    description:
+      "Create a task template — a reusable process step that production-run dispatch can attach to a run. Use it when the work a run needs has no template yet (a photoshoot stage, a new finishing service), because dispatch resolves templates BY NAME and a name that does not exist fails the whole dispatch with 'Missing task templates'. 🔑 ALWAYS call list_task_templates first: 23+ already exist, names are not unique across categories, and creating a near-duplicate ('Stitching' when 'Stitching (Pre Production)' is what you meant) makes every later dispatch ambiguous. Give the template a `category_id` from that listing — CATEGORIES CANNOT BE CREATED through this API (the categories route is read-only), so a step in a category that does not exist yet needs the matching Data Plumbing seed job instead. Cost and duration are what make a step accountable rather than a checkbox: `estimated_cost` + `cost_currency` and `estimated_duration` (MINUTES) are copied onto every task dispatched from it. ⚠️ `required_fields` must be an OBJECT here — the route's validator declares `z.record`, so the ARRAY form used by the in-process seeds (ship-to-next-location, the photoshoot templates) is REJECTED with a 400. A template needing array-shaped field configs has to be seeded, not created here. [sensitive: requires confirm:true]",
+    method: "POST",
+    path: "/admin/task-templates",
+    bodyParams: [
+      "name",
+      "description",
+      "category_id",
+      "estimated_duration",
+      "estimated_cost",
+      "cost_currency",
+      "priority",
+      "required_fields",
+      "eventable",
+      "notifiable",
+      "message_template",
+      "metadata",
+    ],
+    write: true,
+    sensitive: true,
+    inputSchema: obj(
+      {
+        name: STR(
+          "The template's name. This is the DISPATCH KEY — runs are dispatched by name, so make it unambiguous across categories (prefer 'Stitching (Finishing)' over 'Stitching'). Required."
+        ),
+        description: STR(
+          "What the step actually involves, written for the partner who will do it. Required by the route — not optional."
+        ),
+        category_id: STR(
+          "The category this step belongs to, from list_task_templates' `category.id`. Omit only for a deliberately uncategorised step."
+        ),
+        estimated_duration: INT(
+          "Expected hands-on time in MINUTES — not hours, and not elapsed/transit time. Copied onto each dispatched task."
+        ),
+        estimated_cost: {
+          type: "number",
+          description:
+            "Default cost of this step, per task, in `cost_currency`. Omit for our own time rather than sending 0 — a 0 asserts the step is free, which is a different claim from 'not costed'.",
+        },
+        cost_currency: STR(
+          "Currency of estimated_cost, e.g. 'INR'. Send it whenever estimated_cost is set; a cost with no currency cannot be added up."
+        ),
+        priority: STR("'low' | 'medium' | 'high'. Defaults to 'medium'."),
+        required_fields: {
+          type: "object",
+          description:
+            "Field configuration the task collects, as an OBJECT keyed by field name. ⚠️ An ARRAY is rejected by the validator (see the tool description) even though the seeded templates carry one.",
+          additionalProperties: true,
+        },
+        eventable: BOOL("Whether completing this task emits an event."),
+        notifiable: BOOL("Whether this task notifies the assignee."),
+        message_template: STR(
+          "Notification body, with {{placeholders}} — e.g. 'Order {{order_id}} has been sent to partner.'"
+        ),
+        metadata: {
+          type: "object",
+          description:
+            "Free-form template metadata. Conventionally carries `entity` (what it attaches to, e.g. 'production_run') and, for a step the partner UI renders a real form for, `action` + `endpoint`.",
+          additionalProperties: true,
+        },
+      },
+      ["name", "description"]
+    ),
+    sideEffects:
+      "Creates a task template that becomes dispatchable by name immediately. It is not attached to any run until a dispatch names it.",
+    nextSteps: ["list_task_templates", "send_production_run_to_production"],
+  },
+  {
     name: "redispatch_parked_production_runs",
     description:
       "Re-send production runs parked in 'awaiting_reassignment' back to the PARTNER THEY CAME FROM, and dispatch them again — the batch answer to 'this partner says they'll take their lapsed runs now'. Each run goes to its own previous_partner_id; partner_id only FILTERS which parked runs are considered, so this can never hand one partner's work to another. THE DRY-RUN RECOVERS WHAT EACH RUN WAS DISPATCHED WITH LAST TIME (from its own tasks) and lists every available template, so you can show the user a real selection instead of asking them to remember: read `would_redispatch[].previous_template_names` and `available_template_names`. Then confirm with use_previous_templates:true to send each run back with ITS OWN set (parked runs usually do NOT share one), or template_names/template_ids to override them all. Recovered history dispatches by template ID where it identified one, so a run that used 'Stitching (Production)' cannot come back as 'Stitching (Pre Production)'; a run that would go out on an AMBIGUOUS name is reported as would_fail_on_ambiguous_name and must be given template_ids. Dry-run by default. Sensitive: requires confirm:true.",
