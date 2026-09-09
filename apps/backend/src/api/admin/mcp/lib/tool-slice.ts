@@ -113,6 +113,12 @@ const PREFIX_DOMAINS: ReadonlyArray<readonly [string, AdminToolDomain]> = [
   // Reading an attached image is domain-agnostic — it must be reachable from
   // any conversation, so it lives in the always-present core slice.
   ["/admin/assistant/vision", "core"],
+  // The platform's economic policy (#1939) — the markups, the commission and the
+  // fallback material cost. Rides `money` because every ask it answers ("what do
+  // we charge?", "why did this price move?", "raise the markup") is a money
+  // conversation. Without this entry both tools classify as undefined and load
+  // in NO slice, leaving the numbers unreadable from any ask.
+  ["/admin/platform-cost-config", "money"],
   ["/admin/payments", "money"],
   // The payout side of money. Without this entry every payable-runs /
   // payable-inventory-orders tool classifies as undefined and loads in NO

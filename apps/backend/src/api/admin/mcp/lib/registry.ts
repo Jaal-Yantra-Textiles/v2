@@ -3530,6 +3530,76 @@ export const ADMIN_MCP_TOOLS: AdminMcpToolDef[] = [
       ["id", "taskId"]
     ),
   },
+  // ---- Platform cost config (#1939) --------------------------------------
+  {
+    name: "get_platform_cost_config",
+    description:
+      "Read the platform's ECONOMIC POLICY — the five numbers that decide what a design costs and what a buyer pays: the platform commission, the production overhead, the fallback material cost, the custom-design markup and the approval markup. Call this BEFORE quoting, explaining or changing any price, and before answering 'what do we charge': these numbers were previously compiled into the code and this is the only place they can be read. 🔑 A null field means NOT CONFIGURED, not zero — the code falls back to its own constant, so never report a null as 'we charge nothing'. ⚠️ There are TWO markups and they are different shapes: `custom_design_markup_percent` is a PERCENT (20 = +20%) on the quote/retail path, `approval_markup_multiplier` is a MULTIPLIER (1.4 = list at 140% of cost) on the run-approval path; at ×1.40 the MARGIN is 28.6%, not 40%. Pass `at` (an ISO date) to see the policy that was in force at a past moment — that is how a price quoted months ago is explained, since the table is effective-dated and old rows are kept.",
+    method: "GET",
+    path: "/admin/platform-cost-config",
+    queryParams: ["at"],
+    inputSchema: obj({
+      at: STR(
+        "ISO date/time to resolve the policy AT, e.g. '2026-03-01T00:00:00Z'. Omit for the policy in force now. Use it to explain a price that was quoted under an older policy."
+      ),
+    }),
+  },
+  {
+    name: "set_platform_cost_config",
+    description:
+      "Set the platform's next economic policy. ⚠️ THIS CHANGES WHAT CUSTOMERS PAY AND WHAT PARTNERS ARE PAID — it is not a settings tweak. Sensitive: requires confirm:true. 🔑 It INSERTS a new effective-dated policy rather than editing the current one, so every price already quoted stays explicable under the policy it was quoted under; there is deliberately no update tool. Fields you OMIT carry forward from the policy currently in force — so sending only `custom_design_markup_percent` changes the markup and leaves the other four alone. Sending a field as null UNSETS it, which makes the code fall back to its compiled-in constant; that is rarely what you want, so only send null when the intent is genuinely 'we have no policy on this'. ALWAYS call get_platform_cost_config first and tell the admin what is changing FROM and TO before you write. Pass a future `effective_from` to stage a change without applying it.",
+    method: "POST",
+    path: "/admin/platform-cost-config",
+    write: true,
+    sensitive: true,
+    bodyParams: [
+      "effective_from",
+      "notes",
+      "platform_fee_percent",
+      "production_overhead_percent",
+      "default_material_cost",
+      "default_material_cost_currency",
+      "custom_design_markup_percent",
+      "approval_markup_multiplier",
+    ],
+    inputSchema: obj({
+      effective_from: STR(
+        "ISO date/time this policy takes effect. Defaults to now. A FUTURE date stages it without applying it; a PAST date back-dates a correction and inherits from whatever was in force at that moment, not from today's policy."
+      ),
+      notes: STR(
+        "Why the policy changed — write the DECISION and who made it, not the number (the number is its own field). This is what a person reads in six months asking why a price moved."
+      ),
+      platform_fee_percent: {
+        type: "number",
+        description:
+          "JYT's commission on partner production work, as a PERCENTAGE of material cost. 0 is meaningful and means 'we take no commission'; omit the field to leave it unchanged.",
+      },
+      production_overhead_percent: {
+        type: "number",
+        description:
+          "Production overhead as a PERCENTAGE of material cost.",
+      },
+      default_material_cost: {
+        type: "number",
+        description:
+          "Fallback per-unit material cost used ONLY when a BOM material has no resolved price (no order history, no unit cost, no consumption log). A guess standing in for a fact — raising it silently raises every design priced without real purchase data.",
+      },
+      default_material_cost_currency: STR(
+        "Currency of default_material_cost, e.g. 'INR'. Send it whenever you send the cost — an amount with no currency cannot be added up."
+      ),
+      custom_design_markup_percent: {
+        type: "number",
+        description:
+          "Markup on a custom/commissioned design, as a PERCENTAGE (20 = +20%). Applies to the quote path and, since the 2026-09-09 decision, to retail.",
+      },
+      approval_markup_multiplier: {
+        type: "number",
+        description:
+          "Markup applied when an approved run's output is listed, as a MULTIPLIER on cost (1.4 = list at 140% of cost). NOT a percentage — sending 40 here would list at 40x cost. At 1.4 the margin is 28.6%.",
+      },
+    }),
+  },
+
   {
     name: "get_production_run_policy",
     description:
@@ -3748,12 +3818,13 @@ export const ADMIN_MCP_TOOLS: AdminMcpToolDef[] = [
   {
     name: "create_task_template",
     description:
-      "Create a task template — a reusable process step that production-run dispatch can attach to a run. Use it when the work a run needs has no template yet (a photoshoot stage, a new finishing service), because dispatch resolves templates BY NAME and a name that does not exist fails the whole dispatch with 'Missing task templates'. 🔑 ALWAYS call list_task_templates first: 23+ already exist, names are not unique across categories, and creating a near-duplicate ('Stitching' when 'Stitching (Pre Production)' is what you meant) makes every later dispatch ambiguous. Give the template a `category_id` from that listing — CATEGORIES CANNOT BE CREATED through this API (the categories route is read-only), so a step in a category that does not exist yet needs the matching Data Plumbing seed job instead. Cost and duration are what make a step accountable rather than a checkbox: `estimated_cost` + `cost_currency` and `estimated_duration` (MINUTES) are copied onto every task dispatched from it. ⚠️ `required_fields` must be an OBJECT here — the route's validator declares `z.record`, so the ARRAY form used by the in-process seeds (ship-to-next-location, the photoshoot templates) is REJECTED with a 400. A template needing array-shaped field configs has to be seeded, not created here. [sensitive: requires confirm:true]",
+      "Create a task template — a reusable process step that production-run dispatch can attach to a run. Use it when the work a run needs has no template yet (a photoshoot stage, a new finishing service), because dispatch resolves templates BY NAME and a name that does not exist fails the whole dispatch with 'Missing task templates'. 🔑 ALWAYS call list_task_templates first: 23+ already exist, names are not unique across categories, and creating a near-duplicate ('Stitching' when 'Stitching (Pre Production)' is what you meant) makes every later dispatch ambiguous. Give the template a `category_id` from that listing when the category already exists. ⚠️ If it does NOT exist, pass `category` (a NAME) instead and the route CREATES it — `checkCategory` looks the name up and creates a category when nothing matches. That is real power and a real hazard: a name that differs by so much as a space ('Photoshoot' when 'Photo Shoot' exists) silently creates a SECOND category and splits the taxonomy, and nothing over HTTP can merge or rename them afterwards (the categories route is read-only). So call list_task_templates first and reuse an EXACT existing name; pass `category` only when you have confirmed the category is genuinely absent. Cost and duration are what make a step accountable rather than a checkbox: `estimated_cost` + `cost_currency` and `estimated_duration` (MINUTES) are copied onto every task dispatched from it. ⚠️ `required_fields` must be an OBJECT here — the route's validator declares `z.record`, so the ARRAY form used by the in-process seeds (ship-to-next-location, the photoshoot templates) is REJECTED with a 400. A template needing array-shaped field configs has to be seeded, not created here. [sensitive: requires confirm:true]",
     method: "POST",
     path: "/admin/task-templates",
     bodyParams: [
       "name",
       "description",
+      "category",
       "category_id",
       "estimated_duration",
       "estimated_cost",
@@ -3775,8 +3846,11 @@ export const ADMIN_MCP_TOOLS: AdminMcpToolDef[] = [
         description: STR(
           "What the step actually involves, written for the partner who will do it. Required by the route — not optional."
         ),
+        category: STR(
+          "The category this step belongs to, BY NAME — use this only when the category does not exist yet, because the route CREATES it when no category matches the name. Match an existing name EXACTLY or you create a duplicate that cannot be merged over HTTP. Ignored when category_id is given and resolves."
+        ),
         category_id: STR(
-          "The category this step belongs to, from list_task_templates' `category.id`. Omit only for a deliberately uncategorised step."
+          "The category this step belongs to, from list_task_templates' `category.id`. Prefer this whenever the category already exists — an id cannot typo into a new category the way a name can. Omit both only for a deliberately uncategorised step."
         ),
         estimated_duration: INT(
           "Expected hands-on time in MINUTES — not hours, and not elapsed/transit time. Copied onto each dispatched task."

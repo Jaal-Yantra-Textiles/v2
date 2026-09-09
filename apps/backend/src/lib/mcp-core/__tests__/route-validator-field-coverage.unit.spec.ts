@@ -203,10 +203,6 @@ const NO_ROUTE_VALIDATOR = new Set<string>([
  *     come back, not a claim that the omission is correct.
  */
 const DELIBERATELY_OMITTED: Record<string, Record<string, string>> = {
-  "admin:create_task_template": {
-    category:
-      "the validator accepts BOTH `category` (a bare string) and `category_id`, and only the id resolves to a real row — offering both would invite a model to name a category in prose and get a template attached to nothing",
-  },
   "admin:create_social_post": {
     post_url: "set by the publisher callback, not by the author",
     posted_at: "as post_url",

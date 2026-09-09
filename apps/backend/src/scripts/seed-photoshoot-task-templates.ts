@@ -22,10 +22,22 @@
  * for it today. `estimate-design-cost` totals
  * `material_cost + production_cost + platform_fee` and stops there.
  *
- * 🔴 These figures are STARTING points, per shoot unless the name says
- * otherwise, and deliberately conservative. They are what an operator edits in
- * Settings → Task Templates once real shoots have been run — which is exactly
- * why the installer never overwrites an existing template.
+ * 🔴 These figures are STARTING points and are PER SHOOT — not per design.
+ * A shoot costs around ₹5,000 whether it covers one design or several, so the
+ * cost a single design carries is `photoshootBudget() / (designs in that
+ * shoot)`. The divisor is the number of designs actually shot together, which
+ * is KNOWN once the shoot has happened — it is not a forecast of future sales
+ * volume, and must never be treated as one.
+ *
+ * The consequence for #1939: a design that has NOT been shot yet carries
+ * `null`, not a guess and emphatically not `0`. There is no honest per-design
+ * shoot cost before the shoot exists, because the divisor does not exist yet.
+ * The number is attributed afterwards, from the actual grouping, and recorded
+ * as what was used at the time.
+ *
+ * They are what an operator edits in Settings → Task Templates once real
+ * shoots have been run — which is exactly why the installer never overwrites
+ * an existing template.
  *
  * ## What they are NOT
  *
@@ -73,7 +85,7 @@ export const PHOTOSHOOT_TEMPLATE_DEFS: PhotoshootTemplateDef[] = [
       "Prepare the produced garment for the camera: press and steam, style with props or a model, and set the look. Blocks the shoot itself.",
     priority: "medium",
     estimated_duration: 90,
-    estimated_cost: 1500,
+    estimated_cost: 750,
     cost_currency: "INR",
     eventable: true,
     notifiable: true,
@@ -94,7 +106,7 @@ export const PHOTOSHOOT_TEMPLATE_DEFS: PhotoshootTemplateDef[] = [
       "Shoot the garment. Covers the photographer's time, studio or location, and lighting. The output is raw frames, not the final images.",
     priority: "high",
     estimated_duration: 180,
-    estimated_cost: 6000,
+    estimated_cost: 3000,
     cost_currency: "INR",
     eventable: true,
     notifiable: true,
@@ -121,7 +133,7 @@ export const PHOTOSHOOT_TEMPLATE_DEFS: PhotoshootTemplateDef[] = [
       "Select, colour-correct and retouch the frames worth keeping. Colour accuracy matters here — a customer returns a garment that arrives a different shade from the photograph.",
     priority: "medium",
     estimated_duration: 120,
-    estimated_cost: 2500,
+    estimated_cost: 1250,
     cost_currency: "INR",
     eventable: true,
     notifiable: true,
