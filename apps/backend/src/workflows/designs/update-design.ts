@@ -13,7 +13,13 @@ import {
 import { normalizeProductType } from "../../modules/designs/lib/product-type";
 
 type DesignType = "Original" | "Derivative" | "Custom" | "Collaboration";
-type DesignStatus = "Conceptual" | "In_Development" | "Technical_Review" | "Sample_Production" | "Revision" | "Approved" | "Rejected" | "On_Hold";
+// The model's enum has ten values; this type had eight. `Commerce_Ready`
+// and `Superseded` were reachable through the HTTP validator and through
+// `create-design`, but NOT through the update workflow — so the one path
+// that transitions a design could not name the two statuses that matter
+// most at the end of its life. Kept in sync with
+// `src/modules/designs/models/design.ts`.
+type DesignStatus = "Conceptual" | "In_Development" | "Technical_Review" | "Sample_Production" | "Revision" | "Approved" | "Rejected" | "On_Hold" | "Commerce_Ready" | "Superseded";
 type PriorityLevel = "Low" | "Medium" | "High" | "Urgent";
 
 type UpdateDesignStepInput = {

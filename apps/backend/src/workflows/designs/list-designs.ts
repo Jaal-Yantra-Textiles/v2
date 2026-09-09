@@ -21,7 +21,7 @@ export type ListDesignsStepInput = {
     q?: string;
     name?: string;
     design_type?: "Original" | "Derivative" | "Custom" | "Collaboration";
-    status?: "Conceptual" | "In_Development" | "Technical_Review" | "Sample_Production" | "Revision" | "Approved" | "Rejected" | "On_Hold";
+    status?: "Conceptual" | "In_Development" | "Technical_Review" | "Sample_Production" | "Revision" | "Approved" | "Rejected" | "On_Hold" | "Commerce_Ready" | "Superseded";
     priority?: "Low" | "Medium" | "High" | "Urgent";
     tags?: string[];
     partner_id?: string;
