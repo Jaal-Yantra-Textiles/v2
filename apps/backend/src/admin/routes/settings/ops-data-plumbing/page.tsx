@@ -463,8 +463,9 @@ const OpsDataPlumbingPage = () => {
             <Heading>Data Plumbing</Heading>
             <Text className="text-ui-fg-subtle" size="small">
               Run guarded data-correction jobs. Always Preview (dry-run) before
-              you Apply — dry-runs never write and are not logged; applied runs
-              are recorded below. Click a run for its full change diff.
+              you Apply — a dry-run never writes, but it IS recorded below
+              alongside applied runs, so a preview leaves a trail you can go
+              back to. Click a run for its full change diff.
             </Text>
           </div>
           <div className="flex items-center gap-x-2">
@@ -484,7 +485,7 @@ const OpsDataPlumbingPage = () => {
             empty: {
               heading: "No runs yet",
               description:
-                "Applied jobs are recorded here. Use “Run a job” to preview and apply one. (Dry-runs are not persisted.)",
+                "Every run is recorded here — previews as well as applied ones. Use “Run a job” to preview and apply one.",
             },
           }}
         />

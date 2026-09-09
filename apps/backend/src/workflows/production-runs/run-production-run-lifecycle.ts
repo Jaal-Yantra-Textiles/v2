@@ -8,6 +8,10 @@ import {
 
 import { PRODUCTION_RUNS_MODULE } from "../../modules/production_runs"
 import type ProductionRunService from "../../modules/production_runs/service"
+import {
+  computeParentRollup,
+  parentTotalsPatch,
+} from "./lib/parent-run-rollup"
 
 // Timeout: 23 days (matching send-to-partner), capped at Node.js safe max
 const NODE_MAX_TIMEOUT_MS = 2_147_483_647
@@ -115,11 +119,18 @@ const cascadeCompletionStep = createStep(
       parent_run_id: parentRunId,
     } as any)
 
-    const allChildrenCompleted = (children || []).every(
-      (c: any) => String(c?.status || "") === "completed"
-    )
+    /**
+     * This used to set `status` + `completed_at` and nothing else, while the
+     * inline cascade in `complete-production-run.ts` reconciled the parent's
+     * totals from its children. Whichever path happened to fire decided
+     * whether the parent carried the output the partner actually reported —
+     * and this one left it `null`, so every downstream reader fell back to the
+     * ORDERED quantity and assumed it was all made (#1877). Both paths now go
+     * through `computeParentRollup`.
+     */
+    const rollup = computeParentRollup(children as any[])
 
-    if (allChildrenCompleted) {
+    if (rollup.all_completed) {
       const parent = await productionRunService
         .retrieveProductionRun(parentRunId)
         .catch(() => null)
@@ -131,7 +142,8 @@ const cascadeCompletionStep = createStep(
         await productionRunService.updateProductionRuns({
           id: parentRunId,
           status: "completed" as any,
-          completed_at: new Date(),
+          completed_at: rollup.completed_at ?? new Date(),
+          ...parentTotalsPatch(rollup, { allowFallback: true }),
         })
       }
     }

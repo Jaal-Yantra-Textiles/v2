@@ -2,7 +2,7 @@ import { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
 import { ContainerRegistrationKeys, MedusaError } from "@medusajs/framework/utils"
 
 import { getMaintenanceJob } from "../../registry"
-import { OpsMaintenanceRunBody } from "../../validators"
+import { OpsMaintenanceRunBody, resolveDryRun } from "../../validators"
 import { buildAuditRow } from "../../audit"
 import { OPS_AUDIT_MODULE } from "../../../../../../modules/ops_audit"
 
@@ -25,7 +25,12 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
   }
 
   const body = (req.validatedBody ?? {}) as OpsMaintenanceRunBody
-  const dry_run = body.dry_run ?? true
+  /**
+   * `preview` is the MCP-reachable spelling of `dry_run` — the dispatcher eats
+   * `dry_run` before this route is called. Either one asking for a preview
+   * wins, so a caller that sends both cannot accidentally apply.
+   */
+  const dry_run = resolveDryRun(body)
   const params = (body.params ?? {}) as Record<string, unknown>
 
   const result = await job.run(req.scope, { dry_run, params })
