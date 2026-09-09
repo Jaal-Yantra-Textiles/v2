@@ -6,6 +6,11 @@ const updateDesignRun = jest.fn().mockResolvedValue({ result: {} })
 jest.mock("../../designs/create-product-from-design", () => ({
   createProductFromDesignWorkflow: (...a: any[]) =>
     (createProductFromDesignWorkflow as any)(...a),
+  // The REAL helper — the photo gate must be exercised, not stubbed. Stubbing
+  // it would make every assertion below about the mock instead of the rule.
+  resolveDesignGallery: jest.requireActual(
+    "../../designs/create-product-from-design"
+  ).resolveDesignGallery,
 }))
 jest.mock("../../designs/update-design", () => ({
   __esModule: true,
@@ -45,6 +50,18 @@ const completedRun = (id: string, design_id: string | null, extra: any = {}) => 
   approval_decision: null,
   ...extra,
 })
+
+/** A folder of shoot images, the evidence Commerce_Ready is gated on. */
+const shot = (n = 2) => [
+  {
+    id: "fold_1",
+    media_files: Array.from({ length: n }, (_, i) => ({
+      id: `mf_${i}`,
+      file_path: `https://cdn/shoot-${i}.jpg`,
+      file_type: "image",
+    })),
+  },
+]
 
 /** A design the graph answers with. `products: []` = never approved. */
 const design = (id: string, extra: any = {}) => ({
@@ -110,6 +127,96 @@ describe("resolveApprovalCurrency", () => {
     expect(resolveApprovalCurrency({ storeCurrency: "AUD" })).toBe("aud")
     expect(resolveApprovalCurrency({})).toBe("inr")
     expect(resolveApprovalCurrency({})).not.toBe("usd")
+  })
+})
+
+describe("applyRunApprovals — the design's status after approval", () => {
+  /**
+   * #1920 — approving run output is the moment a design has been PRODUCED,
+   * reviewed, and minted into a product. That is what `Commerce_Ready` meant.
+   * Nothing ever set it: the only writer was a subscriber on `design.updated`,
+   * an event this codebase does not emit, so 0 of 123 prod designs had reached
+   * it. This transition is the one that fixes that, so it is asserted here —
+   * the suite passed either way before, which is how it went unnoticed.
+   */
+  it("moves a PHOTOGRAPHED design to Commerce_Ready, not Approved", async () => {
+    listProductionRuns.mockResolvedValue([completedRun("run_1", "des_1")])
+    stubGraph({ des_1: design("des_1", { folders: shot() }) })
+
+    await applyRunApprovals(container, { runIds: ["run_1"], decision: "approve" })
+
+    expect(updateDesignRun).toHaveBeenCalledWith({
+      input: { id: "des_1", status: "Commerce_Ready" },
+    })
+  })
+
+  it("sets it once for two runs of the same design, not once per run", async () => {
+    listProductionRuns.mockResolvedValue([
+      completedRun("run_1", "des_1"),
+      completedRun("run_2", "des_1"),
+    ])
+    stubGraph({ des_1: design("des_1", { folders: shot() }) })
+
+    await applyRunApprovals(container, {
+      runIds: ["run_1", "run_2"],
+      decision: "approve",
+    })
+
+    const commerceReadyCalls = updateDesignRun.mock.calls.filter(
+      (c: any[]) => c[0]?.input?.status === "Commerce_Ready"
+    )
+    expect(commerceReadyCalls).toHaveLength(1)
+  })
+
+  /**
+   * 🔴 The gate. A produced garment with no photographs cannot be sold, so
+   * approval alone must NOT mark it sellable — it stays `Approved` and waits
+   * for the shoot. This is the case that keeps the transition honest.
+   */
+  it("leaves an UNPHOTOGRAPHED design at Approved", async () => {
+    listProductionRuns.mockResolvedValue([completedRun("run_1", "des_1")])
+    stubGraph({ des_1: design("des_1") })
+
+    await applyRunApprovals(container, { runIds: ["run_1"], decision: "approve" })
+
+    expect(updateDesignRun).toHaveBeenCalledWith({
+      input: { id: "des_1", status: "Approved" },
+    })
+  })
+
+  it("does not count a folder of non-images as a shoot", async () => {
+    listProductionRuns.mockResolvedValue([completedRun("run_1", "des_1")])
+    stubGraph({
+      des_1: design("des_1", {
+        folders: [
+          {
+            id: "fold_1",
+            media_files: [
+              { id: "mf_0", file_path: "https://cdn/tech-pack.pdf", file_type: "document" },
+            ],
+          },
+        ],
+      }),
+    })
+
+    await applyRunApprovals(container, { runIds: ["run_1"], decision: "approve" })
+
+    expect(updateDesignRun).toHaveBeenCalledWith({
+      input: { id: "des_1", status: "Approved" },
+    })
+  })
+
+  it("touches no status on a dry run", async () => {
+    listProductionRuns.mockResolvedValue([completedRun("run_1", "des_1")])
+    stubGraph({ des_1: design("des_1") })
+
+    await applyRunApprovals(container, {
+      runIds: ["run_1"],
+      decision: "approve",
+      dryRun: true,
+    })
+
+    expect(updateDesignRun).not.toHaveBeenCalled()
   })
 })
 

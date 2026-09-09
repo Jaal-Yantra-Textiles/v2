@@ -8,7 +8,10 @@ import {
   resolveApprovalCurrency as resolveCurrency,
   resolveApprovalPrice,
 } from "./approval-pricing"
-import { createProductFromDesignWorkflow } from "../designs/create-product-from-design"
+import {
+  createProductFromDesignWorkflow,
+  resolveDesignGallery,
+} from "../designs/create-product-from-design"
 import updateDesignWorkflow from "../designs/update-design"
 
 /**
@@ -323,6 +326,13 @@ export async function applyRunApprovals(
           "cost_currency",
           "products.id",
           "products.variants.id",
+          // #1920 — the photoshoot evidence. Commerce_Ready means "we could
+          // SELL this", and a garment with no photographs cannot be sold.
+          "folders.id",
+          "folders.media_files.id",
+          "folders.media_files.file_path",
+          "folders.media_files.file_type",
+          "folders.media_files.mime_type",
         ],
       })
 
@@ -427,8 +437,48 @@ export async function applyRunApprovals(
       }
 
       if (!input.dryRun) {
+        /**
+         * `Commerce_Ready` only once the PHOTOS EXIST (#1920).
+         *
+         * Approving run output is the moment a design has been PRODUCED and
+         * a real product minted from it a few lines above. That is most of
+         * what `Commerce_Ready` means — but not all of it. In practice a
+         * produced garment is not sellable until it has been PHOTOGRAPHED,
+         * and the shoot happens after the goods exist. Approval alone would
+         * mark designs sellable that have no image to sell them with.
+         *
+         * So the shoot is the gate, and the evidence for it is the design's
+         * linked media folder holding at least one image — the same folder
+         * `resolveDesignGallery` draws the product's gallery from. Evidence,
+         * not a checkbox: a task ticked with no photographs behind it is a
+         * claim, and this asks the artefact instead.
+         *
+         * No photos yet → `Approved`, exactly as before, and the design waits
+         * for the shoot. Nothing regresses; the transition is only ADDED where
+         * it is earned.
+         *
+         * Nothing ever set `Commerce_Ready` at all — the only writer was a
+         * subscriber on `design.updated`, an event this codebase does not
+         * emit, which is why 0 of 123 prod designs had ever reached it.
+         *
+         * Safe against every gate that names `Approved`, all of which name
+         * `Commerce_Ready` too: `create-payment-submission`'s ELIGIBLE_STATUSES,
+         * the skip lists in `complete-production-run` / `finish-production-run`,
+         * and REVISABLE_STATUSES in both revise files. A design does not become
+         * unrevisable or unbillable by getting here.
+         *
+         * 🔑 It does NOT publish the product. The mint above is still `draft`,
+         * deliberately: producing a commission does not decide that we want to
+         * SELL it to other people. `Commerce_Ready` marks eligibility, and
+         * listing it stays a human choice.
+         */
+        const hasPhotos = resolveDesignGallery(design).images.length > 0
+
         await updateDesignWorkflow(container).run({
-          input: { id: designId, status: "Approved" },
+          input: {
+            id: designId,
+            status: hasPhotos ? "Commerce_Ready" : "Approved",
+          },
         })
 
         for (const run of designRuns) {
