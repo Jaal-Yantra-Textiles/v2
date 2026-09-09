@@ -55,7 +55,10 @@ export async function POST(
       fields: ["customer_id"],
     });
 
-    const customerId = customerLinks?.[0]?.customer_id || "";
+    // `?? undefined`, not `|| ""` (#1920): an empty string put a blank
+    // "customer" on the design↔variant link, which reads as present to
+    // anything that only checks the field exists. No customer is `undefined`.
+    const customerId = customerLinks?.[0]?.customer_id || undefined;
 
     // Transition design status to Approved
     const { result: updatedDesign, errors: updateErrors } =

@@ -12,6 +12,7 @@ import {
 import { DESIGN_MODULE } from "../../modules/designs";
 import type { Link } from "@medusajs/modules-sdk";
 import { resolveLineItemDesignId } from "../../lib/resolve-line-item-production"
+import designCustomerLink from "../../links/design-customer-link"
 
 /**
  * Create Product from Design Workflow
@@ -25,6 +26,46 @@ import { resolveLineItemDesignId } from "../../lib/resolve-line-item-production"
  * The variant is linked to the design via design-variant-link,
  * enabling production run creation when the order is placed.
  */
+
+/**
+ * The images a minted product should carry, in priority order:
+ *   1. every image in the design's linked media folder (the gallery the
+ *      retired `promote-design-to-product` built), thumbnail = the first;
+ *   2. failing that, the design's own `thumbnail_url`, as before;
+ *   3. failing that, nothing — `undefined` thumbnail and an empty list, which
+ *      is exactly what this workflow already produced for a design with no
+ *      thumbnail. A product with no image is allowed; a BROKEN one is not.
+ *
+ * A media file counts as an image on either signal the folder records —
+ * `file_type === "image"` or an `image/*` mime — because the two are populated
+ * by different upload paths and neither is reliably present on its own.
+ */
+export function resolveDesignGallery(design: {
+  thumbnail_url?: string | null;
+  folders?: Array<{ media_files?: Array<Record<string, any>> | null }> | null;
+}): { thumbnail: string | undefined; images: Array<{ url: string }> } {
+  const files = design.folders?.[0]?.media_files ?? [];
+  const folderImages = files
+    .filter(
+      (f: any) => f?.file_type === "image" || f?.mime_type?.startsWith("image/")
+    )
+    .map((f: any) => f.file_path)
+    .filter((p: any): p is string => typeof p === "string" && p.length > 0);
+
+  if (folderImages.length) {
+    return {
+      thumbnail: folderImages[0],
+      images: folderImages.map((url) => ({ url })),
+    };
+  }
+
+  const thumb = design.thumbnail_url;
+  if (typeof thumb === "string" && thumb.length) {
+    return { thumbnail: thumb, images: [{ url: thumb }] };
+  }
+
+  return { thumbnail: undefined, images: [] };
+}
 
 type CreateProductFromDesignInput = {
   design_id: string;
@@ -212,6 +253,13 @@ const createProductAndVariantStep = createStep(
         "description",
         "thumbnail_url",
         "design_type",
+        // #1920 — the design's linked media folder. Ported from
+        // `promote-design-to-product`, the door this workflow absorbs: it
+        // sourced the product's WHOLE gallery from the folder, where this one
+        // only ever had `thumbnail_url` — a single image. Consolidating the
+        // mint points must not quietly cost the catalogue its other photos.
+        "folders.*",
+        "folders.media_files.*",
         "products.*",
         "products.options.*",
         "products.options.values.*",
@@ -224,6 +272,44 @@ const createProductAndVariantStep = createStep(
     }
 
     const design = designs[0];
+
+    /**
+     * #1920 — product imagery, folder first.
+     *
+     * The retired `promote-design-to-product` REFUSED to mint at all when the
+     * design had no linked folder, or the folder held no images. That refusal
+     * cannot come along: this door mints for approvals, run output and quotes,
+     * where a design with no folder is ordinary and blocking it would break
+     * paths that work today. So the folder is a source, not a gate — and
+     * `thumbnail_url` remains the fallback it always was.
+     */
+    const gallery = resolveDesignGallery(design);
+
+    /**
+     * #1920 item 4 — the buyer, resolved HERE rather than at the caller.
+     *
+     * `customer_id` is stamped on the design↔variant link's data, and only the
+     * approve route ever passed it: a product minted from run output or from a
+     * quote recorded no buyer at all. Resolving it inside the workflow means
+     * every door gets it, and there is no fourth place to forget.
+     *
+     * An explicit input still wins — the approve route already has the answer
+     * in hand. `?? undefined` and not `|| ""`: the approve route's `|| ""` put
+     * an EMPTY STRING on the link for a design with no customer, which reads
+     * as "a customer, whose id is blank" to anything that only checks for
+     * presence.
+     */
+    const customerId =
+      input.customer_id ||
+      (
+        await query.graph({
+          entity: designCustomerLink.entryPoint,
+          filters: { design_id: input.design_id },
+          fields: ["customer_id"],
+        })
+      ).data?.[0]?.customer_id ||
+      undefined;
+
     const linkedProducts = design.products || [];
     const hasLinkedProduct = linkedProducts.length > 0;
 
@@ -354,10 +440,8 @@ const createProductAndVariantStep = createStep(
         status: (madeToOrder ? "published" : "draft") as "draft" | "published",
         is_giftcard: false,
         discountable: true,
-        thumbnail: design.thumbnail_url,
-        images: design.thumbnail_url
-          ? [{ url: design.thumbnail_url }]
-          : [],
+        thumbnail: gallery.thumbnail,
+        images: gallery.images,
         metadata: {
           is_custom_design: true,
           design_id: design.id,
@@ -422,7 +506,7 @@ const createProductAndVariantStep = createStep(
       [Modules.PRODUCT]: { product_variant_id: variant_id },
       data: {
         estimated_cost: input.estimated_cost,
-        customer_id: input.customer_id,
+        customer_id: customerId,
         created_at: new Date(),
       },
     });
