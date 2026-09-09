@@ -11,6 +11,7 @@ import {
 } from "../helpers/create-customer";
 import { setupCheckoutInfrastructure } from "../helpers/setup-checkout-infrastructure";
 import { DESIGN_MODULE } from "../../src/modules/designs";
+import { FX_FANOUT_REQUESTED } from "../../src/workflows/fx/fanout-variant-prices";
 
 jest.setTimeout(60 * 1000);
 
@@ -227,6 +228,94 @@ setupSharedTestSuite(() => {
         expect(response.status).toBe(200);
         expect(typeof response.data.product_id).toBe("string");
         expect(typeof response.data.variant_id).toBe("string");
+      });
+
+      /**
+       * 🔴 #1900 — a design with no cost must not become a product listed at 0.
+       *
+       * `estimated_cost || 0` reached `resolveListedPrice`, which passed the
+       * zero straight through to the price row. Two such products are on prod.
+       * A 0 is worse than the ×100 it replaced: a hundred-fold price is absurd
+       * on sight, a free product looks plausible.
+       */
+      it("refuses to approve a design with no cost, and creates nothing", async () => {
+        const { api } = getSharedTestEnv();
+        const unique = Date.now() + Math.random().toString(36).slice(2, 8);
+
+        const created = await api.post(
+          "/admin/designs",
+          {
+            name: `Costless Design ${unique}`,
+            description: "no estimated_cost — must not be listable",
+            design_type: "Original",
+            status: "Commerce_Ready",
+            priority: "Medium",
+          },
+          adminHeaders
+        );
+        expect(created.status).toBe(201);
+        const costlessId = created.data.design.id as string;
+        expect(created.data.design.estimated_cost ?? null).toBeNull();
+
+        const res = await api
+          .post(`/admin/designs/${costlessId}/approve`, {}, adminHeaders)
+          .catch((e: any) => e.response);
+
+        expect(res.status).toBe(400);
+        expect(res.data.message).toMatch(/no estimated cost/i);
+
+        // Nothing was created, and — because the guard runs BEFORE the status
+        // write — the design is not left Approved with no product behind it.
+        const after = await api.get(`/admin/designs/${costlessId}`, adminHeaders);
+        expect(after.data.design.status).not.toBe("Approved");
+      });
+
+      /**
+       * 🔴 #1900 — every design approved here was listed in ONE currency.
+       *
+       * Medusa's pricing module emits no `price.created`, so a path that
+       * writes a variant price must ASK for the FX fanout. This door never
+       * did; the five 2026-08-28 Oshen products carry an AUD price only.
+       */
+      it("asks for the FX fanout so the other currencies get prices", async () => {
+        const { api, getContainer } = getSharedTestEnv();
+        const eventBus: any = getContainer().resolve(Modules.EVENT_BUS);
+
+        const seen: any[] = [];
+        const handler = async (payload: any) => {
+          seen.push(payload?.data ?? payload);
+        };
+        eventBus.subscribe(FX_FANOUT_REQUESTED, handler);
+
+        try {
+          const res = await api.post(
+            `/admin/designs/${designId}/approve`,
+            {},
+            adminHeaders
+          );
+          expect(res.status).toBe(200);
+
+          // The variant is priced, and priced above zero.
+          const variantRes = await api.get(
+            `/admin/products/${res.data.product_id}?fields=*variants.prices`,
+            adminHeaders
+          );
+          const prices =
+            variantRes.data.product.variants?.[0]?.prices ?? [];
+          expect(prices.length).toBeGreaterThan(0);
+          expect(Number(prices[0].amount)).toBeGreaterThan(0);
+
+          // And the fanout was requested for THIS variant.
+          for (let i = 0; i < 25 && !seen.length; i++) {
+            await new Promise((r) => setTimeout(r, 200));
+          }
+          const forVariant = seen.filter((d: any) =>
+            (d?.variant_ids ?? []).includes(res.data.variant_id)
+          );
+          expect(forVariant.length).toBeGreaterThan(0);
+        } finally {
+          eventBus.unsubscribe?.(FX_FANOUT_REQUESTED, handler);
+        }
       });
 
       it("returns 401 without admin auth", async () => {

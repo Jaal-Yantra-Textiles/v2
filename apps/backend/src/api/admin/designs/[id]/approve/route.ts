@@ -6,9 +6,11 @@ import { ContainerRegistrationKeys, Modules } from "@medusajs/framework/utils";
 import type { IEventBusModuleService } from "@medusajs/types";
 import updateDesignWorkflow from "../../../../../workflows/designs/update-design";
 import { createProductFromDesignWorkflow } from "../../../../../workflows/designs/create-product-from-design";
+import { requestVariantPriceFanout } from "../../../../../workflows/fx/fanout-variant-prices";
 import designCustomerLink from "../../../../../links/design-customer-link";
 import {
   readStoreCurrency,
+  readStoreId,
   resolveApprovalCurrency,
 } from "../../../../../workflows/production-runs/approve-run-output";
 
@@ -48,6 +50,35 @@ export async function POST(
 
     const design = designs[0];
 
+    /**
+     * 🔴 #1900 — a design with no cost must not become a product listed at 0.
+     *
+     * `estimated_cost || 0` handed `createProductFromDesignWorkflow` a zero,
+     * `resolveListedPrice` passed it straight through, and the catalogue got a
+     * FREE product with nothing anywhere saying the design had no cost. Two
+     * such rows are on prod today. This is worse than the ×100 it replaced: a
+     * hundred-fold price is absurd on sight, a 0 looks plausible — the same
+     * shape as the estimator's "found nothing = 0" that reached checkout.
+     *
+     * Refused, not defaulted, and refused BEFORE the status write so a design
+     * cannot end up Approved with no product. `> 0` rather than `!= null`,
+     * because `Number(null)` is 0 and a real zero is just as unlistable.
+     *
+     * The sibling door (`approve-run-output`, #1914) already refuses this;
+     * they now agree.
+     */
+    const estimatedCost = Number(design.estimated_cost)
+    if (!(Number.isFinite(estimatedCost) && estimatedCost > 0)) {
+      res.status(400).json({
+        message:
+          `Design "${design.name ?? designId}" has no estimated cost, so it cannot be priced. ` +
+          `Cost the design first — approving it would list the product at 0.`,
+        design_id: designId,
+        estimated_cost: design.estimated_cost ?? null,
+      });
+      return;
+    }
+
     // Look up the customer linked to this design
     const { data: customerLinks } = await query.graph({
       entity: designCustomerLink.entryPoint,
@@ -83,7 +114,7 @@ export async function POST(
       await createProductFromDesignWorkflow(req.scope).run({
         input: {
           design_id: designId,
-          estimated_cost: design.estimated_cost || 0,
+          estimated_cost: estimatedCost,
           customer_id: customerId,
           /**
            * 🔴 Was hardcoded `"usd"` on a platform that trades in AUD and INR,
@@ -106,6 +137,39 @@ export async function POST(
         errors: productErrors,
       });
       return;
+    }
+
+    /**
+     * 🔴 #1900 — materialise the OTHER currencies.
+     *
+     * Medusa's pricing module emits no `price.created` event, so every path
+     * that writes a variant price has to ASK for the fanout. This door never
+     * did: `create-product-from-design` writes a ONE-element price array, so
+     * every design approved here has been listed in a single currency and
+     * reads as unavailable in every other region. The five 2026-08-28 Oshen
+     * products carry an AUD price only.
+     *
+     * The sibling door (`approve-run-output`, #1914) already asks; this is the
+     * same call, deliberately identical. Requested rather than run inline: the
+     * handler is a subscriber, so the work lands on the WORKER — running this
+     * fanout on the request path OOM-killed prod twice on 2026-08-19 (exit
+     * 137). It never throws, and currencies the price set already carries are
+     * skipped, so a re-approval is a no-op.
+     */
+    try {
+      const storeId = await readStoreId(req.scope)
+      if (storeId && productResult?.variant_id) {
+        await requestVariantPriceFanout(req.scope, {
+          storeId,
+          variantIds: [productResult.variant_id],
+        })
+      }
+    } catch (e: any) {
+      // The product exists and is priced in its own currency; a missing fanout
+      // is a narrower catalogue, not a failed approval.
+      logger.warn(
+        `[Admin] design ${designId} approved but FX fanout could not be requested: ${e?.message ?? e}`
+      )
     }
 
     // Emit design.approved so partners can be notified
