@@ -111,6 +111,7 @@ export {
   resolveApprovalCurrency,
   resolveApprovalPrice,
 } from "./approval-pricing"
+import { loadCostConfig } from "../../modules/platform-cost-config/read-config"
 
 /** The store the FX fanout is scoped to. Null is survivable; see the call site. */
 export async function readStoreId(container: any): Promise<string | null> {
@@ -295,6 +296,7 @@ export async function applyRunApprovals(
    * `replay-fx-fanout` can materialise the rest later.
    */
   const storeId = await readStoreId(container)
+  const costConfig = await loadCostConfig(container)
 
   /** design_id → the runs of that design in this batch, in the order given. */
   const byDesign = new Map<string, any[]>()
@@ -373,9 +375,15 @@ export async function applyRunApprovals(
         }
       }
 
+      /**
+       * #1939 — the approval markup, read rather than compiled. Against the
+       * seeded row (1.4) this is a no-op; the compiled `APPROVAL_MARKUP`
+       * answers for an unconfigured platform.
+       */
       const priced = resolveApprovalPrice({
         runCostPerUnit,
         designEstimatedCost: Number(design.estimated_cost ?? 0),
+        markup: costConfig.approval_markup_multiplier ?? undefined,
       })
       if (!priced) {
         throw new Error(

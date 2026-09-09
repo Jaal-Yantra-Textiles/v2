@@ -15,6 +15,7 @@ import {
 } from "../../modules/partner-quote/lib/design-lines"
 import { estimateDesignCostWorkflow } from "../designs/estimate-design-cost"
 import { createProductFromDesignWorkflow } from "../designs/create-product-from-design"
+import { loadCostConfig } from "../../modules/platform-cost-config/read-config"
 
 /**
  * Make a CUSTOM design quotable, without inventing a second pricing path.
@@ -200,11 +201,23 @@ const ensureVariantStep = createStep(
       if (!Number.isFinite(Number(fxRate)) || Number(fxRate) <= 0) fxRate = null
     }
 
+    /**
+     * #1939 — the retail markup, read rather than compiled.
+     *
+     * Precedence: an explicit caller value, then the effective-dated config
+     * row, then the compiled `DEFAULT_CUSTOM_DESIGN_MARKUP_PERCENT` inside the
+     * pure pricer. Against the seeded row (20) this is a no-op — which is the
+     * point of wiring before changing the number.
+     */
+    const costConfig = await loadCostConfig(container as any)
     const priced = designQuoteUnitPrice({
       total_estimated: estimate?.total_estimated,
       confidence: estimate?.confidence,
       fx_rate: fxRate,
-      markup_percent: input.markup_percent,
+      markup_percent:
+        input.markup_percent ??
+        costConfig.custom_design_markup_percent ??
+        undefined,
     })
 
     if (priced.unit_price === null) {

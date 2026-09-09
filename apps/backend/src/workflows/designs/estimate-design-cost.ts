@@ -5,6 +5,7 @@ import {
   WorkflowResponse,
 } from "@medusajs/framework/workflows-sdk";
 import { ContainerRegistrationKeys } from "@medusajs/framework/utils";
+import { loadCostConfig } from "../../modules/platform-cost-config/read-config";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -256,6 +257,16 @@ export function computeCostBreakdown(input: {
   /** Fallback per-unit cost for a material with no resolved cost. Default 0 (off). */
   defaultMaterialCost?: number;
   /**
+   * Production overhead as a percentage of material cost, used by the rungs of
+   * the waterfall that have no better figure.
+   *
+   * #1939 — was the compiled `DEFAULT_PRODUCTION_PERCENT` in four places.
+   * Passed in so the platform's economic policy can come from the
+   * effective-dated config table; the constant remains the fallback, so a
+   * platform with no policy row prices exactly as before.
+   */
+  productionOverheadPercent?: number;
+  /**
    * What comparable work has actually cost — settled costs of designs of this
    * type, and prices of products previously created from designs. Gathered
    * regardless; it only PRICES anything under `allowHistoricalBasis`.
@@ -282,6 +293,12 @@ export function computeCostBreakdown(input: {
     return { ...m, cost, cost_source, commission };
   });
   const materialCost = materials.reduce((sum, m) => sum + m.cost * m.quantity, 0);
+
+  const overheadPercent =
+    Number.isFinite(Number(input.productionOverheadPercent)) &&
+    Number(input.productionOverheadPercent) >= 0
+      ? Number(input.productionOverheadPercent)
+      : DEFAULT_PRODUCTION_PERCENT;
 
   let productionCost: number;
   let productionPercent: number;
@@ -333,10 +350,10 @@ export function computeCostBreakdown(input: {
     productionSource = "admin_estimate";
     productionIsEstimated = false; // admin set a concrete estimate
   } else if (adminEstimate != null && adminEstimate > 0 && materialCost === 0) {
-    const materialShare = adminEstimate / (1 + DEFAULT_PRODUCTION_PERCENT / 100);
+    const materialShare = adminEstimate / (1 + overheadPercent / 100);
     impliedMaterialCost = materialShare;
     productionCost = adminEstimate - materialShare;
-    productionPercent = DEFAULT_PRODUCTION_PERCENT;
+    productionPercent = overheadPercent;
     productionSource = "admin_estimate";
   } else if (similarDesigns.length > 0 && materialCost > 0) {
     const avgSimilarCost =
@@ -364,15 +381,15 @@ export function computeCostBreakdown(input: {
       productionCost = Math.max(basis - materialCost, materialCost * 0.1);
       productionPercent = (productionCost / materialCost) * 100;
     } else {
-      const materialShare = basis / (1 + DEFAULT_PRODUCTION_PERCENT / 100);
+      const materialShare = basis / (1 + overheadPercent / 100);
       impliedMaterialCost = materialShare;
       productionCost = basis - materialShare;
-      productionPercent = DEFAULT_PRODUCTION_PERCENT;
+      productionPercent = overheadPercent;
     }
     productionSource = "historical_comparables";
   } else {
-    productionCost = materialCost * (DEFAULT_PRODUCTION_PERCENT / 100);
-    productionPercent = DEFAULT_PRODUCTION_PERCENT;
+    productionCost = materialCost * (overheadPercent / 100);
+    productionPercent = overheadPercent;
   }
 
   // JYT platform commission — the sum of the per-material commissions (each is
@@ -1025,8 +1042,23 @@ const calculateTotalCostStep = createStep(
     defaultMaterialCost?: number;
     historical?: HistoricalComparable[];
     allowHistoricalBasis?: boolean;
-  }) => {
+  }, { container }) => {
     const design = input.design;
+
+    /**
+     * #1939 — the platform's economic policy, read rather than compiled.
+     *
+     * ONLY the production overhead is taken from config here. `platformFeePercent`
+     * and `defaultMaterialCost` are deliberately OPT-IN per caller (they default
+     * to 0/off so store, admin and draft-order flows are unaffected), and
+     * reading them from config here would switch them on for every caller —
+     * a price change wearing a refactor's clothes. The one caller that opts in
+     * reads config itself.
+     *
+     * `loadCostConfig` never throws and never returns zeros: an unconfigured
+     * platform yields nulls, and the compiled constant answers.
+     */
+    const costConfig = await loadCostConfig(container as any);
     const platformFeePercent = input.platformFeePercent ?? 0;
     const hasOverride =
       input.productionCostOverride != null && input.productionCostOverride >= 0;
@@ -1083,6 +1115,8 @@ const calculateTotalCostStep = createStep(
       productionCostOverride: input.productionCostOverride ?? null,
       platformFeePercent,
       defaultMaterialCost: input.defaultMaterialCost ?? 0,
+      productionOverheadPercent:
+        costConfig.production_overhead_percent ?? undefined,
       historical: input.historical ?? [],
       allowHistoricalBasis: !!input.allowHistoricalBasis,
     });
