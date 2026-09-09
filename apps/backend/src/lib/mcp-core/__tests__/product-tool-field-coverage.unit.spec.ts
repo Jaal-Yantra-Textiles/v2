@@ -35,6 +35,13 @@
 const coreProductValidators = require("@medusajs/medusa/api/admin/products/validators")
 const { UpdateProduct, UpdateProductVariant, CreateProductVariant } =
   coreProductValidators
+/**
+ * The batch route's validator — the ONLY route core exposes for editing an
+ * option's values (#1907). Registered by core's own middleware config, so it
+ * never appears in this repo's and `route-validator-field-coverage` declares
+ * the tool unbound there. This spec binds it directly instead.
+ */
+const { AdminLinkProductOptions } = coreProductValidators
 
 import { PARTNER_MCP_TOOLS } from "../../../api/partners/mcp/lib/registry"
 import { ADMIN_MCP_TOOLS } from "../../../api/admin/mcp/lib/registry"
@@ -103,6 +110,23 @@ const DELIBERATELY_OMITTED: Record<string, Record<string, string>> = {
     external_id: "integration bookkeeping, never assistant-written",
     is_giftcard: "not a thing this catalogue sells",
   },
+  "admin:create_product_variant": {
+    ean: "retail barcode symbologies; no partner has asked, and a wrong one is worse than none",
+    upc: "as ean",
+    barcode: "as ean",
+    inventory_items: "stock is seeded by set_inventory_level, which this tool already points at",
+  },
+  "admin:update_product_option": {
+    /**
+     * Top-level `add`/`remove` on the batch route link or unlink WHOLE
+     * options to the product; the tool's `update[]` edits the VALUES an
+     * existing option offers — a different operation, advertised as the
+     * nested per-option add/remove instead.
+     */
+    add: "links whole options (an id, a new option, or an option-with-values) onto the product — a different operation from editing an option's values, and one the admin UI owns",
+    remove:
+      "unlinks whole options, stripping the option from every variant matched to it — a catalogue-wide change this tool deliberately does not offer",
+  },
 }
 
 const CASES: Array<{
@@ -110,6 +134,13 @@ const CASES: Array<{
   tool: McpToolDef
   validator: any
   what: string
+  /**
+   * Floor for the import sanity check below. Defaults to 5; the batch
+   * option-values editor is genuinely a THREE-key contract (add / remove /
+   * update), so it carries its own smaller floor rather than weakening the
+   * default for everyone else.
+   */
+  minFields?: number
 }> = [
   {
     key: "partner:update_product_variant",
@@ -135,17 +166,32 @@ const CASES: Array<{
     validator: UpdateProduct,
     what: "core route, core validator",
   },
+  {
+    key: "admin:create_product_variant",
+    tool: findTool(ADMIN_MCP_TOOLS, "create_product_variant"),
+    validator: CreateProductVariant,
+    what: "core route, core validator",
+  },
+  {
+    key: "admin:update_product_option",
+    tool: findTool(ADMIN_MCP_TOOLS, "update_product_option"),
+    validator: AdminLinkProductOptions,
+    what: "the batch route is the only one core exposes for editing an option's values (#1907)",
+    minFields: 3,
+  },
 ]
 
 describe("product/variant MCP tools cover the fields their routes accept", () => {
-  describe.each(CASES)("$key", ({ key, tool, validator, what }) => {
+  describe.each(CASES)("$key", ({ key, tool, validator, what, minFields }) => {
     const accepted = acceptedKeys(validator)
     const omitted = DELIBERATELY_OMITTED[key] ?? {}
 
     it(`sanity: the validator was importable and non-empty (${what})`, () => {
       // Without this, a bad import path would make every assertion below pass
-      // over an empty set — the test would go green by testing nothing.
-      expect(accepted.length).toBeGreaterThan(5)
+      // over an empty set — the test would go green by testing nothing. The
+      // default floor (>= 6) is the original > 5; a case with a genuinely
+      // smaller contract states its own floor via `minFields`.
+      expect(accepted.length).toBeGreaterThanOrEqual(minFields ?? 6)
     })
 
     it("advertises every accepted field, or names it as a deliberate omission", () => {
@@ -186,7 +232,11 @@ describe("product/variant MCP tools cover the fields their routes accept", () =>
   it("weight is advertised on every tool that can write one", () => {
     // The regression this whole file exists for, stated plainly so a future
     // reader sees the point without reconstructing it from the generic checks.
-    for (const { key, tool } of CASES) {
+    // A tool whose route has no `weight` field cannot write one — the batch
+    // option-values editor's contract is add/remove/update, nothing physical —
+    // so it is skipped rather than held to an assertion it cannot satisfy.
+    for (const { key, tool, validator } of CASES) {
+      if (!acceptedKeys(validator).includes("weight")) continue
       expect({ key, weight: (tool.bodyParams ?? []).includes("weight") }).toEqual({
         key,
         weight: true,
