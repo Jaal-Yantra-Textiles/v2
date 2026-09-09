@@ -85,10 +85,33 @@ const NO_ROUTE_VALIDATOR = new Set<string>([
    */
   "partner:revoke_quote",
   // Core routes: core registers its own validator, so it never appears in this
-  // repo's middlewares config. The four product/variant ones are contract-
-  // checked against core's imported validators in the sibling spec.
+  // repo's middlewares config. The product/variant/option ones are contract-
+  // checked against core's imported validators in the sibling spec
+  // (product-tool-field-coverage); the inventory four in
+  // inventory-tool-field-coverage, its inventory sibling.
   "admin:create_product",
   "admin:update_product",
+  /**
+   * Variant and option writes, on core's own routes — same reason as the
+   * product rows above. `create_product_variant` posts to core's
+   * `/admin/products/:id/variants`; `update_product_option` posts to the
+   * batch route, the ONLY one core exposes for editing an option's values
+   * (#1907). Both are bound against core's imported validators in the
+   * sibling spec, so landing here is "not checked by THIS file" rather than
+   * "not checked".
+   */
+  "admin:create_product_variant",
+  "admin:update_product_option",
+  /**
+   * The inventory lifecycle (#1905), all four on core routes: core registers
+   * AdminCreateInventoryItem, the location-level validators and
+   * AdminCreateReservation in its own middleware config. Same deal as the
+   * rows above — the contract check lives in the inventory sibling spec.
+   */
+  "admin:create_inventory_item",
+  "admin:set_inventory_level",
+  "admin:update_inventory_level",
+  "admin:create_reservation",
   /**
    * Category and collection tools wrap core's own `/admin/product-categories`
    * and `/admin/collections` routes, so core registers the validators and they
@@ -226,6 +249,23 @@ const DELIBERATELY_OMITTED: Record<string, Record<string, string>> = {
     // OVERWRITE the path param in that spread. The tool takes the id as a
     // path param only, so the schema never offers a body id to clobber it.
     id: "the :id path param is the only id; a body id would overwrite it in the route's spread",
+  },
+  /**
+   * The dispatcher owns `dry_run` as a FRAMEWORK flag: it intercepts the arg
+   * and returns the planned request WITHOUT ever calling the route. Both
+   * routes accept `dry_run` for their HTTP callers, and BOTH offer `preview`
+   * as the passthrough twin for exactly this reason — see the note on
+   * `preview` in AdminRunApprovalsReq and OpsMaintenanceRunSchema. The tools
+   * advertise `preview`; advertising `dry_run` too would be a lie, since the
+   * dispatcher would eat it before the route ever saw it.
+   */
+  "admin:review_production_run_output": {
+    dry_run:
+      "the MCP dispatcher intercepts dry_run and never calls the route; the route's `preview` is the passthrough twin the tool advertises",
+  },
+  "admin:run_maintenance_job": {
+    dry_run:
+      "as review_production_run_output — the dispatcher's own flag never arrives; `preview` survives it and is what the tool advertises",
   },
   "admin:create_partner_task": {
     template_names: "see dispatch_template_names — approval INTENT, not a task field",
