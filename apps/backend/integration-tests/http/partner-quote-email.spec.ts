@@ -115,10 +115,12 @@ setupSharedTestSuite(() => {
       expect(events.map((e: any) => e.type)).toContain("emailed")
     })
 
-    it("falls back to the house storefront when the partner has no domain", async () => {
-      // #1420 — an admin quoting for a domainless partner used to get nothing
-      // to send. The house storefront (ROOT_DOMAIN) is the LAST resort, never
-      // preferred over the partner's own shop.
+    it("does not fall back to the house storefront when the partner has no domain", async () => {
+      // #1420 — the house-domain fallback was DELIBERATELY REMOVED. A partner's
+      // quote can only be read through its own store's key (the tenant guard
+      // refuses every other store's key), so a house URL would 404 for the
+      // buyer. The mint still succeeds; the link is null and the send is
+      // skipped, reported in words a human can act on.
       const { api } = getSharedTestEnv()
       await seedTemplate()
       await setPartnerDomain(null)
@@ -133,11 +135,9 @@ setupSharedTestSuite(() => {
         )
 
         expect(res.status).toBe(201)
-        const country = String(res.data.quote.destination_country_code).toLowerCase()
-        expect(res.data.buyer_url).toBe(
-          `https://cicilabel.test/${country}/quotes/${res.data.token}`
-        )
-        expect(res.data.email?.sent).toBe(true)
+        expect(res.data.buyer_url).toBeNull()
+        expect(res.data.email?.sent).toBe(false)
+        expect(res.data.email?.reason).toContain("no storefront of their own")
       } finally {
         if (prevRoot === undefined) delete process.env.ROOT_DOMAIN
         else process.env.ROOT_DOMAIN = prevRoot
@@ -171,7 +171,7 @@ setupSharedTestSuite(() => {
         // Reported in words a human can act on — not swallowed.
         expect(res.data.buyer_url).toBeNull()
         expect(res.data.email?.sent).toBe(false)
-        expect(res.data.email?.reason).toContain("storefront domain")
+        expect(res.data.email?.reason).toContain("no storefront of their own")
 
         const row = await readQuote(res.data.quote.id)
         expect(row.email_sent_at).toBeFalsy()
