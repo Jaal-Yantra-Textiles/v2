@@ -52,9 +52,12 @@ export async function planLineItemRunAction(
     productId?: string | null
     variantId?: string | null
     quantity: number
+    /** The item's metadata, for the #1919 provenance fallback. Optional: a
+     *  caller that does not have it simply loses that last resort. */
+    metadata?: Record<string, any> | null
   }
 ): Promise<PlannedRunAction | null> {
-  const { lineItemId, productId, variantId, quantity } = input
+  const { lineItemId, productId, variantId, quantity, metadata } = input
 
   // No product to hang the run off → nothing to provenance.
   if (!productId) {
@@ -80,6 +83,8 @@ export async function planLineItemRunAction(
   const { designId, isCustomDesign } = await resolveLineItemDesignId(query, {
     productId,
     variantId,
+    lineItemId,
+    metadata,
   })
 
   return {

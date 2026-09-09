@@ -4,6 +4,8 @@
 // paths use. Keeping it in one place guarantees the two paths agree so they
 // never double-create a run for the same line item.
 
+import designOrderLineItemLink from "../links/design-order-line-item-link"
+
 // Postgres unique_violation SQLSTATE — raised when the partial unique index on
 // production_runs.order_line_item_id catches a concurrent double-create (#1123).
 export const PLAN_UNIQUE_VIOLATION = "23505"
@@ -11,6 +13,20 @@ export const PLAN_UNIQUE_VIOLATION = "23505"
 export type ResolvedLineItemDesign = {
   designId: string | null
   isCustomDesign: boolean
+  /**
+   * WHERE the answer came from. A caller that is about to write something
+   * durable off this design — a production run, a payout, a re-point — needs
+   * to know whether it is standing on a link it can move or on a string it
+   * cannot.
+   *
+   *   · "link"     — the design_order_line_item link. Authoritative, movable.
+   *   · "variant"  — design_product_variant. A custom design's own variant.
+   *   · "product"  — product_design. The catalogue-level association.
+   *   · "metadata" — `metadata.design_id`, provenance only. Means this item
+   *                  predates the backfill, or the backfill missed it.
+   *   · null       — nothing resolved.
+   */
+  source: "link" | "variant" | "product" | "metadata" | null
 }
 
 /**
@@ -19,10 +35,51 @@ export type ResolvedLineItemDesign = {
  */
 export async function resolveLineItemDesignId(
   query: any,
-  { productId, variantId }: { productId?: string | null; variantId?: string | null }
+  {
+    productId,
+    variantId,
+    lineItemId,
+    metadata,
+  }: {
+    productId?: string | null
+    variantId?: string | null
+    /**
+     * The ORDER line item's id. Without it a design-order item — which has
+     * neither a product nor a variant — cannot be resolved at all, which is
+     * how five paid-for designs on `order_01KNP520PT94BN8SC0JKZ6ZVJ9` reached
+     * `order-placed.ts` and were skipped (#1918).
+     */
+    lineItemId?: string | null
+    /** The item's `metadata`, for the provenance fallback. */
+    metadata?: Record<string, any> | null
+  }
 ): Promise<ResolvedLineItemDesign> {
   let designId: string | null = null
   let isCustomDesign = false
+
+  /**
+   * The link wins over everything, including `metadata.design_id`. After an
+   * order edit re-points an item (#1921) the metadata still records what was
+   * ORIGINALLY ordered — that is the point of keeping it — so reading it in
+   * preference to the link would hand back the design the customer is no
+   * longer getting.
+   */
+  if (lineItemId) {
+    const { data: itemLinks } = await query.graph({
+      entity: designOrderLineItemLink.entryPoint,
+      fields: ["design_id"],
+      filters: { order_line_item_id: lineItemId },
+      pagination: { skip: 0, take: 1 },
+    })
+    const itemLink = (itemLinks || [])[0]
+    if (itemLink?.design_id) {
+      return {
+        designId: itemLink.design_id,
+        isCustomDesign: true,
+        source: "link",
+      }
+    }
+  }
 
   if (variantId) {
     const { data: variantDesignLinks } = await query.graph({
@@ -33,8 +90,11 @@ export async function resolveLineItemDesignId(
     })
     const variantLink = (variantDesignLinks || [])[0]
     if (variantLink?.design_id) {
-      designId = variantLink.design_id
-      isCustomDesign = true
+      return {
+        designId: variantLink.design_id,
+        isCustomDesign: true,
+        source: "variant",
+      }
     }
   }
 
@@ -46,9 +106,23 @@ export async function resolveLineItemDesignId(
       pagination: { skip: 0, take: 1 },
     })
     designId = (productDesignLinks || [])[0]?.design?.id || null
+    if (designId) {
+      return { designId, isCustomDesign, source: "product" }
+    }
   }
 
-  return { designId, isCustomDesign }
+  /**
+   * Last: the string. Only fires for an item the backfill has not reached —
+   * a design order placed before the link existed. Reported as "metadata" so
+   * a caller can tell a real binding from a legacy one rather than treating
+   * the two as interchangeable.
+   */
+  const fromMetadata = metadata?.design_id
+  if (typeof fromMetadata === "string" && fromMetadata) {
+    return { designId: fromMetadata, isCustomDesign: true, source: "metadata" }
+  }
+
+  return { designId: null, isCustomDesign: false, source: null }
 }
 
 /**
