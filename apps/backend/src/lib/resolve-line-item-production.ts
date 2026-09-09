@@ -174,6 +174,42 @@ export async function getProductionRunForLineItem(
 }
 
 /**
+ * Does ANY production run exist for this design, regardless of which order line
+ * it belongs to?
+ *
+ * 🔴 The distinction this exists to draw: a line item with no run of its own is
+ * not the same as a design nobody has made. On prod, order #3's five items carry
+ * a null `variant_id` (#1918), so no run was ever stamped with their
+ * `order_line_item_id` — while each of their designs has TWO completed runs.
+ * Asking only the line item therefore answered "nothing has been started" about
+ * garments that were finished, and a customer was told exactly that.
+ *
+ * The answer is deliberately a BOOLEAN, not the run. A run for the design says
+ * somebody made this design once; it does NOT say it was made for this order,
+ * and designs are reused across customers. So it is enough to stop us claiming
+ * "not started" — and not enough to claim "already made".
+ */
+export async function hasProductionRunForDesign(
+  query: any,
+  designId: string | null | undefined
+): Promise<boolean> {
+  if (!designId) return false
+  try {
+    const { data } = await query.graph({
+      entity: "production_runs",
+      fields: ["id"],
+      filters: { design_id: designId },
+      pagination: { skip: 0, take: 1 },
+    })
+    return Boolean((data || [])[0])
+  } catch {
+    // Unknowable is not the same as absent: fail toward "we do not know",
+    // which the caller renders as a claim about our records, not the world.
+    return true
+  }
+}
+
+/**
  * A provenance run this system minted from retail fulfillment (born terminal).
  * ONLY these are quantity-reconciled / soft-deleted by the fulfillment +
  * cancellation paths — a real production run (design work-order, or a run that

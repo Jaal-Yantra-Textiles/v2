@@ -2,6 +2,7 @@ import {
   actionOf,
   buildDesignChangeNotice,
   isReassuring,
+  PRODUCTION_STATE_LABELS,
   productionStateOf,
   nextItemMetadata,
   readProducedQuantity,
@@ -57,6 +58,31 @@ describe("productionStateOf", () => {
     expect(productionStateOf(null)).toBe("not_started")
     expect(productionStateOf({ status: null })).toBe("not_started")
     expect(productionStateOf({ status: "some_new_status" })).toBe("not_started")
+  })
+
+  /**
+   * 🔴 The distinction that reached a customer. Order #3's items carry a null
+   * `variant_id` (#1918) so no run was ever stamped with their line ids, while
+   * each of their designs had TWO completed runs — and the email told Aline her
+   * finished garments had "not started yet".
+   */
+  it("says UNKNOWN, not 'not started', when the line has no run but the design does", () => {
+    expect(productionStateOf(null, { designHasRuns: true })).toBe("unknown")
+    expect(productionStateOf(null, { designHasRuns: false })).toBe("not_started")
+    expect(productionStateOf(null)).toBe("not_started")
+
+    // It only ever downgrades an absence. A run ON THE LINE still answers, and
+    // still wins — a design-level run must never upgrade a claim.
+    expect(
+      productionStateOf({ status: "completed" }, { designHasRuns: true })
+    ).toBe("made")
+    expect(
+      productionStateOf({ status: "cancelled" }, { designHasRuns: true })
+    ).toBe("not_started")
+
+    // And it promises nothing: unknown is not reassuring.
+    expect(isReassuring("unknown")).toBe(false)
+    expect(PRODUCTION_STATE_LABELS.unknown).not.toMatch(/not started|already made/i)
   })
 })
 

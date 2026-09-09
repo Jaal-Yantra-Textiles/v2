@@ -46,13 +46,30 @@ export type RunLike = {
  * `not_started` explicitly does not — it is the state four of Aline's five
  * items are in.
  */
-export type ProductionState = "made" | "being_made" | "queued" | "not_started"
+export type ProductionState =
+  | "made"
+  | "being_made"
+  | "queued"
+  | "not_started"
+  /**
+   * 🔴 We have no production record for THIS line, but this design has been
+   * made before. Not the same as "not started", and the difference reached a
+   * customer: order #3's items carry a null `variant_id` (#1918) so no run was
+   * ever stamped with their line ids, while each of their designs had TWO
+   * completed runs. Aline was told her finished garments had not been started.
+   *
+   * We cannot say "already made" either — a run for a design says somebody made
+   * that design, not that it was made for this order. So the wording claims
+   * nothing about the world, only about our records.
+   */
+  | "unknown"
 
 export const PRODUCTION_STATE_LABELS: Record<ProductionState, string> = {
   made: "already made",
   being_made: "being made now",
   queued: "queued for production",
   not_started: "not started yet",
+  unknown: "we're checking where this one stands",
 }
 
 /** The states where "don't worry, it's in hand" is a true thing to say. */
@@ -86,8 +103,19 @@ export function readProducedQuantity(value: number | string | null | undefined):
  * that nothing is being made, so it maps to `not_started` rather than being
  * treated as "a run exists, therefore reassure".
  */
-export function productionStateOf(run: RunLike): ProductionState {
-  if (!run || !run.status) return "not_started"
+export function productionStateOf(
+  run: RunLike,
+  opts?: {
+    /**
+     * Whether ANY run exists for the design, when none is linked to this line.
+     * Turns a bare absence into "we do not know" instead of a claim.
+     */
+    designHasRuns?: boolean
+  }
+): ProductionState {
+  if (!run || !run.status) {
+    return opts?.designHasRuns ? "unknown" : "not_started"
+  }
   switch (String(run.status) as RunStatus) {
     case "completed":
       return "made"
@@ -116,6 +144,10 @@ export type DesignChange = {
   /** The design it points at now. `null` means it was DETACHED. */
   new_design: { id: string; name: string | null } | null
   run: RunLike
+  /**
+   * Set when the LINE has no run but the design does — see `productionStateOf`.
+   */
+  design_has_runs?: boolean
 }
 
 export type ChangeLine = {
@@ -142,7 +174,9 @@ export function actionOf(change: DesignChange): ChangeLine["action"] {
 
 /** PURE: one row of the customer's "what changed" table. */
 export function buildChangeLine(change: DesignChange): ChangeLine {
-  const state = productionStateOf(change.run)
+  const state = productionStateOf(change.run, {
+    designHasRuns: change.design_has_runs,
+  })
   return {
     line_item_id: change.line_item_id,
     item_title: change.item_title ?? null,
@@ -164,6 +198,8 @@ export type DesignChangeNotice = {
   all_in_hand: boolean
   /** True when at least one changed garment has no production behind it. */
   any_not_started: boolean
+  /** True when at least one changed line's state could not be established. */
+  any_unknown: boolean
   /** The single sentence the email leads with. */
   headline: string
   /** Whether there is anything worth emailing about at all. */
@@ -183,8 +219,17 @@ export function buildDesignChangeNotice(changes: DesignChange[]): DesignChangeNo
   const lines = (changes ?? []).map(buildChangeLine)
   const changed = lines.filter((l) => l.action !== "unchanged")
 
-  const anyNotStarted = changed.some((l) => !l.reassuring)
-  const allInHand = changed.length > 0 && !anyNotStarted
+  /**
+   * `all_in_hand` still keys on REASSURING, so a queued piece can never be
+   * described as in hand. `any_not_started` is tightened to the literal state,
+   * because the email uses it for a sentence ("it will be made to the new
+   * design from the outset") that is only true of work nobody has begun — and
+   * is a claim we must not make about a line whose state is unknown.
+   */
+  const anyUnreassuring = changed.some((l) => !l.reassuring)
+  const allInHand = changed.length > 0 && !anyUnreassuring
+  const anyNotStarted = changed.some((l) => l.production_state === "not_started")
+  const anyUnknown = changed.some((l) => l.production_state === "unknown")
 
   let headline: string
   if (!changed.length) {
@@ -204,6 +249,7 @@ export function buildDesignChangeNotice(changes: DesignChange[]): DesignChangeNo
     changed_lines: changed,
     all_in_hand: allInHand,
     any_not_started: anyNotStarted,
+    any_unknown: anyUnknown,
     headline,
     should_send: changed.length > 0,
   }

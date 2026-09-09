@@ -7,6 +7,7 @@ import type { MedusaContainer } from "@medusajs/framework/types"
 
 import {
   getProductionRunForLineItem,
+  hasProductionRunForDesign,
   resolveLineItemDesignId,
 } from "../../lib/resolve-line-item-production"
 import { repointOrderItemDesign } from "./link-designs-to-order-items"
@@ -213,6 +214,23 @@ async function readChange(
     getProductionRunForLineItem(query, lineItemId),
   ])
 
+  /**
+   * 🔴 No run on this LINE is not the same as no work on this design.
+   *
+   * Order #3's items carry a null `variant_id` (#1918), so no run was ever
+   * stamped with their `order_line_item_id` — while each of their designs had
+   * TWO completed runs. The line-only lookup therefore reported "not started
+   * yet", and that sentence was emailed to a customer about garments that had
+   * been finished.
+   *
+   * Only asked when the line has no run of its own, and only ever downgrades a
+   * claim to "we're checking": a run for a design does not prove it was made
+   * for THIS order.
+   */
+  const designHasRuns = run
+    ? false
+    : await hasProductionRunForDesign(query, previous?.id ?? null)
+
   let next: { id: string; name: string | null } | null = null
   if (req.design_id) {
     const { data: designs } = await query.graph({
@@ -235,6 +253,7 @@ async function readChange(
       previous_design: previous,
       new_design: next,
       run,
+      design_has_runs: designHasRuns,
     },
   }
 }
