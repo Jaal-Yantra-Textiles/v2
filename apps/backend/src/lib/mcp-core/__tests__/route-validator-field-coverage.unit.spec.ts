@@ -213,6 +213,20 @@ const DELIBERATELY_OMITTED: Record<string, Record<string, string>> = {
     related_item_type: "GAP (#1394): linking is done by a separate tool",
     related_item_id: "GAP (#1394): as related_item_type",
   },
+  "admin:create_email_template": {
+    // The create route validates with the BASE EmailTemplateSchema, which
+    // leaves `id` optional-but-accepted. A create must let the module assign
+    // the id — an assistant-supplied one would either collide or, worse,
+    // shadow an existing row's identity — so it is not advertised.
+    id: "assigned by the module on create, never assistant-supplied",
+  },
+  "admin:update_email_template": {
+    // The update route builds its workflow input as
+    // `{ id: req.params.id, ...req.validatedBody }` — a body `id` would
+    // OVERWRITE the path param in that spread. The tool takes the id as a
+    // path param only, so the schema never offers a body id to clobber it.
+    id: "the :id path param is the only id; a body id would overwrite it in the route's spread",
+  },
   "admin:create_partner_task": {
     template_names: "see dispatch_template_names — approval INTENT, not a task field",
     eventable: "notification plumbing, not an assistant concern",

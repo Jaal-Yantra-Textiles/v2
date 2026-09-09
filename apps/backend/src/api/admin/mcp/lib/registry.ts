@@ -1349,6 +1349,160 @@ export const ADMIN_MCP_TOOLS: AdminMcpToolDef[] = [
     inputSchema: obj({ ...PAGINATION }),
   },
 
+  // ===== Email templates ===================================================
+  // The outbound email surface: the DB-stored templates the senders render
+  // and dispatch (jobs/process-email-queue, agreement/blog/digest workflows,
+  // task-assigned notifications). Senders resolve a template by template_key
+  // + is_active — see EmailTemplatesService.getTemplateByKey — so a template
+  // that is not ACTIVE is invisible to every sender, and a key no row holds
+  // makes the send fail outright. These tools let the assistant do exactly
+  // what the admin UI's email-templates pages do.
+  {
+    name: "list_email_templates",
+    description:
+      "List email templates (paginated) — the stored subjects/bodies the platform emails from: order updates, partner task notifications, blog broadcasts. Filter by template_key (the exact key senders resolve), template_type, is_active, or free-text search on name. Use it to find a template id, or to check which template a key will actually hit — a key with more than one active row makes which one sends depend on list order.",
+    method: "GET",
+    path: "/admin/email-templates",
+    // ONLY the filters the handler actually forwards. `order` and `fields`
+    // are accepted by the route and then DROPPED — the handler destructures
+    // them but never passes them on — so declaring them would silently
+    // ignore the model's sort, the same defect as #1172.
+    queryParams: ["limit", "offset", "q", "is_active", "template_type", "template_key"],
+    inputSchema: obj({
+      ...PAGINATION,
+      is_active: BOOL("Filter by active state. Only is_active:true rows are ever sent — false rows exist but no sender resolves them."),
+      template_type: STR("Filter by template type, e.g. 'general' | 'transactional' | 'marketing'."),
+      template_key: STR("Filter by the exact lookup key senders use, e.g. 'partner-task-assigned'."),
+    }),
+  },
+  {
+    name: "get_email_template",
+    description:
+      "Get a single email template by id — subject, html_content, from/to/cc/bcc, its documented variables and its active state. Use to review a template's body before editing or deactivating it.",
+    method: "GET",
+    path: "/admin/email-templates/:id",
+    pathParams: ["id"],
+    inputSchema: obj({ id: STR("Email template id.") }, ["id"]),
+  },
+  {
+    name: "create_email_template",
+    description:
+      "Create a new email template. 🔑 Call list_email_templates FIRST: senders resolve the FIRST active row for a template_key, so creating a second active row for a key that already has one makes which one sends depend on list order — create a key variant only deliberately. `variables` is the documentation of what the body substitutes: list the {{placeholders}} the subject and html_content actually use, e.g. {'order_id': 'The order number'}. is_active defaults to TRUE — the template becomes sendable the moment it exists. Sensitive: requires confirm:true.",
+    method: "POST",
+    path: "/admin/email-templates",
+    write: true,
+    sensitive: true,
+    bodyParams: [
+      "name",
+      "description",
+      "to",
+      "cc",
+      "bcc",
+      "from",
+      "template_key",
+      "subject",
+      "html_content",
+      "variables",
+      "is_active",
+      "template_type",
+    ],
+    inputSchema: obj(
+      {
+        name: STR("Human-readable template name, e.g. 'Partner task assigned'. Required."),
+        template_key: STR(
+          "The lookup key senders resolve, snake_case, e.g. 'partner-task-assigned'. Must be unique among ACTIVE rows to be predictable. Required."
+        ),
+        subject: STR("Email subject line. May carry {{placeholders}}. Required."),
+        html_content: STR(
+          "Email body as HTML. May carry {{placeholders}} the sender substitutes at send time. Required."
+        ),
+        from: STR("From address, a valid email, e.g. 'no-reply@jyt.com'. Required."),
+        to: STR("Fixed recipient address for single-recipient templates; senders usually override this. Pass null to clear."),
+        cc: STR("Fixed CC address. Pass null to clear."),
+        bcc: STR("Fixed BCC address. Pass null to clear."),
+        description: STR("What this template is for and when it fires."),
+        variables: {
+          type: "object",
+          description:
+            "The {{placeholders}} the subject/body use, as documentation for whoever edits the template next: {'order_id': 'The order number'}. Not enforced at send time.",
+          additionalProperties: true,
+        },
+        is_active: BOOL("Whether senders can resolve this template. Defaults to true."),
+        template_type: STR("Template type, e.g. 'general' | 'transactional' | 'marketing'. Required by the route."),
+      },
+      ["name", "template_key", "subject", "html_content", "from", "template_type"]
+    ),
+    sideEffects:
+      "Creates a template row. Nothing sends at creation — a send only happens when a sender (a job, workflow or notification) resolves the key later.",
+    nextSteps: ["get_email_template", "update_email_template"],
+  },
+  {
+    name: "update_email_template",
+    description:
+      "Update an email template by id — partial: only the fields you pass change. Use to edit subject/html_content, fix a from address, document the variables, or retire a template with is_active:false (deactivation is reversible and leaves the content auditable). ⚠️ Changing template_key orphans every sender still referencing the old one — they stop finding the template and the send fails. There is no draft/publish step: the next email sent with the key picks the change up immediately. Sensitive: requires confirm:true.",
+    method: "POST",
+    path: "/admin/email-templates/:id",
+    pathParams: ["id"],
+    previewPath: "/admin/email-templates/:id",
+    write: true,
+    sensitive: true,
+    bodyParams: [
+      "name",
+      "description",
+      "to",
+      "cc",
+      "bcc",
+      "from",
+      "template_key",
+      "subject",
+      "html_content",
+      "variables",
+      "is_active",
+      "template_type",
+    ],
+    inputSchema: obj(
+      {
+        id: STR("Email template id to update."),
+        name: STR("New template name."),
+        template_key: STR(
+          "New lookup key. ⚠️ Renaming the key orphans every sender still referencing the old one — they stop finding the template."
+        ),
+        subject: STR("New subject line."),
+        html_content: STR("New HTML body."),
+        from: STR("New from address (must be a valid email)."),
+        to: STR("New fixed recipient, or null to clear."),
+        cc: STR("New fixed CC, or null to clear."),
+        bcc: STR("New fixed BCC, or null to clear."),
+        description: STR("New description."),
+        variables: {
+          type: "object",
+          description: "New {{placeholder}} documentation object.",
+          additionalProperties: true,
+        },
+        is_active: BOOL(
+          "Activate or deactivate the template. false retires it for every sender WITHOUT deleting it — the preferred way to stop a template being used."
+        ),
+        template_type: STR("New template type."),
+      },
+      ["id"]
+    ),
+    sideEffects:
+      "Rewrites the template row in place, effective on the very next send that resolves its key. Compensation restores the prior row if the workflow fails.",
+    nextSteps: ["get_email_template"],
+  },
+  {
+    name: "delete_email_template",
+    description:
+      "Delete an email template by id. 🔑 Prefer update_email_template with is_active:false — deactivation is reversible and leaves the row auditable; deletion is neither, and every sender still holding the key fails with 'Email template with key ... not found'. Dry-run first to see the template you are about to remove. Sensitive: requires confirm:true.",
+    method: "DELETE",
+    path: "/admin/email-templates/:id",
+    pathParams: ["id"],
+    previewPath: "/admin/email-templates/:id",
+    write: true,
+    sensitive: true,
+    inputSchema: obj({ id: STR("Email template id to delete.") }, ["id"]),
+  },
+
   // ===== Social posts & platforms =========================================
   // Social-platform integrations (Facebook, Instagram, Twitter/X, LinkedIn)
   // are stored as SocialPlatform rows with category "social". These tools let

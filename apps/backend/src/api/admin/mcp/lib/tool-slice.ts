@@ -132,6 +132,12 @@ const PREFIX_DOMAINS: ReadonlyArray<readonly [string, AdminToolDomain]> = [
   ["/admin/partners/:id/credits", "money"],
   ["/admin/publishing-campaigns", "marketing"],
   ["/admin/notifications", "marketing"],
+  // The stored email bodies every sender renders from. Rides `marketing`
+  // because the asks that reach it ("edit the order-confirmation email",
+  // "what does the partner task email say?") are email/marketing vocabulary —
+  // the domain keywords already carry "email", so without this entry the ask
+  // lights the slice but the template tools load in NO slice.
+  ["/admin/email-templates", "marketing"],
   // Social posts and platform integrations belong to marketing — they are the
   // organic publishing surface alongside the automated campaigns.
   ["/admin/social-posts", "marketing"],
