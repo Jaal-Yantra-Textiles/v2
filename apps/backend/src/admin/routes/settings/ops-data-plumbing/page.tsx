@@ -485,7 +485,7 @@ const OpsDataPlumbingPage = () => {
             empty: {
               heading: "No runs yet",
               description:
-                "Applied jobs are recorded here. Use “Run a job” to preview and apply one. (Dry-runs are not persisted.)",
+                "Every run is recorded here — previews as well as applied ones. Use “Run a job” to preview and apply one.",
             },
           }}
         />
