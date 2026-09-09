@@ -1,4 +1,4 @@
-import { PLATFORM_COST_CONFIG_MODULE } from "./index"
+import { PLATFORM_COST_CONFIG_MODULE } from "./module-key"
 import {
   readCostConfig,
   resolveCostConfig,

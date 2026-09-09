@@ -14,6 +14,7 @@ import {
   DEFAULT_PLATFORM_FEE_PERCENT,
   DEFAULT_MATERIAL_COST,
 } from "../../../../../workflows/designs/estimate-design-cost"
+import { loadCostConfig } from "../../../../../modules/platform-cost-config/read-config"
 import { DESIGN_MODULE } from "../../../../../modules/designs"
 import { assertPartnerOwnsDesign } from "../../helpers"
 
@@ -45,12 +46,24 @@ export async function POST(
     productionCostOverride = parsed
   }
 
+  const costConfig = await loadCostConfig(req.scope)
+
   const { result, errors } = await estimateDesignCostWorkflow(req.scope).run({
     input: {
       design_id: designId,
       production_cost_override: productionCostOverride ?? null,
-      platform_fee_percent: DEFAULT_PLATFORM_FEE_PERCENT,
-      default_material_cost: DEFAULT_MATERIAL_COST,
+      /**
+       * #1939 — the platform's economic policy, read rather than compiled.
+       * This is the ONE caller that opts into these two, so config is read
+       * here rather than inside the estimator: reading it there would switch
+       * them on for every caller that deliberately passes nothing.
+       * The compiled constants remain the fallback for an unconfigured
+       * platform, so this is a no-op against the seeded row.
+       */
+      platform_fee_percent:
+        costConfig.platform_fee_percent ?? DEFAULT_PLATFORM_FEE_PERCENT,
+      default_material_cost:
+        costConfig.default_material_cost ?? DEFAULT_MATERIAL_COST,
     },
   })
   if (errors && errors.length > 0) {
