@@ -250,6 +250,9 @@ module.exports = defineConfig({
       resolve: "./src/modules/platform-tax-identity",
     },
     {
+      resolve: "./src/modules/platform-cost-config",
+    },
+    {
       resolve: "./src/modules/investor",
     },
 

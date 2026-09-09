@@ -213,6 +213,7 @@ import {
   CreateExportLutSchema,
   UpdateExportLutSchema,
 } from "./admin/platform-tax-identities/validators";
+import { CreatePlatformCostConfigSchema } from "./admin/platform-cost-config/validators";
 import { createPlanSchema, updatePlanSchema, createSubscriptionSchema } from "./admin/partner-plans/validators";
 import { subscribeSchema as partnerSubscribeSchema } from "./partners/subscription/validators";
 import { AdminPostInventoryOrderTasksReq } from "./admin/inventory-orders/[id]/tasks/validators";
@@ -2900,6 +2901,21 @@ export default defineMiddlewares({
       matcher: "/admin/platform-tax-identities",
       method: "GET",
       middlewares: [],
+    },
+    {
+      matcher: "/admin/platform-cost-config",
+      method: "GET",
+      middlewares: [],
+    },
+    {
+      // #1939 — an INSERT, not an update: the table is effective-dated so a
+      // price already quoted stays explicable under the policy it was quoted
+      // under. There is deliberately no PATCH.
+      matcher: "/admin/platform-cost-config",
+      method: "POST",
+      middlewares: [
+        validateAndTransformBody(wrapSchema(CreatePlatformCostConfigSchema)),
+      ],
     },
     {
       matcher: "/admin/platform-tax-identities/:id/export-luts",
