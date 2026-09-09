@@ -35,7 +35,6 @@ Status transitions (e.g. `In_Development`, `Technical_Review`, `Approved`) are a
 | Event | Emitted From | Subscriber | Email Template |
 |---|---|---|---|
 | `design.assigned` | `createDesignWorkflow` (when `customer_id_for_link` is set) | `design-assigned.ts` | `design-assigned` |
-| `design.updated` | Medusa auto-emit on model update | `design-commerce-ready.ts` | `design-status-updated` |
 | `design.inventory_linked` | `linkDesignInventoryWorkflow` | `design-inventory-linked.ts` | `design-inventory-linked` |
 | `design.production_started` | `sendProductionRunToProductionWorkflow` | `design-production-started.ts` | `design-production-started` |
 | `design.production_completed` | `production-run-task-updated.ts` subscriber (when all tasks complete) | `design-production-completed.ts` | `design-production-completed` |
@@ -123,17 +122,24 @@ await eventBus.emit({
 
 ## Status Change Notifications
 
-The `design-commerce-ready.ts` subscriber (listening on `design.updated`) handles all status transitions. It notifies customers for the following statuses:
-
-| Status | Meaning |
-|---|---|
-| `In_Development` | Partner has started work |
-| `Technical_Review` | Partner has finished, awaiting review |
-| `Sample_Production` | Sample is being produced |
-| `Approved` | Design has been approved |
-| `Commerce_Ready` | Design promoted to product (also triggers `promoteDesignToProductWorkflow`) |
-
-Statuses like `Conceptual`, `Revision`, `On_Hold`, and `Rejected` do **not** trigger customer emails — they're internal workflow states.
+> 🔴 **Removed (#1920).** This section described a `design-commerce-ready.ts`
+> subscriber listening on `design.updated`, which it called a "Medusa auto-emit
+> on model update". **There is no such auto-emit.** This codebase emits exactly
+> six design events — `design.approved`, `design.assigned`,
+> `design.inventory_linked`, `design.production_started`,
+> `design.production_completed`, `design.revised` — and `design.updated` is not
+> among them. The subscriber therefore never ran once: no generic status email
+> was ever sent, and the `design-status-updated` template has never fired.
+>
+> It was also the only caller of `promoteDesignToProductWorkflow`, so that
+> promotion never happened either. Independently confirmed: **0 of 123**
+> production designs are at `Commerce_Ready`.
+>
+> Both files were deleted in #1920. The per-transition emails below are sent by
+> the four subscribers that listen on events which really are emitted; those are
+> unaffected. If a general "status changed" email is wanted, it needs a real
+> event emitted where the status is written — not a listener on a name nothing
+> publishes.
 
 ---
 
@@ -170,7 +176,6 @@ All templates use the `designs@jyt.com` sender address and are sent via the `ema
 | File | Event | Action |
 |---|---|---|
 | `src/subscribers/design-assigned.ts` | `design.assigned` | Sends assignment email |
-| `src/subscribers/design-commerce-ready.ts` | `design.updated` | Sends status update email + promotes to product on Commerce_Ready |
 | `src/subscribers/design-inventory-linked.ts` | `design.inventory_linked` | Sends inventory linked email |
 | `src/subscribers/design-production-started.ts` | `design.production_started` | Sends production started email |
 | `src/subscribers/design-production-completed.ts` | `design.production_completed` | Sends production completed email |

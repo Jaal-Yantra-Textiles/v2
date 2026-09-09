@@ -6,6 +6,20 @@ sidebar_position: 4
 
 # Design → Media Folder Linking
 
+> 🔴 **Superseded (#1920).** The `promote-design-to-product` workflow and its
+> `design-commerce-ready.ts` subscriber described below **were deleted**. The
+> subscriber listened on `design.updated`, which nothing in this codebase emits,
+> so the flow documented here never executed — no design was ever promoted this
+> way (0 of 123 prod designs reached `Commerce_Ready`).
+>
+> The part worth keeping came along: `createProductFromDesignWorkflow` — now the
+> single mint point — sources a product's images from the design's linked media
+> folder, exactly as described in "Step logic" below. One behaviour deliberately
+> did **not** come along: the old workflow *refused to mint* without a folder or
+> without images in it. The surviving door mints for approvals, run output and
+> quotes, where a design with no folder is ordinary, so the folder is a source
+> and `thumbnail_url` is still the fallback. See `resolveDesignGallery`.
+
 Connects a design to a media folder so that when the design is promoted to **Commerce Ready**, its photoshoot images automatically build a draft product — no manual product creation required.
 
 ## Architecture
