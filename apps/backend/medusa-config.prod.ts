@@ -782,6 +782,24 @@ module.exports = defineConfig({
   {
     resolve: "./src/modules/platform-tax-identity",
   },
+  /**
+   * #1939's economic policy table. It was added to `medusa-config.ts` by #1942
+   * and never to this file, which the Dockerfile copies OVER that one — so in
+   * production the module was not registered at all: `/admin/platform-cost-config`
+   * answered 500 (`AwilixResolutionError: Could not resolve 'platform_cost_config'`)
+   * and its migration never ran, because `db:migrate` only visits registered
+   * modules.
+   *
+   * 🔴 Nothing broke loudly, which is why it survived a deploy. `loadCostConfig`
+   * deliberately swallows an unresolvable module and returns an all-null policy,
+   * so every pricer fell back to its compiled-in constant — the same numbers as
+   * before. #1950 shipped "the pricers read the policy table" and in production
+   * they have been reading nothing since. That is the failure mode its own
+   * docblock warns about: an outage and an unconfigured platform look identical.
+   */
+  {
+    resolve: "./src/modules/platform-cost-config",
+  },
   {
     resolve: "./src/modules/investor",
   },
