@@ -149,7 +149,8 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
 /**
  * POST /admin/production-runs/:id
  * Update a production run. quantity/role/run_type are only allowed before the
- * run is accepted/started. Cost fields (partner_cost_estimate, cost_type) are
+ * run is accepted/started. Cost fields (partner_cost_estimate, cost_type,
+ * cost_currency) are
  * editable by admins any time except cancelled, since admins may need to
  * record/correct cost after the partner has already begun work.
  *
@@ -302,6 +303,32 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
     update.partner_cost_estimate =
       body.partner_cost_estimate === null ? null : Number(body.partner_cost_estimate)
   }
+  if (body.cost_currency !== undefined) {
+    /**
+     * #1979 — the run says what its cost is DENOMINATED IN.
+     *
+     * Without this the cost was a bare number and approval had to guess the
+     * currency when it turned that number into a listed price; it guessed the
+     * store default, and on a EUR store listed ₹2,634.75 as €2,634.75 (~110×).
+     *
+     * `null` clears it back to unstated, which is a real state — approval then
+     * falls back to the design's `cost_currency` and finally to INR. Anything
+     * else must be a 3-letter code: a free-text currency is how you get a
+     * price labelled `"Rupees"` that no region can match.
+     */
+    if (body.cost_currency === null) {
+      update.cost_currency = null
+    } else {
+      const code = String(body.cost_currency).trim().toLowerCase()
+      if (!/^[a-z]{3}$/.test(code)) {
+        throw new MedusaError(
+          MedusaError.Types.INVALID_DATA,
+          "cost_currency must be a 3-letter currency code (e.g. 'inr'), or null to clear it"
+        )
+      }
+      update.cost_currency = code
+    }
+  }
   if (body.cost_type !== undefined) {
     if (body.cost_type !== "total" && body.cost_type !== "per_unit") {
       throw new MedusaError(
@@ -409,6 +436,14 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
   const touchesMoney =
     update.partner_cost_estimate !== undefined ||
     update.cost_type !== undefined ||
+    /**
+     * #1979 — stating (or clearing) the run's currency re-denominates every
+     * figure derived from its cost, so a Draft written earlier is now
+     * describing the same numbers in a different unit. It is deliberately NOT
+     * in `touchesPrice` below: saying what a cost was always measured in does
+     * not change what is owed, and must not manufacture a payout claim.
+     */
+    update.cost_currency !== undefined ||
     update.produced_quantity !== undefined ||
     /**
      * 🔴 The agreed quantity belongs here too (#1695). `runPayableAmount` bills

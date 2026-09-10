@@ -331,8 +331,80 @@ export async function applyRunApprovals(
         throw new Error(`Design not found: ${designId}`)
       }
 
-      currency = resolveCurrency({ designCurrency: design.cost_currency })
-      if (assumedCurrency(design.cost_currency)) {
+      /**
+       * 🔴 The price comes from what the RUN cost, not from an estimate typed
+       * on the design months earlier — and never from `?? 0`.
+       *
+       * `computeRunCostSummary` derives `cost_per_unit` from real consumption
+       * logs (material, energy, labour, partner estimate). A run with no logs
+       * has `null` there and the design's estimate answers instead; a design
+       * with neither is REFUSED below rather than listed at zero, because a
+       * price of 0 is a claim and #1900 caught one on the storefront.
+       *
+       * Costed per run and reduced to the DEAREST, because the product is one
+       * listing for every run of the design: pricing off the cheapest run
+       * would under-price every other unit sold under the same variant.
+       */
+      let runCostPerUnit: number | null = null
+      /**
+       * 🔴 The currency of the run that SUPPLIED the winning cost — not of any
+       * run in the batch. Reducing to the dearest picks one record's number, so
+       * the denomination has to come from that same record or the price is
+       * valued by one run and labelled by another.
+       */
+      let costingRunCurrency: string | null = null
+      for (const r of designRuns) {
+        try {
+          const summary = await computeRunCostSummary(container, r.id)
+          const perUnit = Number(summary?.cost_per_unit)
+          if (Number.isFinite(perUnit) && perUnit > 0 && perUnit > (runCostPerUnit ?? 0)) {
+            runCostPerUnit = perUnit
+            costingRunCurrency = summary?.currency ?? null
+          }
+        } catch {
+          // A run we cannot cost is not a reason to fail the batch; the other
+          // runs and the design's estimate still answer.
+        }
+      }
+
+      /**
+       * #1939 — the approval markup, read rather than compiled. Against the
+       * seeded row (1.4) this is a no-op; the compiled `APPROVAL_MARKUP`
+       * answers for an unconfigured platform.
+       */
+      const priced = resolveApprovalPrice({
+        runCostPerUnit,
+        designEstimatedCost: Number(design.estimated_cost ?? 0),
+        markup: costConfig.approval_markup_multiplier ?? undefined,
+      })
+      if (!priced) {
+        throw new Error(
+          `Cannot price design ${designId}: no run of it has a costed ` +
+            `consumption log and the design has no estimated_cost. Record ` +
+            `consumption or set an estimate — approving would list it at 0.`
+        )
+      }
+      price = priced.price
+      priceSource = priced.source
+      unitCost = priced.cost
+
+      /**
+       * Denominate the price with the record that SUPPLIED it.
+       *
+       * 🔴 Resolved AFTER pricing, deliberately. `resolveApprovalPrice` picks
+       * the run's cost where one exists and the design's estimate where it does
+       * not — so the currency has to follow the same choice. Asking the run for
+       * the currency of a figure that came off the DESIGN would label an
+       * estimate with a denomination it was never expressed in.
+       */
+      const runCurrencyForPrice =
+        priceSource === "run_cost" ? costingRunCurrency : null
+      currency = resolveCurrency({
+        runCurrency: runCurrencyForPrice,
+        designCurrency: design.cost_currency,
+      })
+      if (assumedCurrency(design.cost_currency, runCurrencyForPrice)) {
+
         /**
          * Said out loud because it is a GUESS, and the common case: 42 of 43
          * costed designs on prod had no `cost_currency` when #1979 was found.
@@ -361,54 +433,7 @@ export async function applyRunApprovals(
             `The price is correct but unsellable until ${currency} is enabled.`
         )
       }
-      /**
-       * 🔴 The price comes from what the RUN cost, not from an estimate typed
-       * on the design months earlier — and never from `?? 0`.
-       *
-       * `computeRunCostSummary` derives `cost_per_unit` from real consumption
-       * logs (material, energy, labour, partner estimate). A run with no logs
-       * has `null` there and the design's estimate answers instead; a design
-       * with neither is REFUSED below rather than listed at zero, because a
-       * price of 0 is a claim and #1900 caught one on the storefront.
-       *
-       * Costed per run and reduced to the DEAREST, because the product is one
-       * listing for every run of the design: pricing off the cheapest run
-       * would under-price every other unit sold under the same variant.
-       */
-      let runCostPerUnit: number | null = null
-      for (const r of designRuns) {
-        try {
-          const summary = await computeRunCostSummary(container, r.id)
-          const perUnit = Number(summary?.cost_per_unit)
-          if (Number.isFinite(perUnit) && perUnit > 0) {
-            runCostPerUnit = Math.max(runCostPerUnit ?? 0, perUnit)
-          }
-        } catch {
-          // A run we cannot cost is not a reason to fail the batch; the other
-          // runs and the design's estimate still answer.
-        }
-      }
 
-      /**
-       * #1939 — the approval markup, read rather than compiled. Against the
-       * seeded row (1.4) this is a no-op; the compiled `APPROVAL_MARKUP`
-       * answers for an unconfigured platform.
-       */
-      const priced = resolveApprovalPrice({
-        runCostPerUnit,
-        designEstimatedCost: Number(design.estimated_cost ?? 0),
-        markup: costConfig.approval_markup_multiplier ?? undefined,
-      })
-      if (!priced) {
-        throw new Error(
-          `Cannot price design ${designId}: no run of it has a costed ` +
-            `consumption log and the design has no estimated_cost. Record ` +
-            `consumption or set an estimate — approving would list it at 0.`
-        )
-      }
-      price = priced.price
-      priceSource = priced.source
-      unitCost = priced.cost
 
       const linked = design.products?.[0]
       productExisted = Boolean(linked?.id)

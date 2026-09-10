@@ -106,6 +106,38 @@ describe("resolveApprovalCurrency", () => {
   })
 
   /**
+   * #1979 — the RUN answers first. `resolveApprovalPrice` already prefers the
+   * run's actual cost over the design's estimate, so the denomination has to
+   * follow the same record; otherwise a price is valued by one and labelled by
+   * the other.
+   */
+  it("prefers the RUN's currency over the design's", () => {
+    expect(
+      resolveApprovalCurrency({ runCurrency: "usd", designCurrency: "inr" })
+    ).toBe("usd")
+    expect(resolveApprovalCurrency({ runCurrency: "  USD " })).toBe("usd")
+  })
+
+  it("falls through to the design when the run states nothing", () => {
+    expect(
+      resolveApprovalCurrency({ runCurrency: null, designCurrency: "aud" })
+    ).toBe("aud")
+    expect(
+      resolveApprovalCurrency({ runCurrency: "", designCurrency: "aud" })
+    ).toBe("aud")
+    // whitespace is not a statement either
+    expect(
+      resolveApprovalCurrency({ runCurrency: "   ", designCurrency: "aud" })
+    ).toBe("aud")
+  })
+
+  it("still lands on INR when neither states one", () => {
+    expect(
+      resolveApprovalCurrency({ runCurrency: null, designCurrency: null })
+    ).toBe("inr")
+  })
+
+  /**
    * 🔴 #1979 — THE REGRESSION. The chain was
    * `designCurrency || storeCurrency || "inr"`, and JYT Medu Store's default is
    * EUR, so the INR last resort was unreachable on the only store we sell from.
@@ -160,13 +192,21 @@ describe("resolveApprovalCurrency", () => {
 })
 
 describe("approvalCurrencyWasAssumed", () => {
-  it("is true exactly when the design stated nothing", () => {
+  it("is true exactly when NEITHER the run nor the design stated one", () => {
     expect(approvalCurrencyWasAssumed(null)).toBe(true)
     expect(approvalCurrencyWasAssumed(undefined)).toBe(true)
     expect(approvalCurrencyWasAssumed("")).toBe(true)
     // whitespace is not a statement — tested RAW, before any coercion
     expect(approvalCurrencyWasAssumed("   ")).toBe(true)
+    expect(approvalCurrencyWasAssumed(null, null)).toBe(true)
+    expect(approvalCurrencyWasAssumed("", "  ")).toBe(true)
+  })
+
+  it("is false when EITHER states one", () => {
     expect(approvalCurrencyWasAssumed("inr")).toBe(false)
     expect(approvalCurrencyWasAssumed("EUR")).toBe(false)
+    // 🔴 the run alone is enough — nothing was assumed if the run said it
+    expect(approvalCurrencyWasAssumed(null, "usd")).toBe(false)
+    expect(approvalCurrencyWasAssumed("", "usd")).toBe(false)
   })
 })

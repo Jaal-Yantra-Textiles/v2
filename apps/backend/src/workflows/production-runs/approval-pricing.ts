@@ -116,8 +116,14 @@ export function resolveApprovalPrice(input: {
  * The last resort is **INR**: production is costed in INR (the unified order
  * carries `currency_assumed: true` for exactly this reason), so a design with
  * no stated currency was costed in INR whatever the fallback claimed.
- * `RunCostSummary` carries no currency field at all, so the run cannot answer
- * this either.
+ * ── The RUN answers first (#1979) ─────────────────────────────────────────
+ *
+ * A production run now states `cost_currency` of its own, and it is asked
+ * BEFORE the design. The design's figure is an estimate typed once; the run's
+ * is what the work actually cost, and `resolveApprovalPrice` already prefers
+ * the run's cost over the design's estimate for exactly that reason. Asking the
+ * design for the currency of a number the RUN supplied would let the two
+ * disagree — a price denominated by one record and valued by another.
  *
  * ── Why the STORE default is not asked (#1979) ────────────────────────────
  *
@@ -140,6 +146,8 @@ export function resolveApprovalPrice(input: {
 export const APPROVAL_FALLBACK_CURRENCY = "inr"
 
 export function resolveApprovalCurrency(input: {
+  /** What the RUN says its cost is in. Wins: it denominates the cost used. */
+  runCurrency?: string | null
   designCurrency?: string | null
 }): string {
   /**
@@ -149,7 +157,9 @@ export function resolveApprovalCurrency(input: {
    * downstream reads it as missing. Same family as the `''` that satisfied an
    * `is not null` CHECK elsewhere in this codebase.
    */
-  const stated = String(input.designCurrency ?? "").trim()
+  const stated =
+    String(input.runCurrency ?? "").trim() ||
+    String(input.designCurrency ?? "").trim()
   return (stated || APPROVAL_FALLBACK_CURRENCY).toLowerCase()
 }
 
@@ -164,6 +174,12 @@ export function resolveApprovalCurrency(input: {
  * ⚠️ Tests the RAW field before any coercion: `""` is falsy but not null, the
  * shape that defeated an `is not null` CHECK elsewhere in this codebase.
  */
-export function approvalCurrencyWasAssumed(designCurrency?: string | null): boolean {
-  return String(designCurrency ?? "").trim() === ""
+export function approvalCurrencyWasAssumed(
+  designCurrency?: string | null,
+  runCurrency?: string | null
+): boolean {
+  return (
+    String(runCurrency ?? "").trim() === "" &&
+    String(designCurrency ?? "").trim() === ""
+  )
 }

@@ -217,6 +217,18 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
     cost_summary: {
       production_run_id: runId,
       design_id: (run as any).design_id,
+      /**
+       * What every figure below is denominated in (#1979), or null when the run
+       * never stated one — null means UNSTATED, not INR.
+       *
+       * ⚠️ Kept byte-identical to `computeRunCostSummary`'s `currency`, which
+       * the PARTNER route serves. This handler still computes its own totals
+       * rather than calling the shared function that was extracted FROM it, so
+       * the two sides can drift — an integration test caught this field missing
+       * here while the partner side had it.
+       */
+      currency:
+        String((run as any).cost_currency ?? "").trim().toLowerCase() || null,
       status: (run as any).status,
       quantity: (run as any).quantity,
       produced_quantity: (run as any).produced_quantity,
