@@ -1913,11 +1913,18 @@ export const ADMIN_MCP_TOOLS: AdminMcpToolDef[] = [
       "Find the option id under `product.options[].id` and the value ids under `product.options[].values[].id`, both from `get_product`.",
     ].join("\n"),
     method: "POST",
-    // The batch endpoint is the ONLY route core exposes for editing an
-    // option's values. There is no `/admin/products/:id/options/:option_id`
+    // The batch endpoint is the only route core exposes for editing an
+    // option's VALUES. There is no `/admin/products/:id/options/:option_id`
     // — this row pointed at one until #1907, which is why every call 404'd
     // while every registry test stayed green: they check the registry's own
     // consistency and its prose, never that the route on the other end exists.
+    //
+    // 🔑 The option's TITLE is a different resource entirely: the top-level
+    // `/admin/product-options/:id` (see `rename_product_option`). Probed on
+    // prod 2026-09-10 with a 404 control — the nested path 404s, the
+    // top-level one returns 200. Reading this comment as "options cannot be
+    // renamed" is how a catalogue accumulates options titled `Original`,
+    // `Type` and `Default option`: 47 of them on prod today.
     path: "/admin/products/:id/options/batch",
     pathParams: ["id"],
     previewPath: "/admin/products/:id",
@@ -2459,6 +2466,39 @@ export const ADMIN_MCP_TOOLS: AdminMcpToolDef[] = [
       },
       ["product_id", "title"]
     ),
+  },
+  {
+    name: "rename_product_option",
+    description: [
+      "Rename a product option — the AXIS a variant varies along ('Fabric', 'Colour', 'Size'). Sensitive: requires confirm:true.",
+      "🔑 A DIFFERENT resource from the option's values. `update_product_option` edits which values an option allows, via `/admin/products/:id/options/batch`; this edits the option itself, via the top-level `/admin/product-options/:id`. The nested `/admin/products/:id/options/:option_id` does NOT exist and 404s.",
+      "🔴 CHECK `is_exclusive` FIRST, with get_product_option. An option with `is_exclusive: false` is SHARED across products, and renaming it renames it on every one of them — silently, with no indication in the response that more than one product changed. On prod today 114 options are exclusive and 1 is shared, so the odds say safe and the exception says catastrophic.",
+      "Why this matters: a design auto-minted into a product gets one option titled after the garment ('Original', 'Type', 'Default option') whose only value is the product's own name. That is not an axis, so no second variant can be hung off it until the option is renamed to something real.",
+      "⚠️ Renaming does NOT update variants' option VALUES. After renaming, a variant update that sets `options` must key on the NEW title.",
+    ].join("\n"),
+    method: "POST",
+    path: "/admin/product-options/:id",
+    pathParams: ["id"],
+    previewPath: "/admin/product-options/:id",
+    write: true,
+    sensitive: true,
+    bodyParams: ["title"],
+    inputSchema: obj(
+      {
+        id: STR("Product option id, e.g. 'opt_...'. From `product.options[].id` via get_product."),
+        title: STR("The new option title, e.g. 'Fabric', 'Colour', 'Size'."),
+      },
+      ["id", "title"]
+    ),
+  },
+  {
+    name: "get_product_option",
+    description:
+      "Get a single product option — its title, its values, and crucially `is_exclusive`. Read. 🔴 Call this before `rename_product_option`: `is_exclusive: false` means the option is SHARED and renaming it changes every product that uses it.",
+    method: "GET",
+    path: "/admin/product-options/:id",
+    pathParams: ["id"],
+    inputSchema: obj({ id: STR("Product option id, e.g. 'opt_...'.") }, ["id"]),
   },
   {
     name: "update_product_variant",
@@ -3669,6 +3709,121 @@ export const ADMIN_MCP_TOOLS: AdminMcpToolDef[] = [
     path: "/admin/production-runs/:id/cost-summary",
     pathParams: ["id"],
     inputSchema: obj({ id: STR("Production run id.") }, ["id"]),
+  },
+  // ----- What a run actually consumed (#1974) -----------------------------
+  // `get_production_run_cost_summary` could REPORT a cost but nothing here
+  // could CREATE one, so a run with no consumption logs was uncostable through
+  // the MCP and `approve_production_run` refused it — correctly, and with no
+  // reachable way to fix it. The rollup reads these three; now they can be
+  // written. See approval-pricing.ts: price = cost per unit x 1.40.
+  {
+    name: "list_energy_rates",
+    description:
+      "List the platform's energy and LABOUR rates — the per-unit figures the run cost rollup falls back to when a consumption log carries no `unitCost` of its own. Read. 🔑 The labour rate lives here too, as `energy_type: \"labor\"`: a labour log with no unit cost is priced at this rate per hour, and if NO active labour rate exists such a log contributes ZERO to the run's cost. Check here before logging labour without a unit cost.",
+    method: "GET",
+    path: "/admin/energy-rates",
+    queryParams: ["energy_type", "is_active", "region", "limit", "offset"],
+    inputSchema: obj({
+      energy_type: STR(
+        "'labor' | 'energy_electricity' | 'energy_water' | 'energy_gas'."
+      ),
+      is_active: STR("'true' to list only active rates."),
+      region: STR("Optional region filter."),
+      limit: INT("Max results (default 50)."),
+      offset: INT("Pagination offset."),
+    }),
+  },
+  {
+    name: "list_run_consumption_logs",
+    description:
+      "Read what a production run consumed — the material, energy and labour logs behind `get_production_run_cost_summary`. Read. A run with zero logs cannot be priced from its own cost, which is why approval refuses it.",
+    method: "GET",
+    path: "/admin/production-runs/:id/consumption-logs",
+    pathParams: ["id"],
+    queryParams: [
+      "consumption_type",
+      "is_committed",
+      "consumed_by",
+      "inventory_item_id",
+      "limit",
+      "offset",
+    ],
+    inputSchema: obj(
+      {
+        id: STR("Production run id."),
+        consumption_type: STR(
+          "'sample' | 'production' | 'wastage' | 'energy_electricity' | 'energy_water' | 'energy_gas' | 'labor'."
+        ),
+        is_committed: STR(
+          "'true' for logs already deducted from stock, 'false' for uncommitted ones."
+        ),
+        consumed_by: STR("Who recorded it, e.g. 'admin' or a partner id."),
+        inventory_item_id: STR("Only logs against this inventory item."),
+        limit: INT("Max results."),
+        offset: INT("Pagination offset."),
+      },
+      ["id"]
+    ),
+  },
+  {
+    name: "log_run_consumption",
+    description:
+      "Record what a production run consumed — one material, energy or labour line. Sensitive: requires confirm:true. This is what makes a run COSTABLE: `get_production_run_cost_summary` sums these into `cost_per_unit`, and `approve_production_run` prices the minted product at cost x 1.40 from it, preferring a run's real cost over the design's typed estimate.\n\n🔴 `unitCost` is NOT resolved from the raw material. The workflow stores `unit_cost: input.unit_cost ?? null`, and the rollup SKIPS any material line whose unit cost is null — so a log against a material with no `unit_cost` of its own, filed without one here, contributes ZERO and reads exactly like a line that was recorded. Pass `unitCost` explicitly unless you have confirmed the material carries one.\n\n🔑 `inventoryItemId` is REQUIRED even for a labour or energy line, and must be a real `iitem_` id — note `list_raw_materials` returns LINK rows, so take its `inventory_item_id` field, never the `link_` id. The run's design/product anchor is read off the run itself and cannot be passed in.\n\nLogging does not deduct stock; committing does (see the commit route).",
+    method: "POST",
+    path: "/admin/production-runs/:id/consumption-logs",
+    pathParams: ["id"],
+    write: true,
+    sensitive: true,
+    bodyParams: [
+      "inventoryItemId",
+      "rawMaterialId",
+      "quantity",
+      "quantityBasis",
+      "unitCost",
+      "unitOfMeasure",
+      "consumptionType",
+      "notes",
+      "locationId",
+      "metadata",
+    ],
+    inputSchema: obj(
+      {
+        id: STR("Production run id."),
+        inventoryItemId: STR(
+          "Inventory item consumed (`iitem_...`). REQUIRED even for labour/energy lines. From list_inventory_items, or the `inventory_item_id` field of list_raw_materials — NOT its `link_...` id."
+        ),
+        rawMaterialId: STR("Optional raw-material id for provenance."),
+        quantity: {
+          type: "number",
+          description:
+            "How much was consumed — metres of cloth, kWh, or HOURS for a labour line. Must be positive.",
+        },
+        quantityBasis: STR(
+          "'total' (default) or 'per_piece' — whether `quantity` is the whole run or one garment."
+        ),
+        unitCost: {
+          type: "number",
+          description:
+            "Cost per unit, in the platform's costing currency (INR). Must be positive. Omit ONLY when the material carries its own unit cost or, for labour/energy, an active rate exists — otherwise this line is worth zero. See the description.",
+        },
+        unitOfMeasure: STR(
+          "'Meter' | 'Yard' | 'Kilogram' | 'Gram' | 'Piece' | 'Roll' | 'kWh' | 'Liter' | 'Cubic_Meter' | 'Hour' | 'Other'. Use 'Hour' for labour."
+        ),
+        consumptionType: STR(
+          "'production' (default use for a real run) | 'sample' | 'wastage' | 'labor' | 'energy_electricity' | 'energy_water' | 'energy_gas'. Material types are sample/production/wastage; these are what the rollup counts as material."
+        ),
+        notes: STR("Free-text note recorded on the log."),
+        locationId: STR(
+          "Stock location the material came from (`sloc_...`). Consumption is only ever deducted from a core location."
+        ),
+        metadata: {
+          type: "object",
+          description: "Arbitrary metadata to store on the log.",
+          additionalProperties: true,
+        },
+      },
+      ["id", "inventoryItemId", "quantity"]
+    ),
   },
   {
     name: "get_production_run_task",

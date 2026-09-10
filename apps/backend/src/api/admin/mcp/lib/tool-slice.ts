@@ -58,6 +58,11 @@ const PREFIX_DOMAINS: ReadonlyArray<readonly [string, AdminToolDomain]> = [
   // covers both.
   ["/admin/quotes", "orders"],
   ["/admin/products", "catalog"],
+  // Product OPTIONS are a separate top-level resource from products — the
+  // only route that renames an option (#1974). Without this line the rename
+  // tool classifies as undefined and loads in NO slice, so the model can add
+  // option VALUES but never fix an option titled "Original".
+  ["/admin/product-options", "catalog"],
   ["/admin/stores", "catalog"],
   // Regions and sales channels are storefront configuration that sits beside
   // stores — same slice, same conversation. An unclassified tool loads in NO
@@ -93,6 +98,11 @@ const PREFIX_DOMAINS: ReadonlyArray<readonly [string, AdminToolDomain]> = [
   // dispatch outright. Without this entry the tool classifies as undefined and
   // loads in NO slice, so the model would keep guessing names it cannot see.
   ["/admin/task-templates", "production"],
+  // Energy and LABOUR rates (#1974). These are what an uncosted consumption log
+  // falls back to, so they belong beside the run tools that create those logs:
+  // "why is this run worth nothing" is a production conversation, and without
+  // this entry the tool classifies as undefined and loads in NO slice.
+  ["/admin/energy-rates", "production"],
   ["/admin/inventory-items", "inventory"],
   ["/admin/inventory-orders", "inventory"],
   // Where stock physically sits. Rides the inventory slice because every ask
