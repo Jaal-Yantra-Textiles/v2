@@ -58,6 +58,11 @@ const PREFIX_DOMAINS: ReadonlyArray<readonly [string, AdminToolDomain]> = [
   // covers both.
   ["/admin/quotes", "orders"],
   ["/admin/products", "catalog"],
+  // Product OPTIONS are a separate top-level resource from products — the
+  // only route that renames an option (#1974). Without this line the rename
+  // tool classifies as undefined and loads in NO slice, so the model can add
+  // option VALUES but never fix an option titled "Original".
+  ["/admin/product-options", "catalog"],
   ["/admin/stores", "catalog"],
   // Regions and sales channels are storefront configuration that sits beside
   // stores — same slice, same conversation. An unclassified tool loads in NO

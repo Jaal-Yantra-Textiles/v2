@@ -1913,11 +1913,18 @@ export const ADMIN_MCP_TOOLS: AdminMcpToolDef[] = [
       "Find the option id under `product.options[].id` and the value ids under `product.options[].values[].id`, both from `get_product`.",
     ].join("\n"),
     method: "POST",
-    // The batch endpoint is the ONLY route core exposes for editing an
-    // option's values. There is no `/admin/products/:id/options/:option_id`
+    // The batch endpoint is the only route core exposes for editing an
+    // option's VALUES. There is no `/admin/products/:id/options/:option_id`
     // — this row pointed at one until #1907, which is why every call 404'd
     // while every registry test stayed green: they check the registry's own
     // consistency and its prose, never that the route on the other end exists.
+    //
+    // 🔑 The option's TITLE is a different resource entirely: the top-level
+    // `/admin/product-options/:id` (see `rename_product_option`). Probed on
+    // prod 2026-09-10 with a 404 control — the nested path 404s, the
+    // top-level one returns 200. Reading this comment as "options cannot be
+    // renamed" is how a catalogue accumulates options titled `Original`,
+    // `Type` and `Default option`: 47 of them on prod today.
     path: "/admin/products/:id/options/batch",
     pathParams: ["id"],
     previewPath: "/admin/products/:id",
@@ -2459,6 +2466,39 @@ export const ADMIN_MCP_TOOLS: AdminMcpToolDef[] = [
       },
       ["product_id", "title"]
     ),
+  },
+  {
+    name: "rename_product_option",
+    description: [
+      "Rename a product option — the AXIS a variant varies along ('Fabric', 'Colour', 'Size'). Sensitive: requires confirm:true.",
+      "🔑 A DIFFERENT resource from the option's values. `update_product_option` edits which values an option allows, via `/admin/products/:id/options/batch`; this edits the option itself, via the top-level `/admin/product-options/:id`. The nested `/admin/products/:id/options/:option_id` does NOT exist and 404s.",
+      "🔴 CHECK `is_exclusive` FIRST, with get_product_option. An option with `is_exclusive: false` is SHARED across products, and renaming it renames it on every one of them — silently, with no indication in the response that more than one product changed. On prod today 114 options are exclusive and 1 is shared, so the odds say safe and the exception says catastrophic.",
+      "Why this matters: a design auto-minted into a product gets one option titled after the garment ('Original', 'Type', 'Default option') whose only value is the product's own name. That is not an axis, so no second variant can be hung off it until the option is renamed to something real.",
+      "⚠️ Renaming does NOT update variants' option VALUES. After renaming, a variant update that sets `options` must key on the NEW title.",
+    ].join("\n"),
+    method: "POST",
+    path: "/admin/product-options/:id",
+    pathParams: ["id"],
+    previewPath: "/admin/product-options/:id",
+    write: true,
+    sensitive: true,
+    bodyParams: ["title"],
+    inputSchema: obj(
+      {
+        id: STR("Product option id, e.g. 'opt_...'. From `product.options[].id` via get_product."),
+        title: STR("The new option title, e.g. 'Fabric', 'Colour', 'Size'."),
+      },
+      ["id", "title"]
+    ),
+  },
+  {
+    name: "get_product_option",
+    description:
+      "Get a single product option — its title, its values, and crucially `is_exclusive`. Read. 🔴 Call this before `rename_product_option`: `is_exclusive: false` means the option is SHARED and renaming it changes every product that uses it.",
+    method: "GET",
+    path: "/admin/product-options/:id",
+    pathParams: ["id"],
+    inputSchema: obj({ id: STR("Product option id, e.g. 'opt_...'.") }, ["id"]),
   },
   {
     name: "update_product_variant",
