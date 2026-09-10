@@ -203,3 +203,101 @@ jobs:
             playwright-report/
           retention-days: 7
           if-no-files-found: ignore
+
+  # ===========================================================================
+  # Make a red e2e VISIBLE (#1963).
+  #
+  # This suite was red on every run on `main` from 2026-09-04 to 2026-09-10 —
+  # the same 9 failures, ~40 runs — and nobody was told. Three of those specs
+  # were marked 🔑 by their own authors and two turned out to be real production
+  # defects. Nothing gated on the check and nothing reported it, so the only way
+  # to learn it was red was to go and look.
+  #
+  # Deliberately a NOTIFIER, not a gate: `main` has no branch protection and
+  # adding a required check here would also block direct pushes. This opens or
+  # updates ONE sticky issue instead, so a week of redness cannot pass quietly.
+  #
+  # Sticky by design — it reuses the single open issue carrying the marker
+  # below rather than filing one per run, which is how this kind of job turns
+  # into noise that gets muted.
+  # ===========================================================================
+  notify-on-red:
+    needs: e2e
+    # Only `main`, and only a genuine failure. `cancelled()` is excluded on
+    # purpose: this workflow's own concurrency group cancels superseded runs,
+    # and reporting those as breakage is how a notifier loses its credibility.
+    if: ${{ failure() && github.event_name == 'push' && github.ref == 'refs/heads/main' }}
+    runs-on: ubuntu-latest
+    permissions:
+      issues: write
+    steps:
+      - name: Open or update the sticky "e2e is red" issue
+        uses: actions/github-script@v7
+        env:
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          SHA: ${{ github.sha }}
+        with:
+          script: |
+            const MARKER = '<!-- e2e-red-sticky -->'
+            const TITLE = '🔴 E2E (admin UI) is red on main'
+            const { owner, repo } = context.repo
+            const runUrl = process.env.RUN_URL
+            const sha = (process.env.SHA || '').slice(0, 9)
+
+            // Find the sticky by TITLE + marker, with no label filter.
+            // Deliberately label-free: this repo has no `ci` label, and
+            // `issues.create` 422s on a label that does not exist — which would
+            // leave the notifier silently unable to notify, the exact failure
+            // this job exists to prevent. Titles we control; labels we do not.
+            const existing = await github.paginate(
+              github.rest.issues.listForRepo,
+              { owner, repo, state: 'open', per_page: 100 }
+            )
+            const sticky = existing.find(
+              (i) => !i.pull_request && i.title === TITLE && (i.body || '').includes(MARKER)
+            )
+
+            const line = `- 🔴 \`${sha}\` failed — [run](${runUrl})`
+
+            if (sticky) {
+              await github.rest.issues.createComment({
+                owner, repo, issue_number: sticky.number,
+                body: `${line}\n\nStill red. This is the same sticky issue, not a new one.`,
+              })
+              core.notice(`Updated sticky issue #${sticky.number}`)
+              return
+            }
+
+            const body = [
+              MARKER,
+              '## `E2E (admin UI)` is red on `main`',
+              '',
+              line,
+              '',
+              'This issue is **sticky**: while the suite stays red, each failing run on',
+              '`main` adds a comment here instead of filing a new issue. Close it once',
+              '`main` is green again — the next failure will open a fresh one.',
+              '',
+              '### Why this exists',
+              '',
+              'This suite was red on ~40 consecutive runs on `main` (2026-09-04 →',
+              '2026-09-10) with the same 9 failures and nobody was told. Two of those',
+              'turned out to be real production defects and one an operator dead-end',
+              '(#1963, fixed in #1964). Nothing gates on this check, so silence was',
+              'indistinguishable from success.',
+              '',
+              '### What to do',
+              '',
+              '1. Open the run above and read the **totals line**, not just the `●`',
+              '   assertion blocks — a spec\'s own diagnostic output (e.g. a printed',
+              '   response body) often sits thousands of lines earlier in the log.',
+              '2. A developer machine cannot reproduce CI by default: it may hold',
+              '   credentials CI lacks. Clear those and make a control fail first.',
+              '3. CI sets `PARTNER_UI=1` and boots :5173, so it runs a different spec',
+              '   population than a bare local run.',
+            ].join('\n')
+
+            const created = await github.rest.issues.create({
+              owner, repo, title: TITLE, body,
+            })
+            core.notice(`Opened sticky issue #${created.data.number}`)

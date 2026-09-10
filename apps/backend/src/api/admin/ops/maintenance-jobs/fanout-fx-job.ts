@@ -40,6 +40,13 @@ const fanoutFxParamsSchema = z.object({
     .max(MAX_FX_FANOUT_PARTNER_SCAN)
     .optional()
     .default(1000),
+  /**
+   * Also replay the HOUSE store(s) — the ones no partner owns. On by default:
+   * omitting them is what left admin-side products (custom-design products in
+   * particular) priced in a single currency with nothing to fix them. Ignored
+   * when `partner_id` is given, which is an explicit request for one partner.
+   */
+  include_house_stores: z.boolean().optional().default(true),
 })
 
 export type FanoutPriceRow = {
@@ -105,7 +112,8 @@ export function planPriceSetFanout(args: {
 }
 
 type StoreTarget = {
-  partnerId: string
+  /** null for a house store — one no partner owns. */
+  partnerId: string | null
   partnerName: string
   storeId: string
   storeName: string
@@ -165,6 +173,71 @@ async function collectStoreTargets(
   return { targets, skippedStores }
 }
 
+/**
+ * Stores NO partner owns — the house/admin store(s).
+ *
+ * Why this exists: `collectStoreTargets` walks `partners → stores`, so a store
+ * with no partner is unreachable by it, and every product on that store's
+ * channel is invisible to the replay. That is not a corner case — admin-side
+ * custom-design products live on the house channel, and the route that writes
+ * their prices (core's `/admin/products/:id/variants/batch`) does not fan out
+ * inline either. So those prices were written in one currency AND had no repair
+ * path. Four of them were found that way (#1900).
+ *
+ * Ownership rule is copied from `delete-orphan-store-job` — all stores minus
+ * the ones reachable through a partner — so "house" means the same thing in
+ * both jobs rather than two drifting definitions.
+ */
+export async function collectHouseStoreTargets(
+  query: any
+): Promise<{ targets: StoreTarget[]; skippedStores: number }> {
+  const { data: stores } = await query.graph({
+    entity: "stores",
+    fields: [
+      "id",
+      "name",
+      "default_sales_channel_id",
+      "supported_currencies.currency_code",
+    ],
+  })
+
+  const { data: partners } = await query.graph({
+    entity: "partners",
+    fields: ["id", "stores.id"],
+  })
+  const partnerOwned = new Set<string>()
+  for (const p of (partners ?? []) as any[]) {
+    for (const st of (p?.stores ?? []) as any[]) {
+      if (st?.id) partnerOwned.add(String(st.id))
+    }
+  }
+
+  const targets: StoreTarget[] = []
+  let skippedStores = 0
+  for (const store of (stores ?? []) as any[]) {
+    if (!store?.id || partnerOwned.has(String(store.id))) continue
+    const channelId = store?.default_sales_channel_id
+    const supportedCurrencies = ((store?.supported_currencies ?? []) as any[])
+      .map((c) => c?.currency_code)
+      .filter(Boolean)
+    // Same two skips as the partner walk: no channel means nothing is priced
+    // through this store, <2 currencies means there is nothing to convert TO.
+    if (!channelId || supportedCurrencies.length < 2) {
+      skippedStores++
+      continue
+    }
+    targets.push({
+      partnerId: null,
+      partnerName: "House (no partner)",
+      storeId: String(store.id),
+      storeName: store.name ?? String(store.id),
+      supportedCurrencies,
+      channelId,
+    })
+  }
+  return { targets, skippedStores }
+}
+
 /** All variant price rows for a store's default sales channel, grouped by
  *  price_set. Uses the same sales_channel → products_link pivot the replay
  *  script documents (two-hop variant→sales_channel joins don't auto-resolve). */
@@ -213,7 +286,7 @@ export const replayFxFanoutJob: MaintenanceJob = {
   id: "replay-fx-fanout",
   label: "Replay FX price fanout",
   description:
-    `Materialise auto-converted variant prices in every currency of the owning store's supported_currencies, for products whose prices were created before FX fanout ran (or before the store gained the currency). Fixes products that read "not available" in non-native regions (e.g. an INR-priced product showing unavailable in the EUR region). Dry-run previews, per source price, exactly which currencies would be added — no writes, no FX calls. Apply runs the idempotent fanout workflow (skips currencies that already exist + auto-derived source rows). Optionally scope to one partner_id. Scans up to 'limit' partners per call (default 1000, max ${MAX_FX_FANOUT_PARTNER_SCAN}).`,
+    `Materialise auto-converted variant prices in every currency of the owning store's supported_currencies, for products whose prices were created before FX fanout ran (or before the store gained the currency). Fixes products that read "not available" in non-native regions (e.g. an INR-priced product showing unavailable in the EUR region). Dry-run previews, per source price, exactly which currencies would be added — no writes, no FX calls. Apply runs the idempotent fanout workflow (skips currencies that already exist + auto-derived source rows). Covers partner stores AND the house store(s) — the ones no partner owns, where admin-side custom-design products live; those were previously unreachable by this job, so prices written there had no repair path at all. Optionally scope to one partner_id (which excludes house stores). Scans up to 'limit' partners per call (default 1000, max ${MAX_FX_FANOUT_PARTNER_SCAN}).`,
   params: [
     {
       name: "partner_id",
@@ -227,6 +300,13 @@ export const replayFxFanoutJob: MaintenanceJob = {
       required: false,
       description: `Max partners to scan in one call (default 1000, max ${MAX_FX_FANOUT_PARTNER_SCAN})`,
     },
+    {
+      name: "include_house_stores",
+      type: "boolean",
+      required: false,
+      description:
+        "Also replay the house store(s) — the ones no partner owns, where admin-side custom-design products live. Default true. Ignored when partner_id is set.",
+    },
   ],
   run: async (container, { dry_run, params }): Promise<MaintenanceJobResult> => {
     const parsed = fanoutFxParamsSchema.safeParse(params)
@@ -236,16 +316,23 @@ export const replayFxFanoutJob: MaintenanceJob = {
         parsed.error.issues.map((i) => i.message).join("; ")
       )
     }
-    const { partner_id, limit } = parsed.data
+    const { partner_id, limit, include_house_stores } = parsed.data
 
     const query: any = container.resolve(ContainerRegistrationKeys.QUERY)
     const logger: any = container.resolve(ContainerRegistrationKeys.LOGGER)
 
-    const { targets, skippedStores } = await collectStoreTargets(
-      query,
-      partner_id,
-      limit
-    )
+    const partnerScan = await collectStoreTargets(query, partner_id, limit)
+
+    // `partner_id` is an explicit request for ONE partner, so house stores are
+    // not silently added to it. Otherwise they are part of "replay everything".
+    const houseScan =
+      !partner_id && include_house_stores
+        ? await collectHouseStoreTargets(query)
+        : { targets: [] as StoreTarget[], skippedStores: 0 }
+
+    const targets = [...partnerScan.targets, ...houseScan.targets]
+    const skippedStores = partnerScan.skippedStores + houseScan.skippedStores
+    const houseStoresScanned = houseScan.targets.length
 
     const changes: MaintenanceChange[] = []
     const errors: Array<{ id: string; message: string }> = []
@@ -322,12 +409,14 @@ export const replayFxFanoutJob: MaintenanceJob = {
     }
 
     const summary = dry_run
-      ? `Dry run — ${sourcesWithWork} source price(s) across ${storesScanned} store(s) would gain ${currenciesPlanned} auto-converted price(s)${
+      ? `Dry run — ${sourcesWithWork} source price(s) across ${storesScanned} store(s)${
+          houseStoresScanned ? ` (incl. ${houseStoresScanned} house)` : ""
+        } would gain ${currenciesPlanned} auto-converted price(s)${
           skippedStores ? ` (${skippedStores} store(s) skipped: no channel / <2 currencies)` : ""
         }.`
       : `Fanned out ${created} auto-converted price(s) from ${sourcesWithWork} source price(s) across ${storesScanned} store(s)${
-          errors.length ? `, ${errors.length} error(s)` : ""
-        }.`
+          houseStoresScanned ? ` (incl. ${houseStoresScanned} house)` : ""
+        }${errors.length ? `, ${errors.length} error(s)` : ""}.`
 
     return {
       job_id: replayFxFanoutJob.id,
