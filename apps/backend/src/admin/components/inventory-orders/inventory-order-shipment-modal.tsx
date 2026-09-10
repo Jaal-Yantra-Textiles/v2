@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { Drawer, Button, DatePicker, Input, Label, Select, Text, toast } from "@medusajs/ui";
 
 import {
@@ -7,7 +7,8 @@ import {
   useCreateInventoryOrderShipment,
   useInventoryOrderShiprocketRates,
 } from "../../hooks/api/inventory-orders";
-import { useStockLocations } from "../../hooks/api/stock_location";
+import { useAllStockLocations } from "../../hooks/api/stock_location";
+import { Combobox } from "../inputs/combobox/combobox";
 
 /** DatePicker works in Date objects; the API wants "YYYY-MM-DD" (local). */
 const toYMD = (d: Date) =>
@@ -46,7 +47,17 @@ export const InventoryOrderShipmentModal = ({ inventoryOrder, open, onOpenChange
   const { mutateAsync, isPending } = useCreateInventoryOrderShipment(inventoryOrder.id);
   const { mutateAsync: fetchRates, isPending: isFetchingRates } =
     useInventoryOrderShiprocketRates(inventoryOrder.id);
-  const { stock_locations = [] } = useStockLocations({ limit: 100 });
+  // Every location, not the default-limit first page: the picker is searchable
+  // precisely so the LAST warehouse is as reachable as the first (#947/#1552).
+  const { stock_locations = [] } = useAllStockLocations();
+  const locationOptions = useMemo(
+    () =>
+      stock_locations.map((loc) => ({
+        value: loc.id,
+        label: loc.name,
+      })),
+    [stock_locations]
+  );
 
   const handleGetRates = async () => {
     try {
@@ -111,18 +122,20 @@ export const InventoryOrderShipmentModal = ({ inventoryOrder, open, onOpenChange
           </Text>
           <div className="flex flex-col gap-1">
             <Label size="small" htmlFor="pickup">Ship from (pickup location)</Label>
-            <Select value={pickup} onValueChange={setPickup}>
-              <Select.Trigger id="pickup">
-                <Select.Value placeholder="Use registered carrier pickup (optional)" />
-              </Select.Trigger>
-              <Select.Content>
-                {stock_locations.map((loc) => (
-                  <Select.Item key={loc.id} value={loc.id}>
-                    {loc.name}
-                  </Select.Item>
-                ))}
-              </Select.Content>
-            </Select>
+            {/* The wrapper carries the test hook: when a value is selected the
+                Combobox hides its input and renders the chosen label in a
+                SIBLING element, so anchoring a test on the input alone cannot
+                see what is selected. */}
+            <div data-testid="shipment-ship-from-location">
+              <Combobox
+                id="pickup"
+                options={locationOptions}
+                value={pickup}
+                onChange={(next) => setPickup((next as string) || "")}
+                allowClear
+                placeholder="Use registered carrier pickup (optional)"
+              />
+            </div>
           </div>
           <div className="flex flex-col gap-1">
             <Label size="small" htmlFor="carrier">Carrier</Label>
