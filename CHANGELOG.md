@@ -1,3 +1,10 @@
+# [13.135.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.134.1...v13.135.0) (2026-09-10)
+
+
+### Features
+
+* **storefront:** pay an order edit's balance on cicilabel.com, with the order shown ([#1985](https://github.com/Jaal-Yantra-Textiles/v2/issues/1985)) ([e5c7b7b](https://github.com/Jaal-Yantra-Textiles/v2/commit/e5c7b7b646318a5903b74ddc22d3f7ba7eaf4074)), closes [#1987](https://github.com/Jaal-Yantra-Textiles/v2/issues/1987)
+
 ## [13.134.1](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.134.0...v13.134.1) (2026-09-10)
 
 
