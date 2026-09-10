@@ -3,9 +3,7 @@ import type { Metadata } from "next"
 
 import { preparePaymentCollection } from "@lib/data/payment-collections"
 import { convertToLocale } from "@lib/util/money"
-import PayCollectionForm from "@modules/checkout/components/payment-collection/pay-collection-form"
-import StripeWrapper from "@modules/checkout/components/payment-wrapper/stripe-wrapper"
-import { loadStripe } from "@stripe/stripe-js"
+import PayCollectionWrapper from "@modules/checkout/components/payment-collection/pay-collection-wrapper"
 
 /**
  * `/payment-collection/:id` — the buyer pays what an order EDIT left owing
@@ -38,18 +36,6 @@ export const metadata: Metadata = {
 
 // Money is live and a stale "unpaid" page invites a second payment.
 export const dynamic = "force-dynamic"
-
-const stripeKey =
-  process.env.NEXT_PUBLIC_STRIPE_KEY ||
-  process.env.NEXT_PUBLIC_MEDUSA_PAYMENTS_PUBLISHABLE_KEY
-
-const medusaAccountId = process.env.NEXT_PUBLIC_MEDUSA_PAYMENTS_ACCOUNT_ID
-const stripePromise = stripeKey
-  ? loadStripe(
-      stripeKey,
-      medusaAccountId ? { stripeAccount: medusaAccountId } : undefined
-    )
-  : null
 
 function Shell({ children }: { children: React.ReactNode }) {
   return (
@@ -106,7 +92,9 @@ export default async function PaymentCollectionPage(props: {
   }
 
   const clientSecret = pc.payment_session?.client_secret ?? null
-  const canPay = Boolean(clientSecret && stripePromise && stripeKey)
+  // Only the secret is decidable on the server; whether Stripe.js loads is a
+  // client fact, so PayCollectionWrapper owns that half.
+  const canPay = Boolean(clientSecret)
 
   return (
     <Shell>
@@ -157,18 +145,13 @@ export default async function PaymentCollectionPage(props: {
       </div>
 
       {canPay ? (
-        /* StripeWrapper mounts <Elements>. PayCollectionForm calls useStripe()
-           and useElements(), which THROW outside it — so it is only ever
-           rendered as its child, never conditionally inside itself. */
-        <StripeWrapper
-          paymentSession={
-            { data: { client_secret: clientSecret } } as any
-          }
-          stripeKey={stripeKey}
-          stripePromise={stripePromise}
-        >
-          <PayCollectionForm amountLabel={amountLabel} />
-        </StripeWrapper>
+        /* Everything Stripe is client-side — see pay-collection-wrapper.tsx.
+           A `loadStripe()` Promise cannot cross the RSC boundary, and when it
+           silently fails to, the page renders a dead Pay button with no error. */
+        <PayCollectionWrapper
+          clientSecret={clientSecret as string}
+          amountLabel={amountLabel}
+        />
       ) : (
         <Text className="text-ui-fg-subtle">
           This payment link cannot be opened just now. Please reply to your order
