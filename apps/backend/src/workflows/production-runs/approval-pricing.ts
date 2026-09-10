@@ -111,21 +111,59 @@ export function resolveApprovalPrice(input: {
  * 🔴 The approve route once hardcoded `"usd"` on a platform trading in AUD and
  * INR, so every approved design was listed in a currency nobody sells in. That
  * was fixed to prefer the design's own `cost_currency`, but `"usd"` survived as
- * the last resort — which still mis-prices any design that never recorded one.
+ * the last resort — which still mis-priced any design that never recorded one.
  *
- * The last resort is now **INR**: production is costed in INR (the unified
- * order carries `currency_assumed: true` for exactly this reason), so a design
- * with no stated currency was costed in INR whatever the fallback claimed.
+ * The last resort is **INR**: production is costed in INR (the unified order
+ * carries `currency_assumed: true` for exactly this reason), so a design with
+ * no stated currency was costed in INR whatever the fallback claimed.
  * `RunCostSummary` carries no currency field at all, so the run cannot answer
- * this — which is why the design and the store are still asked first.
+ * this either.
+ *
+ * ── Why the STORE default is not asked (#1979) ────────────────────────────
+ *
+ * It used to sit between the two, as `designCurrency || storeCurrency || "inr"`.
+ * `JYT Medu Store`'s default is EUR, so the INR last resort was UNREACHABLE on
+ * the only store we sell from — the very case it was written for. A design
+ * costed at ₹2,634.75 minted as €2,634.75 and fanned out to **₹291,560**, about
+ * 110× its cost, and `replay-fx-fanout` propagated that base into all 11
+ * currencies. The #1805 fix for the hardcoded `"usd"` had reintroduced the same
+ * bug wearing a different currency.
+ *
+ * 🔑 The rule it violated: **a cost is denominated by how it was COMPUTED, not
+ * by where the garment is SOLD.** `cost_breakdown` line items come from
+ * `cost_source: "order_history"` — rupees — and no amount of selling in Europe
+ * turns them into euros. The store default answers a different question, so it
+ * is not asked here at all; `storeCurrency` is absent from the input type on
+ * purpose, so that re-adding it has to be a deliberate edit rather than a
+ * plausible-looking `||`.
  */
 export const APPROVAL_FALLBACK_CURRENCY = "inr"
 
 export function resolveApprovalCurrency(input: {
   designCurrency?: string | null
-  storeCurrency?: string | null
 }): string {
-  const pick =
-    input.designCurrency || input.storeCurrency || APPROVAL_FALLBACK_CURRENCY
-  return String(pick).trim().toLowerCase()
+  /**
+   * ⚠️ Trimmed BEFORE the choice, not after. `"   "` is truthy, so a trailing
+   * `||` would pick it and the later `.trim()` would hand back `""` — an empty
+   * currency code, which is worse than a guessed one because nothing
+   * downstream reads it as missing. Same family as the `''` that satisfied an
+   * `is not null` CHECK elsewhere in this codebase.
+   */
+  const stated = String(input.designCurrency ?? "").trim()
+  return (stated || APPROVAL_FALLBACK_CURRENCY).toLowerCase()
+}
+
+/**
+ * Whether `resolveApprovalCurrency` had to ASSUME rather than read.
+ *
+ * The fallback is the best available answer, not a known one, and a price whose
+ * currency was guessed is worth saying out loud — 42 of 43 costed designs on
+ * prod carried no `cost_currency` when #1979 was found, so this is the common
+ * case rather than the rare one.
+ *
+ * ⚠️ Tests the RAW field before any coercion: `""` is falsy but not null, the
+ * shape that defeated an `is not null` CHECK elsewhere in this codebase.
+ */
+export function approvalCurrencyWasAssumed(designCurrency?: string | null): boolean {
+  return String(designCurrency ?? "").trim() === ""
 }

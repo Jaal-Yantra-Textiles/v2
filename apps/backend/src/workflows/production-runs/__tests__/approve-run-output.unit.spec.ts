@@ -29,6 +29,12 @@ const listProductionRuns = jest.fn()
 const updateProductionRuns = jest.fn().mockResolvedValue({})
 const graph = jest.fn()
 const emit = jest.fn().mockResolvedValue(undefined)
+/**
+ * A STABLE logger, not a fresh `jest.fn()` per resolve — otherwise a test can
+ * never see what was logged, and #1979's "the currency was assumed" warning is
+ * the only signal that a price was guessed rather than read.
+ */
+const logger = { error: jest.fn(), info: jest.fn(), warn: jest.fn() }
 
 const container = {
   resolve: (key: string) => {
@@ -36,7 +42,7 @@ const container = {
       return { listProductionRuns, updateProductionRuns }
     }
     if (key === "query") return { graph }
-    if (key === "logger") return { error: jest.fn(), info: jest.fn() }
+    if (key === "logger") return logger
     if (key === "event_bus") return { emit }
     return {}
   },
@@ -111,22 +117,23 @@ describe("resolveApprovalCurrency", () => {
    * AUD and INR.
    */
   it("prefers what the design was costed in", () => {
-    expect(
-      resolveApprovalCurrency({ designCurrency: "INR", storeCurrency: "aud" })
-    ).toBe("inr")
+    expect(resolveApprovalCurrency({ designCurrency: "INR" })).toBe("inr")
   })
 
-  it("falls back to the store, then to INR — never usd (#1914)", () => {
+  it("falls back to INR — never usd (#1914), never the store (#1979)", () => {
     /*
      * "usd" survived the original fix as the last resort, which still
      * mis-priced any design that never recorded a currency. Production is
      * costed in INR (the unified order carries `currency_assumed: true` for
-     * the same reason), so a design with no stated currency was costed in INR
-     * whatever the fallback claimed.
+     * the same reason).
+     *
+     * #1979: the STORE default used to sit in front of that fallback, so on a
+     * EUR store the INR last resort could never be reached and an INR-costed
+     * design minted at ~110x. The store is no longer consulted at all.
      */
-    expect(resolveApprovalCurrency({ storeCurrency: "AUD" })).toBe("aud")
     expect(resolveApprovalCurrency({})).toBe("inr")
     expect(resolveApprovalCurrency({})).not.toBe("usd")
+    expect(resolveApprovalCurrency({ storeCurrency: "EUR" } as any)).toBe("inr")
   })
 })
 
@@ -290,13 +297,55 @@ describe("applyRunApprovals — approving", () => {
     })
   })
 
-  it("falls back to the store's default currency", async () => {
+  /**
+   * 🔴 #1979 — this test used to assert "aud", pinning the bug in place: a
+   * design with no `cost_currency` inherited the STORE's default. On the live
+   * EUR store that minted ₹2,634.75 as €2,634.75, ~110x its cost, and the
+   * INR last resort written for exactly this case was unreachable.
+   *
+   * The store is stubbed as AUD here precisely so a re-introduced
+   * `|| storeCurrency` would turn this red again.
+   */
+  it("ignores the store default for a design that never stated a currency", async () => {
     listProductionRuns.mockResolvedValue([completedRun("run_1", "des_1")])
     stubGraph({ des_1: design("des_1", { cost_currency: null }) }, "aud")
 
     await applyRunApprovals(container, { runIds: ["run_1"], decision: "approve" })
 
-    expect(createProductRun.mock.calls[0][0].input.currency_code).toBe("aud")
+    expect(createProductRun.mock.calls[0][0].input.currency_code).toBe("inr")
+    expect(createProductRun.mock.calls[0][0].input.currency_code).not.toBe("aud")
+  })
+
+  it("says out loud that the currency was assumed", async () => {
+    /*
+     * The price is still written — refusing would block every approval — so
+     * the warning is the only signal that a number was guessed. 42 of 43
+     * costed designs on prod were in this state.
+     */
+    listProductionRuns.mockResolvedValue([completedRun("run_1", "des_1")])
+    stubGraph({ des_1: design("des_1", { cost_currency: null }) }, "aud")
+
+    await applyRunApprovals(container, { runIds: ["run_1"], decision: "approve" })
+
+    const warned = (logger.warn as jest.Mock).mock.calls
+      .map((c: any[]) => String(c[0]))
+      .filter((m: string) => m.includes("no cost_currency"))
+    expect(warned).toHaveLength(1)
+    expect(warned[0]).toContain("des_1")
+    expect(warned[0]).toContain("inr")
+  })
+
+  it("does not warn when the design stated its currency", async () => {
+    listProductionRuns.mockResolvedValue([completedRun("run_1", "des_1")])
+    stubGraph({ des_1: design("des_1", { cost_currency: "inr" }) }, "aud")
+
+    await applyRunApprovals(container, { runIds: ["run_1"], decision: "approve" })
+
+    expect(
+      (logger.warn as jest.Mock).mock.calls
+        .map((c: any[]) => String(c[0]))
+        .filter((m: string) => m.includes("no cost_currency"))
+    ).toHaveLength(0)
   })
 
   /**

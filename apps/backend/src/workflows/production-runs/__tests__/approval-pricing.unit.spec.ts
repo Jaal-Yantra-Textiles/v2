@@ -13,6 +13,7 @@ import {
   APPROVAL_FALLBACK_CURRENCY,
   APPROVAL_MARKUP,
   resolveApprovalCurrency,
+  approvalCurrencyWasAssumed,
   resolveApprovalPrice,
 } from "../approval-pricing"
 
@@ -101,15 +102,38 @@ describe("resolveApprovalPrice", () => {
 
 describe("resolveApprovalCurrency", () => {
   it("prefers the design's own cost_currency", () => {
-    expect(
-      resolveApprovalCurrency({ designCurrency: "AUD", storeCurrency: "eur" })
-    ).toBe("aud")
+    expect(resolveApprovalCurrency({ designCurrency: "AUD" })).toBe("aud")
   })
 
-  it("falls back to the store default before the last resort", () => {
+  /**
+   * 🔴 #1979 — THE REGRESSION. The chain was
+   * `designCurrency || storeCurrency || "inr"`, and JYT Medu Store's default is
+   * EUR, so the INR last resort was unreachable on the only store we sell from.
+   * A jacket costed at ₹2,634.75 minted as €2,634.75 and fanned out to
+   * ₹291,560 — about 110× its cost.
+   *
+   * The store is no longer asked, so it cannot be passed: this reads
+   * `designCurrency` alone, and an absent one lands on INR however the store is
+   * configured.
+   */
+  it("does not inherit a EUR store default for a design costed in INR", () => {
+    expect(resolveApprovalCurrency({ designCurrency: null })).toBe("inr")
+    expect(resolveApprovalCurrency({ designCurrency: undefined })).toBe("inr")
+    expect(resolveApprovalCurrency({ designCurrency: null })).not.toBe("eur")
+  })
+
+  it("refuses a store default even if one is smuggled in", () => {
+    /*
+     * `storeCurrency` is gone from the input TYPE, which is the real guard —
+     * this proves the runtime ignores it too, so a stale JS caller (or a cast)
+     * cannot resurrect the 110x bug silently.
+     */
     expect(
-      resolveApprovalCurrency({ designCurrency: null, storeCurrency: "EUR" })
-    ).toBe("eur")
+      resolveApprovalCurrency({ designCurrency: null, storeCurrency: "eur" } as any)
+    ).toBe("inr")
+    expect(
+      resolveApprovalCurrency({ designCurrency: "inr", storeCurrency: "eur" } as any)
+    ).toBe("inr")
   })
 
   it("lands on INR, not usd, when nothing states a currency", () => {
@@ -130,8 +154,19 @@ describe("resolveApprovalCurrency", () => {
   it("treats an empty string as unstated", () => {
     // '' is falsy but is not null — the same shape that defeated an
     // `is not null` CHECK constraint elsewhere in this codebase.
-    expect(resolveApprovalCurrency({ designCurrency: "", storeCurrency: "aud" })).toBe(
-      "aud"
-    )
+    expect(resolveApprovalCurrency({ designCurrency: "" })).toBe("inr")
+    expect(resolveApprovalCurrency({ designCurrency: "   " })).toBe("inr")
+  })
+})
+
+describe("approvalCurrencyWasAssumed", () => {
+  it("is true exactly when the design stated nothing", () => {
+    expect(approvalCurrencyWasAssumed(null)).toBe(true)
+    expect(approvalCurrencyWasAssumed(undefined)).toBe(true)
+    expect(approvalCurrencyWasAssumed("")).toBe(true)
+    // whitespace is not a statement — tested RAW, before any coercion
+    expect(approvalCurrencyWasAssumed("   ")).toBe(true)
+    expect(approvalCurrencyWasAssumed("inr")).toBe(false)
+    expect(approvalCurrencyWasAssumed("EUR")).toBe(false)
   })
 })

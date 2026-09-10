@@ -9,10 +9,10 @@ import { createProductFromDesignWorkflow } from "../../../../../workflows/design
 import { requestVariantPriceFanout } from "../../../../../workflows/fx/fanout-variant-prices";
 import designCustomerLink from "../../../../../links/design-customer-link";
 import {
-  readStoreCurrency,
   readStoreId,
   resolveApprovalCurrency,
 } from "../../../../../workflows/production-runs/approve-run-output";
+import { approvalCurrencyWasAssumed } from "../../../../../workflows/production-runs/approval-pricing";
 
 /**
  * POST /admin/designs/:id/approve
@@ -109,6 +109,22 @@ export async function POST(
       return;
     }
 
+    const approvalCurrency = resolveApprovalCurrency({
+      designCurrency: (design as any).cost_currency,
+    });
+    if (approvalCurrencyWasAssumed((design as any).cost_currency)) {
+      /**
+       * A GUESS, and the common case — 42 of 43 costed designs on prod had no
+       * `cost_currency` when #1979 was found. The approval still proceeds
+       * (refusing would block every approval on the platform), but the
+       * assumption is logged rather than living only in a docblock.
+       */
+      logger.warn(
+        `[Admin] Design ${designId} has no cost_currency; assuming ${approvalCurrency}. ` +
+          `If it was not costed in ${approvalCurrency}, the listed price is wrong.`
+      );
+    }
+
     // Create real product/variant from design
     const { result: productResult, errors: productErrors } =
       await createProductFromDesignWorkflow(req.scope).run({
@@ -120,13 +136,15 @@ export async function POST(
            * 🔴 Was hardcoded `"usd"` on a platform that trades in AUD and INR,
            * so every approved design was listed in a currency nobody sells in
            * (#1805). Resolved from the design's own `cost_currency` — what the
-           * work was costed in — with the store default behind it. The rule is
-           * shared with the bulk review so the two paths cannot disagree.
+           * work was costed in — with INR behind it. The rule is shared with
+           * the bulk review so the two paths cannot disagree.
+           *
+           * 🔴 The store default used to sit between the two (#1979). This
+           * store's default is EUR, so an INR-costed design minted in euros
+           * and fanned out to ~110x its cost. A cost is denominated by how it
+           * was COMPUTED, not by where the garment is sold.
            */
-          currency_code: resolveApprovalCurrency({
-            designCurrency: (design as any).cost_currency,
-            storeCurrency: await readStoreCurrency(req.scope),
-          }),
+          currency_code: approvalCurrency,
         },
       });
 
