@@ -1,18 +1,19 @@
 import { useForm, useFieldArray, useWatch } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "@medusajs/framework/zod";
-import { Button, DatePicker, Heading, Text, ProgressTabs, ProgressStatus, Select, toast, Switch, Label, Input } from "@medusajs/ui";
+import { Button, DatePicker, Heading, Text, ProgressTabs, ProgressStatus, toast, Switch, Label, Input } from "@medusajs/ui";
 import { useRouteModal } from "../modal/use-route-modal";
 import { useCreateInventoryOrder } from "../../hooks/api/inventory-orders";
 import { RouteFocusModal } from "../modal/route-focus-modal";
 import { KeyboundForm } from "../utilitites/key-bound-form";
 import { Form } from "../common/form";
-import { useState, useEffect } from "react";
-import { useStockLocations } from "../../hooks/api/stock_location";
+import { useState, useEffect, useMemo } from "react";
+import { useAllStockLocations } from "../../hooks/api/stock_location";
 import { useInventoryCatalog } from "../../hooks/api/raw-materials";
 import { InventoryOrderLinesGrid } from "./inventory-order-lines-grid";
 import { AddMaterialGroupControl } from "../inventory-orders/add-material-group-control";
 import { toOrderLineRef } from "./order-line-ref";
+import { Combobox } from "../inputs/combobox/combobox";
 
 // The schema lives in its own module so it can be unit-tested: importing this
 // component pulls in `admin/lib/config`, which reads `import.meta.env` and
@@ -88,7 +89,17 @@ export const CreateInventoryOrderComponent = () => {
     setTabState(state);
   }, [tab]);
 
-  const { stock_locations = [] } = useStockLocations();
+  // Every location, not the default-limit first page: the pickers are
+  // searchable precisely so the LAST warehouse is as reachable as the first.
+  const { stock_locations = [] } = useAllStockLocations();
+  const locationOptions = useMemo(
+    () =>
+      stock_locations.map((loc) => ({
+        value: loc.id,
+        label: loc.name,
+      })),
+    [stock_locations]
+  );
   // Load the full catalog once (paginated to the true `count`) and filter the
   // item picker purely client-side (see inventory-order-lines-grid). A single
   // fixed-limit page used to silently truncate once the catalog grew past it
@@ -280,51 +291,54 @@ export const CreateInventoryOrderComponent = () => {
                       </Form.Item>
                     )}
                   />
-                  {/* To Stock Location */}
+                  {/* To Stock Location — searchable: the name is what the
+                      user knows, and a plain dropdown stops being usable
+                      once locations outgrow it. */}
                   <Form.Field
                     control={form.control}
                     name="stock_location_id"
-                    render={({ field }) => (
+                    render={({ field: { onChange, value, ref: _ref, ...field } }) => (
                       <Form.Item>
                         <Form.Label>To Stock Location</Form.Label>
                         <Form.Control>
-                          <Select value={field.value} onValueChange={field.onChange}>
-                            <Select.Trigger>
-                              <Select.Value placeholder="Select location" />
-                            </Select.Trigger>
-                            <Select.Content>
-                              {stock_locations.map((loc) => (
-                                <Select.Item key={loc.id} value={loc.id}>
-                                  {loc.name}
-                                </Select.Item>
-                              ))}
-                            </Select.Content>
-                          </Select>
+                          {/* The wrapper carries the test hook: when a value is
+                              selected the Combobox hides its input and renders
+                              the chosen label in a SIBLING element, so anchoring
+                              a test on the input alone cannot see what is
+                              selected. */}
+                          <div data-testid="inventory-order-to-location">
+                            <Combobox
+                              {...field}
+                              options={locationOptions}
+                              value={value}
+                              onChange={(next) => onChange((next as string) || "")}
+                              placeholder="Search locations"
+                            />
+                          </div>
                         </Form.Control>
                         <Form.ErrorMessage />
                       </Form.Item>
                     )}
                   />
-                  {/* From Stock Location (optional) */}
+                  {/* From Stock Location (optional) — searchable, and
+                      clearable because it is optional. */}
                   <Form.Field
                     control={form.control}
                     name="from_stock_location_id"
-                    render={({ field }) => (
+                    render={({ field: { onChange, value, ref: _ref, ...field } }) => (
                       <Form.Item>
-                        <Form.Label>From Stock Location</Form.Label>
+                        <Form.Label optional>From Stock Location</Form.Label>
                         <Form.Control>
-                          <Select value={field.value} onValueChange={field.onChange}>
-                            <Select.Trigger>
-                              <Select.Value placeholder="Select from location (optional)" />
-                            </Select.Trigger>
-                            <Select.Content>
-                              {stock_locations.map((loc) => (
-                                <Select.Item key={loc.id} value={loc.id}>
-                                  {loc.name}
-                                </Select.Item>
-                              ))}
-                            </Select.Content>
-                          </Select>
+                          <div data-testid="inventory-order-from-location">
+                            <Combobox
+                              {...field}
+                              options={locationOptions}
+                              value={value ?? ""}
+                              onChange={(next) => onChange(next as string | undefined)}
+                              allowClear
+                              placeholder="Search from location (optional)"
+                            />
+                          </div>
                         </Form.Control>
                         <Form.ErrorMessage />
                       </Form.Item>
