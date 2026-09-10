@@ -1,3 +1,15 @@
+# [13.134.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.133.0...v13.134.0) (2026-09-10)
+
+
+### Bug Fixes
+
+* **designs:** the mint's loop-closer missed every re-pointed line, silently ([#1971](https://github.com/Jaal-Yantra-Textiles/v2/issues/1971)) ([15c8b8c](https://github.com/Jaal-Yantra-Textiles/v2/commit/15c8b8c8bfbaa938c6fd7a641e71a35ffe6d0f5e)), closes [#1919](https://github.com/Jaal-Yantra-Textiles/v2/issues/1919) [#1919](https://github.com/Jaal-Yantra-Textiles/v2/issues/1919)
+
+
+### Features
+
+* **mcp:** a run's cost could be READ but never CREATED ([#1974](https://github.com/Jaal-Yantra-Textiles/v2/issues/1974)) ([d7c69f9](https://github.com/Jaal-Yantra-Textiles/v2/commit/d7c69f995f481e8a4e62e427e9cb41480f174cb4))
+
 # [13.133.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.132.1...v13.133.0) (2026-09-10)
 
 
