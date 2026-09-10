@@ -1,3 +1,10 @@
+## [13.134.1](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.134.0...v13.134.1) (2026-09-10)
+
+
+### Bug Fixes
+
+* **payments:** "Copy payment link" pointed at no host and no page ([#1985](https://github.com/Jaal-Yantra-Textiles/v2/issues/1985)) ([dfea547](https://github.com/Jaal-Yantra-Textiles/v2/commit/dfea547fc55399185133b53660bb5e34c67ad89e))
+
 # [13.134.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.133.0...v13.134.0) (2026-09-10)
 
 
