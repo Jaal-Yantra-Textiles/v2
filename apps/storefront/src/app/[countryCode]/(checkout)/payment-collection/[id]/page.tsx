@@ -91,6 +91,36 @@ export default async function PaymentCollectionPage(props: {
     )
   }
 
+  /**
+   * 🔴 Only show the order's own figures when they are in the SAME currency as
+   * the amount due. A collection is normally in its order's currency, but when
+   * they disagree the breakdown becomes nonsense a buyer cannot challenge:
+   * caught in a local render showing "Order total ₹22,401.80 / Already paid
+   * −₹22,401.80 / Amount due SGD 109.00" — three numbers that do not reconcile
+   * and two currencies. Rather than convert (we have no rate here and inventing
+   * one on a payment page is worse), drop the context rows and let the amount
+   * due stand alone.
+   */
+  const sameCurrency =
+    !!order?.currency_code &&
+    order.currency_code.toLowerCase() === pc.currency_code?.toLowerCase()
+
+  const money = (v: number | null | undefined) =>
+    v == null || !sameCurrency
+      ? null
+      : convertToLocale({
+          amount: Number(v),
+          currency_code: pc.currency_code,
+        })
+
+  const orderDate = order?.created_at
+    ? new Date(order.created_at).toLocaleDateString("en-GB", {
+        day: "numeric",
+        month: "long",
+        year: "numeric",
+      })
+    : null
+
   const clientSecret = pc.payment_session?.client_secret ?? null
   // Only the secret is decidable on the server; whether Stripe.js loads is a
   // client fact, so PayCollectionWrapper owns that half.
@@ -104,13 +134,34 @@ export default async function PaymentCollectionPage(props: {
         </Heading>
         <Text className="text-ui-fg-subtle">
           {order?.display_id
-            ? `An update to order #${order.display_id} leaves ${amountLabel} to pay.`
-            : `There is ${amountLabel} to pay.`}
+            ? `Order #${order.display_id}${
+                orderDate ? ` · placed ${orderDate}` : ""
+              }`
+            : "Outstanding balance"}
+        </Text>
+      </div>
+
+      {/* Say WHY money is owed before asking for it. A buyer who already paid
+          once and then receives a link for more will assume a double charge
+          unless the page accounts for both figures. */}
+      <div className="rounded-lg border border-ui-border-base bg-ui-bg-subtle p-4">
+        <Text className="txt-medium-plus text-ui-fg-base mb-1">
+          This is an outstanding balance on your order
+        </Text>
+        <Text className="txt-small text-ui-fg-subtle">
+          {order
+            ? `Your order was updated after it was placed, which increased the total. Everything you have already paid is credited below — only the remaining ${amountLabel} is due now.`
+            : `Only the remaining ${amountLabel} is due now. Anything already paid on this order is not charged again.`}
         </Text>
       </div>
 
       {order && order.items.length > 0 && (
         <div className="rounded-lg border border-ui-border-base divide-y divide-ui-border-base">
+          <div className="px-4 py-3">
+            <Text className="txt-small-plus text-ui-fg-base">
+              What is in your order
+            </Text>
+          </div>
           {order.items.map((item) => (
             <div key={item.id} className="flex items-center gap-x-4 p-4">
               {item.thumbnail && (
@@ -139,9 +190,27 @@ export default async function PaymentCollectionPage(props: {
         </div>
       )}
 
-      <div className="flex items-center justify-between border-t border-ui-border-base pt-4">
-        <Text className="txt-medium-plus text-ui-fg-base">Amount due now</Text>
-        <Text className="txt-medium-plus text-ui-fg-base">{amountLabel}</Text>
+      <div className="flex flex-col gap-y-2 border-t border-ui-border-base pt-4">
+        {money(order?.total) && (
+          <div className="flex items-center justify-between">
+            <Text className="txt-small text-ui-fg-subtle">Order total</Text>
+            <Text className="txt-small text-ui-fg-subtle">
+              {money(order?.total)}
+            </Text>
+          </div>
+        )}
+        {money(order?.paid_total) && (
+          <div className="flex items-center justify-between">
+            <Text className="txt-small text-ui-fg-subtle">Already paid</Text>
+            <Text className="txt-small text-ui-fg-subtle">
+              − {money(order?.paid_total)}
+            </Text>
+          </div>
+        )}
+        <div className="flex items-center justify-between border-t border-ui-border-base pt-2 mt-1">
+          <Text className="txt-medium-plus text-ui-fg-base">Amount due now</Text>
+          <Text className="txt-medium-plus text-ui-fg-base">{amountLabel}</Text>
+        </div>
       </div>
 
       {canPay ? (

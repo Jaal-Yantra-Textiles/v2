@@ -31,6 +31,12 @@ export type PreparedPaymentCollection = {
     created_at: string | null
     total: number | null
     item_total: number | null
+    /** What has already been captured on this order. */
+    paid_total: number | null
+    /** What the order still owes — equals the collection's amount. */
+    pending_difference: number | null
+    /** The total before the edit that created this balance. */
+    original_order_total: number | null
     items: Array<{
       id: string
       title: string | null

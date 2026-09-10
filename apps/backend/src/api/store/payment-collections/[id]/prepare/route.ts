@@ -60,6 +60,15 @@ export function summariseOrderLine(item: any) {
  */
 export function summariseOrder(order: any) {
   if (!order) return null
+  /**
+   * `summary` is where the money actually lives. `paid_total` and
+   * `pending_difference` are what let the page say "you paid X, an update took
+   * the order to Y, so Z is outstanding" instead of showing a bare amount the
+   * buyer has to take on trust. Measured on the live order that prompted this:
+   * total 510.36, paid_total 335.39, pending_difference 174.97 — and 174.97 is
+   * exactly the collection's amount.
+   */
+  const summary = (order.summary ?? {}) as Record<string, any>
   return {
     id: order.id,
     display_id: order.display_id ?? null,
@@ -68,6 +77,9 @@ export function summariseOrder(order: any) {
     created_at: order.created_at ?? null,
     total: order.total ?? null,
     item_total: order.item_total ?? null,
+    paid_total: summary.paid_total ?? null,
+    pending_difference: summary.pending_difference ?? null,
+    original_order_total: summary.original_order_total ?? null,
     items: ((order.items ?? []) as any[]).map(summariseOrderLine),
   }
 }
@@ -105,6 +117,7 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
           "created_at",
           "total",
           "item_total",
+          "summary",
           "items.id",
           "items.title",
           "items.variant_title",
