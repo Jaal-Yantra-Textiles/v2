@@ -1,5 +1,7 @@
 import {
   isCollectionSettled,
+  pickStripeProviderId,
+  stripeProviderCandidates,
   pickStripeSession,
 } from "../ensure-stripe-session"
 import { collectionPayPath } from "../../../api/payment-collection/[id]/route"
@@ -131,6 +133,77 @@ describe("isCollectionSettled", () => {
   it("survives a missing or malformed collection", () => {
     expect(isCollectionSettled(undefined)).toBe(false)
     expect(isCollectionSettled({})).toBe(false)
+  })
+})
+
+describe("pickStripeProviderId", () => {
+  const STANDARD = "pp_stripe_stripe"
+  const CONNECT = "pp_stripe-connect_stripe-connect"
+  const SYSTEM = "pp_system_default"
+
+  /**
+   * 🔴 The regression that caught this. The live India Region enables ONLY the
+   * Connect provider — no `pp_stripe_stripe` at all. Asking for the standard id
+   * unconditionally made `createPaymentSessionsWorkflow` throw
+   * "Payment provider pp_stripe_stripe is not enabled in the cart's region",
+   * so the page could NEVER mint a session for a partner storefront's order.
+   * Measured, not imagined.
+   */
+  it("uses the Connect provider when it is the only Stripe one enabled", () => {
+    expect(pickStripeProviderId([SYSTEM, CONNECT], false)).toBe(CONNECT)
+  })
+
+  it("uses the standard provider when it is the only Stripe one enabled", () => {
+    expect(pickStripeProviderId([SYSTEM, STANDARD], true)).toBe(STANDARD)
+  })
+
+  /**
+   * Both enabled is the live Europe region on prod — the one
+   * `order_01KNP520PT94BN8SC0JKZ6ZVJ9` sits in. Here the partner's Connect
+   * status decides, matching `dedupeStripeProviders` so a buyer is charged
+   * through the same provider whichever door they came in by.
+   */
+  it("prefers Connect for a connected partner when both are enabled", () => {
+    expect(pickStripeProviderId([SYSTEM, STANDARD, CONNECT], true)).toBe(CONNECT)
+  })
+
+  it("prefers standard for an unconnected partner when both are enabled", () => {
+    expect(pickStripeProviderId([SYSTEM, STANDARD, CONNECT], false)).toBe(
+      STANDARD
+    )
+  })
+
+  it("returns null when the region enables no Stripe provider", () => {
+    expect(pickStripeProviderId([SYSTEM], true)).toBeNull()
+    expect(pickStripeProviderId([], false)).toBeNull()
+  })
+
+  it("survives a missing or ragged provider list", () => {
+    expect(pickStripeProviderId(undefined as any, false)).toBeNull()
+    expect(pickStripeProviderId([null, undefined], false)).toBeNull()
+    expect(pickStripeProviderId([null, CONNECT], false)).toBe(CONNECT)
+  })
+
+  /**
+   * The fallback order. A region can ENABLE a provider the container does not
+   * REGISTER — measured locally, where Connect is enabled on the India region
+   * but resolves to "Unable to retrieve the payment provider with id". The
+   * caller tries these in order, so the SECOND entry is what rescues a buyer
+   * from an unavailable payment page.
+   */
+  it("offers the other Stripe provider as a fallback, preferred first", () => {
+    expect(stripeProviderCandidates([SYSTEM, STANDARD, CONNECT], true)).toEqual([
+      CONNECT,
+      STANDARD,
+    ])
+    expect(stripeProviderCandidates([SYSTEM, STANDARD, CONNECT], false)).toEqual(
+      [STANDARD, CONNECT]
+    )
+  })
+
+  it("never offers a non-Stripe provider as a fallback", () => {
+    expect(stripeProviderCandidates([SYSTEM, CONNECT], false)).toEqual([CONNECT])
+    expect(stripeProviderCandidates([SYSTEM], false)).toEqual([])
   })
 })
 

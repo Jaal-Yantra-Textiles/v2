@@ -50,12 +50,56 @@ import { createPaymentSessionsWorkflow } from "@medusajs/core-flows"
 import {
   resolvePartnerConnect,
   connectContext,
+  resolvePartnerConnectedByRegion,
+  CONNECT_CHECKOUT_PROVIDER_ID,
 } from "../../modules/stripe-connect-payment/lib/resolve-connect"
 import { resolveSalesChannelForCollection } from "../../modules/payu-payment/lib/resolve-partner-creds"
 import { resolveCollectionPaymentContext } from "./resolve-collection-customer"
 
 /** The Medusa Stripe provider id. */
 export const STRIPE_PROVIDER_ID = "pp_stripe_stripe"
+
+/**
+ * PURE: which Stripe provider to open a session with, given the providers the
+ * ORDER'S REGION actually has enabled.
+ *
+ * 🔴 Asking for `pp_stripe_stripe` unconditionally is wrong and fails loudly:
+ * `createPaymentSessionsWorkflow` throws "Payment provider pp_stripe_stripe is
+ * not enabled in the cart's region <id>". Measured against a real region that
+ * has ONLY `pp_stripe-connect_stripe-connect` enabled — which is the ordinary
+ * shape for a partner storefront, since `/store/payment-providers` hands an
+ * onboarded partner the Connect provider (#985).
+ *
+ * Follows the same rule as `dedupeStripeProviders`, deliberately: a buyer must
+ * be charged through the same provider whichever door they came in by. The
+ * preferred provider is only chosen when it is actually enabled, so a region
+ * carrying just one of the two is never left with nothing.
+ *
+ * Returns null when the region enables no Stripe provider at all — the caller
+ * then renders "unavailable" rather than throwing.
+ */
+export function stripeProviderCandidates(
+  regionProviderIds: Array<string | null | undefined>,
+  connected: boolean
+): string[] {
+  const stripe = (regionProviderIds ?? []).filter((id): id is string =>
+    String(id ?? "").includes("stripe")
+  )
+  if (!stripe.length) return []
+
+  const preferred = connected ? CONNECT_CHECKOUT_PROVIDER_ID : STRIPE_PROVIDER_ID
+  const first = stripe.filter((id) => id === preferred)
+  const rest = stripe.filter((id) => id !== preferred)
+  return [...first, ...rest]
+}
+
+/** The provider to try first. Thin wrapper over `stripeProviderCandidates`. */
+export function pickStripeProviderId(
+  regionProviderIds: Array<string | null | undefined>,
+  connected: boolean
+): string | null {
+  return stripeProviderCandidates(regionProviderIds, connected)[0] ?? null
+}
 
 /** Fields a payment page needs off a collection. Shared so the read that
  *  decides "already paid" and the read that renders cannot disagree. */
@@ -129,6 +173,103 @@ export async function readCollectionForPage(
 }
 
 /**
+ * The order behind a payment collection, with the routing facts a session needs.
+ *
+ * 🔴 An order-EDIT collection has NO CART. `resolveSalesChannelForCollection`
+ * walks `cart_payment_collection` → cart, which is the right path for a
+ * checkout and returns nothing here — so the partner routing and the region
+ * both have to come from the ORDER instead. Reading only the cart link is why
+ * this silently lost the region, and the region is what decides which Stripe
+ * provider may be used at all.
+ *
+ * Returns empty fields rather than throwing; every caller degrades.
+ */
+export async function resolveCollectionOrderRouting(
+  scope: any,
+  collectionId: string
+): Promise<{
+  orderId?: string
+  regionId?: string
+  salesChannelId?: string
+  regionProviderIds: string[]
+}> {
+  const query: any = scope.resolve(ContainerRegistrationKeys.QUERY)
+  const empty = { regionProviderIds: [] as string[] }
+
+  const { data: links } = await query
+    .graph({
+      entity: "order_payment_collection",
+      filters: { payment_collection_id: collectionId },
+      fields: ["order_id"],
+    })
+    .catch(() => ({ data: [] }))
+
+  const orderId = links?.[0]?.order_id
+
+  /**
+   * Order first, then cart. A collection raised by an EDIT hangs off the order;
+   * one raised at CHECKOUT hangs off the cart. Both carry a region, and it is
+   * the region — not the collection — that decides which providers may be used,
+   * so whichever link exists has to be followed.
+   */
+  let holder: any = null
+  if (orderId) {
+    const { data } = await query
+      .graph({
+        entity: "order",
+        filters: { id: orderId },
+        fields: ["id", "region_id", "sales_channel_id"],
+      })
+      .catch(() => ({ data: [] }))
+    holder = data?.[0] ?? null
+  }
+
+  if (!holder) {
+    const { data: cartLinks } = await query
+      .graph({
+        entity: "cart_payment_collection",
+        filters: { payment_collection_id: collectionId },
+        fields: ["cart_id"],
+      })
+      .catch(() => ({ data: [] }))
+    const cartId = cartLinks?.[0]?.cart_id
+    if (cartId) {
+      const { data } = await query
+        .graph({
+          entity: "cart",
+          filters: { id: cartId },
+          fields: ["id", "region_id", "sales_channel_id"],
+        })
+        .catch(() => ({ data: [] }))
+      holder = data?.[0] ?? null
+    }
+  }
+
+  if (!holder?.region_id) {
+    return { ...(orderId ? { orderId } : {}), regionProviderIds: [] }
+  }
+
+  const { data: regions } = await query
+    .graph({
+      entity: "region",
+      filters: { id: holder.region_id },
+      fields: ["id", "payment_providers.id"],
+    })
+    .catch(() => ({ data: [] }))
+
+  const regionProviderIds = ((regions?.[0]?.payment_providers ?? []) as any[])
+    .map((p) => p?.id)
+    .filter((id): id is string => typeof id === "string")
+
+  return {
+    ...(orderId ? { orderId } : {}),
+    regionId: holder.region_id ?? undefined,
+    salesChannelId: holder.sales_channel_id ?? undefined,
+    regionProviderIds,
+  }
+}
+
+/**
  * Give `collectionId` a Stripe session if it has none, and return the
  * collection re-read afterwards.
  *
@@ -162,16 +303,47 @@ export async function ensureStripeSessionForCollection(
     return { collection, session: null, created: false }
   }
 
-  const salesChannelId = await resolveSalesChannelForCollection(
+  const routing = await resolveCollectionOrderRouting(
     scope,
     collectionId
-  ).catch(() => undefined)
+  ).catch(() => ({ regionProviderIds: [] as string[] }) as any)
+
+  // Cart link first (a checkout collection), then the order (an edit's).
+  const salesChannelId =
+    (await resolveSalesChannelForCollection(scope, collectionId).catch(
+      () => undefined
+    )) ?? routing.salesChannelId
 
   const connect = await resolvePartnerConnect(
     scope,
     salesChannelId,
     Number(process.env.STRIPE_CONNECT_DEFAULT_FEE_PERCENT) || 0
   ).catch(() => null)
+
+  /**
+   * Whether to prefer the Connect provider. `resolvePartnerConnect` answers it
+   * for a sales channel; an order edit may have neither cart nor channel, so
+   * the region's own partner link is the fallback — the same signal
+   * `/store/payment-providers` uses to decide what the buyer is offered.
+   */
+  const connected =
+    !!connect ||
+    (await resolvePartnerConnectedByRegion(scope, routing.regionId).catch(
+      () => false
+    ))
+
+  const candidates = stripeProviderCandidates(
+    routing.regionProviderIds,
+    connected
+  )
+  if (!candidates.length) {
+    logger?.error?.(
+      `[pay-collection] no Stripe provider enabled for collection=${collectionId} ` +
+        `region=${routing.regionId ?? "unknown"} ` +
+        `providers=[${routing.regionProviderIds.join(",") || "none"}]`
+    )
+    return { collection, session: null, created: false }
+  }
 
   const context = {
     ...(salesChannelId ? { sales_channel_id: salesChannelId } : {}),
@@ -183,20 +355,43 @@ export async function ensureStripeSessionForCollection(
     collectionId
   ).catch(() => ({ customer_id: undefined }) as any)
 
-  try {
-    await createPaymentSessionsWorkflow(scope).run({
-      input: {
-        payment_collection_id: collectionId,
-        provider_id: STRIPE_PROVIDER_ID,
-        ...(customer_id ? { customer_id } : {}),
-        ...(Object.keys(context).length ? { context } : {}),
-      },
-    })
-  } catch (e: any) {
+  /**
+   * Try each enabled Stripe provider, preferred first.
+   *
+   * 🔴 A region can ENABLE a provider the container does not REGISTER — proven
+   * locally, where the India region enables `pp_stripe-connect_stripe-connect`
+   * and the module resolves to "Unable to retrieve the payment provider with
+   * id". Region config and module registration are edited in different places
+   * and drift. On a page a buyer has opened to pay us, falling through to the
+   * other Stripe provider is worth far more than being right about which one
+   * "should" have worked.
+   */
+  let minted = false
+  let lastError: string | null = null
+  for (const providerId of candidates) {
+    try {
+      await createPaymentSessionsWorkflow(scope).run({
+        input: {
+          payment_collection_id: collectionId,
+          provider_id: providerId,
+          ...(customer_id ? { customer_id } : {}),
+          ...(Object.keys(context).length ? { context } : {}),
+        },
+      })
+      minted = true
+      break
+    } catch (e: any) {
+      lastError = e?.message ?? String(e)
+      logger?.warn?.(
+        `[pay-collection] provider ${providerId} failed for ${collectionId}: ${lastError}`
+      )
+    }
+  }
+
+  if (!minted) {
     logger?.error?.(
-      `[pay-collection] session creation failed for ${collectionId}: ${
-        e?.message ?? e
-      }`
+      `[pay-collection] session creation failed for ${collectionId} after trying ` +
+        `[${candidates.join(",")}]: ${lastError}`
     )
     return { collection, session: null, created: false }
   }
