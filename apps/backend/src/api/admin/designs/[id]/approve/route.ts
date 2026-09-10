@@ -8,11 +8,12 @@ import updateDesignWorkflow from "../../../../../workflows/designs/update-design
 import { createProductFromDesignWorkflow } from "../../../../../workflows/designs/create-product-from-design";
 import { requestVariantPriceFanout } from "../../../../../workflows/fx/fanout-variant-prices";
 import designCustomerLink from "../../../../../links/design-customer-link";
-import {
-  readStoreId,
-  resolveApprovalCurrency,
-} from "../../../../../workflows/production-runs/approve-run-output";
+import { resolveApprovalCurrency } from "../../../../../workflows/production-runs/approve-run-output";
 import { approvalCurrencyWasAssumed } from "../../../../../workflows/production-runs/approval-pricing";
+import {
+  currencyIsSellable,
+  readHouseStore,
+} from "../../../../../workflows/production-runs/house-store";
 
 /**
  * POST /admin/designs/:id/approve
@@ -109,9 +110,22 @@ export async function POST(
       return;
     }
 
+    const houseStore = await readHouseStore(req.scope);
     const approvalCurrency = resolveApprovalCurrency({
       designCurrency: (design as any).cost_currency,
     });
+    if (!currencyIsSellable(approvalCurrency, houseStore)) {
+      /**
+       * A GUARD, never an override — re-denominating a cost to whatever the
+       * store prefers is the #1979 defect itself. This only says the price is
+       * not sellable here, so the condition stops being silent.
+       */
+      logger.warn(
+        `[Admin] Design ${designId} is priced in ${approvalCurrency}, which the house store ` +
+          `does not sell in (enabled: ${houseStore?.currencies.join(", ") || "unknown"}). ` +
+          `The price is correct but unsellable until ${approvalCurrency} is enabled.`
+      );
+    }
     if (approvalCurrencyWasAssumed((design as any).cost_currency)) {
       /**
        * A GUESS, and the common case — 42 of 43 costed designs on prod had no
@@ -175,7 +189,8 @@ export async function POST(
      * skipped, so a re-approval is a no-op.
      */
     try {
-      const storeId = await readStoreId(req.scope)
+      // Already read above for the sellability guard — one query, not two.
+      const storeId = houseStore?.id ?? null
       if (storeId && productResult?.variant_id) {
         await requestVariantPriceFanout(req.scope, {
           storeId,

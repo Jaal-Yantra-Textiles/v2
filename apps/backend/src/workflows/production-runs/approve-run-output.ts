@@ -115,19 +115,18 @@ export {
   resolveApprovalPrice,
 } from "./approval-pricing"
 import { loadCostConfig } from "../../modules/platform-cost-config/read-config"
+import { currencyIsSellable, readHouseStore } from "./house-store"
 
-/** The store the FX fanout is scoped to. Null is survivable; see the call site. */
+/**
+ * The store the FX fanout is scoped to — the HOUSE store, not `stores[0]`.
+ *
+ * 🔴 This used to take the first row of a 13-row, multi-tenant table, so the
+ * fanout could be scoped to an arbitrary partner tenant's currency set (#1979).
+ * See `house-store.ts` for how the house store is identified and why an
+ * ambiguous answer returns null rather than guessing.
+ */
 export async function readStoreId(container: any): Promise<string | null> {
-  try {
-    const query = container.resolve(ContainerRegistrationKeys.QUERY) as any
-    const { data: stores = [] } = await query.graph({
-      entity: "store",
-      fields: ["id"],
-    })
-    return stores?.[0]?.id ?? null
-  } catch {
-    return null
-  }
+  return (await readHouseStore(container))?.id ?? null
 }
 
 
@@ -278,7 +277,8 @@ export async function applyRunApprovals(
    * costs the fanout, not the approval: the base price is still written and
    * `replay-fx-fanout` can materialise the rest later.
    */
-  const storeId = await readStoreId(container)
+  const houseStore = await readHouseStore(container)
+  const storeId = houseStore?.id ?? null
   const costConfig = await loadCostConfig(container)
 
   /** design_id → the runs of that design in this batch, in the order given. */
@@ -343,6 +343,22 @@ export async function applyRunApprovals(
         logger?.warn?.(
           `[approve-run-output] design ${designId} has no cost_currency; ` +
             `assuming ${currency}. If it was not costed in ${currency}, its price is wrong.`
+        )
+      }
+      if (!currencyIsSellable(currency, houseStore)) {
+        /**
+         * A GUARD, never an override. The currency stays what the cost was
+         * computed in — re-denominating it to whatever the store prefers is
+         * exactly the #1979 defect. This only says the resulting price is not
+         * sellable here, so it stops being a silent condition: on prod today
+         * INR is enabled on 12 of 13 stores, but `Le Ciricotte` does not
+         * enable it at all.
+         */
+        logger?.warn?.(
+          `[approve-run-output] design ${designId} is priced in ${currency}, ` +
+            `which the house store does not sell in ` +
+            `(enabled: ${houseStore?.currencies.join(", ") || "unknown"}). ` +
+            `The price is correct but unsellable until ${currency} is enabled.`
         )
       }
       /**

@@ -79,17 +79,33 @@ const design = (id: string, extra: any = {}) => ({
   ...extra,
 })
 
-const stubGraph = (designsById: Record<string, any>, storeCurrency = "aud") => {
+/**
+ * A MULTI-TENANT store table, because that is what prod is: 13 stores, 12 of
+ * them partner tenants carrying `metadata.partner_id`. The partner row is
+ * deliberately FIRST — the read this replaced took `stores[0]`, so a stub with
+ * a single store could never have caught #1979.
+ */
+const stubGraph = (
+  designsById: Record<string, any>,
+  storeCurrency = "aud",
+  houseCurrencies: string[] = ["usd", "inr", "aud", "eur"]
+) => {
   graph.mockImplementation(async ({ entity, filters }: any) => {
     if (entity === "store") {
       return {
         data: [
           {
+            id: "store_partner_first",
+            metadata: { partner_id: "01PARTNER" },
+            supported_currencies: [{ currency_code: "idr", is_default: true }],
+          },
+          {
             id: "store_1",
-            supported_currencies: [
-              { currency_code: "usd", is_default: false },
-              { currency_code: storeCurrency, is_default: true },
-            ],
+            metadata: null,
+            supported_currencies: houseCurrencies.map((c) => ({
+              currency_code: c,
+              is_default: c === storeCurrency,
+            })),
           },
         ],
       }
@@ -314,6 +330,59 @@ describe("applyRunApprovals — approving", () => {
 
     expect(createProductRun.mock.calls[0][0].input.currency_code).toBe("inr")
     expect(createProductRun.mock.calls[0][0].input.currency_code).not.toBe("aud")
+  })
+
+  it("scopes the FX fanout to the HOUSE store, not the first row", async () => {
+    /*
+     * 🔴 `stores[0]` here is a PARTNER tenant. Scoping the fanout to it would
+     * materialise prices against another tenant's currency set (#1979/#1983).
+     */
+    listProductionRuns.mockResolvedValue([completedRun("run_1", "des_1")])
+    stubGraph({ des_1: design("des_1", { cost_currency: "inr" }) })
+
+    await applyRunApprovals(container, { runIds: ["run_1"], decision: "approve" })
+
+    const fanout = emit.mock.calls.filter(
+      (c: any[]) => c[0]?.name === "fx.fanout_requested"
+    )
+    expect(fanout).toHaveLength(1)
+    expect(fanout[0][0].data.store_id).toBe("store_1")
+    expect(fanout[0][0].data.store_id).not.toBe("store_partner_first")
+  })
+
+  it("warns when the price is in a currency the house store cannot sell", async () => {
+    /*
+     * A GUARD, never an override. The live instance: `Le Ciricotte` does not
+     * enable INR at all, so an INR-costed design gets a correct price that the
+     * store cannot actually sell. The currency must NOT be swapped — doing that
+     * silently re-denominates ₹2,634.75 as €2,634.75, which IS #1979.
+     */
+    listProductionRuns.mockResolvedValue([completedRun("run_1", "des_1")])
+    stubGraph({ des_1: design("des_1", { cost_currency: "inr" }) }, "eur", ["eur", "gbp"])
+
+    await applyRunApprovals(container, { runIds: ["run_1"], decision: "approve" })
+
+    const warned = (logger.warn as jest.Mock).mock.calls
+      .map((c: any[]) => String(c[0]))
+      .filter((m: string) => m.includes("does not sell in"))
+    expect(warned).toHaveLength(1)
+    expect(warned[0]).toContain("inr")
+
+    // and the price it actually wrote is STILL inr — warned, not rewritten
+    expect(createProductRun.mock.calls[0][0].input.currency_code).toBe("inr")
+  })
+
+  it("does not warn when the house store enables the currency", async () => {
+    listProductionRuns.mockResolvedValue([completedRun("run_1", "des_1")])
+    stubGraph({ des_1: design("des_1", { cost_currency: "inr" }) })
+
+    await applyRunApprovals(container, { runIds: ["run_1"], decision: "approve" })
+
+    expect(
+      (logger.warn as jest.Mock).mock.calls
+        .map((c: any[]) => String(c[0]))
+        .filter((m: string) => m.includes("does not sell in"))
+    ).toHaveLength(0)
   })
 
   it("says out loud that the currency was assumed", async () => {
