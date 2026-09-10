@@ -46,6 +46,28 @@ module.exports = defineConfig({
     }),
     disable: process.env.DISABLE_MEDUSA_ADMIN === "true",
     backendUrl: process.env.MEDUSA_BACKEND_URL,
+    /**
+     * Where the admin's "Copy payment link" button points (#1985).
+     *
+     * ⚠️ This is baked into the admin bundle at BUILD time and has exactly ONE
+     * consumer in the dashboard — `copy-payment-link.tsx`, which builds
+     * `${storefrontUrl}/payment-collection/:id?order_id=:order`.
+     *
+     * It is deliberately the BACKEND, not a storefront. Our storefront is
+     * multi-tenant (the house shop and partner shops are different apps on
+     * different domains) and a single build-time constant could only ever name
+     * one of them. `/payment-collection/:id` on this backend forwards to the
+     * hosted Stripe page, which resolves each collection's own partner routing.
+     *
+     * 🔴 Left unset, `@medusajs/admin-bundler` defines it as `""` — and the
+     * dashboard's `__STOREFRONT_URL__ ?? "http://localhost:8000"` does NOT
+     * catch an empty string, so the button copied a link with no host at all.
+     * `||` rather than `??` here for the same reason.
+     */
+    storefrontUrl:
+      process.env.MEDUSA_STOREFRONT_URL ||
+      process.env.MEDUSA_BACKEND_URL ||
+      "https://v3.jaalyantra.com",
     
   },
   featureFlags: {
