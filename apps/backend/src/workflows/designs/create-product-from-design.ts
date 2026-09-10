@@ -13,6 +13,7 @@ import { DESIGN_MODULE } from "../../modules/designs";
 import type { Link } from "@medusajs/modules-sdk";
 import { resolveLineItemDesignId } from "../../lib/resolve-line-item-production"
 import designCustomerLink from "../../links/design-customer-link"
+import designOrderLineItemLink from "../../links/design-order-line-item-link"
 
 /**
  * Create Product from Design Workflow
@@ -514,11 +515,95 @@ const createProductAndVariantStep = createStep(
     // Update any existing order line items to reference the new variant/product.
     // This closes the loop: order placed (custom item) → design approved → order items linked.
     //
-    // We find orders via two paths:
+    // We find the lines to fill via three paths:
+    //  0. the design↔order-LINE-ITEM link (#1919) — authoritative, and names the
+    //     lines directly rather than the orders they happen to sit in
     //  1. design_order link (created by order-placed subscriber)
     //  2. design_line_item link → cart line item → order_cart (fallback if subscriber hasn't run yet)
     try {
       const orderService = container.resolve(Modules.ORDER) as any;
+      const logger: any = (() => {
+        try {
+          return container.resolve(ContainerRegistrationKeys.LOGGER);
+        } catch {
+          return null;
+        }
+      })();
+
+      /** Line items this pass actually filled, so the two halves cannot double-write. */
+      const filledLineItemIds = new Set<string>();
+
+      /**
+       * Hoisted: both the #1919 path and the order-discovery path below stamp
+       * the same denormalised variant fields, so they must read the same row.
+       */
+      const productServiceForDetails = container.resolve(Modules.PRODUCT) as any;
+      const variantDetails = await productServiceForDetails
+        .retrieveProductVariant(variant_id, {
+          select: ["id", "sku", "title"],
+          relations: ["product"],
+        })
+        .catch(() => null);
+
+      /**
+       * 🔴 Path 0 — added because paths 1 and 2 were a generation behind this
+       * block's OWN matcher, and the gap was silent.
+       *
+       * The matcher below resolves each item through `resolveLineItemDesignId`,
+       * which prefers the #1919 design↔order-line-item link over everything —
+       * but it only ever ran on orders discovered through `design_order` and
+       * `design_line_item`. Neither of those moves when a line is RE-POINTED:
+       * `design_order` still names the design that was originally ordered, and
+       * `design_line_item` is a CART-level link that a re-point never touches.
+       *
+       * So a line re-pointed to design B sat in an order that only `design_order`
+       * knew as design A's. Minting B's product found no order, matched nothing,
+       * and reported nothing — the loop-closer looked identical to one that is
+       * not there. Reproduced on `ordli_01KWEXYYGE5RCYBCK3GC5Q753S`: the #1919
+       * link named the new design, `design_order` named the three originals, and
+       * the line kept `variant_id: null` through a successful mint.
+       *
+       * The link names the LINE, so there is no order to discover and no design
+       * to re-resolve: a row here IS the statement that this line is for this
+       * design. `!variant_id` still gates the write — this only ever fills in a
+       * variant that is missing, and never touches price.
+       */
+      try {
+        const { data: itemLinks } = await query.graph({
+          entity: designOrderLineItemLink.entryPoint,
+          filters: { design_id: input.design_id },
+          fields: ["order_line_item_id"],
+        });
+
+        const linkedIds = (itemLinks || [])
+          .map((l: any) => l?.order_line_item_id)
+          .filter((id: any): id is string => typeof id === "string" && !!id);
+
+        if (linkedIds.length) {
+          const lineItems = await orderService.listOrderLineItems({
+            id: linkedIds,
+          });
+
+          for (const item of lineItems || []) {
+            if (!item?.id || item.variant_id) {
+              continue;
+            }
+            await orderService.updateOrderLineItems(item.id, {
+              variant_id,
+              product_id,
+              variant_sku: variantDetails?.sku || undefined,
+              variant_title: variantDetails?.title || undefined,
+              product_title: variantDetails?.product?.title || item.title,
+            });
+            filledLineItemIds.add(item.id);
+          }
+        }
+      } catch (e) {
+        // Non-fatal, like the paths below — but SAID, not swallowed.
+        console.warn(
+          `[create-product-from-design] #1919 link path failed for design ${input.design_id}: ${(e as Error).message}`
+        );
+      }
 
       const orderIds = new Set<string>();
 
@@ -573,12 +658,6 @@ const createProductAndVariantStep = createStep(
       }
 
       if (orderIds.size > 0) {
-        const productService = container.resolve(Modules.PRODUCT) as any;
-        const variantDetails = await productService.retrieveProductVariant(variant_id, {
-          select: ["id", "sku", "title"],
-          relations: ["product"],
-        }).catch(() => null);
-
         for (const orderId of orderIds) {
           try {
             const { data: orderData } = await query.graph({
@@ -589,6 +668,10 @@ const createProductAndVariantStep = createStep(
 
             const items = orderData?.[0]?.items || [];
             for (const item of items) {
+              // Already filled by the #1919 path — don't write it twice.
+              if (filledLineItemIds.has(item.id)) {
+                continue;
+              }
               /**
                * Was `item.metadata?.design_id === input.design_id`. The link
                * wins now (#1919), so an item re-pointed to a different design
@@ -608,6 +691,7 @@ const createProductAndVariantStep = createStep(
                   variant_title: variantDetails?.title || undefined,
                   product_title: variantDetails?.product?.title || item.title,
                 });
+                filledLineItemIds.add(item.id);
               }
             }
           } catch {
@@ -615,6 +699,23 @@ const createProductAndVariantStep = createStep(
           }
         }
       }
+
+      /**
+       * 🔴 Say what happened, including when the answer is "nothing".
+       *
+       * This whole block used to be silent unless it threw: finding no orders
+       * is not an error, so a loop-closer that filled nothing and one that was
+       * never written looked identical from the outside. That is how a paid
+       * order kept `variant_id: null` across two separate mints without anyone
+       * being told.
+       */
+      logger?.info?.(
+        `[create-product-from-design] design ${input.design_id} → variant ${variant_id}: ` +
+          `filled ${filledLineItemIds.size} order line item(s)` +
+          (filledLineItemIds.size
+            ? ` (${[...filledLineItemIds].join(", ")})`
+            : " — no variant-less line item referenced this design")
+      );
     } catch (e) {
       // Non-fatal — the product was created, order line item update is best-effort
       console.error("[create-product-from-design] Failed to update order line items:", (e as Error).message);
