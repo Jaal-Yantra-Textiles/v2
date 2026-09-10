@@ -53,11 +53,15 @@ module.exports = defineConfig({
      * consumer in the dashboard — `copy-payment-link.tsx`, which builds
      * `${storefrontUrl}/payment-collection/:id?order_id=:order`.
      *
-     * It is deliberately the BACKEND, not a storefront. Our storefront is
-     * multi-tenant (the house shop and partner shops are different apps on
-     * different domains) and a single build-time constant could only ever name
-     * one of them. `/payment-collection/:id` on this backend forwards to the
-     * hosted Stripe page, which resolves each collection's own partner routing.
+     * It names the SHOP, so a buyer lands on the storefront they bought from
+     * and sees the order they are topping up. `apps/storefront` serves
+     * cicilabel.com and implements `/payment-collection/:id`.
+     *
+     * ⚠️ Single build-time constant, one value for every tenant. Partner shops
+     * live on their own domains, so a partner order's link still points at the
+     * house shop. The backend keeps its own `/payment-collection/:id` redirect
+     * to the hosted Stripe page as a fallback for links already sent and for
+     * any tenant this cannot name — see #1985.
      *
      * 🔴 Left unset, `@medusajs/admin-bundler` defines it as `""` — and the
      * dashboard's `__STOREFRONT_URL__ ?? "http://localhost:8000"` does NOT
@@ -65,9 +69,7 @@ module.exports = defineConfig({
      * `||` rather than `??` here for the same reason.
      */
     storefrontUrl:
-      process.env.MEDUSA_STOREFRONT_URL ||
-      process.env.MEDUSA_BACKEND_URL ||
-      "https://v3.jaalyantra.com",
+      process.env.MEDUSA_STOREFRONT_URL || "https://cicilabel.com",
     
   },
   featureFlags: {
