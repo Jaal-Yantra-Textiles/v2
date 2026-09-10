@@ -1,3 +1,16 @@
+# [13.133.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.132.1...v13.133.0) (2026-09-10)
+
+
+### Bug Fixes
+
+* **ops:** replay-fx-fanout could not reach house stores; make a red e2e visible ([#1968](https://github.com/Jaal-Yantra-Textiles/v2/issues/1968)) ([d33c981](https://github.com/Jaal-Yantra-Textiles/v2/commit/d33c98186eb84199ba1899bf6e00a9d3456f9c62)), closes [#1900](https://github.com/Jaal-Yantra-Textiles/v2/issues/1900) [#1900](https://github.com/Jaal-Yantra-Textiles/v2/issues/1900) [#1963](https://github.com/Jaal-Yantra-Textiles/v2/issues/1963) [#1964](https://github.com/Jaal-Yantra-Textiles/v2/issues/1964)
+
+
+### Features
+
+* **orders:** ask whether to commission production when re-pointing a design ([#1969](https://github.com/Jaal-Yantra-Textiles/v2/issues/1969)) ([d2e7101](https://github.com/Jaal-Yantra-Textiles/v2/commit/d2e710128c7e6c20f7ac09821f0d7c81c1c2d44b)), closes [#1953](https://github.com/Jaal-Yantra-Textiles/v2/issues/1953) [#1955](https://github.com/Jaal-Yantra-Textiles/v2/issues/1955)
+* **inventory-orders:** searchable "Ship from" picker in the shipment modal ([#1967](https://github.com/Jaal-Yantra-Textiles/v2/issues/1967)) ([47c51ae](https://github.com/Jaal-Yantra-Textiles/v2/commit/47c51ae90484541d72cb215a0bb4b1977561068a)), closes [#1961](https://github.com/Jaal-Yantra-Textiles/v2/issues/1961) [#1961](https://github.com/Jaal-Yantra-Textiles/v2/issues/1961) [#1961](https://github.com/Jaal-Yantra-Textiles/v2/issues/1961)
+
 ## [13.132.1](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.132.0...v13.132.1) (2026-09-10)
 
 
