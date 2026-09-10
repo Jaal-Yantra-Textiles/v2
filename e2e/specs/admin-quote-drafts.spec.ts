@@ -104,7 +104,7 @@ test.describe("Admin quote drafts (#1446)", () => {
 
     await page.getByText("Select a region").click()
     // A region that declares countries — at least one of ours declares none.
-    await page.getByRole("option", { name: /Singapore/ }).click()
+    await page.getByRole("option", { name: /E2E Quote Region/ }).click()
 
     // The region wrote the currency; nobody typed it.
     await expect(currency).not.toHaveValue("")
@@ -122,7 +122,7 @@ test.describe("Admin quote drafts (#1446)", () => {
     await page.getByText("Select a partner").click()
     await page.getByRole("option", { name: /E2E Content Partner/ }).first().click()
     await page.getByText("Select a region").click()
-    await page.getByRole("option", { name: /Singapore/ }).click()
+    await page.getByRole("option", { name: /E2E Quote Region/ }).click()
 
     await page.getByRole("button", { name: "Save" }).click()
 
@@ -167,7 +167,7 @@ test.describe("Admin quote drafts (#1446)", () => {
     await page.getByText("Select a partner").click()
     await page.getByRole("option", { name: /E2E Content Partner/ }).first().click()
     await page.getByText("Select a region").click()
-    await page.getByRole("option", { name: /Singapore/ }).click()
+    await page.getByRole("option", { name: /E2E Quote Region/ }).click()
     await page.getByRole("button", { name: "Save" }).click()
     await page.waitForURL(/\/app\/quotes\/drafts\//, { timeout: 30000 })
 
@@ -231,7 +231,7 @@ test.describe("Admin quote drafts (#1446)", () => {
     await page.getByText("Select a partner").click()
     await page.getByRole("option", { name: /E2E Content Partner/ }).first().click()
     await page.getByText("Select a region").click()
-    await page.getByRole("option", { name: /Singapore/ }).click()
+    await page.getByRole("option", { name: /E2E Quote Region/ }).click()
     await page.getByRole("button", { name: "Save" }).click()
     await page.waitForURL(/\/app\/quotes\/drafts\//, { timeout: 30000 })
 
@@ -246,7 +246,12 @@ test.describe("Admin quote drafts (#1446)", () => {
 
     // Back on the draft, and the units are on the record — not zero.
     await page.waitForURL(/\/app\/quotes\/drafts\/[^/]+$/, { timeout: 30000 })
-    await expect(page.getByText("500")).toBeVisible({ timeout: 15000 })
+    // #1963 — the basket now persists, so "500" renders twice: the quantity
+    // ("500×") and the line amount ("500"). Assert the exact amount, not a
+    // substring that matches both.
+    await expect(page.getByText("500", { exact: true })).toBeVisible({
+      timeout: 15000,
+    })
   })
 
   test("the buyer drawer saves without emptying the basket", async ({ page }) => {
@@ -256,7 +261,7 @@ test.describe("Admin quote drafts (#1446)", () => {
     await page.getByText("Select a partner").click()
     await page.getByRole("option", { name: /E2E Content Partner/ }).first().click()
     await page.getByText("Select a region").click()
-    await page.getByRole("option", { name: /Singapore/ }).click()
+    await page.getByRole("option", { name: /E2E Quote Region/ }).click()
     await page.getByRole("button", { name: "Save" }).click()
     await page.waitForURL(/\/app\/quotes\/drafts\//, { timeout: 30000 })
 

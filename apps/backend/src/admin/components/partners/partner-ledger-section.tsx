@@ -339,8 +339,17 @@ export const PartnerLedgerSection = ({ partnerId }: { partnerId: string }) => {
    */
   const showTotals = !!totals?.currency && rows.length > 0
 
+  /**
+   * #1963 — `data-partner-section` disambiguates this panel from the Credits
+   * panel, which stamps the same `data-partner-id`. The e2e spec selects on
+   * both attributes so its locator resolves to exactly one element.
+   */
   return (
-    <Container className="divide-y p-0" data-partner-id={partnerId}>
+    <Container
+      className="divide-y p-0"
+      data-partner-id={partnerId}
+      data-partner-section="ledger"
+    >
       <div className="flex items-center justify-between px-6 py-4">
         <div className="flex items-center gap-x-2">
           <Heading level="h2">Payments</Heading>
