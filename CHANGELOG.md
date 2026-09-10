@@ -1,3 +1,10 @@
+## [13.132.1](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.132.0...v13.132.1) (2026-09-10)
+
+
+### Bug Fixes
+
+* **e2e:** the 9 permanently-red admin specs were three real defects ([#1963](https://github.com/Jaal-Yantra-Textiles/v2/issues/1963)) ([#1964](https://github.com/Jaal-Yantra-Textiles/v2/issues/1964)) ([d2e3485](https://github.com/Jaal-Yantra-Textiles/v2/commit/d2e34851c00e229745498663ff3117e254cd19f2)), closes [#1867](https://github.com/Jaal-Yantra-Textiles/v2/issues/1867)
+
 # [13.132.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.131.0...v13.132.0) (2026-09-10)
 
 
