@@ -636,6 +636,21 @@ export const useChangeOrderDesigns = (
     mutationFn: async (vars: {
       order_id: string;
       changes: Array<{ line_item_id: string; design_id: string | null }>;
+      /**
+       * #1953 — what production should do about the change. `mode: "new"`
+       * commissions one run per line the change actually MOVES; "none" (the
+       * route's default) leaves production untouched.
+       *
+       * 🔴 This key has to be listed BOTH here and in the body below. The body
+       * is an explicit literal, not a spread, so a field named only in the
+       * type is accepted by TypeScript and then silently dropped on the way
+       * out — the request succeeds and production is simply never asked for.
+       */
+      production?: {
+        mode?: "none" | "new";
+        quantity?: number | null;
+        partner_id?: string | null;
+      };
       notify?: boolean;
       dry_run?: boolean;
     }) =>
@@ -643,6 +658,7 @@ export const useChangeOrderDesigns = (
         method: "POST",
         body: {
           changes: vars.changes,
+          production: vars.production,
           notify: vars.notify,
           dry_run: vars.dry_run,
         },
