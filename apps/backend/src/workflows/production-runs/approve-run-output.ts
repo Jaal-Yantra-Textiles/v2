@@ -6,6 +6,7 @@ import { computeRunCostSummary } from "../../modules/production_runs/cost-summar
 import { requestVariantPriceFanout } from "../fx/fanout-variant-prices"
 import {
   resolveApprovalCurrency as resolveCurrency,
+  approvalCurrencyWasAssumed as assumedCurrency,
   resolveApprovalPrice,
 } from "./approval-pricing"
 import {
@@ -36,8 +37,10 @@ import updateDesignWorkflow from "../designs/update-design"
  *
  * 🔴 **`currency_code: "usd"` was hardcoded** in the approve route while the
  * platform trades in AUD and INR. At scale that mis-prices a whole batch. The
- * design's own `cost_currency` is the answer; the store default is the
- * fallback (see `resolveApprovalCurrency`).
+ * design's own `cost_currency` is the answer, with INR behind it. The store
+ * default is NOT consulted — on a EUR store it made the INR last resort
+ * unreachable and minted INR costs as euros, ~110x (#1979). See
+ * `resolveApprovalCurrency`.
  *
  * 🔴 **A partial batch is a real outcome and must be said out loud** (#1263).
  * Every run comes back with what happened to it — approved, rejected, skipped
@@ -112,39 +115,20 @@ export {
   resolveApprovalPrice,
 } from "./approval-pricing"
 import { loadCostConfig } from "../../modules/platform-cost-config/read-config"
+import { currencyIsSellable, readHouseStore } from "./house-store"
 
-/** The store the FX fanout is scoped to. Null is survivable; see the call site. */
+/**
+ * The store the FX fanout is scoped to — the HOUSE store, not `stores[0]`.
+ *
+ * 🔴 This used to take the first row of a 13-row, multi-tenant table, so the
+ * fanout could be scoped to an arbitrary partner tenant's currency set (#1979).
+ * See `house-store.ts` for how the house store is identified and why an
+ * ambiguous answer returns null rather than guessing.
+ */
 export async function readStoreId(container: any): Promise<string | null> {
-  try {
-    const query = container.resolve(ContainerRegistrationKeys.QUERY) as any
-    const { data: stores = [] } = await query.graph({
-      entity: "store",
-      fields: ["id"],
-    })
-    return stores?.[0]?.id ?? null
-  } catch {
-    return null
-  }
+  return (await readHouseStore(container))?.id ?? null
 }
 
-/** The store's default currency, for designs that never recorded their own. */
-export async function readStoreCurrency(container: any): Promise<string | null> {
-  try {
-    const query = container.resolve(ContainerRegistrationKeys.QUERY) as any
-    const { data: stores = [] } = await query.graph({
-      entity: "store",
-      fields: ["id", "supported_currencies.currency_code", "supported_currencies.is_default"],
-    })
-    const supported = stores?.[0]?.supported_currencies ?? []
-    const fallback = supported.find((c: any) => c?.is_default) ?? supported[0]
-    return fallback?.currency_code ?? null
-  } catch {
-    // A store we cannot read is not a reason to refuse the batch; the design's
-    // own currency answers for most rows, and `resolveApprovalCurrency` still
-    // has its last resort.
-    return null
-  }
-}
 
 const isDecided = (run: any) => Boolean(run?.approval_decision)
 
@@ -287,15 +271,14 @@ export async function applyRunApprovals(
   }
 
   // ---- 3. Approve: one product per DESIGN, however many runs --------------
-  const storeCurrency = await readStoreCurrency(container)
-
   /**
    * The FX fanout is scoped to a store's `supported_currencies`, so it needs the
    * store id — read once here rather than per design. A store we cannot read
    * costs the fanout, not the approval: the base price is still written and
    * `replay-fx-fanout` can materialise the rest later.
    */
-  const storeId = await readStoreId(container)
+  const houseStore = await readHouseStore(container)
+  const storeId = houseStore?.id ?? null
   const costConfig = await loadCostConfig(container)
 
   /** design_id → the runs of that design in this batch, in the order given. */
@@ -312,7 +295,12 @@ export async function applyRunApprovals(
     let product_id: string | null = null
     let variant_id: string | null = null
     let productExisted = false
-    let currency = resolveCurrency({ storeCurrency })
+    /**
+     * The pre-read default, used only if the design read below throws. INR
+     * rather than the store's default: production is costed in INR, and a EUR
+     * store default here is what made #1979 a 110x overprice.
+     */
+    let currency = resolveCurrency({})
     let price = 0
     let priceSource: string | null = null
     let unitCost: number | null = null
@@ -343,10 +331,6 @@ export async function applyRunApprovals(
         throw new Error(`Design not found: ${designId}`)
       }
 
-      currency = resolveCurrency({
-        designCurrency: design.cost_currency,
-        storeCurrency,
-      })
       /**
        * 🔴 The price comes from what the RUN cost, not from an estimate typed
        * on the design months earlier — and never from `?? 0`.
@@ -362,12 +346,20 @@ export async function applyRunApprovals(
        * would under-price every other unit sold under the same variant.
        */
       let runCostPerUnit: number | null = null
+      /**
+       * 🔴 The currency of the run that SUPPLIED the winning cost — not of any
+       * run in the batch. Reducing to the dearest picks one record's number, so
+       * the denomination has to come from that same record or the price is
+       * valued by one run and labelled by another.
+       */
+      let costingRunCurrency: string | null = null
       for (const r of designRuns) {
         try {
           const summary = await computeRunCostSummary(container, r.id)
           const perUnit = Number(summary?.cost_per_unit)
-          if (Number.isFinite(perUnit) && perUnit > 0) {
-            runCostPerUnit = Math.max(runCostPerUnit ?? 0, perUnit)
+          if (Number.isFinite(perUnit) && perUnit > 0 && perUnit > (runCostPerUnit ?? 0)) {
+            runCostPerUnit = perUnit
+            costingRunCurrency = summary?.currency ?? null
           }
         } catch {
           // A run we cannot cost is not a reason to fail the batch; the other
@@ -395,6 +387,53 @@ export async function applyRunApprovals(
       price = priced.price
       priceSource = priced.source
       unitCost = priced.cost
+
+      /**
+       * Denominate the price with the record that SUPPLIED it.
+       *
+       * 🔴 Resolved AFTER pricing, deliberately. `resolveApprovalPrice` picks
+       * the run's cost where one exists and the design's estimate where it does
+       * not — so the currency has to follow the same choice. Asking the run for
+       * the currency of a figure that came off the DESIGN would label an
+       * estimate with a denomination it was never expressed in.
+       */
+      const runCurrencyForPrice =
+        priceSource === "run_cost" ? costingRunCurrency : null
+      currency = resolveCurrency({
+        runCurrency: runCurrencyForPrice,
+        designCurrency: design.cost_currency,
+      })
+      if (assumedCurrency(design.cost_currency, runCurrencyForPrice)) {
+
+        /**
+         * Said out loud because it is a GUESS, and the common case: 42 of 43
+         * costed designs on prod had no `cost_currency` when #1979 was found.
+         * The price is still written — refusing the batch over it would stop
+         * approvals platform-wide — but the assumption is now in the log
+         * rather than only in a docblock.
+         */
+        logger?.warn?.(
+          `[approve-run-output] design ${designId} has no cost_currency; ` +
+            `assuming ${currency}. If it was not costed in ${currency}, its price is wrong.`
+        )
+      }
+      if (!currencyIsSellable(currency, houseStore)) {
+        /**
+         * A GUARD, never an override. The currency stays what the cost was
+         * computed in — re-denominating it to whatever the store prefers is
+         * exactly the #1979 defect. This only says the resulting price is not
+         * sellable here, so it stops being a silent condition: on prod today
+         * INR is enabled on 12 of 13 stores, but `Le Ciricotte` does not
+         * enable it at all.
+         */
+        logger?.warn?.(
+          `[approve-run-output] design ${designId} is priced in ${currency}, ` +
+            `which the house store does not sell in ` +
+            `(enabled: ${houseStore?.currencies.join(", ") || "unknown"}). ` +
+            `The price is correct but unsellable until ${currency} is enabled.`
+        )
+      }
+
 
       const linked = design.products?.[0]
       productExisted = Boolean(linked?.id)

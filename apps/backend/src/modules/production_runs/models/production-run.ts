@@ -137,6 +137,25 @@ const ProductionRun = model.define("production_runs", {
   // Cost
   partner_cost_estimate: model.float().nullable(),
   cost_type: model.enum(["per_unit", "total"]).default("total").nullable(),
+  /**
+   * What this run's cost is DENOMINATED IN (#1979).
+   *
+   * 🔴 The cost used to be a bare number with no currency anywhere on the run.
+   * `RunCostSummary` had no currency field either, so when approval turned a
+   * run's cost into a listed price it had to GUESS — and the guess it made was
+   * the store's default. On a EUR store that listed a cost of ₹2,634.75 as
+   * €2,634.75, about 110× the real figure.
+   *
+   * Nullable, and null means "not stated" rather than any particular currency:
+   * every run that existed before this column reads as unstated, which is the
+   * truth about them. Approval falls back to the design's `cost_currency` and
+   * then to INR, so an unstated run behaves exactly as it did.
+   *
+   * ⚠️ Lowercased 3-letter code, matched to how prices are stored. It is the
+   * currency of `partner_cost_estimate` AND of everything `computeRunCostSummary`
+   * derives from the run's consumption logs, because those are the same money.
+   */
+  cost_currency: model.text().nullable(),
 
   // Dispatch state
   dispatch_state: model

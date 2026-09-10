@@ -127,6 +127,7 @@ import { backfillPaymentLineRunProvenanceJob } from "./backfill-payment-line-run
 import { backfillInventoryOrderPaymentLinksJob } from "./backfill-inventory-order-payment-links-job"
 import { backfillSubmissionPaidAtJob } from "./backfill-submission-paid-at-job"
 import { clearUnpriceableDesignCostsJob } from "./clear-unpriceable-design-costs-job"
+import { backfillDesignCostCurrencyJob } from "./backfill-design-cost-currency-job"
 import { recordPaymentLineRunJob } from "./record-payment-line-run-job"
 import { deduplicateTaskTemplateNamesJob } from "./deduplicate-task-template-names-job"
 import { recordManualInventoryCorrectionJob } from "./record-manual-inventory-correction-job"
@@ -6023,6 +6024,7 @@ export const MAINTENANCE_JOBS: MaintenanceJob[] = [
   backfillInventoryOrderPaymentLinksJob,
   backfillSubmissionPaidAtJob,
   clearUnpriceableDesignCostsJob,
+  backfillDesignCostCurrencyJob,
   recordPaymentLineRunJob,
   recordManualInventoryCorrectionJob,
   applyCommittedConsumptionJob,

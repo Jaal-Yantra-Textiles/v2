@@ -17,6 +17,20 @@ import type EnergyRateService from "../energy_rates/service"
 export type RunCostSummary = {
   production_run_id: string
   design_id: string
+  /**
+   * What every figure below is DENOMINATED IN — the run's own `cost_currency`,
+   * or null when the run never stated one (#1979).
+   *
+   * 🔴 This type used to carry no currency at all. Approval turns `cost_per_unit`
+   * into a listed price, so with no currency here it had to GUESS one, and the
+   * guess was the store's default: a cost of ₹2,634.75 was listed as €2,634.75,
+   * about 110×. A number that becomes money must say what it is measured in.
+   *
+   * ⚠️ null means UNSTATED, not INR. The fallback belongs to the caller
+   * (`resolveApprovalCurrency`), which has the design's currency to try next;
+   * defaulting here would hide an unstated run behind a plausible answer.
+   */
+  currency: string | null
   status: string
   quantity: number
   produced_quantity: number | null
@@ -195,6 +209,13 @@ export async function computeRunCostSummary(
   return {
     production_run_id: runId,
     design_id: (run as any).design_id,
+    /*
+     * Trimmed and lowercased, and `""` collapses to null — '' is falsy but is
+     * not null, and an empty currency code reads as a stated one to any caller
+     * that only checks for null.
+     */
+    currency:
+      String((run as any).cost_currency ?? "").trim().toLowerCase() || null,
     status: (run as any).status,
     quantity: (run as any).quantity,
     produced_quantity: (run as any).produced_quantity ?? null,
