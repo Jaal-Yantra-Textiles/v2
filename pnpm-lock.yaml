@@ -420,8 +420,8 @@ importers:
         specifier: ^6.1.2
         version: 6.1.2
       js-yaml:
-        specifier: ^4.3.0
-        version: 4.3.0
+        specifier: ^4.3.2
+        version: 4.3.2
       json-edit-react:
         specifier: ^1.27.2
         version: 1.29.0(react@18.3.1)
@@ -15421,12 +15421,12 @@ packages:
   js-tokens@4.0.0:
     resolution: {integrity: sha512-RdJUflcE3cUzKiMqQgsCu06FPu9UdIJO0beYbPhHN4k6apgJtifcoCtT9bcxOpYBtpD2kCM6Sbzg4CausW/PKQ==}
 
-  js-yaml@3.15.0:
-    resolution: {integrity: sha512-ttBQIIQPDeLjpPOohtUdXuXUVoA2uIB6fEH9HyJ7234s5mBJ5wTx20njxplLZQgLaOfpmPQA7X2t5AX6tIPbog==}
+  js-yaml@3.15.2:
+    resolution: {integrity: sha512-6EuL879VkRA+1Cz578mKMiKvjPNEuk6+r1JaFzoSWejZmtf7xWbIyw1e3KkxlkzTIt9Taw6JBhEppG7utc1P+w==}
     hasBin: true
 
-  js-yaml@4.3.0:
-    resolution: {integrity: sha512-1td788aAnnZ5qs7V2QIRl1owjtYpbKt749Y3xauqQgwIIGF/xXWz1wMTEBx5O3LK3lXLVuqXPdPxj2BoFHaW9Q==}
+  js-yaml@4.3.2:
+    resolution: {integrity: sha512-SFNOvSJ+Dgf/9An904Yx+CgSlIPCkIpao4qo51lpee25TIRejdH3rhR4EZMGoNx3/TP3O+wzWuiTFl4sqbltzA==}
     hasBin: true
 
   jsbn@1.1.0:
@@ -21781,7 +21781,7 @@ snapshots:
   '@apidevtools/json-schema-ref-parser@14.2.1(@types/json-schema@7.0.15)':
     dependencies:
       '@types/json-schema': 7.0.15
-      js-yaml: 4.3.0
+      js-yaml: 4.3.2
 
   '@apidevtools/swagger-methods@3.0.2': {}
 
@@ -25223,7 +25223,7 @@ snapshots:
       '@types/react-router-config': 5.0.11
       combine-promises: 1.2.0
       fs-extra: 11.3.6
-      js-yaml: 4.3.0
+      js-yaml: 4.3.2
       lodash: 4.17.23
       react: 18.3.1
       react-dom: 18.3.1(react@18.3.1)
@@ -25679,7 +25679,7 @@ snapshots:
       '@docusaurus/utils-common': 3.9.2(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
       fs-extra: 11.4.0
       joi: 17.13.3
-      js-yaml: 4.3.0
+      js-yaml: 4.3.2
       lodash: 4.17.23
       tslib: 2.8.1
     transitivePeerDependencies:
@@ -25704,7 +25704,7 @@ snapshots:
       globby: 11.1.0
       gray-matter: 4.0.3
       jiti: 1.21.7
-      js-yaml: 4.3.0
+      js-yaml: 4.3.2
       lodash: 4.17.23
       micromatch: 4.0.8
       p-queue: 6.6.2
@@ -26086,7 +26086,7 @@ snapshots:
       globals: 13.24.0
       ignore: 5.3.2
       import-fresh: 3.3.1
-      js-yaml: 4.3.0
+      js-yaml: 4.3.2
       minimatch: 3.1.5
       strip-json-comments: 3.1.1
     transitivePeerDependencies:
@@ -26778,7 +26778,7 @@ snapshots:
       camelcase: 5.3.1
       find-up: 4.1.0
       get-package-type: 0.1.0
-      js-yaml: 3.15.0
+      js-yaml: 3.15.2
       resolve-from: 5.0.0
 
   '@istanbuljs/schema@0.1.3': {}
@@ -36284,7 +36284,7 @@ snapshots:
       '@jsdevtools/ono': 7.1.3
       '@types/json-schema': 7.0.15
       call-me-maybe: 1.0.2
-      js-yaml: 4.3.0
+      js-yaml: 4.3.2
 
   '@readme/openapi-parser@2.7.0(openapi-types@12.1.3)':
     dependencies:
@@ -36345,7 +36345,7 @@ snapshots:
       colorette: 1.4.0
       https-proxy-agent: 7.0.6
       js-levenshtein: 1.1.6
-      js-yaml: 4.3.0
+      js-yaml: 4.3.2
       lodash.isequal: 4.5.0
       minimatch: 5.1.9
       node-fetch: 2.7.0
@@ -40205,7 +40205,7 @@ snapshots:
       hyperlinker: 1.0.0
       indent-string: 4.0.0
       is-wsl: 2.2.0
-      js-yaml: 3.15.0
+      js-yaml: 3.15.2
       lodash: 4.18.1
       natural-orderby: 2.0.3
       object-treeify: 1.1.33
@@ -40624,7 +40624,7 @@ snapshots:
   cosmiconfig@8.3.6(typescript@5.6.3):
     dependencies:
       import-fresh: 3.3.1
-      js-yaml: 4.3.0
+      js-yaml: 4.3.2
       parse-json: 5.2.0
       path-type: 4.0.0
     optionalDependencies:
@@ -40634,7 +40634,7 @@ snapshots:
     dependencies:
       env-paths: 2.2.1
       import-fresh: 3.3.1
-      js-yaml: 4.3.0
+      js-yaml: 4.3.2
       parse-json: 5.2.0
     optionalDependencies:
       typescript: 5.9.3
@@ -42125,7 +42125,7 @@ snapshots:
       import-fresh: 3.3.1
       imurmurhash: 0.1.4
       is-glob: 4.0.3
-      js-yaml: 4.3.0
+      js-yaml: 4.3.2
       json-stable-stringify-without-jsonify: 1.0.1
       levn: 0.4.1
       lodash.merge: 4.6.2
@@ -43059,7 +43059,7 @@ snapshots:
 
   gray-matter@4.0.3:
     dependencies:
-      js-yaml: 3.15.0
+      js-yaml: 3.15.2
       kind-of: 6.0.3
       section-matter: 1.0.0
       strip-bom-string: 1.0.0
@@ -44642,12 +44642,12 @@ snapshots:
 
   js-tokens@4.0.0: {}
 
-  js-yaml@3.15.0:
+  js-yaml@3.15.2:
     dependencies:
       argparse: 1.0.10
       esprima: 4.0.1
 
-  js-yaml@4.3.0:
+  js-yaml@4.3.2:
     dependencies:
       argparse: 2.0.1
 
@@ -50582,7 +50582,7 @@ snapshots:
     dependencies:
       commander: 6.2.1
       globby: 11.1.0
-      js-yaml: 4.3.0
+      js-yaml: 4.3.2
       multilang-extract-comments: 0.4.0
       promise.any: 2.0.6
 
