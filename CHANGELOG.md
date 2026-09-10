@@ -1,3 +1,10 @@
+# [13.132.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.131.0...v13.132.0) (2026-09-10)
+
+
+### Features
+
+* **inventory-orders:** searchable To/From stock-location pickers ([#1961](https://github.com/Jaal-Yantra-Textiles/v2/issues/1961)) ([59e954d](https://github.com/Jaal-Yantra-Textiles/v2/commit/59e954d0129c2c043789402e4140f6972512e1c0)), closes [#947](https://github.com/Jaal-Yantra-Textiles/v2/issues/947) [#1552](https://github.com/Jaal-Yantra-Textiles/v2/issues/1552)
+
 # [13.131.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.130.1...v13.131.0) (2026-09-10)
 
 
