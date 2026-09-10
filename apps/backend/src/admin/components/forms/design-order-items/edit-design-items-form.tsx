@@ -8,6 +8,7 @@ import {
   DataTableFilteringState,
   DataTablePaginationState,
   Heading,
+  Label,
   StatusBadge,
   Text,
   createDataTableColumnHelper,
@@ -293,6 +294,19 @@ export const EditDesignItemsForm = ({
    * the order yet so no server row carries its name.
    */
   const [stagedNames, setStagedNames] = useState<Record<string, string>>({})
+  /**
+   * #1953 — commission production for the lines this change moves.
+   *
+   * The API has accepted `production: { mode: "new" }` since #1955; nothing in
+   * the admin asked the question, so the only way to answer it was to call the
+   * route by hand. Off by default, matching the route's own default: making
+   * work is not a side effect of re-pointing a design.
+   *
+   * Request-level rather than per-line because that is the API's shape — "new"
+   * commissions one run per line the change actually MOVED. A detached line or
+   * a line that did not move gets none, and says why.
+   */
+  const [commissionRuns, setCommissionRuns] = useState(false)
 
   const orderId: string | null = designOrder?.order?.id ?? null
   const rows: OrderItemRow[] = designOrder?.order_items?.items ?? []
@@ -366,6 +380,7 @@ export const EditDesignItemsForm = ({
       const preview: any = await mutateAsync({
         order_id: orderId,
         changes: stagedEntries,
+        production: { mode: commissionRuns ? "new" : "none" },
         dry_run: true,
       })
       headline = preview?.notice?.headline ?? ""
@@ -390,6 +405,17 @@ export const EditDesignItemsForm = ({
           ? `⚠️ ${deliveredCount} of these ${deliveredCount === 1 ? "lines has" : "lines have"} already been DELIVERED — changing the design does not change what the customer received.`
           : "",
         "The order itself is not changed: price, quantity and totals stay as they are.",
+        /**
+         * Commissioning work is the one part of this dialog that is not
+         * reversible by re-pointing the line again, so it is stated plainly
+         * rather than left to the checkbox the operator ticked a moment ago.
+         * The preview cannot enumerate which lines get a run — a dry run
+         * returns `production_skipped_reason: "dry run"` for every line — so
+         * this says what WILL happen, not what did.
+         */
+        commissionRuns
+          ? `🏭 A production run will be commissioned for each line this change actually moves${deliveredCount ? ", which does not include lines that did not move" : ""}. Lines that already have an active run are skipped. Cancelling a run afterwards is a separate step.`
+          : "",
         headline ? `The customer will be told: “${headline}”` : "",
       ]
         .filter(Boolean)
@@ -405,14 +431,49 @@ export const EditDesignItemsForm = ({
       const res: any = await mutateAsync({
         order_id: orderId,
         changes: stagedEntries,
+        production: { mode: commissionRuns ? "new" : "none" },
       })
       setStaged({})
       setSelectedItem(null)
-      toast.success(
-        res?.email?.sent
-          ? `${stagedEntries.length === 1 ? "1 line" : `${stagedEntries.length} lines`} re-pointed. The customer has been told, once.`
-          : `${stagedEntries.length === 1 ? "1 line" : `${stagedEntries.length} lines`} re-pointed. No email was sent: ${res?.email?.reason ?? "unknown reason"}.`
+      setCommissionRuns(false)
+
+      const lines =
+        stagedEntries.length === 1 ? "1 line" : `${stagedEntries.length} lines`
+      const emailPart = res?.email?.sent
+        ? "The customer has been told, once."
+        : `No email was sent: ${res?.email?.reason ?? "unknown reason"}.`
+
+      /**
+       * Report what production actually did, per line, from the response —
+       * never from the fact that we asked. A run can be skipped for reasons
+       * only the server knows (the line did not move, it already has a run,
+       * creation failed), and each arrives as `production_skipped_reason`.
+       * Claiming "runs commissioned" because the box was ticked would be a
+       * confident nothing.
+       */
+      const items: any[] = Array.isArray(res?.items) ? res.items : []
+      const made = items.filter((i) => i?.production_run_id).length
+      const skipped = items.filter(
+        (i) => !i?.production_run_id && i?.production_skipped_reason
       )
+      let runPart = ""
+      if (commissionRuns) {
+        runPart =
+          made > 0
+            ? ` ${made === 1 ? "1 run" : `${made} runs`} commissioned.`
+            : " No run was commissioned."
+        if (skipped.length) {
+          // The first reason verbatim: with a handful of lines it is the whole
+          // story, and a count alone sends the operator to the network tab.
+          runPart += ` ${skipped.length} skipped (${skipped[0].production_skipped_reason}).`
+        }
+      }
+
+      if (commissionRuns && made === 0) {
+        toast.warning(`${lines} re-pointed.${runPart} ${emailPart}`)
+      } else {
+        toast.success(`${lines} re-pointed.${runPart} ${emailPart}`)
+      }
     } catch (e: any) {
       toast.error(e?.message ?? "Could not apply the design changes")
     }
@@ -575,6 +636,30 @@ export const EditDesignItemsForm = ({
                 : `${stagedEntries.length} changes staged — the customer will get one email.`}
             </Text>
           ) : null}
+          {/**
+            * #1953 — the question the API has been able to answer since #1955
+            * and nothing in the admin asked. Only shown once something is
+            * staged: with nothing to move there are no lines to commission work
+            * for, and an always-visible toggle would imply otherwise.
+            */}
+          {stagedEntries.length > 0 ? (
+            <div className="flex items-center gap-x-2">
+              <Checkbox
+                id="commission-runs"
+                checked={commissionRuns}
+                onCheckedChange={(value) => setCommissionRuns(Boolean(value))}
+                disabled={isPending}
+              />
+              <Label
+                htmlFor="commission-runs"
+                size="small"
+                weight="plus"
+                className="cursor-pointer"
+              >
+                Commission production
+              </Label>
+            </div>
+          ) : null}
           <Button
             size="small"
             variant="secondary"
@@ -582,6 +667,8 @@ export const EditDesignItemsForm = ({
             onClick={() => {
               setStaged({})
               setSelectedItem(null)
+              // The toggle belongs to the staged batch, not to the modal.
+              setCommissionRuns(false)
             }}
           >
             Discard
