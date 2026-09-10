@@ -324,6 +324,47 @@ async function seedProvenanceProductRun(container: any): Promise<string> {
 }
 
 /**
+ * #1867 / #1963 — a region that DECLARES countries, seeded on OUR side rather
+ * than assumed to exist.
+ *
+ * The quote-draft spec selects a region by name and then asserts the country
+ * Select fills from it. `Singapore` existed only on one developer's laptop, so
+ * every CI run timed out waiting for an option that was never rendered. A
+ * region with an EMPTY countries list would fill the currency but leave the
+ * country Select empty — the exact regression the spec guards — so this one
+ * declares ["in"] on purpose.
+ *
+ * Find-or-create by name, never blind-create: the seed re-runs, and a duplicate
+ * region would make the option ambiguous and break the spec a different way.
+ */
+async function seedQuoteRegion(container: any): Promise<{
+  id: string
+  name: string
+}> {
+  const query = container.resolve(ContainerRegistrationKeys.QUERY)
+  const regionService: any = container.resolve(Modules.REGION)
+
+  const { data: existing } = await query.graph({
+    entity: "region",
+    fields: ["id", "name"],
+  })
+  const found = (existing ?? []).find(
+    (r: any) => r.name === "E2E Quote Region"
+  )
+  if (found) {
+    return { id: found.id, name: found.name }
+  }
+
+  const created = await regionService.createRegions({
+    name: "E2E Quote Region",
+    currency_code: "inr",
+    countries: ["in"],
+  })
+  const row = Array.isArray(created) ? created[0] : created
+  return { id: row.id, name: row.name }
+}
+
+/**
  * #1439 S3/S4 — two quotes on one partner, so the admin quote surface can be
  * driven in a browser (#1463 shipped without ever having been).
  *
@@ -355,6 +396,8 @@ async function seedAdminQuotes(container: any): Promise<{
   zeroDepositQuoteCompany: string
 }> {
   const partnerModule: any = container.resolve("partner")
+  const query = container.resolve(ContainerRegistrationKeys.QUERY)
+  const link: any = container.resolve(ContainerRegistrationKeys.LINK)
   // 🔴 `partnerQuote`, camelCase — NOT `partner_quote`.
   //
   // The module registers itself as `PARTNER_QUOTE_MODULE = "partnerQuote"`
@@ -376,6 +419,49 @@ async function seedAdminQuotes(container: any): Promise<{
     is_verified: true,
   })
   const partner = Array.isArray(createdPartner) ? createdPartner[0] : createdPartner
+
+  /**
+   * #1963 — the quote partner needs a DEDICATED store, or the draft route
+   * refuses to price for it ("Partner ... has no store, so a quote cannot be
+   * priced for them") and every Save 400s. Mirrors the gate-partner store block
+   * below: the partner↔store link is one store per partner, so reusing an
+   * already-linked store throws "Cannot create multiple links between 'partner'
+   * and 'store'" the second time the seed runs.
+   */
+  const { data: quoteRegions } = await query.graph({
+    entity: "region",
+    fields: ["id"],
+  })
+  const { data: quoteChannels } = await query.graph({
+    entity: "sales_channel",
+    fields: ["id"],
+  })
+  const { data: quoteLocations } = await query.graph({
+    entity: "stock_location",
+    fields: ["id"],
+  })
+  const quoteRegionId = quoteRegions?.[0]?.id
+  const quoteChannelId = quoteChannels?.[0]?.id
+  const quoteLocationId = quoteLocations?.[0]?.id
+  if (!quoteRegionId || !quoteChannelId || !quoteLocationId) {
+    throw new Error(
+      `E2E seed: the quote partner's store needs a region (${quoteRegionId}), a sales channel (${quoteChannelId}) and a stock location (${quoteLocationId}). Without all three the draft route cannot price a quote for this partner. Run the demo seed first: \`medusa exec ./src/scripts/seed.ts\`.`
+    )
+  }
+
+  const storeModule: any = container.resolve(Modules.STORE)
+  const createdStore: any = await storeModule.createStores({
+    name: `E2E Quote Store ${stamp}`,
+    default_sales_channel_id: quoteChannelId,
+    default_location_id: quoteLocationId,
+    default_region_id: quoteRegionId,
+  })
+  const storeId = Array.isArray(createdStore) ? createdStore[0].id : createdStore.id
+
+  await link.create({
+    partner: { partner_id: partner.id },
+    store: { store_id: storeId },
+  })
 
   // Stamped company names: the spec SEARCHES for these, and the search reaches
   // the server (#1461), so a duplicate from a previous seed would make a
@@ -2418,6 +2504,9 @@ export default async function e2eSeed({ container }: ExecArgs) {
   logger.info("E2E seed: partner ledger fixture (#1612)...")
   const partnerLedger = await seedPartnerLedgerFixture(container)
 
+  logger.info("E2E seed: creating the #1867 quote region (declares countries)...")
+  const quoteRegion = await seedQuoteRegion(container)
+
   logger.info("E2E seed: creating the #1439 admin quote fixtures (active + superseded)...")
   const adminQuotes = await seedAdminQuotes(container)
 
@@ -2563,6 +2652,10 @@ export default async function e2eSeed({ container }: ExecArgs) {
     // rather than confirming it, so a re-run finds the same active quote.
     quotePartnerId: adminQuotes.partnerId,
     quotePartnerName: adminQuotes.partnerName,
+    // #1867 — the region the quote-draft spec selects by name; it must declare
+    // countries or the country Select stays empty.
+    quoteRegionId: quoteRegion.id,
+    quoteRegionName: quoteRegion.name,
     activeQuoteId: adminQuotes.activeQuoteId,
     activeQuoteCompany: adminQuotes.activeQuoteCompany,
     supersededQuoteId: adminQuotes.supersededQuoteId,

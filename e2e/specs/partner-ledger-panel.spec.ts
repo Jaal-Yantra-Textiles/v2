@@ -61,8 +61,12 @@ test.describe("Partner ledger panel (#1612)", () => {
    * several `Container`s, and the heading sits beside a count badge that an
    * accessible-name match would swallow.
    */
+  // #1963 — scoped by BOTH attributes: the Credits panel stamps the same
+  // `data-partner-id`, so the id alone resolves to two elements.
   const ledgerPanel = (page: any) =>
-    page.locator(`[data-partner-id="${seed.ledgerPartnerId}"]`)
+    page.locator(
+      `[data-partner-section="ledger"][data-partner-id="${seed.ledgerPartnerId}"]`
+    )
 
   const openPartner = async (page: any) => {
     await login(page)
