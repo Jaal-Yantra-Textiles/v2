@@ -3670,6 +3670,121 @@ export const ADMIN_MCP_TOOLS: AdminMcpToolDef[] = [
     pathParams: ["id"],
     inputSchema: obj({ id: STR("Production run id.") }, ["id"]),
   },
+  // ----- What a run actually consumed (#1974) -----------------------------
+  // `get_production_run_cost_summary` could REPORT a cost but nothing here
+  // could CREATE one, so a run with no consumption logs was uncostable through
+  // the MCP and `approve_production_run` refused it — correctly, and with no
+  // reachable way to fix it. The rollup reads these three; now they can be
+  // written. See approval-pricing.ts: price = cost per unit x 1.40.
+  {
+    name: "list_energy_rates",
+    description:
+      "List the platform's energy and LABOUR rates — the per-unit figures the run cost rollup falls back to when a consumption log carries no `unitCost` of its own. Read. 🔑 The labour rate lives here too, as `energy_type: \"labor\"`: a labour log with no unit cost is priced at this rate per hour, and if NO active labour rate exists such a log contributes ZERO to the run's cost. Check here before logging labour without a unit cost.",
+    method: "GET",
+    path: "/admin/energy-rates",
+    queryParams: ["energy_type", "is_active", "region", "limit", "offset"],
+    inputSchema: obj({
+      energy_type: STR(
+        "'labor' | 'energy_electricity' | 'energy_water' | 'energy_gas'."
+      ),
+      is_active: STR("'true' to list only active rates."),
+      region: STR("Optional region filter."),
+      limit: INT("Max results (default 50)."),
+      offset: INT("Pagination offset."),
+    }),
+  },
+  {
+    name: "list_run_consumption_logs",
+    description:
+      "Read what a production run consumed — the material, energy and labour logs behind `get_production_run_cost_summary`. Read. A run with zero logs cannot be priced from its own cost, which is why approval refuses it.",
+    method: "GET",
+    path: "/admin/production-runs/:id/consumption-logs",
+    pathParams: ["id"],
+    queryParams: [
+      "consumption_type",
+      "is_committed",
+      "consumed_by",
+      "inventory_item_id",
+      "limit",
+      "offset",
+    ],
+    inputSchema: obj(
+      {
+        id: STR("Production run id."),
+        consumption_type: STR(
+          "'sample' | 'production' | 'wastage' | 'energy_electricity' | 'energy_water' | 'energy_gas' | 'labor'."
+        ),
+        is_committed: STR(
+          "'true' for logs already deducted from stock, 'false' for uncommitted ones."
+        ),
+        consumed_by: STR("Who recorded it, e.g. 'admin' or a partner id."),
+        inventory_item_id: STR("Only logs against this inventory item."),
+        limit: INT("Max results."),
+        offset: INT("Pagination offset."),
+      },
+      ["id"]
+    ),
+  },
+  {
+    name: "log_run_consumption",
+    description:
+      "Record what a production run consumed — one material, energy or labour line. Sensitive: requires confirm:true. This is what makes a run COSTABLE: `get_production_run_cost_summary` sums these into `cost_per_unit`, and `approve_production_run` prices the minted product at cost x 1.40 from it, preferring a run's real cost over the design's typed estimate.\n\n🔴 `unitCost` is NOT resolved from the raw material. The workflow stores `unit_cost: input.unit_cost ?? null`, and the rollup SKIPS any material line whose unit cost is null — so a log against a material with no `unit_cost` of its own, filed without one here, contributes ZERO and reads exactly like a line that was recorded. Pass `unitCost` explicitly unless you have confirmed the material carries one.\n\n🔑 `inventoryItemId` is REQUIRED even for a labour or energy line, and must be a real `iitem_` id — note `list_raw_materials` returns LINK rows, so take its `inventory_item_id` field, never the `link_` id. The run's design/product anchor is read off the run itself and cannot be passed in.\n\nLogging does not deduct stock; committing does (see the commit route).",
+    method: "POST",
+    path: "/admin/production-runs/:id/consumption-logs",
+    pathParams: ["id"],
+    write: true,
+    sensitive: true,
+    bodyParams: [
+      "inventoryItemId",
+      "rawMaterialId",
+      "quantity",
+      "quantityBasis",
+      "unitCost",
+      "unitOfMeasure",
+      "consumptionType",
+      "notes",
+      "locationId",
+      "metadata",
+    ],
+    inputSchema: obj(
+      {
+        id: STR("Production run id."),
+        inventoryItemId: STR(
+          "Inventory item consumed (`iitem_...`). REQUIRED even for labour/energy lines. From list_inventory_items, or the `inventory_item_id` field of list_raw_materials — NOT its `link_...` id."
+        ),
+        rawMaterialId: STR("Optional raw-material id for provenance."),
+        quantity: {
+          type: "number",
+          description:
+            "How much was consumed — metres of cloth, kWh, or HOURS for a labour line. Must be positive.",
+        },
+        quantityBasis: STR(
+          "'total' (default) or 'per_piece' — whether `quantity` is the whole run or one garment."
+        ),
+        unitCost: {
+          type: "number",
+          description:
+            "Cost per unit, in the platform's costing currency (INR). Must be positive. Omit ONLY when the material carries its own unit cost or, for labour/energy, an active rate exists — otherwise this line is worth zero. See the description.",
+        },
+        unitOfMeasure: STR(
+          "'Meter' | 'Yard' | 'Kilogram' | 'Gram' | 'Piece' | 'Roll' | 'kWh' | 'Liter' | 'Cubic_Meter' | 'Hour' | 'Other'. Use 'Hour' for labour."
+        ),
+        consumptionType: STR(
+          "'production' (default use for a real run) | 'sample' | 'wastage' | 'labor' | 'energy_electricity' | 'energy_water' | 'energy_gas'. Material types are sample/production/wastage; these are what the rollup counts as material."
+        ),
+        notes: STR("Free-text note recorded on the log."),
+        locationId: STR(
+          "Stock location the material came from (`sloc_...`). Consumption is only ever deducted from a core location."
+        ),
+        metadata: {
+          type: "object",
+          description: "Arbitrary metadata to store on the log.",
+          additionalProperties: true,
+        },
+      },
+      ["id", "inventoryItemId", "quantity"]
+    ),
+  },
   {
     name: "get_production_run_task",
     description: "Get a single task belonging to a production run.",

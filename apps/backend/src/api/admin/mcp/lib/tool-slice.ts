@@ -93,6 +93,11 @@ const PREFIX_DOMAINS: ReadonlyArray<readonly [string, AdminToolDomain]> = [
   // dispatch outright. Without this entry the tool classifies as undefined and
   // loads in NO slice, so the model would keep guessing names it cannot see.
   ["/admin/task-templates", "production"],
+  // Energy and LABOUR rates (#1974). These are what an uncosted consumption log
+  // falls back to, so they belong beside the run tools that create those logs:
+  // "why is this run worth nothing" is a production conversation, and without
+  // this entry the tool classifies as undefined and loads in NO slice.
+  ["/admin/energy-rates", "production"],
   ["/admin/inventory-items", "inventory"],
   ["/admin/inventory-orders", "inventory"],
   // Where stock physically sits. Rides the inventory slice because every ask
