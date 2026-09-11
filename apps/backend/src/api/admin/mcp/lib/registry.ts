@@ -660,6 +660,45 @@ export const ADMIN_MCP_TOOLS: AdminMcpToolDef[] = [
     ),
   },
   {
+    name: "list_shipping_options",
+    description:
+      "List shipping options — the rates a buyer is actually offered at checkout. 🔴 A REGION IS NOT SELLABLE WITHOUT ONE. Creating a region gives a country prices and a payment provider, but with no shipping option reaching it the buyer browses, adds to cart, and fails at the last step — the same 'exists but cannot be sold' shape as a product with no shipping profile. Use this to answer 'can we actually ship to this region?' before announcing a new territory. Filter by service zone (`service_zone_id`) or, with `q`, by name.",
+    method: "GET",
+    path: "/admin/shipping-options",
+    queryParams: ["limit", "offset", "q", "service_zone_id", "id"],
+    inputSchema: obj({
+      ...PAGINATION,
+      q: STR("Free-text search over the option name."),
+      service_zone_id: STR("Only options in this service zone."),
+      id: STR("A specific shipping option id."),
+    }),
+  },
+  {
+    name: "list_shipping_profiles",
+    description:
+      "List shipping profiles. A product without one CANNOT BE FULFILLED: Medusa writes no product↔profile link when the profile is absent, and 22 of 97 prod products were born that way (#1982). Use this to find the profile id a product should carry, and to see how many profiles exist — ⚠️ code that reads 'the' profile with `take:1` silently picks an arbitrary one the moment there is more than one (#1983).",
+    method: "GET",
+    path: "/admin/shipping-profiles",
+    queryParams: ["limit", "offset", "q", "id"],
+    inputSchema: obj({
+      ...PAGINATION,
+      q: STR("Free-text search over the profile name."),
+      id: STR("A specific shipping profile id."),
+    }),
+  },
+  {
+    name: "list_fulfillment_providers",
+    description:
+      "List the fulfillment providers registered in the container — the carriers that can actually move goods. Registered is not the same as reaching a given destination: a provider must also be attached to a service zone that covers the country. Pair with list_shipping_options when asking why a region cannot be shipped to.",
+    method: "GET",
+    path: "/admin/fulfillment-providers",
+    queryParams: ["limit", "offset", "is_enabled"],
+    inputSchema: obj({
+      ...PAGINATION,
+      is_enabled: { type: "boolean", description: "Filter to enabled providers only." },
+    }),
+  },
+  {
     name: "list_sales_channels",
     description:
       "List sales channels (paginated). Supports free-text search via q. A product is only purchasable through a sales channel it is linked to — use this to find a channel id, or to see which storefronts a product can sell through.",
