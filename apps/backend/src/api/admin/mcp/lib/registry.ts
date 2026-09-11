@@ -566,6 +566,100 @@ export const ADMIN_MCP_TOOLS: AdminMcpToolDef[] = [
     inputSchema: obj({ id: STR("Region id, e.g. 'reg_...'.") }, ["id"]),
   },
   {
+    name: "list_payment_providers",
+    description:
+      "List the payment providers registered in the container, so a region can be wired to one that actually EXISTS. 🔴 Region-enabled is not container-registered: naming a provider a region cannot resolve gives a buyer a checkout with no way to pay. Note the path — the route is /admin/payments/payment-providers, NOT /admin/payment-providers. Use before create_region / update_region.",
+    method: "GET",
+    path: "/admin/payments/payment-providers",
+    queryParams: ["limit", "offset"],
+    inputSchema: obj({ ...PAGINATION }),
+  },
+  {
+    name: "create_region",
+    description:
+      "Create a sales region: a currency, the countries it covers, and the payment providers a buyer there is offered. Sensitive: requires confirm:true.\n\n🔑 A region is what makes a currency BUYABLE. Prices can exist in a currency with no region — on this platform the FX fanout has been minting aed/cad/chf/cny/gbp prices on every variant that nobody could check out in, because no region sold in them. Creating the region is what turns those existing prices into revenue.\n\n⚠️ A country belongs to exactly ONE region. Passing a country already covered elsewhere MOVES it, changing the currency and tax basis that country is sold in — do that deliberately, not as a side effect of adding a neighbour.\n\n⚠️ Payment providers are the difference between a browsable region and a sellable one. Use `pp_stripe_stripe` for international card payments; `pp_stripe-connect_stripe-connect` is the PARTNER payout configuration and is not what a buyer pays through. Call list_payment_providers first.\n\nA region also needs a SHIPPING OPTION that reaches it before anyone can complete checkout — creating the region alone produces countries that can browse and add to cart but fail at the last step.",
+    method: "POST",
+    path: "/admin/regions",
+    write: true,
+    sensitive: true,
+    bodyParams: [
+      "name",
+      "currency_code",
+      "countries",
+      "payment_providers",
+      "automatic_taxes",
+      "is_tax_inclusive",
+      "metadata",
+    ],
+    inputSchema: obj(
+      {
+        name: STR("Region name as an operator will recognise it, e.g. 'United Kingdom'."),
+        currency_code: STR("3-letter code, lower-case, e.g. 'gbp'. Must be one the STORE supports, or the FX fanout will never price into it."),
+        countries: {
+          type: "array",
+          description: "Lower-case ISO-2 codes, e.g. ['gb']. Each may belong to only one region; listing one that is already covered MOVES it.",
+          items: { type: "string" },
+        },
+        payment_providers: {
+          type: "array",
+          description: "Provider ids from list_payment_providers, e.g. ['pp_stripe_stripe']. Without one, a buyer reaches checkout with nothing to pay with.",
+          items: { type: "string" },
+        },
+        automatic_taxes: {
+          type: "boolean",
+          description: "Let the tax provider calculate tax for this region.",
+        },
+        is_tax_inclusive: {
+          type: "boolean",
+          description: "Whether prices in this region already include tax.",
+        },
+        metadata: { type: "object", additionalProperties: true },
+      },
+      ["name", "currency_code", "countries"]
+    ),
+  },
+  {
+    name: "update_region",
+    description:
+      "Update a sales region — name, currency, the countries it covers, or its payment providers. Pass only what changes. Sensitive: requires confirm:true.\n\n⚠️ `countries` REPLACES the list wholesale; sending a short list silently drops every country you omitted, and those countries then resolve to no region at all. Read the region first.\n\n⚠️ Moving a country between regions changes the currency and tax basis it is sold in.",
+    method: "POST",
+    path: "/admin/regions/:id",
+    pathParams: ["id"],
+    write: true,
+    sensitive: true,
+    previewPath: "/admin/regions/:id",
+    bodyParams: [
+      "name",
+      "currency_code",
+      "countries",
+      "payment_providers",
+      "automatic_taxes",
+      "is_tax_inclusive",
+      "metadata",
+    ],
+    inputSchema: obj(
+      {
+        id: STR("Region id, e.g. 'reg_...'."),
+        name: STR("New region name."),
+        currency_code: STR("3-letter code, lower-case."),
+        countries: {
+          type: "array",
+          description: "REPLACEMENT list of lower-case ISO-2 codes — omitted countries are removed from the region.",
+          items: { type: "string" },
+        },
+        payment_providers: {
+          type: "array",
+          description: "Replacement provider ids, e.g. ['pp_stripe_stripe'].",
+          items: { type: "string" },
+        },
+        automatic_taxes: { type: "boolean" },
+        is_tax_inclusive: { type: "boolean" },
+        metadata: { type: "object", additionalProperties: true },
+      },
+      ["id"]
+    ),
+  },
+  {
     name: "list_sales_channels",
     description:
       "List sales channels (paginated). Supports free-text search via q. A product is only purchasable through a sales channel it is linked to — use this to find a channel id, or to see which storefronts a product can sell through.",
