@@ -100,8 +100,16 @@ export async function preparePaymentCollection(
      * not work. An outage on a payment page has to leave a trace.
      */
     if (state === "unavailable") {
+      /*
+       * ⚠️ `id` is passed as an ARGUMENT against `%s`, never interpolated into
+       * the format string. It comes straight off the URL path, so a `%d` in the
+       * link would be read as a format specifier — garbling the line and
+       * consuming the `error` argument, so the outage we are trying to record
+       * would be the thing that vanished. CodeQL caught this one (CWE-134).
+       */
       console.error(
-        `[payment-collection] prepare failed for ${id} — treating as UNAVAILABLE (ours, not the buyer's):`,
+        "[payment-collection] prepare failed for %s — treating as UNAVAILABLE (ours, not the buyer's):",
+        id,
         error
       )
     }
