@@ -49,9 +49,38 @@ export default async function PaymentCollectionPage(props: {
   params: Promise<{ id: string; countryCode: string }>
 }) {
   const { id } = await props.params
-  const prepared = await preparePaymentCollection(id)
+  const result = await preparePaymentCollection(id)
 
-  if (!prepared) {
+  /**
+   * 🔴 "Down" and "dead link" are DIFFERENT PAGES.
+   *
+   * Both used to render "This payment link is not valid", because every failure
+   * collapsed to null. That sentence sends a buyer whose link is perfectly fine
+   * off to ask for a replacement they do not need — and the replacement will
+   * fail in exactly the same way, because the fault is ours. Observed live when
+   * the storefront deployed ahead of the backend.
+   */
+  if (result.state === "unavailable") {
+    return (
+      <Shell>
+        <Heading level="h1" className="text-2xl-semi">
+          We can&apos;t load this payment right now
+        </Heading>
+        <Text className="text-ui-fg-subtle">
+          Something on our side is not responding, so we can&apos;t show your
+          payment yet. Your link is fine — please refresh this page in a few
+          minutes and it should work.
+        </Text>
+        <Text className="text-ui-fg-subtle txt-small">
+          Nothing has been charged, and your order is unaffected. If it still
+          won&apos;t load after a few tries, reply to your order email and we
+          will sort it out.
+        </Text>
+      </Shell>
+    )
+  }
+
+  if (result.state === "not_found") {
     return (
       <Shell>
         <Heading level="h1" className="text-2xl-semi">
@@ -65,7 +94,7 @@ export default async function PaymentCollectionPage(props: {
     )
   }
 
-  const { payment_collection: pc, order, settled } = prepared
+  const { payment_collection: pc, order, settled } = result.prepared
   const amountLabel = convertToLocale({
     amount: Number(pc.amount) || 0,
     currency_code: pc.currency_code,
