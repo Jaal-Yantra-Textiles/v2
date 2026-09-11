@@ -68,6 +68,37 @@ Three things, and only the first is done by `create_region`:
    unfulfillable products. **Verify carrier coverage for Lagos / São Paulo
    before announcing anything.**
 
+## 🔑 Partner propagation is ALREADY AUTOMATIC — do not build it
+
+Checked before writing anything, and the plumbing exists:
+
+`subscribers/region-propagate.ts` listens on **`region.created`** and runs
+`workflows/regions/propagate-region-to-partners.ts`, which for every active
+partner:
+
+1. creates the `partner_region` link, and
+2. extends that partner store's `supported_currencies` with the region's
+   currency.
+
+So creating the 7 regions **automatically** maps them to all 12 partner tenants.
+There is also `POST /admin/regions/:id/share-to-all` for a manual re-run.
+
+⚠️ **But the partner price fanout is env-gated and OFF.** The subscriber only
+fans out when `REGION_PROPAGATE_FANOUT=1`, and that variable is **not in SSM**,
+so it is unset on prod. Partners therefore get the link and the currency but
+**no prices** until either their next variant save or an explicit replay.
+
+### The two data-ops jobs to run afterwards — both already exist on prod
+
+| job | what it does |
+|---|---|
+| `repair-partner-region-links` | adds a missing link where a store's `default_region_id` points at an unlinked region, removes orphan links whose region was deleted. Params: `partner_id`, `limit`. Pure link-table ops, no entity writes. |
+| `replay-fx-fanout` | materialises the converted price rows. Params: `partner_id`, `limit`, `include_house_stores`. |
+
+🔴 `repair-partner-region-links` repairs links against `default_region_id`; it
+does NOT propagate a NEW region to everyone. The subscriber does that. Run the
+job to VERIFY and repair, not as the propagation mechanism.
+
 ## Order of operations
 
 1. Merge + deploy `create_region` / `update_region` / `list_payment_providers`
@@ -79,9 +110,14 @@ Three things, and only the first is done by `create_region`:
 4. Create the 7 regions. **Switzerland LAST**, after the Europe update, so `ch`
    is never briefly in two regions.
 5. Update Europe to the 31.
-6. Re-run the FX fanout so any variant missing a currency is filled.
-7. Verify: `list_regions` shows 13, and every store currency has a region.
-8. Then the shipping question (3 above).
+6. **Partner propagation happens on its own** via the `region.created`
+   subscriber — watch the logs rather than doing anything.
+7. Data ops: `repair-partner-region-links` (preview → apply) to verify every
+   partner is linked.
+8. Data ops: `replay-fx-fanout` with `include_house_stores` to materialise the
+   converted prices, since `REGION_PROPAGATE_FANOUT` is unset.
+9. Verify: `list_regions` shows 13, and every store currency has a region.
+10. Then the shipping question (3 above).
 
 ## Related
 
