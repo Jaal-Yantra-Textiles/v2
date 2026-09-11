@@ -1,3 +1,16 @@
+# [13.136.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.135.0...v13.136.0) (2026-09-11)
+
+
+### Bug Fixes
+
+* **pricing:** an INR-costed design minted in EUR at ~110x, and production cost now states its currency ([#1979](https://github.com/Jaal-Yantra-Textiles/v2/issues/1979)) ([#1991](https://github.com/Jaal-Yantra-Textiles/v2/issues/1991)) ([b0bff01](https://github.com/Jaal-Yantra-Textiles/v2/commit/b0bff0111fd087e268c3b1bc8e4d038ff3879bf9)), closes [#1805](https://github.com/Jaal-Yantra-Textiles/v2/issues/1805) [#1983](https://github.com/Jaal-Yantra-Textiles/v2/issues/1983)
+* **storefront:** stop telling buyers their payment link is invalid when WE are down ([#1985](https://github.com/Jaal-Yantra-Textiles/v2/issues/1985)) ([#1992](https://github.com/Jaal-Yantra-Textiles/v2/issues/1992)) ([fdd4ace](https://github.com/Jaal-Yantra-Textiles/v2/commit/fdd4acebe4cb49881a148a8b7ad5e81639664827))
+
+
+### Features
+
+* **mcp:** admin tools to create and update a sales region ([#1994](https://github.com/Jaal-Yantra-Textiles/v2/issues/1994)) ([f4a9c7b](https://github.com/Jaal-Yantra-Textiles/v2/commit/f4a9c7b2428abe2a33a641780df0c2b6118a7c0a)), closes [#1907](https://github.com/Jaal-Yantra-Textiles/v2/issues/1907) [#1982](https://github.com/Jaal-Yantra-Textiles/v2/issues/1982)
+
 # [13.135.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.134.1...v13.135.0) (2026-09-10)
 
 
