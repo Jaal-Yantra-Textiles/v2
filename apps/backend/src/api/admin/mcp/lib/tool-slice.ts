@@ -70,6 +70,17 @@ const PREFIX_DOMAINS: ReadonlyArray<readonly [string, AdminToolDomain]> = [
   ["/admin/regions", "catalog"],
   ["/admin/sales-channels", "catalog"],
   /**
+   * Shipping reachability. A region with prices and a payment provider is still
+   * NOT sellable without a shipping option that reaches it, so these ride with
+   * the catalogue/storefront-configuration conversation that creates regions —
+   * "can we ship there?" is asked in the same breath as "can we sell there?".
+   * Unclassified they would load in no slice at all, which is how a capability
+   * exists and is reachable from nothing.
+   */
+  ["/admin/shipping-options", "catalog"],
+  ["/admin/shipping-profiles", "catalog"],
+  ["/admin/fulfillment-providers", "catalog"],
+  /**
    * Taxonomy. Categories and collections are how the catalogue is ORGANISED,
    * so they ride with it — an operator filing a product is having a catalogue
    * conversation, not a separate one.
