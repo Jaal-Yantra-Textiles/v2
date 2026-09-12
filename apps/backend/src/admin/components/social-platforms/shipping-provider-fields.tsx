@@ -3,7 +3,7 @@ import { type Control, type UseFormWatch } from "react-hook-form"
 import { Form } from "../common/form"
 
 export type ShippingProviderFieldValues = {
-  provider_type: "delhivery" | "shiprocket" | "dhl" | "fedex" | "ups" | "australia_post" | "shipglobal"
+  provider_type: "delhivery" | "shiprocket" | "dhl" | "fedex" | "ups" | "australia_post" | "shipglobal" | "packlink"
   api_key?: string
   account_number?: string
   api_secret?: string
@@ -16,6 +16,10 @@ export type ShippingProviderFieldValues = {
   // ShipGlobal (username/password Basic auth + region-specific service code)
   username?: string
   service?: string
+  // Packlink (api_key + the PARTNER's OWN pickup origin — their account ships
+  // from their address, not the platform's)
+  origin_country?: string
+  origin_zip?: string
 }
 
 type ShippingProviderFieldsProps = {
@@ -39,6 +43,7 @@ export const ShippingProviderFields = ({
     ups: { apiKey: "UPS Client ID", account: "UPS Account Number" },
     australia_post: { apiKey: "Australia Post API key", account: "Account Number" },
     shipglobal: { apiKey: "n/a", account: "Service code (sgdirecteuyun / sgdirectyungb)" },
+    packlink: { apiKey: "Packlink PRO API key", account: "n/a" },
   }
 
   const current = placeholders[providerType] || placeholders.dhl
@@ -68,6 +73,7 @@ export const ShippingProviderFields = ({
                   <Select.Item value="ups">UPS</Select.Item>
                   <Select.Item value="australia_post">Australia Post</Select.Item>
                   <Select.Item value="shipglobal">ShipGlobal</Select.Item>
+                  <Select.Item value="packlink">Packlink (EU origin)</Select.Item>
                 </Select.Content>
               </Select>
             </Form.Control>
@@ -196,6 +202,51 @@ export const ShippingProviderFields = ({
                 <Form.Label optional>Service Code</Form.Label>
                 <Form.Control>
                   <Input {...field} placeholder={current.account} />
+                </Form.Control>
+                <Form.ErrorMessage />
+              </Form.Item>
+            )}
+          />
+        </>
+      )}
+
+      {providerType === "packlink" && (
+        <>
+          {/*
+            The ORIGIN travels with the credential.
+
+            Packlink quotes a lane, so it needs a from-address — and a partner's
+            own Packlink account ships from THEIR warehouse, not the platform's.
+            Holding it here (rather than in env) is what lets each partner run
+            their own account.
+
+            🔑 The postcode matters more than it looks: Packlink answers a bad
+            one with {"messages":[{"message":"Bad Request"}]}, the same body it
+            returns for an unserved lane. The provider normalises known cases
+            (GB needs its space, AE rejects an all-zero placeholder) but the
+            origin is the one it cannot guess.
+          */}
+          <Form.Field
+            control={control}
+            name="origin_country"
+            render={({ field }) => (
+              <Form.Item>
+                <Form.Label>Origin country</Form.Label>
+                <Form.Control>
+                  <Input {...field} placeholder="IT" maxLength={2} />
+                </Form.Control>
+                <Form.ErrorMessage />
+              </Form.Item>
+            )}
+          />
+          <Form.Field
+            control={control}
+            name="origin_zip"
+            render={({ field }) => (
+              <Form.Item>
+                <Form.Label>Origin postcode</Form.Label>
+                <Form.Control>
+                  <Input {...field} placeholder="50022" />
                 </Form.Control>
                 <Form.ErrorMessage />
               </Form.Item>
