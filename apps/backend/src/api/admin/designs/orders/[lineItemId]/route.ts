@@ -11,6 +11,7 @@ import {
   buildOrderItemRow,
   summariseOrderItems,
 } from "../order-items-view"
+import { newestLinkPerLine } from "../newest-link-per-line"
 
 /**
  * GET /admin/designs/orders/:lineItemId
@@ -336,11 +337,14 @@ export async function GET(
         // Get design links for all line items in the cart
         const allCartLineItemIds = (cartLineItems || []).map((li: any) => li.id)
         if (allCartLineItemIds.length > 1) {
-          const { data: siblingLinks } = await query.graph({
+          const { data: rawSiblingLinks } = await query.graph({
             entity: designLineItemLink.entryPoint,
             filters: { line_item_id: allCartLineItemIds },
-            fields: ["design_id", "line_item_id"],
+            fields: ["design_id", "line_item_id", "created_at"],
           })
+          // One row per line — see newest-link-per-line.ts for why this is
+          // not a formality. Two rows meant two sibling rows for one garment.
+          const siblingLinks = newestLinkPerLine(rawSiblingLinks as any[])
           /**
            * #1946 — a sibling shows what it stands for NOW, by the same
            * precedence as the primary: the order's binding where there is one,
