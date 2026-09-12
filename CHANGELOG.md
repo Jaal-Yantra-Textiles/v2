@@ -1,3 +1,19 @@
+# [13.137.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.136.0...v13.137.0) (2026-09-12)
+
+
+### Bug Fixes
+
+* **ops:** replay-fx-fanout queues the fanout instead of running it on the request path ([#1996](https://github.com/Jaal-Yantra-Textiles/v2/issues/1996)) ([#1999](https://github.com/Jaal-Yantra-Textiles/v2/issues/1999)) ([2c5ebe0](https://github.com/Jaal-Yantra-Textiles/v2/commit/2c5ebe01427c9ef75a190a1644f51ade6af7e9fa))
+* **designs:** the design-link lookup was a row-order lottery, not a test-ordering quirk ([#2003](https://github.com/Jaal-Yantra-Textiles/v2/issues/2003)) ([63be1b9](https://github.com/Jaal-Yantra-Textiles/v2/commit/63be1b911c51ac821966f8df49d2cbc8dc9dff07)), closes [#1983](https://github.com/Jaal-Yantra-Textiles/v2/issues/1983) [#1979](https://github.com/Jaal-Yantra-Textiles/v2/issues/1979)
+
+
+### Features
+
+* **mcp:** audit the tool-coverage gap, and close 12 high-value holes ([#2002](https://github.com/Jaal-Yantra-Textiles/v2/issues/2002)) ([3161033](https://github.com/Jaal-Yantra-Textiles/v2/commit/3161033a903d146a6f241a2d33fc9be858dae35e)), closes [#1994](https://github.com/Jaal-Yantra-Textiles/v2/issues/1994)
+* **production-runs:** record where a completed run's output was banked ([#891](https://github.com/Jaal-Yantra-Textiles/v2/issues/891) S1) ([#2000](https://github.com/Jaal-Yantra-Textiles/v2/issues/2000)) ([7fb1bf9](https://github.com/Jaal-Yantra-Textiles/v2/commit/7fb1bf9135bd8f8d2d1f705161513c0cfbf27073))
+* **mcp:** tools to answer "can we actually ship to this region?" ([#1997](https://github.com/Jaal-Yantra-Textiles/v2/issues/1997)) ([a58b00f](https://github.com/Jaal-Yantra-Textiles/v2/commit/a58b00fb5ce65535873d68fee343c01446350706)), closes [#1982](https://github.com/Jaal-Yantra-Textiles/v2/issues/1982) [#1983](https://github.com/Jaal-Yantra-Textiles/v2/issues/1983) [#1907](https://github.com/Jaal-Yantra-Textiles/v2/issues/1907)
+* **mcp:** tools to create a payout, and a ledger that can be asked about a period ([#2001](https://github.com/Jaal-Yantra-Textiles/v2/issues/2001)) ([bae74b6](https://github.com/Jaal-Yantra-Textiles/v2/commit/bae74b6020327eb666e26b67513f1013f6863aca))
+
 # [13.136.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.135.0...v13.136.0) (2026-09-11)
 
 
