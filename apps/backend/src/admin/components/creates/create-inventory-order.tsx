@@ -55,6 +55,10 @@ export const CreateInventoryOrderComponent = () => {
     resolver: zodResolver(inventoryOrderFormSchema),
   });
 
+  // A sample order may be created with nothing picked — the lines are filled
+  // in once the swatches arrive — so the Order Lines copy changes to say so.
+  const isSampleOrder = form.watch("is_sample");
+
   const [tab, setTab] = useState<Tab>(Tab.GENERAL);
   const [tabState, setTabState] = useState<TabState>({
     [Tab.GENERAL]: "in-progress",
@@ -413,7 +417,9 @@ export const CreateInventoryOrderComponent = () => {
                       </div>
                     </div>
                     <Text size="small" className="text-ui-fg-subtle">
-                      Add items to your inventory order. The total quantity and price will be calculated automatically.
+                      {isSampleOrder
+                        ? "This is a sample order, so you can leave this empty and create it now — fill in what actually arrived once the swatches are in your hands."
+                        : "Add items to your inventory order. The total quantity and price will be calculated automatically."}
                     </Text>
                   </div>
                   {/* Top search bar removed as requested */}

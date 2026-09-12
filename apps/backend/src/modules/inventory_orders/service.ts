@@ -92,8 +92,13 @@ class InventoryOrderService extends MedusaService({
   ) {
     // Input validation (runs inside the transaction; nothing is created yet, so
     // a throw here simply aborts before any write).
+    // A samples/swatch order may be created empty — the lines are filled in
+    // once the box arrives and someone can see what is actually in it. Every
+    // other kind of order still needs something to order.
     if (!Array.isArray(order_lines) || order_lines.length === 0) {
-      throw new Error("At least one order line is required.");
+      if (!inventory_order.is_sample) {
+        throw new Error("At least one order line is required.");
+      }
     }
     for (const [i, line] of order_lines.entries()) {
       if (inventory_order.is_sample) {

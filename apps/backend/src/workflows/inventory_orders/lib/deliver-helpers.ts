@@ -59,9 +59,34 @@ const FIELD_EDIT_STATUSES = new Set(["Pending", "Processing"])
  */
 export const evaluateAdminStatusTransition = (
   current: string | null | undefined,
-  target: string | null | undefined
+  target: string | null | undefined,
+  options?: { isSample?: boolean }
 ): AdminTransitionDecision => {
-  if (!FIELD_EDIT_STATUSES.has(String(current ?? ""))) {
+  const currentStatus = String(current ?? "")
+
+  // A samples/swatch order is the one kind that MUST stay editable after it
+  // arrives: it is created empty on purpose, and the whole point is to fill in
+  // what was in the box once someone has opened it. The Pending/Processing
+  // lock exists to stop an order that already posted stock being edited
+  // underneath itself — a sample never posts stock (see below), so that
+  // reasoning does not apply to it.
+  //
+  // Cancelled is still refused. A cancelled order is not a record anyone
+  // should be adding to.
+  if (options?.isSample) {
+    if (currentStatus === "Cancelled") {
+      throw new MedusaError(
+        MedusaError.Types.INVALID_DATA,
+        "This sample order is cancelled and can no longer be edited."
+      )
+    }
+    // 🔑 Never posts stock. Swatches are reference material, not sellable
+    // units; posting them would put ~zero-value swatch units into a location
+    // where they can be counted, reserved and sold.
+    return { postStock: false }
+  }
+
+  if (!FIELD_EDIT_STATUSES.has(currentStatus)) {
     throw new MedusaError(
       MedusaError.Types.INVALID_DATA,
       "Order can only be updated if status is 'Pending' or 'Processing'."

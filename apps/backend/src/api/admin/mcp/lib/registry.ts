@@ -1346,7 +1346,9 @@ export const ADMIN_MCP_TOOLS: AdminMcpToolDef[] = [
         to_stock_location_id: STR(
           "Alias for the destination ('to') stock location — omit if stock_location_id is given."
         ),
-        is_sample: BOOL("Whether this is a sample order (defaults false)."),
+        is_sample: BOOL(
+          "Whether this is a sample/swatch order (defaults false). 🔑 A sample is the ONE kind that may be created with NO `order_lines` and quantity 0 — it is ordered precisely because nobody knows yet what will arrive. Fill the lines in afterwards with update_inventory_order_lines, which stays available at any status except Cancelled and posts no stock."
+        ),
         metadata: { type: "object", description: "Free-form metadata." },
         tax_amount: {
           type: "number",
@@ -1430,6 +1432,8 @@ export const ADMIN_MCP_TOOLS: AdminMcpToolDef[] = [
       "Change an existing inventory order's lines — quantity, per-unit price, per-unit extra_cost (the colour/dye job), batch tag — add new lines, or remove one. Sensitive: requires confirm:true. ALWAYS dry_run first. " +
       "🔑 The `order_lines` array is the DESIRED FINAL STATE of the lines you send: keep an existing line by sending its `id`, add one by omitting `id`, and remove one with `{ id, remove: true }`. ⚠️ EVERY line you keep or add must ALSO carry its `inventory_item_id` (or `variant_id`) — the validator rejects the whole request without it, `id` alone is not enough. Read the ids off get_order/list_inventory_orders and send them back. Do NOT respond to that 400 by dropping the `id`: that stops being an edit and becomes a delete-and-recreate of the line. " +
       "⚠️ `data.quantity` and `data.total_price` are NOT recomputed for you — send the new totals, where total_price is Σ (price + extra_cost) × quantity across the lines you are left with. " +
+      "🔑 SAMPLE/SWATCH orders (`is_sample: true`) are the exception to two rules: they may have started with NO lines at all, and they stay editable at any status except Cancelled — that is the point, since the box has to arrive before anyone can say what is in it. Filling a sample's lines posts NO stock. " +
+      "🔑 For a swatch of cloth we have never stocked, a new line may carry `new_material: { name, color?, composition? }` INSTEAD of inventory_item_id/variant_id — the write creates the inventory item and its raw-material record as the line is written. Send it only when the line names neither an item nor a variant; sending both would duplicate the item you picked. " +
       "Use get_order/list_inventory_orders first to read the current line ids.",
     method: "PUT",
     path: "/admin/inventory-orders/:id/order-lines",
@@ -1477,6 +1481,18 @@ export const ADMIN_MCP_TOOLS: AdminMcpToolDef[] = [
                 description: "Per-unit extra charge on top of price (colour/dye job, finishing).",
               },
               batch_number: { type: "number", description: "Optional batch tag." },
+              new_material: {
+                type: "object",
+                description:
+                  "Create the inventory item as the line is written — for a swatch of cloth with no catalogue entry yet. Use INSTEAD of inventory_item_id/variant_id, never alongside one.",
+                properties: {
+                  name: { type: "string", description: "Material name, e.g. 'Tangaliya Weave'." },
+                  color: { type: "string", description: "Colour; folded into the item title so gradings stay distinguishable." },
+                  composition: { type: "string", description: "Fibre composition, if known." },
+                  unit_of_measure: { type: "string", description: "e.g. 'meter'." },
+                },
+                required: ["name"],
+              },
               remove: {
                 type: "boolean",
                 description: "Soft-delete this existing line and dismiss its links. Needs `id`.",

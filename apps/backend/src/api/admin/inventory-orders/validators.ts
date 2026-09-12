@@ -46,7 +46,13 @@ export const inventoryOrderLineInputSchema = z.object({
 // under Zod v4 (the internal _def shape changed; superRefine no longer exposes
 // the inner schema at that path).
 const inventoryOrdersBaseSchema = z.object({
-  order_lines: z.array(inventoryOrderLineInputSchema).min(1, "At least one order line is required"),
+  /**
+   * Optional, because a SAMPLE order is created before anyone knows what is in
+   * the box (#swatches). A non-sample order still requires at least one line —
+   * enforced in the superRefine below, where `is_sample` is visible. Keeping
+   * the rule there rather than here is what lets the two kinds differ.
+   */
+  order_lines: z.array(inventoryOrderLineInputSchema).optional().default([]),
   // Allow decimal order quantity (sum of line quantities)
   quantity: z.number().nonnegative("Order quantity must be zero or positive"),
   total_price: z.number().nonnegative("Total price must be zero or positive"),
@@ -75,6 +81,22 @@ const inventoryOrdersBaseSchema = z.object({
 
 // Input schema for creating inventory orders
 export const createInventoryOrdersSchema = inventoryOrdersBaseSchema.superRefine((data, ctx) => {
+  // A samples/swatch order legitimately starts empty: the box has to arrive
+  // before anyone can say what is in it, and the lines are filled in
+  // afterwards. Every other order still needs something to order.
+  if (!data.is_sample && (data.order_lines?.length ?? 0) === 0) {
+    // `custom`, not `too_small`: the framework's error formatter regenerates
+    // the message for a typed size issue ("Value for field 'order_lines' too
+    // small…") and throws this wording away, which is the wording that says
+    // WHY it was refused and what the exception is.
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message:
+        "At least one order line is required (only a sample order may start with none)",
+      path: ["order_lines"],
+    });
+  }
+
   if (!data.is_sample && data.quantity <= 0) {
     ctx.addIssue({
       code: z.ZodIssueCode.too_small,
@@ -197,6 +219,23 @@ export const updateOrderLineSchema = z
     extra_cost: z.number().nonnegative().optional(),
     // Optional batch tag (see inventoryOrderLineInputSchema).
     batch_number: z.number().int().positive().nullish(),
+    /**
+     * A brand-new material named on the spot, for a samples/swatch order.
+     *
+     * A swatch is very often cloth we have never stocked, so there is no
+     * inventory item OR variant to point at yet. Requiring one first would
+     * mean leaving the open box to go create a catalogue entry, which is
+     * exactly when details get lost. Sending `new_material` instead creates the
+     * inventory item (and its raw-material record) as part of writing the line.
+     */
+    new_material: z
+      .object({
+        name: z.string().trim().min(1, "A new material needs a name"),
+        color: z.string().trim().optional(),
+        composition: z.string().trim().optional(),
+        unit_of_measure: z.string().trim().optional(),
+      })
+      .optional(),
     // Explicit removal marker for an existing line: the update workflow
     // soft-deletes the line (by `id`) and dismisses its inventory-item link.
     // Without this key the middleware would strip it and a dropped line would
@@ -217,11 +256,23 @@ export const updateOrderLineSchema = z
     }
     const hasItem = !!val.inventory_item_id && val.inventory_item_id.length > 0;
     const hasVariant = !!val.variant_id && val.variant_id.length > 0;
-    if (!hasItem && !hasVariant) {
+    const hasNewMaterial = !!val.new_material?.name;
+    if (!hasItem && !hasVariant && !hasNewMaterial) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
         path: ["inventory_item_id"],
-        message: "An order line needs either inventory_item_id or variant_id",
+        message:
+          "An order line needs inventory_item_id, variant_id, or new_material (to create the item as the line is written)",
+      });
+    }
+    // Naming a new material AND pointing at an existing one is ambiguous: it
+    // would silently create a duplicate item beside the one you picked.
+    if (hasNewMaterial && (hasItem || hasVariant)) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["new_material"],
+        message:
+          "Send new_material only when the line has no inventory_item_id or variant_id — otherwise it would create a duplicate of the item you picked",
       });
     }
     if (hasItem && hasVariant) {

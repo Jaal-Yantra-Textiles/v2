@@ -203,3 +203,51 @@ describe("computeAdminDeliveryPosting reads both receipt records (#1613)", () =>
     expect(deliveredRecords).toEqual([{ order_line_id: "ol_1", quantity: 6 }])
   })
 })
+
+/**
+ * Samples/swatch orders (#swatches). A sample order is created EMPTY on
+ * purpose — the box has to arrive before anyone can say what is in it — so it
+ * is the one kind that must stay editable after it ships.
+ */
+describe("evaluateAdminStatusTransition — sample orders", () => {
+  it("stays editable after the box has shipped", () => {
+    expect(() =>
+      evaluateAdminStatusTransition("Shipped", undefined, { isSample: true })
+    ).not.toThrow()
+  })
+
+  it("stays editable after it has been delivered", () => {
+    // This is the whole feature: you fill the lines in once you can see them.
+    expect(() =>
+      evaluateAdminStatusTransition("Delivered", undefined, { isSample: true })
+    ).not.toThrow()
+  })
+
+  it("NEVER posts stock, even on a transition into Delivered", () => {
+    // Swatches are reference material. Posting them would put zero-value units
+    // into a location where they can be counted, reserved and sold.
+    expect(
+      evaluateAdminStatusTransition("Processing", "Delivered", { isSample: true })
+    ).toEqual({ postStock: false })
+  })
+
+  it("is still refused once cancelled", () => {
+    expect(() =>
+      evaluateAdminStatusTransition("Cancelled", undefined, { isSample: true })
+    ).toThrow(/cancelled/i)
+  })
+
+  it("leaves the normal lock untouched for a non-sample order", () => {
+    // The carve-out must not leak: a real order past Processing stays locked,
+    // and a delivery still posts stock.
+    expect(() => evaluateAdminStatusTransition("Shipped", undefined)).toThrow(
+      /Pending' or 'Processing'/
+    )
+    expect(() =>
+      evaluateAdminStatusTransition("Shipped", undefined, { isSample: false })
+    ).toThrow(/Pending' or 'Processing'/)
+    expect(evaluateAdminStatusTransition("Processing", "Delivered")).toEqual({
+      postStock: true,
+    })
+  })
+})

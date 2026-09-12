@@ -92,3 +92,51 @@ describe("inventoryOrderFormSchema — seeded blank rows (#1671)", () => {
     expect(result.success).toBe(false)
   })
 })
+
+/**
+ * Samples/swatch orders. Ordered precisely because nobody knows what will
+ * arrive, so the create form must accept one with nothing filled in — the
+ * five seeded blank rows and all.
+ */
+describe("a sample order may be created with no items picked", () => {
+  const blankGrid = {
+    ...base,
+    is_sample: true,
+    order_lines: Array.from({ length: 5 }, () => ({ ...BLANK })),
+  }
+
+  it("accepts the untouched grid when is_sample is on", () => {
+    expect(inventoryOrderFormSchema.safeParse(blankGrid).success).toBe(true)
+  })
+
+  it("accepts a sample with an empty grid", () => {
+    expect(
+      inventoryOrderFormSchema.safeParse({ ...blankGrid, order_lines: [] }).success
+    ).toBe(true)
+  })
+
+  it("STILL rejects the untouched grid for a normal order", () => {
+    // The relaxation must not reintroduce the #1671 silent no-op for ordinary
+    // procurement — there, nothing picked is a mistake, not an intent.
+    const parsed = inventoryOrderFormSchema.safeParse({
+      ...blankGrid,
+      is_sample: false,
+    })
+    expect(parsed.success).toBe(false)
+    if (!parsed.success) {
+      expect(JSON.stringify(parsed.error.issues)).toMatch(/Pick at least one item/)
+    }
+  })
+
+  it("still validates any row the buyer DID fill in on a sample", () => {
+    // Empty is fine; half-finished is not.
+    const parsed = inventoryOrderFormSchema.safeParse({
+      ...blankGrid,
+      order_lines: [{ inventory_item_id: "iitem_1", quantity: 0, price: 0 }],
+    })
+    expect(parsed.success).toBe(false)
+    if (!parsed.success) {
+      expect(JSON.stringify(parsed.error.issues)).toMatch(/Quantity must be at least 1/)
+    }
+  })
+})
