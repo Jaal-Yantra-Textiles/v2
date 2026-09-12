@@ -6379,4 +6379,238 @@ export const ADMIN_MCP_TOOLS: AdminMcpToolDef[] = [
       "Creates a panel whose data resolves live from the configured operation on every read. Setting metadata.public true exposes the panel without auth — do that only for safe aggregates.",
     nextSteps: ["get_admin_stats"],
   },
+
+  // ===== Coverage follow-on: singular reads the money/inventory flows demand ===
+  //
+  // These close the reads a batch of write tools already required and never
+  // provided: `list_inventory_orders` had no `get_inventory_order` to open one
+  // row; `create_payment_submission` had no way to check whether a run was
+  // already billed; the partner-scoped write tools had no partner-scoped reads
+  // to answer "what does this partner have on the hook". A tool that demands an
+  // identifier must be reachable from a tool that produces it — this is the
+  // same id-producer rule the stock-location and region tools were written for.
+  {
+    name: "get_inventory_order",
+    description:
+      "Get one inventory order by id — the raw-material purchase / stock movement — with its lines, status and (best-effort) unified work-status and shipments. Read. The singular of the list_inventory_orders family: list_inventory_orders shows rows, this opens one. Call it before update_inventory_order_lines or mark_inventory_order_ready_for_delivery to see the order you are about to change.",
+    method: "GET",
+    path: "/admin/inventory-orders/:id",
+    pathParams: ["id"],
+    inputSchema: obj(
+      { id: STR("Inventory order id, e.g. 'inv_order_...'.") },
+      ["id"]
+    ),
+    nextSteps: [
+      "list_inventory_orders",
+      "get_inventory_order_charges",
+      "list_inventory_order_activities",
+    ],
+  },
+  {
+    name: "get_inventory_order_charges",
+    description:
+      "Read the non-goods amounts on an inventory order — tax, shipping, a discount or a write-off — plus the folded totals and the payable ceiling a claim may reach. Read. A charge changes what the partner is owed (#1737): this is where 'why is the payable different from total_price?' is answered.",
+    method: "GET",
+    path: "/admin/inventory-orders/:id/charges",
+    pathParams: ["id"],
+    inputSchema: obj(
+      { id: STR("Inventory order id, e.g. 'inv_order_...'.") },
+      ["id"]
+    ),
+    nextSteps: ["get_inventory_order", "list_payable_inventory_orders"],
+  },
+  {
+    name: "list_inventory_order_activities",
+    description:
+      "Read an inventory order's activity/timeline log, newest first — status changes, notes and events. Read. Use to answer 'what happened to this order, and when'. Supports limit (default 50, max 100) and offset.",
+    method: "GET",
+    path: "/admin/inventory-orders/:id/activities",
+    pathParams: ["id"],
+    queryParams: ["limit", "offset"],
+    inputSchema: obj(
+      {
+        id: STR("Inventory order id, e.g. 'inv_order_...'."),
+        limit: INT("Max results (default 50, max 100)."),
+        offset: INT("Pagination offset."),
+      },
+      ["id"]
+    ),
+    nextSteps: ["get_inventory_order"],
+  },
+  {
+    name: "get_order_balance",
+    description:
+      "Read what a customer order still owes — the payment schedule, total due, deposit and balance, whether a balance can be raised, and the buyer's link if one was minted. Read. Answers 'is this order fully paid?' and 'can we collect the balance?'. A GET never charges anybody; raising the balance is a separate, confirm-gated write.",
+    method: "GET",
+    path: "/admin/orders/:id/balance",
+    pathParams: ["id"],
+    inputSchema: obj({ id: STR("Order id, e.g. 'order_...'.") }, ["id"]),
+    nextSteps: ["get_order"],
+  },
+  {
+    name: "get_production_run_payments",
+    description:
+      "Read whether a production run has already been billed and by which payout — the run's billing status, the live claim, what remains billable, and every line naming this run. Read. 🔴 The run does not know it has been billed; this is the one place to learn that before creating a payout for it. Call it BEFORE create_payment_submission so a completed run already paid for is not claimed twice.",
+    method: "GET",
+    path: "/admin/production-runs/:id/payments",
+    pathParams: ["id"],
+    inputSchema: obj({ id: STR("Production run id.") }, ["id"]),
+    nextSteps: ["list_payable_runs", "create_payment_submission"],
+  },
+  {
+    name: "get_payment",
+    description:
+      "Get one payment record by id (status, amount, currency, provider, order/cart). Read. list_payments shows rows; this opens one — e.g. the payment whose id link_payment_to_payout would settle.",
+    method: "GET",
+    path: "/admin/payments/:id",
+    pathParams: ["id"],
+    inputSchema: obj({ id: STR("Payment id, e.g. 'pay_...'.") }, ["id"]),
+    nextSteps: ["list_payments", "get_partner_ledger"],
+  },
+
+  // ---- Partner inspection mirrors (#843 follow-on): the reads behind
+  // 'what does this partner have on the hook'. Each is the admin side of an
+  // existing partner route — same workflow, partner resolved from `:id` instead
+  // of a partner bearer — so the mirror cannot show a partner anything their
+  // own portal would not. All read-only.
+  {
+    name: "list_partner_orders",
+    description:
+      "List a partner's orders as the partner sees them in their own portal — the inspection mirror of the partner orders route. Filters by kind (retail | design | inventory | all) and the same status/q/date/region/sales-channel filters. Read. Use to answer 'what has this partner sold, and what work-orders do they have on the hook'.",
+    method: "GET",
+    path: "/admin/partners/:id/orders",
+    pathParams: ["id"],
+    queryParams: [
+      "kind",
+      "status",
+      "q",
+      "created_at",
+      "updated_at",
+      "region_id",
+      "sales_channel_id",
+      "order",
+      "limit",
+      "offset",
+    ],
+    inputSchema: obj(
+      {
+        id: STR("Partner id, e.g. 'partner_...'."),
+        kind: STR(
+          "'retail' (default) | 'design' | 'inventory' | 'all' — the order family to list."
+        ),
+        status: STR("Order status filter."),
+        q: STR("Free-text search."),
+        created_at: STR("Filter by created_at."),
+        updated_at: STR("Filter by updated_at."),
+        region_id: STR("Filter by region (retail kind only)."),
+        sales_channel_id: STR("Filter by sales channel (retail kind only)."),
+        order: STR("Sort field; a leading '-' means descending, e.g. '-created_at'."),
+        limit: INT("Max results (default 20)."),
+        offset: INT("Pagination offset."),
+      },
+      ["id"]
+    ),
+    nextSteps: ["get_partner", "get_order"],
+  },
+  {
+    name: "list_partner_inventory_orders",
+    description:
+      "List a partner's inventory orders as the partner sees them — the inspection mirror of the partner inventory-orders route. Filters: status, q, limit, offset. Read. Use to answer 'what raw materials has this partner been commissioned for'.",
+    method: "GET",
+    path: "/admin/partners/:id/inventory-orders",
+    pathParams: ["id"],
+    queryParams: ["status", "q", "limit", "offset"],
+    inputSchema: obj(
+      {
+        id: STR("Partner id, e.g. 'partner_...'."),
+        ...PAGINATION,
+        status: STR("Optional status filter."),
+      },
+      ["id"]
+    ),
+    nextSteps: ["get_partner", "get_inventory_order", "list_payable_inventory_orders"],
+  },
+  {
+    name: "list_partner_inventory_items",
+    description:
+      "List a partner's inventory as the partner sees it — the inspection mirror of the partner inventory-items route, scoped to the partner's default stock location. Filters: q, limit, offset. Read. A partner with no store or location returns an empty list, which is a state worth seeing. Use to answer 'what does this partner hold'.",
+    method: "GET",
+    path: "/admin/partners/:id/inventory-items",
+    pathParams: ["id"],
+    queryParams: ["q", "limit", "offset"],
+    inputSchema: obj(
+      { id: STR("Partner id, e.g. 'partner_...'."), ...PAGINATION },
+      ["id"]
+    ),
+    nextSteps: ["get_partner", "get_inventory_item"],
+  },
+  {
+    name: "list_partner_production_runs",
+    description:
+      "List a partner's production runs as the partner sees them — the inspection mirror of the partner production-runs route, scoped to the run's own partner_id. Filters: status, role, run_type, design_id, limit, offset. Read. Use to answer 'what is this partner on the hook for right now'.",
+    method: "GET",
+    path: "/admin/partners/:id/production-runs",
+    pathParams: ["id"],
+    queryParams: ["status", "role", "run_type", "design_id", "limit", "offset"],
+    inputSchema: obj(
+      {
+        id: STR("Partner id, e.g. 'partner_...'."),
+        status: STR("Run status filter."),
+        role: STR("Role filter."),
+        run_type: STR("'production' | 'sample'."),
+        design_id: STR("Only runs for this design."),
+        limit: INT("Max results (default 20)."),
+        offset: INT("Pagination offset."),
+      },
+      ["id"]
+    ),
+    nextSteps: ["get_partner", "get_production_run", "get_production_run_payments"],
+  },
+  {
+    name: "get_partner_storefront",
+    description:
+      "Read a partner's storefront hosting status — whether it is provisioned, the provider project state, configured domains and any stale-project flag. Read. Use to answer 'is this partner's store live?' and 'why is their storefront down?'. Reports state and writes nothing.",
+    method: "GET",
+    path: "/admin/partners/:id/storefront",
+    pathParams: ["id"],
+    inputSchema: obj({ id: STR("Partner id, e.g. 'partner_...'.") }, ["id"]),
+    nextSteps: ["get_partner", "list_partner_products", "list_stores"],
+  },
+
+  // ---- Production ops: the note on a run's timeline ----------------------
+  {
+    name: "add_production_run_activity_note",
+    description:
+      "Append a free-form note to a production run's activity timeline — designed for logging what a partner actually said in WhatsApp against the run it concerns. Sensitive: requires confirm:true. `summary` is required; pass `message_id` when the note came from a real WhatsApp message (it is stamped channel=whatsapp so the timeline can tell messages-originated notes from admin-typed ones).",
+    method: "POST",
+    path: "/admin/production-runs/:id/activities/note",
+    pathParams: ["id"],
+    write: true,
+    sensitive: true,
+    previewPath: "/admin/production-runs/:id/activities",
+    bodyParams: ["summary", "message_id", "conversation_id", "partner_id", "payload"],
+    inputSchema: obj(
+      {
+        id: STR("Production run id."),
+        summary: STR(
+          "The note text (required). What the partner said, or what the admin is recording."
+        ),
+        message_id: STR(
+          "The WhatsApp message id, when this note came from a real message."
+        ),
+        conversation_id: STR("The WhatsApp conversation id, when known."),
+        partner_id: STR(
+          "Partner the note concerns — defaults to the run's own partner."
+        ),
+        payload: {
+          type: "object",
+          description: "Extra structured detail recorded on the activity.",
+        },
+      },
+      ["id", "summary"]
+    ),
+    sideEffects:
+      "Creates one 'note' activity on the run's timeline. Nothing else changes — no status, no money, no message to anybody.",
+    nextSteps: ["list_production_run_activities", "get_production_run"],
+  },
 ]
