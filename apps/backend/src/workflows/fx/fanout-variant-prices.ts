@@ -216,11 +216,24 @@ export type FxFanoutRequestedPayload = {
  * Never throws. If the event bus itself is unreachable the fanout is skipped
  * and logged — exactly the pre-existing "worst case is no auto-prices"
  * contract, and never a failed save for the partner.
+ *
+ * It RETURNS whether the enqueue actually happened, because "never throws"
+ * and "succeeded" are not the same thing. A save path is right to ignore that
+ * (the fanout is best-effort there), but a caller that REPORTS what it did —
+ * the `replay-fx-fanout` maintenance job — must not print "queued 264" when
+ * the bus was unreachable and nothing was queued at all.
  */
+export type RequestVariantPriceFanoutResult = {
+  /** true only when the event was handed to the bus without error. */
+  queued: boolean
+  /** set when nothing was emitted: "empty" (no ids) or the bus error message. */
+  reason?: string
+}
+
 export async function requestVariantPriceFanout(
   scope: any,
   input: FanoutVariantPricesInput
-): Promise<void> {
+): Promise<RequestVariantPriceFanoutResult> {
   const logger: any = scope.resolve(ContainerRegistrationKeys.LOGGER)
   const payload: FxFanoutRequestedPayload = {
     store_id: input.storeId,
@@ -229,15 +242,19 @@ export async function requestVariantPriceFanout(
   }
 
   // Nothing to fan out — don't wake the worker for an empty job.
-  if (!payload.price_ids?.length && !payload.variant_ids?.length) return
+  if (!payload.price_ids?.length && !payload.variant_ids?.length) {
+    return { queued: false, reason: "empty" }
+  }
 
   try {
     const eventBus: any = scope.resolve(Modules.EVENT_BUS)
     await eventBus.emit({ name: FX_FANOUT_REQUESTED, data: payload })
+    return { queued: true }
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err)
     logger?.warn?.(
       `[fanout] could not enqueue FX fanout for store ${input.storeId}: ${message}`
     )
+    return { queued: false, reason: message }
   }
 }
