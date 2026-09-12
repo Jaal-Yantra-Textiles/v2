@@ -100,6 +100,24 @@ export type AdminCancelGoodsTransferPayload = {
   reason?: string
 }
 
+/**
+ * What the receipt actually did. `moved: false` is a normal outcome, not a
+ * failure — a customer leg or a same-location hop has no inventory movement to
+ * make, and the reason says which.
+ */
+export type AdminGoodsTransferReceipt = {
+  transfer_id: string
+  status: "delivered"
+  received_quantity: number
+  moved: boolean
+  skip_reason?: "customer_leg" | "same_location" | "zero_quantity"
+  inventory_item_id?: string
+  from_location_id?: string
+  to_location_id?: string
+  reservations_repointed: number
+  shortfall: number
+}
+
 export const useGoodsTransfers = (
   productionRunId: string,
   options?: Omit<
@@ -183,6 +201,40 @@ export const useCancelGoodsTransfer = (
     mutationFn: async ({ transferId, ...body }) =>
       sdk.client.fetch<{ goods_transfer: AdminGoodsTransfer }>(
         `/admin/production-runs/${productionRunId}/transfers/${transferId}/cancel`,
+        { method: "POST", body }
+      ),
+    ...options,
+    onSuccess: (data, variables, _mutateResult, context) => {
+      invalidate(queryClient, productionRunId)
+      options?.onSuccess?.(data, variables, _mutateResult, context)
+    },
+  })
+}
+
+/**
+ * Receive a hop (#891 S3) — the call that actually moves the inventory.
+ *
+ * Deliberately separate from the carrier's "delivered" scan: the scan says a
+ * box arrived, this says a person opened it and counted what was inside.
+ * Omitting `received_quantity` means "all of it", which is the common case.
+ */
+export const useReceiveGoodsTransfer = (
+  productionRunId: string,
+  options?: UseMutationOptions<
+    { goods_transfer: AdminGoodsTransfer; receipt: AdminGoodsTransferReceipt },
+    FetchError,
+    { transferId: string; received_quantity?: number; notes?: string }
+  >
+) => {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: async ({ transferId, ...body }) =>
+      sdk.client.fetch<{
+        goods_transfer: AdminGoodsTransfer
+        receipt: AdminGoodsTransferReceipt
+      }>(
+        `/admin/production-runs/${productionRunId}/transfers/${transferId}/receive`,
         { method: "POST", body }
       ),
     ...options,
