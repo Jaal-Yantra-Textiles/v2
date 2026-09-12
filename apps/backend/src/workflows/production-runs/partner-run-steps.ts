@@ -335,6 +335,21 @@ type StockRollbackData = {
   quantity: number
 } | null
 
+/**
+ * What the step did, for #891 S1's audit record.
+ *
+ * `stocked: false` carries no location DELIBERATELY. The step returns early
+ * for rejected-only output, for an aggregate parent, and for a design with no
+ * resolvable variant — in every one of those the run has a `location_id` on
+ * its input and banked nothing at it.
+ */
+export type StockFinishedGoodsResult = {
+  stocked: boolean
+  location_id?: string | null
+  inventory_item_id?: string | null
+  quantity?: number
+}
+
 export const stockFinishedGoodsStep = createStep(
   "stock-finished-goods",
   async (input: StockFinishedGoodsInput, { container }) => {
@@ -466,7 +481,17 @@ export const stockFinishedGoodsStep = createStep(
     }
 
     return new StepResponse(
-      { stocked: true },
+      {
+        stocked: true,
+        // #891 S1 — the step's own answer to "where did the goods go". Derived
+        // here rather than re-derived by the caller: the early returns above
+        // mean `input.location_id` being set is NOT the same as having stocked
+        // anything, and a caller that assumed it would record a location for a
+        // run that banked nothing.
+        location_id: input.location_id,
+        inventory_item_id: inventoryItemId,
+        quantity: input.good_quantity,
+      } as StockFinishedGoodsResult,
       { inventory_item_id: inventoryItemId, location_id: input.location_id, quantity: input.good_quantity } as StockRollbackData
     )
   },
@@ -495,6 +520,137 @@ export const stockFinishedGoodsStep = createStep(
           `[stock-finished-goods] Rollback FAILED for ${rollbackData.inventory_item_id}@${rollbackData.location_id}: could not remove ${rollbackData.quantity}. The level is now overstated by that amount. ${e?.message}`
         )
       }
+    }
+  }
+)
+
+// ---------------------------------------------------------------------------
+// Step: Record WHERE the run's output was banked (#891 S1)
+// ---------------------------------------------------------------------------
+
+export type RecordStockedLocationInput = {
+  production_run_id: string
+  /** The result of `stockFinishedGoodsStep`, passed straight through. */
+  stock_result: StockFinishedGoodsResult
+}
+
+type RecordStockedLocationRollback = {
+  production_run_id: string
+  stocked_at_location_id: string | null
+  stocked_quantity: number | null
+  stocked_at: Date | null
+} | null
+
+/**
+ * Stamp the stocked-at location onto the run.
+ *
+ * Pure audit: it changes no inventory, no money and no status. It exists
+ * because the run was the one row that could not say where its own goods
+ * went, which is what let a `+1` at the producing partner and a `-1` at the
+ * house sit 84 minutes apart looking like a loss rather than a move.
+ *
+ * Best-effort on purpose. The goods are already banked and the partner is
+ * already owed by the time this runs; failing the completion to save an audit
+ * column would undo real work to protect a record of it. It logs loudly
+ * instead — silence is what made the last inventory drift take four months to
+ * notice (#1259).
+ */
+/**
+ * What to stamp on the run, given what the stocking step actually did.
+ *
+ * Pure, and separate from the step, because this is the whole decision and the
+ * step around it is plumbing. `null` means RECORD NOTHING.
+ *
+ * 🔑 The rule that matters: a location on the INPUT is not evidence that
+ * anything was banked at it. `stockFinishedGoodsStep` returns early — with the
+ * partner location still sitting on its input — for a run whose output was all
+ * rejected, for an aggregate parent whose children bank their own goods, and
+ * for a design with no resolvable variant. Recording the input location in any
+ * of those cases would make the run claim goods at a place that received none,
+ * which is the same false-split error, one layer up.
+ */
+export const stockedLocationRecordFor = (
+  result: StockFinishedGoodsResult | null | undefined,
+  now: Date = new Date()
+): { stocked_at_location_id: string; stocked_quantity: number | null; stocked_at: Date } | null => {
+  if (!result?.stocked) return null
+  if (!result.location_id) return null
+  return {
+    stocked_at_location_id: String(result.location_id),
+    // `?? null`, not `|| null`: a banked quantity of 0 should never reach here
+    // (the step returns early on `good_quantity <= 0`), but if it ever does,
+    // 0 is a number that was recorded, not an absence.
+    stocked_quantity: result.quantity ?? null,
+    stocked_at: now,
+  }
+}
+
+export const recordStockedLocationStep = createStep(
+  "record-stocked-location",
+  async (input: RecordStockedLocationInput, { container }) => {
+    // Nothing was banked — so there is no location to claim. Writing the
+    // input location here anyway would assert that goods exist somewhere they
+    // do not, which is the exact class of error S1 is meant to end.
+    const record = stockedLocationRecordFor(input.stock_result)
+    if (!record) {
+      return new StepResponse(
+        { recorded: false },
+        null as RecordStockedLocationRollback
+      )
+    }
+
+    const service: ProductionRunService = container.resolve(
+      PRODUCTION_RUNS_MODULE
+    )
+
+    try {
+      // Read the prior values BEFORE overwriting, so compensation restores
+      // what was there rather than nulling a column a re-run had populated.
+      const before: any = await service.retrieveProductionRun(
+        input.production_run_id
+      )
+
+      await service.updateProductionRuns({
+        id: input.production_run_id,
+        ...record,
+      } as any)
+
+      return new StepResponse(
+        { recorded: true, location_id: record.stocked_at_location_id },
+        {
+          production_run_id: input.production_run_id,
+          stocked_at_location_id: before?.stocked_at_location_id ?? null,
+          stocked_quantity: before?.stocked_quantity ?? null,
+          stocked_at: before?.stocked_at ?? null,
+        } as RecordStockedLocationRollback
+      )
+    } catch (e: any) {
+      logger?.error(
+        `[record-stocked-location] Could not stamp run ${input.production_run_id} as stocked at ${record.stocked_at_location_id}: ${e?.message}. The goods ARE banked there; only the record is missing, so this run's location will still have to be reconstructed.`
+      )
+      return new StepResponse(
+        { recorded: false },
+        null as RecordStockedLocationRollback
+      )
+    }
+  },
+  async (rollback: RecordStockedLocationRollback, { container }) => {
+    if (!rollback?.production_run_id) return
+    const service: ProductionRunService = container.resolve(
+      PRODUCTION_RUNS_MODULE
+    )
+    try {
+      await service.updateProductionRuns({
+        id: rollback.production_run_id,
+        stocked_at_location_id: rollback.stocked_at_location_id,
+        stocked_quantity: rollback.stocked_quantity,
+        stocked_at: rollback.stocked_at,
+      } as any)
+    } catch (e: any) {
+      // A compensation must not throw — it would mask the original failure.
+      logger?.error(
+        `[record-stocked-location] Rollback FAILED for run ${rollback.production_run_id}: the run still claims stock at ${rollback.stocked_at_location_id ?? "(none)"}. ${e?.message}`
+      )
     }
   }
 )

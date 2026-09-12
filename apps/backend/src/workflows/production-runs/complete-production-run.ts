@@ -28,6 +28,7 @@ import {
   resolvePartnerLocationStep,
   completeLinkedTasksStep,
   stockFinishedGoodsStep,
+  recordStockedLocationStep,
   type PartnerRunInput,
 } from "./partner-run-steps"
 import { mirrorUnifiedRunOrderStatusStep } from "./dual-write-unified-run-order"
@@ -531,7 +532,23 @@ export const completeProductionRunWorkflow = createWorkflow(
       }
     )
 
-    stockFinishedGoodsStep(stockInput)
+    const stockResult = stockFinishedGoodsStep(stockInput)
+
+    /**
+     * #891 S1 — record WHERE the output was banked.
+     *
+     * Reads the step's own result rather than `partnerLocation.location_id`:
+     * the step returns early without stocking for a rejected-only run, an
+     * aggregate parent, or a design with no resolvable variant, and all three
+     * have a partner location on the input. Recording the input location would
+     * claim goods at a place that never received any.
+     */
+    recordStockedLocationStep(
+      transform({ input, stockResult }, (data) => ({
+        production_run_id: data.input.production_run_id,
+        stock_result: data.stockResult as any,
+      }))
+    )
 
     // Signal lifecycle workflow
     const lifecycleInput = transform({ run }, (data) => ({
