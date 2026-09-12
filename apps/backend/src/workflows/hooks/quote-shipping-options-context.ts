@@ -77,13 +77,54 @@ import { PARTNER_QUOTE_MODULE } from "../../modules/partner-quote"
  * plain variant backs the storefront's option list. Wiring only one produces a
  * cart that can be given the option and is then told the option is invalid.
  */
+/**
+ * The cart's currency, as a rule-matchable context key.
+ *
+ * ## Why core cannot already do this
+ *
+ * `currency_code` reaches core's shipping-option listing twice, and only one of
+ * them is the one a rule reads. It is in `calculated_price.context`, where it
+ * picks WHICH price applies, and it is absent from the `context` object that
+ * `isContextValid` matches rules against — that one carries `is_return`,
+ * `enabled_in_store` and whatever this hook returns, and nothing else. So a
+ * rule `currency_code eq gbp` on a stock Medusa matches nothing, everywhere.
+ *
+ * ## Why a calculated option needs it
+ *
+ * A FLAT option is confined to the currencies it has price rows for: no row,
+ * no offer. A CALCULATED option has no price rows at all — that is the point —
+ * so nothing confines it, and it is offered in every currency the zone reaches
+ * the moment it exists. A rule is the only gate there is.
+ *
+ * That matters when the provider behind it can quote but not BOOK. Packlink
+ * rates Le Ciricotte's EU-origin lanes and throws a named error on
+ * `createFulfillment`; letting it appear on the five lanes that a manual option
+ * already serves would trade a working checkout for an unfulfillable one, to no
+ * gain. `cart_currency_code in [gbp,cad,aed,cny]` keeps it on the four lanes
+ * that had no live quote at all.
+ *
+ * 🔑 Named `cart_currency_code`, not `currency_code`, on purpose: core already
+ * spends the bare name on the pricing context, and one word meaning two things
+ * a few lines apart is how someone later writes the rule that silently matches
+ * nothing.
+ */
+const cartCurrency = (cart: any): string => {
+  // Both list workflows fetch `currency_code` and `validatePresenceOfStep`
+  // requires it, so this is populated on every real cart. The fallback is not
+  // decoration: an absent key excludes the option, and a currency-gated option
+  // that quietly vanishes is the failure this file already documents once.
+  const code = cart?.currency_code
+  return typeof code === "string" && code ? code.toLowerCase() : "none"
+}
+
 const setQuoteShippingContext = async (
   { cart }: { cart: any },
   { container }: { container: any }
 ) => {
+  const cart_currency_code = cartCurrency(cart)
   const cartId = cart?.id
   if (!cartId) {
-    return new StepResponse({ quote_id: "none" })
+    return new StepResponse({ quote_id: "none", cart_currency_code })
   }
 
   try {
@@ -95,12 +136,18 @@ const setQuoteShippingContext = async (
     const quoteId = rows?.[0]?.id
     // The literal "none" matters: the rule compares `${contextValue}` against
     // its value, so this is simply a string no quote id can equal.
-    return new StepResponse({ quote_id: quoteId ? String(quoteId) : "none" })
+    return new StepResponse({
+      quote_id: quoteId ? String(quoteId) : "none",
+      cart_currency_code,
+    })
   } catch {
     // Shipping options must not 500 because a lookup failed. Falling back to
     // "none" hides the quote option, which fails toward showing the buyer
     // fewer options rather than toward offering someone else's freight.
-    return new StepResponse({ quote_id: "none" })
+    // The currency still goes out: it is read off the cart, so a quote lookup
+    // that failed says nothing about it, and dropping it here would hide every
+    // currency-gated option on an unrelated error.
+    return new StepResponse({ quote_id: "none", cart_currency_code })
   }
 }
 

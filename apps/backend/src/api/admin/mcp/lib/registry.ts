@@ -673,6 +673,213 @@ export const ADMIN_MCP_TOOLS: AdminMcpToolDef[] = [
       id: STR("A specific shipping option id."),
     }),
   },
+  /**
+   * The two shipping-option WRITES.
+   *
+   * Until these existed there was no way to create or amend a shipping option
+   * except the admin UI: no tool wrapped either route, and an authenticated
+   * curl at prod is refused by the permission classifier. So "the flat rate is
+   * loss-making, switch the lane to live rates" was a change nobody could
+   * actually make from here.
+   */
+  {
+    name: "create_shipping_option",
+    description:
+      "Create a shipping option — a rate a buyer can pick at checkout, or a quote-only row. Sensitive: requires confirm:true. Call list_shipping_options on the target `service_zone_id` first: options are what make a zone SELLABLE, and a second one competing with an existing rate is usually not what was wanted. 🔴 `prices` is REQUIRED even for `price_type: \"calculated\"` — send `[]` there; the carrier quotes, so a price row would be a second answer to the same question. 🔑 A FLAT option with no price in the cart's currency is simply not offered; a CALCULATED one has no prices and so is offered EVERYWHERE the zone reaches. That asymmetry is the whole trap: the only way to confine a calculated option to particular lanes is a `rules` entry, and a rule can only name a context key something actually publishes (`enabled_in_store`, `is_return`, `quote_id`, `cart_currency_code` — see the setShippingOptionsContext hook). ⚠️ A rule naming a key nobody publishes does not fail: the matcher stringifies the absent value to \"undefined\", so the option is EXCLUDED from every cart and looks merely unpopular. Exactly one of `type` or `type_id`. The `provider_id` must be registered AND enabled — check list_fulfillment_providers, since a provider configured in only one medusa-config file does not exist in prod.",
+    method: "POST",
+    path: "/admin/shipping-options",
+    write: true,
+    sensitive: true,
+    bodyParams: [
+      "name",
+      "service_zone_id",
+      "shipping_profile_id",
+      "provider_id",
+      "price_type",
+      "type",
+      "type_id",
+      "prices",
+      "rules",
+      "data",
+      "metadata",
+    ],
+    inputSchema: obj(
+      {
+        name: STR("Shown to the buyer at checkout, e.g. 'International (Packlink)'."),
+        service_zone_id: STR("Service zone this option serves, e.g. 'serzo_...'. From list_shipping_options or the zone's fulfillment set."),
+        shipping_profile_id: STR("Shipping profile id, e.g. 'sp_...'. From list_shipping_profiles — ⚠️ there is more than one, so do not take whichever comes back first (#1983)."),
+        provider_id: STR("Fulfillment provider, e.g. 'manual_manual', 'packlink_packlink'. Must appear enabled in list_fulfillment_providers."),
+        price_type: {
+          type: "string",
+          enum: ["flat", "calculated"],
+          description:
+            "'flat' prices from the `prices` rows; 'calculated' asks the provider per cart. A calculated option is only as good as its provider's calculatePrice — one that cannot quote a lane falls back or throws.",
+        },
+        type: obj(
+          {
+            label: STR("Short label, e.g. 'International'."),
+            description: STR("What this option is."),
+            code: STR("Stable code, unique per option, e.g. 'international-packlink-Y49EF4ZP'."),
+          },
+          ["label", "code"]
+        ),
+        type_id: STR("Reuse an existing shipping option type instead of creating one. Exactly one of `type` / `type_id`."),
+        prices: {
+          type: "array",
+          description:
+            "Price rows — REQUIRED by the validator; send `[]` for a calculated option. Each row is either { currency_code, amount } or { region_id, amount }, optionally with `rules` (free-shipping bands: only `item_total` is a legal attribute and its `value` is a NUMBER).",
+          items: {
+            type: "object",
+            properties: {
+              currency_code: STR("Lower-case 3-letter code, e.g. 'gbp'. Mutually exclusive with region_id."),
+              region_id: STR("Region id. Mutually exclusive with currency_code."),
+              amount: { type: "number", description: "Amount in the currency's own units, as the admin UI shows it." },
+              rules: {
+                type: "array",
+                description: "Bands, e.g. free shipping between two basket totals.",
+                items: obj(
+                  {
+                    attribute: { type: "string", enum: ["item_total"], description: "Only 'item_total' is accepted." },
+                    operator: { type: "string", description: "gte | lte | gt | lt | eq." },
+                    value: { type: "number", description: "A NUMBER, not a string." },
+                  },
+                  ["attribute", "operator", "value"]
+                ),
+              },
+            },
+            additionalProperties: false,
+          },
+        },
+        rules: {
+          type: "array",
+          description:
+            "Who the option is offered to. `{ attribute: 'enabled_in_store', operator: 'eq', value: 'true' }` makes it visible in a cart; 'false' hides it from every cart while leaving it quotable. Values are STRINGS even when they read as booleans or currencies.",
+          items: obj(
+            {
+              attribute: STR("Context key, e.g. 'enabled_in_store', 'is_return', 'cart_currency_code'."),
+              operator: STR("eq | ne | in | nin | gt | gte | lt | lte."),
+              value: {
+                description: "A string, or an array of strings for `in`/`nin`.",
+                anyOf: [{ type: "string" }, { type: "array", items: { type: "string" } }],
+              },
+            },
+            ["attribute", "operator", "value"]
+          ),
+        },
+        data: {
+          type: "object",
+          additionalProperties: true,
+          description:
+            "Provider-specific settings, handed to the provider verbatim on every quote — e.g. Packlink's parcel defaults (`default_weight_kg`, `default_length_cm`, …) and `flat_fallback_amounts`. This is how one option differs from another on the SAME provider.",
+        },
+        metadata: { type: "object", additionalProperties: true },
+      },
+      ["name", "service_zone_id", "shipping_profile_id", "provider_id", "price_type", "prices"]
+    ),
+    sideEffects:
+      "A store-enabled option is offered at checkout immediately. If its provider cannot createFulfillment, orders that pick it cannot be fulfilled from the admin — check before enabling one.",
+    nextSteps: ["list_shipping_options", "update_shipping_option"],
+  },
+  {
+    name: "update_shipping_option",
+    description:
+      "Amend an existing shipping option — its name, provider, price type, provider `data`, prices or rules. Sensitive: requires confirm:true. 🔴🔴 `prices` REPLACES THE WHOLE SET. A row you leave out is DELETED, not left alone — the same shape as a variant price save that hard-deleted 11 rows. So to change ONE currency, read the option with list_shipping_options first and re-send EVERY price you intend to keep, each with its `id`, including the free-shipping bands and their `rules`. Omit `prices` entirely and the set is untouched; that is the safe call when you only mean to rename or repoint something. 🔑 `rules` behaves the same way, so omit it unless you mean to rewrite the rule set. ⚠️ Removing a currency's price row does not disable the option — it makes it unofferable in THAT currency only, which is exactly how you hand a lane over to a calculated option without touching the others.",
+    method: "POST",
+    path: "/admin/shipping-options/:id",
+    pathParams: ["id"],
+    previewPath: "/admin/shipping-options/:id",
+    write: true,
+    sensitive: true,
+    bodyParams: [
+      "name",
+      "provider_id",
+      "shipping_profile_id",
+      "price_type",
+      "type",
+      "type_id",
+      "prices",
+      "rules",
+      "data",
+      "metadata",
+    ],
+    inputSchema: obj(
+      {
+        id: STR("Shipping option id, e.g. 'so_...'."),
+        name: STR("New name shown at checkout."),
+        provider_id: STR("Repoint at a different fulfillment provider."),
+        shipping_profile_id: STR("Move to a different shipping profile."),
+        price_type: {
+          type: "string",
+          enum: ["flat", "calculated"],
+          description:
+            "⚠️ Turning a flat option calculated makes its price rows meaningless — including any free-shipping bands, which then simply stop applying. Usually you want a SECOND, calculated option instead.",
+        },
+        type: obj(
+          {
+            label: STR("Short label."),
+            description: STR("What this option is."),
+            code: STR("Stable code."),
+          },
+          ["label", "code"]
+        ),
+        type_id: STR("Reuse an existing type. Only one of `type` / `type_id`."),
+        prices: {
+          type: "array",
+          description:
+            "🔴 THE REPLACEMENT SET, not a patch. Re-send every row you are keeping WITH its `id` (and its `rules`, which are likewise replaced per row). Omit the field to leave prices alone.",
+          items: {
+            type: "object",
+            properties: {
+              id: STR("Existing price row id — carry it to keep that row rather than mint a new one."),
+              currency_code: STR("Lower-case 3-letter code."),
+              region_id: STR("Region id. Mutually exclusive with currency_code."),
+              amount: { type: "number", description: "Amount in the currency's own units." },
+              rules: {
+                type: "array",
+                description: "Bands for this row. Only `item_total`, and `value` is a NUMBER.",
+                items: obj(
+                  {
+                    attribute: { type: "string", enum: ["item_total"], description: "Only 'item_total' is accepted." },
+                    operator: STR("gte | lte | gt | lt | eq."),
+                    value: { type: "number", description: "A NUMBER, not a string." },
+                  },
+                  ["attribute", "operator", "value"]
+                ),
+              },
+            },
+            additionalProperties: false,
+          },
+        },
+        rules: {
+          type: "array",
+          description:
+            "The replacement rule set. Carry each existing rule's `id` to keep it. Omit the field to leave rules alone.",
+          items: obj(
+            {
+              id: STR("Existing rule id — omit to create a new rule."),
+              attribute: STR("Context key, e.g. 'enabled_in_store', 'cart_currency_code'."),
+              operator: STR("eq | ne | in | nin | gt | gte | lt | lte."),
+              value: {
+                description: "A string, or an array of strings for `in`/`nin`.",
+                anyOf: [{ type: "string" }, { type: "array", items: { type: "string" } }],
+              },
+            },
+            ["attribute", "operator", "value"]
+          ),
+        },
+        data: {
+          type: "object",
+          additionalProperties: true,
+          description: "Provider settings, replaced wholesale — re-send the keys you are keeping.",
+        },
+        metadata: { type: "object", additionalProperties: true },
+      },
+      ["id"]
+    ),
+    sideEffects:
+      "Takes effect on the next cart that lists options. Dropping a price row makes the option unofferable in that currency; existing orders are unaffected.",
+    nextSteps: ["list_shipping_options"],
+  },
   {
     name: "list_shipping_profiles",
     description:
