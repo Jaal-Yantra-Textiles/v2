@@ -449,6 +449,42 @@ module.exports = defineConfig({
                 },
               ]
             : []),
+          /**
+           * Packlink — live rates for partners shipping from EUROPE.
+           *
+           * Shiprocket originates in India; the EasyPost account originates
+           * only in US/CA (verified 2026-09-12: every carrier answered
+           * "from_address.country is required to be US", while the identical
+           * payload from a US origin returned 8 rates). So an EU partner had NO
+           * way to quote, and its international shipping was a hand-set flat
+           * rate — which the live Packlink rates then showed to be loss-making
+           * on 3 of its 4 lanes, by EUR 52 per parcel to the UAE.
+           *
+           * 🔴 Registered in BOTH configs on purpose. The Dockerfile copies
+           * medusa-config.prod.ts OVER medusa-config.ts, so a provider added to
+           * only the dev config does not exist in production.
+           *
+           * Off unless PACKLINK_API_KEY is set. The key belongs in SSM.
+           */
+          ...(process.env.PACKLINK_API_KEY
+            ? [
+                {
+                  resolve: "./src/modules/shipping-providers/packlink",
+                  id: "packlink",
+                  options: {
+                    api_key: process.env.PACKLINK_API_KEY,
+                    origin_country: process.env.PACKLINK_ORIGIN_COUNTRY,
+                    origin_zip: process.env.PACKLINK_ORIGIN_ZIP,
+                    margin: Number(process.env.PACKLINK_MARGIN || 1.2),
+                    // Same shape and same reason as Shiprocket's: an unquotable
+                    // lane must cost SOMETHING, not 0.
+                    flat_fallback_amounts: parseFlatFallbackAmounts(
+                      process.env.PACKLINK_FLAT_FALLBACK_AMOUNTS
+                    ),
+                  },
+                },
+              ]
+            : []),
           // Shiprocket (#31). Registers the Medusa fulfillment provider for the
           // checkout/createFulfillment flow. The resolver-driven label/tracking/
           // pickup routes source creds from the external-platform store instead;
