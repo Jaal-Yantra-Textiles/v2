@@ -173,6 +173,29 @@ jobs:
         ENCRYPTION_KEY=bPH59JuZDRQULLeDD62+NiwqwcChpOLN/j7aqu3A+Hw=
         EOF
 
+    # ---- The WHOLE unit suite, on every PR and every main push -----------
+    # 🔴 Why this is not filtered.
+    #
+    # The PR path below runs only the specs whose FILES changed, and the
+    # main-push path runs only `test:integration:http:batched`. So no job
+    # anywhere ran the full unit suite. A unit spec that started failing was
+    # invisible until somebody happened to edit that spec's own file — at which
+    # point it looked like THAT PR's fault.
+    #
+    # On 2026-09-12 the suite had FIVE reds on main accumulated this way. Three
+    # were stale hand-written field lists. One was a real production defect in
+    # the canonical design resolver, wearing a "known flaky test" label.
+    #
+    # ~2 minutes, no database. `shard == 1` so it runs exactly ONCE: PRs launch
+    # only shard 1, and a main push launches 1..8. (A manual dispatch of a
+    # shard list without 1 skips it — that path is a probe, not a gate.)
+    - name: Run the full unit suite
+      if: matrix.shard == 1
+      working-directory: apps/backend
+      env:
+        NODE_ENV: test
+      run: pnpm test:unit
+
     # ---- PR: run only the spec files changed in this PR (fast feedback) ----
     - name: Detect changed spec files
       if: github.event_name == 'pull_request'

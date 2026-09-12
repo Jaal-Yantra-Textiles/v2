@@ -11,10 +11,30 @@ import { additionalEmailTemplates } from "../seed-additional-email-templates"
 describe("seed-additional-email-templates", () => {
   const KEYS = ["partner-welcome", "order-feedback-request", "payment-receipt"]
 
-  it("seeds exactly the three net-new templates with unique keys", () => {
+  it("seeds exactly the net-new template keys", () => {
     const keys = additionalEmailTemplates.map((t) => t.template_key)
-    expect(keys.sort()).toEqual([...KEYS].sort())
-    expect(new Set(keys).size).toBe(keys.length)
+    expect([...new Set(keys)].sort()).toEqual([...KEYS].sort())
+  })
+
+  /**
+   * 🔑 Identity is (template_key, LOCALE), not template_key alone.
+   *
+   * This asserted uniqueness of `template_key` by itself, which was right until
+   * translations arrived: `partner-welcome` now exists twice, `en` and `it`.
+   * The seed upserts on `{ template_key, locale, is_active }`, so the pair is
+   * the real key — and the old assertion failed on `main` for a duplicate that
+   * is not one.
+   *
+   * Read the seed before loosening this: if two rows ever DID share a key and a
+   * locale, one would silently shadow the other and which welcome email a
+   * partner receives would come down to row order. That is the failure this
+   * test exists to catch, and it still does.
+   */
+  it("has no two templates sharing a key AND a locale", () => {
+    const identities = additionalEmailTemplates.map(
+      (t) => `${t.template_key}::${(t as any).locale ?? "en"}`
+    )
+    expect(new Set(identities).size).toBe(identities.length)
   })
 
   it("each row has the required non-empty fields", () => {
