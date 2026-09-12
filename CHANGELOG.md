@@ -1,3 +1,10 @@
+# [13.138.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.137.0...v13.138.0) (2026-09-12)
+
+
+### Features
+
+* **shipping:** Packlink fulfillment provider — live rates for EU-origin partners ([#2005](https://github.com/Jaal-Yantra-Textiles/v2/issues/2005)) ([87de61d](https://github.com/Jaal-Yantra-Textiles/v2/commit/87de61d037939938ccf057eecfdf1011eaa17e13))
+
 # [13.137.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.136.0...v13.137.0) (2026-09-12)
 
 
