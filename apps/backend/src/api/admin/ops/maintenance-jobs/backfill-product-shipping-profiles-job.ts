@@ -5,6 +5,8 @@ import {
 } from "@medusajs/framework/utils"
 import { z } from "@medusajs/framework/zod"
 
+import { pickTargetProfileId } from "../../../../lib/shipping-profile-selection"
+
 import type {
   MaintenanceChange,
   MaintenanceJob,
@@ -68,23 +70,12 @@ export function needsShippingProfile(product: any): boolean {
 }
 
 /**
- * PURE: pick the profile to link. An explicit id wins; otherwise the
- * `type: "default"` profile; otherwise — when exactly one profile exists — that
- * one. Returns null when the choice is ambiguous, so the job fails loudly
- * rather than scattering products across profiles. Exported for unit testing.
+ * Re-exported, not redefined: store provisioning picks a profile too, and the
+ * two must agree or a product and the option meant to ship it end up on
+ * different profiles (#1983). The rule and its reasoning live in
+ * `lib/shipping-profile-selection`.
  */
-export function pickTargetProfileId(
-  profiles: any[],
-  explicitId?: string
-): string | null {
-  if (explicitId) {
-    return profiles.some((p) => p?.id === explicitId) ? explicitId : null
-  }
-  const defaults = profiles.filter((p) => p?.type === "default")
-  if (defaults.length === 1) return defaults[0].id
-  if (defaults.length === 0 && profiles.length === 1) return profiles[0].id
-  return null
-}
+export { pickTargetProfileId }
 
 /** PURE: the operator-facing summary line. Exported for unit testing. */
 export function summarizeProfileBackfill(
