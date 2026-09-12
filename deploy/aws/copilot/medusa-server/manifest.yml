@@ -223,6 +223,16 @@ secrets:
   DTDC_TRACKING_PASSWORD: /jyt/prod/DTDC_TRACKING_PASSWORD
   DTDC_TRACKING_USERNAME: /jyt/prod/DTDC_TRACKING_USERNAME
   DELHIVERY_API_TOKEN: /jyt/prod/DELHIVERY_API_TOKEN
+
+  # Packlink (EU origin) — registers the provider in medusa-config.prod.ts.
+  # 🔴 This flag is the WHOLE gate: without it `packlink_packlink` is not in the
+  # container at all, so it cannot be attached to a shipping option no matter
+  # what is configured in the UI.
+  # The API KEY and the ORIGIN are deliberately NOT here — they live on a
+  # `socials` platform record (category "shipping", provider "packlink"), which
+  # the provider prefers over these env options, so they rotate in the UI
+  # without a deploy and each partner can hold their own account.
+  PACKLINK_ENABLED: /jyt/prod/PACKLINK_ENABLED
   ENCRYPTION_KEY: /jyt/prod/ENCRYPTION_KEY
   ENCRYPTION_KEY_VERSION: /jyt/prod/ENCRYPTION_KEY_VERSION
   # Etsy OAuth (medusa-plugin-etsy-sync). Without these, the connect URL is built
