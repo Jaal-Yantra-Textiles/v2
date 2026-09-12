@@ -581,7 +581,7 @@ module.exports = defineConfig({
                       },
                     ]
                   : []),
-                ...(process.env.PACKLINK_API_KEY
+                ...(process.env.PACKLINK_ENABLED === "true"
                   ? [
                       {
                         /**
@@ -597,13 +597,15 @@ module.exports = defineConfig({
                          * to be loss-making on 3 of its 4 lanes, by EUR 52 per
                          * parcel to the UAE.
                          *
-                         * Off unless PACKLINK_API_KEY is set, like every other
-                         * carrier here. The key belongs in SSM.
+                         * Enabled with PACKLINK_ENABLED=true. The API KEY is NOT
+                         * here: it lives on a `socials` platform record of
+                         * category "shipping" (provider_type "packlink"),
+                         * encrypted, so it rotates in the UI without a deploy
+                         * and each partner can hold their own account.
                          */
                         resolve: "./src/modules/shipping-providers/packlink",
                         id: "packlink",
                         options: {
-                          api_key: process.env.PACKLINK_API_KEY,
                           origin_country: process.env.PACKLINK_ORIGIN_COUNTRY,
                           origin_zip: process.env.PACKLINK_ORIGIN_ZIP,
                           // Cost + 20% by default; margin 1 would quote at cost.

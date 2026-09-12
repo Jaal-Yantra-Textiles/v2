@@ -464,15 +464,17 @@ module.exports = defineConfig({
            * medusa-config.prod.ts OVER medusa-config.ts, so a provider added to
            * only the dev config does not exist in production.
            *
-           * Off unless PACKLINK_API_KEY is set. The key belongs in SSM.
+           * Enabled with PACKLINK_ENABLED=true. The API KEY is NOT here:
+           * it lives on a `socials` platform record of category "shipping"
+           * (provider_type "packlink"), encrypted — so it rotates in the UI
+           * without a deploy, and each partner can hold their own account.
            */
-          ...(process.env.PACKLINK_API_KEY
+          ...(process.env.PACKLINK_ENABLED === "true"
             ? [
                 {
                   resolve: "./src/modules/shipping-providers/packlink",
                   id: "packlink",
                   options: {
-                    api_key: process.env.PACKLINK_API_KEY,
                     origin_country: process.env.PACKLINK_ORIGIN_COUNTRY,
                     origin_zip: process.env.PACKLINK_ORIGIN_ZIP,
                     margin: Number(process.env.PACKLINK_MARGIN || 1.2),

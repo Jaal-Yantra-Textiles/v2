@@ -36,13 +36,25 @@ import {
 type InjectedDeps = {
   logger: Logger
   /**
-   * Reaches the provider only if the fulfillment module declares it in
-   * `dependencies` in BOTH medusa-config.ts and medusa-config.prod.ts — the
-   * Dockerfile copies the prod config OVER the dev one, so a dependency
-   * declared in only one of them does not exist in production.
+   * 🔑 Where the API key actually lives.
    *
-   * Optional: without it a non-EUR cart falls back rather than returning a euro
-   * figure wearing a pound sign.
+   * Not SSM and not an env var: the key is stored on a `socials` platform
+   * record of category "shipping", exactly like Shiprocket's — so an admin can
+   * rotate it in the UI without a redeploy, and each partner can hold their own
+   * Packlink account rather than sharing one platform-wide secret.
+   *
+   * ⚠️ `socials` and `encryption` reach a PROVIDER only because the fulfillment
+   * module declares `dependencies: [SOCIALS_MODULE, ENCRYPTION_MODULE]` in BOTH
+   * medusa-config.ts and medusa-config.prod.ts — a provider is constructed with
+   * the parent module's cradle, which otherwise carries six default keys and
+   * nothing else. The Dockerfile copies the prod config OVER the dev one, so a
+   * dependency declared in only one of them does not exist in production.
+   */
+  socials?: any
+  encryption?: any
+  /**
+   * Reaches the provider the same way. Optional: without it a non-EUR cart
+   * falls back rather than returning a euro figure wearing a pound sign.
    */
   fx_rates?: any
 }
@@ -71,6 +83,11 @@ class PacklinkFulfillmentService extends AbstractFulfillmentProviderService {
   protected logger: Logger
   protected deps: InjectedDeps
   protected options: PacklinkProviderOptions
+  /** Resolved once per process; a platform lookup per rate call would be absurd. */
+  protected platformClient: PacklinkClient | null = null
+  protected platformLookupDone = false
+  /** Origin from the platform record, when it carries one. */
+  protected platformOrigin: { country?: string; zip?: string } = {}
 
   constructor(deps: InjectedDeps, options: PacklinkProviderOptions = {}) {
     super()
@@ -78,6 +95,111 @@ class PacklinkFulfillmentService extends AbstractFulfillmentProviderService {
     this.logger = deps.logger
     this.options = options
     this.client = new PacklinkClient(options)
+  }
+
+  /**
+   * The credential-bearing client.
+   *
+   * Resolved once per process — a platform lookup per rate call would be
+   * absurd — and cached even on failure, so a missing record does not mean a
+   * database round-trip on every quote.
+   *
+   * Falls back to the options/env client rather than throwing: a provider that
+   * cannot read its record should degrade to whatever it was given, and SAY so,
+   * because the symptom it otherwise produces (every quote quietly falling back
+   * to a flat number) looks identical to a carrier not serving the lane.
+   */
+  protected async resolveClient(): Promise<PacklinkClient> {
+    if (this.platformLookupDone) {
+      return this.platformClient ?? this.client
+    }
+    this.platformLookupDone = true
+
+    const socials = this.deps?.socials
+    if (!socials) {
+      this.logger?.warn?.(
+        "[packlink] no `socials` in the provider cradle — falling back to the configured api_key. " +
+          "Check `dependencies` on the fulfillment module in BOTH medusa-config files."
+      )
+      return this.client
+    }
+
+    try {
+      const platforms = await socials.listSocialPlatforms({
+        category: "shipping",
+        status: "active",
+      })
+      const match = (platforms || []).find((p: any) => {
+        const cfg = (p.api_config as Record<string, any>) || {}
+        const type = String(
+          cfg.provider_type || cfg.provider || p.name || ""
+        ).toLowerCase()
+        return type === "packlink" || type.includes("packlink")
+      })
+
+      const cfg = (match?.api_config as Record<string, any>) || {}
+      const apiKey = await this.readSecret(cfg, "api_key")
+
+      if (!apiKey) {
+        this.logger?.warn?.(
+          `[packlink] shipping platform record ${
+            match ? "found but carries no api_key" : "not found"
+          } — falling back to the configured api_key.`
+        )
+        return this.client
+      }
+
+      this.platformClient = new PacklinkClient({
+        ...this.options,
+        api_key: apiKey,
+        base_url:
+          (typeof cfg.base_url === "string" && cfg.base_url) ||
+          this.options.base_url,
+        source:
+          (typeof cfg.source === "string" && cfg.source) || this.options.source,
+      })
+      // The origin travels with the credential: a partner's Packlink account
+      // ships from THEIR address, not the platform's.
+      this.platformOrigin = {
+        country:
+          (typeof cfg.origin_country === "string" && cfg.origin_country) ||
+          undefined,
+        zip:
+          (typeof cfg.origin_zip === "string" && cfg.origin_zip) || undefined,
+      }
+      this.logger?.info?.(
+        "[packlink] credentials resolved from the shipping platform record."
+      )
+      return this.platformClient
+    } catch (e: any) {
+      this.logger?.warn?.(
+        `[packlink] could not read the shipping platform record: ${
+          e?.message ?? e
+        } — falling back to the configured api_key.`
+      )
+      return this.client
+    }
+  }
+
+  /** Decrypt a secret field if the encryption module is present, else read it plain. */
+  protected async readSecret(
+    cfg: Record<string, any>,
+    field: string
+  ): Promise<string | undefined> {
+    // Mirrors Shiprocket's `readSecret` and `resolveShippingProvider`'s exactly
+    // — same key names, same precedence. A second convention here would create
+    // an affordance nothing writes.
+    const encrypted = cfg?.[`${field}_encrypted`]
+    if (encrypted && this.deps?.encryption?.decrypt) {
+      try {
+        const plain = await this.deps.encryption.decrypt(encrypted)
+        if (typeof plain === "string" && plain.length) return plain
+      } catch {
+        /* fall through to plaintext */
+      }
+    }
+    const plain = cfg?.[field]
+    return typeof plain === "string" && plain.length ? plain : undefined
   }
 
   async getFulfillmentOptions(): Promise<FulfillmentOption[]> {
@@ -119,15 +241,24 @@ class PacklinkFulfillmentService extends AbstractFulfillmentProviderService {
 
     const toCountry = String(context?.shipping_address?.country_code ?? "")
     const toZip = String(context?.shipping_address?.postal_code ?? "")
-    const fromCountry = String(opts.origin_country ?? "")
-    const fromZip = String(opts.origin_zip ?? "")
-
-    if (!toCountry || !fromCountry) {
-      return this.fallback(currency, "no origin/destination country on the quote")
-    }
 
     try {
-      const services = await this.client.getServices({
+      // Resolve BEFORE reading the origin: the platform record carries the
+      // partner's own pickup address alongside their key.
+      const client = await this.resolveClient()
+      const fromCountry = String(
+        this.platformOrigin.country ?? opts.origin_country ?? ""
+      )
+      const fromZip = String(this.platformOrigin.zip ?? opts.origin_zip ?? "")
+
+      if (!toCountry || !fromCountry) {
+        return this.fallback(
+          currency,
+          "no origin/destination country on the quote"
+        )
+      }
+
+      const services = await client.getServices({
         from_country: fromCountry,
         from_zip: fromZip,
         to_country: toCountry,
