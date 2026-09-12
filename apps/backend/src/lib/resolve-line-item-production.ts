@@ -65,11 +65,25 @@ export async function resolveLineItemDesignId(
    * longer getting.
    */
   if (lineItemId) {
+    /**
+     * 🔴 `take: 1` with NO ORDER is a lottery, not a lookup (#1983's family).
+     *
+     * `repointOrderItemDesign` dismisses the old link and creates the new one
+     * as two separate writes, so this table can hold more than one row for an
+     * item — and an unordered `take: 1` then returns the design the customer
+     * is NO LONGER GETTING, roughly half the time. That is what has been
+     * failing `sibling_items[0]` on main: not an ordering quirk in the test,
+     * a row-order roulette in the canonical resolver that every run-creation
+     * path reads.
+     *
+     * Newest wins, because a re-point writes the new row last. The defect is
+     * the ABSENCE of an order, not this particular choice of one.
+     */
     const { data: itemLinks } = await query.graph({
       entity: designOrderLineItemLink.entryPoint,
       fields: ["design_id"],
       filters: { order_line_item_id: lineItemId },
-      pagination: { skip: 0, take: 1 },
+      pagination: { skip: 0, take: 1, order: { created_at: "DESC" } },
     })
     const itemLink = (itemLinks || [])[0]
     if (itemLink?.design_id) {
@@ -86,7 +100,9 @@ export async function resolveLineItemDesignId(
       entity: "design_product_variant",
       fields: ["design_id"],
       filters: { product_variant_id: variantId },
-      pagination: { skip: 0, take: 1 },
+      // Same lottery one level down: #1874 lets a design accumulate variants,
+      // so this stops being a single-row table the moment that ships.
+      pagination: { skip: 0, take: 1, order: { created_at: "DESC" } },
     })
     const variantLink = (variantDesignLinks || [])[0]
     if (variantLink?.design_id) {
@@ -103,7 +119,7 @@ export async function resolveLineItemDesignId(
       entity: "product_design",
       fields: ["design.*"],
       filters: { product_id: productId },
-      pagination: { skip: 0, take: 1 },
+      pagination: { skip: 0, take: 1, order: { created_at: "DESC" } },
     })
     designId = (productDesignLinks || [])[0]?.design?.id || null
     if (designId) {
