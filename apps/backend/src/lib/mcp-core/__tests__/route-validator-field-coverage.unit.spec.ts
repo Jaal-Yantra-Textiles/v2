@@ -124,6 +124,22 @@ const NO_ROUTE_VALIDATOR = new Set<string>([
    * than deleted, because the tools work — what was missing was the note
    * saying nobody had bound them.
    */
+  /**
+   * ⚠️ AGAIN. `create_region` / `update_region` arrived with #1994 and
+   * `rename_product_option` before them, registered without being declared
+   * here — the same omission the note above predicted, one release later.
+   * They wrap CORE Medusa routes (there is no `src/api/admin/regions/route.ts`
+   * or `product-options/[id]/route.ts` in this repo), so core registers their
+   * validators and this file has no repo-side contract to check against.
+   * Declared rather than deleted: the tools work, what was missing was the
+   * note saying nobody had bound them.
+   *
+   * This stayed invisible on main because the PR runner only runs specs for
+   * CHANGED files, and nothing touched this one until now.
+   */
+  "admin:create_region",
+  "admin:update_region",
+  "admin:rename_product_option",
   "admin:create_product_category",
   "admin:update_product_category",
   "admin:set_category_products",
