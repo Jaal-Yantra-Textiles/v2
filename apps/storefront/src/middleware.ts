@@ -1,6 +1,12 @@
 import { HttpTypes } from "@medusajs/types"
 import { NextRequest, NextResponse } from "next/server"
 
+import {
+  REGION_MAP_UNCONFIGURED,
+  isUnconfiguredRegionsError,
+  pickCountryCode,
+} from "./lib/util/region-routing"
+
 const BACKEND_URL = process.env.MEDUSA_BACKEND_URL
 const PUBLISHABLE_API_KEY = process.env.NEXT_PUBLIC_MEDUSA_PUBLISHABLE_KEY
 const DEFAULT_REGION = process.env.NEXT_PUBLIC_DEFAULT_REGION || "us"
@@ -128,9 +134,16 @@ async function getRegionMap(cacheId: string) {
       const regions = json.regions as HttpTypes.StoreRegion[] | undefined
 
       if (!regions?.length) {
-        throw new Error(
+        // 🔑 TAGGED, because this is the one region-map failure that must NOT
+        // degrade (#1993). The backend answered; it simply has no regions —
+        // a misconfiguration in Medusa Admin, by a developer. Falling back to
+        // DEFAULT_REGION here would route every visitor to /us and render
+        // empty pages forever with nobody told why.
+        const unconfigured = new Error(
           "No regions found. Please set up regions in your Medusa Admin."
         )
+        unconfigured.name = REGION_MAP_UNCONFIGURED
+        throw unconfigured
       }
 
       regions.forEach((region) => {
@@ -146,12 +159,26 @@ async function getRegionMap(cacheId: string) {
         console.warn(
           `[Middleware] Region fetch failed, using stale cache: ${error.message}`
         )
-      } else {
-        // No cache at all — log and re-throw so the caller can handle it
-        console.error(
-          `[Middleware] Region fetch failed with no cache: ${error.message}`
-        )
+      } else if (isUnconfiguredRegionsError(error)) {
+        // A real misconfiguration: stay loud. See the tag above.
+        console.error(`[Middleware] ${error.message}`)
         throw error
+      } else {
+        // 🔴 #1993: this used to rethrow, which meant a COLD instance — just
+        // deployed, restarted or scaled up — 500'd on EVERY route the moment
+        // the backend was unreachable. A warm one survived on its stale cache,
+        // so "it worked when I tried it" was never evidence the next instance
+        // would.
+        //
+        // It also hid #1992's work: the payment page that tells a buyer "our
+        // side is not responding, your link is fine" only renders if
+        // middleware lets the request through.
+        //
+        // So: serve the site on an empty map and let each page say what it
+        // cannot load.
+        console.error(
+          `[Middleware] Region fetch failed with no cache, serving degraded: ${error.message}`
+        )
       }
     }
   }
@@ -177,15 +204,23 @@ async function getCountryCode(
 
     const urlCountryCode = request.nextUrl.pathname.split("/")[1]?.toLowerCase()
 
-    if (urlCountryCode && regionMap.has(urlCountryCode)) {
-      countryCode = urlCountryCode
-    } else if (vercelCountryCode && regionMap.has(vercelCountryCode)) {
-      countryCode = vercelCountryCode
-    } else if (regionMap.has(DEFAULT_REGION)) {
-      countryCode = DEFAULT_REGION
-    } else if (regionMap.keys().next().value) {
-      countryCode = regionMap.keys().next().value
+    // The precedence itself lives in `lib/util/region-routing` so it can be
+    // tested: the case that matters most — an EMPTY map — is exactly the one
+    // that is hardest to reach through the middleware.
+    const pick = pickCountryCode({
+      urlCountryCode,
+      vercelCountryCode,
+      regionMap,
+      defaultRegion: DEFAULT_REGION,
+    })
+
+    if (pick.degraded) {
+      console.warn(
+        `[Middleware] No region map — serving ${pick.countryCode ?? "(no country)"} degraded`
+      )
     }
+
+    countryCode = pick.countryCode
 
     return countryCode
   } catch (error) {
@@ -276,10 +311,14 @@ export async function middleware(request: NextRequest) {
     // redirect response so they're set before the page even renders.
     captureTrackingParams(request, response)
   } else if (!urlHasCountryCode && !countryCode) {
-    console.log(`[Middleware] → 500: No valid regions`)
-    // Handle case where no valid country code exists (empty regions)
+    // Reachable only when the region map is empty AND no DEFAULT_REGION is
+    // set — i.e. nobody has said where an unrouted visitor should go. Since
+    // #1993 an unreachable backend no longer lands here: it degrades onto
+    // DEFAULT_REGION (which is "us" unless NEXT_PUBLIC_DEFAULT_REGION says
+    // otherwise), so this is a configuration answer, not an outage one.
+    console.log(`[Middleware] → 500: no region map and no DEFAULT_REGION`)
     return new NextResponse(
-      "No valid regions configured. Please set up regions with countries in your Medusa Admin.",
+      "No regions configured and no NEXT_PUBLIC_DEFAULT_REGION set. Set up regions with countries in your Medusa Admin, or set a default region.",
       { status: 500 }
     )
   }
