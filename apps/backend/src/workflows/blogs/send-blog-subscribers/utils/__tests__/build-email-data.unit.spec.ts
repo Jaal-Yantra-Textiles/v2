@@ -40,7 +40,22 @@ describe("buildEmailData (#946 blog-email parity)", () => {
     expect(data.shop_url).toContain(utm)
     expect(data.create_url).toContain(utm)
     // blog_url has no pre-existing query → separator must be "?"
-    expect(data.blog_url).toBe(`https://jaalyantra.com/blogs/handloom-stories?${utm}`)
+    //
+    // 🔑 Asserted as a PREFIX, not as the whole string. This was `toBe(...)`
+    // with the full URL written out, so when `utm_content=<subscriber id>` was
+    // added for per-click attribution the test failed for a parameter the code
+    // is supposed to emit. The separator is what this line is about; restating
+    // every parameter just guarantees the next one breaks it again.
+    expect(data.blog_url).toMatch(
+      new RegExp(
+        `^https://jaalyantra\\.com/blogs/handloom-stories\\?${utm.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}(&|$)`
+      )
+    )
+  })
+
+  it("attributes a click to the subscriber via utm_content", () => {
+    const data = buildEmailData(SUBSCRIBER, BLOG, "<p>hi</p>", CONFIG)
+    expect(data.blog_url).toContain(`utm_content=${SUBSCRIBER.id}`)
   })
 
   it("falls back to blog_broadcast campaign when the post has no slug", () => {

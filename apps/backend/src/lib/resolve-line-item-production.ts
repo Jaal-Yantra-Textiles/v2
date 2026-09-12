@@ -175,7 +175,30 @@ export async function getProductionRunForLineItem(
     entity: "production_runs",
     fields: ["id", "status", "produced_quantity", "design_id", "metadata"],
     filters: { order_line_item_id: lineItemId },
-    pagination: { skip: 0, take: 1 },
+    /**
+     * 🔑 Ordered, because `take: 1` over a set that CAN hold more than one row
+     * is a lottery — and this answer decides whether a run is completed, left
+     * alone, or never created (`plan-fulfillment-production-runs`,
+     * `change-order-item-design`, `reconcile-provenance-runs` all branch on it).
+     *
+     * Measured on prod 2026-09-12: 22 runs carry an `order_line_item_id`, all
+     * live, exactly one per line — so the lottery cannot fire TODAY. This is
+     * #1983's shape: correct by luck, not by construction.
+     *
+     * ⚠️ Parent/child pairs do NOT arm it — 0 of 53 children and 0 of 52
+     * parents carry an `order_line_item_id` at all. What would arm it is a
+     * second run created for a line that already has one (a cancelled run that
+     * keeps its link, a re-created run after a design change). No cancelled run
+     * on prod retains a line item today, which is why one row is all that comes
+     * back.
+     *
+     * Newest wins, matching the design-link resolver above: where two runs
+     * exist, the later one is the current intent. Deliberately NOT filtering by
+     * status here — whether a cancelled run should still answer "a run exists"
+     * changes what the callers do, and that is a decision to take on evidence
+     * rather than to slip into an ordering fix.
+     */
+    pagination: { skip: 0, take: 1, order: { created_at: "DESC" } },
   })
   const run = (existing || [])[0]
   return run
