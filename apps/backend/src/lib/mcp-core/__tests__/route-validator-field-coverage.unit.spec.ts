@@ -194,6 +194,11 @@ const NO_ROUTE_VALIDATOR = new Set<string>([
   "admin:produce_order_designs",
   "admin:create_order_shipping_label",
   "admin:attach_order_awb",
+  // The run-activity note validates inside the handler with NoteBodySchema
+  // (safeParse in the route), so it carries no middleware binding for this file
+  // to check against — same reason as resolve_admin_query and the other
+  // handler-validated routes above.
+  "admin:add_production_run_activity_note",
   "admin:update_production_run",
   "admin:update_production_run_task",
   "admin:unlink_design_partner",
