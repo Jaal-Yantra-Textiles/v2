@@ -1,3 +1,10 @@
+# [13.139.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.138.0...v13.139.0) (2026-09-12)
+
+
+### Features
+
+* Delhivery scan-push + EPOD webhooks, [#891](https://github.com/Jaal-Yantra-Textiles/v2/issues/891) S3 transfer receipt, and samples/swatch inventory orders ([#2006](https://github.com/Jaal-Yantra-Textiles/v2/issues/2006)) ([5f084a1](https://github.com/Jaal-Yantra-Textiles/v2/commit/5f084a1274c485ca1fcea24d6e08c96934da6ee5)), closes [#888](https://github.com/Jaal-Yantra-Textiles/v2/issues/888) [#888](https://github.com/Jaal-Yantra-Textiles/v2/issues/888) [#1671](https://github.com/Jaal-Yantra-Textiles/v2/issues/1671)
+
 # [13.138.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.137.0...v13.138.0) (2026-09-12)
 
 
