@@ -138,3 +138,5 @@ scripts/agent-daemon/delegate-logs/
 # Local audit workspace — session notes, never source (public repo)
 .audit/
 e2e/screenshots/
+
+.design/
