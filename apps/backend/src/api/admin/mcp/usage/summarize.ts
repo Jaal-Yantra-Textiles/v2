@@ -36,7 +36,8 @@ export const toolNameOf = (row: McpUsageRow): string =>
 export const summarizeMcpUsage = (
   rows: McpUsageRow[],
   total: number,
-  recentLimit = 20
+  recentLimit = 20,
+  window?: { from?: string | null; to?: string | null } | null
 ) => {
   const events = rows ?? []
   const bySurface: Record<string, number> = {}
@@ -66,6 +67,13 @@ export const summarizeMcpUsage = (
     by_surface: bySurface,
     by_tool: byTool,
     errors_by_tool: errorsByTool,
+    /**
+     * The period this view describes. A total and a "0 rows" are otherwise
+     * indistinguishable from "no usage ever"; stating the window makes the
+     * numbers carry their own scope. `null` means no time filter was applied
+     * (the newest N rows).
+     */
+    window: window ?? null,
     recent: events.slice(0, recentLimit).map((e) => ({
       tool: toolNameOf(e),
       surface: e?.surface ?? null,

@@ -1,5 +1,6 @@
 import { MedusaService } from "@medusajs/framework/utils"
 import AiUsageEvent from "./models/ai-usage-event"
+import { createdWindowFilter } from "./lib/mcp-window"
 import type { McpToolEvent } from "../../lib/mcp-core"
 
 export const MONTHLY_QUOTA = {
@@ -104,13 +105,26 @@ class AiUsageService extends MedusaService({ AiUsageEvent }) {
   /**
    * Read recent MCP ledger rows (optionally scoped to one surface), newest
    * first. Backs the /admin/mcp/usage endpoint / get_mcp_usage tool.
+   *
+   * `from`/`to` bound `created_at` — without them the ledger can only answer
+   * "what are the newest N rows", and its silence about an older period is NOT
+   * evidence that nothing happened there.
    */
   async listMcpUsage(
-    opts: { surface?: string; limit?: number } = {}
+    opts: {
+      surface?: string
+      limit?: number
+      from?: Date | string
+      to?: Date | string
+    } = {}
   ): Promise<{ events: any[]; count: number }> {
     const filters: Record<string, any> = { operation: { $like: "mcp:%" } }
     if (opts.surface) {
       filters.surface = opts.surface
+    }
+    const created = createdWindowFilter(opts.from, opts.to)
+    if (created) {
+      filters.created_at = created
     }
     const [events, count] = await this.listAndCountAiUsageEvents(filters, {
       take: opts.limit ?? 50,
