@@ -134,6 +134,36 @@ const ProductionRun = model.define("production_runs", {
   approved_product_id: model.text().nullable(),
   approved_variant_id: model.text().nullable(),
 
+  /**
+   * ===== WHERE the output was banked (#891 S1) ========================
+   *
+   * `stockFinishedGoodsStep` increments an inventory level at the PRODUCING
+   * PARTNER's location, and the house fulfils from its own. Nothing recorded
+   * the hop, so the split was invisible until it went negative:
+   *
+   *   12:37:28.956  child run completes (partner Sharlho)
+   *   12:37:29.087  level created at Sharlho Store Warehouse = 1
+   *   14:01:55      fulfillment ships from Dharamshala:  0 - 1 = -1
+   *
+   * A `-1` beside a `+1` elsewhere is a correct TOTAL with a wrong SPLIT —
+   * one garment made, one shipped. The reason that took 84 minutes to see is
+   * that the run could not say where its own goods went.
+   *
+   * Typed columns, not metadata: `resolveRunGoodsLocation` currently
+   * RECONSTRUCTS this from partner -> store -> sales channel -> first stock
+   * location, which is only correct for goods that have never moved. This is
+   * the record that replaces the reconstruction (#1557).
+   *
+   * All three are null for every run completed before this shipped, and for
+   * any run that banked nothing (rejected output, an aggregate parent, a
+   * design with no variant). Null means UNRECORDED, never "at no location" —
+   * a reader must keep the reconstruction as its fallback.
+   */
+  stocked_at_location_id: model.text().nullable(),
+  /** How many units were actually banked there — not what was ordered. */
+  stocked_quantity: model.float().nullable(),
+  stocked_at: model.dateTime().nullable(),
+
   // Cost
   partner_cost_estimate: model.float().nullable(),
   cost_type: model.enum(["per_unit", "total"]).default("total").nullable(),
