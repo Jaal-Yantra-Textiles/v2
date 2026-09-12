@@ -126,6 +126,16 @@ export function buildApiConfig(
           password: data.password,
           pickup_location: data.pickup_location,
         })
+      } else if (data.provider_type === "packlink") {
+        // Packlink authenticates with a single API key and needs the partner's
+        // OWN pickup origin — their account ships from their address. Read back
+        // by `shipping-providers/packlink/service.ts` -> resolveClient().
+        Object.assign(config, {
+          mode: data.mode || "test",
+          api_key: data.api_key,
+          origin_country: data.origin_country,
+          origin_zip: data.origin_zip,
+        })
       } else if (data.provider_type === "shipglobal") {
         // ShipGlobal authenticates with username/password (HTTP Basic) and a
         // region-specific service code (sgdirecteuyun EU / sgdirectyungb GB).

@@ -56,6 +56,9 @@ const CreateSocialPlatformSchema = z.object({
   email: z.string().optional(),
   pickup_location: z.string().optional(),
   service: z.string().optional(),
+  // Packlink: the partner's OWN pickup origin (their account, their address).
+  origin_country: z.string().optional(),
+  origin_zip: z.string().optional(),
   // Analytics fields
   tracking_id: z.string().optional(),
   project_token: z.string().optional(),
@@ -96,6 +99,14 @@ const CreateSocialPlatformSchema = z.object({
     if (!data.email) ctx.addIssue({ code: "custom", path: ["email"], message: "Shiprocket account email is required" })
     if (!data.password) ctx.addIssue({ code: "custom", path: ["password"], message: "Shiprocket password is required" })
   }
+  if (data.category === "shipping" && data.provider_type === "packlink") {
+    // The origin is not optional for Packlink: it quotes a LANE, so a record
+    // without a from-address produces a provider that falls back on every
+    // quote — indistinguishable from a carrier that does not serve the route.
+    if (!data.api_key) ctx.addIssue({ code: "custom", path: ["api_key"], message: "Packlink API key is required" })
+    if (!data.origin_country) ctx.addIssue({ code: "custom", path: ["origin_country"], message: "Origin country is required (e.g. IT) — Packlink quotes a lane, not a destination" })
+    if (!data.origin_zip) ctx.addIssue({ code: "custom", path: ["origin_zip"], message: "Origin postcode is required (e.g. 50022)" })
+  }
   if (data.category === "shipping" && data.provider_type === "shipglobal") {
     if (!data.username) ctx.addIssue({ code: "custom", path: ["username"], message: "ShipGlobal account email is required" })
     if (!data.password) ctx.addIssue({ code: "custom", path: ["password"], message: "ShipGlobal password is required" })
@@ -123,6 +134,8 @@ export const CreateSocialPlatformComponent = () => {
       host: "",
       port: 993,
       username: "",
+      origin_country: "",
+      origin_zip: "",
       password: "",
       tls: true,
       mailbox: "INBOX",
