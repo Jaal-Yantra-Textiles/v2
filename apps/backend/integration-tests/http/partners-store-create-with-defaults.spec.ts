@@ -137,6 +137,107 @@ setupSharedTestSuite(() => {
       expect(types).toContain("pickup")
     })
 
+    it("provisions onto the type:'default' profile even when a second profile exists (#1983)", async () => {
+      // 🔴 The regression this pins. Provisioning read
+      // `listShippingProfiles({}, { take: 1 })` and fed the answer to all ten
+      // of a new store's shipping options — correct by ACCIDENT while exactly
+      // one profile exists, which is the state prod is in. Add a second and
+      // the choice becomes whichever row Postgres returned, per store,
+      // silently; the store provisions fine and the mismatch surfaces later as
+      // "The shipping option you have selected don't allow fulfillment of this
+      // item" on a real order.
+      //
+      // This has to be an integration test: the defect is in what the DATABASE
+      // hands back, and a unit test with a stubbed service would assert against
+      // an order this code never sees.
+      // Build the two-profile world explicitly rather than lean on the seed:
+      // this runner starts with NO shipping profiles at all (checked — the
+      // list comes back empty), so a test that assumed a seeded default would
+      // have been asserting about a database that does not exist.
+      //
+      // 🔑 The CUSTOM profile is created FIRST, and that ordering is the whole
+      // test. Created default-first, `take: 1` returns the default and the old
+      // broken code passes this test — I checked, and it did: 3/3 green on the
+      // defect. A regression test that cannot fail on the bug is not a test of
+      // the bug. Custom-first makes `take: 1` return the wrong row, which is
+      // precisely the nondeterminism the fix removes.
+      const unique = Date.now()
+      const partnerRes = await api.post(
+        "/admin/shipping-profiles",
+        { name: `Partner Shipping Profile ${unique}`, type: "custom" },
+        adminHeaders
+      )
+      const defaultRes = await api.post(
+        "/admin/shipping-profiles",
+        { name: `Default Shipping Profile ${unique}`, type: "default" },
+        adminHeaders
+      )
+      const defaultProfileId = defaultRes.data.shipping_profile.id
+      const partnerProfileId = partnerRes.data.shipping_profile.id
+      expect(defaultProfileId).not.toBe(partnerProfileId)
+
+      // The premise, asserted rather than assumed: exactly two profiles, one
+      // of them default. If either ever stops being true the assertion at the
+      // end would be answering a different question than the one it claims to.
+      const profilesRes = await api.get("/admin/shipping-profiles", adminHeaders)
+      const profiles = profilesRes.data.shipping_profiles || []
+      expect(profiles).toHaveLength(2)
+      expect(profiles.filter((p: any) => p.type === "default")).toHaveLength(1)
+
+      const createStoreRes = await api.post(
+        "/partners/stores",
+        {
+          store: {
+            name: `Profile Store ${unique}`,
+            supported_currencies: [{ currency_code: "usd", is_default: true }],
+          },
+          sales_channel: { name: `Profile ${unique} - Default` },
+          region: { name: "Default Region", currency_code: "usd", countries: ["us"] },
+          location: {
+            name: "Main Warehouse",
+            address: {
+              address_1: "123 Main St",
+              city: "New York",
+              postal_code: "10001",
+              country_code: "US",
+            },
+          },
+        },
+        { headers: partnerHeaders }
+      )
+      expect(createStoreRes.status).toBe(201)
+
+      // Read the options back rather than trusting the create response: the
+      // profile id is written per option, and it is the stored value that
+      // decides whether a product can be fulfilled.
+      const locationId = createStoreRes.data.location.id
+      const zonesRes = await api.get(
+        `/admin/stock-locations/${locationId}?fields=*fulfillment_sets,fulfillment_sets.service_zones.id`,
+        adminHeaders
+      )
+      const zoneIds = (
+        zonesRes.data.stock_location?.fulfillment_sets || []
+      ).flatMap((fs: any) => (fs.service_zones || []).map((z: any) => z.id))
+      expect(zoneIds.length).toBeGreaterThan(0)
+
+      const profileIds = new Set<string>()
+      for (const zoneId of zoneIds) {
+        const optionsRes = await api.get(
+          `/admin/shipping-options?service_zone_id=${zoneId}`,
+          adminHeaders
+        )
+        for (const option of optionsRes.data.shipping_options || []) {
+          profileIds.add(option.shipping_profile_id)
+        }
+      }
+
+      // A vacuous pass is not a pass: if the store came out with no options at
+      // all (the #1176 failure) the set would be empty and every assertion
+      // below would hold for the wrong reason.
+      expect(profileIds.size).toBeGreaterThan(0)
+      expect([...profileIds]).toEqual([defaultProfileId])
+    })
+
     it("creates a second store without fulfillment set name collisions", async () => {
       // Create FIRST store
       const unique1 = Date.now()
