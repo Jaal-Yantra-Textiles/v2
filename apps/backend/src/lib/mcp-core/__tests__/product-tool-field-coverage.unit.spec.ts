@@ -42,12 +42,31 @@ const { UpdateProduct, UpdateProductVariant, CreateProductVariant } =
  * the tool unbound there. This spec binds it directly instead.
  */
 const { AdminLinkProductOptions } = coreProductValidators
+/**
+ * The shipping-option validators, likewise registered by core's own middleware
+ * config rather than this repo's. Bound here for the same reason as the batch
+ * route above: `route-validator-field-coverage` can only say "core owns this
+ * one", and a write tool nobody checks against its contract is how `weight`
+ * went missing from a third of a catalogue.
+ */
+// eslint-disable-next-line @typescript-eslint/no-var-requires
+const coreShippingOptionValidators = require("@medusajs/medusa/api/admin/shipping-options/validators")
+const { AdminCreateShippingOption, AdminUpdateShippingOption } =
+  coreShippingOptionValidators
 
 import { PARTNER_MCP_TOOLS } from "../../../api/partners/mcp/lib/registry"
 import { ADMIN_MCP_TOOLS } from "../../../api/admin/mcp/lib/registry"
 import type { McpToolDef } from "../types"
 
-/** Keys a zod object validator accepts. */
+/**
+ * Keys a zod object validator accepts.
+ *
+ * ⚠️ Both shipping-option validators are `.refine()`d — "exactly one of `type`
+ * / `type_id`" — and on THIS zod that still yields a ZodObject with a populated
+ * `.shape` (checked: 11 keys). On a zod where `.refine()` wraps the object, it
+ * would not, and every assertion below would pass over an empty set instead.
+ * The `minFields` sanity floor is what catches that, not this function.
+ */
 const acceptedKeys = (schema: any): string[] =>
   Object.keys(schema?.shape ?? schema?._def?.shape?.() ?? {})
 
@@ -178,6 +197,18 @@ const CASES: Array<{
     validator: AdminLinkProductOptions,
     what: "the batch route is the only one core exposes for editing an option's values (#1907)",
     minFields: 3,
+  },
+  {
+    key: "admin:create_shipping_option",
+    tool: findTool(ADMIN_MCP_TOOLS, "create_shipping_option"),
+    validator: AdminCreateShippingOption,
+    what: "core route, core validator — and a .strict() one, so a stray field is a 400 on every call",
+  },
+  {
+    key: "admin:update_shipping_option",
+    tool: findTool(ADMIN_MCP_TOOLS, "update_shipping_option"),
+    validator: AdminUpdateShippingOption,
+    what: "core route, core validator",
   },
 ]
 

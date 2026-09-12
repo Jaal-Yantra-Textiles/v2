@@ -69,6 +69,17 @@ import { buildToolInputSchema } from "../schema"
  */
 const NO_ROUTE_VALIDATOR = new Set<string>([
   /**
+   * Both wrap CORE shipping-option routes, whose validators core registers in
+   * its own middleware config — so nothing in this repo's `middlewares.ts`
+   * binds them and there is nothing here to match against. Not unchecked: the
+   * contract check for these two lives in
+   * `product-tool-field-coverage.unit.spec.ts`, which imports
+   * `AdminCreateShippingOption` / `AdminUpdateShippingOption` directly and
+   * asserts field coverage in both directions.
+   */
+  "admin:create_shipping_option",
+  "admin:update_shipping_option",
+  /**
    * The revoke route takes NO body — it works entirely off the `:id` in the
    * path. Nothing to bind, and nothing advertised: the tool declares no
    * `bodyParams`, because a field the route never reads would be accepted,
