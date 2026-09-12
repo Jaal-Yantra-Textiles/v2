@@ -86,6 +86,13 @@ const NO_ROUTE_VALIDATOR = new Set<string>([
    * reported `ok: true` and dropped (#1348). Verified by reading the handler,
    * not inferred from the absence of a matcher.
    */
+  /**
+   * Wraps the CORE link route, whose body validator is core's generic
+   * `createLinkBody()` ({ add?, remove? }) registered in core's own
+   * middlewares — nothing in this repo binds it. The contract is asserted
+   * directly in `product-tool-field-coverage.unit.spec.ts` (#2023).
+   */
+  "admin:set_location_fulfillment_providers",
   "admin:revoke_quote",
   /**
    * The partner twin (#1517), for the same reason and verified the same way:

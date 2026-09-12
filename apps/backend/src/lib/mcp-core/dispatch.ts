@@ -277,7 +277,8 @@ export async function dispatchMcpTool(
     return fail(`Missing required parameter: ${sub.missing}`)
   }
   const path = sub.path as string
-  const query = pick(def.queryParams, args)
+  // Caller-supplied values win, so `defaultQuery` only ever fills a gap (#2023).
+  const query = { ...(def.defaultQuery ?? {}), ...pick(def.queryParams, args) }
   const body = pick(def.bodyParams, args)
   const method = def.method ?? "GET"
 

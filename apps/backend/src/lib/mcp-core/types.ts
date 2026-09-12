@@ -41,6 +41,20 @@ export type McpToolDef = {
   pathParams?: string[]
   /** Argument keys forwarded to the route as query-string params. */
   queryParams?: string[]
+  /**
+   * Query params ALWAYS sent, whether or not the caller asked (#2023).
+   *
+   * For a route whose default field set omits the very thing the tool exists to
+   * show. `/admin/stock-locations` does not return `fulfillment_providers`
+   * unless `fields` names it, so a tool that links a carrier to a warehouse
+   * would answer with a body that cannot show whether the link took. Relying on
+   * the model to pass `fields` makes the read-back optional, which is how a
+   * write goes unverified.
+   *
+   * A caller-supplied value for the same key WINS, so this widens a default
+   * without ever pinning one.
+   */
+  defaultQuery?: Record<string, string>
   /** Argument keys assembled into the JSON request body (write tools only). */
   bodyParams?: string[]
   /** Non-GET tool: gated behind the write flag on the server. */
