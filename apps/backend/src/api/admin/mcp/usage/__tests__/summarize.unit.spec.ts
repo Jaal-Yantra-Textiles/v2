@@ -1,4 +1,9 @@
 import { summarizeMcpUsage, toolNameOf } from "../summarize"
+import {
+  createdWindowFilter,
+  parseDateBoundary,
+  parseMcpUsageWindow,
+} from "../../../../../modules/ai_usage/lib/mcp-window"
 
 /**
  * The ledger's WRITE side records more than its READ side returned.
@@ -145,5 +150,109 @@ describe("summarizeMcpUsage", () => {
   it("labels an unknown surface rather than dropping the row", () => {
     const out = summarizeMcpUsage([{ operation: "mcp:x" } as any], 1)
     expect(out.by_surface).toEqual({ unknown: 1 })
+  })
+
+  describe("recentLimit is honoured (#B1)", () => {
+    // The route never forwarded the caller's `limit` as `recentLimit`, so the
+    // "recent calls" list was ALWAYS the default 20 no matter what `limit` the
+    // caller asked for. These pin that the passed limit actually shapes output.
+    it("passing 5 keeps only the 5 newest rows", () => {
+      const rows = Array.from({ length: 10 }, () => row())
+      const out = summarizeMcpUsage(rows, 10, 5)
+      expect(out.recent).toHaveLength(5)
+    })
+
+    it("passing 50 with 30 rows returns all 30", () => {
+      const rows = Array.from({ length: 30 }, () => row())
+      const out = summarizeMcpUsage(rows, 30, 50)
+      expect(out.recent).toHaveLength(30)
+    })
+
+    it("still caps at the default 20 when no limit is passed", () => {
+      const rows = Array.from({ length: 25 }, () => row())
+      const out = summarizeMcpUsage(rows, 25)
+      expect(out.recent).toHaveLength(20)
+    })
+  })
+
+  describe("the window is echoed back", () => {
+    it("returns the window the view describes", () => {
+      const window = {
+        from: "2026-09-01T00:00:00.000Z",
+        to: "2026-09-08T00:00:00.000Z",
+      }
+      const out = summarizeMcpUsage([row()], 1, 20, window)
+      expect(out.window).toEqual(window)
+    })
+
+    it("defaults to null when no window was applied", () => {
+      const out = summarizeMcpUsage([row()], 1)
+      expect(out.window).toBeNull()
+    })
+  })
+})
+
+describe("mcp usage time-window parsing", () => {
+  it("turns days into a from/to window ending now", () => {
+    const { from, to } = parseMcpUsageWindow({ days: 7 })
+    expect(to).toBeInstanceOf(Date)
+    expect(from).toBeInstanceOf(Date)
+    expect(to!.getTime() - from!.getTime()).toBe(7 * 24 * 60 * 60 * 1000)
+  })
+
+  it("lets explicit from/to win over days", () => {
+    const { from, to } = parseMcpUsageWindow({
+      days: 7,
+      from: "2026-09-01T00:00:00Z",
+      to: "2026-09-08T00:00:00Z",
+    })
+    expect(from!.toISOString()).toBe("2026-09-01T00:00:00.000Z")
+    expect(to!.toISOString()).toBe("2026-09-08T00:00:00.000Z")
+  })
+
+  it("rejects an unparseable date with INVALID_DATA, not a silent widen", () => {
+    // new Date("garbage") is an Invalid Date — accepting it would widen the
+    // window to everything instead of narrowing it.
+    expect(() => parseMcpUsageWindow({ from: "garbage" })).toThrow(
+      /not a parseable ISO 8601 date/
+    )
+    expect(() => parseMcpUsageWindow({ to: "nonsense" })).toThrow(
+      /not a parseable ISO 8601 date/
+    )
+  })
+
+  it("rejects a non-finite, zero or negative days", () => {
+    expect(() => parseMcpUsageWindow({ days: "NaN" })).toThrow(
+      /positive finite number/
+    )
+    expect(() => parseMcpUsageWindow({ days: 0 })).toThrow(
+      /positive finite number/
+    )
+    expect(() => parseMcpUsageWindow({ days: -3 })).toThrow(
+      /positive finite number/
+    )
+  })
+
+  it("returns no window when nothing was given", () => {
+    expect(parseMcpUsageWindow({})).toEqual({})
+    expect(parseMcpUsageWindow({ from: "", to: "" })).toEqual({})
+  })
+
+  it("accepts a Date boundary directly", () => {
+    const d = new Date("2026-09-01T00:00:00Z")
+    expect(parseDateBoundary(d, "from")).toBe(d)
+  })
+
+  it("builds a created_at filter from boundaries", () => {
+    expect(
+      createdWindowFilter("2026-09-01T00:00:00Z", "2026-09-08T00:00:00Z")
+    ).toEqual({
+      $gte: new Date("2026-09-01T00:00:00Z"),
+      $lte: new Date("2026-09-08T00:00:00Z"),
+    })
+    expect(createdWindowFilter()).toBeUndefined()
+    expect(createdWindowFilter("2026-09-01T00:00:00Z")).toEqual({
+      $gte: new Date("2026-09-01T00:00:00Z"),
+    })
   })
 })

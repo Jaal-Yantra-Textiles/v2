@@ -734,6 +734,204 @@ export const ADMIN_MCP_TOOLS: AdminMcpToolDef[] = [
     pathParams: ["id"],
     inputSchema: obj({ id: STR("Payment submission id.") }, ["id"]),
   },
+  /**
+   * The payout CREATION side of money (#1710 follow-on).
+   *
+   * The reader trio above (`list_payment_submissions`, `get_payment_submission`,
+   * and the payable lookups) can only ever look at what exists. Claiming a
+   * payable run — turning "this partner is owed ₹8,974" into an actual payout
+   * row — had no MCP tool at all; `link_payment_to_payout` settles an EXISTING
+   * payout and needs one first. These two rows wrap the create route and its
+   * Draft→Pending transition, so the whole flow (find payable -> create
+   * submission -> submit) is reachable from the assistant.
+   */
+  {
+    name: "create_payment_submission",
+    description:
+      "Create a payout submission for a partner — the admin-side claim that turns completed production runs / inventory orders into a bill. Sensitive: requires confirm:true. ALWAYS dry_run first. " +
+      "🔑 `status: \"Draft\"` creates the payout WITHOUT submitting it — a draft is the safe shape for preparing a payout for review, and submitting it is a SEPARATE step (submit_payment_submission, which POSTs /admin/payment-submissions/:id/submit). Omit `status` for the workflow default (Pending). " +
+      "🔴 `production_run_ids` is the double-pay guard's EVIDENCE: a map of design id -> array of production run ids being claimed. Omitting it weakens the duplicate-payment check — the workflow cannot then prove which completed runs this payout covers. Read list_payable_runs / list_payable_inventory_orders first to see what can still be billed for this partner.",
+    method: "POST",
+    path: "/admin/payment-submissions",
+    write: true,
+    sensitive: true,
+    bodyParams: [
+      "partner_id",
+      "design_ids",
+      "task_ids",
+      "notes",
+      "documents",
+      "quantities",
+      "unit_amounts",
+      "cost_overrides",
+      "task_cost_overrides",
+      "rate_breakdown",
+      "production_run_ids",
+      "status",
+      "currency",
+      "run_lines",
+      "inventory_order_lines",
+      "require_design_status",
+      "metadata",
+    ],
+    inputSchema: obj(
+      {
+        partner_id: STR(
+          "Partner id the payout is created for, e.g. 'partner_...'. Required."
+        ),
+        design_ids: {
+          type: "array",
+          description:
+            "Design ids this payout pays for — one line per design. Requires at least one design, task, run_line or inventory_order_line across the whole request.",
+          items: { type: "string" },
+        },
+        task_ids: {
+          type: "array",
+          description: "Task ids this payout pays for.",
+          items: { type: "string" },
+        },
+        notes: STR("Free-text note describing the payout — shown to reviewers."),
+        documents: {
+          type: "array",
+          description: "Attached documents. Each { id?, url, filename?, mimeType? }.",
+          items: {
+            type: "object",
+            properties: {
+              id: STR("Existing document id (optional)."),
+              url: STR("Document URL (required)."),
+              filename: STR("Optional filename."),
+              mimeType: STR("Optional MIME type."),
+            },
+            required: ["url"],
+          },
+        },
+        quantities: {
+          type: "object",
+          description: "Units billed per design, keyed by design id. Absent means 1.",
+          additionalProperties: { type: "number" },
+        },
+        unit_amounts: {
+          type: "object",
+          description:
+            "Agreed rate per unit, keyed by design id. Beats the design's stored cost — the run's partner_cost_estimate is what was agreed with the partner.",
+          additionalProperties: { type: "number" },
+        },
+        cost_overrides: {
+          type: "object",
+          description:
+            "Typed line TOTAL per design. Wins outright; never multiplied by quantity.",
+          additionalProperties: { type: "number" },
+        },
+        task_cost_overrides: {
+          type: "object",
+          description: "Typed line total per task.",
+          additionalProperties: { type: "number" },
+        },
+        rate_breakdown: {
+          type: "object",
+          description:
+            "Per-piece prices within one design's line, keyed by design id (#1596) — '3 at 850 and 1 at 1,200'. Each design maps to an array of { quantity, unit_amount } bands. AT LEAST TWO bands: one band is an ordinary priced line and belongs in quantities + unit_amounts.",
+          additionalProperties: {
+            type: "array",
+            items: {
+              type: "object",
+              properties: {
+                quantity: { type: "number", description: "Pieces in this band." },
+                unit_amount: { type: "number", description: "Per-piece rate." },
+              },
+              required: ["quantity", "unit_amount"],
+            },
+          },
+        },
+        production_run_ids: {
+          type: "object",
+          description:
+            "🔴 The double-pay guard's EVIDENCE: a map of design id -> array of production run ids being claimed. Omitting it weakens the duplicate-payment check — the workflow cannot prove which completed runs this payout covers. Read list_payable_runs first and supply the run ids it names.",
+          additionalProperties: { type: "array", items: { type: "string" } },
+        },
+        status: STR(
+          "'Draft' creates the payout WITHOUT submitting it (safe for review); submitting is a separate step (submit_payment_submission). 'Pending' submits immediately. Omit for the workflow default."
+        ),
+        currency: STR(
+          "The payout's currency, e.g. 'inr'. Absent means the partner's own currency, then inr."
+        ),
+        run_lines: {
+          type: "array",
+          description:
+            "Payout lines sourced from production RUNS (#1612) — the only expression for a run with design_id null. Each { run_ids (min 1), amount?, quantity?, order_id?, label?, currency? }.",
+          items: {
+            type: "object",
+            properties: {
+              run_ids: {
+                type: "array",
+                description: "The runs this line pays for.",
+                items: { type: "string" },
+              },
+              amount: { type: "number", description: "Line amount override (optional)." },
+              quantity: { type: "number", description: "Line quantity (optional)." },
+              order_id: STR("Originating order id (optional)."),
+              label: STR("Display label (optional)."),
+              currency: STR("Line currency (optional)."),
+            },
+            required: ["run_ids"],
+          },
+        },
+        inventory_order_lines: {
+          type: "array",
+          description:
+            "Payout lines sourced from INVENTORY ORDERS — material bought from the partner. Each { inventory_order_id (required), amount?, currency? }. Left absent, the amount is derived from what was actually received.",
+          items: {
+            type: "object",
+            properties: {
+              inventory_order_id: STR("Inventory order id (required)."),
+              amount: { type: "number", description: "Amount override (optional)." },
+              currency: STR("Line currency (optional)."),
+            },
+            required: ["inventory_order_id"],
+          },
+        },
+        require_design_status: BOOL(
+          "Skip the design-status gate (must be Approved/Commerce_Ready). An admin paying out a finished run is exactly the position where this is needed."
+        ),
+        metadata: {
+          type: "object",
+          description:
+            "Optional key/value metadata. 🔴 Do NOT put money fields here — use the typed quantities / unit_amounts / cost_overrides / task_cost_overrides fields, or the request is refused.",
+        },
+      },
+      ["partner_id"]
+    ),
+    sideEffects:
+      "Creates a payment submission row (Draft or Pending). With status Pending it also runs the claim guards — a completed run already on another non-Rejected payout is refused. With Draft it records the claim without submitting it.",
+    nextSteps: [
+      "submit_payment_submission",
+      "get_payment_submission",
+      "list_payable_runs",
+      "list_payable_inventory_orders",
+    ],
+  },
+  {
+    name: "submit_payment_submission",
+    description:
+      "Move a payment submission from Draft to Pending, in place (#1604) — the separate step after create_payment_submission created a Draft. Sensitive: requires confirm:true. 🔑 The money, designs and runs already sit on the draft; this transition re-runs the claim guards (a completed run already on another non-Rejected payout is refused) but takes nothing but an optional note. ALWAYS dry_run first to see the draft before submitting it.",
+    method: "POST",
+    path: "/admin/payment-submissions/:id/submit",
+    pathParams: ["id"],
+    write: true,
+    sensitive: true,
+    bodyParams: ["notes"],
+    previewPath: "/admin/payment-submissions/:id",
+    inputSchema: obj(
+      {
+        id: STR("Payment submission id to submit, e.g. the id create_payment_submission returned."),
+        notes: STR("Optional note recorded on the submission."),
+      },
+      ["id"]
+    ),
+    sideEffects:
+      "Moves the submission from Draft to Pending in place. A submitted payout becomes visible for review; the claim guards re-run as part of the transition.",
+    nextSteps: ["get_payment_submission", "list_payment_submissions"],
+  },
   {
     name: "list_inventory_items",
     description: "List inventory items (paginated). Supports free-text search via q.",
@@ -1220,7 +1418,11 @@ export const ADMIN_MCP_TOOLS: AdminMcpToolDef[] = [
       },
       ["partner_id"]
     ),
-    nextSteps: ["list_payable_inventory_orders", "get_partner_ledger"],
+    nextSteps: [
+      "list_payable_inventory_orders",
+      "create_payment_submission",
+      "get_partner_ledger",
+    ],
   },
   {
     name: "update_inventory_order_lines",
@@ -1374,7 +1576,7 @@ export const ADMIN_MCP_TOOLS: AdminMcpToolDef[] = [
       },
       ["partner_id"]
     ),
-    nextSteps: ["list_payable_runs", "get_partner_ledger"],
+    nextSteps: ["list_payable_runs", "create_payment_submission", "get_partner_ledger"],
   },
   {
     name: "get_partner_credits",
@@ -1754,13 +1956,19 @@ export const ADMIN_MCP_TOOLS: AdminMcpToolDef[] = [
   {
     name: "get_mcp_usage",
     description:
-      "Read the MCP observability ledger: totals plus per-surface and per-tool counts, error count, and the most recent tool calls across the store/partner/admin MCP surfaces. Use to answer 'how is the MCP being used' or 'what's failing'.",
+      "Read the MCP observability ledger: totals plus per-surface and per-tool counts, error count, and the most recent tool calls across the store/partner/admin MCP surfaces. Use to answer 'how is the MCP being used' or 'what's failing'. The ledger is TIME-FILTERABLE: pass `days` (last N days from now) or explicit `from`/`to` ISO dates (`from`/`to` win when both are given), and the effective window is echoed back on the payload so you know which period a number describes. 🔑 An EMPTY result for a window means no rows IN that window — it is NOT evidence that no usage ever happened; the ledger only holds rows whose `created_at` falls inside the filter.",
     method: "GET",
     path: "/admin/mcp/usage",
-    queryParams: ["surface", "limit"],
+    queryParams: ["surface", "limit", "days", "from", "to"],
     inputSchema: obj({
       surface: STR("Optional surface filter: 'store' | 'partner' | 'admin'."),
-      limit: { type: "integer", description: "Max rows to scan (default 50, max 200)." },
+      limit: { type: "integer", description: "Max rows to scan (default 50, max 200). Also sets how many recent calls are returned." },
+      days: {
+        type: "number",
+        description: "Convenience window: the last N days from now (e.g. 7 for the week). Alternatives to explicit from/to; if both are given, from/to win.",
+      },
+      from: STR("Explicit window start, ISO 8601 (e.g. 2026-09-01T00:00:00Z)."),
+      to: STR("Explicit window end, ISO 8601 (e.g. 2026-09-08T23:59:59Z)."),
     }),
   },
 
