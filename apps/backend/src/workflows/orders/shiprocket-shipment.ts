@@ -456,6 +456,19 @@ export async function createShiprocketShipmentForFulfillment(
           email: input.actingEmail || origin.actingEmail || undefined,
         })
         pickupLocationName = reg.name
+        if (origin.locationSource === "goods_transfer") {
+          // #891 S4 — worth saying out loud: this order is NOT shipping from
+          // the partner that made it, because the goods were received
+          // somewhere else.
+          try {
+            const logger: any = container.resolve(ContainerRegistrationKeys.LOGGER)
+            logger.info(
+              `[ship-from] order ${input.orderId}: shipping from ${origin.locationId} — where a delivered goods transfer left the stock, not the producing partner's default`
+            )
+          } catch {
+            /* logging must never break label generation */
+          }
+        }
       } catch {
         // Best-effort — the #638 fallback (or the guard) handles it cleanly.
       }
