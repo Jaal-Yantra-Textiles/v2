@@ -196,6 +196,12 @@ export const linkInventoryItemsWithLinesStep = createStep(
         inventory_item_id,
       },
     }));
+    // A sample order can have no lines at all, so there may be nothing to
+    // link. Mirrors the guard in `linkVariantsWithLinesStep` below — an empty
+    // `create` call is not worth making.
+    if (!links.length) {
+      return new StepResponse([], []);
+    }
     await remoteLink.create(links);
     return new StepResponse(links, links);
   },

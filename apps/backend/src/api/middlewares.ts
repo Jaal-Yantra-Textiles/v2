@@ -1079,6 +1079,19 @@ export default defineMiddlewares({
       middlewares: [],
     },
     {
+      /**
+       * Delhivery EPOD push — the sibling of the tracking route. A base64
+       * proof-of-delivery document is orders of magnitude larger than a status
+       * ping; Medusa's default JSON limit would 413 it and Delhivery would drop
+       * the push (they retry on a timeout, not on a 4xx). 10mb covers a
+       * multi-page scanned delivery sheet.
+       */
+      matcher: "/webhooks/shipping/epod",
+      method: "POST",
+      middlewares: [],
+      bodyParser: { sizeLimit: "10mb" },
+    },
+    {
       // Carrier tracking pushes (Shiprocket — #888). Gated by
       // SHIPPING_WEBHOOK_SECRET (custom header configured in the carrier
       // dashboard; Shiprocket has no HMAC), JSON body parsed normally.

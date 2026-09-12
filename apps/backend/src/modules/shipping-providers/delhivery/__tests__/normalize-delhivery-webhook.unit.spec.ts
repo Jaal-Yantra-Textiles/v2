@@ -1,5 +1,6 @@
 import {
   delhiveryScanType,
+  delhiveryTimestamp,
   normalizeDelhiveryWebhook,
 } from "../client"
 
@@ -105,5 +106,85 @@ describe("normalizeDelhiveryWebhook", () => {
 
   it("keeps the raw payload for the audit trail", () => {
     expect(normalizeDelhiveryWebhook(push).raw).toBe(push)
+  })
+
+  /**
+   * The payload printed in Delhivery's own webhook requirement document.
+   *
+   * It is flat, its `status` is a bare string, and it carries NO `AWB` or
+   * `Waybill` key — the consignment number rides in `lrnum`. Parsed with only
+   * the nested envelope in mind it yields `awb: ""`, and the webhook route
+   * reads an empty AWB as "ignore this push". A real delivery would have been
+   * dropped with nothing in the log but "test webhook?".
+   */
+  describe("the flat scan push from the requirement document", () => {
+    const flat = {
+      shipment_remark: "Delivered to consignee",
+      location: "Bengaluru_Hub",
+      count: 1,
+      lrnum: "1234567890",
+      mwn: "MWN-1",
+      cl_uuid: "abc",
+      name: "Jaal Yantra Textiles",
+      package_type: "Pre-paid",
+      expected_delivery_date: 1754300000,
+      promised_delivery_date: 1754300000,
+      timestamp: 1754305200,
+      status: "Delivered",
+    }
+
+    it("finds the AWB in lrnum", () => {
+      expect(normalizeDelhiveryWebhook(flat).awb).toBe("1234567890")
+    })
+
+    it("reads a bare-string status", () => {
+      const out = normalizeDelhiveryWebhook(flat)
+      expect(out.current_status).toBe("Delivered")
+      expect(out.estimated_delivery).toBe("2025-08-04T09:33:20.000Z")
+    })
+
+    it("synthesises the single scan as an event", () => {
+      const out = normalizeDelhiveryWebhook(flat)
+      expect(out.events).toHaveLength(1)
+      expect(out.events[0]).toMatchObject({
+        status: "Delivered",
+        location: "Bengaluru_Hub",
+        scan_type: "delivered",
+      })
+      expect(out.events[0].timestamp).toBe("2025-08-04T11:00:00.000Z")
+    })
+
+    it("falls back to the master waybill when there is no lrnum", () => {
+      const { lrnum, ...noLr } = flat
+      expect(normalizeDelhiveryWebhook(noLr).awb).toBe("MWN-1")
+    })
+
+    it("still refuses to invent a delivery from an unknown status", () => {
+      const out = normalizeDelhiveryWebhook({ ...flat, status: "Some new scan", shipment_remark: "" })
+      expect(out.events[0].scan_type).toBe("in_transit")
+    })
+
+    it("does not synthesise an event when there is no AWB to match", () => {
+      // A carrier test-ping must not become a phantom scan on nothing.
+      expect(normalizeDelhiveryWebhook({ status: "Delivered" }).events).toEqual([])
+    })
+  })
+})
+
+describe("delhiveryTimestamp", () => {
+  it("accepts epoch seconds and milliseconds alike", () => {
+    expect(delhiveryTimestamp(1754305200)).toBe("2025-08-04T11:00:00.000Z")
+    expect(delhiveryTimestamp(1754305200000)).toBe("2025-08-04T11:00:00.000Z")
+  })
+
+  it("passes an ISO string through", () => {
+    expect(delhiveryTimestamp("2026-08-04T11:20:00")).toBe("2026-08-04T11:20:00")
+  })
+
+  it("yields empty for nothing, never 1970", () => {
+    expect(delhiveryTimestamp(undefined)).toBe("")
+    expect(delhiveryTimestamp(null)).toBe("")
+    expect(delhiveryTimestamp("")).toBe("")
+    expect(delhiveryTimestamp(0)).toBe("")
   })
 })

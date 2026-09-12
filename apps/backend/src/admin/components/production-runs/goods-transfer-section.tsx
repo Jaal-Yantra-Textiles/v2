@@ -11,7 +11,7 @@ import {
   Textarea,
   toast,
 } from "@medusajs/ui"
-import { HandTruck, Trash, TruckFast, XCircle } from "@medusajs/icons"
+import { Check, HandTruck, Trash, TruckFast, XCircle } from "@medusajs/icons"
 import { useState } from "react"
 
 import { ActionMenu, type Action } from "../common/action-menu"
@@ -20,6 +20,7 @@ import {
   useCreateGoodsTransfer,
   useDeleteGoodsTransfer,
   useGoodsTransfers,
+  useReceiveGoodsTransfer,
   type AdminGoodsTransfer,
 } from "../../hooks/api/goods-transfers"
 import { useStockLocations } from "../../hooks/api/stock_location"
@@ -126,6 +127,9 @@ export const GoodsTransferSection = ({ runId }: Props) => {
 
   const [cancelling, setCancelling] = useState<AdminGoodsTransfer | null>(null)
   const [cancelReason, setCancelReason] = useState("")
+  const [receiving, setReceiving] = useState<AdminGoodsTransfer | null>(null)
+  const [receivedQty, setReceivedQty] = useState("")
+  const [receiveNotes, setReceiveNotes] = useState("")
   /** The "clear abandoned drafts" confirmation. */
   const [clearingDrafts, setClearingDrafts] = useState(false)
   const [isClearing, setIsClearing] = useState(false)
@@ -153,6 +157,8 @@ export const GoodsTransferSection = ({ runId }: Props) => {
     useCancelGoodsTransfer(runId)
   const { mutateAsync: deleteDraft, isPending: isDeleting } =
     useDeleteGoodsTransfer(runId)
+  const { mutateAsync: receiveTransfer, isPending: isReceiving } =
+    useReceiveGoodsTransfer(runId)
 
   const locationName = (id?: string | null) =>
     locations.find((l: any) => l.id === id)?.name || id || "—"
@@ -259,6 +265,36 @@ export const GoodsTransferSection = ({ runId }: Props) => {
     }
   }
 
+  const handleReceive = async () => {
+    if (!receiving) return
+    // Blank means "all of it" — the common case, and an operator should not
+    // have to retype what the transfer already says.
+    const trimmed = receivedQty.trim()
+    const parsed = trimmed === "" ? undefined : Number(trimmed)
+    if (parsed !== undefined && (Number.isNaN(parsed) || parsed < 0)) {
+      toast.error("Received quantity must be zero or more")
+      return
+    }
+    try {
+      const { receipt } = await receiveTransfer({
+        transferId: receiving.id,
+        received_quantity: parsed,
+        notes: receiveNotes.trim() || undefined,
+      })
+      const moved = receipt.moved
+        ? `stock moved${receipt.reservations_repointed ? `, ${receipt.reservations_repointed} reservation(s) followed` : ""}`
+        : `no stock movement (${receipt.skip_reason})`
+      toast.success(
+        `Received ${receipt.received_quantity} unit(s)${receipt.shortfall ? ` — ${receipt.shortfall} short` : ""} · ${moved}`
+      )
+    } catch (e: any) {
+      toast.error(e?.message || "Could not receive the transfer")
+      return
+    } finally {
+      setReceiving(null)
+    }
+  }
+
   const handleCancel = async () => {
     if (!cancelling) return
     const isBooked = cancelling.status !== "draft"
@@ -347,6 +383,16 @@ export const GoodsTransferSection = ({ runId }: Props) => {
               })
             }
             if (t.status === "draft" || t.status === "in_transit") {
+              // Receipt is the act that moves the stock, so it leads.
+              rowActions.push({
+                icon: <Check />,
+                label: "Receive these goods",
+                onClick: () => {
+                  setReceiving(t)
+                  setReceivedQty(String(t.quantity ?? ""))
+                  setReceiveNotes("")
+                },
+              })
               rowActions.push({
                 icon: t.status === "draft" ? <Trash /> : <XCircle />,
                 label:
@@ -572,6 +618,47 @@ export const GoodsTransferSection = ({ runId }: Props) => {
           </Drawer.Footer>
         </Drawer.Content>
       </Drawer>
+
+      <Prompt open={!!receiving} onOpenChange={(v) => !v && setReceiving(null)}>
+        <Prompt.Content>
+          <Prompt.Header>
+            <Prompt.Title>Receive these goods?</Prompt.Title>
+            <Prompt.Description>
+              This moves the stock from {locationName(receiving?.from_location_id)}{" "}
+              to {locationName(receiving?.to_location_id)} and brings any
+              reservation with it. It cannot be undone — a correction is a new
+              transfer.
+            </Prompt.Description>
+          </Prompt.Header>
+          <div className="flex flex-col gap-y-3 px-6 py-4">
+            <div className="flex flex-col gap-y-1">
+              <Label size="small">Quantity received</Label>
+              <Input
+                type="number"
+                min={0}
+                value={receivedQty}
+                onChange={(e) => setReceivedQty(e.target.value)}
+                placeholder={String(receiving?.quantity ?? "")}
+              />
+              <Text size="xsmall" className="text-ui-fg-subtle">
+                Sent: {receiving?.quantity}. A smaller number is recorded as a
+                shortfall.
+              </Text>
+            </div>
+            <Textarea
+              placeholder="Notes — damage, a partial count (optional)"
+              value={receiveNotes}
+              onChange={(e) => setReceiveNotes(e.target.value)}
+            />
+          </div>
+          <Prompt.Footer>
+            <Prompt.Cancel>Not yet</Prompt.Cancel>
+            <Button onClick={handleReceive} disabled={isReceiving}>
+              Receive
+            </Button>
+          </Prompt.Footer>
+        </Prompt.Content>
+      </Prompt>
 
       <Prompt open={!!cancelling} onOpenChange={(v) => !v && setCancelling(null)}>
         <Prompt.Content>

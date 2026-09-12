@@ -10,6 +10,7 @@ import { ContainerRegistrationKeys, MedusaError, Modules } from "@medusajs/frame
 import type { Link } from "@medusajs/modules-sdk";
 import type { IEventBusModuleService, RemoteQueryFunction, UpdateInventoryLevelInput } from "@medusajs/types";
 import { createInventoryLevelsWorkflow, updateInventoryLevelsWorkflow } from "@medusajs/medusa/core-flows";
+import { createMaterialsForLines } from "./lib/create-sample-material-lines"
 import { ORDER_INVENTORY_MODULE } from "../../modules/inventory_orders";
 import InventoryOrderService from "../../modules/inventory_orders/service";
 import { FULLFILLED_ORDERS_MODULE } from "../../modules/fullfilled_orders";
@@ -107,7 +108,10 @@ export const fetchOriginalOrderStep = createStep(
     // whether stock must be posted.
     const { postStock } = evaluateAdminStatusTransition(
       (originalOrder as any).status,
-      input.data?.status
+      input.data?.status,
+      // A samples/swatch order is created empty and filled in after the box
+      // arrives, so it stays editable past Processing (and never posts stock).
+      { isSample: !!(originalOrder as any).is_sample }
     );
     return new StepResponse({ originalOrder, postStock }, originalOrder); // Save original for compensation
   },
@@ -215,6 +219,24 @@ export const updateOrderLinesStep = createStep(
     const currentOrder = await inventoryOrderService.retrieveInventoryOrder(input.order_id, { relations: ["orderlines"] });
     const currentOrderlines = currentOrder.orderlines || [];
     const byId = new Map<string, any>(currentOrderlines.map((l: any) => [l.id, l]));
+
+    // A samples/swatch line may name a material we have never stocked, with no
+    // item and no variant to point at. Create it first, so every branch below
+    // sees a line of one shape. Done before the variant resolution because a
+    // line carries one form or the other, never both.
+    const materialsCreated = await createMaterialsForLines(
+      container,
+      input.order_lines as any
+    );
+    if (materialsCreated.size) {
+      materialsCreated.forEach((itemId, index) => {
+        const line = input.order_lines[index] as any;
+        if (line) {
+          line.inventory_item_id = itemId;
+          delete line.new_material;
+        }
+      });
+    }
 
     // #1662 — a new line may name an untracked partner variant instead of an
     // item. Establish the inventory item BEFORE anything below reads

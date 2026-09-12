@@ -63,6 +63,32 @@ export function delhiveryScanType(
 }
 
 /**
+ * Coerce a Delhivery timestamp into an ISO string.
+ *
+ * The nested track envelope uses ISO strings; the flat scan push uses an epoch
+ * (their sample types it `Number`, and accounts have been seen sending both
+ * seconds and milliseconds). Anything unrecognised yields `""`, which the
+ * tracking timeline treats as "no time recorded" rather than 1970.
+ */
+export function delhiveryTimestamp(value: any): string {
+  if (value == null || value === "") return ""
+
+  const num = typeof value === "number" ? value : Number(value)
+  // A numeric zero/negative is "no time recorded", not 1970 and not the
+  // literal string "0".
+  if (Number.isFinite(num) && String(value).trim() !== "") {
+    if (num <= 0) return ""
+    // Seconds vs milliseconds: anything below ~2001-09-09 in ms is really an
+    // epoch in seconds. Delhivery's sample is unlabelled, so both are accepted.
+    const ms = num < 1e12 ? num * 1000 : num
+    const d = new Date(ms)
+    if (!Number.isNaN(d.getTime())) return d.toISOString()
+  }
+
+  return String(value)
+}
+
+/**
  * Normalize a Delhivery status-push payload into a `TrackingResult`.
  *
  * Pure and exported so the inbound webhook route can parse a push without
@@ -70,11 +96,24 @@ export function delhiveryScanType(
  * webhook route can dispatch on `?carrier=` and feed both into the one sync
  * workflow.
  *
- * Delhivery's push nests everything under `Shipment`, with the current scan in
- * `Shipment.Status` and the history in `Shipment.Scans[].ScanDetail`. Some
- * accounts receive a flatter shape, so both the nested and top-level AWB keys
- * are accepted. An unrecognised payload yields an empty `awb`, which the route
- * already treats as "ignore this push" rather than an error.
+ * TWO shapes are accepted, because Delhivery pushes different ones per account:
+ *
+ *  1. The **nested** envelope, matching their track API — everything under
+ *     `Shipment`, the current scan in `Shipment.Status`, history in
+ *     `Shipment.Scans[].ScanDetail`.
+ *  2. The **flat** scan push printed in their webhook requirement document
+ *     (`{ status, location, timestamp, lrnum, mwn, shipment_remark, ... }`),
+ *     which carries a single scan and no history array.
+ *
+ * Shape 2 matters: it has no `AWB`/`Waybill` key at all, and its `status` is a
+ * bare string rather than an object. Read with only shape 1 in mind it yields
+ * an empty AWB — and the webhook route treats an empty AWB as "ignore this
+ * push", so every delivery update would be dropped in silence with nothing in
+ * the log but "test webhook?". Both shapes are parsed here so whichever the
+ * account is configured for, the AWB is found.
+ *
+ * An unrecognised payload still yields an empty `awb`, which the route already
+ * treats as "ignore this push" rather than an error.
  */
 export function normalizeDelhiveryWebhook(payload: any): {
   carrier: string
@@ -91,38 +130,146 @@ export function normalizeDelhiveryWebhook(payload: any): {
   raw: any
 } {
   const shipment = payload?.Shipment ?? payload?.shipment ?? payload ?? {}
-  const status = shipment?.Status ?? shipment?.status ?? {}
+  const rawStatus = shipment?.Status ?? shipment?.status ?? {}
+
+  // The flat push sends `status` as a string; the nested one as an object.
+  const flatStatus = typeof rawStatus === "string" ? rawStatus : ""
+  const status = typeof rawStatus === "object" && rawStatus ? rawStatus : {}
 
   const awb =
     shipment?.AWB ??
     shipment?.awb ??
     shipment?.Waybill ??
     shipment?.waybill ??
+    shipment?.wbn ??
     payload?.AWB ??
+    payload?.awb ??
     payload?.waybill ??
+    payload?.wbn ??
+    // Flat push: the consignment number rides in `lrnum`, with `mwn` (master
+    // waybill) as the fallback for accounts pushing at master level.
+    shipment?.lrnum ??
+    shipment?.mwn ??
+    payload?.lrnum ??
+    payload?.mwn ??
     ""
 
-  const currentStatus = status?.Status ?? status?.status ?? ""
-  const statusType = status?.StatusType ?? status?.statusType ?? ""
+  const currentStatus =
+    status?.Status ?? status?.status ?? flatStatus ?? ""
+  const statusType =
+    status?.StatusType ??
+    status?.statusType ??
+    shipment?.status_type ??
+    shipment?.StatusType ??
+    shipment?.nsl_code ??
+    ""
 
-  const events = (shipment?.Scans ?? shipment?.scans ?? []).map((s: any) => {
+  const scans = shipment?.Scans ?? shipment?.scans ?? []
+  const events = (Array.isArray(scans) ? scans : []).map((s: any) => {
     const d = s?.ScanDetail ?? s?.scanDetail ?? s ?? {}
     return {
-      timestamp: d?.ScanDateTime ?? d?.StatusDateTime ?? "",
+      timestamp: delhiveryTimestamp(d?.ScanDateTime ?? d?.StatusDateTime),
       status: d?.Scan ?? d?.Instructions ?? d?.ScanType ?? "",
       location: d?.ScannedLocation ?? d?.StatusLocation ?? "",
       scan_type: delhiveryScanType(d?.StatusType ?? d?.ScanType, d?.Scan),
     }
   })
 
+  // The flat push has no history array — it IS one scan. Synthesise the event
+  // so the shipment timeline records it, exactly as the nested shape would.
+  if (!events.length && awb && currentStatus) {
+    events.push({
+      timestamp: delhiveryTimestamp(
+        shipment?.timestamp ?? shipment?.StatusDateTime ?? status?.StatusDateTime
+      ),
+      status: String(currentStatus),
+      location: String(
+        shipment?.location ?? status?.StatusLocation ?? shipment?.StatusLocation ?? ""
+      ),
+      scan_type: delhiveryScanType(
+        statusType,
+        // `shipment_remark` carries the detail ("Delivered to consignee") that
+        // disambiguates a terse status.
+        `${currentStatus} ${shipment?.shipment_remark ?? ""}`.trim()
+      ),
+    })
+  }
+
+  const eta =
+    shipment?.ExpectedDeliveryDate ??
+    shipment?.PromisedDeliveryDate ??
+    shipment?.expected_delivery_date ??
+    shipment?.promised_delivery_date ??
+    null
+
   return {
     carrier: "delhivery",
     awb: String(awb || ""),
     current_status: String(currentStatus || ""),
     current_status_code: statusType ? String(statusType) : undefined,
-    estimated_delivery:
-      shipment?.ExpectedDeliveryDate ?? shipment?.PromisedDeliveryDate ?? null,
+    estimated_delivery: eta == null ? null : delhiveryTimestamp(eta),
     events,
+    raw: payload,
+  }
+}
+
+/**
+ * Normalize a Delhivery EPOD (electronic proof of delivery) push.
+ *
+ * Their requirement document specifies `{ waybill, EPOD, orderID }`, where
+ * `EPOD` is a base64-encoded document. The same webhook can also be configured
+ * to push a downloadable S3 URL (7-day expiry) instead of the blob, so both are
+ * accepted and reported separately — a URL must be fetched before it expires,
+ * a blob is already in hand.
+ *
+ * Key casing is inconsistent across Delhivery's own docs (`EPOD` in the sample,
+ * `epod` elsewhere), so lookups are case-insensitive over the top-level keys.
+ *
+ * Pure, so the webhook route can parse without credentials. An unrecognised
+ * payload yields an empty `awb`, which the route treats as "ignore this push".
+ */
+export function normalizeDelhiveryEpod(payload: any): {
+  carrier: string
+  awb: string
+  /** Base64 document body, when Delhivery pushes the blob. */
+  pod_base64?: string
+  /** Downloadable URL, when Delhivery pushes a link instead (expires in 7 days). */
+  pod_url?: string
+  /** The client order reference Delhivery echoes back, when present. */
+  order_ref?: string
+  raw: any
+}  {
+  const src = payload && typeof payload === "object" ? payload : {}
+
+  // Case-insensitive top-level lookup: `EPOD` vs `epod` differs between
+  // Delhivery's sample payload and their prose.
+  const byLower: Record<string, any> = {}
+  for (const [k, v] of Object.entries(src)) {
+    byLower[k.toLowerCase()] = v
+  }
+  const pick = (...keys: string[]) => {
+    for (const k of keys) {
+      const v = byLower[k]
+      if (v != null && v !== "") return v
+    }
+    return undefined
+  }
+
+  const awb = pick("waybill", "awb", "wbn", "lrnum", "mwn")
+  const pod = pick("epod", "pod", "pod_data", "image")
+  const orderRef = pick("orderid", "order_id", "reference_no", "order_ref")
+
+  const podStr = pod == null ? "" : String(pod)
+  // A URL and a base64 blob arrive in the same field; only a URL starts with a
+  // scheme. Treating a URL as base64 would persist an unusable document.
+  const isUrl = /^https?:\/\//i.test(podStr.trim())
+
+  return {
+    carrier: "delhivery",
+    awb: String(awb ?? ""),
+    pod_base64: !isUrl && podStr ? podStr : undefined,
+    pod_url: isUrl ? podStr.trim() : undefined,
+    order_ref: orderRef == null ? undefined : String(orderRef),
     raw: payload,
   }
 }

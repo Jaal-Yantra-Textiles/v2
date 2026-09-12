@@ -36,7 +36,11 @@ export const inventoryOrderFormSchema = z
       .map((line, index) => ({ line, index }))
       .filter(({ line }) => !!line?.inventory_item_id);
 
-    if (!filledIdx.length) {
+    // A samples/swatch order is created EMPTY on purpose: it is ordered
+    // precisely because nobody knows yet what will arrive, and the lines are
+    // filled in once the box is opened. Every other order still needs
+    // something to order.
+    if (!filledIdx.length && !data.is_sample) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
         message: "Pick at least one item",

@@ -3,6 +3,7 @@ import type { MedusaContainer } from "@medusajs/framework/types"
 import partnerOrderLink from "../../links/partner-order"
 import { pickPartnerShipFromLocation } from "../../api/partners/lib/ship-from-location"
 import { SHIPROCKET_PICKUP_METADATA_KEY } from "./pickup-locations"
+import { FULLFILLED_ORDERS_MODULE } from "../fullfilled_orders"
 
 /**
  * Resolve the partner that OWNS a core/retail order — and their ship-from stock
@@ -39,6 +40,94 @@ export type OrderShipFromOrigin = OrderPartnerId & {
   locationId: string | null
   /** Acting/notification email for a freshly-registered pickup (#427). */
   actingEmail: string | null
+  /**
+   * Where `locationId` came from (#891 S4). `goods_transfer` means the goods
+   * have physically MOVED since they were produced and the label follows them;
+   * `partner_default` is the pre-S4 behaviour.
+   */
+  locationSource: "goods_transfer" | "partner_default" | null
+}
+
+/** Why a set of production runs did or did not agree on one goods location. */
+export type GoodsLocationVerdict = {
+  locationId: string | null
+  reason: "agreed" | "split" | "none"
+}
+
+/**
+ * PURE: given where each of an order's runs currently holds its goods, what is
+ * the one location the order can ship from? (#891 S4)
+ *
+ * An order can span several production runs, and after S3 each may have been
+ * received somewhere different. A fulfillment has exactly ONE origin, so:
+ *
+ *  - all runs agree → that location
+ *  - they disagree (`split`) → NOTHING. The goods are genuinely in two places
+ *    and no single origin is correct; picking one would put a confident wrong
+ *    address on a label. Falling back to the partner default at least keeps
+ *    the long-standing, understood behaviour instead of inventing a new wrong
+ *    answer, and the split is logged.
+ *  - none has moved → nothing to say; the partner default stands
+ */
+export function pickCurrentGoodsLocation(
+  runLocations: Array<string | null | undefined>
+): GoodsLocationVerdict {
+  const moved = (runLocations || [])
+    .map((l) => (l ? String(l) : ""))
+    .filter(Boolean)
+  if (!moved.length) return { locationId: null, reason: "none" }
+
+  const distinct = Array.from(new Set(moved))
+  if (distinct.length > 1) return { locationId: null, reason: "split" }
+  return { locationId: distinct[0], reason: "agreed" }
+}
+
+/**
+ * Where an order's produced goods physically are NOW (#891 S4).
+ *
+ * Produced output is banked at the producing partner's location, and a
+ * delivered `goods_transfer` is the record that it moved somewhere else. Until
+ * S4 nothing on the customer leg read that, so a jacket received at the
+ * finishing warehouse still shipped from the weaver — which re-creates the very
+ * negative S3 exists to remove, one step further along.
+ *
+ * Only a DELIVERED transfer counts. A booked or in-transit hop means the goods
+ * are between two places, and the origin they left is still the honest answer.
+ *
+ * Best-effort: any miss returns null so the partner default stands.
+ */
+export async function resolveOrderGoodsLocation(
+  container: MedusaContainer,
+  orderId: string
+): Promise<GoodsLocationVerdict> {
+  const query: any = container.resolve(ContainerRegistrationKeys.QUERY)
+  try {
+    const { data: runs } = await query.graph({
+      entity: "production_runs",
+      fields: ["id"],
+      filters: { order_id: orderId },
+    })
+    const runIds = (runs ?? []).map((r: any) => r?.id).filter(Boolean)
+    if (!runIds.length) return { locationId: null, reason: "none" }
+
+    const transfers: any = container.resolve(FULLFILLED_ORDERS_MODULE)
+    const landed = await Promise.all(
+      runIds.map(async (runId: string) => {
+        try {
+          const prior = await transfers.listGoodsTransfers(
+            { production_run_id: runId, status: "delivered" },
+            { order: { received_at: "DESC" }, take: 1 }
+          )
+          return prior?.[0]?.to_location_id ?? null
+        } catch {
+          return null
+        }
+      })
+    )
+    return pickCurrentGoodsLocation(landed)
+  } catch {
+    return { locationId: null, reason: "none" }
+  }
 }
 
 /** Read a single order's `sales_channel_id` (null on any error). */
@@ -148,7 +237,13 @@ export async function resolveOrderShipFromLocation(
   try {
     const { partnerId, source } = await resolveOrderPartnerId(container, orderId)
     if (!partnerId) {
-      return { partnerId: null, source: null, locationId: null, actingEmail: null }
+      return {
+        partnerId: null,
+        source: null,
+        locationId: null,
+        actingEmail: null,
+        locationSource: null,
+      }
     }
 
     const { data: partners } = await query.graph({
@@ -163,14 +258,47 @@ export async function resolveOrderShipFromLocation(
     const partner = partners?.[0]
     const partnerChannelId =
       (partner?.stores?.[0]?.default_sales_channel_id as string) ?? null
-    const locationId = await locationForSalesChannel(query, partnerChannelId)
+    const partnerLocationId = await locationForSalesChannel(query, partnerChannelId)
+
+    // #891 S4 — the goods' CURRENT location wins over the partner default.
+    // Output is banked where it was produced, and a delivered goods transfer is
+    // the record that it moved. Shipping from the producing partner after the
+    // goods were received elsewhere is what puts a real garment's origin on the
+    // wrong label, and drives the origin location negative.
+    const goods = await resolveOrderGoodsLocation(container, orderId)
+    if (goods.reason === "split") {
+      // Two runs on one order landed in different places, so no single origin
+      // is correct. Say so loudly and keep the old, understood behaviour rather
+      // than inventing a confident wrong address.
+      try {
+        const logger: any = container.resolve(ContainerRegistrationKeys.LOGGER)
+        logger.warn(
+          `[ship-from] order ${orderId}: its production runs' goods are in DIFFERENT locations — no single origin is correct, falling back to the partner default`
+        )
+      } catch {
+        /* logging must never break label generation */
+      }
+    }
+
+    const locationId = goods.locationId ?? partnerLocationId
     return {
       partnerId,
       source,
       locationId,
       actingEmail: (partner?.admins?.[0]?.email as string) ?? null,
+      locationSource: !locationId
+        ? null
+        : goods.locationId
+          ? "goods_transfer"
+          : "partner_default",
     }
   } catch {
-    return { partnerId: null, source: null, locationId: null, actingEmail: null }
+    return {
+      partnerId: null,
+      source: null,
+      locationId: null,
+      actingEmail: null,
+      locationSource: null,
+    }
   }
 }
