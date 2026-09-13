@@ -12,7 +12,8 @@
     "check": "tsc -p tsconfig.ci.json",
     "i18n:validate": "node ./scripts/i18n/validate-translation.js",
     "i18n:schema": "node ./scripts/i18n/generate-schema.js",
-    "lint": "eslint . --ext ts,tsx --report-unused-disable-directives --max-warnings 0"
+    "lint": "eslint . --ext ts,tsx --report-unused-disable-directives --max-warnings 0",
+    "e2e": "node e2e/run.mjs"
   },
   "license": "Apache-2.0",
   "main": "dist/app.js",

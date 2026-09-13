@@ -2,6 +2,7 @@ import { Button, Container, Copy, Heading, toast } from "@medusajs/ui"
 import { useTranslation } from "react-i18next"
 import { ExclamationCircleSolid } from "@medusajs/icons"
 
+import { extractErrorMessage } from "../../../../../lib/extract-error-message"
 import { useOrderPreview } from "../../../../../hooks/api"
 import {
   useCancelOrderEdit,
@@ -14,7 +15,6 @@ import { useNavigate } from "react-router-dom"
 
 type OrderActiveEditSectionProps = {
   order: HttpTypes.AdminOrder
-  quantity: number
 }
 
 function EditItem({
@@ -64,8 +64,10 @@ export const OrderActiveEditSection = ({
   const isPending = orderPreview.order_change?.status === "pending"
 
   const [addedItems, removedItems] = useMemo(() => {
-    const added = []
-    const removed = []
+    // Annotated: inferred as `any[]` from an empty literal, which TS then
+    // refuses to use across the closure below.
+    const added: Array<{ item: any; quantity: number }> = []
+    const removed: Array<{ item: any; quantity: number }> = []
 
     const orderLookupMap = new Map(order.items!.map((i) => [i.id, i]))
 
@@ -101,17 +103,17 @@ export const OrderActiveEditSection = ({
 
       toast.success(t("orders.edits.toast.confirmedSuccessfully"))
     } catch (e) {
-      toast.error(e.message)
+      toast.error(extractErrorMessage(e))
     }
   }
 
   const onCancelOrderEdit = async () => {
     try {
-      await cancelOrderEdit()
+      await cancelOrderEdit(undefined)
 
       toast.success(t("orders.edits.toast.canceledSuccessfully"))
     } catch (e) {
-      toast.error(e.message)
+      toast.error(extractErrorMessage(e))
     }
   }
 
