@@ -20,7 +20,7 @@ const fixture = execFileSync("node", [join(here, "seed.mjs")], {
 }).trim()
 console.log(fixture)
 
-execFileSync("node", [join(here, "action-first.spec.mjs")], {
+execFileSync("node", [join(here, "action-first.e2e.mjs")], {
   stdio: "inherit",
   env: { ...process.env, E2E_FIXTURE: fixture },
 })

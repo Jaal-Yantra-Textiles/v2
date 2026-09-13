@@ -25,7 +25,14 @@ happily returns a token for an unverified partner, so a working API login proves
 nothing about the SCREEN: the login page swaps the form for a "verify your
 email" panel and never navigates.
 
-## What `action-first.spec.mjs` covers (#2018)
+## Why `.e2e.mjs`, not `.spec.mjs`
+
+vitest has no config here, so it uses its defaults and picks up
+`**/*.spec.mjs` ANYWHERE — including this directory. Named `.spec.mjs`, this
+file was collected as a unit test and failed the suite. The extension keeps it
+out without bolting a vitest block onto the shared vite config.
+
+## What `action-first.e2e.mjs` covers (#2018)
 
 The phase logic is pure and unit-tested in `src/lib/run-phase.test.ts`. This
 covers what a unit test cannot — whether the partner SEES the action before the
