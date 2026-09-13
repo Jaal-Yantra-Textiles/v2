@@ -4,6 +4,9 @@ import { createOrderFulfillmentWorkflow } from "@medusajs/medusa/core-flows"
 import { ensureOrderFulfillment } from "../../apps/backend/src/workflows/orders/fulfillment-context"
 import { PARTNER_QUOTE_MODULE } from "../../apps/backend/src/modules/partner-quote"
 import { PAYMENT_SCHEDULE_MODULE } from "../../apps/backend/src/modules/payment_schedule"
+import { createProductionRunWorkflow } from "../../apps/backend/src/workflows/production-runs/create-production-run"
+import { approveProductionRunWorkflow } from "../../apps/backend/src/workflows/production-runs/approve-production-run"
+import { autoDispatchApprovedChildren } from "../../apps/backend/src/api/admin/production-runs/auto-dispatch-approved-children"
 import Scrypt from "scrypt-kdf"
 import * as fs from "fs"
 import * as path from "path"
@@ -2339,6 +2342,214 @@ async function seedRateBreakdownSubmission(container: any): Promise<{
 const SEED_PASSWORD = "e2etest123!"
 const SEED_FILE = path.resolve(__dirname, "../../apps/backend/.e2e-seed.json")
 
+/**
+ * #2018 — a design work-order the partner has been OFFERED and not yet
+ * accepted, so the action-first layout can be driven in a real browser.
+ *
+ * Offered is the phase the rework is ABOUT: the partner has not accepted, so
+ * the action block must read "Accept this run" and the job detail must be
+ * collapsed behind Details. Any later phase reveals everything and proves
+ * less — `deriveRunPhase` returns "offered" only while `accepted_at` is unset.
+ *
+ * 🔑 Dispatched through the REAL path — create → approve → auto-dispatch, the
+ * same three calls `POST /admin/designs/:id/production-runs` makes. Writing a
+ * child row by hand would produce a run the partner UI never sees: it is
+ * dispatch that dual-writes the partner order, and `/orders/design` lists
+ * orders, not runs.
+ */
+async function seedActionFirstRun(container: any): Promise<{
+  partnerId: string
+  email: string
+  password: string
+  designId: string
+  designName: string
+  runId: string
+}> {
+  const partnerModule: any = container.resolve("partner")
+  const authModule = container.resolve(Modules.AUTH)
+  const designService: any = container.resolve("design")
+  const runService: any = container.resolve("production_runs")
+  const taskService: any = container.resolve("tasks")
+
+  const stamp = Date.now()
+
+  const created = await partnerModule.createPartners({
+    name: `E2E Action-First Partner ${stamp}`,
+    handle: `e2e-action-first-${stamp}`,
+    status: "active",
+    is_verified: true,
+  })
+  const partnerId = Array.isArray(created) ? created[0].id : created.id
+
+  const email = `e2e-action-first-${stamp}@jyt.test`
+  await partnerModule.createPartnerAdmins({
+    email,
+    first_name: "E2E",
+    last_name: "ActionFirst",
+    role: "admin",
+    partner_id: partnerId,
+  })
+
+  const hashConfig = { logN: 15, r: 8, p: 1 }
+  const passwordHash = await Scrypt.kdf(SEED_PASSWORD, hashConfig)
+  const authIdentity: any = await authModule.createAuthIdentities({
+    provider_identities: [
+      {
+        provider: "emailpass",
+        entity_id: email,
+        provider_metadata: { password: passwordHash.toString("base64") },
+      },
+    ],
+    app_metadata: { partner_id: partnerId },
+  })
+  const authIdentityId = Array.isArray(authIdentity)
+    ? authIdentity[0].id
+    : authIdentity.id
+
+  /**
+   * 🔴 The verification row, not a nicety. `POST /auth/partner/emailpass`
+   * happily issues a token for an unverified partner, so an API login proves
+   * nothing about the SCREEN: the login page swaps the sign-in form for a
+   * "verify your email" panel and never navigates. Without this the spec fails
+   * at sign-in with no hint that verification is what stopped it.
+   */
+  const now = new Date()
+  await authModule.createAuthVerifications([
+    {
+      auth_identity_id: authIdentityId,
+      entity_id: email,
+      entity_type: "email",
+      code_provider: "emailpass",
+      requested_at: now,
+      verified_at: now,
+    },
+  ])
+
+  const designName = `Action-First Jacket (e2e ${stamp})`
+  const design = await designService.createDesigns({
+    name: designName,
+    description: "e2e #2018 action-first work-order fixture",
+    design_type: "Original",
+    status: "Approved",
+    priority: "Medium",
+  })
+  const designId = (Array.isArray(design) ? design[0] : design).id as string
+
+  /**
+   * A template is what makes the run DISPATCH — `selectDispatchInput` returns
+   * null for a child that names none, and auto-dispatch then SKIPS it as
+   * "nothing to dispatch, not a failure". The run would sit approved and the
+   * partner would see no work at all, with nothing in the report to say why.
+   *
+   * By id, not by name: ids win outright in `selectDispatchInput`, and a name
+   * that matches two templates is a hard dispatch failure (#1262).
+   *
+   * No `category`: the admin route reads it as a category_ID relationship, and
+   * local templates carry `category_id: null`, so omitting it is the normal
+   * shape.
+   */
+  const createdTemplate = await taskService.createTaskTemplates({
+    name: `e2e-action-first-${stamp}`,
+    description: "e2e #2018 dispatch template",
+    priority: "medium",
+    estimated_duration: 60,
+    required_fields: {},
+    eventable: false,
+    notifiable: false,
+    message_template: "",
+    metadata: { workflow_type: "production_run" },
+  })
+  const templateId = (
+    Array.isArray(createdTemplate) ? createdTemplate[0] : createdTemplate
+  ).id as string
+
+  const { result: parent, errors } = await createProductionRunWorkflow(
+    container
+  ).run({
+    input: {
+      design_id: designId,
+      partner_id: null,
+      quantity: 2,
+      run_type: "production",
+      metadata: { source: "admin.designs.manual" },
+    },
+  })
+  if (errors?.length) {
+    throw new Error(
+      `#2018 fixture: create run failed — ${errors
+        .map((e: any) => e?.error?.message || String(e))
+        .join(", ")}`
+    )
+  }
+
+  const { result: approved } = await approveProductionRunWorkflow(
+    container
+  ).run({
+    input: {
+      production_run_id: (parent as any).id,
+      assignments: [
+        {
+          partner_id: partnerId,
+          quantity: 2,
+          role: "stitching",
+          template_ids: [templateId],
+        },
+      ],
+    },
+  })
+
+  const child = ((approved as any)?.children || [])[0]
+  if (!child?.id) {
+    throw new Error("#2018 fixture: approval produced no child run")
+  }
+
+  /**
+   * ⚠️ Auto-dispatch REPORTS failures rather than throwing (#1268), so the
+   * fixture has to read the report. A silent skip here is what produces the
+   * worst version of this spec: a partner who signs in fine and sees an empty
+   * work-order list, failing at "the action is visible" for a reason that has
+   * nothing to do with #2018.
+   */
+  const dispatch = await autoDispatchApprovedChildren(container, [child] as any)
+  if (dispatch.failed?.length) {
+    throw new Error(
+      `#2018 fixture: dispatch failed — ${dispatch.failed
+        .map((f) => `${f.production_run_id}: ${f.message}`)
+        .join(", ")}`
+    )
+  }
+  if (!dispatch.dispatched?.includes(child.id)) {
+    throw new Error(
+      `#2018 fixture: run ${child.id} was not dispatched (skipped: ${JSON.stringify(
+        dispatch.skipped
+      )})`
+    )
+  }
+
+  /**
+   * The fixture asserts its own phase before any spec runs. "Offered" is
+   * `deriveRunStepIndex === 0`: not cancelled, and no `accepted_at`. If a
+   * future dispatch change starts stamping acceptance, the reveal assertions
+   * would go red for a reason no #2018 fix could address — this says so here
+   * instead.
+   */
+  const seededRun: any = await runService.retrieveProductionRun(child.id)
+  if (seededRun.accepted_at || String(seededRun.status) === "cancelled") {
+    throw new Error(
+      `#2018 fixture: run ${child.id} is not OFFERED (status=${seededRun.status}, accepted_at=${seededRun.accepted_at})`
+    )
+  }
+
+  return {
+    partnerId,
+    email,
+    password: SEED_PASSWORD,
+    designId,
+    designName,
+    runId: child.id as string,
+  }
+}
+
 export default async function e2eSeed({ container }: ExecArgs) {
   const logger = container.resolve(ContainerRegistrationKeys.LOGGER)
   const userModule = container.resolve(Modules.USER)
@@ -2503,6 +2714,9 @@ export default async function e2eSeed({ container }: ExecArgs) {
 
   logger.info("E2E seed: partner ledger fixture (#1612)...")
   const partnerLedger = await seedPartnerLedgerFixture(container)
+
+  logger.info("E2E seed: #2018 action-first OFFERED design work-order...")
+  const actionFirst = await seedActionFirstRun(container)
 
   logger.info("E2E seed: creating the #1867 quote region (declares countries)...")
   const quoteRegion = await seedQuoteRegion(container)
@@ -2690,6 +2904,17 @@ export default async function e2eSeed({ container }: ExecArgs) {
     ledgerSubmissionId: partnerLedger.submissionId,
     ledgerPayoutAmount: partnerLedger.payoutAmount,
     ledgerPaymentAmount: partnerLedger.paymentAmount,
+    // #2018 action-first work-order — consumed by
+    // partner-run-action-first.spec.ts (@partnerui). NOT single-use: the spec
+    // only reads and expands, never accepts the run — accepting would move it
+    // out of the OFFERED phase the whole spec is about, so a re-run (and every
+    // Playwright RETRY) finds the same fixture.
+    actionFirstPartnerId: actionFirst.partnerId,
+    actionFirstEmail: actionFirst.email,
+    actionFirstPassword: actionFirst.password,
+    actionFirstDesignId: actionFirst.designId,
+    actionFirstDesignName: actionFirst.designName,
+    actionFirstRunId: actionFirst.runId,
   }
 
   fs.writeFileSync(SEED_FILE, JSON.stringify(seedData, null, 2))
