@@ -132,6 +132,17 @@ export const getRunNextAction = (
     return null
   }
   const status = String(run?.status || "")
+  /**
+   * ⚠️ REDUNDANT BY CONSTRUCTION, and kept deliberately. "cancelled" is
+   * neither `sent_to_partner` nor `in_progress`, so it already falls through
+   * to the `return null` below — a mutation check confirmed that deleting this
+   * branch turns no test red.
+   *
+   * It stays because the fall-through is an accident of the current shape: the
+   * day someone adds a default branch that returns an action, a cancelled run
+   * would silently start offering one. Kept as the explicit statement of
+   * intent, NOT as a guard the tests can vouch for.
+   */
   if (status === "cancelled") {
     return null
   }
