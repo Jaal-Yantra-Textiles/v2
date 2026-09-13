@@ -13,6 +13,7 @@ import {
 import { groupOrderBackedRuns } from "../../../../workflows/payment_submissions/lib/order-run-groups"
 import { foldPartnerBilling } from "../../../../workflows/payment_submissions/lib/run-billing"
 import { runBillableCeiling } from "../../../../workflows/payment_submissions/lib/run-billable-ceiling"
+import { fetchRunSupersessions } from "../../../../workflows/payment_submissions/lib/run-supersession"
 
 /**
  * GET /admin/payment-submissions/payable-runs?partner_id=…
@@ -236,15 +237,56 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
    * what grounds, and leaves the open product question (whether made-to-stock
    * work has any payout path at all) visible instead of buried.
    */
-  const completedRuns = designBackedRuns.filter((r) => !isProvenanceRun(r))
-  const excluded_runs = designBackedRuns
-    .filter((r) => isProvenanceRun(r))
-    .map((r) => ({
+  const notProvenance = designBackedRuns.filter((r) => !isProvenanceRun(r))
+
+  /**
+   * 🔴 A run whose work moved to another run is not payable (#2026).
+   *
+   * An approve-time split projects each CHILD run to its own unified order and
+   * cancels the PARENT's, stamping `metadata.superseded_by_run_ids` on it. The
+   * parent stays `completed`, keeps its partner and keeps its
+   * `partner_cost_estimate` — so every filter above passes and it was offered
+   * beside its own child, billing one garment twice.
+   *
+   * Sharlho's tweed jacket drew THREE ₹1,200 payouts for TWO garments exactly
+   * this way. The cancellation was recorded 15 seconds after the parent order
+   * was created; this screen had the evidence one link away and never read it.
+   *
+   * Held back and REPORTED, like the provenance runs above — whether superseded
+   * work has any payout path is a human question, not a silent filter.
+   */
+  const supersessions = await fetchRunSupersessions(
+    req.scope,
+    notProvenance.map((r) => String(r.id))
+  )
+
+  const completedRuns = notProvenance.filter((r) => !supersessions.has(String(r.id)))
+
+  const excluded_runs = [
+    ...designBackedRuns.filter((r) => isProvenanceRun(r)).map((r) => ({
       run_id: String(r.id),
       design_id: String(r.design_id),
       completed_at: r.completed_at ?? null,
       excluded_reason: "provenance_run" as const,
-    }))
+      superseded_by_run_ids: [] as string[],
+      mirror_order_id: null as string | null,
+    })),
+    ...notProvenance
+      .filter((r) => supersessions.has(String(r.id)))
+      .map((r) => {
+        const s = supersessions.get(String(r.id))!
+        return {
+          run_id: String(r.id),
+          design_id: String(r.design_id),
+          completed_at: r.completed_at ?? null,
+          excluded_reason: s.reason,
+          // Which runs carry the work instead — so the reader can go and look
+          // at them rather than wonder where the money went.
+          superseded_by_run_ids: s.superseded_by_run_ids,
+          mirror_order_id: s.mirror_order_id,
+        }
+      }),
+  ]
 
   if (!completedRuns.length) {
     // ⚠️ Still returns the order-backed rows. They are not design-backed, so a
