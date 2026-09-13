@@ -15,7 +15,7 @@
 /**
  * @typedef {Object} PartnerInfo
  * @property {string} assigned_partner_id - The ID of the partner assigned to this design
- * @property {"incoming"|"assigned"|"in_progress"|"finished"|"completed"} partner_status - The current status of the design for this partner
+ * @property {"incoming"|"assigned"|"in_progress"|"awaiting_review"|"finished"|"completed"|"cancelled"} partner_status - The current status of the design for this partner
  * @property {"redo"|null} partner_phase - The current phase of the design (null if not in redo phase)
  * @property {string|null} partner_started_at - When the partner started working on the design (ISO 8601)
  * @property {string|null} partner_finished_at - When the partner finished working on the design (ISO 8601)
