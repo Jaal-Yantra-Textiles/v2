@@ -632,5 +632,65 @@ setupSharedTestSuite(() => {
         expect.arrayContaining([firstChild.id, secondChild.id])
       )
     })
+    /**
+     * #2030 item 2.2 — the DISPATCH path joins a per-run mirror too.
+     *
+     * `findOpenPartnerWorkOrder` used to require `collated_design_order`, so
+     * only an order that had ALREADY collected several designs could collect
+     * another. A partner's first job always mints a mirror, which made that
+     * first order permanently ineligible: the common shape — one job, then
+     * another a few days later — could never collate, and every batch minted
+     * its own order.
+     */
+    it("dispatch joins the partner's existing mirror rather than minting another", async () => {
+      await createRegion()
+      const { partnerId } = await createPartner("dispatch-join")
+      const templateName = await createTemplate(
+        `design-unification-dispatch-${unique}`
+      )
+
+      // A first job, dispatched — leaves an UNCOLLATED per-run mirror.
+      const firstDesign = await createDesign()
+      const first = await post(
+        `/admin/designs/${firstDesign}/production-runs`,
+        {
+          assignments: [
+            {
+              partner_id: partnerId,
+              quantity: 1,
+              role: "cutting",
+              template_names: [templateName],
+            },
+          ],
+        },
+        adminHeaders
+      )
+      expect(first.status).toBe(201)
+      const mirrorOrderId = await unifiedOrderIdOf(first.data.children[0].id)
+      expect(mirrorOrderId).toBeTruthy()
+      const mirror = await fetchUnifiedOrder(mirrorOrderId)
+      expect(mirror.metadata.collated_design_order ?? false).toBe(false)
+
+      // A later dispatch through the door the drawer actually uses.
+      const secondDesign = await createDesign()
+      const produce = await post(
+        "/admin/designs/produce",
+        {
+          design_ids: [secondDesign],
+          partner_id: partnerId,
+          template_names: [templateName],
+        },
+        adminHeaders
+      )
+      expect(produce.status).toBe(200)
+
+      // 🔑 It landed on the order that already existed.
+      expect(produce.data.design_production.work_order_id).toBe(mirrorOrderId)
+      expect(produce.data.design_production.work_order_joined).toBe(true)
+
+      const joined = await fetchUnifiedOrder(mirrorOrderId)
+      expect(joined.metadata.collated_design_order).toBe(true)
+      expect(joined.items).toHaveLength(2)
+    })
   })
 })
