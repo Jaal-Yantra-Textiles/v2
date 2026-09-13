@@ -97,7 +97,7 @@ export async function createInventoryOrderShipment(
   const inventoryOrderService: any = container.resolve(ORDER_INVENTORY_MODULE)
 
   const order = await inventoryOrderService.retrieveInventoryOrder(input.orderId, {
-    select: ["id", "total_price", "metadata", "shipping_address"],
+    select: ["id", "total_price", "metadata", "shipping_address", "is_sample"],
     relations: ["orderlines"],
   })
   if (!order) {
