@@ -305,8 +305,12 @@ export const ProductionRunCard = ({
         <div className="px-6 py-2">
           {canAccept && (
             <Alert variant="info" dismissible>
-              Review the design specifications, inventory items, and task list before accepting.
-              Once accepted, you are committing to deliver {run.quantity} piece{run.quantity !== 1 ? "s" : ""}.
+              {/* #2018 — this used to say "review the design specifications…"
+                  full stop, which stopped being true the moment those sections
+                  moved behind Details. It now says WHERE they are. */}
+              Open <strong>Details</strong> to review the design specifications,
+              inventory items and task list before accepting. Once accepted, you
+              are committing to deliver {run.quantity} piece{run.quantity !== 1 ? "s" : ""}.
             </Alert>
           )}
           {canStart && (

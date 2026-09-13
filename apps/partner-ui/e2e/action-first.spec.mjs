@@ -49,7 +49,9 @@ try {
 
   console.log("\n▶ #2018 — the action leads the page")
 
-  const action = page.getByRole("heading", { name: /accept this run/i }).first()
+  // The BUTTON, not the heading: the heading names the stage ("Your next
+  // step") and could be reworded; the button is the action itself.
+  const action = page.getByRole("button", { name: /accept this run/i }).first()
   await check("the next action is 'Accept this run'", async () => {
     await expect(action).toBeVisible({ timeout: 20000 })
   })
@@ -95,7 +97,7 @@ try {
   await page.setViewportSize({ width: 400, height: 850 })
   await page.reload({ waitUntil: "domcontentloaded" })
   await check("the action is still on the first screen at 400px", async () => {
-    const a = page.getByRole("heading", { name: /accept this run/i }).first()
+    const a = page.getByRole("button", { name: /accept this run/i }).first()
     await expect(a).toBeVisible({ timeout: 20000 })
     const box = await a.boundingBox()
     if (!box) throw new Error("no action block")

@@ -60,7 +60,10 @@ export const RunNextAction = ({
   return (
     <div className="bg-ui-bg-subtle flex flex-col gap-y-3 px-6 py-4 sm:flex-row sm:items-center sm:justify-between">
       <div className="min-w-0">
-        <Heading level="h3">{t(action.labelKey)}</Heading>
+        {/* The heading names the STAGE, the button names the ACT. Both read
+            `action.labelKey` at first and the phone showed "Accept this run"
+            twice, stacked. */}
+        <Heading level="h3">{t("partner.workOrders.nextAction.heading")}</Heading>
         <Text size="small" className="text-ui-fg-subtle mt-1">
           {t(action.descriptionKey)}
         </Text>
