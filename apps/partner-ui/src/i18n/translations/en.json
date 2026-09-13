@@ -3493,7 +3493,31 @@
         "started": "Production started",
         "finished": "Marked finished",
         "completed": "Run completed"
-      }
+      },
+      "steps": {
+        "received": "Received",
+        "accepted": "Accepted",
+        "started": "Started",
+        "finished": "Finished",
+        "completed": "Completed"
+      },
+      "nextAction": {
+        "heading": "Your next step",
+        "accept": "Accept this run",
+        "acceptHint": "Review the details and confirm you'll handle this work.",
+        "start": "Start production",
+        "startHint": "Mark it started when you begin, so timelines stay accurate.",
+        "finish": "Mark finished",
+        "finishHint": "Once finished, our team reviews the work before final completion.",
+        "finishHintSample": "Log the materials you used as you go — this sets the design's cost estimate. Mark finished when done.",
+        "complete": "Complete the run",
+        "completeHint": "Log any remaining material usage and your production cost to finalise.",
+        "completeHintSample": "Log final material usage and your cost estimate. This drives pricing — be thorough.",
+        "noneDone": "This run is complete. Nothing further is needed from you.",
+        "noneCancelled": "This run was cancelled. No action is needed."
+      },
+      "details": "Details",
+      "detailsHint": "Everything about this job, including earlier stages."
     },
     "inventoryOrders": {
       "heading": "Inventory Orders",
