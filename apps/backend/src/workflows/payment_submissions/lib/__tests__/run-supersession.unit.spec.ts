@@ -70,6 +70,50 @@ describe("readSupersession (#2026)", () => {
       "canceled_mirror_order"
     )
   })
+
+  /**
+   * #2029 item 1 — the POINTER moves to the typed `parent_run_id` children;
+   * the DECISION still keys on the typed `order.status`, exactly as before.
+   */
+  it("prefers the typed children over the blob", () => {
+    const v = readSupersession(
+      { id: "o", status: "canceled", metadata: { superseded_by_run_ids: ["stale_run"] } },
+      ["typed_child"]
+    )
+    expect(v?.superseded_by_run_ids).toEqual(["typed_child"])
+    expect(v?.reason).toBe("superseded_run")
+  })
+
+  it("falls back to the blob for a row written before the typed read existed", () => {
+    const v = readSupersession(
+      { id: "o", status: "canceled", metadata: { superseded_by_run_ids: ["legacy_child"] } },
+      []
+    )
+    expect(v?.superseded_by_run_ids).toEqual(["legacy_child"])
+    expect(v?.reason).toBe("superseded_run")
+  })
+
+  /**
+   * 🔴 The inversion this guard exists to prevent. An empty typed read is
+   * indistinguishable from "I could not read the children", so it must never
+   * overrule a blob that names them — doing so would downgrade a superseded
+   * parent to a bare cancellation and lose the pointer to the runs that carry
+   * the work.
+   */
+  it("an empty typed read does NOT downgrade a blob that names the children", () => {
+    const v = readSupersession(
+      { id: "o", status: "canceled", metadata: { superseded_by_run_ids: ["child"] } },
+      undefined
+    )
+    expect(v?.reason).toBe("superseded_run")
+    expect(v?.superseded_by_run_ids).toEqual(["child"])
+  })
+
+  it("typed children do NOT make a LIVE order superseded", () => {
+    expect(
+      readSupersession({ id: "o", status: "completed", metadata: {} }, ["child"])
+    ).toBeUndefined()
+  })
 })
 
 describe("fetchRunSupersessions (#2026)", () => {

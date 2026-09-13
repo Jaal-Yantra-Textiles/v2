@@ -1,5 +1,6 @@
 import { ContainerRegistrationKeys } from "@medusajs/framework/utils"
 import type { MedusaContainer } from "@medusajs/framework/types"
+import { fetchChildRunIdsByParent } from "../../production-runs/lib/run-children"
 
 /**
  * Is a completed run's work already represented by a different run?
@@ -69,15 +70,32 @@ export type MirrorOrderForSupersession = {
  *   same call that cancels; a non-canceled order holding it is a half-applied
  *   write, and guessing at a partner's money from a half-written row is worse
  *   than billing it and letting a human see both rows.
+ *
+ * ## Where the ids come from (#2029 item 1)
+ *
+ * The DECISION is unchanged and still keys on the typed `order.status` — that
+ * is what made the money safe, and metadata never decided it. What moves is the
+ * POINTER: `childRunIds` are the run's children read from `parent_run_id`, the
+ * typed fact approve writes, and they win whenever they are non-empty. The blob
+ * answers only for rows written before the typed read existed.
+ *
+ * 🔴 Non-empty, not "present". An empty `childRunIds` cannot be distinguished
+ * from "I could not read the children", so it must never overrule a blob that
+ * names them — that inversion would report a superseded parent as
+ * `canceled_mirror_order` and lose the very pointer a human needs to see which
+ * runs carry the work instead.
  */
 export function readSupersession(
-  order: MirrorOrderForSupersession
+  order: MirrorOrderForSupersession,
+  childRunIds?: string[]
 ): Supersession | undefined {
   if (!order) return undefined
   if (String(order.status ?? "").toLowerCase() !== "canceled") return undefined
 
+  const typed = (childRunIds ?? []).map(String).filter(Boolean)
   const raw = order.metadata?.superseded_by_run_ids
-  const ids = Array.isArray(raw) ? raw.map(String).filter(Boolean) : []
+  const fromBlob = Array.isArray(raw) ? raw.map(String).filter(Boolean) : []
+  const ids = typed.length ? typed : fromBlob
 
   return {
     reason: ids.length ? "superseded_run" : "canceled_mirror_order",
@@ -116,8 +134,23 @@ export async function fetchRunSupersessions(
     })
 
     const rows = (data || []) as any[]
+
+    /**
+     * The typed pointer for every run in this batch, in ONE read. Runs that
+     * were never split simply have no entry — and an entry is only ever
+     * CONSULTED for a run whose mirror order is canceled, so a run with
+     * children and a live order is untouched, exactly as before.
+     */
+    const childIdsByParent = await fetchChildRunIdsByParent(
+      container,
+      rows.map((r) => String(r?.id)).filter(Boolean)
+    )
+
     for (const row of rows) {
-      const verdict = readSupersession(row?.order)
+      const verdict = readSupersession(
+        row?.order,
+        childIdsByParent.get(String(row?.id))
+      )
       if (verdict && row?.id) out.set(String(row.id), verdict)
     }
 
@@ -152,11 +185,17 @@ export async function fetchRunSupersessions(
         filters: { id: [...byOrderId.keys()] },
       })
 
+      const unlinkedChildIds = await fetchChildRunIdsByParent(
+        container,
+        unlinked.map((r) => String(r.id))
+      )
+
       for (const order of (orders || []) as any[]) {
-        const verdict = readSupersession(order)
-        if (!verdict) continue
         for (const runId of byOrderId.get(String(order.id)) ?? []) {
-          out.set(runId, verdict)
+          // Per RUN, not per order: the children belong to the run, and two
+          // runs sharing a backref order must not inherit each other's.
+          const verdict = readSupersession(order, unlinkedChildIds.get(runId))
+          if (verdict) out.set(runId, verdict)
         }
       }
     }
