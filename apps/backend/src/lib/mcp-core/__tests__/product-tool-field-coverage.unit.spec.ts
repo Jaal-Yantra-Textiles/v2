@@ -54,6 +54,15 @@ const coreShippingOptionValidators = require("@medusajs/medusa/api/admin/shippin
 const { AdminCreateShippingOption, AdminUpdateShippingOption } =
   coreShippingOptionValidators
 
+/**
+ * The generic link-body validator core registers on every `add`/`remove` link
+ * route, including `/admin/stock-locations/:id/fulfillment-providers` (#2023).
+ * Bound here so the day core grows the shape, the tool that wraps it fails
+ * rather than quietly dropping the new field.
+ */
+// eslint-disable-next-line @typescript-eslint/no-var-requires
+const { createLinkBody } = require("@medusajs/medusa/api/utils/validators")
+
 import { PARTNER_MCP_TOOLS } from "../../../api/partners/mcp/lib/registry"
 import { ADMIN_MCP_TOOLS } from "../../../api/admin/mcp/lib/registry"
 import type { McpToolDef } from "../types"
@@ -209,6 +218,16 @@ const CASES: Array<{
     tool: findTool(ADMIN_MCP_TOOLS, "update_shipping_option"),
     validator: AdminUpdateShippingOption,
     what: "core route, core validator",
+  },
+  {
+    key: "admin:set_location_fulfillment_providers",
+    tool: findTool(ADMIN_MCP_TOOLS, "set_location_fulfillment_providers"),
+    validator: createLinkBody(),
+    // Two fields is the whole contract, so the default floor of 6 would fail a
+    // correct tool. Stating it here keeps the sanity check meaningful instead
+    // of disabling it.
+    minFields: 2,
+    what: "core route, core's generic link validator — { add?, remove? }",
   },
 ]
 

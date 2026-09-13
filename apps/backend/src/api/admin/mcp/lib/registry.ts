@@ -529,6 +529,9 @@ export const ADMIN_MCP_TOOLS: AdminMcpToolDef[] = [
     method: "GET",
     path: "/admin/stock-locations",
     queryParams: ["limit", "offset", "q"],
+    // Core's default field set omits the provider links, so without this the
+    // answer to "can this warehouse ship with X?" is invisible here (#2023).
+    defaultQuery: { fields: "+fulfillment_providers.id,+fulfillment_providers.is_enabled" },
     inputSchema: obj({ ...PAGINATION }),
   },
   {
@@ -538,7 +541,57 @@ export const ADMIN_MCP_TOOLS: AdminMcpToolDef[] = [
     method: "GET",
     path: "/admin/stock-locations/:id",
     pathParams: ["id"],
+    defaultQuery: { fields: "+fulfillment_providers.id,+fulfillment_providers.is_enabled" },
     inputSchema: obj({ id: STR("Stock location id, e.g. 'sloc_...'.") }, ["id"]),
+  },
+  /**
+   * Linking a CARRIER to a WAREHOUSE (#2023).
+   *
+   * `list_fulfillment_providers` answers "is this provider registered?" - a
+   * process-wide fact. `POST /admin/shipping-options` gates on a different one:
+   * is the provider linked to the stock location behind the zone. Packlink was
+   * `is_enabled: true` and linked to ZERO locations for a day, so every attempt
+   * to create an option on it 400'd while the prescribed check kept passing.
+   */
+  {
+    name: "set_location_fulfillment_providers",
+    description:
+      "Attach or detach fulfillment providers on ONE stock location — which carriers that warehouse may ship with. Sensitive: requires confirm:true. " +
+      "🔴 THIS IS THE FACT `POST /admin/shipping-options` ACTUALLY GATES ON. A provider can be registered and `is_enabled: true` in list_fulfillment_providers and still be linked to NO location, in which case creating a shipping option on it fails with `Providers (x) are not enabled for the service location`. Global registration and per-location enablement are different things, and only this one reaches a zone. " +
+      "🔑 `add` and `remove` are DELTAS, not a replacement set — unlike a shipping option's `prices`, a provider you leave out keeps whatever state it had. So adding one carrier never silently detaches another. " +
+      "Read the current links first with get_stock_location, which now returns them; the response here reports them too, so the change is verifiable without a second call.",
+    method: "POST",
+    path: "/admin/stock-locations/:id/fulfillment-providers",
+    pathParams: ["id"],
+    bodyParams: ["add", "remove"],
+    // The route refetches the location through core's default field set, which
+    // omits the links this tool exists to change - so a bare response could not
+    // show whether the write took.
+    defaultQuery: { fields: "+fulfillment_providers.id,+fulfillment_providers.is_enabled" },
+    write: true,
+    sensitive: true,
+    previewPath: "/admin/stock-locations/:id",
+    sideEffects:
+      "Takes effect immediately: a newly-linked provider becomes selectable for shipping options in zones on this location's fulfillment set, and quoting starts hitting that carrier. Removing one does not delete existing shipping options that name it — those stop being offerable instead.",
+    nextSteps: ["get_stock_location", "create_shipping_option"],
+    inputSchema: obj(
+      {
+        id: STR("Stock location id, e.g. 'sloc_...'. From list_stock_locations."),
+        add: {
+          type: "array",
+          description:
+            "Provider ids to LINK, e.g. ['packlink_packlink']. Each must appear in list_fulfillment_providers — that is necessary but not sufficient, which is why this tool exists.",
+          items: { type: "string" },
+        },
+        remove: {
+          type: "array",
+          description:
+            "Provider ids to UNLINK. Leaves every provider not named here untouched.",
+          items: { type: "string" },
+        },
+      },
+      ["id"]
+    ),
   },
   // ---- Id producers: readers for the ids other tools demand --------------
   // Regions, sales channels and payment submissions were all demanded by
@@ -685,7 +738,7 @@ export const ADMIN_MCP_TOOLS: AdminMcpToolDef[] = [
   {
     name: "create_shipping_option",
     description:
-      "Create a shipping option — a rate a buyer can pick at checkout, or a quote-only row. Sensitive: requires confirm:true. Call list_shipping_options on the target `service_zone_id` first: options are what make a zone SELLABLE, and a second one competing with an existing rate is usually not what was wanted. 🔴 `prices` is REQUIRED even for `price_type: \"calculated\"` — send `[]` there; the carrier quotes, so a price row would be a second answer to the same question. 🔑 A FLAT option with no price in the cart's currency is simply not offered; a CALCULATED one has no prices and so is offered EVERYWHERE the zone reaches. That asymmetry is the whole trap: the only way to confine a calculated option to particular lanes is a `rules` entry, and a rule can only name a context key something actually publishes (`enabled_in_store`, `is_return`, `quote_id`, `cart_currency_code` — see the setShippingOptionsContext hook). ⚠️ A rule naming a key nobody publishes does not fail: the matcher stringifies the absent value to \"undefined\", so the option is EXCLUDED from every cart and looks merely unpopular. Exactly one of `type` or `type_id`. The `provider_id` must be registered AND enabled — check list_fulfillment_providers, since a provider configured in only one medusa-config file does not exist in prod.",
+      "Create a shipping option — a rate a buyer can pick at checkout, or a quote-only row. Sensitive: requires confirm:true. Call list_shipping_options on the target `service_zone_id` first: options are what make a zone SELLABLE, and a second one competing with an existing rate is usually not what was wanted. 🔴 `prices` is REQUIRED even for `price_type: \"calculated\"` — send `[]` there; the carrier quotes, so a price row would be a second answer to the same question. 🔑 A FLAT option with no price in the cart's currency is simply not offered; a CALCULATED one has no prices and so is offered EVERYWHERE the zone reaches. That asymmetry is the whole trap: the only way to confine a calculated option to particular lanes is a `rules` entry, and a rule can only name a context key something actually publishes (`enabled_in_store`, `is_return`, `quote_id`, `cart_currency_code` — see the setShippingOptionsContext hook). ⚠️ A rule naming a key nobody publishes does not fail: the matcher stringifies the absent value to \"undefined\", so the option is EXCLUDED from every cart and looks merely unpopular. Exactly one of `type` or `type_id`. 🔴 The `provider_id` must be registered AND LINKED TO THIS ZONE'S STOCK LOCATION — two different facts, and list_fulfillment_providers only sees the first. It reports `is_enabled: true` for a provider attached to no location at all, and this route then fails with `Providers (x) are not enabled for the service location`. Check the location itself with get_stock_location and link it with set_location_fulfillment_providers (#2023). Registration is still worth confirming, since a provider configured in only one medusa-config file does not exist in prod.",
     method: "POST",
     path: "/admin/shipping-options",
     write: true,
