@@ -14,6 +14,8 @@ import {
   InventoryUpcomingPickupCard,
 } from "../../../components/work-orders/inventory-order-sections"
 import { ProductionRunCard } from "../../../components/work-orders/production-run-card"
+import { RunDetailsReveal } from "../../../components/work-orders/run-details-reveal"
+import { deriveRunPhase, isPhaseAtLeast } from "../../../lib/run-phase"
 import { WorkOrderActivitySection } from "../../../components/work-orders/work-order-activity-section"
 import { WorkOrderSummarySection } from "../../../components/work-orders/work-order-summary-section"
 import { DesignInventoryBomSection } from "../../designs/design-detail/components/design-inventory-bom-section"
@@ -201,10 +203,45 @@ export const OrderDetail = () => {
                 </>
               )}
             {isDesignResolving && <DesignSectionsSkeleton />}
+            {/* #2018 — THE ACTION FIRST. This card carries `RunNextAction`, so
+                it leads the page; the job's detail follows it. Previously the
+                partner scrolled past eight sections to reach the one thing they
+                had to do. */}
+            {kind === "design" &&
+              !(order as any)?.metadata?.collated_design_order &&
+              production_run &&
+              design && (
+                <ProductionRunCard
+                  run={production_run}
+                  design={design}
+                  consumptionLogs={consumptionLogs}
+                  consumptionCount={consumptionCount}
+                  onActionSuccess={invalidateOrder}
+                  showTimeline={false}
+                  taskLinkBase="tasks"
+                />
+              )}
+            {/* #2018 — revealed as earned. At "offered" the partner has not
+                taken the job yet: the spec, sizes, BOM and costing are noise
+                against the only decision in front of them, so they collapse
+                behind a Details affordance. Hidden, never deleted — a partner
+                deciding whether to accept may well want to look first. */}
             {kind === "design" &&
               !(order as any)?.metadata?.collated_design_order &&
               design && (
-                <>
+                <RunDetailsReveal
+                  /**
+                   * ⚠️ `!production_run` reveals. The run resolves a hop after
+                   * the design, and `deriveRunPhase(undefined)` is "offered" —
+                   * so gating on it alone would collapse the sections of an
+                   * already-accepted job for a beat and then pop them open.
+                   * Not knowing yet is not the same as knowing it is offered.
+                   */
+                  revealed={
+                    !production_run ||
+                    isPhaseAtLeast(deriveRunPhase(production_run), "accepted")
+                  }
+                >
                   <WorkOrderSummarySection kind="design" design={design} designId={designId} />
                   {/* The design's pictures, in the order — the partner sees
                       what they're making without leaving Orders. Links point at
@@ -221,21 +258,7 @@ export const OrderDetail = () => {
                   {!!design?.is_owner && (
                     <DesignCostSection design={design} />
                   )}
-                </>
-              )}
-            {kind === "design" &&
-              !(order as any)?.metadata?.collated_design_order &&
-              production_run &&
-              design && (
-                <ProductionRunCard
-                  run={production_run}
-                  design={design}
-                  consumptionLogs={consumptionLogs}
-                  consumptionCount={consumptionCount}
-                  onActionSuccess={invalidateOrder}
-                  showTimeline={false}
-                  taskLinkBase="tasks"
-                />
+                </RunDetailsReveal>
               )}
             {kind === "inventory" && inventoryOrder && (
               <>
