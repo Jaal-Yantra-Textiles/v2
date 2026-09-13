@@ -466,17 +466,49 @@ export const stockFinishedGoodsStep = createStep(
       }
 
       if (lineItemId) {
-        await inventoryService.createReservationItems({
+        const reservation = await inventoryService.createReservationItems({
           inventory_item_id: inventoryItemId,
           location_id: input.location_id,
           quantity: Math.min(input.good_quantity, input.run_quantity || input.good_quantity),
           line_item_id: lineItemId,
           description: `Reserved for order ${input.order_id} from production run ${input.production_run_id}`,
+          // Still written (#2029 item 3). The link below is the typed home and
+          // the reader prefers it, but every reservation created before this
+          // change has only the blob, so it stays the fallback until those are
+          // gone. Dual-write, per the #1554/#1557 model.
           metadata: {
             production_run_id: input.production_run_id,
             order_id: input.order_id,
           },
         })
+
+        /**
+         * The typed home for "this reservation belongs to that run" (#2029
+         * item 3). Without it the receipt path has to list every reservation at
+         * the location and filter on JSON in-app.
+         *
+         * ⚠️ Best-effort on purpose. The reservation is the thing that holds
+         * stock; failing the whole stocking step because a link row could not
+         * be written would leave finished goods unreserved to save an index.
+         * The reader falls back to the blob, which is still written above, so a
+         * missing link costs a scan and nothing else.
+         */
+        const reservationId = (reservation as any)?.id ?? (reservation as any)?.[0]?.id
+        if (reservationId) {
+          try {
+            const remoteLink: any = container.resolve(ContainerRegistrationKeys.LINK)
+            await remoteLink.create({
+              [PRODUCTION_RUNS_MODULE]: { production_runs_id: input.production_run_id },
+              [Modules.INVENTORY]: { reservation_item_id: reservationId },
+            })
+          } catch (e: any) {
+            // Local name: `logger` is already imported at module scope here.
+            const log: any = container.resolve(ContainerRegistrationKeys.LOGGER)
+            log?.warn?.(
+              `[stock-finished-goods] reservation ${reservationId} could not be linked to run ${input.production_run_id}: ${e?.message}`
+            )
+          }
+        }
       }
     }
 
