@@ -143,6 +143,62 @@ setupSharedTestSuite(() => {
       expect((links || []).length).toBe(1)
     })
 
+    /**
+     * #2028 item 5. The sub-partner is the one actually making the garment, and
+     * `cost-summary` + `transfers` already admitted them — run-detail did not,
+     * so the same actor got a 404 on the resource whose cost they could read.
+     * Founder's call (2026-09-13): the executor may see the run they execute.
+     *
+     * The second assertion is the one that matters. The route scopes its
+     * `query.graph` by partner, and keying that on `partner_id` for a
+     * sub-partner returns NOTHING — the handler then falls back to a bare
+     * retrieve, which has no `tasks` and no `order.id`. That failure is silent:
+     * a 200 with a thinner body. So this asserts the SHAPE, not just the status.
+     */
+    it("lets the outsourced sub-partner read the run they are executing", async () => {
+      const { partnerHeaders: owner } = await createPartner(api, "src")
+      const { partnerId: subId, partnerHeaders: sub } = await createPartner(
+        api,
+        "exec"
+      )
+      const { partnerHeaders: stranger } = await createPartner(api, "outsider")
+      const designId = await ownDesign(owner)
+
+      const created = await api.post(
+        `/partners/designs/${designId}/production-runs`,
+        { quantity: 1, execution_mode: "outsourced", sub_partner_id: subId },
+        { headers: owner }
+      )
+      expect(created.status).toBe(201)
+      const runId = created.data.production_run.id as string
+
+      const asSub = await api.get(`/partners/production-runs/${runId}`, {
+        headers: sub,
+        validateStatus: () => true,
+      })
+      expect(asSub.status).toBe(200)
+      const seen = asSub.data.production_run || asSub.data.productionRun
+      expect(seen.id).toBe(runId)
+      expect(seen.sub_partner_id).toBe(subId)
+      // The full graph payload, not the bare-retrieve fallback.
+      expect(seen).toHaveProperty("tasks")
+
+      // The originator still reads it.
+      const asOwner = await api.get(`/partners/production-runs/${runId}`, {
+        headers: owner,
+        validateStatus: () => true,
+      })
+      expect(asOwner.status).toBe(200)
+
+      // An unrelated partner is still shut out — widening the scope to the
+      // executor must not widen it to everyone.
+      const asStranger = await api.get(`/partners/production-runs/${runId}`, {
+        headers: stranger,
+        validateStatus: () => true,
+      })
+      expect([401, 403, 404]).toContain(asStranger.status)
+    })
+
     it("rejects outsourced without a sub_partner_id, and blocks non-owners", async () => {
       const { partnerHeaders: owner } = await createPartner(api, "validate")
       const { partnerHeaders: intruder } = await createPartner(api, "intruder")
