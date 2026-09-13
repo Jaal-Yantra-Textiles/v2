@@ -124,6 +124,7 @@ import { setLocationOwnershipJob } from "./set-location-ownership-job"
 import { resetNegativeInventoryLevelsJob } from "./reset-negative-inventory-levels-job"
 import { backfillDispatchedTemplateIdsJob } from "./backfill-dispatched-template-ids-job"
 import { backfillPaymentLineRunProvenanceJob } from "./backfill-payment-line-run-provenance-job"
+import { backfillUnifiedOrderLinksJob } from "./backfill-unified-order-links-job"
 import { backfillInventoryOrderPaymentLinksJob } from "./backfill-inventory-order-payment-links-job"
 import { backfillSubmissionPaidAtJob } from "./backfill-submission-paid-at-job"
 import { clearUnpriceableDesignCostsJob } from "./clear-unpriceable-design-costs-job"
@@ -6021,6 +6022,7 @@ export const MAINTENANCE_JOBS: MaintenanceJob[] = [
   deduplicateTaskTemplateNamesJob,
   backfillDispatchedTemplateIdsJob,
   backfillPaymentLineRunProvenanceJob,
+  backfillUnifiedOrderLinksJob,
   backfillInventoryOrderPaymentLinksJob,
   backfillSubmissionPaidAtJob,
   clearUnpriceableDesignCostsJob,

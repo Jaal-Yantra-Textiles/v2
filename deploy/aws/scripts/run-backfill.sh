@@ -40,10 +40,28 @@ set -euo pipefail
 
 SCRIPT_NAME="${1:-}"
 if [ -z "$SCRIPT_NAME" ]; then
-  echo "Usage: $0 <script-name>"
+  echo "Usage: $0 <script-name> [script-args...]"
   echo "  e.g. $0 backfill-product-search"
-  echo "       $0 backfill-ai-platforms-from-env"
+  echo "       $0 backfill-unified-order-links dry-run"
   exit 1
+fi
+# Everything after the script name is forwarded to the script itself.
+shift
+SCRIPT_ARGS=("$@")
+
+# 🔴 DRY_RUN=1 used to be a LIE for positional-arg scripts.
+#
+# This runner only ever exported DRY_RUN as an env var. Scripts that read a
+# POSITIONAL `dry-run` — backfill-unified-order-links among them — never saw it,
+# so `DRY_RUN=1 ./run-backfill.sh backfill-unified-order-links` APPLIED to prod
+# while printing "DRY_RUN: 1". A flag that reads as safe and is not is worse
+# than no flag. Translate it into the positional form those scripts parse; a
+# script that reads the env var still gets that too.
+if [ "${DRY_RUN:-0}" = "1" ]; then
+  case " ${SCRIPT_ARGS[*]:-} " in
+    *" dry-run "*|*" --dry-run "*) : ;;
+    *) SCRIPT_ARGS+=(dry-run) ;;
+  esac
 fi
 
 : "${AWS_REGION:=us-east-1}"
@@ -61,6 +79,7 @@ echo "== Container:       $CONTAINER_NAME"
 echo "== Script:          $SCRIPT_NAME"
 echo "== BATCH:           ${BATCH:-(unset, script default)}"
 echo "== DRY_RUN:         ${DRY_RUN:-0}"
+echo "== Script args:     ${SCRIPT_ARGS[*]:-(none)}"
 echo "== IMAGE_TAG:       ${IMAGE_TAG:-(unset, use live task def image)}"
 echo
 
@@ -189,7 +208,7 @@ echo "Using task definition: $TASK_DEF_ARN"
 # /app/.medusa/server (see apps/backend/Dockerfile), so the script
 # resolves at ./src/scripts/<name>.js once compiled. Use the local node
 # (`pnpm exec`) because medusa CLI lives in the prod node_modules.
-CMD_PARTS=(pnpm exec medusa exec "./src/scripts/${SCRIPT_NAME}.js")
+CMD_PARTS=(pnpm exec medusa exec "./src/scripts/${SCRIPT_NAME}.js" "${SCRIPT_ARGS[@]}")
 
 # Build environment override list — only set keys we explicitly passed.
 ENV_LIST=()

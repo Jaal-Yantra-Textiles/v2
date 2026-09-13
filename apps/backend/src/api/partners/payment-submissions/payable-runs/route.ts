@@ -4,6 +4,7 @@ import { ContainerRegistrationKeys, MedusaError } from "@medusajs/framework/util
 import { PAYMENT_SUBMISSIONS_MODULE } from "../../../../modules/payment_submissions"
 import PaymentSubmissionsService from "../../../../modules/payment_submissions/service"
 import { isProvenanceRun } from "../../../../workflows/consumption-logs/lib/reconcile-production-consumption"
+import { fetchRunSupersessions } from "../../../../workflows/payment_submissions/lib/run-supersession"
 import { runPayableOffer } from "../../../../workflows/production-runs/lib/run-payable"
 import {
   foldPartnerBilling,
@@ -88,15 +89,44 @@ export const GET = async (
    * what grounds, and leaves the open product question (whether made-to-stock
    * work has any payout path at all) visible instead of buried.
    */
-  const completedRuns = designBackedRuns.filter((r) => !isProvenanceRun(r))
-  const excluded_runs = designBackedRuns
-    .filter((r) => isProvenanceRun(r))
-    .map((r) => ({
+  const notProvenance = designBackedRuns.filter((r) => !isProvenanceRun(r))
+
+  /**
+   * 🔴 A run superseded by an approve-time split is not payable (#2026).
+   *
+   * The admin twin carries the full account. It matters more here, if anything:
+   * this is the screen a PARTNER bills from, so a superseded parent listed
+   * beside its own child has them asking for the same garment twice — and the
+   * admin side, before this change, would have said yes.
+   */
+  const supersessions = await fetchRunSupersessions(
+    req.scope,
+    notProvenance.map((r) => String(r.id))
+  )
+
+  const completedRuns = notProvenance.filter((r) => !supersessions.has(String(r.id)))
+
+  const excluded_runs = [
+    ...designBackedRuns.filter((r) => isProvenanceRun(r)).map((r) => ({
       run_id: String(r.id),
       design_id: String(r.design_id),
       completed_at: r.completed_at ?? null,
       excluded_reason: "provenance_run" as const,
-    }))
+      superseded_by_run_ids: [] as string[],
+    })),
+    ...notProvenance
+      .filter((r) => supersessions.has(String(r.id)))
+      .map((r) => {
+        const s = supersessions.get(String(r.id))!
+        return {
+          run_id: String(r.id),
+          design_id: String(r.design_id),
+          completed_at: r.completed_at ?? null,
+          excluded_reason: s.reason,
+          superseded_by_run_ids: s.superseded_by_run_ids,
+        }
+      }),
+  ]
 
   if (!completedRuns.length) {
     return res
