@@ -1,3 +1,5 @@
+import { MedusaError } from "@medusajs/framework/utils"
+
 import type {
   CreateShipmentInput,
   Dimensions,
@@ -20,6 +22,62 @@ import type {
  */
 
 export const DEFAULT_INVENTORY_SHIPMENT_WEIGHT_GRAMS = 500
+
+/**
+ * Contents line synthesised for a samples/swatch order (#2009).
+ *
+ * A sample order is created EMPTY on purpose (#2006): the box is ordered before
+ * anyone knows what is in it, and the lines are filled in on arrival by
+ * `create-sample-material-lines`. That is the right shape for procurement and
+ * the wrong shape for a carrier — every carrier wants a contents line to raise a
+ * waybill, and `items: []` either 400s on a field the operator never filled in
+ * or, worse, books a manifest that describes nothing.
+ *
+ * The substitution lives HERE, at the carrier boundary, and nowhere else: no
+ * placeholder row is written to the order. A real line is not inert —
+ * `resolveLineItemDesignId`, production-run creation and the payout path all
+ * read lines and would treat a placeholder as goods sold.
+ */
+export const SAMPLE_SHIPMENT_ITEM_NAME = "Fabric samples / swatches"
+export const SAMPLE_SHIPMENT_ITEM_SKU = "SAMPLE-SWATCH"
+
+/**
+ * Last-resort nominal per-parcel declared value for a samples shipment, in the
+ * order's currency (major units).
+ *
+ * A sample order's `total_price` is legitimately 0, and 0 is not a legal customs
+ * value. The operative figure is the `SAMPLE_SHIPMENT_DECLARED_VALUE` SSM
+ * parameter, resolved by the workflow and passed in as
+ * `opts.defaultSampleDeclaredValue`; this constant only applies when that is
+ * unset, so the two are kept in step deliberately. Set 2026-09-13.
+ */
+export const DEFAULT_SAMPLE_DECLARED_VALUE = 500
+
+const isSampleOrder = (order: InventoryOrderForShipment): boolean =>
+  order.is_sample === true || order.metadata?.is_sample === true
+
+/**
+ * Explicit per-call value → the order's own metadata → the deployment default
+ * (SSM) → the compiled-in nominal.
+ *
+ * A per-ORDER value outranks the deployment default: someone who typed a value
+ * for this parcel knows more about what is in it than the environment does.
+ */
+const sampleDeclaredValue = (
+  order: InventoryOrderForShipment,
+  opts: BuildInventoryShipmentOpts
+): number => {
+  const candidates = [
+    opts.sampleDeclaredValue,
+    order.metadata?.declared_value,
+    opts.defaultSampleDeclaredValue,
+  ]
+  for (const c of candidates) {
+    const n = Number(c)
+    if (Number.isFinite(n) && n > 0) return n
+  }
+  return DEFAULT_SAMPLE_DECLARED_VALUE
+}
 
 /**
  * Normalize a loose L/B/H dimensions payload onto the canonical `Dimensions`
@@ -68,6 +126,12 @@ export type InventoryOrderForShipment = {
   metadata?: Record<string, any> | null
   shipping_address?: Record<string, any> | null
   orderlines?: InventoryOrderLineForShipment[] | null
+  /**
+   * A samples/swatch order (#2006), legitimately created with no lines. The
+   * column is authoritative; `metadata.is_sample` is honoured as a fallback
+   * because the unified-order mirror carries it there.
+   */
+  is_sample?: boolean | null
 }
 
 export type BuildInventoryShipmentOpts = {
@@ -84,6 +148,17 @@ export type BuildInventoryShipmentOpts = {
    * quantity ships.
    */
   deliveredQuantities?: Record<string, number>
+  /**
+   * Declared value for the synthesised samples line (#2009), in the order's
+   * currency. Only consulted when a sample order has no shippable lines.
+   */
+  sampleDeclaredValue?: number
+  /**
+   * Deployment-wide fallback declared value, resolved by the caller from the
+   * `SAMPLE_SHIPMENT_DECLARED_VALUE` env/SSM parameter. Outranked by both an
+   * explicit `sampleDeclaredValue` and the order's `metadata.declared_value`.
+   */
+  defaultSampleDeclaredValue?: number
 }
 
 const lineName = (l: InventoryOrderLineForShipment): string => {
@@ -189,7 +264,7 @@ export function buildInventoryOrderShipmentInput(
   const paymentMode: "prepaid" | "cod" =
     order.metadata?.payment_mode === "cod" ? "cod" : "prepaid"
 
-  const items: ShipmentItem[] = (order.orderlines || [])
+  const lineItems: ShipmentItem[] = (order.orderlines || [])
     .map((l) => {
       const delivered =
         opts.deliveredQuantities && l.id != null
@@ -205,8 +280,42 @@ export function buildInventoryOrderShipmentInput(
     })
     .filter((i) => i.quantity > 0)
 
-  const subTotal =
-    order.total_price != null
+  // An empty manifest reaches no carrier intact, so decide here rather than
+  // letting `items: []` travel (#2009). Shiprocket's domestic create refuses an
+  // empty item array; its INTERNATIONAL builder's missing-HSN guard passes
+  // VACUOUSLY on an empty array and posts the order anyway — a call that looks
+  // like it worked and describes nothing.
+  //
+  // A sample order is empty by design and gets a synthesised contents line.
+  // Anything else with nothing to ship is an operator error — most often every
+  // `deliveredQuantities` entry being 0, which the `quantity > 0` filter above
+  // empties just as thoroughly as a lineless order — and must fail loudly.
+  const synthesizeSampleLine = !lineItems.length && isSampleOrder(order)
+  if (!lineItems.length && !synthesizeSampleLine) {
+    throw new MedusaError(
+      MedusaError.Types.INVALID_DATA,
+      `Inventory order ${order.id} has nothing to ship: no order line has a quantity greater than zero. ` +
+        `Add the delivered quantities before creating a shipment.`
+    )
+  }
+
+  const declaredValue = sampleDeclaredValue(order, opts)
+  const items: ShipmentItem[] = synthesizeSampleLine
+    ? [
+        {
+          name: SAMPLE_SHIPMENT_ITEM_NAME,
+          sku: SAMPLE_SHIPMENT_ITEM_SKU,
+          quantity: 1,
+          unit_price: declaredValue,
+        },
+      ]
+    : lineItems
+
+  // A synthesised parcel declares the nominal value, never the order's own 0 —
+  // that is what customs reads. Real lines keep the order's recorded total.
+  const subTotal = synthesizeSampleLine
+    ? declaredValue
+    : order.total_price != null
       ? Number(order.total_price)
       : items.reduce((s, i) => s + i.unit_price * i.quantity, 0)
 

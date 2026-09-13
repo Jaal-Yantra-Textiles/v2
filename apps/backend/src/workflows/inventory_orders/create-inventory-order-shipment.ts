@@ -44,6 +44,24 @@ import {
  * thrown when no pickup can be resolved so the UI shows an actionable message.
  */
 
+/**
+ * Env var holding the deployment's nominal declared value for a samples parcel
+ * (#2009). Seeded into SSM at `/jyt/<env>/SAMPLE_SHIPMENT_DECLARED_VALUE` and
+ * injected by ECS at task start, so the figure can be changed with a parameter
+ * edit plus a service restart rather than a code deploy.
+ */
+export const SAMPLE_DECLARED_VALUE_ENV = "SAMPLE_SHIPMENT_DECLARED_VALUE"
+
+/** The env value, or undefined when unset, unparseable or not positive. */
+export function readEnvDeclaredValue(
+  env: NodeJS.ProcessEnv = process.env
+): number | undefined {
+  const raw = env[SAMPLE_DECLARED_VALUE_ENV]
+  if (raw == null || String(raw).trim() === "") return undefined
+  const n = Number(raw)
+  return Number.isFinite(n) && n > 0 ? n : undefined
+}
+
 export type CreateInventoryOrderShipmentInput = {
   orderId: string
   /** Defaults to "shiprocket". */
@@ -63,6 +81,12 @@ export type CreateInventoryOrderShipmentInput = {
    * picks the earliest slot.
    */
   pickupDate?: string
+  /**
+   * Declared value for the contents line synthesised when a SAMPLE order has no
+   * lines yet (#2009). Falls back to the order's `metadata.declared_value`, then
+   * to `DEFAULT_SAMPLE_DECLARED_VALUE`.
+   */
+  sampleDeclaredValue?: number
 }
 
 export async function createInventoryOrderShipment(
@@ -228,6 +252,12 @@ export async function createInventoryOrderShipment(
     preferredCourierId: input.preferredCourierId,
     taxId,
     deliveredQuantities: input.deliveredQuantities,
+    sampleDeclaredValue: input.sampleDeclaredValue,
+    // The deployment's nominal declared value for a samples parcel (#2009),
+    // read here rather than in the pure builder. Unset/garbage → the builder's
+    // compiled-in DEFAULT_SAMPLE_DECLARED_VALUE, which is deliberately the same
+    // figure; this exists so the number can be changed without a deploy.
+    defaultSampleDeclaredValue: readEnvDeclaredValue(),
   })
   const result = await provider.createShipment(shipmentInput)
 
