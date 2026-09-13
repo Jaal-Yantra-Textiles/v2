@@ -495,5 +495,142 @@ setupSharedTestSuite(() => {
       expect(cancel.status).toBe(200)
       expect(((await fetchRun(runId)) as any).status).toBe("cancelled")
     })
+
+    /**
+     * #2030 item 2.1 — one order per CHILD run is what minted orders 110 and
+     * 111 fifteen seconds apart for a single design. Three orders for one piece
+     * of work is what the partner saw, and reading them as three jobs is how
+     * ₹1,200 nearly got paid a third time (#2026).
+     *
+     * A partner's children are ONE batch and belong on ONE order.
+     */
+    it("collates a partner's child runs onto ONE order, not one each", async () => {
+      await createRegion()
+      const designId = await createDesign()
+      const { partnerId } = await createPartner("collate")
+
+      const createRes = await post(
+        `/admin/designs/${designId}/production-runs`,
+        {
+          assignments: [
+            { partner_id: partnerId, quantity: 3, role: "cutting" },
+            { partner_id: partnerId, quantity: 2, role: "stitching" },
+          ],
+        },
+        adminHeaders
+      )
+      expect(createRes.status).toBe(201)
+
+      const children = createRes.data.children ?? []
+      expect(children).toHaveLength(2)
+
+      const orderIds = await Promise.all(
+        children.map((c: any) => unifiedOrderIdOf(c.id))
+      )
+      orderIds.forEach((id) => expect(id).toBeTruthy())
+
+      // 🔑 The whole point, in one assertion.
+      expect(new Set(orderIds).size).toBe(1)
+
+      const collated = await fetchUnifiedOrder(orderIds[0])
+      expect(collated.metadata.collated_design_order).toBe(true)
+      expect(collated.metadata.production_run_ids).toEqual(
+        expect.arrayContaining(children.map((c: any) => c.id))
+      )
+      // A line per child — the partner can see both jobs, not just a total.
+      expect(collated.items).toHaveLength(2)
+      expect(
+        collated.items.map((i: any) => Number(i.quantity)).sort()
+      ).toEqual([2, 3])
+
+      // The parent is still superseded, so billing cannot double-count (#2026).
+      const parentOrderId = await unifiedOrderIdOf(
+        createRes.data.production_run.id
+      )
+      const parentOrder = await fetchUnifiedOrder(parentOrderId)
+      expect(parentOrder.status).toBe("canceled")
+      expect(parentOrder.metadata.superseded_by_run_ids).toEqual(
+        expect.arrayContaining(children.map((c: any) => c.id))
+      )
+    })
+
+    /**
+     * #2030 item 2.1, the other half: a LATER split for the same partner must
+     * land on the order the earlier one made — "included in the same order, or
+     * collated from a previous one" — rather than minting another.
+     *
+     * The first split here is a LONE child, so it keeps its per-run mirror
+     * (a collated order of one would only cost the partner the single-design
+     * screen). The second split joins that mirror and PROMOTES it.
+     */
+    it("joins a later split onto the partner's earlier order, promoting a mirror", async () => {
+      await createRegion()
+      const { partnerId } = await createPartner("join")
+      // Templates make the run DISPATCH, and dispatch is what writes the
+      // partner↔order link the open-order lookup reads. Without it the second
+      // split cannot see the first order and mints its own.
+      const templateName = await createTemplate(`design-unification-join-${unique}`)
+
+      const firstDesign = await createDesign()
+      const first = await post(
+        `/admin/designs/${firstDesign}/production-runs`,
+        {
+          assignments: [
+            {
+              partner_id: partnerId,
+              quantity: 1,
+              role: "cutting",
+              template_names: [templateName],
+            },
+          ],
+        },
+        adminHeaders
+      )
+      expect(first.status).toBe(201)
+      const firstChild = first.data.children[0]
+      const firstOrderId = await unifiedOrderIdOf(firstChild.id)
+      expect(firstOrderId).toBeTruthy()
+
+      // A lone child keeps the single-design mirror — NOT collated.
+      const mirror = await fetchUnifiedOrder(firstOrderId)
+      expect(mirror.metadata.collated_design_order ?? false).toBe(false)
+      expect(mirror.items).toHaveLength(1)
+
+      const secondDesign = await createDesign()
+      const second = await post(
+        `/admin/designs/${secondDesign}/production-runs`,
+        {
+          assignments: [
+            {
+              partner_id: partnerId,
+              quantity: 2,
+              role: "stitching",
+              template_names: [templateName],
+            },
+          ],
+        },
+        adminHeaders
+      )
+      expect(second.status).toBe(201)
+      const secondChild = second.data.children[0]
+
+      // 🔑 Same order — not a second one.
+      expect(await unifiedOrderIdOf(secondChild.id)).toBe(firstOrderId)
+
+      const joined = await fetchUnifiedOrder(firstOrderId)
+      // Promoted: it holds two runs now, so it must render as collated.
+      expect(joined.metadata.collated_design_order).toBe(true)
+      expect(joined.items).toHaveLength(2)
+
+      /**
+       * 🔴 The promoted mirror's OWN run must survive into the run list. It was
+       * never in `production_run_ids` (a mirror carries `production_run_id`
+       * singular), so a union that trusted metadata alone would drop it — and
+       * the order's rolled-up status is computed from this list.
+       */
+      expect(joined.metadata.production_run_ids).toEqual(
+        expect.arrayContaining([firstChild.id, secondChild.id])
+      )
+    })
   })
 })

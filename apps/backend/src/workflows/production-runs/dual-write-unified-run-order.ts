@@ -647,7 +647,7 @@ export const WORK_ORDER_COLLATION_WINDOW_DAYS = 14
 export const findOpenPartnerWorkOrder = async (
   container: MedusaContainer,
   partnerId: string,
-  opts: { withinDays?: number } = {}
+  opts: { withinDays?: number; includeUncollated?: boolean } = {}
 ): Promise<{ order_id: string; created_at: string } | null> => {
   const logger: any = container.resolve(ContainerRegistrationKeys.LOGGER)
   if (!partnerId) return null
@@ -688,8 +688,25 @@ export const findOpenPartnerWorkOrder = async (
           ? [o.production_runs]
           : []
         if (!runs.length) return false
-        // Collated ones only. A per-run order has no room for another design.
-        if (o?.metadata?.collated_design_order !== true) return false
+        /**
+         * Collated ones only, by default. A per-run mirror was minted to hold
+         * exactly one run and nothing says it was meant to collect more.
+         *
+         * `includeUncollated` (#2030 item 2.1) lets the APPROVE-SPLIT path
+         * treat a mirror as joinable, so a partner's second batch lands on the
+         * order their first batch made instead of minting a third. Joining
+         * PROMOTES the mirror — `joinRunsIntoWorkOrder` stamps
+         * `collated_design_order` — so it only has to be opted into once.
+         *
+         * ⚠️ Deliberately NOT the default: the dispatch path's behaviour is
+         * #1597's settled policy and is not being rewritten from here.
+         */
+        if (
+          !opts.includeUncollated &&
+          o?.metadata?.collated_design_order !== true
+        ) {
+          return false
+        }
         // Open. `completed` and `canceled` are settled; anything else collects.
         if (["completed", "canceled", "cancelled"].includes(String(o?.status ?? ""))) {
           return false
@@ -847,9 +864,30 @@ export const joinRunsIntoWorkOrder = async (
    * both recomputed across ALL its runs, old and new. A status derived from
    * only the newly-added runs would report a half-finished order as pending.
    */
+  /**
+   * ⚠️ The order's OWN linked runs are unioned in, not just what metadata
+   * already listed. A per-run mirror being promoted (#2030 item 2.1) carries
+   * `production_run_id` singular and no `production_run_ids` at all, so
+   * trusting metadata alone would write a list that silently OMITS the run the
+   * order was minted for — and the rolled-up status below is computed from
+   * this list, so that order would report the status of everything except its
+   * original job.
+   */
+  const linkedRunIds = (
+    Array.isArray(existingOrder?.production_runs)
+      ? existingOrder.production_runs
+      : existingOrder?.production_runs
+      ? [existingOrder.production_runs]
+      : []
+  )
+    .map((r: any) => r?.id)
+    .filter(Boolean)
+    .map(String)
+
   const allRunIds = Array.from(
     new Set([
       ...((existingOrder?.metadata?.production_run_ids as string[]) || []),
+      ...linkedRunIds,
       ...runs.map((r) => String(r.id)),
     ])
   )
@@ -865,6 +903,13 @@ export const joinRunsIntoWorkOrder = async (
     status: aggregateCoreStatus(allRuns),
     metadata: {
       ...(existingOrder?.metadata || {}),
+      /**
+       * An order holding more than one run IS a collated order, and the
+       * partner's detail page decides which view to render off this flag. A
+       * promoted mirror that kept the flag unset would show the partner a
+       * single-design screen for an order that now has several.
+       */
+      collated_design_order: true,
       production_run_ids: allRunIds,
     },
   })
@@ -1004,11 +1049,164 @@ export const dualWriteUnifiedRunOrderStep = createStep(
   }
 )
 
-// Approve-side step: §4 says one unified order per CHILD run (the
-// partner-facing unit). When approve splits a parent into child runs, each
-// child gets its own order and the parent's order — projected at create time,
-// before we could know it would become a planning artifact — is canceled and
-// marked superseded so billing never double-counts the work.
+/**
+ * Project a split's child runs onto work-orders, COLLATING per partner
+ * (#2030 item 2.1).
+ *
+ * 🔴 What this replaces: one `projectRunToUnifiedOrder` per child, i.e. one
+ * mirror order per child run. That is what minted orders 110 and 111 fifteen
+ * seconds apart for a single design — three orders for one piece of work is
+ * what the partner actually saw, and reading them as three jobs is how ₹1,200
+ * nearly got paid a third time (#2026).
+ *
+ * The rule, per partner, in order:
+ *   1. JOIN their open work-order when they have one — including a per-run
+ *      mirror left by an earlier split, which the join promotes. This is the
+ *      "same order / collated from a previous one" case.
+ *   2. Otherwise COLLATE this partner's children into one new order — when
+ *      there are several. Several children for one partner are one batch.
+ *   3. A LONE child with nothing to join keeps its per-run mirror, which stays
+ *      joinable for the next batch. See the guard below for why a collation of
+ *      one is not harmless.
+ *
+ * ⚠️ Children with NO partner keep the per-run mirror. Collation is a
+ * PARTNER-scoped idea — there is no "their open order" to join and nothing
+ * that says two unassigned children are one batch. Grouping them by absence
+ * would invent a relationship the split never stated.
+ *
+ * ⚠️ The join is attempted, never assumed — same contract as the dispatch
+ * path. The children exist either way, so a failed append must fall back to
+ * minting rather than throw; an exception here would leave approved work with
+ * no line on any order.
+ *
+ * ⚠️ Already-projected children are skipped. `projectRunToUnifiedOrder` is
+ * idempotent on the order↔run link, but `join`/`collate` are NOT — on a step
+ * retry they would add a second line for work already on an order.
+ */
+export const projectChildRunsCollated = async (
+  container: MedusaContainer,
+  childRunIds: string[]
+): Promise<void> => {
+  if (!childRunIds.length) return
+
+  const logger: any = container.resolve(ContainerRegistrationKeys.LOGGER)
+  const runService: ProductionRunService = container.resolve(
+    PRODUCTION_RUNS_MODULE
+  )
+
+  // `select: ["*"]` — the collated line items are built from the run's
+  // snapshot (design name, cost), so a partial read would title every line
+  // "Design <id>".
+  const runs = (await runService
+    .listProductionRuns({ id: childRunIds } as any, { select: ["*"] })
+    .catch(() => [])) as any[]
+
+  if (!runs.length) {
+    // Fall back rather than silently project nothing.
+    for (const childId of childRunIds) {
+      await projectRunToUnifiedOrder(container, childId)
+    }
+    return
+  }
+
+  const unprojected: any[] = []
+  for (const run of runs) {
+    const existing = await resolveUnifiedOrderIdByLink(
+      container,
+      "production_runs",
+      run.id
+    )
+    if (!existing) unprojected.push(run)
+  }
+  if (!unprojected.length) return
+
+  const byPartner = new Map<string | null, any[]>()
+  for (const run of unprojected) {
+    const key = run.partner_id ? String(run.partner_id) : null
+    if (!byPartner.has(key)) byPartner.set(key, [])
+    byPartner.get(key)!.push(run)
+  }
+
+  for (const [partnerId, partnerRuns] of byPartner) {
+    if (!partnerId) {
+      for (const run of partnerRuns) {
+        await projectRunToUnifiedOrder(container, run.id)
+      }
+      continue
+    }
+
+    let projected = false
+    /**
+     * `includeUncollated` — a partner's earlier split left a per-run mirror,
+     * and that mirror is exactly the "same order" this batch belongs on. The
+     * join promotes it (see findOpenPartnerWorkOrder).
+     */
+    const open = await findOpenPartnerWorkOrder(container, partnerId, {
+      includeUncollated: true,
+    })
+    if (open) {
+      try {
+        await joinRunsIntoWorkOrder(container, open.order_id, partnerRuns)
+        projected = true
+        logger.info(
+          `[orders-unification] ${partnerRuns.length} child run(s) joined partner ${partnerId}'s open work-order ${open.order_id}`
+        )
+      } catch (e: any) {
+        logger.warn(
+          `[orders-unification] could not join work-order ${open.order_id} for partner ${partnerId} (${e?.message}) — minting a new one`
+        )
+      }
+    }
+
+    /**
+     * Nothing to join. Several children for one partner are one batch and get
+     * ONE order between them — but a LONE child keeps the per-run mirror.
+     *
+     * ⚠️ Not an optimisation: `collated_design_order` is what the partner's
+     * detail page branches on, and a collated order of one renders the
+     * many-designs view — losing the single-design screen (media, size sets,
+     * BOM, cost estimate) for what is the most common split there is. A
+     * collation of one collates nothing; it only changes the screen.
+     *
+     * The mirror stays JOINABLE, so the partner's next batch still lands on
+     * it rather than minting another order.
+     */
+    if (!projected && partnerRuns.length < 2) {
+      for (const run of partnerRuns) {
+        await projectRunToUnifiedOrder(container, run.id)
+      }
+      continue
+    }
+
+    if (!projected) {
+      const result = await collateRunsIntoWorkOrder(container, partnerRuns, {
+        // The commissioning order the children inherited from the parent.
+        sourceOrderId: partnerRuns[0]?.order_id ?? null,
+      })
+      if (!result.unified_order_id) {
+        // Collation declined (no region). One mirror each is worse than one
+        // order, but it is better than work with no order at all.
+        logger.warn(
+          `[orders-unification] collation produced no order for partner ${partnerId} (${result.skipped ?? "unknown"}) — falling back to per-run mirrors`
+        )
+        for (const run of partnerRuns) {
+          await projectRunToUnifiedOrder(container, run.id)
+        }
+      }
+    }
+  }
+}
+
+// Approve-side step. When approve splits a parent into child runs, the
+// children are projected COLLATED PER PARTNER (#2030 item 2.1 — see
+// projectChildRunsCollated), and the parent's order — projected at create
+// time, before we could know it would become a planning artifact — is canceled
+// and marked superseded so billing never double-counts the work.
+//
+// §4's original wording was "one unified order per CHILD run". That is what
+// this step used to do, and it is what #2030 corrects: the partner-facing unit
+// is the partner's BATCH, not the individual child. One order per child is how
+// one design became three orders.
 export const dualWriteChildRunOrdersStep = createStep(
   "dual-write-child-run-orders",
   async (
@@ -1017,9 +1215,7 @@ export const dualWriteChildRunOrdersStep = createStep(
   ) => {
     const logger: any = container.resolve(ContainerRegistrationKeys.LOGGER)
     try {
-      for (const childId of input.child_run_ids) {
-        await projectRunToUnifiedOrder(container, childId)
-      }
+      await projectChildRunsCollated(container, input.child_run_ids)
 
       if (input.child_run_ids.length) {
         // D5-3 — the parent's unified order via the link (forward,
