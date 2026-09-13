@@ -103,12 +103,25 @@ describe("findOpenPartnerWorkOrder", () => {
   )
 
   /**
-   * A per-run work-order has no room for another design — only orders minted
-   * BY the collation path can collect more.
+   * #2030 item 2.2 — this used to assert the OPPOSITE: "a per-run work-order
+   * has no room for another design; only orders minted BY the collation path
+   * can collect more."
+   *
+   * That rule could not do the job it was written for. A partner's FIRST job
+   * always mints a per-run mirror, so that first order was permanently
+   * ineligible to collect anything — the common shape (one job, then another
+   * a few days later) could never collate, and every batch minted its own
+   * order. Joining PROMOTES the mirror, so it becomes a proper collated order
+   * the moment it actually holds more than one run.
+   *
+   * What bounds the join is unchanged: the partner link, the order↔run link,
+   * an open status, and the #1597 window — all asserted above.
    */
-  it("skips an order that is not a collated one", async () => {
+  it("joins a per-run mirror, which the join then promotes", async () => {
     const { container } = containerWith([order({ metadata: {} })])
-    expect(await findOpenPartnerWorkOrder(container, "partner_1")).toBeNull()
+    expect(
+      (await findOpenPartnerWorkOrder(container, "partner_1"))?.order_id
+    ).toBe("order_1")
   })
 
   /**

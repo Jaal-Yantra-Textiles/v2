@@ -647,7 +647,7 @@ export const WORK_ORDER_COLLATION_WINDOW_DAYS = 14
 export const findOpenPartnerWorkOrder = async (
   container: MedusaContainer,
   partnerId: string,
-  opts: { withinDays?: number; includeUncollated?: boolean } = {}
+  opts: { withinDays?: number } = {}
 ): Promise<{ order_id: string; created_at: string } | null> => {
   const logger: any = container.resolve(ContainerRegistrationKeys.LOGGER)
   if (!partnerId) return null
@@ -689,24 +689,24 @@ export const findOpenPartnerWorkOrder = async (
           : []
         if (!runs.length) return false
         /**
-         * Collated ones only, by default. A per-run mirror was minted to hold
-         * exactly one run and nothing says it was meant to collect more.
+         * A per-run mirror counts as joinable (#2030 item 2.2).
          *
-         * `includeUncollated` (#2030 item 2.1) lets the APPROVE-SPLIT path
-         * treat a mirror as joinable, so a partner's second batch lands on the
-         * order their first batch made instead of minting a third. Joining
-         * PROMOTES the mirror — `joinRunsIntoWorkOrder` stamps
-         * `collated_design_order` — so it only has to be opted into once.
+         * This check used to require `collated_design_order === true`, i.e.
+         * only an order that had ALREADY collected several designs could
+         * collect another. A partner's first job always mints a mirror, so the
+         * common shape — one job, then another a few days later — could never
+         * collate: the very first order was permanently ineligible and every
+         * batch after it minted its own. Three orders for one piece of work.
          *
-         * ⚠️ Deliberately NOT the default: the dispatch path's behaviour is
-         * #1597's settled policy and is not being rewritten from here.
+         * Joining PROMOTES the mirror (`joinRunsIntoWorkOrder` stamps
+         * `collated_design_order`), so an order becomes a proper collated one
+         * the moment it actually holds more than one run.
+         *
+         * What still bounds this is unchanged and is what makes it safe: the
+         * partner link, the order↔run link that says this is a design order,
+         * an OPEN status, and the #1597 window below. A settled or stale order
+         * is never appended to.
          */
-        if (
-          !opts.includeUncollated &&
-          o?.metadata?.collated_design_order !== true
-        ) {
-          return false
-        }
         // Open. `completed` and `canceled` are settled; anything else collects.
         if (["completed", "canceled", "cancelled"].includes(String(o?.status ?? ""))) {
           return false
@@ -1136,14 +1136,9 @@ export const projectChildRunsCollated = async (
     }
 
     let projected = false
-    /**
-     * `includeUncollated` — a partner's earlier split left a per-run mirror,
-     * and that mirror is exactly the "same order" this batch belongs on. The
-     * join promotes it (see findOpenPartnerWorkOrder).
-     */
-    const open = await findOpenPartnerWorkOrder(container, partnerId, {
-      includeUncollated: true,
-    })
+    // A mirror left by an earlier split is exactly the "same order" this
+    // batch belongs on, and the lookup treats it as joinable.
+    const open = await findOpenPartnerWorkOrder(container, partnerId)
     if (open) {
       try {
         await joinRunsIntoWorkOrder(container, open.order_id, partnerRuns)
