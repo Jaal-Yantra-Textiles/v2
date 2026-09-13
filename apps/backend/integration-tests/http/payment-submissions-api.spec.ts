@@ -18,7 +18,8 @@
 
 import { createAdminUser, getAuthHeaders } from "../helpers/create-admin-user"
 import { getSharedTestEnv, setupSharedTestSuite } from "./shared-test-setup"
-import { ContainerRegistrationKeys } from "@medusajs/framework/utils"
+import { ContainerRegistrationKeys, Modules } from "@medusajs/framework/utils"
+import { PRODUCTION_RUNS_MODULE } from "../../src/modules/production_runs"
 
 jest.setTimeout(60000)
 
@@ -1051,6 +1052,172 @@ setupSharedTestSuite(() => {
       const ids = res.data.payable_runs.map((r: any) => r.run_id)
       expect(ids).not.toContain(otherRunId)
       expect(ids).not.toContain(inProgressId)
+    })
+
+    /**
+     * #2026 — a run whose work moved to another run is not payable.
+     *
+     * This has to be an INTEGRATION test. The whole defect lives in what the
+     * order↔production_run LINK returns: a superseded run carries no marker of
+     * its own (`status` stays `completed`, `cancelled_at` stays null), so the
+     * only evidence is its mirror order being canceled. A unit test with a
+     * stubbed query proves the arithmetic and nothing about the link — and
+     * `defineLink().entryPoint` is empty in unit tests anyway.
+     *
+     * Sharlho drew three ₹1,200 payouts for two garments exactly this way.
+     */
+    describe("a superseded run (#2026)", () => {
+      async function mirrorOrderFor(
+        runId: string,
+        opts: { status: string; metadata?: Record<string, any>; link?: boolean }
+      ) {
+        const container = getContainer()
+        const orderService: any = container.resolve(Modules.ORDER)
+        const remoteLink: any = container.resolve(ContainerRegistrationKeys.LINK)
+
+        const order = await orderService.createOrders({
+          region_id: null,
+          currency_code: "inr",
+          items: [],
+          metadata: opts.metadata ?? {},
+        })
+        const orderId = (Array.isArray(order) ? order[0] : order).id as string
+
+        // `createOrders` will not take a canceled status, so set it after.
+        await orderService.updateOrders([{ id: orderId, status: opts.status }])
+
+        if (opts.link !== false) {
+          await remoteLink.create({
+            [Modules.ORDER]: { order_id: orderId },
+            // 🔑 `production_runs_id`, PLURAL — the link's own key name, as
+            // `linkUnifiedOrderOrRollback` writes it. The singular spelling
+            // throws "Module to type order and production_runs by keys … was
+            // not found", which reads like a missing link rather than a typo.
+            [PRODUCTION_RUNS_MODULE]: { production_runs_id: runId },
+          })
+        }
+        return orderId
+      }
+
+      it("EXCLUDES a run whose mirror order is canceled as superseded, and says by which run", async () => {
+        const d1 = await createDesign("Superseded Parent", { estimated_cost: 100 })
+        await linkDesignToPartner(d1, partnerId)
+        const childId = await createCompletedRun(d1, "Superseded Parent")
+        const parentId = await createCompletedRun(d1, "Superseded Parent")
+
+        await mirrorOrderFor(childId, { status: "completed" })
+        const parentOrderId = await mirrorOrderFor(parentId, {
+          status: "canceled",
+          metadata: { superseded_by_run_ids: [childId] },
+        })
+
+        const res = await api.get(
+          `/admin/payment-submissions/payable-runs?partner_id=${partnerId}`,
+          adminHeaders
+        )
+        expect(res.status).toBe(200)
+
+        const payableIds = res.data.payable_runs.map((r: any) => r.run_id)
+        // The child carries the work and still bills…
+        expect(payableIds).toContain(childId)
+        // …the parent does not. This is the ₹1,200.
+        expect(payableIds).not.toContain(parentId)
+
+        // 🔑 Held back and REPORTED, never silently dropped — and the row says
+        // where the work went, so the reader can go and look.
+        const excluded = res.data.excluded_runs.find(
+          (r: any) => r.run_id === parentId
+        )
+        expect(excluded).toBeDefined()
+        expect(excluded.excluded_reason).toBe("superseded_run")
+        expect(excluded.superseded_by_run_ids).toEqual([childId])
+        expect(excluded.mirror_order_id).toBe(parentOrderId)
+      })
+
+      it("still bills a run whose mirror order is ALIVE", async () => {
+        const d1 = await createDesign("Live Mirror", { estimated_cost: 100 })
+        await linkDesignToPartner(d1, partnerId)
+        const runId = await createCompletedRun(d1, "Live Mirror")
+        await mirrorOrderFor(runId, {
+          status: "completed",
+          // Present but the order is not canceled — a half-applied write must
+          // not cost a partner their money.
+          metadata: { superseded_by_run_ids: ["prod_run_whatever"] },
+        })
+
+        const res = await api.get(
+          `/admin/payment-submissions/payable-runs?partner_id=${partnerId}`,
+          adminHeaders
+        )
+        expect(res.data.payable_runs.map((r: any) => r.run_id)).toContain(runId)
+      })
+
+      it("still bills a run with NO mirror order — a missing link is not evidence", async () => {
+        const d1 = await createDesign("No Mirror", { estimated_cost: 100 })
+        await linkDesignToPartner(d1, partnerId)
+        const runId = await createCompletedRun(d1, "No Mirror")
+
+        const res = await api.get(
+          `/admin/payment-submissions/payable-runs?partner_id=${partnerId}`,
+          adminHeaders
+        )
+        expect(res.data.payable_runs.map((r: any) => r.run_id)).toContain(runId)
+      })
+
+      it("follows metadata.unified_order_id when the D5 link was never backfilled", async () => {
+        // The backfill is an ops-run `medusa exec`, so a superseded run can
+        // still be link-less. Reading only the link would let it bill.
+        const d1 = await createDesign("Unlinked Superseded", { estimated_cost: 100 })
+        await linkDesignToPartner(d1, partnerId)
+        const runId = await createCompletedRun(d1, "Unlinked Superseded")
+
+        const orderId = await mirrorOrderFor(runId, {
+          status: "canceled",
+          metadata: { superseded_by_run_ids: ["prod_run_other"] },
+          link: false,
+        })
+
+        const container = getContainer()
+        const runService: any = container.resolve("production_runs")
+        await runService.updateProductionRuns({
+          id: runId,
+          metadata: { unified_order_id: orderId },
+        })
+
+        const res = await api.get(
+          `/admin/payment-submissions/payable-runs?partner_id=${partnerId}`,
+          adminHeaders
+        )
+        expect(res.data.payable_runs.map((r: any) => r.run_id)).not.toContain(runId)
+        expect(
+          res.data.excluded_runs.find((r: any) => r.run_id === runId)?.excluded_reason
+        ).toBe("superseded_run")
+      })
+
+      it("hides the superseded run from the PARTNER's own billing screen too", async () => {
+        // This is the screen a partner bills FROM. A superseded parent listed
+        // beside its child has them asking for the same garment twice.
+        const d1 = await createDesign("Partner Superseded", { estimated_cost: 100 })
+        await linkDesignToPartner(d1, partnerId)
+        const parentId = await createCompletedRun(d1, "Partner Superseded")
+        await mirrorOrderFor(parentId, {
+          status: "canceled",
+          metadata: { superseded_by_run_ids: ["prod_run_child"] },
+        })
+
+        const res = await api.get(
+          "/partners/payment-submissions/payable-runs",
+          // `partnerHeaders` is a bare header map, unlike `adminHeaders` which
+          // is already an axios config — passing it raw sends no Authorization
+          // and 401s.
+          { headers: partnerHeaders }
+        )
+        expect(res.status).toBe(200)
+        expect(res.data.payable_runs.map((r: any) => r.run_id)).not.toContain(parentId)
+        expect(
+          res.data.excluded_runs.find((r: any) => r.run_id === parentId)?.excluded_reason
+        ).toBe("superseded_run")
+      })
     })
   })
 
