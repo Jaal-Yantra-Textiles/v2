@@ -16,7 +16,14 @@ import {
 } from "../../../hooks/api/partner-designs"
 import { useDataTable } from "../../../hooks/use-data-table"
 import { useQueryParams } from "../../../hooks/use-query-params"
+import { useDate } from "../../../hooks/use-date"
 import { getStatusBadgeColor } from "../../../lib/status-badge"
+import {
+  designStatusLabel,
+  engagementKeyFor,
+  priorityLabel,
+  workStatusLabel,
+} from "../../../lib/design-labels"
 
 const columnHelper = createDataTableColumnHelper<PartnerDesign>()
 
@@ -25,106 +32,26 @@ const PAGE_SIZE = 20
 // #6 — action-oriented work tabs. A single, visible lens over the same
 // partner-scoped set (replacing the buried source + work-status filter
 // dropdowns). Server filters + counts each bucket (see partner designs route).
-const WORK_BUCKETS: Array<{ value: DesignBucket; label: string }> = [
-  { value: "incoming", label: "Incoming" },
-  { value: "in_progress", label: "In progress" },
-  { value: "yours", label: "Yours" },
-  { value: "completed", label: "Completed" },
-  { value: "all", label: "All" },
+const WORK_BUCKETS: DesignBucket[] = [
+  "incoming",
+  "in_progress",
+  "yours",
+  "completed",
+  "all",
 ]
 
-/**
- * The Source badge. A design lands on this dashboard the moment an admin links
- * it, so "listed" never meant "yours to work on": on production one partner had
- * 34 linked designs with only 16 carrying a run of theirs. `partner_engagement`
- * comes from the server (`partner-design-engagement.ts`); the UI only labels it.
- */
-const ENGAGEMENT_BADGES: Record<
-  PartnerDesignEngagement,
-  { label: string; color: "green" | "blue" | "grey"; hint: string }
+/** Map a next-action outcome to its label key + badge color. */
+const NEXT_ACTION: Record<
+  string,
+  { key: string; color: "green" | "blue" | "orange" | "red" | "grey" }
 > = {
-  owned: {
-    label: "Yours",
-    color: "green",
-    hint: "You created this design.",
-  },
-  assigned: {
-    label: "Assigned",
-    color: "blue",
-    hint: "You have a production run on this design — this is work for you.",
-  },
-  shared: {
-    label: "Shared",
-    color: "grey",
-    hint: "Shared with you for reference. No production run is assigned to you (work may be in-house or with another partner).",
-  },
-}
-
-const DESIGN_STATUS_OPTIONS = [
-  { label: "Conceptual", value: "Conceptual" },
-  { label: "In Development", value: "In_Development" },
-  { label: "Technical Review", value: "Technical_Review" },
-  { label: "Sample Production", value: "Sample_Production" },
-  { label: "Revision", value: "Revision" },
-  { label: "Approved", value: "Approved" },
-  { label: "Rejected", value: "Rejected" },
-  { label: "On Hold", value: "On_Hold" },
-  { label: "Commerce Ready", value: "Commerce_Ready" },
-]
-
-function relativeDate(dateStr: string | undefined | null): string {
-  if (!dateStr) return "-"
-  const d = new Date(dateStr)
-  const now = new Date()
-  const diffMs = now.getTime() - d.getTime()
-  const diffMins = Math.floor(diffMs / 60000)
-  if (diffMins < 1) return "just now"
-  if (diffMins < 60) return `${diffMins}m ago`
-  const diffHrs = Math.floor(diffMins / 60)
-  if (diffHrs < 24) return `${diffHrs}h ago`
-  const diffDays = Math.floor(diffHrs / 24)
-  if (diffDays < 7) return `${diffDays}d ago`
-  return d.toLocaleDateString("en-US", { month: "short", day: "numeric" })
-}
-
-/** Derive the next action label from partner_status */
-function getNextAction(partnerStatus: string | undefined | null): {
-  label: string
-  color: "green" | "blue" | "orange" | "red" | "grey"
-} | null {
-  switch (partnerStatus) {
-    case "incoming":
-    case "assigned":
-      return { label: "Accept", color: "blue" }
-    case "in_progress":
-      return { label: "Working", color: "orange" }
-    case "awaiting_review":
-      return { label: "Complete", color: "orange" }
-    case "finished":
-      return { label: "Under Review", color: "blue" }
-    case "completed":
-      return { label: "Done", color: "green" }
-    case "cancelled":
-      return { label: "Cancelled", color: "red" }
-    default:
-      return null
-  }
-}
-
-/** Format target date with urgency indicator */
-function formatTargetDate(dateStr: string | undefined | null): {
-  label: string
-  color: "red" | "orange" | "grey"
-} | null {
-  if (!dateStr) return null
-  const target = new Date(dateStr)
-  const now = new Date()
-  const diffDays = Math.ceil((target.getTime() - now.getTime()) / (1000 * 60 * 60 * 24))
-  const formatted = target.toLocaleDateString("en-US", { month: "short", day: "numeric" })
-
-  if (diffDays < 0) return { label: `Overdue`, color: "red" }
-  if (diffDays <= 2) return { label: formatted, color: "orange" }
-  return { label: formatted, color: "grey" }
+  incoming: { key: "accept", color: "blue" },
+  assigned: { key: "accept", color: "blue" },
+  in_progress: { key: "working", color: "orange" },
+  awaiting_review: { key: "complete", color: "orange" },
+  finished: { key: "underReview", color: "blue" },
+  completed: { key: "done", color: "green" },
+  cancelled: { key: "cancelled", color: "red" },
 }
 
 /**
@@ -141,6 +68,7 @@ const WorkBucketTabs = ({
   active: DesignBucket
   facets?: DesignBucketFacets
 }) => {
+  const { t } = useTranslation()
   const [searchParams, setSearchParams] = useSearchParams()
 
   const select = (bucket: DesignBucket) => {
@@ -157,7 +85,7 @@ const WorkBucketTabs = ({
 
   return (
     <div className="flex flex-wrap items-center gap-1 px-4 py-2">
-      {WORK_BUCKETS.map(({ value, label }) => {
+      {WORK_BUCKETS.map((value) => {
         const isActive = active === value
         const n = facets?.[value]
         return (
@@ -172,7 +100,9 @@ const WorkBucketTabs = ({
                 : "text-ui-fg-subtle hover:bg-ui-bg-subtle-hover"
             )}
           >
-            <span className="font-medium">{label}</span>
+            <span className="font-medium">
+              {t(`partner.designs.bucketOptions.${value}`)}
+            </span>
             {typeof n === "number" && (
               <Badge size="2xsmall" color={isActive ? "blue" : "grey"}>
                 {n}
@@ -187,6 +117,7 @@ const WorkBucketTabs = ({
 
 export const DesignList = () => {
   const { t } = useTranslation()
+  const { getFullDate, getRelativeDate } = useDate()
   const raw = useQueryParams(["offset", "q", "status", "bucket", "order"])
   const offset = raw.offset ? Number(raw.offset) : 0
   const q = raw.q?.trim() || ""
@@ -248,7 +179,17 @@ export const DesignList = () => {
         type: "select",
         key: "status",
         label: t("fields.status"),
-        options: DESIGN_STATUS_OPTIONS,
+        options: [
+          { label: t("partner.designs.statusOptions.conceptual"), value: "Conceptual" },
+          { label: t("partner.designs.statusOptions.inDevelopment"), value: "In_Development" },
+          { label: t("partner.designs.statusOptions.technicalReview"), value: "Technical_Review" },
+          { label: t("partner.designs.statusOptions.sampleProduction"), value: "Sample_Production" },
+          { label: t("partner.designs.statusOptions.revision"), value: "Revision" },
+          { label: t("partner.designs.statusOptions.approved"), value: "Approved" },
+          { label: t("partner.designs.statusOptions.rejected"), value: "Rejected" },
+          { label: t("partner.designs.statusOptions.onHold"), value: "On_Hold" },
+          { label: t("partner.designs.statusOptions.commerceReady"), value: "Commerce_Ready" },
+        ],
       },
     ],
     [t]
@@ -257,7 +198,7 @@ export const DesignList = () => {
   const columns = useMemo(
     () => [
       columnHelper.accessor("name", {
-        header: () => "Name",
+        header: () => t("partner.designs.list.columns.name"),
         cell: ({ getValue }) => (
           <span className="font-medium">{getValue() || "-"}</span>
         ),
@@ -266,7 +207,7 @@ export const DesignList = () => {
         (row) => (row as any)?.partner_engagement as PartnerDesignEngagement | undefined,
         {
           id: "source",
-          header: () => "Source",
+          header: () => t("partner.designs.list.columns.source"),
           // Was "Yours"/"Assigned" keyed on is_owner alone — which called every
           // design an admin merely LINKED "Assigned", whether or not the partner
           // was ever given work on it. `partner_engagement` separates the two,
@@ -275,18 +216,22 @@ export const DesignList = () => {
           cell: ({ getValue, row }) => {
             const engagement = getValue()
             const hasRun = !!(row.original as any)?.has_partner_run
-            const badge = ENGAGEMENT_BADGES[engagement ?? "shared"]
+            const key = engagementKeyFor(engagement)
+            const labelKey = `${key}.label`
+            const hintKey = `${key}.hint`
+            const badgeColor =
+              engagement === "owned" ? "green" : engagement === "assigned" ? "blue" : "grey"
             return (
               <div className="flex flex-wrap items-center gap-1">
-                <Tooltip content={badge.hint}>
-                  <Badge size="2xsmall" color={badge.color}>
-                    {badge.label}
+                <Tooltip content={t(hintKey)}>
+                  <Badge size="2xsmall" color={badgeColor}>
+                    {t(labelKey)}
                   </Badge>
                 </Tooltip>
                 {engagement === "owned" && hasRun && (
-                  <Tooltip content={ENGAGEMENT_BADGES.assigned.hint}>
-                    <Badge size="2xsmall" color={ENGAGEMENT_BADGES.assigned.color}>
-                      {ENGAGEMENT_BADGES.assigned.label}
+                  <Tooltip content={t("partner.designs.engagementOptions.assigned.hint")}>
+                    <Badge size="2xsmall" color="blue">
+                      {t("partner.designs.engagementOptions.assigned.label")}
                     </Badge>
                   </Tooltip>
                 )}
@@ -297,33 +242,33 @@ export const DesignList = () => {
       ),
       columnHelper.accessor((row) => row?.partner_info?.partner_status, {
         id: "next_action",
-        header: () => "Next Action",
+        header: () => t("partner.designs.list.columns.nextAction"),
         cell: ({ getValue }) => {
-          const action = getNextAction(getValue())
+          const action = NEXT_ACTION[String(getValue() ?? "")]
           if (!action) return "-"
           return (
             <StatusBadge color={action.color} className="text-nowrap">
-              {action.label}
+              {t(`partner.designs.actionOptions.${action.key}`)}
             </StatusBadge>
           )
         },
       }),
       columnHelper.accessor((row) => row?.partner_info?.partner_status, {
         id: "partner_status",
-        header: () => "Work Status",
+        header: () => t("partner.designs.list.columns.workStatus"),
         cell: ({ getValue }) => {
           const val = getValue()
           if (!val) return "-"
           return (
             <StatusBadge color={getStatusBadgeColor(val) as any} className="text-nowrap">
-              {String(val).replace(/_/g, " ")}
+              {workStatusLabel(t, String(val))}
             </StatusBadge>
           )
         },
       }),
       columnHelper.accessor((row) => (row as any)?.priority, {
         id: "priority",
-        header: () => "Priority",
+        header: () => t("partner.designs.list.columns.priority"),
         cell: ({ getValue }) => {
           const val = getValue()
           if (!val) return "-"
@@ -333,52 +278,53 @@ export const DesignList = () => {
             val === "medium" ? "blue" : "grey"
           return (
             <Badge size="2xsmall" color={color}>
-              {String(val)}
+              {priorityLabel(t, String(val))}
             </Badge>
           )
         },
       }),
       columnHelper.accessor((row) => (row as any)?.target_completion_date, {
         id: "target_date",
-        header: () => "Due",
+        header: () => t("partner.designs.list.columns.due"),
         cell: ({ getValue }) => {
-          const info = formatTargetDate(getValue())
-          if (!info) return "-"
+          const val = getValue() as string | undefined | null
+          if (!val) return "-"
+          const target = new Date(val)
+          const diffDays = Math.ceil(
+            (target.getTime() - Date.now()) / (1000 * 60 * 60 * 24)
+          )
+          const color = diffDays < 0 ? "red" : diffDays <= 2 ? "orange" : "grey"
           return (
-            <Badge size="2xsmall" color={info.color}>
-              {info.label}
+            <Badge size="2xsmall" color={color}>
+              {diffDays < 0
+                ? t("partner.designs.overdue")
+                : getFullDate({ date: val })}
             </Badge>
           )
         },
       }),
       columnHelper.accessor("status", {
-        header: () => "Design Status",
+        header: () => t("partner.designs.list.columns.status"),
         cell: ({ getValue }) => {
           const val = getValue()
           if (!val) return "-"
           return (
             <Badge size="2xsmall" color={getStatusBadgeColor(val)}>
-              {String(val).replace(/_/g, " ")}
+              {designStatusLabel(t, String(val))}
             </Badge>
           )
         },
       }),
       columnHelper.accessor("updated_at", {
-        header: () => "Last Updated",
+        header: () => t("partner.designs.list.columns.lastUpdated"),
         cell: ({ getValue }) => {
           const val = getValue() as string
           if (!val) return "-"
-          const fullDate = new Date(val).toLocaleString("en-US", {
-            weekday: "short",
-            month: "short",
-            day: "numeric",
-            hour: "2-digit",
-            minute: "2-digit",
-          })
+          const fullDate = getFullDate({ date: val, includeTime: true })
           return (
             <Tooltip content={fullDate}>
               <Text size="small" leading="compact" className="text-ui-fg-subtle cursor-default">
-                {relativeDate(val)}
+                {getRelativeDate(val)}
               </Text>
             </Tooltip>
           )
@@ -386,6 +332,10 @@ export const DesignList = () => {
         enableSorting: true,
       }),
     ],
+    // `t` changes with the language, and the `useDate` formatters follow the
+    // same locale, so depending on `t` alone keeps the memo correct without
+    // churning the table on every render (the date functions are recreated
+    // each render).
     [t]
   )
 
@@ -403,9 +353,9 @@ export const DesignList = () => {
     return (
       <SingleColumnPage widgets={{ before: [], after: [] }} hasOutlet={true}>
         <Container className="p-6">
-          <Heading>Designs</Heading>
+          <Heading>{t("partner.designs.heading")}</Heading>
           <Text size="small" className="text-ui-fg-error mt-2">
-            Failed to load designs. Please try refreshing the page.
+            {t("partner.designs.list.loadFailed")}
           </Text>
         </Container>
       </SingleColumnPage>
@@ -423,14 +373,14 @@ export const DesignList = () => {
       <Container className="divide-y p-0">
         <div className="flex flex-col gap-y-3 px-6 py-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
-            <Heading>Designs</Heading>
+            <Heading>{t("partner.designs.heading")}</Heading>
             <span className="text-ui-fg-subtle text-xs">
-              Pick a tab to see incoming, in-progress, your own, or completed work.
+              {t("partner.designs.list.subtitle")}
             </span>
           </div>
           <Link to="/designs/create">
             <Button size="small" variant="secondary">
-              Create
+              {t("actions.create")}
             </Button>
           </Link>
         </div>
@@ -447,14 +397,14 @@ export const DesignList = () => {
           pageSize={PAGE_SIZE}
           filters={filters}
           orderBy={[
-            { key: "updated_at", label: "Last Updated" },
-            { key: "name", label: "Name" },
+            { key: "updated_at", label: t("partner.designs.list.columns.lastUpdated") },
+            { key: "name", label: t("partner.designs.list.columns.name") },
             { key: "created_at", label: t("fields.createdAt") },
           ]}
           search
           queryObject={raw}
           noRecords={{
-            message: "No designs in this tab. Try another tab or clear the search.",
+            message: t("partner.designs.list.noRecords"),
           }}
         />
       </Container>

@@ -3856,6 +3856,360 @@
       "toast": {
         "startFailed": "Não foi possível iniciar a configuração do Stripe"
       }
+    },
+    "designs": {
+      "heading": "Designs",
+      "design": "Design",
+      "notFound": "Design not found.",
+      "missingId": "Missing design id.",
+      "sizes": "Sizes",
+      "overdue": "Overdue",
+      "statusOptions": {
+        "conceptual": "Conceptual",
+        "inDevelopment": "In Development",
+        "technicalReview": "Technical Review",
+        "sampleProduction": "Sample Production",
+        "revision": "Revision",
+        "approved": "Approved",
+        "rejected": "Rejected",
+        "onHold": "On Hold",
+        "commerceReady": "Commerce Ready",
+        "superseded": "Superseded"
+      },
+      "priorityOptions": {
+        "low": "Low",
+        "medium": "Medium",
+        "high": "High",
+        "urgent": "Urgent"
+      },
+      "typeOptions": {
+        "original": "Original",
+        "derivative": "Derivative",
+        "custom": "Custom",
+        "collaboration": "Collaboration"
+      },
+      "workStatusOptions": {
+        "incoming": "Incoming",
+        "assigned": "Assigned",
+        "inProgress": "In progress",
+        "awaitingReview": "Awaiting review",
+        "finished": "Finished",
+        "completed": "Completed",
+        "cancelled": "Cancelled"
+      },
+      "runStatusOptions": {
+        "draft": "Draft",
+        "pendingReview": "Pending review",
+        "approved": "Approved",
+        "sentToPartner": "Sent to partner",
+        "inProgress": "In progress",
+        "completed": "Completed",
+        "cancelled": "Cancelled",
+        "awaitingReassignment": "Awaiting reassignment"
+      },
+      "bucketOptions": {
+        "incoming": "Incoming",
+        "inProgress": "In progress",
+        "yours": "Yours",
+        "completed": "Completed",
+        "all": "All"
+      },
+      "engagementOptions": {
+        "owned": {
+          "label": "Yours",
+          "hint": "You created this design."
+        },
+        "assigned": {
+          "label": "Assigned",
+          "hint": "You have a production run on this design — this is work for you."
+        },
+        "shared": {
+          "label": "Shared",
+          "hint": "Shared with you for reference. No production run is assigned to you (work may be in-house or with another partner)."
+        }
+      },
+      "actionOptions": {
+        "accept": "Accept",
+        "working": "Working",
+        "complete": "Complete",
+        "underReview": "Under Review",
+        "done": "Done",
+        "cancelled": "Cancelled"
+      },
+      "confidenceOptions": {
+        "exact": "Exact",
+        "estimated": "Estimated"
+      },
+      "runTypeOptions": {
+        "production": "Production",
+        "sample": "Sample"
+      },
+      "unitOptions": {
+        "meter": "Meter",
+        "yard": "Yard",
+        "kilogram": "Kilogram",
+        "gram": "Gram",
+        "piece": "Piece",
+        "roll": "Roll",
+        "other": "Other"
+      },
+      "consumptionTypeOptions": {
+        "sample": "Sample",
+        "production": "Production",
+        "wastage": "Wastage"
+      },
+      "fields": {
+        "priority": "Priority",
+        "designerNotes": "Designer notes",
+        "unit": "Unit",
+        "color": "Color",
+        "composition": "Composition"
+      },
+      "list": {
+        "subtitle": "Pick a tab to see incoming, in-progress, your own, or completed work.",
+        "loadFailed": "Failed to load designs. Please try refreshing the page.",
+        "noRecords": "No designs in this tab. Try another tab or clear the search.",
+        "columns": {
+          "name": "Name",
+          "source": "Source",
+          "nextAction": "Next Action",
+          "workStatus": "Work Status",
+          "priority": "Priority",
+          "due": "Due",
+          "status": "Design Status",
+          "lastUpdated": "Last Updated"
+        }
+      },
+      "detail": {
+        "general": "General",
+        "garmentType": "Garment type",
+        "inferred": "Inferred",
+        "partnerStatus": "Partner status",
+        "priority": "Priority",
+        "targetDate": "Target date",
+        "estimatedCost": "Estimated cost",
+        "description": "Description",
+        "specifications": "Specifications",
+        "specs": "Specs",
+        "tags": "Tags",
+        "colorPalette": "Color Palette",
+        "inventoryItems": "Inventory Items",
+        "noInventoryItems": "No inventory items linked to this design.",
+        "designerNotes": "Designer Notes",
+        "noNotes": "No notes",
+        "resizeHint": "Drag the bottom edge to resize"
+      },
+      "media": {
+        "heading": "Media",
+        "manage": "Manage",
+        "empty": "No media files yet",
+        "emptyHint": "Add images to showcase your design",
+        "addMedia": "Add Media",
+        "alt": "Design media",
+        "preview": "Preview design media",
+        "download": "Download",
+        "manageMedia": "Manage Media",
+        "uploadDescription": "Upload and attach media to this design",
+        "uploadImages": "Upload images",
+        "dropHint": "Drop files here or click to browse",
+        "existing": "Existing",
+        "selected": "Selected",
+        "loadingDesign": "Loading design...",
+        "addAtLeastOne": "Add at least one file",
+        "uploadFailed": "Failed to upload files",
+        "attached": "Media attached",
+        "someRejected": "Some files were rejected",
+        "uploadIntro": "Upload images to attach to this design."
+      },
+      "moodboard": {
+        "heading": "Moodboard",
+        "description": "Collect references and inspiration.",
+        "open": "Open Moodboard",
+        "generateConfirm": "Generate the moodboard from this design's brief? Your existing cards are merged, not replaced.",
+        "generating": "Generating moodboard…",
+        "generated": "Moodboard generated",
+        "generateFailed": "Failed to generate moodboard",
+        "inserted": "Inserted \"{{label}}\"",
+        "insertFailed": "Failed to insert block",
+        "nothingToInsert": "Nothing to insert for \"{{label}}\" yet.",
+        "saving": "Saving moodboard…",
+        "saved": "Moodboard saved",
+        "saveFailed": "Failed to save moodboard",
+        "briefSyncFailed": "Moodboard saved, but the brief edit couldn't be synced.",
+        "insertBlock": "Insert block",
+        "noBlocks": "No blocks available",
+        "emptySuffix": "· empty",
+        "addConstruction": "Add construction",
+        "generate": "Generate",
+        "layers": "Layers",
+        "save": "Save",
+        "savedLabel": "Saved",
+        "footerHint": "Insert, construction, generate, layers & save are in the dock at the bottom of the canvas."
+      },
+      "layers": {
+        "heading": "Layers",
+        "refresh": "Refresh",
+        "close": "Close",
+        "noFrames": "No frames yet.",
+        "untitled": "Untitled frame",
+        "hasContent": "Has content",
+        "empty": "Empty",
+        "jump": "Jump to frame",
+        "show": "Show",
+        "hide": "Hide",
+        "lockedWhileHidden": "Locked while hidden",
+        "unlock": "Unlock",
+        "lock": "Lock"
+      },
+      "construction": {
+        "heading": "Add construction detail",
+        "details": "Construction details",
+        "loading": "Loading techniques…",
+        "hint": "Pick a technique or a preset on the left — its parameters and fabric rules auto-fill here.",
+        "label": "Label",
+        "parameters": "Parameters",
+        "fixedGeometry": "This technique has fixed geometry — no parameters to set.",
+        "fabricRules": "Fabric / sewing rules",
+        "oneRulePerLine": "one rule per line",
+        "note": "Note",
+        "optional": "optional",
+        "addDetail": "Add detail",
+        "added": "Added \"{{label}}\"",
+        "addFailed": "Failed to add construction detail"
+      },
+      "ownerActions": {
+        "yourDesign": "Your design",
+        "activeOrders_one": "{{count}} design order in progress. Create another or hand one to a sub-partner.",
+        "activeOrders_other": "{{count}} design orders in progress. Create another or hand one to a sub-partner.",
+        "noOrders": "You created this design. Create a design order to start production, or hand it to a sub-partner.",
+        "newOrder": "New order",
+        "createOrder": "Create order",
+        "deleteTitle": "Delete design",
+        "deleteDescription": "Delete \"{{name}}\"? This can't be undone.",
+        "deleted": "Design deleted"
+      },
+      "production": {
+        "heading": "Design orders",
+        "empty": "No design orders yet. Create a design order to start production, or you'll see them here once the admin sends work your way.",
+        "subtitle": "Open a design order to accept work, log materials, and update its status.",
+        "previous": "Previous design orders ({{count}})",
+        "viewOrder": "View order",
+        "orderType": "{{type}} order",
+        "qty": "Qty {{qty}}"
+      },
+      "cost": {
+        "heading": "Cost estimate",
+        "subtitle": "Material + production cost from the linked BOM, plus the JYT platform fee.",
+        "recalculate": "Recalculate",
+        "estimatedTotal": "Estimated total",
+        "materialCost": "Material cost",
+        "productionCost": "Production cost",
+        "platformFee": "Platform fee ({{percent}}%)",
+        "lastCalculated": "Last calculated",
+        "yourInput": "your input",
+        "estimatedLabel": "estimated",
+        "yourProductionCost": "Your production cost (per unit)",
+        "autoEstimate": "Auto-estimate",
+        "helper": "Overrides the auto estimate — leave blank to estimate from history. A {{percent}}% platform fee applies on material cost. Press Recalculate to apply.",
+        "noEstimate": "No estimate yet — add materials to the BOM, then Recalculate.",
+        "enterValid": "Enter a valid production cost (0 or more)",
+        "recalculated": "Cost recalculated: {{amount}} ({{confidence}})"
+      },
+      "bom": {
+        "heading": "Materials (BOM)",
+        "subtitle": "Inventory + raw materials used to make this design.",
+        "addMaterial": "Add material",
+        "empty": "No materials linked yet.",
+        "emptyOwnerHint": " Add the inventory items this design consumes.",
+        "noImg": "No img",
+        "sku": "SKU",
+        "planned": "Planned",
+        "consumed": "Consumed",
+        "removeTitle": "Remove material",
+        "removeDescription": "Remove \"{{name}}\" from this design's bill of materials?",
+        "removed": "Material removed",
+        "materialAlt": "material"
+      },
+      "consumption": {
+        "heading": "Material Usage",
+        "subtitle": "Log raw materials consumed during production",
+        "log": "Log",
+        "closedReview": "Logging closed — run is awaiting review",
+        "closedComplete": "Logging closed — run completed",
+        "closedNone": "Logging not available",
+        "drawerTitle": "Log Material Usage",
+        "drawerDescription": "Record raw material consumed during production.",
+        "noInventory": "No inventory linked yet",
+        "noInventoryHint": "Link raw materials to this design first, then you can log material usage here.",
+        "inventoryItem": "Inventory Item",
+        "selectItem": "Select item",
+        "quantity": "Quantity",
+        "measuredAs": "Measured as",
+        "perPiece": "Per piece",
+        "totalRun": "Total for the run",
+        "perPieceHint": "Material for ONE finished piece — we multiply by how many you make.",
+        "totalRunHint": "Material for the WHOLE run — recorded as entered.",
+        "costPerUnit": "Cost per unit",
+        "optional": "Optional",
+        "unit": "Unit",
+        "type": "Type",
+        "notes": "Notes",
+        "notesPlaceholder": "What was this material used for?",
+        "logUsage": "Log Usage",
+        "empty": "No material usage logged yet",
+        "required": "Inventory item and quantity are required",
+        "logged": "Consumption logged",
+        "failed": "Failed to log consumption",
+        "accessory": "accessory",
+        "committed": "committed",
+        "pending": "pending",
+        "totalMaterialCost": "Total material cost"
+      },
+      "create": {
+        "heading": "Create design",
+        "namePlaceholder": "e.g. Spring Jacket",
+        "descriptionPlaceholder": "What is this design?",
+        "designerNotesPlaceholder": "Internal notes",
+        "created": "Design created"
+      },
+      "edit": {
+        "heading": "Edit design",
+        "updated": "Design updated"
+      },
+      "addInventory": {
+        "selectedCount": "{{count}} selected",
+        "selectPrompt": "Select materials to add",
+        "addToDesign": "Add to design",
+        "noRawMaterialsTitle": "No raw materials",
+        "noRawMaterialsMessage": "No raw materials found. Admin maintains the shared raw-material catalog.",
+        "selectAtLeastOne": "Select at least one material",
+        "added_one": "Added {{count}} material",
+        "added_other": "Added {{count}} materials",
+        "sku": "SKU",
+        "columns": {
+          "material": "Material",
+          "composition": "Composition",
+          "color": "Color",
+          "unit": "Unit"
+        }
+      },
+      "runCreate": {
+        "heading": "Create design order",
+        "subtitle": "Start production for this design. The design order is approved and ready to work immediately.",
+        "quantity": "Quantity",
+        "runType": "Run type",
+        "production": "Production",
+        "sample": "Sample",
+        "howMade": "How is it made?",
+        "inHouse": "In-house (you make it)",
+        "outsourced": "Outsourced (hand to a sub-partner)",
+        "executionHint": "In-house keeps the work with you; outsourced records the vendor for cost tracking.",
+        "subPartnerId": "Sub-partner ID",
+        "subPartnerPlaceholder": "partner_…",
+        "subPartnerHint": "The partner you're handing this production to.",
+        "createOrder": "Create design order",
+        "started": "Production started"
+      }
     }
   }
 }

@@ -8,6 +8,7 @@ import {
   toast,
   usePrompt,
 } from "@medusajs/ui"
+import { useTranslation } from "react-i18next"
 import { Link } from "react-router-dom"
 
 import { Skeleton } from "../../../../components/common/skeleton"
@@ -52,6 +53,7 @@ function extractMedia(line: PartnerDesignInventoryItem): string[] {
 }
 
 export const DesignInventoryBomSection = ({ design }: Props) => {
+  const { t } = useTranslation()
   const prompt = usePrompt()
   const isOwner = !!design.is_owner
   const { inventory_items, isLoading } = usePartnerDesignInventory(design.id)
@@ -59,16 +61,18 @@ export const DesignInventoryBomSection = ({ design }: Props) => {
 
   const handleRemove = async (line: PartnerDesignInventoryItem) => {
     const ok = await prompt({
-      title: "Remove material",
-      description: `Remove "${line.inventory_item?.title ?? line.inventory_item_id}" from this design's bill of materials?`,
-      confirmText: "Remove",
-      cancelText: "Cancel",
+      title: t("partner.designs.bom.removeTitle"),
+      description: t("partner.designs.bom.removeDescription", {
+        name: line.inventory_item?.title ?? line.inventory_item_id,
+      }),
+      confirmText: t("actions.remove"),
+      cancelText: t("actions.cancel"),
     })
     if (!ok) return
     await delink(
       { inventoryIds: [line.inventory_item_id] },
       {
-        onSuccess: () => toast.success("Material removed"),
+        onSuccess: () => toast.success(t("partner.designs.bom.removed")),
         onError: (e) => toast.error(e.message),
       }
     )
@@ -78,9 +82,9 @@ export const DesignInventoryBomSection = ({ design }: Props) => {
     <Container className="divide-y p-0">
       <div className="flex flex-col gap-y-3 px-6 py-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <Heading level="h2">Materials (BOM)</Heading>
+          <Heading level="h2">{t("partner.designs.bom.heading")}</Heading>
           <Text size="small" className="text-ui-fg-subtle">
-            Inventory + raw materials used to make this design.
+            {t("partner.designs.bom.subtitle")}
           </Text>
         </div>
         {isOwner && (
@@ -89,7 +93,7 @@ export const DesignInventoryBomSection = ({ design }: Props) => {
           <Link to={`/designs/${design.id}/add-inventory`}>
             <Button size="small" variant="secondary">
               <Plus />
-              Add material
+              {t("partner.designs.bom.addMaterial")}
             </Button>
           </Link>
         )}
@@ -110,8 +114,8 @@ export const DesignInventoryBomSection = ({ design }: Props) => {
       ) : inventory_items.length === 0 ? (
         <div className="px-6 py-6">
           <Text size="small" className="text-ui-fg-subtle">
-            No materials linked yet.
-            {isOwner ? " Add the inventory items this design consumes." : ""}
+            {t("partner.designs.bom.empty")}
+            {isOwner ? t("partner.designs.bom.emptyOwnerHint") : ""}
           </Text>
         </div>
       ) : (
@@ -131,13 +135,13 @@ export const DesignInventoryBomSection = ({ design }: Props) => {
                     <img
                       key={i}
                       src={url}
-                      alt={item?.title ?? "material"}
+                      alt={item?.title ?? t("partner.designs.bom.materialAlt")}
                       className="bg-ui-bg-subtle size-12 rounded-md object-cover"
                     />
                   ))
                 ) : (
                   <div className="bg-ui-bg-subtle text-ui-fg-muted flex size-12 items-center justify-center rounded-md">
-                    <Text size="xsmall">No img</Text>
+                    <Text size="xsmall">{t("partner.designs.bom.noImg")}</Text>
                   </div>
                 )}
               </div>
@@ -150,7 +154,7 @@ export const DesignInventoryBomSection = ({ design }: Props) => {
                   </Text>
                   {item?.sku && (
                     <Badge size="2xsmall" color="grey">
-                      SKU: {item.sku}
+                      {t("partner.designs.bom.sku")}: {item.sku}
                     </Badge>
                   )}
                 </div>
@@ -169,9 +173,9 @@ export const DesignInventoryBomSection = ({ design }: Props) => {
                 )}
 
                 <Text size="xsmall" className="text-ui-fg-muted">
-                  Planned: {line.planned_quantity ?? "—"}
+                  {t("partner.designs.bom.planned")}: {line.planned_quantity ?? "—"}
                   {line.consumed_quantity != null
-                    ? `  ·  Consumed: ${line.consumed_quantity}`
+                    ? `  ·  ${t("partner.designs.bom.consumed")}: ${line.consumed_quantity}`
                     : ""}
                 </Text>
               </div>
@@ -182,7 +186,7 @@ export const DesignInventoryBomSection = ({ design }: Props) => {
                     {
                       actions: [
                         {
-                          label: "Remove",
+                          label: t("actions.remove"),
                           icon: <Trash />,
                           onClick: () => handleRemove(line),
                         },

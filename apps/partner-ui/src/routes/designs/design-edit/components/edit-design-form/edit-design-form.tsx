@@ -1,6 +1,7 @@
 import { zodResolver } from "@hookform/resolvers/zod"
 import { Button, Input, Select, Textarea, toast } from "@medusajs/ui"
 import { useForm } from "react-hook-form"
+import { useTranslation } from "react-i18next"
 
 import { Form } from "../../../../../components/common/form"
 import { RouteDrawer, useRouteModal } from "../../../../../components/modals"
@@ -9,6 +10,7 @@ import {
   PartnerDesign,
   useUpdatePartnerDesign,
 } from "../../../../../hooks/api/partner-designs"
+import { designTypeLabel, priorityLabel } from "../../../../../lib/design-labels"
 import { CreateDesignSchema } from "../../../design-create/components/design-create-form/schema"
 
 const DESIGN_TYPES = ["Original", "Derivative", "Custom", "Collaboration"] as const
@@ -17,6 +19,7 @@ const PRIORITIES = ["Low", "Medium", "High", "Urgent"] as const
 type Props = { design: PartnerDesign }
 
 export const EditDesignForm = ({ design }: Props) => {
+  const { t } = useTranslation()
   const { handleSuccess } = useRouteModal()
   const form = useForm<CreateDesignSchema>({
     defaultValues: {
@@ -34,7 +37,7 @@ export const EditDesignForm = ({ design }: Props) => {
   const handleSubmit = form.handleSubmit(async (data) => {
     await mutateAsync(data, {
       onSuccess: () => {
-        toast.success("Design updated")
+        toast.success(t("partner.designs.edit.updated"))
         handleSuccess()
       },
       onError: (e) => toast.error(e.message),
@@ -51,7 +54,7 @@ export const EditDesignForm = ({ design }: Props) => {
               name="name"
               render={({ field }) => (
                 <Form.Item>
-                  <Form.Label>Name</Form.Label>
+                  <Form.Label>{t("fields.name")}</Form.Label>
                   <Form.Control>
                     <Input {...field} />
                   </Form.Control>
@@ -64,7 +67,7 @@ export const EditDesignForm = ({ design }: Props) => {
               name="description"
               render={({ field }) => (
                 <Form.Item>
-                  <Form.Label optional>Description</Form.Label>
+                  <Form.Label optional>{t("fields.description")}</Form.Label>
                   <Form.Control>
                     <Textarea {...field} />
                   </Form.Control>
@@ -76,16 +79,16 @@ export const EditDesignForm = ({ design }: Props) => {
               name="design_type"
               render={({ field }) => (
                 <Form.Item>
-                  <Form.Label optional>Type</Form.Label>
+                  <Form.Label optional>{t("fields.type")}</Form.Label>
                   <Form.Control>
                     <Select value={field.value} onValueChange={field.onChange}>
                       <Select.Trigger>
-                        <Select.Value placeholder="Select" />
+                        <Select.Value placeholder={t("general.select")} />
                       </Select.Trigger>
                       <Select.Content>
-                        {DESIGN_TYPES.map((t) => (
-                          <Select.Item key={t} value={t}>
-                            {t}
+                        {DESIGN_TYPES.map((v) => (
+                          <Select.Item key={v} value={v}>
+                            {designTypeLabel(t, v)}
                           </Select.Item>
                         ))}
                       </Select.Content>
@@ -99,16 +102,16 @@ export const EditDesignForm = ({ design }: Props) => {
               name="priority"
               render={({ field }) => (
                 <Form.Item>
-                  <Form.Label optional>Priority</Form.Label>
+                  <Form.Label optional>{t("partner.designs.fields.priority")}</Form.Label>
                   <Form.Control>
                     <Select value={field.value} onValueChange={field.onChange}>
                       <Select.Trigger>
-                        <Select.Value placeholder="Select" />
+                        <Select.Value placeholder={t("general.select")} />
                       </Select.Trigger>
                       <Select.Content>
-                        {PRIORITIES.map((p) => (
-                          <Select.Item key={p} value={p}>
-                            {p}
+                        {PRIORITIES.map((v) => (
+                          <Select.Item key={v} value={v}>
+                            {priorityLabel(t, v)}
                           </Select.Item>
                         ))}
                       </Select.Content>
@@ -122,7 +125,7 @@ export const EditDesignForm = ({ design }: Props) => {
               name="designer_notes"
               render={({ field }) => (
                 <Form.Item>
-                  <Form.Label optional>Designer notes</Form.Label>
+                  <Form.Label optional>{t("partner.designs.fields.designerNotes")}</Form.Label>
                   <Form.Control>
                     <Textarea {...field} />
                   </Form.Control>
@@ -135,11 +138,11 @@ export const EditDesignForm = ({ design }: Props) => {
           <div className="flex items-center justify-end gap-x-2">
             <RouteDrawer.Close asChild>
               <Button variant="secondary" size="small">
-                Cancel
+                {t("actions.cancel")}
               </Button>
             </RouteDrawer.Close>
             <Button isLoading={isPending} type="submit" variant="primary" size="small">
-              Save
+              {t("actions.save")}
             </Button>
           </div>
         </RouteDrawer.Footer>
