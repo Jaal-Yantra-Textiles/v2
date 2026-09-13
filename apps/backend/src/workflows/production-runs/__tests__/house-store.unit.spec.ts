@@ -1,5 +1,6 @@
 import {
   currencyIsSellable,
+  partnerStoreIdsFrom,
   pickHouseStore,
   storeCurrencies,
   storeDefaultCurrency,
@@ -21,6 +22,77 @@ const house = (id = "store_house", currencies: string[] = ["eur", "inr"]) => ({
     currency_code: c,
     is_default: i === 0,
   })),
+})
+
+/**
+ * #2029 item 2 — the fact "this store belongs to a partner" has a TYPED home
+ * (`links/partner-stores-link.ts`), and this used to read a metadata blob
+ * instead. The link now decides; metadata survives only as a fallback for the
+ * one case where the link cannot be trusted.
+ */
+describe("pickHouseStore — the link decides", () => {
+  it("uses the link, not the blob, when the link says anything", () => {
+    const stores = [partner("s1", "p1"), house(), partner("s2", "p2")]
+    const ids = new Set(["s1", "s2"])
+    expect(pickHouseStore(stores, ids)?.id).toBe("store_house")
+  })
+
+  /**
+   * The whole point of typing it. A store whose blob was never tagged — an
+   * older tenant, or one created by a path that forgot — is still a partner's
+   * store, and the link knows. Under the old read it looked like a SECOND house
+   * store, which made the answer ambiguous and silently disabled the currency
+   * gate for everyone.
+   */
+  it("catches a partner store whose metadata was never tagged", () => {
+    const untagged = { id: "s_untagged", metadata: null, supported_currencies: [] }
+    const stores = [house(), untagged]
+    // Blob-only: two ownerless stores -> ambiguous -> null -> gate off.
+    expect(pickHouseStore(stores)).toBeNull()
+    // Link: the untagged store has an owner, so the house store is unambiguous.
+    expect(pickHouseStore(stores, new Set(["s_untagged"]))?.id).toBe("store_house")
+  })
+
+  /**
+   * 🔴 The trap `partner-stores-link.ts` documents about itself: an empty link
+   * result is indistinguishable from "no store belongs to a partner". Believing
+   * it would make every store a house store — ambiguous, null, gate off
+   * platform-wide — so an empty set falls back to the blob instead.
+   */
+  it("falls back to metadata when the link says NOTHING", () => {
+    const stores = [partner("s1", "p1"), house(), partner("s2", "p2")]
+    expect(pickHouseStore(stores, new Set())?.id).toBe("store_house")
+    expect(pickHouseStore(stores, null)?.id).toBe("store_house")
+    expect(pickHouseStore(stores, undefined)?.id).toBe("store_house")
+  })
+
+  it("still refuses to guess when the link leaves it ambiguous", () => {
+    const stores = [house("h1"), house("h2"), partner("s1", "p1")]
+    expect(pickHouseStore(stores, new Set(["s1"]))).toBeNull()
+    // And when the link accounts for every store, there is no house at all.
+    expect(pickHouseStore(stores, new Set(["h1", "h2", "s1"]))).toBeNull()
+  })
+})
+
+describe("partnerStoreIdsFrom", () => {
+  it("flattens the partner -> stores hop", () => {
+    expect(
+      partnerStoreIdsFrom([
+        { id: "p1", stores: [{ id: "s1" }, { id: "s2" }] },
+        { id: "p2", stores: [{ id: "s3" }] },
+      ])
+    ).toEqual(new Set(["s1", "s2", "s3"]))
+  })
+
+  it("survives partners with no stores, and junk", () => {
+    expect(partnerStoreIdsFrom([{ id: "p1" }, { id: "p2", stores: [] }])).toEqual(
+      new Set()
+    )
+    expect(partnerStoreIdsFrom(null)).toEqual(new Set())
+    expect(
+      partnerStoreIdsFrom([{ id: "p1", stores: [{ id: "" }, {}, { id: "  " }] }])
+    ).toEqual(new Set())
+  })
 })
 
 /**
