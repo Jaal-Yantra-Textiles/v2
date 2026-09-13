@@ -199,6 +199,87 @@ setupSharedTestSuite(() => {
       expect([401, 403, 404]).toContain(asStranger.status)
     })
 
+    /**
+     * #2028 item 5, end to end. A partner cannot self-pay, so their own
+     * production is an EXPENSE they carry — visible, priced, filterable — and
+     * never a row that can be ticked into a platform payout.
+     *
+     * Both halves are asserted because either alone is a false pass: present in
+     * the expense bucket while ALSO sitting in `payable_runs` is exactly the
+     * bug, and absent from `payable_runs` while invisible everywhere is the
+     * silent drop the bucket exists to prevent.
+     */
+    it("files a partner's own completed production as an expense, not a payable", async () => {
+      const { partnerId, partnerHeaders } = await createPartner(api, "ownexp")
+      const designId = await ownDesign(partnerHeaders)
+
+      const created = await api.post(
+        `/partners/designs/${designId}/production-runs`,
+        { quantity: 2, execution_mode: "in_house" },
+        { headers: partnerHeaders }
+      )
+      expect(created.status).toBe(201)
+      const runId = created.data.production_run.id as string
+      expect(created.data.production_run.metadata?.source).toBe("partner.self_serve")
+
+      // A self-approved run lands `in_progress` with no `started_at`, so the
+      // lifecycle still has to be walked: start, then finish, then complete.
+      const started = await api.post(
+        `/partners/production-runs/${runId}/start`,
+        {},
+        { headers: partnerHeaders, validateStatus: () => true }
+      )
+      expect(started.status).toBeLessThan(300)
+      const finished = await api.post(
+        `/partners/production-runs/${runId}/finish`,
+        {},
+        { headers: partnerHeaders, validateStatus: () => true }
+      )
+      expect(finished.status).toBeLessThan(300)
+      const done = await api.post(
+        `/partners/production-runs/${runId}/complete`,
+        {
+          produced_quantity: 2,
+          partner_cost_estimate: 500,
+          cost_type: "per_unit",
+        },
+        { headers: partnerHeaders, validateStatus: () => true }
+      )
+      expect(done.status).toBeLessThan(300)
+
+      const res = await api.get("/partners/payment-submissions/payable-runs", {
+        headers: partnerHeaders,
+        validateStatus: () => true,
+      })
+      expect(res.status).toBe(200)
+
+      // Their own cost, stated — 2 x 500.
+      const expenses = res.data.partner_expense_runs || []
+      expect(expenses.map((r: any) => r.run_id)).toContain(runId)
+      const row = expenses.find((r: any) => r.run_id === runId)
+      expect(row.amount).toBe(1000)
+      expect(row.costed).toBe(true)
+      expect(res.data.partner_expense_total).toBe(1000)
+
+      // And nowhere the platform could pay it from.
+      expect(
+        (res.data.payable_runs || []).map((r: any) => r.run_id)
+      ).not.toContain(runId)
+      // Not an "exclusion" either — it is real work, just not ours.
+      expect(
+        (res.data.excluded_runs || []).map((r: any) => r.run_id)
+      ).not.toContain(runId)
+
+      // ⚠️ The admin twin is NOT asserted here: admin auth does not work in
+      // this spec. A control (`GET /admin/partners`) with freshly-fetched
+      // headers 401s at this point too, so it is the scaffolding, not the
+      // route — the existing email-template POST above swallows the same 401
+      // in a try/catch, which is why nobody had noticed. Agreement between the
+      // two screens is instead guaranteed structurally: both call the same pure
+      // `partner-expense-runs` helper, which is unit-tested directly. That is
+      // why it was extracted rather than the logic being written twice.
+    })
+
     it("rejects outsourced without a sub_partner_id, and blocks non-owners", async () => {
       const { partnerHeaders: owner } = await createPartner(api, "validate")
       const { partnerHeaders: intruder } = await createPartner(api, "intruder")
