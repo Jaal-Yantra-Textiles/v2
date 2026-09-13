@@ -1,11 +1,15 @@
 import {
   buildInventoryOrderShipmentInput,
   DEFAULT_INVENTORY_SHIPMENT_WEIGHT_GRAMS,
+  DEFAULT_SAMPLE_DECLARED_VALUE,
   missingDestinationAddressFields,
   normalizeDimensionsCm,
   resolveInventoryDestinationAddress,
+  SAMPLE_SHIPMENT_ITEM_NAME,
+  SAMPLE_SHIPMENT_ITEM_SKU,
   type InventoryOrderForShipment,
 } from "../lib/inventory-order-shipment"
+import { readEnvDeclaredValue } from "../create-inventory-order-shipment"
 
 describe("normalizeDimensionsCm (breadth → width for the courier)", () => {
   it("maps breadth to the canonical width the client reads", () => {
@@ -103,11 +107,128 @@ describe("buildInventoryOrderShipmentInput (#772)", () => {
   })
 
   it("falls back to a default pickup ('') and 'Warehouse' name / IN country on a bare order", () => {
-    const input = buildInventoryOrderShipmentInput({ id: "x", orderlines: [] })
+    // A sample order, because a bare NON-sample order now throws (#2009) and
+    // this case is about the pickup/name/country fallbacks, not the manifest.
+    const input = buildInventoryOrderShipmentInput({
+      id: "x",
+      orderlines: [],
+      is_sample: true,
+    })
     expect(input.pickup_location_name).toBe("")
     expect(input.to.name).toBe("Warehouse")
     expect(input.to.country).toBe("IN")
-    expect(input.items).toEqual([])
+  })
+})
+
+describe("buildInventoryOrderShipmentInput empty manifests (#2009)", () => {
+  const sampleOrder: InventoryOrderForShipment = {
+    id: "inv_sample_1",
+    is_sample: true,
+    total_price: 0,
+    metadata: {},
+    orderlines: [],
+  }
+
+  it("synthesises one contents line for a sample order with no lines", () => {
+    const input = buildInventoryOrderShipmentInput(sampleOrder, { pickupLocationName: "wh" })
+    expect(input.items).toEqual([
+      {
+        name: SAMPLE_SHIPMENT_ITEM_NAME,
+        sku: SAMPLE_SHIPMENT_ITEM_SKU,
+        quantity: 1,
+        unit_price: DEFAULT_SAMPLE_DECLARED_VALUE,
+      },
+    ])
+  })
+
+  it("declares the nominal value, never the sample order's own 0", () => {
+    const input = buildInventoryOrderShipmentInput(sampleOrder, {})
+    expect(input.sub_total).toBe(DEFAULT_SAMPLE_DECLARED_VALUE)
+    expect(input.sub_total).toBeGreaterThan(0)
+  })
+
+  it("ranks explicit call value > order metadata > deployment default > nominal", () => {
+    const withMeta = { ...sampleOrder, metadata: { declared_value: 420 } }
+    // Every rung present: the explicit call value wins.
+    expect(
+      buildInventoryOrderShipmentInput(withMeta, {
+        sampleDeclaredValue: 750,
+        defaultSampleDeclaredValue: 300,
+      }).sub_total
+    ).toBe(750)
+    // No call value: the ORDER's own figure beats the deployment default —
+    // whoever typed it knows what is in this parcel.
+    expect(
+      buildInventoryOrderShipmentInput(withMeta, { defaultSampleDeclaredValue: 300 })
+        .sub_total
+    ).toBe(420)
+    // Neither: the deployment default (SSM) applies.
+    expect(
+      buildInventoryOrderShipmentInput(sampleOrder, { defaultSampleDeclaredValue: 300 })
+        .sub_total
+    ).toBe(300)
+    // Nothing at all: the compiled-in nominal.
+    expect(buildInventoryOrderShipmentInput(sampleOrder, {}).sub_total).toBe(
+      DEFAULT_SAMPLE_DECLARED_VALUE
+    )
+  })
+
+  it("ignores non-positive / unparseable values at every rung", () => {
+    expect(
+      buildInventoryOrderShipmentInput(
+        { ...sampleOrder, metadata: { declared_value: 0 } },
+        { defaultSampleDeclaredValue: 0, sampleDeclaredValue: -5 }
+      ).sub_total
+    ).toBe(DEFAULT_SAMPLE_DECLARED_VALUE)
+  })
+
+  it("the compiled-in nominal matches the seeded SSM figure (500)", () => {
+    // These two are deliberately the same number: an unset parameter must not
+    // silently change what a customs officer reads off the label.
+    expect(DEFAULT_SAMPLE_DECLARED_VALUE).toBe(500)
+  })
+
+  it("honours metadata.is_sample when the column is absent (unified-order mirror)", () => {
+    const input = buildInventoryOrderShipmentInput(
+      { id: "inv_2", metadata: { is_sample: true }, orderlines: [] },
+      {}
+    )
+    expect(input.items).toHaveLength(1)
+  })
+
+  it("prices a COD sample parcel at the declared value, not 0", () => {
+    const input = buildInventoryOrderShipmentInput(
+      { ...sampleOrder, metadata: { payment_mode: "cod" } },
+      {}
+    )
+    expect(input.cod_amount).toBe(DEFAULT_SAMPLE_DECLARED_VALUE)
+  })
+
+  it("leaves a sample order that HAS lines completely alone", () => {
+    const input = buildInventoryOrderShipmentInput(
+      {
+        ...sampleOrder,
+        total_price: 300,
+        orderlines: [{ id: "l1", quantity: 2, price: 150, metadata: { title: "Swatch", sku: "SW-1" } }],
+      },
+      {}
+    )
+    expect(input.items).toEqual([{ name: "Swatch", sku: "SW-1", quantity: 2, unit_price: 150 }])
+    expect(input.sub_total).toBe(300)
+  })
+
+  it("THROWS on a non-sample order with no lines rather than booking an empty manifest", () => {
+    expect(() =>
+      buildInventoryOrderShipmentInput({ id: "inv_3", orderlines: [] }, {})
+    ).toThrow(/nothing to ship/i)
+  })
+
+  it("THROWS when every delivered quantity is zero (same empty manifest, other door)", () => {
+    expect(() =>
+      buildInventoryOrderShipmentInput(baseOrder, {
+        deliveredQuantities: { ol_1: 0, ol_2: 0 },
+      })
+    ).toThrow(/nothing to ship/i)
   })
 })
 
@@ -191,5 +312,19 @@ describe("resolveInventoryDestinationAddress (#772 to-location fill)", () => {
       "pincode",
       "phone",
     ])
+  })
+})
+
+describe("readEnvDeclaredValue (SSM → workflow, #2009)", () => {
+  it("reads a positive numeric value", () => {
+    expect(readEnvDeclaredValue({ SAMPLE_SHIPMENT_DECLARED_VALUE: "500" })).toBe(500)
+  })
+
+  it("returns undefined for unset, blank, non-numeric or non-positive values", () => {
+    for (const raw of [undefined, "", "   ", "abc", "0", "-100"]) {
+      expect(
+        readEnvDeclaredValue({ SAMPLE_SHIPMENT_DECLARED_VALUE: raw } as any)
+      ).toBeUndefined()
+    }
   })
 })

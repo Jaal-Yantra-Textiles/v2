@@ -311,6 +311,14 @@ secrets:
   S3_REGION: /jyt/prod/S3_REGION
   S3_SECRET_ACCESS_KEY: /jyt/prod/S3_SECRET_ACCESS_KEY
   SENTRY_DSN: /jyt/prod/SENTRY_DSN
+  # #2009 — nominal declared value (INR, major units) for the contents line
+  # SYNTHESISED when a samples/swatch inventory order ships with no lines yet.
+  # A sample order's own total is legitimately 0, and 0 is not a legal customs
+  # value. Read by create-inventory-order-shipment.ts (readEnvDeclaredValue) and
+  # passed to the pure builder; outranked by an order's metadata.declared_value.
+  # Unset → the compiled-in DEFAULT_SAMPLE_DECLARED_VALUE, deliberately the same
+  # 500, so an unset parameter cannot silently change what customs reads.
+  SAMPLE_SHIPMENT_DECLARED_VALUE: /jyt/prod/SAMPLE_SHIPMENT_DECLARED_VALUE
   # #888 — gates POST /webhooks/shipping/track (carrier tracking pushes;
   # Shiprocket has no HMAC, it replays a dashboard-configured header). Unset →
   # endpoint runs open with a warning.
