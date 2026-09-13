@@ -13,6 +13,7 @@ import type { MedusaContainer } from "@medusajs/framework/types"
 
 import { FULLFILLED_ORDERS_MODULE } from "../../modules/fullfilled_orders"
 import { PRODUCTION_RUNS_MODULE } from "../../modules/production_runs"
+import productionRunReservationsLink from "../../links/production-run-reservations-link"
 
 /**
  * #891 S3 — receiving a goods transfer is what actually moves the inventory.
@@ -253,6 +254,63 @@ async function moveInventory(
  * reconciling a shortfall is a separate decision, and silently shrinking a
  * customer's reservation here would make it invisible.
  */
+/**
+ * PURE: the reservations at this location that belong to this run.
+ *
+ * `linkedIds` is what the typed production-run↔reservation link says. When it
+ * says anything, it decides. When it says NOTHING we fall back to
+ * `metadata.production_run_id` — not for elegance, but because an empty link
+ * result is indistinguishable from "this run holds no reservations", and every
+ * reservation created before #2029 item 3 carries only the blob. Concluding
+ * "none" there would strand exactly the rows this function exists to move.
+ *
+ * Exported for tests: the choice between the two sources is the whole decision,
+ * and it should be assertable without an inventory module behind it.
+ */
+export function selectRunReservations(
+  reservations: any,
+  productionRunId: string,
+  linkedIds?: ReadonlySet<string> | null
+): any[] {
+  const all = Array.isArray(reservations) ? reservations : []
+  if (linkedIds && linkedIds.size > 0) {
+    return all.filter((r: any) => linkedIds.has(String(r?.id ?? "")))
+  }
+  return all.filter(
+    (r: any) => String(r?.metadata?.production_run_id || "") === productionRunId
+  )
+}
+
+/**
+ * The reservation ids the link claims for this run, or an empty set.
+ *
+ * Never throws: a link read that fails must degrade to the blob scan, which is
+ * what shipped before, rather than stranding reservations at the origin.
+ */
+export async function readLinkedReservationIds(
+  container: MedusaContainer,
+  productionRunId: string
+): Promise<Set<string>> {
+  const ids = new Set<string>()
+  try {
+    const query: any = container.resolve(ContainerRegistrationKeys.QUERY)
+    const { data } = await query.graph({
+      entity: productionRunReservationsLink.entryPoint,
+      filters: { production_runs_id: productionRunId },
+      fields: ["reservation_item_id"],
+    })
+    for (const row of (data || []) as any[]) {
+      const id = String(row?.reservation_item_id ?? "").trim()
+      if (id) {
+        ids.add(id)
+      }
+    }
+  } catch {
+    // Fall through to the blob scan.
+  }
+  return ids
+}
+
 async function repointReservations(
   container: MedusaContainer,
   productionRunId: string,
@@ -268,11 +326,21 @@ async function repointReservations(
     location_id: fromLocationId,
   })
 
-  // `metadata` is JSON, so the run filter happens in-app — the same reason the
-  // partner reservation list filters in-app.
-  const mine = (Array.isArray(reservations) ? reservations : []).filter(
-    (r: any) => String(r?.metadata?.production_run_id || "") === productionRunId
-  )
+  /**
+   * Which of these belong to this run (#2029 item 3).
+   *
+   * The typed link is asked first. It used to be a JSON scan — `metadata` is
+   * not filterable, so every reservation at the location was listed and sifted
+   * in-app, which is what the old comment here admitted.
+   *
+   * ⚠️ The link is read as a SET of ids and intersected with the list above,
+   * rather than used to fetch reservations directly. The list is already scoped
+   * to the origin location, and that scoping is load-bearing: a reservation the
+   * run holds somewhere ELSE must not be dragged to this destination by a
+   * receipt it had nothing to do with.
+   */
+  const linkedIds = await readLinkedReservationIds(container, productionRunId)
+  const mine = selectRunReservations(reservations, productionRunId, linkedIds)
 
   let moved = 0
   for (const reservation of mine) {
