@@ -12,6 +12,7 @@ import { ContainerRegistrationKeys, Modules } from "@medusajs/framework/utils"
 import { createAdminUser, getAuthHeaders } from "../helpers/create-admin-user"
 import { getSharedTestEnv, setupSharedTestSuite } from "./shared-test-setup"
 import partnerOrderLink from "../../src/links/partner-order"
+import { PARTNER_MODULE } from "../../src/modules/partner"
 import designOrderLink from "../../src/links/design-order-link"
 
 jest.setTimeout(120000)
@@ -691,6 +692,87 @@ setupSharedTestSuite(() => {
       const joined = await fetchUnifiedOrder(mirrorOrderId)
       expect(joined.metadata.collated_design_order).toBe(true)
       expect(joined.items).toHaveLength(2)
+    })
+    /**
+     * #2030 — the partner must not be shown the planning artifact.
+     *
+     * A split cancels the parent's order and marks it superseded. The run,
+     * though, is untouched, so the order's work-status sidecar keeps whatever
+     * it last said — in Sharlho's portal, order 110 sat there `canceled` while
+     * its badge read `assigned`, i.e. a job they still owed. Three rows for one
+     * jacket, one of them never real work.
+     */
+    it("hides a superseded parent order from the partner's list, but not the child's", async () => {
+      await createRegion()
+      const designId = await createDesign()
+      const { partnerId, partnerHeaders } = await createPartner("superseded-list")
+      const templateName = await createTemplate(
+        `design-unification-superseded-${unique}`
+      )
+
+      const createRes = await post(
+        `/admin/designs/${designId}/production-runs`,
+        {
+          assignments: [
+            {
+              partner_id: partnerId,
+              quantity: 2,
+              role: "cutting",
+              template_names: [templateName],
+            },
+          ],
+        },
+        adminHeaders
+      )
+      expect(createRes.status).toBe(201)
+      const parentId = createRes.data.production_run.id
+      const childId = createRes.data.children[0].id
+
+      const parentOrderId = await unifiedOrderIdOf(parentId)
+      const childOrderId = await unifiedOrderIdOf(childId)
+
+      // Precondition: the parent order really is the canceled, superseded one.
+      const parentOrder = await fetchUnifiedOrder(parentOrderId)
+      expect(parentOrder.status).toBe("canceled")
+      expect(parentOrder.metadata.superseded_by_run_ids).toEqual([childId])
+
+      /**
+       * 🔴 The parent order must be PARTNER-LINKED or this test proves nothing.
+       *
+       * In this flow the parent run carries no partner (only the children do),
+       * so the parent order gets no D3 link and never reaches the partner's
+       * list in the first place — a filter test against it passes with the
+       * filter REMOVED. Sharlho's parent run did carry the partner, which is
+       * why order 110 was on their screen at all. Link it here so the row is
+       * genuinely reachable, and the exclusion is what removes it.
+       */
+      const remoteLink = getContainer().resolve(
+        ContainerRegistrationKeys.LINK
+      ) as any
+      await remoteLink.create([
+        {
+          [PARTNER_MODULE]: { partner_id: partnerId },
+          [Modules.ORDER]: { order_id: parentOrderId },
+        },
+      ])
+
+      const listRes = await api.get(
+        "/partners/orders?kind=design&limit=100",
+        partnerHeaders
+      )
+      expect(listRes.status).toBe(200)
+      const ids = (listRes.data.orders || []).map((o: any) => String(o.id))
+
+      // 🔑 The artifact is gone; the work the partner actually has is not.
+      expect(ids).not.toContain(String(parentOrderId))
+      expect(ids).toContain(String(childOrderId))
+
+      /**
+       * `count` must agree with the rows. The exclusion happens on the id set
+       * BEFORE the query, so a hidden order was never counted — filtering after
+       * pagination would leave a count that promises a row the page cannot show.
+       */
+      expect(listRes.data.count).toBe(ids.length)
     })
   })
 })

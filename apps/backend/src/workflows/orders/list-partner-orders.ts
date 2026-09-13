@@ -41,6 +41,49 @@ export type ListPartnerOrdersWorkflowInput = {
   take: number
 }
 
+/**
+ * A canceled order that a run split superseded — the planning artifact, not work
+ * the partner was ever asked to do (#2030).
+ *
+ * 🔴 What this fixes, in the partner's own words: Sharlho's portal listed THREE
+ * rows for one jacket. One (order 110) was `canceled` yet its work-status badge
+ * still read `assigned`, because the sidecar is written when the run is
+ * dispatched and the supersession cancels the ORDER without touching the RUN. A
+ * canceled order advertising live work is worse than a redundant row: it reads
+ * as a job the partner still owes.
+ *
+ * ⚠️ It only reaches the partner at all when the PARENT run carried the partner
+ * (Sharlho's did). Where only the children are assigned, the parent order has no
+ * D3 link and was never listed — which is exactly why a test for this must link
+ * the parent deliberately, or it passes with this function deleted.
+ *
+ * ⚠️ Deliberately narrow. Only `canceled` AND superseded is hidden. A canceled
+ * work-order WITHOUT `superseded_by_run_ids` is a real cancellation — something
+ * the partner was asked to do and then told to stop — and they are entitled to
+ * see it.
+ *
+ * 🔑 Filtered HERE, on the id set, not after the page is fetched: this step feeds
+ * `filters.id = { $in: ids }`, so an excluded order never enters the query.
+ * Dropping rows after pagination would return short pages and a `count` that
+ * disagrees with them.
+ *
+ * ⚠️ In memory, necessarily — `query.graph` cannot filter on a JSON subkey, and a
+ * filter written against `metadata.superseded_by_run_ids` matches nothing
+ * SILENTLY, which here would hide every work-order from every partner.
+ *
+ * The admin read-proxy (#843) runs this same workflow and hides them too. That is
+ * the point: it is the mirror of what the partner sees. An admin who needs the
+ * unfiltered truth has the admin orders list, which is unaffected.
+ */
+const isSupersededArtifact = (o: any): boolean => {
+  const status = String(o?.status ?? "")
+  if (status !== "canceled" && status !== "cancelled") {
+    return false
+  }
+  const superseded = o?.metadata?.superseded_by_run_ids
+  return Array.isArray(superseded) && superseded.length > 0
+}
+
 // Resolve THIS partner's work-order order-ids, bucketed by kind, via the D3
 // `partner ↔ order` link + the reverse execution link (D5). Two single-hop
 // `query.graph` reads on confirmed link directions (partner→orders, then
@@ -74,9 +117,17 @@ export const resolvePartnerWorkOrderIdsStep = createStep(
     }
 
     // Reverse, PLURAL accessor — see ORDERS_UNIFICATION_342.md "LINK NAMING FINDING".
+    // `status` + `metadata` ride along for the supersession check below; both
+    // come free with this read rather than costing another round trip.
     const { data: orders } = await query.graph({
       entity: "orders",
-      fields: ["id", "production_runs.id", "inventory_orders.id"],
+      fields: [
+        "id",
+        "status",
+        "metadata",
+        "production_runs.id",
+        "inventory_orders.id",
+      ],
       filters: { id: orderIds },
     })
 
@@ -89,6 +140,9 @@ export const resolvePartnerWorkOrderIdsStep = createStep(
     const design: string[] = []
     const inventory: string[] = []
     for (const o of orders ?? []) {
+      if (isSupersededArtifact(o)) {
+        continue
+      }
       if (linked(o?.production_runs)) {
         design.push(o.id)
       } else if (linked(o?.inventory_orders)) {
