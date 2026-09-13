@@ -1,3 +1,18 @@
+# [13.140.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.139.0...v13.140.0) (2026-09-13)
+
+
+### Bug Fixes
+
+* **storefront:** a cold instance with an unreachable backend no longer 500s ([#1993](https://github.com/Jaal-Yantra-Textiles/v2/issues/1993)) ([#2013](https://github.com/Jaal-Yantra-Textiles/v2/issues/2013)) ([804f14a](https://github.com/Jaal-Yantra-Textiles/v2/commit/804f14a2857fd40f07605f313bd3aec34e0b6802)), closes [#1992](https://github.com/Jaal-Yantra-Textiles/v2/issues/1992) [#1992](https://github.com/Jaal-Yantra-Textiles/v2/issues/1992)
+* **#2009:** a samples parcel declares real contents, not an empty manifest ([9d6fc4a](https://github.com/Jaal-Yantra-Textiles/v2/commit/9d6fc4ae4d5473f3929d4a3ac8f0f74d0b2946fb)), closes [#2009](https://github.com/Jaal-Yantra-Textiles/v2/issues/2009) [#2006](https://github.com/Jaal-Yantra-Textiles/v2/issues/2006) [#2009](https://github.com/Jaal-Yantra-Textiles/v2/issues/2009)
+* **stores:** pick a shipping profile deterministically, not take:1 ([#1983](https://github.com/Jaal-Yantra-Textiles/v2/issues/1983)) ([#2011](https://github.com/Jaal-Yantra-Textiles/v2/issues/2011)) ([221267e](https://github.com/Jaal-Yantra-Textiles/v2/commit/221267e65d36461958eefda505252f0d5d515613)), closes [#1982](https://github.com/Jaal-Yantra-Textiles/v2/issues/1982) [#1176](https://github.com/Jaal-Yantra-Textiles/v2/issues/1176)
+
+
+### Features
+
+* **mcp:** a tool to link a carrier to a warehouse, and defaultQuery ([#2023](https://github.com/Jaal-Yantra-Textiles/v2/issues/2023)) ([#2024](https://github.com/Jaal-Yantra-Textiles/v2/issues/2024)) ([1a3b0a8](https://github.com/Jaal-Yantra-Textiles/v2/commit/1a3b0a844506487f821180484104d563d4775655)), closes [#2005](https://github.com/Jaal-Yantra-Textiles/v2/issues/2005) [#2007](https://github.com/Jaal-Yantra-Textiles/v2/issues/2007)
+* **shipping:** shipping-option write tools + a currency-gatable rule context ([#2010](https://github.com/Jaal-Yantra-Textiles/v2/issues/2010)) ([cc44809](https://github.com/Jaal-Yantra-Textiles/v2/commit/cc4480935949fd5e1ebc3d4bd487ac25da8b2e4a)), closes [#2005](https://github.com/Jaal-Yantra-Textiles/v2/issues/2005) [#2007](https://github.com/Jaal-Yantra-Textiles/v2/issues/2007)
+
 # [13.139.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.138.0...v13.139.0) (2026-09-12)
 
 
