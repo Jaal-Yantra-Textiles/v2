@@ -123,6 +123,32 @@ describe("partner-mcp per-ask tool slicing", () => {
       expect(matchDomains("cancel this order")).toContain("orders")
     })
 
+    /**
+     * #2030 item 4. A partner's "work order" is the work they were given, and
+     * answering it takes BOTH slices: `orders` for the list itself
+     * (`list_partner_orders`, already reached by the bare "order" keyword) and
+     * `production` for the runs and tasks they then accept, start or finish.
+     * Before this, only `orders` loaded — fulfilment tools and nothing to act
+     * with, which reads as a missing feature.
+     *
+     * NOT `designs`: the issue proposed mirroring the admin slicer, which maps
+     * the phrase there because /admin/design-work-orders lives in it. That
+     * route has no partner equivalent, so the mirror would have loaded design
+     * tools for an ask about the partner's own work.
+     */
+    it("a partner's 'work order' loads both orders and production", () => {
+      for (const ask of [
+        "show me my recent work orders",
+        "what work orders do i have",
+        "is that work order still with me",
+      ]) {
+        const domains = matchDomains(ask)
+        expect(domains).toContain("orders")
+        expect(domains).toContain("production")
+        expect(domains).not.toContain("designs")
+      }
+    })
+
     it("returns nothing for an ask with no operational vocabulary", () => {
       expect(matchDomains("hi, what can you do?")).toEqual([])
     })
