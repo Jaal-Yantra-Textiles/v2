@@ -46,6 +46,25 @@ export const PARTNER_ORDER_LIST_FIELDS = [
   // accessor — now the SOLE source (PR-H retired the `metadata.partner_status`
   // copy and its transitional fallback).
   "unified_order_status.partner_status",
+  /**
+   * #2030 item 2.3 — the list used to be BLIND to collation. The detail page
+   * branches on `metadata.collated_design_order` to render the "one order,
+   * many designs" view, but the list read no metadata at all, so three mirror
+   * orders for one piece of work rendered as three identical-looking rows of
+   * the same design name with nothing saying which run each was.
+   *
+   * A collated order carries `collated_design_order: true` +
+   * `production_run_ids`; a per-run mirror carries `production_run_id` +
+   * `legacy_id`. NOT `parent_run_id` — that is a typed column on the RUN and
+   * the dual-write never copies it onto the order (#2030 says otherwise; it
+   * is wrong). Read the parentage from the run, not from here.
+   *
+   * ⚠️ READ-only. `query.graph` cannot FILTER on a JSON subkey — a filter
+   * written against `metadata.collated_design_order` matches nothing SILENTLY
+   * (see `findOpenPartnerWorkOrder`). Narrow on something filterable and check
+   * the flag in memory.
+   */
+  "metadata",
 ]
 
 // Filters that apply to EVERY order row regardless of kind.
