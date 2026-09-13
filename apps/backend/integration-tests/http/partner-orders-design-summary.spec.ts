@@ -290,5 +290,72 @@ setupSharedTestSuite(() => {
       expect(summary.name).toBe(`Design Summary Inlined ${unique}`)
       expect(summary.thumbnail).toBeNull()
     })
+
+    /**
+     * #2030 item 2.3 — the list was BLIND to collation. `PARTNER_ORDER_LIST_FIELDS`
+     * excluded `metadata`, so while the partner's order DETAIL page branches on
+     * `metadata.collated_design_order` to render the "one order, many designs"
+     * view, the list serving the row that links there could not tell a collated
+     * work-order from a per-run mirror. Three mirror orders for one piece of
+     * work rendered as three identical rows of the same design name.
+     *
+     * 🔑 Asserted on the LIST response, not on the order read back through the
+     * order service: the defect was in the field set the list reads with, so a
+     * direct read would pass against the broken contract.
+     */
+    it("carries metadata on the row, so the list can see collation", async () => {
+      const mkDesign = async (label: string) => {
+        const res = await post(
+          "/admin/designs",
+          {
+            name: `Collation Visible ${label} ${unique}`,
+            description: "two designs, one collated work-order",
+            design_type: "Original",
+            status: "Approved",
+            priority: "Medium",
+            estimated_cost: 500,
+          },
+          adminHeaders
+        )
+        expect(res.status).toBe(201)
+        return res.data.design.id as string
+      }
+
+      const dispatch = async (designId: string) => {
+        const res = await post(
+          "/admin/designs/produce",
+          { design_ids: [designId], partner_id: partnerId },
+          adminHeaders
+        )
+        expect(res.status).toBe(200)
+        return res.data.design_production
+      }
+
+      const first = await dispatch(await mkDesign("A"))
+      const second = await dispatch(await mkDesign("B"))
+
+      // Both dispatches land on ONE order (#1597's 14-day collation window).
+      const orderId = first.work_order_id as string
+      expect(second.work_order_id).toBe(orderId)
+
+      const listRes = await api.get(
+        "/partners/orders?kind=design&limit=100",
+        partnerHeaders
+      )
+      expect(listRes.status).toBe(200)
+
+      const row = (listRes.data.orders || []).find(
+        (o: any) => String(o.id) === String(orderId)
+      )
+      expect(row).toBeDefined()
+
+      // The key assertion: metadata arrives at all. Without it every check
+      // below reads `undefined`, which is what the list used to serve.
+      expect(row.metadata).toBeTruthy()
+      expect(row.metadata.collated_design_order).toBe(true)
+      expect(row.metadata.production_run_ids).toEqual(
+        expect.arrayContaining([first.run_ids[0], second.run_ids[0]])
+      )
+    })
   })
 })
