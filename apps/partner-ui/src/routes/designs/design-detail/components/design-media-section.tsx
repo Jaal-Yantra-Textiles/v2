@@ -1,4 +1,5 @@
 import { Button, Container, Heading, Text } from "@medusajs/ui"
+import { useTranslation } from "react-i18next"
 import { Link } from "react-router-dom"
 
 import { PartnerDesign } from "../../../../hooks/api/partner-designs"
@@ -24,6 +25,7 @@ export const DesignMediaSection = ({
   design,
   linkBase,
 }: DesignMediaSectionProps) => {
+  const { t } = useTranslation()
   const mediaFiles = (design as any)?.media_files as
     | Array<{ id?: string; url: string; isThumbnail?: boolean }>
     | undefined
@@ -33,9 +35,9 @@ export const DesignMediaSection = ({
   return (
     <Container className="divide-y p-0">
       <div className="flex flex-col gap-y-3 px-6 py-4 sm:flex-row sm:items-center sm:justify-between">
-        <Heading level="h2">Media</Heading>
+        <Heading level="h2">{t("partner.designs.media.heading")}</Heading>
         <Button size="small" variant="secondary" asChild>
-          <Link to={`${base}media`}>Manage</Link>
+          <Link to={`${base}media`}>{t("partner.designs.media.manage")}</Link>
         </Button>
       </div>
       {mediaFiles?.length ? (
@@ -50,7 +52,7 @@ export const DesignMediaSection = ({
               >
                 <img
                   src={media.url}
-                  alt="Design media"
+                  alt={t("partner.designs.media.alt")}
                   className="size-full object-cover"
                 />
               </Link>
@@ -66,14 +68,14 @@ export const DesignMediaSection = ({
               weight="plus"
               className="text-ui-fg-subtle"
             >
-              No media files yet
+              {t("partner.designs.media.empty")}
             </Text>
             <Text size="small" className="text-ui-fg-muted">
-              Add images to showcase your design
+              {t("partner.designs.media.emptyHint")}
             </Text>
           </div>
           <Button size="small" variant="secondary" asChild>
-            <Link to={`${base}media`}>Add Media</Link>
+            <Link to={`${base}media`}>{t("partner.designs.media.addMedia")}</Link>
           </Button>
         </div>
       )}

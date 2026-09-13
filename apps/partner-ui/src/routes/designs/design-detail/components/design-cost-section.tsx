@@ -10,6 +10,7 @@ import {
   Text,
   toast,
 } from "@medusajs/ui"
+import { useTranslation } from "react-i18next"
 
 import { SectionRow } from "../../../../components/common/section"
 import { Skeleton } from "../../../../components/common/skeleton"
@@ -18,6 +19,8 @@ import {
   usePartnerDesignCost,
   useRecalculatePartnerDesignCost,
 } from "../../../../hooks/api/partner-design-cost"
+import { useDate } from "../../../../hooks/use-date"
+import { confidenceLabel } from "../../../../lib/design-labels"
 
 type Props = { design: PartnerDesign }
 
@@ -33,6 +36,8 @@ const fmt = (v?: number | null, currency?: string | null) =>
  * their own production cost, which overrides the auto estimate.
  */
 export const DesignCostSection = ({ design }: Props) => {
+  const { t } = useTranslation()
+  const { getFullDate } = useDate()
   const isOwner = !!design.is_owner
   const { cost, isLoading } = usePartnerDesignCost(design.id)
   const { mutateAsync: recalc, isPending } = useRecalculatePartnerDesignCost(
@@ -55,7 +60,7 @@ export const DesignCostSection = ({ design }: Props) => {
     if (trimmed !== "") {
       const n = Number(trimmed)
       if (!Number.isFinite(n) || n < 0) {
-        toast.error("Enter a valid production cost (0 or more)")
+        toast.error(t("partner.designs.cost.enterValid"))
         return
       }
       production_cost = n
@@ -66,7 +71,10 @@ export const DesignCostSection = ({ design }: Props) => {
         onSuccess: (d) => {
           touched.current = false
           toast.success(
-            `Cost recalculated: ${fmt(d.cost_estimate.total_estimated)} (${d.cost_estimate.confidence})`
+            t("partner.designs.cost.recalculated", {
+              amount: fmt(d.cost_estimate.total_estimated),
+              confidence: d.cost_estimate.confidence,
+            })
           )
         },
         onError: (e) => toast.error(e.message),
@@ -84,10 +92,9 @@ export const DesignCostSection = ({ design }: Props) => {
     <Container className="divide-y p-0">
       <div className="flex flex-col gap-y-3 px-6 py-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <Heading level="h2">Cost estimate</Heading>
+          <Heading level="h2">{t("partner.designs.cost.heading")}</Heading>
           <Text size="small" className="text-ui-fg-subtle">
-            Material + production cost from the linked BOM, plus the JYT platform
-            fee.
+            {t("partner.designs.cost.subtitle")}
           </Text>
         </div>
         {isOwner && (
@@ -98,7 +105,7 @@ export const DesignCostSection = ({ design }: Props) => {
             onClick={handleRecalc}
           >
             <ArrowPath />
-            Recalculate
+            {t("partner.designs.cost.recalculate")}
           </Button>
         )}
       </div>
@@ -118,7 +125,7 @@ export const DesignCostSection = ({ design }: Props) => {
       ) : (
         <>
           <SectionRow
-            title="Estimated total"
+            title={t("partner.designs.cost.estimatedTotal")}
             value={
               <div className="flex items-center gap-x-2">
                 <Text size="small" weight="plus">
@@ -135,42 +142,44 @@ export const DesignCostSection = ({ design }: Props) => {
                           : "orange"
                     }
                   >
-                    {confidence}
+                    {confidenceLabel(t, confidence)}
                   </Badge>
                 )}
               </div>
             }
           />
           <SectionRow
-            title="Material cost"
+            title={t("partner.designs.cost.materialCost")}
             value={fmt(cost?.material_cost, currency)}
           />
           <SectionRow
-            title="Production cost"
+            title={t("partner.designs.cost.productionCost")}
             value={
               <div className="flex items-center gap-x-2">
                 <Text size="small">{fmt(cost?.production_cost, currency)}</Text>
                 <Badge size="2xsmall" color={prodIsPartnerEntered ? "green" : "grey"}>
-                  {prodIsPartnerEntered ? "your input" : "estimated"}
+                  {prodIsPartnerEntered
+                    ? t("partner.designs.cost.yourInput")
+                    : t("partner.designs.cost.estimatedLabel")}
                 </Badge>
               </div>
             }
           />
           <SectionRow
-            title={`Platform fee (${feePercent}%)`}
+            title={t("partner.designs.cost.platformFee", { percent: feePercent })}
             value={fmt(cost?.platform_fee, currency)}
           />
           {cost?.cost_breakdown?.calculated_at && (
             <SectionRow
-              title="Last calculated"
-              value={new Date(cost.cost_breakdown.calculated_at).toLocaleString()}
+              title={t("partner.designs.cost.lastCalculated")}
+              value={getFullDate({ date: cost.cost_breakdown.calculated_at, includeTime: true })}
             />
           )}
 
           {isOwner && (
             <div className="flex flex-col gap-y-2 px-6 py-4">
               <Label size="small" weight="plus" htmlFor="partner-production-cost">
-                Your production cost (per unit)
+                {t("partner.designs.cost.yourProductionCost")}
               </Label>
               <div className="flex items-center gap-x-2">
                 <Input
@@ -179,7 +188,7 @@ export const DesignCostSection = ({ design }: Props) => {
                   min="0"
                   step="0.01"
                   inputMode="decimal"
-                  placeholder="Auto-estimate"
+                  placeholder={t("partner.designs.cost.autoEstimate")}
                   value={prodInput}
                   onChange={(e) => {
                     touched.current = true
@@ -200,14 +209,12 @@ export const DesignCostSection = ({ design }: Props) => {
                       setProdInput("")
                     }}
                   >
-                    Clear
+                    {t("actions.clear")}
                   </Button>
                 )}
               </div>
               <Text size="xsmall" className="text-ui-fg-subtle">
-                Overrides the auto estimate — leave blank to estimate from
-                history. A {feePercent}% platform fee applies on material cost.
-                Press Recalculate to apply.
+                {t("partner.designs.cost.helper", { percent: feePercent })}
               </Text>
             </div>
           )}
@@ -215,7 +222,7 @@ export const DesignCostSection = ({ design }: Props) => {
           {!cost?.estimated_cost && isOwner && (
             <div className="px-6 py-4">
               <Text size="small" className="text-ui-fg-subtle">
-                No estimate yet — add materials to the BOM, then Recalculate.
+                {t("partner.designs.cost.noEstimate")}
               </Text>
             </div>
           )}

@@ -13,6 +13,7 @@ import {
   toast,
 } from "@medusajs/ui"
 import { Plus } from "@medusajs/icons"
+import { useTranslation } from "react-i18next"
 import {
   ConsumptionLog,
   usePartnerConsumptionLogs,
@@ -20,26 +21,14 @@ import {
 } from "../../../../hooks/api/partner-consumption-logs"
 import { PartnerDesign } from "../../../../hooks/api/partner-designs"
 import { useStockLocations } from "../../../../hooks/api/stock-locations"
+import { useDate } from "../../../../hooks/use-date"
 
 interface DesignConsumptionLogsSectionProps {
   design: PartnerDesign
 }
 
-const UNIT_OPTIONS = [
-  { value: "Meter", label: "Meter" },
-  { value: "Yard", label: "Yard" },
-  { value: "Kilogram", label: "Kilogram" },
-  { value: "Gram", label: "Gram" },
-  { value: "Piece", label: "Piece" },
-  { value: "Roll", label: "Roll" },
-  { value: "Other", label: "Other" },
-]
-
-const TYPE_OPTIONS = [
-  { value: "sample", label: "Sample" },
-  { value: "production", label: "Production" },
-  { value: "wastage", label: "Wastage" },
-]
+const UNIT_VALUES = ["Meter", "Yard", "Kilogram", "Gram", "Piece", "Roll", "Other"]
+const TYPE_VALUES = ["sample", "production", "wastage"] as const
 
 const typeBadgeColor = (type: string) => {
   switch (type) {
@@ -51,6 +40,8 @@ const typeBadgeColor = (type: string) => {
 }
 
 export const DesignConsumptionLogsSection = ({ design }: DesignConsumptionLogsSectionProps) => {
+  const { t } = useTranslation()
+  const { getFullDate } = useDate()
   const [showForm, setShowForm] = useState(false)
 
   const { logs, count, isLoading } = usePartnerConsumptionLogs(design.id)
@@ -79,6 +70,15 @@ export const DesignConsumptionLogsSection = ({ design }: DesignConsumptionLogsSe
   const [formType, setFormType] = useState("production")
   const [formNotes, setFormNotes] = useState("")
 
+  const unitOptions = UNIT_VALUES.map((v) => ({
+    value: v,
+    label: t(`partner.designs.unitOptions.${v.toLowerCase()}`),
+  }))
+  const typeOptions = TYPE_VALUES.map((v) => ({
+    value: v,
+    label: t(`partner.designs.consumptionTypeOptions.${v}`),
+  }))
+
   const resetForm = () => {
     setFormInventoryId("")
     setFormQuantity("")
@@ -92,7 +92,7 @@ export const DesignConsumptionLogsSection = ({ design }: DesignConsumptionLogsSe
 
   const handleLogConsumption = async () => {
     if (!formInventoryId || !formQuantity) {
-      toast.error("Inventory item and quantity are required")
+      toast.error(t("partner.designs.consumption.required"))
       return
     }
     try {
@@ -106,21 +106,13 @@ export const DesignConsumptionLogsSection = ({ design }: DesignConsumptionLogsSe
         notes: formNotes || undefined,
         locationId: partnerLocationId,
       })
-      toast.success("Consumption logged")
+      toast.success(t("partner.designs.consumption.logged"))
       resetForm()
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to log consumption")
+      toast.error(
+        error instanceof Error ? error.message : t("partner.designs.consumption.failed")
+      )
     }
-  }
-
-  const formatDate = (dateStr: string) => {
-    return new Date(dateStr).toLocaleString("en-US", {
-      month: "short",
-      day: "numeric",
-      hour: "2-digit",
-      minute: "2-digit",
-      timeZoneName: "short",
-    })
   }
 
   const getInventoryLabel = (itemId: string) => {
@@ -128,19 +120,21 @@ export const DesignConsumptionLogsSection = ({ design }: DesignConsumptionLogsSe
     return found?.title || found?.sku || itemId
   }
 
+  const consumptionTypeLabel = (type: string) =>
+    t(`partner.designs.consumptionTypeOptions.${type}`, type)
 
   return (
     <Container className="divide-y p-0">
       <div className="flex flex-col gap-y-3 px-6 py-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <div className="flex items-center gap-x-2">
-            <Heading level="h2">Material Usage</Heading>
+            <Heading level="h2">{t("partner.designs.consumption.heading")}</Heading>
             {count > 0 && (
               <Badge size="2xsmall" color="grey">{count}</Badge>
             )}
           </div>
           <Text className="text-ui-fg-subtle" size="small">
-            Log raw materials consumed during production
+            {t("partner.designs.consumption.subtitle")}
             {partnerLocationName ? ` · ${partnerLocationName}` : ""}
           </Text>
         </div>
@@ -151,17 +145,16 @@ export const DesignConsumptionLogsSection = ({ design }: DesignConsumptionLogsSe
             onClick={() => setShowForm(true)}
           >
             <Plus className="mr-1.5" />
-            Log
+            {t("partner.designs.consumption.log")}
           </Button>
         ) : (
           partnerStatus && !canLog && (
             <Text size="xsmall" className="text-ui-fg-muted">
               {partnerStatus === "awaiting_review" || partnerStatus === "finished"
-                ? "Logging closed — run is awaiting review"
+                ? t("partner.designs.consumption.closedReview")
                 : partnerStatus === "completed"
-                ? "Logging closed — run completed"
-                : "Logging not available"
-              }
+                ? t("partner.designs.consumption.closedComplete")
+                : t("partner.designs.consumption.closedNone")}
             </Text>
           )
         )}
@@ -171,31 +164,30 @@ export const DesignConsumptionLogsSection = ({ design }: DesignConsumptionLogsSe
       <Drawer open={showForm} onOpenChange={(open) => (open ? setShowForm(true) : resetForm())}>
         <Drawer.Content>
           <Drawer.Header>
-            <Drawer.Title>Log Material Usage</Drawer.Title>
+            <Drawer.Title>{t("partner.designs.consumption.drawerTitle")}</Drawer.Title>
             <Drawer.Description>
-              Record raw material consumed during production.
+              {t("partner.designs.consumption.drawerDescription")}
             </Drawer.Description>
           </Drawer.Header>
           <Drawer.Body className="flex flex-col gap-y-4 overflow-y-auto">
             {inventoryItems.length === 0 ? (
               <div className="flex flex-col items-center justify-center gap-y-2 py-10 text-center">
                 <Text size="small" weight="plus">
-                  No inventory linked yet
+                  {t("partner.designs.consumption.noInventory")}
                 </Text>
                 <Text size="small" className="text-ui-fg-subtle">
-                  Link raw materials to this design first, then you can log
-                  material usage here.
+                  {t("partner.designs.consumption.noInventoryHint")}
                 </Text>
               </div>
             ) : (
               <>
                 <div>
                   <Text size="xsmall" weight="plus" className="text-ui-fg-subtle mb-1">
-                    Inventory Item
+                    {t("partner.designs.consumption.inventoryItem")}
                   </Text>
                   <Select value={formInventoryId} onValueChange={setFormInventoryId}>
                     <Select.Trigger>
-                      <Select.Value placeholder="Select item" />
+                      <Select.Value placeholder={t("partner.designs.consumption.selectItem")} />
                     </Select.Trigger>
                     <Select.Content>
                       {inventoryItems.map((item: any) => (
@@ -209,7 +201,7 @@ export const DesignConsumptionLogsSection = ({ design }: DesignConsumptionLogsSe
                 <div className="grid grid-cols-2 gap-3">
                   <div>
                     <Text size="xsmall" weight="plus" className="text-ui-fg-subtle mb-1">
-                      Quantity
+                      {t("partner.designs.consumption.quantity")}
                     </Text>
                     <Input
                       type="number"
@@ -227,43 +219,47 @@ export const DesignConsumptionLogsSection = ({ design }: DesignConsumptionLogsSe
                     <div className="mt-1.5">
                       <Select value={formBasis} onValueChange={setFormBasis}>
                         <Select.Trigger>
-                          <Select.Value placeholder="Measured as" />
+                          <Select.Value placeholder={t("partner.designs.consumption.measuredAs")} />
                         </Select.Trigger>
                         <Select.Content>
-                          <Select.Item value="per_piece">Per piece</Select.Item>
-                          <Select.Item value="total">Total for the run</Select.Item>
+                          <Select.Item value="per_piece">
+                            {t("partner.designs.consumption.perPiece")}
+                          </Select.Item>
+                          <Select.Item value="total">
+                            {t("partner.designs.consumption.totalRun")}
+                          </Select.Item>
                         </Select.Content>
                       </Select>
                     </div>
                     <Text size="xsmall" className="text-ui-fg-muted mt-1">
                       {formBasis === "per_piece"
-                        ? "Material for ONE finished piece — we multiply by how many you make."
-                        : "Material for the WHOLE run — recorded as entered."}
+                        ? t("partner.designs.consumption.perPieceHint")
+                        : t("partner.designs.consumption.totalRunHint")}
                     </Text>
                   </div>
                   <div>
                     <Text size="xsmall" weight="plus" className="text-ui-fg-subtle mb-1">
-                      Cost per unit
+                      {t("partner.designs.consumption.costPerUnit")}
                     </Text>
                     <Input
                       type="number"
                       step="0.01"
                       min="0"
-                      placeholder="Optional"
+                      placeholder={t("partner.designs.consumption.optional")}
                       value={formUnitCost}
                       onChange={(e) => setFormUnitCost(e.target.value)}
                     />
                   </div>
                   <div>
                     <Text size="xsmall" weight="plus" className="text-ui-fg-subtle mb-1">
-                      Unit
+                      {t("partner.designs.consumption.unit")}
                     </Text>
                     <Select value={formUnit} onValueChange={setFormUnit}>
                       <Select.Trigger>
                         <Select.Value />
                       </Select.Trigger>
                       <Select.Content>
-                        {UNIT_OPTIONS.map((o) => (
+                        {unitOptions.map((o) => (
                           <Select.Item key={o.value} value={o.value}>
                             {o.label}
                           </Select.Item>
@@ -273,14 +269,14 @@ export const DesignConsumptionLogsSection = ({ design }: DesignConsumptionLogsSe
                   </div>
                   <div>
                     <Text size="xsmall" weight="plus" className="text-ui-fg-subtle mb-1">
-                      Type
+                      {t("partner.designs.consumption.type")}
                     </Text>
                     <Select value={formType} onValueChange={setFormType}>
                       <Select.Trigger>
                         <Select.Value />
                       </Select.Trigger>
                       <Select.Content>
-                        {TYPE_OPTIONS.map((o) => (
+                        {typeOptions.map((o) => (
                           <Select.Item key={o.value} value={o.value}>
                             {o.label}
                           </Select.Item>
@@ -291,10 +287,10 @@ export const DesignConsumptionLogsSection = ({ design }: DesignConsumptionLogsSe
                 </div>
                 <div>
                   <Text size="xsmall" weight="plus" className="text-ui-fg-subtle mb-1">
-                    Notes
+                    {t("partner.designs.consumption.notes")}
                   </Text>
                   <Textarea
-                    placeholder="What was this material used for?"
+                    placeholder={t("partner.designs.consumption.notesPlaceholder")}
                     value={formNotes}
                     onChange={(e) => setFormNotes(e.target.value)}
                     rows={2}
@@ -305,11 +301,11 @@ export const DesignConsumptionLogsSection = ({ design }: DesignConsumptionLogsSe
           </Drawer.Body>
           <Drawer.Footer>
             <Button variant="secondary" onClick={resetForm} disabled={isLogging}>
-              {inventoryItems.length === 0 ? "Close" : "Cancel"}
+              {inventoryItems.length === 0 ? t("actions.close") : t("actions.cancel")}
             </Button>
             {inventoryItems.length > 0 && (
               <Button onClick={handleLogConsumption} isLoading={isLogging}>
-                Log Usage
+                {t("partner.designs.consumption.logUsage")}
               </Button>
             )}
           </Drawer.Footer>
@@ -326,7 +322,9 @@ export const DesignConsumptionLogsSection = ({ design }: DesignConsumptionLogsSe
         <div className="flex flex-col gap-2 px-3 pb-4 pt-2">
           {logs.length === 0 ? (
             <div className="flex items-center justify-center py-6">
-              <Text className="text-ui-fg-subtle">No material usage logged yet</Text>
+              <Text className="text-ui-fg-subtle">
+                {t("partner.designs.consumption.empty")}
+              </Text>
             </div>
           ) : (
             logs.map((log: ConsumptionLog) => (
@@ -342,15 +340,21 @@ export const DesignConsumptionLogsSection = ({ design }: DesignConsumptionLogsSe
                         {(log as any).unit_cost ? ` @ ${(log as any).unit_cost}/unit` : ""}
                       </Text>
                       {log.unit_of_measure === "Piece" && (
-                        <Badge size="2xsmall" color="purple">accessory</Badge>
+                        <Badge size="2xsmall" color="purple">
+                          {t("partner.designs.consumption.accessory")}
+                        </Badge>
                       )}
                       <Badge size="2xsmall" color={typeBadgeColor(log.consumption_type)}>
-                        {log.consumption_type}
+                        {consumptionTypeLabel(log.consumption_type)}
                       </Badge>
                       {log.is_committed ? (
-                        <Badge size="2xsmall" color="green">committed</Badge>
+                        <Badge size="2xsmall" color="green">
+                          {t("partner.designs.consumption.committed")}
+                        </Badge>
                       ) : (
-                        <Badge size="2xsmall" color="grey">pending</Badge>
+                        <Badge size="2xsmall" color="grey">
+                          {t("partner.designs.consumption.pending")}
+                        </Badge>
                       )}
                     </div>
                     <div className="flex items-center gap-2">
@@ -371,7 +375,7 @@ export const DesignConsumptionLogsSection = ({ design }: DesignConsumptionLogsSe
                   </div>
                   <div className="flex flex-col items-end">
                     <Text size="xsmall" className="text-ui-fg-muted">
-                      {formatDate(log.consumed_at)}
+                      {getFullDate({ date: log.consumed_at, includeTime: true })}
                     </Text>
                   </div>
                 </div>
@@ -385,7 +389,7 @@ export const DesignConsumptionLogsSection = ({ design }: DesignConsumptionLogsSe
       {logs.length > 0 && logs.some((l: any) => l.unit_cost && l.quantity) && (
         <div className="flex items-center justify-between px-6 py-3 bg-ui-bg-subtle rounded-b-xl">
           <Text size="xsmall" weight="plus" className="text-ui-fg-subtle">
-            Total material cost
+            {t("partner.designs.consumption.totalMaterialCost")}
           </Text>
           <Text size="xsmall" weight="plus">
             {Math.round(

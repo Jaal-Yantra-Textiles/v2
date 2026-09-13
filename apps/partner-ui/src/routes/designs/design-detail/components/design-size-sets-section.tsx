@@ -45,7 +45,7 @@ export const DesignSizeSetsSection = ({ design }: { design: any }) => {
   return (
     <Container className="p-0">
       <div className="flex items-center gap-x-2 px-6 py-4">
-        <Heading level="h2">{t("partner.workOrders.sizes", "Sizes")}</Heading>
+        <Heading level="h2">{t("partner.designs.sizes")}</Heading>
         <Badge size="2xsmall" color="blue">
           {sizes.length}
         </Badge>

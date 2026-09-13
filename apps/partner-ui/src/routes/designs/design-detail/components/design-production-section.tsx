@@ -1,12 +1,14 @@
 import { Badge, Container, Heading, Text, clx } from "@medusajs/ui"
 import { ChevronDownMini, ArrowUpRightOnBox } from "@medusajs/icons"
 import { useState } from "react"
+import { useTranslation } from "react-i18next"
 import { Link } from "react-router-dom"
 
 import { PartnerDesign } from "../../../../hooks/api/partner-designs"
 import { usePartnerProductionRuns } from "../../../../hooks/api/partner-production-runs"
 import { GeneralSectionSkeleton } from "../../../../components/common/skeleton"
 import { getStatusBadgeColor } from "../../../../lib/status-badge"
+import { runTypeLabel, runStatusLabel } from "../../../../lib/design-labels"
 
 type DesignProductionSectionProps = {
   design: PartnerDesign
@@ -23,6 +25,7 @@ const TERMINAL_STATUSES = ["completed", "cancelled"]
  * redirects to the unified order.
  */
 export const DesignProductionSection = ({ design }: DesignProductionSectionProps) => {
+  const { t } = useTranslation()
   const { production_runs = [], isPending } = usePartnerProductionRuns({
     design_id: design.id,
     limit: 50,
@@ -37,12 +40,11 @@ export const DesignProductionSection = ({ design }: DesignProductionSectionProps
     return (
       <Container className="divide-y p-0">
         <div className="px-6 py-4">
-          <Heading level="h2">Design orders</Heading>
+          <Heading level="h2">{t("partner.designs.production.heading")}</Heading>
         </div>
         <div className="px-6 py-4">
           <Text size="small" className="text-ui-fg-subtle">
-            No design orders yet. Create a design order to start production, or
-            you'll see them here once the admin sends work your way.
+            {t("partner.designs.production.empty")}
           </Text>
         </div>
       </Container>
@@ -59,10 +61,9 @@ export const DesignProductionSection = ({ design }: DesignProductionSectionProps
   return (
     <Container className="divide-y p-0">
       <div className="px-6 py-4">
-        <Heading level="h2">Design orders</Heading>
+        <Heading level="h2">{t("partner.designs.production.heading")}</Heading>
         <Text size="small" className="text-ui-fg-subtle">
-          Open a design order to accept work, log materials, and update its
-          status.
+          {t("partner.designs.production.subtitle")}
         </Text>
       </div>
 
@@ -78,7 +79,7 @@ export const DesignProductionSection = ({ design }: DesignProductionSectionProps
             className="flex w-full items-center justify-between px-6 py-3 hover:bg-ui-bg-base-hover transition-colors"
           >
             <Text size="small" weight="plus" className="text-ui-fg-subtle">
-              Previous design orders ({previousRuns.length})
+              {t("partner.designs.production.previous", { count: previousRuns.length })}
             </Text>
             <ChevronDownMini
               className={clx("text-ui-fg-muted transition-transform", {
@@ -97,6 +98,7 @@ export const DesignProductionSection = ({ design }: DesignProductionSectionProps
 }
 
 const DesignOrderRow = ({ run, muted }: { run: any; muted?: boolean }) => {
+  const { t } = useTranslation()
   const status = String(run.status || "")
   const to = run.unified_order_id
     ? `/orders/${run.unified_order_id}`
@@ -113,18 +115,20 @@ const DesignOrderRow = ({ run, muted }: { run: any; muted?: boolean }) => {
       <div className="flex min-w-0 flex-col gap-y-1">
         <div className="flex items-center gap-x-2">
           <Text size="small" weight="plus" className="truncate">
-            {run.run_type === "sample" ? "Sample" : "Production"} order
+            {t("partner.designs.production.orderType", {
+              type: runTypeLabel(t, run.run_type),
+            })}
           </Text>
           <Badge size="2xsmall" color={getStatusBadgeColor(status)}>
-            {status.replace(/_/g, " ") || "—"}
+            {runStatusLabel(t, status) || "—"}
           </Badge>
         </div>
         <Text size="xsmall" className="text-ui-fg-subtle">
-          {run.quantity != null ? `Qty ${run.quantity}` : "—"}
+          {run.quantity != null ? t("partner.designs.production.qty", { qty: run.quantity }) : "—"}
         </Text>
       </div>
       <div className="flex shrink-0 items-center gap-x-1 text-ui-fg-interactive">
-        <Text size="small">View order</Text>
+        <Text size="small">{t("partner.designs.production.viewOrder")}</Text>
         <ArrowUpRightOnBox />
       </div>
     </Link>

@@ -1,12 +1,20 @@
 import React from "react"
 import { Badge, Container, Heading, Text } from "@medusajs/ui"
 import { useMemo } from "react"
+import { useTranslation } from "react-i18next"
 import { useParams } from "react-router-dom"
 
 import { SectionRow } from "../../../components/common/section"
 import { TwoColumnPageSkeleton } from "../../../components/common/skeleton"
 import { SingleColumnPage, TwoColumnPage } from "../../../components/layout/pages"
 import { getStatusBadgeColor } from "../../../lib/status-badge"
+import { useDate } from "../../../hooks/use-date"
+import {
+  designStatusLabel,
+  designTypeLabel,
+  priorityLabel,
+  workStatusLabel,
+} from "../../../lib/design-labels"
 import {
   usePartnerDesign,
 } from "../../../hooks/api/partner-designs"
@@ -218,6 +226,8 @@ export type DesignDetailProps = {
 }
 
 export const DesignDetail = ({ designId }: DesignDetailProps = {}) => {
+  const { t } = useTranslation()
+  const { getFullDate } = useDate()
   const { id: idParam } = useParams()
   const id = designId ?? idParam
 
@@ -225,9 +235,9 @@ export const DesignDetail = ({ designId }: DesignDetailProps = {}) => {
     return (
       <SingleColumnPage widgets={{ before: [], after: [] }} hasOutlet={false}>
         <Container className="p-6">
-          <Heading>Design</Heading>
+          <Heading>{t("partner.designs.design")}</Heading>
           <Text size="small" className="text-ui-fg-subtle">
-            Missing design id
+            {t("partner.designs.missingId")}
           </Text>
         </Container>
       </SingleColumnPage>
@@ -303,9 +313,9 @@ export const DesignDetail = ({ designId }: DesignDetailProps = {}) => {
     return (
       <SingleColumnPage widgets={{ before: [], after: [] }} hasOutlet={false}>
         <Container className="p-6">
-          <Heading>Design</Heading>
+          <Heading>{t("partner.designs.design")}</Heading>
           <Text size="small" className="text-ui-fg-subtle">
-            Design not found
+            {t("partner.designs.notFound")}
           </Text>
         </Container>
       </SingleColumnPage>
@@ -318,16 +328,16 @@ export const DesignDetail = ({ designId }: DesignDetailProps = {}) => {
         {design && <DesignOwnerActionsSection design={design} />}
         <Container className="divide-y p-0">
           <div className="px-6 py-4">
-            <Heading level="h2">General</Heading>
+            <Heading level="h2">{t("partner.designs.detail.general")}</Heading>
           </div>
-          <SectionRow title="Name" value={design?.name || "-"} />
+          <SectionRow title={t("fields.name")} value={design?.name || "-"} />
           {/* Garment type (#938) — what the thing IS. Distinct from "Type"
               below, which says how original the work is. An inferred value is
               badged as provisional: a model's guess and a designer's decision
               must not look alike, because the guess is the one a human
               correction overwrites. */}
           <SectionRow
-            title="Garment type"
+            title={t("partner.designs.detail.garmentType")}
             value={
               (design as any)?.product_type ? (
                 <div className="flex items-center gap-x-2">
@@ -336,7 +346,7 @@ export const DesignDetail = ({ designId }: DesignDetailProps = {}) => {
                   </Badge>
                   {(design as any).product_type_source === "inferred" ? (
                     <Badge size="2xsmall" color="orange">
-                      Inferred
+                      {t("partner.designs.detail.inferred")}
                     </Badge>
                   ) : null}
                 </div>
@@ -346,41 +356,41 @@ export const DesignDetail = ({ designId }: DesignDetailProps = {}) => {
             }
           />
           <SectionRow
-            title="Type"
+            title={t("fields.type")}
             value={
               (design as any)?.design_type ? (
                 <Badge size="2xsmall" color="blue">
-                  {String((design as any).design_type)}
+                  {designTypeLabel(t, String((design as any).design_type))}
                 </Badge>
               ) : "-"
             }
           />
           <SectionRow
-            title="Status"
+            title={t("fields.status")}
             value={
               design?.status ? (
                 <Badge size="2xsmall" color={getStatusBadgeColor(design.status)}>
-                  {String(design.status)}
+                  {designStatusLabel(t, String(design.status))}
                 </Badge>
               ) : "-"
             }
           />
           <SectionRow
-            title="Partner status"
+            title={t("partner.designs.detail.partnerStatus")}
             value={
               design?.partner_info?.partner_status ? (
                 <Badge
                   size="2xsmall"
                   color={getStatusBadgeColor(design.partner_info.partner_status)}
                 >
-                  {String(design.partner_info.partner_status)}
+                  {workStatusLabel(t, String(design.partner_info.partner_status))}
                   {design.partner_info.partner_phase ? ` (${design.partner_info.partner_phase})` : ""}
                 </Badge>
               ) : "-"
             }
           />
           <SectionRow
-            title="Priority"
+            title={t("partner.designs.detail.priority")}
             value={
               (design as any)?.priority ? (
                 <Badge
@@ -391,17 +401,15 @@ export const DesignDetail = ({ designId }: DesignDetailProps = {}) => {
                     (design as any).priority === "medium" ? "blue" : "grey"
                   }
                 >
-                  {String((design as any).priority)}
+                  {priorityLabel(t, String((design as any).priority))}
                 </Badge>
               ) : "-"
             }
           />
           {(design as any)?.target_completion_date && (
             <SectionRow
-              title="Target date"
-              value={new Date((design as any).target_completion_date).toLocaleDateString("en-US", {
-                month: "short", day: "numeric", year: "numeric",
-              })}
+              title={t("partner.designs.detail.targetDate")}
+              value={getFullDate({ date: (design as any).target_completion_date })}
             />
           )}
           {/*
@@ -411,7 +419,7 @@ export const DesignDetail = ({ designId }: DesignDetailProps = {}) => {
           */}
           {(design as any)?.estimated_cost != null && (
             <SectionRow
-              title="Estimated cost"
+              title={t("partner.designs.detail.estimatedCost")}
               value={
                 <Text size="small" weight="plus">
                   {(design as any).cost_currency
@@ -428,7 +436,7 @@ export const DesignDetail = ({ designId }: DesignDetailProps = {}) => {
         {description && (
           <Container className="divide-y p-0">
             <div className="px-6 py-4">
-              <Heading level="h2">Description</Heading>
+              <Heading level="h2">{t("partner.designs.detail.description")}</Heading>
             </div>
             <div className="px-6 py-4">
               <Text size="small" className="text-ui-fg-subtle whitespace-pre-line">
@@ -444,11 +452,11 @@ export const DesignDetail = ({ designId }: DesignDetailProps = {}) => {
          colorPalette ? (
           <Container className="divide-y p-0">
             <div className="px-6 py-4">
-              <Heading level="h2">Specifications</Heading>
+              <Heading level="h2">{t("partner.designs.detail.specifications")}</Heading>
             </div>
             {Array.isArray((design as any)?.tags) && (design as any).tags.length > 0 && (
               <div className="px-6 py-4">
-                <Text size="xsmall" weight="plus" className="text-ui-fg-subtle mb-2">Tags</Text>
+                <Text size="xsmall" weight="plus" className="text-ui-fg-subtle mb-2">{t("partner.designs.detail.tags")}</Text>
                 <div className="flex flex-wrap gap-1.5">
                   {((design as any).tags as string[]).map((tag, i) => (
                     <Badge key={i} size="2xsmall" color="grey">{String(tag)}</Badge>
@@ -459,7 +467,7 @@ export const DesignDetail = ({ designId }: DesignDetailProps = {}) => {
             {sizes.length > 0 && (
               <div className="px-6 py-4">
                 <div className="flex items-center gap-x-2 mb-2">
-                  <Text size="xsmall" weight="plus" className="text-ui-fg-base">Sizes</Text>
+                  <Text size="xsmall" weight="plus" className="text-ui-fg-base">{t("partner.designs.sizes")}</Text>
                   <Badge size="2xsmall" color="blue">{sizes.length}</Badge>
                 </div>
                 {/* Highlighted so the sizes that come with this design stand out to the partner. */}
@@ -489,7 +497,7 @@ export const DesignDetail = ({ designId }: DesignDetailProps = {}) => {
             )}
             {colorPalette && (
               <div className="px-6 py-4">
-                <Text size="xsmall" weight="plus" className="text-ui-fg-subtle mb-2">Color Palette</Text>
+                <Text size="xsmall" weight="plus" className="text-ui-fg-subtle mb-2">{t("partner.designs.detail.colorPalette")}</Text>
                 <div className="flex flex-wrap gap-2">
                   {(Array.isArray(colorPalette) ? colorPalette : Object.entries(colorPalette).map(([k, v]) => ({ name: k, value: v }))).map((color: any, i: number) => {
                     const colorValue = typeof color === "string" ? color : color?.hex || color?.value || color?.code || String(color?.name || color)
@@ -527,13 +535,13 @@ export const DesignDetail = ({ designId }: DesignDetailProps = {}) => {
         {/* Inventory Items */}
         <Container className="divide-y p-0">
           <div className="px-6 py-4">
-            <Heading level="h2">Inventory Items</Heading>
+            <Heading level="h2">{t("partner.designs.detail.inventoryItems")}</Heading>
           </div>
 
           {inventoryItemRows.length === 0 ? (
             <div className="px-6 py-4">
               <Text size="small" className="text-ui-fg-subtle">
-                No inventory items linked to this design.
+                {t("partner.designs.detail.noInventoryItems")}
               </Text>
             </div>
           ) : (
@@ -556,12 +564,12 @@ export const DesignDetail = ({ designId }: DesignDetailProps = {}) => {
 
         <Container className="divide-y p-0">
           <div className="px-6 py-4">
-            <Heading level="h2">Designer Notes</Heading>
+            <Heading level="h2">{t("partner.designs.detail.designerNotes")}</Heading>
           </div>
           <div className="px-6 py-4">
             {!hasNotesContent ? (
               <Text size="small" className="text-ui-fg-subtle">
-                No notes
+                {t("partner.designs.detail.noNotes")}
               </Text>
             ) : (
               <div className="space-y-2">
@@ -569,7 +577,7 @@ export const DesignDetail = ({ designId }: DesignDetailProps = {}) => {
                   {notesBlocks.map((n, i) => renderBlock(n, i))}
                 </div>
                 <Text size="xsmall" className="text-ui-fg-muted">
-                  Drag the bottom edge to resize
+                  {t("partner.designs.detail.resizeHint")}
                 </Text>
               </div>
             )}
@@ -579,7 +587,7 @@ export const DesignDetail = ({ designId }: DesignDetailProps = {}) => {
         {specsValue && (
           <Container className="divide-y p-0">
             <div className="px-6 py-4">
-              <Heading level="h2">Specs</Heading>
+              <Heading level="h2">{t("partner.designs.detail.specs")}</Heading>
             </div>
             {typeof specsValue === "object" && !Array.isArray(specsValue) ? (
               Object.entries(specsValue as Record<string, any>).map(([key, value]) => (

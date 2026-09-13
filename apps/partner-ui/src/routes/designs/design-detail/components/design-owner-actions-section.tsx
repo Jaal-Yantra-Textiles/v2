@@ -1,5 +1,6 @@
 import { PencilSquare, PlaySolid, Plus, Trash } from "@medusajs/icons"
 import { Button, Container, Heading, Text, toast, usePrompt } from "@medusajs/ui"
+import { useTranslation } from "react-i18next"
 import { Link, useNavigate } from "react-router-dom"
 
 import { ActionMenu } from "../../../../components/common/action-menu"
@@ -21,6 +22,7 @@ type Props = { design: PartnerDesign }
  * admin-assigned designs stay read-only on the partner side.
  */
 export const DesignOwnerActionsSection = ({ design }: Props) => {
+  const { t } = useTranslation()
   const navigate = useNavigate()
   const prompt = usePrompt()
   const { mutateAsync } = useDeletePartnerDesign(design.id)
@@ -43,16 +45,18 @@ export const DesignOwnerActionsSection = ({ design }: Props) => {
 
   const handleDelete = async () => {
     const ok = await prompt({
-      title: "Delete design",
-      description: `Delete "${design.name ?? design.id}"? This can't be undone.`,
-      confirmText: "Delete",
-      cancelText: "Cancel",
+      title: t("partner.designs.ownerActions.deleteTitle"),
+      description: t("partner.designs.ownerActions.deleteDescription", {
+        name: design.name ?? design.id,
+      }),
+      confirmText: t("actions.delete"),
+      cancelText: t("actions.cancel"),
     })
     if (!ok) return
 
     await mutateAsync(undefined, {
       onSuccess: () => {
-        toast.success("Design deleted")
+        toast.success(t("partner.designs.ownerActions.deleted"))
         navigate("/designs", { replace: true })
       },
       onError: (e) => toast.error(e.message),
@@ -62,11 +66,13 @@ export const DesignOwnerActionsSection = ({ design }: Props) => {
   return (
     <Container className="flex flex-col gap-y-3 px-6 py-4 sm:flex-row sm:items-center sm:justify-between">
       <div>
-        <Heading level="h2">{design.name || "Your design"}</Heading>
+        <Heading level="h2">
+          {design.name || t("partner.designs.ownerActions.yourDesign")}
+        </Heading>
         <Text size="small" className="text-ui-fg-subtle">
           {hasActiveRun
-            ? `${activeRuns.length} design order${activeRuns.length > 1 ? "s" : ""} in progress. Create another or hand one to a sub-partner.`
-            : "You created this design. Create a design order to start production, or hand it to a sub-partner."}
+            ? t("partner.designs.ownerActions.activeOrders", { count: activeRuns.length })
+            : t("partner.designs.ownerActions.noOrders")}
         </Text>
       </div>
       <div className="flex items-center gap-x-2">
@@ -80,17 +86,21 @@ export const DesignOwnerActionsSection = ({ design }: Props) => {
             className="whitespace-nowrap"
           >
             {hasActiveRun ? <Plus /> : <PlaySolid />}
-            {hasActiveRun ? "New order" : "Create order"}
+            {hasActiveRun
+              ? t("partner.designs.ownerActions.newOrder")
+              : t("partner.designs.ownerActions.createOrder")}
           </Button>
         </Link>
         <ActionMenu
           groups={[
             {
-              actions: [{ label: "Edit", icon: <PencilSquare />, to: "edit" }],
+              actions: [
+                { label: t("actions.edit"), icon: <PencilSquare />, to: "edit" },
+              ],
             },
             {
               actions: [
-                { label: "Delete", icon: <Trash />, onClick: handleDelete },
+                { label: t("actions.delete"), icon: <Trash />, onClick: handleDelete },
               ],
             },
           ]}

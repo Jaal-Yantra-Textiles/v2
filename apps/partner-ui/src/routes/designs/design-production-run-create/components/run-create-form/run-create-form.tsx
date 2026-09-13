@@ -2,6 +2,7 @@ import { zodResolver } from "@hookform/resolvers/zod"
 import { z } from "@medusajs/framework/zod"
 import { Button, Heading, Input, Select, Text, toast } from "@medusajs/ui"
 import { useForm } from "react-hook-form"
+import { useTranslation } from "react-i18next"
 
 import { Form } from "../../../../../components/common/form"
 import { RouteFocusModal, useRouteModal } from "../../../../../components/modals"
@@ -27,6 +28,7 @@ type RunCreateSchema = z.infer<typeof RunCreateSchema>
 type Props = { designId: string }
 
 export const RunCreateForm = ({ designId }: Props) => {
+  const { t } = useTranslation()
   const { handleSuccess } = useRouteModal()
   const form = useForm<RunCreateSchema>({
     defaultValues: {
@@ -54,7 +56,7 @@ export const RunCreateForm = ({ designId }: Props) => {
       },
       {
         onSuccess: () => {
-          toast.success("Production started")
+          toast.success(t("partner.designs.runCreate.started"))
           handleSuccess()
         },
         onError: (e) => toast.error(e.message),
@@ -72,10 +74,9 @@ export const RunCreateForm = ({ designId }: Props) => {
         <RouteFocusModal.Body className="flex flex-1 flex-col items-center overflow-y-auto">
           <div className="flex w-full max-w-[640px] flex-col gap-y-8 px-2 py-16">
             <div className="flex flex-col gap-y-1">
-              <Heading>Create design order</Heading>
+              <Heading>{t("partner.designs.runCreate.heading")}</Heading>
               <Text size="small" className="text-ui-fg-subtle">
-                Start production for this design. The design order is approved
-                and ready to work immediately.
+                {t("partner.designs.runCreate.subtitle")}
               </Text>
             </div>
 
@@ -85,7 +86,7 @@ export const RunCreateForm = ({ designId }: Props) => {
                 name="quantity"
                 render={({ field }) => (
                   <Form.Item>
-                    <Form.Label>Quantity</Form.Label>
+                    <Form.Label>{t("partner.designs.runCreate.quantity")}</Form.Label>
                     <Form.Control>
                       <Input
                         type="number"
@@ -104,15 +105,19 @@ export const RunCreateForm = ({ designId }: Props) => {
                 name="run_type"
                 render={({ field }) => (
                   <Form.Item>
-                    <Form.Label optional>Run type</Form.Label>
+                    <Form.Label optional>{t("partner.designs.runCreate.runType")}</Form.Label>
                     <Form.Control>
                       <Select value={field.value} onValueChange={field.onChange}>
                         <Select.Trigger>
-                          <Select.Value placeholder="Select" />
+                          <Select.Value placeholder={t("general.select")} />
                         </Select.Trigger>
                         <Select.Content>
-                          <Select.Item value="production">Production</Select.Item>
-                          <Select.Item value="sample">Sample</Select.Item>
+                          <Select.Item value="production">
+                            {t("partner.designs.runCreate.production")}
+                          </Select.Item>
+                          <Select.Item value="sample">
+                            {t("partner.designs.runCreate.sample")}
+                          </Select.Item>
                         </Select.Content>
                       </Select>
                     </Form.Control>
@@ -126,26 +131,23 @@ export const RunCreateForm = ({ designId }: Props) => {
               name="execution_mode"
               render={({ field }) => (
                 <Form.Item>
-                  <Form.Label>How is it made?</Form.Label>
+                  <Form.Label>{t("partner.designs.runCreate.howMade")}</Form.Label>
                   <Form.Control>
                     <Select value={field.value} onValueChange={field.onChange}>
                       <Select.Trigger>
-                        <Select.Value placeholder="Select" />
+                        <Select.Value placeholder={t("general.select")} />
                       </Select.Trigger>
                       <Select.Content>
                         <Select.Item value="in_house">
-                          In-house (you make it)
+                          {t("partner.designs.runCreate.inHouse")}
                         </Select.Item>
                         <Select.Item value="outsourced">
-                          Outsourced (hand to a sub-partner)
+                          {t("partner.designs.runCreate.outsourced")}
                         </Select.Item>
                       </Select.Content>
                     </Select>
                   </Form.Control>
-                  <Form.Hint>
-                    In-house keeps the work with you; outsourced records the
-                    vendor for cost tracking.
-                  </Form.Hint>
+                  <Form.Hint>{t("partner.designs.runCreate.executionHint")}</Form.Hint>
                 </Form.Item>
               )}
             />
@@ -156,13 +158,11 @@ export const RunCreateForm = ({ designId }: Props) => {
                 name="sub_partner_id"
                 render={({ field }) => (
                   <Form.Item>
-                    <Form.Label>Sub-partner ID</Form.Label>
+                    <Form.Label>{t("partner.designs.runCreate.subPartnerId")}</Form.Label>
                     <Form.Control>
-                      <Input {...field} placeholder="partner_…" />
+                      <Input {...field} placeholder={t("partner.designs.runCreate.subPartnerPlaceholder")} />
                     </Form.Control>
-                    <Form.Hint>
-                      The partner you're handing this production to.
-                    </Form.Hint>
+                    <Form.Hint>{t("partner.designs.runCreate.subPartnerHint")}</Form.Hint>
                     <Form.ErrorMessage />
                   </Form.Item>
                 )}
@@ -174,11 +174,11 @@ export const RunCreateForm = ({ designId }: Props) => {
           <div className="flex items-center justify-end gap-x-2">
             <RouteFocusModal.Close asChild>
               <Button variant="secondary" size="small">
-                Cancel
+                {t("actions.cancel")}
               </Button>
             </RouteFocusModal.Close>
             <Button size="small" type="submit" isLoading={isPending}>
-              Create design order
+              {t("partner.designs.runCreate.createOrder")}
             </Button>
           </div>
         </RouteFocusModal.Footer>

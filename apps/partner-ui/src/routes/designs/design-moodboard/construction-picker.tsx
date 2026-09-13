@@ -1,5 +1,6 @@
 import { Badge, Button, FocusModal, Heading, Input, Label, Text, Textarea, toast } from "@medusajs/ui"
 import { useMemo, useState } from "react"
+import { useTranslation } from "react-i18next"
 
 import {
   useConstructionTechniques,
@@ -30,6 +31,7 @@ type Props = {
  * moodboard refreshes its construction glyph.
  */
 export const ConstructionPicker = ({ designId, open, onOpenChange, onAdded }: Props) => {
+  const { t } = useTranslation()
   const { data: catalog, isPending } = useConstructionTechniques(designId, {
     enabled: open && !!designId,
   })
@@ -101,12 +103,12 @@ export const ConstructionPicker = ({ designId, open, onOpenChange, onAdded }: Pr
         fabricRules: parseLines(rulesText).length ? parseLines(rulesText) : undefined,
         note: note.trim() || undefined,
       })
-      toast.success(`Added "${label.trim() || selected.label}"`)
+      toast.success(t("partner.designs.construction.added", { label: label.trim() || selected.label }))
       reset()
       onOpenChange(false)
       onAdded()
     } catch (err: any) {
-      toast.error(err?.message || "Failed to add construction detail")
+      toast.error(err?.message || t("partner.designs.construction.addFailed"))
     }
   }
 
@@ -122,13 +124,13 @@ export const ConstructionPicker = ({ designId, open, onOpenChange, onAdded }: Pr
     >
       <FocusModal.Content>
         <FocusModal.Header>
-          <Heading level="h2">Add construction detail</Heading>
+          <Heading level="h2">{t("partner.designs.construction.heading")}</Heading>
         </FocusModal.Header>
         <FocusModal.Body className="flex min-h-0 flex-1 overflow-hidden">
           {isPending ? (
             <div className="p-6">
               <Text size="small" className="text-ui-fg-subtle">
-                Loading techniques…
+                {t("partner.designs.construction.loading")}
               </Text>
             </div>
           ) : (
@@ -192,13 +194,12 @@ export const ConstructionPicker = ({ designId, open, onOpenChange, onAdded }: Pr
               <div className="w-1/2 min-h-0 overflow-y-auto p-6">
                 {!selected ? (
                   <Text size="small" className="text-ui-fg-subtle">
-                    Pick a technique or a preset on the left — its parameters and
-                    fabric rules auto-fill here.
+                    {t("partner.designs.construction.hint")}
                   </Text>
                 ) : (
                   <div className="flex flex-col gap-y-4">
                     <div className="flex flex-col gap-y-1">
-                      <Label size="small">Label</Label>
+                      <Label size="small">{t("partner.designs.construction.label")}</Label>
                       <Input
                         value={label}
                         onChange={(e) => setLabel(e.target.value)}
@@ -208,7 +209,7 @@ export const ConstructionPicker = ({ designId, open, onOpenChange, onAdded }: Pr
 
                     {selected.params.length ? (
                       <div className="flex flex-col gap-y-2">
-                        <Label size="small">Parameters</Label>
+                        <Label size="small">{t("partner.designs.construction.parameters")}</Label>
                         {selected.params.map((p) => (
                           <div key={p.key} className="flex items-center gap-x-3">
                             <Text size="small" className="w-32 shrink-0">
@@ -232,26 +233,26 @@ export const ConstructionPicker = ({ designId, open, onOpenChange, onAdded }: Pr
                       </div>
                     ) : (
                       <Text size="xsmall" className="text-ui-fg-muted">
-                        This technique has fixed geometry — no parameters to set.
+                        {t("partner.designs.construction.fixedGeometry")}
                       </Text>
                     )}
 
                     <div className="flex flex-col gap-y-1">
-                      <Label size="small">Fabric / sewing rules</Label>
+                      <Label size="small">{t("partner.designs.construction.fabricRules")}</Label>
                       <Textarea
                         rows={4}
                         value={rulesText}
                         onChange={(e) => setRulesText(e.target.value)}
-                        placeholder="one rule per line"
+                        placeholder={t("partner.designs.construction.oneRulePerLine")}
                       />
                     </div>
 
                     <div className="flex flex-col gap-y-1">
-                      <Label size="small">Note</Label>
+                      <Label size="small">{t("partner.designs.construction.note")}</Label>
                       <Input
                         value={note}
                         onChange={(e) => setNote(e.target.value)}
-                        placeholder="optional"
+                        placeholder={t("partner.designs.construction.optional")}
                       />
                     </div>
                   </div>
@@ -267,7 +268,7 @@ export const ConstructionPicker = ({ designId, open, onOpenChange, onAdded }: Pr
               variant="secondary"
               onClick={() => onOpenChange(false)}
             >
-              Cancel
+              {t("actions.cancel")}
             </Button>
             <Button
               size="small"
@@ -276,7 +277,7 @@ export const ConstructionPicker = ({ designId, open, onOpenChange, onAdded }: Pr
               disabled={!selected || isCreating}
               isLoading={isCreating}
             >
-              Add detail
+              {t("partner.designs.construction.addDetail")}
             </Button>
           </div>
         </FocusModal.Footer>
