@@ -65,7 +65,9 @@ export const InlineTaskCard = ({ task, linkBase }: { task: any; linkBase?: strin
 
   const handleFinishSkip = async () => {
     try {
-      await finishTask.mutateAsync()
+      // Explicit `undefined`: the mutation's variables argument is required
+      // by its inferred type, and the hook already sends `{}` for no payload.
+      await finishTask.mutateAsync(undefined)
       toast.success(`Task "${task.title}" finished`)
       setShowCostInput(false)
     } catch (e) {

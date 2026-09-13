@@ -104,7 +104,9 @@ export const CompleteRunForm = ({
   const [partnerEstimate, setPartnerEstimate] = useState("")
 
   // ── Step 3: Additional materials ──
-  const [showMaterialForm, setShowMaterialForm] = useState(false)
+  // Only the setter is used (the Select below opens the form); the value is
+  // never read, so it is not bound.
+  const [, setShowMaterialForm] = useState(false)
   const [consumptions, setConsumptions] = useState<ConsumptionEntry[]>([])
 
   const addConsumptionItem = (itemId: string) => {
