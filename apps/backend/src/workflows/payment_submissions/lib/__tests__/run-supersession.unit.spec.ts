@@ -73,14 +73,19 @@ describe("readSupersession (#2026)", () => {
 })
 
 describe("fetchRunSupersessions (#2026)", () => {
-  const container = (rows: any[], throws = false): any => ({
+  const container = (rows: any[], throws = false, orders: any[] = []): any => ({
     resolve: () => ({
-      graph: async ({ fields, filters }: any) => {
+      graph: async ({ entity, fields, filters }: any) => {
         if (throws) throw new Error("link read hiccup")
+        if (entity === "order") {
+          // The backref fallback: a second lookup by unified_order_id.
+          return { data: orders.filter((o) => filters.id.includes(o.id)) }
+        }
         // Guard the exact field set — reading `order_id` here instead of the
         // `order` LINK would silently read the COMMISSIONING order.
         expect(fields).toContain("order.status")
         expect(fields).toContain("order.metadata")
+        expect(fields).toContain("metadata")
         expect(fields).not.toContain("order_id")
         expect(filters.id.length).toBeGreaterThan(0)
         return { data: rows }
@@ -111,6 +116,61 @@ describe("fetchRunSupersessions (#2026)", () => {
 
   it("degrades to empty on a query failure rather than taking payables down", async () => {
     const map = await fetchRunSupersessions(container([], true), ["run_a"])
+    expect(map.size).toBe(0)
+  })
+  it("follows metadata.unified_order_id when the D5 link was never backfilled", async () => {
+    // The link is authoritative where it EXISTS. The backfill is an ops-run
+    // script, so a superseded run can still be link-less — and reading only the
+    // link would let it bill.
+    const map = await fetchRunSupersessions(
+      container(
+        [{ id: "run_unlinked", order: null, metadata: { unified_order_id: "order_legacy" } }],
+        false,
+        [
+          {
+            id: "order_legacy",
+            status: "canceled",
+            metadata: { superseded_by_run_ids: ["run_child"] },
+          },
+        ]
+      ),
+      ["run_unlinked"]
+    )
+    expect(map.get("run_unlinked")).toMatchObject({
+      reason: "superseded_run",
+      superseded_by_run_ids: ["run_child"],
+      mirror_order_id: "order_legacy",
+    })
+  })
+
+  it("does not follow the backref when the backref order is alive", async () => {
+    const map = await fetchRunSupersessions(
+      container(
+        [{ id: "run_x", order: null, metadata: { unified_order_id: "order_live" } }],
+        false,
+        [{ id: "order_live", status: "completed", metadata: {} }]
+      ),
+      ["run_x"]
+    )
+    expect(map.size).toBe(0)
+  })
+
+  it("prefers the LINK over the backref when both exist", async () => {
+    const map = await fetchRunSupersessions(
+      container(
+        [
+          {
+            id: "run_y",
+            order: { id: "order_linked", status: "completed", metadata: {} },
+            metadata: { unified_order_id: "order_stale" },
+          },
+        ],
+        false,
+        [{ id: "order_stale", status: "canceled", metadata: {} }]
+      ),
+      ["run_y"]
+    )
+    // The stale backref says canceled; the authoritative link says alive.
     expect(map.size).toBe(0)
   })
 })

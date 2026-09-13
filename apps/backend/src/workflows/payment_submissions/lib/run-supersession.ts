@@ -109,13 +109,56 @@ export async function fetchRunSupersessions(
       // `order` is the LINKED unified mirror order — not the `order_id` column,
       // which points at the commissioning customer order (see the admin
       // registry's order_id vs work_order_id warning).
-      fields: ["id", "order.id", "order.status", "order.metadata"],
+      //
+      // `metadata` is the run's own, for the backref fallback below.
+      fields: ["id", "metadata", "order.id", "order.status", "order.metadata"],
       filters: { id: runIds },
     })
 
-    for (const row of (data || []) as any[]) {
+    const rows = (data || []) as any[]
+    for (const row of rows) {
       const verdict = readSupersession(row?.order)
       if (verdict && row?.id) out.set(String(row.id), verdict)
+    }
+
+    /**
+     * 🔴 The D5 link is not universally populated, so the link alone is not
+     * enough to conclude "no mirror order".
+     *
+     * The order↔production_run link is authoritative where it exists, but the
+     * script that backfills it from the older `metadata.unified_order_id`
+     * backref — `scripts/backfill-unified-order-links.ts` — is an ops-run
+     * `medusa exec`, not a migration and not a registered maintenance job, so
+     * there is no way to assert it has run against a given database.
+     *
+     * Every other run path that resolves a mirror order carries this same
+     * fallback (`resolveUnifiedOrderIdByLink`, and four call sites besides).
+     * Reading only the link here would mean a superseded run whose link was
+     * never backfilled comes back with no mirror order and — by this module's
+     * own conservative default — bills anyway. That is the precise failure this
+     * guard exists to stop, so it must follow the backref too.
+     */
+    const unlinked = rows.filter((r) => !r?.order?.id && r?.metadata?.unified_order_id)
+    if (unlinked.length) {
+      const byOrderId = new Map<string, string[]>()
+      for (const r of unlinked) {
+        const oid = String(r.metadata.unified_order_id)
+        byOrderId.set(oid, [...(byOrderId.get(oid) ?? []), String(r.id)])
+      }
+
+      const { data: orders } = await query.graph({
+        entity: "order",
+        fields: ["id", "status", "metadata"],
+        filters: { id: [...byOrderId.keys()] },
+      })
+
+      for (const order of (orders || []) as any[]) {
+        const verdict = readSupersession(order)
+        if (!verdict) continue
+        for (const runId of byOrderId.get(String(order.id)) ?? []) {
+          out.set(runId, verdict)
+        }
+      }
     }
   } catch {
     return new Map()
