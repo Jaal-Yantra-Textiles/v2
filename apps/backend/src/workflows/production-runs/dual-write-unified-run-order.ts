@@ -20,6 +20,8 @@ import {
   resolveUnifiedOrderIdByLink,
   linkUnifiedOrderOrRollback,
   setUnifiedOrderPartnerStatus,
+  setUnifiedOrderKind,
+  readIsCollated,
 } from "../inventory_orders/dual-write-unified-order"
 import { pickDefaultCurrency } from "../../lib/resolve-store-currency"
 import {
@@ -313,6 +315,20 @@ export const projectRunToUnifiedOrder = async (
       }
     }
 
+    /**
+     * #2029 item 4 — a per-run mirror says so EXPLICITLY.
+     *
+     * "Absent means per-run" is how this fact went wrong in the first place. A
+     * row that states `per_run` is the difference between "this is a one-run
+     * order" and "nobody has told me" — and only the second should fall back to
+     * the metadata blob.
+     */
+    await setUnifiedOrderKind(container, unified.id, "per_run").catch((e: any) =>
+      logger.warn(
+        `[orders-unification] sidecar kind write failed for ${unified.id}: ${e?.message}`
+      )
+    )
+
     // Chunk 9b (PR-F) — when the projection derived a partner_status (the run is
     // born at/past sent_to_partner), also write the typed sidecar column. This
     // single-shot create path establishes the sidecar row before any concurrent
@@ -596,6 +612,21 @@ export const collateRunsIntoWorkOrder = async (
         }
       })
   }
+
+  /**
+   * #2029 item 4 — the KIND, written unconditionally.
+   *
+   * Deliberately NOT inside the `if (partnerStatus)` below. This order IS
+   * collated whatever its runs' statuses say, and an order whose runs were all
+   * declined derives no partner_status at all — which is precisely the order
+   * that would otherwise be left with no typed kind and render to the partner
+   * as a single-design job.
+   */
+  await setUnifiedOrderKind(container, unified.id, "collated").catch((e: any) =>
+    logger.warn(
+      `[orders-unification] collated sidecar kind write failed for ${unified.id}: ${e?.message}`
+    )
+  )
 
   // Aggregate partner_status onto the sidecar column (best-effort).
   const partnerStatus = aggregatePartnerStatus(runs)
@@ -914,6 +945,14 @@ export const joinRunsIntoWorkOrder = async (
       production_run_ids: allRunIds,
     },
   })
+
+  // #2029 item 4 — joining PROMOTES the mirror to a collated work-order, so the
+  // typed kind moves with it. Unconditional, for the same reason as above.
+  await setUnifiedOrderKind(container, orderId, "collated").catch((e: any) =>
+    logger.warn(
+      `[orders-unification] joined sidecar kind write failed for ${orderId}: ${e?.message}`
+    )
+  )
 
   const partnerStatus = aggregatePartnerStatus(allRuns)
   if (partnerStatus) {

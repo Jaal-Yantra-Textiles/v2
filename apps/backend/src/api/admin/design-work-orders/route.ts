@@ -1,7 +1,10 @@
 import { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
 import { ContainerRegistrationKeys, Modules } from "@medusajs/framework/utils"
 
-import { PARTNER_WORK_ORDERS_CHANNEL } from "../../../workflows/inventory_orders/dual-write-unified-order"
+import {
+  PARTNER_WORK_ORDERS_CHANNEL,
+  readIsCollated,
+} from "../../../workflows/inventory_orders/dual-write-unified-order"
 import { PARTNER_MODULE } from "../../../modules/partner"
 
 /**
@@ -75,12 +78,16 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
       "production_runs.finished_at",
       "production_runs.completed_at",
       "unified_order_status.partner_status",
+      // #2029 item 4 — the typed kind, one hop, alongside the status sidecar.
+      "unified_order_kind.kind",
     ],
     filters: { sales_channel_id: channel.id },
   })
 
   const collated = (orders || []).filter((o: any) => {
-    if (o?.metadata?.collated_design_order !== true) return false
+    // #2029 item 4 — typed kind decides; the blob answers only for orders
+    // written before the sidecar existed.
+    if (!readIsCollated(o)) return false
     // 🔴 Emptiness is tested on the VISIBLE runs, so an order whose every run
     // was cancelled drops out of the list entirely rather than rendering as a
     // work-order with no designs in it.
