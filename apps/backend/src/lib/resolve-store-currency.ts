@@ -97,3 +97,105 @@ export async function resolveStoreCurrency(
     return fallback.toLowerCase()
   }
 }
+
+/* -------------------------------------------------------------------------- *
+ * Storefront (publishable-key) currency resolution
+ * -------------------------------------------------------------------------- */
+
+/**
+ * Minimal shape of a store row as needed to pick the storefront's currency.
+ * `default_sales_channel_id` is a scalar column on the core Store model;
+ * `supported_currencies` is a hasMany and must be requested explicitly — a
+ * `fields: ["*"]` selection does NOT expand it, which is why this module runs
+ * its own query instead of reusing `getStoreFromPublishableKey`.
+ */
+export type StorefrontStoreShape = StoreCurrencyShape & {
+  id?: string | null
+  default_sales_channel_id?: string | null
+}
+
+/**
+ * PURE: the store's default currency, or `null` when the store cannot name one.
+ *
+ * Deliberately NOT `pickDefaultCurrency`, which always hands back a fallback.
+ * On a money path "I don't know" must stay distinguishable from a currency, so
+ * this one returns null — and it treats a blank code as absent, because `""`
+ * survives a `??` guard and would otherwise denominate a price as nothing.
+ */
+export function pickStorefrontCurrency(
+  store: StoreCurrencyShape | null | undefined
+): string | null {
+  const code = store?.supported_currencies?.find((c) => c?.is_default)
+    ?.currency_code
+  const trimmed = typeof code === "string" ? code.trim() : ""
+  return trimmed ? trimmed.toLowerCase() : null
+}
+
+/**
+ * PURE: the store the publishable key speaks for — the one whose DEFAULT sales
+ * channel the key grants.
+ *
+ * Returns null when the key grants no channel, when no store claims one, **and
+ * when more than one store claims one**. Two stores sharing a default channel
+ * is a data fault, and answering it with `stores[0]` is precisely the selector
+ * bug this function exists to remove: it would be right for whichever row came
+ * back first and silently wrong for the rest.
+ */
+export function pickStoreForSalesChannels<T extends StorefrontStoreShape>(
+  stores: T[] | null | undefined,
+  salesChannelIds: string[] | null | undefined
+): T | null {
+  const granted = new Set((salesChannelIds ?? []).filter(Boolean))
+  if (!granted.size) return null
+  const matches = (stores ?? []).filter(
+    (s) => s?.default_sales_channel_id && granted.has(s.default_sales_channel_id)
+  )
+  return matches.length === 1 ? matches[0] : null
+}
+
+/**
+ * Resolve the base currency of the storefront making this request.
+ *
+ * 🔴 Replaces the `stores[0]` pattern on the public design estimate/checkout
+ * routes. The deployment runs 14 stores; `stores[0]` is the platform store
+ * (EUR) while most partner storefronts are INR, so every partner storefront's
+ * cost estimate was denominated EUR and then converted EUR→INR at the till —
+ * inflating the price by the exchange rate, roughly 100x.
+ *
+ * The publishable key is the tenant signal: `/store/*` cannot be reached
+ * without a valid one (the framework's `ensurePublishableApiKeyMiddleware` runs
+ * for the whole namespace), so `req.publishable_key_context` is always present
+ * in a handler.
+ *
+ * Returns **null** rather than a fallback literal. A caller on a money path
+ * must refuse; inventing a denomination is how the two routes came to disagree
+ * by ~100x in the first place (one defaulted "eur", the other "inr").
+ */
+export async function resolveStorefrontCurrency(
+  container: any,
+  publishableKeyContext: { sales_channel_ids?: string[] | null } | null | undefined
+): Promise<string | null> {
+  const salesChannelIds = publishableKeyContext?.sales_channel_ids
+  if (!salesChannelIds?.length) return null
+
+  try {
+    const query: any = container.resolve(ContainerRegistrationKeys.QUERY)
+    const { data: stores } = await query.graph({
+      entity: "store",
+      filters: { default_sales_channel_id: salesChannelIds },
+      fields: [
+        "id",
+        "default_sales_channel_id",
+        "supported_currencies.currency_code",
+        "supported_currencies.is_default",
+      ],
+    })
+    return pickStorefrontCurrency(
+      pickStoreForSalesChannels(stores as StorefrontStoreShape[], salesChannelIds)
+    )
+  } catch {
+    // An unresolvable store is not a cheap store. Say "unknown" and let the
+    // caller refuse.
+    return null
+  }
+}
