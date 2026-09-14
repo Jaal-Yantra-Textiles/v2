@@ -7,8 +7,20 @@
  * - Triggering production runs when an order containing a custom design is placed
  * - Tracking which variants were created from which designs
  *
- * Unlike product-design-link (many-to-many at product level),
- * this is a one-to-one link at the variant level for custom designs.
+ * Unlike product-design-link (many-to-many at product level), a VARIANT has
+ * exactly one design — but a design may back MANY variants.
+ *
+ * 🔴 Both sides used to be `isList: false`, which made the second variant for a
+ * design THROW at write time. A design with sizes S/M/L, or two colourways,
+ * simply could not be represented: the minter created one variant and the rest
+ * were unrepresentable. #1874
+ *
+ * That constraint was also load-bearing by accident. Every reader took
+ * `design_product_variant[0]` and was correct only because the table could not
+ * hold a second row. Opening this up turns each of those into a lottery, so the
+ * readers that decide where physical goods go now refuse when a design has more
+ * than one variant and nothing says which was made — see
+ * `lib/run-variant.ts#pickDesignVariant`.
  */
 import { defineLink } from "@medusajs/framework/utils";
 import ProductModule from "@medusajs/medusa/product";
@@ -21,7 +33,10 @@ export default defineLink(
   },
   {
     linkable: ProductModule.linkable.productVariant,
-    isList: false, // One variant per design (for custom products)
+    // A design backs many variants (sizes, colourways). The design side stays
+    // `isList: false`: a variant is still made from exactly one design.
+    isList: true,
+    field: "product_variants",
   },
   {
     database: {

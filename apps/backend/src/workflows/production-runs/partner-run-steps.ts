@@ -25,6 +25,7 @@ import {
   type PartnerLocationFailure,
   type ResolvePartnerLocationResult,
 } from "./lib/partner-location"
+import { resolveRunVariant } from "./lib/run-variant"
 
 export {
   pickPartnerLocation,
@@ -393,30 +394,41 @@ export const stockFinishedGoodsStep = createStep(
       return new StepResponse({ stocked: false }, null as StockRollbackData)
     }
 
-    // The run's own variant wins; the design lookup is the fallback for the runs
-    // that predate it (16 of 131 carry the column today).
-    let variantId: string | undefined = input.variant_id ?? undefined
-
-    if (!variantId) {
-      const { data: designVariants } = await query.graph({
-        entity: "design_product_variant",
-        filters: { design_id: input.design_id },
-        fields: ["product_variant_id"],
-      })
-      variantId = designVariants?.[0]?.product_variant_id
-    }
-
-    if (!variantId) {
-      return new StepResponse({ stocked: false }, null as StockRollbackData)
-    }
-
-    const { data: variantInventory } = await query.graph({
-      entity: "product_variant_inventory_item",
-      filters: { variant_id: variantId },
-      fields: ["inventory_item_id"],
+    /**
+     * What did this run actually make? Shared with `receive-goods-transfer`,
+     * which asks the identical question at the far end of a hop — see
+     * `lib/run-variant.ts` for why one copy matters. #2057
+     */
+    const variantResult = await resolveRunVariant(container, {
+      variant_id: input.variant_id,
+      design_id: input.design_id,
     })
 
-    const inventoryItemId = variantInventory?.[0]?.inventory_item_id
+    /**
+     * 🔴 The design has several variants and nothing says which was produced.
+     *
+     * `design_product_variant[0]` used to answer this, and was safe only
+     * because the link refused a second row. Now that a design can carry sizes
+     * and colourways, taking the first banks every customer's goods onto
+     * whichever variant the database returned first — a Small recorded as a
+     * Large, with nothing to show for it afterwards. The run's own `variant_id`
+     * is the only thing that can answer this; its absence is a refusal.
+     */
+    if (variantResult.reason === "ambiguous_design_variants") {
+      throw new MedusaError(
+        MedusaError.Types.NOT_ALLOWED,
+        `Cannot complete production run ${input.production_run_id}: design ` +
+          `${input.design_id} has ${variantResult.candidate_variant_ids?.length} variants ` +
+          `(${variantResult.candidate_variant_ids?.join(", ")}) and the run does not say which ` +
+          `one it produced. Set the run's variant_id, then complete it again.`
+      )
+    }
+
+    /**
+     * Nothing to bank onto — the design has no product yet, or the variant has
+     * no inventory item. Both are legitimate states, not failures.
+     */
+    const inventoryItemId = variantResult.inventory_item_id
     if (!inventoryItemId) {
       return new StepResponse({ stocked: false }, null as StockRollbackData)
     }
@@ -500,7 +512,7 @@ export const stockFinishedGoodsStep = createStep(
             { lineItemId: i.id, variantId: i.variant_id, metadata: i.metadata }
           )
           if (itemDesignId !== input.design_id) continue
-          if (i.variant_id === variantId) {
+          if (i.variant_id === variantResult.variant_id) {
             designItem = i
             break
           }

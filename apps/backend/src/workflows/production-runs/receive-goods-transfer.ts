@@ -14,6 +14,7 @@ import type { MedusaContainer } from "@medusajs/framework/types"
 import { FULLFILLED_ORDERS_MODULE } from "../../modules/fullfilled_orders"
 import { PRODUCTION_RUNS_MODULE } from "../../modules/production_runs"
 import productionRunReservationsLink from "../../links/production-run-reservations-link"
+import { resolveRunVariant } from "./lib/run-variant"
 
 /**
  * #891 S3 — receiving a goods transfer is what actually moves the inventory.
@@ -172,27 +173,22 @@ async function resolveRunInventoryItem(
   container: MedusaContainer,
   run: { variant_id?: string | null; design_id?: string | null }
 ): Promise<string | undefined> {
-  const query: any = container.resolve(ContainerRegistrationKeys.QUERY)
-
-  // Same resolution order as `stockFinishedGoodsStep` — the run's own variant
-  // wins, the design lookup is the fallback for runs that predate the column.
-  let variantId: string | undefined = run.variant_id ?? undefined
-  if (!variantId && run.design_id) {
-    const { data } = await query.graph({
-      entity: "design_product_variant",
-      filters: { design_id: run.design_id },
-      fields: ["product_variant_id"],
-    })
-    variantId = data?.[0]?.product_variant_id
-  }
-  if (!variantId) return undefined
-
-  const { data: variantInventory } = await query.graph({
-    entity: "product_variant_inventory_item",
-    filters: { variant_id: variantId },
-    fields: ["inventory_item_id"],
+  /**
+   * 🔴 Was a verbatim second copy of `stockFinishedGoodsStep`'s resolution —
+   * run's variant wins, else `design_product_variant[0]`, then variant →
+   * inventory item. Two copies of "what did this run make" is how the two ends
+   * of a goods movement come to credit different products.
+   *
+   * `undefined` covers both "no variant yet" and "the design has several and
+   * nothing says which" — the caller credits nothing either way, which is the
+   * safe outcome here: a hop that cannot name the product must not invent one.
+   * See `lib/run-variant.ts`. #2057
+   */
+  const resolved = await resolveRunVariant(container, {
+    variant_id: run.variant_id,
+    design_id: run.design_id,
   })
-  return variantInventory?.[0]?.inventory_item_id
+  return resolved.inventory_item_id
 }
 
 /**
