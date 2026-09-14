@@ -120,6 +120,20 @@ type CreateProductFromDesignInput = {
    * a catalogue product for the core store and that behaviour is unchanged.
    */
   sales_channel_id?: string | null;
+
+  /**
+   * 🔑 #2030 item 3 — the size THIS mint is for, when the caller knows it
+   * better than the design does.
+   *
+   * `approve-run-output` is the case. A design can state S and M, which is
+   * genuinely ambiguous and makes the design-level rule abstain — but the RUN
+   * being approved made exactly one of them, and its snapshot says which.
+   * Order 89 is precisely this: design says [S, M], its run says [M].
+   *
+   * Wins over the design's own size_sets when set. A blank string is not an
+   * answer and falls back, rather than minting `CUSTOM-<id>-`.
+   */
+  size_label?: string | null;
 };
 
 type CreateProductFromDesignOutput = {
@@ -206,12 +220,50 @@ export const resolveDesignSizeLabel = (design: {
   return labels.length === 1 ? labels[0] : null
 }
 
-export const designProductNaming = (design: {
-  id: string
-  name?: string | null
-  design_type?: string | null
-  size_sets?: ReadonlyArray<{ size_label?: string | null } | null> | null
-}): {
+/**
+ * PURE: the ONE size a BATCH of runs agrees on, or null.
+ *
+ * `approve-run-output` mints per DESIGN, not per run — several completed runs
+ * of one design are approved together — so "the run's size" has to be resolved
+ * across all of them.
+ *
+ * A run that does not state a single size contributes NOTHING rather than
+ * blocking the others. That is deliberately the same rule
+ * `backfill-parent-run-produced-quantity` (#1877) settled on: a child that
+ * never reported output contributes nothing, instead of having what it was
+ * ASKED to make promoted into a record of what it DID make.
+ *
+ * Two runs that disagree abstain, because a product cannot be both.
+ */
+export const resolveRunsSizeLabel = (
+  runs: ReadonlyArray<{ snapshot?: unknown } | null> | null | undefined
+): string | null => {
+  const labels = new Set<string>()
+
+  for (const run of runs ?? []) {
+    const snapshot = (run?.snapshot ?? {}) as {
+      size_sets?: ReadonlyArray<{ size_label?: string | null } | null> | null
+    }
+    const label = resolveDesignSizeLabel(snapshot)
+    if (label) labels.add(label)
+  }
+
+  return labels.size === 1 ? [...labels][0] : null
+}
+
+export const designProductNaming = (
+  design: {
+    id: string
+    name?: string | null
+    design_type?: string | null
+    size_sets?: ReadonlyArray<{ size_label?: string | null } | null> | null
+  },
+  /**
+   * The caller's size, when it has better information than the design — see
+   * `size_label` on the workflow input. Blank is not an answer.
+   */
+  sizeLabelOverride?: string | null
+): {
   title: string
   optionTitle: string
   optionValue: string
@@ -220,7 +272,8 @@ export const designProductNaming = (design: {
   sizeLabel: string | null
 } => {
   const optionValue = designOptionValue(design)
-  const sizeLabel = resolveDesignSizeLabel(design)
+  const override = String(sizeLabelOverride ?? "").trim()
+  const sizeLabel = override || resolveDesignSizeLabel(design)
 
   return {
     title: optionValue,
@@ -421,7 +474,7 @@ const createProductAndVariantStep = createStep(
         // Same rule as the new-product branch: when the design names exactly
         // one size, the variant says so. Display only here — this sku keeps the
         // Date.now() uniqueness suffix it already had.
-        title: designProductNaming(design).variantTitle,
+        title: designProductNaming(design, input.size_label).variantTitle,
         sku: `CUSTOM-${design.id}-${Date.now()}`,
         manage_inventory: manageInventory,
         options: variantOptions,
@@ -481,7 +534,7 @@ const createProductAndVariantStep = createStep(
       // it, so a product created here and then appended to by a second design
       // ended up with an option list of ["Custom", "<other design>"] — the
       // first variant named after nothing in particular.
-      const naming = designProductNaming(design)
+      const naming = designProductNaming(design, input.size_label)
 
       const productInput = {
         // The design's own name, not "Custom Design - <name>". The prefix said

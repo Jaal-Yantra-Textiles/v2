@@ -113,6 +113,40 @@ title and sku, which adds no option and no second variant.
 
 ---
 
+## When a RUN is being approved, the run wins
+
+`approve-run-output` mints through the same workflow, but it knows something the
+design does not: **which size the work actually produced.** Each run snapshots
+its own `size_sets` at the moment the work was commissioned.
+
+Order 89 is exactly this shape:
+
+| Source | Says | Usable? |
+|---|---|---|
+| The design | `S` and `M` | ❌ ambiguous — abstains |
+| The runs that made it | `M`, `M` | ✅ **M** |
+
+So the run door passes `size_label` into the mint, and it beats the design's own
+size_sets. The rule across a batch (`resolveRunsSizeLabel`), because approval
+mints per **design** and several runs are approved together:
+
+| Runs in the batch | Result |
+|---|---|
+| `[M]`, `[M]` | **M** |
+| `[M]`, `[S]` | `null` — a product cannot be both |
+| `[M]`, `[S, M]` | **M** — a run that names no single size contributes nothing |
+| `[S, M]`, `[]` | `null` |
+
+:::tip A run that says nothing is not a veto
+A run whose snapshot names no single size contributes **nothing** rather than
+blocking its siblings. That is deliberately the same rule
+`backfill-parent-run-produced-quantity` (#1877) settled on: a child that never
+reported output contributes nothing, instead of having what it was *asked* to
+make promoted into a record of what it *did* make.
+:::
+
+---
+
 ## The defect this guide came from
 
 **Reproduced on production, 2026-09-14, in a clean room** — no order, no
