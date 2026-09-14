@@ -1,4 +1,5 @@
 import {
+  classifyExtraPartnerRegionLinks,
   getMaintenanceJob,
   missingPartnerRegionPairs,
   propagateRegionsToAllPartnersJob,
@@ -153,5 +154,138 @@ describe("propagate-regions-to-all-partners", () => {
     )
     expect(res.changes).toHaveLength(1)
     expect(res.changes[0].after).toEqual({ partner_id: "p2", region_id: "r1" })
+  })
+})
+
+/**
+ * The other direction: a region with MORE links than live partners.
+ *
+ * 🔴 `Europe reports 31/30` prompted this, and the likeliest answer is that it
+ * is not a defect. `deletePartnerWorkflow` SOFT-deletes, so a deleted partner
+ * keeps its `partner_region` row — and any count of links against LIVE partners
+ * overshoots by one per deleted partner. Correct history, read as a fault.
+ */
+describe("classifyExtraPartnerRegionLinks (#2062)", () => {
+  it("says nothing when every link belongs to a live partner", () => {
+    expect(
+      classifyExtraPartnerRegionLinks(
+        [{ partner_id: "p1", region_id: "r1" }],
+        ["p1"],
+        []
+      )
+    ).toEqual([])
+  })
+
+  /** The Europe 31/30 hypothesis, stated as a test. */
+  it("attributes a surplus link to a SOFT-DELETED partner, not a fault", () => {
+    expect(
+      classifyExtraPartnerRegionLinks(
+        [
+          { partner_id: "p_live", region_id: "r_eu" },
+          { partner_id: "p_gone", region_id: "r_eu" },
+        ],
+        ["p_live"],
+        ["p_gone"]
+      )
+    ).toEqual([{ partner_id: "p_gone", region_id: "r_eu", kind: "deleted_partner" }])
+  })
+
+  it("separates a genuinely dangling link from a deleted one", () => {
+    expect(
+      classifyExtraPartnerRegionLinks(
+        [{ partner_id: "p_ghost", region_id: "r1" }],
+        ["p_live"],
+        ["p_gone"]
+      )
+    ).toEqual([{ partner_id: "p_ghost", region_id: "r1", kind: "unknown_partner" }])
+  })
+
+  it("flags a duplicate row for a pair that is already linked", () => {
+    const out = classifyExtraPartnerRegionLinks(
+      [
+        { partner_id: "p1", region_id: "r1" },
+        { partner_id: "p1", region_id: "r1" },
+      ],
+      ["p1"],
+      []
+    )
+    expect(out).toEqual([{ partner_id: "p1", region_id: "r1", kind: "duplicate" }])
+  })
+
+  /**
+   * A duplicate row for a DELETED partner is still a duplicate — the first row
+   * is already accounted for, so the second is surplus regardless of who owns it.
+   */
+  it("calls the second row of a deleted partner a duplicate, not a second deletion", () => {
+    const out = classifyExtraPartnerRegionLinks(
+      [
+        { partner_id: "p_gone", region_id: "r1" },
+        { partner_id: "p_gone", region_id: "r1" },
+      ],
+      [],
+      ["p_gone"]
+    )
+    expect(out.map((x) => x.kind)).toEqual(["deleted_partner", "duplicate"])
+  })
+
+  it("ignores malformed rows", () => {
+    expect(
+      classifyExtraPartnerRegionLinks(
+        [{ partner_id: null, region_id: "r1" }, { partner_id: "p1", region_id: null }],
+        [],
+        []
+      )
+    ).toEqual([])
+  })
+})
+
+describe("propagate-regions-to-all-partners — surplus link reporting", () => {
+  const makeContainer = (opts: any) => ({
+    resolve: () => ({
+      graph: async (args: any) => {
+        if (args.entity === "region") return { data: opts.regions ?? [] }
+        if (args.entity === "partners") {
+          return { data: args.withDeleted ? opts.allPartners ?? [] : opts.partners ?? [] }
+        }
+        return { data: opts.links ?? [] }
+      },
+    }),
+  })
+
+  it("explains a 31/30 as a deleted partner rather than reporting a fault", async () => {
+    const res = await propagateRegionsToAllPartnersJob.run(
+      makeContainer({
+        regions: [{ id: "r_eu", name: "Europe" }],
+        partners: [{ id: "p_live", name: "Sharlho" }],
+        allPartners: [
+          { id: "p_live", name: "Sharlho", deleted_at: null },
+          { id: "p_gone", name: "Old Partner", deleted_at: "2026-01-01" },
+        ],
+        links: [
+          { partner_id: "p_live", region_id: "r_eu" },
+          { partner_id: "p_gone", region_id: "r_eu" },
+        ],
+      }),
+      { dry_run: true, params: {} }
+    )
+    expect(res.summary).toMatch(/1 surplus link\(s\)/)
+    expect(res.summary).toMatch(/1 deleted_partner/)
+    expect(res.summary).toMatch(/Reported only; nothing is removed/)
+    const extra = res.changes.find((c) => c.field === "extra_link")
+    expect(extra?.note).toMatch(/correct history, not a fault/)
+  })
+
+  it("says nothing about surplus when there is none", async () => {
+    const res = await propagateRegionsToAllPartnersJob.run(
+      makeContainer({
+        regions: [{ id: "r1", name: "India" }],
+        partners: [{ id: "p1", name: "A" }],
+        allPartners: [{ id: "p1", name: "A", deleted_at: null }],
+        links: [{ partner_id: "p1", region_id: "r1" }],
+      }),
+      { dry_run: true, params: {} }
+    )
+    expect(res.summary).not.toMatch(/surplus/)
+    expect(res.changes.filter((c) => c.field === "extra_link")).toHaveLength(0)
   })
 })

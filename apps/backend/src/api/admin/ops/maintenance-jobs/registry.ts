@@ -6224,6 +6224,65 @@ export const backfillPartnerStockLocationsJob: MaintenanceJob = {
 // #2062 — regions that never reached the partners created after them
 // ---------------------------------------------------------------------------
 
+
+/**
+ * PURE: why a region has MORE partner links than there are live partners.
+ *
+ * 🔴 `Europe reports 31/30` is what prompted this, and the likeliest answer is
+ * that it is not a defect at all. `deletePartnerWorkflow` SOFT-deletes: the
+ * partner row stays with `deleted_at` set, and its `partner_region` link stays
+ * with it. Any count of link rows against LIVE partners therefore overshoots by
+ * one per deleted partner — a correct history read as a fault.
+ *
+ * The three causes are genuinely different and must not be collapsed:
+ *  - `deleted_partner` — correct history. Leave it alone.
+ *  - `duplicate` — two rows for the same pair. A real fault.
+ *  - `unknown_partner` — a link to a partner id that does not exist at all,
+ *    even including deleted ones. A real fault, and a different one.
+ *
+ * Reported, never removed. Deleting link rows on a guess is how history is
+ * lost; whoever reads this decides.
+ */
+export function classifyExtraPartnerRegionLinks(
+  links: Array<{ partner_id?: string | null; region_id?: string | null }>,
+  livePartnerIds: string[],
+  deletedPartnerIds: string[] = []
+): Array<{
+  partner_id: string
+  region_id: string
+  kind: "duplicate" | "deleted_partner" | "unknown_partner"
+}> {
+  const live = new Set(livePartnerIds)
+  const deleted = new Set(deletedPartnerIds)
+  const seen = new Set<string>()
+  const out: Array<{
+    partner_id: string
+    region_id: string
+    kind: "duplicate" | "deleted_partner" | "unknown_partner"
+  }> = []
+
+  for (const l of links ?? []) {
+    const partnerId = l?.partner_id
+    const regionId = l?.region_id
+    if (!partnerId || !regionId) continue
+
+    const key = `${partnerId}::${regionId}`
+    if (seen.has(key)) {
+      out.push({ partner_id: partnerId, region_id: regionId, kind: "duplicate" })
+      continue
+    }
+    seen.add(key)
+
+    if (live.has(partnerId)) continue
+    out.push({
+      partner_id: partnerId,
+      region_id: regionId,
+      kind: deleted.has(partnerId) ? "deleted_partner" : "unknown_partner",
+    })
+  }
+  return out
+}
+
 const propagateRegionsParamsSchema = z.object({
   region_ids: z.string().trim().optional(),
   partner_ids: z.string().trim().optional(),
@@ -6284,10 +6343,20 @@ export const propagateRegionsToAllPartnersJob: MaintenanceJob = {
     const changes: MaintenanceChange[] = []
     const errors: Array<{ id: string; message: string }> = []
 
-    const [{ data: regions }, { data: partners }] = await Promise.all([
-      query.graph({ entity: "region", fields: ["id", "name", "created_at"] }),
-      query.graph({ entity: "partners", fields: ["id", "name"] }),
-    ])
+    const [{ data: regions }, { data: partners }, { data: allPartners }] =
+      await Promise.all([
+        query.graph({ entity: "region", fields: ["id", "name", "created_at"] }),
+        query.graph({ entity: "partners", fields: ["id", "name"] }),
+        /**
+         * Deleted ones too. `deletePartnerWorkflow` SOFT-deletes, so a deleted
+         * partner keeps its partner_region rows — which is why a link count can
+         * legitimately exceed the live partner count. Without this read, that
+         * surplus is indistinguishable from a duplicated or dangling row.
+         */
+        query
+          .graph({ entity: "partners", fields: ["id", "name", "deleted_at"], withDeleted: true })
+          .catch(() => ({ data: [] })),
+      ])
 
     const regionRows = ((regions ?? []) as any[]).filter(
       (r) => r?.id && (!regionFilter || regionFilter.includes(r.id))
@@ -6342,6 +6411,39 @@ export const propagateRegionsToAllPartnersJob: MaintenanceJob = {
           note: `${partnerName.get(m.partner_id)} → region "${regionName.get(m.region_id)}"`,
         })
       }
+      /**
+       * The other direction: a region with MORE links than live partners.
+       * Reported, never removed — see `classifyExtraPartnerRegionLinks`.
+       */
+      const deletedPartnerIds = ((allPartners ?? []) as any[])
+        .filter((p) => p?.id && p?.deleted_at)
+        .map((p) => p.id)
+      const extras = classifyExtraPartnerRegionLinks(
+        (existing ?? []) as any[],
+        partnerRows.map((p) => p.id),
+        deletedPartnerIds
+      )
+      const EXTRA_NOTE: Record<string, string> = {
+        deleted_partner:
+          "links a SOFT-DELETED partner — correct history, not a fault. Leave it.",
+        duplicate: "duplicate row for a pair that is already linked",
+        unknown_partner: "links a partner id that does not exist, even deleted",
+      }
+      for (const x of extras) {
+        changes.push({
+          entity: partnerRegionLink.entryPoint,
+          id: `${x.partner_id}::${x.region_id}`,
+          field: "extra_link",
+          before: { partner_id: x.partner_id, region_id: x.region_id },
+          after: { partner_id: x.partner_id, region_id: x.region_id },
+          note: `region "${regionName.get(x.region_id) ?? x.region_id}" ${EXTRA_NOTE[x.kind]}`,
+        })
+      }
+      const extraCounts = extras.reduce<Record<string, number>>((acc, x) => {
+        acc[x.kind] = (acc[x.kind] ?? 0) + 1
+        return acc
+      }, {})
+
       return {
         job_id: "propagate-regions-to-all-partners",
         dry_run: true,
@@ -6350,7 +6452,14 @@ export const propagateRegionsToAllPartnersJob: MaintenanceJob = {
           `Would create ${missing.length} partner→region link(s) across ` +
           `${shortByRegion.size} short region(s) of ${regionRows.length} scanned ` +
           `(${partnerRows.length} partner(s)). Apply also extends each store's ` +
-          `supported_currencies with the region currency.`,
+          `supported_currencies with the region currency.` +
+          (extras.length
+            ? ` ALSO FOUND ${extras.length} surplus link(s) — ` +
+              Object.entries(extraCounts)
+                .map(([k, n]) => `${n} ${k}`)
+                .join(", ") +
+              `. Reported only; nothing is removed.`
+            : ""),
         changes,
       }
     }
