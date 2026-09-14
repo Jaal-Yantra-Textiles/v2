@@ -4011,6 +4011,16 @@
       "weave_or_knit"
     ]
   },
+  "UnifiedOrderKind (modules/unified_order_kind/models/unified-order-kind.ts)": {
+    "file": "modules/unified_order_kind/models/unified-order-kind.ts",
+    "fields": [
+      "created_at",
+      "deleted_at",
+      "id",
+      "kind",
+      "updated_at"
+    ]
+  },
   "UnifiedOrderStatus (modules/unified_order_status/models/unified-order-status.ts)": {
     "file": "modules/unified_order_status/models/unified-order-status.ts",
     "fields": [
