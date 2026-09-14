@@ -230,30 +230,144 @@ export const emitProductionRunEventStep = createStep(
 // Step: Resolve partner's default stock location
 // ---------------------------------------------------------------------------
 
+/**
+ * Why a partner's location could not be resolved. Carried so the failure names
+ * the hop that broke instead of arriving as a bare `undefined`.
+ */
+export type PartnerLocationFailure =
+  | "no_link_and_no_store"
+  | "store_has_no_sales_channel"
+  | "sales_channel_has_no_location"
+  | "ambiguous_linked_locations"
+
+export type ResolvePartnerLocationResult = {
+  location_id?: string
+  /** "link" when the typed partner→location link answered, "store_chain" for the legacy walk. */
+  source?: "link" | "store_chain"
+  reason?: PartnerLocationFailure
+  /** Every location the typed link returned — populated when the answer is ambiguous. */
+  candidate_location_ids?: string[]
+}
+
+/**
+ * PURE: the one warehouse a partner banks goods at.
+ *
+ * Exactly one → that one. None → null. **More than one → null**, deliberately:
+ * a partner with two warehouses has a real question attached ("which one?") and
+ * `[0]` answers it with whichever row the database happened to return first.
+ * That is the same selector shape that made `stores[0]` denominate 13 tenants in
+ * the wrong currency (#2051); it must not be reintroduced for physical stock,
+ * where the cost of being wrong is goods banked in a city they are not in.
+ */
+export function pickPartnerLocation(
+  locations: Array<{ id?: string | null } | null> | null | undefined
+): { id: string } | null {
+  const ids = (locations ?? [])
+    .map((l) => l?.id)
+    .filter((id): id is string => !!id)
+  const unique = Array.from(new Set(ids))
+  return unique.length === 1 ? { id: unique[0] } : null
+}
+
+/**
+ * Resolve where a partner's finished goods should be banked.
+ *
+ * 🔴 This used to be a four-hop walk — `partner → stores[0] →
+ * default_sales_channel_id → sales_channels → stock_locations[0]` — in which
+ * every hop failed to `undefined` with **no log at all**, and the caller then
+ * returned early as though nothing needed doing. Measured on prod 2026-09-14:
+ * **17 of 30 partners have no store**, so for every one of them this returned
+ * nothing and their finished goods were silently never banked. Seven of those
+ * partners already had a real warehouse row the walk simply could not reach.
+ *
+ * Now: the typed `partner → stock_location` link is asked first, the legacy
+ * chain remains as the fallback for partners wired the old way, and every hop
+ * that fails says so. See `links/partner-stock-location.ts`.
+ */
 export const resolvePartnerLocationStep = createStep(
   "resolve-partner-location",
-  async (input: { partner_id: string }, { container }) => {
+  async (
+    input: { partner_id: string },
+    { container }
+  ): Promise<StepResponse<ResolvePartnerLocationResult>> => {
     const query = container.resolve(ContainerRegistrationKeys.QUERY) as any
+    const log: any = container.resolve(ContainerRegistrationKeys.LOGGER)
 
-    let locationId: string | undefined
+    // 1. The typed link — the partner states its warehouse directly.
+    let linkedLocations: Array<{ id?: string | null }> = []
+    try {
+      const { data: linked } = await query.graph({
+        entity: "partners",
+        fields: ["stock_locations.id"],
+        filters: { id: input.partner_id },
+      })
+      linkedLocations = linked?.[0]?.stock_locations || []
+    } catch {
+      // The link may not be migrated yet in an older environment. Fall through
+      // to the legacy chain rather than failing the whole completion.
+      linkedLocations = []
+    }
 
+    const linkedPick = pickPartnerLocation(linkedLocations)
+    if (linkedPick) {
+      return new StepResponse({ location_id: linkedPick.id, source: "link" as const })
+    }
+
+    if (linkedLocations.length > 1) {
+      const ids = linkedLocations.map((l) => l?.id).filter(Boolean) as string[]
+      log?.error(
+        `[resolve-partner-location] partner ${input.partner_id} is linked to ${ids.length} stock locations ` +
+          `(${ids.join(", ")}) — refusing to guess which one holds the goods. ` +
+          `Unlink all but one, or pass an explicit location.`
+      )
+      return new StepResponse({
+        reason: "ambiguous_linked_locations" as const,
+        candidate_location_ids: ids,
+      })
+    }
+
+    // 2. Legacy chain, for partners wired before the link existed.
     const { data: partners } = await query.graph({
       entity: "partners",
       fields: ["stores.default_sales_channel_id"],
       filters: { id: input.partner_id },
     })
 
-    const scId = partners?.[0]?.stores?.[0]?.default_sales_channel_id
-    if (scId) {
-      const { data: channels } = await query.graph({
-        entity: "sales_channels",
-        fields: ["stock_locations.id"],
-        filters: { id: scId },
-      })
-      locationId = channels?.[0]?.stock_locations?.[0]?.id
+    const stores = partners?.[0]?.stores || []
+    if (!stores.length) {
+      log?.error(
+        `[resolve-partner-location] partner ${input.partner_id}: no linked stock location AND no store. ` +
+          `Nowhere to bank finished goods. Link a stock location to this partner ` +
+          `(maintenance job: backfill-partner-stock-locations).`
+      )
+      return new StepResponse({ reason: "no_link_and_no_store" as const })
     }
 
-    return new StepResponse({ location_id: locationId })
+    const scId = stores[0]?.default_sales_channel_id
+    if (!scId) {
+      log?.error(
+        `[resolve-partner-location] partner ${input.partner_id}: store has no default sales channel. ` +
+          `Link a stock location to the partner directly instead.`
+      )
+      return new StepResponse({ reason: "store_has_no_sales_channel" as const })
+    }
+
+    const { data: channels } = await query.graph({
+      entity: "sales_channels",
+      fields: ["stock_locations.id"],
+      filters: { id: scId },
+    })
+
+    const chainPick = pickPartnerLocation(channels?.[0]?.stock_locations || [])
+    if (!chainPick) {
+      log?.error(
+        `[resolve-partner-location] partner ${input.partner_id}: sales channel ${scId} resolves to ` +
+          `no single stock location. Link a stock location to the partner directly.`
+      )
+      return new StepResponse({ reason: "sales_channel_has_no_location" as const })
+    }
+
+    return new StepResponse({ location_id: chainPick.id, source: "store_chain" as const })
   }
 )
 
@@ -327,6 +441,12 @@ export type StockFinishedGoodsInput = {
    * the two land together.
    */
   variant_id?: string | null
+  /**
+   * Why `location_id` is absent, from `resolvePartnerLocationStep`. Present only
+   * on the failure path — it turns "nowhere to bank this" into a message that
+   * names the broken hop instead of a silent no-op.
+   */
+  location_failure_reason?: PartnerLocationFailure | null
 }
 
 type StockRollbackData = {
@@ -353,9 +473,14 @@ export type StockFinishedGoodsResult = {
 export const stockFinishedGoodsStep = createStep(
   "stock-finished-goods",
   async (input: StockFinishedGoodsInput, { container }) => {
-    if (input.good_quantity <= 0 || !input.location_id) {
+    /**
+     * Nothing to bank. A rejected-only run legitimately produces no good units,
+     * and that is not a failure — it is an answer.
+     */
+    if (input.good_quantity <= 0) {
       return new StepResponse({ stocked: false }, null as StockRollbackData)
     }
+
 
     const query = container.resolve(ContainerRegistrationKeys.QUERY) as any
     const inventoryService = container.resolve(Modules.INVENTORY) as any
@@ -404,6 +529,37 @@ export const stockFinishedGoodsStep = createStep(
     const inventoryItemId = variantInventory?.[0]?.inventory_item_id
     if (!inventoryItemId) {
       return new StepResponse({ stocked: false }, null as StockRollbackData)
+    }
+
+    /**
+     * 🔴 There ARE goods, there IS somewhere to record them, and no warehouse
+     * to record them at. Stop.
+     *
+     * This check sits HERE, not beside the `good_quantity` guard, and the
+     * position is the point. Above it are three legitimate reasons to bank
+     * nothing — a rejected-only run, an aggregate parent whose children each
+     * bank their own output, and a design with no variant to bank onto. In all
+     * three, a missing location is irrelevant and refusing would be a false
+     * alarm. Only once a real inventory item is in hand does "no location"
+     * mean goods are about to go missing.
+     *
+     * It used to share the `good_quantity <= 0` early return, so a partner with
+     * no resolvable warehouse completed the run and the stock simply never
+     * appeared — no error, no log, no trace. Prod on 2026-09-14 had **17 of 30
+     * partners** in exactly that state. Silence is the defect: a run that
+     * cannot bank its output has not been completed, and saying so is the only
+     * way the goods stay findable. #2053
+     */
+    if (!input.location_id) {
+      const reason = input.location_failure_reason ?? "no_link_and_no_store"
+      throw new MedusaError(
+        MedusaError.Types.NOT_ALLOWED,
+        `Cannot complete production run ${input.production_run_id}: partner ` +
+          `${input.partner_id} has no stock location to bank ${input.good_quantity} ` +
+          `finished unit(s) at (${reason}). Link a stock location to this partner — ` +
+          `run the "backfill-partner-stock-locations" maintenance job, or link one manually — ` +
+          `then complete the run again.`
+      )
     }
 
     // Upsert inventory level
