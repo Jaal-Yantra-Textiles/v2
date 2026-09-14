@@ -10,6 +10,7 @@ import {
   createProductVariantsWorkflow,
 } from "@medusajs/medusa/core-flows";
 import { DESIGN_MODULE } from "../../modules/designs";
+import { resolveMintSalesChannel } from "./lib/mint-sales-channel";
 import type { Link } from "@medusajs/modules-sdk";
 import { resolveLineItemDesignId } from "../../lib/resolve-line-item-production"
 import designCustomerLink from "../../links/design-customer-link"
@@ -352,6 +353,12 @@ const createProductAndVariantStep = createStep(
         "description",
         "thumbnail_url",
         "design_type",
+        // 🔴 Whose design this is. Absent from this select until #2059, which is
+        // exactly why the minter could not route a partner's product into the
+        // partner's own catalogue even in principle — it never asked who owned
+        // the design, so the channel fell through to `listStores({})[0]`. A
+        // field the query never selects reads as `undefined`, not as an error.
+        "owner_partner_id",
         // The design's sizes. Absent from this select until #2030 item 3, which
         // is why the minter could not have used them even in principle: it
         // never asked for them. A design with S and M minted a variant with
@@ -515,16 +522,30 @@ const createProductAndVariantStep = createStep(
       // The caller's channel wins. Only when nobody named one do we fall back
       // to the store default — see `sales_channel_id` for what that fallback
       // silently did to every design quote.
-      let salesChannelId = input.sales_channel_id || null;
+      /**
+       * 🔴 Was `listStores({})[0].default_sales_channel_id` when the caller
+       * named no channel. On a 14-store platform that is whichever row Postgres
+       * returned first — always the core store — so a partner's design was
+       * minted into a catalogue belonging to nobody selling it. The quote door
+       * routes around it by passing a channel; the approve doors did not, so
+       * the lottery was still live for them.
+       *
+       * Now: the caller's channel, else the OWNING PARTNER's store, else the
+       * house store — and a refusal rather than row 0 when none of those is
+       * unambiguous. #2059
+       */
+      const channel = await resolveMintSalesChannel(container, {
+        explicitSalesChannelId: input.sales_channel_id,
+        ownerPartnerId: (design as any)?.owner_partner_id ?? null,
+      });
 
+      const salesChannelId = channel.sales_channel_id;
       if (!salesChannelId) {
-        const storeService = container.resolve(Modules.STORE) as any;
-        const [store] = await storeService.listStores({});
-        salesChannelId = store?.default_sales_channel_id || null;
-      }
-
-      if (!salesChannelId) {
-        throw new Error("No default sales channel configured for the store");
+        throw new Error(
+          `Cannot mint a product for design ${design.id}: no sales channel could be ` +
+            `resolved (${channel.reason}). Pass sales_channel_id explicitly, or give the ` +
+            `owning partner a store with a default sales channel.`
+        );
       }
 
       // Create new product for this custom design
