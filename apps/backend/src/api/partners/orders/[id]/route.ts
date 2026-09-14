@@ -70,6 +70,8 @@ export const GET = async (
         "production_runs.id",
         "inventory_orders.id",
         "unified_order_status.partner_status",
+        // #2029 item 4 — the typed work-order kind the detail page branches on.
+        "unified_order_kind.kind",
       ],
       filters: { id: req.params.id },
     })
@@ -78,6 +80,7 @@ export const GET = async (
       ;(result as any).production_runs = links.production_runs
       ;(result as any).inventory_orders = links.inventory_orders
       ;(result as any).unified_order_status = links.unified_order_status
+      ;(result as any).unified_order_kind = links.unified_order_kind
     }
   } catch {
     // leave the order as-is; the UI falls back to retail rendering

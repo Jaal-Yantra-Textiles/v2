@@ -6,6 +6,7 @@ import type { LinkDefinition, MedusaContainer } from "@medusajs/framework/types"
 import { ORDER_INVENTORY_MODULE } from "../../modules/inventory_orders"
 import { PARTNER_MODULE } from "../../modules/partner"
 import { UNIFIED_ORDER_STATUS_MODULE } from "../../modules/unified_order_status"
+import { UNIFIED_ORDER_KIND_MODULE } from "../../modules/unified_order_kind"
 import { pickDefaultCurrency } from "../../lib/resolve-store-currency"
 
 // #342 T2 — best-effort projection of legacy inventory orders onto the core
@@ -185,6 +186,63 @@ export const setUnifiedOrderPartnerStatus = async (
       [UNIFIED_ORDER_STATUS_MODULE]: { unified_order_status_id: created.id },
     },
   ])
+}
+
+/**
+ * #2029 item 4 — set a unified order's KIND, promoted off
+ * `order.metadata.collated_design_order`.
+ *
+ * 🔑 UNCONDITIONAL, unlike its `partner_status` sibling above. That one is
+ * called `if (partnerStatus)`, and `aggregatePartnerStatus` returns undefined
+ * when every run is cancelled or declined — which is why the kind could not
+ * simply be a column on the status sidecar: it would be absent for exactly
+ * those orders and read as "not collated". Every caller here passes a literal.
+ *
+ * Upsert by the same read-then-write shape as the status sidecar: resolve the
+ * row through the link (authoritative), update it if present, otherwise create
+ * and link. Single-column write, no read-modify-write to lose.
+ */
+export const setUnifiedOrderKind = async (
+  container: MedusaContainer,
+  unifiedOrderId: string,
+  kind: "collated" | "per_run"
+): Promise<void> => {
+  const query: any = container.resolve(ContainerRegistrationKeys.QUERY)
+  const { data } = await query.graph({
+    entity: "order",
+    fields: ["id", "unified_order_kind.id"],
+    filters: { id: unifiedOrderId },
+  })
+  const existingId = data?.[0]?.unified_order_kind?.id
+  const service: any = container.resolve(UNIFIED_ORDER_KIND_MODULE)
+  if (existingId) {
+    await service.updateUnifiedOrderKinds([{ id: existingId, kind }])
+    return
+  }
+  const created = await service.createUnifiedOrderKinds({ kind })
+  const remoteLink = container.resolve(ContainerRegistrationKeys.LINK) as Link
+  await remoteLink.create([
+    {
+      [Modules.ORDER]: { order_id: unifiedOrderId },
+      [UNIFIED_ORDER_KIND_MODULE]: { unified_order_kind_id: created.id },
+    },
+  ])
+}
+
+/**
+ * Is this order a collated work-order? Typed first, blob as fallback.
+ *
+ * 🔴 `kind` is only trusted when it is actually one of the two values. An
+ * absent row means "nobody has told me" — every order written before this
+ * sidecar existed — and that must fall through to the metadata flag rather
+ * than resolving to `per_run`, which would render the multi-design screen as a
+ * single-design one for every pre-existing collated order.
+ */
+export const readIsCollated = (order: any): boolean => {
+  const kind = order?.unified_order_kind?.kind
+  if (kind === "collated") return true
+  if (kind === "per_run") return false
+  return order?.metadata?.collated_design_order === true
 }
 
 // D5-cleanup (Chunk 6) — create the load-bearing order↔<execution> link
