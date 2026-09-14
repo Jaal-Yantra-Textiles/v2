@@ -123,15 +123,34 @@ type MirrorResult = {
 // medusa-config (other LOCKING consumers — `complete-production-run`, the
 // `production-run-task-updated` subscriber — resolve it independently).
 
-// D5-3 — resolve a legacy row's unified order id by the order↔<execution>
-// link, forward (`<entity>.order`), which the Chunk 2 directionality finding
-// established as the authoritative join. This replaces reading the
-// `metadata.unified_order_id` backref as the primary path in every
-// transactional mirror/partner-link reader (inventory + production-run steps,
-// the admin cancel route, the task-updated subscriber). The backref survives
-// only as a transitional fallback for rows projected before D5-2 (link-less);
-// it goes away once T4 (Chunk 9) backfills links onto historicals, after which
-// Chunk 6 stops writing it entirely.
+/**
+ * D5-3 — resolve a legacy row's unified order id by the order↔<execution> link,
+ * forward (`<entity>.order`), which the Chunk 2 directionality finding
+ * established as the authoritative join.
+ *
+ * ## #2029 item 5 — the `metadata.unified_order_id` fallback is gone
+ *
+ * The backref was the transitional safety net for rows projected before D5-2.
+ * Chunk 6 stopped writing it, T4 backfilled the links, and the condition for
+ * removing it was that no row still depends on it. Measured on prod
+ * 2026-09-14 via the `backfill-unified-order-links` job in preview:
+ *
+ *     inventory_orders  18 linked,  1 with no backref, 0 dangling
+ *     production_runs   86 linked, 58 with no backref, 0 dangling
+ *     -> would link 0 rows
+ *
+ * Every row either carries the link or carries NEITHER — the 59 that carry
+ * neither were never dual-written and have no unified order to point at, so the
+ * fallback never answered for them either. Nothing writes a new backref:
+ * `approve-production-run.ts:165` strips it from inherited child metadata, and
+ * no metadata write sets it.
+ *
+ * 🔴 The warn below exists because "0 rows" is a measurement, not a guarantee.
+ * A row that has a backref and no link would, without it, resolve to `undefined`
+ * and read exactly like a row that was never projected — the silent shape this
+ * epic exists to end. If it ever fires, run the backfill job; do not restore
+ * the fallback.
+ */
 export const resolveUnifiedOrderIdByLink = async (
   container: MedusaContainer,
   entity: "inventory_orders" | "production_runs",
@@ -144,7 +163,16 @@ export const resolveUnifiedOrderIdByLink = async (
     filters: { id: legacyId },
   })
   const row = data?.[0]
-  return row?.order?.id ?? row?.metadata?.unified_order_id ?? undefined
+  const linkedId = row?.order?.id
+  if (!linkedId && row?.metadata?.unified_order_id) {
+    const logger: any = container.resolve(ContainerRegistrationKeys.LOGGER)
+    logger?.warn?.(
+      `[orders-unification] ${entity} ${legacyId} carries metadata.unified_order_id ` +
+        `(${row.metadata.unified_order_id}) but NO D5 link — the backref fallback was ` +
+        `removed in #2029 item 5. Run the backfill-unified-order-links job.`
+    )
+  }
+  return linkedId ?? undefined
 }
 
 // #342 Chunk 9b (PR-F→PR-H) — `partner_status` lives ONLY on the typed 1:1
@@ -458,10 +486,10 @@ export const mirrorUnifiedOrderStatusStep = createStep(
       })
       const legacy = invOrders?.[0]
       // D5-3 — resolve the unified order via the order↔inventory_order link
-      // (forward, authoritative); the legacy backref is a transitional fallback
-      // for pre-D5-2 link-less rows. Fetched in the same query as `status`.
-      const unifiedOrderId =
-        legacy?.order?.id ?? legacy?.metadata?.unified_order_id
+      // (forward, authoritative). #2029 item 5 removed the
+      // `metadata.unified_order_id` fallback: prod carries 0 rows that need it
+      // and nothing writes a new one. Fetched in the same query as `status`.
+      const unifiedOrderId = legacy?.order?.id
       if (!unifiedOrderId) {
         return new StepResponse<MirrorResult>({
           linked: false,
