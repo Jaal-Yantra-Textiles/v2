@@ -11,6 +11,11 @@ jest.mock("../../designs/create-product-from-design", () => ({
   resolveDesignGallery: jest.requireActual(
     "../../designs/create-product-from-design"
   ).resolveDesignGallery,
+  // Likewise real: the size a batch of runs agrees on is a RULE (#2030 item 3),
+  // and stubbing it would make the assertion below about the stub.
+  resolveRunsSizeLabel: jest.requireActual(
+    "../../designs/create-product-from-design"
+  ).resolveRunsSizeLabel,
 }))
 jest.mock("../../designs/update-design", () => ({
   __esModule: true,
@@ -322,6 +327,51 @@ describe("applyRunApprovals — approving", () => {
    * The store is stubbed as AUD here precisely so a re-introduced
    * `|| storeCurrency` would turn this red again.
    */
+  /**
+   * 🔴 #2030 item 3 — the RUNS' size reaches the mint.
+   *
+   * Order 89's shape: the design states S and M (ambiguous, so the design-level
+   * rule abstains) while the runs that made the garment snapshot [M]. Without
+   * this the product minted a variant with no size at all, and the order line
+   * bound to it — which is how order 89 has read "Small" since September while
+   * every run says Medium.
+   */
+  it("passes the size the RUNS agree on, beating an ambiguous design", async () => {
+    listProductionRuns.mockResolvedValue([
+      completedRun("run_1", "des_1", {
+        snapshot: { design: { name: "D" }, size_sets: [{ size_label: "M" }] },
+      }),
+    ])
+    stubGraph({
+      des_1: design("des_1", {
+        size_sets: [{ size_label: "S" }, { size_label: "M" }],
+      }),
+    })
+
+    await applyRunApprovals(container, { runIds: ["run_1"], decision: "approve" })
+
+    expect(createProductRun.mock.calls[0][0].input.size_label).toBe("M")
+  })
+
+  it("passes no size when the runs disagree — a product cannot be both", async () => {
+    listProductionRuns.mockResolvedValue([
+      completedRun("run_1", "des_1", {
+        snapshot: { design: { name: "D" }, size_sets: [{ size_label: "S" }] },
+      }),
+      completedRun("run_2", "des_1", {
+        snapshot: { design: { name: "D" }, size_sets: [{ size_label: "M" }] },
+      }),
+    ])
+    stubGraph({ des_1: design("des_1") })
+
+    await applyRunApprovals(container, {
+      runIds: ["run_1", "run_2"],
+      decision: "approve",
+    })
+
+    expect(createProductRun.mock.calls[0][0].input.size_label).toBeNull()
+  })
+
   it("ignores the store default for a design that never stated a currency", async () => {
     listProductionRuns.mockResolvedValue([completedRun("run_1", "des_1")])
     stubGraph({ des_1: design("des_1", { cost_currency: null }) }, "aud")

@@ -1,4 +1,10 @@
-import { designOptionValue, designProductNaming, resolveListedPrice } from "../create-product-from-design"
+import {
+  designOptionValue,
+  designProductNaming,
+  resolveDesignSizeLabel,
+  resolveRunsSizeLabel,
+  resolveListedPrice,
+} from "../create-product-from-design"
 
 /**
  * The price a design is listed at. Medusa 2.x amounts are DECIMAL major units —
@@ -120,5 +126,191 @@ describe("designProductNaming — the product stops being called 'Custom'", () =
 
   it("still names a design with no name at all", () => {
     expect(designProductNaming({ id: "des_x" }).title).toBe("Design des_x")
+  })
+})
+
+/**
+ * 🔴 #2030 item 3 — the minted variant had no size, ever.
+ *
+ * Reproduced on prod 2026-09-14 in a clean room: design `01M2F1649Y82W0NYW4T9TXV9NF`
+ * carried size_sets S and M from the moment it was created; the product minted
+ * from it 28 minutes later (`prod_01M2F2V2C1A656WMHTX0FFNKDH`) had ONE variant,
+ * sku `CUSTOM-01M2F1649Y82W0NYW4T9TXV9NF`, a single option titled "Original"
+ * whose only value was the design's name, and neither "S" nor "M" anywhere.
+ * No order, no run, no partner — so this was never an order-89 accident.
+ */
+describe("resolveDesignSizeLabel — #2030 item 3", () => {
+  it("names the size when the design states exactly one", () => {
+    expect(resolveDesignSizeLabel({ size_sets: [{ size_label: "M" }] })).toBe("M")
+  })
+
+  it("ABSTAINS on two sizes rather than picking one and being confidently wrong", () => {
+    // The whole point. Order 89's placeholder was not mislabelled — it had no
+    // size to be right about. Guessing "S" here would recreate that, with a
+    // sku that now looks authoritative.
+    expect(
+      resolveDesignSizeLabel({ size_sets: [{ size_label: "S" }, { size_label: "M" }] })
+    ).toBeNull()
+  })
+
+  it("abstains when the design states no sizes at all", () => {
+    expect(resolveDesignSizeLabel({ size_sets: [] })).toBeNull()
+    expect(resolveDesignSizeLabel({})).toBeNull()
+    expect(resolveDesignSizeLabel({ size_sets: null })).toBeNull()
+  })
+
+  it("treats a blank label as no label — '' must not become a sku suffix", () => {
+    // `''` passes a truthiness-free `!= null` check and would mint `CUSTOM-<id>-`.
+    expect(resolveDesignSizeLabel({ size_sets: [{ size_label: "   " }] })).toBeNull()
+    expect(resolveDesignSizeLabel({ size_sets: [{ size_label: null }] })).toBeNull()
+  })
+
+  it("counts only usable labels, so one real size beside a blank still resolves", () => {
+    expect(
+      resolveDesignSizeLabel({ size_sets: [{ size_label: "L" }, { size_label: "" }] })
+    ).toBe("L")
+  })
+})
+
+describe("designProductNaming — the variant carries the size (#2030 item 3)", () => {
+  const single = { id: "des_1", name: "Tweed Jacket", design_type: "Original", size_sets: [{ size_label: "M" }] }
+  const multi = { id: "des_2", name: "Tweed Jacket", design_type: "Original", size_sets: [{ size_label: "S" }, { size_label: "M" }] }
+
+  it("puts the size in the variant sku, which is what a human can read", () => {
+    expect(designProductNaming(single).variantSku).toBe("CUSTOM-des_1-M")
+  })
+
+  it("puts the size in the variant title", () => {
+    expect(designProductNaming(single).variantTitle).toBe("Tweed Jacket — M")
+  })
+
+  it("🔑 leaves the OPTION untouched, so #1874's per-design tuple still holds", () => {
+    // The size rides on the variant. Adding a size axis to the option would
+    // change the variant tuple, the price fanout and the per-variant inventory
+    // item — a different, much larger change.
+    const naming = designProductNaming(single)
+    expect(naming.optionValue).toBe("Tweed Jacket")
+    expect(naming.optionTitle).toBe("Original")
+    expect(naming.optionValue).toBe(designOptionValue(single))
+  })
+
+  it("falls back to the old sizeless sku for a multi-size design", () => {
+    expect(designProductNaming(multi).variantSku).toBe("CUSTOM-des_2")
+    expect(designProductNaming(multi).variantTitle).toBe("Tweed Jacket")
+    expect(designProductNaming(multi).sizeLabel).toBeNull()
+  })
+
+  it("is unchanged for a design with no sizes — the pre-#2030 behaviour exactly", () => {
+    const none = { id: "des_3", name: "Tweed Jacket", design_type: "Original" }
+    expect(designProductNaming(none).variantSku).toBe("CUSTOM-des_3")
+    expect(designProductNaming(none).variantTitle).toBe("Tweed Jacket")
+  })
+})
+
+/**
+ * 🔑 #2030 item 3, second half — the RUN knows better than the design.
+ *
+ * `approve-run-output` mints through this same workflow and passes the run's
+ * own snapshot size. Order 89 is the shape that motivated it: the design states
+ * S and M (so the design-level rule abstains, correctly — the design really is
+ * ambiguous), while the run that made the garment snapshots [M] and is not
+ * ambiguous at all.
+ */
+describe("designProductNaming — the caller's size wins (#2030 item 3)", () => {
+  const ambiguous = {
+    id: "des_89",
+    name: "Cream Hand Loom Tweed Jacket",
+    design_type: "Original",
+    size_sets: [{ size_label: "S" }, { size_label: "M" }],
+  }
+
+  it("🔴 ORDER 89: an ambiguous design + a run that says M mints an M", () => {
+    // Without the override this abstains — see the sibling test below, which is
+    // the behaviour that let order 89 bind to a sizeless placeholder.
+    const naming = designProductNaming(ambiguous, "M")
+    expect(naming.sizeLabel).toBe("M")
+    expect(naming.variantSku).toBe("CUSTOM-des_89-M")
+    expect(naming.variantTitle).toBe("Cream Hand Loom Tweed Jacket — M")
+  })
+
+  it("...and abstains without it, so the override is doing the work", () => {
+    expect(designProductNaming(ambiguous).sizeLabel).toBeNull()
+    expect(designProductNaming(ambiguous).variantSku).toBe("CUSTOM-des_89")
+  })
+
+  it("overrides the design even when the design states exactly one size", () => {
+    // The run is the record of what was MADE; the design is what was asked for.
+    const single = { id: "des_1", name: "Jacket", design_type: "Original", size_sets: [{ size_label: "S" }] }
+    expect(designProductNaming(single, "L").variantSku).toBe("CUSTOM-des_1-L")
+  })
+
+  it("treats a blank override as no answer and falls back to the design", () => {
+    // `''` must not mint `CUSTOM-des_1-`.
+    const single = { id: "des_1", name: "Jacket", design_type: "Original", size_sets: [{ size_label: "S" }] }
+    expect(designProductNaming(single, "").variantSku).toBe("CUSTOM-des_1-S")
+    expect(designProductNaming(single, "   ").variantSku).toBe("CUSTOM-des_1-S")
+    expect(designProductNaming(single, null).variantSku).toBe("CUSTOM-des_1-S")
+  })
+
+  it("leaves the option alone regardless of the override (#1874)", () => {
+    expect(designProductNaming(ambiguous, "M").optionValue).toBe("Cream Hand Loom Tweed Jacket")
+  })
+})
+
+/**
+ * A run SNAPSHOT is the same shape the design rule reads, which is why
+ * `approve-run-output` reuses `resolveDesignSizeLabel` rather than growing a
+ * second, drifting copy of the "exactly one" rule.
+ */
+describe("resolveDesignSizeLabel — over a run snapshot", () => {
+  it("reads order 89's run snapshot as M", () => {
+    // Verbatim shape from prod_run_01M09V91A1VDN0ABSXMTBXNW4M.
+    const snapshot = { size_sets: [{ size_label: "M", design_id: "01M09V81MT94NSSZBJCQF79EXR" }] }
+    expect(resolveDesignSizeLabel(snapshot)).toBe("M")
+  })
+
+  it("abstains on a run whose snapshot names both sizes", () => {
+    // The September runs on that design snapshot [S, M] — a run that does not
+    // say which one it made is not an answer either.
+    expect(resolveDesignSizeLabel({ size_sets: [{ size_label: "S" }, { size_label: "M" }] })).toBeNull()
+  })
+
+  it("abstains on an empty snapshot rather than throwing", () => {
+    expect(resolveDesignSizeLabel({})).toBeNull()
+  })
+})
+
+/**
+ * `approve-run-output` mints per DESIGN, so several completed runs of one design
+ * are approved together and "the run's size" has to be resolved across them.
+ */
+describe("resolveRunsSizeLabel — a batch of runs (#2030 item 3)", () => {
+  const run = (labels: string[]) => ({
+    snapshot: { size_sets: labels.map((l) => ({ size_label: l })) },
+  })
+
+  it("🔴 ORDER 89: two runs that both made an M resolve to M", () => {
+    // prod_run_...MVVR9T and its child ...BXNW4M both snapshot [M].
+    expect(resolveRunsSizeLabel([run(["M"]), run(["M"])])).toBe("M")
+  })
+
+  it("abstains when two runs disagree — a product cannot be both", () => {
+    expect(resolveRunsSizeLabel([run(["S"]), run(["M"])])).toBeNull()
+  })
+
+  it("a run that names no single size contributes NOTHING, not a veto (#1877)", () => {
+    // The September runs snapshot [S, M] — no answer. A sibling that DID say M
+    // still carries the batch, rather than being blocked by the silent one.
+    expect(resolveRunsSizeLabel([run(["M"]), run(["S", "M"])])).toBe("M")
+  })
+
+  it("abstains when no run says anything", () => {
+    expect(resolveRunsSizeLabel([run(["S", "M"]), run([])])).toBeNull()
+    expect(resolveRunsSizeLabel([])).toBeNull()
+    expect(resolveRunsSizeLabel(null)).toBeNull()
+  })
+
+  it("survives a run with no snapshot at all rather than throwing", () => {
+    expect(resolveRunsSizeLabel([{}, null, run(["L"])])).toBe("L")
   })
 })

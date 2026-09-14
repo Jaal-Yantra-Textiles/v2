@@ -120,6 +120,20 @@ type CreateProductFromDesignInput = {
    * a catalogue product for the core store and that behaviour is unchanged.
    */
   sales_channel_id?: string | null;
+
+  /**
+   * 🔑 #2030 item 3 — the size THIS mint is for, when the caller knows it
+   * better than the design does.
+   *
+   * `approve-run-output` is the case. A design can state S and M, which is
+   * genuinely ambiguous and makes the design-level rule abstain — but the RUN
+   * being approved made exactly one of them, and its snapshot says which.
+   * Order 89 is precisely this: design says [S, M], its run says [M].
+   *
+   * Wins over the design's own size_sets when set. A blank string is not an
+   * answer and falls back, rather than minting `CUSTOM-<id>-`.
+   */
+  size_label?: string | null;
 };
 
 type CreateProductFromDesignOutput = {
@@ -174,25 +188,109 @@ export const designOptionValue = (
  *
  * The design's own name is the value in both branches now, via the same helper.
  */
-export const designProductNaming = (design: {
-  id: string
-  name?: string | null
-  design_type?: string | null
-}): {
+/**
+ * PURE: the ONE size a minted variant can honestly claim, or null.
+ *
+ * 🔴 #2030 item 3. Reproduced on prod 2026-09-14 in a clean room: a design
+ * carrying size_sets S and M, with no order, no run and no partner, minted a
+ * product whose single variant was `CUSTOM-<design_id>` — no size anywhere on
+ * it, not as an option, a value, a title or a sku. The sizes had existed since
+ * the design was created. The minter has no size axis at all: its only option
+ * answers "WHICH DESIGN is this?" (#1874), never "which size?".
+ *
+ * What that cost: order 89's line was bound to exactly such a sizeless
+ * placeholder, which a human then relabelled "Small" three minutes later while
+ * adding the real sizes by hand. The line has read Small ever since; every run
+ * that made it says Medium. Nothing was wrong with the binding — the thing it
+ * bound to simply had no size to be right about.
+ *
+ * EXACTLY ONE, deliberately. A design with two sizes needs a real `Size` option
+ * with one variant per size, which changes the variant tuple, the price fanout
+ * and the inventory item per variant — a different and much larger change. So
+ * this ABSTAINS on multi-size designs rather than picking one of them and
+ * being confidently wrong in the same way the placeholder was.
+ */
+export const resolveDesignSizeLabel = (design: {
+  size_sets?: ReadonlyArray<{ size_label?: string | null } | null> | null
+}): string | null => {
+  const labels = (design.size_sets ?? [])
+    .map((s) => String(s?.size_label ?? "").trim())
+    .filter((l) => l.length > 0)
+
+  return labels.length === 1 ? labels[0] : null
+}
+
+/**
+ * PURE: the ONE size a BATCH of runs agrees on, or null.
+ *
+ * `approve-run-output` mints per DESIGN, not per run — several completed runs
+ * of one design are approved together — so "the run's size" has to be resolved
+ * across all of them.
+ *
+ * A run that does not state a single size contributes NOTHING rather than
+ * blocking the others. That is deliberately the same rule
+ * `backfill-parent-run-produced-quantity` (#1877) settled on: a child that
+ * never reported output contributes nothing, instead of having what it was
+ * ASKED to make promoted into a record of what it DID make.
+ *
+ * Two runs that disagree abstain, because a product cannot be both.
+ */
+export const resolveRunsSizeLabel = (
+  runs: ReadonlyArray<{ snapshot?: unknown } | null> | null | undefined
+): string | null => {
+  const labels = new Set<string>()
+
+  for (const run of runs ?? []) {
+    const snapshot = (run?.snapshot ?? {}) as {
+      size_sets?: ReadonlyArray<{ size_label?: string | null } | null> | null
+    }
+    const label = resolveDesignSizeLabel(snapshot)
+    if (label) labels.add(label)
+  }
+
+  return labels.size === 1 ? [...labels][0] : null
+}
+
+export const designProductNaming = (
+  design: {
+    id: string
+    name?: string | null
+    design_type?: string | null
+    size_sets?: ReadonlyArray<{ size_label?: string | null } | null> | null
+  },
+  /**
+   * The caller's size, when it has better information than the design — see
+   * `size_label` on the workflow input. Blank is not an answer.
+   */
+  sizeLabelOverride?: string | null
+): {
   title: string
   optionTitle: string
   optionValue: string
   variantTitle: string
+  variantSku: string
+  sizeLabel: string | null
 } => {
   const optionValue = designOptionValue(design)
+  const override = String(sizeLabelOverride ?? "").trim()
+  const sizeLabel = override || resolveDesignSizeLabel(design)
+
   return {
     title: optionValue,
     // The design's own classification, when it has one. "Type" is the fallback
     // rather than the default, so an unclassified design still gets a sane
     // option rather than an empty title.
     optionTitle: String(design.design_type ?? "").trim() || "Type",
+    // 🔑 UNCHANGED by the size work. The option value stays the design's name
+    // so #1874 holds: one product can accumulate a variant per design without
+    // two of them claiming the same tuple. The size rides on the VARIANT's own
+    // title and sku, which adds no option and no second variant.
     optionValue,
-    variantTitle: optionValue,
+    variantTitle: sizeLabel ? `${optionValue} — ${sizeLabel}` : optionValue,
+    variantSku: sizeLabel
+      ? `CUSTOM-${design.id}-${sizeLabel}`
+      : `CUSTOM-${design.id}`,
+    sizeLabel,
   }
 }
 
@@ -254,6 +352,11 @@ const createProductAndVariantStep = createStep(
         "description",
         "thumbnail_url",
         "design_type",
+        // The design's sizes. Absent from this select until #2030 item 3, which
+        // is why the minter could not have used them even in principle: it
+        // never asked for them. A design with S and M minted a variant with
+        // neither, 16 seconds after both were created.
+        "size_sets.*",
         // #1920 — the design's linked media folder. Ported from
         // `promote-design-to-product`, the door this workflow absorbs: it
         // sourced the product's WHOLE gallery from the folder, where this one
@@ -368,7 +471,10 @@ const createProductAndVariantStep = createStep(
 
       const variantData = {
         product_id: product_id,
-        title: `Custom - ${design.name}`,
+        // Same rule as the new-product branch: when the design names exactly
+        // one size, the variant says so. Display only here — this sku keeps the
+        // Date.now() uniqueness suffix it already had.
+        title: designProductNaming(design, input.size_label).variantTitle,
         sku: `CUSTOM-${design.id}-${Date.now()}`,
         manage_inventory: manageInventory,
         options: variantOptions,
@@ -428,7 +534,7 @@ const createProductAndVariantStep = createStep(
       // it, so a product created here and then appended to by a second design
       // ended up with an option list of ["Custom", "<other design>"] — the
       // first variant named after nothing in particular.
-      const naming = designProductNaming(design)
+      const naming = designProductNaming(design, input.size_label)
 
       const productInput = {
         // The design's own name, not "Custom Design - <name>". The prefix said
@@ -458,7 +564,7 @@ const createProductAndVariantStep = createStep(
         variants: [
           {
             title: naming.variantTitle,
-            sku: `CUSTOM-${design.id}`,
+            sku: naming.variantSku,
             manage_inventory: manageInventory,
             options: {
               [naming.optionTitle]: naming.optionValue,

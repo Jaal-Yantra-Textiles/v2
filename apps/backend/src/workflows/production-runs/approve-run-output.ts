@@ -12,6 +12,7 @@ import {
 import {
   createProductFromDesignWorkflow,
   resolveDesignGallery,
+  resolveRunsSizeLabel,
 } from "../designs/create-product-from-design"
 import updateDesignWorkflow from "../designs/update-design"
 
@@ -454,6 +455,23 @@ export async function applyRunApprovals(
             design_id: designId,
             estimated_cost: price,
             currency_code: currency,
+            /**
+             * 🔑 #2030 item 3 — the RUNS' size, which beats the design's.
+             *
+             * The design can state S and M; the run being approved made one of
+             * them, and its snapshot records which. Order 89 is exactly that
+             * shape (design [S, M], run [M]), and the design-level rule
+             * abstains on it — correctly, because the design really is
+             * ambiguous. The run is not.
+             *
+             * Resolved across the whole batch, because this mints per
+             * DESIGN: runs that disagree abstain, and a run that names no
+             * single size contributes nothing rather than blocking the rest.
+             * `snapshot` is each run's own captured copy, so this reads what
+             * was true when the work was commissioned, not what the design
+             * says today.
+             */
+            size_label: resolveRunsSizeLabel(designRuns),
           },
         })
         product_id = result?.product_id ?? null
