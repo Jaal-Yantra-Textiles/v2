@@ -19,8 +19,11 @@ import { useQueryParams } from "../../../hooks/use-query-params"
 import { useDate } from "../../../hooks/use-date"
 import { getStatusBadgeColor } from "../../../lib/status-badge"
 import {
+  bucketLabel,
   designStatusLabel,
-  engagementKeyFor,
+  engagementHint,
+  engagementLabel,
+  nextActionLabel,
   priorityLabel,
   workStatusLabel,
 } from "../../../lib/design-labels"
@@ -40,18 +43,15 @@ const WORK_BUCKETS: DesignBucket[] = [
   "all",
 ]
 
-/** Map a next-action outcome to its label key + badge color. */
-const NEXT_ACTION: Record<
-  string,
-  { key: string; color: "green" | "blue" | "orange" | "red" | "grey" }
-> = {
-  incoming: { key: "accept", color: "blue" },
-  assigned: { key: "accept", color: "blue" },
-  in_progress: { key: "working", color: "orange" },
-  awaiting_review: { key: "complete", color: "orange" },
-  finished: { key: "underReview", color: "blue" },
-  completed: { key: "done", color: "green" },
-  cancelled: { key: "cancelled", color: "red" },
+/** Next-action badge color per partner work status (label lives in i18n). */
+const NEXT_ACTION_COLOR: Record<string, "green" | "blue" | "orange" | "red" | "grey"> = {
+  incoming: "blue",
+  assigned: "blue",
+  in_progress: "orange",
+  awaiting_review: "orange",
+  finished: "blue",
+  completed: "green",
+  cancelled: "red",
 }
 
 /**
@@ -101,7 +101,7 @@ const WorkBucketTabs = ({
             )}
           >
             <span className="font-medium">
-              {t(`partner.designs.bucketOptions.${value}`)}
+              {bucketLabel(t, value)}
             </span>
             {typeof n === "number" && (
               <Badge size="2xsmall" color={isActive ? "blue" : "grey"}>
@@ -216,16 +216,13 @@ export const DesignList = () => {
           cell: ({ getValue, row }) => {
             const engagement = getValue()
             const hasRun = !!(row.original as any)?.has_partner_run
-            const key = engagementKeyFor(engagement)
-            const labelKey = `${key}.label`
-            const hintKey = `${key}.hint`
             const badgeColor =
               engagement === "owned" ? "green" : engagement === "assigned" ? "blue" : "grey"
             return (
               <div className="flex flex-wrap items-center gap-1">
-                <Tooltip content={t(hintKey)}>
+                <Tooltip content={engagementHint(t, engagement)}>
                   <Badge size="2xsmall" color={badgeColor}>
-                    {t(labelKey)}
+                    {engagementLabel(t, engagement)}
                   </Badge>
                 </Tooltip>
                 {engagement === "owned" && hasRun && (
@@ -244,11 +241,13 @@ export const DesignList = () => {
         id: "next_action",
         header: () => t("partner.designs.list.columns.nextAction"),
         cell: ({ getValue }) => {
-          const action = NEXT_ACTION[String(getValue() ?? "")]
-          if (!action) return "-"
+          const status = String(getValue() ?? "")
+          const label = nextActionLabel(t, status)
+          const color = NEXT_ACTION_COLOR[status]
+          if (!label || !color) return "-"
           return (
-            <StatusBadge color={action.color} className="text-nowrap">
-              {t(`partner.designs.actionOptions.${action.key}`)}
+            <StatusBadge color={color} className="text-nowrap">
+              {label}
             </StatusBadge>
           )
         },

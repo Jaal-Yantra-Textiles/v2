@@ -70,13 +70,27 @@ export const DesignConsumptionLogsSection = ({ design }: DesignConsumptionLogsSe
   const [formType, setFormType] = useState("production")
   const [formNotes, setFormNotes] = useState("")
 
+  const unitLabels: Record<string, string> = {
+    Meter: t("partner.designs.unitOptions.meter"),
+    Yard: t("partner.designs.unitOptions.yard"),
+    Kilogram: t("partner.designs.unitOptions.kilogram"),
+    Gram: t("partner.designs.unitOptions.gram"),
+    Piece: t("partner.designs.unitOptions.piece"),
+    Roll: t("partner.designs.unitOptions.roll"),
+    Other: t("partner.designs.unitOptions.other"),
+  }
+  const typeLabels: Record<string, string> = {
+    sample: t("partner.designs.consumptionTypeOptions.sample"),
+    production: t("partner.designs.consumptionTypeOptions.production"),
+    wastage: t("partner.designs.consumptionTypeOptions.wastage"),
+  }
   const unitOptions = UNIT_VALUES.map((v) => ({
     value: v,
-    label: t(`partner.designs.unitOptions.${v.toLowerCase()}`),
+    label: unitLabels[v],
   }))
   const typeOptions = TYPE_VALUES.map((v) => ({
     value: v,
-    label: t(`partner.designs.consumptionTypeOptions.${v}`),
+    label: typeLabels[v],
   }))
 
   const resetForm = () => {
@@ -120,8 +134,7 @@ export const DesignConsumptionLogsSection = ({ design }: DesignConsumptionLogsSe
     return found?.title || found?.sku || itemId
   }
 
-  const consumptionTypeLabel = (type: string) =>
-    t(`partner.designs.consumptionTypeOptions.${type}`, type)
+  const consumptionTypeLabel = (type: string) => typeLabels[type] ?? type
 
   return (
     <Container className="divide-y p-0">

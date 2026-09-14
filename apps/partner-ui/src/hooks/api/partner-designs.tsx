@@ -16,7 +16,14 @@ const PARTNER_DESIGNS_QUERY_KEY = "partner-designs" as const
 export const partnerDesignsQueryKeys = queryKeysFactory(PARTNER_DESIGNS_QUERY_KEY)
 
 export type PartnerDesignPartnerInfo = {
-  partner_status?: "incoming" | "assigned" | "in_progress" | "finished" | "completed"
+  partner_status?:
+    | "incoming"
+    | "assigned"
+    | "in_progress"
+    | "awaiting_review"
+    | "finished"
+    | "completed"
+    | "cancelled"
   partner_phase?: "redo" | null
   partner_started_at?: string | null
   partner_finished_at?: string | null
