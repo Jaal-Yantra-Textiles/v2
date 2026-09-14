@@ -551,16 +551,26 @@ export interface ApproveDesignResponse {
   variant_id?: string;
 }
 
+/**
+ * #2030 item 3 — the size the operator chose, when the design states several
+ * (or none) and the minter would otherwise produce a variant with no size.
+ */
+export type ApproveDesignPayload = { size_label?: string | null } | void;
+
 export const useApproveDesign = (
   designId: string,
-  options?: UseMutationOptions<ApproveDesignResponse, FetchError, void>
+  options?: UseMutationOptions<
+    ApproveDesignResponse,
+    FetchError,
+    ApproveDesignPayload
+  >
 ) => {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: async () =>
+    mutationFn: async (payload: ApproveDesignPayload) =>
       sdk.client.fetch<ApproveDesignResponse>(
         `/admin/designs/${designId}/approve`,
-        { method: "POST", body: {} }
+        { method: "POST", body: payload || {} }
       ),
     ...options,
     onSuccess: (data, variables, _mutateResult, context) => {

@@ -1,9 +1,10 @@
-import { Container, Heading, Skeleton, Text, Badge, Button, toast, usePrompt } from "@medusajs/ui"
+import { Container, Heading, Skeleton, Text, Badge, Button, toast } from "@medusajs/ui"
 import { Plus } from "@medusajs/icons"
 import { useState } from "react"
 import { Link, useNavigate } from "react-router-dom"
 
-import { AdminDesign, useApproveDesign } from "../../hooks/api/designs"
+import { AdminDesign } from "../../hooks/api/designs"
+import { ApproveDesignDialog } from "./approve-design-dialog"
 import { useProductionRuns, useCancelProductionRun } from "../../hooks/api/production-runs"
 import { RunOutputReviewPanel } from "../production-runs/run-output-review-panel"
 import { runsAwaitingOutputReview } from "../../lib/run-review"
@@ -47,27 +48,15 @@ export const DesignProductionRunsSection = ({ design }: DesignProductionRunsSect
   */
   const runsAwaitingReview = runsAwaitingOutputReview(runs as any[])
   const [reviewDecision, setReviewDecision] = useState<"approve" | "reject" | null>(null)
-  const prompt = usePrompt()
-  const approveMutation = useApproveDesign(design.id)
-
-  const handleApprove = async () => {
-    const confirmed = await prompt({
-      title: "Approve Design",
-      description: `Approve "${design.name || "this design"}"? This will set the status to Approved and create the product listing.`,
-      confirmText: "Approve",
-      cancelText: "Cancel",
-    })
-    if (!confirmed) return
-
-    await approveMutation.mutateAsync(undefined, {
-      onSuccess: (data) => {
-        toast.success(`Design approved${data.product_id ? " and product created" : ""}`)
-      },
-      onError: (error) => {
-        toast.error(error.message || "Failed to approve design")
-      },
-    })
-  }
+  /**
+   * #2030 item 3 — a confirm became a QUESTION.
+   *
+   * The old prompt asked "approve?" and nothing else, so a design stating two
+   * sizes minted a variant with no size and said nothing about it. The dialog
+   * asks which size the listing is for; approving with none is still allowed,
+   * it is just no longer silent.
+   */
+  const [approveOpen, setApproveOpen] = useState(false)
 
   return (
     <Container className="p-0">
@@ -119,6 +108,12 @@ export const DesignProductionRunsSection = ({ design }: DesignProductionRunsSect
         </div>
       )}
 
+      <ApproveDesignDialog
+        design={design}
+        open={approveOpen}
+        onClose={() => setApproveOpen(false)}
+      />
+
       <RunOutputReviewPanel
         decision={reviewDecision}
         runIds={runsAwaitingReview.map((r) => String(r.id))}
@@ -138,11 +133,7 @@ export const DesignProductionRunsSection = ({ design }: DesignProductionRunsSect
                 Partner has marked work as finished. Review the notes below and approve when ready.
               </Text>
             </div>
-            <Button
-              size="small"
-              onClick={handleApprove}
-              isLoading={approveMutation.isPending}
-            >
+            <Button size="small" onClick={() => setApproveOpen(true)}>
               Approve Design
             </Button>
           </div>

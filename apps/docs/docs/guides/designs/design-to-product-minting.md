@@ -193,51 +193,62 @@ evidence that it was never "Small" at all.
 
 Ordered by how much each is worth, not by effort.
 
-### 1. Ask when the answer is missing or ambiguous ✅ recommended next
+### 1. Ask when the answer is missing or ambiguous ✅ SHIPPED
 
-Today a multi-size design mints silently and someone fixes it by hand minutes
-later — or doesn't. The mint should **ask instead of guessing or abstaining**.
+A multi-size design used to mint silently, and someone fixed it by hand minutes
+later — or didn't. Approving now **asks**.
 
-**Mock behaviour — the approve dialog when sizes are ambiguous:**
+`ApproveDesignDialog` (`src/admin/components/designs/approve-design-dialog.tsx`)
+sends the operator's answer as `size_label` on
+`POST /admin/designs/:id/approve`, which beats the design's own size_sets.
+
+:::caution One listing carries ONE size
+The minter produces a single variant, so the dialog is a **single choice**, not
+a multi-select. Offering checkboxes would promise a fan-out that item 2 below
+has not built yet.
+:::
+
+**Several sizes — the operator decides, because the code cannot:**
 
 ```text
 ┌──────────────────────────────────────────────────────────┐
 │  Approve "Cream Hand Loom Tweed Jacket"                  │
 │                                                          │
-│  This design states 2 sizes. Which should the product    │
-│  list?                                                   │
+│  This design states 2 sizes. Which is this product for?  │
+│  One listing carries one size.                           │
 │                                                          │
-│   ☑ S     ☑ M                            [ Select all ]  │
+│   ( ) S     sku CUSTOM-des_XYZ-S                         │
+│   (•) M     sku CUSTOM-des_XYZ-M                         │
 │                                                          │
-│  → 2 variants: CUSTOM-des_XYZ-S, CUSTOM-des_XYZ-M        │
-│                                                          │
-│  Price ₹11,000 applies to each.                          │
-│                                                          │
-│              [ Cancel ]         [ Approve & create ]     │
+│         [ Cancel ]        [ Approve & create ]           │
 └──────────────────────────────────────────────────────────┘
 ```
 
-**Mock behaviour — when the design states no sizes at all:**
+**Exactly one size — a confirmation, not a question** (preselected):
+
+```text
+│  Listing as size M.                                      │
+│  sku CUSTOM-des_ABC-M                                    │
+```
+
+**No sizes — allowed, but no longer silent:**
 
 ```text
 ┌──────────────────────────────────────────────────────────┐
-│  Approve "Cream Hand Loom Tweed Jacket"                  │
-│                                                          │
 │  ⚠️ This design states no sizes.                          │
 │                                                          │
-│  The product will list ONE variant with no size          │
+│  The product will list one variant with no size          │
 │  (CUSTOM-des_XYZ). Orders for it cannot say which size   │
-│  was made.                                               │
+│  was made. Add size sets to the design first if this     │
+│  garment has one.                                        │
 │                                                          │
-│  Add sizes to the design first?     [ Edit design ]      │
-│                                                          │
-│      [ Cancel ]       [ Approve without sizes ]          │
+│     [ Cancel ]      [ Approve without a size ]           │
 └──────────────────────────────────────────────────────────┘
 ```
 
-The rule: **the operator is told what they are getting, before they get it.**
-Approving without sizes stays possible — it is ordinary for some designs — but
-it becomes a decision rather than a silence.
+The rule: **approving without a size stays possible** — some designs genuinely
+have none — it just stops being a silence. "Approve & create" is disabled until
+an ambiguous design has an answer.
 
 ### 2. One variant per size_set
 

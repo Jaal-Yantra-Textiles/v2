@@ -52,6 +52,25 @@ export async function POST(
     const design = designs[0];
 
     /**
+     * 🔑 #2030 item 3 — the operator's size, when the design cannot decide.
+     *
+     * A design stating S and M is genuinely ambiguous, so the minter abstains
+     * and produces a variant with no size — which is how order 89 came to be
+     * bound to a sizeless placeholder someone later relabelled "Small". The
+     * admin now ASKS which size this product is for and sends the answer here.
+     *
+     * Optional, so every existing caller is unchanged. A blank string is not an
+     * answer: it falls through to the design's own size_sets rather than
+     * minting `CUSTOM-<id>-`.
+     */
+    const rawSizeLabel = (req.body as { size_label?: unknown } | undefined)
+      ?.size_label;
+    const sizeLabel =
+      typeof rawSizeLabel === "string" && rawSizeLabel.trim()
+        ? rawSizeLabel.trim()
+        : undefined;
+
+    /**
      * 🔴 #1900 — a design with no cost must not become a product listed at 0.
      *
      * `estimated_cost || 0` handed `createProductFromDesignWorkflow` a zero,
@@ -159,6 +178,7 @@ export async function POST(
            * was COMPUTED, not by where the garment is sold.
            */
           currency_code: approvalCurrency,
+          size_label: sizeLabel,
         },
       });
 
