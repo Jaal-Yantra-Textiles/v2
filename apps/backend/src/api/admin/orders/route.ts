@@ -42,7 +42,9 @@ const collectLinkedOrderIds = async (
       pagination: { skip, take: PAGE },
     })
     for (const row of data ?? []) {
-      const orderId = row?.order?.id ?? row?.metadata?.unified_order_id
+      // #2029 item 5 — the link only; the `metadata.unified_order_id` fallback
+      // is retired (prod: 0 rows depend on it, nothing writes a new one).
+      const orderId = row?.order?.id
       if (orderId) {
         ids.push(orderId)
       }

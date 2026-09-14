@@ -183,19 +183,26 @@ export const projectRunToUnifiedOrder = async (
     )
 
     // D5-2 idempotency: the order↔production_run link is the authoritative
-    // "already projected" signal. Resolve it forward (run → order) via
-    // query.graph — that join is synchronous/authoritative; never query.index
-    // here (eventually consistent). Fall back to the legacy
-    // metadata.unified_order_id backref so runs projected before D5-2
-    // (link-less) are not re-projected into a duplicate order.
+    /**
+     * "already projected" signal. Resolve it forward (run → order) via
+     * query.graph — that join is synchronous/authoritative; never query.index
+     * here (eventually consistent).
+     *
+     * 🔴 #2029 item 5 removed the `metadata.unified_order_id` fallback here,
+     * and this is the highest-consequence of the five: the fallback's job was
+     * to stop a pre-D5-2 run being re-projected into a DUPLICATE order. It is
+     * safe only because no such row exists — measured on prod 2026-09-14, 86
+     * production runs linked, 58 carrying neither link nor backref, 0 needing
+     * one — and because nothing writes a backref any more. A row that had one
+     * would be caught by the warn in `resolveUnifiedOrderIdByLink`.
+     */
     const query: any = container.resolve(ContainerRegistrationKeys.QUERY)
     const { data: linkedRuns } = await query.graph({
       entity: "production_runs",
       fields: ["id", "order.id"],
       filters: { id: productionRunId },
     })
-    const alreadyProjectedId =
-      linkedRuns?.[0]?.order?.id ?? run?.metadata?.unified_order_id
+    const alreadyProjectedId = linkedRuns?.[0]?.order?.id
     if (alreadyProjectedId) {
       return {
         unified_order_id: alreadyProjectedId,

@@ -155,49 +155,35 @@ export async function fetchRunSupersessions(
     }
 
     /**
-     * 🔴 The D5 link is not universally populated, so the link alone is not
-     * enough to conclude "no mirror order".
+     * 🔴 #2029 item 5 — the backref branch that used to live here is GONE, and
+     * a run that would have needed it is REPORTED instead of quietly billing.
      *
-     * The order↔production_run link is authoritative where it exists, but the
-     * script that backfills it from the older `metadata.unified_order_id`
-     * backref — `scripts/backfill-unified-order-links.ts` — is an ops-run
-     * `medusa exec`, not a migration and not a registered maintenance job, so
-     * there is no way to assert it has run against a given database.
+     * Its original reasoning was that the link is not universally populated and
+     * that the backfill — then an ops-run `medusa exec` — could not be asserted
+     * to have run against a given database. Both halves have since moved: the
+     * backfill is a registered maintenance job (`backfill-unified-order-links`,
+     * promoted out of `scripts/` for exactly this reason), and running it in
+     * preview against prod on 2026-09-14 reported 86 production runs linked, 58
+     * carrying neither link nor backref, and 0 needing one.
      *
-     * Every other run path that resolves a mirror order carries this same
-     * fallback (`resolveUnifiedOrderIdByLink`, and four call sites besides).
-     * Reading only the link here would mean a superseded run whose link was
-     * never backfilled comes back with no mirror order and — by this module's
-     * own conservative default — bills anyway. That is the precise failure this
-     * guard exists to stop, so it must follow the backref too.
+     * The 58 never had a backref either, so this branch never answered for
+     * them; it answered for nobody. What it WOULD cost if that changed is an
+     * overpayment — a superseded run with no resolvable mirror order bills,
+     * because this module's conservative default is to bill rather than guess.
+     * That is the #2026 defect, so its absence must be noisy, not silent.
      */
-    const unlinked = rows.filter((r) => !r?.order?.id && r?.metadata?.unified_order_id)
-    if (unlinked.length) {
-      const byOrderId = new Map<string, string[]>()
-      for (const r of unlinked) {
-        const oid = String(r.metadata.unified_order_id)
-        byOrderId.set(oid, [...(byOrderId.get(oid) ?? []), String(r.id)])
-      }
-
-      const { data: orders } = await query.graph({
-        entity: "order",
-        fields: ["id", "status", "metadata"],
-        filters: { id: [...byOrderId.keys()] },
-      })
-
-      const unlinkedChildIds = await fetchChildRunIdsByParent(
-        container,
-        unlinked.map((r) => String(r.id))
+    const unlinkedWithBackref = rows.filter(
+      (r) => !r?.order?.id && r?.metadata?.unified_order_id
+    )
+    if (unlinkedWithBackref.length) {
+      const logger: any = container.resolve(ContainerRegistrationKeys.LOGGER)
+      logger?.warn?.(
+        `[payable-runs] ${unlinkedWithBackref.length} run(s) carry ` +
+          `metadata.unified_order_id but NO D5 link, so supersession cannot be ` +
+          `checked for them and they will BILL: ` +
+          `${unlinkedWithBackref.map((r: any) => r.id).join(", ")}. ` +
+          `Run the backfill-unified-order-links maintenance job.`
       )
-
-      for (const order of (orders || []) as any[]) {
-        for (const runId of byOrderId.get(String(order.id)) ?? []) {
-          // Per RUN, not per order: the children belong to the run, and two
-          // runs sharing a backref order must not inherit each other's.
-          const verdict = readSupersession(order, unlinkedChildIds.get(runId))
-          if (verdict) out.set(runId, verdict)
-        }
-      }
     }
   } catch {
     return new Map()
