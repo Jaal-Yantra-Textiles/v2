@@ -3,6 +3,7 @@ import { ContainerRegistrationKeys, Modules } from "@medusajs/framework/utils"
 import { setupSharedTestSuite, getSharedTestEnv } from "./shared-test-setup"
 import { createAdminUser, getAuthHeaders } from "../helpers/create-admin-user"
 import { DESIGN_MODULE } from "../../src/modules/designs"
+import { PARTNER_MODULE } from "../../src/modules/partner"
 
 const TEST_PARTNER_PASSWORD = "supersecret"
 
@@ -188,18 +189,23 @@ setupSharedTestSuite(() => {
       expect(locRes.status).toBe(200)
       const stockLocationId = locRes.data.stock_location.id
 
-      // Link stock location to a sales channel so partner location resolution works
-      const storeRes = await api.get("/admin/stores", adminHeaders).catch((e: any) => e.response)
-      const scId = storeRes.data.stores?.[0]?.default_sales_channel_id
-      if (scId) {
-        await api
-          .post(
-            `/admin/stock-locations/${stockLocationId}/sales-channels`,
-            { add: [scId] },
-            adminHeaders
-          )
-          .catch(() => {})
-      }
+      /**
+       * 🔴 Link the warehouse to the PARTNER.
+       *
+       * This used to link it to `stores[0].default_sales_channel_id` — the
+       * PLATFORM store's channel — on the assumption that
+       * `resolvePartnerLocationStep` would find it from there. It cannot: the
+       * partner registered above has no store, so the
+       * `partner → stores[0] → channel → locations[0]` walk died at hop one and
+       * returned undefined. Nothing was ever stocked, and the assertion at the
+       * bottom of this test was guarded by `if (location_levels.length > 0)` —
+       * so it never ran, and the test passed having verified nothing. #2053
+       */
+      const remoteLink = getContainer().resolve(ContainerRegistrationKeys.LINK) as any
+      await remoteLink.create({
+        [PARTNER_MODULE]: { partner_id: partnerId },
+        [Modules.STOCK_LOCATION]: { stock_location_id: stockLocationId },
+      })
 
       // Create production run
       const runRes = await api
@@ -285,21 +291,27 @@ setupSharedTestSuite(() => {
       const product = approveRes2.data.products?.[0]
       const variant = product?.variants?.[0]
 
-      if (variant?.sku) {
-        const invRes = await api.get(
-          `/admin/inventory-items?sku=${variant.sku}&fields=*location_levels`,
-          adminHeaders
-        )
-        const invItem = invRes.data.inventory_items?.[0]
+      /**
+       * Unconditional on purpose. Both of the `if`s that used to wrap this
+       * turned "nothing was stocked" into a silent pass — the exact outcome the
+       * test exists to catch. If the variant, the inventory item or the level is
+       * missing, that IS the failure. #2053
+       */
+      expect(variant?.sku).toBeDefined()
 
-        if (invItem?.location_levels?.length > 0) {
-          const level = invItem.location_levels.find(
-            (l: any) => l.stocked_quantity > 0
-          )
-          expect(level).toBeDefined()
-          expect(level.stocked_quantity).toBe(8)
-        }
-      }
+      const invRes = await api.get(
+        `/admin/inventory-items?sku=${variant.sku}&fields=*location_levels`,
+        adminHeaders
+      )
+      const invItem = invRes.data.inventory_items?.[0]
+      expect(invItem).toBeDefined()
+
+      const level = (invItem.location_levels || []).find(
+        (l: any) => l.location_id === stockLocationId
+      )
+      expect(level).toBeDefined()
+      // 9 produced − 1 rejected = 8 good units, banked at the PARTNER's warehouse.
+      expect(level.stocked_quantity).toBe(8)
     })
   })
 })

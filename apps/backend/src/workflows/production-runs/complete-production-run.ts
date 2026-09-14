@@ -525,6 +525,8 @@ export const completeProductionRunWorkflow = createWorkflow(
           variant_id: r.variant_id ?? null,
           good_quantity: goodQty,
           location_id: data.partnerLocation.location_id,
+          // Carries WHICH hop failed, so the refusal names it. #2053
+          location_failure_reason: (data.partnerLocation as any).reason ?? null,
           order_id: r.order_id || null,
           order_line_item_id: r.order_line_item_id || null,
           run_quantity: r.quantity || 0,

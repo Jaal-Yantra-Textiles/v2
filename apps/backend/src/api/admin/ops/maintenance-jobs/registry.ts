@@ -29,6 +29,7 @@ import { resolvePartnerFeeRate } from "../../../../modules/partner_billing/resol
 import partnerOrderLink from "../../../../links/partner-order"
 import partnerRegionLink from "../../../../links/partner-region"
 import designPartnersLink from "../../../../links/design-partners-link"
+import partnerStockLocationLink from "../../../../links/partner-stock-location"
 import { PARTNER_MODULE } from "../../../../modules/partner"
 import productGoogleMerchantLink from "../../../../links/product-google-merchant-link"
 import productionRunConsumptionLogLink from "../../../../links/production-runs-consumption-logs"
@@ -5942,7 +5943,283 @@ export const seedPhotoshootTaskTemplatesJob: MaintenanceJob = {
   },
 }
 
+
+// ---------------------------------------------------------------------------
+// #2053 — partners that have nowhere to bank finished goods
+// ---------------------------------------------------------------------------
+
+const backfillPartnerStockLocationsParamsSchema = z.object({
+  /**
+   * Explicit `partner_id:location_id` pairs, comma-separated.
+   *
+   * 🔴 Deliberately explicit, with NO name-matching heuristic.
+   *
+   * The obvious implementation matches a partner to a warehouse by name, and on
+   * this data it mislinks. Measured 2026-09-14: partner "Kiyo Beauty" owns the
+   * location "Kiyo Designs"; "Basak Handlooms Phuliya" owns "Basak Handloom";
+   * and "Bhagalpur Handloom SHG" owns "Bhagalpur Silks" — which shares not one
+   * word with a fuzzy match's likely pick. A wrong link banks a partner's goods
+   * in a city they are not in, and inventory that is findable-but-wrong is worse
+   * than inventory that is absent, because nothing reports it.
+   *
+   * The pairing is human knowledge. Run with no params to get the report that
+   * makes it, then pass the pairs back.
+   */
+  pairs: z.string().trim().optional(),
+})
+
+/**
+ * PURE: parse `a:b,c:d` into pairs, rejecting malformed entries by returning
+ * them separately rather than silently dropping them — a dropped pair reads as
+ * "already linked" and the partner stays broken.
+ */
+export function parsePartnerLocationPairs(raw?: string): {
+  pairs: Array<{ partner_id: string; location_id: string }>
+  malformed: string[]
+} {
+  const pairs: Array<{ partner_id: string; location_id: string }> = []
+  const malformed: string[] = []
+  for (const chunk of (raw ?? "").split(",").map((c) => c.trim()).filter(Boolean)) {
+    const parts = chunk.split(":").map((p) => p.trim())
+    if (parts.length !== 2 || !parts[0] || !parts[1]) {
+      malformed.push(chunk)
+      continue
+    }
+    pairs.push({ partner_id: parts[0], location_id: parts[1] })
+  }
+  return { pairs, malformed }
+}
+
+export const backfillPartnerStockLocationsJob: MaintenanceJob = {
+  id: "backfill-partner-stock-locations",
+  label: "Link partners to the stock location that holds their goods",
+  description:
+    "Report, then repair, partners with nowhere to bank finished goods (#2053). With no params it AUDITS: which partners resolve to no stock location, and which stock locations belong to no partner — the two halves an operator needs to pair them. Pass `pairs` (partner_id:location_id,…) to create the links. Additive and idempotent; never unlinks. There is no name-matching heuristic on purpose — on this data it mislinks, and a wrong warehouse is worse than none.",
+  params: [
+    {
+      name: "pairs",
+      type: "string",
+      required: false,
+      description:
+        "Comma-separated partner_id:location_id pairs to link. Omit to run the audit report.",
+    },
+  ],
+  run: async (container, { dry_run, params }) => {
+    const { pairs: rawPairs } =
+      backfillPartnerStockLocationsParamsSchema.parse(params ?? {})
+    const { pairs, malformed } = parsePartnerLocationPairs(rawPairs)
+
+    const query: any = container.resolve(ContainerRegistrationKeys.QUERY)
+    const remoteLink: any = container.resolve(ContainerRegistrationKeys.LINK)
+
+    const changes: MaintenanceChange[] = []
+    const errors: Array<{ id: string; message: string }> = []
+    for (const bad of malformed) {
+      errors.push({ id: bad, message: "Malformed pair — expected partner_id:location_id" })
+    }
+
+    // Everything a partner might resolve through, in one read each.
+    const { data: partners } = await query.graph({
+      entity: "partners",
+      fields: [
+        "id",
+        "name",
+        "handle",
+        "stock_locations.id",
+        "stores.id",
+        "stores.default_sales_channel_id",
+      ],
+    })
+
+    const { data: allLocations } = await query.graph({
+      entity: "stock_locations",
+      fields: ["id", "name"],
+    })
+
+    // Which sales channels actually reach a location — the legacy chain's last hop.
+    const channelIds = Array.from(
+      new Set(
+        ((partners ?? []) as any[])
+          .flatMap((p) => (p?.stores ?? []).map((st: any) => st?.default_sales_channel_id))
+          .filter(Boolean)
+      )
+    )
+    const channelLocations = new Map<string, string[]>()
+    if (channelIds.length) {
+      const { data: channels } = await query.graph({
+        entity: "sales_channels",
+        fields: ["id", "stock_locations.id"],
+        filters: { id: channelIds },
+      })
+      for (const ch of (channels ?? []) as any[]) {
+        channelLocations.set(
+          ch.id,
+          ((ch?.stock_locations ?? []) as any[]).map((l) => l?.id).filter(Boolean)
+        )
+      }
+    }
+
+    const linkedLocationIds = new Set<string>()
+    const stranded: Array<{ id: string; name: string; why: string }> = []
+
+    for (const p of (partners ?? []) as any[]) {
+      const direct = ((p?.stock_locations ?? []) as any[])
+        .map((l) => l?.id)
+        .filter(Boolean) as string[]
+      direct.forEach((id) => linkedLocationIds.add(id))
+
+      if (direct.length === 1) continue
+      if (direct.length > 1) {
+        stranded.push({
+          id: p.id,
+          name: p.name ?? p.handle ?? p.id,
+          why: `linked to ${direct.length} stock locations — ambiguous, the resolver refuses to guess`,
+        })
+        continue
+      }
+
+      // No direct link. Can the legacy chain still answer?
+      const stores = (p?.stores ?? []) as any[]
+      if (!stores.length) {
+        stranded.push({ id: p.id, name: p.name ?? p.handle ?? p.id, why: "no linked stock location AND no store" })
+        continue
+      }
+      const scId = stores[0]?.default_sales_channel_id
+      if (!scId) {
+        stranded.push({ id: p.id, name: p.name ?? p.handle ?? p.id, why: "store has no default sales channel" })
+        continue
+      }
+      const viaChain = channelLocations.get(scId) ?? []
+      viaChain.forEach((id) => linkedLocationIds.add(id))
+      if (viaChain.length !== 1) {
+        stranded.push({
+          id: p.id,
+          name: p.name ?? p.handle ?? p.id,
+          why: `sales channel ${scId} reaches ${viaChain.length} stock locations`,
+        })
+      }
+    }
+
+    const orphanLocations = ((allLocations ?? []) as any[])
+      .filter((l) => l?.id && !linkedLocationIds.has(l.id))
+      .map((l) => ({ id: l.id, name: l.name ?? null }))
+
+    // ---- Audit mode -------------------------------------------------------
+    if (!pairs.length) {
+      for (const s of stranded) {
+        changes.push({
+          entity: "partner",
+          id: s.id,
+          field: "stock_location",
+          before: null,
+          after: null,
+          note: `${s.name}: ${s.why}`,
+        })
+      }
+      for (const l of orphanLocations) {
+        changes.push({
+          entity: "stock_location",
+          id: l.id,
+          field: "partner",
+          before: null,
+          after: null,
+          note: `"${l.name}" is reachable from no partner`,
+        })
+      }
+      return {
+        job_id: "backfill-partner-stock-locations",
+        dry_run,
+        // An audit changes nothing, whatever dry_run says.
+        applied: false,
+        summary:
+          `Audit: ${stranded.length} partner(s) cannot bank finished goods; ` +
+          `${orphanLocations.length} stock location(s) belong to no partner. ` +
+          `Pair them with the \`pairs\` param (partner_id:location_id,…) — there is no ` +
+          `name-matching heuristic, because on this data it mislinks.`,
+        changes,
+        ...(errors.length ? { errors } : {}),
+      }
+    }
+
+    // ---- Repair mode ------------------------------------------------------
+    const partnerById = new Map(((partners ?? []) as any[]).map((p) => [p.id, p]))
+    const locationById = new Map(((allLocations ?? []) as any[]).map((l) => [l.id, l]))
+
+    for (const { partner_id, location_id } of pairs) {
+      const partner = partnerById.get(partner_id)
+      if (!partner) {
+        errors.push({ id: `${partner_id}:${location_id}`, message: `No such partner ${partner_id}` })
+        continue
+      }
+      const location = locationById.get(location_id)
+      if (!location) {
+        errors.push({ id: `${partner_id}:${location_id}`, message: `No such stock location ${location_id}` })
+        continue
+      }
+
+      const already = ((partner?.stock_locations ?? []) as any[]).some(
+        (l) => l?.id === location_id
+      )
+      if (already) continue
+
+      /**
+       * A partner that already has ONE location and is being given a second is
+       * not a backfill — it is a split. The resolver would then refuse for that
+       * partner, turning a working partner into a broken one. Stop.
+       */
+      const existingCount = ((partner?.stock_locations ?? []) as any[]).length
+      if (existingCount >= 1) {
+        errors.push({
+          id: `${partner_id}:${location_id}`,
+          message:
+            `Partner already has ${existingCount} linked stock location(s). Adding another makes ` +
+            `the resolution ambiguous and would stop it banking goods at all. Unlink first if this is a move.`,
+        })
+        continue
+      }
+
+      if (!dry_run) {
+        try {
+          await remoteLink.create({
+            [PARTNER_MODULE]: { partner_id },
+            [Modules.STOCK_LOCATION]: { stock_location_id: location_id },
+          })
+        } catch (err) {
+          errors.push({
+            id: `${partner_id}:${location_id}`,
+            message: err instanceof Error ? err.message : String(err),
+          })
+          continue
+        }
+      }
+
+      changes.push({
+        entity: partnerStockLocationLink.entryPoint,
+        id: `${partner_id}::${location_id}`,
+        field: "link",
+        before: null,
+        after: { partner_id, stock_location_id: location_id },
+        note: `${partner?.name ?? partner_id} → "${location?.name ?? location_id}"`,
+      })
+    }
+
+    const verb = dry_run ? "Would link" : "Linked"
+    return {
+      job_id: "backfill-partner-stock-locations",
+      dry_run,
+      applied: !dry_run && changes.length > 0,
+      summary:
+        `${verb} ${changes.length} partner→stock-location link${changes.length === 1 ? "" : "s"} ` +
+        `(${pairs.length} pair(s) requested${errors.length ? `, ${errors.length} rejected` : ""}). ` +
+        `${stranded.length} partner(s) still cannot bank finished goods.`,
+      changes,
+      ...(errors.length ? { errors } : {}),
+    }
+  },
+}
+
 export const MAINTENANCE_JOBS: MaintenanceJob[] = [
+  backfillPartnerStockLocationsJob,
   reconcileOrderBalancesJob,
   cancelInactiveProductionRunsJob,
   warnExpiringProductionRunsJob,
