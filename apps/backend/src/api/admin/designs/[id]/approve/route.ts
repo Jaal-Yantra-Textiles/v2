@@ -71,6 +71,51 @@ export async function POST(
         : undefined;
 
     /**
+     * 🔑 #2059 — the catalogue this product goes into, when the admin wants to
+     * say.
+     *
+     * Optional, and read raw like `size_label` above (this route has no
+     * validator middleware). Blank is not an answer and falls through.
+     *
+     * Precedence is deliberate and worth stating: an explicit channel WINS.
+     * A partner-owned design still auto-routes to the partner's own catalogue
+     * whenever nothing explicit is passed, which is the common case — this
+     * exists so an admin can override that for the deliberate exceptions, not
+     * so they have to think about it every time.
+     */
+    const rawSalesChannelId = (
+      req.body as { sales_channel_id?: unknown } | undefined
+    )?.sales_channel_id;
+    const salesChannelId =
+      typeof rawSalesChannelId === "string" && rawSalesChannelId.trim()
+        ? rawSalesChannelId.trim()
+        : undefined;
+
+    /**
+     * Refuse an unknown channel HERE, before the status write.
+     *
+     * Handed straight to the minter, a typo'd id surfaces as a product-creation
+     * failure several layers down, after the design has already been marked
+     * Approved — the same "approved with no product" split this route's cost
+     * guard below exists to prevent.
+     */
+    if (salesChannelId) {
+      const { data: channels } = await query.graph({
+        entity: "sales_channels",
+        filters: { id: salesChannelId },
+        fields: ["id"],
+      });
+      if (!channels?.length) {
+        res.status(400).json({
+          message: `Sales channel ${salesChannelId} does not exist.`,
+          design_id: designId,
+          sales_channel_id: salesChannelId,
+        });
+        return;
+      }
+    }
+
+    /**
      * 🔴 #1900 — a design with no cost must not become a product listed at 0.
      *
      * `estimated_cost || 0` handed `createProductFromDesignWorkflow` a zero,
@@ -179,6 +224,12 @@ export async function POST(
            */
           currency_code: approvalCurrency,
           size_label: sizeLabel,
+          /**
+           * Undefined when the admin named none — the minter then routes a
+           * partner-owned design to its partner's catalogue, and everything
+           * else to the house store. It never falls back to `stores[0]`. #2059
+           */
+          sales_channel_id: salesChannelId,
         },
       });
 
