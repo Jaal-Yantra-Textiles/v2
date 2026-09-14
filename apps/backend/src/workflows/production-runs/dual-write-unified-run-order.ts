@@ -13,6 +13,7 @@ import { PRODUCTION_RUNS_MODULE } from "../../modules/production_runs"
 import { PARTNER_MODULE } from "../../modules/partner"
 import { DESIGN_MODULE } from "../../modules/designs"
 import PartnerOrderLink from "../../links/partner-order"
+import { fetchChildRunIds } from "./lib/run-children"
 import type ProductionRunService from "../../modules/production_runs/service"
 import {
   PARTNER_WORK_ORDERS_CHANNEL,
@@ -985,12 +986,32 @@ export const mirrorRunStatusToUnifiedOrder = async (
     })
     const unifiedOrder = orderRows?.[0]
 
-    // A parent order superseded by a run split stays canceled forever — the
-    // child orders carry the commercial reality. `superseded_by_run_ids` is the
-    // one metadata key still read here; it's write-once at approve, so this is a
-    // plain read (PR-H retired the per-order metadata lock — partner_status now
-    // lives on the sidecar column, which has no RMW to serialize).
-    if (unifiedOrder?.metadata?.superseded_by_run_ids) {
+    /**
+     * A parent order superseded by a run split stays canceled forever — the
+     * child orders carry the commercial reality, so its status must not be
+     * re-mirrored from the parent run.
+     *
+     * #2029 item 1 — this asks the schema: does this run have children? That is
+     * what "was split" MEANS, and `parent_run_id` is where approve records it
+     * (`approve-production-run.ts:226`). The blob remains as the fallback for
+     * orders stamped before this read existed.
+     *
+     * 🔑 This predicate is deliberately NOT the one `readSupersession` uses.
+     * That one additionally requires the order to be canceled, because it
+     * decides MONEY and refuses to act on a half-applied write. This one only
+     * declines to overwrite a status, and the safer reading of a half-applied
+     * write here is the opposite: if the split happened, the parent's status is
+     * not ours to mirror, whether or not the cancel landed. Under the blob
+     * those two cases were indistinguishable — the key only ever appeared
+     * alongside the cancel — so this is the one place where moving to the typed
+     * fact CHANGES behaviour, and it changes it toward the split that really
+     * occurred.
+     */
+    const childRunIds = await fetchChildRunIds(container, productionRunId)
+    if (
+      childRunIds.length ||
+      unifiedOrder?.metadata?.superseded_by_run_ids
+    ) {
       return { linked: false, skipped: "superseded" }
     }
 
