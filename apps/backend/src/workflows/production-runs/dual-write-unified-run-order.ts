@@ -13,12 +13,15 @@ import { PRODUCTION_RUNS_MODULE } from "../../modules/production_runs"
 import { PARTNER_MODULE } from "../../modules/partner"
 import { DESIGN_MODULE } from "../../modules/designs"
 import PartnerOrderLink from "../../links/partner-order"
+import { fetchChildRunIds } from "./lib/run-children"
 import type ProductionRunService from "../../modules/production_runs/service"
 import {
   PARTNER_WORK_ORDERS_CHANNEL,
   resolveUnifiedOrderIdByLink,
   linkUnifiedOrderOrRollback,
   setUnifiedOrderPartnerStatus,
+  setUnifiedOrderKind,
+  readIsCollated,
 } from "../inventory_orders/dual-write-unified-order"
 import { pickDefaultCurrency } from "../../lib/resolve-store-currency"
 import {
@@ -180,19 +183,26 @@ export const projectRunToUnifiedOrder = async (
     )
 
     // D5-2 idempotency: the order↔production_run link is the authoritative
-    // "already projected" signal. Resolve it forward (run → order) via
-    // query.graph — that join is synchronous/authoritative; never query.index
-    // here (eventually consistent). Fall back to the legacy
-    // metadata.unified_order_id backref so runs projected before D5-2
-    // (link-less) are not re-projected into a duplicate order.
+    /**
+     * "already projected" signal. Resolve it forward (run → order) via
+     * query.graph — that join is synchronous/authoritative; never query.index
+     * here (eventually consistent).
+     *
+     * 🔴 #2029 item 5 removed the `metadata.unified_order_id` fallback here,
+     * and this is the highest-consequence of the five: the fallback's job was
+     * to stop a pre-D5-2 run being re-projected into a DUPLICATE order. It is
+     * safe only because no such row exists — measured on prod 2026-09-14, 86
+     * production runs linked, 58 carrying neither link nor backref, 0 needing
+     * one — and because nothing writes a backref any more. A row that had one
+     * would be caught by the warn in `resolveUnifiedOrderIdByLink`.
+     */
     const query: any = container.resolve(ContainerRegistrationKeys.QUERY)
     const { data: linkedRuns } = await query.graph({
       entity: "production_runs",
       fields: ["id", "order.id"],
       filters: { id: productionRunId },
     })
-    const alreadyProjectedId =
-      linkedRuns?.[0]?.order?.id ?? run?.metadata?.unified_order_id
+    const alreadyProjectedId = linkedRuns?.[0]?.order?.id
     if (alreadyProjectedId) {
       return {
         unified_order_id: alreadyProjectedId,
@@ -311,6 +321,20 @@ export const projectRunToUnifiedOrder = async (
         )
       }
     }
+
+    /**
+     * #2029 item 4 — a per-run mirror says so EXPLICITLY.
+     *
+     * "Absent means per-run" is how this fact went wrong in the first place. A
+     * row that states `per_run` is the difference between "this is a one-run
+     * order" and "nobody has told me" — and only the second should fall back to
+     * the metadata blob.
+     */
+    await setUnifiedOrderKind(container, unified.id, "per_run").catch((e: any) =>
+      logger.warn(
+        `[orders-unification] sidecar kind write failed for ${unified.id}: ${e?.message}`
+      )
+    )
 
     // Chunk 9b (PR-F) — when the projection derived a partner_status (the run is
     // born at/past sent_to_partner), also write the typed sidecar column. This
@@ -595,6 +619,21 @@ export const collateRunsIntoWorkOrder = async (
         }
       })
   }
+
+  /**
+   * #2029 item 4 — the KIND, written unconditionally.
+   *
+   * Deliberately NOT inside the `if (partnerStatus)` below. This order IS
+   * collated whatever its runs' statuses say, and an order whose runs were all
+   * declined derives no partner_status at all — which is precisely the order
+   * that would otherwise be left with no typed kind and render to the partner
+   * as a single-design job.
+   */
+  await setUnifiedOrderKind(container, unified.id, "collated").catch((e: any) =>
+    logger.warn(
+      `[orders-unification] collated sidecar kind write failed for ${unified.id}: ${e?.message}`
+    )
+  )
 
   // Aggregate partner_status onto the sidecar column (best-effort).
   const partnerStatus = aggregatePartnerStatus(runs)
@@ -914,6 +953,14 @@ export const joinRunsIntoWorkOrder = async (
     },
   })
 
+  // #2029 item 4 — joining PROMOTES the mirror to a collated work-order, so the
+  // typed kind moves with it. Unconditional, for the same reason as above.
+  await setUnifiedOrderKind(container, orderId, "collated").catch((e: any) =>
+    logger.warn(
+      `[orders-unification] joined sidecar kind write failed for ${orderId}: ${e?.message}`
+    )
+  )
+
   const partnerStatus = aggregatePartnerStatus(allRuns)
   if (partnerStatus) {
     await setUnifiedOrderPartnerStatus(container, orderId, partnerStatus).catch(
@@ -985,12 +1032,32 @@ export const mirrorRunStatusToUnifiedOrder = async (
     })
     const unifiedOrder = orderRows?.[0]
 
-    // A parent order superseded by a run split stays canceled forever — the
-    // child orders carry the commercial reality. `superseded_by_run_ids` is the
-    // one metadata key still read here; it's write-once at approve, so this is a
-    // plain read (PR-H retired the per-order metadata lock — partner_status now
-    // lives on the sidecar column, which has no RMW to serialize).
-    if (unifiedOrder?.metadata?.superseded_by_run_ids) {
+    /**
+     * A parent order superseded by a run split stays canceled forever — the
+     * child orders carry the commercial reality, so its status must not be
+     * re-mirrored from the parent run.
+     *
+     * #2029 item 1 — this asks the schema: does this run have children? That is
+     * what "was split" MEANS, and `parent_run_id` is where approve records it
+     * (`approve-production-run.ts:226`). The blob remains as the fallback for
+     * orders stamped before this read existed.
+     *
+     * 🔑 This predicate is deliberately NOT the one `readSupersession` uses.
+     * That one additionally requires the order to be canceled, because it
+     * decides MONEY and refuses to act on a half-applied write. This one only
+     * declines to overwrite a status, and the safer reading of a half-applied
+     * write here is the opposite: if the split happened, the parent's status is
+     * not ours to mirror, whether or not the cancel landed. Under the blob
+     * those two cases were indistinguishable — the key only ever appeared
+     * alongside the cancel — so this is the one place where moving to the typed
+     * fact CHANGES behaviour, and it changes it toward the split that really
+     * occurred.
+     */
+    const childRunIds = await fetchChildRunIds(container, productionRunId)
+    if (
+      childRunIds.length ||
+      unifiedOrder?.metadata?.superseded_by_run_ids
+    ) {
       return { linked: false, skipped: "superseded" }
     }
 

@@ -279,6 +279,11 @@ const DOMAIN_KEYWORDS: Record<Exclude<PartnerToolDomain, "core">, string[]> = {
     "colourway", "colorway", "revision", "revisions", "bom",
     "bill of materials", "consumption", "consumption log", "consumption logs",
     "cost", "recalculate", "design media", "reference", "reference image",
+    // NOT "work order" — deliberately, and unlike the admin slicer, which maps
+    // it to `designs` because /admin/design-work-orders lives there. There is
+    // no partner equivalent of that route, so mirroring it here would load
+    // design tools for an ask that is about the partner's own work. The phrase
+    // belongs to `orders` + `production` — see the production slice below.
     // #1531 — a partner never says "inquiry". They say what was asked of them:
     // "can you make this", "they want to know if". Classification without the
     // words a partner actually types is a tool nobody can reach.
@@ -297,6 +302,14 @@ const DOMAIN_KEYWORDS: Record<Exclude<PartnerToolDomain, "core">, string[]> = {
     "manufacture", "manufacturing", "in progress", "wip",
     "task", "tasks", "assigned task", "assigned tasks", "accept task",
     "finish task",
+    // #2030 item 4. "show me my recent work orders" is a partner asking about
+    // the work they have been given. The bare "order" keyword already carries
+    // it to `orders` — the right list surface (`list_partner_orders`, whose
+    // `kind` switches retail / design / inventory work-orders) — but that slice
+    // is fulfilment tools alone, so the runs and tasks the partner then wants
+    // to accept, start or finish never load and it reads as a missing feature.
+    // Both slices, not one: the list answers "which", these answer "now what".
+    "work order", "work orders",
   ],
   inventory: [
     "inventory", "stock", "stocks", "raw material", "raw materials",

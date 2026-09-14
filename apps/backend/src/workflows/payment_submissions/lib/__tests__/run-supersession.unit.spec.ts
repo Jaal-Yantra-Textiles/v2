@@ -70,6 +70,50 @@ describe("readSupersession (#2026)", () => {
       "canceled_mirror_order"
     )
   })
+
+  /**
+   * #2029 item 1 — the POINTER moves to the typed `parent_run_id` children;
+   * the DECISION still keys on the typed `order.status`, exactly as before.
+   */
+  it("prefers the typed children over the blob", () => {
+    const v = readSupersession(
+      { id: "o", status: "canceled", metadata: { superseded_by_run_ids: ["stale_run"] } },
+      ["typed_child"]
+    )
+    expect(v?.superseded_by_run_ids).toEqual(["typed_child"])
+    expect(v?.reason).toBe("superseded_run")
+  })
+
+  it("falls back to the blob for a row written before the typed read existed", () => {
+    const v = readSupersession(
+      { id: "o", status: "canceled", metadata: { superseded_by_run_ids: ["legacy_child"] } },
+      []
+    )
+    expect(v?.superseded_by_run_ids).toEqual(["legacy_child"])
+    expect(v?.reason).toBe("superseded_run")
+  })
+
+  /**
+   * 🔴 The inversion this guard exists to prevent. An empty typed read is
+   * indistinguishable from "I could not read the children", so it must never
+   * overrule a blob that names them — doing so would downgrade a superseded
+   * parent to a bare cancellation and lose the pointer to the runs that carry
+   * the work.
+   */
+  it("an empty typed read does NOT downgrade a blob that names the children", () => {
+    const v = readSupersession(
+      { id: "o", status: "canceled", metadata: { superseded_by_run_ids: ["child"] } },
+      undefined
+    )
+    expect(v?.reason).toBe("superseded_run")
+    expect(v?.superseded_by_run_ids).toEqual(["child"])
+  })
+
+  it("typed children do NOT make a LIVE order superseded", () => {
+    expect(
+      readSupersession({ id: "o", status: "completed", metadata: {} }, ["child"])
+    ).toBeUndefined()
+  })
 })
 
 describe("fetchRunSupersessions (#2026)", () => {
@@ -118,10 +162,14 @@ describe("fetchRunSupersessions (#2026)", () => {
     const map = await fetchRunSupersessions(container([], true), ["run_a"])
     expect(map.size).toBe(0)
   })
-  it("follows metadata.unified_order_id when the D5 link was never backfilled", async () => {
-    // The link is authoritative where it EXISTS. The backfill is an ops-run
-    // script, so a superseded run can still be link-less — and reading only the
-    // link would let it bill.
+  /**
+   * #2029 item 5 — the backref is no longer followed.
+   *
+   * This test previously asserted the opposite, and the change is deliberate:
+   * the backfill it hedged against is now a registered maintenance job, and a
+   * preview run against prod on 2026-09-14 found 0 rows that need the backref.
+   */
+  it("does NOT follow metadata.unified_order_id — the link is the only pointer", async () => {
     const map = await fetchRunSupersessions(
       container(
         [{ id: "run_unlinked", order: null, metadata: { unified_order_id: "order_legacy" } }],
@@ -136,26 +184,76 @@ describe("fetchRunSupersessions (#2026)", () => {
       ),
       ["run_unlinked"]
     )
-    expect(map.get("run_unlinked")).toMatchObject({
-      reason: "superseded_run",
-      superseded_by_run_ids: ["run_child"],
-      mirror_order_id: "order_legacy",
-    })
-  })
-
-  it("does not follow the backref when the backref order is alive", async () => {
-    const map = await fetchRunSupersessions(
-      container(
-        [{ id: "run_x", order: null, metadata: { unified_order_id: "order_live" } }],
-        false,
-        [{ id: "order_live", status: "completed", metadata: {} }]
-      ),
-      ["run_x"]
-    )
     expect(map.size).toBe(0)
   })
 
-  it("prefers the LINK over the backref when both exist", async () => {
+  /**
+   * 🔴 And it says so out loud. Such a run BILLS — this module bills rather
+   * than guessing — so its absence from the supersession map is exactly the
+   * #2026 overpayment shape and must never be silent.
+   */
+  it("WARNS about a run that carries a backref but no link", async () => {
+    const warn = jest.fn()
+    const c: any = {
+      resolve: (key: string) => {
+        if (key === "logger") return { warn }
+        // The children lookup is a real collaborator here; without it, its own
+        // degrade-to-empty warn fires and this test would be asserting on the
+        // wrong message.
+        if (key === "production_runs") {
+          return { listProductionRuns: async () => [] }
+        }
+        return {
+          graph: async ({ entity }: any) => {
+            if (entity === "order") return { data: [] }
+            return {
+              data: [
+                {
+                  id: "run_unlinked",
+                  order: null,
+                  metadata: { unified_order_id: "order_legacy" },
+                },
+              ],
+            }
+          },
+        }
+      },
+    }
+    await fetchRunSupersessions(c, ["run_unlinked"])
+    const backfillWarns = warn.mock.calls.filter((call: any[]) =>
+      String(call[0]).includes("backfill-unified-order-links")
+    )
+    expect(backfillWarns).toHaveLength(1)
+    expect(backfillWarns[0][0]).toContain("run_unlinked")
+    expect(backfillWarns[0][0]).toContain("BILL")
+  })
+
+  it("stays silent when every run resolves through the link", async () => {
+    const warn = jest.fn()
+    const c: any = {
+      resolve: (key: string) => {
+        if (key === "logger") return { warn }
+        if (key === "production_runs") {
+          return { listProductionRuns: async () => [] }
+        }
+        return {
+          graph: async () => ({
+            data: [
+              {
+                id: "run_linked",
+                order: { id: "o1", status: "completed", metadata: {} },
+                metadata: {},
+              },
+            ],
+          }),
+        }
+      },
+    }
+    await fetchRunSupersessions(c, ["run_linked"])
+    expect(warn).not.toHaveBeenCalled()
+  })
+
+  it("reads the LINK, and a stale backref cannot override it", async () => {
     const map = await fetchRunSupersessions(
       container(
         [

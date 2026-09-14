@@ -69,6 +69,49 @@ describe("assessRunPayout", () => {
     cost_type: "per_unit" as const,
   }
 
+  /**
+   * #2028 item 5. The platform pays for work it commissioned. A run the
+   * partner raised on their own design (`metadata.source: "partner.self_serve"`,
+   * stamped by `POST /partners/designs/:id/production-runs`) is their own cost.
+   *
+   * The marker was written in one place and read in NONE, so a partner's own
+   * job was indistinguishable from commissioned work and auto-drafted a payout
+   * on completion like any other run.
+   */
+  describe("a partner's own production is not a platform payable", () => {
+    const selfServe = {
+      ...completed,
+      metadata: { source: "partner.self_serve" },
+    }
+
+    it("refuses a self-serve run", () => {
+      expect(assessRunPayout(selfServe)).toEqual({
+        eligible: false,
+        reason: "partner_self_serve",
+      })
+    })
+
+    it("refuses it for WHOSE work it is, not for the money on it", () => {
+      // Ordered before the cost checks on purpose: the reason a caller logs
+      // must stay true the day someone fills the cost in, and must not change
+      // when they don't.
+      expect(
+        assessRunPayout({ ...selfServe, partner_cost_estimate: null })
+      ).toEqual({ eligible: false, reason: "partner_self_serve" })
+    })
+
+    it("leaves a commissioned run with other metadata payable", () => {
+      // The guard keys on the marker, not on the presence of metadata — a run
+      // carrying anything else must still bill.
+      expect(
+        assessRunPayout({ ...completed, metadata: { source: "admin.designs.manual" } })
+      ).toMatchObject({ eligible: true, amount: 400 })
+      expect(
+        assessRunPayout({ ...completed, metadata: {} })
+      ).toMatchObject({ eligible: true, amount: 400 })
+    })
+  })
+
   it("accepts a completed run with a design, a partner and a cost", () => {
     expect(assessRunPayout(completed)).toEqual({
       eligible: true,

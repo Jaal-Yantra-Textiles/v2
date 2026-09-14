@@ -134,8 +134,16 @@ export async function GET(
     )
   }
 
+  // #2028 item 5 — scope is the originator (`partner_id`) OR the outsourced
+  // executor (`sub_partner_id`). This route used to admit the originator only,
+  // so a sub-partner 404'd on the run they were actually executing while
+  // `cost-summary` and `transfers` — same resource, same actor — let them
+  // straight in. Founder's call (2026-09-13): the executor may see their run.
   const persistedPartnerId = run?.partner_id ?? run?.partnerId ?? null
-  if (!persistedPartnerId || persistedPartnerId !== partnerId) {
+  const persistedSubPartnerId = run?.sub_partner_id ?? run?.subPartnerId ?? null
+  const isOriginator = !!persistedPartnerId && persistedPartnerId === partnerId
+  const isExecutor = !!persistedSubPartnerId && persistedSubPartnerId === partnerId
+  if (!isOriginator && !isExecutor) {
     throw new MedusaError(
       MedusaError.Types.NOT_FOUND,
       `ProductionRun ${id} not found for this partner ${partnerId}`
@@ -148,13 +156,22 @@ export async function GET(
   // (even though the run is present in the partner list query). We therefore use the
   // same query shape as the list endpoint (filter by partner_id) and select the run
   // in application code.
+  //
+  // #2028 item 5 — that shape is kept, but keyed on whichever field admitted
+  // this actor. A sub-partner filtered on `partner_id` matches NOTHING: `node`
+  // then falls back to the bare `retrieveProductionRun` result, which carries
+  // no `tasks` and no `order.id`, so the executor gets a run detail quietly
+  // missing the parts they came for. An empty graph result reads as a thinner
+  // page, never an error, so the scoping key has to follow the guard.
   const { data } = await query.graph({
     entity: "production_runs",
     // `order.id` resolves the order↔production_run link forward (#342 D5) so the
     // partner-ui can redirect the retired `/production-runs/:id` to the unified
     // order detail. Managed link → bidirectional; forward `.order` works here.
     fields: ["*", "tasks.*", "order.id"],
-    filters: { id, partner_id: partnerId },
+    filters: isOriginator
+      ? { id, partner_id: partnerId }
+      : { id, sub_partner_id: partnerId },
     pagination: { skip: 0, take: 1 },
   })
 

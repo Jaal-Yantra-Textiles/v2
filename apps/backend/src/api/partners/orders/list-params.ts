@@ -63,8 +63,17 @@ export const PARTNER_ORDER_LIST_FIELDS = [
    * written against `metadata.collated_design_order` matches nothing SILENTLY
    * (see `findOpenPartnerWorkOrder`). Narrow on something filterable and check
    * the flag in memory.
+   *
+   * #2029 item 4 — `metadata` stays for the FALLBACK only; the typed kind
+   * below is what the UI branches on now.
    */
   "metadata",
+  /**
+   * #2029 item 4 — the typed work-order kind, off the metadata blob and onto a
+   * 1:1 sidecar. Unlike the flag it replaces, this one is filterable by link
+   * existence and cannot be lost to a metadata overwrite.
+   */
+  "unified_order_kind.kind",
 ]
 
 // Filters that apply to EVERY order row regardless of kind.

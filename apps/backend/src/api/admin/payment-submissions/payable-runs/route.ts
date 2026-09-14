@@ -5,6 +5,11 @@ import { PAYMENT_SUBMISSIONS_MODULE } from "../../../../modules/payment_submissi
 import PaymentSubmissionsService from "../../../../modules/payment_submissions/service"
 import { isProvenanceRun } from "../../../../workflows/consumption-logs/lib/reconcile-production-consumption"
 import { runPayableOffer } from "../../../../workflows/production-runs/lib/run-payable"
+import {
+  partnerExpenseRows,
+  partnerExpenseTotal,
+  splitPartnerExpenseRuns,
+} from "../../../../workflows/payment_submissions/lib/partner-expense-runs"
 import { listPartnerSubmissionItems } from "../../../../workflows/payment_submissions/lib/run-claims"
 import {
   runBillableRemaining,
@@ -132,7 +137,25 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
   })
 
   const allRuns = (runs || []) as any[]
-  const designBackedRuns = allRuns.filter((r) => !!r.design_id)
+
+  /**
+   * The partner's OWN production is their expense, not our payable (#2028
+   * item 5). Split out FIRST, before every other rule.
+   *
+   * Deliberately NOT another `excluded_runs` reason. Every entry there names a
+   * defect or an artefact — `provenance_run` (#1606) is work that happened in
+   * another run, `superseded_run` (#2026) is work that moved, and
+   * `no_design_and_no_order` is a run nobody can attribute. A self-serve run is
+   * real work with a real cost; it is simply not OURS. A partner cannot be both
+   * payer and payee, so there is no payout to make — #2040 already stopped it
+   * auto-drafting. Filing it under "excluded" would say something false about
+   * it and bury a figure the partner's own books need.
+   *
+   * So: its own bucket, WITH the money, so admin can see and filter on it.
+   */
+  const { commissioned: commissionedRuns, ownProduction } =
+    splitPartnerExpenseRuns(allRuns)
+  const designBackedRuns = commissionedRuns.filter((r) => !!r.design_id)
 
   /**
    * 🔴 Runs with no design were being dropped on the floor.
@@ -153,7 +176,10 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
    * ORDER that commissioned them, because that is the unit the payout is
    * agreed in. Order #79 is one payment of ₹8,974, not seven of ₹1,282.
    */
-  const orderBackedRuns = allRuns.filter((r) => !r.design_id && !!r.order_id)
+  // `commissionedRuns`, not `allRuns` — the self-serve split is applied before
+  // every downstream bucket, so a partner's own run can never reappear here as
+  // "real payable labour" just because it happens to lack a design.
+  const orderBackedRuns = commissionedRuns.filter((r) => !r.design_id && !!r.order_id)
 
   /**
    * ⚠️ And runs with neither. Nothing can attribute these — no design to price
@@ -161,7 +187,9 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
    * same reason: an unattributable run is a data question someone must answer,
    * not a row to hide.
    */
-  const unattributableRuns = allRuns.filter((r) => !r.design_id && !r.order_id)
+  const unattributableRuns = commissionedRuns.filter(
+    (r) => !r.design_id && !r.order_id
+  )
 
   /**
    * Prior payment lines for this PARTNER.
@@ -288,6 +316,45 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
       }),
   ]
 
+  /**
+   * Names for both buckets, resolved BEFORE the early return.
+   *
+   * ⚠️ This fetch used to sit below it and cover `completedRuns` alone. A
+   * partner whose only runs are their OWN production has no payable rows at
+   * all, takes that early return, and would have got their expense list back
+   * as bare ids — the exact case the bucket exists to serve.
+   */
+  const designIds = [
+    ...new Set(
+      [...completedRuns, ...ownProduction]
+        .map((r) => (r.design_id ? String(r.design_id) : ""))
+        .filter(Boolean)
+    ),
+  ]
+
+  const { data: designs } = designIds.length
+    ? await query.graph({
+        entity: "designs",
+        fields: ["id", "name", "status", "estimated_cost", "production_cost"],
+        filters: { id: designIds },
+      })
+    : { data: [] as any[] }
+  const designById = new Map(
+    ((designs || []) as any[]).map((d) => [d.id, d])
+  )
+
+  const partner_expense_runs = partnerExpenseRows(
+    ownProduction,
+    new Map(
+      [...designById.entries()].map(([id, d]) => [String(id), String(d?.name ?? "")])
+    )
+  )
+  const partner_expense = {
+    partner_expense_runs,
+    partner_expense_count: partner_expense_runs.length,
+    partner_expense_total: partnerExpenseTotal(partner_expense_runs),
+  }
+
   if (!completedRuns.length) {
     // ⚠️ Still returns the order-backed rows. They are not design-backed, so a
     // partner with no design runs at all can still have real payable work —
@@ -300,21 +367,9 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
       order_runs,
       order_runs_count: order_runs.length,
       unattributable_runs,
+      ...partner_expense,
     })
   }
-
-  const designIds = [
-    ...new Set(completedRuns.map((r) => String(r.design_id))),
-  ]
-
-  const { data: designs } = await query.graph({
-    entity: "designs",
-    fields: ["id", "name", "status", "estimated_cost", "production_cost"],
-    filters: { id: designIds },
-  })
-  const designById = new Map(
-    ((designs || []) as any[]).map((d) => [d.id, d])
-  )
 
   /**
    * 🔴 The fold lives in `lib/run-billing.ts`, not here. #1622 asks the same
@@ -531,5 +586,11 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
     order_runs,
     order_runs_count: order_runs.length,
     unattributable_runs,
+    /**
+     * The partner's own production (#2028 item 5) — an EXPENSE they carry, not
+     * a payable we owe. Its own list, with the money on it, so the screen can
+     * show and filter it without any chance of it being ticked into a batch.
+     */
+    ...partner_expense,
   })
 }

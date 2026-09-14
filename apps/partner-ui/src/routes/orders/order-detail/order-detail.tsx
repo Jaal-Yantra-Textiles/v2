@@ -16,6 +16,7 @@ import {
 import { ProductionRunCard } from "../../../components/work-orders/production-run-card"
 import { RunDetailsReveal } from "../../../components/work-orders/run-details-reveal"
 import { deriveRunPhase, isPhaseAtLeast } from "../../../lib/run-phase"
+import { isCollatedOrder } from "../../../lib/order-kind"
 import { WorkOrderActivitySection } from "../../../components/work-orders/work-order-activity-section"
 import { WorkOrderSummarySection } from "../../../components/work-orders/work-order-summary-section"
 import { DesignInventoryBomSection } from "../../designs/design-detail/components/design-inventory-bom-section"
@@ -107,7 +108,7 @@ export const OrderDetail = () => {
   const isDesignResolving =
     kind === "design" &&
     !!legacyId &&
-    !(order as any)?.metadata?.collated_design_order &&
+    !isCollatedOrder(order) &&
     !design &&
     !isDesignError
   const { logs: consumptionLogs = [], count: consumptionCount = 0 } =
@@ -186,7 +187,7 @@ export const OrderDetail = () => {
                 (the "one order, many designs" view). Legacy per-run design
                 orders (one design each) keep the single-design detail below. */}
             {kind === "design" &&
-              (order as any)?.metadata?.collated_design_order && (
+              isCollatedOrder(order) && (
                 <>
                   <DesignOrderLines
                     lines={((order as any).items ?? []) as Array<Record<string, any>>}
@@ -208,7 +209,7 @@ export const OrderDetail = () => {
                 partner scrolled past eight sections to reach the one thing they
                 had to do. */}
             {kind === "design" &&
-              !(order as any)?.metadata?.collated_design_order &&
+              !isCollatedOrder(order) &&
               production_run &&
               design && (
                 <ProductionRunCard
@@ -227,7 +228,7 @@ export const OrderDetail = () => {
                 behind a Details affordance. Hidden, never deleted — a partner
                 deciding whether to accept may well want to look first. */}
             {kind === "design" &&
-              !(order as any)?.metadata?.collated_design_order &&
+              !isCollatedOrder(order) &&
               design && (
                 <RunDetailsReveal
                   /**

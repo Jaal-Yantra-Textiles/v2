@@ -3,6 +3,7 @@ import { z } from "@medusajs/framework/zod"
 
 import { mirrorRunStatusToUnifiedOrder } from "../../../../workflows/production-runs/dual-write-unified-run-order"
 import { resolveUnifiedOrderIdByLink } from "../../../../workflows/inventory_orders/dual-write-unified-order"
+import { fetchChildRunIdsByParent } from "../../../../workflows/production-runs/lib/run-children"
 import {
   decideRunStatusRemirrors,
   summarizeRemirrorDecisions,
@@ -82,7 +83,8 @@ const DEFAULT_LIMIT = 100
 /** Current sidecar + core status for an order, read fresh. */
 const readOrderStatus = async (
   query: any,
-  orderId: string
+  orderId: string,
+  container: any
 ): Promise<{
   partner_status?: string | null
   core_status?: string | null
@@ -105,11 +107,23 @@ const readOrderStatus = async (
     filters: { id: orderId },
   })
   const row = data?.[0]
+
+  const linkedRuns = (row?.production_runs ?? []).filter(Boolean)
+  const childRunIds = await fetchChildRunIdsByParent(
+    container,
+    linkedRuns.map((r: any) => String(r?.id)).filter(Boolean)
+  ).then((m) => Array.from(m.values()).flat())
+
   return {
     partner_status: row?.unified_order_status?.partner_status ?? null,
     core_status: row?.status ?? null,
-    superseded: Boolean(row?.metadata?.superseded_by_run_ids),
-    linked_runs: (row?.production_runs ?? []).filter(Boolean),
+    // #2029 item 1 — typed first (children by `parent_run_id`), blob as the
+    // fallback for orders stamped before that read existed. Reporting only:
+    // this value appears in the job's output, it decides nothing.
+    superseded:
+      childRunIds.length > 0 ||
+      Boolean(row?.metadata?.superseded_by_run_ids),
+    linked_runs: linkedRuns,
   }
 }
 
@@ -191,7 +205,7 @@ export const remirrorCancelledRunStatusJob: MaintenanceJob = {
         })
         continue
       }
-      const order = await readOrderStatus(query, unifiedOrderId)
+      const order = await readOrderStatus(query, unifiedOrderId, container)
       candidates.push({
         run_id: String(run.id),
         run,
@@ -245,7 +259,7 @@ export const remirrorCancelledRunStatusJob: MaintenanceJob = {
         // 🔴 The readback IS the job. The call above returns `{ linked: false,
         // error }` on failure and logs a warning — trusting it would report a
         // repair that never happened.
-        const after = await readOrderStatus(query, decision.unified_order_id!)
+        const after = await readOrderStatus(query, decision.unified_order_id!, container)
         const landed = after.partner_status ?? null
 
         if (landed === decision.expected_partner_status) {

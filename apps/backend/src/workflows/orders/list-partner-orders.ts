@@ -11,6 +11,7 @@ import { getOrdersListWorkflow } from "@medusajs/medusa/core-flows"
 import partnerOrderLink from "../../links/partner-order"
 import { resolveDesignThumbnail } from "../../lib/design-thumbnail"
 import { resolveLineItemDesignId } from "../../lib/resolve-line-item-production"
+import { fetchChildRunIdsByParent } from "../production-runs/lib/run-children"
 
 // Chunk 5 (T3.4, #342): the kind-aware partner orders listing, lifted out of the
 // route handler into a workflow so the scoping/discrimination logic is reusable
@@ -75,10 +76,24 @@ export type ListPartnerOrdersWorkflowInput = {
  * the point: it is the mirror of what the partner sees. An admin who needs the
  * unfiltered truth has the admin orders list, which is unaffected.
  */
-const isSupersededArtifact = (o: any): boolean => {
+const isSupersededArtifact = (o: any, childRunIds?: string[]): boolean => {
   const status = String(o?.status ?? "")
   if (status !== "canceled" && status !== "cancelled") {
     return false
+  }
+  /**
+   * #2029 item 1 — the split is read from `parent_run_id`, the typed fact
+   * approve writes on every child, and the blob answers only for orders
+   * written before that read existed.
+   *
+   * 🔴 The two sources are OR'd, never swapped. A typed read that comes back
+   * empty is indistinguishable from "never split", and believing it here would
+   * un-hide a superseded parent — showing the partner a canceled work-order for
+   * goods they really made, beside the child that actually carries them. The
+   * blob still saying "superseded" is enough to keep it hidden.
+   */
+  if ((childRunIds ?? []).length > 0) {
+    return true
   }
   const superseded = o?.metadata?.superseded_by_run_ids
   return Array.isArray(superseded) && superseded.length > 0
@@ -137,10 +152,37 @@ export const resolvePartnerWorkOrderIdsStep = createStep(
     const linked = (rel: any): boolean =>
       Array.isArray(rel) ? rel.length > 0 : Boolean(rel?.id)
 
+    /**
+     * The typed pointer, for CANCELED orders only — the sole rows where
+     * supersession is even asked about. A live order never reaches the check,
+     * so nothing is fetched on its behalf.
+     */
+    const runIdOf = (rel: any): string | null => {
+      const row = Array.isArray(rel) ? rel[0] : rel
+      return row?.id ? String(row.id) : null
+    }
+    const canceledRunIds = (orders ?? [])
+      .filter((o: any) => {
+        const st = String(o?.status ?? "")
+        return st === "canceled" || st === "cancelled"
+      })
+      .map((o: any) => runIdOf(o?.production_runs))
+      .filter((id: string | null): id is string => Boolean(id))
+
+    const childIdsByParent = canceledRunIds.length
+      ? await fetchChildRunIdsByParent(container, canceledRunIds)
+      : new Map<string, string[]>()
+
     const design: string[] = []
     const inventory: string[] = []
     for (const o of orders ?? []) {
-      if (isSupersededArtifact(o)) {
+      const ownRunId = runIdOf(o?.production_runs)
+      if (
+        isSupersededArtifact(
+          o,
+          ownRunId ? childIdsByParent.get(ownRunId) : undefined
+        )
+      ) {
         continue
       }
       if (linked(o?.production_runs)) {

@@ -16,6 +16,10 @@ const PARTNER_DESIGNS_QUERY_KEY = "partner-designs" as const
 export const partnerDesignsQueryKeys = queryKeysFactory(PARTNER_DESIGNS_QUERY_KEY)
 
 export type PartnerDesignPartnerInfo = {
+  // The full set both partner-designs routes can emit. `awaiting_review` and
+  // `cancelled` were missing (#2018 tail), which made a correct
+  // `=== "cancelled"` guard a comparison TypeScript proved impossible — see
+  // work-orders/production-run-card.tsx, which had to compare as a string.
   partner_status?:
     | "incoming"
     | "assigned"

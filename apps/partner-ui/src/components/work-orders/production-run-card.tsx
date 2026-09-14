@@ -106,13 +106,7 @@ export const ProductionRunCard = ({
   // lingers (cancelling the assignment now also cancels the run, but this
   // guards runs that predate that fix). The run's own status still gates
   // the individual transitions below.
-  // ⚠️ Compared as a STRING on purpose. `partner_status`'s declared union has
-  // no "cancelled" member, so `=== "cancelled"` was a comparison TypeScript
-  // proved could never be true — while the runtime value plainly can be. The
-  // type is the thing that is wrong; widening it is out of scope here, so the
-  // guard is kept honest rather than deleted.
-  const assignmentCancelled =
-    String(design?.partner_info?.partner_status ?? "") === "cancelled"
+  const assignmentCancelled = design?.partner_info?.partner_status === "cancelled"
   const actionable = !isCancelled && !assignmentCancelled
   const canAccept = actionable && status === "sent_to_partner"
   const canStart = actionable && status === "in_progress" && !run.started_at

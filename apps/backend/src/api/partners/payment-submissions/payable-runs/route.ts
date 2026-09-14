@@ -7,6 +7,11 @@ import { isProvenanceRun } from "../../../../workflows/consumption-logs/lib/reco
 import { fetchRunSupersessions } from "../../../../workflows/payment_submissions/lib/run-supersession"
 import { runPayableOffer } from "../../../../workflows/production-runs/lib/run-payable"
 import {
+  partnerExpenseRows,
+  partnerExpenseTotal,
+  splitPartnerExpenseRuns,
+} from "../../../../workflows/payment_submissions/lib/partner-expense-runs"
+import {
   foldPartnerBilling,
   runBillableRemaining,
   runBillingStatus,
@@ -70,7 +75,21 @@ export const GET = async (
     filters: { partner_id: partner.id, status: "completed" },
   })
 
-  const designBackedRuns = ((runs || []) as any[]).filter((r) => !!r.design_id)
+  const allDesignBacked = ((runs || []) as any[]).filter((r) => !!r.design_id)
+
+  /**
+   * The partner's OWN production is their expense, not our payable (#2028
+   * item 5). Split out FIRST, before every other rule: the exclusions below
+   * name defects (double-counted work, work that never happened in that run),
+   * and this is neither. It is real work with a real cost that simply is not
+   * ours — a partner cannot self-pay, so there is no payout to make.
+   *
+   * Reported with the money on it rather than dropped, so the screen can show
+   * it as an expense and filter on it.
+   */
+  const { commissioned: designBackedRuns, ownProduction } =
+    splitPartnerExpenseRuns(allDesignBacked)
+  const partner_expense_runs = partnerExpenseRows(ownProduction)
 
   /**
    * A run minted by a retail fulfilment is not billable labour (#1606).
@@ -129,9 +148,15 @@ export const GET = async (
   ]
 
   if (!completedRuns.length) {
-    return res
-      .status(200)
-      .json({ payable_runs: [], count: 0, excluded_runs, excluded_count: excluded_runs.length })
+    return res.status(200).json({
+      payable_runs: [],
+      count: 0,
+      excluded_runs,
+      excluded_count: excluded_runs.length,
+      partner_expense_runs,
+      partner_expense_count: partner_expense_runs.length,
+      partner_expense_total: partnerExpenseTotal(partner_expense_runs),
+    })
   }
 
   const designIds = [
@@ -298,5 +323,8 @@ export const GET = async (
     count: payable_runs.length,
     excluded_runs,
     excluded_count: excluded_runs.length,
+    partner_expense_runs,
+    partner_expense_count: partner_expense_runs.length,
+    partner_expense_total: partnerExpenseTotal(partner_expense_runs),
   })
 }

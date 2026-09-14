@@ -40,6 +40,28 @@ export type RunForPayout = {
 }
 
 /**
+ * #2028 item 5 — a run the PARTNER commissioned for themselves.
+ *
+ * `POST /partners/designs/:id/production-runs` lets a partner raise a
+ * self-approved run on their own design and stamps
+ * `metadata.source: "partner.self_serve"`. Founder's rule (2026-09-13): when a
+ * partner executes their own production, the production cost is THEIRS — it is
+ * scoped to them and the platform does not record a payment for it.
+ *
+ * ⚠️ Written in exactly one place (`partners/designs/[designId]/production-runs`)
+ * and, until this, read in NONE — so a partner's own job was indistinguishable
+ * from work the platform commissioned, and `assessRunPayout` drafted a payout
+ * for it on completion like any other run. The marker existed; nothing consulted
+ * it.
+ *
+ * Same shape of guard as `isProvenanceRun`, and it depends on the same thing:
+ * every caller must actually FETCH `metadata`.
+ */
+export const isPartnerSelfServeRun = (
+  run: Pick<RunForPayout, "metadata"> | null | undefined
+): boolean => run?.metadata?.source === "partner.self_serve"
+
+/**
  * The payable total for a run, or 0 when it has no usable cost.
  */
 export const runPayableAmount = (run: RunForPayout | null | undefined): number => {
@@ -317,6 +339,22 @@ export const assessRunPayout = (
    */
   if (isProvenanceRun(run)) {
     return { eligible: false, reason: "provenance_run" }
+  }
+
+  /**
+   * A partner's OWN production is not a platform payable (#2028 item 5).
+   *
+   * The platform pays for work it commissioned. A run the partner raised
+   * themselves, on their own design, carries a cost that is theirs to bear —
+   * so completing it must not auto-draft a payout in the platform's name.
+   *
+   * ⚠️ Ordered AFTER `provenance_run` and BEFORE the cost checks, for the same
+   * reason the rollup guard is: a self-serve run that HAS a cost must be
+   * refused for whose work it is, not incidentally for the money on it. The
+   * reason a caller logs should stay true the day the field is filled in.
+   */
+  if (isPartnerSelfServeRun(run)) {
+    return { eligible: false, reason: "partner_self_serve" }
   }
 
   /**
