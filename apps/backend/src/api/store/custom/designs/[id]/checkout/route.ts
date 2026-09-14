@@ -10,6 +10,7 @@ import {
   fetchExchangeRate,
   applyRate,
 } from "../../../../../../workflows/designs/create-draft-order-from-designs";
+import { resolveStorefrontCurrency } from "../../../../../../lib/resolve-store-currency";
 
 /**
  * POST /store/custom/designs/:id/checkout
@@ -21,7 +22,8 @@ import {
  * {
  *   cart_id: string               Required — cart to add the item to
  *   inventory_item_ids?: string[] Optional — override which inventory items to price
- *   currency_code?: string        Optional — defaults to "usd"
+ *   currency_code?: string        Optional — only used when the cart has no
+ *                                 currency of its own
  * }
  */
 export async function POST(
@@ -104,16 +106,34 @@ export async function POST(
   const cart = await cartService.retrieveCart(body.cart_id);
   const cartCurrency = (cart?.currency_code || body.currency_code || "usd").toLowerCase();
 
-  // Determine store's default (base) currency — estimates are always in this currency
-  const { data: stores } = await query.graph({
-    entity: "store",
-    filters: {},
-    fields: ["supported_currencies.currency_code", "supported_currencies.is_default"],
-  });
-  const storeCurrency = (
-    stores?.[0]?.supported_currencies?.find((sc: any) => sc.is_default)?.currency_code ||
-    "inr"
-  ).toLowerCase();
+  /**
+   * 🔴 The estimate is denominated by the STOREFRONT, not by whichever store
+   * row came back first.
+   *
+   * This read used to be `entity: "store", filters: {}` → `[0]` → literal
+   * `"inr"`, while the sibling estimate route ran the identical lookup and
+   * defaulted to `"eur"` — the same figure denominated two ways, ~100x apart,
+   * on a public money path.
+   *
+   * `stores[0]` is the platform store (EUR) across all 14 stores, so a partner
+   * storefront selling in INR had its INR-derived estimate treated as EUR and
+   * then converted EUR→INR right here, multiplying the customer's price by the
+   * exchange rate.
+   *
+   * A denomination we cannot establish is an unanswered question at the till,
+   * and it gets the same answer as an unanswered price: stop. #1564
+   */
+  const storeCurrency = await resolveStorefrontCurrency(
+    req.scope,
+    req.publishable_key_context
+  );
+
+  if (!storeCurrency) {
+    throw new MedusaError(
+      MedusaError.Types.NOT_ALLOWED,
+      "Could not determine this storefront's currency, so this design cannot be priced. Please contact us for a quote."
+    );
+  }
 
   // Convert estimated cost from store currency to cart currency
   const rate = await fetchExchangeRate(storeCurrency, cartCurrency);

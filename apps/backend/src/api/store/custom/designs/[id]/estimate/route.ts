@@ -9,6 +9,7 @@ import {
   fetchExchangeRate,
   applyRate,
 } from "../../../../../../workflows/designs/create-draft-order-from-designs";
+import { resolveStorefrontCurrency } from "../../../../../../lib/resolve-store-currency";
 
 /**
  * GET /store/custom/designs/:id/estimate
@@ -65,16 +66,32 @@ export async function GET(
     throw new MedusaError(MedusaError.Types.UNEXPECTED_STATE, "Failed to estimate design cost");
   }
 
-  // Determine the store's default currency (estimates are in this currency)
-  const { data: stores } = await (query as any).graph({
-    entity: "store",
-    filters: {},
-    fields: ["supported_currencies.currency_code", "supported_currencies.is_default"],
-  });
-  const storeCurrency = (
-    stores?.[0]?.supported_currencies?.find((sc: any) => sc.is_default)?.currency_code ||
-    "eur"
-  ).toLowerCase();
+  /**
+   * 🔴 The estimate is denominated by the STOREFRONT, not by whichever store
+   * row came back first.
+   *
+   * This read used to be `entity: "store", filters: {}` → `[0]` → literal
+   * `"eur"`. The deployment runs 14 stores; row 0 is the platform store (EUR)
+   * while most partner storefronts are INR, so every partner storefront's
+   * estimate was labelled EUR — and the checkout route then converted that same
+   * figure EUR→INR, inflating the price by the exchange rate. The sibling route
+   * defaulted to `"inr"` instead, so the two disagreed by ~100x on the same
+   * lookup.
+   *
+   * The publishable key names the tenant. When it cannot, we refuse: an
+   * estimate shown under the wrong currency symbol is worse than no estimate.
+   */
+  const storeCurrency = await resolveStorefrontCurrency(
+    req.scope,
+    req.publishable_key_context
+  );
+
+  if (!storeCurrency) {
+    throw new MedusaError(
+      MedusaError.Types.NOT_ALLOWED,
+      "Could not determine this storefront's currency, so this design cannot be priced. Please contact us for a quote."
+    );
+  }
 
   // Optional: convert to the requested currency
   const targetCurrency = ((req.query.currency_code as string) || "").toLowerCase() || storeCurrency;
