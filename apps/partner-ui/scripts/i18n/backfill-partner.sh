@@ -40,8 +40,8 @@ if [[ -f "$ENV_FILE" ]]; then
   set +a
 fi
 
-if [[ -z "${DASHSCOPE_API_KEY:-}" && -z "${OPENROUTER_API_KEY:-}" ]]; then
-  echo "ERROR: DASHSCOPE_API_KEY (or OPENROUTER_API_KEY) is not set." >&2
+if [[ -z "${DASHSCOPE_API_KEY:-}" && -z "${OPENROUTER_API_KEY:-}" && -z "${GEMINI_API_KEY:-}" ]]; then
+  echo "ERROR: GEMINI_API_KEY, DASHSCOPE_API_KEY (or OPENROUTER_API_KEY) is not set." >&2
   echo "       Expected it in $ENV_FILE" >&2
   exit 1
 fi

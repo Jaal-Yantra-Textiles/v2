@@ -31,7 +31,12 @@
  *     --concurrency=<n>          Parallel section requests (default 1).
  *
  *   Env:
- *     OPENROUTER_API_KEY  Required unless --dry-run.
+ *     GEMINI_API_KEY      A direct Google Gemini key. When set, the run uses
+ *                         the Gemini OpenAI-compatible endpoint instead of
+ *                         OpenRouter (preferred — a free Gemini key avoids the
+ *                         OpenRouter shared-pool rate limits).
+ *     GEMINI_MODEL        Gemini model id. Default: "gemini-2.0-flash".
+ *     OPENROUTER_API_KEY  Required unless GEMINI_API_KEY is set or --dry-run.
  *     MODEL               OpenRouter model id.
  *                         Default: "qwen/qwen3-next-80b-a3b-instruct:free".
  *                         Examples:
@@ -61,6 +66,12 @@ const LANGUAGES_PATH = path.join(__dirname, "../../src/i18n/languages.ts")
 
 const DEFAULT_MODEL = "qwen/qwen3-next-80b-a3b-instruct:free"
 const OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions"
+
+// Google Gemini — OpenAI-compatible endpoint. Used when GEMINI_API_KEY is set.
+// Prefers a direct Gemini key over OpenRouter so a free-tier Google key (often
+// 5 RPM) drives the run without the shared-pool rate limits.
+const GEMINI_URL = "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions"
+const DEFAULT_GEMINI_MODEL = "gemini-3.6-flash"
 
 // Alibaba Cloud DashScope (native Qwen API) — OpenAI-compatible endpoint.
 // Used when DASHSCOPE_API_KEY is set AND the requested model is a raw Qwen
@@ -279,7 +290,9 @@ async function callOpenAICompatible({ url, apiKey, model, prompt, providerLabel,
         // Large missing-only payloads (e.g. a whole untranslated section) can
         // produce thousands of output tokens; the provider default truncates
         // them → invalid JSON / key-parity failure. Give the response headroom.
-        max_tokens: 8192,
+        // Gemini flash models cap output well below their nominal max, so this
+        // must be generous (16384) or large sections come back truncated.
+        max_tokens: 16384,
         response_format: { type: "json_object" },
         messages: [
           { role: "system", content: "You output only valid JSON. No prose." },
@@ -338,6 +351,15 @@ async function callModel({ provider, apiKey, model, prompt }) {
       })
     }
   }
+  if (provider === "gemini") {
+    return callOpenAICompatible({
+      url: GEMINI_URL,
+      apiKey,
+      model,
+      prompt,
+      providerLabel: "Gemini",
+    })
+  }
   return callOpenAICompatible({
     url: OPENROUTER_URL,
     apiKey,
@@ -370,29 +392,37 @@ async function main() {
   // OpenRouter if no DashScope key, or if the caller explicitly requests an
   // OpenRouter-style model id (containing "/").
   const explicitModel = args.opts.model || process.env.MODEL
+  const hasGemini = !!process.env.GEMINI_API_KEY
   const hasDashScope = !!process.env.DASHSCOPE_API_KEY
   const hasOpenRouter = !!process.env.OPENROUTER_API_KEY
-  const preferDashScope = hasDashScope && (!explicitModel || isDashScopeModel(explicitModel))
-  const provider = preferDashScope ? "dashscope" : "openrouter"
-  const model =
-    explicitModel ||
-    (preferDashScope ? DEFAULT_DASHSCOPE_MODEL : DEFAULT_MODEL)
-  const apiKey = preferDashScope
-    ? process.env.DASHSCOPE_API_KEY
-    : process.env.OPENROUTER_API_KEY
+
+  let provider, model, apiKey
+  if (hasGemini) {
+    // A direct Gemini key is preferred over OpenRouter: a free Google key
+    // (typically 5 RPM) runs without the shared-pool 429s.
+    provider = "gemini"
+    model =
+      args.opts.model || process.env.GEMINI_MODEL || process.env.MODEL || DEFAULT_GEMINI_MODEL
+    apiKey = process.env.GEMINI_API_KEY
+  } else {
+    const preferDashScope =
+      hasDashScope && (!explicitModel || isDashScopeModel(explicitModel))
+    provider = preferDashScope ? "dashscope" : "openrouter"
+    model =
+      explicitModel || (preferDashScope ? DEFAULT_DASHSCOPE_MODEL : DEFAULT_MODEL)
+    apiKey = preferDashScope
+      ? process.env.DASHSCOPE_API_KEY
+      : process.env.OPENROUTER_API_KEY
+  }
 
   const concurrency = Math.max(1, parseInt(args.opts.concurrency || "1", 10))
   const languageName = detectLanguageName(locale)
   const targetPath = path.join(TRANSLATIONS_DIR, `${locale}.json`)
 
   if (!apiKey && !args.flags.has("dry-run")) {
-    if (preferDashScope) {
-      console.error("Missing DASHSCOPE_API_KEY (or pass --dry-run).")
-    } else {
-      console.error(
-        "Missing API key: set DASHSCOPE_API_KEY (preferred) or OPENROUTER_API_KEY."
-      )
-    }
+    console.error(
+      "Missing API key: set GEMINI_API_KEY, DASHSCOPE_API_KEY, or OPENROUTER_API_KEY (or pass --dry-run)."
+    )
     process.exit(1)
   }
 
