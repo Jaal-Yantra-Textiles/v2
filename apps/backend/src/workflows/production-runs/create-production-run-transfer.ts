@@ -25,6 +25,7 @@ import {
   buildTransferShipmentInput,
   transferQuantity,
 } from "./lib/goods-transfer-shipment"
+import { resolvePartnerLocation } from "./lib/partner-location"
 
 /**
  * #891 — move a production run's output from where it was made to wherever it
@@ -144,24 +145,18 @@ export async function resolveRunGoodsLocation(
     // No transfers yet (or the listing failed) — fall through to the default.
   }
 
-  if (!run.partner_id) return undefined
-  try {
-    const { data: partners } = await query.graph({
-      entity: "partners",
-      fields: ["stores.default_sales_channel_id"],
-      filters: { id: run.partner_id },
-    })
-    const scId = partners?.[0]?.stores?.[0]?.default_sales_channel_id
-    if (!scId) return undefined
-    const { data: channels } = await query.graph({
-      entity: "sales_channels",
-      fields: ["stock_locations.id"],
-      filters: { id: scId },
-    })
-    return channels?.[0]?.stock_locations?.[0]?.id
-  } catch {
-    return undefined
-  }
+  /**
+   * 🔴 Was a second, independent copy of the partner → stores[0] → channel →
+   * stock_locations[0] walk, failing to `undefined` at every hop with no log —
+   * the same four hops `stockFinishedGoodsStep` used, maintained separately.
+   *
+   * Two copies of a location lookup is worse than one wrong one: fix either
+   * alone and completion and transfer start disagreeing about the same physical
+   * warehouse. Both now call `resolvePartnerLocation`, which asks the typed
+   * partner→location link first and says which hop broke. #2053
+   */
+  const resolved = await resolvePartnerLocation(container, run.partner_id)
+  return resolved.location_id
 }
 
 /**
