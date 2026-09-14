@@ -3891,6 +3891,360 @@
       "toast": {
         "startFailed": "Nie udało się rozpocząć procesu wprowadzenia Stripe"
       }
+    },
+    "designs": {
+      "heading": "Projekty",
+      "design": "Projekt",
+      "notFound": "Nie znaleziono projektu.",
+      "missingId": "Brak ID projektu.",
+      "sizes": "Rozmiary",
+      "overdue": "Po terminie",
+      "statusOptions": {
+        "conceptual": "Koncepcyjny",
+        "inDevelopment": "W opracowaniu",
+        "technicalReview": "Przegląd techniczny",
+        "sampleProduction": "Produkcja próbek",
+        "revision": "Korekta",
+        "approved": "Zatwierdzony",
+        "rejected": "Odrzucony",
+        "onHold": "Wstrzymany",
+        "commerceReady": "Gotowy do sprzedaży",
+        "superseded": "Zastąpiony"
+      },
+      "priorityOptions": {
+        "low": "Niski",
+        "medium": "Średni",
+        "high": "Wysoki",
+        "urgent": "Pilny"
+      },
+      "typeOptions": {
+        "original": "Oryginalny",
+        "derivative": "Pochodny",
+        "custom": "Niestandardowy",
+        "collaboration": "Współpraca"
+      },
+      "workStatusOptions": {
+        "incoming": "Przychodzące",
+        "assigned": "Przydzielone",
+        "inProgress": "W trakcie",
+        "awaitingReview": "Oczekuje na przegląd",
+        "finished": "Zakończone",
+        "completed": "Ukończone",
+        "cancelled": "Anulowane"
+      },
+      "runStatusOptions": {
+        "draft": "Szkic",
+        "pendingReview": "Oczekuje na przegląd",
+        "approved": "Zatwierdzone",
+        "sentToPartner": "Wysłane do partnera",
+        "inProgress": "W trakcie",
+        "completed": "Ukończone",
+        "cancelled": "Anulowane",
+        "awaitingReassignment": "Oczekuje na ponowne przydzielenie"
+      },
+      "bucketOptions": {
+        "incoming": "Przychodzące",
+        "inProgress": "W trakcie",
+        "yours": "Twoje",
+        "completed": "Ukończone",
+        "all": "Wszystkie"
+      },
+      "engagementOptions": {
+        "owned": {
+          "label": "Twoje",
+          "hint": "Ten projekt został utworzony przez Ciebie."
+        },
+        "assigned": {
+          "label": "Przydzielone",
+          "hint": "Masz serię produkcyjną dla tego projektu — to zadanie dla Ciebie."
+        },
+        "shared": {
+          "label": "Udostępnione",
+          "hint": "Udostępniono Ci do wglądu. Brak przydzielonej serii produkcyjnej (prace mogą być prowadzone wewnętrznie lub u innego partnera)."
+        }
+      },
+      "actionOptions": {
+        "accept": "Zaakceptuj",
+        "working": "W trakcie",
+        "complete": "Zakończ",
+        "underReview": "W trakcie przeglądu",
+        "done": "Gotowe",
+        "cancelled": "Anulowane"
+      },
+      "confidenceOptions": {
+        "exact": "Dokładny",
+        "estimated": "Szacowany"
+      },
+      "runTypeOptions": {
+        "production": "Produkcja",
+        "sample": "Próbka"
+      },
+      "unitOptions": {
+        "meter": "Metr",
+        "yard": "Jard",
+        "kilogram": "Kilogram",
+        "gram": "Gram",
+        "piece": "Sztuka",
+        "roll": "Rolka",
+        "other": "Inne"
+      },
+      "consumptionTypeOptions": {
+        "sample": "Próbka",
+        "production": "Produkcja",
+        "wastage": "Odpady"
+      },
+      "fields": {
+        "priority": "Priorytet",
+        "designerNotes": "Uwagi projektanta",
+        "unit": "Jednostka",
+        "color": "Kolor",
+        "composition": "Skład"
+      },
+      "list": {
+        "subtitle": "Wybierz zakładkę, aby zobaczyć prace przychodzące, w trakcie, własne lub ukończone.",
+        "loadFailed": "Nie udało się wczytać projektów. Spróbuj odświeżyć stronę.",
+        "noRecords": "Brak projektów w tej zakładce. Wybierz inną zakładkę lub wyczyść wyszukiwanie.",
+        "columns": {
+          "name": "Nazwa",
+          "source": "Źródło",
+          "nextAction": "Następne działanie",
+          "workStatus": "Status prac",
+          "priority": "Priorytet",
+          "due": "Termin",
+          "status": "Status projektu",
+          "lastUpdated": "Ostatnia aktualizacja"
+        }
+      },
+      "detail": {
+        "general": "Ogólne",
+        "garmentType": "Typ odzieży",
+        "inferred": "Wnioskowane",
+        "partnerStatus": "Status partnera",
+        "priority": "Priorytet",
+        "targetDate": "Data docelowa",
+        "estimatedCost": "Szacowany koszt",
+        "description": "Opis",
+        "specifications": "Specyfikacje",
+        "specs": "Specyfikacje",
+        "tags": "Tagi",
+        "colorPalette": "Paleta kolorów",
+        "inventoryItems": "Pozycje magazynowe",
+        "noInventoryItems": "Brak pozycji magazynowych powiązanych z tym projektem.",
+        "designerNotes": "Uwagi projektanta",
+        "noNotes": "Brak uwag",
+        "resizeHint": "Przeciągnij dolną krawędź, aby zmienić rozmiar"
+      },
+      "media": {
+        "heading": "Multimedia",
+        "manage": "Zarządzaj",
+        "empty": "Brak plików multimedialnych",
+        "emptyHint": "Dodaj zdjęcia, aby zaprezentować swój projekt",
+        "addMedia": "Dodaj multimedia",
+        "alt": "Multimedia projektu",
+        "preview": "Podgląd multimediów projektu",
+        "download": "Pobierz",
+        "manageMedia": "Zarządzaj multimediami",
+        "uploadDescription": "Prześlij i załącz multimedia do tego projektu",
+        "uploadImages": "Prześlij zdjęcia",
+        "dropHint": "Upuść pliki tutaj lub kliknij, aby przeglądać",
+        "existing": "Istniejące",
+        "selected": "Wybrane",
+        "loadingDesign": "Wczytywanie projektu...",
+        "addAtLeastOne": "Dodaj co najmniej jeden plik",
+        "uploadFailed": "Nie udało się przesłać plików",
+        "attached": "Multimedia zostały załączone",
+        "someRejected": "Niektóre pliki zostały odrzucone",
+        "uploadIntro": "Prześlij zdjęcia, aby załączyć je do tego projektu."
+      },
+      "moodboard": {
+        "heading": "Moodboard",
+        "description": "Zbieraj referencje i inspiracje.",
+        "open": "Otwórz Moodboard",
+        "generateConfirm": "Wygenerować moodboard z założeń tego projektu? Istniejące karty zostaną scalone, a nie zastąpione.",
+        "generating": "Generowanie moodboardu…",
+        "generated": "Wygenerowano moodboard",
+        "generateFailed": "Nie udało się wygenerować moodboardu",
+        "inserted": "Wstawiono \"{{label}}\"",
+        "insertFailed": "Nie udało się wstawić bloku",
+        "nothingToInsert": "Brak elementów do wstawienia dla „{{label}}”.",
+        "saving": "Zapisywanie moodboardu…",
+        "saved": "Zapisano moodboard",
+        "saveFailed": "Nie udało się zapisać moodboardu",
+        "briefSyncFailed": "Zapisano moodboard, ale nie można było zsynchronizować edycji opisu.",
+        "insertBlock": "Wstaw blok",
+        "noBlocks": "Brak dostępnych bloków",
+        "emptySuffix": "· pusty",
+        "addConstruction": "Dodaj konstrukcję",
+        "generate": "Generuj",
+        "layers": "Warstwy",
+        "save": "Zapisz",
+        "savedLabel": "Zapisano",
+        "footerHint": "Wstawianie, konstrukcja, generowanie, warstwy i zapisywanie znajdują się w pasku na dole obszaru roboczego."
+      },
+      "layers": {
+        "heading": "Warstwy",
+        "refresh": "Odśwież",
+        "close": "Zamknij",
+        "noFrames": "Brak ramek.",
+        "untitled": "Ramka bez nazwy",
+        "hasContent": "Zawiera treść",
+        "empty": "Pusta",
+        "jump": "Przejdź do ramki",
+        "show": "Pokaż",
+        "hide": "Ukryj",
+        "lockedWhileHidden": "Zablokowane podczas ukrywania",
+        "unlock": "Odblokuj",
+        "lock": "Zablokuj"
+      },
+      "construction": {
+        "heading": "Dodaj szczegół konstrukcyjny",
+        "details": "Szczegóły konstrukcyjne",
+        "loading": "Wczytywanie technik…",
+        "hint": "Wybierz technikę lub szablon po lewej stronie — jej parametry i zasady dotyczące tkaniny zostaną automatycznie uzupełnione.",
+        "label": "Etykieta",
+        "parameters": "Parametry",
+        "fixedGeometry": "Ta technika ma stałą geometrię — brak parametrów do ustawienia.",
+        "fabricRules": "Zasady dotyczące tkanin / szycia",
+        "oneRulePerLine": "jedna zasada na wiersz",
+        "note": "Uwaga",
+        "optional": "opcjonalnie",
+        "addDetail": "Dodaj szczegół",
+        "added": "Dodano \"{{label}}\"",
+        "addFailed": "Nie udało się dodać szczegółu konstrukcyjnego"
+      },
+      "ownerActions": {
+        "yourDesign": "Twój projekt",
+        "activeOrders_one": "{{count}} zamówienie projektu w trakcie. Utwórz kolejne lub przekaż je podpartnerowi.",
+        "activeOrders_other": "{{count}} zamówień projektu w trakcie. Utwórz kolejne lub przekaż je podpartnerowi.",
+        "noOrders": "Ten projekt został utworzony przez Ciebie. Utwórz zamówienie projektu, aby rozpocząć produkcję, lub przekazać je podpartnerowi.",
+        "newOrder": "Nowe zamówienie",
+        "createOrder": "Utwórz zamówienie",
+        "deleteTitle": "Usuń projekt",
+        "deleteDescription": "Usunąć \"{{name}}\"? Tej operacji nie można cofnąć.",
+        "deleted": "Usunięto projekt"
+      },
+      "production": {
+        "heading": "Zamówienia projektów",
+        "empty": "Brak zamówień projektów. Utwórz zamówienie projektu, aby rozpocząć produkcję, lub zobaczysz je tutaj, gdy administrator prześle Ci zadanie.",
+        "subtitle": "Otwórz zamówienie projektu, aby zaakceptować pracę, zarejestrować materiały i zaktualizować jego status.",
+        "previous": "Poprzednie zamówienia projektów ({{count}})",
+        "viewOrder": "Zobacz zamówienie",
+        "orderType": "Zamówienie typu {{type}}",
+        "qty": "Ilość {{qty}}"
+      },
+      "cost": {
+        "heading": "Kosztorys",
+        "subtitle": "Koszt materiałów + produkcji z powiązanego BOM oraz opłata platformy JYT.",
+        "recalculate": "Przelicz ponownie",
+        "estimatedTotal": "Szacowana suma",
+        "materialCost": "Koszt materiałów",
+        "productionCost": "Koszt produkcji",
+        "platformFee": "Opłata platformy ({{percent}}%)",
+        "lastCalculated": "Ostatnio przeliczono",
+        "yourInput": "Twoje dane",
+        "estimatedLabel": "szacowane",
+        "yourProductionCost": "Twój koszt produkcji (za sztukę)",
+        "autoEstimate": "Automatyczne szacowanie",
+        "helper": "Zastępuje automatyczne szacowanie — pozostaw puste, aby oszacować na podstawie historii. Do kosztu materiałów stosuje się opłatę platformy w wysokości {{percent}}%. Naciśnij Przelicz ponownie, aby zastosować.",
+        "noEstimate": "Brak szacunku — dodaj materiały do BOM, a następnie naciśnij Przelicz ponownie.",
+        "enterValid": "Wprowadź prawidłowy koszt produkcji (0 lub więcej)",
+        "recalculated": "Przeliczono koszt: {{amount}} ({{confidence}})"
+      },
+      "bom": {
+        "heading": "Materiały (BOM)",
+        "subtitle": "Stany magazynowe + surowce użyte do wykonania tego projektu.",
+        "addMaterial": "Dodaj materiał",
+        "empty": "Brak powiązanych materiałów.",
+        "emptyOwnerHint": " Dodaj pozycje magazynowe zużywane przez ten projekt.",
+        "noImg": "Brak obr.",
+        "sku": "SKU",
+        "planned": "Planowane",
+        "consumed": "Zużyte",
+        "removeTitle": "Usuń materiał",
+        "removeDescription": "Usunąć \"{{name}}\" z zestawienia materiałowego (BOM) tego projektu?",
+        "removed": "Usunięto materiał",
+        "materialAlt": "materiał"
+      },
+      "consumption": {
+        "heading": "Zużycie materiałów",
+        "subtitle": "Rejestruj surowce zużyte podczas produkcji",
+        "log": "Zarejestruj",
+        "closedReview": "Rejestracja zamknięta — seria oczekuje na przegląd",
+        "closedComplete": "Rejestracja zamknięta — seria ukończona",
+        "closedNone": "Rejestracja niedostępna",
+        "drawerTitle": "Zarejestruj zużycie materiałów",
+        "drawerDescription": "Rejestruj surowce zużyte podczas produkcji.",
+        "noInventory": "Brak powiązanych zasobów magazynowych",
+        "noInventoryHint": "Najpierw powiąż surowce z tym projektem, a następnie zarejestruj tutaj zużycie materiałów.",
+        "inventoryItem": "Pozycja magazynowa",
+        "selectItem": "Wybierz pozycję",
+        "quantity": "Ilość",
+        "measuredAs": "Mierzone jako",
+        "perPiece": "Na sztukę",
+        "totalRun": "Łącznie dla serii",
+        "perPieceHint": "Materiał na JEDNĄ gotową sztukę — pomnożymy to przez liczbę wytworzonych sztuk.",
+        "totalRunHint": "Materiał na CAŁĄ serię — zarejestrowany zgodnie z wprowadzoną wartością.",
+        "costPerUnit": "Koszt za jednostkę",
+        "optional": "Opcjonalnie",
+        "unit": "Jednostka",
+        "type": "Typ",
+        "notes": "Uwagi",
+        "notesPlaceholder": "Do czego został użyty ten materiał?",
+        "logUsage": "Zarejestruj zużycie",
+        "empty": "Brak zarejestrowanego zużycia materiałów",
+        "required": "Pozycja magazynowa i ilość są wymagane",
+        "logged": "Zarejestrowano zużycie",
+        "failed": "Nie udało się zarejestrować zużycia",
+        "accessory": "akcesorium",
+        "committed": "zobowiązane",
+        "pending": "oczekujące",
+        "totalMaterialCost": "Łączny koszt materiałów"
+      },
+      "create": {
+        "heading": "Utwórz projekt",
+        "namePlaceholder": "np. Kurtka wiosenna",
+        "descriptionPlaceholder": "Czym jest ten projekt?",
+        "designerNotesPlaceholder": "Uwagi wewnętrzne",
+        "created": "Utworzono projekt"
+      },
+      "edit": {
+        "heading": "Edytuj projekt",
+        "updated": "Zaktualizowano projekt"
+      },
+      "addInventory": {
+        "selectedCount": "Wybrano: {{count}}",
+        "selectPrompt": "Wybierz materiały do dodania",
+        "addToDesign": "Dodaj do projektu",
+        "noRawMaterialsTitle": "Brak surowców",
+        "noRawMaterialsMessage": "Nie znaleziono surowców. Administrator zarządza wspólnym katalogiem surowców.",
+        "selectAtLeastOne": "Wybierz co najmniej jeden materiał",
+        "added_one": "Dodano {{count}} materiał",
+        "added_other": "Dodano {{count}} materiałów",
+        "sku": "SKU",
+        "columns": {
+          "material": "Materiał",
+          "composition": "Skład",
+          "color": "Kolor",
+          "unit": "Jednostka"
+        }
+      },
+      "runCreate": {
+        "heading": "Utwórz zamówienie projektu",
+        "subtitle": "Rozpocznij produkcję dla tego projektu. Zamówienie projektu jest zatwierdzone i gotowe do natychmiastowej realizacji.",
+        "quantity": "Ilość",
+        "runType": "Typ serii",
+        "production": "Produkcja",
+        "sample": "Próbka",
+        "howMade": "Jak jest wykonywane?",
+        "inHouse": "Wewnętrznie (wykonujesz samodzielnie)",
+        "outsourced": "Zewnętrznie (przekazanie podpartnerowi)",
+        "executionHint": "Wewnętrzna realizacja zatrzymuje pracę u Ciebie; zewnętrzna rejestruje dostawcę w celu śledzenia kosztów.",
+        "subPartnerId": "ID podpartnera",
+        "subPartnerPlaceholder": "partner_…",
+        "subPartnerHint": "Partner, któremu przekazujesz tę produkcję.",
+        "createOrder": "Utwórz zamówienie projektu",
+        "started": "Rozpoczęto produkcję"
+      }
     }
   },
   "views": {

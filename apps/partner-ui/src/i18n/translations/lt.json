@@ -3785,6 +3785,360 @@
       "toast": {
         "startFailed": "Nepavyko pradėti Stripe pradėjimo proceso"
       }
+    },
+    "designs": {
+      "heading": "Projektiniai sprendimai",
+      "design": "Projektas",
+      "notFound": "Projektas nerastas.",
+      "missingId": "Trūksta projekto ID.",
+      "sizes": "Dydžiai",
+      "overdue": "Pasibaigęs terminas",
+      "statusOptions": {
+        "conceptual": "Koncepcinis",
+        "inDevelopment": "Kuriamas",
+        "technicalReview": "Techninė peržiūra",
+        "sampleProduction": "Samplio gamyba",
+        "revision": "Peržiūra",
+        "approved": "Patvirtinta",
+        "rejected": "Atmetta",
+        "onHold": "Stopta",
+        "commerceReady": "Pasiruošęs prekybai",
+        "superseded": "Pakeista naujesniu"
+      },
+      "priorityOptions": {
+        "low": "Žema",
+        "medium": "Vidutinė",
+        "high": "Aukšta",
+        "urgent": "Skubi"
+      },
+      "typeOptions": {
+        "original": "Originalus",
+        "derivative": "Išvestinis",
+        "custom": "Custom",
+        "collaboration": "Bendradarbiavimas"
+      },
+      "workStatusOptions": {
+        "incoming": "Gaunami",
+        "assigned": "Paskirti",
+        "inProgress": "Vykdoma",
+        "awaitingReview": "Laukiama peržiūros",
+        "finished": "Baigta",
+        "completed": "Užbaigta",
+        "cancelled": "Atšaukta"
+      },
+      "runStatusOptions": {
+        "draft": "Juodraštis",
+        "pendingReview": "Laukiama peržiūros",
+        "approved": "Patvirtinta",
+        "sentToPartner": "Išsiųsta partneriui",
+        "inProgress": "Vykdoma",
+        "completed": "Užbaigta",
+        "cancelled": "Atšaukta",
+        "awaitingReassignment": "Laukiama per paskyrimo"
+      },
+      "bucketOptions": {
+        "incoming": "Gaunami",
+        "inProgress": "Vykdoma",
+        "yours": "Jūsų",
+        "completed": "Užbaigta",
+        "all": "Visi"
+      },
+      "engagementOptions": {
+        "owned": {
+          "label": "Jūsų",
+          "hint": "Šį projektą sukūrėte jūs."
+        },
+        "assigned": {
+          "label": "Paskirti",
+          "hint": "Turite gamybos etapą šiam projektui — tai jūsų darbas."
+        },
+        "shared": {
+          "label": "Bendri",
+          "hint": "Bendrinama jūsų nuorodai. Jums nėra paskirto gamybos etapo (darbas gali būti atliekamas viduje arba su kitu partneriu)."
+        }
+      },
+      "actionOptions": {
+        "accept": "Priimti",
+        "working": "Dirbama",
+        "complete": "Užbaigti",
+        "underReview": "Peržiūrime",
+        "done": "Atlikta",
+        "cancelled": "Atšaukta"
+      },
+      "confidenceOptions": {
+        "exact": "Tiksli",
+        "estimated": "Aproksimacinė"
+      },
+      "runTypeOptions": {
+        "production": "Gamyba",
+        "sample": "Samplis"
+      },
+      "unitOptions": {
+        "meter": "Metras",
+        "yard": "Yarda",
+        "kilogram": "Kilogramas",
+        "gram": "Gramas",
+        "piece": "Vienetas",
+        "roll": "Rulonas",
+        "other": "Kita"
+      },
+      "consumptionTypeOptions": {
+        "sample": "Samplis",
+        "production": "Gamyba",
+        "wastage": "Nuostoliai"
+      },
+      "fields": {
+        "priority": "Prioritetas",
+        "designerNotes": "Dizainerio pastabos",
+        "unit": "Vienetas",
+        "color": "Spalva",
+        "composition": "Sudėtis"
+      },
+      "list": {
+        "subtitle": "Pasirinkite вкладkę, kad pamatytumėte gaunamus, vykdomus, savo arba užbaigtus darbus.",
+        "loadFailed": "Nepavyko įkelti projektų. Bandykite atnaujinti puslapį.",
+        "noRecords": "Šioje вкладkoje nėra projektų. Išbandykite kitą вкладkę arba išvalykite paiešką.",
+        "columns": {
+          "name": "Pavadinimas",
+          "source": "Šaltinis",
+          "nextAction": "Kitas veiksmas",
+          "workStatus": "Darbo statusas",
+          "priority": "Prioritetas",
+          "due": "Terminas",
+          "status": "Projekto statusas",
+          "lastUpdated": "Paskutiniai atnaujinta"
+        }
+      },
+      "detail": {
+        "general": "Bendroji informacija",
+        "garmentType": "Aprangos tipas",
+        "inferred": "Išvestinis",
+        "partnerStatus": "Partnerio statusas",
+        "priority": "Prioritetas",
+        "targetDate": "Tikslinė data",
+        "estimatedCost": "Kainos preliminaria",
+        "description": "Aprašymas",
+        "specifications": "Specifikacijos",
+        "specs": "Spec.",
+        "tags": "Žymės",
+        "colorPalette": "Spalvų paletė",
+        "inventoryItems": "Inventoriaus elementai",
+        "noInventoryItems": "Su šiuo projektu nesusiję jokie inventoriaus elementai.",
+        "designerNotes": "Dizainerio pastabos",
+        "noNotes": "Pastabų nėra",
+        "resizeHint": "Vilkite apatinį kraštą, kad pakeistumėte dydį"
+      },
+      "media": {
+        "heading": "Medija",
+        "manage": "Tvarkyti",
+        "empty": "Dar nėra medijos failų",
+        "emptyHint": "Pridėkite vaizdinius, kad pristatytumėte savo projektą",
+        "addMedia": "Pridėti mediją",
+        "alt": "Projekto medija",
+        "preview": "Peržiūrėti projekto mediją",
+        "download": "Atsisiųsti",
+        "manageMedia": "Tvarkyti mediją",
+        "uploadDescription": "Įkelkite ir priskirkite mediją šiam projektui",
+        "uploadImages": "Įkelti vaizdinius",
+        "dropHint": "Išmeskite failus čia arba spustelkite naršyti",
+        "existing": "Esami",
+        "selected": "Pasirinkti",
+        "loadingDesign": "Kraunamas projektas...",
+        "addAtLeastOne": "Pridėkite bent vieną failą",
+        "uploadFailed": "Nepavyko įkelti failų",
+        "attached": "Medija prisegta",
+        "someRejected": "Kai kurie failai buvo atmetti",
+        "uploadIntro": "Įkelkite vaizdinius, kuriuos norite prisegti prie šio projekto."
+      },
+      "moodboard": {
+        "heading": "Kūrybinė lenta (Moodboard)",
+        "description": "Rinkite nuorodas ir įkvėpimą.",
+        "open": "Atidaryti kūrybinę lentą",
+        "generateConfirm": "Sukurti kūrybinę lentą pagal šio projekto brifą? Jūsų esamos kortelės bus sujungtos, o ne pakeistos.",
+        "generating": "Kuriamas moodboard...",
+        "generated": "Moodboard sukurtas",
+        "generateFailed": "Nepavyko sukurti moodboard",
+        "inserted": "Įterta \"{{label}}\"",
+        "insertFailed": "Nepavyko įterti bloko",
+        "nothingToInsert": "Kol kas nėra ko įterti \"{{label}}\" elementui.",
+        "saving": "Išsaugoma kūrybinė lenta...",
+        "saved": "Kūrybinė lenta išsaugota",
+        "saveFailed": "Nepavyko išsaugoti kūrybinės lentos",
+        "briefSyncFailed": "Kūrybinė lenta išsaugota, tačiau brifo redagavimas nesinkronizuotas.",
+        "insertBlock": "Įterti bloką",
+        "noBlocks": "Blokų nėra",
+        "emptySuffix": "· tuščia",
+        "addConstruction": "Pridėti konstrukciją",
+        "generate": "Generuoti",
+        "layers": "Sluoksniai",
+        "save": "Išsaugoti",
+        "savedLabel": "Išsaugota",
+        "footerHint": "Įterti, konstrukcija, generuoti, sluoksniai ir išsaugoti funkcijos yra apačioje, drobės doke."
+      },
+      "layers": {
+        "heading": "Sluoksniai",
+        "refresh": "Atnaujinti",
+        "close": "Uždaryti",
+        "noFrames": "Rėmų dar nėra.",
+        "untitled": "Be pavadinimo rėmas",
+        "hasContent": "Yra turinio",
+        "empty": "Tuščia",
+        "jump": "Šokti į rėmą",
+        "show": "Rodyti",
+        "hide": "Slėpti",
+        "lockedWhileHidden": "Užrakinta slėpiant",
+        "unlock": "Atrakinti",
+        "lock": "Užrakinti"
+      },
+      "construction": {
+        "heading": "Pridėti konstrukcijos detalę",
+        "details": "Konstrukcijos detalės",
+        "loading": "Kraunamos technikos...",
+        "hint": "Kairėje pasirinkite techniką arba iš anksto nustatytą variantą — jo parametrai ir audinio taisyklės bus užpildyti automatiškai.",
+        "label": "Etiketė",
+        "parameters": "Parametrai",
+        "fixedGeometry": "Ši technika turi fiksuotą geometriją — parametrų nustatyti nereikia.",
+        "fabricRules": "Audinio / siuvimo taisyklės",
+        "oneRulePerLine": "viena taisyklė per eilutę",
+        "note": "Pastaba",
+        "optional": "nebūtina",
+        "addDetail": "Pridėti detalę",
+        "added": "Pridėta \"{{label}}\"",
+        "addFailed": "Nepavyko pridėti konstrukcijos detalės"
+      },
+      "ownerActions": {
+        "yourDesign": "Jūsų projektas",
+        "activeOrders_one": "Vykdomas {{count}} projekto užsakymas. Sukurkite kitą arba perduokite jį sub-partneriui.",
+        "activeOrders_other": "Vykdomi {{count}} projektų užsakymai. Sukurkite kitą arba perduokite vieną sub-partneriui.",
+        "noOrders": "Šį projektą sukūrėte jūs. Sukurkite projekto užsakymą, kad pradėtumėte gamybą, arba perduokite jį sub-partneriui.",
+        "newOrder": "Naujas užsakymas",
+        "createOrder": "Sukurti užsakymą",
+        "deleteTitle": "Ištrinti projektą",
+        "deleteDescription": "Ištrinti \"{{name}}\"? Šio veiksmo atšaukti neįmanoma.",
+        "deleted": "Projektas ištrintas"
+      },
+      "production": {
+        "heading": "Projektų užsakymai",
+        "empty": "Dar nėra projektų užsakymų. Sukurkite užsakymą, kad pradėtumėte gamybą, arba jie čia pasirodys, kai administratorius paskirs jums darbą.",
+        "subtitle": "Atidarykite projektų užsakymą, kad priimtumėte darbą, registruotumėte medžiagas ir atnaujintumėte statusą.",
+        "previous": "Ankstesni projektų užsakymai ({{count}})",
+        "viewOrder": "Peržiūrėti užsakymą",
+        "orderType": "{{type}} užsakymas",
+        "qty": "Kiekis {{qty}}"
+      },
+      "cost": {
+        "heading": "Kainos preliminaria",
+        "subtitle": "Medžiagų + gamybos kaina iš prisiekto BOM, kartu su JYT platformos mokesčiu.",
+        "recalculate": "Peraičiuoti",
+        "estimatedTotal": "Preliminarė suma",
+        "materialCost": "Medžiagų kaina",
+        "productionCost": "Gamybos kaina",
+        "platformFee": "Platformos mokestis ({{percent}}%)",
+        "lastCalculated": "Paskutiniai apskaičiuota",
+        "yourInput": "jūsų įvestis",
+        "estimatedLabel": "estimuota",
+        "yourProductionCost": "Jūsų gamybos kaina (už vienetą)",
+        "autoEstimate": "Auto-estimas",
+        "helper": "Perrašo auto-estimą — palikite tuščią, kad būtų skaičiuota pagal istoriją. Medžiagų kainai taikomas {{percent}}% platformos mokestis. Spauskite „Peraičiuoti“, kad pritaikytumėte.",
+        "noEstimate": "Dar nėra preliminarios kainos — pridėkite medžiagas į BOM, tada spauskite „Peraičiuoti“.",
+        "enterValid": "Įveskite galiojančią gamybos kainą (0 arba daugiau)",
+        "recalculated": "Kaina peraičiuota: {{amount}} ({{confidence}})"
+      },
+      "bom": {
+        "heading": "Medžiagos (BOM)",
+        "subtitle": "Inventorius + žaliavos, naudojamos šiam projektui kurti.",
+        "addMaterial": "Pridėti medžiagą",
+        "empty": "Medžiagos dar neprisegtos.",
+        "emptyOwnerHint": " Pridėkite inventoriaus elementus, kuriuos sunaudoja šis projektas.",
+        "noImg": "Be nuotraukos",
+        "sku": "SKU",
+        "planned": "Suplanuota",
+        "consumed": "Sunaudota",
+        "removeTitle": "Pašalinti medžiagą",
+        "removeDescription": "Pašalinti \"{{name}}\" iš šio projekto medžiagų sąrašo (BOM)?",
+        "removed": "Medžiaga pašalinta",
+        "materialAlt": "medžiaga"
+      },
+      "consumption": {
+        "heading": "Medžiagų naudojimas",
+        "subtitle": "Registruokite žaliavas, sunaudotas gamybos metu",
+        "log": "Registruoti",
+        "closedReview": "Registravimas uždarytas — laukiama peržiūros",
+        "closedComplete": "Registravimas uždarytas — gamyba užbaigta",
+        "closedNone": "Registravimas nepasiekiamas",
+        "drawerTitle": "Registruoti medžiagų naudojimą",
+        "drawerDescription": "Užfiksuokite žaliavas, sunaudotas gamybos metu.",
+        "noInventory": "Inventorius dar neprisegtas",
+        "noInventoryHint": "Pirmiausia priskirkite žaliavas šiam projektui, tada galėsite registruoti medžiagų naudojimą čia.",
+        "inventoryItem": "Inventoriaus elementas",
+        "selectItem": "Pasirinkti elementą",
+        "quantity": "Kiekis",
+        "measuredAs": "Matuojama",
+        "perPiece": "Už vienetą",
+        "totalRun": "Iš viso už partiją",
+        "perPieceHint": "Medžiaga vienam GALIAM vienetui — mes padauginsime pagal pagamintą kiekį.",
+        "totalRunHint": "Medžiaga VISAI partijai — registruojama taip, kaip įvesta.",
+        "costPerUnit": "Kaina už vienetą",
+        "optional": "Nebūtina",
+        "unit": "Vienetas",
+        "type": "Tipas",
+        "notes": "Pastabos",
+        "notesPlaceholder": "Kam buvo naudojama ši medžiaga?",
+        "logUsage": "Registruoti naudojimą",
+        "empty": "Medžiagų naudojimas dar neįregistruotas",
+        "required": "Būtina nurodyti inventoriaus elementą ir kiekį",
+        "logged": "Sunaudojimas užregistruotas",
+        "failed": "Nepavyko užregistruoti sunaudojimo",
+        "accessory": "aksesuaras",
+        "committed": "patvirtinta",
+        "pending": "laukiama",
+        "totalMaterialCost": "Bendra medžiagų kaina"
+      },
+      "create": {
+        "heading": "Sukurti projektą",
+        "namePlaceholder": "pvz. Pavasario striukė",
+        "descriptionPlaceholder": "Kas tai už projektas?",
+        "designerNotesPlaceholder": "Vidinės pastabos",
+        "created": "Projektas sukurtas"
+      },
+      "edit": {
+        "heading": "Redaguoti projektą",
+        "updated": "Projektas atnaujintas"
+      },
+      "addInventory": {
+        "selectedCount": "Pasirinkta {{count}}",
+        "selectPrompt": "Pasirinkite pridėtinas medžiagas",
+        "addToDesign": "Pridėti prie projekto",
+        "noRawMaterialsTitle": "Žaliavų nėra",
+        "noRawMaterialsMessage": "Žaliavų nerasta. Bendrą žaliavų katalogą tvarko administratorius.",
+        "selectAtLeastOne": "Pasirinkite bent vieną medžiagą",
+        "added_one": "Pridėta {{count}} medžiaga",
+        "added_other": "Pridėta {{count}} medžiagos",
+        "sku": "SKU",
+        "columns": {
+          "material": "Medžiaga",
+          "composition": "Sudėtis",
+          "color": "Spalva",
+          "unit": "Vienetas"
+        }
+      },
+      "runCreate": {
+        "heading": "Sukurti projekto užsakymą",
+        "subtitle": "Pradėti šio projekto gamybą. Projektų užsakymas yra patvirtintas ir pasiruošęs darbui iškart.",
+        "quantity": "Kiekis",
+        "runType": "Partijos tipas",
+        "production": "Gamyba",
+        "sample": "Samplis",
+        "howMade": "Kaip tai gaminama?",
+        "inHouse": "Vidaus gamyba (gaminiate jūs)",
+        "outsourced": "Išleidžiama (perduodama sub-partneriui)",
+        "executionHint": "Vidaus gamyba palieka darbą jumیں۔ Išleidžiant — registruojamas tiekėjas kainų sekimui.",
+        "subPartnerId": "Sub-partnerio ID",
+        "subPartnerPlaceholder": "partner_…",
+        "subPartnerHint": "Partneris, kuriam perduodate šią gamybą.",
+        "createOrder": "Sukurti projekto užsakymą",
+        "started": "Gamyba pradėta"
+      }
     }
   },
   "shippingOptionTypes": {

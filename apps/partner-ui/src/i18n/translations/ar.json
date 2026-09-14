@@ -3785,6 +3785,360 @@
       "toast": {
         "startFailed": "تعذّر بدء عملية التوجيه في Stripe"
       }
+    },
+    "designs": {
+      "heading": "التصاميم",
+      "design": "التصميم",
+      "notFound": "التصميم غير موجود.",
+      "missingId": "معرّف التصميم مفقود.",
+      "sizes": "المقاسات",
+      "overdue": "متأخر",
+      "statusOptions": {
+        "conceptual": "مفاهيمي",
+        "inDevelopment": "قيد التطوير",
+        "technicalReview": "المراجعة الفنية",
+        "sampleProduction": "إنتاج العينة",
+        "revision": "المراجعة والتعديل",
+        "approved": "معتمد",
+        "rejected": "مرفوض",
+        "onHold": "قيد الانتظار",
+        "commerceReady": "جاهز للتجارة",
+        "superseded": "مستبدل"
+      },
+      "priorityOptions": {
+        "low": "منخفضة",
+        "medium": "متوسطة",
+        "high": "عالية",
+        "urgent": "عاجلة"
+      },
+      "typeOptions": {
+        "original": "أصلي",
+        "derivative": "مشتق",
+        "custom": "مخصص",
+        "collaboration": "تعاوني"
+      },
+      "workStatusOptions": {
+        "incoming": "الواردة",
+        "assigned": "المعينة",
+        "inProgress": "قيد التنفيذ",
+        "awaitingReview": "بانتظار المراجعة",
+        "finished": "منتهي",
+        "completed": "مكتمل",
+        "cancelled": "ملغى"
+      },
+      "runStatusOptions": {
+        "draft": "مسودة",
+        "pendingReview": "قيد المراجعة",
+        "approved": "معتمد",
+        "sentToPartner": "أُرسل إلى الشريك",
+        "inProgress": "قيد التنفيذ",
+        "completed": "مكتمل",
+        "cancelled": "ملغى",
+        "awaitingReassignment": "بانتظار إعادة التعيين"
+      },
+      "bucketOptions": {
+        "incoming": "الواردة",
+        "inProgress": "قيد التنفيذ",
+        "yours": "الخاصة بك",
+        "completed": "المكتملة",
+        "all": "الكل"
+      },
+      "engagementOptions": {
+        "owned": {
+          "label": "الخاصة بك",
+          "hint": "لقد أنشأت هذا التصميم."
+        },
+        "assigned": {
+          "label": "المعينة",
+          "hint": "لديك تشغيل إنتاجي على هذا التصميم — هذا عمل خاص بك."
+        },
+        "shared": {
+          "label": "المشاركة",
+          "hint": "مُشارك معك للمرجعية. لا يوجد تشغيل إنتاجي معين لك (قد يكون العمل داخلياً أو مع شريك آخر)."
+        }
+      },
+      "actionOptions": {
+        "accept": "قبول",
+        "working": "قيد العمل",
+        "complete": "إكمال",
+        "underReview": "قيد المراجعة",
+        "done": "تم",
+        "cancelled": "ملغى"
+      },
+      "confidenceOptions": {
+        "exact": "دقيق",
+        "estimated": "تقديري"
+      },
+      "runTypeOptions": {
+        "production": "إنتاج",
+        "sample": "عينة"
+      },
+      "unitOptions": {
+        "meter": "متر",
+        "yard": "ياردا",
+        "kilogram": "كيلوغرام",
+        "gram": "غرام",
+        "piece": "قطعة",
+        "roll": "لفة",
+        "other": "آخر"
+      },
+      "consumptionTypeOptions": {
+        "sample": "عينة",
+        "production": "إنتاج",
+        "wastage": "هادر"
+      },
+      "fields": {
+        "priority": "الأولوية",
+        "designerNotes": "ملاحظات المصمم",
+        "unit": "الوحدة",
+        "color": "اللون",
+        "composition": "التركيب"
+      },
+      "list": {
+        "subtitle": "اختر تبويباً لعرض الأعمال الواردة، قيد التنفيذ، الخاصة بك، أو المكتملة.",
+        "loadFailed": "فشل تحميل التصاميم. يرجى محاولة تحديث الصفحة.",
+        "noRecords": "لا توجد تصاميم في هذا التبويب. جرب تبويباً آخر أو امسح البحث.",
+        "columns": {
+          "name": "الاسم",
+          "source": "المصدر",
+          "nextAction": "الإجراء التالي",
+          "workStatus": "حالة العمل",
+          "priority": "الأولوية",
+          "due": "تاريخ الاستحقاق",
+          "status": "حالة التصميم",
+          "lastUpdated": "آخر تحديث"
+        }
+      },
+      "detail": {
+        "general": "عام",
+        "garmentType": "نوع الملابس",
+        "inferred": "مستنتج",
+        "partnerStatus": "حالة الشريك",
+        "priority": "الأولوية",
+        "targetDate": "التاريخ المستهدف",
+        "estimatedCost": "التكلفة التقديرية",
+        "description": "الوصف",
+        "specifications": "المواصفات",
+        "specs": "المواصفات",
+        "tags": "الوسوم",
+        "colorPalette": "لوحة الألوان",
+        "inventoryItems": "عناصر المخزون",
+        "noInventoryItems": "لا توجد عناصر مخزون مرتبطة بهذا التصميم.",
+        "designerNotes": "ملاحظات المصمم",
+        "noNotes": "لا توجد ملاحظات",
+        "resizeHint": "اسحب الحافة السفلية لتغيير الحجم"
+      },
+      "media": {
+        "heading": "الوسائط",
+        "manage": "إدارة",
+        "empty": "لا توجد ملفات وسائط بعد",
+        "emptyHint": "أضف صوراً لعرض تصميمك",
+        "addMedia": "إضافة وسائط",
+        "alt": "وسائط التصميم",
+        "preview": "معاينة وسائط التصميم",
+        "download": "تنزيل",
+        "manageMedia": "إدارة الوسائط",
+        "uploadDescription": "رفع وإرفاق وسائط بهذا التصميم",
+        "uploadImages": "رفع الصور",
+        "dropHint": "أسقط الملفات هنا أو انقر للاستعراض",
+        "existing": "الحالي",
+        "selected": "المحدد",
+        "loadingDesign": "جاري تحميل التصميم...",
+        "addAtLeastOne": "أضف ملفاً واحداً على الأقل",
+        "uploadFailed": "فشل رفع الملفات",
+        "attached": "تم إرفاق الوسائط",
+        "someRejected": "تم رفض بعض الملفات",
+        "uploadIntro": "ارفع صوراً لإرفاقها بهذا التصميم."
+      },
+      "moodboard": {
+        "heading": "لوحة الإلهام",
+        "description": "جمع المراجع والإلهام.",
+        "open": "فتح لوحة الإلهام",
+        "generateConfirm": "هل تريد إنشاء لوحة الإلهام من موجز هذا التصميم؟ سيتم دمج بطاقاتك الحالية وليس استبدالها.",
+        "generating": "جاري إنشاء لوحة الإلهام…",
+        "generated": "تم إنشاء لوحة الإلهام",
+        "generateFailed": "فشل إنشاء لوحة الإلهام",
+        "inserted": "تم إدراج \"{{label}}\"",
+        "insertFailed": "فشل إدراج الكتلة",
+        "nothingToInsert": "لا يوجد شيء لإدراجه لـ \"{{label}}\" بعد.",
+        "saving": "جاري حفظ لوحة الإلهام…",
+        "saved": "تم حفظ لوحة الإلهام",
+        "saveFailed": "فشل حفظ لوحة الإلهام",
+        "briefSyncFailed": "تم حفظ لوحة الإلهام، ولكن تعذر مزامنة تعديل الموجز.",
+        "insertBlock": "إدراج كتلة",
+        "noBlocks": "لا تتوفر كتل",
+        "emptySuffix": "· فارغ",
+        "addConstruction": "إضافة تفاصيل التصنيع",
+        "generate": "إنشاء",
+        "layers": "الطبقات",
+        "save": "حفظ",
+        "savedLabel": "تم الحفظ",
+        "footerHint": "خيارات الإدراج والتصنيع والإنشاء والطبقات والحفظ موجودة في الشريط في أسفل لوحة الرسم."
+      },
+      "layers": {
+        "heading": "الطبقات",
+        "refresh": "تحديث",
+        "close": "إغلاق",
+        "noFrames": "لا توجد إطارات بعد.",
+        "untitled": "إطار بدون عنوان",
+        "hasContent": "يحتوي على محتوى",
+        "empty": "فارغ",
+        "jump": "الانتقال إلى الإطار",
+        "show": "إظهار",
+        "hide": "إخفاء",
+        "lockedWhileHidden": "مقفل أثناء الإخفاء",
+        "unlock": "إلغاء القفل",
+        "lock": "قفل"
+      },
+      "construction": {
+        "heading": "إضافة تفاصيل التصنيع",
+        "details": "تفاصيل التصنيع",
+        "loading": "جاري تحميل التقنيات…",
+        "hint": "اختر تقنية أو إعداداً مسبقاً من اليسار — سيتم ملء معاييرها وقواعد القماش تلقائياً هنا.",
+        "label": "تسمية",
+        "parameters": "المعايير",
+        "fixedGeometry": "هذه التقنية لها هندسة ثابته — لا توجد معايير لضبطها.",
+        "fabricRules": "قواعد القماش / الخياطة",
+        "oneRulePerLine": "قاعدة واحدة في كل سطر",
+        "note": "ملاحظة",
+        "optional": "اختياري",
+        "addDetail": "إضافة تفاصيل",
+        "added": "تمت إضافة \"{{label}}\"",
+        "addFailed": "فشل إضافة تفاصيل التصنيع"
+      },
+      "ownerActions": {
+        "yourDesign": "تصميمك",
+        "activeOrders_one": "طلب تصميم {{count}} قيد التنفيذ. أنشئ طلباً آخر أو سلمه لشريك فرعي.",
+        "activeOrders_other": "عدد {{count}} طلبات تصميم قيد التنفيذ. أنشئ طلباً آخر أو سلم أحدها لشريك فرعي.",
+        "noOrders": "لقد أنشأت هذا التصميم. أنشئ طلب تصميم لبدء الإنتاج، أو سلمه لشريك فرعي.",
+        "newOrder": "طلب جديد",
+        "createOrder": "إنشاء طلب",
+        "deleteTitle": "حذف التصميم",
+        "deleteDescription": "هل تريد حذف \"{{name}}\"؟ لا يمكن التراجع عن هذا الإجراء.",
+        "deleted": "تم حذف التصميم"
+      },
+      "production": {
+        "heading": "طلبات التصميم",
+        "empty": "لا توجد طلبات تصميم بعد. أنشئ طلب تصميم لبدء الإنتاج، أو ستراها هنا بمجرد أن يرسل المسؤول العمل إليك.",
+        "subtitle": "افتح طلب تصميم لقبول العمل، وتسجيل المواد، وتحديث حالته.",
+        "previous": "طلبات التصميم السابقة ({{count}})",
+        "viewOrder": "عرض الطلب",
+        "orderType": "طلب {{type}}",
+        "qty": "الكمية {{qty}}"
+      },
+      "cost": {
+        "heading": "تقدير التكلفة",
+        "subtitle": "تكلفة المواد + الإنتاج من قائمة المواد (BOM) المرتبطة، بالإضافة إلى رسوم منصة JYT.",
+        "recalculate": "إعادة حساب",
+        "estimatedTotal": "الإجمالي التقديري",
+        "materialCost": "تكلفة المواد",
+        "productionCost": "تكلفة الإنتاج",
+        "platformFee": "رسوم المنصة ({{percent}}%)",
+        "lastCalculated": "آخر حساب",
+        "yourInput": "إدخالك",
+        "estimatedLabel": "تقديري",
+        "yourProductionCost": "تكلفة الإنتاج الخاصة بك (لكل وحدة)",
+        "autoEstimate": "تقدير تلقائي",
+        "helper": "يتجاوز التقدير التلقائي — اتركه فارغاً للتقدير من السجل. تطبق رسوم منصة بنسبة {{percent}}% على تكلفة المواد. اضغط على إعادة حساب للتطبيق.",
+        "noEstimate": "لا يوجد تقدير بعد — أضف مواد إلى قائمة المواد (BOM)، ثم أعد الحساب.",
+        "enterValid": "أدخل تكلفة إنتاج صالحة (0 أو أكثر)",
+        "recalculated": "تمت إعادة حساب التكلفة: {{amount}} ({{confidence}})"
+      },
+      "bom": {
+        "heading": "المواد (BOM)",
+        "subtitle": "المخزون + المواد الخام المستخدمة لصنع هذا التصميم.",
+        "addMaterial": "إضافة مادة",
+        "empty": "لا توجد مواد مرتبطة بعد.",
+        "emptyOwnerHint": " أضف عناصر المخزون التي يستهلكها هذا التصميم.",
+        "noImg": "لا توجد صورة",
+        "sku": "رمز المنتج (SKU)",
+        "planned": "المخطط له",
+        "consumed": "المستهلك",
+        "removeTitle": "إزالة المادة",
+        "removeDescription": "هل تريد إزالة \"{{name}}\" من قائمة مواد هذا التصميم؟",
+        "removed": "تمت إزالة المادة",
+        "materialAlt": "مادة"
+      },
+      "consumption": {
+        "heading": "استخدام المواد",
+        "subtitle": "تسجيل المواد الخام المستهلكة أثناء الإنتاج",
+        "log": "تسجيل",
+        "closedReview": "التسجيل مغلق — التشغيل بانتظار المراجعة",
+        "closedComplete": "التسجيل مغلق — تم اكتمال التشغيل",
+        "closedNone": "التسجيل غير متاح",
+        "drawerTitle": "تسجيل استخدام المواد",
+        "drawerDescription": "تسجيل المواد الخام المستهلكة أثناء الإنتاج.",
+        "noInventory": "لا يوجد مخزون مرتبط بعد",
+        "noInventoryHint": "اربط المواد الخام بهذا التصميم أولاً، ثم يمكنك تسجيل استخدام المواد هنا.",
+        "inventoryItem": "عنصر المخزون",
+        "selectItem": "حدد عنصراً",
+        "quantity": "الكمية",
+        "measuredAs": "يقاس كـ",
+        "perPiece": "لكل قطعة",
+        "totalRun": "الإجمالي للتشغيل",
+        "perPieceHint": "مادة لقطعة واحدة مكتملة — نضربها في عدد القطع التي تصنعها.",
+        "totalRunHint": "المادة للتشغيل بالكامل — تسجل كما أُدخلت.",
+        "costPerUnit": "التكلفة لكل وحدة",
+        "optional": "اختياري",
+        "unit": "الوحدة",
+        "type": "النوع",
+        "notes": "ملاحظات",
+        "notesPlaceholder": "فيمَ أُستخدمت هذه المادة؟",
+        "logUsage": "تسجيل الاستخدام",
+        "empty": "لم يتم تسجيل استخدام المواد بعد",
+        "required": "عنصر المخزون والكمية مطلوبان",
+        "logged": "تم تسجيل الاستهلاك",
+        "failed": "فشل تسجيل الاستهلاك",
+        "accessory": "ملحق",
+        "committed": "ملتزم به",
+        "pending": "معلق",
+        "totalMaterialCost": "إجمالي تكلفة المواد"
+      },
+      "create": {
+        "heading": "إنشاء تصميم",
+        "namePlaceholder": "مثال: سترة الربيع",
+        "descriptionPlaceholder": "ما هو هذا التصميم؟",
+        "designerNotesPlaceholder": "ملاحظات داخلية",
+        "created": "تم إنشاء التصميم"
+      },
+      "edit": {
+        "heading": "تعديل التصميم",
+        "updated": "تم تحديث التصميم"
+      },
+      "addInventory": {
+        "selectedCount": "تم تحديد {{count}}",
+        "selectPrompt": "حدد المواد للإضافة",
+        "addToDesign": "إضافة إلى التصميم",
+        "noRawMaterialsTitle": "لا توجد مواد خام",
+        "noRawMaterialsMessage": "لم يتم العثور على مواد خام. يتولى المسؤول صيانة كتالوج المواد الخام المشترك.",
+        "selectAtLeastOne": "حدد مادة واحدة على الأقل",
+        "added_one": "تمت إضافة مادة {{count}}",
+        "added_other": "تمت إضافة {{count}} مواد",
+        "sku": "رمز المنتج (SKU)",
+        "columns": {
+          "material": "المادة",
+          "composition": "التركيب",
+          "color": "اللون",
+          "unit": "الوحدة"
+        }
+      },
+      "runCreate": {
+        "heading": "إنشاء طلب تصميم",
+        "subtitle": "ابدأ الإنتاج لهذا التصميم. طلب التصميم معتمد وجاهز للعمل فوراً.",
+        "quantity": "الكمية",
+        "runType": "نوع التشغيل",
+        "production": "إنتاج",
+        "sample": "عينة",
+        "howMade": "كيف يتم تصنيعه؟",
+        "inHouse": "داخلي (تصنعه بنفسك)",
+        "outsourced": "خارجي (تسليمه لشريك فرعي)",
+        "executionHint": "الإنتاج الداخلي يبقي العمل لديك؛ الخارجي يسجل المورد لتتبع التكلفة.",
+        "subPartnerId": "معرّف الشريك الفرعي",
+        "subPartnerPlaceholder": "partner_…",
+        "subPartnerHint": "الشريك الذي تسلم إليه هذا الإنتاج.",
+        "createOrder": "إنشاء طلب تصميم",
+        "started": "بدأ الإنتاج"
+      }
     }
   },
   "shippingOptionTypes": {

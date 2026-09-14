@@ -1,6 +1,7 @@
 import { ArrowDownTray, TriangleLeftMini, TriangleRightMini } from "@medusajs/icons"
 import { Heading, IconButton, Text, clx } from "@medusajs/ui"
 import { useCallback, useEffect, useMemo, useState } from "react"
+import { useTranslation } from "react-i18next"
 import { useLocation } from "react-router-dom"
 
 import { RouteFocusModal } from "../../../components/modals"
@@ -14,15 +15,16 @@ type Media = {
 }
 
 export const DesignMediaPreview = () => {
+  const { t } = useTranslation()
   const id = useResolvedDesignId()
 
   return (
     <RouteFocusModal>
       <RouteFocusModal.Title asChild>
-        <span className="sr-only">Design media</span>
+        <span className="sr-only">{t("partner.designs.media.alt")}</span>
       </RouteFocusModal.Title>
       <RouteFocusModal.Description asChild>
-        <span className="sr-only">Preview design media</span>
+        <span className="sr-only">{t("partner.designs.media.preview")}</span>
       </RouteFocusModal.Description>
       {id ? <DesignMediaPreviewWithId id={id} /> : <DesignMediaPreviewMissingId />}
     </RouteFocusModal>
@@ -30,17 +32,18 @@ export const DesignMediaPreview = () => {
 }
 
 const DesignMediaPreviewMissingId = () => {
+  const { t } = useTranslation()
   return (
     <div className="flex size-full flex-col overflow-hidden">
       <RouteFocusModal.Header>
         <RouteFocusModal.Title asChild>
-          <Heading>Media</Heading>
+          <Heading>{t("partner.designs.media.heading")}</Heading>
         </RouteFocusModal.Title>
       </RouteFocusModal.Header>
       <RouteFocusModal.Body className="overflow-auto">
         <div className="px-6 py-4">
           <Text size="small" className="text-ui-fg-subtle">
-            Missing design id.
+            {t("partner.designs.missingId")}
           </Text>
         </div>
       </RouteFocusModal.Body>
@@ -49,6 +52,7 @@ const DesignMediaPreviewMissingId = () => {
 }
 
 const DesignMediaPreviewWithId = ({ id }: { id: string }) => {
+  const { t } = useTranslation()
   const { state } = useLocation()
   const initialCurr = typeof (state as any)?.curr === "number" ? (state as any).curr : 0
 
@@ -152,7 +156,7 @@ const DesignMediaPreviewWithId = ({ id }: { id: string }) => {
       <RouteFocusModal.Header>
         <div className="flex items-center justify-between gap-x-2">
           <RouteFocusModal.Title asChild>
-            <Heading>Media</Heading>
+            <Heading>{t("partner.designs.media.heading")}</Heading>
           </RouteFocusModal.Title>
           <IconButton
             size="small"
@@ -161,7 +165,7 @@ const DesignMediaPreviewWithId = ({ id }: { id: string }) => {
             disabled={noMedia}
           >
             <ArrowDownTray />
-            <span className="sr-only">Download</span>
+            <span className="sr-only">{t("partner.designs.media.download")}</span>
           </IconButton>
         </div>
       </RouteFocusModal.Header>
@@ -183,11 +187,12 @@ const Canvas = ({
   curr: number
   isLoading: boolean
 }) => {
+  const { t } = useTranslation()
   if (isLoading) {
     return (
       <div className="bg-ui-bg-subtle flex size-full items-center justify-center p-6">
         <Text size="small" className="text-ui-fg-subtle">
-          Loading...
+          {t("labels.loading")}
         </Text>
       </div>
     )
@@ -203,10 +208,10 @@ const Canvas = ({
             weight="plus"
             className="text-ui-fg-subtle"
           >
-            No media files yet
+            {t("partner.designs.media.empty")}
           </Text>
           <Text size="small" className="text-ui-fg-muted">
-            Add images to showcase your design
+            {t("partner.designs.media.emptyHint")}
           </Text>
         </div>
       </div>

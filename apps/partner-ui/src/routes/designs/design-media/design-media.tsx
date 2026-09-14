@@ -1,5 +1,6 @@
 import { Button, Heading, Text, toast } from "@medusajs/ui"
 import { useMemo, useState } from "react"
+import { useTranslation } from "react-i18next"
 import { useResolvedDesignId } from "../../../hooks/use-resolved-design-id"
 import { FileType, FileUpload } from "../../../components/common/file-upload"
 import { RouteDrawer, useRouteModal } from "../../../components/modals"
@@ -19,16 +20,17 @@ const SUPPORTED_FORMATS = [
 ]
 
 export const DesignMedia = () => {
+  const { t } = useTranslation()
   const id = useResolvedDesignId()
 
   return (
     <RouteDrawer>
       <RouteDrawer.Header>
         <RouteDrawer.Title asChild>
-          <Heading>Manage Media</Heading>
+          <Heading>{t("partner.designs.media.manageMedia")}</Heading>
         </RouteDrawer.Title>
         <RouteDrawer.Description className="sr-only">
-          Upload and attach media to this design
+          {t("partner.designs.media.uploadDescription")}
         </RouteDrawer.Description>
       </RouteDrawer.Header>
       {id ? <DesignMediaContent id={id} /> : <DesignMediaMissingId />}
@@ -37,17 +39,18 @@ export const DesignMedia = () => {
 }
 
 const DesignMediaMissingId = () => {
+  const { t } = useTranslation()
   return (
     <>
       <RouteDrawer.Body>
         <Text size="small" className="text-ui-fg-subtle">
-          Missing design id.
+          {t("partner.designs.missingId")}
         </Text>
       </RouteDrawer.Body>
       <RouteDrawer.Footer>
         <RouteDrawer.Close asChild>
           <Button size="small" variant="secondary">
-            Close
+            {t("actions.close")}
           </Button>
         </RouteDrawer.Close>
       </RouteDrawer.Footer>
@@ -56,6 +59,7 @@ const DesignMediaMissingId = () => {
 }
 
 const DesignMediaContent = ({ id }: { id: string }) => {
+  const { t } = useTranslation()
   const { handleSuccess } = useRouteModal()
 
   const { design, isPending: isDesignPending, isError, error } = usePartnerDesign(id)
@@ -80,7 +84,7 @@ const DesignMediaContent = ({ id }: { id: string }) => {
 
   const handleSave = async () => {
     if (!files.length) {
-      toast.error("Add at least one file")
+      toast.error(t("partner.designs.media.addAtLeastOne"))
       return
     }
 
@@ -96,7 +100,7 @@ const DesignMediaContent = ({ id }: { id: string }) => {
     const uploaded = uploadRes?.files || []
 
     if (!uploaded.length) {
-      toast.error("Failed to upload files")
+      toast.error(t("partner.designs.media.uploadFailed"))
       return
     }
 
@@ -110,7 +114,7 @@ const DesignMediaContent = ({ id }: { id: string }) => {
       },
       {
         onSuccess: () => {
-          toast.success("Media attached")
+          toast.success(t("partner.designs.media.attached"))
           handleSuccess()
         },
         onError: (e) => toast.error(e.message),
@@ -124,18 +128,18 @@ const DesignMediaContent = ({ id }: { id: string }) => {
         <div className="flex flex-col gap-y-6">
           <div>
             <Text size="small" className="text-ui-fg-subtle">
-              Upload images to attach to this design.
+              {t("partner.designs.media.uploadIntro")}
             </Text>
           </div>
 
           <div>
             <FileUpload
-              label="Upload images"
-              hint="Drop files here or click to browse"
+              label={t("partner.designs.media.uploadImages")}
+              hint={t("partner.designs.media.dropHint")}
               formats={SUPPORTED_FORMATS}
               onUploaded={(uploaded, rejected) => {
                 if (rejected?.length) {
-                  toast.error("Some files were rejected")
+                  toast.error(t("partner.designs.media.someRejected"))
                 }
                 setFiles((prev) => [...prev, ...uploaded])
               }}
@@ -144,16 +148,16 @@ const DesignMediaContent = ({ id }: { id: string }) => {
 
           <div>
             <Text size="small" className="text-ui-fg-subtle">
-              Existing: {existing.length}
+              {t("partner.designs.media.existing")}: {existing.length}
             </Text>
             <Text size="small" className="text-ui-fg-subtle">
-              Selected: {files.length}
+              {t("partner.designs.media.selected")}: {files.length}
             </Text>
           </div>
 
           {isDesignPending && (
             <Text size="small" className="text-ui-fg-subtle">
-              Loading design...
+              {t("partner.designs.media.loadingDesign")}
             </Text>
           )}
         </div>
@@ -162,7 +166,7 @@ const DesignMediaContent = ({ id }: { id: string }) => {
         <div className="flex items-center gap-x-2">
           <RouteDrawer.Close asChild>
             <Button size="small" variant="secondary">
-              Cancel
+              {t("actions.cancel")}
             </Button>
           </RouteDrawer.Close>
           <Button
@@ -171,7 +175,7 @@ const DesignMediaContent = ({ id }: { id: string }) => {
             isLoading={isUploading || isAttaching}
             disabled={!files.length}
           >
-            Save
+            {t("actions.save")}
           </Button>
         </div>
       </RouteDrawer.Footer>

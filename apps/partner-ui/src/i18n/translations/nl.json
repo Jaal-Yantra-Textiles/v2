@@ -3784,6 +3784,360 @@
       "toast": {
         "startFailed": "Kan Stripe-invoering niet starten"
       }
+    },
+    "designs": {
+      "heading": "Ontwerpen",
+      "design": "Ontwerp",
+      "notFound": "Ontwerp niet gevonden.",
+      "missingId": "Ontwerp-ID ontbreekt.",
+      "sizes": "Maten",
+      "overdue": "Achterstallig",
+      "statusOptions": {
+        "conceptual": "Conceptueel",
+        "inDevelopment": "In ontwikkeling",
+        "technicalReview": "Technische beoordeling",
+        "sampleProduction": "Sampleproductie",
+        "revision": "Revisie",
+        "approved": "Goedgekeurd",
+        "rejected": "Afgewezen",
+        "onHold": "In de wacht",
+        "commerceReady": "Klaar voor verkoop",
+        "superseded": "Vervangen"
+      },
+      "priorityOptions": {
+        "low": "Laag",
+        "medium": "Gemiddeld",
+        "high": "Hoog",
+        "urgent": "Urgent"
+      },
+      "typeOptions": {
+        "original": "Origineel",
+        "derivative": "Afgeleid",
+        "custom": "Aangepast",
+        "collaboration": "Samenwerking"
+      },
+      "workStatusOptions": {
+        "incoming": "Inkomend",
+        "assigned": "Toegewezen",
+        "inProgress": "In behandeling",
+        "awaitingReview": "Wacht op beoordeling",
+        "finished": "Afgerond",
+        "completed": "Voltooid",
+        "cancelled": "Geannuleerd"
+      },
+      "runStatusOptions": {
+        "draft": "Concept",
+        "pendingReview": "In afwachting van beoordeling",
+        "approved": "Goedgekeurd",
+        "sentToPartner": "Verzonden naar partner",
+        "inProgress": "In behandeling",
+        "completed": "Voltooid",
+        "cancelled": "Geannuleerd",
+        "awaitingReassignment": "Wacht op hernieuwde toewijzing"
+      },
+      "bucketOptions": {
+        "incoming": "Inkomend",
+        "inProgress": "In behandeling",
+        "yours": "Van jou",
+        "completed": "Voltooid",
+        "all": "Alles"
+      },
+      "engagementOptions": {
+        "owned": {
+          "label": "Van jou",
+          "hint": "Je hebt dit ontwerp gemaakt."
+        },
+        "assigned": {
+          "label": "Toegewezen",
+          "hint": "Je hebt een productieronde voor dit ontwerp — dit is werk voor jou."
+        },
+        "shared": {
+          "label": "Gedeeld",
+          "hint": "Ter referentie met je gedeeld. Er is geen productieronde aan jou toegewezen (het werk is mogelijk intern of bij een andere partner)."
+        }
+      },
+      "actionOptions": {
+        "accept": "Accepteren",
+        "working": "In bewerking",
+        "complete": "Voltooien",
+        "underReview": "In beoordeling",
+        "done": "Gereed",
+        "cancelled": "Geannuleerd"
+      },
+      "confidenceOptions": {
+        "exact": "Exact",
+        "estimated": "Geschat"
+      },
+      "runTypeOptions": {
+        "production": "Productie",
+        "sample": "Sample"
+      },
+      "unitOptions": {
+        "meter": "Meter",
+        "yard": "Yard",
+        "kilogram": "Kilogram",
+        "gram": "Gram",
+        "piece": "Stuk",
+        "roll": "Rol",
+        "other": "Overig"
+      },
+      "consumptionTypeOptions": {
+        "sample": "Sample",
+        "production": "Productie",
+        "wastage": "Verspilling"
+      },
+      "fields": {
+        "priority": "Prioriteit",
+        "designerNotes": "Notities ontwerper",
+        "unit": "Eenheid",
+        "color": "Kleur",
+        "composition": "Samenstelling"
+      },
+      "list": {
+        "subtitle": "Kies een tabblad om inkomend, onderhanden, eigen of voltooid werk te bekijken.",
+        "loadFailed": "Laden van ontwerpen mislukt. Vernieuw de pagina.",
+        "noRecords": "Geen ontwerpen in dit tabblad. Probeer een ander tabblad of wis de zoekopdracht.",
+        "columns": {
+          "name": "Naam",
+          "source": "Bron",
+          "nextAction": "Volgende actie",
+          "workStatus": "Werkstatus",
+          "priority": "Prioriteit",
+          "due": "Vervaldatum",
+          "status": "Ontwerpstatus",
+          "lastUpdated": "Laatst bijgewerkt"
+        }
+      },
+      "detail": {
+        "general": "Algemeen",
+        "garmentType": "Kledingtype",
+        "inferred": "Afgeleid",
+        "partnerStatus": "Partnerstatus",
+        "priority": "Prioriteit",
+        "targetDate": "Streefdatum",
+        "estimatedCost": "Geschatte kosten",
+        "description": "Beschrijving",
+        "specifications": "Specificaties",
+        "specs": "Specificaties",
+        "tags": "Tags",
+        "colorPalette": "Kleurenpalet",
+        "inventoryItems": "Voorraadartikelen",
+        "noInventoryItems": "Geen voorraadartikelen gekoppeld aan dit ontwerp.",
+        "designerNotes": "Notities ontwerper",
+        "noNotes": "Geen notities",
+        "resizeHint": "Sleep de onderrand om de grootte aan te passen"
+      },
+      "media": {
+        "heading": "Media",
+        "manage": "Beheren",
+        "empty": "Nog geen mediabestanden",
+        "emptyHint": "Voeg afbeeldingen toe om je ontwerp te presenteren",
+        "addMedia": "Media toevoegen",
+        "alt": "Ontwerpmedia",
+        "preview": "Voorbeeld van ontwerpmedia",
+        "download": "Downloaden",
+        "manageMedia": "Media beheren",
+        "uploadDescription": "Upload en voeg media toe aan dit ontwerp",
+        "uploadImages": "Afbeeldingen uploaden",
+        "dropHint": "Sleep bestanden hierheen of klik om te bladeren",
+        "existing": "Bestaand",
+        "selected": "Geselecteerd",
+        "loadingDesign": "Ontwerp laden...",
+        "addAtLeastOne": "Voeg minimaal één bestand toe",
+        "uploadFailed": "Uploaden van bestanden mislukt",
+        "attached": "Media gekoppeld",
+        "someRejected": "Sommige bestanden zijn geweigerd",
+        "uploadIntro": "Upload afbeeldingen om aan dit ontwerp te koppelen."
+      },
+      "moodboard": {
+        "heading": "Moodboard",
+        "description": "Verzamel referenties en inspiratie.",
+        "open": "Moodboard openen",
+        "generateConfirm": "Moodboard genereren op basis van de briefing van dit ontwerp? Je bestaande kaarten worden samengevoegd, niet vervangen.",
+        "generating": "Moodboard genereren…",
+        "generated": "Moodboard gegenereerd",
+        "generateFailed": "Genereren van moodboard mislukt",
+        "inserted": "\"{{label}}\" ingevoegd",
+        "insertFailed": "Invoegen van blok mislukt",
+        "nothingToInsert": "Nog niets in te voegen voor \"{{label}}\".",
+        "saving": "Moodboard opslaan…",
+        "saved": "Moodboard opgeslagen",
+        "saveFailed": "Opslaan van moodboard mislukt",
+        "briefSyncFailed": "Moodboard opgeslagen, maar het bewerken van de briefing kon niet worden gesynchroniseerd.",
+        "insertBlock": "Blok invoegen",
+        "noBlocks": "Geen blokken beschikbaar",
+        "emptySuffix": "· leeg",
+        "addConstruction": "Constructie toevoegen",
+        "generate": "Genereren",
+        "layers": "Lagen",
+        "save": "Opslaan",
+        "savedLabel": "Opgeslagen",
+        "footerHint": "Invoegen, constructie, genereren, lagen & opslaan bevinden zich in de dock onderaan het canvas."
+      },
+      "layers": {
+        "heading": "Lagen",
+        "refresh": "Vernieuwen",
+        "close": "Sluiten",
+        "noFrames": "Nog geen frames.",
+        "untitled": "Naamloos frame",
+        "hasContent": "Bevat inhoud",
+        "empty": "Leeg",
+        "jump": "Naar frame gaan",
+        "show": "Tonen",
+        "hide": "Verbergen",
+        "lockedWhileHidden": "Vergrendeld indien verborgen",
+        "unlock": "Ontgrendelen",
+        "lock": "Vergrendelen"
+      },
+      "construction": {
+        "heading": "Constructiedetail toevoegen",
+        "details": "Constructiedetails",
+        "loading": "Technieken laden…",
+        "hint": "Kies links een techniek of voorinstelling — de parameters en verwerkingsregels worden hier automatisch ingevuld.",
+        "label": "Label",
+        "parameters": "Parameters",
+        "fixedGeometry": "Deze techniek heeft een vaste geometrie — geen parameters in te stellen.",
+        "fabricRules": "Stof- / naairegels",
+        "oneRulePerLine": "één regel per regel",
+        "note": "Notitie",
+        "optional": "optioneel",
+        "addDetail": "Detail toevoegen",
+        "added": "\"{{label}}\" toegevoegd",
+        "addFailed": "Toevoegen van constructiedetail mislukt"
+      },
+      "ownerActions": {
+        "yourDesign": "Jouw ontwerp",
+        "activeOrders_one": "{{count}} ontwerpopdracht in behandeling. Maak nog een aan of draag er een over aan een subpartner.",
+        "activeOrders_other": "{{count}} ontwerpopdrachten in behandeling. Maak er nog een aan of draag er een over aan een subpartner.",
+        "noOrders": "Je hebt dit ontwerp gemaakt. Maak een ontwerpopdracht aan om de productie te starten, of draag het over aan een subpartner.",
+        "newOrder": "Nieuwe opdracht",
+        "createOrder": "Opdracht aanmaken",
+        "deleteTitle": "Ontwerp verwijderen",
+        "deleteDescription": "\"{{name}}\" verwijderen? Dit kan niet ongedaan worden gemaakt.",
+        "deleted": "Ontwerp verwijderd"
+      },
+      "production": {
+        "heading": "Ontwerpopdrachten",
+        "empty": "Nog geen ontwerpopdrachten. Maak een ontwerpopdracht aan om de productie te starten, of je ziet ze hier zodra de beheerder werk jouw kant op stuurt.",
+        "subtitle": "Open een ontwerpopdracht om werk te accepteren, materialen te registreren en de status bij te werken.",
+        "previous": "Eerdere ontwerpopdrachten ({{count}})",
+        "viewOrder": "Opdracht bekijken",
+        "orderType": "{{type}}-opdracht",
+        "qty": "Aantal {{qty}}"
+      },
+      "cost": {
+        "heading": "Kostenraming",
+        "subtitle": "Materiaal- + productiekosten van de gekoppelde BOM, plus de JYT-platformvergoeding.",
+        "recalculate": "Herberekenen",
+        "estimatedTotal": "Geschat totaal",
+        "materialCost": "Materiaalkosten",
+        "productionCost": "Productiekosten",
+        "platformFee": "Platformvergoeding ({{percent}}%)",
+        "lastCalculated": "Laatst berekend",
+        "yourInput": "jouw invoer",
+        "estimatedLabel": "geschat",
+        "yourProductionCost": "Jouw productiekosten (per eenheid)",
+        "autoEstimate": "Automatische schatting",
+        "helper": "Overschrijft de automatische schatting — laat leeg om op basis van geschiedenis te schatten. Er geldt een platformvergoeding van {{percent}}% op de materiaalkosten. Druk op Herberekenen om toe te passen.",
+        "noEstimate": "Nog geen schatting — voeg materialen toe aan de BOM en klik op Herberekenen.",
+        "enterValid": "Voer geldige productiekosten in (0 of meer)",
+        "recalculated": "Kosten herberekend: {{amount}} ({{confidence}})"
+      },
+      "bom": {
+        "heading": "Materialen (BOM)",
+        "subtitle": "Voorraad + grondstoffen gebruikt voor dit ontwerp.",
+        "addMaterial": "Materiaal toevoegen",
+        "empty": "Nog geen materialen gekoppeld.",
+        "emptyOwnerHint": " Voeg de voorraadartikelen toe die dit ontwerp verbruikt.",
+        "noImg": "Geen afb.",
+        "sku": "SKU",
+        "planned": "Gepland",
+        "consumed": "Verbruikt",
+        "removeTitle": "Materiaal verwijderen",
+        "removeDescription": "\"{{name}}\" verwijderen uit de stuklijst van dit ontwerp?",
+        "removed": "Materiaal verwijderd",
+        "materialAlt": "materiaal"
+      },
+      "consumption": {
+        "heading": "Materiaalgebruik",
+        "subtitle": "Registreer grondstoffen die tijdens de productie zijn verbruikt",
+        "log": "Registreren",
+        "closedReview": "Registratie gesloten — ronde wacht op beoordeling",
+        "closedComplete": "Registratie gesloten — ronde voltooid",
+        "closedNone": "Registratie niet beschikbaar",
+        "drawerTitle": "Materiaalgebruik registreren",
+        "drawerDescription": "Leg grondstoffen vast die tijdens de productie zijn verbruikt.",
+        "noInventory": "Nog geen voorraad gekoppeld",
+        "noInventoryHint": "Koppel eerst grondstoffen aan dit ontwerp, daarna kun je hier het materiaalgebruik registreren.",
+        "inventoryItem": "Voorraadartikel",
+        "selectItem": "Selecteer artikel",
+        "quantity": "Aantal",
+        "measuredAs": "Gemeten als",
+        "perPiece": "Per stuk",
+        "totalRun": "Totaal voor de ronde",
+        "perPieceHint": "Materiaal voor ÉÉN afgewerkt stuk — we vermenigvuldigen met het aantal dat je maakt.",
+        "totalRunHint": "Materiaal voor de GEHELE ronde — vastgelegd zoals ingevoerd.",
+        "costPerUnit": "Kosten per eenheid",
+        "optional": "Optioneel",
+        "unit": "Eenheid",
+        "type": "Type",
+        "notes": "Notities",
+        "notesPlaceholder": "Waarvoor is dit materiaal gebruikt?",
+        "logUsage": "Gebruik registreren",
+        "empty": "Nog geen materiaalgebruik geregistreerd",
+        "required": "Voorraadartikel en aantal zijn verplicht",
+        "logged": "Verbruik geregistreerd",
+        "failed": "Registreren van verbruik mislukt",
+        "accessory": "accessoire",
+        "committed": "gereserveerd",
+        "pending": "in afwachting",
+        "totalMaterialCost": "Totale materiaalkosten"
+      },
+      "create": {
+        "heading": "Ontwerp aanmaken",
+        "namePlaceholder": "bijv. Zomerjas",
+        "descriptionPlaceholder": "Wat is dit ontwerp?",
+        "designerNotesPlaceholder": "Interne notities",
+        "created": "Ontwerp aangemaakt"
+      },
+      "edit": {
+        "heading": "Ontwerp bewerken",
+        "updated": "Ontwerp bijgewerkt"
+      },
+      "addInventory": {
+        "selectedCount": "{{count}} geselecteerd",
+        "selectPrompt": "Selecteer toe te voegen materialen",
+        "addToDesign": "Toevoegen aan ontwerp",
+        "noRawMaterialsTitle": "Geen grondstoffen",
+        "noRawMaterialsMessage": "Geen grondstoffen gevonden. De beheerder onderhoudt de gedeelde grondstoffencatalogus.",
+        "selectAtLeastOne": "Selecteer minimaal één materiaal",
+        "added_one": "{{count}} materiaal toegevoegd",
+        "added_other": "{{count}} materialen toegevoegd",
+        "sku": "SKU",
+        "columns": {
+          "material": "Materiaal",
+          "composition": "Samenstelling",
+          "color": "Kleur",
+          "unit": "Eenheid"
+        }
+      },
+      "runCreate": {
+        "heading": "Ontwerpopdracht aanmaken",
+        "subtitle": "Start de productie voor dit ontwerp. De ontwerpopdracht is goedgekeurd en direct klaar om aan te werken.",
+        "quantity": "Aantal",
+        "runType": "Rondetype",
+        "production": "Productie",
+        "sample": "Sample",
+        "howMade": "Hoe wordt het gemaakt?",
+        "inHouse": "In eigen beheer (je maakt het zelf)",
+        "outsourced": "Uitbesteed (overdragen aan een subpartner)",
+        "executionHint": "In eigen beheer houdt het werk bij jou; uitbesteed legt de leverancier vast voor kostenbewaking.",
+        "subPartnerId": "Subpartner-ID",
+        "subPartnerPlaceholder": "partner_…",
+        "subPartnerHint": "De partner aan wie je deze productie overdraagt.",
+        "createOrder": "Ontwerpopdracht aanmaken",
+        "started": "Productie gestart"
+      }
     }
   },
   "shippingOptionTypes": {

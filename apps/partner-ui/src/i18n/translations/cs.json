@@ -3781,6 +3781,360 @@
       "toast": {
         "startFailed": "Nepodařilo se spustit úvodní průvodce Stripe"
       }
+    },
+    "designs": {
+      "heading": "Návrhy",
+      "design": "Návrh",
+      "notFound": "Návrh nebyl nalezen.",
+      "missingId": "Chybí ID návrhu.",
+      "sizes": "Velikosti",
+      "overdue": "Po termínu",
+      "statusOptions": {
+        "conceptual": "Konceptuální",
+        "inDevelopment": "Ve vývoji",
+        "technicalReview": "Technická kontrola",
+        "sampleProduction": "Výroba vzorku",
+        "revision": "Revize",
+        "approved": "Schváleno",
+        "rejected": "Zamítnuto",
+        "onHold": "Pozastaveno",
+        "commerceReady": "Přípraveno k prodeji",
+        "superseded": "Nahrazeno"
+      },
+      "priorityOptions": {
+        "low": "Nízká",
+        "medium": "Střední",
+        "high": "Vysoká",
+        "urgent": "Naléhavá"
+      },
+      "typeOptions": {
+        "original": "Originál",
+        "derivative": "Derivát",
+        "custom": "Vlastní",
+        "collaboration": "Spolupráce"
+      },
+      "workStatusOptions": {
+        "incoming": "Příchozí",
+        "assigned": "Přiřazeno",
+        "inProgress": "V řešení",
+        "awaitingReview": "Čeká na kontrolu",
+        "finished": "Dokončeno",
+        "completed": "Dokončeno",
+        "cancelled": "Zrušeno"
+      },
+      "runStatusOptions": {
+        "draft": "Koncept",
+        "pendingReview": "Čeká na kontrolu",
+        "approved": "Schváleno",
+        "sentToPartner": "Odesláno partnerovi",
+        "inProgress": "V řešení",
+        "completed": "Dokončeno",
+        "cancelled": "Zrušeno",
+        "awaitingReassignment": "Čeká na opětovné přiřazení"
+      },
+      "bucketOptions": {
+        "incoming": "Příchozí",
+        "inProgress": "V řešení",
+        "yours": "Moje",
+        "completed": "Dokončeno",
+        "all": "Vše"
+      },
+      "engagementOptions": {
+        "owned": {
+          "label": "Moje",
+          "hint": "Tento návrh jste vytvořili vy."
+        },
+        "assigned": {
+          "label": "Přiřazeno",
+          "hint": "Máte výrobní zakázku na tento návrh — toto je práce pro vás."
+        },
+        "shared": {
+          "label": "Sdíleno",
+          "hint": "Sdíleno s vámi pro informaci. Nemáte přiřazenou žádnou výrobní zakázku (práce probíhá interně nebo u jiného partnera)."
+        }
+      },
+      "actionOptions": {
+        "accept": "Přijmout",
+        "working": "Zpracovává se",
+        "complete": "Dokončit",
+        "underReview": "Probíhá kontrola",
+        "done": "Hotovo",
+        "cancelled": "Zrušeno"
+      },
+      "confidenceOptions": {
+        "exact": "Přesný",
+        "estimated": "Odhadovaný"
+      },
+      "runTypeOptions": {
+        "production": "Sériová výroba",
+        "sample": "Vzorek"
+      },
+      "unitOptions": {
+        "meter": "Metr",
+        "yard": "Yard",
+        "kilogram": "Kilogram",
+        "gram": "Gram",
+        "piece": "Kus",
+        "roll": "Role",
+        "other": "Jiné"
+      },
+      "consumptionTypeOptions": {
+        "sample": "Vzorek",
+        "production": "Sériová výroba",
+        "wastage": "Odpad / ztráty"
+      },
+      "fields": {
+        "priority": "Priorita",
+        "designerNotes": "Poznámky návrháře",
+        "unit": "Jednotka",
+        "color": "Barva",
+        "composition": "Složení"
+      },
+      "list": {
+        "subtitle": "Vyberte záložku pro zobrazení příchozí, probíhající, vlastní nebo dokončené práce.",
+        "loadFailed": "Načtení návrhů se nezdařilo. Zkuste obnovit stránku.",
+        "noRecords": "Na této záložce nejsou žádné návrhy. Zkuste jinou záložku nebo vymažte vyhledávání.",
+        "columns": {
+          "name": "Název",
+          "source": "Zdroj",
+          "nextAction": "Další akce",
+          "workStatus": "Stav práce",
+          "priority": "Priorita",
+          "due": "Termín",
+          "status": "Stav návrhu",
+          "lastUpdated": "Naposledy aktualizováno"
+        }
+      },
+      "detail": {
+        "general": "Obecné",
+        "garmentType": "Typ oděvu",
+        "inferred": "Odvozeno",
+        "partnerStatus": "Stav partnera",
+        "priority": "Priorita",
+        "targetDate": "Cílové datum",
+        "estimatedCost": "Odhadované náklady",
+        "description": "Popis",
+        "specifications": "Specifikace",
+        "specs": "Specifikace",
+        "tags": "Štítky",
+        "colorPalette": "Paleta barev",
+        "inventoryItems": "Skladové položky",
+        "noInventoryItems": "K tomuto návrhu nejsou připojeny žádné skladové položky.",
+        "designerNotes": "Poznámky návrháře",
+        "noNotes": "Bez poznámek",
+        "resizeHint": "Tažením za spodní okraj změníte velikost"
+      },
+      "media": {
+        "heading": "Média",
+        "manage": "Spravovat",
+        "empty": "Zatím žádné mediální soubory",
+        "emptyHint": "Přidejte obrázky pro prezentaci návrhu",
+        "addMedia": "Přidat média",
+        "alt": "Média návrhu",
+        "preview": "Náhled médií návrhu",
+        "download": "Stáhnout",
+        "manageMedia": "Spravovat média",
+        "uploadDescription": "Nahrát a připojit média k tomuto návrhu",
+        "uploadImages": "Nahrát obrázky",
+        "dropHint": "Přetáhněte soubory sem nebo klikněte pro procházení",
+        "existing": "Stávající",
+        "selected": "Vybráno",
+        "loadingDesign": "Načítání návrhu...",
+        "addAtLeastOne": "Přidejte alespoň jeden soubor",
+        "uploadFailed": "Nahrávání souborů se nezdařilo",
+        "attached": "Média připojena",
+        "someRejected": "Některé soubory byly odmítnuty",
+        "uploadIntro": "Nahrajte obrázky, které chcete připojit k tomuto návrhu."
+      },
+      "moodboard": {
+        "heading": "Moodboard",
+        "description": "Sbírejte reference a inspiraci.",
+        "open": "Otevřít moodboard",
+        "generateConfirm": "Vygenerovat moodboard ze zadání tohoto návrhu? Vaše stávající karty budou sloučeny, nikoli nahrazeny.",
+        "generating": "Generování moodboardu…",
+        "generated": "Moodboard vygenerován",
+        "generateFailed": "Generování moodboardu se nezdařilo",
+        "inserted": "Vloženo „{{label}}“",
+        "insertFailed": "Vložení bloku se nezdařilo",
+        "nothingToInsert": "Pro „{{label}}“ zatím není co vložit.",
+        "saving": "Ukládání moodboardu…",
+        "saved": "Moodboard uložen",
+        "saveFailed": "Uložení moodboardu se nezdařilo",
+        "briefSyncFailed": "Moodboard uložen, ale úpravu zadání se nepodařilo synchronizovat.",
+        "insertBlock": "Vložit blok",
+        "noBlocks": "Žádné bloky k dispozici",
+        "emptySuffix": "· prázdné",
+        "addConstruction": "Přidat konstrukci",
+        "generate": "Generovat",
+        "layers": "Vrstvy",
+        "save": "Uložit",
+        "savedLabel": "Uloženo",
+        "footerHint": "Funkce Vložit, Konstrukce, Generovat, Vrstvy a Uložit najdete na liště v dolní části plátna."
+      },
+      "layers": {
+        "heading": "Vrstvy",
+        "refresh": "Obnovit",
+        "close": "Zavřít",
+        "noFrames": "Zatím žádné rámce.",
+        "untitled": "Rámec bez názvu",
+        "hasContent": "Obsahuje obsah",
+        "empty": "Prázdné",
+        "jump": "Přejít na rámec",
+        "show": "Zobrazit",
+        "hide": "Skrýt",
+        "lockedWhileHidden": "Uzamčeno během skrytí",
+        "unlock": "Odemknout",
+        "lock": "Zamknout"
+      },
+      "construction": {
+        "heading": "Přidat detail konstrukce",
+        "details": "Detaily konstrukce",
+        "loading": "Načítání technik…",
+        "hint": "Vyberte techniku nebo předvolbu vlevo — její parametry a pravidla pro látku se automaticky vyplní zde.",
+        "label": "Označení",
+        "parameters": "Parametry",
+        "fixedGeometry": "Tato technika má pevnou geometrii — nelze nastavit žádné parametry.",
+        "fabricRules": "Pravidla pro látku / šití",
+        "oneRulePerLine": "jedno pravidlo na řádek",
+        "note": "Poznámka",
+        "optional": "volitelné",
+        "addDetail": "Přidat detail",
+        "added": "Přidáno „{{label}}“",
+        "addFailed": "Přidání detailu konstrukce se nezdařilo"
+      },
+      "ownerActions": {
+        "yourDesign": "Váš návrh",
+        "activeOrders_one": "Probíhá {{count}} zakázka návrhu. Vytvořte další nebo ji předejte podpartnerovi.",
+        "activeOrders_other": "Probíhá {{count}} zakázek návrhů. Vytvořte další nebo je předejte podpartnerovi.",
+        "noOrders": "Tento návrh jste vytvořili vy. Vytvořte zakázku návrhu pro zahájení výroby, nebo ji předejte podpartnerovi.",
+        "newOrder": "Nová zakázka",
+        "createOrder": "Vytvořit zakázku",
+        "deleteTitle": "Smazat návrh",
+        "deleteDescription": "Smazat „{{name}}“? Tuto akci nelze vrátit zpět.",
+        "deleted": "Návrh byl smazán"
+      },
+      "production": {
+        "heading": "Zakázky návrhů",
+        "empty": "Zatím žádné zakázky návrhů. Vytvořte zakázku návrhu pro zahájení výroby, nebo se zde zobrazí, jakmile vám práci pošle administrátor.",
+        "subtitle": "Otevřete zakázku návrhu pro přijetí práce, zaznamenání materiálu a aktualizaci stavu.",
+        "previous": "Předchozí zakázky návrhů ({{count}})",
+        "viewOrder": "Zobrazit zakázku",
+        "orderType": "Zakázka: {{type}}",
+        "qty": "Množství {{qty}}"
+      },
+      "cost": {
+        "heading": "Odhad nákladů",
+        "subtitle": "Náklady na materiál + výrobu z připojeného kusovníku (BOM) plus poplatek platformy JYT.",
+        "recalculate": "Přepočítat",
+        "estimatedTotal": "Odhadovaný celkový součet",
+        "materialCost": "Náklady na materiál",
+        "productionCost": "Výrobní náklady",
+        "platformFee": "Poplatek platformy ({{percent}} %)",
+        "lastCalculated": "Naposledy spočítáno",
+        "yourInput": "váš vstup",
+        "estimatedLabel": "odhadnuto",
+        "yourProductionCost": "Vaše výrobní náklady (za jednotku)",
+        "autoEstimate": "Automatický odhad",
+        "helper": "Přepisuje automatický odhad — nechte prázdné pro odhad z historie. Na náklady na materiál se vztahuje poplatek platformy {{percent}} %. Stiskněte Přepočítat pro použití.",
+        "noEstimate": "Zatím žádný odhad — přidejte materiály do kusovníku (BOM) a poté klikněte na Přepočítat.",
+        "enterValid": "Zadejte platné výrobní náklady (0 nebo více)",
+        "recalculated": "Náklady přepočítány: {{amount}} ({{confidence}})"
+      },
+      "bom": {
+        "heading": "Materiály (BOM)",
+        "subtitle": "Skladové položky + suroviny použité k výrobě tohoto návrhu.",
+        "addMaterial": "Přidat materiál",
+        "empty": "Zatím nejsou připojeny žádné materiály.",
+        "emptyOwnerHint": " Přidejte skladové položky, které tento návrh spotřebovává.",
+        "noImg": "Bez obrázku",
+        "sku": "SKU",
+        "planned": "Plánováno",
+        "consumed": "Spotřebováno",
+        "removeTitle": "Odebrat materiál",
+        "removeDescription": "Odebrat „{{name}}“ z kusovníku tohoto návrhu?",
+        "removed": "Materiál odebrán",
+        "materialAlt": "materiál"
+      },
+      "consumption": {
+        "heading": "Spotřeba materiálu",
+        "subtitle": "Zaznamenat suroviny spotřebované během výroby",
+        "log": "Zaznamenat",
+        "closedReview": "Zaznamenávání uzavřeno — zakázka čeká na kontrolu",
+        "closedComplete": "Zaznamenávání uzavřeno — zakázka dokončena",
+        "closedNone": "Zaznamenávání není k dispozici",
+        "drawerTitle": "Zaznamenat spotřebu materiálu",
+        "drawerDescription": "Zaznamenejte suroviny spotřebované během výroby.",
+        "noInventory": "Zatím nejsou připojeny žádné skladové zásoby",
+        "noInventoryHint": "Nejprve připojte k tomuto návrhu suroviny, poté zde můžete zaznamenávat spotřebu materiálu.",
+        "inventoryItem": "Skladová položka",
+        "selectItem": "Vybrat položku",
+        "quantity": "Množství",
+        "measuredAs": "Měřeno jako",
+        "perPiece": "Na kus",
+        "totalRun": "Celkem za zakázku",
+        "perPieceHint": "Materiál na JEDEN hotový kus — vynásobíme vyrobeným počtem kusů.",
+        "totalRunHint": "Materiál pro CELOU zakázku — zaznamená se tak, jak je zadán.",
+        "costPerUnit": "Náklady na jednotku",
+        "optional": "Volitelné",
+        "unit": "Jednotka",
+        "type": "Typ",
+        "notes": "Poznámky",
+        "notesPlaceholder": "Na co byl tento materiál použit?",
+        "logUsage": "Zaznamenat spotřebu",
+        "empty": "Zatím nebyla zaznamenána žádná spotřeba materiálu",
+        "required": "Skladová položka a množství jsou povinné",
+        "logged": "Spotřeba zaznamenána",
+        "failed": "Zaznamenání spotřeby se nezdařilo",
+        "accessory": "příslušenství",
+        "committed": "vyhrazeno",
+        "pending": "čekající",
+        "totalMaterialCost": "Celkové náklady na materiál"
+      },
+      "create": {
+        "heading": "Vytvořit návrh",
+        "namePlaceholder": "např. Jarní bunda",
+        "descriptionPlaceholder": "O jaký návrh se jedná?",
+        "designerNotesPlaceholder": "Interní poznámky",
+        "created": "Návrh byl vytvořen"
+      },
+      "edit": {
+        "heading": "Upravit návrh",
+        "updated": "Návrh byl aktualizován"
+      },
+      "addInventory": {
+        "selectedCount": "Vybráno {{count}}",
+        "selectPrompt": "Vyberte materiály k přidání",
+        "addToDesign": "Přidat k návrhu",
+        "noRawMaterialsTitle": "Žádné suroviny",
+        "noRawMaterialsMessage": "Nebyly nalezeny žádné suroviny. Správce spravuje sdílený katalog surovin.",
+        "selectAtLeastOne": "Vyberte alespoň jeden materiál",
+        "added_one": "Přidán {{count}} materiál",
+        "added_other": "Přidáno {{count}} materiálů",
+        "sku": "SKU",
+        "columns": {
+          "material": "Materiál",
+          "composition": "Složení",
+          "color": "Barva",
+          "unit": "Jednotka"
+        }
+      },
+      "runCreate": {
+        "heading": "Vytvořit zakázku návrhu",
+        "subtitle": "Zahajte výrobu tohoto návrhu. Zakázka návrhu je schválena a připravena k okamžitému zpracování.",
+        "quantity": "Množství",
+        "runType": "Typ zakázky",
+        "production": "Sériová výroba",
+        "sample": "Vzorek",
+        "howMade": "Jak se vyrábí?",
+        "inHouse": "Interně (vyrábíte vy)",
+        "outsourced": "Externě (předání podpartnerovi)",
+        "executionHint": "Při interní výrobě zůstává práce u vás; při externí se zaznamená dodavatel pro sledování nákladů.",
+        "subPartnerId": "ID podpartnera",
+        "subPartnerPlaceholder": "partner_…",
+        "subPartnerHint": "Partner, kterému tuto výrobu předáváte.",
+        "createOrder": "Vytvořit zakázku návrhu",
+        "started": "Výroba zahájena"
+      }
     }
   },
   "shippingOptionTypes": {

@@ -3786,6 +3786,360 @@
       "toast": {
         "startFailed": "Stripeオンボーディングを開始できませんでした"
       }
+    },
+    "designs": {
+      "heading": "デザイン",
+      "design": "デザイン",
+      "notFound": "デザインが見つかりません。",
+      "missingId": "デザインIDが見つかりません。",
+      "sizes": "サイズ",
+      "overdue": "期限切れ",
+      "statusOptions": {
+        "conceptual": "コンセプト",
+        "inDevelopment": "開発中",
+        "technicalReview": "テクニカルレビュー",
+        "sampleProduction": "サンプル製造",
+        "revision": "修正中",
+        "approved": "承認済み",
+        "rejected": "却下",
+        "onHold": "保留中",
+        "commerceReady": "販売可能",
+        "superseded": "差替え済み"
+      },
+      "priorityOptions": {
+        "low": "低",
+        "medium": "中",
+        "high": "高",
+        "urgent": "緊急"
+      },
+      "typeOptions": {
+        "original": "オリジナル",
+        "derivative": "派生",
+        "custom": "カスタム",
+        "collaboration": "コラボレーション"
+      },
+      "workStatusOptions": {
+        "incoming": "受領待ち",
+        "assigned": "割り当て済み",
+        "inProgress": "進行中",
+        "awaitingReview": "レビュー待ち",
+        "finished": "終了",
+        "completed": "完了",
+        "cancelled": "キャンセル済み"
+      },
+      "runStatusOptions": {
+        "draft": "下書き",
+        "pendingReview": "レビュー待ち",
+        "approved": "承認済み",
+        "sentToPartner": "パートナーに送信済み",
+        "inProgress": "進行中",
+        "completed": "完了",
+        "cancelled": "キャンセル済み",
+        "awaitingReassignment": "再割り当て待ち"
+      },
+      "bucketOptions": {
+        "incoming": "新規受領",
+        "inProgress": "進行中",
+        "yours": "担当案件",
+        "completed": "完了",
+        "all": "すべて"
+      },
+      "engagementOptions": {
+        "owned": {
+          "label": "担当案件",
+          "hint": "あなたが作成したデザインです。"
+        },
+        "assigned": {
+          "label": "割り当て済み",
+          "hint": "このデザインには製造ランが関連付けられています。あなたの作業対象です。"
+        },
+        "shared": {
+          "label": "共有",
+          "hint": "参考用として共有されています。製造ランは割り当てられていません（社内作業または別のパートナー作業の可能性があります）。"
+        }
+      },
+      "actionOptions": {
+        "accept": "承諾",
+        "working": "作業中",
+        "complete": "完了",
+        "underReview": "レビュー中",
+        "done": "完了",
+        "cancelled": "キャンセル済み"
+      },
+      "confidenceOptions": {
+        "exact": "確定",
+        "estimated": "見積もり"
+      },
+      "runTypeOptions": {
+        "production": "量産",
+        "sample": "サンプル"
+      },
+      "unitOptions": {
+        "meter": "メートル",
+        "yard": "ヤード",
+        "kilogram": "キログラム",
+        "gram": "グラム",
+        "piece": "点",
+        "roll": "ロール",
+        "other": "その他"
+      },
+      "consumptionTypeOptions": {
+        "sample": "サンプル",
+        "production": "量産",
+        "wastage": "ロス・廃棄"
+      },
+      "fields": {
+        "priority": "優先度",
+        "designerNotes": "デザイナーメモ",
+        "unit": "単位",
+        "color": "カラー",
+        "composition": "素材構成"
+      },
+      "list": {
+        "subtitle": "タブを選択して、新規受領、進行中、担当案件、または完了した作業を確認します。",
+        "loadFailed": "デザインの読み込みに失敗しました。ページを更新してください。",
+        "noRecords": "このタブにはデザインがありません。別のタブを試すか、検索条件をクリアしてください。",
+        "columns": {
+          "name": "名前",
+          "source": "ソース",
+          "nextAction": "次のアクション",
+          "workStatus": "作業状況",
+          "priority": "優先度",
+          "due": "期日",
+          "status": "デザインステータス",
+          "lastUpdated": "最終更新"
+        }
+      },
+      "detail": {
+        "general": "概要",
+        "garmentType": "ガーメントタイプ",
+        "inferred": "推定",
+        "partnerStatus": "パートナーの状況",
+        "priority": "優先度",
+        "targetDate": "目標日",
+        "estimatedCost": "見積コスト",
+        "description": "説明",
+        "specifications": "仕様",
+        "specs": "仕様",
+        "tags": "タグ",
+        "colorPalette": "カラーパレット",
+        "inventoryItems": "在庫アイテム",
+        "noInventoryItems": "このデザインにリンクされている在庫アイテムはありません。",
+        "designerNotes": "デザイナーメモ",
+        "noNotes": "メモなし",
+        "resizeHint": "下端をドラッグしてサイズ変更"
+      },
+      "media": {
+        "heading": "メディア",
+        "manage": "管理",
+        "empty": "メディアファイルがまだありません",
+        "emptyHint": "画像を追加してデザインを展示しましょう",
+        "addMedia": "メディアを追加",
+        "alt": "デザインメディア",
+        "preview": "デザインメディアをプレビュー",
+        "download": "ダウンロード",
+        "manageMedia": "メディアを管理",
+        "uploadDescription": "このデザインにメディアをアップロードして添付します",
+        "uploadImages": "画像をアップロード",
+        "dropHint": "ファイルをここにドロップするか、クリックして参照してください",
+        "existing": "既存",
+        "selected": "選択済み",
+        "loadingDesign": "デザインを読み込み中...",
+        "addAtLeastOne": "ファイルを少なくとも1つ追加してください",
+        "uploadFailed": "ファイルのアップロードに失敗しました",
+        "attached": "メディアが添付されました",
+        "someRejected": "一部のファイルが拒否されました",
+        "uploadIntro": "画像をアップロードしてこのデザインに添付します。"
+      },
+      "moodboard": {
+        "heading": "ムードボード",
+        "description": "参考資料やインスピレーションを集めます。",
+        "open": "ムードボードを開く",
+        "generateConfirm": "このデザインのブリーフからムードボードを生成しますか？既存のカードは置き換えられず、統合されます。",
+        "generating": "ムードボードを生成中…",
+        "generated": "ムードボードが生成されました",
+        "generateFailed": "ムードボードの生成に失敗しました",
+        "inserted": "「{{label}}」を挿入しました",
+        "insertFailed": "ブロックの挿入に失敗しました",
+        "nothingToInsert": "「{{label}}」に挿入できるコンテンツがまだありません。",
+        "saving": "ムードボードを保存中…",
+        "saved": "ムードボードが保存されました",
+        "saveFailed": "ムードボードの保存に失敗しました",
+        "briefSyncFailed": "ムードボードは保存されましたが、ブリーフの編集内容を同期できませんでした。",
+        "insertBlock": "ブロックを挿入",
+        "noBlocks": "利用可能なブロックがありません",
+        "emptySuffix": "・空",
+        "addConstruction": "仕様詳細を追加",
+        "generate": "生成",
+        "layers": "レイヤー",
+        "save": "保存",
+        "savedLabel": "保存済み",
+        "footerHint": "挿入、仕様詳細、生成、レイヤー、保存はキャンバス下部のドックにあります。"
+      },
+      "layers": {
+        "heading": "レイヤー",
+        "refresh": "更新",
+        "close": "閉じる",
+        "noFrames": "フレームがまだありません。",
+        "untitled": "無題のフレーム",
+        "hasContent": "コンテンツあり",
+        "empty": "空",
+        "jump": "フレームに移動",
+        "show": "表示",
+        "hide": "非表示",
+        "lockedWhileHidden": "非表示中はロックされます",
+        "unlock": "ロック解除",
+        "lock": "ロック"
+      },
+      "construction": {
+        "heading": "仕様詳細を追加",
+        "details": "仕様詳細",
+        "loading": "テクニックを読み込み中…",
+        "hint": "左側のテクニックまたはプリセットを選択すると、そのパラメーターと生地ルールが自動入力されます。",
+        "label": "ラベル",
+        "parameters": "パラメーター",
+        "fixedGeometry": "このテクニックは固定形状のため、設定するパラメーターはありません。",
+        "fabricRules": "生地／縫製ルール",
+        "oneRulePerLine": "1行につき1つのルール",
+        "note": "メモ",
+        "optional": "任意",
+        "addDetail": "詳細を追加",
+        "added": "「{{label}}」を追加しました",
+        "addFailed": "仕様詳細の追加に失敗しました"
+      },
+      "ownerActions": {
+        "yourDesign": "自社デザイン",
+        "activeOrders_one": "進行中のデザイン注文が{{count}}件あります。新しい注文を作成するか、サブパートナーに引き継いでください。",
+        "activeOrders_other": "進行中のデザイン注文が{{count}}件あります。新しい注文を作成するか、サブパートナーに引き継いでください。",
+        "noOrders": "あなたがこのデザインを作成しました。製造を開始するにはデザイン注文を作成するか、サブパートナーに引き継いでください。",
+        "newOrder": "新規注文",
+        "createOrder": "注文を作成",
+        "deleteTitle": "デザインを削除",
+        "deleteDescription": "「{{name}}」を削除しますか？この操作は取り消せません。",
+        "deleted": "デザインが削除されました"
+      },
+      "production": {
+        "heading": "デザイン注文",
+        "empty": "デザイン注文はまだありません。デザイン注文を作成して製造を開始するか、管理者から作業が送信されるとここに表示されます。",
+        "subtitle": "デザイン注文を開いて作業を承諾し、資材を記録して、ステータスを更新します。",
+        "previous": "過去のデザイン注文 ({{count}})",
+        "viewOrder": "注文を表示",
+        "orderType": "{{type}}注文",
+        "qty": "数量 {{qty}}"
+      },
+      "cost": {
+        "heading": "コスト見積もり",
+        "subtitle": "リンクされたBOMの資材費＋製造費に、JYTプラットフォーム手数料を加えたもの。",
+        "recalculate": "再計算",
+        "estimatedTotal": "見積合計",
+        "materialCost": "資材費",
+        "productionCost": "製造費",
+        "platformFee": "プラットフォーム手数料 ({{percent}}%)",
+        "lastCalculated": "最終計算日時",
+        "yourInput": "入力値",
+        "estimatedLabel": "見積もり",
+        "yourProductionCost": "製造コスト（1点あたり）",
+        "autoEstimate": "自動見積もり",
+        "helper": "自動見積もりを上書きします — 履歴から見積もる場合は空欄のままにしてください。資材費には{{percent}}%のプラットフォーム手数料が適用されます。「再計算」を押して適用します。",
+        "noEstimate": "見積もりがまだありません — BOMに資材を追加してから再計算してください。",
+        "enterValid": "有効な製造コスト（0以上）を入力してください",
+        "recalculated": "コストが再計算されました: {{amount}} ({{confidence}})"
+      },
+      "bom": {
+        "heading": "資材 (BOM)",
+        "subtitle": "このデザインの製造に使用される在庫・原材料。",
+        "addMaterial": "資材を追加",
+        "empty": "リンクされた資材はまだありません。",
+        "emptyOwnerHint": "このデザインで消費する在庫アイテムを追加してください。",
+        "noImg": "画像なし",
+        "sku": "SKU",
+        "planned": "計画",
+        "consumed": "消費済み",
+        "removeTitle": "資材を削除",
+        "removeDescription": "「{{name}}」をこのデザインの部品表（BOM）から削除しますか？",
+        "removed": "資材が削除されました",
+        "materialAlt": "資材"
+      },
+      "consumption": {
+        "heading": "資材使用量",
+        "subtitle": "製造中に消費された原材料を記録します",
+        "log": "記録",
+        "closedReview": "記録終了 — ランはレビュー待ちです",
+        "closedComplete": "記録終了 — ランが完了しました",
+        "closedNone": "記録は利用できません",
+        "drawerTitle": "資材使用量を記録",
+        "drawerDescription": "製造中に消費された原材料を記録します。",
+        "noInventory": "リンクされた在庫がまだありません",
+        "noInventoryHint": "最初に原材料をこのデザインにリンクすると、ここで資材使用量を記録できるようになります。",
+        "inventoryItem": "在庫アイテム",
+        "selectItem": "アイテムを選択",
+        "quantity": "数量",
+        "measuredAs": "計測単位",
+        "perPiece": "1点あたり",
+        "totalRun": "ラン全体合計",
+        "perPieceHint": "完成品1点あたりの資材量 — 製造数量を掛け合わせて計算されます。",
+        "totalRunHint": "ラン全体の資材量 — 入力された通りに記録されます。",
+        "costPerUnit": "単価",
+        "optional": "任意",
+        "unit": "単位",
+        "type": "タイプ",
+        "notes": "メモ",
+        "notesPlaceholder": "この資材は何に使用されましたか？",
+        "logUsage": "使用量を記録",
+        "empty": "記録された資材使用量はまだありません",
+        "required": "在庫アイテムと数量は必須です",
+        "logged": "使用量が記録されました",
+        "failed": "使用量の記録に失敗しました",
+        "accessory": "付属品",
+        "committed": "引き当て済み",
+        "pending": "保留中",
+        "totalMaterialCost": "資材費合計"
+      },
+      "create": {
+        "heading": "デザインを作成",
+        "namePlaceholder": "例: スプリングジャケット",
+        "descriptionPlaceholder": "どのようなデザインですか？",
+        "designerNotesPlaceholder": "社内メモ",
+        "created": "デザインが作成されました"
+      },
+      "edit": {
+        "heading": "デザインを編集",
+        "updated": "デザインが更新されました"
+      },
+      "addInventory": {
+        "selectedCount": "{{count}}件選択済み",
+        "selectPrompt": "追加する資材を選択",
+        "addToDesign": "デザインに追加",
+        "noRawMaterialsTitle": "原材料がありません",
+        "noRawMaterialsMessage": "原材料が見つかりませんでした。管理者が共有の原材料カタログを管理しています。",
+        "selectAtLeastOne": "少なくとも1つの資材を選択してください",
+        "added_one": "{{count}}件の資材を追加しました",
+        "added_other": "{{count}}件の資材を追加しました",
+        "sku": "SKU",
+        "columns": {
+          "material": "資材",
+          "composition": "素材構成",
+          "color": "カラー",
+          "unit": "単位"
+        }
+      },
+      "runCreate": {
+        "heading": "デザイン注文を作成",
+        "subtitle": "このデザインの製造を開始します。デザイン注文は承認され、すぐに作業を開始できます。",
+        "quantity": "数量",
+        "runType": "ランタイプ",
+        "production": "量産",
+        "sample": "サンプル",
+        "howMade": "製造方法",
+        "inHouse": "社内製造（自社で製造）",
+        "outsourced": "外注（サブパートナーに委託）",
+        "executionHint": "社内製造は自社で作業を行い、外注はコスト追跡のためにベンダーを記録します。",
+        "subPartnerId": "サブパートナーID",
+        "subPartnerPlaceholder": "partner_…",
+        "subPartnerHint": "この製造を委託するパートナー。",
+        "createOrder": "デザイン注文を作成",
+        "started": "製造が開始されました"
+      }
     }
   },
   "refundReasons": {

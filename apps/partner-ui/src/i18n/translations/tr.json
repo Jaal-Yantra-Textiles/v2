@@ -3785,6 +3785,360 @@
       "toast": {
         "startFailed": "Stripe başlangıç süreci başlatılamadı"
       }
+    },
+    "designs": {
+      "heading": "Tasarımlar",
+      "design": "Tasarım",
+      "notFound": "Tasarım bulunamadı.",
+      "missingId": "Eksik tasarım kimliği.",
+      "sizes": "Bedenler",
+      "overdue": "Gecikmiş",
+      "statusOptions": {
+        "conceptual": "Kavramsal",
+        "inDevelopment": "Geliştirme Aşamasında",
+        "technicalReview": "Teknik İnceleme",
+        "sampleProduction": "Numune Üretimi",
+        "revision": "Revizyon",
+        "approved": "Onaylandı",
+        "rejected": "Reddedildi",
+        "onHold": "Beklemede",
+        "commerceReady": "Satışa Hazır",
+        "superseded": "Geçersiz Kılındı"
+      },
+      "priorityOptions": {
+        "low": "Düşük",
+        "medium": "Orta",
+        "high": "Yüksek",
+        "urgent": "Acil"
+      },
+      "typeOptions": {
+        "original": "Orijinal",
+        "derivative": "Türev",
+        "custom": "Özel",
+        "collaboration": "İş Birliği"
+      },
+      "workStatusOptions": {
+        "incoming": "Gelen",
+        "assigned": "Atandı",
+        "inProgress": "Devam Ediyor",
+        "awaitingReview": "İnceleme Bekliyor",
+        "finished": "Bitti",
+        "completed": "Tamamlandı",
+        "cancelled": "İptal Edildi"
+      },
+      "runStatusOptions": {
+        "draft": "Taslak",
+        "pendingReview": "İnceleme Bekliyor",
+        "approved": "Onaylandı",
+        "sentToPartner": "Partnere Gönderildi",
+        "inProgress": "Devam Ediyor",
+        "completed": "Tamamlandı",
+        "cancelled": "İptal Edildi",
+        "awaitingReassignment": "Yeniden Atama Bekliyor"
+      },
+      "bucketOptions": {
+        "incoming": "Gelen",
+        "inProgress": "Devam Ediyor",
+        "yours": "Size Ait",
+        "completed": "Tamamlandı",
+        "all": "Tümü"
+      },
+      "engagementOptions": {
+        "owned": {
+          "label": "Size Ait",
+          "hint": "Bu tasarımı siz oluşturdunuz."
+        },
+        "assigned": {
+          "label": "Atandı",
+          "hint": "Bu tasarım üzerinde bir üretim çalıştırmanız var — bu sizin için bir iş."
+        },
+        "shared": {
+          "label": "Paylaşıldı",
+          "hint": "Referans için sizinle paylaşıldı. Size atanmış bir üretim çalıştırması yok (iş kurum içinde veya başka bir partnerde olabilir)."
+        }
+      },
+      "actionOptions": {
+        "accept": "Kabul Et",
+        "working": "Çalışılıyor",
+        "complete": "Tamamla",
+        "underReview": "İncelemede",
+        "done": "Bitti",
+        "cancelled": "İptal Edildi"
+      },
+      "confidenceOptions": {
+        "exact": "Kesin",
+        "estimated": "Tahmini"
+      },
+      "runTypeOptions": {
+        "production": "Üretim",
+        "sample": "Numune"
+      },
+      "unitOptions": {
+        "meter": "Metre",
+        "yard": "Yarda",
+        "kilogram": "Kilogram",
+        "gram": "Gram",
+        "piece": "Adet",
+        "roll": "Rulo",
+        "other": "Diğer"
+      },
+      "consumptionTypeOptions": {
+        "sample": "Numune",
+        "production": "Üretim",
+        "wastage": "Fire"
+      },
+      "fields": {
+        "priority": "Öncelik",
+        "designerNotes": "Tasarımcı notları",
+        "unit": "Birim",
+        "color": "Renk",
+        "composition": "Bileşim"
+      },
+      "list": {
+        "subtitle": "Gelen, devam eden, size ait veya tamamlanan işleri görmek için bir sekme seçin.",
+        "loadFailed": "Tasarımlar yüklenemedi. Lütfen sayfayı yenilemeyi deneyin.",
+        "noRecords": "Bu sekmede tasarım yok. Başka bir sekme deneyin veya aramayı temizleyin.",
+        "columns": {
+          "name": "Ad",
+          "source": "Kaynak",
+          "nextAction": "Sonraki Eylem",
+          "workStatus": "İş Durumu",
+          "priority": "Öncelik",
+          "due": "Bitiş Tarihi",
+          "status": "Tasarım Durumu",
+          "lastUpdated": "Son Güncelleme"
+        }
+      },
+      "detail": {
+        "general": "Genel",
+        "garmentType": "Giysi türü",
+        "inferred": "Çıkarılan",
+        "partnerStatus": "Partner durumu",
+        "priority": "Öncelik",
+        "targetDate": "Hedef tarih",
+        "estimatedCost": "Tahmini maliyet",
+        "description": "Açıklama",
+        "specifications": "Spesifikasyonlar",
+        "specs": "Teknik Özellikler",
+        "tags": "Etiketler",
+        "colorPalette": "Renk Paleti",
+        "inventoryItems": "Envanter Öğeleri",
+        "noInventoryItems": "Bu tasarıma bağlı envanter öğesi yok.",
+        "designerNotes": "Tasarımcı Notları",
+        "noNotes": "Not yok",
+        "resizeHint": "Boyutlandırmak için alt kenarı sürükleyin"
+      },
+      "media": {
+        "heading": "Medya",
+        "manage": "Yönet",
+        "empty": "Henüz medya dosyası yok",
+        "emptyHint": "Tasarımınızı sergilemek için görseller ekleyin",
+        "addMedia": "Medya Ekle",
+        "alt": "Tasarım medyası",
+        "preview": "Tasarım medyasını önizle",
+        "download": "İndir",
+        "manageMedia": "Medyayı Yönet",
+        "uploadDescription": "Bu tasarıma medya yükleyin ve ekleyin",
+        "uploadImages": "Görselleri yükle",
+        "dropHint": "Dosyaları buraya bırakın veya göz atmak için tıklayın",
+        "existing": "Mevcut",
+        "selected": "Seçilen",
+        "loadingDesign": "Tasarım yükleniyor...",
+        "addAtLeastOne": "En az bir dosya ekleyin",
+        "uploadFailed": "Dosyalar yüklenemedi",
+        "attached": "Medya eklendi",
+        "someRejected": "Bazı dosyalar reddedildi",
+        "uploadIntro": "Bu tasarıma eklemek için görseller yükleyin."
+      },
+      "moodboard": {
+        "heading": "Moodboard",
+        "description": "Referansları ve ilham kaynaklarını toplayın.",
+        "open": "Moodboard'u Aç",
+        "generateConfirm": "Moodboard bu tasarımın özetinden (brief) oluşturulsun mu? Mevcut kartlarınız değiştirilmez, birleştirilir.",
+        "generating": "Moodboard oluşturuluyor…",
+        "generated": "Moodboard oluşturuldu",
+        "generateFailed": "Moodboard oluşturulamadı",
+        "inserted": "\"{{label}}\" eklendi",
+        "insertFailed": "Blok eklenemedi",
+        "nothingToInsert": "\"{{label}}\" için henüz eklenecek bir şey yok.",
+        "saving": "Moodboard kaydediliyor…",
+        "saved": "Moodboard kaydedildi",
+        "saveFailed": "Moodboard kaydedilemedi",
+        "briefSyncFailed": "Moodboard kaydedildi, ancak özet düzenlemesi senkronize edilemedi.",
+        "insertBlock": "Blok ekle",
+        "noBlocks": "Mevcut blok yok",
+        "emptySuffix": "· boş",
+        "addConstruction": "Yapı detayı ekle",
+        "generate": "Oluştur",
+        "layers": "Katmanlar",
+        "save": "Kaydet",
+        "savedLabel": "Kaydedildi",
+        "footerHint": "Ekle, yapı detayı, oluştur, katmanlar ve kaydet tuvalin altındaki araç çubuğunda yer alır."
+      },
+      "layers": {
+        "heading": "Katmanlar",
+        "refresh": "Yenile",
+        "close": "Kapat",
+        "noFrames": "Henüz çerçeve yok.",
+        "untitled": "Adsız çerçeve",
+        "hasContent": "İçerik var",
+        "empty": "Boş",
+        "jump": "Çerçeveye git",
+        "show": "Göster",
+        "hide": "Gizle",
+        "lockedWhileHidden": "Gizliyken kilitli",
+        "unlock": "Kilidi Aç",
+        "lock": "Kilitle"
+      },
+      "construction": {
+        "heading": "Yapı detayı ekle",
+        "details": "Yapı detayları",
+        "loading": "Teknikler yükleniyor…",
+        "hint": "Soldan bir teknik veya hazır ayar seçin — parametreleri ve kumaş kuralları buraya otomatik olarak doldurulur.",
+        "label": "Etiket",
+        "parameters": "Parametreler",
+        "fixedGeometry": "Bu teknik sabit geometriye sahip — ayarlanacak parametre yok.",
+        "fabricRules": "Kumaş / dikiş kuralları",
+        "oneRulePerLine": "her satıra bir kural",
+        "note": "Not",
+        "optional": "isteğe bağlı",
+        "addDetail": "Detay ekle",
+        "added": "\"{{label}}\" eklendi",
+        "addFailed": "Yapı detayı eklenemedi"
+      },
+      "ownerActions": {
+        "yourDesign": "Tasarımınız",
+        "activeOrders_one": "Devam eden {{count}} tasarım siparişi. Başka bir tane oluşturun veya alt partnere devredin.",
+        "activeOrders_other": "Devam eden {{count}} tasarım siparişi. Başka bir tane oluşturun veya alt partnere devredin.",
+        "noOrders": "Bu tasarımı siz oluşturdunuz. Üretimi başlatmak için bir tasarım siparişi oluşturun veya bir alt partnere devredin.",
+        "newOrder": "Yeni sipariş",
+        "createOrder": "Sipariş oluştur",
+        "deleteTitle": "Tasarımı sil",
+        "deleteDescription": "\"{{name}}\" silinsin mi? Bu işlem geri alınamaz.",
+        "deleted": "Tasarım silindi"
+      },
+      "production": {
+        "heading": "Tasarım siparişleri",
+        "empty": "Henüz tasarım siparişi yok. Üretimi başlatmak için bir tasarım siparişi oluşturun veya yönetici size iş gönderdiğinde bunları burada görebilirsiniz.",
+        "subtitle": "İşi kabul etmek, malzemeleri kaydetmek ve durumunu güncellemek için bir tasarım siparişi açın.",
+        "previous": "Önceki tasarım siparişleri ({{count}})",
+        "viewOrder": "Siparişi görüntüle",
+        "orderType": "{{type}} siparişi",
+        "qty": "Miktar {{qty}}"
+      },
+      "cost": {
+        "heading": "Maliyet tahmini",
+        "subtitle": "Bağlı Ürün Reçetesinden (BOM) gelen malzeme + üretim maliyeti artı JYT platform ücreti.",
+        "recalculate": "Yeniden Hesapla",
+        "estimatedTotal": "Tahmini toplam",
+        "materialCost": "Malzeme maliyeti",
+        "productionCost": "Üretim maliyeti",
+        "platformFee": "Platform ücreti (%{{percent}})",
+        "lastCalculated": "Son hesaplama",
+        "yourInput": "girdiniz",
+        "estimatedLabel": "tahmini",
+        "yourProductionCost": "Üretim maliyetiniz (birim başına)",
+        "autoEstimate": "Otomatik tahmin",
+        "helper": "Otomatik tahmini geçersiz kılar — geçmişten tahmin etmek için boş bırakın. Malzeme maliyeti üzerinden %{{percent}} platform ücreti uygulanır. Uygulamak için Yeniden Hesapla'ya basın.",
+        "noEstimate": "Henüz tahmin yok — Ürün Reçetesine (BOM) malzemeler ekleyin, ardından Yeniden Hesapla'ya basın.",
+        "enterValid": "Geçerli bir üretim maliyeti girin (0 veya daha fazla)",
+        "recalculated": "Maliyet yeniden hesaplandı: {{amount}} ({{confidence}})"
+      },
+      "bom": {
+        "heading": "Malzemeler (BOM)",
+        "subtitle": "Bu tasarımı yapmak için kullanılan envanter + ham maddeler.",
+        "addMaterial": "Malzeme ekle",
+        "empty": "Henüz bağlı malzeme yok.",
+        "emptyOwnerHint": " Bu tasarımın tükettiği envanter öğelerini ekleyin.",
+        "noImg": "Görsel yok",
+        "sku": "SKU",
+        "planned": "Planlanan",
+        "consumed": "Tüketilen",
+        "removeTitle": "Malzemeyi kaldır",
+        "removeDescription": "\"{{name}}\" bu tasarımın ürün reçetesinden (BOM) kaldırılsın mı?",
+        "removed": "Malzeme kaldırıldı",
+        "materialAlt": "malzeme"
+      },
+      "consumption": {
+        "heading": "Malzeme Kullanımı",
+        "subtitle": "Üretim sırasında tüketilen ham maddeleri kaydedin",
+        "log": "Kaydet",
+        "closedReview": "Kayıt kapalı — çalıştırma inceleme bekliyor",
+        "closedComplete": "Kayıt kapalı — çalıştırma tamamlandı",
+        "closedNone": "Kayıt yapılamıyor",
+        "drawerTitle": "Malzeme Kullanımını Kaydet",
+        "drawerDescription": "Üretim sırasında tüketilen ham maddeyi kaydedin.",
+        "noInventory": "Henüz bağlı envanter yok",
+        "noInventoryHint": "Önce ham maddeleri bu tasarıma bağlayın, ardından malzeme kullanımını buradan kaydedebilirsiniz.",
+        "inventoryItem": "Envanter Öğesi",
+        "selectItem": "Öğe seçin",
+        "quantity": "Miktar",
+        "measuredAs": "Ölçüm birimi",
+        "perPiece": "Parça başına",
+        "totalRun": "Çalıştırmanın tamamı için",
+        "perPieceHint": "TEK BİR bitmiş parça için malzeme — ürettiğiniz miktarla çarpılır.",
+        "totalRunHint": "TÜM çalıştırma için malzeme — girildiği şekilde kaydedilir.",
+        "costPerUnit": "Birim başına maliyet",
+        "optional": "İsteğe bağlı",
+        "unit": "Birim",
+        "type": "Tür",
+        "notes": "Notlar",
+        "notesPlaceholder": "Bu malzeme ne için kullanıldı?",
+        "logUsage": "Kullanımı Kaydet",
+        "empty": "Henüz malzeme kullanımı kaydedilmedi",
+        "required": "Envanter öğesi ve miktar zorunludur",
+        "logged": "Tüketim kaydedildi",
+        "failed": "Tüketim kaydedilemedi",
+        "accessory": "aksesuar",
+        "committed": "tahsisi yapılmış",
+        "pending": "beklemede",
+        "totalMaterialCost": "Toplam malzeme maliyeti"
+      },
+      "create": {
+        "heading": "Tasarım oluştur",
+        "namePlaceholder": "ör. İlkbahar Ceketi",
+        "descriptionPlaceholder": "Bu tasarım nedir?",
+        "designerNotesPlaceholder": "Dahili notlar",
+        "created": "Tasarım oluşturuldu"
+      },
+      "edit": {
+        "heading": "Tasarımı düzenle",
+        "updated": "Tasarım güncellendi"
+      },
+      "addInventory": {
+        "selectedCount": "{{count}} seçildi",
+        "selectPrompt": "Eklenecek malzemeleri seçin",
+        "addToDesign": "Tasarıma ekle",
+        "noRawMaterialsTitle": "Ham madde yok",
+        "noRawMaterialsMessage": "Ham madde bulunamadı. Yönetici ortak ham madde kataloğunu yönetmektedir.",
+        "selectAtLeastOne": "En az bir malzeme seçin",
+        "added_one": "{{count}} malzeme eklendi",
+        "added_other": "{{count}} malzeme eklendi",
+        "sku": "SKU",
+        "columns": {
+          "material": "Malzeme",
+          "composition": "Bileşim",
+          "color": "Renk",
+          "unit": "Birim"
+        }
+      },
+      "runCreate": {
+        "heading": "Tasarım siparişi oluştur",
+        "subtitle": "Bu tasarım için üretimi başlatın. Tasarım siparişi onaylandı ve hemen çalışmaya hazır.",
+        "quantity": "Miktar",
+        "runType": "Çalıştırma türü",
+        "production": "Üretim",
+        "sample": "Numune",
+        "howMade": "Nasıl üretiliyor?",
+        "inHouse": "Kurum içi (siz üretiyorsunuz)",
+        "outsourced": "Dış kaynaklı (alt partnere devredin)",
+        "executionHint": "Kurum içi seçeneği işi sizde tutar; dış kaynaklı seçeneği maliyet takibi için tedarikçiyi kaydeder.",
+        "subPartnerId": "Alt partner kimliği",
+        "subPartnerPlaceholder": "partner_…",
+        "subPartnerHint": "Bu üretimi devrettiğiniz partner.",
+        "createOrder": "Tasarım siparişi oluştur",
+        "started": "Üretim başladı"
+      }
     }
   },
   "shippingOptionTypes": {

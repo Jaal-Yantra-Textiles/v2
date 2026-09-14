@@ -3785,6 +3785,360 @@
       "toast": {
         "startFailed": "راه‌اندازی اولیه Stripe امکان‌پذیر نبود"
       }
+    },
+    "designs": {
+      "heading": "طرح‌ها",
+      "design": "طرح",
+      "notFound": "طرح یافت نشد.",
+      "missingId": "شناسه طرح موجود نیست.",
+      "sizes": "سایزها",
+      "overdue": "عقب‌افتاده",
+      "statusOptions": {
+        "conceptual": "مفهومی",
+        "inDevelopment": "در حال توسعه",
+        "technicalReview": "بررسی فنی",
+        "sampleProduction": "تولید نمونه",
+        "revision": "بازبینی",
+        "approved": "تاییدشده",
+        "rejected": "ردشده",
+        "onHold": "معلق",
+        "commerceReady": "آماده عرضه",
+        "superseded": "منسوخ‌شده"
+      },
+      "priorityOptions": {
+        "low": "کم",
+        "medium": "متوسط",
+        "high": "زیاد",
+        "urgent": "فوری"
+      },
+      "typeOptions": {
+        "original": "اصلی",
+        "derivative": "مشتق‌شده",
+        "custom": "سفارشی",
+        "collaboration": "همکاری"
+      },
+      "workStatusOptions": {
+        "incoming": "ورودی",
+        "assigned": "واگذارشده",
+        "inProgress": "در حال انجام",
+        "awaitingReview": "در انتظار بررسی",
+        "finished": "پایان‌یافته",
+        "completed": "تکمیل‌شده",
+        "cancelled": "لغوشده"
+      },
+      "runStatusOptions": {
+        "draft": "پیش‌نویس",
+        "pendingReview": "در انتظار بررسی",
+        "approved": "تاییدشده",
+        "sentToPartner": "ارسال‌شده به همکار",
+        "inProgress": "در حال انجام",
+        "completed": "تکمیل‌شده",
+        "cancelled": "لغوشده",
+        "awaitingReassignment": "در انتظار بازتخصیص"
+      },
+      "bucketOptions": {
+        "incoming": "ورودی",
+        "inProgress": "در حال انجام",
+        "yours": "متعلق به شما",
+        "completed": "تکمیل‌شده",
+        "all": "همه"
+      },
+      "engagementOptions": {
+        "owned": {
+          "label": "متعلق به شما",
+          "hint": "شما این طرح را ایجاد کرده‌اید."
+        },
+        "assigned": {
+          "label": "واگذارشده",
+          "hint": "شما یک سری تولید روی این طرح دارید — این کار متعلق به شماست."
+        },
+        "shared": {
+          "label": "به‌اشتراک‌گذاشته‌شده",
+          "hint": "برای ارجاع با شما به اشتراک گذاشته شده است. هیچ سری تولیدی به شما اختصاص نیافته است (کار ممکن است داخلی یا با همکار دیگری باشد)."
+        }
+      },
+      "actionOptions": {
+        "accept": "پذیرش",
+        "working": "در حال کار",
+        "complete": "تکمیل",
+        "underReview": "در حال بررسی",
+        "done": "انجام شد",
+        "cancelled": "لغوشده"
+      },
+      "confidenceOptions": {
+        "exact": "دقیق",
+        "estimated": "تخمینی"
+      },
+      "runTypeOptions": {
+        "production": "تولید",
+        "sample": "نمونه"
+      },
+      "unitOptions": {
+        "meter": "متر",
+        "yard": "یارد",
+        "kilogram": "کیلوگرم",
+        "gram": "گرم",
+        "piece": "عدد",
+        "roll": "رول",
+        "other": "سایر"
+      },
+      "consumptionTypeOptions": {
+        "sample": "نمونه",
+        "production": "تولید",
+        "wastage": "ضایعات"
+      },
+      "fields": {
+        "priority": "اولویت",
+        "designerNotes": "یادداشت‌های طراح",
+        "unit": "واحد",
+        "color": "رنگ",
+        "composition": "ترکیب"
+      },
+      "list": {
+        "subtitle": "یک تب را برای مشاهده کارهای ورودی، در حال انجام، متعلق به خودتان یا تکمیل‌شده انتخاب کنید.",
+        "loadFailed": "بارگیری طرح‌ها ناموفق بود. لطفاً صفحه را بازنشانی کنید.",
+        "noRecords": "هیچ طرحی در این تب وجود ندارد. تب دیگری را امتحان کنید یا جستجو را پاک کنید.",
+        "columns": {
+          "name": "نام",
+          "source": "منبع",
+          "nextAction": "اقدام بعدی",
+          "workStatus": "وضعیت کار",
+          "priority": "اولویت",
+          "due": "مهلت",
+          "status": "وضعیت طرح",
+          "lastUpdated": "آخرین بروزرسانی"
+        }
+      },
+      "detail": {
+        "general": "عمومی",
+        "garmentType": "نوع پوشاک",
+        "inferred": "استنباط‌شده",
+        "partnerStatus": "وضعیت همکار",
+        "priority": "اولویت",
+        "targetDate": "تاریخ هدف",
+        "estimatedCost": "هزینه تخمینی",
+        "description": "توضیحات",
+        "specifications": "مشخصات",
+        "specs": "مشخصات",
+        "tags": "برچسب‌ها",
+        "colorPalette": "پالت رنگی",
+        "inventoryItems": "اقلام موجودی",
+        "noInventoryItems": "هیچ آیتم موجودی به این طرح متصل نشده است.",
+        "designerNotes": "یادداشت‌های طراح",
+        "noNotes": "بدون یادداشت",
+        "resizeHint": "برای تغییر اندازه، لبه پایینی را بکشید"
+      },
+      "media": {
+        "heading": "رسانه",
+        "manage": "مدیریت",
+        "empty": "هنوز هیچ فایل رسانه‌ای وجود ندارد",
+        "emptyHint": "برای نمایش طرح خود تصویر اضافه کنید",
+        "addMedia": "افزودن رسانه",
+        "alt": "رسانه طرح",
+        "preview": "پیش‌نمایش رسانه طرح",
+        "download": "دانلود",
+        "manageMedia": "مدیریت رسانه",
+        "uploadDescription": "بارگذاری و پیوست رسانه به این طرح",
+        "uploadImages": "بارگذاری تصاویر",
+        "dropHint": "فایل‌ها را اینجا رها کنید یا برای مرور کلیک کنید",
+        "existing": "موجود",
+        "selected": "انتخاب‌شده",
+        "loadingDesign": "در حال بارگیری طرح...",
+        "addAtLeastOne": "حداقل یک فایل اضافه کنید",
+        "uploadFailed": "بارگذاری فایل‌ها ناموفق بود",
+        "attached": "رسانه پیوست شد",
+        "someRejected": "برخی از فایل‌ها رد شدند",
+        "uploadIntro": "برای پیوست کردن به این طرح، تصاویر را بارگذاری کنید."
+      },
+      "moodboard": {
+        "heading": "مودبورد",
+        "description": "جمع‌آوری مراجع و الهامات.",
+        "open": "باز کردن مودبورد",
+        "generateConfirm": "ایجاد مودبورد از شرح خلاصه این طرح؟ کارت‌های موجود شما ادغام می‌شوند، نه جایگزین.",
+        "generating": "در حال ساخت مودبورد…",
+        "generated": "مودبورد ساخته شد",
+        "generateFailed": "ساخت مودبورد ناموفق بود",
+        "inserted": "«{{label}}» درج شد",
+        "insertFailed": "درج بلوک ناموفق بود",
+        "nothingToInsert": "هنوز چیزی برای درج «{{label}}» وجود ندارد.",
+        "saving": "در حال ذخیره مودبورد…",
+        "saved": "مودبورد ذخیره شد",
+        "saveFailed": "ذخیره مودبورد ناموفق بود",
+        "briefSyncFailed": "مودبورد ذخیره شد، اما ویرایش شرح خلاصه همگام‌سازی نشد.",
+        "insertBlock": "درج بلوک",
+        "noBlocks": "هیچ بلوکی در دسترس نیست",
+        "emptySuffix": "· خالی",
+        "addConstruction": "افزودن جزئیات دوخت",
+        "generate": "ایجاد",
+        "layers": "لایه‌ها",
+        "save": "ذخیره",
+        "savedLabel": "ذخیره‌شده",
+        "footerHint": "درج، ساختار، ایجاد، لایه‌ها و ذخیره در نوار ابزار پایین بوم قرار دارند."
+      },
+      "layers": {
+        "heading": "لایه‌ها",
+        "refresh": "به‌روزرسانی",
+        "close": "بستن",
+        "noFrames": "هنوز هیچ فریمی وجود ندارد.",
+        "untitled": "فریم بدون عنوان",
+        "hasContent": "دارای محتوا",
+        "empty": "خالی",
+        "jump": "پرش به فریم",
+        "show": "نمایش",
+        "hide": "پنهان‌سازی",
+        "lockedWhileHidden": "قفل‌شده هنگام پنهان بودن",
+        "unlock": "باز کردن قفل",
+        "lock": "قفل کردن"
+      },
+      "construction": {
+        "heading": "افزودن جزئیات ساختار",
+        "details": "جزئیات ساختار",
+        "loading": "در حال بارگیری تکنیک‌ها…",
+        "hint": "یک تکنیک یا پیش‌تنظیم را از سمت چپ انتخاب کنید — پارامترها و قوانین پارچه آن به‌طور خودکار در اینجا پر می‌شوند.",
+        "label": "برچسب",
+        "parameters": "پارامترها",
+        "fixedGeometry": "این تکنیک دارای هندسه ثابت است — پارامتری برای تنظیم وجود ندارد.",
+        "fabricRules": "قوانین پارچه / دوخت",
+        "oneRulePerLine": "یک قانون در هر سطر",
+        "note": "یادداشت",
+        "optional": "اختیاری",
+        "addDetail": "افزودن جزئیات",
+        "added": "«{{label}}» اضافه شد",
+        "addFailed": "افزودن جزئیات ساختار ناموفق بود"
+      },
+      "ownerActions": {
+        "yourDesign": "طرح شما",
+        "activeOrders_one": "{{count}} سفارش طرح در حال انجام است. سفارش دیگری ایجاد کنید یا یکی را به همکار فرعی واگذار کنید.",
+        "activeOrders_other": "{{count}} سفارش طرح در حال انجام است. سفارش دیگری ایجاد کنید یا یکی را به همکار فرعی واگذار کنید.",
+        "noOrders": "شما این طرح را ایجاد کرده‌اید. برای شروع تولید، یک سفارش طرح ایجاد کنید یا آن را به همکار فرعی واگذار کنید.",
+        "newOrder": "سفارش جدید",
+        "createOrder": "ایجاد سفارش",
+        "deleteTitle": "حذف طرح",
+        "deleteDescription": "«{{name}}» حذف شود؟ این عمل قابل بازگشت نیست.",
+        "deleted": "طرح حذف شد"
+      },
+      "production": {
+        "heading": "سفارش‌های طرح",
+        "empty": "هنوز هیچ سفارش طرحی وجود ندارد. برای شروع تولید یک سفارش طرح ایجاد کنید، یا پس از ارسال کار توسط مدیر، آنها را در اینجا خواهید دید.",
+        "subtitle": "یک سفارش طرح را باز کنید تا کار را بپذیرید، مواد را ثبت کنید و وضعیت آن را به‌روزرسانی کنید.",
+        "previous": "سفارش‌های طرح قبلی ({{count}})",
+        "viewOrder": "مشاهده سفارش",
+        "orderType": "سفارش {{type}}",
+        "qty": "تعداد {{qty}}"
+      },
+      "cost": {
+        "heading": "برآورد هزینه",
+        "subtitle": "هزینه مواد + تولید از BOM مرتبط، به همراه کارمزد پلتفرم JYT.",
+        "recalculate": "محاسبه مجدد",
+        "estimatedTotal": "مجموع تخمینی",
+        "materialCost": "هزینه مواد",
+        "productionCost": "هزینه تولید",
+        "platformFee": "کارمزد پلتفرم ({{percent}}٪)",
+        "lastCalculated": "آخرین زمان محاسبه",
+        "yourInput": "ورودی شما",
+        "estimatedLabel": "تخمینی",
+        "yourProductionCost": "هزینه تولید شما (به ازای هر واحد)",
+        "autoEstimate": "تخمین خودکار",
+        "helper": "تخمین خودکار را لغو می‌کند — برای تخمین بر اساس تاریخچه، خالی بگذارید. {{percent}}٪ کارمزد پلتفرم روی هزینه مواد اعمال می‌شود. برای اعمال، محاسبه مجدد را فشار دهید.",
+        "noEstimate": "هنوز تخمینی وجود ندارد — مواد را به BOM اضافه کنید، سپس محاسبه مجدد را بزنید.",
+        "enterValid": "یک هزینه تولید معتبر وارد کنید (۰ یا بیشتر)",
+        "recalculated": "هزینه مجدداً محاسبه شد: {{amount}} ({{confidence}})"
+      },
+      "bom": {
+        "heading": "مواد اولیه (BOM)",
+        "subtitle": "موجودی + مواد اولیه‌ای که برای ساخت این طرح استفاده شده است.",
+        "addMaterial": "افزودن ماده اولیه",
+        "empty": "هنوز هیچ ماده اولیه‌ای متصل نشده است.",
+        "emptyOwnerHint": " اقلام موجودی که این طرح مصرف می‌کند را اضافه کنید.",
+        "noImg": "بدون تصویر",
+        "sku": "SKU",
+        "planned": "برنامه‌ریزی‌شده",
+        "consumed": "مصرف‌شده",
+        "removeTitle": "حذف ماده اولیه",
+        "removeDescription": "«{{name}}» از فهرست مواد اولیه (BOM) این طرح حذف شود؟",
+        "removed": "ماده اولیه حذف شد",
+        "materialAlt": "ماده اولیه"
+      },
+      "consumption": {
+        "heading": "مصرف مواد",
+        "subtitle": "ثبت مواد اولیه مصرف‌شده در طول تولید",
+        "log": "ثبت",
+        "closedReview": "ثبت بسته شد — سری تولید در انتظار بررسی است",
+        "closedComplete": "ثبت بسته شد — سری تولید تکمیل گردید",
+        "closedNone": "ثبت امکان‌پذیر نیست",
+        "drawerTitle": "ثبت میزان مصرف مواد",
+        "drawerDescription": "ثبت مواد اولیه مصرف‌شده در طول تولید.",
+        "noInventory": "هنوز هیچ موجودی متصل نشده است",
+        "noInventoryHint": "ابتدا مواد اولیه را به این طرح متصل کنید، سپس می‌توانید میزان مصرف مواد را در اینجا ثبت کنید.",
+        "inventoryItem": "قلم موجودی",
+        "selectItem": "انتخاب قلم",
+        "quantity": "مقدار",
+        "measuredAs": "نحوه اندازه‌گیری",
+        "perPiece": "به ازای هر قطعه",
+        "totalRun": "مجموع برای سری تولید",
+        "perPieceHint": "ماده اولیه برای یک قطعه ساخته‌شده — در تعداد تولید ضرب می‌شود.",
+        "totalRunHint": "ماده اولیه برای کل سری تولید — همان‌طور که وارد شده ثبت می‌شود.",
+        "costPerUnit": "هزینه به ازای هر واحد",
+        "optional": "اختیاری",
+        "unit": "واحد",
+        "type": "نوع",
+        "notes": "یادداشت‌ها",
+        "notesPlaceholder": "این ماده اولیه برای چه کاری استفاده شد؟",
+        "logUsage": "ثبت مصرف",
+        "empty": "هنوز هیچ مصرف موادی ثبت نشده است",
+        "required": "قلم موجودی و مقدار الزامی هستند",
+        "logged": "مصرف ثبت شد",
+        "failed": "ثبت مصرف ناموفق بود",
+        "accessory": "لوازم جانبی",
+        "committed": "تخصیص‌یافته",
+        "pending": "در انتظار",
+        "totalMaterialCost": "هزینه کل مواد"
+      },
+      "create": {
+        "heading": "ایجاد طرح",
+        "namePlaceholder": "به عنوان مثال: کاپشن بهاره",
+        "descriptionPlaceholder": "این طرح چیست؟",
+        "designerNotesPlaceholder": "یادداشت‌های داخلی",
+        "created": "طرح ایجاد شد"
+      },
+      "edit": {
+        "heading": "ویرایش طرح",
+        "updated": "طرح به‌روزرسانی شد"
+      },
+      "addInventory": {
+        "selectedCount": "{{count}} مورد انتخاب شد",
+        "selectPrompt": "مواد اولیه را برای افزودن انتخاب کنید",
+        "addToDesign": "افزودن به طرح",
+        "noRawMaterialsTitle": "بدون مواد اولیه",
+        "noRawMaterialsMessage": "هیچ ماده اولیه‌ای یافت نشد. مدیر کاتالوگ مشترک مواد اولیه را نگهداری می‌کند.",
+        "selectAtLeastOne": "حداقل یک ماده اولیه را انتخاب کنید",
+        "added_one": "{{count}} ماده اولیه اضافه شد",
+        "added_other": "{{count}} ماده اولیه اضافه شد",
+        "sku": "SKU",
+        "columns": {
+          "material": "ماده اولیه",
+          "composition": "ترکیب",
+          "color": "رنگ",
+          "unit": "واحد"
+        }
+      },
+      "runCreate": {
+        "heading": "ایجاد سفارش طرح",
+        "subtitle": "تولید این طرح را شروع کنید. سفارش طرح تایید شده و فوراً آماده کار است.",
+        "quantity": "تعداد",
+        "runType": "نوع سری تولید",
+        "production": "تولید",
+        "sample": "نمونه",
+        "howMade": "چگونه ساخته می‌شود؟",
+        "inHouse": "داخلی (توسط خودتان ساخته می‌شود)",
+        "outsourced": "برون‌سپاری‌شده (واگذاری به همکار فرعی)",
+        "executionHint": "روش داخلی کار را نزد شما نگه می‌دارد؛ برون‌سپاری فروشنده را برای پیگیری هزینه ثبت می‌کند.",
+        "subPartnerId": "شناسه همکار فرعی",
+        "subPartnerPlaceholder": "partner_…",
+        "subPartnerHint": "همکاری که این تولید را به او واگذار می‌کنید.",
+        "createOrder": "ایجاد سفارش طرح",
+        "started": "تولید شروع شد"
+      }
     }
   },
   "shippingOptionTypes": {

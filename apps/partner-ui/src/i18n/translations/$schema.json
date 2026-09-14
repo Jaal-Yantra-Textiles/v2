@@ -14862,6 +14862,1409 @@
           },
           "required": ["businessType", "status"],
           "additionalProperties": false
+        },
+        "designs": {
+          "type": "object",
+          "properties": {
+            "heading": {
+              "type": "string"
+            },
+            "design": {
+              "type": "string"
+            },
+            "notFound": {
+              "type": "string"
+            },
+            "missingId": {
+              "type": "string"
+            },
+            "sizes": {
+              "type": "string"
+            },
+            "overdue": {
+              "type": "string"
+            },
+            "statusOptions": {
+              "type": "object",
+              "properties": {
+                "conceptual": {
+                  "type": "string"
+                },
+                "inDevelopment": {
+                  "type": "string"
+                },
+                "technicalReview": {
+                  "type": "string"
+                },
+                "sampleProduction": {
+                  "type": "string"
+                },
+                "revision": {
+                  "type": "string"
+                },
+                "approved": {
+                  "type": "string"
+                },
+                "rejected": {
+                  "type": "string"
+                },
+                "onHold": {
+                  "type": "string"
+                },
+                "commerceReady": {
+                  "type": "string"
+                },
+                "superseded": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "conceptual",
+                "inDevelopment",
+                "technicalReview",
+                "sampleProduction",
+                "revision",
+                "approved",
+                "rejected",
+                "onHold",
+                "commerceReady",
+                "superseded"
+              ],
+              "additionalProperties": false
+            },
+            "priorityOptions": {
+              "type": "object",
+              "properties": {
+                "low": {
+                  "type": "string"
+                },
+                "medium": {
+                  "type": "string"
+                },
+                "high": {
+                  "type": "string"
+                },
+                "urgent": {
+                  "type": "string"
+                }
+              },
+              "required": ["low", "medium", "high", "urgent"],
+              "additionalProperties": false
+            },
+            "typeOptions": {
+              "type": "object",
+              "properties": {
+                "original": {
+                  "type": "string"
+                },
+                "derivative": {
+                  "type": "string"
+                },
+                "custom": {
+                  "type": "string"
+                },
+                "collaboration": {
+                  "type": "string"
+                }
+              },
+              "required": ["original", "derivative", "custom", "collaboration"],
+              "additionalProperties": false
+            },
+            "workStatusOptions": {
+              "type": "object",
+              "properties": {
+                "incoming": {
+                  "type": "string"
+                },
+                "assigned": {
+                  "type": "string"
+                },
+                "inProgress": {
+                  "type": "string"
+                },
+                "awaitingReview": {
+                  "type": "string"
+                },
+                "finished": {
+                  "type": "string"
+                },
+                "completed": {
+                  "type": "string"
+                },
+                "cancelled": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "incoming",
+                "assigned",
+                "inProgress",
+                "awaitingReview",
+                "finished",
+                "completed",
+                "cancelled"
+              ],
+              "additionalProperties": false
+            },
+            "runStatusOptions": {
+              "type": "object",
+              "properties": {
+                "draft": {
+                  "type": "string"
+                },
+                "pendingReview": {
+                  "type": "string"
+                },
+                "approved": {
+                  "type": "string"
+                },
+                "sentToPartner": {
+                  "type": "string"
+                },
+                "inProgress": {
+                  "type": "string"
+                },
+                "completed": {
+                  "type": "string"
+                },
+                "cancelled": {
+                  "type": "string"
+                },
+                "awaitingReassignment": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "draft",
+                "pendingReview",
+                "approved",
+                "sentToPartner",
+                "inProgress",
+                "completed",
+                "cancelled",
+                "awaitingReassignment"
+              ],
+              "additionalProperties": false
+            },
+            "bucketOptions": {
+              "type": "object",
+              "properties": {
+                "incoming": {
+                  "type": "string"
+                },
+                "inProgress": {
+                  "type": "string"
+                },
+                "yours": {
+                  "type": "string"
+                },
+                "completed": {
+                  "type": "string"
+                },
+                "all": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "incoming",
+                "inProgress",
+                "yours",
+                "completed",
+                "all"
+              ],
+              "additionalProperties": false
+            },
+            "engagementOptions": {
+              "type": "object",
+              "properties": {
+                "owned": {
+                  "type": "object",
+                  "properties": {
+                    "label": {
+                      "type": "string"
+                    },
+                    "hint": {
+                      "type": "string"
+                    }
+                  },
+                  "required": ["label", "hint"],
+                  "additionalProperties": false
+                },
+                "assigned": {
+                  "type": "object",
+                  "properties": {
+                    "label": {
+                      "type": "string"
+                    },
+                    "hint": {
+                      "type": "string"
+                    }
+                  },
+                  "required": ["label", "hint"],
+                  "additionalProperties": false
+                },
+                "shared": {
+                  "type": "object",
+                  "properties": {
+                    "label": {
+                      "type": "string"
+                    },
+                    "hint": {
+                      "type": "string"
+                    }
+                  },
+                  "required": ["label", "hint"],
+                  "additionalProperties": false
+                }
+              },
+              "required": ["owned", "assigned", "shared"],
+              "additionalProperties": false
+            },
+            "actionOptions": {
+              "type": "object",
+              "properties": {
+                "accept": {
+                  "type": "string"
+                },
+                "working": {
+                  "type": "string"
+                },
+                "complete": {
+                  "type": "string"
+                },
+                "underReview": {
+                  "type": "string"
+                },
+                "done": {
+                  "type": "string"
+                },
+                "cancelled": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "accept",
+                "working",
+                "complete",
+                "underReview",
+                "done",
+                "cancelled"
+              ],
+              "additionalProperties": false
+            },
+            "confidenceOptions": {
+              "type": "object",
+              "properties": {
+                "exact": {
+                  "type": "string"
+                },
+                "estimated": {
+                  "type": "string"
+                }
+              },
+              "required": ["exact", "estimated"],
+              "additionalProperties": false
+            },
+            "runTypeOptions": {
+              "type": "object",
+              "properties": {
+                "production": {
+                  "type": "string"
+                },
+                "sample": {
+                  "type": "string"
+                }
+              },
+              "required": ["production", "sample"],
+              "additionalProperties": false
+            },
+            "unitOptions": {
+              "type": "object",
+              "properties": {
+                "meter": {
+                  "type": "string"
+                },
+                "yard": {
+                  "type": "string"
+                },
+                "kilogram": {
+                  "type": "string"
+                },
+                "gram": {
+                  "type": "string"
+                },
+                "piece": {
+                  "type": "string"
+                },
+                "roll": {
+                  "type": "string"
+                },
+                "other": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "meter",
+                "yard",
+                "kilogram",
+                "gram",
+                "piece",
+                "roll",
+                "other"
+              ],
+              "additionalProperties": false
+            },
+            "consumptionTypeOptions": {
+              "type": "object",
+              "properties": {
+                "sample": {
+                  "type": "string"
+                },
+                "production": {
+                  "type": "string"
+                },
+                "wastage": {
+                  "type": "string"
+                }
+              },
+              "required": ["sample", "production", "wastage"],
+              "additionalProperties": false
+            },
+            "fields": {
+              "type": "object",
+              "properties": {
+                "priority": {
+                  "type": "string"
+                },
+                "designerNotes": {
+                  "type": "string"
+                },
+                "unit": {
+                  "type": "string"
+                },
+                "color": {
+                  "type": "string"
+                },
+                "composition": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "priority",
+                "designerNotes",
+                "unit",
+                "color",
+                "composition"
+              ],
+              "additionalProperties": false
+            },
+            "list": {
+              "type": "object",
+              "properties": {
+                "subtitle": {
+                  "type": "string"
+                },
+                "loadFailed": {
+                  "type": "string"
+                },
+                "noRecords": {
+                  "type": "string"
+                },
+                "columns": {
+                  "type": "object",
+                  "properties": {
+                    "name": {
+                      "type": "string"
+                    },
+                    "source": {
+                      "type": "string"
+                    },
+                    "nextAction": {
+                      "type": "string"
+                    },
+                    "workStatus": {
+                      "type": "string"
+                    },
+                    "priority": {
+                      "type": "string"
+                    },
+                    "due": {
+                      "type": "string"
+                    },
+                    "status": {
+                      "type": "string"
+                    },
+                    "lastUpdated": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "name",
+                    "source",
+                    "nextAction",
+                    "workStatus",
+                    "priority",
+                    "due",
+                    "status",
+                    "lastUpdated"
+                  ],
+                  "additionalProperties": false
+                }
+              },
+              "required": ["subtitle", "loadFailed", "noRecords", "columns"],
+              "additionalProperties": false
+            },
+            "detail": {
+              "type": "object",
+              "properties": {
+                "general": {
+                  "type": "string"
+                },
+                "garmentType": {
+                  "type": "string"
+                },
+                "inferred": {
+                  "type": "string"
+                },
+                "partnerStatus": {
+                  "type": "string"
+                },
+                "priority": {
+                  "type": "string"
+                },
+                "targetDate": {
+                  "type": "string"
+                },
+                "estimatedCost": {
+                  "type": "string"
+                },
+                "description": {
+                  "type": "string"
+                },
+                "specifications": {
+                  "type": "string"
+                },
+                "specs": {
+                  "type": "string"
+                },
+                "tags": {
+                  "type": "string"
+                },
+                "colorPalette": {
+                  "type": "string"
+                },
+                "inventoryItems": {
+                  "type": "string"
+                },
+                "noInventoryItems": {
+                  "type": "string"
+                },
+                "designerNotes": {
+                  "type": "string"
+                },
+                "noNotes": {
+                  "type": "string"
+                },
+                "resizeHint": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "general",
+                "garmentType",
+                "inferred",
+                "partnerStatus",
+                "priority",
+                "targetDate",
+                "estimatedCost",
+                "description",
+                "specifications",
+                "specs",
+                "tags",
+                "colorPalette",
+                "inventoryItems",
+                "noInventoryItems",
+                "designerNotes",
+                "noNotes",
+                "resizeHint"
+              ],
+              "additionalProperties": false
+            },
+            "media": {
+              "type": "object",
+              "properties": {
+                "heading": {
+                  "type": "string"
+                },
+                "manage": {
+                  "type": "string"
+                },
+                "empty": {
+                  "type": "string"
+                },
+                "emptyHint": {
+                  "type": "string"
+                },
+                "addMedia": {
+                  "type": "string"
+                },
+                "alt": {
+                  "type": "string"
+                },
+                "preview": {
+                  "type": "string"
+                },
+                "download": {
+                  "type": "string"
+                },
+                "manageMedia": {
+                  "type": "string"
+                },
+                "uploadDescription": {
+                  "type": "string"
+                },
+                "uploadImages": {
+                  "type": "string"
+                },
+                "dropHint": {
+                  "type": "string"
+                },
+                "existing": {
+                  "type": "string"
+                },
+                "selected": {
+                  "type": "string"
+                },
+                "loadingDesign": {
+                  "type": "string"
+                },
+                "addAtLeastOne": {
+                  "type": "string"
+                },
+                "uploadFailed": {
+                  "type": "string"
+                },
+                "attached": {
+                  "type": "string"
+                },
+                "someRejected": {
+                  "type": "string"
+                },
+                "uploadIntro": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "heading",
+                "manage",
+                "empty",
+                "emptyHint",
+                "addMedia",
+                "alt",
+                "preview",
+                "download",
+                "manageMedia",
+                "uploadDescription",
+                "uploadImages",
+                "dropHint",
+                "existing",
+                "selected",
+                "loadingDesign",
+                "addAtLeastOne",
+                "uploadFailed",
+                "attached",
+                "someRejected",
+                "uploadIntro"
+              ],
+              "additionalProperties": false
+            },
+            "moodboard": {
+              "type": "object",
+              "properties": {
+                "heading": {
+                  "type": "string"
+                },
+                "description": {
+                  "type": "string"
+                },
+                "open": {
+                  "type": "string"
+                },
+                "generateConfirm": {
+                  "type": "string"
+                },
+                "generating": {
+                  "type": "string"
+                },
+                "generated": {
+                  "type": "string"
+                },
+                "generateFailed": {
+                  "type": "string"
+                },
+                "inserted": {
+                  "type": "string"
+                },
+                "insertFailed": {
+                  "type": "string"
+                },
+                "nothingToInsert": {
+                  "type": "string"
+                },
+                "saving": {
+                  "type": "string"
+                },
+                "saved": {
+                  "type": "string"
+                },
+                "saveFailed": {
+                  "type": "string"
+                },
+                "briefSyncFailed": {
+                  "type": "string"
+                },
+                "insertBlock": {
+                  "type": "string"
+                },
+                "noBlocks": {
+                  "type": "string"
+                },
+                "emptySuffix": {
+                  "type": "string"
+                },
+                "addConstruction": {
+                  "type": "string"
+                },
+                "generate": {
+                  "type": "string"
+                },
+                "layers": {
+                  "type": "string"
+                },
+                "save": {
+                  "type": "string"
+                },
+                "savedLabel": {
+                  "type": "string"
+                },
+                "footerHint": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "heading",
+                "description",
+                "open",
+                "generateConfirm",
+                "generating",
+                "generated",
+                "generateFailed",
+                "inserted",
+                "insertFailed",
+                "nothingToInsert",
+                "saving",
+                "saved",
+                "saveFailed",
+                "briefSyncFailed",
+                "insertBlock",
+                "noBlocks",
+                "emptySuffix",
+                "addConstruction",
+                "generate",
+                "layers",
+                "save",
+                "savedLabel",
+                "footerHint"
+              ],
+              "additionalProperties": false
+            },
+            "layers": {
+              "type": "object",
+              "properties": {
+                "heading": {
+                  "type": "string"
+                },
+                "refresh": {
+                  "type": "string"
+                },
+                "close": {
+                  "type": "string"
+                },
+                "noFrames": {
+                  "type": "string"
+                },
+                "untitled": {
+                  "type": "string"
+                },
+                "hasContent": {
+                  "type": "string"
+                },
+                "empty": {
+                  "type": "string"
+                },
+                "jump": {
+                  "type": "string"
+                },
+                "show": {
+                  "type": "string"
+                },
+                "hide": {
+                  "type": "string"
+                },
+                "lockedWhileHidden": {
+                  "type": "string"
+                },
+                "unlock": {
+                  "type": "string"
+                },
+                "lock": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "heading",
+                "refresh",
+                "close",
+                "noFrames",
+                "untitled",
+                "hasContent",
+                "empty",
+                "jump",
+                "show",
+                "hide",
+                "lockedWhileHidden",
+                "unlock",
+                "lock"
+              ],
+              "additionalProperties": false
+            },
+            "construction": {
+              "type": "object",
+              "properties": {
+                "heading": {
+                  "type": "string"
+                },
+                "details": {
+                  "type": "string"
+                },
+                "loading": {
+                  "type": "string"
+                },
+                "hint": {
+                  "type": "string"
+                },
+                "label": {
+                  "type": "string"
+                },
+                "parameters": {
+                  "type": "string"
+                },
+                "fixedGeometry": {
+                  "type": "string"
+                },
+                "fabricRules": {
+                  "type": "string"
+                },
+                "oneRulePerLine": {
+                  "type": "string"
+                },
+                "note": {
+                  "type": "string"
+                },
+                "optional": {
+                  "type": "string"
+                },
+                "addDetail": {
+                  "type": "string"
+                },
+                "added": {
+                  "type": "string"
+                },
+                "addFailed": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "heading",
+                "details",
+                "loading",
+                "hint",
+                "label",
+                "parameters",
+                "fixedGeometry",
+                "fabricRules",
+                "oneRulePerLine",
+                "note",
+                "optional",
+                "addDetail",
+                "added",
+                "addFailed"
+              ],
+              "additionalProperties": false
+            },
+            "ownerActions": {
+              "type": "object",
+              "properties": {
+                "yourDesign": {
+                  "type": "string"
+                },
+                "activeOrders_one": {
+                  "type": "string"
+                },
+                "activeOrders_other": {
+                  "type": "string"
+                },
+                "noOrders": {
+                  "type": "string"
+                },
+                "newOrder": {
+                  "type": "string"
+                },
+                "createOrder": {
+                  "type": "string"
+                },
+                "deleteTitle": {
+                  "type": "string"
+                },
+                "deleteDescription": {
+                  "type": "string"
+                },
+                "deleted": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "yourDesign",
+                "activeOrders_one",
+                "activeOrders_other",
+                "noOrders",
+                "newOrder",
+                "createOrder",
+                "deleteTitle",
+                "deleteDescription",
+                "deleted"
+              ],
+              "additionalProperties": false
+            },
+            "production": {
+              "type": "object",
+              "properties": {
+                "heading": {
+                  "type": "string"
+                },
+                "empty": {
+                  "type": "string"
+                },
+                "subtitle": {
+                  "type": "string"
+                },
+                "previous": {
+                  "type": "string"
+                },
+                "viewOrder": {
+                  "type": "string"
+                },
+                "orderType": {
+                  "type": "string"
+                },
+                "qty": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "heading",
+                "empty",
+                "subtitle",
+                "previous",
+                "viewOrder",
+                "orderType",
+                "qty"
+              ],
+              "additionalProperties": false
+            },
+            "cost": {
+              "type": "object",
+              "properties": {
+                "heading": {
+                  "type": "string"
+                },
+                "subtitle": {
+                  "type": "string"
+                },
+                "recalculate": {
+                  "type": "string"
+                },
+                "estimatedTotal": {
+                  "type": "string"
+                },
+                "materialCost": {
+                  "type": "string"
+                },
+                "productionCost": {
+                  "type": "string"
+                },
+                "platformFee": {
+                  "type": "string"
+                },
+                "lastCalculated": {
+                  "type": "string"
+                },
+                "yourInput": {
+                  "type": "string"
+                },
+                "estimatedLabel": {
+                  "type": "string"
+                },
+                "yourProductionCost": {
+                  "type": "string"
+                },
+                "autoEstimate": {
+                  "type": "string"
+                },
+                "helper": {
+                  "type": "string"
+                },
+                "noEstimate": {
+                  "type": "string"
+                },
+                "enterValid": {
+                  "type": "string"
+                },
+                "recalculated": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "heading",
+                "subtitle",
+                "recalculate",
+                "estimatedTotal",
+                "materialCost",
+                "productionCost",
+                "platformFee",
+                "lastCalculated",
+                "yourInput",
+                "estimatedLabel",
+                "yourProductionCost",
+                "autoEstimate",
+                "helper",
+                "noEstimate",
+                "enterValid",
+                "recalculated"
+              ],
+              "additionalProperties": false
+            },
+            "bom": {
+              "type": "object",
+              "properties": {
+                "heading": {
+                  "type": "string"
+                },
+                "subtitle": {
+                  "type": "string"
+                },
+                "addMaterial": {
+                  "type": "string"
+                },
+                "empty": {
+                  "type": "string"
+                },
+                "emptyOwnerHint": {
+                  "type": "string"
+                },
+                "noImg": {
+                  "type": "string"
+                },
+                "sku": {
+                  "type": "string"
+                },
+                "planned": {
+                  "type": "string"
+                },
+                "consumed": {
+                  "type": "string"
+                },
+                "removeTitle": {
+                  "type": "string"
+                },
+                "removeDescription": {
+                  "type": "string"
+                },
+                "removed": {
+                  "type": "string"
+                },
+                "materialAlt": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "heading",
+                "subtitle",
+                "addMaterial",
+                "empty",
+                "emptyOwnerHint",
+                "noImg",
+                "sku",
+                "planned",
+                "consumed",
+                "removeTitle",
+                "removeDescription",
+                "removed",
+                "materialAlt"
+              ],
+              "additionalProperties": false
+            },
+            "consumption": {
+              "type": "object",
+              "properties": {
+                "heading": {
+                  "type": "string"
+                },
+                "subtitle": {
+                  "type": "string"
+                },
+                "log": {
+                  "type": "string"
+                },
+                "closedReview": {
+                  "type": "string"
+                },
+                "closedComplete": {
+                  "type": "string"
+                },
+                "closedNone": {
+                  "type": "string"
+                },
+                "drawerTitle": {
+                  "type": "string"
+                },
+                "drawerDescription": {
+                  "type": "string"
+                },
+                "noInventory": {
+                  "type": "string"
+                },
+                "noInventoryHint": {
+                  "type": "string"
+                },
+                "inventoryItem": {
+                  "type": "string"
+                },
+                "selectItem": {
+                  "type": "string"
+                },
+                "quantity": {
+                  "type": "string"
+                },
+                "measuredAs": {
+                  "type": "string"
+                },
+                "perPiece": {
+                  "type": "string"
+                },
+                "totalRun": {
+                  "type": "string"
+                },
+                "perPieceHint": {
+                  "type": "string"
+                },
+                "totalRunHint": {
+                  "type": "string"
+                },
+                "costPerUnit": {
+                  "type": "string"
+                },
+                "optional": {
+                  "type": "string"
+                },
+                "unit": {
+                  "type": "string"
+                },
+                "type": {
+                  "type": "string"
+                },
+                "notes": {
+                  "type": "string"
+                },
+                "notesPlaceholder": {
+                  "type": "string"
+                },
+                "logUsage": {
+                  "type": "string"
+                },
+                "empty": {
+                  "type": "string"
+                },
+                "required": {
+                  "type": "string"
+                },
+                "logged": {
+                  "type": "string"
+                },
+                "failed": {
+                  "type": "string"
+                },
+                "accessory": {
+                  "type": "string"
+                },
+                "committed": {
+                  "type": "string"
+                },
+                "pending": {
+                  "type": "string"
+                },
+                "totalMaterialCost": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "heading",
+                "subtitle",
+                "log",
+                "closedReview",
+                "closedComplete",
+                "closedNone",
+                "drawerTitle",
+                "drawerDescription",
+                "noInventory",
+                "noInventoryHint",
+                "inventoryItem",
+                "selectItem",
+                "quantity",
+                "measuredAs",
+                "perPiece",
+                "totalRun",
+                "perPieceHint",
+                "totalRunHint",
+                "costPerUnit",
+                "optional",
+                "unit",
+                "type",
+                "notes",
+                "notesPlaceholder",
+                "logUsage",
+                "empty",
+                "required",
+                "logged",
+                "failed",
+                "accessory",
+                "committed",
+                "pending",
+                "totalMaterialCost"
+              ],
+              "additionalProperties": false
+            },
+            "create": {
+              "type": "object",
+              "properties": {
+                "heading": {
+                  "type": "string"
+                },
+                "namePlaceholder": {
+                  "type": "string"
+                },
+                "descriptionPlaceholder": {
+                  "type": "string"
+                },
+                "designerNotesPlaceholder": {
+                  "type": "string"
+                },
+                "created": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "heading",
+                "namePlaceholder",
+                "descriptionPlaceholder",
+                "designerNotesPlaceholder",
+                "created"
+              ],
+              "additionalProperties": false
+            },
+            "edit": {
+              "type": "object",
+              "properties": {
+                "heading": {
+                  "type": "string"
+                },
+                "updated": {
+                  "type": "string"
+                }
+              },
+              "required": ["heading", "updated"],
+              "additionalProperties": false
+            },
+            "addInventory": {
+              "type": "object",
+              "properties": {
+                "selectedCount": {
+                  "type": "string"
+                },
+                "selectPrompt": {
+                  "type": "string"
+                },
+                "addToDesign": {
+                  "type": "string"
+                },
+                "noRawMaterialsTitle": {
+                  "type": "string"
+                },
+                "noRawMaterialsMessage": {
+                  "type": "string"
+                },
+                "selectAtLeastOne": {
+                  "type": "string"
+                },
+                "added_one": {
+                  "type": "string"
+                },
+                "added_other": {
+                  "type": "string"
+                },
+                "sku": {
+                  "type": "string"
+                },
+                "columns": {
+                  "type": "object",
+                  "properties": {
+                    "material": {
+                      "type": "string"
+                    },
+                    "composition": {
+                      "type": "string"
+                    },
+                    "color": {
+                      "type": "string"
+                    },
+                    "unit": {
+                      "type": "string"
+                    }
+                  },
+                  "required": ["material", "composition", "color", "unit"],
+                  "additionalProperties": false
+                }
+              },
+              "required": [
+                "selectedCount",
+                "selectPrompt",
+                "addToDesign",
+                "noRawMaterialsTitle",
+                "noRawMaterialsMessage",
+                "selectAtLeastOne",
+                "added_one",
+                "added_other",
+                "sku",
+                "columns"
+              ],
+              "additionalProperties": false
+            },
+            "runCreate": {
+              "type": "object",
+              "properties": {
+                "heading": {
+                  "type": "string"
+                },
+                "subtitle": {
+                  "type": "string"
+                },
+                "quantity": {
+                  "type": "string"
+                },
+                "runType": {
+                  "type": "string"
+                },
+                "production": {
+                  "type": "string"
+                },
+                "sample": {
+                  "type": "string"
+                },
+                "howMade": {
+                  "type": "string"
+                },
+                "inHouse": {
+                  "type": "string"
+                },
+                "outsourced": {
+                  "type": "string"
+                },
+                "executionHint": {
+                  "type": "string"
+                },
+                "subPartnerId": {
+                  "type": "string"
+                },
+                "subPartnerPlaceholder": {
+                  "type": "string"
+                },
+                "subPartnerHint": {
+                  "type": "string"
+                },
+                "createOrder": {
+                  "type": "string"
+                },
+                "started": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "heading",
+                "subtitle",
+                "quantity",
+                "runType",
+                "production",
+                "sample",
+                "howMade",
+                "inHouse",
+                "outsourced",
+                "executionHint",
+                "subPartnerId",
+                "subPartnerPlaceholder",
+                "subPartnerHint",
+                "createOrder",
+                "started"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "required": [
+            "heading",
+            "design",
+            "notFound",
+            "missingId",
+            "sizes",
+            "overdue",
+            "statusOptions",
+            "priorityOptions",
+            "typeOptions",
+            "workStatusOptions",
+            "runStatusOptions",
+            "bucketOptions",
+            "engagementOptions",
+            "actionOptions",
+            "confidenceOptions",
+            "runTypeOptions",
+            "unitOptions",
+            "consumptionTypeOptions",
+            "fields",
+            "list",
+            "detail",
+            "media",
+            "moodboard",
+            "layers",
+            "construction",
+            "ownerActions",
+            "production",
+            "cost",
+            "bom",
+            "consumption",
+            "create",
+            "edit",
+            "addInventory",
+            "runCreate"
+          ],
+          "additionalProperties": false
         }
       },
       "required": [
@@ -14879,7 +16282,8 @@
         "payments",
         "stripeConnect",
         "paymentProviders",
-        "onboardingSettings"
+        "onboardingSettings",
+        "designs"
       ],
       "additionalProperties": false
     }

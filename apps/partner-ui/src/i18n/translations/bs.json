@@ -3783,6 +3783,360 @@
       "toast": {
         "startFailed": "Nije moguće pokrenuti Stripe uvodni proces"
       }
+    },
+    "designs": {
+      "heading": "Dizajni",
+      "design": "Dizajn",
+      "notFound": "Dizajn nije pronađen.",
+      "missingId": "Nedostaje ID dizajna.",
+      "sizes": "Veličine",
+      "overdue": "Prekoračen rok",
+      "statusOptions": {
+        "conceptual": "Konceptualni",
+        "inDevelopment": "U izradi",
+        "technicalReview": "Tehnički pregled",
+        "sampleProduction": "Izrada uzorka",
+        "revision": "Revizija",
+        "approved": "Odobreno",
+        "rejected": "Odbijeno",
+        "onHold": "Na čekanju",
+        "commerceReady": "Spremno za prodaju",
+        "superseded": "Zamijenjeno"
+      },
+      "priorityOptions": {
+        "low": "Nizak",
+        "medium": "Srednji",
+        "high": "Visok",
+        "urgent": "Hitno"
+      },
+      "typeOptions": {
+        "original": "Original",
+        "derivative": "Derivat",
+        "custom": "Prilagođeno",
+        "collaboration": "Saradnja"
+      },
+      "workStatusOptions": {
+        "incoming": "Pristiglo",
+        "assigned": "Dodijeljeno",
+        "inProgress": "U toku",
+        "awaitingReview": "Čeka pregled",
+        "finished": "Završeno",
+        "completed": "Dovršeno",
+        "cancelled": "Otkazano"
+      },
+      "runStatusOptions": {
+        "draft": "Nacrt",
+        "pendingReview": "Čeka pregled",
+        "approved": "Odobreno",
+        "sentToPartner": "Poslano partneru",
+        "inProgress": "U toku",
+        "completed": "Dovršeno",
+        "cancelled": "Otkazano",
+        "awaitingReassignment": "Čeka ponovnu dodjelu"
+      },
+      "bucketOptions": {
+        "incoming": "Pristiglo",
+        "inProgress": "U toku",
+        "yours": "Vaše",
+        "completed": "Dovršeno",
+        "all": "Sve"
+      },
+      "engagementOptions": {
+        "owned": {
+          "label": "Vaše",
+          "hint": "Vi ste kreirali ovaj dizajn."
+        },
+        "assigned": {
+          "label": "Dodijeljeno",
+          "hint": "Imate proizvodni nalog za ovaj dizajn — ovo je posao za vas."
+        },
+        "shared": {
+          "label": "Podijeljeno",
+          "hint": "Podijeljeno s vama radi reference. Nijedan proizvodni nalog vam nije dodijeljen (posao može biti interni ili kod drugog partnera)."
+        }
+      },
+      "actionOptions": {
+        "accept": "Prihvati",
+        "working": "Radi se",
+        "complete": "Dovrši",
+        "underReview": "U pregledu",
+        "done": "Gotov",
+        "cancelled": "Otkazano"
+      },
+      "confidenceOptions": {
+        "exact": "Tačno",
+        "estimated": "Procijenjeno"
+      },
+      "runTypeOptions": {
+        "production": "Proizvodnja",
+        "sample": "Uzorak"
+      },
+      "unitOptions": {
+        "meter": "Metar",
+        "yard": "Jard",
+        "kilogram": "Kilogram",
+        "gram": "Gram",
+        "piece": "Komad",
+        "roll": "Rola",
+        "other": "Ostalo"
+      },
+      "consumptionTypeOptions": {
+        "sample": "Uzorak",
+        "production": "Proizvodnja",
+        "wastage": "Otpad"
+      },
+      "fields": {
+        "priority": "Prioritet",
+        "designerNotes": "Napomene dizajnera",
+        "unit": "Jedinica",
+        "color": "Boja",
+        "composition": "Sastav"
+      },
+      "list": {
+        "subtitle": "Odaberite karticu da vidite pristigle, u toku, vlastite ili završene poslove.",
+        "loadFailed": "Učitavanje dizajna nije uspjelo. Pokušajte osvježiti stranicu.",
+        "noRecords": "Nema dizajna u ovoj kartici. Pokušajte drugu karticu ili očistite pretragu.",
+        "columns": {
+          "name": "Naziv",
+          "source": "Izvor",
+          "nextAction": "Sljedeća akcija",
+          "workStatus": "Status rada",
+          "priority": "Prioritet",
+          "due": "Rok",
+          "status": "Status dizajna",
+          "lastUpdated": "Zadnji put ažurirano"
+        }
+      },
+      "detail": {
+        "general": "Opće",
+        "garmentType": "Vrsta odjevnog predmeta",
+        "inferred": "Procijenjeno",
+        "partnerStatus": "Status partnera",
+        "priority": "Prioritet",
+        "targetDate": "Ciljni datum",
+        "estimatedCost": "Procijenjeni trošak",
+        "description": "Opis",
+        "specifications": "Specifikacije",
+        "specs": "Specifikacije",
+        "tags": "Oznake",
+        "colorPalette": "Paleta boja",
+        "inventoryItems": "Stavke zaliha",
+        "noInventoryItems": "Nema stavki zaliha povezanih s ovim dizajnom.",
+        "designerNotes": "Napomene dizajnera",
+        "noNotes": "Nema napomena",
+        "resizeHint": "Povucite donju ivicu za promjenu veličine"
+      },
+      "media": {
+        "heading": "Mediji",
+        "manage": "Upravljaj",
+        "empty": "Još nema medijskih datoteka",
+        "emptyHint": "Dodajte slike za predstavljanje vašeg dizajna",
+        "addMedia": "Dodaj medij",
+        "alt": "Medij dizajna",
+        "preview": "Pregled medija dizajna",
+        "download": "Preuzmi",
+        "manageMedia": "Upravljaj medijima",
+        "uploadDescription": "Prenesite i priložite medije ovom dizajnu",
+        "uploadImages": "Prenesi slike",
+        "dropHint": "Prevucite datoteke ovdje ili kliknite za pregled",
+        "existing": "Postojeće",
+        "selected": "Odabrano",
+        "loadingDesign": "Učitavanje dizajna...",
+        "addAtLeastOne": "Dodajte najmanje jednu datoteku",
+        "uploadFailed": "Prijenos datoteka nije uspio",
+        "attached": "Medij priložen",
+        "someRejected": "Neke datoteke su odbijene",
+        "uploadIntro": "Prenesite slike koje želite priložiti ovom dizajnu."
+      },
+      "moodboard": {
+        "heading": "Moodboard",
+        "description": "Prikupite reference i inspiraciju.",
+        "open": "Otvori Moodboard",
+        "generateConfirm": "Generisati moodboard iz projektnog zadatka ovog dizajna? Vaše postojeće kartice će biti spojene, ne i zamijenjene.",
+        "generating": "Generisanje moodboarda…",
+        "generated": "Moodboard generisan",
+        "generateFailed": "Generisanje moodboarda nije uspjelo",
+        "inserted": "Umetnuto \"{{label}}\"",
+        "insertFailed": "Umetanje bloka nije uspjelo",
+        "nothingToInsert": "Još nema ničega za umetanje za \"{{label}}\".",
+        "saving": "Spremanje moodboarda…",
+        "saved": "Moodboard spremljen",
+        "saveFailed": "Spremanje moodboarda nije uspjelo",
+        "briefSyncFailed": "Moodboard je spremljen, ali uređivanje zadatka nije moglo biti sinhronizovano.",
+        "insertBlock": "Umetni blok",
+        "noBlocks": "Nema dostupnih blokova",
+        "emptySuffix": "· prazno",
+        "addConstruction": "Dodaj konstrukciju",
+        "generate": "Generiši",
+        "layers": "Slojevi",
+        "save": "Spremi",
+        "savedLabel": "Spremljeno",
+        "footerHint": "Umetni, konstrukcija, generiši, slojevi i spremi nalaze se u doku na dnu platna."
+      },
+      "layers": {
+        "heading": "Slojevi",
+        "refresh": "Osvježi",
+        "close": "Zatvori",
+        "noFrames": "Još nema okvira.",
+        "untitled": "Neimenovani okvir",
+        "hasContent": "Ima sadržaj",
+        "empty": "Prazno",
+        "jump": "Idi na okvir",
+        "show": "Prikaži",
+        "hide": "Sakrij",
+        "lockedWhileHidden": "Zaključano dok je skriveno",
+        "unlock": "Otključaj",
+        "lock": "Zaključaj"
+      },
+      "construction": {
+        "heading": "Dodaj detalj konstrukcije",
+        "details": "Detalji konstrukcije",
+        "loading": "Učitavanje tehnika…",
+        "hint": "Odaberite tehniku ili unaprijed postavljene postavke s lijeve strane — njezini parametri i pravila za tkaninu se automatski popunjavaju ovdje.",
+        "label": "Oznaka",
+        "parameters": "Parametri",
+        "fixedGeometry": "Ova tehnika ima fiksnu geometriju — nema parametara za podešavanje.",
+        "fabricRules": "Pravila za tkaninu / šivenje",
+        "oneRulePerLine": "jedno pravilo po liniji",
+        "note": "Napomena",
+        "optional": "opcionalno",
+        "addDetail": "Dodaj detalj",
+        "added": "Dodano \"{{label}}\"",
+        "addFailed": "Dodavanje detalja konstrukcije nije uspjelo"
+      },
+      "ownerActions": {
+        "yourDesign": "Vaš dizajn",
+        "activeOrders_one": "{{count}} nalog dizajna u toku. Kreirajte drugi ili ga predajte podpartneru.",
+        "activeOrders_other": "{{count}} naloga dizajna u toku. Kreirajte drugi ili ih predajte podpartneru.",
+        "noOrders": "Vi ste kreirali ovaj dizajn. Kreirajte nalog dizajna za početak proizvodnje ili ga predajte podpartneru.",
+        "newOrder": "Novi nalog",
+        "createOrder": "Kreiraj nalog",
+        "deleteTitle": "Izbriši dizajn",
+        "deleteDescription": "Izbrisati \"{{name}}\"? Ova radnja se ne može opozvati.",
+        "deleted": "Dizajn izbrisan"
+      },
+      "production": {
+        "heading": "Nalozi dizajna",
+        "empty": "Još nema naloga dizajna. Kreirajte nalog dizajna za početak proizvodnje, ili ćete ih vidjeti ovdje kada vam administrator pošalje posao.",
+        "subtitle": "Otvorite nalog dizajna da prihvatite posao, zabilježite materijale i ažurirate njegov status.",
+        "previous": "Prethodni nalozi dizajna ({{count}})",
+        "viewOrder": "Prikaži nalog",
+        "orderType": "{{type}} nalog",
+        "qty": "Količina {{qty}}"
+      },
+      "cost": {
+        "heading": "Procjena troškova",
+        "subtitle": "Trošak materijala + proizvodnje iz povezanog sastava materijala (BOM), plus naknada za JYT platformu.",
+        "recalculate": "Ponovo izračunaj",
+        "estimatedTotal": "Procijenjeni ukupni iznos",
+        "materialCost": "Trošak materijala",
+        "productionCost": "Trošak proizvodnje",
+        "platformFee": "Naknada za platformu ({{percent}}%)",
+        "lastCalculated": "Zadnji put izračunato",
+        "yourInput": "vaš unos",
+        "estimatedLabel": "procijenjeno",
+        "yourProductionCost": "Vaš trošak proizvodnje (po jedinici)",
+        "autoEstimate": "Automatska procjena",
+        "helper": "Zamjenjuje automatsku procjenu — ostavite prazno za procjenu iz historije. Naknada za platformu od {{percent}}% se primjenjuje na trošak materijala. Pritisnite Ponovo izračunaj za primjenu.",
+        "noEstimate": "Još nema procjene — dodajte materijale u sastav materijala (BOM), a zatim pritisnite Ponovo izračunaj.",
+        "enterValid": "Unesite važeći trošak proizvodnje (0 ili više)",
+        "recalculated": "Trošak ponovo izračunat: {{amount}} ({{confidence}})"
+      },
+      "bom": {
+        "heading": "Materijali (BOM)",
+        "subtitle": "Zalihe + sirovine korištene za izradu ovog dizajna.",
+        "addMaterial": "Dodaj materijal",
+        "empty": "Još nema povezanih materijala.",
+        "emptyOwnerHint": " Dodajte stavke zaliha koje ovaj dizajn troši.",
+        "noImg": "Nema slike",
+        "sku": "SKU",
+        "planned": "Planirano",
+        "consumed": "Utrošeno",
+        "removeTitle": "Ukloni materijal",
+        "removeDescription": "Ukloniti \"{{name}}\" iz sastava materijala ovog dizajna?",
+        "removed": "Materijal uklonjen",
+        "materialAlt": "materijal"
+      },
+      "consumption": {
+        "heading": "Potrošnja materijala",
+        "subtitle": "Evidentirajte sirovine utrošene tokom proizvodnje",
+        "log": "Evidentiraj",
+        "closedReview": "Evidencija zatvorena — nalog čeka pregled",
+        "closedComplete": "Evidencija zatvorena — nalog završen",
+        "closedNone": "Evidencija nije dostupna",
+        "drawerTitle": "Evidentiraj potrošnju materijala",
+        "drawerDescription": "Zabilježite sirovine utrošene tokom proizvodnje.",
+        "noInventory": "Još nema povezanih zaliha",
+        "noInventoryHint": "Prvo povežite sirovine s ovim dizajnom, a zatim ovdje možete evidentirati potrošnju materijala.",
+        "inventoryItem": "Stavka zaliha",
+        "selectItem": "Odaberite stavku",
+        "quantity": "Količina",
+        "measuredAs": "Mjereno kao",
+        "perPiece": "Po komadu",
+        "totalRun": "Ukupno za nalog",
+        "perPieceHint": "Materijal za JEDAN gotov komad — množimo s brojem komada koje napravite.",
+        "totalRunHint": "Materijal za CIJELI nalog — evidentirano kako je uneseno.",
+        "costPerUnit": "Trošak po jedinici",
+        "optional": "Opcionalno",
+        "unit": "Jedinica",
+        "type": "Tip",
+        "notes": "Napomene",
+        "notesPlaceholder": "Za šta je ovaj materijal korišten?",
+        "logUsage": "Evidentiraj potrošnju",
+        "empty": "Još nema evidentirane potrošnje materijala",
+        "required": "Stavka zaliha i količina su obavezni",
+        "logged": "Potrošnja evidentirana",
+        "failed": "Evidentiranje potrošnje nije uspjelo",
+        "accessory": "pribor",
+        "committed": "rezervisano",
+        "pending": "na čekanju",
+        "totalMaterialCost": "Ukupni trošak materijala"
+      },
+      "create": {
+        "heading": "Kreiraj dizajn",
+        "namePlaceholder": "npr. Proljetna jakna",
+        "descriptionPlaceholder": "Šta je ovaj dizajn?",
+        "designerNotesPlaceholder": "Interne napomene",
+        "created": "Dizajn kreiran"
+      },
+      "edit": {
+        "heading": "Uredi dizajn",
+        "updated": "Dizajn ažuriran"
+      },
+      "addInventory": {
+        "selectedCount": "{{count}} odabrano",
+        "selectPrompt": "Odaberite materijale za dodavanje",
+        "addToDesign": "Dodaj u dizajn",
+        "noRawMaterialsTitle": "Nema sirovina",
+        "noRawMaterialsMessage": "Sirovine nisu pronađene. Administrator održava zajednički katalog sirovina.",
+        "selectAtLeastOne": "Odaberite najmanje jedan materijal",
+        "added_one": "Dodan {{count}} materijal",
+        "added_other": "Dodano {{count}} materijala",
+        "sku": "SKU",
+        "columns": {
+          "material": "Materijal",
+          "composition": "Sastav",
+          "color": "Boja",
+          "unit": "Jedinica"
+        }
+      },
+      "runCreate": {
+        "heading": "Kreiraj nalog dizajna",
+        "subtitle": "Započnite proizvodnju za ovaj dizajn. Nalog dizajna je odobren i spreman za rad odmah.",
+        "quantity": "Količina",
+        "runType": "Tip naloga",
+        "production": "Proizvodnja",
+        "sample": "Uzorak",
+        "howMade": "Kako se izrađuje?",
+        "inHouse": "Interno (vi pravite)",
+        "outsourced": "Vanjski saradnik (predajte podpartneru)",
+        "executionHint": "Interno zadržava posao kod vas; vanjski saradnik bilježi dobavljača radi praćenja troškova.",
+        "subPartnerId": "ID podpartnera",
+        "subPartnerPlaceholder": "partner_…",
+        "subPartnerHint": "Partner kojem predajete ovu proizvodnju.",
+        "createOrder": "Kreiraj nalog dizajna",
+        "started": "Proizvodnja započeta"
+      }
     }
   },
   "shippingOptionTypes": {

@@ -1,4 +1,5 @@
 import { Text } from "@medusajs/ui"
+import { useTranslation } from "react-i18next"
 import { useCallback, useEffect, useRef, useState } from "react"
 import type { ExcalidrawImperativeAPI } from "@excalidraw/excalidraw/types"
 
@@ -25,7 +26,7 @@ const readFrames = (api: ExcalidrawImperativeAPI): FrameRow[] => {
     .filter((e: any) => e.type === "frame")
     .map((f: any) => ({
       id: f.id,
-      name: f.name || "Untitled frame",
+      name: f.name || "",
       hidden: (f.opacity ?? 100) === 0,
       locked: !!f.locked,
       hasContent: els.some((c: any) => c.frameId === f.id),
@@ -41,6 +42,7 @@ export const MoodboardLayersPanel = ({
   tick: number
   onClose: () => void
 }) => {
+  const { t } = useTranslation()
   const [frames, setFrames] = useState<FrameRow[]>([])
   // Remember a frame's lock state before hide so show can restore it.
   const prevLockedRef = useRef<Record<string, boolean>>({})
@@ -109,13 +111,13 @@ export const MoodboardLayersPanel = ({
     <div className="rounded-lg border border-ui-border-base bg-ui-bg-base shadow-elevation-flyout overflow-hidden">
       <div className="flex items-center justify-between px-3 py-2 border-b border-ui-border-base">
         <Text size="small" weight="plus">
-          Layers
+          {t("partner.designs.layers.heading")}
         </Text>
         <div className="flex items-center gap-1">
           <button
             type="button"
             onClick={refresh}
-            title="Refresh"
+            title={t("partner.designs.layers.refresh")}
             className="px-1 text-ui-fg-muted hover:text-ui-fg-base"
           >
             ⟳
@@ -123,7 +125,7 @@ export const MoodboardLayersPanel = ({
           <button
             type="button"
             onClick={onClose}
-            title="Close"
+            title={t("partner.designs.layers.close")}
             className="px-1 text-ui-fg-muted hover:text-ui-fg-base"
           >
             ✕
@@ -132,7 +134,9 @@ export const MoodboardLayersPanel = ({
       </div>
       <div className="max-h-[420px] overflow-y-auto py-1">
         {frames.length === 0 ? (
-          <div className="px-3 py-4 text-ui-fg-muted text-sm">No frames yet.</div>
+          <div className="px-3 py-4 text-ui-fg-muted text-sm">
+            {t("partner.designs.layers.noFrames")}
+          </div>
         ) : (
           frames.map((f) => (
             <div
@@ -143,22 +147,22 @@ export const MoodboardLayersPanel = ({
                 className={`h-1.5 w-1.5 rounded-full shrink-0 ${
                   f.hasContent ? "bg-ui-fg-interactive" : "bg-ui-border-base"
                 }`}
-                title={f.hasContent ? "Has content" : "Empty"}
+                title={f.hasContent ? t("partner.designs.layers.hasContent") : t("partner.designs.layers.empty")}
               />
               <button
                 type="button"
                 onClick={() => jump(f)}
-                title="Jump to frame"
+                title={t("partner.designs.layers.jump")}
                 className={`flex-1 min-w-0 text-left text-sm truncate ${
                   f.hidden ? "text-ui-fg-muted line-through" : "text-ui-fg-base"
                 }`}
               >
-                {f.name}
+                {f.name || t("partner.designs.layers.untitled")}
               </button>
               <button
                 type="button"
                 onClick={() => toggleHidden(f)}
-                title={f.hidden ? "Show" : "Hide"}
+                title={f.hidden ? t("partner.designs.layers.show") : t("partner.designs.layers.hide")}
                 className="text-sm leading-none opacity-80 hover:opacity-100"
               >
                 {f.hidden ? "🚫" : "👁"}
@@ -167,7 +171,13 @@ export const MoodboardLayersPanel = ({
                 type="button"
                 onClick={() => toggleLock(f)}
                 disabled={f.hidden}
-                title={f.hidden ? "Locked while hidden" : f.locked ? "Unlock" : "Lock"}
+                title={
+                  f.hidden
+                    ? t("partner.designs.layers.lockedWhileHidden")
+                    : f.locked
+                      ? t("partner.designs.layers.unlock")
+                      : t("partner.designs.layers.lock")
+                }
                 className="text-sm leading-none opacity-80 hover:opacity-100 disabled:opacity-30"
               >
                 {f.locked ? "🔒" : "🔓"}

@@ -6,6 +6,7 @@ import {
   createColumnHelper,
 } from "@tanstack/react-table"
 import { useMemo, useState } from "react"
+import { useTranslation } from "react-i18next"
 import { useSearchParams } from "react-router-dom"
 
 import { _DataTable } from "../../../../../components/table/data-table"
@@ -23,6 +24,7 @@ const PAGE_SIZE = 20
 type Props = { designId: string }
 
 export const AddInventoryForm = ({ designId }: Props) => {
+  const { t } = useTranslation()
   const { handleSuccess } = useRouteModal()
   const [searchParams] = useSearchParams()
   const q = searchParams.get("q") || ""
@@ -57,7 +59,7 @@ export const AddInventoryForm = ({ designId }: Props) => {
 
   const handleAdd = async () => {
     if (!selectedIds.length) {
-      toast.error("Select at least one material")
+      toast.error(t("partner.designs.addInventory.selectAtLeastOne"))
       return
     }
     await mutateAsync(
@@ -67,7 +69,7 @@ export const AddInventoryForm = ({ designId }: Props) => {
       {
         onSuccess: () => {
           toast.success(
-            `Added ${selectedIds.length} material${selectedIds.length > 1 ? "s" : ""}`
+            t("partner.designs.addInventory.added", { count: selectedIds.length })
           )
           handleSuccess()
         },
@@ -82,8 +84,10 @@ export const AddInventoryForm = ({ designId }: Props) => {
         <div className="flex items-center gap-x-2">
           <Text size="small" className="text-ui-fg-subtle">
             {selectedIds.length > 0
-              ? `${selectedIds.length} selected`
-              : "Select materials to add"}
+              ? t("partner.designs.addInventory.selectedCount", {
+                  count: selectedIds.length,
+                })
+              : t("partner.designs.addInventory.selectPrompt")}
           </Text>
         </div>
       </RouteFocusModal.Header>
@@ -100,7 +104,7 @@ export const AddInventoryForm = ({ designId }: Props) => {
           queryObject={{ q, offset }}
           commands={[
             {
-              label: "Add to design",
+              label: t("partner.designs.addInventory.addToDesign"),
               shortcut: "a",
               action: async () => {
                 await handleAdd()
@@ -108,9 +112,8 @@ export const AddInventoryForm = ({ designId }: Props) => {
             },
           ]}
           noRecords={{
-            title: "No raw materials",
-            message:
-              "No raw materials found. Admin maintains the shared raw-material catalog.",
+            title: t("partner.designs.addInventory.noRawMaterialsTitle"),
+            message: t("partner.designs.addInventory.noRawMaterialsMessage"),
           }}
         />
       </RouteFocusModal.Body>
@@ -118,7 +121,7 @@ export const AddInventoryForm = ({ designId }: Props) => {
         <div className="flex items-center justify-end gap-x-2">
           <RouteFocusModal.Close asChild>
             <Button variant="secondary" size="small">
-              Cancel
+              {t("actions.cancel")}
             </Button>
           </RouteFocusModal.Close>
           <Button
@@ -127,7 +130,8 @@ export const AddInventoryForm = ({ designId }: Props) => {
             isLoading={isSaving}
             disabled={!selectedIds.length}
           >
-            Add{selectedIds.length ? ` (${selectedIds.length})` : ""}
+            {t("actions.add")}
+            {selectedIds.length ? ` (${selectedIds.length})` : ""}
           </Button>
         </div>
       </RouteFocusModal.Footer>
@@ -137,8 +141,9 @@ export const AddInventoryForm = ({ designId }: Props) => {
 
 const columnHelper = createColumnHelper<PartnerRawMaterialRow>()
 
-const useColumns = () =>
-  useMemo(
+const useColumns = () => {
+  const { t } = useTranslation()
+  return useMemo(
     () => [
       columnHelper.display({
         id: "select",
@@ -162,7 +167,7 @@ const useColumns = () =>
       }),
       columnHelper.display({
         id: "material",
-        header: () => "Material",
+        header: () => t("partner.designs.addInventory.columns.material"),
         cell: ({ row }) => {
           const r = row.original
           return (
@@ -174,7 +179,7 @@ const useColumns = () =>
                 </span>
                 {r.sku && (
                   <span className="text-ui-fg-subtle truncate text-xs">
-                    SKU: {r.sku}
+                    {t("partner.designs.addInventory.sku")}: {r.sku}
                   </span>
                 )}
               </div>
@@ -183,23 +188,24 @@ const useColumns = () =>
         },
       }),
       columnHelper.accessor("composition", {
-        header: () => "Composition",
+        header: () => t("partner.designs.addInventory.columns.composition"),
         cell: ({ getValue }) => (
           <span className="text-ui-fg-subtle truncate">{getValue() || "-"}</span>
         ),
       }),
       columnHelper.accessor("color", {
-        header: () => "Color",
+        header: () => t("partner.designs.addInventory.columns.color"),
         cell: ({ getValue }) => (
           <span className="text-ui-fg-subtle">{getValue() || "-"}</span>
         ),
       }),
       columnHelper.accessor("unit_of_measure", {
-        header: () => "Unit",
+        header: () => t("partner.designs.addInventory.columns.unit"),
         cell: ({ getValue }) => (
           <span className="text-ui-fg-subtle">{getValue() || "-"}</span>
         ),
       }),
     ],
-    []
+    [t]
   )
+}

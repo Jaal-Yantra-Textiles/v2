@@ -3784,6 +3784,360 @@
       "toast": {
         "startFailed": "Nem sikerült elindítani a Stripe-bevezetést"
       }
+    },
+    "designs": {
+      "heading": "Tervek",
+      "design": "Terv",
+      "notFound": "A terv nem található.",
+      "missingId": "Hiányzó terv-ID.",
+      "sizes": "Méretek",
+      "overdue": "Lejárt",
+      "statusOptions": {
+        "conceptual": "Koncepció",
+        "inDevelopment": "Fejlesztés alatt",
+        "technicalReview": "Műszaki felülvizsgálat",
+        "sampleProduction": "Mintagyártás",
+        "revision": "Átdolgozás",
+        "approved": "Jóváhagyva",
+        "rejected": "Elutasítva",
+        "onHold": "Felfüggesztve",
+        "commerceReady": "Kereskedelemre kész",
+        "superseded": "Leváltva"
+      },
+      "priorityOptions": {
+        "low": "Alacsony",
+        "medium": "Közepes",
+        "high": "Magas",
+        "urgent": "Sürgős"
+      },
+      "typeOptions": {
+        "original": "Eredeti",
+        "derivative": "Származtatott",
+        "custom": "Egyedi",
+        "collaboration": "Együttműködés"
+      },
+      "workStatusOptions": {
+        "incoming": "Beérkező",
+        "assigned": "Kiosztva",
+        "inProgress": "Folyamatban",
+        "awaitingReview": "Felülvizsgálatra vár",
+        "finished": "Befejezve",
+        "completed": "Kész",
+        "cancelled": "Törölve"
+      },
+      "runStatusOptions": {
+        "draft": "Piszkozat",
+        "pendingReview": "Felülvizsgálatra vár",
+        "approved": "Jóváhagyva",
+        "sentToPartner": "Elküldve a partnernek",
+        "inProgress": "Folyamatban",
+        "completed": "Kész",
+        "cancelled": "Törölve",
+        "awaitingReassignment": "Újrakiosztásra vár"
+      },
+      "bucketOptions": {
+        "incoming": "Beérkező",
+        "inProgress": "Folyamatban",
+        "yours": "Saját",
+        "completed": "Befejezett",
+        "all": "Összes"
+      },
+      "engagementOptions": {
+        "owned": {
+          "label": "Saját",
+          "hint": "Ezt a tervet Ön hozta létre."
+        },
+        "assigned": {
+          "label": "Kiosztva",
+          "hint": "Gyártási sorozata van erre a tervre — ez az Ön feladata."
+        },
+        "shared": {
+          "label": "Megosztva",
+          "hint": "Tájékoztatásul megosztva Önnel. Nincs Önre bízott gyártási sorozat (a munka házon belül vagy másik partnernél lehet)."
+        }
+      },
+      "actionOptions": {
+        "accept": "Elfogadás",
+        "working": "Munkában",
+        "complete": "Kész",
+        "underReview": "Felülvizsgálat alatt",
+        "done": "Kész",
+        "cancelled": "Törölve"
+      },
+      "confidenceOptions": {
+        "exact": "Pontos",
+        "estimated": "Becsült"
+      },
+      "runTypeOptions": {
+        "production": "Gyártás",
+        "sample": "Minta"
+      },
+      "unitOptions": {
+        "meter": "Méter",
+        "yard": "Yard",
+        "kilogram": "Kilogramm",
+        "gram": "Gramm",
+        "piece": "Darab",
+        "roll": "Tekercs",
+        "other": "Egyéb"
+      },
+      "consumptionTypeOptions": {
+        "sample": "Minta",
+        "production": "Gyártás",
+        "wastage": "Veszteség"
+      },
+      "fields": {
+        "priority": "Prioritás",
+        "designerNotes": "Tervezői megjegyzések",
+        "unit": "Egység",
+        "color": "Szín",
+        "composition": "Összetétel"
+      },
+      "list": {
+        "subtitle": "Válasszon egy fület a beérkező, folyamatban lévő, saját vagy befejezett munkák megtekintéséhez.",
+        "loadFailed": "A tervek betöltése nem sikerült. Kérjük, frissítse az oldalt.",
+        "noRecords": "Nincsenek tervek ezen a fülön. Próbáljon ki egy másik fület, vagy törölje a keresést.",
+        "columns": {
+          "name": "Név",
+          "source": "Forrás",
+          "nextAction": "Következő művelet",
+          "workStatus": "Munka állapota",
+          "priority": "Prioritás",
+          "due": "Határidő",
+          "status": "Terv állapota",
+          "lastUpdated": "Utoljára frissítve"
+        }
+      },
+      "detail": {
+        "general": "Általános",
+        "garmentType": "Ruházat típusa",
+        "inferred": "Kikövetkeztetett",
+        "partnerStatus": "Partner állapota",
+        "priority": "Prioritás",
+        "targetDate": "Céldátum",
+        "estimatedCost": "Becsült költség",
+        "description": "Leírás",
+        "specifications": "Specifikációk",
+        "specs": "Specifikációk",
+        "tags": "Címkék",
+        "colorPalette": "Színpaletta",
+        "inventoryItems": "Készletcikkek",
+        "noInventoryItems": "Nincsenek készletcikkek társítva ehhez a tervhez.",
+        "designerNotes": "Tervezői megjegyzések",
+        "noNotes": "Nincsenek megjegyzések",
+        "resizeHint": "Méretezéshez húzza az alsó szélt"
+      },
+      "media": {
+        "heading": "Média",
+        "manage": "Kezelés",
+        "empty": "Még nincsenek médiafájlok",
+        "emptyHint": "Adjon hozzá képeket a terv bemutatásához",
+        "addMedia": "Média hozzáadása",
+        "alt": "Terv média",
+        "preview": "Terv média előnézete",
+        "download": "Letöltés",
+        "manageMedia": "Média kezelése",
+        "uploadDescription": "Média feltöltése és csatolása ehhez a tervhez",
+        "uploadImages": "Képek feltöltése",
+        "dropHint": "Húzza ide a fájlokat, vagy kattintson a tallózáshoz",
+        "existing": "Létező",
+        "selected": "Kiválasztva",
+        "loadingDesign": "Terv betöltése...",
+        "addAtLeastOne": "Adjon hozzá legalább egy fájlt",
+        "uploadFailed": "A fájlok feltöltése nem sikerült",
+        "attached": "Média csatolva",
+        "someRejected": "Néhány fájl visszautasításra került",
+        "uploadIntro": "Töltsön fel képeket a tervhez való csatoláshoz."
+      },
+      "moodboard": {
+        "heading": "Hangulattábla",
+        "description": "Gyűjtsön referenciákat és inspirációt.",
+        "open": "Hangulattábla megnyitása",
+        "generateConfirm": "Létrehozza a hangulattáblát a terv leírásából? A meglévő kártyák összefésülésre kerülnek, nem cserélődnek ki.",
+        "generating": "Hangulattábla generálása…",
+        "generated": "Hangulattábla elkészült",
+        "generateFailed": "A hangulattábla generálása nem sikerült",
+        "inserted": "\"{{label}}\" beillesztve",
+        "insertFailed": "A blokk beillesztése nem sikerült",
+        "nothingToInsert": "Még nincs beilleszthető tartalom ehhez: \"{{label}}\".",
+        "saving": "Hangulattábla mentése…",
+        "saved": "Hangulattábla elmentve",
+        "saveFailed": "A hangulattábla mentése nem sikerült",
+        "briefSyncFailed": "A hangulattábla elmentve, de a leírás szerkesztését nem sikerült szinkronizálni.",
+        "insertBlock": "Blokk beillesztése",
+        "noBlocks": "Nincsenek elérhető blokkok",
+        "emptySuffix": "· üres",
+        "addConstruction": "Konstrukció hozzáadása",
+        "generate": "Generálás",
+        "layers": "Rétegek",
+        "save": "Mentés",
+        "savedLabel": "Mentve",
+        "footerHint": "A beillesztés, konstrukció, generálás, rétegek és mentés a vászon alján lévő dokkban találhatók."
+      },
+      "layers": {
+        "heading": "Rétegek",
+        "refresh": "Frissítés",
+        "close": "Bezárás",
+        "noFrames": "Még nincsenek keretek.",
+        "untitled": "Névtelen keret",
+        "hasContent": "Tartalmaz elemeket",
+        "empty": "Üres",
+        "jump": "Ugrás a kerethez",
+        "show": "Megjelenítés",
+        "hide": "Elrejtés",
+        "lockedWhileHidden": "Rejtve zárolva",
+        "unlock": "Feloldás",
+        "lock": "Zárolás"
+      },
+      "construction": {
+        "heading": "Konstrukciós részlet hozzáadása",
+        "details": "Konstrukciós részletek",
+        "loading": "Technikák betöltése…",
+        "hint": "Válasszon egy technikát vagy beállítást a bal oldalon — annak paraméterei és anyagszabályai automatikusan kitöltődnek itt.",
+        "label": "Címke",
+        "parameters": "Paraméterek",
+        "fixedGeometry": "Ez a technika fix geometriájú — nincsenek beállítható paraméterek.",
+        "fabricRules": "Anyag- / varrási szabályok",
+        "oneRulePerLine": "soronként egy szabály",
+        "note": "Megjegyzés",
+        "optional": "opcionális",
+        "addDetail": "Részlet hozzáadása",
+        "added": "\"{{label}}\" hozzáadva",
+        "addFailed": "A konstrukciós részlet hozzáadása nem sikerült"
+      },
+      "ownerActions": {
+        "yourDesign": "Az Ön terve",
+        "activeOrders_one": "{{count}} tervezési rendelés folyamatban. Hozzon létre egy újat, vagy adja át egy alpartnernek.",
+        "activeOrders_other": "{{count}} tervezési rendelés folyamatban. Hozzon létre egy újat, vagy adja át egy alpartnernek.",
+        "noOrders": "Ön hozta létre ezt a tervet. Hozzon létre egy tervezési rendelést a gyártás megkezdéséhez, vagy adja át egy alpartnernek.",
+        "newOrder": "Új rendelés",
+        "createOrder": "Rendelés létrehozása",
+        "deleteTitle": "Terv törlése",
+        "deleteDescription": "Törli a következőt: \"{{name}}\"? Ez a művelet nem vonható vissza.",
+        "deleted": "Terv törölve"
+      },
+      "production": {
+        "heading": "Tervezési rendelések",
+        "empty": "Még nincsenek tervezési rendelések. Hozzon létre egy tervezési rendelést a gyártás megkezdéséhez, vagy itt fogja látni őket, amint az adminisztrátor munkát küld Önnek.",
+        "subtitle": "Nyisson meg egy tervezési rendelést a munka elfogadásához, az anyagok rögzítéséhez és az állapot frissítéséhez.",
+        "previous": "Korábbi tervezési rendelések ({{count}})",
+        "viewOrder": "Rendelés megtekintése",
+        "orderType": "{{type}} rendelés",
+        "qty": "Menny. {{qty}}"
+      },
+      "cost": {
+        "heading": "Költségbecslés",
+        "subtitle": "A csatolt BOM-ból származó anyag- és gyártási költség, plusz a JYT platformdíj.",
+        "recalculate": "Újraszámítás",
+        "estimatedTotal": "Becsült összesen",
+        "materialCost": "Anyagköltség",
+        "productionCost": "Gyártási költség",
+        "platformFee": "Platformdíj ({{percent}}%)",
+        "lastCalculated": "Utoljára számítva",
+        "yourInput": "az Ön megadott értéke",
+        "estimatedLabel": "becsült",
+        "yourProductionCost": "Az Ön gyártási költsége (egységenként)",
+        "autoEstimate": "Automatikus becslés",
+        "helper": "Felülírja az automatikus becslést — hagyja üresen az előzményekből történő becsléshez. Az anyagköltségre {{percent}}%-os platformdíj vonatkozik. Nyomja meg az Újraszámítás gombot az alkalmazáshoz.",
+        "noEstimate": "Még nincs becslés — adjon anyagokat a BOM-hoz, majd kattintson az Újraszámítás gombra.",
+        "enterValid": "Adjon meg egy érvényes gyártási költséget (0 vagy több)",
+        "recalculated": "Költség újraszámítva: {{amount}} ({{confidence}})"
+      },
+      "bom": {
+        "heading": "Anyagok (BOM)",
+        "subtitle": "A terv elkészítéséhez használt készlet- és nyersanyagok.",
+        "addMaterial": "Anyag hozzáadása",
+        "empty": "Még nincsenek csatolt anyagok.",
+        "emptyOwnerHint": " Adja hozzá azokat a készletcikkeket, amelyeket ez a terv felhasznál.",
+        "noImg": "Nincs kép",
+        "sku": "SKU",
+        "planned": "Tervezett",
+        "consumed": "Felhasznált",
+        "removeTitle": "Anyag eltávolítása",
+        "removeDescription": "Eltávolítja a(z) \"{{name}}\" tételt a terv anyagjegyzékéből (BOM)?",
+        "removed": "Anyag eltávolítva",
+        "materialAlt": "anyag"
+      },
+      "consumption": {
+        "heading": "Anyagfelhasználás",
+        "subtitle": "A gyártás során felhasznált nyersanyagok rögzítése",
+        "log": "Rögzítés",
+        "closedReview": "Rögzítés lezárva — a sorozat felülvizsgálatra vár",
+        "closedComplete": "Rögzítés lezárva — a sorozat befejeződött",
+        "closedNone": "A rögzítés nem érhető el",
+        "drawerTitle": "Anyagfelhasználás rögzítése",
+        "drawerDescription": "Rögzítse a gyártás során felhasznált nyersanyagot.",
+        "noInventory": "Még nincs csatolt készlet",
+        "noInventoryHint": "Először társítson nyersanyagokat ehhez a tervhez, majd itt rögzítheti az anyagfelhasználást.",
+        "inventoryItem": "Készletcikk",
+        "selectItem": "Tétel kiválasztása",
+        "quantity": "Mennyiség",
+        "measuredAs": "Mértékegység típusa",
+        "perPiece": "Darabonként",
+        "totalRun": "Összesen a sorozatra",
+        "perPieceHint": "Késztermékenkénti EGY darabra jutó anyag — megszorozzuk a legyártott mennyiséggel.",
+        "totalRunHint": "A TELJES sorozatra jutó anyag — a megadott módon kerül rögzítésre.",
+        "costPerUnit": "Egységköltség",
+        "optional": "Opcionális",
+        "unit": "Egység",
+        "type": "Típus",
+        "notes": "Megjegyzések",
+        "notesPlaceholder": "Mire használták ezt az anyagot?",
+        "logUsage": "Felhasználás rögzítése",
+        "empty": "Még nincs rögzítve anyagfelhasználás",
+        "required": "A készletcikk és a mennyiség megadása kötelező",
+        "logged": "Felhasználás rögzítve",
+        "failed": "A felhasználás rögzítése nem sikerült",
+        "accessory": "kellék",
+        "committed": "lefoglalt",
+        "pending": "függőben",
+        "totalMaterialCost": "Összes anyagköltség"
+      },
+      "create": {
+        "heading": "Terv létrehozása",
+        "namePlaceholder": "pl. Tavaszi dzseki",
+        "descriptionPlaceholder": "Mi ez a terv?",
+        "designerNotesPlaceholder": "Belső megjegyzések",
+        "created": "Terv létrehozva"
+      },
+      "edit": {
+        "heading": "Terv szerkesztése",
+        "updated": "Terv frissítve"
+      },
+      "addInventory": {
+        "selectedCount": "{{count}} kiválasztva",
+        "selectPrompt": "Válassza ki a hozzáadandó anyagokat",
+        "addToDesign": "Hozzáadás a tervhez",
+        "noRawMaterialsTitle": "Nincsenek nyersanyagok",
+        "noRawMaterialsMessage": "Nem találhatók nyersanyagok. Az adminisztrátor kezeli a megosztott nyersanyag-katalógust.",
+        "selectAtLeastOne": "Válasszon ki legalább egy anyagot",
+        "added_one": "{{count}} anyag hozzáadva",
+        "added_other": "{{count}} anyag hozzáadva",
+        "sku": "SKU",
+        "columns": {
+          "material": "Anyag",
+          "composition": "Összetétel",
+          "color": "Szín",
+          "unit": "Egység"
+        }
+      },
+      "runCreate": {
+        "heading": "Tervezési rendelés létrehozása",
+        "subtitle": "Indítsa el a terv gyártását. A tervezési rendelés jóvá van hagyva, és azonnal munkára kész.",
+        "quantity": "Mennyiség",
+        "runType": "Sorozat típusa",
+        "production": "Gyártás",
+        "sample": "Minta",
+        "howMade": "Hogyan készül?",
+        "inHouse": "Házon belül (Ön készíti)",
+        "outsourced": "Kiszervezve (átadás alpartnernek)",
+        "executionHint": "A házon belüli opció Önnél tartja a munkát; a kiszervezett rögzíti a beszállítót a költségkövetéshez.",
+        "subPartnerId": "Alpartner ID",
+        "subPartnerPlaceholder": "partner_…",
+        "subPartnerHint": "A partner, akinek ezt a gyártást átadja.",
+        "createOrder": "Tervezési rendelés létrehozása",
+        "started": "Gyártás elindítva"
+      }
     }
   },
   "refundReasons": {

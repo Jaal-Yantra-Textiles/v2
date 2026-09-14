@@ -3781,6 +3781,360 @@
       "toast": {
         "startFailed": "Gagal memulai onboarding Stripe"
       }
+    },
+    "designs": {
+      "heading": "Desain",
+      "design": "Desain",
+      "notFound": "Desain tidak ditemukan.",
+      "missingId": "ID desain hilang.",
+      "sizes": "Ukuran",
+      "overdue": "Terlambat",
+      "statusOptions": {
+        "conceptual": "Konseptual",
+        "inDevelopment": "Dalam Pengembangan",
+        "technicalReview": "Tinjauan Teknis",
+        "sampleProduction": "Produksi Sampel",
+        "revision": "Revisi",
+        "approved": "Disetujui",
+        "rejected": "Ditolak",
+        "onHold": "Ditunda",
+        "commerceReady": "Siap Niaga",
+        "superseded": "Digantikan"
+      },
+      "priorityOptions": {
+        "low": "Rendah",
+        "medium": "Sedang",
+        "high": "Tinggi",
+        "urgent": "Mendesak"
+      },
+      "typeOptions": {
+        "original": "Original",
+        "derivative": "Derivatif",
+        "custom": "Kustom",
+        "collaboration": "Kolaborasi"
+      },
+      "workStatusOptions": {
+        "incoming": "Masuk",
+        "assigned": "Ditugaskan",
+        "inProgress": "Sedang Berjalan",
+        "awaitingReview": "Menunggu Tinjauan",
+        "finished": "Selesai",
+        "completed": "Tuntas",
+        "cancelled": "Dibatalkan"
+      },
+      "runStatusOptions": {
+        "draft": "Draf",
+        "pendingReview": "Menunggu Tinjauan",
+        "approved": "Disetujui",
+        "sentToPartner": "Dikirim ke Mitra",
+        "inProgress": "Sedang Berjalan",
+        "completed": "Tuntas",
+        "cancelled": "Dibatalkan",
+        "awaitingReassignment": "Menunggu Penugasan Ulang"
+      },
+      "bucketOptions": {
+        "incoming": "Masuk",
+        "inProgress": "Sedang Berjalan",
+        "yours": "Milik Anda",
+        "completed": "Tuntas",
+        "all": "Semua"
+      },
+      "engagementOptions": {
+        "owned": {
+          "label": "Milik Anda",
+          "hint": "Anda membuat desain ini."
+        },
+        "assigned": {
+          "label": "Ditugaskan",
+          "hint": "Anda memiliki jadwal produksi untuk desain ini — ini adalah pekerjaan Anda."
+        },
+        "shared": {
+          "label": "Dibagikan",
+          "hint": "Dibagikan kepada Anda untuk referensi. Tidak ada jadwal produksi yang ditugaskan kepada Anda (pekerjaan mungkin dilakukan internal atau dengan mitra lain)."
+        }
+      },
+      "actionOptions": {
+        "accept": "Terima",
+        "working": "Sedang Dikerjakan",
+        "complete": "Selesaikan",
+        "underReview": "Dalam Tinjauan",
+        "done": "Selesai",
+        "cancelled": "Dibatalkan"
+      },
+      "confidenceOptions": {
+        "exact": "Tepat",
+        "estimated": "Estimasi"
+      },
+      "runTypeOptions": {
+        "production": "Produksi",
+        "sample": "Sampel"
+      },
+      "unitOptions": {
+        "meter": "Meter",
+        "yard": "Yard",
+        "kilogram": "Kilogram",
+        "gram": "Gram",
+        "piece": "Potong",
+        "roll": "Roll",
+        "other": "Lainnya"
+      },
+      "consumptionTypeOptions": {
+        "sample": "Sampel",
+        "production": "Produksi",
+        "wastage": "Limbah"
+      },
+      "fields": {
+        "priority": "Prioritas",
+        "designerNotes": "Catatan desainer",
+        "unit": "Unit",
+        "color": "Warna",
+        "composition": "Komposisi"
+      },
+      "list": {
+        "subtitle": "Pilih tab untuk melihat pekerjaan yang masuk, sedang berjalan, milik Anda, atau yang sudah tuntas.",
+        "loadFailed": "Gagal memuat desain. Silakan coba segarkan halaman.",
+        "noRecords": "Tidak ada desain di tab ini. Coba tab lain atau hapus pencarian.",
+        "columns": {
+          "name": "Nama",
+          "source": "Sumber",
+          "nextAction": "Tindakan Selanjutnya",
+          "workStatus": "Status Pekerjaan",
+          "priority": "Prioritas",
+          "due": "Tenggat",
+          "status": "Status Desain",
+          "lastUpdated": "Terakhir Diperbarui"
+        }
+      },
+      "detail": {
+        "general": "Umum",
+        "garmentType": "Tipe pakaian",
+        "inferred": "Tersirat",
+        "partnerStatus": "Status mitra",
+        "priority": "Prioritas",
+        "targetDate": "Tanggal target",
+        "estimatedCost": "Estimasi biaya",
+        "description": "Deskripsi",
+        "specifications": "Spesifikasi",
+        "specs": "Spek",
+        "tags": "Tag",
+        "colorPalette": "Palet Warna",
+        "inventoryItems": "Item Inventaris",
+        "noInventoryItems": "Tidak ada item inventaris yang tertaut ke desain ini.",
+        "designerNotes": "Catatan Desainer",
+        "noNotes": "Tidak ada catatan",
+        "resizeHint": "Tarik tepi bawah untuk mengubah ukuran"
+      },
+      "media": {
+        "heading": "Media",
+        "manage": "Kelola",
+        "empty": "Belum ada file media",
+        "emptyHint": "Tambahkan gambar untuk menampilkan desain Anda",
+        "addMedia": "Tambah Media",
+        "alt": "Media desain",
+        "preview": "Pratinjau media desain",
+        "download": "Unduh",
+        "manageMedia": "Kelola Media",
+        "uploadDescription": "Unggah dan lampirkan media ke desain ini",
+        "uploadImages": "Unggah gambar",
+        "dropHint": "Tarik file ke sini atau klik untuk mencari",
+        "existing": "Ada",
+        "selected": "Dipilih",
+        "loadingDesign": "Memuat desain...",
+        "addAtLeastOne": "Tambahkan setidaknya satu file",
+        "uploadFailed": "Gagal mengunggah file",
+        "attached": "Media terlampir",
+        "someRejected": "Beberapa file ditolak",
+        "uploadIntro": "Unggah gambar untuk dilampirkan ke desain ini."
+      },
+      "moodboard": {
+        "heading": "Moodboard",
+        "description": "Kumpulkan referensi dan inspirasi.",
+        "open": "Buka Moodboard",
+        "generateConfirm": "Buat moodboard dari brief desain ini? Kartu yang ada akan digabungkan, bukan diganti.",
+        "generating": "Membuat moodboard…",
+        "generated": "Moodboard berhasil dibuat",
+        "generateFailed": "Gagal membuat moodboard",
+        "inserted": "Memasukkan \"{{label}}\"",
+        "insertFailed": "Gagal memasukkan blok",
+        "nothingToInsert": "Belum ada yang bisa dimasukkan untuk \"{{label}}\".",
+        "saving": "Menyimpan moodboard…",
+        "saved": "Moodboard disimpan",
+        "saveFailed": "Gagal menyimpan moodboard",
+        "briefSyncFailed": "Moodboard disimpan, tetapi pengeditan brief tidak dapat disinkronkan.",
+        "insertBlock": "Masukkan blok",
+        "noBlocks": "Tidak ada blok yang tersedia",
+        "emptySuffix": "· kosong",
+        "addConstruction": "Tambah konstruksi",
+        "generate": "Buat",
+        "layers": "Lapisan",
+        "save": "Simpan",
+        "savedLabel": "Tersimpan",
+        "footerHint": "Masukkan, konstruksi, buat, lapisan & simpan berada di dock di bagian bawah kanvas."
+      },
+      "layers": {
+        "heading": "Lapisan",
+        "refresh": "Segarkan",
+        "close": "Tutup",
+        "noFrames": "Belum ada frame.",
+        "untitled": "Frame tanpa judul",
+        "hasContent": "Memiliki konten",
+        "empty": "Kosong",
+        "jump": "Lompat ke frame",
+        "show": "Tampilkan",
+        "hide": "Sembunyikan",
+        "lockedWhileHidden": "Terkunci saat tersembunyi",
+        "unlock": "Buka Kunci",
+        "lock": "Kunci"
+      },
+      "construction": {
+        "heading": "Tambah detail konstruksi",
+        "details": "Detail konstruksi",
+        "loading": "Memuat teknik…",
+        "hint": "Pilih teknik atau preset di sebelah kiri — parameter dan aturan kainnya akan terisi otomatis di sini.",
+        "label": "Label",
+        "parameters": "Parameter",
+        "fixedGeometry": "Teknik ini memiliki geometri tetap — tidak ada parameter yang perlu diatur.",
+        "fabricRules": "Aturan kain / penjahitan",
+        "oneRulePerLine": "satu aturan per baris",
+        "note": "Catatan",
+        "optional": "opsional",
+        "addDetail": "Tambah detail",
+        "added": "Menambahkan \"{{label}}\"",
+        "addFailed": "Gagal menambahkan detail konstruksi"
+      },
+      "ownerActions": {
+        "yourDesign": "Desain Anda",
+        "activeOrders_one": "{{count}} pesanan desain sedang berjalan. Buat pesanan lain atau serahkan kepada sub-mitra.",
+        "activeOrders_other": "{{count}} pesanan desain sedang berjalan. Buat pesanan lain atau serahkan kepada sub-mitra.",
+        "noOrders": "Anda membuat desain ini. Buat pesanan desain untuk memulai produksi, atau serahkan kepada sub-mitra.",
+        "newOrder": "Pesanan baru",
+        "createOrder": "Buat pesanan",
+        "deleteTitle": "Hapus desain",
+        "deleteDescription": "Hapus \"{{name}}\"? Tindakan ini tidak dapat dibatalkan.",
+        "deleted": "Desain dihapus"
+      },
+      "production": {
+        "heading": "Pesanan desain",
+        "empty": "Belum ada pesanan desain. Buat pesanan desain untuk memulai produksi, atau Anda akan melihatnya di sini setelah admin mengirimkan pekerjaan kepada Anda.",
+        "subtitle": "Buka pesanan desain untuk menerima pekerjaan, mencatat material, dan memperbarui statusnya.",
+        "previous": "Pesanan desain sebelumnya ({{count}})",
+        "viewOrder": "Lihat pesanan",
+        "orderType": "Pesanan {{type}}",
+        "qty": "Jumlah {{qty}}"
+      },
+      "cost": {
+        "heading": "Estimasi biaya",
+        "subtitle": "Biaya material + produksi dari BOM yang tertaut, ditambah biaya platform JYT.",
+        "recalculate": "Hitung Ulang",
+        "estimatedTotal": "Total estimasi",
+        "materialCost": "Biaya material",
+        "productionCost": "Biaya produksi",
+        "platformFee": "Biaya platform ({{percent}}%)",
+        "lastCalculated": "Terakhir dihitung",
+        "yourInput": "input Anda",
+        "estimatedLabel": "estimasi",
+        "yourProductionCost": "Biaya produksi Anda (per unit)",
+        "autoEstimate": "Estimasi otomatis",
+        "helper": "Menggantikan estimasi otomatis — kosongkan untuk mengestimasi dari riwayat. Biaya platform {{percent}}% berlaku pada biaya material. Tekan Hitung Ulang untuk menerapkan.",
+        "noEstimate": "Belum ada estimasi — tambahkan material ke BOM, lalu Hitung Ulang.",
+        "enterValid": "Masukkan biaya produksi yang valid (0 atau lebih)",
+        "recalculated": "Biaya dihitung ulang: {{amount}} ({{confidence}})"
+      },
+      "bom": {
+        "heading": "Material (BOM)",
+        "subtitle": "Inventaris + bahan baku yang digunakan untuk membuat desain ini.",
+        "addMaterial": "Tambah material",
+        "empty": "Belum ada material yang tertaut.",
+        "emptyOwnerHint": " Tambahkan item inventaris yang dikonsumsi oleh desain ini.",
+        "noImg": "Tanpa gambar",
+        "sku": "SKU",
+        "planned": "Direncanakan",
+        "consumed": "Dikonsumsi",
+        "removeTitle": "Hapus material",
+        "removeDescription": "Hapus \"{{name}}\" dari daftar material desain ini?",
+        "removed": "Material dihapus",
+        "materialAlt": "material"
+      },
+      "consumption": {
+        "heading": "Penggunaan Material",
+        "subtitle": "Catat bahan baku yang dikonsumsi selama produksi",
+        "log": "Catat",
+        "closedReview": "Pencatatan ditutup — produksi menunggu tinjauan",
+        "closedComplete": "Pencatatan ditutup — produksi selesai",
+        "closedNone": "Pencatatan tidak tersedia",
+        "drawerTitle": "Catat Penggunaan Material",
+        "drawerDescription": "Catat bahan baku yang dikonsumsi selama produksi.",
+        "noInventory": "Belum ada inventaris yang tertaut",
+        "noInventoryHint": "Tautkan bahan baku ke desain ini terlebih dahulu, kemudian Anda dapat mencatat penggunaan material di sini.",
+        "inventoryItem": "Item Inventaris",
+        "selectItem": "Pilih item",
+        "quantity": "Jumlah",
+        "measuredAs": "Diukur sebagai",
+        "perPiece": "Per potong",
+        "totalRun": "Total untuk produksi",
+        "perPieceHint": "Material untuk SATU potong jadi — kami akan mengalikannya dengan jumlah yang Anda buat.",
+        "totalRunHint": "Material untuk SELURUH produksi — dicatat sesuai yang dimasukkan.",
+        "costPerUnit": "Biaya per unit",
+        "optional": "Opsional",
+        "unit": "Unit",
+        "type": "Tipe",
+        "notes": "Catatan",
+        "notesPlaceholder": "Untuk apa material ini digunakan?",
+        "logUsage": "Catat Penggunaan",
+        "empty": "Belum ada penggunaan material yang dicatat",
+        "required": "Item inventaris dan jumlah wajib diisi",
+        "logged": "Konsumsi dicatat",
+        "failed": "Gagal mencatat konsumsi",
+        "accessory": "aksesori",
+        "committed": "terkomitmen",
+        "pending": "tertunda",
+        "totalMaterialCost": "Total biaya material"
+      },
+      "create": {
+        "heading": "Buat desain",
+        "namePlaceholder": "misal. Jaket Musim Semi",
+        "descriptionPlaceholder": "Apa desain ini?",
+        "designerNotesPlaceholder": "Catatan internal",
+        "created": "Desain berhasil dibuat"
+      },
+      "edit": {
+        "heading": "Edit desain",
+        "updated": "Desain diperbarui"
+      },
+      "addInventory": {
+        "selectedCount": "{{count}} dipilih",
+        "selectPrompt": "Pilih material untuk ditambahkan",
+        "addToDesign": "Tambah ke desain",
+        "noRawMaterialsTitle": "Tidak ada bahan baku",
+        "noRawMaterialsMessage": "Tidak ada bahan baku yang ditemukan. Admin mengelola katalog bahan baku bersama.",
+        "selectAtLeastOne": "Pilih setidaknya satu material",
+        "added_one": "Menambahkan {{count}} material",
+        "added_other": "Menambahkan {{count}} material",
+        "sku": "SKU",
+        "columns": {
+          "material": "Material",
+          "composition": "Komposisi",
+          "color": "Warna",
+          "unit": "Unit"
+        }
+      },
+      "runCreate": {
+        "heading": "Buat pesanan desain",
+        "subtitle": "Mulai produksi untuk desain ini. Pesanan desain disetujui dan siap dikerjakan segera.",
+        "quantity": "Jumlah",
+        "runType": "Tipe produksi",
+        "production": "Produksi",
+        "sample": "Sampel",
+        "howMade": "Bagaimana cara pembuatannya?",
+        "inHouse": "Internal (Anda yang membuat)",
+        "outsourced": "Outsource (serahkan ke sub-mitra)",
+        "executionHint": "Internal menjaga pekerjaan tetap pada Anda; outsource mencatat vendor untuk pelacakan biaya.",
+        "subPartnerId": "ID Sub-mitra",
+        "subPartnerPlaceholder": "partner_…",
+        "subPartnerHint": "Mitra tempat Anda menyerahkan produksi ini.",
+        "createOrder": "Buat pesanan desain",
+        "started": "Produksi dimulai"
+      }
     }
   },
   "shippingOptionTypes": {

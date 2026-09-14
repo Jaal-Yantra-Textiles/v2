@@ -1,11 +1,13 @@
 import { zodResolver } from "@hookform/resolvers/zod"
 import { Button, Heading, Input, Select, Textarea, toast } from "@medusajs/ui"
 import { useForm } from "react-hook-form"
+import { useTranslation } from "react-i18next"
 
 import { Form } from "../../../../../components/common/form"
 import { RouteFocusModal, useRouteModal } from "../../../../../components/modals"
 import { KeyboundForm } from "../../../../../components/utilities/keybound-form"
 import { useCreatePartnerDesign } from "../../../../../hooks/api/partner-designs"
+import { designStatusLabel, designTypeLabel, priorityLabel } from "../../../../../lib/design-labels"
 import { CreateDesignSchema } from "./schema"
 
 const DESIGN_TYPES = ["Original", "Derivative", "Custom", "Collaboration"] as const
@@ -22,6 +24,7 @@ const STATUSES = [
 ] as const
 
 export function DesignCreateForm() {
+  const { t } = useTranslation()
   const { handleSuccess } = useRouteModal()
   const form = useForm<CreateDesignSchema>({
     defaultValues: {
@@ -40,7 +43,7 @@ export function DesignCreateForm() {
   const handleSubmit = form.handleSubmit(async (data) => {
     await mutateAsync(data, {
       onSuccess: ({ design }) => {
-        toast.success("Design created")
+        toast.success(t("partner.designs.create.created"))
         handleSuccess(`/designs/${design.id}`)
       },
       onError: (e) => toast.error(e.message),
@@ -56,16 +59,16 @@ export function DesignCreateForm() {
         <RouteFocusModal.Header />
         <RouteFocusModal.Body className="flex flex-1 flex-col items-center overflow-y-auto">
           <div className="flex w-full max-w-[720px] flex-col gap-y-8 px-2 py-16">
-            <Heading>Create design</Heading>
+            <Heading>{t("partner.designs.create.heading")}</Heading>
 
             <Form.Field
               control={form.control}
               name="name"
               render={({ field }) => (
                 <Form.Item>
-                  <Form.Label>Name</Form.Label>
+                  <Form.Label>{t("fields.name")}</Form.Label>
                   <Form.Control>
-                    <Input {...field} placeholder="e.g. Spring Jacket" />
+                    <Input {...field} placeholder={t("partner.designs.create.namePlaceholder")} />
                   </Form.Control>
                   <Form.ErrorMessage />
                 </Form.Item>
@@ -77,9 +80,9 @@ export function DesignCreateForm() {
               name="description"
               render={({ field }) => (
                 <Form.Item>
-                  <Form.Label optional>Description</Form.Label>
+                  <Form.Label optional>{t("fields.description")}</Form.Label>
                   <Form.Control>
-                    <Textarea {...field} placeholder="What is this design?" />
+                    <Textarea {...field} placeholder={t("partner.designs.create.descriptionPlaceholder")} />
                   </Form.Control>
                 </Form.Item>
               )}
@@ -91,16 +94,16 @@ export function DesignCreateForm() {
                 name="design_type"
                 render={({ field }) => (
                   <Form.Item>
-                    <Form.Label optional>Type</Form.Label>
+                    <Form.Label optional>{t("fields.type")}</Form.Label>
                     <Form.Control>
                       <Select value={field.value} onValueChange={field.onChange}>
                         <Select.Trigger>
-                          <Select.Value placeholder="Select" />
+                          <Select.Value placeholder={t("general.select")} />
                         </Select.Trigger>
                         <Select.Content>
-                          {DESIGN_TYPES.map((t) => (
-                            <Select.Item key={t} value={t}>
-                              {t}
+                          {DESIGN_TYPES.map((v) => (
+                            <Select.Item key={v} value={v}>
+                              {designTypeLabel(t, v)}
                             </Select.Item>
                           ))}
                         </Select.Content>
@@ -115,16 +118,16 @@ export function DesignCreateForm() {
                 name="priority"
                 render={({ field }) => (
                   <Form.Item>
-                    <Form.Label optional>Priority</Form.Label>
+                    <Form.Label optional>{t("partner.designs.fields.priority")}</Form.Label>
                     <Form.Control>
                       <Select value={field.value} onValueChange={field.onChange}>
                         <Select.Trigger>
-                          <Select.Value placeholder="Select" />
+                          <Select.Value placeholder={t("general.select")} />
                         </Select.Trigger>
                         <Select.Content>
-                          {PRIORITIES.map((p) => (
-                            <Select.Item key={p} value={p}>
-                              {p}
+                          {PRIORITIES.map((v) => (
+                            <Select.Item key={v} value={v}>
+                              {priorityLabel(t, v)}
                             </Select.Item>
                           ))}
                         </Select.Content>
@@ -139,16 +142,16 @@ export function DesignCreateForm() {
                 name="status"
                 render={({ field }) => (
                   <Form.Item>
-                    <Form.Label optional>Status</Form.Label>
+                    <Form.Label optional>{t("fields.status")}</Form.Label>
                     <Form.Control>
                       <Select value={field.value} onValueChange={field.onChange}>
                         <Select.Trigger>
-                          <Select.Value placeholder="Select" />
+                          <Select.Value placeholder={t("general.select")} />
                         </Select.Trigger>
                         <Select.Content>
-                          {STATUSES.map((s) => (
-                            <Select.Item key={s} value={s}>
-                              {s.replace(/_/g, " ")}
+                          {STATUSES.map((v) => (
+                            <Select.Item key={v} value={v}>
+                              {designStatusLabel(t, v)}
                             </Select.Item>
                           ))}
                         </Select.Content>
@@ -164,9 +167,9 @@ export function DesignCreateForm() {
               name="designer_notes"
               render={({ field }) => (
                 <Form.Item>
-                  <Form.Label optional>Designer notes</Form.Label>
+                  <Form.Label optional>{t("partner.designs.fields.designerNotes")}</Form.Label>
                   <Form.Control>
-                    <Textarea {...field} placeholder="Internal notes" />
+                    <Textarea {...field} placeholder={t("partner.designs.create.designerNotesPlaceholder")} />
                   </Form.Control>
                 </Form.Item>
               )}
@@ -177,11 +180,11 @@ export function DesignCreateForm() {
           <div className="flex items-center justify-end gap-x-2">
             <RouteFocusModal.Close asChild>
               <Button variant="secondary" size="small">
-                Cancel
+                {t("actions.cancel")}
               </Button>
             </RouteFocusModal.Close>
             <Button size="small" type="submit" isLoading={isPending}>
-              Create
+              {t("actions.create")}
             </Button>
           </div>
         </RouteFocusModal.Footer>

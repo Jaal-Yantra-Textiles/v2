@@ -3786,6 +3786,360 @@
       "toast": {
         "startFailed": "Não foi possível iniciar o onboarding no Stripe"
       }
+    },
+    "designs": {
+      "heading": "Designs",
+      "design": "Design",
+      "notFound": "Design não encontrado.",
+      "missingId": "ID do design ausente.",
+      "sizes": "Tamanhos",
+      "overdue": "Atrasado",
+      "statusOptions": {
+        "conceptual": "Conceitual",
+        "inDevelopment": "Em desenvolvimento",
+        "technicalReview": "Análise técnica",
+        "sampleProduction": "Produção de amostra",
+        "revision": "Revisão",
+        "approved": "Aprovado",
+        "rejected": "Rejeitado",
+        "onHold": "Em espera",
+        "commerceReady": "Pronto para comercialização",
+        "superseded": "Substituído"
+      },
+      "priorityOptions": {
+        "low": "Baixa",
+        "medium": "Média",
+        "high": "Alta",
+        "urgent": "Urgente"
+      },
+      "typeOptions": {
+        "original": "Original",
+        "derivative": "Derivado",
+        "custom": "Personalizado",
+        "collaboration": "Colaboração"
+      },
+      "workStatusOptions": {
+        "incoming": "Recebido",
+        "assigned": "Atribuído",
+        "inProgress": "Em andamento",
+        "awaitingReview": "Aguardando revisão",
+        "finished": "Finalizado",
+        "completed": "Concluído",
+        "cancelled": "Cancelado"
+      },
+      "runStatusOptions": {
+        "draft": "Rascunho",
+        "pendingReview": "Revisão pendente",
+        "approved": "Aprovado",
+        "sentToPartner": "Enviado ao parceiro",
+        "inProgress": "Em andamento",
+        "completed": "Concluído",
+        "cancelled": "Cancelado",
+        "awaitingReassignment": "Aguardando reatribuição"
+      },
+      "bucketOptions": {
+        "incoming": "Recebidos",
+        "inProgress": "Em andamento",
+        "yours": "Seus",
+        "completed": "Concluídos",
+        "all": "Todos"
+      },
+      "engagementOptions": {
+        "owned": {
+          "label": "Seu",
+          "hint": "Você criou este design."
+        },
+        "assigned": {
+          "label": "Atribuído",
+          "hint": "Você tem uma remessa de produção neste design — este trabalho é para você."
+        },
+        "shared": {
+          "label": "Compartilhado",
+          "hint": "Compartilhado com você para referência. Nenhuma remessa de produção está atribuída a você (o trabalho pode ser interno ou com outro parceiro)."
+        }
+      },
+      "actionOptions": {
+        "accept": "Aceitar",
+        "working": "Trabalhando",
+        "complete": "Concluir",
+        "underReview": "Em revisão",
+        "done": "Concluído",
+        "cancelled": "Cancelado"
+      },
+      "confidenceOptions": {
+        "exact": "Exato",
+        "estimated": "Estimado"
+      },
+      "runTypeOptions": {
+        "production": "Produção",
+        "sample": "Amostra"
+      },
+      "unitOptions": {
+        "meter": "Metro",
+        "yard": "Yarda",
+        "kilogram": "Quilograma",
+        "gram": "Grama",
+        "piece": "Peça",
+        "roll": "Rolo",
+        "other": "Outro"
+      },
+      "consumptionTypeOptions": {
+        "sample": "Amostra",
+        "production": "Produção",
+        "wastage": "Desperdício"
+      },
+      "fields": {
+        "priority": "Prioridade",
+        "designerNotes": "Notas do designer",
+        "unit": "Unidade",
+        "color": "Cor",
+        "composition": "Composição"
+      },
+      "list": {
+        "subtitle": "Escolha uma aba para ver trabalhos recebidos, em andamento, seus ou concluídos.",
+        "loadFailed": "Falha ao carregar designs. Tente atualizar a página.",
+        "noRecords": "Nenhum design nesta aba. Tente outra aba ou limpe a busca.",
+        "columns": {
+          "name": "Nome",
+          "source": "Origem",
+          "nextAction": "Próxima ação",
+          "workStatus": "Status do trabalho",
+          "priority": "Prioridade",
+          "due": "Prazo",
+          "status": "Status do design",
+          "lastUpdated": "Última atualização"
+        }
+      },
+      "detail": {
+        "general": "Geral",
+        "garmentType": "Tipo de peça",
+        "inferred": "Inferido",
+        "partnerStatus": "Status do parceiro",
+        "priority": "Prioridade",
+        "targetDate": "Data de meta",
+        "estimatedCost": "Custo estimado",
+        "description": "Descrição",
+        "specifications": "Especificações",
+        "specs": "Especif.",
+        "tags": "Tags",
+        "colorPalette": "Paleta de cores",
+        "inventoryItems": "Itens de inventário",
+        "noInventoryItems": "Nenhum item de inventário vinculado a este design.",
+        "designerNotes": "Notas do designer",
+        "noNotes": "Sem notas",
+        "resizeHint": "Arraste a borda inferior para redimensionar"
+      },
+      "media": {
+        "heading": "Mídia",
+        "manage": "Gerenciar",
+        "empty": "Nenhum arquivo de mídia ainda",
+        "emptyHint": "Adicione imagens para exibir seu design",
+        "addMedia": "Adicionar mídia",
+        "alt": "Mídia do design",
+        "preview": "Visualizar mídia do design",
+        "download": "Baixar",
+        "manageMedia": "Gerenciar mídia",
+        "uploadDescription": "Fazer upload e anexar mídia a este design",
+        "uploadImages": "Fazer upload de imagens",
+        "dropHint": "Arraste arquivos aqui ou clique para navegar",
+        "existing": "Existentes",
+        "selected": "Selecionados",
+        "loadingDesign": "Carregando design...",
+        "addAtLeastOne": "Adicione pelo menos um arquivo",
+        "uploadFailed": "Falha ao fazer upload de arquivos",
+        "attached": "Mídia anexada",
+        "someRejected": "Alguns arquivos foram rejeitados",
+        "uploadIntro": "Faça upload de imagens para anexar a este design."
+      },
+      "moodboard": {
+        "heading": "Moodboard",
+        "description": "Reúna referências e inspiração.",
+        "open": "Abrir Moodboard",
+        "generateConfirm": "Gerar o moodboard a partir do briefing deste design? Seus cartões existentes serão mesclados, não substituídos.",
+        "generating": "Gerando moodboard…",
+        "generated": "Moodboard gerado",
+        "generateFailed": "Falha ao gerar moodboard",
+        "inserted": "Inserido \"{{label}}\"",
+        "insertFailed": "Falha ao inserir bloco",
+        "nothingToInsert": "Nada para inserir para \"{{label}}\" ainda.",
+        "saving": "Salvando moodboard…",
+        "saved": "Moodboard salvo",
+        "saveFailed": "Falha ao salvar moodboard",
+        "briefSyncFailed": "Moodboard salvo, mas a edição do briefing não pôde ser sincronizada.",
+        "insertBlock": "Inserir bloco",
+        "noBlocks": "Nenhum bloco disponível",
+        "emptySuffix": "· vazio",
+        "addConstruction": "Adicionar construção",
+        "generate": "Gerar",
+        "layers": "Camadas",
+        "save": "Salvar",
+        "savedLabel": "Salvo",
+        "footerHint": "Inserir, construção, gerar, camadas e salvar estão no painel inferior da tela."
+      },
+      "layers": {
+        "heading": "Camadas",
+        "refresh": "Atualizar",
+        "close": "Fechar",
+        "noFrames": "Nenhum quadro ainda.",
+        "untitled": "Quadro sem título",
+        "hasContent": "Tem conteúdo",
+        "empty": "Vazio",
+        "jump": "Ir para o quadro",
+        "show": "Exibir",
+        "hide": "Ocultar",
+        "lockedWhileHidden": "Bloqueado enquanto oculto",
+        "unlock": "Desbloquear",
+        "lock": "Bloquear"
+      },
+      "construction": {
+        "heading": "Adicionar detalhe de construção",
+        "details": "Detalhes de construção",
+        "loading": "Carregando técnicas…",
+        "hint": "Escolha uma técnica ou predefinição à esquerda — seus parâmetros e regras de tecido serão preenchidos automaticamente aqui.",
+        "label": "Rótulo",
+        "parameters": "Parâmetros",
+        "fixedGeometry": "Esta técnica tem geometria fixa — sem parâmetros para definir.",
+        "fabricRules": "Regras de tecido / costura",
+        "oneRulePerLine": "uma regra por linha",
+        "note": "Nota",
+        "optional": "opcional",
+        "addDetail": "Adicionar detalhe",
+        "added": "Adicionado \"{{label}}\"",
+        "addFailed": "Falha ao adicionar detalhe de construção"
+      },
+      "ownerActions": {
+        "yourDesign": "Seu design",
+        "activeOrders_one": "{{count}} pedido de design em andamento. Crie outro ou passe um para um subparceiro.",
+        "activeOrders_other": "{{count}} pedidos de design em andamento. Crie outro ou passe um para um subparceiro.",
+        "noOrders": "Você criou este design. Crie um pedido de design para iniciar a produção ou passe-o para um subparceiro.",
+        "newOrder": "Novo pedido",
+        "createOrder": "Criar pedido",
+        "deleteTitle": "Excluir design",
+        "deleteDescription": "Excluir \"{{name}}\"? Esta ação não pode ser desfeita.",
+        "deleted": "Design excluído"
+      },
+      "production": {
+        "heading": "Pedidos de design",
+        "empty": "Nenhum pedido de design ainda. Crie um pedido de design para iniciar a produção ou você os verá aqui assim que o administrador enviar trabalhos.",
+        "subtitle": "Abra um pedido de design para aceitar trabalhos, registrar materiais e atualizar seu status.",
+        "previous": "Pedidos de design anteriores ({{count}})",
+        "viewOrder": "Ver pedido",
+        "orderType": "Pedido de {{type}}",
+        "qty": "Qtd. {{qty}}"
+      },
+      "cost": {
+        "heading": "Estimativa de custo",
+        "subtitle": "Custo de material + produção a partir da BOM vinculada, mais a taxa da plataforma JYT.",
+        "recalculate": "Recalcular",
+        "estimatedTotal": "Total estimado",
+        "materialCost": "Custo de material",
+        "productionCost": "Custo de produção",
+        "platformFee": "Taxa da plataforma ({{percent}}%)",
+        "lastCalculated": "Último cálculo",
+        "yourInput": "sua entrada",
+        "estimatedLabel": "estimado",
+        "yourProductionCost": "Seu custo de produção (por unidade)",
+        "autoEstimate": "Estimativa automática",
+        "helper": "Substitui a estimativa automática — deixe em branco para estimar a partir do histórico. Uma taxa de plataforma de {{percent}}% é aplicada sobre o custo de material. Pressione Recalcular para aplicar.",
+        "noEstimate": "Nenhuma estimativa ainda — adicione materiais à BOM e clique em Recalcular.",
+        "enterValid": "Insira um custo de produção válido (0 ou mais)",
+        "recalculated": "Custo recalculado: {{amount}} ({{confidence}})"
+      },
+      "bom": {
+        "heading": "Materiais (BOM)",
+        "subtitle": "Inventário + matérias-primas usadas para fazer este design.",
+        "addMaterial": "Adicionar material",
+        "empty": "Nenhum material vinculado ainda.",
+        "emptyOwnerHint": " Adicione os itens de inventário que este design consome.",
+        "noImg": "Sem imag.",
+        "sku": "SKU",
+        "planned": "Planejado",
+        "consumed": "Consumido",
+        "removeTitle": "Remover material",
+        "removeDescription": "Remover \"{{name}}\" da lista de materiais (BOM) deste design?",
+        "removed": "Material removido",
+        "materialAlt": "material"
+      },
+      "consumption": {
+        "heading": "Uso de material",
+        "subtitle": "Registre as matérias-primas consumidas durante a produção",
+        "log": "Registrar",
+        "closedReview": "Registro fechado — a remessa está aguardando revisão",
+        "closedComplete": "Registro fechado — remessa concluída",
+        "closedNone": "Registro indisponível",
+        "drawerTitle": "Registrar uso de material",
+        "drawerDescription": "Registre a matéria-prima consumida durante a produção.",
+        "noInventory": "Nenhum inventário vinculado ainda",
+        "noInventoryHint": "Vincule matérias-primas a este design primeiro para poder registrar o uso de material aqui.",
+        "inventoryItem": "Item de inventário",
+        "selectItem": "Selecionar item",
+        "quantity": "Quantidade",
+        "measuredAs": "Medido como",
+        "perPiece": "Por peça",
+        "totalRun": "Total para a remessa",
+        "perPieceHint": "Material para UMA peça finalizada — multiplicamos pela quantidade produzida.",
+        "totalRunHint": "Material para TODA a remessa — registrado conforme inserido.",
+        "costPerUnit": "Custo por unidade",
+        "optional": "Opcional",
+        "unit": "Unidade",
+        "type": "Tipo",
+        "notes": "Notas",
+        "notesPlaceholder": "Para o que este material foi usado?",
+        "logUsage": "Registrar uso",
+        "empty": "Nenhum uso de material registrado ainda",
+        "required": "Item de inventário e quantidade são obrigatórios",
+        "logged": "Consumo registrado",
+        "failed": "Falha ao registrar consumo",
+        "accessory": "acessório",
+        "committed": "comprometido",
+        "pending": "pendente",
+        "totalMaterialCost": "Custo total de material"
+      },
+      "create": {
+        "heading": "Criar design",
+        "namePlaceholder": "ex.: Jaqueta de Primavera",
+        "descriptionPlaceholder": "O que é este design?",
+        "designerNotesPlaceholder": "Notas internas",
+        "created": "Design criado"
+      },
+      "edit": {
+        "heading": "Editar design",
+        "updated": "Design atualizado"
+      },
+      "addInventory": {
+        "selectedCount": "{{count}} selecionado(s)",
+        "selectPrompt": "Selecione materiais para adicionar",
+        "addToDesign": "Adicionar ao design",
+        "noRawMaterialsTitle": "Sem matérias-primas",
+        "noRawMaterialsMessage": "Nenhuma matéria-prima encontrada. O administrador mantém o catálogo compartilhado de matérias-primas.",
+        "selectAtLeastOne": "Selecione pelo menos um material",
+        "added_one": "Adicionado {{count}} material",
+        "added_other": "Adicionados {{count}} materiais",
+        "sku": "SKU",
+        "columns": {
+          "material": "Material",
+          "composition": "Composição",
+          "color": "Cor",
+          "unit": "Unidade"
+        }
+      },
+      "runCreate": {
+        "heading": "Criar pedido de design",
+        "subtitle": "Inicie a produção deste design. O pedido de design é aprovado e fica pronto para execução imediatamente.",
+        "quantity": "Quantidade",
+        "runType": "Tipo de remessa",
+        "production": "Produção",
+        "sample": "Amostra",
+        "howMade": "Como é feito?",
+        "inHouse": "Interno (você produz)",
+        "outsourced": "Terceirizado (encaminhe a um subparceiro)",
+        "executionHint": "Interno mantém o trabalho com você; terceirizado registra o fornecedor para acompanhamento de custos.",
+        "subPartnerId": "ID do subparceiro",
+        "subPartnerPlaceholder": "partner_…",
+        "subPartnerHint": "O parceiro a quem você está transferindo esta produção.",
+        "createOrder": "Criar pedido de design",
+        "started": "Produção iniciada"
+      }
     }
   },
   "shippingOptionTypes": {

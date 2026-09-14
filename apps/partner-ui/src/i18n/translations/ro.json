@@ -3785,6 +3785,360 @@
       "toast": {
         "startFailed": "Nu s-a putut iniția procesul de inițializare Stripe"
       }
+    },
+    "designs": {
+      "heading": "Designuri",
+      "design": "Design",
+      "notFound": "Designul nu a fost găsit.",
+      "missingId": "ID-ul designului lipsește.",
+      "sizes": "Mărimi",
+      "overdue": "Întârziat",
+      "statusOptions": {
+        "conceptual": "Conceptual",
+        "inDevelopment": "În dezvoltare",
+        "technicalReview": "Revizuire tehnică",
+        "sampleProduction": "Producție mostre",
+        "revision": "Revizuire",
+        "approved": "Aprobat",
+        "rejected": "Respins",
+        "onHold": "În așteptare",
+        "commerceReady": "Gata pentru comerț",
+        "superseded": "Înlocuit"
+      },
+      "priorityOptions": {
+        "low": "Scăzută",
+        "medium": "Medie",
+        "high": "Ridicată",
+        "urgent": "Urgent"
+      },
+      "typeOptions": {
+        "original": "Original",
+        "derivative": "Derivat",
+        "custom": "Personalizat",
+        "collaboration": "Colaborare"
+      },
+      "workStatusOptions": {
+        "incoming": "Intrări",
+        "assigned": "Alocat",
+        "inProgress": "În lucru",
+        "awaitingReview": "Așteaptă revizuire",
+        "finished": "Finalizat",
+        "completed": "Completat",
+        "cancelled": "Anulat"
+      },
+      "runStatusOptions": {
+        "draft": "Ciornă",
+        "pendingReview": "În așteptarea revizuirii",
+        "approved": "Aprobat",
+        "sentToPartner": "Trimis partenerului",
+        "inProgress": "În lucru",
+        "completed": "Completat",
+        "cancelled": "Anulat",
+        "awaitingReassignment": "Așteaptă realocare"
+      },
+      "bucketOptions": {
+        "incoming": "Intrări",
+        "inProgress": "În lucru",
+        "yours": "Ale tale",
+        "completed": "Completate",
+        "all": "Toate"
+      },
+      "engagementOptions": {
+        "owned": {
+          "label": "Ale tale",
+          "hint": "Tu ai creat acest design."
+        },
+        "assigned": {
+          "label": "Alocat",
+          "hint": "Ai un lot de producție pentru acest design — acesta este lucru pentru tine."
+        },
+        "shared": {
+          "label": "Partajat",
+          "hint": "Partajat cu tine pentru referință. Nu ai un lot de producție alocat (lucrul poate fi intern sau cu un alt partener)."
+        }
+      },
+      "actionOptions": {
+        "accept": "Acceptă",
+        "working": "În lucru",
+        "complete": "Completează",
+        "underReview": "În revizuire",
+        "done": "Gata",
+        "cancelled": "Anulat"
+      },
+      "confidenceOptions": {
+        "exact": "Exact",
+        "estimated": "Estimat"
+      },
+      "runTypeOptions": {
+        "production": "Producție",
+        "sample": "Mostră"
+      },
+      "unitOptions": {
+        "meter": "Metru",
+        "yard": "Yard",
+        "kilogram": "Kilogram",
+        "gram": "Gram",
+        "piece": "Bucată",
+        "roll": "Rolă",
+        "other": "Altul"
+      },
+      "consumptionTypeOptions": {
+        "sample": "Mostră",
+        "production": "Producție",
+        "wastage": "Pierderi"
+      },
+      "fields": {
+        "priority": "Prioritate",
+        "designerNotes": "Note designer",
+        "unit": "Unitate",
+        "color": "Culoare",
+        "composition": "Compoziție"
+      },
+      "list": {
+        "subtitle": "Alege un tab pentru a vedea lucrările primite, în lucru, propriile tale sau cele completate.",
+        "loadFailed": "Eroare la încărcarea designurilor. Te rugăm să reîmprospetezi pagina.",
+        "noRecords": "Nu există designuri în acest tab. Încearcă alt tab sau șterge căutarea.",
+        "columns": {
+          "name": "Nume",
+          "source": "Sursă",
+          "nextAction": "Următoarea acțiune",
+          "workStatus": "Stare lucru",
+          "priority": "Prioritate",
+          "due": "Termen",
+          "status": "Stare design",
+          "lastUpdated": "Ultima actualizare"
+        }
+      },
+      "detail": {
+        "general": "General",
+        "garmentType": "Tip articol",
+        "inferred": "Inferred",
+        "partnerStatus": "Stare partener",
+        "priority": "Prioritate",
+        "targetDate": "Data țintă",
+        "estimatedCost": "Cost estimat",
+        "description": "Descriere",
+        "specifications": "Specificații",
+        "specs": "Spec.",
+        "tags": "Etichete",
+        "colorPalette": "Paletă de culori",
+        "inventoryItems": "Articole de inventar",
+        "noInventoryItems": "Nu există articole de inventar legate de acest design.",
+        "designerNotes": "Note Designer",
+        "noNotes": "Fără note",
+        "resizeHint": "Trage de marginea de jos pentru a redimensiona"
+      },
+      "media": {
+        "heading": "Media",
+        "manage": "Administrează",
+        "empty": "Nu există fișiere media",
+        "emptyHint": "Adaugă imagini pentru a prezenta designul",
+        "addMedia": "Adaugă Media",
+        "alt": "Media design",
+        "preview": "Previzualizare media design",
+        "download": "Descarcă",
+        "manageMedia": "Administrează Media",
+        "uploadDescription": "Încarcă și atașează media la acest design",
+        "uploadImages": "Încarcă imagini",
+        "dropHint": "Pune fișierele aici sau click pentru a răsfoi",
+        "existing": "Existente",
+        "selected": "Selectate",
+        "loadingDesign": "Încărcare design...",
+        "addAtLeastOne": "Adaugă cel puțin un fișier",
+        "uploadFailed": "Eroare la încărcarea fișierelor",
+        "attached": "Media atașată",
+        "someRejected": "Unele fișiere au fost respinse",
+        "uploadIntro": "Încarcă imagini pentru a le atașa la acest design."
+      },
+      "moodboard": {
+        "heading": "Moodboard",
+        "description": "Colectează referințe și inspirații.",
+        "open": "Deschide Moodboard",
+        "generateConfirm": "Generează moodboard-ul din brief-ul acestui design? Cardurile existente vor fi contopite, nu înlocuite.",
+        "generating": "Generare moodboard…",
+        "generated": "Moodboard generat",
+        "generateFailed": "Eroare la generarea moodboard-ului",
+        "inserted": "S-a inserat \"{{label}}\"",
+        "insertFailed": "Eroare la inserarea blocului",
+        "nothingToInsert": "Nu există nimic de inserat pentru \"{{label}}\" încă.",
+        "saving": "Salvare moodboard…",
+        "saved": "Moodboard salvat",
+        "saveFailed": "Eroare la salvarea moodboard-ului",
+        "briefSyncFailed": "Moodboard salvat, dar editarea brief-ului nu a putut fi sincronizată.",
+        "insertBlock": "Inserează bloc",
+        "noBlocks": "Nu există blocuri disponibile",
+        "emptySuffix": "· gol",
+        "addConstruction": "Adaugă construcție",
+        "generate": "Generează",
+        "layers": "Straturi",
+        "save": "Salvează",
+        "savedLabel": "Salvat",
+        "footerHint": "Inserare, construcție, generare, straturi și salvare se află în bara de jos a pânzei."
+      },
+      "layers": {
+        "heading": "Straturi",
+        "refresh": "Reîmprospătează",
+        "close": "Închide",
+        "noFrames": "Nu există cadre încă.",
+        "untitled": "Cadru fără titlu",
+        "hasContent": "Are conținut",
+        "empty": "Gol",
+        "jump": "Sari la cadru",
+        "show": "Afișează",
+        "hide": "Ascunde",
+        "lockedWhileHidden": "Blocat în timp ce este ascuns",
+        "unlock": "Deblochează",
+        "lock": "Blochează"
+      },
+      "construction": {
+        "heading": "Adaugă detaliu de construcție",
+        "details": "Detalii de construcție",
+        "loading": "Încărcare tehnici…",
+        "hint": "Alege o tehnică sau un preset din stânga — parametrii și regulile de material se completează automat aici.",
+        "label": "Etichetă",
+        "parameters": "Parametri",
+        "fixedGeometry": "Această tehnică are geometrie fixă — nu există parametri de setat.",
+        "fabricRules": "Reguli material / cusut",
+        "oneRulePerLine": "o regulă pe linie",
+        "note": "Notă",
+        "optional": "opțional",
+        "addDetail": "Adaugă detaliu",
+        "added": "S-a adăugat \"{{label}}\"",
+        "addFailed": "Eroare la adăugarea detaliului de construcție"
+      },
+      "ownerActions": {
+        "yourDesign": "Designul tău",
+        "activeOrders_one": "{{count}} comandă de design în lucru. Creează alta sau transmite una unui sub-partener.",
+        "activeOrders_other": "{{count}} comenzi de design în lucru. Creează alta sau transmite una unui sub-partener.",
+        "noOrders": "Tu ai creat acest design. Creează o comandă de design pentru a începe producția sau transmite-l unui sub-partener.",
+        "newOrder": "Comandă nouă",
+        "createOrder": "Creează comandă",
+        "deleteTitle": "Șterge design",
+        "deleteDescription": "Șterge \"{{name}}\"? Această acțiune nu poate fi anulată.",
+        "deleted": "Design șters"
+      },
+      "production": {
+        "heading": "Comenzi de design",
+        "empty": "Nu există comenzi de design încă. Creează o comandă de design pentru a începe producția, sau le vei vedea aici odată ce administratorul îți trimite lucru.",
+        "subtitle": "Deschide o comandă de design pentru a accepta lucrul, a înregistra materialele și a actualiza starea.",
+        "previous": "Comenzi de design anterioare ({{count}})",
+        "viewOrder": "Vezi comandă",
+        "orderType": "comandă {{type}}",
+        "qty": "Cant. {{qty}}"
+      },
+      "cost": {
+        "heading": "Estimare cost",
+        "subtitle": "Cost material + producție din BOM-ul legat, plus taxa de platformă JYT.",
+        "recalculate": "Recalculează",
+        "estimatedTotal": "Total estimat",
+        "materialCost": "Cost material",
+        "productionCost": "Cost producție",
+        "platformFee": "Taxă platformă ({{percent}}%)",
+        "lastCalculated": "Ultima calculare",
+        "yourInput": "introducere manuală",
+        "estimatedLabel": "estimat",
+        "yourProductionCost": "Costul tău de producție (per unitate)",
+        "autoEstimate": "Auto-estimare",
+        "helper": "Suprascrie auto-estimarea — lasă gol pentru a estima din istoric. Se aplică o taxă de platformă de {{percent}}% pe costul materialului. Apasă Recalculează pentru a aplica.",
+        "noEstimate": "Nu există încă o estimare — adaugă materiale în BOM, apoi Recalculează.",
+        "enterValid": "Introdu un cost de producție valid (0 sau mai mult)",
+        "recalculated": "Cost recalculat: {{amount}} ({{confidence}})"
+      },
+      "bom": {
+        "heading": "Materiale (BOM)",
+        "subtitle": "Inventar + materiale brute folosite pentru a crea acest design.",
+        "addMaterial": "Adaugă material",
+        "empty": "Nu există materiale legate încă.",
+        "emptyOwnerHint": " Adaugă articolele de inventar pe care acest design le consumă.",
+        "noImg": "Fără imagine",
+        "sku": "SKU",
+        "planned": "Planificat",
+        "consumed": "Consumat",
+        "removeTitle": "Elimină material",
+        "removeDescription": "Elimină \"{{name}}\" din lista de materiale a acestui design?",
+        "removed": "Material eliminat",
+        "materialAlt": "material"
+      },
+      "consumption": {
+        "heading": "Utilizarea Materialelor",
+        "subtitle": "Înregistrează materialele brute consumate în timpul producției",
+        "log": "Înregistrează",
+        "closedReview": "Înregistrarea închisă — lotul așteaptă revizuire",
+        "closedComplete": "Înregistrarea închisă — lotul a fost completat",
+        "closedNone": "Înregistrarea nu este disponibilă",
+        "drawerTitle": "Înregistrează Utilizarea Materialelor",
+        "drawerDescription": "Înregistrează materialul brut consumat în timpul producției.",
+        "noInventory": "Nu există inventar legat încă",
+        "noInventoryHint": "Leagă mai întâi materialele brute de acest design, apoi poți înregistra utilizarea materialelor aici.",
+        "inventoryItem": "Articol de inventar",
+        "selectItem": "Selectează articol",
+        "quantity": "Cantitate",
+        "measuredAs": "Măsurat ca",
+        "perPiece": "Per bucată",
+        "totalRun": "Total pentru lot",
+        "perPieceHint": "Material pentru O SINGURĂ bucată finisată — noi înmulțim cu numărul de bucăți fabricate.",
+        "totalRunHint": "Material pentru TOT LOTUL — înregistrat exact cum este introdus.",
+        "costPerUnit": "Cost per unitate",
+        "optional": "Opțional",
+        "unit": "Unitate",
+        "type": "Tip",
+        "notes": "Note",
+        "notesPlaceholder": "Pentru ce a fost folosit acest material?",
+        "logUsage": "Înregistrează Utilizarea",
+        "empty": "Nu a fost înregistrată nicio utilizare a materialelor",
+        "required": "Articolul de inventar și cantitatea sunt obligatorii",
+        "logged": "Consum înregistrat",
+        "failed": "Eroare la înregistrarea consumului",
+        "accessory": "accesoriu",
+        "committed": "angajat",
+        "pending": "în așteptare",
+        "totalMaterialCost": "Cost total materiale"
+      },
+      "create": {
+        "heading": "Creează design",
+        "namePlaceholder": "ex. Jachetă de primăvară",
+        "descriptionPlaceholder": "Ce reprezintă acest design?",
+        "designerNotesPlaceholder": "Note interne",
+        "created": "Design creat"
+      },
+      "edit": {
+        "heading": "Editează design",
+        "updated": "Design actualizat"
+      },
+      "addInventory": {
+        "selectedCount": "{{count}} selectate",
+        "selectPrompt": "Selectează materiale de adăugat",
+        "addToDesign": "Adaugă la design",
+        "noRawMaterialsTitle": "Fără materiale brute",
+        "noRawMaterialsMessage": "Nu au fost găsite materiale brute. Administratorul gestionează catalogul comun de materiale brute.",
+        "selectAtLeastOne": "Selectează cel puțin un material",
+        "added_one": "S-a adăugat {{count}} material",
+        "added_other": "S-au adăugat {{count}} materiale",
+        "sku": "SKU",
+        "columns": {
+          "material": "Material",
+          "composition": "Compoziție",
+          "color": "Culoare",
+          "unit": "Unitate"
+        }
+      },
+      "runCreate": {
+        "heading": "Creează comandă de design",
+        "subtitle": "Începe producția pentru acest design. Comanda de design este aprobată și gata pentru lucru imediat.",
+        "quantity": "Cantitate",
+        "runType": "Tip lot",
+        "production": "Producție",
+        "sample": "Mostră",
+        "howMade": "Cum este fabricat?",
+        "inHouse": "Intern (îl faci tu)",
+        "outsourced": "Externalizat (transmis unui sub-partener)",
+        "executionHint": "Intern păstrează lucrul la tine; externalizat înregistrează furnizorul pentru urmărirea costurilor.",
+        "subPartnerId": "ID sub-partener",
+        "subPartnerPlaceholder": "partner_…",
+        "subPartnerHint": "Partenerul căruia îi transmiți această producție.",
+        "createOrder": "Creează comandă de design",
+        "started": "Producția a început"
+      }
     }
   },
   "shippingOptionTypes": {

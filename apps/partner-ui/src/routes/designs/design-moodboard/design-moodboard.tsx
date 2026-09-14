@@ -1,4 +1,5 @@
 import { Button, DropdownMenu, Heading, Text, toast } from "@medusajs/ui"
+import { useTranslation } from "react-i18next"
 import "@excalidraw/excalidraw/index.css"
 // Scoped overrides that map Excalidraw's theme variables onto Medusa tokens —
 // must import after Excalidraw's own CSS so equal-specificity ties resolve to us.
@@ -251,6 +252,7 @@ const getAdminTheme = (): "light" | "dark" =>
     : "light"
 
 export const DesignMoodboard = () => {
+  const { t } = useTranslation()
   const id = useResolvedDesignId()
 
   // Follow the admin theme live — observe the root `.dark` class (and system
@@ -394,23 +396,23 @@ export const DesignMoodboard = () => {
       return
     }
     const proceed = window.confirm(
-      "Generate the moodboard from this design's brief? Your existing cards are merged, not replaced."
+      t("partner.designs.moodboard.generateConfirm")
     )
     if (!proceed) {
       return
     }
-    toast.loading("Generating moodboard…")
+    toast.loading(t("partner.designs.moodboard.generating"))
     try {
       const { moodboard: scene } = await generateMoodboard()
       loadScene(normalizeMoodboard(scene) || (scene as MoodboardData))
       setIsDirty(false)
       toast.dismiss()
-      toast.success("Moodboard generated")
+      toast.success(t("partner.designs.moodboard.generated"))
     } catch (err: any) {
       toast.dismiss()
-      toast.error(err?.message || "Failed to generate moodboard")
+      toast.error(err?.message || t("partner.designs.moodboard.generateFailed"))
     }
-  }, [id, generateMoodboard, loadScene])
+  }, [id, generateMoodboard, loadScene, t])
 
   // The insert-block palette, grouped for the dropdown menu.
   const groupedBlocks = useMemo(() => {
@@ -441,7 +443,7 @@ export const DesignMoodboard = () => {
         const { block } = await insertBlock(key)
         const els = (block?.elements ?? []) as any[]
         if (!els.length) {
-          toast.info(`Nothing to insert for "${label}" yet.`)
+          toast.info(t("partner.designs.moodboard.nothingToInsert", { label }))
           return
         }
 
@@ -491,27 +493,27 @@ export const DesignMoodboard = () => {
         api.scrollToContent(placed as any, { fitToContent: true })
         setIsDirty(true)
         if (!replaceFrameNamed) {
-          toast.success(`Inserted "${label}"`)
+          toast.success(t("partner.designs.moodboard.inserted", { label }))
         }
       } catch (err: any) {
-        toast.error(err?.message || "Failed to insert block")
+        toast.error(err?.message || t("partner.designs.moodboard.insertFailed"))
       }
     },
-    [id, insertBlock]
+    [id, insertBlock, t]
   )
 
   // After a construction detail is added, re-render the construction frame from
   // the design's fresh data (replacing the existing one in place).
   const handleConstructionAdded = useCallback(() => {
-    handleInsert("construction", "Construction details", CONSTRUCTION_FRAME_NAME)
-  }, [handleInsert])
+    handleInsert("construction", t("partner.designs.construction.details"), CONSTRUCTION_FRAME_NAME)
+  }, [handleInsert, t])
 
   const handleSave = useCallback(async () => {
     const api = apiRef.current
     if (!api || !id) {
       return
     }
-    toast.loading("Saving moodboard…")
+    toast.loading(t("partner.designs.moodboard.saving"))
     try {
       const elements = api.getSceneElements()
       const appState = api.getAppState() as any
@@ -550,19 +552,19 @@ export const DesignMoodboard = () => {
           } catch {
             // A brief write-back failure shouldn't lose the saved scene; surface
             // softly and keep the moodboard save.
-            toast.warning("Moodboard saved, but the brief edit couldn't be synced.")
+            toast.warning(t("partner.designs.moodboard.briefSyncFailed"))
           }
         }
       }
 
       setIsDirty(false)
       toast.dismiss()
-      toast.success("Moodboard saved")
+      toast.success(t("partner.designs.moodboard.saved"))
     } catch (err: any) {
       toast.dismiss()
-      toast.error(err?.message || "Failed to save moodboard")
+      toast.error(err?.message || t("partner.designs.moodboard.saveFailed"))
     }
-  }, [id, saveMoodboard, updateBrief, design])
+  }, [id, saveMoodboard, updateBrief, design, t])
 
   const isSaving = isSavingScene
 
@@ -570,10 +572,10 @@ export const DesignMoodboard = () => {
     <RouteFocusModal>
       <RouteFocusModal.Header>
         <RouteFocusModal.Title asChild>
-          <Heading>Moodboard</Heading>
+          <Heading>{t("partner.designs.moodboard.heading")}</Heading>
         </RouteFocusModal.Title>
         <RouteFocusModal.Description className="sr-only">
-          Moodboard
+          {t("partner.designs.moodboard.heading")}
         </RouteFocusModal.Description>
       </RouteFocusModal.Header>
 
@@ -581,13 +583,13 @@ export const DesignMoodboard = () => {
         {!id ? (
           <div className="px-6 py-4">
             <Text size="small" className="text-ui-fg-subtle">
-              Missing design id.
+              {t("partner.designs.missingId")}
             </Text>
           </div>
         ) : isPending ? (
           <div className="px-6 py-4">
             <Text size="small" className="text-ui-fg-subtle">
-              Loading...
+              {t("labels.loading")}
             </Text>
           </div>
         ) : (
@@ -649,13 +651,13 @@ export const DesignMoodboard = () => {
                     disabled={!id || isSaving || isInserting}
                     isLoading={isInserting}
                   >
-                    Insert block
+                    {t("partner.designs.moodboard.insertBlock")}
                   </Button>
                 </DropdownMenu.Trigger>
                 <DropdownMenu.Content side="top" sideOffset={8}>
                   {groupedBlocks.length === 0 ? (
                     <DropdownMenu.Item disabled>
-                      No blocks available
+                      {t("partner.designs.moodboard.noBlocks")}
                     </DropdownMenu.Item>
                   ) : (
                     groupedBlocks.map((grp, gi) => (
@@ -672,7 +674,9 @@ export const DesignMoodboard = () => {
                           >
                             {b.label}
                             {!b.available ? (
-                              <span className="text-ui-fg-muted ml-1">· empty</span>
+                              <span className="text-ui-fg-muted ml-1">
+                                {t("partner.designs.moodboard.emptySuffix")}
+                              </span>
                             ) : null}
                           </DropdownMenu.Item>
                         ))}
@@ -687,7 +691,7 @@ export const DesignMoodboard = () => {
                 onClick={() => setConstructionOpen(true)}
                 disabled={!id || isSaving}
               >
-                Add construction
+                {t("partner.designs.moodboard.addConstruction")}
               </Button>
               <Button
                 size="small"
@@ -696,7 +700,7 @@ export const DesignMoodboard = () => {
                 disabled={!id || isGenerating || isSaving}
                 isLoading={isGenerating}
               >
-                Generate
+                {t("partner.designs.moodboard.generate")}
               </Button>
               <Button
                 size="small"
@@ -704,7 +708,7 @@ export const DesignMoodboard = () => {
                 onClick={() => setLayersOpen((v) => !v)}
                 disabled={!id}
               >
-                Layers
+                {t("partner.designs.moodboard.layers")}
               </Button>
               <Button
                 size="small"
@@ -713,7 +717,9 @@ export const DesignMoodboard = () => {
                 disabled={!id || isSaving || !isDirty}
                 isLoading={isSaving}
               >
-                {isDirty ? "Save" : "Saved"}
+                {isDirty
+                  ? t("partner.designs.moodboard.save")
+                  : t("partner.designs.moodboard.savedLabel")}
               </Button>
             </div>
           </div>
@@ -723,12 +729,11 @@ export const DesignMoodboard = () => {
       <RouteFocusModal.Footer>
         <div className="flex items-center justify-between w-full gap-x-2">
           <Text size="xsmall" className="text-ui-fg-muted">
-            Insert, construction, generate, layers &amp; save are in the dock at
-            the bottom of the canvas.
+            {t("partner.designs.moodboard.footerHint")}
           </Text>
           <RouteFocusModal.Close asChild>
             <Button size="small" variant="secondary">
-              Close
+              {t("actions.close")}
             </Button>
           </RouteFocusModal.Close>
         </div>

@@ -3781,6 +3781,360 @@
       "toast": {
         "startFailed": "Không thể bắt đầu quy trình đăng ký Stripe"
       }
+    },
+    "designs": {
+      "heading": "Thiết kế",
+      "design": "Thiết kế",
+      "notFound": "Không tìm thấy thiết kế.",
+      "missingId": "Thiếu ID thiết kế.",
+      "sizes": "Kích thước",
+      "overdue": "Quá hạn",
+      "statusOptions": {
+        "conceptual": "Ý tưởng",
+        "inDevelopment": "Đang phát triển",
+        "technicalReview": "Xem xét kỹ thuật",
+        "sampleProduction": "Sản xuất mẫu",
+        "revision": "Chỉnh sửa",
+        "approved": "Đã phê duyệt",
+        "rejected": "Đã từ chối",
+        "onHold": "Đang tạm dừng",
+        "commerceReady": "Sẵn sàng thương mại",
+        "superseded": "Đã thay thế"
+      },
+      "priorityOptions": {
+        "low": "Thấp",
+        "medium": "Trung bình",
+        "high": "Cao",
+        "urgent": "Khẩn cấp"
+      },
+      "typeOptions": {
+        "original": "Nguyên bản",
+        "derivative": "Phái sinh",
+        "custom": "Tùy chỉnh",
+        "collaboration": "Hợp tác"
+      },
+      "workStatusOptions": {
+        "incoming": "Đang đến",
+        "assigned": "Đã phân công",
+        "inProgress": "Đang thực hiện",
+        "awaitingReview": "Đang chờ xem xét",
+        "finished": "Đã hoàn thành",
+        "completed": "Đã hoàn tất",
+        "cancelled": "Đã hủy"
+      },
+      "runStatusOptions": {
+        "draft": "Nháp",
+        "pendingReview": "Đang chờ xem xét",
+        "approved": "Đã phê duyệt",
+        "sentToPartner": "Đã gửi cho đối tác",
+        "inProgress": "Đang thực hiện",
+        "completed": "Đã hoàn tất",
+        "cancelled": "Đã hủy",
+        "awaitingReassignment": "Đang chờ phân công lại"
+      },
+      "bucketOptions": {
+        "incoming": "Đang đến",
+        "inProgress": "Đang thực hiện",
+        "yours": "Của bạn",
+        "completed": "Đã hoàn tất",
+        "all": "Tất cả"
+      },
+      "engagementOptions": {
+        "owned": {
+          "label": "Của bạn",
+          "hint": "Bạn đã tạo thiết kế này."
+        },
+        "assigned": {
+          "label": "Được phân công",
+          "hint": "Bạn có một đợt sản xuất cho thiết kế này — đây là công việc của bạn."
+        },
+        "shared": {
+          "label": "Được chia sẻ",
+          "hint": "Được chia sẻ với bạn để tham khảo. Không có đợt sản xuất nào được phân công cho bạn (công việc có thể là nội bộ hoặc với đối tác khác)."
+        }
+      },
+      "actionOptions": {
+        "accept": "Chấp nhận",
+        "working": "Đang làm",
+        "complete": "Hoàn thành",
+        "underReview": "Đang xem xét",
+        "done": "Xong",
+        "cancelled": "Đã hủy"
+      },
+      "confidenceOptions": {
+        "exact": "Chính xác",
+        "estimated": "Ước tính"
+      },
+      "runTypeOptions": {
+        "production": "Sản xuất",
+        "sample": "Mẫu"
+      },
+      "unitOptions": {
+        "meter": "Mét",
+        "yard": "Yard",
+        "kilogram": "Kilôgam",
+        "gram": "Gam",
+        "piece": "Chiếc",
+        "roll": "Cuộn",
+        "other": "Khác"
+      },
+      "consumptionTypeOptions": {
+        "sample": "Mẫu",
+        "production": "Sản xuất",
+        "wastage": "Hao hụt"
+      },
+      "fields": {
+        "priority": "Độ ưu tiên",
+        "designerNotes": "Ghi chú của nhà thiết kế",
+        "unit": "Đơn vị",
+        "color": "Màu sắc",
+        "composition": "Thành phần"
+      },
+      "list": {
+        "subtitle": "Chọn một tab để xem công việc đang đến, đang thực hiện, của bạn hoặc đã hoàn tất.",
+        "loadFailed": "Tải thiết kế thất bại. Vui lòng thử tải lại trang.",
+        "noRecords": "Không có thiết kế nào trong tab này. Hãy thử tab khác hoặc xóa tìm kiếm.",
+        "columns": {
+          "name": "Tên",
+          "source": "Nguồn",
+          "nextAction": "Hành động tiếp theo",
+          "workStatus": "Trạng thái công việc",
+          "priority": "Độ ưu tiên",
+          "due": "Hạn chót",
+          "status": "Trạng thái thiết kế",
+          "lastUpdated": "Cập nhật lần cuối"
+        }
+      },
+      "detail": {
+        "general": "Thông tin chung",
+        "garmentType": "Loại trang phục",
+        "inferred": "Suy luận",
+        "partnerStatus": "Trạng thái đối tác",
+        "priority": "Độ ưu tiên",
+        "targetDate": "Ngày mục tiêu",
+        "estimatedCost": "Chi phí ước tính",
+        "description": "Mô tả",
+        "specifications": "Thông số kỹ thuật",
+        "specs": "Thông số",
+        "tags": "Thẻ",
+        "colorPalette": "Bảng màu",
+        "inventoryItems": "Mục kho",
+        "noInventoryItems": "Không có mục kho nào được liên kết với thiết kế này.",
+        "designerNotes": "Ghi chú của nhà thiết kế",
+        "noNotes": "Không có ghi chú",
+        "resizeHint": "Kéo cạnh dưới để thay đổi kích thước"
+      },
+      "media": {
+        "heading": "Phương tiện",
+        "manage": "Quản lý",
+        "empty": "Chưa có tệp phương tiện nào",
+        "emptyHint": "Thêm hình ảnh để trình bày thiết kế của bạn",
+        "addMedia": "Thêm phương tiện",
+        "alt": "Phương tiện thiết kế",
+        "preview": "Xem trước phương tiện thiết kế",
+        "download": "Tải xuống",
+        "manageMedia": "Quản lý phương tiện",
+        "uploadDescription": "Tải lên và đính kèm phương tiện vào thiết kế này",
+        "uploadImages": "Tải ảnh lên",
+        "dropHint": "Thả tệp vào đây hoặc nhấp để duyệt",
+        "existing": "Hiện có",
+        "selected": "Đã chọn",
+        "loadingDesign": "Đang tải thiết kế...",
+        "addAtLeastOne": "Thêm ít nhất một tệp",
+        "uploadFailed": "Tải tệp lên thất bại",
+        "attached": "Đã đính kèm phương tiện",
+        "someRejected": "Một số tệp đã bị từ chối",
+        "uploadIntro": "Tải ảnh lên để đính kèm vào thiết kế này."
+      },
+      "moodboard": {
+        "heading": "Moodboard",
+        "description": "Thu thập tài liệu tham khảo và cảm hứng.",
+        "open": "Mở Moodboard",
+        "generateConfirm": "Tạo moodboard từ bản tóm tắt của thiết kế này? Các thẻ hiện có của bạn sẽ được hợp nhất, không bị thay thế.",
+        "generating": "Đang tạo moodboard…",
+        "generated": "Đã tạo moodboard",
+        "generateFailed": "Tạo moodboard thất bại",
+        "inserted": "Đã chèn \"{{label}}\"",
+        "insertFailed": "Chèn khối thất bại",
+        "nothingToInsert": "Chưa có gì để chèn cho \"{{label}}\".",
+        "saving": "Đang lưu moodboard…",
+        "saved": "Đã lưu moodboard",
+        "saveFailed": "Lưu moodboard thất bại",
+        "briefSyncFailed": "Moodboard đã được lưu, nhưng việc chỉnh sửa bản tóm tắt không thể đồng bộ.",
+        "insertBlock": "Chèn khối",
+        "noBlocks": "Không có khối khả dụng",
+        "emptySuffix": "· trống",
+        "addConstruction": "Thêm cấu trúc",
+        "generate": "Tạo",
+        "layers": "Lớp",
+        "save": "Lưu",
+        "savedLabel": "Đã lưu",
+        "footerHint": "Các chức năng Chèn, cấu trúc, tạo, lớp & lưu nằm ở thanh công cụ dưới cùng của khung vẽ."
+      },
+      "layers": {
+        "heading": "Lớp",
+        "refresh": "Làm mới",
+        "close": "Đóng",
+        "noFrames": "Chưa có khung nào.",
+        "untitled": "Khung không tên",
+        "hasContent": "Có nội dung",
+        "empty": "Trống",
+        "jump": "Nhảy đến khung",
+        "show": "Hiện",
+        "hide": "Ẩn",
+        "lockedWhileHidden": "Đã khóa khi ẩn",
+        "unlock": "Mở khóa",
+        "lock": "Khóa"
+      },
+      "construction": {
+        "heading": "Thêm chi tiết cấu trúc",
+        "details": "Chi tiết cấu trúc",
+        "loading": "Đang tải kỹ thuật…",
+        "hint": "Chọn một kỹ thuật hoặc một mẫu thiết lập sẵn ở bên trái — các thông số và quy tắc vải sẽ tự động điền vào đây.",
+        "label": "Nhãn",
+        "parameters": "Thông số",
+        "fixedGeometry": "Kỹ thuật này có hình học cố định — không có thông số để thiết lập.",
+        "fabricRules": "Quy tắc vải / may",
+        "oneRulePerLine": "mỗi dòng một quy tắc",
+        "note": "Ghi chú",
+        "optional": "tùy chọn",
+        "addDetail": "Thêm chi tiết",
+        "added": "Đã thêm \"{{label}}\"",
+        "addFailed": "Thêm chi tiết cấu trúc thất bại"
+      },
+      "ownerActions": {
+        "yourDesign": "Thiết kế của bạn",
+        "activeOrders_one": "Có {{count}} đơn hàng thiết kế đang thực hiện. Tạo đơn hàng khác hoặc giao cho một đối tác phụ.",
+        "activeOrders_other": "Có {{count}} đơn hàng thiết kế đang thực hiện. Tạo đơn hàng khác hoặc giao cho một đối tác phụ.",
+        "noOrders": "Bạn đã tạo thiết kế này. Hãy tạo đơn hàng thiết kế để bắt đầu sản xuất, hoặc giao nó cho một đối tác phụ.",
+        "newOrder": "Đơn hàng mới",
+        "createOrder": "Tạo đơn hàng",
+        "deleteTitle": "Xóa thiết kế",
+        "deleteDescription": "Xóa \"{{name}}\"? Hành động này không thể hoàn tác.",
+        "deleted": "Thiết kế đã bị xóa"
+      },
+      "production": {
+        "heading": "Đơn hàng thiết kế",
+        "empty": "Chưa có đơn hàng thiết kế nào. Tạo đơn hàng thiết kế để bắt đầu sản xuất, hoặc bạn sẽ thấy chúng ở đây khi quản trị viên gửi công việc cho bạn.",
+        "subtitle": "Mở một đơn hàng thiết kế để chấp nhận công việc, ghi chép vật liệu và cập nhật trạng thái.",
+        "previous": "Các đơn hàng thiết kế trước đó ({{count}})",
+        "viewOrder": "Xem đơn hàng",
+        "orderType": "Đơn hàng {{type}}",
+        "qty": "Số lượng {{qty}}"
+      },
+      "cost": {
+        "heading": "Ước tính chi phí",
+        "subtitle": "Chi phí vật liệu + sản xuất từ BOM được liên kết, cộng với phí nền tảng JYT.",
+        "recalculate": "Tính toán lại",
+        "estimatedTotal": "Tổng ước tính",
+        "materialCost": "Chi phí vật liệu",
+        "productionCost": "Chi phí sản xuất",
+        "platformFee": "Phí nền tảng ({{percent}}%)",
+        "lastCalculated": "Tính toán lần cuối",
+        "yourInput": "nhập liệu của bạn",
+        "estimatedLabel": "ước tính",
+        "yourProductionCost": "Chi phí sản xuất của bạn (mỗi đơn vị)",
+        "autoEstimate": "Tự động ước tính",
+        "helper": "Ghi đè ước tính tự động — để trống để ước tính từ lịch sử. Phí nền tảng {{percent}}% áp dụng trên chi phí vật liệu. Nhấn Tính toán lại để áp dụng.",
+        "noEstimate": "Chưa có ước tính — hãy thêm vật liệu vào BOM, sau đó Tính toán lại.",
+        "enterValid": "Nhập chi phí sản xuất hợp lệ (0 hoặc nhiều hơn)",
+        "recalculated": "Chi phí đã được tính toán lại: {{amount}} ({{confidence}})"
+      },
+      "bom": {
+        "heading": "Vật liệu (BOM)",
+        "subtitle": "Hàng tồn kho + nguyên liệu thô được sử dụng để tạo thiết kế này.",
+        "addMaterial": "Thêm vật liệu",
+        "empty": "Chưa có vật liệu nào được liên kết.",
+        "emptyOwnerHint": " Thêm các mục kho mà thiết kế này tiêu thụ.",
+        "noImg": "Không có ảnh",
+        "sku": "SKU",
+        "planned": "Kế hoạch",
+        "consumed": "Đã tiêu thụ",
+        "removeTitle": "Xóa vật liệu",
+        "removeDescription": "Xóa \"{{name}}\" khỏi danh mục vật liệu của thiết kế này?",
+        "removed": "Vật liệu đã bị xóa",
+        "materialAlt": "vật liệu"
+      },
+      "consumption": {
+        "heading": "Sử dụng vật liệu",
+        "subtitle": "Ghi chép nguyên liệu thô tiêu thụ trong quá trình sản xuất",
+        "log": "Ghi chép",
+        "closedReview": "Đã đóng ghi chép — đợt sản xuất đang chờ xem xét",
+        "closedComplete": "Đã đóng ghi chép — đợt sản xuất đã hoàn tất",
+        "closedNone": "Không khả dụng ghi chép",
+        "drawerTitle": "Ghi chép sử dụng vật liệu",
+        "drawerDescription": "Ghi lại nguyên liệu thô tiêu thụ trong quá trình sản xuất.",
+        "noInventory": "Chưa liên kết kho",
+        "noInventoryHint": "Hãy liên kết nguyên liệu thô với thiết kế này trước, sau đó bạn có thể ghi chép sử dụng vật liệu tại đây.",
+        "inventoryItem": "Mục kho",
+        "selectItem": "Chọn mục",
+        "quantity": "Số lượng",
+        "measuredAs": "Đo bằng",
+        "perPiece": "Trên mỗi chiếc",
+        "totalRun": "Tổng cho đợt sản xuất",
+        "perPieceHint": "Vật liệu cho MỘT chiếc thành phẩm — chúng tôi sẽ nhân với số lượng bạn làm.",
+        "totalRunHint": "Vật liệu cho TOÀN BỘ đợt sản xuất — ghi lại đúng như nhập vào.",
+        "costPerUnit": "Chi phí mỗi đơn vị",
+        "optional": "Tùy chọn",
+        "unit": "Đơn vị",
+        "type": "Loại",
+        "notes": "Ghi chú",
+        "notesPlaceholder": "Vật liệu này được sử dụng cho mục đích gì?",
+        "logUsage": "Ghi chép sử dụng",
+        "empty": "Chưa có ghi chép sử dụng vật liệu nào",
+        "required": "Mục kho và số lượng là bắt buộc",
+        "logged": "Đã ghi chép tiêu thụ",
+        "failed": "Ghi chép tiêu thụ thất bại",
+        "accessory": "phụ kiện",
+        "committed": "đã cam kết",
+        "pending": "đang chờ",
+        "totalMaterialCost": "Tổng chi phí vật liệu"
+      },
+      "create": {
+        "heading": "Tạo thiết kế",
+        "namePlaceholder": "ví dụ: Áo khoác mùa xuân",
+        "descriptionPlaceholder": "Thiết kế này là gì?",
+        "designerNotesPlaceholder": "Ghi chú nội bộ",
+        "created": "Thiết kế đã được tạo"
+      },
+      "edit": {
+        "heading": "Chỉnh sửa thiết kế",
+        "updated": "Thiết kế đã được cập nhật"
+      },
+      "addInventory": {
+        "selectedCount": "Đã chọn {{count}}",
+        "selectPrompt": "Chọn vật liệu để thêm",
+        "addToDesign": "Thêm vào thiết kế",
+        "noRawMaterialsTitle": "Không có nguyên liệu thô",
+        "noRawMaterialsMessage": "Không tìm thấy nguyên liệu thô nào. Quản trị viên quản lý danh mục nguyên liệu thô dùng chung.",
+        "selectAtLeastOne": "Chọn ít nhất một vật liệu",
+        "added_one": "Đã thêm {{count}} vật liệu",
+        "added_other": "Đã thêm {{count}} vật liệu",
+        "sku": "SKU",
+        "columns": {
+          "material": "Vật liệu",
+          "composition": "Thành phần",
+          "color": "Màu sắc",
+          "unit": "Đơn vị"
+        }
+      },
+      "runCreate": {
+        "heading": "Tạo đơn hàng thiết kế",
+        "subtitle": "Bắt đầu sản xuất cho thiết kế này. Đơn hàng thiết kế đã được phê duyệt và sẵn sàng để làm việc ngay lập tức.",
+        "quantity": "Số lượng",
+        "runType": "Loại đợt sản xuất",
+        "production": "Sản xuất",
+        "sample": "Mẫu",
+        "howMade": "Được sản xuất như thế nào?",
+        "inHouse": "Nội bộ (bạn tự làm)",
+        "outsourced": "Thuê ngoài (giao cho đối tác phụ)",
+        "executionHint": "Nội bộ giữ công việc cho bạn; thuê ngoài ghi lại nhà cung cấp để theo dõi chi phí.",
+        "subPartnerId": "ID đối tác phụ",
+        "subPartnerPlaceholder": "partner_…",
+        "subPartnerHint": "Đối tác mà bạn giao đợt sản xuất này.",
+        "createOrder": "Tạo đơn hàng thiết kế",
+        "started": "Đã bắt đầu sản xuất"
+      }
     }
   },
   "shippingOptionTypes": {

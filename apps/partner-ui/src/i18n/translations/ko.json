@@ -3781,6 +3781,360 @@
       "toast": {
         "startFailed": "Stripe 온보딩을 시작할 수 없습니다."
       }
+    },
+    "designs": {
+      "heading": "디자인",
+      "design": "디자인",
+      "notFound": "디자인을 찾을 수 없습니다.",
+      "missingId": "디자인 ID가 누락되었습니다.",
+      "sizes": "사이즈",
+      "overdue": "기한 초과",
+      "statusOptions": {
+        "conceptual": "구상 단계",
+        "inDevelopment": "개발 중",
+        "technicalReview": "기술 검토 중",
+        "sampleProduction": "샘플 제작 중",
+        "revision": "수정 중",
+        "approved": "승인됨",
+        "rejected": "거절됨",
+        "onHold": "보류 중",
+        "commerceReady": "판매 준비 완료",
+        "superseded": "대체됨"
+      },
+      "priorityOptions": {
+        "low": "낮음",
+        "medium": "보통",
+        "high": "높음",
+        "urgent": "긴급"
+      },
+      "typeOptions": {
+        "original": "오리지널",
+        "derivative": "파생",
+        "custom": "커스텀",
+        "collaboration": "콜라보레이션"
+      },
+      "workStatusOptions": {
+        "incoming": "수신됨",
+        "assigned": "할당됨",
+        "inProgress": "진행 중",
+        "awaitingReview": "검토 대기 중",
+        "finished": "종료됨",
+        "completed": "완료됨",
+        "cancelled": "취소됨"
+      },
+      "runStatusOptions": {
+        "draft": "초안",
+        "pendingReview": "검토 대기 중",
+        "approved": "승인됨",
+        "sentToPartner": "파트너에게 전송됨",
+        "inProgress": "진행 중",
+        "completed": "완료됨",
+        "cancelled": "취소됨",
+        "awaitingReassignment": "재할당 대기 중"
+      },
+      "bucketOptions": {
+        "incoming": "수신",
+        "inProgress": "진행 중",
+        "yours": "내 작업",
+        "completed": "완료됨",
+        "all": "전체"
+      },
+      "engagementOptions": {
+        "owned": {
+          "label": "내 디자인",
+          "hint": "직접 생성한 디자인입니다."
+        },
+        "assigned": {
+          "label": "할당됨",
+          "hint": "이 디자인에 대한 생산 작업이 할당되었습니다."
+        },
+        "shared": {
+          "label": "공유됨",
+          "hint": "참고용으로 공유되었습니다. 할당된 생산 작업이 없습니다(자체 제작 또는 다른 파트너 작업)."
+        }
+      },
+      "actionOptions": {
+        "accept": "수락",
+        "working": "작업 중",
+        "complete": "완료 처리",
+        "underReview": "검토 중",
+        "done": "완료",
+        "cancelled": "취소됨"
+      },
+      "confidenceOptions": {
+        "exact": "확정",
+        "estimated": "추정"
+      },
+      "runTypeOptions": {
+        "production": "본생산",
+        "sample": "샘플"
+      },
+      "unitOptions": {
+        "meter": "미터",
+        "yard": "야드",
+        "kilogram": "킬로그램",
+        "gram": "그램",
+        "piece": "개",
+        "roll": "롤",
+        "other": "기타"
+      },
+      "consumptionTypeOptions": {
+        "sample": "샘플",
+        "production": "본생산",
+        "wastage": "손실량"
+      },
+      "fields": {
+        "priority": "우선순위",
+        "designerNotes": "디자이너 노트",
+        "unit": "단위",
+        "color": "색상",
+        "composition": "혼용률"
+      },
+      "list": {
+        "subtitle": "탭을 선택하여 수신, 진행 중, 내 작업 또는 완료된 작업을 확인하세요.",
+        "loadFailed": "디자인을 불러오지 못했습니다. 페이지를 새로고침해 주세요.",
+        "noRecords": "이 탭에 디자인이 없습니다. 다른 탭을 선택하거나 검색어를 지워보세요.",
+        "columns": {
+          "name": "이름",
+          "source": "출처",
+          "nextAction": "다음 작업",
+          "workStatus": "작업 상태",
+          "priority": "우선순위",
+          "due": "마감일",
+          "status": "디자인 상태",
+          "lastUpdated": "최종 수정일"
+        }
+      },
+      "detail": {
+        "general": "일반",
+        "garmentType": "의류 종류",
+        "inferred": "추정됨",
+        "partnerStatus": "파트너 상태",
+        "priority": "우선순위",
+        "targetDate": "목표일",
+        "estimatedCost": "추정 비용",
+        "description": "설명",
+        "specifications": "사양",
+        "specs": "스펙",
+        "tags": "태그",
+        "colorPalette": "컬러 팔레트",
+        "inventoryItems": "재고 품목",
+        "noInventoryItems": "이 디자인에 연결된 재고 품목이 없습니다.",
+        "designerNotes": "디자이너 노트",
+        "noNotes": "노트 없음",
+        "resizeHint": "하단 테두리를 드래그하여 크기 조절"
+      },
+      "media": {
+        "heading": "미디어",
+        "manage": "관리",
+        "empty": "미디어 파일이 없습니다",
+        "emptyHint": "이미지를 추가하여 디자인을 선보이세요",
+        "addMedia": "미디어 추가",
+        "alt": "디자인 미디어",
+        "preview": "디자인 미디어 미리보기",
+        "download": "다운로드",
+        "manageMedia": "미디어 관리",
+        "uploadDescription": "이 디자인에 미디어를 업로드하고 첨부하세요",
+        "uploadImages": "이미지 업로드",
+        "dropHint": "파일을 여기에 끌어다 놓거나 클릭하여 찾아보기",
+        "existing": "기존",
+        "selected": "선택됨",
+        "loadingDesign": "디자인 불러오는 중...",
+        "addAtLeastOne": "최소 하나의 파일을 추가하세요",
+        "uploadFailed": "파일 업로드에 실패했습니다",
+        "attached": "미디어가 첨부되었습니다",
+        "someRejected": "일부 파일이 거부되었습니다",
+        "uploadIntro": "이 디자인에 첨부할 이미지를 업로드하세요."
+      },
+      "moodboard": {
+        "heading": "무드보드",
+        "description": "레퍼런스와 영감을 수집하세요.",
+        "open": "무드보드 열기",
+        "generateConfirm": "이 디자인의 기획안에서 무드보드를 생성하시겠습니까? 기존 카드는 대체되지 않고 병합됩니다.",
+        "generating": "무드보드 생성 중…",
+        "generated": "무드보드가 생성되었습니다",
+        "generateFailed": "무드보드 생성에 실패했습니다",
+        "inserted": "\"{{label}}\" 삽입됨",
+        "insertFailed": "블록 삽입에 실패했습니다",
+        "nothingToInsert": "아직 \"{{label}}\"에 삽입할 내용이 없습니다.",
+        "saving": "무드보드 저장 중…",
+        "saved": "무드보드가 저장되었습니다",
+        "saveFailed": "무드보드 저장에 실패했습니다",
+        "briefSyncFailed": "무드보드는 저장되었으나 기획안 수정 사항을 동기화하지 못했습니다.",
+        "insertBlock": "블록 삽입",
+        "noBlocks": "사용 가능한 블록 없음",
+        "emptySuffix": "· 비어 있음",
+        "addConstruction": "구조 상세 추가",
+        "generate": "생성",
+        "layers": "레이어",
+        "save": "저장",
+        "savedLabel": "저장됨",
+        "footerHint": "삽입, 구조, 생성, 레이어 및 저장 기능은 캔버스 하단 독에 있습니다."
+      },
+      "layers": {
+        "heading": "레이어",
+        "refresh": "새로고침",
+        "close": "닫기",
+        "noFrames": "아직 프레임이 없습니다.",
+        "untitled": "제목 없는 프레임",
+        "hasContent": "콘텐츠 있음",
+        "empty": "비어 있음",
+        "jump": "프레임으로 이동",
+        "show": "표시",
+        "hide": "숨기기",
+        "lockedWhileHidden": "숨김 상태에서는 잠김",
+        "unlock": "잠금 해제",
+        "lock": "잠금"
+      },
+      "construction": {
+        "heading": "구조 상세 추가",
+        "details": "구조 상세",
+        "loading": "기법 불러오는 중…",
+        "hint": "왼쪽에서 기법이나 프리셋을 선택하세요. 매개변수와 원단 규칙이 여기에 자동 입력됩니다.",
+        "label": "라벨",
+        "parameters": "매개변수",
+        "fixedGeometry": "이 기법은 고정 형상이므로 설정할 매개변수가 없습니다.",
+        "fabricRules": "원단 / 봉제 규칙",
+        "oneRulePerLine": "줄당 규칙 하나",
+        "note": "메모",
+        "optional": "선택 사항",
+        "addDetail": "상세 추가",
+        "added": "\"{{label}}\" 추가됨",
+        "addFailed": "구조 상세 추가 실패"
+      },
+      "ownerActions": {
+        "yourDesign": "내 디자인",
+        "activeOrders_one": "진행 중인 디자인 주문 {{count}}개. 다른 주문을 생성하거나 하위 파트너에게 전달하세요.",
+        "activeOrders_other": "진행 중인 디자인 주문 {{count}}개. 다른 주문을 생성하거나 하위 파트너에게 전달하세요.",
+        "noOrders": "이 디자인을 생성했습니다. 생산을 시작하려면 디자인 주문을 생성하거나 하위 파트너에게 전달하세요.",
+        "newOrder": "새 주문",
+        "createOrder": "주문 생성",
+        "deleteTitle": "디자인 삭제",
+        "deleteDescription": "\"{{name}}\" 디자인을 삭제하시겠습니까? 이 작업은 되돌릴 수 없습니다.",
+        "deleted": "디자인이 삭제되었습니다"
+      },
+      "production": {
+        "heading": "디자인 주문",
+        "empty": "아직 디자인 주문이 없습니다. 디자인 주문을 생성하여 생산을 시작하거나, 관리자가 작업을 전달하면 여기에 표시됩니다.",
+        "subtitle": "디자인 주문을 열어 작업을 수락하고 원자재 사용 기록을 남기며 상태를 업데이트하세요.",
+        "previous": "이전 디자인 주문 ({{count}})",
+        "viewOrder": "주문 보기",
+        "orderType": "{{type}} 주문",
+        "qty": "수량 {{qty}}"
+      },
+      "cost": {
+        "heading": "견적 산출",
+        "subtitle": "연결된 BOM의 자재비 + 생산비에 JYT 플랫폼 수수료가 합산됩니다.",
+        "recalculate": "재산출",
+        "estimatedTotal": "예상 합계",
+        "materialCost": "자재비",
+        "productionCost": "생산비",
+        "platformFee": "플랫폼 수수료 ({{percent}}%)",
+        "lastCalculated": "최근 산출일",
+        "yourInput": "직접 입력",
+        "estimatedLabel": "추정값",
+        "yourProductionCost": "생산 단가 (개당)",
+        "autoEstimate": "자동 추정",
+        "helper": "자동 추정값을 덮어씁니다. 내역 기반으로 추정하려면 비워 두세요. 자재비에 {{percent}}%의 플랫폼 수수료가 적용됩니다. 적용하려면 재산출을 누르세요.",
+        "noEstimate": "아직 견적이 없습니다. BOM에 자재를 추가한 후 재산출하세요.",
+        "enterValid": "유효한 생산비를 입력하세요 (0 이상)",
+        "recalculated": "비용 재산출 완료: {{amount}} ({{confidence}})"
+      },
+      "bom": {
+        "heading": "자재 명세서 (BOM)",
+        "subtitle": "이 디자인을 제작하는 데 사용되는 재고 및 원자재입니다.",
+        "addMaterial": "자재 추가",
+        "empty": "아직 연결된 자재가 없습니다.",
+        "emptyOwnerHint": " 이 디자인에 소요되는 재고 품목을 추가하세요.",
+        "noImg": "이미지 없음",
+        "sku": "SKU",
+        "planned": "계획량",
+        "consumed": "소모량",
+        "removeTitle": "자재 제거",
+        "removeDescription": "이 디자인의 자재 명세서에서 \"{{name}}\"을(를) 제거하시겠습니까?",
+        "removed": "자재가 제거되었습니다",
+        "materialAlt": "자재"
+      },
+      "consumption": {
+        "heading": "자재 사용량",
+        "subtitle": "생산 중 소모된 원자재를 기록합니다",
+        "log": "기록",
+        "closedReview": "기록 종료 — 검토 대기 중",
+        "closedComplete": "기록 종료 — 작업 완료됨",
+        "closedNone": "기록을 사용할 수 없음",
+        "drawerTitle": "자재 사용량 기록",
+        "drawerDescription": "생산 중 소모된 원자재를 기록하세요.",
+        "noInventory": "연결된 재고가 없습니다",
+        "noInventoryHint": "먼저 이 디자인에 원자재를 연결하면 여기에 사용량을 기록할 수 있습니다.",
+        "inventoryItem": "재고 품목",
+        "selectItem": "품목 선택",
+        "quantity": "수량",
+        "measuredAs": "측정 기준",
+        "perPiece": "개당",
+        "totalRun": "전체 작업 총량",
+        "perPieceHint": "완성품 1개당 자재량 — 제작 수량만큼 곱해집니다.",
+        "totalRunHint": "전체 작업에 소요되는 총 자재량 — 입력한 그대로 기록됩니다.",
+        "costPerUnit": "단가",
+        "optional": "선택 사항",
+        "unit": "단위",
+        "type": "유형",
+        "notes": "메모",
+        "notesPlaceholder": "이 자재가 어디에 사용되었나요?",
+        "logUsage": "사용량 기록",
+        "empty": "기록된 자재 사용량이 없습니다",
+        "required": "재고 품목과 수량은 필수 항목입니다",
+        "logged": "사용량이 기록되었습니다",
+        "failed": "사용량 기록 실패",
+        "accessory": "부자재",
+        "committed": "확정됨",
+        "pending": "대기 중",
+        "totalMaterialCost": "총 자재비"
+      },
+      "create": {
+        "heading": "디자인 생성",
+        "namePlaceholder": "예: 스프링 재킷",
+        "descriptionPlaceholder": "어떤 디자인인가요?",
+        "designerNotesPlaceholder": "내부 메모",
+        "created": "디자인이 생성되었습니다"
+      },
+      "edit": {
+        "heading": "디자인 수정",
+        "updated": "디자인이 수정되었습니다"
+      },
+      "addInventory": {
+        "selectedCount": "{{count}}개 선택됨",
+        "selectPrompt": "추가할 자재를 선택하세요",
+        "addToDesign": "디자인에 추가",
+        "noRawMaterialsTitle": "원자재 없음",
+        "noRawMaterialsMessage": "원자재를 찾을 수 없습니다. 공유 원자재 카탈로그는 관리자가 관리합니다.",
+        "selectAtLeastOne": "자재를 하나 이상 선택하세요",
+        "added_one": "자재 {{count}}개가 추가되었습니다",
+        "added_other": "자재 {{count}}개가 추가되었습니다",
+        "sku": "SKU",
+        "columns": {
+          "material": "자재",
+          "composition": "혼용률",
+          "color": "색상",
+          "unit": "단위"
+        }
+      },
+      "runCreate": {
+        "heading": "디자인 주문 생성",
+        "subtitle": "이 디자인의 생산을 시작합니다. 디자인 주문이 승인되어 즉시 작업이 가능합니다.",
+        "quantity": "수량",
+        "runType": "작업 유형",
+        "production": "본생산",
+        "sample": "샘플",
+        "howMade": "생산 방식",
+        "inHouse": "자체 제작 (직접 생산)",
+        "outsourced": "외주 제작 (하위 파트너 전달)",
+        "executionHint": "자체 제작은 직접 작업을 진행하며, 외주 제작은 비용 추적을 위해 업체 정보를 기록합니다.",
+        "subPartnerId": "하위 파트너 ID",
+        "subPartnerPlaceholder": "partner_…",
+        "subPartnerHint": "이 생산을 전달할 파트너입니다.",
+        "createOrder": "디자인 주문 생성",
+        "started": "생산이 시작되었습니다"
+      }
     }
   },
   "refundReasons": {

@@ -3781,6 +3781,360 @@
       "toast": {
         "startFailed": "无法启动 Stripe 入驻流程"
       }
+    },
+    "designs": {
+      "heading": "设计",
+      "design": "设计",
+      "notFound": "未找到该设计。",
+      "missingId": "缺少设计 ID。",
+      "sizes": "尺寸",
+      "overdue": "逾期",
+      "statusOptions": {
+        "conceptual": "概念阶段",
+        "inDevelopment": "开发中",
+        "technicalReview": "技术审核",
+        "sampleProduction": "样品生产",
+        "revision": "修订中",
+        "approved": "已批准",
+        "rejected": "已拒绝",
+        "onHold": "暂停",
+        "commerceReady": "可商业化",
+        "superseded": "已替代"
+      },
+      "priorityOptions": {
+        "low": "低",
+        "medium": "中",
+        "high": "高",
+        "urgent": "紧急"
+      },
+      "typeOptions": {
+        "original": "原创",
+        "derivative": "衍生",
+        "custom": "定制",
+        "collaboration": "协作"
+      },
+      "workStatusOptions": {
+        "incoming": "待处理",
+        "assigned": "已分配",
+        "inProgress": "进行中",
+        "awaitingReview": "等待审核",
+        "finished": "已完工",
+        "completed": "已完成",
+        "cancelled": "已取消"
+      },
+      "runStatusOptions": {
+        "draft": "草稿",
+        "pendingReview": "审核中",
+        "approved": "已批准",
+        "sentToPartner": "已发送至合作伙伴",
+        "inProgress": "进行中",
+        "completed": "已完成",
+        "cancelled": "已取消",
+        "awaitingReassignment": "等待重新分配"
+      },
+      "bucketOptions": {
+        "incoming": "待处理",
+        "inProgress": "进行中",
+        "yours": "我的",
+        "completed": "已完成",
+        "all": "全部"
+      },
+      "engagementOptions": {
+        "owned": {
+          "label": "我的",
+          "hint": "您创建了此设计。"
+        },
+        "assigned": {
+          "label": "已分配",
+          "hint": "您有此设计的生产任务 —— 这是您的工作。"
+        },
+        "shared": {
+          "label": "共享",
+          "hint": "与您共享以供参考。未为您分配生产任务（工作可能在内部或由另一合作伙伴执行）。"
+        }
+      },
+      "actionOptions": {
+        "accept": "接受",
+        "working": "处理中",
+        "complete": "完成",
+        "underReview": "审核中",
+        "done": "已完成",
+        "cancelled": "已取消"
+      },
+      "confidenceOptions": {
+        "exact": "精确",
+        "estimated": "预估"
+      },
+      "runTypeOptions": {
+        "production": "量产",
+        "sample": "样品"
+      },
+      "unitOptions": {
+        "meter": "米",
+        "yard": "码",
+        "kilogram": "千克",
+        "gram": "克",
+        "piece": "件",
+        "roll": "卷",
+        "other": "其他"
+      },
+      "consumptionTypeOptions": {
+        "sample": "样品",
+        "production": "量产",
+        "wastage": "损耗"
+      },
+      "fields": {
+        "priority": "优先级",
+        "designerNotes": "设计师备注",
+        "unit": "单位",
+        "color": "颜色",
+        "composition": "成分"
+      },
+      "list": {
+        "subtitle": "选择标签页以查看待处理、进行中、个人或已完成的工作。",
+        "loadFailed": "加载设计失败。请尝试刷新页面。",
+        "noRecords": "此标签页中没有设计。请尝试其他标签页或清除搜索。",
+        "columns": {
+          "name": "名称",
+          "source": "来源",
+          "nextAction": "下一步操作",
+          "workStatus": "工作状态",
+          "priority": "优先级",
+          "due": "截止日期",
+          "status": "设计状态",
+          "lastUpdated": "最后更新"
+        }
+      },
+      "detail": {
+        "general": "常规",
+        "garmentType": "服装类型",
+        "inferred": "推断",
+        "partnerStatus": "合作伙伴状态",
+        "priority": "优先级",
+        "targetDate": "目标日期",
+        "estimatedCost": "预估成本",
+        "description": "描述",
+        "specifications": "规格",
+        "specs": "规格",
+        "tags": "标签",
+        "colorPalette": "调色板",
+        "inventoryItems": "库存项目",
+        "noInventoryItems": "此设计未关联任何库存项目。",
+        "designerNotes": "设计师备注",
+        "noNotes": "无备注",
+        "resizeHint": "拖动底边以调整大小"
+      },
+      "media": {
+        "heading": "媒体",
+        "manage": "管理",
+        "empty": "暂无媒体文件",
+        "emptyHint": "添加图片以展示您的设计",
+        "addMedia": "添加媒体",
+        "alt": "设计媒体",
+        "preview": "预览设计媒体",
+        "download": "下载",
+        "manageMedia": "管理媒体",
+        "uploadDescription": "上传并附加媒体到此设计",
+        "uploadImages": "上传图片",
+        "dropHint": "将文件拖到此处或点击浏览",
+        "existing": "现有",
+        "selected": "已选",
+        "loadingDesign": "正在加载设计...",
+        "addAtLeastOne": "请至少添加一个文件",
+        "uploadFailed": "文件上传失败",
+        "attached": "媒体已附加",
+        "someRejected": "部分文件被拒绝",
+        "uploadIntro": "上传图片以附加到此设计。"
+      },
+      "moodboard": {
+        "heading": "情绪板",
+        "description": "收集参考资料和灵感。",
+        "open": "打开情绪板",
+        "generateConfirm": "根据此设计的简报生成情绪板？您现有的卡片将被合并而非替换。",
+        "generating": "正在生成情绪板…",
+        "generated": "情绪板已生成",
+        "generateFailed": "生成情绪板失败",
+        "inserted": "已插入 \"{{label}}\"",
+        "insertFailed": "插入区块失败",
+        "nothingToInsert": "目前没有可插入 \"{{label}}\" 的内容。",
+        "saving": "正在保存情绪板…",
+        "saved": "情绪板已保存",
+        "saveFailed": "保存情绪板失败",
+        "briefSyncFailed": "情绪板已保存，但简报编辑无法同步。",
+        "insertBlock": "插入区块",
+        "noBlocks": "无可用区块",
+        "emptySuffix": "· 空",
+        "addConstruction": "添加结构",
+        "generate": "生成",
+        "layers": "图层",
+        "save": "保存",
+        "savedLabel": "已保存",
+        "footerHint": "插入、结构、生成、图层和保存位于画布底部的工具栏中。"
+      },
+      "layers": {
+        "heading": "图层",
+        "refresh": "刷新",
+        "close": "关闭",
+        "noFrames": "暂无框架。",
+        "untitled": "未命名框架",
+        "hasContent": "有内容",
+        "empty": "空",
+        "jump": "跳转至框架",
+        "show": "显示",
+        "hide": "隐藏",
+        "lockedWhileHidden": "隐藏时锁定",
+        "unlock": "解锁",
+        "lock": "锁定"
+      },
+      "construction": {
+        "heading": "添加结构细节",
+        "details": "结构细节",
+        "loading": "正在加载工艺…",
+        "hint": "在左侧选择一种工艺或预设 —— 其参数和面料规则将在此自动填充。",
+        "label": "标签",
+        "parameters": "参数",
+        "fixedGeometry": "此工艺具有固定几何形状 —— 无需设置参数。",
+        "fabricRules": "面料/缝制规则",
+        "oneRulePerLine": "每行一条规则",
+        "note": "备注",
+        "optional": "可选",
+        "addDetail": "添加细节",
+        "added": "已添加 \"{{label}}\"",
+        "addFailed": "添加结构细节失败"
+      },
+      "ownerActions": {
+        "yourDesign": "您的设计",
+        "activeOrders_one": "有 {{count}} 个设计订单正在进行中。创建新订单或将其交给分包商。",
+        "activeOrders_other": "有 {{count}} 个设计订单正在进行中。创建新订单或将其交给分包商。",
+        "noOrders": "您创建了此设计。请创建设计订单以开始生产，或将其交给分包商。",
+        "newOrder": "新订单",
+        "createOrder": "创建订单",
+        "deleteTitle": "删除设计",
+        "deleteDescription": "删除 \"{{name}}\"？此操作无法撤销。",
+        "deleted": "设计已删除"
+      },
+      "production": {
+        "heading": "设计订单",
+        "empty": "暂无设计订单。创建设计订单以开始生产，或者在管理员为您分配工作后在此查看。",
+        "subtitle": "打开设计订单以接受工作、记录物料并更新状态。",
+        "previous": "之前的设计订单 ({{count}})",
+        "viewOrder": "查看订单",
+        "orderType": "{{type}} 订单",
+        "qty": "数量 {{qty}}"
+      },
+      "cost": {
+        "heading": "成本预估",
+        "subtitle": "来自关联 BOM 的物料 + 生产成本，外加 JYT 平台费。",
+        "recalculate": "重新计算",
+        "estimatedTotal": "预估总额",
+        "materialCost": "物料成本",
+        "productionCost": "生产成本",
+        "platformFee": "平台费 ({{percent}}%)",
+        "lastCalculated": "最后计算时间",
+        "yourInput": "您的输入",
+        "estimatedLabel": "预估",
+        "yourProductionCost": "您的生产成本 (单价)",
+        "autoEstimate": "自动预估",
+        "helper": "覆盖自动预估 —— 留空则根据历史记录预估。物料成本将收取 {{percent}}% 的平台费。点击重新计算以应用。",
+        "noEstimate": "暂无预估 —— 请在 BOM 中添加物料，然后重新计算。",
+        "enterValid": "请输入有效的生产成本 (0 或更多)",
+        "recalculated": "成本已重新计算: {{amount}} ({{confidence}})"
+      },
+      "bom": {
+        "heading": "物料清单 (BOM)",
+        "subtitle": "用于制作此设计的库存和原材料。",
+        "addMaterial": "添加物料",
+        "empty": "尚未关联物料。",
+        "emptyOwnerHint": " 请添加此设计消耗的库存项目。",
+        "noImg": "无图",
+        "sku": "SKU",
+        "planned": "计划",
+        "consumed": "已消耗",
+        "removeTitle": "移除物料",
+        "removeDescription": "从该设计的物料清单中移除 \"{{name}}\" 吗？",
+        "removed": "物料已移除",
+        "materialAlt": "物料"
+      },
+      "consumption": {
+        "heading": "物料使用情况",
+        "subtitle": "记录生产过程中消耗的原材料",
+        "log": "记录",
+        "closedReview": "记录已关闭 —— 批次等待审核",
+        "closedComplete": "记录已关闭 —— 批次已完成",
+        "closedNone": "记录不可用",
+        "drawerTitle": "记录物料使用情况",
+        "drawerDescription": "记录生产过程中消耗的原材料。",
+        "noInventory": "尚未关联库存",
+        "noInventoryHint": "请先将原材料关联到此设计，然后在此记录物料使用情况。",
+        "inventoryItem": "库存项目",
+        "selectItem": "选择项目",
+        "quantity": "数量",
+        "measuredAs": "计量方式",
+        "perPiece": "每件",
+        "totalRun": "本批次总计",
+        "perPieceHint": "单个成品所需的物料 —— 我们会根据生产数量进行乘法计算。",
+        "totalRunHint": "整个批次所需的物料 —— 按输入值记录。",
+        "costPerUnit": "单位成本",
+        "optional": "可选",
+        "unit": "单位",
+        "type": "类型",
+        "notes": "备注",
+        "notesPlaceholder": "此物料用于什么？",
+        "logUsage": "记录使用情况",
+        "empty": "尚未记录物料使用情况",
+        "required": "库存项目和数量为必填项",
+        "logged": "消耗已记录",
+        "failed": "记录消耗失败",
+        "accessory": "配件",
+        "committed": "已承诺",
+        "pending": "待定",
+        "totalMaterialCost": "总物料成本"
+      },
+      "create": {
+        "heading": "创建设计",
+        "namePlaceholder": "例如：春季夹克",
+        "descriptionPlaceholder": "这是一个什么样的设计？",
+        "designerNotesPlaceholder": "内部备注",
+        "created": "设计已创建"
+      },
+      "edit": {
+        "heading": "编辑设计",
+        "updated": "设计已更新"
+      },
+      "addInventory": {
+        "selectedCount": "已选 {{count}} 项",
+        "selectPrompt": "选择要添加的物料",
+        "addToDesign": "添加到设计",
+        "noRawMaterialsTitle": "无原材料",
+        "noRawMaterialsMessage": "未找到原材料。管理员维护共享的原材料目录。",
+        "selectAtLeastOne": "请至少选择一种物料",
+        "added_one": "已添加 {{count}} 种物料",
+        "added_other": "已添加 {{count}} 种物料",
+        "sku": "SKU",
+        "columns": {
+          "material": "物料",
+          "composition": "成分",
+          "color": "颜色",
+          "unit": "单位"
+        }
+      },
+      "runCreate": {
+        "heading": "创建设计订单",
+        "subtitle": "开始此设计的生产。设计订单已批准，可立即开始工作。",
+        "quantity": "数量",
+        "runType": "批次类型",
+        "production": "量产",
+        "sample": "样品",
+        "howMade": "如何制作？",
+        "inHouse": "内部制作 (由您制作)",
+        "outsourced": "外包 (交给分包商)",
+        "executionHint": "内部制作将工作保留在您这里；外包则记录供应商以进行成本跟踪。",
+        "subPartnerId": "分包商 ID",
+        "subPartnerPlaceholder": "partner_…",
+        "subPartnerHint": "您将此生产任务交给的合作伙伴。",
+        "createOrder": "创建设计订单",
+        "started": "生产已开始"
+      }
     }
   },
   "refundReasons": {
