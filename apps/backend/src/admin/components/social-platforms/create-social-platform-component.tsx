@@ -51,6 +51,9 @@ const CreateSocialPlatformSchema = z.object({
   client_id: z.string().optional(),
   client_secret: z.string().optional(),
   mode: z.string().optional(),
+  // Social OAuth (Pinterest et al.)
+  redirect_uri: z.string().url("Must be a valid URL").optional().or(z.literal('')),
+  scope: z.string().optional(),
   // Shipping fields
   account_number: z.string().optional(),
   email: z.string().optional(),

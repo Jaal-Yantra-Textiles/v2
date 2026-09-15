@@ -9,6 +9,7 @@ import { StorageProviderFields } from "./storage-provider-fields"
 import { CrmProviderFields } from "./crm-provider-fields"
 import { AuthenticationProviderFields } from "./authentication-provider-fields"
 import { AiProviderFields } from "./ai-provider-fields"
+import { SocialProviderFields } from "./social-provider-fields"
 
 type CategoryProviderFieldsProps = {
   category: string
@@ -24,6 +25,8 @@ export const CategoryProviderFields = ({
   isEditing,
 }: CategoryProviderFieldsProps) => {
   switch (category) {
+    case "social":
+      return <SocialProviderFields control={control} watch={watch} isEditing={isEditing} />
     case "email":
       return <EmailProviderFields control={control} watch={watch} isEditing={isEditing} />
     case "communication":
@@ -51,6 +54,7 @@ export const CategoryProviderFields = ({
 
 /** Categories that have provider-specific config fields */
 export const CATEGORIES_WITH_PROVIDER_FIELDS = [
+  "social",
   "email",
   "communication",
   "sms",

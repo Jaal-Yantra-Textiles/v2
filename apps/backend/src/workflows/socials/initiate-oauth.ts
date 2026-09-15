@@ -23,7 +23,9 @@ const initiateOauthStep = createStep(
     const socialProviderService = container.resolve<SocialProviderService>(
       SOCIAL_PROVIDER_MODULE
     )
-    const provider = socialProviderService.getProvider(platform.toLowerCase())
+    const provider = (platform.toLowerCase() === "pinterest"
+      ? await socialProviderService.getPinterest(container)
+      : socialProviderService.getProvider(platform.toLowerCase()))
 
     if (typeof (provider as any).initiateUserAuth !== "function") {
       throw new MedusaError(

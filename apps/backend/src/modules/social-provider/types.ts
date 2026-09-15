@@ -5,6 +5,11 @@ export interface TwitterProviderConfig {
   apiSecret?: string
 }
 
+export interface PinterestProviderConfig {
+  clientId?: string
+  clientSecret?: string
+}
+
 export interface TwitterAppToken {
   token: string
   expiresAt: number

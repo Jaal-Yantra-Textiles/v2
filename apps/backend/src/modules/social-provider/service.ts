@@ -4,6 +4,7 @@ import TwitterService from "./twitter-service"
 import InstagramService from "./instagram-service"
 import FacebookService from "./facebook-service"
 import LinkedInService from "./linkedin-service"
+import PinterestService from "./pinterest-service"
 import ContentPublishingService from "./content-publishing-service"
 import WhatsAppService, { type WhatsAppSender } from "./whatsapp-service"
 import { OAuth2Token } from "./types"
@@ -56,6 +57,9 @@ class SocialProviderService extends MedusaService({}) {
         case "linkedin":
           this.cache_[key] = new LinkedInService()
           break
+        case "pinterest":
+          this.cache_[key] = new PinterestService()
+          break
         case "content-publishing":
           this.cache_[key] = new ContentPublishingService()
           break
@@ -74,6 +78,41 @@ class SocialProviderService extends MedusaService({}) {
    */
   getContentPublisher(): ContentPublishingService {
     return this.getProvider<ContentPublishingService>("content-publishing")
+  }
+
+  /**
+   * Resolve Pinterest credentials from the SocialPlatform row
+   * (`api_config.provider === "pinterest"`) when one is configured, falling
+   * back to the PINTEREST_CLIENT_ID / PINTEREST_CLIENT_SECRET env vars
+   * otherwise. `client_id` is stored plaintext; `client_secret` is read from
+   * its encrypted ciphertext when present.
+   */
+  async getPinterest(appContainer: MedusaContainer): Promise<PinterestService> {
+    const base = this.getProvider<PinterestService>("pinterest")
+    const socials = appContainer.resolve(SOCIALS_MODULE) as any
+    const platform = await socials.findPinterestPlatform?.()
+    if (!platform) return base
+
+    const cfg = (platform.api_config ?? {}) as Record<string, any>
+    const encryption = appContainer.resolve(ENCRYPTION_MODULE) as EncryptionService
+    const decrypt = (
+      encryptedField: EncryptedData | undefined,
+      plaintextField: string | undefined
+    ): string => {
+      if (encryptedField) {
+        try {
+          return encryption.decrypt(encryptedField)
+        } catch {
+          return plaintextField ?? ""
+        }
+      }
+      return plaintextField ?? ""
+    }
+
+    return base.withCredentials({
+      clientId: cfg.client_id || undefined,
+      clientSecret: decrypt(cfg.client_secret_encrypted, cfg.client_secret) || undefined,
+    })
   }
 
   /**
