@@ -19,20 +19,17 @@ import { DESIGN_MODULE } from "../modules/designs"
  *
  * Idempotent, but NOT by re-minting.
  *
- * 🔴 Re-running the mint on a design that already has a product CRASHES on
- * `HEAD` — `upsertProductOptions` throws
- * `TypeError: Cannot read properties of undefined (reading 'fieldNames')` from
- * the append branch. Reproduced here, and it is not this change's doing: the
- * committed version fails identically. So a second run reuses the product the
- * first one minted instead of re-minting it.
- *
- * ⚠️ What that costs, stated plainly: a re-run therefore does NOT re-test the
- * wiring — it reads back a spec an earlier mint wrote. To prove the mint still
- * attaches a spec, delete the design (or rename DESIGN_NAME) so the fresh path
- * runs. That is the path the mutation check uses.
+ * ⚠️ A plain re-run does NOT re-test the wiring — it reads back a spec an
+ * earlier mint wrote. To prove the mint still attaches one, delete the design
+ * (or rename DESIGN_NAME) so the fresh path runs. That is the path the
+ * mutation check uses. `FORCE_REMINT=1` exercises the append branch instead.
  *
  * Usage:
  *   npx medusa exec src/scripts/seed-design-spec-local.ts
+ *
+ *   # exercise the APPEND branch (mint onto a design that already has a
+ *   # product) — the path that used to crash, see #1970
+ *   FORCE_REMINT=1 npx medusa exec src/scripts/seed-design-spec-local.ts
  */
 const DESIGN_NAME = "E2E — Kashida Shawl, made to size"
 const SIZES = ["S", "M", "L", "XL"]
@@ -78,10 +75,12 @@ export default async function seedDesignSpecLocal({ container }: ExecArgs) {
   }
 
   /**
-   * Already minted? Reuse it. See the header: re-minting crashes on HEAD, and
-   * that bug is not this seed's to carry.
+   * Already minted? Reuse it — a re-run is refreshing a fixture, not testing
+   * the mint. `FORCE_REMINT=1` opts into the append branch instead, which is
+   * how the crash described in the header was reproduced and then verified
+   * fixed.
    */
-  const alreadyMinted = existing?.[0]?.products?.[0]?.id
+  const alreadyMinted = process.env.FORCE_REMINT ? null : existing?.[0]?.products?.[0]?.id
   if (alreadyMinted) {
     await reportSpec(query, logger, alreadyMinted)
     return

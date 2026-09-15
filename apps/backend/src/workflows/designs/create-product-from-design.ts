@@ -162,6 +162,53 @@ type CreateProductFromDesignOutput = {
  *
  * Exported for tests.
  */
+/**
+ * PURE: the payload that ADDS a value to an existing product option.
+ *
+ * 🔴 `upsertProductOptions` is the WRONG API for this, in two ways, and both
+ * were found by probing the real service rather than by reading it.
+ *
+ *   { id, product_id, title, values }  -> THROWS deep inside MikroORM's
+ *                                         upsertWithReplace:
+ *                                         "Cannot read properties of undefined
+ *                                         (reading 'fieldNames')"
+ *   { id, values }                     -> returns OK and PERSISTS NOTHING.
+ *                                         The option still had one value when
+ *                                         read back.
+ *
+ * The second is the dangerous one: a write that reports success and does not
+ * land. It surfaced downstream as "Option value <name> does not exist for
+ * option <title>" when the variant was then created against it, which names
+ * the symptom and not the cause.
+ *
+ * `updateProductOptionValuesOnProduct` is the additive API — an explicit
+ * add/remove against a product↔option pair, with no replace semantics to get
+ * wrong. Values may be passed as create-objects (`{ value }`); a bare string is
+ * read as a value ID and refused with "you tried to set relationship
+ * product_option_value_id ... but such entity does not exist".
+ *
+ * Verified by probe on 2026-09-15: the option went from 1 value to 2 and the
+ * new one read back.
+ *
+ * What the bug cost: every second mint for a design that already had a product
+ * crashed. `approve-run-output` never hit it because its idempotency rule
+ * refuses to re-mint, but the admin approve route has no such guard, so
+ * approving a design twice failed with that opaque TypeError.
+ */
+export const appendOptionValuePayload = (
+  productId: string,
+  option: { id: string },
+  value: string
+): {
+  product_id: string
+  product_option_id: string
+  add: Array<{ value: string }>
+} => ({
+  product_id: productId,
+  product_option_id: option.id,
+  add: [{ value }],
+})
+
 export const designOptionValue = (
   design: { id: string; name?: string | null },
   existingValues: readonly string[] = []
@@ -453,14 +500,13 @@ const createProductAndVariantStep = createStep(
           const value = designOptionValue(design, existingValues);
 
           if (!existingValues.includes(value)) {
-            await productService.upsertProductOptions([
-              {
-                id: option.id,
-                product_id: product_id,
-                title: option.title,
-                values: [...existingValues, value],
-              },
-            ]);
+            // 🔴 NOT upsertProductOptions — see appendOptionValuePayload. That
+            // call either throws or silently persists nothing, depending on the
+            // payload. This one is additive and was verified by reading the
+            // option back.
+            await productService.updateProductOptionValuesOnProduct(
+              appendOptionValuePayload(product_id, option, value)
+            );
           }
 
           variantOptions[option.title] = value;
