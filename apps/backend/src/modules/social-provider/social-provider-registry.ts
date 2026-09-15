@@ -6,4 +6,5 @@ export const providerTokenMap: Record<string, string> = {
   instagram: SOCIAL_PROVIDER_MODULE,
   facebook: SOCIAL_PROVIDER_MODULE,
   linkedin: SOCIAL_PROVIDER_MODULE,
+  pinterest: SOCIAL_PROVIDER_MODULE,
 }

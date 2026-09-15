@@ -104,6 +104,12 @@ secrets:
   FACEBOOK_CLIENT_SECRET: /jyt/prod/FACEBOOK_CLIENT_SECRET
   FACEBOOK_WEBHOOK_VERIFY_TOKEN: /jyt/prod/FACEBOOK_WEBHOOK_VERIFY_TOKEN
   FAL_KEY: /jyt/prod/FAL_KEY
+  # Pinterest OAuth — the social-provider module may resolve the provider in a
+  # worker-run workflow, so keep the creds available here too.
+  PINTEREST_CLIENT_ID: /jyt/prod/PINTEREST_CLIENT_ID
+  PINTEREST_CLIENT_SECRET: /jyt/prod/PINTEREST_CLIENT_SECRET
+  PINTEREST_REDIRECT_URI: /jyt/prod/PINTEREST_REDIRECT_URI
+  PINTEREST_SCOPE: /jyt/prod/PINTEREST_SCOPE
   # #1059 EmailKit — the blog broadcast workflow (sync + create broadcast) may
   # run on the worker, so it needs the Kit creds + flag too.
   EMAILKIT_ENABLED: /jyt/prod/EMAILKIT_ENABLED

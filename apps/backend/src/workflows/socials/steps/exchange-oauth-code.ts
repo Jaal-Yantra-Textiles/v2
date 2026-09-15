@@ -77,7 +77,9 @@ export const exchangeOAuthCodeStep = createStep(
     } else {
       // Handle social platform OAuth
       const socialProvider = container.resolve(SOCIAL_PROVIDER_MODULE) as SocialProviderService
-      const provider = socialProvider.getProvider(platformLower) as any
+      const provider = (platformLower === "pinterest"
+        ? await socialProvider.getPinterest(container)
+        : socialProvider.getProvider(platformLower)) as any
 
       // Platform-specific token exchange
       if (platformLower === "twitter" || platformLower === "x") {

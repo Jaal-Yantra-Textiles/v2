@@ -260,6 +260,26 @@ class SocialsService extends MedusaService({
     return platform
   }
 
+  /**
+   * The Pinterest SocialPlatform row (a SocialPlatform with
+   * `api_config.provider === "pinterest"` or named "Pinterest"), or null when
+   * none is configured. `api_config.client_id` is plaintext; `client_secret`
+   * is stored as `client_secret_encrypted` by the credentials-encryption
+   * subscriber.
+   */
+  async findPinterestPlatform() {
+    const rows = await this.listSocialPlatforms({ category: "social" })
+    return (
+      rows.find((p: any) => {
+        const cfg = p?.api_config as Record<string, any> | null
+        return (
+          cfg?.provider === "pinterest" ||
+          (typeof p?.name === "string" && p.name.toLowerCase() === "pinterest")
+        )
+      }) ?? null
+    )
+  }
+
   async findWhatsAppPlatformByPhoneNumberId(phoneNumberId: string) {
     if (!phoneNumberId) return null
     const all = await this.findWhatsAppPlatforms()

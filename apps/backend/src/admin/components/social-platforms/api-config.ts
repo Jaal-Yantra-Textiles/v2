@@ -48,6 +48,20 @@ export function buildApiConfig(
   const config: Record<string, any> = { provider: data.provider_type }
 
   switch (category) {
+    case "social":
+      // Social OAuth platforms (facebook/instagram/linkedin/twitter/pinterest)
+      // carry their OAuth app credentials. `client_secret` is encrypted at
+      // rest by the credentials-encryption subscriber; `client_id` stays
+      // plaintext (a public identifier). Only Pinterest currently resolves
+      // these from the row (via SocialProviderService.getPinterest).
+      Object.assign(config, {
+        client_id: data.client_id,
+        client_secret: data.client_secret,
+        redirect_uri: data.redirect_uri,
+        scope: data.scope,
+      })
+      break
+
     case "email":
       if (data.provider_type === "imap") {
         Object.assign(config, {
@@ -234,6 +248,8 @@ export function buildApiConfig(
 /** Infer the platform `auth_type` from category + provider. */
 export function inferAuthType(category: string, providerType?: string): string {
   switch (category) {
+    case "social":
+      return "oauth2"
     case "email":
       return providerType === "resend" ? "api_key" : "basic"
     case "communication":
