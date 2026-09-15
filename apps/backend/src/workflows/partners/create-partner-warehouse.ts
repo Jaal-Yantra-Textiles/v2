@@ -47,7 +47,8 @@ import { autoLinkFulfillmentProvidersStep } from "../stores/create-store-with-de
  * Holding goods is not a sales decision, so this path is open to any partner.
  * Gating the STOREFRONT half is a separate question that cannot be answered
  * yet: `workspace_type` would block 12 of the 14 stores that exist, and
- * `metadata.use_type` is null for 25 of 30 partners. See #2061 / #2029.
+ * `metadata.use_type` was never an alternative — null for 26 partners of 31,
+ * and retired as a decider in #2061. See #2061 / #2029.
  */
 
 export type CreatePartnerWarehouseInput = {

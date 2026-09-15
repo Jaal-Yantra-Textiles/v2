@@ -1,5 +1,6 @@
 import { MedusaRequest, MedusaResponse } from "@medusajs/framework"
 import { ContainerRegistrationKeys } from "@medusajs/framework/utils"
+import { sellsDirect } from "../../../../../../lib/partner-capabilities"
 
 type RawPartner = {
   vercel_linked: boolean
@@ -129,7 +130,7 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
   // marketing classifier.
   let artisans = 0
   for (const p of (partnersRes.data || []) as unknown as RawPartner[]) {
-    const isLiveBrand = p.vercel_linked === true && !!p.storefront_domain
+    const isLiveBrand = sellsDirect(p)
     if (!isLiveBrand) artisans++
   }
 

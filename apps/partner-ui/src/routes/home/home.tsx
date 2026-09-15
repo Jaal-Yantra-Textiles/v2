@@ -24,6 +24,7 @@ import { WhatsNewCarousel } from "./whats-new/whats-new-carousel"
 import { useDiscoverProducts, useCopyProduct, DiscoverProduct } from "../../hooks/api/discover"
 import { sdk } from "../../lib/client"
 import { queryClient } from "../../lib/query-client"
+import { resolveWorkspaceType } from "../../lib/workspace-type"
 import {
   HOME_ZONE,
   usePartnerLayoutConfiguration,
@@ -103,10 +104,8 @@ export const Home = () => {
       onboardingStatus.essentials_done ||
       essentialsDone
   )
-  const currentWorkspaceType = (
-    (partner as any)?.workspace_type ||
-    (partner?.metadata as any)?.use_type
-  ) as string | undefined
+  // #2061 — the typed column, not the legacy `metadata.use_type` blob.
+  const currentWorkspaceType = resolveWorkspaceType(partner) as string | undefined
 
   // #338 — composable dashboard sections. Each card is a widget in the "home"
   // zone; the partner can hide/reorder them via the LayoutCustomizer. `span: 2`

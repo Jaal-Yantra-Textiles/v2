@@ -1,6 +1,7 @@
 import { z } from "@medusajs/framework/zod"
 import { ContainerRegistrationKeys } from "@medusajs/framework/utils"
 import { OperationDefinition, OperationContext, OperationResult } from "./types"
+import { sellsDirect } from "../../../lib/partner-capabilities"
 
 // Forward GMV run-rate projection. Mirrors the marketing-site metrics endpoint
 // (src/api/web/website/[domain]/marketing/metrics/route.ts) so the investor
@@ -83,7 +84,7 @@ export const gmvProjectionOperation: OperationDefinition = {
       // marketing classifier.
       let artisans = 0
       for (const p of (partnersRes.data || []) as any[]) {
-        const isLiveBrand = p.vercel_linked === true && !!p.storefront_domain
+        const isLiveBrand = sellsDirect(p)
         if (!isLiveBrand) artisans++
       }
 
