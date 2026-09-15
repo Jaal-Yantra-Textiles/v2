@@ -8,6 +8,8 @@ export interface TwitterProviderConfig {
 export interface PinterestProviderConfig {
   clientId?: string
   clientSecret?: string
+  redirectUri?: string
+  scope?: string
 }
 
 export interface TwitterAppToken {
