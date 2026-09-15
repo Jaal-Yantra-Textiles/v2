@@ -1,5 +1,6 @@
 import { AuthenticatedMedusaRequest, MedusaResponse } from "@medusajs/framework/http"
 
+import { resolveDryRun } from "../../../../../../lib/mcp-core/resolve-dry-run"
 import { validatePartnerStoreAccess } from "../../../../helpers"
 import { bulkUpdateProducts } from "../../../../../../workflows/products/bulk-update-products"
 import type { BulkUpdateProductsReq } from "../../../../../admin/products/bulk-update/validators"
@@ -19,6 +20,11 @@ import type { BulkUpdateProductsReq } from "../../../../../admin/products/bulk-u
  *  - `allowedLocationIds` confines stock writes to the store's own location. A
  *    partner naming someone else's location has it dropped with a warning,
  *    never honoured.
+ *
+ * `preview` is resolved here for the same reason as the admin mirror: the MCP
+ * dispatcher consumes `dry_run` before either route is called, so over MCP that
+ * spelling can never surface the per-row plan (#1877). Apply-by-default, as it
+ * has always been.
  */
 export const POST = async (
   req: AuthenticatedMedusaRequest,
@@ -32,12 +38,16 @@ export const POST = async (
 
   const body = (req as any).validatedBody as BulkUpdateProductsReq
 
-  const result = await bulkUpdateProducts(req.scope, body, {
-    salesChannelId: store.default_sales_channel_id,
-    allowedLocationIds: store.default_location_id
-      ? [store.default_location_id]
-      : [],
-  })
+  const result = await bulkUpdateProducts(
+    req.scope,
+    { ...body, dry_run: resolveDryRun(body, false) },
+    {
+      salesChannelId: store.default_sales_channel_id,
+      allowedLocationIds: store.default_location_id
+        ? [store.default_location_id]
+        : [],
+    }
+  )
 
   res.status(200).json(result)
 }
