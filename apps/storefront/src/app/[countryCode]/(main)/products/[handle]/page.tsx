@@ -139,11 +139,19 @@ export default async function ProductPage(props: Props) {
     queryParams: { handle: params.handle },
   }).then(({ response }) => response.products[0])
 
-  const images = getImagesForVariant(pricedProduct, selectedVariantId)
-
+  /**
+   * 🔴 The guard goes FIRST. `getImagesForVariant` dereferences the product,
+   * so calling it above this check turned every genuine miss — a handle that
+   * does not exist, or one the publishable key's sales channel cannot see —
+   * into `TypeError: Cannot read properties of undefined (reading 'images')`
+   * and a **500** where a 404 was intended. The page was already deciding to
+   * notFound(); it simply crashed on the way there.
+   */
   if (!pricedProduct) {
     notFound()
   }
+
+  const images = getImagesForVariant(pricedProduct, selectedVariantId)
 
   return (
     <ProductTemplate

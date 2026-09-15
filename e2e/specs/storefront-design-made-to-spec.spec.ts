@@ -56,6 +56,22 @@ const CART_URL = new URL("../cart", PRODUCT_URL).toString()
 const SIZES = ["S", "M", "L", "XL"]
 
 /**
+ * A size button, SCOPED and EXACT — both matter, and neither was true when this
+ * file was first written (it had never been run).
+ *
+ * Playwright's `name` is a case-insensitive SUBSTRING match by default, so a
+ * bare `getByRole("button", { name: "S" })` resolved to eight elements on this
+ * page: "Design score info", "Story info", "Select variant", "Subscribe", both
+ * variant buttons — and, somewhere in there, the actual size. Every assertion
+ * either failed on strict mode or would have passed against the wrong button.
+ */
+const sizeButton = (page: any, label: string) =>
+  page.getByTestId("spec-choice-size").getByRole("button", {
+    name: label,
+    exact: true,
+  })
+
+/**
  * Click a choice and confirm it took.
  *
  * Copied deliberately from `storefront-made-to-spec.spec.ts` rather than
@@ -66,7 +82,7 @@ const SIZES = ["S", "M", "L", "XL"]
  * right and the wrong value reaches the cart.
  */
 const choose = async (page: any, name: string, pressed = true) => {
-  const button = page.getByRole("button", { name })
+  const button = sizeButton(page, name)
   await expect(async () => {
     await button.click()
     await expect(button).toHaveAttribute("aria-pressed", String(pressed))
@@ -92,7 +108,7 @@ test.describe("Design sizes as a customer choice @storefront @localstack", () =>
   test("offers every size the design states", async ({ page }) => {
     await expect(page.getByText("Size", { exact: true })).toBeVisible()
     for (const size of SIZES) {
-      await expect(page.getByRole("button", { name: size })).toBeVisible()
+      await expect(sizeButton(page, size)).toBeVisible()
     }
   })
 
@@ -106,7 +122,7 @@ test.describe("Design sizes as a customer choice @storefront @localstack", () =>
      * just moved.
      */
     for (const size of SIZES) {
-      await expect(page.getByRole("button", { name: size })).toHaveAttribute(
+      await expect(sizeButton(page, size)).toHaveAttribute(
         "aria-pressed",
         "false"
       )
@@ -149,7 +165,10 @@ test.describe("Design sizes as a customer choice @storefront @localstack", () =>
     const variantPicker = page.getByTestId("product-options")
     for (const size of SIZES) {
       await expect(
-        variantPicker.getByRole("button", { name: size })
+        // `exact` is the whole assertion here: without it "S" matches the
+        // variant button titled "E2E — Kashida Shawl, made to size" and this
+        // guard fails on a product that is behaving perfectly.
+        variantPicker.getByRole("button", { name: size, exact: true })
       ).toHaveCount(0)
     }
   })

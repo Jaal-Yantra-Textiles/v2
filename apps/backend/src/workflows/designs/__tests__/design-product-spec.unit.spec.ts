@@ -114,6 +114,31 @@ describe("buildDesignSpec", () => {
     })
     expect(spec?.colors).toBeUndefined()
     expect(spec?.custom_order_lead_time_days).toBeUndefined()
+  })
+
+  /**
+   * 🔴 The gate on BOTH ends, and this assertion used to read
+   * `toBeUndefined()` — the defect written down as intent.
+   *
+   * `accepting_custom_orders` is not a display preference. The storefront
+   * renders the choices only when it is true (`offersChoices` in
+   * `product-actions`), and `/store/carts/:id/made-to-spec` refuses the line
+   * without it. So the size group was written, stored, served by
+   * `/store/products/:id/spec` — and invisible on the page and un-orderable in
+   * the cart. The first run of `storefront-design-made-to-spec.spec.ts` is what
+   * surfaced it: no "Size" text anywhere, add-to-cart stuck on "Select variant".
+   */
+  it("🔴 accepts custom orders — otherwise the size group is inert", () => {
+    const spec = buildDesignSpec({
+      size_sets: [{ size_label: "S" }, { size_label: "M" }],
+    })
+    expect(spec?.accepting_custom_orders).toBe(true)
+  })
+
+  /** One stated size is a fact about the piece, so there is nothing to accept. */
+  it("does NOT accept custom orders for a single-size design", () => {
+    const spec = buildDesignSpec({ size_sets: [{ size_label: "M" }] })
+    expect(spec?.size_label).toBe("M")
     expect(spec?.accepting_custom_orders).toBeUndefined()
   })
 })
