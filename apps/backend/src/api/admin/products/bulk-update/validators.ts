@@ -56,6 +56,16 @@ export const BulkUpdateProductsSchema = z
     product_update: z.record(z.string(), z.any()).optional(),
     variant_update: z.record(z.string(), z.any()).optional(),
     set_inventory: InventorySchema.optional(),
+    /**
+     * Rehearse without writing. Two spellings, one meaning — `preview` exists
+     * because the MCP dispatcher consumes `dry_run` before this route is ever
+     * called, so an MCP caller asking for a rehearsal gets a planned HTTP
+     * request rather than this route's real per-row plan (#1877). Resolved by
+     * `resolveDryRun`, which defaults to APPLY here: this route has been
+     * apply-by-default since it shipped and every existing caller omits the
+     * flag.
+     */
+    preview: z.boolean().optional(),
     dry_run: z.boolean().optional(),
   })
   .refine((b) => b.products?.length || b.selector, {
