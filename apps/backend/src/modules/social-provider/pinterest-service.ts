@@ -23,6 +23,24 @@ interface PinterestAuthResponse {
  * the redirect URI and scope are supplied per-request by the OAuth route
  * (PINTEREST_REDIRECT_URI / PINTEREST_SCOPE).
  */
+/**
+ * The admin callback page that receives Pinterest's redirect after consent.
+ * Mirrors the other social OAuth flows (facebook/.../callback) — see
+ * FBINSTA_OAUTH_SETUP.md / meta-oauth.md.
+ */
+const PINTEREST_CALLBACK_PATH = "/app/settings/external-platforms/oauth-callback/pinterest/callback"
+
+/**
+ * Prod/dev-safe default redirect URI derived from MEDUSA_BACKEND_URL (the
+ * origin the admin UI is served from), e.g.
+ * https://v3.jaalyantra.com/app/settings/external-platforms/oauth-callback/pinterest/callback
+ */
+function defaultRedirectUri(): string {
+  const base = process.env.MEDUSA_BACKEND_URL
+  if (!base) return ""
+  return `${base.replace(/\/+$/, "")}${PINTEREST_CALLBACK_PATH}`
+}
+
 export default class PinterestService {
   private readonly clientId: string
   private readonly clientSecret: string
@@ -32,7 +50,8 @@ export default class PinterestService {
   constructor(options?: Partial<PinterestProviderConfig>) {
     this.clientId = options?.clientId ?? process.env.PINTEREST_CLIENT_ID ?? ""
     this.clientSecret = options?.clientSecret ?? process.env.PINTEREST_CLIENT_SECRET ?? ""
-    this.redirectUri = options?.redirectUri ?? process.env.PINTEREST_REDIRECT_URI ?? ""
+    this.redirectUri =
+      options?.redirectUri ?? process.env.PINTEREST_REDIRECT_URI ?? defaultRedirectUri()
     this.scope = options?.scope ?? process.env.PINTEREST_SCOPE ?? ""
   }
 
