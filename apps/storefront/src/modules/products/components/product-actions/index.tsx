@@ -23,6 +23,7 @@ import {
   needsSecondStep,
   summariseChoices,
   type SpecChoiceState,
+  unansweredRequiredGroups,
 } from "../production-spec/spec-choices-util"
 import {
   addMadeToSpecToCart,
@@ -74,6 +75,13 @@ export default function ProductActions({
   const secondStep = needsSecondStep(spec)
   const madeToOrder = hasAnySpecChoice(spec, specChoices)
   const specBlocked = blockedGroups(spec)
+  /**
+   * #1970 — the questions still open. Nothing is preselected any more, so the
+   * buy button has to hold the sale until a required group is answered;
+   * otherwise dropping the prefill just moves the silent failure, and the line
+   * reaches the cart with no size on it exactly as before.
+   */
+  const specUnanswered = unansweredRequiredGroups(spec, specChoices)
   const leadTime = leadTimePhrase(spec)
 
   // If there is only 1 variant, preselect the options
@@ -282,7 +290,8 @@ export default function ProductActions({
                 !!disabled ||
                 isAdding ||
                 !isValidVariant ||
-                (madeToOrder && !!specBlocked.length)
+                (madeToOrder && !!specBlocked.length) ||
+                !!specUnanswered.length
               }
               variant="primary"
               className="w-full h-10 shadow-elevation-card-rest hover:shadow-elevation-card-hover transition-shadow"
@@ -293,7 +302,11 @@ export default function ProductActions({
                 ? "Select variant"
                 : !inStock || !isValidVariant
                   ? "Out of stock"
-                  : "Add to cart"}
+                  : specUnanswered.length
+                    ? // Name the question, not the state. "Unavailable" would
+                      // send the customer looking for a fault that is not there.
+                      `Choose a ${specUnanswered[0].label.toLowerCase()}`
+                    : "Add to cart"}
             </Button>
           </motion.div>
 
