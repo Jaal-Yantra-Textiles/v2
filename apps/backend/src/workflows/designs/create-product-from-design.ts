@@ -11,6 +11,8 @@ import {
 } from "@medusajs/medusa/core-flows";
 import { DESIGN_MODULE } from "../../modules/designs";
 import { resolveMintSalesChannel } from "./lib/mint-sales-channel";
+import { buildDesignSpec } from "./lib/design-product-spec";
+import { upsertProductSpecWorkflow } from "../products/upsert-product-spec";
 import type { Link } from "@medusajs/modules-sdk";
 import { resolveLineItemDesignId } from "../../lib/resolve-line-item-production"
 import designCustomerLink from "../../links/design-customer-link"
@@ -638,6 +640,49 @@ const createProductAndVariantStep = createStep(
         created_at: new Date(),
       },
     });
+
+    /**
+     * The design's sizes, as something the CUSTOMER can choose (#1970).
+     *
+     * Until now this mint wrote NO spec at all, so a design product reached the
+     * storefront with a single variant whose axis was the design's own name —
+     * nothing to choose, and no size anywhere on the page. The made-to-spec
+     * surface that renders these choices, validates them at add-to-cart and
+     * snapshots them onto the cart line already existed; it was simply never
+     * wired to this door.
+     *
+     * 🔴 Sizes become a spec OPTION GROUP, not variants. See
+     * `lib/design-product-spec.ts` — one variant per size would invent SKUs for
+     * a garment woven to order and never stocked, which is the mistake
+     * `product-spec-option.ts` documents reversing, and it would also make the
+     * design unquotable (`design-lines.ts:140` resolves only a single variant).
+     *
+     * Non-fatal, like the order-line backfill below: a product that minted is a
+     * product, and losing it because its choices could not be written would be
+     * a worse outcome than a product a customer cannot size. It is logged
+     * loudly instead.
+     */
+    const designSpec = buildDesignSpec(design as any);
+    if (designSpec) {
+      try {
+        await upsertProductSpecWorkflow(container).run({
+          input: { product_id, data: designSpec },
+        });
+      } catch (specError) {
+        try {
+          const specLogger: any = container.resolve(
+            ContainerRegistrationKeys.LOGGER
+          );
+          specLogger?.error(
+            `[create-product-from-design] product ${product_id} minted but its ` +
+              `spec could not be written — the customer will see no size ` +
+              `choices: ${(specError as Error)?.message}`
+          );
+        } catch {
+          /* no logger in this container; the mint still stands */
+        }
+      }
+    }
 
     // Update any existing order line items to reference the new variant/product.
     // This closes the loop: order placed (custom item) → design approved → order items linked.
