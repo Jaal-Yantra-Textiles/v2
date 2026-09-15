@@ -61,9 +61,17 @@ export const sellsDirect = (partner: StorefrontLike): boolean =>
 /**
  * Observable traces that a partner deals in physical things.
  *
- * Every field is a COUNT of rows that exist, not an opinion. `productCount` is
- * the control: without it, "no shippable products" cannot be told apart from
- * "no products".
+ * Every field is a COUNT of rows that exist, not an opinion. All three are
+ * traces of goods that physically existed: something was made, something is
+ * held somewhere, something is in stock.
+ *
+ * 🔴 PRODUCT COUNTS ARE DELIBERATELY ABSENT. Do not add them back.
+ * The catalogue says nothing about physicality. Measured on prod 2026-09-15
+ * (`backfill-product-shipping-profiles` preview): **97 of 97 products carry a
+ * shipping profile**, and `createProductsWorkflow` assigns the store's default
+ * profile to anything created normally. So "has shippable products" is true of
+ * every partner with any catalogue at all — including a hypothetical
+ * digital-only one — and is a false positive, not evidence.
  */
 export type PhysicalGoodsEvidence = {
   /** Production runs — someone physically made something. */
@@ -72,51 +80,48 @@ export type PhysicalGoodsEvidence = {
   stockLocationCount: number
   /** Inventory items the partner holds. */
   inventoryItemCount: number
-  /** Products whose variants ship (Medusa derives that from a shipping profile). */
-  shippableProductCount: number
-  /** All products, shippable or not. */
-  productCount: number
 }
 
 /**
  * Does this partner handle physical goods — i.e. do they need a warehouse,
  * stock locations and carrier registrations at all?
  *
- * - `yes`     they have made, held or listed something that ships.
- * - `unknown` nothing to go on. Most partners on the day they are created,
- *             AND — see below — every partner whose catalogue simply has no
- *             shipping profiles configured.
+ * - `yes`     they have made or held something real.
+ * - `unknown` nothing to go on. Most partners on the day they are created.
  *
- * 🔴 `no` IS NOT DERIVABLE TODAY, AND THE TEMPTING RULE IS WRONG.
- * The obvious completion is "has products, none of them ship → no". It would
- * be wrong for most of the partner base. #1195 documents that **most of this
- * catalogue has no shipping profile** and sells `manage_inventory: false`
- * variants, and Medusa derives shippability from exactly those two things. So
- * `shippableProductCount === 0` is overwhelmingly "nobody configured a
- * shipping profile", not "these goods are not physical" — and a weaver selling
- * handwoven shawls would be labelled non-physical by it.
+ * 🔴 `no` IS NOT DERIVABLE TODAY, AND THE SHIPPING PROFILE CANNOT FIX IT.
  *
- * Telling a designer's pattern apart from an unconfigured shawl needs a signal
- * the catalogue does not carry yet. Until it does, this function can confirm
- * physical goods and can decline to guess, and that is all. A caller that
- * needs a real `no` — a gate that withholds a warehouse — must wait for that
- * signal rather than read `unknown` as one.
+ * The obvious completion is "has products, none of them ship → no". It does
+ * not work, and it cannot be made to work by configuring the catalogue better:
+ *
+ *   - Measured on prod 2026-09-15, **97 of 97 products carry a shipping
+ *     profile** (`backfill-product-shipping-profiles` preview; `list_products`
+ *     count confirms 97 is the whole catalogue). The field is SATURATED.
+ *   - `createProductsWorkflow` assigns the store's `type: "default"` profile to
+ *     any product created normally, so a digital product would acquire one
+ *     automatically and read as physical.
+ *
+ * So shippability carries no information in either direction, and the earlier
+ * reading of #1195 — "most of this catalogue has no profile, so a zero means
+ * unconfigured" — is out of date: that backfill has since been run. Either way
+ * the answer is the same, for a stronger reason.
+ *
+ * Telling a designer's pattern apart from a shawl needs a signal the catalogue
+ * does not carry AT ALL. Until one exists, this function can confirm physical
+ * goods and can decline to guess, and that is all. A caller that needs a real
+ * `no` — a gate that withholds a warehouse — must wait for that signal rather
+ * than read `unknown` as one.
  */
 export const handlesPhysicalGoods = (
   evidence: PhysicalGoodsEvidence
 ): Capability => {
-  const {
-    productionRunCount,
-    stockLocationCount,
-    inventoryItemCount,
-    shippableProductCount,
-  } = evidence
+  const { productionRunCount, stockLocationCount, inventoryItemCount } =
+    evidence
 
   if (
     productionRunCount > 0 ||
     stockLocationCount > 0 ||
-    inventoryItemCount > 0 ||
-    shippableProductCount > 0
+    inventoryItemCount > 0
   ) {
     return "yes"
   }

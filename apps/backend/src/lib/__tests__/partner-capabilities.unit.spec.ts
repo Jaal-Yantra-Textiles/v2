@@ -16,8 +16,6 @@ const noEvidence: PhysicalGoodsEvidence = {
   productionRunCount: 0,
   stockLocationCount: 0,
   inventoryItemCount: 0,
-  shippableProductCount: 0,
-  productCount: 0,
 }
 
 describe("sellsDirect", () => {
@@ -72,26 +70,20 @@ describe("handlesPhysicalGoods", () => {
     )
   })
 
-  it("a shippable product is proof", () => {
+  it("🔴 the catalogue is NOT evidence — products alone stay UNKNOWN", () => {
+    // Measured 2026-09-15: 97 of 97 prod products carry a shipping profile,
+    // and createProductsWorkflow assigns the default one to anything created
+    // normally. So "has products", shippable or not, says nothing about
+    // physicality — which is why PhysicalGoodsEvidence has no product counts
+    // at all. This test fails to compile if someone adds them back as a
+    // signal, and fails outright if they are wired into the decision.
+    expect(handlesPhysicalGoods({ ...noEvidence } as never)).toBe("unknown")
     expect(
       handlesPhysicalGoods({
         ...noEvidence,
-        productCount: 3,
-        shippableProductCount: 1,
-      })
-    ).toBe("yes")
-  })
-
-  it("🔴 a weaver whose catalogue has no shipping profiles is UNKNOWN, not no", () => {
-    // #1195: most of this catalogue has no shipping profile, so
-    // shippableProductCount === 0 means "unconfigured", not "not physical".
-    // Returning "no" here would label handwoven shawls as non-physical.
-    expect(
-      handlesPhysicalGoods({
-        ...noEvidence,
-        productCount: 12,
-        shippableProductCount: 0,
-      })
+        productCount: 97,
+        shippableProductCount: 97,
+      } as never)
     ).toBe("unknown")
   })
 
@@ -99,12 +91,12 @@ describe("handlesPhysicalGoods", () => {
     expect(handlesPhysicalGoods(noEvidence)).toBe("unknown")
   })
 
-  it("never returns no from evidence alone", () => {
+  it("never returns no", () => {
     const shapes: PhysicalGoodsEvidence[] = [
       noEvidence,
-      { ...noEvidence, productCount: 1 },
-      { ...noEvidence, productCount: 99 },
-      { ...noEvidence, productCount: 99, shippableProductCount: 0 },
+      { ...noEvidence, productionRunCount: 3 },
+      { ...noEvidence, stockLocationCount: 1 },
+      { ...noEvidence, inventoryItemCount: 50 },
     ]
     for (const shape of shapes) {
       expect(handlesPhysicalGoods(shape)).not.toBe("no")

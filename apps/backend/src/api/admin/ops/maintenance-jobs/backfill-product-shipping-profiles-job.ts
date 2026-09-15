@@ -28,8 +28,15 @@ import type {
  *  3. `validateShippingStep` blocks cart completion for the same mismatch.
  *
  * Once a product carries a profile, the derivation yields `true` on its own and
- * every downstream check lines up. Prod measured 54 of 75 products with no
- * profile.
+ * every downstream check lines up.
+ *
+ * Prod measured 54 of 75 products with no profile when this was written. ⚠️ As
+ * of 2026-09-15 that gap is CLOSED — a preview reports "scanned 97 product(s),
+ * all already carry a shipping profile". The job is still worth keeping (it is
+ * idempotent and new products can slip through), but it is no longer a pending
+ * repair, and "no shipping profile" is not a usable signal about a product:
+ * `createProductsWorkflow` assigns the default profile to anything created
+ * normally. See `lib/partner-capabilities.ts` (#2061).
  *
  * Links product → shipping profile through the same remote link
  * `createProductsWorkflow` writes:
