@@ -194,6 +194,45 @@ const createPartnerAndAdminStep = createStep(
  * backfillPartnerEmailVerifiedJob so login does not return
  * verification_required.
  */
+
+/**
+ * Announce that a partner now exists.
+ *
+ * 🔴 Neither creation path emitted anything a subscriber could hear. The admin
+ * route emits `partner.created.fromAdmin` AFTER its workflow returns, and the
+ * self-serve route (`POST /partners`) emitted nothing at all — so most partners
+ * on the platform came into existence silently.
+ *
+ * That silence is why region propagation is one-way. `region.created` fans out
+ * to every partner; there was no counterpart, so a partner created AFTER a
+ * region never gained that region's link — permanently. Five regions are short
+ * on prod for exactly this reason, and the gap grows with every new partner.
+ *
+ * Emitted from the step both workflows share, so self-serve and admin-created
+ * partners are announced identically. Best-effort: a partner that exists must
+ * not be rolled back because an event bus hiccuped, and the compensation above
+ * would delete a real partner and their admin. #2062
+ */
+const emitPartnerCreatedStep = createStep(
+    "emit-partner-created",
+    async ({ partner_id }: { partner_id: string }, { container }) => {
+        try {
+            const eventService: any = container.resolve(Modules.EVENT_BUS)
+            await eventService.emit({
+                name: "partner.created",
+                data: { partner_id },
+            })
+        } catch (err) {
+            const logger: any = container.resolve(ContainerRegistrationKeys.LOGGER)
+            logger?.error(
+                `[partner.created] failed to emit for ${partner_id}: ` +
+                    (err instanceof Error ? err.message : String(err))
+            )
+        }
+        return new StepResponse({ emitted: true })
+    }
+)
+
 const verifyPartnerAuthEmailStep = createStep(
     "verify-partner-auth-email",
     async (
@@ -269,6 +308,13 @@ const createPartnerAdminWorkflow = createWorkflow(
 
         const partnerWithAdmin = createPartnerAndAdminStep(partnerInput)
 
+        // Both creation paths announce identically — see emitPartnerCreatedStep. #2062
+        emitPartnerCreatedStep(
+            transform({ partnerWithAdmin }, ({ partnerWithAdmin }) => ({
+                partner_id: (partnerWithAdmin as any).createdPartner.id,
+            }))
+        )
+
         setAuthAppMetadataStep({
             authIdentityId: input.authIdentityId,
             actorType: "partner",
@@ -335,6 +381,13 @@ export const createPartnerAdminWithRegistrationWorkflow = createWorkflow(
         }))
 
         const partnerWithAdmin = createPartnerAndAdminStep(partnerInput)
+
+        // Both creation paths announce identically — see emitPartnerCreatedStep. #2062
+        emitPartnerCreatedStep(
+            transform({ partnerWithAdmin }, ({ partnerWithAdmin }) => ({
+                partner_id: (partnerWithAdmin as any).createdPartner.id,
+            }))
+        )
 
         const registered = registerPartnerAdminAuthStep({
             email: input.admin.email,

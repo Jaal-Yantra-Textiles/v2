@@ -30,6 +30,7 @@ import partnerOrderLink from "../../../../links/partner-order"
 import partnerRegionLink from "../../../../links/partner-region"
 import designPartnersLink from "../../../../links/design-partners-link"
 import partnerStockLocationLink from "../../../../links/partner-stock-location"
+import propagateRegionToPartnersWorkflow from "../../../../workflows/regions/propagate-region-to-partners"
 import { PARTNER_MODULE } from "../../../../modules/partner"
 import productGoogleMerchantLink from "../../../../links/product-google-merchant-link"
 import productionRunConsumptionLogLink from "../../../../links/production-runs-consumption-logs"
@@ -6218,7 +6219,307 @@ export const backfillPartnerStockLocationsJob: MaintenanceJob = {
   },
 }
 
+
+// ---------------------------------------------------------------------------
+// #2062 — regions that never reached the partners created after them
+// ---------------------------------------------------------------------------
+
+
+/**
+ * PURE: why a region has MORE partner links than there are live partners.
+ *
+ * 🔴 `Europe reports 31/30` is what prompted this, and the likeliest answer is
+ * that it is not a defect at all. `deletePartnerWorkflow` SOFT-deletes: the
+ * partner row stays with `deleted_at` set, and its `partner_region` link stays
+ * with it. Any count of link rows against LIVE partners therefore overshoots by
+ * one per deleted partner — a correct history read as a fault.
+ *
+ * The three causes are genuinely different and must not be collapsed:
+ *  - `deleted_partner` — correct history. Leave it alone.
+ *  - `duplicate` — two rows for the same pair. A real fault.
+ *  - `unknown_partner` — a link to a partner id that does not exist at all,
+ *    even including deleted ones. A real fault, and a different one.
+ *
+ * Reported, never removed. Deleting link rows on a guess is how history is
+ * lost; whoever reads this decides.
+ */
+export function classifyExtraPartnerRegionLinks(
+  links: Array<{ partner_id?: string | null; region_id?: string | null }>,
+  livePartnerIds: string[],
+  deletedPartnerIds: string[] = []
+): Array<{
+  partner_id: string
+  region_id: string
+  kind: "duplicate" | "deleted_partner" | "unknown_partner"
+}> {
+  const live = new Set(livePartnerIds)
+  const deleted = new Set(deletedPartnerIds)
+  const seen = new Set<string>()
+  const out: Array<{
+    partner_id: string
+    region_id: string
+    kind: "duplicate" | "deleted_partner" | "unknown_partner"
+  }> = []
+
+  for (const l of links ?? []) {
+    const partnerId = l?.partner_id
+    const regionId = l?.region_id
+    if (!partnerId || !regionId) continue
+
+    const key = `${partnerId}::${regionId}`
+    if (seen.has(key)) {
+      out.push({ partner_id: partnerId, region_id: regionId, kind: "duplicate" })
+      continue
+    }
+    seen.add(key)
+
+    if (live.has(partnerId)) continue
+    out.push({
+      partner_id: partnerId,
+      region_id: regionId,
+      kind: deleted.has(partnerId) ? "deleted_partner" : "unknown_partner",
+    })
+  }
+  return out
+}
+
+const propagateRegionsParamsSchema = z.object({
+  region_ids: z.string().trim().optional(),
+  partner_ids: z.string().trim().optional(),
+})
+
+/**
+ * PURE: the (partner, region) pairs that have no link.
+ *
+ * Exported so the diff is verifiable without a DB. The job's preview shows
+ * exactly these, and apply creates exactly these — the same set, computed once.
+ */
+export function missingPartnerRegionPairs(
+  partnerIds: string[],
+  regionIds: string[],
+  existing: Array<{ partner_id?: string | null; region_id?: string | null }>
+): Array<{ partner_id: string; region_id: string }> {
+  const have = new Set(
+    (existing ?? [])
+      .filter((l) => l?.partner_id && l?.region_id)
+      .map((l) => `${l.partner_id}::${l.region_id}`)
+  )
+  const out: Array<{ partner_id: string; region_id: string }> = []
+  for (const regionId of regionIds) {
+    for (const partnerId of partnerIds) {
+      if (!have.has(`${partnerId}::${regionId}`)) {
+        out.push({ partner_id: partnerId, region_id: regionId })
+      }
+    }
+  }
+  return out
+}
+
+export const propagateRegionsToAllPartnersJob: MaintenanceJob = {
+  id: "propagate-regions-to-all-partners",
+  label: "Give every partner every region",
+  description:
+    "Repair the one-way region propagation (#2062). `region.created` fans a NEW region out to every partner, but nothing went the other way — so a partner created AFTER a region never gained that region's link, permanently. The oldest regions are the most short. Dry-run lists every missing (partner, region) pair; apply runs the same `propagate-region-to-partners` workflow the region.created subscriber uses, so the partner also gains the region's currency in `supported_currencies`. Idempotent — existing links are skipped. Optionally scope with region_ids / partner_ids.",
+  params: [
+    {
+      name: "region_ids",
+      type: "string",
+      required: false,
+      description: "Comma-separated region ids to limit the repair (optional).",
+    },
+    {
+      name: "partner_ids",
+      type: "string",
+      required: false,
+      description: "Comma-separated partner ids to limit the repair (optional).",
+    },
+  ],
+  run: async (container, { dry_run, params }) => {
+    const { region_ids, partner_ids } = propagateRegionsParamsSchema.parse(params ?? {})
+    const regionFilter = parseCsv(region_ids)
+    const partnerFilter = parseCsv(partner_ids)
+
+    const query: any = container.resolve(ContainerRegistrationKeys.QUERY)
+    const changes: MaintenanceChange[] = []
+    const errors: Array<{ id: string; message: string }> = []
+
+    const [{ data: regions }, { data: partners }, { data: allPartners }] =
+      await Promise.all([
+        query.graph({ entity: "region", fields: ["id", "name", "created_at"] }),
+        query.graph({ entity: "partners", fields: ["id", "name"] }),
+        /**
+         * Deleted ones too. `deletePartnerWorkflow` SOFT-deletes, so a deleted
+         * partner keeps its partner_region rows — which is why a link count can
+         * legitimately exceed the live partner count. Without this read, that
+         * surplus is indistinguishable from a duplicated or dangling row.
+         */
+        query
+          .graph({ entity: "partners", fields: ["id", "name", "deleted_at"], withDeleted: true })
+          .catch(() => ({ data: [] })),
+      ])
+
+    const regionRows = ((regions ?? []) as any[]).filter(
+      (r) => r?.id && (!regionFilter || regionFilter.includes(r.id))
+    )
+    const partnerRows = ((partners ?? []) as any[]).filter(
+      (p) => p?.id && (!partnerFilter || partnerFilter.includes(p.id))
+    )
+
+    if (!regionRows.length || !partnerRows.length) {
+      return {
+        job_id: "propagate-regions-to-all-partners",
+        dry_run,
+        applied: false,
+        summary: `Nothing to do — ${regionRows.length} region(s), ${partnerRows.length} partner(s) in scope.`,
+        changes,
+      }
+    }
+
+    const { data: existing } = await query.graph({
+      entity: partnerRegionLink.entryPoint,
+      filters: { region_id: regionRows.map((r) => r.id) },
+      fields: ["partner_id", "region_id"],
+    })
+
+    const regionName = new Map(regionRows.map((r) => [r.id, r.name ?? r.id]))
+    const partnerName = new Map(partnerRows.map((p) => [p.id, p.name ?? p.id]))
+
+    const missing = missingPartnerRegionPairs(
+      partnerRows.map((p) => p.id),
+      regionRows.map((r) => r.id),
+      (existing ?? []) as any[]
+    )
+
+    /**
+     * Which regions are actually short, stated in the operator's terms. A list
+     * of pairs alone cannot be argued with — the per-region shortfall is what
+     * shows whether the ages line up with the theory.
+     */
+    const shortByRegion = new Map<string, number>()
+    for (const m of missing) {
+      shortByRegion.set(m.region_id, (shortByRegion.get(m.region_id) ?? 0) + 1)
+    }
+
+    if (dry_run) {
+      for (const m of missing) {
+        changes.push({
+          entity: partnerRegionLink.entryPoint,
+          id: `${m.partner_id}::${m.region_id}`,
+          field: "link",
+          before: null,
+          after: { partner_id: m.partner_id, region_id: m.region_id },
+          note: `${partnerName.get(m.partner_id)} → region "${regionName.get(m.region_id)}"`,
+        })
+      }
+      /**
+       * The other direction: a region with MORE links than live partners.
+       * Reported, never removed — see `classifyExtraPartnerRegionLinks`.
+       */
+      const deletedPartnerIds = ((allPartners ?? []) as any[])
+        .filter((p) => p?.id && p?.deleted_at)
+        .map((p) => p.id)
+      const extras = classifyExtraPartnerRegionLinks(
+        (existing ?? []) as any[],
+        partnerRows.map((p) => p.id),
+        deletedPartnerIds
+      )
+      const EXTRA_NOTE: Record<string, string> = {
+        deleted_partner:
+          "links a SOFT-DELETED partner — correct history, not a fault. Leave it.",
+        duplicate: "duplicate row for a pair that is already linked",
+        unknown_partner: "links a partner id that does not exist, even deleted",
+      }
+      for (const x of extras) {
+        changes.push({
+          entity: partnerRegionLink.entryPoint,
+          id: `${x.partner_id}::${x.region_id}`,
+          field: "extra_link",
+          before: { partner_id: x.partner_id, region_id: x.region_id },
+          after: { partner_id: x.partner_id, region_id: x.region_id },
+          note: `region "${regionName.get(x.region_id) ?? x.region_id}" ${EXTRA_NOTE[x.kind]}`,
+        })
+      }
+      const extraCounts = extras.reduce<Record<string, number>>((acc, x) => {
+        acc[x.kind] = (acc[x.kind] ?? 0) + 1
+        return acc
+      }, {})
+
+      return {
+        job_id: "propagate-regions-to-all-partners",
+        dry_run: true,
+        applied: false,
+        summary:
+          `Would create ${missing.length} partner→region link(s) across ` +
+          `${shortByRegion.size} short region(s) of ${regionRows.length} scanned ` +
+          `(${partnerRows.length} partner(s)). Apply also extends each store's ` +
+          `supported_currencies with the region currency.` +
+          (extras.length
+            ? ` ALSO FOUND ${extras.length} surplus link(s) — ` +
+              Object.entries(extraCounts)
+                .map(([k, n]) => `${n} ${k}`)
+                .join(", ") +
+              `. Reported only; nothing is removed.`
+            : ""),
+        changes,
+      }
+    }
+
+    /**
+     * Apply runs the SAME workflow `region.created` uses, once per short
+     * region, unscoped to partners. Reimplementing the link write here would
+     * miss the currency half — a partner linked to a region whose currency
+     * their store cannot sell in is linked in name only.
+     */
+    let created = 0
+    let alreadyPresent = 0
+    let currencyUpdated = 0
+
+    for (const regionId of Array.from(shortByRegion.keys())) {
+      try {
+        const { result } = await propagateRegionToPartnersWorkflow(container).run({
+          input: {
+            region_id: regionId,
+            ...(partnerFilter ? { partner_ids: partnerFilter } : {}),
+          },
+        })
+        created += result.links_created
+        alreadyPresent += result.links_already_existing
+        currencyUpdated += result.stores_currency_updated
+        for (const e of result.errors ?? []) {
+          errors.push({ id: `${e.partner_id}::${regionId}`, message: `${e.phase}: ${e.error}` })
+        }
+        changes.push({
+          entity: "region",
+          id: regionId,
+          field: "partner_links",
+          before: null,
+          after: { links_created: result.links_created },
+          note: `"${regionName.get(regionId)}" — ${result.links_created} link(s) created, ${result.stores_currency_updated} store currency extension(s)`,
+        })
+      } catch (err) {
+        errors.push({
+          id: regionId,
+          message: err instanceof Error ? err.message : String(err),
+        })
+      }
+    }
+
+    return {
+      job_id: "propagate-regions-to-all-partners",
+      dry_run: false,
+      applied: created > 0 || currencyUpdated > 0,
+      summary:
+        `Created ${created} partner→region link(s) across ${shortByRegion.size} region(s); ` +
+        `${alreadyPresent} already present; ${currencyUpdated} store currency extension(s)` +
+        (errors.length ? `; ${errors.length} error(s)` : "") + ".",
+      changes,
+      ...(errors.length ? { errors } : {}),
+    }
+  },
+}
+
 export const MAINTENANCE_JOBS: MaintenanceJob[] = [
+  propagateRegionsToAllPartnersJob,
   backfillPartnerStockLocationsJob,
   reconcileOrderBalancesJob,
   cancelInactiveProductionRunsJob,

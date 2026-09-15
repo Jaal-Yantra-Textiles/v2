@@ -6,7 +6,8 @@ import {
 } from "@medusajs/framework/workflows-sdk"
 import { ContainerRegistrationKeys, Modules } from "@medusajs/framework/utils"
 import { DESIGN_MODULE } from "../../modules/designs"
-import { pickDefaultCurrency } from "../../lib/resolve-store-currency"
+import { readHouseStore } from "../production-runs/house-store"
+import { resolveMintSalesChannel } from "./lib/mint-sales-channel"
 import { applyRate, fetchExchangeRate } from "../../lib/fx/exchange-rate"
 import {
   estimateDesignCostWorkflow,
@@ -133,17 +134,18 @@ const convertEstimateCurrencyStep = createStep(
     const query = container.resolve(ContainerRegistrationKeys.QUERY) as any
     const targetCurrency = (input.target_currency || "inr").toLowerCase()
 
-    // Determine the store's default (base) currency
-    const { data: stores } = await query.graph({
-      entity: "store",
-      filters: {},
-      fields: ["supported_currencies.currency_code", "supported_currencies.is_default"],
-    })
-
-    // #485: single source of truth for default-currency selection (was a
-    // hand-rolled is_default scan). Partner-less context here, so the platform
-    // /base store currency is the correct FX base.
-    const defaultCurrency = pickDefaultCurrency(stores?.[0], "inr")
+    /**
+     * The FX base currency.
+     *
+     * 🔴 Was `stores[0]` with `filters: {}`. The intent — "partner-less context,
+     * so the platform store's currency is the correct base" — was right; the
+     * read was not. On 14 stores, row 0 is whichever Postgres returned first.
+     * `readHouseStore` resolves the store that is NOT a partner tenant, and
+     * returns null rather than guessing when that is not one unambiguous row.
+     * #2064
+     */
+    const house = await readHouseStore(container)
+    const defaultCurrency = (house?.defaultCurrency || "inr").toLowerCase()
 
     // Collect unique source currencies we need rates for
     const sourceCurrencies = new Set<string>()
@@ -221,34 +223,43 @@ const createDesignCartStep = createStep(
       fields: ["id", "currency_code"],
     })
 
-    const region = regions?.find(
-      (r: any) => r.currency_code === currencyCode
-    ) || regions?.[0]
+    /**
+     * 🔴 Was `... || regions?.[0]`. A cart whose region's currency differs from
+     * the cart's own currency is not a near-miss — the region decides tax and
+     * what the buyer is actually charged in, so falling back to an arbitrary
+     * region prices the order in one currency and taxes it as another.
+     *
+     * No region for the currency is an unanswered question, and at the till an
+     * unanswered question stops. #1564, #2064
+     */
+    const region = regions?.find((r: any) => r.currency_code === currencyCode)
 
     if (!region) {
-      throw new Error("No region found for cart creation")
+      throw new Error(
+        `No region is configured for ${currencyCode.toUpperCase()}, so a cart cannot be ` +
+          `created in it. Create a region for that currency, or pass a currency one of ` +
+          `the ${regions?.length ?? 0} existing regions supports.`
+      )
     }
 
-    // Find the default sales channel from the store
-    const { data: stores } = await query.graph({
-      entity: "store",
-      filters: {},
-      fields: ["id", "default_sales_channel_id"],
-    })
-
-    let salesChannelId = stores?.[0]?.default_sales_channel_id
-
+    /**
+     * 🔴 Was `stores[0].default_sales_channel_id`, and when that was absent it
+     * literally took the first row of `sales_channel` with no filter — "find
+     * any sales channel". On a 14-store platform that puts an admin's design
+     * order into whichever tenant's catalogue happened to sort first.
+     *
+     * This is a house-side draft order, so the house store's channel is the
+     * answer. `resolveMintSalesChannel` is the same resolver the design→product
+     * minter uses (#2059), so the two cannot disagree about where house work
+     * belongs — and it refuses rather than picking a row. #2064
+     */
+    const channel = await resolveMintSalesChannel(container, {})
+    const salesChannelId = channel.sales_channel_id
     if (!salesChannelId) {
-      // Fallback: find any sales channel
-      const { data: salesChannels } = await query.graph({
-        entity: "sales_channel",
-        filters: {},
-        fields: ["id"],
-      })
-      if (!salesChannels?.length) {
-        throw new Error("No sales channel found for cart creation")
-      }
-      salesChannelId = salesChannels[0].id
+      throw new Error(
+        `Cannot create a design order cart: no sales channel could be resolved ` +
+          `(${channel.reason}). The house store needs a default sales channel.`
+      )
     }
 
     /**

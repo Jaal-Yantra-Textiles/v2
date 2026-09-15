@@ -131,6 +131,47 @@ setupSharedTestSuite(() => {
     });
 
     describe("POST /admin/customers/:id/design-order (draft order workflow)", () => {
+      /**
+       * 🔴 #2064 — the region fallback used to be `|| regions?.[0]`.
+       *
+       * A cart whose region's currency differs from the cart's own currency is
+       * not a near-miss: the region decides tax and what the buyer is actually
+       * charged in, so an arbitrary region prices the order in one currency and
+       * taxes it as another. It now refuses.
+       *
+       * Found by mutation, not by reading — reinstating `|| regions?.[0]` left
+       * every existing test in this file green, because they all create a
+       * matching region first. Nothing exercised the miss.
+       */
+      it("refuses a currency no region supports, instead of using an arbitrary region", async () => {
+        const { api } = getSharedTestEnv();
+        const designId = await createLinkedDesign("no-region");
+
+        // Pick a currency that genuinely has no region, rather than assuming one.
+        const regionsRes = await api.get("/admin/regions?limit=100", adminHeaders);
+        const taken = new Set(
+          (regionsRes.data.regions ?? []).map((r: any) =>
+            String(r.currency_code).toLowerCase()
+          )
+        );
+        const unsupported = ["sek", "nok", "pln", "huf", "czk", "try"].find(
+          (c) => !taken.has(c)
+        );
+        expect(unsupported).toBeDefined();
+
+        const response = await safePost(
+          api,
+          `/admin/customers/${customerId}/design-order`,
+          { design_ids: [designId], currency_code: unsupported },
+          adminHeaders
+        );
+
+        expect(response.status).toBeGreaterThanOrEqual(400);
+        expect(JSON.stringify(response.data)).toMatch(
+          new RegExp(`No region is configured for ${unsupported!.toUpperCase()}`, "i")
+        );
+      });
+
       it("should create cart without conversion when currency matches store default", async () => {
         const { api } = getSharedTestEnv();
         const designId = await createLinkedDesign("no-conv");
