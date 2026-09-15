@@ -17,7 +17,6 @@ import {
   domainUnverified,
   expectsAdmin,
   expectsPaymentMethod,
-  expectsStore,
   whatsappUnverified,
 } from "./absence"
 import { PARTNER_ITEM_NODES, resolvePartnerItems } from "./items"
@@ -304,28 +303,11 @@ const resolvePartnerGraph = async ({ scope, id }: SpineContext): Promise<Graph> 
       },
       { label: "stores", state: "present", reason: null }
     )
-  } else if (expectsStore(partner.workspace_type, storeIds.length)) {
-    push(
-      {
-        key: "stores",
-        type: "store",
-        label: "Stores",
-        sublabel: "nothing to sell through",
-        state: "absent",
-        count: 0,
-        status: null,
-        href: `/partners/${partnerId}`,
-        props: [{ key: "workspace", value: String(partner.workspace_type) }],
-        action: { label: "Link a store", href: `/partners/${partnerId}` },
-      },
-      {
-        label: "stores",
-        state: "absent",
-        reason:
-          "This partner is a seller and has no store linked, so the commerce surface they are routed to has nothing to act on.",
-      }
-    )
   }
+  // No `else` — stores are a PRESENT-ONLY node (#2061). A partner with none is
+  // not thereby defective: 12 of the 14 store owners are `manufacturer`, and
+  // "wants to sell but has not provisioned" has no observable witness. See the
+  // removal note in ./absence.ts before adding an assertion back.
 
   // ---- work ---------------------------------------------------------------
 

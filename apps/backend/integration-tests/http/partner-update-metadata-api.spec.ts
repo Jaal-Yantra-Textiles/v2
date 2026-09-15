@@ -78,23 +78,57 @@ setupSharedTestSuite(() => {
     })
 
     it("should preserve existing metadata when updating use_type", async () => {
-      // Set initial metadata
+      /*
+       * 🔴 The second PUT must NOT re-send `custom_field`.
+       *
+       * This test used to send it in both calls, so it passed whether the route
+       * merged or replaced — it asserted nothing about the preservation it is
+       * named for. Leaving out the key is the entire point: the route MERGES
+       * (Medusa's `mergeMetadata`), so an omitted key keeps its old value.
+       */
       await api.put(
         "/partners/update",
         { metadata: { use_type: "seller", custom_field: "hello" } },
         { headers: partnerHeaders }
       )
 
-      // Update use_type while keeping custom_field
       const res = await api.put(
         "/partners/update",
-        { metadata: { use_type: "manufacturer", custom_field: "hello" } },
+        { metadata: { use_type: "manufacturer" } },
         { headers: partnerHeaders }
       )
 
       expect(res.status).toBe(200)
       expect(res.data.partner.metadata.use_type).toBe("manufacturer")
+      // Never sent in the second call — it survives because the route merges.
       expect(res.data.partner.metadata.custom_field).toBe("hello")
+    })
+
+    it("should delete a metadata key when sent as an empty string", async () => {
+      /*
+       * The other half of the merge contract, and untested until now: because
+       * an omitted key is KEPT, `""` is `mergeMetadata`'s delete sentinel and
+       * the only way to remove one. This is what `stripStorefrontKeys`
+       * (api/partners/storefront/route.ts) relies on — it previously returned
+       * "everything except the storefront keys", so the refs survived every
+       * removal and the "cleared" in the response was a lie.
+       */
+      await api.put(
+        "/partners/update",
+        { metadata: { use_type: "seller", doomed_field: "bye" } },
+        { headers: partnerHeaders }
+      )
+
+      const res = await api.put(
+        "/partners/update",
+        { metadata: { doomed_field: "" } },
+        { headers: partnerHeaders }
+      )
+
+      expect(res.status).toBe(200)
+      expect(res.data.partner.metadata.doomed_field).toBeUndefined()
+      // The untouched key is unaffected by the deletion of its neighbour.
+      expect(res.data.partner.metadata.use_type).toBe("seller")
     })
 
     it("should allow updating name without admin", async () => {
