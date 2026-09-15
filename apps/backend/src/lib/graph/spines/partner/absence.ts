@@ -60,21 +60,32 @@ export const expectsPaymentMethod = (
 ): boolean =>
   methodCount === 0 && (submissionCount > 0 || deliveredRuns(runs).length > 0)
 
-/**
- * A seller with no store.
+/*
+ * REMOVED: `expectsStore` (#2061).
+ * ⚠️ Do not re-add it. The obvious rule is wrong, and it was live for months.
  *
- * `workspace_type` is what the platform routes on: a `seller` gets the
- * commerce surface and is expected to sell through a store of their own. With
- * none linked there is nothing for that surface to act on.
+ * It asserted "a seller with no store" from `workspace_type === "seller"`. That
+ * field cannot carry the question. Surveyed on prod 2026-09-15, all 31
+ * partners:
  *
- * 🔴 Only for `seller`. A `manufacturer`, an `individual` and a `designer`
- * produce against someone else's store by design — dashing this on them would
- * assert a defect on the majority of the partner base.
+ *   - 12 of the 14 partners who OWN a store are `manufacturer`; only 2 are
+ *     `seller`. The label does not track selling.
+ *   - `workspace_type` is `not null` with a database default of
+ *     `'manufacturer'`, so it is a sidebar persona nobody necessarily chose.
+ *
+ * So the assertion fired on whichever of the 3 `seller`-labelled partners had
+ * no store, while staying silent on every real seller — precisely inverted,
+ * and exactly the crying-wolf this file's header exists to prevent.
+ *
+ * 🔴 It cannot be repaired by reading a better field, either. "Sells direct"
+ * IS derivable — `sellsDirect` in `lib/partner-capabilities.ts`, from a
+ * provisioned storefront — but "WANTS to sell and has not provisioned yet" has
+ * no observable witness at all. A partner who intends to sell and a partner
+ * who never will look identical until they act. There is nothing to assert.
+ *
+ * Stores are now a present-only node: drawn when they exist, simply absent
+ * when they do not, per this file's own bar.
  */
-export const expectsStore = (
-  workspaceType: string | null | undefined,
-  storeCount: number
-): boolean => workspaceType === "seller" && storeCount === 0
 
 /**
  * WhatsApp configured but never verified.

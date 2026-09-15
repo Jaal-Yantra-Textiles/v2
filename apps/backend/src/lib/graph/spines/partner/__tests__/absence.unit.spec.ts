@@ -3,7 +3,6 @@ import {
   domainUnverified,
   expectsAdmin,
   expectsPaymentMethod,
-  expectsStore,
   whatsappUnverified,
   type RunLike,
 } from "../absence"
@@ -75,32 +74,6 @@ describe("deliveredRuns", () => {
     // `undefined` must not coerce into the delivered set by accident.
     expect(deliveredRuns([run({ status: null })])).toHaveLength(0)
     expect(deliveredRuns([{ id: "x" }])).toHaveLength(0)
-  })
-})
-
-describe("expectsStore", () => {
-  it("fires on a seller with nothing to sell through", () => {
-    expect(expectsStore("seller", 0)).toBe(true)
-  })
-
-  it("never fires on the workspace types that produce for someone else", () => {
-    /*
-     * 🔴 Manufacturers are the majority of the partner base and produce
-     * against another party's store by design. Dashing this on them would
-     * assert a defect on most partners in the platform.
-     */
-    for (const type of ["manufacturer", "individual", "designer"]) {
-      expect(expectsStore(type, 0)).toBe(false)
-    }
-  })
-
-  it("stays quiet on a seller who has one", () => {
-    expect(expectsStore("seller", 1)).toBe(false)
-  })
-
-  it("treats an unset workspace type as not a seller", () => {
-    expect(expectsStore(null, 0)).toBe(false)
-    expect(expectsStore(undefined, 0)).toBe(false)
   })
 })
 
