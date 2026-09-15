@@ -25,6 +25,7 @@ import { KeyboundForm } from "../../../components/utilities/keybound-form"
 import { useMe } from "../../../hooks/api/users"
 import { sdk } from "../../../lib/client"
 import { queryClient } from "../../../lib/query-client"
+import { resolveWorkspaceType } from "../../../lib/workspace-type"
 import { OnboardingPlanStep } from "./onboarding-plan-step"
 
 type Person = {
@@ -270,7 +271,8 @@ const OnboardingForm = () => {
   }, [storageKey])
 
   const metadata = (partner?.metadata || {}) as Record<string, any>
-  const workspaceType = (partner as any)?.workspace_type as string | undefined
+  // #2061 — the typed column decides; `metadata.use_type` no longer prefills.
+  const workspaceType = resolveWorkspaceType(partner)
 
   const [currentStep, setCurrentStep] = useState<Step>("about")
   const [aboutYou, setAboutYou] = useState<AboutYou>(() => ({
@@ -281,7 +283,7 @@ const OnboardingForm = () => {
       "",
     business_type:
       savedState?.about?.business_type ||
-      mapWorkspaceTypeToBusinessType(workspaceType || metadata.use_type) ||
+      mapWorkspaceTypeToBusinessType(workspaceType) ||
       "",
     description:
       savedState?.about?.description ||

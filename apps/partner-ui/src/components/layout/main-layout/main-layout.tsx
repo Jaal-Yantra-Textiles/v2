@@ -43,6 +43,10 @@ import { Shell } from "../../layout/shell"
 import { Link, useNavigate } from "react-router-dom"
 import { useLogout } from "../../../hooks/api"
 import { queryClient } from "../../../lib/query-client"
+import {
+  resolveWorkspaceType,
+  type WorkspaceType,
+} from "../../../lib/workspace-type"
 import { UserMenu } from "../user-menu"
 import { useDocumentDirection } from "../../../hooks/use-document-direction"
 import { useSearch } from "../../../providers/search-provider"
@@ -197,7 +201,10 @@ const Header = () => {
   )
 }
 
-export type WorkspaceType = "seller" | "manufacturer" | "individual" | "designer"
+// The persona type lives in lib/workspace-type.ts alongside the resolver that
+// decides it (#2061). Re-exported here because the sidebar builders are the
+// original home of the type and are imported by name across the app.
+export type { WorkspaceType }
 
 /**
  * The sub-items under Orders, in one place (#1389 S3).
@@ -410,11 +417,9 @@ const Searchbar = () => {
 const CoreRouteSection = () => {
   const { t } = useTranslation()
   const { user } = useMe()
-  // Read workspace_type from the proper field, falling back to metadata.use_type for legacy partners
-  const workspaceType = (
-    (user?.partner as any)?.workspace_type ||
-    (user?.partner?.metadata as any)?.use_type
-  ) as WorkspaceType | undefined
+  // #2061 — the typed column decides the persona; the legacy
+  // `metadata.use_type` blob no longer gets a vote. See lib/workspace-type.ts.
+  const workspaceType = resolveWorkspaceType(user?.partner)
   const coreRoutes = useCoreRoutes(workspaceType)
 
   // #338 — the partner's saved sidebar personalization (hide/reorder). Errors

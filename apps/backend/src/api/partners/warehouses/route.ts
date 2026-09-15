@@ -54,10 +54,11 @@ export const GET = async (
  * point (#2061).
  *
  * Ungated beyond "are you a partner", deliberately: holding goods is not a
- * sales decision. The gate question applies to the storefront half and cannot
- * be answered until `workspace_type` / `metadata.use_type` are reconciled —
- * today `workspace_type` would reject 12 of the 14 partners who already run a
- * store.
+ * sales decision. The gate question applies to the storefront half and is
+ * still open — today `workspace_type` would reject 12 of the 14 partners who
+ * already run a store. `metadata.use_type` is no longer a candidate for it:
+ * retired as a decider in #2061, it is set on 5 partners of 31 and the column
+ * has always won where they disagree.
  *
  * Refuses if the partner already has a warehouse. See
  * `guardSingleWarehouseStep`: a second one makes their goods location ambiguous

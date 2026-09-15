@@ -22,6 +22,7 @@ import { KeyboundForm } from "../../../components/utilities/keybound-form"
 import { useMe } from "../../../hooks/api/users"
 import { sdk } from "../../../lib/client"
 import { queryClient } from "../../../lib/query-client"
+import { resolveWorkspaceType } from "../../../lib/workspace-type"
 
 /**
  * Minimal onboarding gate (#338/#958 — expressive, not linear).
@@ -63,7 +64,8 @@ const QuickOnboardingForm = () => {
   const { handleSuccess } = useRouteModal()
 
   const metadata = (partner?.metadata || {}) as Record<string, any>
-  const workspaceType = (partner as any)?.workspace_type as string | undefined
+  // #2061 — the typed column decides; `metadata.use_type` no longer prefills.
+  const workspaceType = resolveWorkspaceType(partner)
 
   const PERSONA_OPTIONS = useMemo<
     { value: Persona; title: string; description: string; icon: React.ReactNode }[]
@@ -101,7 +103,7 @@ const QuickOnboardingForm = () => {
     () => metadata.business_name || partner?.name || ""
   )
   const [persona, setPersona] = useState<Persona | "">(() => {
-    const mapped = mapWorkspaceTypeToBusinessType(workspaceType || metadata.use_type)
+    const mapped = mapWorkspaceTypeToBusinessType(workspaceType)
     return (mapped as Persona) || ""
   })
   const [isSubmitting, setIsSubmitting] = useState(false)
@@ -123,8 +125,11 @@ const QuickOnboardingForm = () => {
         method: "PUT",
         body: {
           workspace_type: persona,
-          // Merge — the update workflow REPLACES the metadata column wholesale,
-          // so spread existing keys to avoid clobbering country_code/use_type/etc.
+          // The spread is belt-and-braces, not a requirement: `/partners/update`
+          // MERGES metadata (Medusa runs the patch through `mergeMetadata`, and
+          // "" is its delete sentinel — see stripStorefrontKeys in
+          // api/partners/storefront/route.ts). A key left out keeps its value,
+          // so use_type and friends survive an update either way (#2061).
           metadata: {
             ...metadata,
             business_name: businessName.trim(),

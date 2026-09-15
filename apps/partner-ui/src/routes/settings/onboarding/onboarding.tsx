@@ -8,8 +8,10 @@ import { SingleColumnPage } from "../../../components/layout/pages"
 import { useMe } from "../../../hooks/api/users"
 import { sdk } from "../../../lib/client"
 import { queryClient } from "../../../lib/query-client"
-
-type WorkspaceType = "seller" | "manufacturer" | "individual" | "designer"
+import {
+  resolveWorkspaceType,
+  type WorkspaceType,
+} from "../../../lib/workspace-type"
 
 export const SettingsOnboarding = () => {
   const { t } = useTranslation()
@@ -52,10 +54,8 @@ export const SettingsOnboarding = () => {
 
   const { user } = useMe()
   const partnerId = user?.partner_id
-  const currentWorkspaceType = (
-    (user?.partner as any)?.workspace_type ||
-    (user?.partner?.metadata as any)?.use_type
-  ) as WorkspaceType | undefined
+  // #2061 — the typed column, not the legacy `metadata.use_type` blob.
+  const currentWorkspaceType = resolveWorkspaceType(user?.partner)
 
   const [savingWorkspaceType, setSavingWorkspaceType] = useState(false)
 
