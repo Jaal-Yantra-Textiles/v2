@@ -15,6 +15,10 @@ import {
   resolveRunsSizeLabel,
 } from "../designs/create-product-from-design"
 import updateDesignWorkflow from "../designs/update-design"
+import {
+  resolveDesignApprovalTarget,
+  describeApprovalTarget,
+} from "./lib/run-variant"
 
 /**
  * Reviewing what a completed run PRODUCED (#1805).
@@ -296,6 +300,8 @@ export async function applyRunApprovals(
     let product_id: string | null = null
     let variant_id: string | null = null
     let productExisted = false
+    /** Why the approval could not name a variant, when it could not. */
+    let targetNote: string | null = null
     /**
      * The pre-read default, used only if the design read below throws. INR
      * rather than the store's default: production is costed in INR, and a EUR
@@ -436,8 +442,8 @@ export async function applyRunApprovals(
       }
 
 
-      const linked = design.products?.[0]
-      productExisted = Boolean(linked?.id)
+      const linkedProducts = (design.products ?? []) as Array<any>
+      productExisted = linkedProducts.some((p: any) => Boolean(p?.id))
 
       if (productExisted) {
         /**
@@ -446,9 +452,33 @@ export async function applyRunApprovals(
          * completed runs in one selection would be listed twice, silently.
          * The existing product IS the approval's output; it is recorded on
          * every run of the design and nothing is created.
+         *
+         * 🔴 WHICH variant, though, is not `products[0].variants[0]` — that is
+         * the PRODUCT's first variant, and a product minted from one design and
+         * appended to by another carries one variant per design. Row 0 is then
+         * another design's garment, stamped onto this run as
+         * `approved_variant_id` and fulfilled against later. See
+         * `resolveDesignApprovalTarget`: the runs' own `variant_id` answers
+         * first, the design↔variant link second, and an ambiguous answer is
+         * refused rather than guessed.
          */
-        product_id = linked.id
-        variant_id = linked.variants?.[0]?.id ?? null
+        const target = await resolveDesignApprovalTarget(container, {
+          designId,
+          runs: designRuns,
+          linkedProducts,
+        })
+        product_id = target.product_id
+        variant_id = target.variant_id
+        if (target.reason) {
+          /**
+           * Said out loud on every one of the design's runs, because a null
+           * `approved_variant_id` is otherwise indistinguishable from a design
+           * that was never minted — and the repair (stamp the run's variant_id)
+           * is something only a human knows the answer to.
+           */
+          targetNote = describeApprovalTarget(designId, target)
+          logger?.warn?.(`[approve-run-output] ${targetNote}`)
+        }
       } else if (!input.dryRun) {
         const { result } = await createProductFromDesignWorkflow(container).run({
           input: {
@@ -586,6 +616,7 @@ export async function applyRunApprovals(
           design_name: design.name ?? run.snapshot?.design?.name ?? null,
           status: run.status ?? null,
           outcome: "approved",
+          reason: targetNote ?? undefined,
           product_id,
           variant_id,
           product_existed: productExisted,

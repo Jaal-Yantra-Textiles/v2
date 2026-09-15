@@ -74,13 +74,22 @@ const shot = (n = 2) => [
   },
 ]
 
-/** A design the graph answers with. `products: []` = never approved. */
+/**
+ * A design the graph answers with. `products: []` = never approved.
+ *
+ * `design_variants` is the design↔variant LINK table, kept separate from the
+ * product's `variants` on purpose: a product carries one variant per design
+ * minted onto it, and only the link says which of them is THIS design's. A
+ * fixture that conflates the two cannot express the shared product that #2070
+ * made ordinary — see "picks the design's own variant".
+ */
 const design = (id: string, extra: any = {}) => ({
   id,
   name: `Design ${id}`,
   estimated_cost: 850,
   cost_currency: "inr",
   products: [],
+  design_variants: [],
   ...extra,
 })
 
@@ -118,6 +127,19 @@ const stubGraph = (
     if (entity === "design") {
       const d = designsById[filters?.id]
       return { data: d ? [d] : [] }
+    }
+    if (entity === "design_product_variant") {
+      const d = designsById[filters?.design_id]
+      return {
+        data: (d?.design_variants ?? []).map((v: string) => ({
+          product_variant_id: v,
+        })),
+      }
+    }
+    if (entity === "product_variant") {
+      // Only reached when the chosen variant sits on no product the design
+      // links to — every other case is answered from the design read itself.
+      return { data: [] }
     }
     return { data: [] }
   })
@@ -280,6 +302,7 @@ describe("applyRunApprovals — approving", () => {
     stubGraph({
       des_1: design("des_1", {
         products: [{ id: "prod_existing", variants: [{ id: "var_existing" }] }],
+        design_variants: ["var_existing"],
       }),
     })
 
@@ -296,6 +319,142 @@ describe("applyRunApprovals — approving", () => {
       variant_id: "var_existing",
       product_existed: true,
     })
+  })
+
+  /**
+   * 🔴 THE defect. `design.products[0].variants[0]` is the PRODUCT's first
+   * variant, and a product minted from one design and appended to by another
+   * carries one variant per design. Row 0 is then a different garment, at a
+   * different price — stamped onto this run as `approved_variant_id` and
+   * fulfilled against later.
+   *
+   * The fixture is deliberately shaped so `[0]` is WRONG: `var_other_design`
+   * comes first because it was minted first. Before this fix the assertion
+   * below read `var_other_design` and nobody would have seen it — the outcome
+   * is still "approved" and the product id is still right.
+   *
+   * Rare only until #2070: the append that creates a shared product had been
+   * failing silently, so shared products barely existed. It works now.
+   */
+  it("picks the design's OWN variant on a product shared with another design", async () => {
+    listProductionRuns.mockResolvedValue([completedRun("run_1", "des_mine")])
+    stubGraph({
+      des_mine: design("des_mine", {
+        products: [
+          {
+            id: "prod_shared",
+            variants: [{ id: "var_other_design" }, { id: "var_mine" }],
+          },
+        ],
+        design_variants: ["var_mine"],
+      }),
+    })
+
+    const result = await applyRunApprovals(container, {
+      runIds: ["run_1"],
+      decision: "approve",
+    })
+
+    expect(result.runs[0]).toMatchObject({
+      outcome: "approved",
+      product_id: "prod_shared",
+      variant_id: "var_mine",
+      product_existed: true,
+    })
+    expect(result.runs[0].variant_id).not.toBe("var_other_design")
+    // And the run is stamped with it — this is what fulfilment reads.
+    expect(updateProductionRuns).toHaveBeenCalledWith(
+      expect.objectContaining({ id: "run_1", approved_variant_id: "var_mine" })
+    )
+  })
+
+  /**
+   * The order of authority, identical to `resolveRunVariant`: what the RUN says
+   * it made beats what the design happens to link to. A design with S and M is
+   * ambiguous; the run that made the M is not.
+   */
+  it("prefers the run's own variant_id over the design link", async () => {
+    listProductionRuns.mockResolvedValue([
+      completedRun("run_1", "des_1", { variant_id: "var_m" }),
+    ])
+    stubGraph({
+      des_1: design("des_1", {
+        products: [
+          { id: "prod_existing", variants: [{ id: "var_s" }, { id: "var_m" }] },
+        ],
+        design_variants: ["var_s", "var_m"],
+      }),
+    })
+
+    const result = await applyRunApprovals(container, {
+      runIds: ["run_1"],
+      decision: "approve",
+    })
+
+    expect(result.runs[0]).toMatchObject({
+      product_id: "prod_existing",
+      variant_id: "var_m",
+    })
+  })
+
+  /**
+   * 🔴 A refusal, not a guess. Two variants and no run naming one cannot be
+   * answered — and `approved_variant_id: null` is a state an operator can see
+   * and repair, which a confident wrong id is not. The approval itself still
+   * stands: the runs are decided and the product is recorded.
+   */
+  it("refuses to name a variant when the design has two and no run says which", async () => {
+    listProductionRuns.mockResolvedValue([completedRun("run_1", "des_1")])
+    stubGraph({
+      des_1: design("des_1", {
+        products: [
+          { id: "prod_existing", variants: [{ id: "var_s" }, { id: "var_m" }] },
+        ],
+        design_variants: ["var_s", "var_m"],
+      }),
+    })
+
+    const result = await applyRunApprovals(container, {
+      runIds: ["run_1"],
+      decision: "approve",
+    })
+
+    expect(result.runs[0]).toMatchObject({
+      outcome: "approved",
+      product_id: "prod_existing",
+      variant_id: null,
+    })
+    // Said out loud, with the repair in it — silence here is the whole problem.
+    expect(result.runs[0].reason).toContain("var_s")
+    expect(result.runs[0].reason).toContain("variant_id")
+    expect(logger.warn).toHaveBeenCalledWith(
+      expect.stringContaining("approved without a variant")
+    )
+  })
+
+  /** Two runs of one design that made different variants cannot share one. */
+  it("refuses when the runs of a design disagree about what they made", async () => {
+    listProductionRuns.mockResolvedValue([
+      completedRun("run_1", "des_1", { variant_id: "var_s" }),
+      completedRun("run_2", "des_1", { variant_id: "var_m" }),
+    ])
+    stubGraph({
+      des_1: design("des_1", {
+        products: [
+          { id: "prod_existing", variants: [{ id: "var_s" }, { id: "var_m" }] },
+        ],
+        design_variants: ["var_s", "var_m"],
+      }),
+    })
+
+    const result = await applyRunApprovals(container, {
+      runIds: ["run_1", "run_2"],
+      decision: "approve",
+    })
+
+    expect(result.approved).toEqual(["run_1", "run_2"])
+    expect(result.runs.map((r) => r.variant_id)).toEqual([null, null])
+    expect(result.runs[0].reason).toContain("different variants")
   })
 
   it("lists the product in the design's currency, not usd", async () => {
@@ -532,6 +691,7 @@ describe("applyRunApprovals — approving", () => {
     stubGraph({
       des_1: design("des_1", {
         products: [{ id: "prod_existing", variants: [{ id: "var_existing" }] }],
+        design_variants: ["var_existing"],
       }),
     })
 
@@ -715,6 +875,7 @@ describe("applyRunApprovals — dry run", () => {
       des_1: design("des_1"),
       des_2: design("des_2", {
         products: [{ id: "prod_existing", variants: [{ id: "var_e" }] }],
+        design_variants: ["var_e"],
       }),
     })
 
