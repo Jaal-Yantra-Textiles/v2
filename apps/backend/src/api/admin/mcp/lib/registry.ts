@@ -2591,7 +2591,7 @@ export const ADMIN_MCP_TOOLS: AdminMcpToolDef[] = [
   {
     name: "bulk_update_products",
     description: [
-      "Update MANY products, their variants and their stock levels in one call. Sensitive: requires confirm:true. ALWAYS dry_run first — the plan names every product and variant it would touch, with the before/after quantity at each location, and there is no undo once it fires.",
+      "Update MANY products, their variants and their stock levels in one call. Sensitive: requires confirm:true. ALWAYS rehearse with `preview: true` first — the plan names every product and variant it would touch, with the before/after quantity at each location, and there is no undo once it fires. Use `preview`, NOT `dry_run`: `dry_run` is this surface's own flag and is intercepted before the route runs, so it returns a planned request rather than the real change set. Unlike the maintenance jobs, this tool APPLIES when neither flag is given.",
       "Returns a PER-ROW outcome: one bad id never discards the rest of the batch, so read `variants`, `products` and `warnings` rather than just the status.",
       "",
       "TARGETING — combine freely:",
@@ -2613,15 +2613,26 @@ export const ADMIN_MCP_TOOLS: AdminMcpToolDef[] = [
     path: "/admin/products/bulk-update",
     write: true,
     sensitive: true,
+    // `preview`, NOT `dry_run`. The dispatcher consumes `dry_run` itself and
+    // answers with a planned HTTP request, so the route's real per-row plan —
+    // the before/after this tool's description promises — never reaches the
+    // caller through that spelling (#1877). Kept in the list so an explicit
+    // `dry_run: true` still fails safe rather than writing.
     bodyParams: [
       "products",
       "selector",
       "product_update",
       "variant_update",
       "set_inventory",
+      "preview",
       "dry_run",
     ],
     inputSchema: obj({
+      preview: {
+        type: "boolean",
+        description:
+          "Rehearse without writing — returns the route's REAL per-row plan (every product and variant touched, with before/after quantities). Use this, not `dry_run`, which the dispatcher intercepts before the route runs. Defaults to false: omitting it APPLIES.",
+      },
       products: {
         type: "array",
         description:

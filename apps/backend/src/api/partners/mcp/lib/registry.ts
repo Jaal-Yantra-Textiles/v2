@@ -2023,7 +2023,7 @@ export const PARTNER_MCP_TOOLS: PartnerMcpToolDef[] = [
   {
     name: "bulk_update_products",
     description: [
-      "Update MANY of your products, their variants and their stock levels in one call. Sensitive: requires confirm:true. ALWAYS dry_run first — the plan names every product and variant it would touch, with the before/after quantity at each location, and there is no undo once it fires.",
+      "Update MANY of your products, their variants and their stock levels in one call. Sensitive: requires confirm:true. ALWAYS rehearse with `preview: true` first — the plan names every product and variant it would touch, with the before/after quantity at each location, and there is no undo once it fires. Use `preview`, NOT `dry_run`: `dry_run` is this surface's own flag and is intercepted before the route runs, so it returns a planned request rather than the real change set. APPLIES when neither flag is given.",
       "Returns a PER-ROW outcome: one bad id never discards the rest of the batch, so read `variants`, `products` and `warnings` rather than just the status.",
       "",
       "TARGETING — combine freely:",
@@ -2045,17 +2045,25 @@ export const PARTNER_MCP_TOOLS: PartnerMcpToolDef[] = [
     pathParams: ["id"],
     write: true,
     sensitive: true,
+    // `preview`, NOT `dry_run` — the dispatcher consumes `dry_run` before the
+    // route runs, so the real per-row plan was unreachable here too (#1877).
     bodyParams: [
       "products",
       "selector",
       "product_update",
       "variant_update",
       "set_inventory",
+      "preview",
       "dry_run",
     ],
     inputSchema: obj(
       {
         id: STR("Store id."),
+        preview: {
+          type: "boolean",
+          description:
+            "Rehearse without writing — returns the route's REAL per-row plan. Use this, not `dry_run`, which the dispatcher intercepts before the route runs. Defaults to false: omitting it APPLIES.",
+        },
         products: {
           type: "array",
           description:

@@ -1,4 +1,5 @@
 import { z } from "@medusajs/framework/zod"
+import { resolveDryRun as sharedResolveDryRun } from "../../../../lib/mcp-core/resolve-dry-run"
 
 /**
  * Body for POST /admin/ops/maintenance-jobs/:id/run.
@@ -112,24 +113,15 @@ export type OpsMaintenanceBatchesQuery = z.infer<
 /**
  * PURE: does this body ask for a preview or an apply? Exported for unit tests.
  *
- * Two spellings mean the same thing (`preview` exists because the MCP
- * dispatcher eats `dry_run` — see the schema), so the rule has to be stated
- * once rather than guessed at each call site.
- *
- *   · neither given            → preview. Safe by default.
- *   · either one explicitly true → preview. A caller that sends a
- *     contradictory `{preview: false, dry_run: true}` gets the SAFE reading,
- *     never the write.
- *   · otherwise                → whichever was given, `preview` first.
- *
- * The middle rule is what stops `preview: false` from being swallowed by
- * `dry_run`'s default and making an apply impossible — and equally stops a
- * stray `dry_run: true` from being overridden into a write.
+ * The rule itself now lives in `lib/mcp-core/resolve-dry-run` because
+ * `POST /admin/products/bulk-update` needs the identical resolution and two
+ * copies of a safety default is how the two ends of a flag come to disagree.
+ * This surface keeps its preview-by-default: omitting the flag on a Data
+ * Plumbing job must never mutate production.
  */
 export function resolveDryRun(body: {
   preview?: boolean
   dry_run?: boolean
 }): boolean {
-  if (body.preview === true || body.dry_run === true) return true
-  return body.preview ?? body.dry_run ?? true
+  return sharedResolveDryRun(body, true)
 }
