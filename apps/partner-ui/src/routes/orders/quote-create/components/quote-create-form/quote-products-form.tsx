@@ -17,6 +17,7 @@ import { useProductTableFilters } from "../../../../../hooks/table/filters/use-p
 import { useProductTableQuery } from "../../../../../hooks/table/query/use-product-table-query"
 import { useDataTable } from "../../../../../hooks/use-data-table"
 import { QuoteDesignsPanel } from "./quote-designs-panel"
+import type { DesignPick } from "./quote-design-candidates"
 import { QuoteCreateSchemaType } from "./schema"
 import type { QuotableDesign } from "../../../../../hooks/api/partner-quotes"
 
@@ -130,37 +131,54 @@ export const QuoteProductsForm = ({ form }: QuoteProductsFormProps) => {
    * is only the table's tick marks, and the product may not even be on the
    * current page. Both are set, but they are not the same fact.
    */
-  const toggleDesign = (design: QuotableDesign, selected: boolean) => {
-    if (!design.variant_id || !design.product_id) return
+  const toggleDesign = (
+    design: QuotableDesign,
+    selected: boolean,
+    pick?: DesignPick | null
+  ) => {
+    /*
+     * #1970 — where the variant comes from.
+     *
+     * A design the backend resolved carries its own `variant_id`/`product_id`.
+     * One sold as SEVERAL variants carries neither until the partner picks, so
+     * the panel resolves the choice and hands it down as `pick`.
+     *
+     * 🔴 `pick` is preferred but never invented: the panel returns null until a
+     * candidate is chosen, and this still refuses on null. Defaulting to the
+     * design's first candidate here would quote a size nobody chose.
+     */
+    const variantId = pick?.variant_id ?? design.variant_id
+    const productId = pick?.product_id ?? design.product_id
+    if (!variantId || !productId) return
 
     const nextMap = { ...(designByVariant ?? {}) }
     const currentIds = (selectedIds ?? []).map((p) => p.id)
 
     if (selected) {
-      nextMap[design.variant_id] = design.id
-      if (!currentIds.includes(design.product_id)) {
-        setValue("product_ids", [...(selectedIds ?? []), { id: design.product_id }], {
+      nextMap[variantId] = design.id
+      if (!currentIds.includes(productId)) {
+        setValue("product_ids", [...(selectedIds ?? []), { id: productId }], {
           shouldDirty: true,
           shouldTouch: true,
         })
-        setRowSelection((prev) => ({ ...prev, [design.product_id as string]: true }))
+        setRowSelection((prev) => ({ ...prev, [productId]: true }))
       }
     } else {
-      delete nextMap[design.variant_id]
+      delete nextMap[variantId]
       setValue(
         "product_ids",
-        (selectedIds ?? []).filter((p) => p.id !== design.product_id),
+        (selectedIds ?? []).filter((p) => p.id !== productId),
         { shouldDirty: true, shouldTouch: true }
       )
       setRowSelection((prev) => {
         const next = { ...prev }
-        delete next[design.product_id as string]
+        delete next[productId]
         return next
       })
       // The quantity has to go with it — a line the partner just removed must
       // not still be sent, and a quantity is a real price on a real price list.
       const nextQuantities = { ...(quantities ?? {}) }
-      delete nextQuantities[design.variant_id]
+      delete nextQuantities[variantId]
       setValue("quantities", nextQuantities, { shouldDirty: true })
     }
 

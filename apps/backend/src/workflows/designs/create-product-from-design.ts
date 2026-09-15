@@ -11,6 +11,8 @@ import {
 } from "@medusajs/medusa/core-flows";
 import { DESIGN_MODULE } from "../../modules/designs";
 import { resolveMintSalesChannel } from "./lib/mint-sales-channel";
+import { buildDesignSpec } from "./lib/design-product-spec";
+import { upsertProductSpecWorkflow } from "../products/upsert-product-spec";
 import type { Link } from "@medusajs/modules-sdk";
 import { resolveLineItemDesignId } from "../../lib/resolve-line-item-production"
 import designCustomerLink from "../../links/design-customer-link"
@@ -160,6 +162,53 @@ type CreateProductFromDesignOutput = {
  *
  * Exported for tests.
  */
+/**
+ * PURE: the payload that ADDS a value to an existing product option.
+ *
+ * 🔴 `upsertProductOptions` is the WRONG API for this, in two ways, and both
+ * were found by probing the real service rather than by reading it.
+ *
+ *   { id, product_id, title, values }  -> THROWS deep inside MikroORM's
+ *                                         upsertWithReplace:
+ *                                         "Cannot read properties of undefined
+ *                                         (reading 'fieldNames')"
+ *   { id, values }                     -> returns OK and PERSISTS NOTHING.
+ *                                         The option still had one value when
+ *                                         read back.
+ *
+ * The second is the dangerous one: a write that reports success and does not
+ * land. It surfaced downstream as "Option value <name> does not exist for
+ * option <title>" when the variant was then created against it, which names
+ * the symptom and not the cause.
+ *
+ * `updateProductOptionValuesOnProduct` is the additive API — an explicit
+ * add/remove against a product↔option pair, with no replace semantics to get
+ * wrong. Values may be passed as create-objects (`{ value }`); a bare string is
+ * read as a value ID and refused with "you tried to set relationship
+ * product_option_value_id ... but such entity does not exist".
+ *
+ * Verified by probe on 2026-09-15: the option went from 1 value to 2 and the
+ * new one read back.
+ *
+ * What the bug cost: every second mint for a design that already had a product
+ * crashed. `approve-run-output` never hit it because its idempotency rule
+ * refuses to re-mint, but the admin approve route has no such guard, so
+ * approving a design twice failed with that opaque TypeError.
+ */
+export const appendOptionValuePayload = (
+  productId: string,
+  option: { id: string },
+  value: string
+): {
+  product_id: string
+  product_option_id: string
+  add: Array<{ value: string }>
+} => ({
+  product_id: productId,
+  product_option_id: option.id,
+  add: [{ value }],
+})
+
 export const designOptionValue = (
   design: { id: string; name?: string | null },
   existingValues: readonly string[] = []
@@ -451,14 +500,13 @@ const createProductAndVariantStep = createStep(
           const value = designOptionValue(design, existingValues);
 
           if (!existingValues.includes(value)) {
-            await productService.upsertProductOptions([
-              {
-                id: option.id,
-                product_id: product_id,
-                title: option.title,
-                values: [...existingValues, value],
-              },
-            ]);
+            // 🔴 NOT upsertProductOptions — see appendOptionValuePayload. That
+            // call either throws or silently persists nothing, depending on the
+            // payload. This one is additive and was verified by reading the
+            // option back.
+            await productService.updateProductOptionValuesOnProduct(
+              appendOptionValuePayload(product_id, option, value)
+            );
           }
 
           variantOptions[option.title] = value;
@@ -638,6 +686,49 @@ const createProductAndVariantStep = createStep(
         created_at: new Date(),
       },
     });
+
+    /**
+     * The design's sizes, as something the CUSTOMER can choose (#1970).
+     *
+     * Until now this mint wrote NO spec at all, so a design product reached the
+     * storefront with a single variant whose axis was the design's own name —
+     * nothing to choose, and no size anywhere on the page. The made-to-spec
+     * surface that renders these choices, validates them at add-to-cart and
+     * snapshots them onto the cart line already existed; it was simply never
+     * wired to this door.
+     *
+     * 🔴 Sizes become a spec OPTION GROUP, not variants. See
+     * `lib/design-product-spec.ts` — one variant per size would invent SKUs for
+     * a garment woven to order and never stocked, which is the mistake
+     * `product-spec-option.ts` documents reversing, and it would also make the
+     * design unquotable (`design-lines.ts:140` resolves only a single variant).
+     *
+     * Non-fatal, like the order-line backfill below: a product that minted is a
+     * product, and losing it because its choices could not be written would be
+     * a worse outcome than a product a customer cannot size. It is logged
+     * loudly instead.
+     */
+    const designSpec = buildDesignSpec(design as any);
+    if (designSpec) {
+      try {
+        await upsertProductSpecWorkflow(container).run({
+          input: { product_id, data: designSpec },
+        });
+      } catch (specError) {
+        try {
+          const specLogger: any = container.resolve(
+            ContainerRegistrationKeys.LOGGER
+          );
+          specLogger?.error(
+            `[create-product-from-design] product ${product_id} minted but its ` +
+              `spec could not be written — the customer will see no size ` +
+              `choices: ${(specError as Error)?.message}`
+          );
+        } catch {
+          /* no logger in this container; the mint still stands */
+        }
+      }
+    }
 
     // Update any existing order line items to reference the new variant/product.
     // This closes the loop: order placed (custom item) → design approved → order items linked.

@@ -1,4 +1,5 @@
 import {
+  appendOptionValuePayload,
   designOptionValue,
   designProductNaming,
   resolveDesignSizeLabel,
@@ -312,5 +313,41 @@ describe("resolveRunsSizeLabel — a batch of runs (#2030 item 3)", () => {
 
   it("survives a run with no snapshot at all rather than throwing", () => {
     expect(resolveRunsSizeLabel([{}, null, run(["L"])])).toBe("L")
+  })
+})
+
+/**
+ * The append branch's option payload (#1970).
+ *
+ * Isolated by probe against the real product service: `{ id, product_id, title,
+ * values }` throws `Cannot read properties of undefined (reading 'fieldNames')`
+ * from MikroORM, `{ id, values }` does not. Every second mint for a design that
+ * already had a product crashed on it.
+ */
+describe("appendOptionValuePayload", () => {
+  it("🔴 targets the product↔option pair, not the option row", () => {
+    // upsertProductOptions is the wrong API here: with product_id it throws
+    // inside MikroORM, and without it it returns OK and persists NOTHING.
+    expect(appendOptionValuePayload("prod_1", { id: "opt_1" }, "Shawl B")).toEqual({
+      product_id: "prod_1",
+      product_option_id: "opt_1",
+      add: [{ value: "Shawl B" }],
+    })
+  })
+
+  it("🔴 wraps the value as a create-object, never a bare string", () => {
+    // A bare string is read as a value ID: "you tried to set relationship
+    // product_option_value_id ... but such entity does not exist".
+    const payload = appendOptionValuePayload("prod_1", { id: "opt_1" }, "X")
+    expect(payload.add).toEqual([{ value: "X" }])
+    expect(typeof payload.add[0]).toBe("object")
+  })
+
+  it("adds only the new value — it never restates the existing ones", () => {
+    // The API is additive. Passing the full list would be the replace-shaped
+    // thinking that produced the silent no-op.
+    expect(
+      appendOptionValuePayload("prod_1", { id: "opt_1" }, "C").add
+    ).toHaveLength(1)
   })
 })

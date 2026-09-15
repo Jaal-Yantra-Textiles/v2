@@ -1,5 +1,5 @@
 import { ChevronDownMini, ChevronRightMini } from "@medusajs/icons"
-import { Badge, Checkbox, Input, Text, Tooltip } from "@medusajs/ui"
+import { Badge, Checkbox, Input, Select, Text, Tooltip } from "@medusajs/ui"
 import { useState } from "react"
 import { useTranslation } from "react-i18next"
 
@@ -8,11 +8,27 @@ import {
   usePartnerQuotableDesigns,
   type QuotableDesign,
 } from "../../../../../hooks/api/partner-quotes"
+import {
+  candidateOptions,
+  chooseCandidate,
+  needsVariantChoice,
+  resolveDesignPick,
+  type DesignPick,
+} from "./quote-design-candidates"
 
 type QuoteDesignsPanelProps = {
   /** variant_id → design_id, as the form currently holds it. */
   designByVariant: Record<string, string>
-  onToggle: (design: QuotableDesign, selected: boolean) => void
+  /**
+   * `pick` is the variant+product the row resolved to — supplied because a
+   * multi-variant design carries neither on itself until the partner chooses
+   * (#1970). Absent for an un-tick.
+   */
+  onToggle: (
+    design: QuotableDesign,
+    selected: boolean,
+    pick?: DesignPick | null
+  ) => void
   /**
    * The quote's currency. A made-to-order variant has to be LISTED in it —
    * the estimate behind it is denominated in the design's own cost currency
@@ -63,6 +79,14 @@ export const QuoteDesignsPanel = ({
   /** design_id → why its mint was refused. Cleared when it is retried. */
   const [mintErrors, setMintErrors] = useState<Record<string, string>>({})
   const [minting, setMinting] = useState<string | null>(null)
+  /**
+   * design_id → the variant the partner picked for it (#1970). Only ever set
+   * for a design the backend returned several candidates for; a resolved
+   * design carries its own variant and never consults this.
+   */
+  const [chosenByDesign, setChosenByDesign] = useState<Record<string, string>>(
+    {}
+  )
 
   const { mutateAsync: mintVariant } = usePartnerMintDesignVariant()
 
@@ -75,7 +99,13 @@ export const QuoteDesignsPanel = ({
    */
   const handleToggle = async (design: QuotableDesign, selected: boolean) => {
     if (!selected || design.variant_id || !design.made_to_order) {
-      onToggle(design, selected)
+      // A multi-variant design carries no variant of its own, so the row's
+      // chosen candidate is what the parent has to put in the basket (#1970).
+      onToggle(
+        design,
+        selected,
+        resolveDesignPick(design as any, chosenByDesign[design.id])
+      )
       return
     }
 
@@ -195,6 +225,12 @@ export const QuoteDesignsPanel = ({
                   onToggle={handleToggle}
                   minting={minting === design.id}
                   mintError={mintErrors[design.id] ?? null}
+                  chosenVariantId={chosenByDesign[design.id] ?? null}
+                  onChooseVariant={(variantId) =>
+                    setChosenByDesign((prev) =>
+                      chooseCandidate(prev, design.id, variantId)
+                    )
+                  }
                 />
               ))}
             </ul>
@@ -211,16 +247,31 @@ const DesignRow = ({
   onToggle,
   minting,
   mintError,
+  chosenVariantId,
+  onChooseVariant,
 }: {
   design: QuotableDesign
   selected: boolean
   onToggle: (design: QuotableDesign, selected: boolean) => void
   minting?: boolean
   mintError?: string | null
+  chosenVariantId?: string | null
+  onChooseVariant?: (variantId?: string | null) => void
 }) => {
-  // Pickable either because a variant already backs it, or because one will be
-  // minted the moment it is ticked.
-  const pickable = design.quotable || design.made_to_order
+  /**
+   * #1970 — the design is sold as several variants and the partner has to say
+   * which. The backend has always returned them and said so in `reason`; there
+   * was simply nothing on the row to answer with, so it sat greyed out telling
+   * the partner to pick.
+   */
+  const choosing = needsVariantChoice(design as any)
+  const chosen = choosing
+    ? resolveDesignPick(design as any, chosenVariantId)
+    : null
+
+  // Pickable because a variant already backs it, because one will be minted the
+  // moment it is ticked, or because the partner has now chosen one.
+  const pickable = design.quotable || design.made_to_order || !!chosen
 
   const row = (
     <li
@@ -267,6 +318,39 @@ const DesignRow = ({
               ? "Pricing from comparable work…"
               : "No product yet — priced from comparable work when you pick it."}
           </Text>
+        ) : null}
+
+        {/*
+          The answer to `reason`'s "pick the one to quote". Rendered under the
+          reason rather than replacing it, so the row still explains itself.
+        */}
+        {choosing ? (
+          <div className="mt-1 max-w-56">
+            {/*
+              🔴 Locked once the row is ticked. Changing the variant while it
+              is in the basket would leave the OLD variant there — the basket,
+              the quantities and `design_by_variant` are all keyed by variant
+              id, and this control only writes the row's choice. Un-tick to
+              change it, so the two can never disagree.
+            */}
+            <Select
+              size="small"
+              disabled={selected}
+              value={chosenVariantId ?? ""}
+              onValueChange={(v) => onChooseVariant?.(v)}
+            >
+              <Select.Trigger>
+                <Select.Value placeholder="Pick a variant" />
+              </Select.Trigger>
+              <Select.Content>
+                {candidateOptions(design as any).map((o) => (
+                  <Select.Item key={o.value} value={o.value}>
+                    {o.label}
+                  </Select.Item>
+                ))}
+              </Select.Content>
+            </Select>
+          </div>
         ) : null}
       </div>
       {design.made_to_order ? (
