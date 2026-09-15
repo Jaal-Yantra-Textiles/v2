@@ -112,6 +112,8 @@ class SocialProviderService extends MedusaService({}) {
     return base.withCredentials({
       clientId: cfg.client_id || undefined,
       clientSecret: decrypt(cfg.client_secret_encrypted, cfg.client_secret) || undefined,
+      redirectUri: cfg.redirect_uri || undefined,
+      scope: cfg.scope || undefined,
     })
   }
 
