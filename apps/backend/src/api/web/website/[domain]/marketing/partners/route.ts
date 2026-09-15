@@ -1,5 +1,6 @@
 import { MedusaRequest, MedusaResponse } from "@medusajs/framework"
 import { ContainerRegistrationKeys } from "@medusajs/framework/utils"
+import { sellsDirect } from "../../../../../../lib/partner-capabilities"
 
 type RawPartner = {
   id: string
@@ -84,7 +85,9 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
     // A partner is a "live brand" when they actually have a provisioned
     // storefront, not based on workspace_type (which is a partner-UI
     // sidebar concept that's defaulted to "manufacturer" on every row).
-    const isLiveBrand = p.vercel_linked === true && !!p.storefront_domain
+    // The rule itself lives in lib/partner-capabilities — it had been copied
+    // into three places, one of them a GMV projection (#2061).
+    const isLiveBrand = sellsDirect(p)
 
     if (isLiveBrand) {
       if (brands.length < BRAND_LIMIT) {
