@@ -333,6 +333,7 @@ import { ListInventoryItemRawMaterialsQuerySchema } from "./admin/inventory-item
 import { ListInventoryCatalogQuerySchema } from "./admin/inventory-items/catalog/validators";
 import { BulkImportSchema } from "./admin/inventory-items/bulk-import/validators";
 import { PartnerCreateStoreReq } from "./partners/stores/validators";
+import { CreatePartnerWarehouseReq } from "./partners/warehouses/validators";
 import { PartnerCreateProductReq, PartnerArtisanProductDetailReq, PartnerProductSpecReq, PartnerStoreCreateProductReq, PartnerQuickCreateProductReq } from "./partners/products/validators";
 import { PartnerCreatePriceListReq, PartnerUpdatePriceListReq } from "./partners/price-lists/validators";
 import { AdjustQuoteReq, MintDesignVariantReq, PartnerMintQuoteReq, QuoteReadinessReq } from "./partners/quotes/validators";
@@ -1677,6 +1678,29 @@ export default defineMiddlewares({
         createCorsPartnerMiddleware(),
         authenticate("partner", ['session', 'bearer'])
       ]
+    },
+    /**
+     * Warehouse without a storefront (#2061). Authenticated like every other
+     * partner route — the handler's own partner check fails closed, but relying
+     * on that alone would leave the route unauthenticated at the layer where
+     * every neighbour is protected.
+     */
+    {
+      matcher: "/partners/warehouses",
+      method: "POST",
+      middlewares: [
+        createCorsPartnerMiddleware(),
+        authenticate("partner", ["session", "bearer"]),
+        validateAndTransformBody(wrapSchema(CreatePartnerWarehouseReq)),
+      ],
+    },
+    {
+      matcher: "/partners/warehouses",
+      method: "GET",
+      middlewares: [
+        createCorsPartnerMiddleware(),
+        authenticate("partner", ["session", "bearer"]),
+      ],
     },
     {
       matcher: "/partners/stores",

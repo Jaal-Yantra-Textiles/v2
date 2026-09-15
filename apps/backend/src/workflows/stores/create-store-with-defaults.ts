@@ -293,8 +293,16 @@ const createPublishableApiKeyStep = createStep(
   }
 )
 
-// Step: auto-link fulfillment providers to location based on country
-const autoLinkFulfillmentProvidersStep = createStep(
+/**
+ * Step: auto-link fulfillment providers to location based on country.
+ *
+ * EXPORTED for `create-partner-warehouse` (#2061). A warehouse created without
+ * a store needs the identical carrier registration — a location no courier can
+ * collect from is not a warehouse — and a second copy of this would let the two
+ * provisioning paths drift into registering different carriers for the same
+ * kind of location.
+ */
+export const autoLinkFulfillmentProvidersStep = createStep(
   "auto-link-fulfillment-providers",
   async (
     input: { locationId: string; countryCode: string; currencyCode: string },
