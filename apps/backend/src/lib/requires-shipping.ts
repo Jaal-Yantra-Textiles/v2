@@ -4,9 +4,19 @@
  * Medusa DERIVES a line item's `requires_shipping` from
  * `hasShippingProfile || someInventoryRequiresShipping`
  * (core-flows `prepare-line-item-data.js`), and `create-fulfillment` copies the
- * item flag onto the fulfillment. Most of our catalogue has no shipping profile
- * and sells `manage_inventory: false` variants, so both operands are false and
- * the dashboard then hides "Mark as shipped" on that flag alone.
+ * item flag onto the fulfillment. When #1195 was written most of our catalogue
+ * had no shipping profile and sold `manage_inventory: false` variants, so both
+ * operands were false and the dashboard hid "Mark as shipped" on that flag
+ * alone.
+ *
+ * ⚠️ THAT MEASUREMENT IS NO LONGER TRUE. Re-measured on prod 2026-09-15 via a
+ * `backfill-product-shipping-profiles` preview: **97 of 97 products now carry a
+ * shipping profile** — the backfill has been run. The repair logic below still
+ * stands (it is about ORDER-time derivation, not catalogue state), but do not
+ * cite the old ratio as evidence about the catalogue. It misled #2061 into
+ * treating "no shipping profile" as a physical/digital signal; the field is in
+ * fact saturated and carries no information either way. See
+ * `lib/partner-capabilities.ts`.
  *
  * TWO INTERLOCKS make `requires_shipping: true` load-bearing rather than
  * cosmetic — both of them throw, and both were found the hard way:
