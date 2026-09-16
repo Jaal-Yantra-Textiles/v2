@@ -6006,6 +6006,37 @@
     "source": "custom_ts",
     "sourceFile": "src/workflows/partners/attach-storefront-domain.ts"
   },
+  "create-partner-warehouse": {
+    "fields": [
+      {
+        "name": "partner_id",
+        "type": "id",
+        "required": true,
+        "placeholder": "{{ $last.partner_id }}"
+      },
+      {
+        "name": "name",
+        "type": "string",
+        "required": true,
+        "placeholder": "{{ $last.name }}"
+      },
+      {
+        "name": "metadata",
+        "type": "object",
+        "required": false,
+        "placeholder": "{}"
+      },
+      {
+        "name": "currency_code",
+        "type": "string",
+        "required": false,
+        "placeholder": "{{ $last.currency_code }}",
+        "description": "Give a partner a warehouse — and nothing else. (#2061) WHY THIS EXISTS --------------- A \"store\" bundles two unrelated jobs: a STOREFRONT (publishable key, domain, sales channel, region) and a WAREHOUSE (stock location, carrier registrations). Until now they could only be obtained together, so a partner who produces but never sells direct had to mint an entire storefront just to have somewhere to put goods. That is not hypothetical. Prince Tailors needed a warehouse so 7 finished garments could be banked; the only route was a full store, so a tailoring business now owns a publishable key and a storefront it will never use. Surveyed on prod 2026-09-15: **12 of the 14 partners who own a store are `workspace_type: \"manufacturer\"`**, not sellers. The bundle is backwards for most of the partner base. #2053 already shipped the typed `partner → stock_location` link, so a partner can HOLD a warehouse with no store. What was missing was a way to CREATE one. This is that, and deliberately nothing more: no store, no sales channel, no region, no publishable key, no domain. NO GATE HERE, DELIBERATELY -------------------------- Holding goods is not a sales decision, so this path is open to any partner. Gating the STOREFRONT half is a separate question that cannot be answered yet: `workspace_type` would block 12 of the 14 stores that exist, and `metadata.use_type` was never an alternative — null for 26 partners of 31, and retired as a decider in #2061. See #2061 / #2029. / export type CreatePartnerWarehouseInput = { partner_id: string name: string address: { address_1: string address_2?: string | null city?: string | null country_code: string province?: string | null postal_code?: string | null phone?: string | null company?: string | null } metadata?: Record<string, unknown> | null /** Drives which carriers are auto-registered. Defaults to the address country."
+      }
+    ],
+    "source": "custom_ts",
+    "sourceFile": "src/workflows/partners/create-partner-warehouse.ts"
+  },
   "delete-partner": {
     "fields": [
       {
@@ -8375,6 +8406,24 @@
     ],
     "source": "custom_ts",
     "sourceFile": "src/workflows/socials/scheduled-publishing/process-campaign-item-workflow.ts"
+  },
+  "search-pinterest-workflow": {
+    "fields": [
+      {
+        "name": "query",
+        "type": "string",
+        "required": true,
+        "placeholder": "{{ $last.query }}"
+      },
+      {
+        "name": "bookmark",
+        "type": "string",
+        "required": false,
+        "placeholder": "{{ $last.bookmark }}"
+      }
+    ],
+    "source": "custom_ts",
+    "sourceFile": "src/workflows/socials/search-pinterest.ts"
   },
   "sync-platform-hashtags-mentions": {
     "fields": [
