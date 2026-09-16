@@ -73,6 +73,13 @@ jobs:
       # medusa build can't resolve it unless it's built first.
       - name: Build workspace plugins
         run: pnpm --filter "@jytextiles/medusa-plugin-etsy-sync" build
+      # Reads the source rather than resolving it. The build below resolves
+      # through `shamefully-hoist`, so an import declared in no package.json
+      # still compiles here and only breaks where the shared slot comes up
+      # empty or holds the wrong version (#2093, #2088). Static, so its answer
+      # is the same on every machine. Runs first — it costs seconds.
+      - name: No new phantom imports
+        run: pnpm --filter @jyt/backend check:phantom-imports
       - name: Config dev/prod parity
         run: pnpm --filter @jyt/backend check:prod-config
       - name: Prod-config build (mirror ECS Dockerfile)
