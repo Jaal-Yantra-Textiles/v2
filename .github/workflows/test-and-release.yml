@@ -29,7 +29,19 @@ on:
       - 'pnpm-workspace.yaml'
       - '.github/workflows/test-and-release.yml'
   pull_request:
-    branches: [ main ]
+  # 🔴 NO `branches:` filter, deliberately.
+  #
+  # This used to read `branches: [ main ]`, which meant a PR based on another
+  # PR's branch — a stack — triggered NOTHING. #2095 and #2097 sat with zero
+  # check runs, and `gh pr checks` reported them CLEAN, because an empty check
+  # list is indistinguishable from a passing one. Two PRs came within one
+  # command of merging completely untested.
+  #
+  # Retargeting a stacked PR to main does NOT rescue it either: `pull_request`
+  # fires on opened/synchronize/reopened, and changing the base is `edited`.
+  #
+  # The `paths:` filter below is what keeps the cost down; the branch filter
+  # was only ever excluding work that most needed checking.
     paths:
       - 'apps/backend/**'
       - 'packages/**'
