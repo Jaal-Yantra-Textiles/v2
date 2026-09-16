@@ -48,22 +48,28 @@ export const needsSecondStep = (spec: StoreProductSpec | null): boolean => {
 }
 
 /**
- * Required groups default to their first orderable value so the common path is
- * one click. Optional ones start UNSET on purpose — pre-selecting an add-on is
- * how a customer ends up paying for embroidery they never chose.
+ * NOTHING is preselected — not colour, not add-ons, and (since #1970) not
+ * required groups either.
  *
- * Colour is deliberately NOT preselected either. With one button, a preselected
- * colour would silently turn every ordinary purchase into a made-to-order one.
+ * 🔴 Required groups used to default to their first orderable value, "so the
+ * common path is one click". That was safe only while the value was decorative,
+ * and it stopped being safe the moment a required group decides WHAT GETS MADE.
+ * A design's sizes are exactly that: the page opened with "S" already chosen on
+ * the customer's behalf, and `hasAnySpecChoice` then had to discount it —
+ * because counting a value we picked ourselves would place a made-to-order for
+ * S for anyone who never touched the control.
+ *
+ * The two rules were locked together: preselect and you must not count it;
+ * count it and you must not preselect. Keeping the prefill meant the customer's
+ * real answer was thrown away, and a garment reached production with no size on
+ * it. So the prefill goes, the answer counts, and `unansweredRequiredGroups`
+ * below stops the sale until the question is actually answered.
  */
 export const initialSpecChoices = (
-  spec: StoreProductSpec | null
+  _spec: StoreProductSpec | null
 ): SpecChoiceState => ({
   color: null,
-  options: Object.fromEntries(
-    (spec?.options ?? [])
-      .filter((o) => o.required && o.values.length)
-      .map((o) => [o.key, o.values[0].label])
-  ),
+  options: {},
   note: "",
 })
 
@@ -81,13 +87,40 @@ export const hasAnySpecChoice = (
   if (!spec?.accepting_custom_orders) return false
   if (value.color) return true
   if (value.note.trim()) return true
-  // A required group's default is not a choice the customer made — it is our
-  // prefill. Only count it once something else marks real intent, which the
-  // two checks above already do.
-  return (spec.options ?? []).some(
-    (o) => !o.required && !!value.options[o.key]
-  )
+  /**
+   * 🔴 EVERY group counts now, required included.
+   *
+   * This used to read `!o.required`, on the grounds that a required group's
+   * value was our prefill rather than the customer's answer. With the prefill
+   * gone (see `initialSpecChoices`) a value in a required group can only have
+   * come from a click, and it is the strongest statement of intent on the page
+   * — often the only one, for a design whose single axis is its size.
+   *
+   * While it read `!o.required`, a customer could choose "L", add to cart, and
+   * have the line recorded as an ordinary purchase with no size on it at all.
+   */
+  return (spec.options ?? []).some((o) => !!value.options[o.key])
 }
+
+/**
+ * Required groups the customer has not answered yet — the reason the buy button
+ * waits.
+ *
+ * Distinct from `blockedGroups`, and the difference is who can fix it: a
+ * blocked group is the PARTNER's problem (nothing orderable in it), while an
+ * unanswered one is simply a question still open. Groups with no orderable
+ * values are excluded here so the two never double-report the same row.
+ *
+ * One definition, read by the button's `disabled` and by its label, so the
+ * page cannot end up refusing a click for a reason it does not state.
+ */
+export const unansweredRequiredGroups = (
+  spec: StoreProductSpec | null,
+  value: SpecChoiceState
+) =>
+  (spec?.accepting_custom_orders ? spec.options ?? [] : []).filter(
+    (o) => o.required && o.values.length > 0 && !value.options[o.key]
+  )
 
 /**
  * Required groups the partner has nothing available for. The backend refuses

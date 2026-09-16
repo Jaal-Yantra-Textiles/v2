@@ -88,6 +88,24 @@ export const buildDesignSpec = (design: {
 
   return {
     size_label: null,
+    /**
+     * 🔴 Without this the whole spec is INERT.
+     *
+     * `accepting_custom_orders` is not a display preference — it is the gate on
+     * both ends. The storefront renders the choices only when it is true
+     * (`product-actions/index.tsx`: `offersChoices = !!spec?.accepting_custom_orders`),
+     * and `/store/carts/:id/made-to-spec` REFUSES the line without it
+     * ("not currently accepting made-to-order requests"). So the mint wrote a
+     * perfect size group that no customer could see and no cart would have
+     * taken. The two hand-written seeds (`seed-ikat-spec-local`,
+     * `seed-wide-spec-local`) each set it by hand, which is why the sibling
+     * storefront spec passed while this path never could.
+     *
+     * True only HERE, on the several-sizes branch. A design that states one
+     * size writes `size_label` — a fact, not a question — and has nothing to
+     * accept a custom order about.
+     */
+    accepting_custom_orders: true,
     options: [
       {
         key: "size",
