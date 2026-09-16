@@ -4199,16 +4199,43 @@ export const ADMIN_MCP_TOOLS: AdminMcpToolDef[] = [
     previewPath: "/admin/orders/:id",
     write: true,
     sensitive: true,
-    bodyParams: ["carrier", "preferred_courier_id"],
+    // 🔴 weight_grams + dimensions_cm are listed because the ROUTE has taken
+    // them all along and this tool did not forward them. bodyParams is an
+    // allowlist walk, so an unlisted key is dropped SILENTLY — every label an
+    // agent booked went out at DEFAULT_WEIGHT_GRAMS (500 g) in a 10×10×10 cm
+    // box, whatever the real parcel was, while `list_order_shipping_rates`
+    // quoted the courier on the true weight. The quote and the booking
+    // disagreed and nothing reported it.
+    //
+    // That is not cosmetic. On order #3 the five-garment, ~2.5 kg parcel to
+    // Switzerland was booked on SRX Economy — a lane that does not serve 2.5 kg
+    // at all (it disappears from the quote at that weight) — and the pickup was
+    // scanned "Not Picked - Shipment not received from client".
+    bodyParams: ["carrier", "preferred_courier_id", "weight_grams", "dimensions_cm"],
     inputSchema: obj(
       {
         id: STR("Order id, e.g. 'order_...'."),
         carrier: STR("Carrier to book with (defaults to the configured provider)."),
         preferred_courier_id: STR("Courier id from list_order_shipping_rates."),
+        weight_grams: {
+          type: "number",
+          description:
+            "Real parcel weight in grams. ALWAYS send this: without it the booking uses 500 g regardless of the box, which can put the parcel on a lane that cannot carry it. Quote the same weight in list_order_shipping_rates so the rate and the booking agree.",
+        },
+        dimensions_cm: {
+          type: "object",
+          description:
+            "Parcel dimensions in CENTIMETRES: { length, width, height }. All three are required together — any missing one and the carrier defaults the whole box to 10×10×10 cm. Volumetric weight can exceed actual weight and decide the price.",
+          properties: {
+            length: { type: "number", description: "Length in cm." },
+            width: { type: "number", description: "Width in cm (sent to the carrier as breadth)." },
+            height: { type: "number", description: "Height in cm." },
+          },
+        },
       },
       ["id"]
     ),
-    sideEffects: "Calls the live carrier API, books a real shipment and buys a label — this costs money and is not undone by cancelling the fulfillment.",
+    sideEffects: "Calls the live carrier API, books a real shipment and buys a label — this costs money and is NOT undone by cancelling the fulfillment (use cancel_order_shipment to void the waybill).",
   },
   {
     name: "attach_order_awb",

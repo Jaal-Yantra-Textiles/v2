@@ -152,6 +152,38 @@ setupSharedTestSuite(() => {
       )
     })
 
+    /**
+     * 🔴 The booking silently ignored the box.
+     *
+     * `/admin/orders/:id/fulfillment-label` has accepted `weight_grams` and
+     * `dimensions_cm` all along — its own comment says a label without them is
+     * "shipped at the default weight regardless of the real box". This tool
+     * listed neither, and `bodyParams` is an allowlist walk: an unlisted key is
+     * dropped with no error, no log, and nothing visible in a dry-run plan. So
+     * every agent-booked label went out at 500 g in a 10x10x10 cm box while
+     * `list_order_shipping_rates` had quoted the courier on the real weight.
+     *
+     * Order #3 is what that costs: a ~2.5 kg five-garment parcel booked on SRX
+     * Economy, a lane that does not serve 2.5 kg at all, scanned
+     * "Not Picked - Shipment not received from client".
+     */
+    it("🔴 forwards weight_grams and dimensions_cm when booking a label", async () => {
+      const {
+        ADMIN_MCP_TOOLS,
+      } = require("../../../src/api/admin/mcp/lib/registry")
+      const tool = ADMIN_MCP_TOOLS.find(
+        (t: any) => t.name === "create_order_shipping_label"
+      )
+      expect(tool).toBeDefined()
+      expect(tool.bodyParams).toEqual(
+        expect.arrayContaining(["weight_grams", "dimensions_cm"])
+      )
+      // Advertised too — a body param the model cannot see is one it never sends.
+      expect(Object.keys(tool.inputSchema.properties)).toEqual(
+        expect.arrayContaining(["weight_grams", "dimensions_cm"])
+      )
+    })
+
     it("refuses cancel_order_shipment outright while dangerous tools are disabled", async () => {
       const res = await callTool("cancel_order_shipment", {
         id: "order_does_not_matter",
