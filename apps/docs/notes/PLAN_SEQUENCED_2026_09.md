@@ -18,23 +18,37 @@ and a gate that stops a class of defect outranks fixing one instance of it.
 
 Nothing here is new work; it is all "a wrong number can reach a customer today".
 
-### 1a. #1979 — 40 designs will mint at ~110× ⚠️ THE ONE THAT SCARES ME
+> **Status 2026-09-16:** 1a is **done** (verified against prod, not assumed).
+> 1b, 1c and 1d are **still open**. See the session log at the bottom for what
+> displaced them.
 
-`resolveApprovalCurrency` reads `designCurrency || storeCurrency || "inr"`. JYT
-Medu Store's default is EUR, so a design costed in INR mints in EUR: the tweed
+### 1a. #1979 — 40 designs will mint at ~110× ✅ **DONE** (verified 2026-09-16)
+
+`resolveApprovalCurrency` read `designCurrency || storeCurrency || "inr"`. JYT
+Medu Store's default is EUR, so a design costed in INR minted in EUR: the tweed
 jacket went out at €2,634.75 → **₹291,560**. The INR fallback was written for
-exactly this case and is unreachable.
+exactly this case and was unreachable.
 
-**42 of 43 costed designs have no `cost_currency`.** Only 2 are fixed.
+- [x] **Resolver fixed.** `storeCurrency` is now absent from the input type
+      entirely — deliberately, so that re-adding it has to be a deliberate edit
+      rather than a plausible-looking `||`. The rule it encodes: *a cost is
+      denominated by how it was COMPUTED, not by where the garment is SOLD.*
+      A run's own `cost_currency` is asked first, then the design's, then INR.
+- [x] **Backfill complete.** Measured on prod 2026-09-16: **48 costed designs,
+      48 with `cost_currency`, all `inr` — zero missing.** The plan's
+      "42 of 43 have none" is out of date.
+- [x] **Regression tests** in `workflows/production-runs/__tests__/`
+      (`approval-pricing.unit.spec.ts`, `house-store.unit.spec.ts`).
 
-- [ ] Fix the resolver so an absent `cost_currency` cannot silently inherit a
-      store default of a different currency — fail loudly or resolve from the
-      cost's own provenance.
-- [ ] Backfill `cost_currency` on the remaining ~40 designs.
-- [ ] A regression test with a design costed in INR under a EUR store.
+🔑 `approvalCurrencyWasAssumed()` exists so a price whose currency was GUESSED
+can still be said out loud. It tests the RAW field before coercion, because
+`""` is falsy but not null.
 
-**Done when** a preview over all costed designs reports zero currency-less rows,
-and the resolver test is red without the fix.
+**Verification method**, for whoever re-checks this: count designs with a
+non-empty `estimated_cost` and compare against those with a non-empty
+`cost_currency`. They were 48 and 48. Do not infer "costed" from a single
+guessed field name — `estimated_cost`, `material_cost`, `production_cost` and
+`raw_*` twins all exist, and picking the wrong one returns a confident nothing.
 
 ⚠️ `0` is not `null` and `Number(null)` is `0`. Ask `> 0`, not `!= null`, and
 test the RAW field before coercing.
@@ -197,3 +211,62 @@ Fix the source of what Slice 2 merely detects.
    stale or partial body.
 5. **Run a 404 control.** Auth and publishable-key middleware answer BEFORE
    routing, so a missing route and a real one both return the same status.
+
+---
+
+## Session log — what actually happened
+
+Rule 2 below says an emergent session must name the slice items it displaced
+rather than let them vanish. This is that record.
+
+### 2026-09-16 — displaced ALL of Slice 1 except 1a
+
+**Nothing in Slice 1b/1c/1d was touched.** The session ran on the #352 handoff
+queue and on emergent findings instead. What it did:
+
+| shipped | what |
+|---|---|
+| #2086, #2087 | merged from the previous session's queue |
+| **#2088** | the intermittent Docker image build — diagnosed and fixed |
+| **#2089** | `update_product_variant` can set `prices` |
+| #2090 | partner coverage counted a PAGE as a total ("Europe 31/30") |
+| #2091 | a design sold as several variants can finally be quoted |
+| #2092 | start a design order from the Design Orders screen |
+
+Prod data fixed: orphan mirror #107 (₹14,000 reading as a retail sale) retired;
+4 test carts retired; `Linen 40 lea` priced at ₹700 — it was a selectable,
+unbuyable weave.
+
+**#1998's open checkbox closed:** Shiprocket genuinely quotes — US **$9.37**,
+UK **£4.42**, Nigeria **$18.11**, tested as a customer through `/store/*`.
+🔑 `GET /store/shipping-options` returns the option with `amount: null`;
+only `POST /store/shipping-options/:id/calculate` distinguishes a working lane
+from a dead one. Listing is not quoting.
+
+### Things this plan should know, found on the way
+
+- 🔴 **`check:prod-build` fails on `main` locally** — `@jest/core` unresolved in
+  `generate-integration-test.e2e.spec.ts`. Confirmed pre-existing by stashing
+  all changes and rebuilding. It is a PHANTOM dependency: declared in no
+  `package.json`, not hoisted to the root, two peer variants in the store.
+  **CI's `prod-build` passes while this fails**, so the gate does not see it.
+  Same family as the bug #2088 fixed. Needs an issue.
+- **`shamefully-hoist=true` gives the repo ONE version slot per package**, and
+  an unpinned slot is a coin flip. That is what #2088 was. Pin in the ROOT
+  `package.json` — a `pnpm.overrides` pin also works and costs partner-ui
+  **+6375 type errors** (1096 → 7468). Measure before shipping a rule change.
+- **`pnpm-lock.yaml` is in the path filter of EIGHT workflows**, including
+  `deploy-investor-ui` and `deploy-analytics`. Any lockfile change ships those.
+- **partner-ui's CI type gate only checks files the PR changed**, so a PR that
+  touches no partner-ui source reports "all clean" regardless of what it breaks
+  there. Its whole-tree count is the number CI cannot see.
+
+### Stale entries corrected
+
+- **1a** — done; the plan's "42 of 43 designs have no `cost_currency`" is now
+  48 of 48 WITH one.
+- The work graph carried `storefront-tests-not-in-ci` and
+  `workflow-schemas-stale` as open; both were already fixed (#2079, #2087).
+
+**An audit verdict is a claim about the PAST.** Re-check before acting on any
+line in this document — three entries were stale within six days.
