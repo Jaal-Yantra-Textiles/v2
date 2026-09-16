@@ -1,0 +1,80 @@
+name: Storefront Check
+
+# `apps/storefront` has 125 vitest tests in 8 files, and until this workflow
+# NOTHING RAN THEM. `test-and-release.yml` is path-filtered to `apps/backend/**`
+# and `packages/**`; the only vitest job in the repo was `@jyt/partner-ui`.
+# A storefront-only PR therefore went all-green having run no test job at all —
+# #2075 and #2078 both merged that way, and #2078 existed only because #2075
+# shipped a regression onto four live products.
+#
+# ## What is gated here, and what deliberately is not
+#
+#   test — HARD gate. Verified green on this tree: 8 files, 125 tests, ~0.2s.
+#          The whole suite is `environment: "node"` pure-logic specs (cart
+#          helpers, region routing, spec choices, quote lines), so it needs no
+#          browser, no database and no env vars.
+#
+#   build — NOT here, on purpose. Vercel already builds every storefront PR;
+#           duplicating `next build` on a runner buys nothing and costs minutes.
+#
+#   tsc   — NOT here, on purpose, and this is the part worth reading before
+#           somebody "improves" the job by adding it.
+#
+#           The tree carries ~930 pre-existing type errors spread over 175 of
+#           its 388 source files. `apps/partner-ui` solves the same problem with
+#           a gate scoped to the files a PR changed, but that arithmetic does
+#           not carry over: at 45% of files already dirty, a changed-files gate
+#           here would fail roughly every other storefront PR for errors the PR
+#           did not introduce. A job that is red for reasons the author cannot
+#           fix is a job everybody learns to click past, which is strictly worse
+#           than not having one.
+#
+#           Burn the 930 down first (or gate only files with a clean baseline),
+#           then add the check. See `partner-ui-check.yml` for the mechanism.
+#
+# ⚠️ Do not add a step whose command is red on main.
+
+on:
+  pull_request:
+    branches: [ main ]
+    paths:
+      - 'apps/storefront/**'
+      - 'pnpm-lock.yaml'
+      - 'pnpm-workspace.yaml'
+      - '.github/workflows/storefront-check.yml'
+  push:
+    branches: [ main ]
+    paths:
+      - 'apps/storefront/**'
+      - 'pnpm-lock.yaml'
+      - 'pnpm-workspace.yaml'
+      - '.github/workflows/storefront-check.yml'
+
+env:
+  # Node 20 runtime for JS-based actions is deprecated on GHA runners.
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
+
+jobs:
+  storefront:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Use Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'pnpm'
+
+      - name: Install dependencies (frozen — package checksum)
+        run: pnpm install --frozen-lockfile
+
+      # Fails the job if the suite selects nothing. A passing run over zero
+      # files is exactly the state this workflow exists to end, and vitest
+      # exits 0 on an empty selection unless told otherwise.
+      - name: Unit tests
+        run: pnpm --filter @jyt/storefront exec vitest --run --passWithNoTests=false

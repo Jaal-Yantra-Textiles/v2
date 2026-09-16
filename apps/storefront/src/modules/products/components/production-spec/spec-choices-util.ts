@@ -1,4 +1,4 @@
-import type { StoreProductSpec } from "@lib/data/product-spec"
+import type { StoreProductSpec, StoreSpecOption } from "@lib/data/product-spec"
 
 /**
  * #1365 — the made-to-order configurator's shared rules.
@@ -134,6 +134,59 @@ export const unansweredRequiredGroups = (
   return (spec.options ?? []).filter(
     (o) => o.required && o.values.length > 0 && !value.options[o.key]
   )
+}
+
+/**
+ * The colour, as one more unanswered required group — when there is a palette
+ * and the customer has not picked from it.
+ *
+ * 🔴 Colour is required by the BACKEND and was invisible to the gate.
+ * `unansweredRequiredGroups` filters `spec.options`; the palette lives in
+ * `spec.colors`, a different field, and nothing looked at it. While required
+ * groups were preselected that never showed: the colour was preselected too.
+ * #1970 removed every prefill, and from that moment all four live handloom
+ * fabrics had an "Add to cart" button that was enabled, said "Add to cart",
+ * and could only ever produce `Choose a colour. Available colours: …` —
+ * the exact shape `blockedGroups` exists to prevent.
+ *
+ * `made-to-spec/lib.ts` refuses UNCONDITIONALLY on a non-empty palette with no
+ * colour, so this gate can never withhold a click that would have succeeded;
+ * it only turns a guaranteed rejection into a question the page asks.
+ *
+ * ⚠️ `spec.colors` is already the orderable palette — the store read route
+ * drops `available === false` before publishing, the same place it filters
+ * option values, so that every storefront agrees on what is orderable. Filter
+ * again here and a partner with one switched-off colour gets a gate for a
+ * question the backend is not asking.
+ */
+const COLOUR_GROUP: StoreSpecOption = {
+  key: "__colour",
+  label: "Colour",
+  required: true,
+  values: [],
+}
+
+/**
+ * Everything still standing between the customer and a made-to-spec line.
+ *
+ * `madeToSpec` is the caller's to answer, and deliberately not inferred here.
+ * The same question has two answers one door apart: `/customise` ALWAYS submits
+ * made-to-spec, while the product page does so only once the customer has shown
+ * made-to-order intent — so a helper that decided for itself would be wrong on
+ * one of them. That is precisely how #2075 shipped a gate that was right on the
+ * page it was written for and a dead end on the page next to it.
+ */
+export const unansweredRequired = (
+  spec: StoreProductSpec | null,
+  value: SpecChoiceState,
+  { madeToSpec }: { madeToSpec: boolean }
+): StoreSpecOption[] => {
+  if (!spec?.accepting_custom_orders) return []
+  const colour =
+    madeToSpec && spec.colors.length > 0 && !value.color ? [COLOUR_GROUP] : []
+  // Colour first: it is rendered above the option groups, so the button names
+  // the question the customer meets first rather than one further down.
+  return [...colour, ...unansweredRequiredGroups(spec, value)]
 }
 
 /**

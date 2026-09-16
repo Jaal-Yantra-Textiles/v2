@@ -23,7 +23,7 @@ import {
   needsSecondStep,
   summariseChoices,
   type SpecChoiceState,
-  unansweredRequiredGroups,
+  unansweredRequired,
 } from "../production-spec/spec-choices-util"
 import {
   addMadeToSpecToCart,
@@ -90,7 +90,7 @@ export default function ProductActions({
    */
   const specUnanswered = secondStep
     ? []
-    : unansweredRequiredGroups(spec, specChoices)
+    : unansweredRequired(spec, specChoices, { madeToSpec: madeToOrder })
   const leadTime = leadTimePhrase(spec)
 
   // If there is only 1 variant, preselect the options
