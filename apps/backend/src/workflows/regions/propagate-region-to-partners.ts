@@ -69,6 +69,30 @@ export type PropagateRegionOutput = {
   errors: Array<{ partner_id: string; phase: string; error: string }>
 }
 
+/**
+ * PURE: which partners this region may reach.
+ *
+ * `ownerPartnerId` is `region.metadata.created_by_partner_id` — the stamp
+ * `POST /partners/stores/:id/regions` writes. When it names a partner, that
+ * partner is the ONLY target: a tenant's own region is not the platform's to
+ * share. When it is absent the region is admin-seeded and every requested
+ * partner is a target, which is #2062's whole purpose.
+ *
+ * Exported for tests: the leak this prevents is silent, and the caller is a
+ * step wrapped around two queries and a link write.
+ */
+export function selectPropagationTargets<T extends { id?: string | null }>(
+  partners: T[] | null | undefined,
+  opts: { requestedPartnerIds?: string[] | null; ownerPartnerId?: string | null }
+): T[] {
+  const requested = opts.requestedPartnerIds
+  const owner = String(opts.ownerPartnerId ?? "").trim()
+
+  return (partners ?? [])
+    .filter((p) => !requested || requested.includes(String(p?.id ?? "")))
+    .filter((p) => !owner || String(p?.id ?? "") === owner)
+}
+
 const propagateStep = createStep(
   "propagate-region-to-partners-step",
   async (input: PropagateRegionInput, { container }) => {
@@ -94,7 +118,7 @@ const propagateStep = createStep(
     const { data: regions } = await query.graph({
       entity: "region",
       filters: { id: input.region_id },
-      fields: ["id", "name", "currency_code"],
+      fields: ["id", "name", "currency_code", "metadata"],
     })
     const region = regions?.[0] as any
     if (!region) {
@@ -118,9 +142,42 @@ const propagateStep = createStep(
         "stores.default_sales_channel_id",
       ],
     })
-    const targetPartners = (partners ?? []).filter(
-      (p: any) => !input.partner_ids || input.partner_ids.includes(p.id)
-    )
+    /**
+     * 🔴 A PARTNER'S OWN region must not be fanned out to every other partner.
+     *
+     * This workflow is reached from two directions — `region.created` (share a
+     * new region with every partner) and `partner.created` (give a new partner
+     * every existing region, #2062) — and neither asked WHOSE region it was.
+     * `POST /partners/stores/:id/regions` lets a partner create one, and it
+     * already stamps `metadata.created_by_partner_id` precisely so "partner-made"
+     * can be told from "admin-seeded". Nothing read it, so a region a partner
+     * made for their own store was handed to every partner who signed up after
+     * them — and `partner-stores-api.spec.ts` has been red on main saying so.
+     *
+     * The intent of #2062 is the PLATFORM's regions (India, America, …) reaching
+     * every partner. A tenant's own region was never in scope.
+     *
+     * ⚠️ This decides on a metadata blob, which #2029 is retiring everywhere it
+     * can. It is the only signal that exists: `partner_region` records who may
+     * USE a region, never who MADE it, so the link cannot answer this question
+     * and an empty read would mean "admin-seeded" — the permissive answer, i.e.
+     * the leak. When provenance gets a typed home, this reads that instead.
+     */
+    const ownerPartnerId = String(
+      (region as any)?.metadata?.created_by_partner_id ?? ""
+    ).trim()
+
+    const targetPartners = selectPropagationTargets(partners as any[], {
+      requestedPartnerIds: input.partner_ids,
+      ownerPartnerId,
+    })
+
+    if (ownerPartnerId) {
+      logger.info(
+        `[propagate-region] region ${region.id} "${region.name}" was created by partner ` +
+          `${ownerPartnerId} — propagating to that partner only, not the platform.`
+      )
+    }
     if (!targetPartners.length) {
       logger.info(
         `[propagate-region] region ${region.id} "${region.name}": no partners to propagate to`
