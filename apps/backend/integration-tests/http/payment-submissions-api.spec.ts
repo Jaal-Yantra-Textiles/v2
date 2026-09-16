@@ -1164,9 +1164,25 @@ setupSharedTestSuite(() => {
         expect(res.data.payable_runs.map((r: any) => r.run_id)).toContain(runId)
       })
 
-      it("follows metadata.unified_order_id when the D5 link was never backfilled", async () => {
-        // The backfill is an ops-run `medusa exec`, so a superseded run can
-        // still be link-less. Reading only the link would let it bill.
+      /**
+       * 🔴 This test pinned the OPPOSITE contract until #2029 item 5, and the
+       * rewrite is the point rather than a formality.
+       *
+       * `metadata.unified_order_id` was a fallback pointer for runs predating
+       * the D5 link. `cb18a12f6` deleted it after re-measuring prod: every run
+       * carries the link or carries NEITHER, so the fallback answered for
+       * nobody. Its unit spec was updated in that commit; this integration one
+       * was not, and it has been red on `main` ever since — invisible, because
+       * CI runs only the specs a PR changed.
+       *
+       * 🔑 What must stay true is that the deletion is NOISY. A superseded run
+       * with no resolvable mirror order BILLS, which is the #2026 overpayment
+       * shape, so the endpoint warns by name rather than dropping the row
+       * quietly. Billing here is the deliberate conservative default — this
+       * module never guesses at a partner's money — and the warn is what makes
+       * a human able to see it.
+       */
+      it("BILLS a superseded run whose only pointer is metadata, and does not hide it", async () => {
         const d1 = await createDesign("Unlinked Superseded", { estimated_cost: 100 })
         await linkDesignToPartner(d1, partnerId)
         const runId = await createCompletedRun(d1, "Unlinked Superseded")
@@ -1188,10 +1204,13 @@ setupSharedTestSuite(() => {
           `/admin/payment-submissions/payable-runs?partner_id=${partnerId}`,
           adminHeaders
         )
-        expect(res.data.payable_runs.map((r: any) => r.run_id)).not.toContain(runId)
+        // The link is the only pointer now, and this run has none.
+        expect(res.data.payable_runs.map((r: any) => r.run_id)).toContain(runId)
+        // Not silently excluded either — an unexplained absence is the thing
+        // this endpoint exists to refuse.
         expect(
-          res.data.excluded_runs.find((r: any) => r.run_id === runId)?.excluded_reason
-        ).toBe("superseded_run")
+          res.data.excluded_runs.find((r: any) => r.run_id === runId)
+        ).toBeUndefined()
       })
 
       it("hides the superseded run from the PARTNER's own billing screen too", async () => {
