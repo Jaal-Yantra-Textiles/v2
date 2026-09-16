@@ -5,6 +5,7 @@ import {
   DataTablePaginationState,
   Heading,
   Label,
+  Select,
   Switch,
   Text,
   useDataTable,
@@ -21,6 +22,7 @@ import {
   useQuotableDesigns,
   type QuotableDesign,
 } from "../../../../hooks/api/quotes"
+import { candidateOptions, resolveDesignPick } from "./design-pick"
 
 type Props = { form: UseFormReturn<AdminQuoteCreateSchemaType> }
 
@@ -66,6 +68,12 @@ export const ProductsStep = ({ form }: Props) => {
   /** design_id → why its mint was refused. Cleared when it is retried. */
   const [mintErrors, setMintErrors] = useState<Record<string, string>>({})
   const [minting, setMinting] = useState<string | null>(null)
+  /**
+   * design_id → the variant the operator chose, for a design sold as several.
+   * Held here rather than in the form: it is a question about which line to
+   * build, and once built the answer lives in `design_by_variant`.
+   */
+  const [chosenVariant, setChosenVariant] = useState<Record<string, string>>({})
   const { mutateAsync: mintDesignVariant } = useMintDesignVariant()
 
   /**
@@ -170,8 +178,32 @@ export const ProductsStep = ({ form }: Props) => {
    * without trying again.
    */
   const pickDesign = async (design: QuotableDesign, isSelected: boolean) => {
-    if (!isSelected || design.variant_id || !design.made_to_order) {
-      toggleDesign(design, isSelected)
+    const pick = resolveDesignPick(design, chosenVariant[design.id])
+
+    // Un-ticking always works, and never mints.
+    if (!isSelected) {
+      toggleDesign(design, false, pick.variant_id, pick.product_id)
+      return
+    }
+
+    if (!pick.selectable) return
+
+    /**
+     * A design sold as several variants cannot be ticked until one is chosen.
+     * Saying so beats a checkbox that appears to do nothing — which is exactly
+     * what this row did before the picker existed.
+     */
+    if (pick.needs_choice) {
+      setMintErrors((prev) => ({
+        ...prev,
+        [design.id]:
+          pick.blocked_reason ?? "Choose which variant to quote, on the right.",
+      }))
+      return
+    }
+
+    if (!pick.mints_on_pick) {
+      toggleDesign(design, true, pick.variant_id, pick.product_id)
       return
     }
 
@@ -205,7 +237,9 @@ export const ProductsStep = ({ form }: Props) => {
       })
       toggleDesign(
         { ...design, quotable: true, variant_id: minted.variant_id, product_id: minted.product_id },
-        true
+        true,
+        minted.variant_id,
+        minted.product_id
       )
     } catch (e: any) {
       // 🔴 Rendered, not swallowed — the message names what is missing.
@@ -218,22 +252,32 @@ export const ProductsStep = ({ form }: Props) => {
     }
   }
 
-  const toggleDesign = (design: QuotableDesign, isSelected: boolean) => {
-    if (!design.variant_id || !design.product_id) return
+  /**
+   * The variant and product are passed in rather than read off the design:
+   * for a design sold as several, they come from the operator's choice, and
+   * for a made-to-order one they come from the mint that just happened.
+   */
+  const toggleDesign = (
+    design: QuotableDesign,
+    isSelected: boolean,
+    variantId: string | null,
+    productId: string | null
+  ) => {
+    if (!variantId || !productId) return
 
     const nextMap = { ...(designByVariant ?? {}) }
     const ids = new Set(selectedIds)
 
     if (isSelected) {
-      nextMap[design.variant_id] = design.id
-      ids.add(design.product_id)
+      nextMap[variantId] = design.id
+      ids.add(productId)
     } else {
-      delete nextMap[design.variant_id]
-      ids.delete(design.product_id)
+      delete nextMap[variantId]
+      ids.delete(productId)
       // The quantity goes with it, for the same reason deselecting a product
       // drops one: a line the operator removed must not still be sent.
       const nextQuantities = { ...(quantities ?? {}) }
-      delete nextQuantities[design.variant_id]
+      delete nextQuantities[variantId]
       setValue("quantities", nextQuantities, { shouldDirty: true })
     }
 
@@ -303,12 +347,19 @@ export const ProductsStep = ({ form }: Props) => {
         header: "",
         cell: ({ row }: any) => {
           const design = row.original as QuotableDesign
+          const pick = resolveDesignPick(design, chosenVariant[design.id])
           return (
             <Checkbox
               checked={pickedDesigns.has(design.id)}
               // Disabled, not hidden — the reason has to be readable.
+              // 🔑 A design sold as several variants is NOT disabled here any
+              // more; it is enabled and waits for the picker beside it. It used
+              // to fall through both `quotable` and `made_to_order` and greyed
+              // out permanently, under an instruction telling the operator to
+              // pick a variant there was no control to pick.
               disabled={
-                (!design.quotable && !design.made_to_order) ||
+                !pick.selectable ||
+                pick.needs_choice ||
                 minting === design.id
               }
               onCheckedChange={(value) => pickDesign(design, !!value)}
@@ -351,6 +402,41 @@ export const ProductsStep = ({ form }: Props) => {
               </span>
             )
           }
+          /**
+           * Sold as several variants: the backend's reason literally says
+           * "pick the one to quote", so this is the control that obeys it.
+           * Choosing one resolves the row and enables its checkbox.
+           */
+          if (design.candidates.length > 1) {
+            const options = candidateOptions(design)
+            return (
+              <div
+                className="flex flex-col gap-y-1"
+                // The row's own click handler toggles selection; a click meant
+                // for the dropdown must not also tick the row.
+                onClick={(e) => e.stopPropagation()}
+              >
+                <Select
+                  size="small"
+                  value={chosenVariant[design.id] ?? ""}
+                  onValueChange={(value) =>
+                    setChosenVariant((prev) => ({ ...prev, [design.id]: value }))
+                  }
+                >
+                  <Select.Trigger>
+                    <Select.Value placeholder={`Pick one of ${options.length} variants`} />
+                  </Select.Trigger>
+                  <Select.Content>
+                    {options.map((o) => (
+                      <Select.Item key={o.value} value={o.value}>
+                        {o.label}
+                      </Select.Item>
+                    ))}
+                  </Select.Content>
+                </Select>
+              </div>
+            )
+          }
           return (
             <span className="text-ui-fg-muted">
               {design.reason ?? "Cannot quote"}
@@ -369,7 +455,15 @@ export const ProductsStep = ({ form }: Props) => {
           ),
       },
     ],
-    [pickedDesigns, selectedIds, quantities, mintErrors, minting, watchedCurrency]
+    [
+      pickedDesigns,
+      selectedIds,
+      quantities,
+      mintErrors,
+      minting,
+      watchedCurrency,
+      chosenVariant,
+    ]
   )
 
   const table = useDataTable({
@@ -385,7 +479,10 @@ export const ProductsStep = ({ form }: Props) => {
         return
       }
       const design = original as QuotableDesign
-      if (!design.quotable && !design.made_to_order) return
+      const pick = resolveDesignPick(design, chosenVariant[design.id])
+      // A row awaiting a variant choice is not toggled by clicking it — the
+      // dropdown in the row is the thing to use.
+      if (!pick.selectable || pick.needs_choice) return
       pickDesign(design, !pickedDesigns.has(design.id))
     },
     pagination: { state: pagination, onPaginationChange: setPagination },
