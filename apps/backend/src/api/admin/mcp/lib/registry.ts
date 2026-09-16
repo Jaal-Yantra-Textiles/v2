@@ -199,8 +199,21 @@ export const ADMIN_MCP_TOOLS: AdminMcpToolDef[] = [
     inputSchema: obj({
       ...PAGINATION,
       status: {
-        type: "string",
-        description: "Product status: 'draft' | 'proposed' | 'published' | 'rejected'.",
+        /**
+         * 🔴 An ARRAY, because `/admin/products` requires one. Declared as a
+         * string, every natural call (`status: "published"`) came back
+         * `400 Expected type: 'array' for field 'status'` — a documented filter
+         * that had never worked, failing in a way that read as the caller's
+         * mistake. A bare string is still accepted and wrapped; see
+         * `coerceDeclaredArrays` in mcp-core.
+         */
+        type: "array",
+        description:
+          "Product statuses to include, e.g. ['published']. One or more of 'draft' | 'proposed' | 'published' | 'rejected'. A bare string is accepted.",
+        items: {
+          type: "string",
+          enum: ["draft", "proposed", "published", "rejected"],
+        },
       },
       sales_channel_id: STR("Filter to products in a specific sales channel id (e.g. a partner store's default_sales_channel_id from list_stores)."),
       collection_id: STR("Filter to products in a specific collection."),

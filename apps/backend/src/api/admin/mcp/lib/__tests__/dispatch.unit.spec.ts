@@ -21,6 +21,55 @@ describe("admin-mcp registry + dispatch", () => {
       expect(isSensitive(def!)).toBe(false)
     })
 
+    /**
+     * 🔴 `list_products` advertised `status=published` in its own description
+     * and answered every such call with
+     * `400 Expected type: 'array' for field 'status', got: 'published'`.
+     * A documented filter that had never worked, failing in a way that reads as
+     * the caller's mistake rather than the tool's.
+     */
+    it("declares list_products.status as the ARRAY the route requires", () => {
+      const def = ADMIN_MCP_TOOLS.find((t) => t.name === "list_products")
+      const status = (def!.inputSchema as any)?.properties?.status
+      expect(status?.type).toBe("array")
+      expect(status?.items?.enum).toContain("published")
+    })
+
+    /** The body param of a CREATE is a single status and must stay scalar. */
+    it("leaves create_product.status a string", () => {
+      const def = ADMIN_MCP_TOOLS.find((t) => t.name === "create_product")
+      expect((def!.inputSchema as any)?.properties?.status?.type).toBe("string")
+    })
+
+    it("wraps a bare string sent to an array query param", async () => {
+      const res = await dispatchAdminTool(
+        { baseUrl: "http://localhost:9999" },
+        "list_products",
+        { status: "published", dry_run: true }
+      )
+      expect(res.ok).toBe(true)
+      expect((res.plan?.query as any)?.status).toEqual(["published"])
+    })
+
+    it("leaves an array query param alone when it already is one", async () => {
+      const res = await dispatchAdminTool(
+        { baseUrl: "http://localhost:9999" },
+        "list_products",
+        { status: ["draft", "published"], dry_run: true }
+      )
+      expect((res.plan?.query as any)?.status).toEqual(["draft", "published"])
+    })
+
+    /** Narrow on purpose: a scalar param must never be reshaped into a list. */
+    it("does NOT wrap a scalar query param", async () => {
+      const res = await dispatchAdminTool(
+        { baseUrl: "http://localhost:9999" },
+        "list_products",
+        { handle: "winter-jacket", dry_run: true }
+      )
+      expect((res.plan?.query as any)?.handle).toBe("winter-jacket")
+    })
+
     it("GET tools carry no write/sensitive/dangerous flags", () => {
       for (const def of ADMIN_MCP_TOOLS) {
         if ((def.method ?? "GET") !== "GET") continue

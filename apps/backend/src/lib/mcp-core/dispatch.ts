@@ -83,6 +83,39 @@ const pick = (
 }
 
 /**
+ * A scalar sent to a parameter the schema declares as an ARRAY becomes a
+ * one-element list.
+ *
+ * 🔴 Found on `list_products`: its `status` forwards to a Medusa route that
+ * requires an array, and every natural call — `status: "published"` — came back
+ * as `400 Expected type: 'array' for field 'status', got: 'published'`. The
+ * tool's own description told the model to pass exactly that. So a documented
+ * filter simply did not work, and the failure looked like the model's mistake
+ * rather than the tool's.
+ *
+ * Narrow on purpose: it fires ONLY where the tool's own input schema says the
+ * parameter is an array, so it can never reshape a value a route wanted scalar.
+ * `qs.stringify(..., { arrayFormat: "brackets" })` then emits `status[]=…`,
+ * which is what the route reads.
+ */
+const coerceDeclaredArrays = (
+  def: { inputSchema?: any },
+  values: Record<string, unknown>
+): Record<string, unknown> => {
+  const props = def.inputSchema?.properties
+  if (!props) return values
+
+  const out: Record<string, unknown> = {}
+  for (const [k, v] of Object.entries(values)) {
+    out[k] =
+      props[k]?.type === "array" && v !== undefined && !Array.isArray(v)
+        ? [v]
+        : v
+  }
+  return out
+}
+
+/**
  * Arguments the dispatcher itself consumes. They are never forwarded to a
  * route, so their absence from `bodyParams` is correct, not a defect.
  */
@@ -278,7 +311,10 @@ export async function dispatchMcpTool(
   }
   const path = sub.path as string
   // Caller-supplied values win, so `defaultQuery` only ever fills a gap (#2023).
-  const query = { ...(def.defaultQuery ?? {}), ...pick(def.queryParams, args) }
+  const query = coerceDeclaredArrays(def, {
+    ...(def.defaultQuery ?? {}),
+    ...pick(def.queryParams, args),
+  })
   const body = pick(def.bodyParams, args)
   const method = def.method ?? "GET"
 
