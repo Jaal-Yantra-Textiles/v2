@@ -305,6 +305,14 @@ export function normalizeShipglobalRates(res: any): RateOption[] {
 }
 
 export class ShipglobalClient implements ShippingProviderClient {
+  /**
+   * ShipGlobal rates by DESTINATION only — `/rates/calculate` sends
+   * `country_iso_code_2` + `postcode` and nothing about where the parcel starts,
+   * because the origin is ShipGlobal's own hub. `calculatePrice` has always
+   * called `getRates` with `origin_pincode: ""` and got real prices back.
+   */
+  readonly ratesNeedOriginPincode = false
+
   readonly carrier = "shipglobal"
 
   private username: string

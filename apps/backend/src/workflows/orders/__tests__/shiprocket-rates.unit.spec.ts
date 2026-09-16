@@ -113,3 +113,111 @@ describe("parseRateQuery", () => {
     })
   })
 })
+
+/**
+ * 🔴 A carrier that rates by DESTINATION was refused for want of an origin.
+ *
+ * `getShiprocketRatesForOrder` calls `listPickupLocations` for exactly one
+ * purpose — to derive an origin pincode — and then refuses to quote without
+ * one. `listPickupLocations` is declared OPTIONAL on the provider interface
+ * ("not every carrier exposes a list API"), so requiring it made an optional
+ * method mandatory and turned a missing convenience into "does not support rate
+ * quotes".
+ *
+ * ShipGlobal is the carrier that breaks on: `/rates/calculate` posts
+ * `country_iso_code_2` + `postcode` and NOTHING about the origin, because the
+ * origin is its own hub. Its checkout quote has always passed
+ * `origin_pincode: ""` and returned real prices — so the same carrier priced
+ * the same lane at checkout while the admin quote said it could not.
+ *
+ * Confirmed against production before the fix: quoting order #3's Switzerland
+ * lane with carrier "shipglobal" returned
+ *   400 "shipglobal provider does not support rate quotes"
+ */
+describe("rate quotes without an origin pincode", () => {
+  const { getShiprocketRatesForOrder } = require("../shiprocket-rates")
+
+  const order = {
+    id: "order_1",
+    shipping_address: { postal_code: "1054", country_code: "ch" },
+    metadata: {},
+  }
+
+  /** A container whose query.graph answers the order lookup and nothing else. */
+  const container = (provider: any) => ({
+    resolve: (key: any) => {
+      if (key === "query") {
+        return {
+          graph: async ({ entity }: any) =>
+            entity === "order" || entity === "orders"
+              ? { data: [order] }
+              : { data: [] },
+        }
+      }
+      return {}
+    },
+    __provider: provider,
+  })
+
+  const shipglobalLike = {
+    ratesNeedOriginPincode: false,
+    getRates: jest.fn(async (q: any) => {
+      calls.push(q)
+      return [{ courier_id: 1, courier_name: "SG Direct", amount: 3200 }]
+    }),
+    // Deliberately NO listPickupLocations — that is the shape under test.
+  }
+
+  let calls: any[] = []
+  beforeEach(() => {
+    calls = []
+    shipglobalLike.getRates.mockClear()
+  })
+
+  it("🔴 quotes a destination-keyed carrier that lists no pickups", async () => {
+    jest.resetModules()
+    jest.doMock("../../../modules/shipping-providers/resolver", () => ({
+      resolveShippingProvider: async () => shipglobalLike,
+      isSupportedCarrier: () => true,
+      shipmentRefFromFulfillment: () => undefined,
+    }))
+    const { getShiprocketRatesForOrder: fn } = require("../shiprocket-rates")
+
+    const res = await fn(container(shipglobalLike) as any, {
+      orderId: "order_1",
+      carrier: "shipglobal",
+      weightGrams: 3540,
+    })
+
+    expect(res.rates).toHaveLength(1)
+    // The origin is passed through EMPTY, exactly as checkout has always done.
+    expect(calls[0].origin_pincode).toBe("")
+    expect(calls[0].destination_country).toBe("CH")
+  })
+
+  /**
+   * 🔴 The guard must still bite for a lane-rating carrier. A carrier that needs
+   * an origin and simply has not implemented the pickup list yet must fail
+   * loudly, not quietly quote from nowhere — which is why the opt-out is
+   * declared by the provider rather than inferred from the missing method.
+   */
+  it("🔴 still refuses a lane-rating carrier that cannot list pickups", async () => {
+    jest.resetModules()
+    const laneRating = { getRates: jest.fn() } // no flag, no listPickupLocations
+    jest.doMock("../../../modules/shipping-providers/resolver", () => ({
+      resolveShippingProvider: async () => laneRating,
+      isSupportedCarrier: () => true,
+      shipmentRefFromFulfillment: () => undefined,
+    }))
+    const { getShiprocketRatesForOrder: fn } = require("../shiprocket-rates")
+
+    await expect(
+      fn(container(laneRating) as any, {
+        orderId: "order_1",
+        carrier: "somelane",
+        weightGrams: 1000,
+      })
+    ).rejects.toThrow(/origin pincode/i)
+    expect(laneRating.getRates).not.toHaveBeenCalled()
+  })
+})
