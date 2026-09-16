@@ -103,24 +103,37 @@ export const hasAnySpecChoice = (
 }
 
 /**
- * Required groups the customer has not answered yet — the reason the buy button
- * waits.
+ * Required groups THIS PAGE is asking about and the customer has not answered —
+ * the reason the buy button waits.
  *
  * Distinct from `blockedGroups`, and the difference is who can fix it: a
  * blocked group is the PARTNER's problem (nothing orderable in it), while an
  * unanswered one is simply a question still open. Groups with no orderable
- * values are excluded here so the two never double-report the same row.
+ * values are excluded so the two never double-report the same row.
+ *
+ * 🔴 EMPTY when the spec overflows to the second step, and that guard is not
+ * cosmetic. Past two groups (or one wide one) the choices are NOT rendered
+ * here — the page shows a summary and a "Customise this piece →" link, and its
+ * buy button is the BUY-IT-AS-IS path. Holding that button for an unanswered
+ * group would strand the customer: a disabled button asking a question the page
+ * does not ask. Found on a live muslin product with 8 groups —
+ * `prod_01KMHTK1T1BQ7KWKYWY1NR5RYZ`, two required (dyeing method, dye colour)
+ * — while sweeping production for exactly this.
  *
  * One definition, read by the button's `disabled` and by its label, so the
- * page cannot end up refusing a click for a reason it does not state.
+ * page cannot refuse a click for a reason it does not state — or for a
+ * question it never asked.
  */
 export const unansweredRequiredGroups = (
   spec: StoreProductSpec | null,
   value: SpecChoiceState
-) =>
-  (spec?.accepting_custom_orders ? spec.options ?? [] : []).filter(
+) => {
+  if (!spec?.accepting_custom_orders) return []
+  if (needsSecondStep(spec)) return []
+  return (spec.options ?? []).filter(
     (o) => o.required && o.values.length > 0 && !value.options[o.key]
   )
+}
 
 /**
  * Required groups the partner has nothing available for. The backend refuses
