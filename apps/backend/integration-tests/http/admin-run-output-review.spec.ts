@@ -1,5 +1,8 @@
+import { ContainerRegistrationKeys, Modules } from "@medusajs/framework/utils"
+
 import { createAdminUser, getAuthHeaders } from "../helpers/create-admin-user"
 import { getSharedTestEnv, setupSharedTestSuite } from "./shared-test-setup"
+import { PARTNER_MODULE } from "../../src/modules/partner"
 
 jest.setTimeout(240000)
 
@@ -54,10 +57,61 @@ setupSharedTestSuite(() => {
         { headers }
       )
       login = await api.post("/auth/partner/emailpass", { email, password })
+      const partnerId = res.data.partner.id
+
+      await giveWarehouse(partnerId, `${tag}-${unique}`)
+
       return {
-        partnerId: res.data.partner.id,
+        partnerId,
         partnerHeaders: { Authorization: `Bearer ${login.data.token}` },
       }
+    }
+
+    /**
+     * 🔴 A partner with nowhere to bank goods cannot complete a run — and this
+     * fixture had no warehouse at all.
+     *
+     * `POST /partners` mints an identity, nothing physical: no store, no sales
+     * channel, no stock location. That was survivable until #2053 gave
+     * `stockFinishedGoodsStep` a refusal in place of its old silence, at which
+     * point completing a run that HAS somewhere to bank onto started 400ing
+     * here.
+     *
+     * 🔑 And the asymmetry that made this look like shared-environment state:
+     * the guard sits BELOW the `inventory_item_id` check, so it only fires once
+     * the design has a product. The first partner completes before any approval
+     * — no product, nothing to bank, guard skipped. The approval then MINTS the
+     * product, so the second partner's completion is the first one with real
+     * goods in hand, and the first to be refused. Nothing to do with being
+     * second: `twoCompletedRunsOfOneDesign` completes both before either
+     * approval and both pass.
+     *
+     * Linked directly rather than provisioned through `POST /partners/stores`:
+     * a partner needs somewhere to put goods, not a storefront, and this is the
+     * same typed link the `backfill-partner-stock-locations` job writes.
+     */
+    async function giveWarehouse(partnerId: string, tag: string) {
+      const container = getContainer()
+      const stockLocationService: any = container.resolve(Modules.STOCK_LOCATION)
+      const remoteLink: any = container.resolve(ContainerRegistrationKeys.LINK)
+
+      const created = await stockLocationService.createStockLocations({
+        name: `Review Warehouse ${tag}`,
+        address: {
+          address_1: "12 Residency Road",
+          city: "Srinagar",
+          country_code: "IN",
+          postal_code: "190001",
+        },
+      })
+      const locationId = Array.isArray(created) ? created[0].id : created.id
+
+      await remoteLink.create({
+        [PARTNER_MODULE]: { partner_id: partnerId },
+        [Modules.STOCK_LOCATION]: { stock_location_id: locationId },
+      })
+
+      return locationId
     }
 
     async function createTemplate(adminHeaders: any, unique: number) {
