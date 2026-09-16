@@ -111,9 +111,57 @@ setupSharedTestSuite(() => {
         "cancel_order_fulfillment",
         "confirm_order_edit",
         "cancel_production_run",
+        // Voids a real carrier waybill and cannot be undone at the carrier.
+        "cancel_order_shipment",
       ]) {
         expect(names).not.toContain(name)
       }
+    })
+
+    /**
+     * 🔴 The platform could void a waybill; the agent could not reach it.
+     *
+     * `cancel-shipment` is the route for a parcel that cannot go out as booked —
+     * a pickup that never happened being the case it was written for. It existed
+     * with a workflow, a route and a UI, and was absent from this registry, so
+     * the only cancellation an agent could reach was `cancel_order_fulfillment`:
+     * the blunt one, which reverses the whole fulfillment and restocks every
+     * item to fix a bad AWB.
+     *
+     * Found on order #3 (`ful_01M25T018SG7RKP80W0QBDAPF5`, Shiprocket AWB
+     * 8327967800746, scanned "Not Picked - Shipment not received from client").
+     */
+    it("🔴 advertises cancel_order_shipment once dangerous tools are enabled", async () => {
+      const {
+        ADMIN_MCP_TOOLS,
+      } = require("../../../src/api/admin/mcp/lib/registry")
+      const tool = ADMIN_MCP_TOOLS.find(
+        (t: any) => t.name === "cancel_order_shipment"
+      )
+      expect(tool).toBeDefined()
+      expect(tool.dangerous).toBe(true)
+      expect(tool.method).toBe("POST")
+      expect(tool.path).toBe(
+        "/admin/orders/:id/fulfillments/:fulfillmentId/cancel-shipment"
+      )
+      // The route reads these off the body; an unlisted key is dropped silently
+      // by the allowlist walk, so `notify_customer: false` would be ignored and
+      // the customer emailed anyway.
+      expect(tool.bodyParams).toEqual(
+        expect.arrayContaining(["reason", "force", "notify_customer"])
+      )
+    })
+
+    it("refuses cancel_order_shipment outright while dangerous tools are disabled", async () => {
+      const res = await callTool("cancel_order_shipment", {
+        id: "order_does_not_matter",
+        fulfillmentId: "ful_does_not_matter",
+        reason: "pickup never happened",
+        confirm: true,
+      })
+      const payload = parse(res)
+      expect(payload.ok).toBe(false)
+      expect(payload.error).toMatch(/dangerous/i)
     })
 
     it("refuses a dangerous order action outright when dangerous tools are disabled", async () => {
