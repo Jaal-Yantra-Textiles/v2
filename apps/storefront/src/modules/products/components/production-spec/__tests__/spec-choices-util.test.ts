@@ -146,7 +146,7 @@ describe("unansweredRequiredGroups", () => {
    * (dyeing method, dye colour). Found by sweeping production for the blast
    * radius of this very change.
    */
-  it("🔴 stays silent when the choices live on the SECOND STEP", () => {
+  it("🔴 still REPORTS on a second-step spec — the customise page asks", () => {
     const overflowing = spec({
       colors: [{ name: "Natural White" }],
       options: [
@@ -171,12 +171,21 @@ describe("unansweredRequiredGroups", () => {
       ],
     } as any)
 
-    // 3 groups + colour = 4 > 2, so the page links out instead of asking.
-    expect(unansweredRequiredGroups(overflowing, empty)).toHaveLength(0)
+    /*
+     * 3 groups + colour = 4 > 2, so the PRODUCT page links out instead of
+     * asking — it drops these itself via `!secondStep`. The helper must still
+     * report them, because `/products/:handle/customise` renders exactly these
+     * questions and has to hold its own button. Folding `needsSecondStep` in
+     * here silenced that page and left its button inviting a click whose only
+     * outcome was the backend's "Choose Dye Color. Available: …".
+     */
+    expect(
+      unansweredRequiredGroups(overflowing, empty).map((g) => g.key)
+    ).toEqual(["dyeing_method", "dye_color"])
   })
 
-  /** A single wide group overflows too — six values is the threshold. */
-  it("stays silent when one required group is too wide for the column", () => {
+  /** Same for one over-wide group: reported here, dropped by the product page. */
+  it("still reports a required group too wide for the buying column", () => {
     const wide = spec({
       options: [
         {
@@ -187,6 +196,6 @@ describe("unansweredRequiredGroups", () => {
         },
       ],
     } as any)
-    expect(unansweredRequiredGroups(wide, empty)).toHaveLength(0)
+    expect(unansweredRequiredGroups(wide, empty)).toHaveLength(1)
   })
 })

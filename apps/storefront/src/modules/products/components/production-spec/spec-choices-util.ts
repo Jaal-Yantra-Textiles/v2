@@ -103,33 +103,34 @@ export const hasAnySpecChoice = (
 }
 
 /**
- * Required groups THIS PAGE is asking about and the customer has not answered —
- * the reason the buy button waits.
+ * Required groups the customer has not answered — the reason a buy button waits.
  *
- * Distinct from `blockedGroups`, and the difference is who can fix it: a
- * blocked group is the PARTNER's problem (nothing orderable in it), while an
- * unanswered one is simply a question still open. Groups with no orderable
- * values are excluded so the two never double-report the same row.
+ * PURE, and deliberately says nothing about WHERE the question is asked. Both
+ * surfaces render these choices and both must hold their button, but they
+ * disagree about when:
  *
- * 🔴 EMPTY when the spec overflows to the second step, and that guard is not
- * cosmetic. Past two groups (or one wide one) the choices are NOT rendered
- * here — the page shows a summary and a "Customise this piece →" link, and its
- * buy button is the BUY-IT-AS-IS path. Holding that button for an unanswered
- * group would strand the customer: a disabled button asking a question the page
- * does not ask. Found on a live muslin product with 8 groups —
- * `prod_01KMHTK1T1BQ7KWKYWY1NR5RYZ`, two required (dyeing method, dye colour)
- * — while sweeping production for exactly this.
+ *   · the product page asks only while the spec fits (`needsSecondStep` false),
+ *     so it must not hold its button for a question it never printed — its
+ *     button is then the BUY-IT-AS-IS path, and disabling it strands the
+ *     customer. It combines this with `!secondStep` itself.
+ *   · `/products/:handle/customise` IS the second step and always asks, so it
+ *     uses this answer as-is.
  *
- * One definition, read by the button's `disabled` and by its label, so the
- * page cannot refuse a click for a reason it does not state — or for a
- * question it never asked.
+ * An earlier version folded `needsSecondStep` in here. That silenced the
+ * customise page too — where the questions ARE on screen — so its button
+ * invited a click whose only outcome was the backend's
+ * "Choose Dye Color. Available: …". Exactly what `blockedGroups` exists to
+ * avoid, one page over.
+ *
+ * Distinct from `blockedGroups`: a blocked group is the PARTNER's problem
+ * (nothing orderable in it), an unanswered one is a question still open. Groups
+ * with no orderable values are excluded so the two never double-report a row.
  */
 export const unansweredRequiredGroups = (
   spec: StoreProductSpec | null,
   value: SpecChoiceState
 ) => {
   if (!spec?.accepting_custom_orders) return []
-  if (needsSecondStep(spec)) return []
   return (spec.options ?? []).filter(
     (o) => o.required && o.values.length > 0 && !value.options[o.key]
   )

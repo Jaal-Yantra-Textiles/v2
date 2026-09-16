@@ -15,6 +15,7 @@ import {
   blockedGroups,
   initialSpecChoices,
   leadTimePhrase,
+  unansweredRequiredGroups,
   type SpecChoiceState,
 } from "@modules/products/components/production-spec/spec-choices-util"
 
@@ -50,6 +51,17 @@ const CustomiseForm = ({ product, spec, images }: Props) => {
   const [error, setError] = useState<string | null>(null)
 
   const specBlocked = useMemo(() => blockedGroups(spec), [spec])
+  /**
+   * This page IS the second step, so it always asks — and must therefore hold
+   * its own button. Nothing is preselected any more (#1970), so without this
+   * the customer could submit with no dye colour and get the backend's
+   * "Choose Dye Color. Available: …" — a click whose only outcome is an error,
+   * which is the thing `blockedGroups` exists to prevent.
+   */
+  const specUnanswered = useMemo(
+    () => unansweredRequiredGroups(spec, choices),
+    [spec, choices]
+  )
   const leadTime = leadTimePhrase(spec)
 
   const handleAdd = async () => {
@@ -184,12 +196,16 @@ const CustomiseForm = ({ product, spec, images }: Props) => {
           <Button
             onClick={handleAdd}
             isLoading={isAdding}
-            disabled={isAdding || !variantId || !!specBlocked.length}
+            disabled={
+              isAdding || !variantId || !!specBlocked.length || !!specUnanswered.length
+            }
             variant="primary"
             className="w-full h-10"
             data-testid="customise-add-button"
           >
-            Add to cart
+            {specUnanswered.length
+              ? `Choose ${specUnanswered[0].label.toLowerCase()}`
+              : "Add to cart"}
           </Button>
           {/* The same honesty the single button owes on the product page. */}
           {leadTime && (
