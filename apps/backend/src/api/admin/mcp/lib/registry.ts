@@ -3143,8 +3143,11 @@ export const ADMIN_MCP_TOOLS: AdminMcpToolDef[] = [
   },
   {
     name: "update_product_variant",
-    description:
-      "Update a single product variant (sku, title, customs fields, inventory flags). Sensitive: requires confirm:true. For filling HS codes across many items use bulk_set_hs_codes instead.",
+    description: [
+      "Update a single product variant (sku, title, customs fields, inventory flags, prices). Sensitive: requires confirm:true. For filling HS codes across many items use bulk_set_hs_codes instead.",
+      "🔴🔴 `prices` REPLACES THE WHOLE SET. A currency you leave out is DELETED, not left alone — this is the save that hard-deleted 11 price rows in one request. To change ONE currency, read the variant with get_product first and re-send EVERY price you intend to keep. Omit `prices` entirely and the set is untouched; that is the safe call when you only mean to rename or re-measure something.",
+      "⚠️ A variant with no price cannot be sold: it renders a dead buy button rather than an error. `prices: []` on a live variant is how a product goes quietly unbuyable.",
+    ].join("\n"),
     method: "POST",
     path: "/admin/products/:product_id/variants/:id",
     pathParams: ["product_id", "id"],
@@ -3160,6 +3163,14 @@ export const ADMIN_MCP_TOOLS: AdminMcpToolDef[] = [
       // Core's UpdateProductVariant validator accepts all of these; they were
       // simply never advertised, and the dispatcher drops unlisted keys in
       // silence. `weight` in particular blocked every freight quote.
+      //
+      // `prices` is the same omission with a sharper edge: there was NO tool
+      // that could price an EXISTING variant (create_product_variant takes
+      // prices but only mints new ones), so a variant shipped unpriced stayed
+      // unbuyable and no amount of MCP could fix it. Found on a live one —
+      // HandWoven Linen "Linen 40 lea", a weave a customer could select and
+      // then not buy.
+      "prices",
       ...PHYSICAL_AND_CUSTOMS_BODY_PARAMS,
     ],
     inputSchema: obj(
@@ -3168,6 +3179,19 @@ export const ADMIN_MCP_TOOLS: AdminMcpToolDef[] = [
         id: STR("Variant id, e.g. 'variant_...'."),
         title: STR("New variant title."),
         sku: STR("New SKU."),
+        prices: {
+          type: "array",
+          description:
+            "🔴 THE REPLACEMENT SET, not a patch. Every currency you want the variant to keep must be in this array — anything omitted is deleted. Omit the field entirely to leave prices alone. e.g. [{ amount: 700, currency_code: 'inr' }].",
+          items: {
+            type: "object",
+            properties: {
+              amount: { type: "number", description: "Price amount, in the currency's own units." },
+              currency_code: { type: "string", description: "ISO currency, e.g. 'inr'." },
+            },
+            required: ["amount", "currency_code"],
+          },
+        },
         ...physicalAndCustomsSchemaProps(),
         manage_inventory: { type: "boolean", description: "Track stock for this variant." },
         allow_backorder: { type: "boolean", description: "Allow ordering beyond stock." },
