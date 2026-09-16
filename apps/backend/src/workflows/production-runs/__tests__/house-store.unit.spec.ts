@@ -1,5 +1,6 @@
 import {
   currencyIsSellable,
+  readHouseStore,
   partnerStoreIdsFrom,
   pickHouseStore,
   storeCurrencies,
@@ -194,5 +195,77 @@ describe("currencyIsSellable", () => {
      * re-denominates ₹2,634.75 as €2,634.75.
      */
     expect(typeof currencyIsSellable("inr", leCiricotte)).toBe("boolean")
+  })
+})
+
+/**
+ * #2100 — what `null` MEANS, said out loud.
+ *
+ * 🔴 An E2E fixture linked the one ownerless store to a test partner and never
+ * released it. `readHouseStore` correctly returned null, and null is all it
+ * said: design-order creation, the FX fanout and the sellability gate simply
+ * began refusing platform-wide, and the nearest error named a SALES CHANNEL.
+ * Diagnosing it meant counting link rows by hand.
+ *
+ * `ownerless=0` and `ownerless=2` are different problems with different
+ * remedies, so the log has to distinguish them. These assert the TEXT, because
+ * the text is the entire feature.
+ */
+describe("readHouseStore — a refusal that says why", () => {
+  const containerWith = (stores: any[], partners: any[]) => {
+    const errors: string[] = []
+    return {
+      errors,
+      container: {
+        resolve: (key: string) => {
+          if (String(key).toLowerCase().includes("logger")) {
+            return { error: (m: string) => errors.push(m) }
+          }
+          return {
+            graph: async ({ entity }: any) => ({
+              data: entity === "store" ? stores : partners,
+            }),
+          }
+        },
+      },
+    }
+  }
+
+  it("names the partner-claimed house store when NOTHING is ownerless", async () => {
+    const { container, errors } = containerWith(
+      [partner("s1", "p1"), partner("s2", "p2")],
+      [{ id: "p1", stores: [{ id: "s1" }] }, { id: "p2", stores: [{ id: "s2" }] }]
+    )
+
+    await expect(readHouseStore(container)).resolves.toBeNull()
+
+    expect(errors).toHaveLength(1)
+    expect(errors[0]).toContain("2 store(s), 0 owned by no partner")
+    expect(errors[0]).toContain("a partner has taken the house store")
+  })
+
+  it("lists the candidates when there is MORE than one", async () => {
+    const { container, errors } = containerWith(
+      [house("store_a"), house("store_b"), partner("s1", "p1")],
+      [{ id: "p1", stores: [{ id: "s1" }] }]
+    )
+
+    await expect(readHouseStore(container)).resolves.toBeNull()
+
+    expect(errors[0]).toContain("3 store(s), 2 owned by no partner")
+    expect(errors[0]).toContain("store_a, store_b")
+    expect(errors[0]).toContain("refuses to guess")
+  })
+
+  it("says nothing at all when the house store reads cleanly", async () => {
+    const { container, errors } = containerWith(
+      [house("store_house"), partner("s1", "p1")],
+      [{ id: "p1", stores: [{ id: "s1" }] }]
+    )
+
+    await expect(readHouseStore(container)).resolves.toMatchObject({
+      id: "store_house",
+    })
+    expect(errors).toEqual([])
   })
 })
