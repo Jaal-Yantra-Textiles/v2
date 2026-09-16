@@ -54,6 +54,34 @@ export type CancelledShipmentRecord = {
    * carrier account, or a carrier that never quoted a rate.
    */
   shipping_reversed?: { amount: number; currency_code: string } | null
+  /**
+   * 🔴 What the voided waybill actually DID, kept with it.
+   *
+   * The carrier refs are nulled on cancellation, but the scan history lived in
+   * `data.last_webhook` / `data.tracking_events` — separate keys, left behind,
+   * describing a waybill nothing points at any more. Any reader showing
+   * tracking off the fulfillment then showed the DEAD parcel's journey; and the
+   * obvious tidy-up (clearing those two keys) threw away the only evidence of
+   * why the shipment failed.
+   *
+   * Order #3 is the case: AWB 8327967800746 was scanned "Out for Pickup" and
+   * then "Not Picked - Shipment not received from client" after ONE attempt.
+   * That is the whole story of the failure — and clearing the residue deleted
+   * it, leaving an audit entry that said a waybill was cancelled but not that a
+   * driver had come and gone empty-handed.
+   *
+   * So the history moves INTO the cancellation record rather than being
+   * stranded beside it or dropped: one place that says what was booked, what
+   * happened to it, and why it was voided.
+   */
+  tracking_history?: {
+    /** Normalized scan events as we stored them. */
+    events?: unknown[]
+    /** The carrier's last raw push, which carries its own status vocabulary. */
+    last_webhook?: unknown
+    /** The carrier's final status string, for a reader that wants one line. */
+    final_status?: string
+  }
 }
 
 /** The carrier keys `createShiprocketShipmentForFulfillment` writes and this clears. */
@@ -66,7 +94,42 @@ const CARRIER_DATA_KEYS = [
   "shipment_id",
   "sr_order_id",
   "provider_refs",
+  // The dead waybill's telemetry. Nulled here ONLY because
+  // `captureTrackingHistory` has already folded it into the cancellation
+  // record — never drop these without preserving them first, or the reason a
+  // shipment failed dies with the refs.
+  "last_webhook",
+  "tracking_events",
 ] as const
+
+/**
+ * Lift the outgoing waybill's scan history out of `data` so it survives the
+ * nulling above, inside the cancellation record it belongs to.
+ *
+ * Pure, and exported for unit testing: this is the half that decides what is
+ * remembered about a shipment that failed.
+ */
+export function captureTrackingHistory(
+  data: Record<string, any> | null | undefined
+): CancelledShipmentRecord["tracking_history"] | undefined {
+  const events = Array.isArray(data?.tracking_events)
+    ? data!.tracking_events
+    : undefined
+  const lastWebhook = data?.last_webhook ?? undefined
+  if (!events?.length && !lastWebhook) return undefined
+  const finalStatus =
+    (typeof lastWebhook?.current_status === "string" && lastWebhook.current_status) ||
+    (typeof lastWebhook?.shipment_status === "string" && lastWebhook.shipment_status) ||
+    (events?.length
+      ? (events[events.length - 1] as any)?.status
+      : undefined) ||
+    undefined
+  return {
+    ...(events?.length ? { events } : {}),
+    ...(lastWebhook ? { last_webhook: lastWebhook } : {}),
+    ...(typeof finalStatus === "string" ? { final_status: finalStatus } : {}),
+  }
+}
 
 /**
  * Pure: the `fulfillment.data` a cancelled shipment leaves behind.
@@ -102,6 +165,47 @@ export function planCancelledFulfillmentData(
     : []
   next.cancelled_shipments = [...history, record]
   return next
+}
+
+/**
+ * Assemble what gets written about a cancelled shipment.
+ *
+ * Pure and exported so the WIRING is testable, not just the parts. The first
+ * version of this file built the record inline and captured the tracking
+ * history in one of its fields — and a mutation that replaced that field with
+ * `undefined` left every unit test green, because they all called the capture
+ * helper directly. The tests proved the helper worked and said nothing about
+ * whether anything used it.
+ *
+ * 🔴 `tracking_history` is read from `data` HERE, before
+ * `planCancelledFulfillmentData` nulls those keys. Read it out, then clear it —
+ * never the reverse.
+ */
+export function buildCancellationRecord(input: {
+  carrier?: string
+  awb?: string
+  cancelledAt: string
+  actingEmail?: string
+  reason?: string
+  providerRefs?: Record<string, any>
+  shippingReversed?: { amount: number; currency_code: string } | null
+  data?: Record<string, any> | null
+}): CancelledShipmentRecord {
+  return {
+    carrier: input.carrier,
+    awb: input.awb,
+    cancelled_at: input.cancelledAt,
+    cancelled_by: input.actingEmail,
+    reason: input.reason,
+    provider_refs: input.providerRefs,
+    shipping_reversed: input.shippingReversed
+      ? {
+          amount: input.shippingReversed.amount,
+          currency_code: input.shippingReversed.currency_code,
+        }
+      : null,
+    tracking_history: captureTrackingHistory(input.data),
+  }
 }
 
 export type CancelShipmentInput = {
@@ -242,20 +346,16 @@ export async function cancelShipmentForFulfillment(
     reversedAt: cancelledAt,
   })
 
-  const record: CancelledShipmentRecord = {
+  const record = buildCancellationRecord({
     carrier,
     awb,
-    cancelled_at: cancelledAt,
-    cancelled_by: input.actingEmail,
+    cancelledAt,
+    actingEmail: input.actingEmail,
     reason: input.reason,
-    provider_refs: ref.provider_refs,
-    shipping_reversed: shippingReversed
-      ? {
-          amount: shippingReversed.amount,
-          currency_code: shippingReversed.currency_code,
-        }
-      : null,
-  }
+    providerRefs: ref.provider_refs,
+    shippingReversed,
+    data,
+  })
 
   await fulfillmentModule.updateFulfillment(input.fulfillmentId, {
     data: planCancelledFulfillmentData(data, record),

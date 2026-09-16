@@ -105,6 +105,12 @@ describe("planCancelledFulfillmentData", () => {
       shipment_id: null,
       sr_order_id: null,
       provider_refs: null,
+      // The dead waybill's telemetry is nulled here too, and ONLY because
+      // `captureTrackingHistory` lifts it into the cancellation record first.
+      // If this list and that capture ever drift apart, the scans are deleted
+      // and the reason a shipment failed goes with them.
+      last_webhook: null,
+      tracking_events: null,
       cancelled_shipments: [RECORD],
     }
     expect(planCancelledFulfillmentData(null, RECORD)).toEqual(expected)
@@ -125,5 +131,142 @@ describe("planCancelledFulfillmentData", () => {
       RECORD
     )
     expect(next.cancelled_shipments).toEqual([RECORD])
+  })
+})
+
+/**
+ * 🔴 The dead waybill's story, kept with the waybill.
+ *
+ * Cancelling nulls the carrier refs, but the scan history lived in two OTHER
+ * keys — `last_webhook` and `tracking_events` — which the cancellation did not
+ * touch. So a cancelled fulfillment went on showing the dead parcel's journey,
+ * and the obvious tidy-up (clearing those two keys) deleted the only evidence
+ * of why the shipment failed.
+ *
+ * Order #3 is the case that forced this. AWB 8327967800746 was scanned
+ * "Out for Pickup" and then "Not Picked - Shipment not received from client"
+ * after ONE attempt — the whole story of the failure. Clearing the residue by
+ * hand threw it away, leaving an audit entry that recorded a cancelled waybill
+ * but not that a driver had come and gone empty-handed.
+ *
+ * So the history is lifted INTO the cancellation record before the keys are
+ * nulled. Read it out, then clear it — never the reverse.
+ */
+describe("captureTrackingHistory", () => {
+  const { captureTrackingHistory } = require("../cancel-shipment")
+
+  const events = [
+    { status: "OUT FOR PICKUP", received_at: "2026-09-11T04:58:53.685Z" },
+    { status: "PICKUP EXCEPTION", received_at: "2026-09-15T14:24:07.210Z" },
+  ]
+
+  it("🔴 keeps the scans and the carrier's final word", () => {
+    const h = captureTrackingHistory({
+      waybill: "8327967800746",
+      tracking_events: events,
+      last_webhook: { current_status: "PICKUP EXCEPTION", scans: [{ status: "X-PNP" }] },
+    })
+    expect(h.events).toHaveLength(2)
+    expect(h.last_webhook).toBeDefined()
+    expect(h.final_status).toBe("PICKUP EXCEPTION")
+  })
+
+  it("falls back to the last scan when the webhook names no status", () => {
+    const h = captureTrackingHistory({ tracking_events: events })
+    expect(h.final_status).toBe("PICKUP EXCEPTION")
+    expect(h.last_webhook).toBeUndefined()
+  })
+
+  it("reads shipment_status when current_status is absent", () => {
+    const h = captureTrackingHistory({
+      last_webhook: { shipment_status: "IN TRANSIT" },
+    })
+    expect(h.final_status).toBe("IN TRANSIT")
+  })
+
+  /** A waybill that never moved has no history — record nothing rather than an
+   *  empty shell that reads as "we looked and there was nothing". */
+  it("returns undefined when there is nothing to remember", () => {
+    expect(captureTrackingHistory({ waybill: "x" })).toBeUndefined()
+    expect(captureTrackingHistory({ tracking_events: [] })).toBeUndefined()
+    expect(captureTrackingHistory(null)).toBeUndefined()
+    expect(captureTrackingHistory(undefined)).toBeUndefined()
+  })
+
+  /**
+   * 🔴 The ordering guarantee. `planCancelledFulfillmentData` nulls the
+   * telemetry keys now, so a capture that ran AFTER it would preserve nothing.
+   */
+  it("🔴 survives the nulling that follows it", () => {
+    const { planCancelledFulfillmentData } = require("../cancel-shipment")
+    const data = { waybill: "8327967800746", tracking_events: events }
+    const history = captureTrackingHistory(data)
+    const next = planCancelledFulfillmentData(data, {
+      carrier: "shiprocket",
+      awb: "8327967800746",
+      cancelled_at: "2026-09-16T07:50:48.880Z",
+      tracking_history: history,
+    } as any)
+
+    // cleared off `data` …
+    expect(next.tracking_events).toBeNull()
+    expect(next.last_webhook).toBeNull()
+    // … and alive inside the record that replaced it.
+    expect(next.cancelled_shipments[0].tracking_history.events).toHaveLength(2)
+    expect(next.cancelled_shipments[0].awb).toBe("8327967800746")
+  })
+})
+
+/**
+ * 🔴 The WIRING, not just the parts.
+ *
+ * The first version of these tests exercised `captureTrackingHistory` directly
+ * and passed a mutation that replaced the record's `tracking_history` with
+ * `undefined` — proving the helper worked while saying nothing about whether
+ * anything used it. A test that cannot fail when the feature is unplugged is
+ * not testing the feature.
+ */
+describe("buildCancellationRecord", () => {
+  const { buildCancellationRecord } = require("../cancel-shipment")
+
+  const data = {
+    waybill: "8327967800746",
+    tracking_events: [
+      { status: "OUT FOR PICKUP" },
+      { status: "PICKUP EXCEPTION" },
+    ],
+    last_webhook: { current_status: "PICKUP EXCEPTION" },
+  }
+
+  it("🔴 carries the dead waybill's history into the record", () => {
+    const r = buildCancellationRecord({
+      carrier: "shiprocket",
+      awb: "8327967800746",
+      cancelledAt: "2026-09-16T07:50:48.880Z",
+      reason: "AWB not picked up",
+      data,
+    })
+    expect(r.tracking_history?.events).toHaveLength(2)
+    expect(r.tracking_history?.final_status).toBe("PICKUP EXCEPTION")
+    expect(r.awb).toBe("8327967800746")
+    expect(r.reason).toBe("AWB not picked up")
+  })
+
+  it("records no reversal as null rather than omitting it", () => {
+    const r = buildCancellationRecord({
+      cancelledAt: "2026-09-16T07:50:48.880Z",
+      data: null,
+    })
+    expect(r.shipping_reversed).toBeNull()
+    expect(r.tracking_history).toBeUndefined()
+  })
+
+  it("keeps the partner's freight reversal when there was one", () => {
+    const r = buildCancellationRecord({
+      cancelledAt: "2026-09-16T07:50:48.880Z",
+      shippingReversed: { amount: 1876, currency_code: "inr" },
+      data: null,
+    })
+    expect(r.shipping_reversed).toEqual({ amount: 1876, currency_code: "inr" })
   })
 })
