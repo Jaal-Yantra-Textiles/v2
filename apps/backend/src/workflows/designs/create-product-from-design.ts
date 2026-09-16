@@ -71,7 +71,12 @@ export function resolveDesignGallery(design: {
   return { thumbnail: undefined, images: [] };
 }
 
-type CreateProductFromDesignInput = {
+/**
+ * Exported because it was NOT, and the quote door therefore cast its input
+ * `as any` and type-checked nothing. Prefer `DesignProductPlan` — this type is
+ * the workflow's own shape, the plan is the validated contract over it.
+ */
+export type CreateProductFromDesignInput = {
   design_id: string;
   estimated_cost: number;
   /**
@@ -139,7 +144,7 @@ type CreateProductFromDesignInput = {
   size_label?: string | null;
 };
 
-type CreateProductFromDesignOutput = {
+export type CreateProductFromDesignOutput = {
   product_id: string;
   variant_id: string;
   price: number;

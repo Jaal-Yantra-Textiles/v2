@@ -14,7 +14,7 @@ import {
   resolveDesignVariants,
 } from "../../modules/partner-quote/lib/design-lines"
 import { estimateDesignCostWorkflow } from "../designs/estimate-design-cost"
-import { createProductFromDesignWorkflow } from "../designs/create-product-from-design"
+import { applyDesignProductPlan } from "../designs/design-product-plan"
 import { loadCostConfig } from "../../modules/platform-cost-config/read-config"
 
 /**
@@ -254,21 +254,22 @@ const ensureVariantStep = createStep(
       } as EnsureDesignQuoteVariantOutput)
     }
 
-    const { result: created } = await createProductFromDesignWorkflow(
-      container
-    ).run({
-      input: {
-        design_id: input.design_id,
-        // Legacy field. `unit_price` is what actually gets listed — see the
-        // docblock on that input for why the two differ.
-        estimated_cost: Number(estimate?.total_estimated ?? 0),
-        unit_price: priced.unit_price,
-        currency_code: to,
-        made_to_order: true,
-        // Whose catalogue this is. Without it the product went to whichever
-        // store came back first from `listStores({})`.
-        sales_channel_id: input.catalogue_sales_channel_id ?? null,
-      } as any,
+    /**
+     * Through the validated plan, not a bare object literal — this call site
+     * used to end in `as any` because `CreateProductFromDesignInput` was not
+     * exported, so none of these field names were checked by anything.
+     */
+    const created = await applyDesignProductPlan(container, {
+      design_id: input.design_id,
+      // Legacy field. `unit_price` is what actually gets listed — see the
+      // docblock on that input for why the two differ.
+      estimated_cost: Number(estimate?.total_estimated ?? 0),
+      unit_price: priced.unit_price,
+      currency_code: to,
+      made_to_order: true,
+      // Whose catalogue this is. Without it the product went to whichever
+      // store came back first from `listStores({})`.
+      sales_channel_id: input.catalogue_sales_channel_id ?? null,
     })
 
     return new StepResponse({

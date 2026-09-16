@@ -5,7 +5,7 @@ import {
 import { ContainerRegistrationKeys, Modules } from "@medusajs/framework/utils";
 import type { IEventBusModuleService } from "@medusajs/types";
 import updateDesignWorkflow from "../../../../../workflows/designs/update-design";
-import { createProductFromDesignWorkflow } from "../../../../../workflows/designs/create-product-from-design";
+import { applyDesignProductPlanResult } from "../../../../../workflows/designs/design-product-plan";
 import { requestVariantPriceFanout } from "../../../../../workflows/fx/fanout-variant-prices";
 import designCustomerLink from "../../../../../links/design-customer-link";
 import { resolveApprovalCurrency } from "../../../../../workflows/production-runs/approve-run-output";
@@ -205,8 +205,7 @@ export async function POST(
 
     // Create real product/variant from design
     const { result: productResult, errors: productErrors } =
-      await createProductFromDesignWorkflow(req.scope).run({
-        input: {
+      await applyDesignProductPlanResult(req.scope, {
           design_id: designId,
           estimated_cost: estimatedCost,
           customer_id: customerId,
@@ -230,7 +229,6 @@ export async function POST(
            * else to the house store. It never falls back to `stores[0]`. #2059
            */
           sales_channel_id: salesChannelId,
-        },
       });
 
     if (productErrors && productErrors.length > 0) {
@@ -239,6 +237,17 @@ export async function POST(
         message: "Failed to create product from design",
         errors: productErrors,
       });
+      return;
+    }
+
+    /**
+     * An invalid PLAN reports no workflow errors — it never reached the
+     * workflow. Narrowed explicitly rather than asserted, so a refused plan
+     * answers 500 with its reason instead of throwing on the next line.
+     */
+    if (!productResult) {
+      logger.error(`[Admin] Design ${designId} was not minted and reported no error.`);
+      res.status(500).json({ message: "Failed to create product from design" });
       return;
     }
 

@@ -10,10 +10,10 @@ import {
   resolveApprovalPrice,
 } from "./approval-pricing"
 import {
-  createProductFromDesignWorkflow,
   resolveDesignGallery,
   resolveRunsSizeLabel,
 } from "../designs/create-product-from-design"
+import { applyDesignProductPlan } from "../designs/design-product-plan"
 import updateDesignWorkflow from "../designs/update-design"
 import {
   resolveDesignApprovalTarget,
@@ -517,8 +517,7 @@ export async function applyRunApprovals(
           logger?.warn?.(`[approve-run-output] ${targetNote}`)
         }
       } else if (!input.dryRun) {
-        const { result } = await createProductFromDesignWorkflow(container).run({
-          input: {
+        const result = await applyDesignProductPlan(container, {
             design_id: designId,
             estimated_cost: price,
             currency_code: currency,
@@ -539,7 +538,6 @@ export async function applyRunApprovals(
              * says today.
              */
             size_label: resolveRunsSizeLabel(designRuns),
-          },
         })
         product_id = result?.product_id ?? null
         variant_id = result?.variant_id ?? null
