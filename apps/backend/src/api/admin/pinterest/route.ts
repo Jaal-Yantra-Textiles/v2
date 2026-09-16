@@ -1,22 +1,15 @@
 import { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
 import { MedusaError } from "@medusajs/framework/utils"
+import { searchPinterestWorkflow } from "../../../workflows/socials/search-pinterest"
 
 /**
  * GET /admin/pinterest?q=<search>&bookmark=<cursor>
  *
- * Proxies Pinterest pin search API. Uses the authenticated user's pins
- * via /v5/search/pins, or partner search via /v5/search/partner/pins
- * if available.
+ * Proxies Pinterest pin search via the search-pinterest workflow, which
+ * resolves the connected platform's access token (Settings → External
+ * platforms) and searches Pinterest's pin API.
  */
 export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
-  const accessToken = process.env.PINTEREST_ACCESS_TOKEN
-  if (!accessToken) {
-    throw new MedusaError(
-      MedusaError.Types.NOT_ALLOWED,
-      "Pinterest integration not configured. Set PINTEREST_ACCESS_TOKEN."
-    )
-  }
-
   const query = (req.query.q as string) || ""
   const bookmark = (req.query.bookmark as string) || ""
 
@@ -24,30 +17,16 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
     throw new MedusaError(MedusaError.Types.INVALID_DATA, "Search query (q) is required")
   }
 
-  // Try partner search first (broader results), fall back to user pins
-  let pins: any[] = []
-  let nextBookmark: string | null = null
+  const { result, errors } = await searchPinterestWorkflow(req.scope).run({
+    input: { query, bookmark },
+  })
 
-  try {
-    const result = await searchPartnerPins(accessToken, query, bookmark)
-    pins = result.pins
-    nextBookmark = result.bookmark
-  } catch {
-    // Partner search not available — fall back to user's own pins
-    try {
-      const result = await searchUserPins(accessToken, query, bookmark)
-      pins = result.pins
-      nextBookmark = result.bookmark
-    } catch (e: any) {
-      throw new MedusaError(
-        MedusaError.Types.UNEXPECTED_STATE,
-        `Pinterest API error: ${e.message}`
-      )
-    }
+  if (errors && errors.length > 0) {
+    throw errors[0]
   }
 
   // Normalize to a clean response
-  const results = pins.map((pin: any) => ({
+  const results = result.pins.map((pin: any) => ({
     id: pin.id,
     title: pin.title || "",
     description: pin.description || "",
@@ -65,63 +44,7 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
 
   res.json({
     pins: results,
-    bookmark: nextBookmark,
+    bookmark: result.bookmark,
     query,
   })
-}
-
-async function searchPartnerPins(
-  token: string,
-  query: string,
-  bookmark?: string
-): Promise<{ pins: any[]; bookmark: string | null }> {
-  const params = new URLSearchParams({
-    term: query,
-    country_code: "US",
-    limit: "20",
-  })
-  if (bookmark) params.set("bookmark", bookmark)
-
-  const response = await fetch(
-    `https://api.pinterest.com/v5/search/partner/pins?${params}`,
-    {
-      headers: { Authorization: `Bearer ${token}` },
-    }
-  )
-
-  if (!response.ok) {
-    throw new Error(`Partner search failed: ${response.status}`)
-  }
-
-  const data = await response.json()
-  return {
-    pins: data.items || [],
-    bookmark: data.bookmark || null,
-  }
-}
-
-async function searchUserPins(
-  token: string,
-  query: string,
-  bookmark?: string
-): Promise<{ pins: any[]; bookmark: string | null }> {
-  const params = new URLSearchParams({ query })
-  if (bookmark) params.set("bookmark", bookmark)
-
-  const response = await fetch(
-    `https://api.pinterest.com/v5/search/pins?${params}`,
-    {
-      headers: { Authorization: `Bearer ${token}` },
-    }
-  )
-
-  if (!response.ok) {
-    throw new Error(`User pin search failed: ${response.status}`)
-  }
-
-  const data = await response.json()
-  return {
-    pins: data.items || [],
-    bookmark: data.bookmark || null,
-  }
 }

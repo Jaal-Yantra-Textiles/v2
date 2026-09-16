@@ -5934,7 +5934,7 @@ export const ADMIN_MCP_TOOLS: AdminMcpToolDef[] = [
   {
     name: "search_pinterest",
     description:
-      "Search Pinterest for reference images by keyword. Returns pins with image urls that can be read with read_image or recorded on a design as inspiration. Requires PINTEREST_ACCESS_TOKEN to be configured.",
+      "Search Pinterest for reference images by keyword. Returns pins with image urls that can be read with read_image or recorded on a design as inspiration. Reads the access token from the connected Pinterest platform (Settings → External platforms); falls back to PINTEREST_ACCESS_TOKEN.",
     method: "GET",
     path: "/admin/pinterest",
     queryParams: ["q", "bookmark"],
