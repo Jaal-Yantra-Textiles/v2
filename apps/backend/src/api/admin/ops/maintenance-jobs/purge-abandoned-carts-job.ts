@@ -94,7 +94,26 @@ type CartRow = {
  */
 export function cartSkipReason(
   cart: CartRow,
-  opts: { cutoff: Date; includeIdentified: boolean; emptyOnly: boolean }
+  opts: {
+    cutoff: Date
+    includeIdentified: boolean
+    emptyOnly: boolean
+    /**
+     * The operator named this cart by id rather than sweeping for it.
+     *
+     * 🔴 Naming a cart IS the statement of intent the age cut-off exists to
+     * stand in for, so the cut-off does not apply — and until it did not, this
+     * job could not do the thing it was written for. The four carts a
+     * verification run left on production were named explicitly and still came
+     * back "newer than the cut-off", because a sweep's safety rail had been
+     * applied to a targeted call.
+     *
+     * The COMPLETED refusal below is unaffected and still has no override: an
+     * operator can be wrong about which cart they meant, and that one became
+     * an order.
+     */
+    explicitlyNamed?: boolean
+  }
 ): string | null {
   if (cart.completed_at) {
     return "completed — this cart became an order and is its paper trail"
@@ -103,7 +122,7 @@ export function cartSkipReason(
   if (!created || Number.isNaN(created.getTime())) {
     return "no readable created_at — cannot establish its age"
   }
-  if (created >= opts.cutoff) {
+  if (!opts.explicitlyNamed && created >= opts.cutoff) {
     return `created ${created.toISOString().slice(0, 10)} — newer than the cut-off`
   }
   if (!opts.includeIdentified && (cart.email || cart.customer_id)) {
@@ -136,7 +155,8 @@ export const purgeAbandonedCartsJob: MaintenanceJob = {
       name: "older_than_days",
       type: "number",
       required: true,
-      description: "Only carts created more than this many days ago",
+      description:
+        "Only carts created more than this many days ago. Ignored when cart_ids names carts explicitly — naming one IS the intent this stands in for.",
     },
     {
       name: "include_identified",
@@ -210,6 +230,7 @@ export const purgeAbandonedCartsJob: MaintenanceJob = {
         cutoff,
         includeIdentified: include_identified,
         emptyOnly: empty_only,
+        explicitlyNamed: !!cart_ids?.length,
       })
 
       if (reason) {

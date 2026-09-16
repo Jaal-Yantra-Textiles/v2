@@ -206,12 +206,35 @@ export const deleteOrphanWorkOrderMirrorsJob: MaintenanceJob = {
         if (row?.id) live.add(row.id)
       }
 
+      /*
+       * 🔴 Read through `query.graph` with the fields NAMED, not through
+       * `listOrders`.
+       *
+       * The first version used `orderService.listOrders(...)`, whose default
+       * selection does NOT include `metadata`. Every order therefore arrived
+       * with `metadata` undefined, `readMirrorLegacyId` returned null for all
+       * of them, and the job reported
+       *
+       *     "No work-order mirrors found whose execution row is missing."
+       *
+       * on a database where #107 was sitting in plain sight — a clean bill of
+       * health from a query that had not looked. The unit tests could not catch
+       * it: they hand the pure selection functions rows that already carry
+       * metadata, so they test the RULE while the fault was in the READ. Only
+       * running it against production showed it, and what it showed was silence.
+       *
+       * `summary.*` is expanded because the settled-money guard reads
+       * `summary.paid_total`, and an unexpanded summary would make every paid
+       * mirror look unpaid — the same silence, one field over.
+       */
       const orderFilters: Record<string, unknown> = {}
       if (order_id) orderFilters.id = order_id
 
-      const orders = await orderService.listOrders(orderFilters, {
-        take: MAX_ORPHAN_MIRROR_SCAN,
-        order: { created_at: "ASC" },
+      const { data: orders } = await query.graph({
+        entity: "order",
+        fields: ["id", "status", "total", "metadata", "summary.*"],
+        filters: orderFilters,
+        pagination: { skip: 0, take: MAX_ORPHAN_MIRROR_SCAN },
       })
 
       for (const order of orders ?? []) {
