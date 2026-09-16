@@ -15,7 +15,7 @@ import {
   Tooltip,
   Button,
 } from "@medusajs/ui";
-import { useNavigate } from "react-router-dom";
+import { Outlet, useNavigate } from "react-router-dom";
 import { keepPreviousData } from "@tanstack/react-query";
 import { defineRouteConfig } from "@medusajs/admin-sdk";
 import { ReceiptPercent, XCircle, CheckCircleSolid } from "@medusajs/icons";
@@ -36,7 +36,6 @@ import {
   getPartnerWorkStatus,
   getStatusBadgeColor,
 } from "../../lib/work-status";
-import { StartDesignOrderModal } from "./start-design-order-modal";
 
 // ─── Status helpers ─────────────────────────────────────────────────────────
 
@@ -345,7 +344,6 @@ const DesignOrdersPage = () => {
     pageIndex: 0,
   });
   const [filtering, setFiltering] = useState<DataTableFilteringState>({});
-  const [startOpen, setStartOpen] = useState(false);
   const [search, setSearch] = useState<string>("");
 
   const handleFilterChange = useCallback(
@@ -443,7 +441,7 @@ const DesignOrdersPage = () => {
                 The screen named "Design Orders" was the one place an order
                 could not be started — the flow lived only on the designs list.
               */}
-              <Button size="small" onClick={() => setStartOpen(true)}>
+              <Button size="small" onClick={() => navigate("new")}>
                 New design order
               </Button>
             </div>
@@ -452,11 +450,12 @@ const DesignOrdersPage = () => {
           <DataTable.Pagination />
         </DataTable>
       </Container>
-      <StartDesignOrderModal
-        open={startOpen}
-        onOpenChange={setStartOpen}
-        onCreated={refetch}
-      />
+      {/*
+        The stepped RouteFocusModal at `@new` renders here. Without this Outlet
+        the URL changes to /design-orders/new and the page renders unchanged —
+        a dead button that no type-check can see. #1970
+      */}
+      <Outlet />
     </TooltipProvider>
   );
 };
