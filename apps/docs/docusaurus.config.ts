@@ -46,6 +46,7 @@ const config: Config = {
           "404_SHIPPING_PROVIDERS_ANALYSIS.md",
           "342_ORDERS_UNIFICATION_ANALYSIS.md",
           "457_OPS_MAINTENANCE_JOBS_ANALYSIS.md",
+          "1970_DESIGN_ORDER_MUTATION_SURFACE.md",
         ],
       },
     ],
