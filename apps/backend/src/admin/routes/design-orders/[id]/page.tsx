@@ -36,6 +36,8 @@ import {
   useAttachShiprocketAwb,
   useCancelShipment,
   useShiprocketRates,
+  useAttachDesignOrderCustomer,
+  useCustomerSearch,
 } from "../../../hooks/api/design-orders"
 import { usePartners } from "../../../hooks/api/partners"
 import {
@@ -921,24 +923,136 @@ const OrderSection = ({
 
 // ─── Customer Section ───────────────────────────────────────────────────────
 
-const CustomerSection = ({ designOrder }: { designOrder: any }) => {
+/**
+ * #1970 PR5 — the buyer can now be changed after the order exists.
+ *
+ * Until the attach route existed this panel was read-only, so a design order
+ * created without a buyer stayed buyer-less forever: the customer was fixed
+ * when the cart was created and nothing could mutate a cart from admin.
+ */
+const CustomerSection = ({
+  designOrder,
+  lineItemId,
+}: {
+  designOrder: any
+  lineItemId: string
+}) => {
   const customer = designOrder.customer
+  const [editing, setEditing] = useState(false)
+  const [search, setSearch] = useState("")
+  const { data: found, isLoading: searching } = useCustomerSearch(
+    editing ? search : ""
+  )
+  const { mutateAsync: attach, isPending } = useAttachDesignOrderCustomer(lineItemId)
+  const prompt = usePrompt()
+
+  const apply = async (customerId: string | null, label: string) => {
+    try {
+      const res = await attach({ customer_id: customerId })
+      setEditing(false)
+      setSearch("")
+      toast.success(
+        res.design_order_customer.changed
+          ? customerId
+            ? `${label} is now the buyer on this design order.`
+            : "The buyer was removed from this design order."
+          : `${label} was already the buyer — nothing changed.`
+      )
+    } catch (e: any) {
+      /*
+        The route refuses a CONVERTED order with a 409 and says to change the
+        customer on the order instead. Surfaced verbatim: "failed" alone would
+        leave an operator retrying something that can never succeed.
+      */
+      toast.error(e?.message ?? "Could not change the buyer on this design order.")
+    }
+  }
+
+  const detach = async () => {
+    const ok = await prompt({
+      title: "Remove the buyer?",
+      description:
+        "The design order keeps its designs and price, but nobody will be " +
+        "linked to it and checkout will not know who to email.",
+      confirmText: "Remove",
+      cancelText: "Keep",
+    })
+    if (ok) await apply(null, "")
+  }
 
   return (
     <Container className="divide-y p-0">
-      <div className="px-6 py-4">
+      <div className="flex items-center justify-between px-6 py-4">
         <Heading level="h2">Customer</Heading>
+        <Button
+          size="small"
+          variant="secondary"
+          onClick={() => setEditing((v) => !v)}
+          disabled={isPending}
+        >
+          {editing ? "Cancel" : customer ? "Change" : "Attach"}
+        </Button>
       </div>
       <div className="px-6 py-4">
         {customer ? (
-          <div>
-            <Text size="small" weight="plus">
-              {customer.first_name} {customer.last_name}
-            </Text>
-            <Text size="small" className="text-ui-fg-subtle">{customer.email}</Text>
+          <div className="flex items-start justify-between gap-2">
+            <div>
+              <Text size="small" weight="plus">
+                {customer.first_name} {customer.last_name}
+              </Text>
+              <Text size="small" className="text-ui-fg-subtle">{customer.email}</Text>
+            </div>
+            <Button
+              size="small"
+              variant="transparent"
+              onClick={detach}
+              disabled={isPending}
+            >
+              Remove
+            </Button>
           </div>
         ) : (
           <Text size="small" className="text-ui-fg-subtle">No customer linked</Text>
+        )}
+
+        {editing && (
+          <div className="mt-4 flex flex-col gap-2">
+            <Input
+              placeholder="Search customers by name or email"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              autoFocus
+            />
+            {searching ? (
+              <Text size="small" className="text-ui-fg-subtle">Searching…</Text>
+            ) : found?.customers?.length ? (
+              <div className="flex flex-col divide-y">
+                {found.customers.map((c) => (
+                  <button
+                    key={c.id}
+                    type="button"
+                    className="flex flex-col items-start px-1 py-2 text-left hover:bg-ui-bg-base-hover disabled:opacity-50"
+                    disabled={isPending}
+                    onClick={() =>
+                      apply(
+                        c.id,
+                        [c.first_name, c.last_name].filter(Boolean).join(" ") || c.email
+                      )
+                    }
+                  >
+                    <Text size="small" weight="plus">
+                      {[c.first_name, c.last_name].filter(Boolean).join(" ") || "—"}
+                    </Text>
+                    <Text size="small" className="text-ui-fg-subtle">{c.email}</Text>
+                  </button>
+                ))}
+              </div>
+            ) : (
+              <Text size="small" className="text-ui-fg-subtle">
+                {search ? "No customers match that." : "Type to search."}
+              </Text>
+            )}
+          </div>
         )}
       </div>
     </Container>
@@ -1018,7 +1132,7 @@ const DesignOrderDetailPage = () => {
         <OrderSection designOrder={designOrder} lineItemId={id!} />
       </TwoColumnPage.Main>
       <TwoColumnPage.Sidebar>
-        <CustomerSection designOrder={designOrder} />
+        <CustomerSection designOrder={designOrder} lineItemId={id!} />
         {/*
           Production sits beside the customer, not in the main column: on a
           commission the stages are something you GLANCE at while reading the
