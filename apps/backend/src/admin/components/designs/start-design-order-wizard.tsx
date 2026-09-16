@@ -14,8 +14,13 @@ import {
   type DataTableRowSelectionState,
 } from "@medusajs/ui"
 import { keepPreviousData } from "@tanstack/react-query"
-import { useMemo, useState } from "react"
+import { useEffect, useMemo, useState } from "react"
+import { useForm } from "react-hook-form"
 
+import { DataGrid } from "../data-grid/data-grid"
+import { DataGridCurrencyCell, DataGridReadOnlyCell } from "../data-grid/components"
+import { createDataGridHelper } from "../data-grid/helpers/create-data-grid-column-helper"
+import { KeyboundForm } from "../utilitites/key-bound-form"
 import { RouteFocusModal } from "../modal/route-focus-modal"
 import { useRouteModal } from "../modal/use-route-modal"
 import { sdk } from "../../lib/config"
@@ -83,9 +88,22 @@ type PreviewResponse = {
  * is worse than a shorter one: the rows below the fold are invisible and the
  * pagination sits under a list that looks complete.
  */
+/** One editable review row. `price` is what the order will actually list. */
+type LineForm = {
+  design_id: string
+  name: string
+  /** What the estimator said. null when it could not price the design. */
+  estimated: number | null
+  confidence: string
+  /** Editable. Seeded from `estimated`; any change becomes a price override. */
+  price: number
+}
+
+type WizardForm = { lines: LineForm[] }
+
 const PAGE_SIZE = 10
 const columnHelper = createDataTableColumnHelper<any>()
-const estimateHelper = createDataTableColumnHelper<EstimateRow>()
+const gridHelper = createDataGridHelper<LineForm, WizardForm>()
 
 const money = (amount: number, currency: string) => {
   const n = Number(amount)
@@ -222,64 +240,141 @@ export const StartDesignOrderWizard = () => {
   const estimateRows = preview?.estimates ?? []
   const currency = preview?.currency_code ?? "inr"
 
-  const estimateColumns = useMemo(
+  /**
+   * The review rows are a FORM, not a read-only summary.
+   *
+   * 🔴 The modal this replaces could override a price before creating the
+   * order (`price_overrides` on both create doors). Rebuilding the review as a
+   * static table silently removed that — the operator could see a wrong
+   * estimate and had no way to correct it without abandoning the flow. An
+   * editable `DataGrid` is what that capability looks like in this admin, and
+   * it is the same component `create-inventory-order` uses for order lines.
+   */
+  const form = useForm<WizardForm>({ defaultValues: { lines: [] } })
+  const lines = form.watch("lines") ?? []
+
+  useEffect(() => {
+    if (!preview) return
+    form.reset({
+      lines: preview.estimates.map((e) => ({
+        design_id: e.design_id,
+        name: e.name ?? e.design_id,
+        estimated: e.total_estimated ?? null,
+        confidence: String(e.confidence ?? "none"),
+        // Seeded from the estimate. `?? 0` ONLY as the starting value of an
+        // editable cell — an unpriceable design opens at 0 so it can be typed
+        // over, and the grid marks it so nobody mistakes it for a real figure.
+        price: e.total_estimated ?? 0,
+      })),
+    })
+  }, [preview])
+
+  const gridColumns = useMemo(
     () => [
-      estimateHelper.accessor("name", {
+      gridHelper.column({
+        id: "name",
+        name: "Design",
         header: "Design",
-        cell: ({ getValue, row }) => (
-          <Text size="small" leading="compact">
-            {(getValue() as string) || row.original.design_id}
-          </Text>
+        cell: (context: any) => (
+          <DataGridReadOnlyCell context={context}>
+            <Text size="small" leading="compact">
+              {lines[context.row.index]?.name ?? "—"}
+            </Text>
+          </DataGridReadOnlyCell>
         ),
+        disableHiding: true,
       }),
-      estimateHelper.accessor("confidence", {
+      gridHelper.column({
+        id: "confidence",
+        name: "Confidence",
         header: "Confidence",
-        cell: ({ getValue }) => {
-          const c = String(getValue() ?? "none")
+        cell: (context: any) => {
+          const c = lines[context.row.index]?.confidence ?? "none"
           return (
-            <Badge size="2xsmall" color={c === "none" ? "red" : c === "low" ? "orange" : "green"}>
-              {c}
-            </Badge>
+            <DataGridReadOnlyCell context={context}>
+              <Badge size="2xsmall" color={c === "none" ? "red" : c === "low" ? "orange" : "green"}>
+                {c}
+              </Badge>
+            </DataGridReadOnlyCell>
           )
         },
       }),
-      estimateHelper.accessor("material_cost", {
-        header: "Material",
-        cell: ({ getValue }) => <Money value={getValue() as number} currency={currency} />,
-      }),
-      estimateHelper.accessor("production_cost", {
-        header: "Production",
-        cell: ({ getValue }) => <Money value={getValue() as number} currency={currency} />,
-      }),
-      estimateHelper.accessor("total_estimated", {
-        header: "Estimate",
-        cell: ({ getValue }) => {
+      gridHelper.column({
+        id: "estimated",
+        name: "Estimated",
+        header: "Estimated",
+        cell: (context: any) => {
           /**
            * 🔴 `null` is NOT zero. The estimator returns null for a design it
-           * could not price, and rendering that through a `?? 0` would put a
-           * confident ₹0.00 on the row — the #1900 shape, in the one place an
+           * could not price; rendering that through a `?? 0` would put a
+           * confident ₹0.00 beside it — the #1900 shape, in the one place an
            * operator decides whether the number is right.
            */
-          const v = getValue() as number | null | undefined
-          return v == null ? (
-            <Badge size="2xsmall" color="red">Not priceable</Badge>
-          ) : (
-            <Text size="small" leading="compact" weight="plus">
-              {money(v, currency)}
-            </Text>
+          const v = lines[context.row.index]?.estimated
+          return (
+            <DataGridReadOnlyCell context={context}>
+              {v == null ? (
+                <Badge size="2xsmall" color="red">Not priceable</Badge>
+              ) : (
+                <Text size="small" leading="compact" className="text-ui-fg-subtle">
+                  {money(v, currency)}
+                </Text>
+              )}
+            </DataGridReadOnlyCell>
           )
         },
       }),
+      gridHelper.column({
+        id: "price",
+        name: "Price",
+        header: "Price",
+        field: (context: any) => `lines.${context.row.index}.price` as const,
+        type: "number",
+        cell: (context: any) => (
+          <DataGridCurrencyCell context={context} code={currency} />
+        ),
+        disableHiding: true,
+      }),
     ],
-    [currency]
+    [lines, currency]
   )
 
-  const estimateTable = useDataTable({
-    columns: estimateColumns,
-    data: estimateRows,
-    getRowId: (row) => row.design_id,
-    rowCount: estimateRows.length,
-  })
+  /**
+   * Widths, the way `inventory-order-lines-grid` does it. Left at the default
+   * the design name — the only column that tells you WHICH garment you are
+   * pricing — truncates to about twenty characters, and two fixtures with the
+   * same prefix become indistinguishable at the moment money is entered.
+   */
+  const sizedGridColumns = useMemo(
+    () =>
+      gridColumns.map((col: any) => {
+        // 320, not 460: the four columns then fit inside a ~900px modal, so the
+        // editable Price cell is on screen without scrolling. It is the one
+        // cell the operator must reach.
+        if (col.id === "name") return { ...col, size: 320, maxSize: 640 }
+        if (col.id === "confidence") return { ...col, size: 150, maxSize: 180 }
+        if (col.id === "estimated") return { ...col, size: 180, maxSize: 220 }
+        if (col.id === "price") return { ...col, size: 200, maxSize: 260 }
+        return col
+      }),
+    [gridColumns]
+  )
+
+  /** Only prices the operator actually changed travel as overrides. */
+  const overrides = useMemo(() => {
+    const out: Record<string, number> = {}
+    for (const l of lines) {
+      const n = Number(l.price)
+      if (!Number.isFinite(n) || n <= 0) continue
+      if (l.estimated == null || n !== Number(l.estimated)) out[l.design_id] = n
+    }
+    return out
+  }, [lines])
+
+  const grandTotal = useMemo(
+    () => lines.reduce((sum, l) => sum + (Number(l.price) || 0), 0),
+    [lines]
+  )
 
   const goToReview = async () => {
     const resolved = resolveDesignOrderTarget(picked)
@@ -315,7 +410,13 @@ export const StartDesignOrderWizard = () => {
       const routes = designOrderRoutes(target.customer_id)
       await sdk.client.fetch(routes.create, {
         method: "POST",
-        body: designOrderCreateBody({ design_ids: target.design_ids }),
+        body: designOrderCreateBody({
+          design_ids: target.design_ids,
+          price_overrides: overrides,
+          // The cart's currency is the estimate's currency; sending a price in
+          // any other would be valued by one number and labelled by another.
+          override_currency: currency,
+        }),
       })
       toast.success("Design order created", {
         description: target.customer_id
@@ -338,6 +439,11 @@ export const StartDesignOrderWizard = () => {
     step === Step.REVIEW ? "in-progress" : "not-started"
 
   return (
+    <RouteFocusModal.Form form={form}>
+      <KeyboundForm
+        onSubmit={(e) => e.preventDefault()}
+        className="flex h-full flex-col overflow-hidden"
+      >
     <ProgressTabs
       value={step}
       onValueChange={(v) => {
@@ -386,9 +492,11 @@ export const StartDesignOrderWizard = () => {
           */
           className="h-full overflow-y-auto"
         >
-          <div className="flex h-full flex-col">
+          <div className="flex h-full flex-col px-4 py-4 md:px-6">
           <DataTable instance={table}>
-            <DataTable.Toolbar className="flex items-center justify-between gap-x-2 px-0">
+            {/* Wraps to two rows when the modal is narrow, rather than
+                crushing the search field against the heading. */}
+            <DataTable.Toolbar className="flex flex-col items-stretch gap-2 px-0 md:flex-row md:items-center md:justify-between">
               <Heading level="h2">Choose designs</Heading>
               <DataTable.Search placeholder="Search designs…" />
             </DataTable.Toolbar>
@@ -408,24 +516,39 @@ export const StartDesignOrderWizard = () => {
           */
           className="h-full overflow-y-auto"
         >
-          <div className="flex flex-col gap-y-4">
-          <div>
+          <div className="flex flex-col gap-y-4 px-4 py-4 md:px-6">
+          <div className="flex flex-col gap-y-1">
             <Heading level="h2">Review</Heading>
-            <Text size="small" leading="compact" className="text-ui-fg-subtle">
+            {/* `max-w-prose` so the sentence wraps at a readable measure
+                instead of running the full width of a wide modal. */}
+            <Text size="small" leading="compact" className="max-w-prose text-ui-fg-subtle">
               {target?.customer_id
                 ? "This order is for the customer these designs belong to."
                 : "No buyer yet. A design order without one is ordinary — attach a buyer from the order, or it is collected at checkout."}
             </Text>
           </div>
 
-          <DataTable instance={estimateTable}>
-            <DataTable.Table />
-          </DataTable>
+          {/*
+            The grid keeps its column widths and scrolls sideways on a narrow
+            screen. Letting it shrink instead squeezes the editable Price cell
+            until the figure is unreadable — the one cell that must not be.
+          */}
+          <div className="min-w-0 overflow-x-auto">
+            <DataGrid data={lines} columns={sizedGridColumns} state={form} />
+          </div>
+          <Text size="xsmall" leading="compact" className="max-w-prose text-ui-fg-muted">
+            Prices are editable — Enter moves between cells. Anything you change
+            is sent as a price override; untouched rows keep the estimate.
+          </Text>
 
-          <div className="flex items-center justify-between rounded-md border border-ui-border-base bg-ui-bg-subtle px-4 py-3">
-            <div className="flex flex-col">
+          <div className="flex flex-col gap-y-2 rounded-md border border-ui-border-base bg-ui-bg-subtle px-4 py-3 sm:flex-row sm:items-center sm:justify-between sm:gap-y-0">
+            <div className="flex min-w-0 flex-col">
               <Text size="small" weight="plus">
-                {preview?.total_is_complete === false ? "Total (partial)" : "Total"}
+                {Object.keys(overrides).length
+                  ? "Total (with your prices)"
+                  : preview?.total_is_complete === false
+                    ? "Total (partial)"
+                    : "Total"}
               </Text>
               {preview?.total_is_complete === false && (
                 /*
@@ -435,13 +558,13 @@ export const StartDesignOrderWizard = () => {
                   unqualified is how an operator commits to a figure the
                   customer will exceed.
                 */
-                <Text size="xsmall" leading="compact" className="text-ui-fg-subtle">
+                <Text size="xsmall" leading="compact" className="max-w-prose text-ui-fg-subtle">
                   Some designs could not be priced. This is the sum of the rest.
                 </Text>
               )}
             </div>
-            <Text size="small" weight="plus">
-              {money(preview?.total ?? 0, currency)}
+            <Text size="small" weight="plus" className="tabular-nums">
+              {money(grandTotal, currency)}
             </Text>
           </div>
           </div>
@@ -449,7 +572,7 @@ export const StartDesignOrderWizard = () => {
       </RouteFocusModal.Body>
 
       <RouteFocusModal.Footer>
-        <div className="flex items-center justify-end gap-x-2">
+        <div className="flex flex-wrap items-center justify-end gap-2">
           <RouteFocusModal.Close asChild>
             <Button size="small" variant="secondary">
               Cancel
@@ -511,5 +634,7 @@ export const StartDesignOrderWizard = () => {
         </CommandBar.Bar>
       </CommandBar>
     </ProgressTabs>
+      </KeyboundForm>
+    </RouteFocusModal.Form>
   )
 }
