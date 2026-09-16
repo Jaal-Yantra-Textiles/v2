@@ -332,6 +332,29 @@ export interface ShippingProviderClient {
    */
   listPickupLocations?(): Promise<PickupLocation[]>
 
+  /**
+   * Does this carrier's `getRates` need an ORIGIN pincode?
+   *
+   * 🔴 Declared, not inferred. The rate workflow calls `listPickupLocations`
+   * for exactly one purpose — to derive an origin pincode — and then REFUSES to
+   * quote without one. For a carrier that rates by origin↔destination lane
+   * (Shiprocket, Delhivery) that is right. For a cross-border consolidator it
+   * is not: ShipGlobal's `/rates/calculate` takes `country_iso_code_2` and
+   * `postcode` and NOTHING about the origin, because the origin is its own hub.
+   * Its checkout quote has always passed `origin_pincode: ""` and worked.
+   *
+   * So the admin quote refused ShipGlobal outright — "shipglobal provider does
+   * not support rate quotes" — for want of an optional method it has no reason
+   * to implement, while the same carrier priced the identical lane at checkout.
+   *
+   * Absent means TRUE, so every existing carrier keeps today's behaviour. A
+   * carrier that genuinely needs an origin and has simply not implemented
+   * `listPickupLocations` yet must not silently start quoting from nowhere —
+   * that is why this is an explicit opt-out rather than "no list API means no
+   * origin needed".
+   */
+  ratesNeedOriginPincode?: boolean
+
   /** Normalize an inbound tracking webhook payload (P2). */
   normalizeWebhook?(payload: any): TrackingResult
 }

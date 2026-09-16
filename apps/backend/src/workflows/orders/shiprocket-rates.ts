@@ -144,21 +144,50 @@ export async function getShiprocketRatesForOrder(
 
   const carrier = input.carrier || "shiprocket"
   const provider = await resolveShippingProvider(container, carrier)
-  if (!provider.getRates || !provider.listPickupLocations) {
+  if (!provider.getRates) {
     throw new MedusaError(
       MedusaError.Types.NOT_ALLOWED,
       `${carrier} provider does not support rate quotes`
     )
   }
 
-  const pickups = await provider.listPickupLocations()
-  const pickup = pickRatesPickup(pickups, preferredNickname)
-  const originPincode = String(pickup?.pincode || "").trim()
-  if (!originPincode) {
-    throw new MedusaError(
-      MedusaError.Types.INVALID_DATA,
-      `No ${carrier} pickup location with a pincode is configured. Register a pickup location before requesting courier rates.`
-    )
+  /*
+   * 🔴 The origin is only fetched for carriers that RATE on one.
+   *
+   * `listPickupLocations` is declared optional on the interface — "not every
+   * carrier exposes a list API" — and this workflow required it anyway, for the
+   * single purpose of deriving `originPincode`. That made an optional method
+   * mandatory, and refused ShipGlobal with "does not support rate quotes" when
+   * what it actually lacks is a concept it does not use: `/rates/calculate`
+   * takes `country_iso_code_2` + `postcode` and nothing about the origin,
+   * because the origin is ShipGlobal's own hub. The same carrier priced the
+   * same lane at checkout the whole time, through `calculatePrice`, which has
+   * always passed `origin_pincode: ""`.
+   *
+   * The opt-out is DECLARED by the provider (`ratesNeedOriginPincode: false`),
+   * not inferred from a missing method — a lane-rating carrier that simply has
+   * not implemented the list yet must fail loudly rather than quietly quote
+   * from an empty origin.
+   */
+  const needsOrigin = provider.ratesNeedOriginPincode !== false
+  let originPincode = ""
+
+  if (needsOrigin) {
+    if (!provider.listPickupLocations) {
+      throw new MedusaError(
+        MedusaError.Types.NOT_ALLOWED,
+        `${carrier} rates need an origin pincode but the provider cannot list pickup locations`
+      )
+    }
+    const pickups = await provider.listPickupLocations()
+    const pickup = pickRatesPickup(pickups, preferredNickname)
+    originPincode = String(pickup?.pincode || "").trim()
+    if (!originPincode) {
+      throw new MedusaError(
+        MedusaError.Types.INVALID_DATA,
+        `No ${carrier} pickup location with a pincode is configured. Register a pickup location before requesting courier rates.`
+      )
+    }
   }
 
   const cod = order.metadata?.payment_mode === "cod"
