@@ -328,3 +328,140 @@ export function describeApprovalTarget(
       return `design ${designId}: approval target unresolved.`
   }
 }
+
+/* -------------------------------------------------------------------------
+ * Per-RUN stamping, and what the approval actually changed
+ * ---------------------------------------------------------------------- */
+
+export type RunApprovalStamp = {
+  product_id: string | null
+  variant_id: string | null
+  /** "run" — this run named its own variant. "design" — the design-level target answered. */
+  source: "run" | "design" | "none"
+}
+
+/**
+ * PURE: what to stamp on ONE run, given the design-level target.
+ *
+ * 🔴 The design-level reduction is the WRONG unit for this. `approved_variant_id`
+ * is what a fulfilment is later filed against, and #1970 is explicit that the
+ * binding is per RUN, not per design. Two runs of one design that made
+ * different variants make `resolveDesignApprovalTarget` refuse — correctly, it
+ * cannot name one variant for the design — and today that refusal nulls the
+ * variant on BOTH runs, including the ones that said perfectly clearly what
+ * they produced. `describeApprovalTarget`'s own `runs_disagree` text already
+ * says "or per-run stamping has to answer this".
+ *
+ * So the run's own `variant_id` wins here, exactly as it does in
+ * `resolveRunVariant` and `pickRunsVariant`. The design-level target is the
+ * fallback for runs written before that column was populated.
+ *
+ * The product follows the variant: `variantOwner` places it from the design
+ * read where it can. When it cannot, the design-level product stands rather
+ * than being nulled — that product was already conservative (only ever a sole
+ * linked product, never row 0 of several), so this never widens the guess.
+ */
+export function resolveRunApprovalStamp(
+  run: { variant_id?: string | null } | null | undefined,
+  designTarget:
+    | { product_id?: string | null; variant_id?: string | null }
+    | null
+    | undefined,
+  variantOwner?: Map<string, string> | null
+): RunApprovalStamp {
+  const designProductId = designTarget?.product_id ?? null
+  const ownVariantId = run?.variant_id ?? null
+
+  if (ownVariantId) {
+    return {
+      product_id: variantOwner?.get(ownVariantId) ?? designProductId,
+      variant_id: ownVariantId,
+      source: "run",
+    }
+  }
+
+  const designVariantId = designTarget?.variant_id ?? null
+  return {
+    product_id: designProductId,
+    variant_id: designVariantId,
+    source: designVariantId ? "design" : "none",
+  }
+}
+
+/** variant id → the product it sits on, from an already-fetched design read. */
+export function indexVariantOwners(
+  linkedProducts:
+    | Array<{ id?: string | null; variants?: Array<{ id?: string | null }> | null } | null>
+    | null
+    | undefined
+): Map<string, string> {
+  const index = new Map<string, string>()
+  for (const product of linkedProducts ?? []) {
+    if (!product?.id) continue
+    for (const variant of product.variants ?? []) {
+      if (variant?.id) index.set(variant.id, product.id)
+    }
+  }
+  return index
+}
+
+export type ApprovalReconcile = {
+  /** Did this approval create the product, or reuse one already linked? */
+  product: "created" | "reused" | "none"
+  /** Did it create the variant, reuse one, or fail to name one at all? */
+  variant: "created" | "reused" | "unresolved"
+  /** Reused only: what is already listed, in the approval's own currency. */
+  listed_price_before?: number | null
+  /**
+   * Reused only: what is listed is NOT what this approval computed.
+   *
+   * Reported, not repaired. Re-approving a design does not rewrite the price of
+   * a product that may already be selling — but silently computing a different
+   * number and discarding it is how a stale price survives a re-approval that
+   * looked like it agreed with it.
+   */
+  price_stale?: boolean
+}
+
+/**
+ * PURE: what the approval actually changed, in place of a bare `productExisted`.
+ *
+ * The boolean answered "was a product created?" and nothing else, so the two
+ * interesting reuse cases were indistinguishable from each other: a design
+ * re-approved with the same price, and a design re-approved at a DIFFERENT
+ * price whose listing still shows the old one. Both reported
+ * `product_existed: true` and looked like clean idempotency.
+ */
+export function diffApprovalTarget(input: {
+  productExisted: boolean
+  productId?: string | null
+  variantId?: string | null
+  computedPrice?: number | null
+  currency?: string | null
+  existingPrices?:
+    | Array<{ amount?: number | null; currency_code?: string | null } | null>
+    | null
+}): ApprovalReconcile {
+  const variantId = input.variantId ?? null
+  const diff: ApprovalReconcile = {
+    product: input.productExisted ? "reused" : input.productId ? "created" : "none",
+    variant: !variantId ? "unresolved" : input.productExisted ? "reused" : "created",
+  }
+
+  if (!input.productExisted || !variantId) return diff
+
+  const wanted = (input.currency ?? "").toLowerCase()
+  const listed = (input.existingPrices ?? []).find(
+    (p) => (p?.currency_code ?? "").toLowerCase() === wanted && wanted !== ""
+  )
+  // `0` is a real listed price and `null` is "nothing listed" — `??`, never `||`.
+  const before = listed?.amount ?? null
+  diff.listed_price_before = before
+
+  const computed = input.computedPrice
+  if (before !== null && typeof computed === "number") {
+    diff.price_stale = before !== computed
+  }
+
+  return diff
+}

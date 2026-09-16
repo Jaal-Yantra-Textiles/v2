@@ -81,6 +81,15 @@ export type RunApprovalReport = {
   product_id?: string | null
   variant_id?: string | null
   product_existed?: boolean
+  /** What the approval actually changed — see `diffApprovalTarget` (#1970 PR3). */
+  reconcile?: {
+    product: "created" | "reused" | "none"
+    variant: "created" | "reused" | "unresolved"
+    listed_price_before?: number | null
+    price_stale?: boolean
+  }
+  /** Where this run's variant came from: it named its own, or the design did. */
+  variant_source?: "run" | "design" | "none"
   currency_code?: string
   listed_price?: number
 }
