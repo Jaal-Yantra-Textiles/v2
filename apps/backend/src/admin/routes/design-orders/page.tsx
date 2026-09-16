@@ -13,6 +13,7 @@ import {
   usePrompt,
   TooltipProvider,
   Tooltip,
+  Button,
 } from "@medusajs/ui";
 import { useNavigate } from "react-router-dom";
 import { keepPreviousData } from "@tanstack/react-query";
@@ -35,6 +36,7 @@ import {
   getPartnerWorkStatus,
   getStatusBadgeColor,
 } from "../../lib/work-status";
+import { StartDesignOrderModal } from "./start-design-order-modal";
 
 // ─── Status helpers ─────────────────────────────────────────────────────────
 
@@ -343,6 +345,7 @@ const DesignOrdersPage = () => {
     pageIndex: 0,
   });
   const [filtering, setFiltering] = useState<DataTableFilteringState>({});
+  const [startOpen, setStartOpen] = useState(false);
   const [search, setSearch] = useState<string>("");
 
   const handleFilterChange = useCallback(
@@ -362,7 +365,7 @@ const DesignOrdersPage = () => {
     offset,
   };
 
-  const { design_orders, count, isLoading, isError, error } = useDesignOrders(
+  const { design_orders, count, isLoading, isError, error, refetch } = useDesignOrders(
     queryParams,
     { placeholderData: keepPreviousData }
   );
@@ -436,12 +439,24 @@ const DesignOrdersPage = () => {
             <div className="flex items-center gap-x-2">
               <DataTable.Search placeholder="Search designs, customers..." />
               <DataTable.FilterMenu tooltip="Filter" />
+              {/*
+                The screen named "Design Orders" was the one place an order
+                could not be started — the flow lived only on the designs list.
+              */}
+              <Button size="small" onClick={() => setStartOpen(true)}>
+                New design order
+              </Button>
             </div>
           </DataTable.Toolbar>
           <DataTable.Table />
           <DataTable.Pagination />
         </DataTable>
       </Container>
+      <StartDesignOrderModal
+        open={startOpen}
+        onOpenChange={setStartOpen}
+        onCreated={refetch}
+      />
     </TooltipProvider>
   );
 };
