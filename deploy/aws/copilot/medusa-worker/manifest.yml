@@ -104,12 +104,25 @@ secrets:
   FACEBOOK_CLIENT_SECRET: /jyt/prod/FACEBOOK_CLIENT_SECRET
   FACEBOOK_WEBHOOK_VERIFY_TOKEN: /jyt/prod/FACEBOOK_WEBHOOK_VERIFY_TOKEN
   FAL_KEY: /jyt/prod/FAL_KEY
-  # Pinterest OAuth — the social-provider module may resolve the provider in a
-  # worker-run workflow, so keep the creds available here too.
-  PINTEREST_CLIENT_ID: /jyt/prod/PINTEREST_CLIENT_ID
-  PINTEREST_CLIENT_SECRET: /jyt/prod/PINTEREST_CLIENT_SECRET
-  PINTEREST_REDIRECT_URI: /jyt/prod/PINTEREST_REDIRECT_URI
-  PINTEREST_SCOPE: /jyt/prod/PINTEREST_SCOPE
+  # 🔴 DISABLED — these four SSM parameters DO NOT EXIST, and naming a secret
+  # here that SSM does not hold stops EVERY task from starting:
+  #   ResourceInitializationError: unable to pull secrets ... AccessDeniedException
+  # It is not a degraded feature, it is a dead service. Added by #2071 on
+  # 2026-09-15; the last green deploy was 12:20 and the next one 11 minutes
+  # later was the first of EIGHT consecutive failures, so production ran ~15
+  # hours behind main with nothing announcing it.
+  #
+  # The code tolerates their absence — the connect URL is simply built with an
+  # empty client_id — so commenting out is strictly better than a dead task.
+  #
+  # To re-enable: create all four in SSM FIRST (values documented in
+  # deploy/aws/secrets.example.env), confirm with
+  #   aws ssm describe-parameters --parameter-filters Key=Name,Values=/jyt/prod/PINTEREST_CLIENT_ID
+  # and only then uncomment. A secret listed here is a hard dependency of boot.
+  # PINTEREST_CLIENT_ID: /jyt/prod/PINTEREST_CLIENT_ID
+  # PINTEREST_CLIENT_SECRET: /jyt/prod/PINTEREST_CLIENT_SECRET
+  # PINTEREST_REDIRECT_URI: /jyt/prod/PINTEREST_REDIRECT_URI
+  # PINTEREST_SCOPE: /jyt/prod/PINTEREST_SCOPE
   # #1059 EmailKit — the blog broadcast workflow (sync + create broadcast) may
   # run on the worker, so it needs the Kit creds + flag too.
   EMAILKIT_ENABLED: /jyt/prod/EMAILKIT_ENABLED
