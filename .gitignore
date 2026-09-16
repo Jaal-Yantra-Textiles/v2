@@ -140,3 +140,5 @@ scripts/agent-daemon/delegate-logs/
 e2e/screenshots/
 
 .design/
+# opencode agent configs — local, not shared with the team (yet)
+.opencode/
