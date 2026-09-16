@@ -208,6 +208,7 @@
     "zod": "^4.2.0"
   },
   "devDependencies": {
+    "@jest/core": "^29.7.0",
     "@medusajs/test-utils": "2.20.1",
     "@playwright/test": "^1.61.1",
     "@swc/core": "1.7.28",
