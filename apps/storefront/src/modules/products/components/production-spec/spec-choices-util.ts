@@ -103,24 +103,38 @@ export const hasAnySpecChoice = (
 }
 
 /**
- * Required groups the customer has not answered yet — the reason the buy button
- * waits.
+ * Required groups the customer has not answered — the reason a buy button waits.
  *
- * Distinct from `blockedGroups`, and the difference is who can fix it: a
- * blocked group is the PARTNER's problem (nothing orderable in it), while an
- * unanswered one is simply a question still open. Groups with no orderable
- * values are excluded here so the two never double-report the same row.
+ * PURE, and deliberately says nothing about WHERE the question is asked. Both
+ * surfaces render these choices and both must hold their button, but they
+ * disagree about when:
  *
- * One definition, read by the button's `disabled` and by its label, so the
- * page cannot end up refusing a click for a reason it does not state.
+ *   · the product page asks only while the spec fits (`needsSecondStep` false),
+ *     so it must not hold its button for a question it never printed — its
+ *     button is then the BUY-IT-AS-IS path, and disabling it strands the
+ *     customer. It combines this with `!secondStep` itself.
+ *   · `/products/:handle/customise` IS the second step and always asks, so it
+ *     uses this answer as-is.
+ *
+ * An earlier version folded `needsSecondStep` in here. That silenced the
+ * customise page too — where the questions ARE on screen — so its button
+ * invited a click whose only outcome was the backend's
+ * "Choose Dye Color. Available: …". Exactly what `blockedGroups` exists to
+ * avoid, one page over.
+ *
+ * Distinct from `blockedGroups`: a blocked group is the PARTNER's problem
+ * (nothing orderable in it), an unanswered one is a question still open. Groups
+ * with no orderable values are excluded so the two never double-report a row.
  */
 export const unansweredRequiredGroups = (
   spec: StoreProductSpec | null,
   value: SpecChoiceState
-) =>
-  (spec?.accepting_custom_orders ? spec.options ?? [] : []).filter(
+) => {
+  if (!spec?.accepting_custom_orders) return []
+  return (spec.options ?? []).filter(
     (o) => o.required && o.values.length > 0 && !value.options[o.key]
   )
+}
 
 /**
  * Required groups the partner has nothing available for. The backend refuses

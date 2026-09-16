@@ -132,4 +132,70 @@ describe("unansweredRequiredGroups", () => {
     const closed = spec({ ...sizeSpec(), accepting_custom_orders: false } as any)
     expect(unansweredRequiredGroups(closed, empty)).toHaveLength(0)
   })
+
+  /**
+   * 🔴 The regression this nearly shipped.
+   *
+   * Past two groups the choices are NOT on the product page — it shows a
+   * summary and a "Customise this piece →" link, and its buy button is the
+   * BUY-IT-AS-IS path. Holding that button would strand the customer behind a
+   * question the page never asks.
+   *
+   * Modelled on a real live product, `prod_01KMHTK1T1BQ7KWKYWY1NR5RYZ`: a
+   * handwoven muslin with 1 colour + 7 option groups, two of them required
+   * (dyeing method, dye colour). Found by sweeping production for the blast
+   * radius of this very change.
+   */
+  it("🔴 still REPORTS on a second-step spec — the customise page asks", () => {
+    const overflowing = spec({
+      colors: [{ name: "Natural White" }],
+      options: [
+        {
+          key: "dyeing_method",
+          label: "Dyeing Method",
+          required: true,
+          values: [{ label: "Indigo" }, { label: "Vat dyed" }],
+        },
+        {
+          key: "dye_color",
+          label: "Dye Color",
+          required: true,
+          values: [{ label: "Natural White" }, { label: "Black" }],
+        },
+        {
+          key: "embroidery",
+          label: "Embroidery",
+          required: false,
+          values: [{ label: "None" }],
+        },
+      ],
+    } as any)
+
+    /*
+     * 3 groups + colour = 4 > 2, so the PRODUCT page links out instead of
+     * asking — it drops these itself via `!secondStep`. The helper must still
+     * report them, because `/products/:handle/customise` renders exactly these
+     * questions and has to hold its own button. Folding `needsSecondStep` in
+     * here silenced that page and left its button inviting a click whose only
+     * outcome was the backend's "Choose Dye Color. Available: …".
+     */
+    expect(
+      unansweredRequiredGroups(overflowing, empty).map((g) => g.key)
+    ).toEqual(["dyeing_method", "dye_color"])
+  })
+
+  /** Same for one over-wide group: reported here, dropped by the product page. */
+  it("still reports a required group too wide for the buying column", () => {
+    const wide = spec({
+      options: [
+        {
+          key: "dye_color",
+          label: "Dye Color",
+          required: true,
+          values: Array.from({ length: 8 }, (_, i) => ({ label: `C${i}` })),
+        },
+      ],
+    } as any)
+    expect(unansweredRequiredGroups(wide, empty)).toHaveLength(1)
+  })
 })

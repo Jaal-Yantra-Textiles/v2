@@ -81,7 +81,16 @@ export default function ProductActions({
    * otherwise dropping the prefill just moves the silent failure, and the line
    * reaches the cart with no size on it exactly as before.
    */
-  const specUnanswered = unansweredRequiredGroups(spec, specChoices)
+  /**
+   * 🔴 `!secondStep` is load-bearing. Past two groups the choices are NOT on
+   * this page — it shows a summary and a "Customise this piece →" link, and
+   * this button is the BUY-IT-AS-IS path. Holding it would strand the customer
+   * behind a question the page never asked. Live example:
+   * `prod_01KMHTK1T1BQ7KWKYWY1NR5RYZ`, a muslin with 8 groups, two required.
+   */
+  const specUnanswered = secondStep
+    ? []
+    : unansweredRequiredGroups(spec, specChoices)
   const leadTime = leadTimePhrase(spec)
 
   // If there is only 1 variant, preselect the options
