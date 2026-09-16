@@ -1,7 +1,7 @@
 import { ExecArgs } from "@medusajs/framework/types"
 import { ContainerRegistrationKeys } from "@medusajs/framework/utils"
 
-import { createProductFromDesignWorkflow } from "../workflows/designs/create-product-from-design"
+import { applyDesignProductPlan } from "../workflows/designs/design-product-plan"
 import { buildDesignSpec } from "../workflows/designs/lib/design-product-spec"
 import { upsertProductSpecWorkflow } from "../workflows/products/upsert-product-spec"
 import { DESIGN_MODULE } from "../modules/designs"
@@ -155,14 +155,12 @@ export default async function seedDesignSpecLocal({ container }: ExecArgs) {
   const salesChannelId = await resolveStorefrontChannel(query, logger)
 
   // The real door. Everything interesting happens inside it.
-  const { result } = await createProductFromDesignWorkflow(container).run({
-    input: {
-      design_id: designId,
-      estimated_cost: 8500,
-      currency_code: "inr",
-      made_to_order: true,
-      sales_channel_id: salesChannelId,
-    } as any,
+  const result = await applyDesignProductPlan(container, {
+    design_id: designId,
+    estimated_cost: 8500,
+    currency_code: "inr",
+    made_to_order: true,
+    sales_channel_id: salesChannelId,
   })
 
   logger.info(
