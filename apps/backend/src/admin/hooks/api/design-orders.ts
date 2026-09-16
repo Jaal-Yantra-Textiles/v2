@@ -725,3 +725,115 @@ export const useChangeOrderItemDesign = (
      */
   });
 };
+
+/* ─── #1970 PR5 — changing a design order that already exists ─────────────── */
+
+export type AttachDesignOrderCustomerPayload = {
+  /** null detaches the buyer. */
+  customer_id: string | null
+}
+
+export type AttachDesignOrderCustomerResponse = {
+  design_order_customer: {
+    design_id: string
+    cart_id: string
+    customer_id: string | null
+    email?: string | null
+    changed: boolean
+    dismissed_customer_ids?: string[]
+  }
+}
+
+/**
+ * Attach (or detach) the buyer of an existing design order.
+ *
+ * The route writes BOTH the cart and the design↔customer link — see
+ * `decideCustomerAttach` for why one without the other leaves the screen and
+ * checkout disagreeing.
+ */
+export const useAttachDesignOrderCustomer = (
+  lineItemId: string,
+  options?: UseMutationOptions<
+    AttachDesignOrderCustomerResponse,
+    FetchError,
+    AttachDesignOrderCustomerPayload
+  >
+) => {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async (payload: AttachDesignOrderCustomerPayload) =>
+      sdk.client.fetch<AttachDesignOrderCustomerResponse>(
+        `/admin/designs/orders/${lineItemId}/customer`,
+        { method: "POST", body: payload }
+      ),
+    ...options,
+    onSuccess: (...args) => {
+      queryClient.invalidateQueries({
+        queryKey: designOrdersQueryKeys.detail(lineItemId),
+      })
+      queryClient.invalidateQueries({ queryKey: designOrdersQueryKeys.lists() })
+      options?.onSuccess?.(...args)
+    },
+  })
+}
+
+export type RepriceDesignOrderPayload = {
+  /** Major units, in the cart's own currency. */
+  unit_price: number
+}
+
+export type RepriceDesignOrderResponse = {
+  design_order_reprice: {
+    line_item_id: string
+    design_id: string
+    cart_id: string
+    currency_code: string
+    unit_price: number
+    previous_unit_price: number | null
+  }
+}
+
+/** Set a new custom price on an existing design order line. */
+export const useRepriceDesignOrder = (
+  lineItemId: string,
+  options?: UseMutationOptions<
+    RepriceDesignOrderResponse,
+    FetchError,
+    RepriceDesignOrderPayload
+  >
+) => {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async (payload: RepriceDesignOrderPayload) =>
+      sdk.client.fetch<RepriceDesignOrderResponse>(
+        `/admin/designs/orders/${lineItemId}/reprice`,
+        { method: "POST", body: payload }
+      ),
+    ...options,
+    onSuccess: (...args) => {
+      queryClient.invalidateQueries({
+        queryKey: designOrdersQueryKeys.detail(lineItemId),
+      })
+      queryClient.invalidateQueries({ queryKey: designOrdersQueryKeys.lists() })
+      options?.onSuccess?.(...args)
+    },
+  })
+}
+
+export type AdminCustomerRow = {
+  id: string
+  email: string
+  first_name?: string | null
+  last_name?: string | null
+}
+
+/** Customers to choose from when attaching a buyer. Core Medusa route. */
+export const useCustomerSearch = (q: string) => {
+  return useQuery({
+    queryKey: ["design-order-customer-search", q],
+    queryFn: async () =>
+      sdk.client.fetch<{ customers: AdminCustomerRow[] }>(`/admin/customers`, {
+        query: { limit: 10, ...(q ? { q } : {}) },
+      }),
+  })
+}

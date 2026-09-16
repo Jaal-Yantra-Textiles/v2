@@ -1,5 +1,5 @@
 import { useState } from "react"
-import { useParams, UIMatch, Link } from "react-router-dom"
+import { useParams, UIMatch, Link, useNavigate } from "react-router-dom"
 import {
   Container,
   Heading,
@@ -305,6 +305,7 @@ const OrderItemRow = ({
 )
 
 const LineItemSection = ({ designOrder }: { designOrder: any }) => {
+  const navigate = useNavigate()
   const currencyCode = designOrder.currency_code || designOrder.order?.currency_code || "inr"
   const siblings = designOrder.sibling_items || []
   const totalPrice = designOrder.total_price ?? designOrder.price
@@ -352,7 +353,21 @@ const LineItemSection = ({ designOrder }: { designOrder: any }) => {
     <Container className="divide-y p-0">
       <div className="flex items-center justify-between px-6 py-4">
         <Heading level="h2">Items</Heading>
-        <Badge size="2xsmall" color="grey">{1 + siblings.length}</Badge>
+        <div className="flex items-center gap-x-2">
+          <Badge size="2xsmall" color="grey">{1 + siblings.length}</Badge>
+          {/*
+            Only on the pre-checkout view. Once the order exists the branch
+            above renders instead, and the reprice route answers 409 — an
+            action that cannot succeed should not be offered. #1970 PR5
+          */}
+          <Button
+            size="small"
+            variant="secondary"
+            onClick={() => navigate("reprice")}
+          >
+            Reprice
+          </Button>
+        </div>
       </div>
       <LineItemRow
         title={designOrder.title || designOrder.design.name}
@@ -921,24 +936,47 @@ const OrderSection = ({
 
 // ─── Customer Section ───────────────────────────────────────────────────────
 
+/**
+ * #1970 PR5 — the buyer can now be changed after the order exists.
+ *
+ * Until the attach route existed this panel was read-only: a design order
+ * created without a buyer stayed buyer-less forever, because the customer was
+ * fixed when the cart was created and nothing could mutate a cart from admin.
+ *
+ * The editing lives in a RouteDrawer at `./customer`, not inline here — the
+ * platform's convention for editing an entity that already exists, and it
+ * keeps this panel a display that reads correctly on a cold load.
+ */
 const CustomerSection = ({ designOrder }: { designOrder: any }) => {
   const customer = designOrder.customer
+  const navigate = useNavigate()
 
   return (
     <Container className="divide-y p-0">
-      <div className="px-6 py-4">
+      <div className="flex items-center justify-between px-6 py-4">
         <Heading level="h2">Customer</Heading>
+        <Button
+          size="small"
+          variant="secondary"
+          onClick={() => navigate("customer")}
+        >
+          {customer ? "Edit" : "Attach"}
+        </Button>
       </div>
       <div className="px-6 py-4">
         {customer ? (
           <div>
-            <Text size="small" weight="plus">
+            <Text size="small" leading="compact" weight="plus">
               {customer.first_name} {customer.last_name}
             </Text>
-            <Text size="small" className="text-ui-fg-subtle">{customer.email}</Text>
+            <Text size="small" leading="compact" className="text-ui-fg-subtle">
+              {customer.email}
+            </Text>
           </div>
         ) : (
-          <Text size="small" className="text-ui-fg-subtle">No customer linked</Text>
+          <Text size="small" leading="compact" className="text-ui-fg-subtle">
+            No customer linked
+          </Text>
         )}
       </div>
     </Container>
@@ -1010,8 +1048,13 @@ const DesignOrderDetailPage = () => {
 
   if (isError) throw error
 
+  /*
+   * `hasOutlet` must be true or the nested `@customer` RouteDrawer never
+   * mounts: the URL changes to /customer and the page renders unchanged,
+   * which looks exactly like a dead button. #1970 PR5
+   */
   return (
-    <TwoColumnPage data={designOrder} hasOutlet={false} showJSON showMetadata={false}>
+    <TwoColumnPage data={designOrder} hasOutlet showJSON showMetadata={false}>
       <TwoColumnPage.Main>
         <DesignOrderHeaderSection designOrder={designOrder} />
         <LineItemSection designOrder={designOrder} />
