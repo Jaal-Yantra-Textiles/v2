@@ -371,15 +371,73 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: pnpm semantic-release
 
+  # 🔴 A red `main` must announce itself, not wait to ambush a PR.
+  #
+  # The full batched suite DOES run on every push to main — that was never the
+  # gap. The gap was that "notify" echoed a line into a log nobody opens, so
+  # main ran red for days while `#2096`'s six failures sat there, and the first
+  # person to learn of them was whoever next touched one of those spec files —
+  # at which point they look like that PR's fault.
+  #
+  # PRs still run only their changed specs (fast feedback); this is what makes
+  # the main-push run's verdict impossible to miss.
   notify:
     needs: test
     if: always()
     runs-on: ubuntu-latest
+    permissions:
+      issues: write
     steps:
       - name: Notify on success
         if: ${{ needs.test.result == 'success' }}
         run: |
           echo "Tests passed and release completed successfully!"
+
+      # One reused issue, never a new one per push: a fresh issue per red run
+      # is noise, and noise gets muted, which is how we got here.
+      - name: Open or update the "main is red" issue
+        if: ${{ needs.test.result == 'failure' && github.event_name == 'push' }}
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          TITLE="🔴 main is red — the integration suite is failing"
+          BODY="The full suite failed on a push to \`main\`.
+
+          - commit: \`${SHA}\`
+          - run: ${RUN_URL}
+
+          Open the failing \`test (N)\` shard and read the **totals** line, not
+          just the first \`●\` — a shard can fail more than one spec.
+
+          This issue is reused by every red main run and closed by the first
+          green one. Do not close it by hand while main is still red."
+
+          EXISTING=$(gh issue list --state open --search "\"$TITLE\" in:title" \
+            --json number,title --jq "[.[] | select(.title == \"$TITLE\")][0].number // empty")
+
+          if [ -n "$EXISTING" ]; then
+            gh issue comment "$EXISTING" --body "$BODY"
+            echo "Commented on #$EXISTING"
+          else
+            gh issue create --title "$TITLE" --body "$BODY" --label roadmap
+          fi
+
+      - name: Close the "main is red" issue when main goes green
+        if: ${{ needs.test.result == 'success' && github.event_name == 'push' }}
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          set -euo pipefail
+          TITLE="🔴 main is red — the integration suite is failing"
+          EXISTING=$(gh issue list --state open --search "\"$TITLE\" in:title" \
+            --json number,title --jq "[.[] | select(.title == \"$TITLE\")][0].number // empty")
+          if [ -n "$EXISTING" ]; then
+            gh issue close "$EXISTING" --comment "Green again: ${RUN_URL}"
+          fi
 
       - name: Notify on failure
         if: ${{ needs.test.result == 'failure' }}
