@@ -357,3 +357,67 @@ describe("made-to-spec option groups", () => {
     )
   })
 })
+
+/**
+ * 🔴 Every rejection must be READABLE by the storefront (#1970).
+ *
+ * This route has always answered `{ type, error }`. The Medusa JS SDK builds
+ * its thrown error from `jsonError.message` and falls back to the HTTP status
+ * text — so `Choose a colour. Available colours: Natural White.` reached the
+ * customise page as the single word "Bad Request", and the page printed that
+ * verbatim, exactly as its comment promised it would.
+ *
+ * Nobody noticed because nobody had clicked the button: the rejection is only
+ * reachable once required groups stopped being preselected (#1970), and the
+ * live products where that happens had never been clicked through.
+ *
+ * Asserting the payload SHAPE, not the prose. The sentences belong to `lib.ts`
+ * and are tested above; what regressed here is which key carries them.
+ */
+describe("POST /store/carts/:id/made-to-spec — error payloads", () => {
+  const { POST } = require("../[id]/made-to-spec/route")
+
+  const res = () => {
+    const out: any = { status_: 0, body_: null }
+    out.status = (s: number) => {
+      out.status_ = s
+      return out
+    }
+    out.json = (b: any) => {
+      out.body_ = b
+      return out
+    }
+    return out
+  }
+
+  const req = (body: any, graph: any = { data: [] }) =>
+    ({
+      params: { id: "cart_1" },
+      validatedBody: body,
+      scope: {
+        resolve: (key: string) =>
+          key === "query"
+            ? { graph: async () => graph }
+            : { error: () => {}, info: () => {} },
+      },
+    }) as any
+
+  it("🔴 carries the reason under `message`, which is the key the SDK reads", async () => {
+    const r = res()
+    await POST(req({}), r)
+
+    expect(r.status_).toBe(400)
+    expect(r.body_.message).toBe("variant_id is required.")
+    // `error` stays: it is the shape this route has always sent.
+    expect(r.body_.error).toBe("variant_id is required.")
+  })
+
+  it("does the same for a variant that does not exist", async () => {
+    const r = res()
+    await POST(req({ variant_id: "variant_nope" }), r)
+
+    expect(r.status_).toBe(404)
+    expect(r.body_.message).toBe("Variant variant_nope was not found.")
+    expect(r.body_.error).toBe("Variant variant_nope was not found.")
+  })
+})

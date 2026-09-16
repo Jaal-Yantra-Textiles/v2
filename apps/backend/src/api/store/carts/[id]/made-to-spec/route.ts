@@ -37,10 +37,25 @@ export const POST = async (req: MedusaRequest<Body>, res: MedusaResponse) => {
   const cartId = req.params.id
   const body = (req.validatedBody || req.body || {}) as Body
 
+  /*
+   * 🔴 Every rejection below carries BOTH `error` and `message`, and the
+   * duplication is the point.
+   *
+   * This route has always answered `{ type, error }`. The Medusa JS SDK reads
+   * `jsonError.message` and falls back to the HTTP status text, so every one of
+   * these carefully-worded refusals — "Choose a colour. Available colours:
+   * Natural White." — reached the storefront as the word "Bad Request". The
+   * customise form catches it and prints it verbatim, which is exactly what its
+   * comment says it does; there was simply nothing left to print.
+   *
+   * `error` stays because it is the shape this route has always sent and
+   * something may read it. `message` is what makes the sentence survive.
+   */
   if (!body.variant_id) {
     return res.status(400).json({
       type: "invalid_data",
       error: "variant_id is required.",
+      message: "variant_id is required.",
     })
   }
 
@@ -57,6 +72,7 @@ export const POST = async (req: MedusaRequest<Body>, res: MedusaResponse) => {
     return res.status(404).json({
       type: "not_found",
       error: `Variant ${body.variant_id} was not found.`,
+      message: `Variant ${body.variant_id} was not found.`,
     })
   }
 
@@ -80,6 +96,7 @@ export const POST = async (req: MedusaRequest<Body>, res: MedusaResponse) => {
     return res.status(status).json({
       type: e?.type || "invalid_data",
       error: e?.message || "That made-to-order choice is not available.",
+      message: e?.message || "That made-to-order choice is not available.",
     })
   }
 
@@ -104,6 +121,7 @@ export const POST = async (req: MedusaRequest<Body>, res: MedusaResponse) => {
     return res.status(e?.status === 404 ? 404 : 400).json({
       type: "cart",
       error: e?.message || "Could not add this made-to-order piece to the cart.",
+      message: e?.message || "Could not add this made-to-order piece to the cart.",
     })
   }
 

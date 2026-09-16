@@ -15,7 +15,7 @@ import {
   blockedGroups,
   initialSpecChoices,
   leadTimePhrase,
-  unansweredRequiredGroups,
+  unansweredRequired,
   type SpecChoiceState,
 } from "@modules/products/components/production-spec/spec-choices-util"
 
@@ -59,7 +59,9 @@ const CustomiseForm = ({ product, spec, images }: Props) => {
    * which is the thing `blockedGroups` exists to prevent.
    */
   const specUnanswered = useMemo(
-    () => unansweredRequiredGroups(spec, choices),
+    // This page IS the second step: every submission here goes through
+    // `addMadeToSpecToCart`, so the colour is always one of the questions.
+    () => unansweredRequired(spec, choices, { madeToSpec: true }),
     [spec, choices]
   )
   const leadTime = leadTimePhrase(spec)

@@ -4,6 +4,7 @@ import type { StoreProductSpec } from "@lib/data/product-spec"
 import {
   hasAnySpecChoice,
   initialSpecChoices,
+  unansweredRequired,
   unansweredRequiredGroups,
 } from "../spec-choices-util"
 
@@ -197,5 +198,99 @@ describe("unansweredRequiredGroups", () => {
       ],
     } as any)
     expect(unansweredRequiredGroups(wide, empty)).toHaveLength(1)
+  })
+})
+
+/**
+ * 🔴 Colour — the required question the gate could not see (#1970).
+ *
+ * `unansweredRequiredGroups` filters `spec.options`. The palette lives in
+ * `spec.colors`, a different field, and nothing looked at it. That was harmless
+ * only while colour was preselected; #1970 removed every prefill, and from that
+ * moment all four live handloom fabrics had an "Add to cart" that was enabled,
+ * said "Add to cart", and could only ever produce the backend's
+ * `Choose a colour. Available colours: Natural White.`
+ *
+ * Found by clicking the real /customise page of a real product
+ * (`e2e/specs/storefront-live-required-choices.spec.ts`) — never by reading it.
+ */
+describe("unansweredRequired — colour", () => {
+  const palette = () =>
+    spec({
+      colors: [{ name: "Natural White" }],
+      options: [
+        {
+          key: "dyeing_method",
+          label: "Dyeing Method",
+          required: true,
+          values: [{ label: "Indigo" }],
+        },
+      ],
+    } as any)
+
+  it("🔴 reports the colour when a palette exists and none is chosen", () => {
+    expect(
+      unansweredRequired(palette(), empty, { madeToSpec: true }).map(
+        (g) => g.label
+      )
+    ).toEqual(["Colour", "Dyeing Method"])
+  })
+
+  it("stops reporting it once the customer picks one", () => {
+    const answered = { ...empty, color: "Natural White" }
+    expect(
+      unansweredRequired(palette(), answered, { madeToSpec: true }).map(
+        (g) => g.label
+      )
+    ).toEqual(["Dyeing Method"])
+  })
+
+  it("says nothing about colour on a spec with no palette", () => {
+    expect(
+      unansweredRequired(sizeSpec(), empty, { madeToSpec: true }).map(
+        (g) => g.key
+      )
+    ).toEqual(["size"])
+  })
+
+  /**
+   * 🔴 The #2078 shape, one field over.
+   *
+   * An ordinary add-to-cart does not go through `/made-to-spec`, so the backend
+   * never asks for a colour and the button must not either. Inferring
+   * `madeToSpec` inside the helper instead of taking it from the caller is how
+   * a gate ends up right on one page and a dead end on the page beside it.
+   */
+  it("🔴 holds nothing when the submission is NOT made-to-spec", () => {
+    expect(unansweredRequired(palette(), empty, { madeToSpec: false })).toEqual([
+      ...unansweredRequiredGroups(palette(), empty),
+    ])
+    expect(
+      unansweredRequired(palette(), empty, { madeToSpec: false }).map(
+        (g) => g.key
+      )
+    ).not.toContain("__colour")
+  })
+
+  it("holds nothing at all once the partner stops taking custom orders", () => {
+    const off = spec({
+      accepting_custom_orders: false,
+      colors: [{ name: "Natural White" }],
+    } as any)
+    expect(unansweredRequired(off, empty, { madeToSpec: true })).toEqual([])
+  })
+
+  /**
+   * ⚠️ The over-block trap. `spec.colors` arrives already filtered by the store
+   * read route, which drops `available === false` so every storefront agrees on
+   * what is orderable. A palette that filtered AGAIN here would gate a question
+   * `made-to-spec/lib.ts` is not asking, and strand a partner whose only colour
+   * is switched off.
+   */
+  it("treats an empty palette as no colour question", () => {
+    const noneOrderable = spec({ colors: [], options: [] } as any)
+    expect(
+      unansweredRequired(noneOrderable, empty, { madeToSpec: true })
+    ).toEqual([])
   })
 })

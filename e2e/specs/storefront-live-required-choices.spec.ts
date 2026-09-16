@@ -93,7 +93,11 @@ const choose = async (page: Page, key: string, index = 0) => {
     await button.click()
     await expect(button).toHaveAttribute("aria-pressed", "true")
   }).toPass({ timeout: 20_000 })
-  return (await button.innerText()).trim()
+  // ⚠️ FIRST LINE only. A choice button renders the value's `note` under its
+  // label — "Hand-dyed with Indigo" carries "Traditional natural dye" — and the
+  // cart prints the label alone. Returning the whole button text made the cart
+  // assertion fail on a line that was in fact perfectly correct.
+  return (await button.innerText()).trim().split("\n")[0].trim()
 }
 
 /**
@@ -153,6 +157,27 @@ const selectAnyVariant = async (
     `no combination of this product's ${axes} option axes produced a buyable ` +
       `variant — the button never left "Select variant"/"Out of stock"`
   )
+}
+
+/**
+ * Pick a real colour swatch.
+ *
+ * ⚠️ Not `choices(page, "colour").first()`. The colour row opens with a "none"
+ * button so a first tap is reversible — without it, looking at a swatch would
+ * lock the customer into a made-to-order purchase. That button is index 0 and
+ * is `aria-pressed` on load, so taking the first would "choose" not-choosing.
+ */
+const chooseColour = async (page: Page) => {
+  const group = choiceGroup(page, "colour")
+  const swatch = group
+    .getByRole("button")
+    .and(page.locator(':not([data-testid="spec-choice-colour-none"])'))
+    .first()
+  await expect(async () => {
+    await swatch.click()
+    await expect(swatch).toHaveAttribute("aria-pressed", "true")
+  }).toPass({ timeout: 20_000 })
+  return (await swatch.innerText()).trim().split("\n")[0].trim()
 }
 
 const open = async (page: Page, url: string) => {
@@ -265,7 +290,9 @@ for (const product of PRODUCTS) {
       }
     })
 
-    test("holds its own button until both are answered", async ({ page }) => {
+    test("holds its own button until every question is answered", async ({
+      page,
+    }) => {
       await open(page, customiseUrl)
 
       const add = page.getByTestId("customise-add-button")
@@ -278,6 +305,20 @@ for (const product of PRODUCTS) {
       await expect(add).toBeDisabled()
 
       await choose(page, "dye_color")
+      /*
+       * 🔴 STILL held, on the COLOUR — and this is the assertion that was
+       * missing until these pages were clicked through for real.
+       *
+       * Colour is required by `made-to-spec/lib.ts` whenever the palette is
+       * non-empty, but it lives in `spec.colors` while the gate only ever read
+       * `spec.options`. Before the fix the button went enabled and said "Add to
+       * cart" right here, and every click on all four of these products came
+       * back "Choose a colour. Available colours: Natural White."
+       */
+      await expect(add).toBeDisabled()
+      await expect(add).toHaveText(/^Choose colour/i)
+
+      await chooseColour(page)
       await expect(add).toBeEnabled()
       await expect(add).toHaveText(/Add to cart/i)
     })
@@ -308,7 +349,10 @@ test.describe("the chosen answers reach the cart @storefront @localstack", () =>
     await open(page, `${BASE}/products/handspun-muslin/customise`)
 
     const method = await choose(page, "dyeing_method")
-    const colour = await choose(page, "dye_color")
+    const dyeColour = await choose(page, "dye_color")
+    // Required by the backend on every one of these products; invisible to the
+    // gate until this spec was first run against a real one.
+    await chooseColour(page)
 
     const add = page.getByTestId("customise-add-button")
     await expect(add).toBeEnabled()
@@ -330,6 +374,6 @@ test.describe("the chosen answers reach the cart @storefront @localstack", () =>
     // answered, and on an order that is the difference between a record and a
     // riddle.
     await expect(line).toContainText(`Dyeing Method: ${method}`)
-    await expect(line).toContainText(`Dye Color: ${colour}`)
+    await expect(line).toContainText(`Dye Color: ${dyeColour}`)
   })
 })
