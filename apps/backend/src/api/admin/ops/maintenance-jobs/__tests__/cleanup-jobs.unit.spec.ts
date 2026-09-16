@@ -236,3 +236,161 @@ describe("both jobs are registered", () => {
     }
   })
 })
+
+/**
+ * 🔴 The regression the first version of these tests could not see.
+ *
+ * The orphan-mirror job originally read orders with `orderService.listOrders`,
+ * whose default selection does not include `metadata`. Every order arrived with
+ * `metadata` undefined, so the selection rule — correct, and covered by the
+ * tests above — was handed nothing to select from, and the job reported
+ * "No work-order mirrors found whose execution row is missing." against a
+ * production database where #107 was sitting in plain sight.
+ *
+ * The tests passed because they hand the pure functions rows that ALREADY carry
+ * metadata: they test the RULE while the fault was in the READ.
+ *
+ * So this fake behaves like the real query does — it returns `metadata` only if
+ * the caller asked for it. A job that forgets to ask gets undefined, exactly as
+ * production did, and the assertion goes red where a friendlier fake would stay
+ * green.
+ */
+describe("delete-orphan-work-order-mirrors — it must ASK for metadata", () => {
+  const fieldAwareContainer = (orders: any[], liveExecIds: string[]) => {
+    const seen: { fields?: string[] } = {}
+    const deleted: string[][] = []
+    return {
+      seen,
+      deleted,
+      resolve: (key: any) => {
+        if (key === "query") {
+          return {
+            graph: async ({ entity, fields }: any) => {
+              if (entity === "inventory_orders" || entity === "production_runs") {
+                return { data: liveExecIds.map((id) => ({ id })) }
+              }
+              seen.fields = fields
+              // The real query returns ONLY the fields that were requested.
+              return {
+                data: orders.map((o) =>
+                  Object.fromEntries(
+                    Object.entries(o).filter(([k]) =>
+                      (fields ?? []).some(
+                        (f: string) => f === k || f.startsWith(`${k}.`)
+                      )
+                    )
+                  )
+                ),
+              }
+            },
+          }
+        }
+        return {
+          softDeleteOrders: async (ids: string[]) => {
+            deleted.push(ids)
+          },
+          listOrders: async () => {
+            throw new Error(
+              "listOrders does not return metadata — use query.graph with named fields"
+            )
+          },
+        }
+      },
+    }
+  }
+
+  const orphan = {
+    id: "order_107",
+    status: "canceled",
+    total: 14000,
+    metadata: { legacy_id: "inv_order_GONE" },
+    summary: { paid_total: 0 },
+  }
+
+  it("🔴 finds the orphan — and would not if it stopped asking for metadata", async () => {
+    const c = fieldAwareContainer([orphan], ["inv_order_STILL_HERE"])
+    const res = await deleteOrphanWorkOrderMirrorsJob.run(c as any, {
+      dry_run: true,
+      params: { kind: "inventory" },
+    })
+
+    expect(c.seen.fields).toContain("metadata")
+    expect(res.changes.map((x) => x.id)).toEqual(["order_107"])
+    expect(res.summary).toMatch(/1 orphaned work-order mirror/)
+  })
+
+  /** The settled-money guard reads `summary.paid_total`; unexpanded, every paid
+   *  mirror reads as unpaid — the same silence one field over. */
+  it("asks for the summary too, so a paid mirror cannot read as unpaid", async () => {
+    const c = fieldAwareContainer([orphan], [])
+    await deleteOrphanWorkOrderMirrorsJob.run(c as any, {
+      dry_run: true,
+      params: { kind: "inventory" },
+    })
+    expect(c.seen.fields?.some((f) => f.startsWith("summary"))).toBe(true)
+  })
+
+  it("still refuses the mirror whose execution row is alive", async () => {
+    const live = { ...orphan, id: "order_108", metadata: { legacy_id: "inv_order_LIVE" } }
+    const c = fieldAwareContainer([live], ["inv_order_LIVE"])
+    const res = await deleteOrphanWorkOrderMirrorsJob.run(c as any, {
+      dry_run: true,
+      params: { kind: "inventory" },
+    })
+    expect(res.changes).toEqual([])
+    expect(c.deleted).toEqual([])
+  })
+})
+
+/**
+ * 🔴 Naming a cart by id IS the intent the age cut-off stands in for.
+ *
+ * Found by running the job against the four carts a verification left on
+ * production: all four were named explicitly and all four came back
+ * "newer than the cut-off". A sweep's safety rail had been applied to a
+ * targeted call, so the job could not do the thing it was written for.
+ */
+describe("purge-abandoned-carts — explicitly named carts", () => {
+  const cutoff = computeCartCutoff(NOW, 30)
+  const today = {
+    id: "cart_today",
+    created_at: "2026-09-16T03:06:54.000Z",
+    email: null,
+    customer_id: null,
+    completed_at: null,
+    items: [],
+  }
+
+  it("🔴 purges a cart created TODAY when the operator names it", () => {
+    expect(
+      cartSkipReason(today, {
+        cutoff,
+        includeIdentified: false,
+        emptyOnly: false,
+        explicitlyNamed: true,
+      })
+    ).toBeNull()
+  })
+
+  it("still refuses it in a sweep", () => {
+    expect(
+      cartSkipReason(today, { cutoff, includeIdentified: false, emptyOnly: false })
+    ).toMatch(/newer than the cut-off/)
+  })
+
+  /** 🔴 Naming it does NOT buy past the completed refusal. An operator can be
+   *  wrong about which cart they meant, and that one became an order. */
+  it("🔴 REFUSES a completed cart even when named explicitly", () => {
+    expect(
+      cartSkipReason(
+        { ...today, completed_at: "2026-09-16T04:00:00.000Z" },
+        {
+          cutoff,
+          includeIdentified: false,
+          emptyOnly: false,
+          explicitlyNamed: true,
+        }
+      )
+    ).toMatch(/paper trail/)
+  })
+})
