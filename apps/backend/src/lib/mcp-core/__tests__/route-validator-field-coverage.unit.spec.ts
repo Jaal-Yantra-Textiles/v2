@@ -80,6 +80,22 @@ const NO_ROUTE_VALIDATOR = new Set<string>([
   "admin:create_shipping_option",
   "admin:update_shipping_option",
   /**
+   * `cancel-shipment` registers no matcher in `middlewares.ts` and validates in
+   * the handler: it reads `(req.validatedBody || req.body || {})` for `reason`,
+   * `force` and `notify_customer`, and `cancelShipmentForFulfillment` enforces
+   * the rules that matter — it REFUSES an already-shipped fulfillment unless
+   * `force` is set, and cancels at the carrier BEFORE clearing any refs, so a
+   * carrier refusal throws and leaves the fulfillment exactly as it was.
+   *
+   * Verified by reading the handler and the workflow, not inferred from the
+   * absence of a matcher.
+   *
+   * ⚠️ This entry exists because the tool was merged without waiting for this
+   * suite, and it went red on `main` rather than on its own PR. The guard did
+   * its job; the merge did not wait for it.
+   */
+  "admin:cancel_order_shipment",
+  /**
    * The revoke route takes NO body — it works entirely off the `:id` in the
    * path. Nothing to bind, and nothing advertised: the tool declares no
    * `bodyParams`, because a field the route never reads would be accepted,
