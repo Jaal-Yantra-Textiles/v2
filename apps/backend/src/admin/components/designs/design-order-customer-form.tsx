@@ -1,9 +1,10 @@
 import { zodResolver } from "@hookform/resolvers/zod"
-import { Button, Input, Text, toast } from "@medusajs/ui"
+import { Button, Text, toast } from "@medusajs/ui"
 import { z } from "@medusajs/framework/zod"
 import { useState } from "react"
 import { useForm } from "react-hook-form"
 
+import { Combobox } from "../inputs/combobox/combobox"
 import { Form } from "../common/form"
 import { KeyboundForm } from "../utilitites/key-bound-form"
 import { RouteDrawer } from "../modal/route-drawer/route-drawer"
@@ -63,7 +64,10 @@ export const DesignOrderCustomerForm = ({
     defaultValues: { customer_id: customer?.id ?? "" },
   })
 
-  const selectedId = form.watch("customer_id")
+  const options = (results?.customers ?? []).map((c) => ({
+    value: c.id,
+    label: `${displayName(c)} — ${c.email}`,
+  }))
 
   const onSubmit = form.handleSubmit(async (data) => {
     // Nothing changed — close rather than write, so a re-save is not a no-op
@@ -122,65 +126,37 @@ export const DesignOrderCustomerForm = ({
           <Form.Field
             control={form.control}
             name="customer_id"
-            render={({ field: { onChange } }) => (
+            render={({ field: { value, onChange, ...rest } }) => (
               <Form.Item>
                 <Form.Label>Buyer</Form.Label>
                 <Form.Control>
-                  <div className="flex flex-col gap-y-2">
-                    <Input
-                      placeholder="Search customers by name or email"
-                      value={search}
-                      onChange={(e) => setSearch(e.target.value)}
-                      autoFocus
-                    />
-                    <div className="flex flex-col divide-y divide-ui-border-base">
-                      {searching ? (
-                        <Text
-                          size="small"
-                          leading="compact"
-                          className="text-ui-fg-subtle py-2"
-                        >
-                          Searching…
-                        </Text>
-                      ) : results?.customers?.length ? (
-                        results.customers.map((c) => {
-                          const isSelected = selectedId === c.id
-                          return (
-                            <button
-                              key={c.id}
-                              type="button"
-                              disabled={isPending}
-                              onClick={() => onChange(c.id)}
-                              className={`flex flex-col items-start rounded-md px-2 py-2 text-left transition-fg hover:bg-ui-bg-base-hover disabled:opacity-50 ${
-                                isSelected ? "bg-ui-bg-highlight" : ""
-                              }`}
-                            >
-                              <Text size="small" leading="compact" weight="plus">
-                                {displayName(c)}
-                              </Text>
-                              <Text
-                                size="small"
-                                leading="compact"
-                                className="text-ui-fg-subtle"
-                              >
-                                {c.email}
-                              </Text>
-                            </button>
-                          )
-                        })
-                      ) : (
-                        <Text
-                          size="small"
-                          leading="compact"
-                          className="text-ui-fg-subtle py-2"
-                        >
-                          {search
-                            ? "No customers match that."
-                            : "Type a name or email to search."}
-                        </Text>
-                      )}
-                    </div>
-                  </div>
+                  {/*
+                    The platform's Combobox, not a hand-rolled list: it
+                    portals its popover so the options are not clipped by the
+                    drawer's own scroll container, and it keeps keyboard
+                    selection behaving like every other picker in the admin.
+
+                    🔑 `onSearchValueChange` drives the SERVER query rather
+                    than filtering a fixed array. There is no bounded list of
+                    customers to hold in memory, and a combobox that filters
+                    only what it was handed would silently stop at whatever
+                    first page it happened to load.
+                  */}
+                  <Combobox
+                    {...rest}
+                    options={options}
+                    value={value}
+                    onChange={(next) => onChange((next as string) || "")}
+                    searchValue={search}
+                    onSearchValueChange={setSearch}
+                    allowClear
+                    placeholder="Search customers by name or email"
+                    noResultsPlaceholder={
+                      <Text size="small" leading="compact" className="text-ui-fg-subtle">
+                        {searching ? "Searching…" : "No customers match that."}
+                      </Text>
+                    }
+                  />
                 </Form.Control>
                 <Form.ErrorMessage />
               </Form.Item>

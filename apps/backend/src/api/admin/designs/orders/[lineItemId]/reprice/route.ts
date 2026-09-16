@@ -5,6 +5,7 @@ import {
 import { ContainerRegistrationKeys, Modules } from "@medusajs/framework/utils"
 
 import designLineItemLink from "../../../../../../links/design-line-item-link"
+import designOrderLink from "../../../../../../links/design-order-link"
 import { decideReprice } from "../../mutate-design-order"
 
 /**
@@ -60,10 +61,24 @@ export async function POST(
           .catch(() => null)
       : null
 
+    /**
+     * 🔴 `cart.completed_at` is NOT a usable conversion signal here — 2 of 48
+     * carts carry it locally. The linked order is, and it is the same thing
+     * the detail page uses to decide it is past the cart stage.
+     */
+    const { data: orderLinks = [] } = await query
+      .graph({
+        entity: designOrderLink.entryPoint,
+        filters: { design_id: linkRows[0].design_id },
+        fields: ["order_id"],
+      })
+      .catch(() => ({ data: [] }))
+
     const decision = decideReprice({
       cart,
       currentUnitPrice: lineItem?.unit_price,
       unitPrice: (req.body as { unit_price?: unknown } | undefined)?.unit_price,
+      hasLinkedOrder: (orderLinks as any[]).some((l) => l?.order_id),
     })
 
     if (!decision.ok) {

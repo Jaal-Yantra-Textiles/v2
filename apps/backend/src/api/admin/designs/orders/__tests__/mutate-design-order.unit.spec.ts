@@ -1,6 +1,7 @@
 import {
   decideCustomerAttach,
   decideReprice,
+  isConverted,
 } from "../mutate-design-order"
 
 const openCart = { id: "cart_1", customer_id: null, email: null }
@@ -183,5 +184,69 @@ describe("decideReprice", () => {
     })
     expect(d.ok).toBe(false)
     if (!d.ok) expect(d.reason).toBe("cart_completed")
+  })
+})
+
+/**
+ * 🔴 The guard that did not guard.
+ *
+ * The first cut refused only on `cart.completed_at`. Measured on a real local
+ * database: **2 of 48 carts** carry it, and `order_cart` holds **1 row for 290
+ * orders**. So a converted design order sailed through — observed live: the
+ * drawer reported "Repriced 1200 → 1234.5 EUR" on an order that had already
+ * been placed, and the buyer's ORDER was untouched. A silent no-op reported as
+ * success.
+ */
+describe("isConverted — completed_at alone is not the answer", () => {
+  it("says converted when the cart says so", () => {
+    expect(isConverted({ cart: { completed_at: "2026-09-01T00:00:00Z" } })).toBe(true)
+  })
+
+  it("says converted on a linked order even when completed_at is NULL", () => {
+    expect(isConverted({ cart: { completed_at: null }, hasLinkedOrder: true })).toBe(true)
+  })
+
+  it("says NOT converted only when neither signal fires", () => {
+    expect(isConverted({ cart: { completed_at: null }, hasLinkedOrder: false })).toBe(false)
+    expect(isConverted({ cart: null })).toBe(false)
+  })
+})
+
+describe("the linked order refuses both mutations", () => {
+  it("refuses a reprice on a cart with completed_at NULL but an order linked", () => {
+    const d = decideReprice({
+      cart: { id: "cart_1", completed_at: null },
+      currentUnitPrice: 1200,
+      unitPrice: 1234.5,
+      hasLinkedOrder: true,
+    })
+    expect(d.ok).toBe(false)
+    if (!d.ok) {
+      expect(d.reason).toBe("cart_completed")
+      expect(d.message).toContain("order edit")
+    }
+  })
+
+  it("refuses an attach on the same shape", () => {
+    const d = decideCustomerAttach({
+      designId: "des_1",
+      cart: { id: "cart_1", customer_id: null, email: null, completed_at: null },
+      linkedCustomerIds: [],
+      customer: { id: "cus_1", email: "a@b.c" },
+      hasLinkedOrder: true,
+    })
+    expect(d.ok).toBe(false)
+    if (!d.ok) expect(d.reason).toBe("cart_completed")
+  })
+
+  it("still allows both when no order is linked", () => {
+    expect(
+      decideReprice({
+        cart: { id: "cart_1", completed_at: null },
+        currentUnitPrice: 1200,
+        unitPrice: 1300,
+        hasLinkedOrder: false,
+      }).ok
+    ).toBe(true)
   })
 })

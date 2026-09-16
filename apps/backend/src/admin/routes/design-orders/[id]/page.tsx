@@ -305,6 +305,7 @@ const OrderItemRow = ({
 )
 
 const LineItemSection = ({ designOrder }: { designOrder: any }) => {
+  const navigate = useNavigate()
   const currencyCode = designOrder.currency_code || designOrder.order?.currency_code || "inr"
   const siblings = designOrder.sibling_items || []
   const totalPrice = designOrder.total_price ?? designOrder.price
@@ -352,7 +353,21 @@ const LineItemSection = ({ designOrder }: { designOrder: any }) => {
     <Container className="divide-y p-0">
       <div className="flex items-center justify-between px-6 py-4">
         <Heading level="h2">Items</Heading>
-        <Badge size="2xsmall" color="grey">{1 + siblings.length}</Badge>
+        <div className="flex items-center gap-x-2">
+          <Badge size="2xsmall" color="grey">{1 + siblings.length}</Badge>
+          {/*
+            Only on the pre-checkout view. Once the order exists the branch
+            above renders instead, and the reprice route answers 409 — an
+            action that cannot succeed should not be offered. #1970 PR5
+          */}
+          <Button
+            size="small"
+            variant="secondary"
+            onClick={() => navigate("reprice")}
+          >
+            Reprice
+          </Button>
+        </div>
       </div>
       <LineItemRow
         title={designOrder.title || designOrder.design.name}

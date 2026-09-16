@@ -32,9 +32,38 @@ export type DesignOrderCart = {
   id: string
   customer_id?: string | null
   email?: string | null
-  /** Set once the cart has been converted — the ORDER is the record after that. */
+  /**
+   * Medusa sets this when a cart completes — but on this platform it is
+   * almost never set: 2 of 48 carts locally, and the repo ships
+   * `scripts/backfill-converted-cart-completed-at.ts` precisely because of
+   * that gap. Kept as one signal, never as the only one. See `isConverted`.
+   */
   completed_at?: string | Date | null
 }
+
+/**
+ * 🔴 Has this design order become a real order?
+ *
+ * Asking `cart.completed_at` alone does NOT answer it. Measured on a local
+ * database: **2 of 48 carts** carry `completed_at`, and `order_cart` holds
+ * **1 row for 290 orders**. A guard keyed on either is a guard that does not
+ * fire — a converted design order could be "repriced" through its cart, the
+ * write would succeed, the toast would say so, and the buyer's ORDER would be
+ * unchanged. A silent no-op reported as success.
+ *
+ * So the linked order is the authority, which is also exactly what the detail
+ * page uses to decide it is past the cart stage. UI and API then agree about
+ * what "converted" means rather than each deciding privately.
+ *
+ * ⚠️ That link is per DESIGN, not per cart, so a repeat customer's SECOND
+ * design order for the same design reads as converted and is refused. That is
+ * the safe direction: refusing costs an operator one order edit, while
+ * allowing it writes a number nobody will ever read.
+ */
+export const isConverted = (input: {
+  cart?: { completed_at?: string | Date | null } | null
+  hasLinkedOrder?: boolean
+}): boolean => Boolean(input.cart?.completed_at) || Boolean(input.hasLinkedOrder)
 
 export type AttachCustomerRefusal =
   | "cart_completed"
@@ -68,6 +97,8 @@ export function decideCustomerAttach(input: {
   linkedCustomerIds: string[]
   /** The customer to attach, already verified to exist. `null` detaches. */
   customer: { id: string; email?: string | null } | null
+  /** Does an order already exist for this design? See `isConverted`. */
+  hasLinkedOrder?: boolean
 }): AttachCustomerDecision {
   const { designId, cart, linkedCustomerIds, customer } = input
 
@@ -86,7 +117,7 @@ export function decideCustomerAttach(input: {
    * the order nor anything a buyer sees — it would only make the admin screen
    * disagree with the order. Repair the ORDER instead.
    */
-  if (cart.completed_at) {
+  if (isConverted({ cart, hasLinkedOrder: input.hasLinkedOrder })) {
     return {
       ok: false,
       reason: "cart_completed",
@@ -132,13 +163,15 @@ export function decideReprice(input: {
   cart: DesignOrderCart | null | undefined
   currentUnitPrice: number | null | undefined
   unitPrice: unknown
+  /** Does an order already exist for this design? See `isConverted`. */
+  hasLinkedOrder?: boolean
 }): RepriceDecision {
   const { cart, currentUnitPrice } = input
 
   if (!cart) {
     return { ok: false, reason: "no_cart", message: "This design order has no cart." }
   }
-  if (cart.completed_at) {
+  if (isConverted({ cart, hasLinkedOrder: input.hasLinkedOrder })) {
     return {
       ok: false,
       reason: "cart_completed",

@@ -6,6 +6,7 @@ import { ContainerRegistrationKeys, Modules } from "@medusajs/framework/utils"
 
 import designLineItemLink from "../../../../../../links/design-line-item-link"
 import designCustomerLink from "../../../../../../links/design-customer-link"
+import designOrderLink from "../../../../../../links/design-order-link"
 import { DESIGN_MODULE } from "../../../../../../modules/designs"
 import { decideCustomerAttach } from "../../mutate-design-order"
 
@@ -107,9 +108,19 @@ export async function POST(
       })
       .catch(() => ({ data: [] }))
 
+    /** See the reprice route: completed_at alone does not say "converted". */
+    const { data: orderLinks = [] } = await query
+      .graph({
+        entity: designOrderLink.entryPoint,
+        filters: { design_id: designId },
+        fields: ["order_id"],
+      })
+      .catch(() => ({ data: [] }))
+
     const decision = decideCustomerAttach({
       designId,
       cart,
+      hasLinkedOrder: (orderLinks as any[]).some((l) => l?.order_id),
       linkedCustomerIds: (existingLinks as any[])
         .map((l) => l?.customer_id)
         .filter(Boolean),
