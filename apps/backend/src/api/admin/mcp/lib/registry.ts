@@ -3926,12 +3926,28 @@ export const ADMIN_MCP_TOOLS: AdminMcpToolDef[] = [
     method: "GET",
     path: "/admin/orders/:id/fulfillment-rates",
     pathParams: ["id"],
-    queryParams: ["carrier", "weight_grams"],
+    // 🔴 The box, not just the weight. `parseRateQuery` has accepted
+    // length/width/height all along — the quote workflow forwards them to the
+    // carrier precisely because "a cross-border quote is priced on volumetric
+    // weight too" — and this tool advertised only the weight. So an agent could
+    // not ask for the price of the parcel it was about to ship: on order #3 a
+    // 38x23x20cm box has a volumetric weight of 3.54kg against 2.5kg actual,
+    // and the carrier bills the greater. The quote had to be hand-computed.
+    queryParams: [
+      "carrier",
+      "weight_grams",
+      "length_cm",
+      "width_cm",
+      "height_cm",
+    ],
     inputSchema: obj(
       {
         id: STR("Order id, e.g. 'order_...'."),
-        carrier: STR("Optional carrier to scope the quote to."),
-        weight_grams: { type: "number", description: "Override shipment weight in grams." },
+        carrier: STR("Optional carrier to scope the quote to. Omit for the configured default."),
+        weight_grams: { type: "number", description: "Actual shipment weight in grams. Send the REAL weight — the default is 500 g, and a quote at the wrong weight can offer a courier that will not carry the parcel." },
+        length_cm: { type: "number", description: "Parcel length in cm. Send all three sides or none — a partial box is dropped rather than guessed." },
+        width_cm: { type: "number", description: "Parcel width in cm (the carrier calls it breadth)." },
+        height_cm: { type: "number", description: "Parcel height in cm. With all three, the carrier prices on volumetric weight where that exceeds actual." },
       },
       ["id"]
     ),
@@ -4085,6 +4101,44 @@ export const ADMIN_MCP_TOOLS: AdminMcpToolDef[] = [
       },
       ["id", "fulfillmentId"]
     ),
+  },
+  {
+    name: "schedule_order_pickup",
+    description:
+      "Book the carrier pickup for a fulfillment that already has a waybill. Creating the label and scheduling the collection are DELIBERATELY separate: a manifest can be made the evening before, while a pickup slot is a real-world commitment for a date, a package count and a warehouse — booking one automatically on every fulfillment would send couriers to locations that are not packed. `pickup_date` and `pickup_time` are both REQUIRED; there is no default, because the slot is a promise to a driver. A carrier that has already queued the shipment answers 'Already in Pickup Queue' — that is a refusal to double-book, not a failure. Sensitive: requires confirm:true.",
+    method: "POST",
+    path: "/admin/orders/:id/fulfillments/:fulfillmentId/pickup",
+    pathParams: ["id", "fulfillmentId"],
+    previewPath: "/admin/orders/:id",
+    write: true,
+    sensitive: true,
+    bodyParams: ["pickup_date", "pickup_time", "expected_package_count"],
+    inputSchema: obj(
+      {
+        id: STR("Order id, e.g. 'order_...'."),
+        fulfillmentId: STR("Fulfillment id that holds the waybill, e.g. 'ful_...'."),
+        pickup_date: STR("Collection date, YYYY-MM-DD. Required. The admin UI defaults to TOMORROW — a slot later today is usually already past the carrier's cut-off."),
+        pickup_time: STR("Collection time, HH:mm. Required. The admin UI defaults to 14:00."),
+        expected_package_count: {
+          type: "number",
+          description: "Number of boxes the driver should expect (default 1).",
+        },
+      },
+      ["id", "fulfillmentId", "pickup_date", "pickup_time"]
+    ),
+    sideEffects:
+      "Books a real collection with the carrier for that date and warehouse. `pickup_persisted: false` means the booking is LIVE at the carrier but was not saved here — the cancellation token then exists only in the server log.",
+  },
+  {
+    name: "get_export_igst_status",
+    description:
+      "What an export label would declare for IGST right now, and why (#1216). Answers 'B' (a live LUT is on file, so the export is zero-rated) or 'C' (IGST paid and reclaimed — an LUT is recorded but none is currently in force). Read-only. Use it when a cross-border booking is refused or a customs figure looks wrong: it comes from the SAME resolver the label path uses, so it cannot disagree with what was actually declared. `days_until_expiry` is the number worth watching — an LUT lapses silently and the declaration flips to 'C' with nothing else changing.",
+    method: "GET",
+    path: "/admin/customs/export-igst-status",
+    queryParams: ["country"],
+    inputSchema: obj({
+      country: STR("ISO-2 destination country to resolve for. Defaults to the platform's configured export country."),
+    }),
   },
   {
     name: "cancel_order_shipment",

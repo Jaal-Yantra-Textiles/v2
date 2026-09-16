@@ -96,6 +96,17 @@ const NO_ROUTE_VALIDATOR = new Set<string>([
    */
   "admin:cancel_order_shipment",
   /**
+   * The pickup route registers no matcher and validates in the handler: it
+   * reads `req.body` for `pickup_date`, `pickup_time` and
+   * `expected_package_count`, and REFUSES with a 400 unless the date and time
+   * are both present — deliberately, because a pickup slot is a promise to a
+   * driver for a particular date and warehouse, so there is no default to fall
+   * back on.
+   *
+   * Verified by reading the handler, not inferred from the absence of a matcher.
+   */
+  "admin:schedule_order_pickup",
+  /**
    * The revoke route takes NO body — it works entirely off the `:id` in the
    * path. Nothing to bind, and nothing advertised: the tool declares no
    * `bodyParams`, because a field the route never reads would be accepted,
