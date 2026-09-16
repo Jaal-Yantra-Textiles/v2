@@ -283,15 +283,28 @@ export const RunOutputReviewPanel = ({
                         </Table.Cell>
                         <Table.Cell>
                           <Text size="small" className="text-ui-fg-subtle">
+                            {/*
+                              🔴 "Already listed — nothing new created" is true
+                              and, on its own, misleading: a re-approval can
+                              compute a DIFFERENT price and discard it, leaving
+                              the old one on sale. When that happens the numbers
+                              are named, because the repair is a human decision.
+                            */}
                             {r.reason
                               ? r.reason
-                              : r.product_existed
-                                ? "Already listed — nothing new created"
-                                : r.outcome === "approved"
-                                  ? `Lists at ${r.listed_price ?? 0} ${(
-                                      r.currency_code ?? ""
-                                    ).toUpperCase()}`
-                                  : "—"}
+                              : r.reconcile?.price_stale
+                                ? `Already listed at ${
+                                    r.reconcile.listed_price_before
+                                  } ${(r.currency_code ?? "").toUpperCase()} — this approval computed ${
+                                    r.listed_price ?? 0
+                                  }. NOT repriced.`
+                                : r.product_existed
+                                  ? "Already listed — nothing new created"
+                                  : r.outcome === "approved"
+                                    ? `Lists at ${r.listed_price ?? 0} ${(
+                                        r.currency_code ?? ""
+                                      ).toUpperCase()}`
+                                    : "—"}
                           </Text>
                         </Table.Cell>
                       </Table.Row>

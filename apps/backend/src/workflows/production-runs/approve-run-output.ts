@@ -18,6 +18,10 @@ import updateDesignWorkflow from "../designs/update-design"
 import {
   resolveDesignApprovalTarget,
   describeApprovalTarget,
+  resolveRunApprovalStamp,
+  indexVariantOwners,
+  diffApprovalTarget,
+  type ApprovalReconcile,
 } from "./lib/run-variant"
 
 /**
@@ -83,8 +87,21 @@ export type RunApprovalReport = {
    * The product was already there and was NOT re-created. The difference
    * between this and a fresh approval is the whole idempotency story, so it is
    * reported rather than hidden behind an identical-looking success.
+   *
+   * Kept alongside `reconcile` because callers read it — the admin approval
+   * surface and the MCP tool both key off it. It is the same boolean; the diff
+   * is what it could never say.
    */
   product_existed?: boolean
+  /**
+   * What this approval actually changed, where the boolean could only say
+   * "a product was already there": whether the VARIANT was reused or could not
+   * be named at all, and whether the price on sale still matches the one just
+   * computed. See `diffApprovalTarget`.
+   */
+  reconcile?: ApprovalReconcile
+  /** Where this run's `approved_variant_id` came from: run | design | none. */
+  variant_source?: "run" | "design" | "none"
   currency_code?: string
   listed_price?: number
   /** Which cost the listed price was derived from: run_cost | design_estimate. */
@@ -295,6 +312,17 @@ export async function applyRunApprovals(
   }
 
   const createdProductIds: string[] = []
+  /**
+   * 🔑 ONE fanout for the whole batch, not one per design.
+   *
+   * `requestVariantPriceFanout` emits a job per call. A 40-run batch over 5
+   * designs used to emit 5, each waking the worker to do the same
+   * currency-by-currency walk. The workflow already skips currencies a
+   * price_set carries, so batching changes nothing about the result — only how
+   * many times the worker is asked. Requested AFTER the loop so a design that
+   * throws does not take the other designs' fanout down with it.
+   */
+  const fanoutVariantIds: string[] = []
 
   for (const [designId, designRuns] of byDesign) {
     let product_id: string | null = null
@@ -302,6 +330,10 @@ export async function applyRunApprovals(
     let productExisted = false
     /** Why the approval could not name a variant, when it could not. */
     let targetNote: string | null = null
+    /** variant id -> owning product, from this design's own read. */
+    let variantOwner = new Map<string, string>()
+    /** What this approval changed — see `diffApprovalTarget`. */
+    let reconcile: ApprovalReconcile | null = null
     /**
      * The pre-read default, used only if the design read below throws. INR
      * rather than the store's default: production is costed in INR, and a EUR
@@ -323,6 +355,10 @@ export async function applyRunApprovals(
           "cost_currency",
           "products.id",
           "products.variants.id",
+          // What is ALREADY listed, so a re-approval can say whether the price
+          // it just computed still agrees with the one on sale (`price_stale`).
+          "products.variants.prices.amount",
+          "products.variants.prices.currency_code",
           // #1920 — the photoshoot evidence. Commerce_Ready means "we could
           // SELL this", and a garment with no photographs cannot be sold.
           "folders.id",
@@ -444,6 +480,7 @@ export async function applyRunApprovals(
 
       const linkedProducts = (design.products ?? []) as Array<any>
       productExisted = linkedProducts.some((p: any) => Boolean(p?.id))
+      variantOwner = indexVariantOwners(linkedProducts)
 
       if (productExisted) {
         /**
@@ -523,12 +560,54 @@ export async function applyRunApprovals(
          * never throws, and the workflow skips currencies a price_set already
          * carries, so a re-approval is idempotent.
          */
-        if (variant_id && storeId) {
-          await requestVariantPriceFanout(container, {
-            storeId,
-            variantIds: [variant_id],
-          })
-        }
+        if (variant_id) fanoutVariantIds.push(variant_id)
+      }
+
+      /**
+       * 🔴 Per RUN, not per design. `resolveDesignApprovalTarget` refuses with
+       * a null variant when two runs of one design made DIFFERENT variants —
+       * and that refusal used to null `approved_variant_id` on both of them,
+       * including runs that said exactly what they produced. #1970 is explicit
+       * that the order binding is per run, and `describeApprovalTarget`'s own
+       * `runs_disagree` text already pointed here.
+       */
+      const stamps = new Map(
+        designRuns.map((run: any) => [
+          run.id,
+          resolveRunApprovalStamp(run, { product_id, variant_id }, variantOwner),
+        ])
+      )
+
+      /**
+       * What changed, computed once for the design. The prices come from the
+       * design read above, so this costs no extra query.
+       */
+      const listedPrices = variant_id
+        ? ((linkedProducts
+            .flatMap((prod: any) => prod?.variants ?? [])
+            .find((v: any) => v?.id === variant_id)?.prices ?? []) as Array<any>)
+        : []
+      reconcile = diffApprovalTarget({
+        productExisted,
+        productId: product_id,
+        variantId: variant_id,
+        computedPrice: price,
+        currency,
+        existingPrices: listedPrices,
+      })
+
+      /**
+       * A price that moved and was NOT rewritten. Re-approving does not
+       * reprice a product that may already be selling, but computing a
+       * different number and discarding it silently is how the stale one
+       * survives a re-approval that looked like it agreed.
+       */
+      if (reconcile.price_stale) {
+        logger?.warn?.(
+          `[approve-run-output] design ${designId} is listed at ` +
+            `${reconcile.listed_price_before} ${currency} but this approval computed ` +
+            `${price} ${currency}. The listing was NOT repriced — change it deliberately.`
+        )
       }
 
       if (!input.dryRun) {
@@ -577,14 +656,15 @@ export async function applyRunApprovals(
         })
 
         for (const run of designRuns) {
+          const stamp = stamps.get(run.id)!
           await runService.updateProductionRuns({
             id: run.id,
             approval_decision: "approved",
             approval_decided_at: new Date(),
             approval_decided_by: input.actorId ?? "system",
             approval_reason: input.reason ?? null,
-            approved_product_id: product_id,
-            approved_variant_id: variant_id,
+            approved_product_id: stamp.product_id,
+            approved_variant_id: stamp.variant_id,
           })
         }
 
@@ -610,16 +690,23 @@ export async function applyRunApprovals(
       }
 
       for (const run of designRuns) {
+        const stamp = stamps.get(run.id)!
         reports.push({
           run_id: run.id,
           design_id: designId,
           design_name: design.name ?? run.snapshot?.design?.name ?? null,
           status: run.status ?? null,
           outcome: "approved",
-          reason: targetNote ?? undefined,
-          product_id,
-          variant_id,
+          /**
+           * A run that answered for itself is not suffering the design's
+           * ambiguity, so it does not carry the design's refusal note.
+           */
+          reason: stamp.source === "run" ? undefined : targetNote ?? undefined,
+          product_id: stamp.product_id,
+          variant_id: stamp.variant_id,
           product_existed: productExisted,
+          reconcile: reconcile ?? undefined,
+          variant_source: stamp.source,
           currency_code: currency,
           listed_price: price,
           price_source: priceSource,
@@ -647,6 +734,26 @@ export async function applyRunApprovals(
         })
       }
     }
+  }
+
+  /**
+   * One fanout for every variant this call minted (see `fanoutVariantIds`).
+   *
+   * Still requested rather than run inline: the handler is a subscriber, so the
+   * currency walk lands on the WORKER. Doing it on the request path OOM-killed
+   * prod twice on 2026-08-19 (exit 137). `requestVariantPriceFanout` never
+   * throws, and the workflow skips currencies a price_set already carries, so
+   * this stays idempotent across a re-approval.
+   *
+   * A store we could not read costs the fanout, not the approval — the base
+   * price is written either way and `replay-fx-fanout` can materialise the
+   * rest later.
+   */
+  if (fanoutVariantIds.length && storeId) {
+    await requestVariantPriceFanout(container, {
+      storeId,
+      variantIds: [...new Set(fanoutVariantIds)],
+    })
   }
 
   return summarise(input, reports, createdProductIds)

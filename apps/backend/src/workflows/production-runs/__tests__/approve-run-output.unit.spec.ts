@@ -24,6 +24,16 @@ jest.mock("../../designs/update-design", () => ({
 jest.mock("../../../modules/production_runs", () => ({
   PRODUCTION_RUNS_MODULE: "production_runs",
 }))
+/**
+ * The fanout helper is deliberately NOT mocked. It is the thing that scopes the
+ * job to the HOUSE store (#1979) and refuses an empty payload, and a stub would
+ * make every assertion below about the stub. Its `fx.fanout_requested` event is
+ * the observable — counting those events is what proves the batching.
+ */
+const fanoutEvents = () =>
+  emit.mock.calls
+    .map((c: any[]) => c[0])
+    .filter((e: any) => e?.name === "fx.fanout_requested")
 
 import {
   applyRunApprovals,
@@ -432,8 +442,17 @@ describe("applyRunApprovals — approving", () => {
     )
   })
 
-  /** Two runs of one design that made different variants cannot share one. */
-  it("refuses when the runs of a design disagree about what they made", async () => {
+  /**
+   * Two runs of one design that made different variants cannot share ONE
+   * design-level variant — but each run still said perfectly clearly what it
+   * produced, and PR3 (#1970) stamps each with its own.
+   *
+   * Before PR3 both came back `variant_id: null`, because the design-level
+   * refusal was applied to every run of the design. `approved_variant_id` is
+   * what a fulfilment is later filed against, so nulling it on a run that
+   * answered is how a produced garment becomes unfulfillable.
+   */
+  it("stamps each run with ITS OWN variant when the runs disagree", async () => {
     listProductionRuns.mockResolvedValue([
       completedRun("run_1", "des_1", { variant_id: "var_s" }),
       completedRun("run_2", "des_1", { variant_id: "var_m" }),
@@ -453,8 +472,127 @@ describe("applyRunApprovals — approving", () => {
     })
 
     expect(result.approved).toEqual(["run_1", "run_2"])
-    expect(result.runs.map((r) => r.variant_id)).toEqual([null, null])
-    expect(result.runs[0].reason).toContain("different variants")
+    expect(result.runs.map((r) => r.variant_id)).toEqual(["var_s", "var_m"])
+    expect(result.runs.map((r) => r.variant_source)).toEqual(["run", "run"])
+
+    // Persisted per run, not just reported per run.
+    const stamped = updateProductionRuns.mock.calls
+      .map((c: any[]) => c[0])
+      .filter((u: any) => u?.approval_decision === "approved")
+      .map((u: any) => [u.id, u.approved_variant_id])
+    expect(stamped).toEqual([
+      ["run_1", "var_s"],
+      ["run_2", "var_m"],
+    ])
+
+    /**
+     * A run that answered for itself is not suffering the design's ambiguity,
+     * so it does not carry the design-level refusal note.
+     */
+    expect(result.runs[0].reason).toBeUndefined()
+  })
+
+  /**
+   * 🔑 ONE fanout for the batch, not one per design (PR3, #1970).
+   *
+   * `requestVariantPriceFanout` emits a job per call, and the handler is a
+   * subscriber, so five designs used to wake the worker five times to walk the
+   * same currency list. Running it on the REQUEST path OOM-killed prod twice on
+   * 2026-08-19, which is why the count matters rather than just the result.
+   */
+  it("requests ONE price fanout for the whole batch", async () => {
+    listProductionRuns.mockResolvedValue([
+      completedRun("run_1", "des_1"),
+      completedRun("run_2", "des_2"),
+    ])
+    stubGraph({ des_1: design("des_1"), des_2: design("des_2") })
+    createProductRun
+      .mockResolvedValueOnce({ result: { product_id: "prod_a", variant_id: "var_a" } })
+      .mockResolvedValueOnce({ result: { product_id: "prod_b", variant_id: "var_b" } })
+
+    await applyRunApprovals(container, {
+      runIds: ["run_1", "run_2"],
+      decision: "approve",
+    })
+
+    const jobs = fanoutEvents()
+    expect(jobs).toHaveLength(1)
+    expect(jobs[0].data.variant_ids).toEqual(["var_a", "var_b"])
+    expect(jobs[0].data.store_id).toBe("store_1")
+  })
+
+  it("asks for no fanout at all when nothing was minted", async () => {
+    listProductionRuns.mockResolvedValue([completedRun("run_1", "des_1")])
+    stubGraph({
+      des_1: design("des_1", {
+        products: [{ id: "prod_existing", variants: [{ id: "var_s" }] }],
+        design_variants: ["var_s"],
+      }),
+    })
+
+    await applyRunApprovals(container, { runIds: ["run_1"], decision: "approve" })
+
+    expect(fanoutEvents()).toHaveLength(0)
+  })
+
+  /**
+   * 🔴 What the `product_existed` boolean could never say. A design re-approved
+   * at a DIFFERENT price and one re-approved at the SAME price both reported
+   * `product_existed: true` and looked like clean idempotency — while the
+   * listing went on selling at the old number.
+   */
+  it("reports a reused listing whose price no longer matches, and does NOT reprice it", async () => {
+    listProductionRuns.mockResolvedValue([completedRun("run_1", "des_1")])
+    stubGraph({
+      des_1: design("des_1", {
+        estimated_cost: 1000, // -> a computed price above the listed 9000
+        products: [
+          {
+            id: "prod_existing",
+            variants: [
+              { id: "var_s", prices: [{ amount: 9000, currency_code: "inr" }] },
+            ],
+          },
+        ],
+        design_variants: ["var_s"],
+      }),
+    })
+
+    const result = await applyRunApprovals(container, {
+      runIds: ["run_1"],
+      decision: "approve",
+    })
+
+    const row = result.runs[0]
+    expect(row.reconcile).toMatchObject({
+      product: "reused",
+      variant: "reused",
+      listed_price_before: 9000,
+      price_stale: true,
+    })
+    expect(row.listed_price).not.toBe(9000)
+    // Said out loud — a computed price that is silently discarded is the bug.
+    expect(logger.warn).toHaveBeenCalledWith(
+      expect.stringContaining("was NOT repriced")
+    )
+    // Reported, never written: no product/variant creation was attempted.
+    expect(createProductRun).not.toHaveBeenCalled()
+  })
+
+  it("reports a fresh mint as created, with no stale-price claim", async () => {
+    listProductionRuns.mockResolvedValue([completedRun("run_1", "des_1")])
+    stubGraph({ des_1: design("des_1") })
+
+    const result = await applyRunApprovals(container, {
+      runIds: ["run_1"],
+      decision: "approve",
+    })
+
+    expect(result.runs[0].reconcile).toEqual({
+      product: "created",
+      variant: "created",
+    })
+    expect(result.runs[0].variant_source).toBe("design")
   })
 
   it("lists the product in the design's currency, not usd", async () => {
