@@ -102,6 +102,8 @@ import { auditPartnerPayoutQuantityJob } from "./audit-partner-payout-quantity-j
 import { auditUnpricedCompletedRunsJob } from "./audit-unpriced-completed-runs-job"
 import { capFreeShippingBandJob } from "./cap-free-shipping-band-job"
 import { deleteOrphanStoreJob } from "./delete-orphan-store-job"
+import { deleteOrphanWorkOrderMirrorsJob } from "./delete-orphan-work-order-mirrors-job"
+import { purgeAbandonedCartsJob } from "./purge-abandoned-carts-job"
 import { restoreOrphanStoreJob } from "./restore-orphan-store-job"
 import { backfillPartnerEmailVerifiedJob } from "./backfill-partner-email-verified-job"
 import { backfillPartnerHostingProviderJob } from "./backfill-partner-hosting-provider-job"
@@ -6626,6 +6628,8 @@ export const MAINTENANCE_JOBS: MaintenanceJob[] = [
   seedPlatformStatsPanelJob,
   seedGoodsTransferTaskTemplateJob,
   seedPhotoshootTaskTemplatesJob,
+  deleteOrphanWorkOrderMirrorsJob,
+  purgeAbandonedCartsJob,
 ]
 
 export const getMaintenanceJob = (id: string): MaintenanceJob | undefined =>

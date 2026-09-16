@@ -873,5 +873,80 @@ setupSharedTestSuite(() => {
         ).rejects.toMatchObject({ response: { status: 400 } })
       })
     })
+
+    /**
+     * The two jobs that made anything cleanable at all.
+     *
+     * Nothing on this platform could remove a cart or an orphaned work-order
+     * mirror — no admin route, no MCP tool, no job. The selection rules are
+     * unit-tested; what is proven HERE is that they are reachable, because an
+     * unregistered job is invisible to the UI and unrunnable, which is the same
+     * silent-absence class the jobs themselves exist to repair.
+     */
+    describe("cleanup jobs", () => {
+      it("lists purge-abandoned-carts with its params", async () => {
+        const res = await api.get("/admin/ops/maintenance-jobs", adminHeaders)
+        const job = res.data.jobs.find((j: any) => j.id === "purge-abandoned-carts")
+        expect(job).toBeDefined()
+        expect(job.params.map((p: any) => p.name).sort()).toEqual([
+          "cart_ids",
+          "empty_only",
+          "include_identified",
+          "limit",
+          "older_than_days",
+        ])
+      })
+
+      it("lists delete-orphan-work-order-mirrors with its params", async () => {
+        const res = await api.get("/admin/ops/maintenance-jobs", adminHeaders)
+        const job = res.data.jobs.find(
+          (j: any) => j.id === "delete-orphan-work-order-mirrors"
+        )
+        expect(job).toBeDefined()
+        expect(job.params.map((p: any) => p.name).sort()).toEqual([
+          "include_settled",
+          "kind",
+          "limit",
+          "order_id",
+        ])
+      })
+
+      /**
+       * 🔴 `older_than_days` has no default ON PURPOSE. An age is this job's
+       * entire safety margin, and a default would let someone run it meaning
+       * "the obvious thing" and get whatever number we happened to pick.
+       */
+      it("🔴 refuses purge-abandoned-carts with no age → 400", async () => {
+        await expect(
+          api.post(
+            "/admin/ops/maintenance-jobs/purge-abandoned-carts/run",
+            { dry_run: true, params: {} },
+            adminHeaders
+          )
+        ).rejects.toMatchObject({ response: { status: 400 } })
+      })
+
+      it("dry-runs the cart purge on an empty database and writes nothing", async () => {
+        const res = await api.post(
+          "/admin/ops/maintenance-jobs/purge-abandoned-carts/run",
+          { dry_run: true, params: { older_than_days: 30 } },
+          adminHeaders
+        )
+        expect(res.status).toBe(200)
+        expect(res.data.result.dry_run).toBe(true)
+        expect(res.data.result.applied).toBe(false)
+      })
+
+      it("dry-runs the orphan-mirror sweep and writes nothing", async () => {
+        const res = await api.post(
+          "/admin/ops/maintenance-jobs/delete-orphan-work-order-mirrors/run",
+          { dry_run: true, params: {} },
+          adminHeaders
+        )
+        expect(res.status).toBe(200)
+        expect(res.data.result.dry_run).toBe(true)
+        expect(res.data.result.applied).toBe(false)
+      })
+    })
   })
 })
