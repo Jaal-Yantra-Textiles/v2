@@ -52,8 +52,9 @@ const resolvePinterestTokenStep = createStep(
 )
 
 /**
- * Search Pinterest pins, preferring the broader partner search and falling
- * back to the authenticated user's own pins when it is unavailable.
+ * Search Pinterest by keyword via the general pin-search endpoint. Surfaces
+ * Pinterest's own error (e.g. a missing restricted-feature grant) instead of
+ * silently returning zero pins.
  */
 const searchPinterestPinsStep = createStep(
   "search-pinterest-pins",
@@ -62,27 +63,8 @@ const searchPinterestPinsStep = createStep(
     query: string
     bookmark?: string
   }): Promise<StepResponse<SearchPinterestResult>> => {
-    let pins: any[] = []
-    let nextBookmark: string | null = null
-
-    try {
-      const result = await searchPartnerPins(input.token, input.query, input.bookmark)
-      pins = result.pins
-      nextBookmark = result.bookmark
-    } catch {
-      try {
-        const result = await searchUserPins(input.token, input.query, input.bookmark)
-        pins = result.pins
-        nextBookmark = result.bookmark
-      } catch (e: any) {
-        throw new MedusaError(
-          MedusaError.Types.UNEXPECTED_STATE,
-          `Pinterest API error: ${e.message}`
-        )
-      }
-    }
-
-    return new StepResponse({ pins, bookmark: nextBookmark })
+    const result = await searchPartnerPins(input.token, input.query, input.bookmark)
+    return new StepResponse(result)
   }
 )
 
@@ -119,33 +101,15 @@ async function searchPartnerPins(
   )
 
   if (!response.ok) {
-    throw new Error(`Partner search failed: ${response.status}`)
-  }
-
-  const data = await response.json()
-  return {
-    pins: data.items || [],
-    bookmark: data.bookmark || null,
-  }
-}
-
-async function searchUserPins(
-  token: string,
-  query: string,
-  bookmark?: string
-): Promise<{ pins: any[]; bookmark: string | null }> {
-  const params = new URLSearchParams({ query })
-  if (bookmark) params.set("bookmark", bookmark)
-
-  const response = await fetch(
-    `https://api.pinterest.com/v5/search/pins?${params}`,
-    {
-      headers: { Authorization: `Bearer ${token}` },
-    }
-  )
-
-  if (!response.ok) {
-    throw new Error(`User pin search failed: ${response.status}`)
+    const body = await response.json().catch(() => null)
+    const reason =
+      body?.message ||
+      (body?.error ? JSON.stringify(body.error) : null) ||
+      `HTTP ${response.status}`
+    throw new MedusaError(
+      MedusaError.Types.NOT_ALLOWED,
+      `Pinterest search unavailable: ${reason}`
+    )
   }
 
   const data = await response.json()
