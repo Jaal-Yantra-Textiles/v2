@@ -74,6 +74,32 @@ const GoodsTransfer = model.define("goods_transfer", {
   received_at: model.dateTime().nullable(),
   received_quantity: model.float().nullable(),
 
+  /**
+   * When this transfer's INVENTORY MOVEMENT was posted (#891, 2026-09-13).
+   *
+   * 🔴 Distinct from `received_at`, and the distinction is the whole point.
+   * Receipt is a physical fact — someone counted the box. Posting is an
+   * accounting act, and the founder call is that it requires the run to have
+   * been APPROVED: partner completion is a claim, admin approval is the
+   * acceptance of that claim, and stock must not enter our books on an
+   * unaccepted one.
+   *
+   * The two can therefore happen in either order. Received first → the goods
+   * are here, `received_at` is set and this stays null until approval posts
+   * it. Approved first → receipt posts immediately and both are set together.
+   * A transfer with `received_at` set and this null is the one state a reader
+   * must not mistake for "moved": the goods are physically at the destination
+   * and still on the partner's books.
+   *
+   * A typed column rather than a metadata key, deliberately — this decides
+   * where real goods are counted, and a json blob is not a contract.
+   *
+   * Null on every transfer that predates this, which is truthful about them:
+   * they were posted by the old unconditional path, and the backfill treats a
+   * delivered transfer with a null here as already posted rather than pending.
+   */
+  inventory_posted_at: model.dateTime().nullable(),
+
   notes: model.text().nullable(),
   metadata: model.json().nullable(),
 });
