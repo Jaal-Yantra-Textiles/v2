@@ -185,3 +185,51 @@ export function buildGarmentState(design: {
     },
   }
 }
+
+/**
+ * 🔴 The presence gate — ask this BEFORE believing a garment answer.
+ *
+ * ## Why it exists: measured, not anticipated
+ *
+ * Run against 60 real raw-material rows on prod, the garment Choice alone named
+ * a garment for 8 of them. Three were genuinely garments mis-filed as raw
+ * materials ("Black Shirt Old", "SHAWL1300") — the classifier was right and the
+ * DATA was wrong. The other five were real fabrics:
+ *
+ *   "Pant Cotton Material"              -> trousers      1.00
+ *   "Kethiya Silk"                      -> shirt         0.88
+ *   "Tangaliya Kala Cotton Weave Suit"  -> two_piece_set 0.66
+ *
+ * 🔑 Note the confidence. `MIN_PRODUCT_TYPE_CONFIDENCE` does NOT catch these —
+ * "Pant Cotton Material" was answered at 1.00. A threshold cannot save a
+ * question whose PREMISE is false: "which garment is this design for?" already
+ * assumes the subject is a garment design, and Kethiya Silk's description
+ * genuinely names garments — as things the fabric is good FOR.
+ *
+ * So the premise becomes its own judgment, which is the docs' own advice: "use a
+ * separate presence judgment when it is independently useful".
+ *
+ * Measured on those five failures plus five known garments: 10/10, with the two
+ * populations cleanly separated — fabrics 0.03–0.36, garments 0.75–0.94.
+ * "Handwoven Pashmina", the original #938 trap, sits at 0.35.
+ *
+ * ⚠️ Asked in the SAME request as the garment Choice. Independent questions run
+ * in parallel against one state, so this costs a few tokens rather than a round
+ * trip — the speculative fan-out the docs describe. Code consumes the garment
+ * answer only when the gate passes.
+ */
+export const GARMENT_PRESENCE_INSTRUCTIONS =
+  "Is this item itself a finished garment or made-up textile article — as " +
+  "opposed to a raw material, fabric, yarn or trim that a garment would be MADE " +
+  "FROM? Text that names garments only as things the fabric is SUITABLE FOR is " +
+  "still a fabric."
+
+/**
+ * Below this the item is a material, not a garment, and no garment answer from
+ * the same request may be stored.
+ *
+ * 0.5 is the honest midpoint for a noul — "as likely as not" — and the observed
+ * gap either side of it is wide (0.36 to 0.75), so a tighter threshold would be
+ * fitting noise from ten rows.
+ */
+export const MIN_GARMENT_PRESENCE = 0.5

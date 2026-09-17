@@ -1,4 +1,11 @@
-import { choice, readSystemOneResult, typeSafeConfigured } from "../typesafe"
+import {
+  asChoice,
+  asNoul,
+  choice,
+  noul,
+  readSystemOneResult,
+  typeSafeConfigured,
+} from "../typesafe"
 
 /**
  * The trust boundary between System One and anything that stores an answer.
@@ -24,10 +31,10 @@ describe("readSystemOneResult", () => {
   }
 
   it("reads a well-formed answer", () => {
-    const result = readSystemOneResult(ok)
-    expect(result?.answers.garment.choice).toBe("stole")
-    expect(result?.answers.garment.confidence).toBeCloseTo(0.79)
-    expect(result?.answers.garment.probabilities.scarf).toBeCloseTo(0.1)
+    const answer = asChoice(readSystemOneResult(ok)?.answers.garment)
+    expect(answer?.choice).toBe("stole")
+    expect(answer?.confidence).toBeCloseTo(0.79)
+    expect(answer?.probabilities.scarf).toBeCloseTo(0.1)
   })
 
   /**
@@ -43,7 +50,7 @@ describe("readSystemOneResult", () => {
         garment: { ...ok.answers.garment, confidence: 0 },
       },
     }
-    expect(readSystemOneResult(flat)?.answers.garment.confidence).toBe(0)
+    expect(asChoice(readSystemOneResult(flat)?.answers.garment)?.confidence).toBe(0)
   })
 
   it("refuses an answer with no choice", () => {
@@ -89,7 +96,9 @@ describe("readSystemOneResult", () => {
         garment: { type: "choice", choice: "stole", confidence: 0.7 },
       },
     }
-    expect(readSystemOneResult(noProbs)?.answers.garment.probabilities).toEqual({})
+    expect(
+      asChoice(readSystemOneResult(noProbs)?.answers.garment)?.probabilities
+    ).toEqual({})
   })
 })
 
@@ -123,5 +132,69 @@ describe("typeSafeConfigured", () => {
   it("is true once a key is set", () => {
     process.env.TYPESAFE_API_KEY = "sk-test"
     expect(typeSafeConfigured()).toBe(true)
+  })
+})
+
+/**
+ * The presence gate's answer type. A noul carries no confidence field — the
+ * probability IS the answer — so it needs its own read path.
+ */
+describe("readSystemOneResult — noul answers", () => {
+  const body = (noulValue: unknown) => ({
+    answers: { is_garment: { type: "noul", noul: noulValue } },
+  })
+
+  it("reads a noul", () => {
+    expect(asNoul(readSystemOneResult(body(0.83))?.answers.is_garment)?.noul).toBe(
+      0.83
+    )
+  })
+
+  /**
+   * 🔴 A noul of 0 is a CONFIDENT NO, and the gate's whole job is to act on it.
+   * A truthiness test would discard the most decisive answer there is.
+   */
+  it("keeps a noul of exactly 0 — a confident no is an answer", () => {
+    expect(asNoul(readSystemOneResult(body(0))?.answers.is_garment)?.noul).toBe(0)
+  })
+
+  /** `Number(null)` is 0, which would read as a confident no and block a design. */
+  it("refuses a null noul rather than reading it as a confident no", () => {
+    expect(readSystemOneResult(body(null))).toBeNull()
+    expect(readSystemOneResult(body("0"))).toBeNull()
+    expect(readSystemOneResult(body(undefined))).toBeNull()
+  })
+
+  it("refuses a noul outside 0..1", () => {
+    expect(readSystemOneResult(body(1.2))).toBeNull()
+    expect(readSystemOneResult(body(-0.1))).toBeNull()
+  })
+
+  it("reads a gate and a choice from one request", () => {
+    const both = readSystemOneResult({
+      answers: {
+        is_garment: { type: "noul", noul: 0.91 },
+        garment: {
+          type: "choice",
+          choice: "stole",
+          probabilities: { stole: 1 },
+          confidence: 0.99,
+        },
+      },
+    })
+    expect(asNoul(both?.answers.is_garment)?.noul).toBeCloseTo(0.91)
+    expect(asChoice(both?.answers.garment)?.choice).toBe("stole")
+    // 🔑 And neither narrows to the other.
+    expect(asChoice(both?.answers.is_garment)).toBeNull()
+    expect(asNoul(both?.answers.garment)).toBeNull()
+  })
+})
+
+describe("noul", () => {
+  it("shapes a question for the wire", () => {
+    expect(noul("Is this a garment?")).toEqual({
+      type: "noul",
+      instructions: "Is this a garment?",
+    })
   })
 })

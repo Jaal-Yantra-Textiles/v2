@@ -61,9 +61,26 @@ export type ChoiceAnswer = {
   confidence: number
 }
 
+/**
+ * A yes/no judgment. The probability IS the answer — there is no separate
+ * confidence field, and `0.5` means "as likely as not", never "medium".
+ */
+export type NoulQuestion = {
+  type: "noul"
+  instructions: string
+}
+
+export type NoulAnswer = {
+  type: "noul"
+  noul: number
+}
+
+export type Question = ChoiceQuestion | NoulQuestion
+export type Answer = ChoiceAnswer | NoulAnswer
+
 export type SystemOneResult = {
   model: string
-  answers: Record<string, ChoiceAnswer>
+  answers: Record<string, Answer>
   usage?: { input_tokens?: number; output_tokens?: number }
 }
 
@@ -73,6 +90,21 @@ export function choice(
   criteria: Record<string, OptionCriteria>
 ): ChoiceQuestion {
   return { type: "choice", instructions, criteria }
+}
+
+/** PURE. A Noul (yes/no probability) question, shaped for the wire. */
+export function noul(instructions: string): NoulQuestion {
+  return { type: "noul", instructions }
+}
+
+/** PURE. Narrow an answer to a choice, or null if it is not one. */
+export function asChoice(answer: Answer | undefined): ChoiceAnswer | null {
+  return answer?.type === "choice" ? answer : null
+}
+
+/** PURE. Narrow an answer to a noul, or null if it is not one. */
+export function asNoul(answer: Answer | undefined): NoulAnswer | null {
+  return answer?.type === "noul" ? answer : null
 }
 
 /** Is System One configured at all? Callers fall back when it is not. */
@@ -97,7 +129,7 @@ export function typeSafeConfigured(): boolean {
 export async function askSystemOne(
   input: {
     state: unknown
-    questions: Record<string, ChoiceQuestion>
+    questions: Record<string, Question>
   },
   opts: { model?: string; timeoutMs?: number; logger?: any } = {}
 ): Promise<SystemOneResult | null> {
@@ -159,9 +191,9 @@ export function readSystemOneResult(body: unknown): SystemOneResult | null {
   const answers = raw.answers
   if (!answers || typeof answers !== "object") return null
 
-  const out: Record<string, ChoiceAnswer> = {}
+  const out: Record<string, Answer> = {}
   for (const [id, value] of Object.entries(answers as Record<string, unknown>)) {
-    const answer = readChoiceAnswer(value)
+    const answer = readAnswer(value)
     if (answer) out[id] = answer
   }
 
@@ -176,10 +208,22 @@ export function readSystemOneResult(body: unknown): SystemOneResult | null {
   }
 }
 
-/** PURE. One answer, or null if it is not a usable choice. */
-function readChoiceAnswer(value: unknown): ChoiceAnswer | null {
+/** PURE. One answer of either kind, or null if it is not usable. */
+function readAnswer(value: unknown): Answer | null {
   if (!value || typeof value !== "object") return null
   const v = value as Record<string, unknown>
+
+  if (v.type === "noul") {
+    /**
+     * ⚠️ Same trap as `confidence` below, and it bites harder here: a noul of
+     * `0` is a confident NO, which is a real and useful answer. Coercing first
+     * would let `null` read as a confident no; a truthiness test would discard
+     * it. Type first, then range.
+     */
+    if (typeof v.noul !== "number") return null
+    if (!Number.isFinite(v.noul) || v.noul < 0 || v.noul > 1) return null
+    return { type: "noul", noul: v.noul }
+  }
 
   const picked = typeof v.choice === "string" ? v.choice.trim() : ""
   if (!picked) return null

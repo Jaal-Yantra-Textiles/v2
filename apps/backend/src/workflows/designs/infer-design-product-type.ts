@@ -14,12 +14,21 @@ import {
   parseInferredProductType,
 } from "../../modules/designs/lib/product-type"
 import { makeRoleAiGenerate } from "../../mastra/services/ai-platforms"
-import { askSystemOne, choice, typeSafeConfigured } from "../../lib/ai/typesafe"
+import {
+  asChoice,
+  asNoul,
+  askSystemOne,
+  choice,
+  noul,
+  typeSafeConfigured,
+} from "../../lib/ai/typesafe"
 import {
   buildGarmentState,
+  GARMENT_PRESENCE_INSTRUCTIONS,
   GARMENT_TYPE_CRITERIA,
   GARMENT_TYPE_INSTRUCTIONS,
   isGarmentType,
+  MIN_GARMENT_PRESENCE,
   NO_GARMENT_MATCH,
 } from "../../modules/designs/lib/garment-types"
 
@@ -302,18 +311,47 @@ async function classifyWithSystemOne(
 
   const logger = container.resolve(ContainerRegistrationKeys.LOGGER) as any
 
+  /**
+   * 🔑 Both questions in ONE request. They are independent and run in parallel
+   * against the same state, so the gate costs a few tokens rather than a second
+   * round trip — the speculative fan-out the docs describe. Code decides which
+   * answer to consume.
+   */
   const result = await askSystemOne(
     {
       state: buildGarmentState(design),
       questions: {
+        is_garment: noul(GARMENT_PRESENCE_INSTRUCTIONS),
         garment: choice(GARMENT_TYPE_INSTRUCTIONS, GARMENT_TYPE_CRITERIA),
       },
     },
     { logger }
   )
 
-  const answer = result?.answers?.garment
+  const answer = asChoice(result?.answers?.garment)
   if (!answer) return null
+
+  /**
+   * 🔴 The gate runs FIRST, and a confident garment answer does not survive it.
+   *
+   * Measured on 60 real prod raw-material rows: the Choice alone named a
+   * garment for "Pant Cotton Material" at confidence 1.00. A confidence
+   * threshold cannot catch that — the question's premise was already false. See
+   * `GARMENT_PRESENCE_INSTRUCTIONS`.
+   *
+   * ⚠️ A MISSING gate answer does not block. An absent judgment is not a "no":
+   * treating it as one would silently stop typing every design the moment the
+   * question id changed or the model dropped one.
+   */
+  const gate = asNoul(result?.answers?.is_garment)
+  if (gate && gate.noul < MIN_GARMENT_PRESENCE) {
+    logger?.info?.(
+      `[design-product-type] ${design?.id}: reads as a material, not a garment ` +
+        `(is_garment ${gate.noul.toFixed(2)} < ${MIN_GARMENT_PRESENCE}); ` +
+        `discarding "${answer.choice}" @ ${answer.confidence.toFixed(2)}`
+    )
+    return { no_garment_named: true, source: "judgment" }
+  }
 
   if (answer.choice === NO_GARMENT_MATCH) {
     return { no_garment_named: true, source: "judgment" }
