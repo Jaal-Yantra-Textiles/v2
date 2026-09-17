@@ -69,6 +69,27 @@ import { buildToolInputSchema } from "../schema"
  */
 const NO_ROUTE_VALIDATOR = new Set<string>([
   /**
+   * #1970 PR10 — the three design-order mutations validate INSIDE the handler,
+   * so `middlewares.ts` binds nothing for this file to match against. Read, not
+   * inferred:
+   *
+   *  · `orders/[lineItemId]/customer/route.ts` rejects a `customer_id` that is
+   *    neither a string nor an explicit null with a 400, so a forgotten field
+   *    and a deliberate detach cannot look the same.
+   *  · `orders/[lineItemId]/reprice/route.ts` refuses any `unit_price` that is
+   *    not `> 0`, because `Number(null)` and `Number("")` are both 0 and a
+   *    missing field must not arrive looking like a deliberate zero.
+   *  · `orders/[lineItemId]/convert/route.ts` parses its body with an inline
+   *    zod schema (`ConvertDesignOrderBody`), so `payment_mode` is constrained
+   *    to "prepaid" | "cod" at the door.
+   *
+   * `create_design_order` is deliberately NOT here — `/admin/designs/draft-order`
+   * does register a validator, and this file checks it.
+   */
+  "admin:attach_design_order_customer",
+  "admin:reprice_design_order",
+  "admin:convert_design_order",
+  /**
    * Both wrap CORE shipping-option routes, whose validators core registers in
    * its own middleware config — so nothing in this repo's `middlewares.ts`
    * binds them and there is nothing here to match against. Not unchecked: the

@@ -5182,6 +5182,227 @@ export const ADMIN_MCP_TOOLS: AdminMcpToolDef[] = [
     sideEffects: "Overwrites the singleton policy for ALL production runs; omitted keys are lost, not preserved.",
   },
 
+  // ===== Design ORDERS (#1970 PR10): the create half ======================
+  // A "design order" is not an entity — it is a CART carrying custom-priced
+  // design line items, shared with the buyer as a link they agree to before it
+  // becomes an order. Until now the whole create half was invisible here: the
+  // agent could read an order's designs and send them to production, but could
+  // not create the order, attach the buyer, price it, or convert it. Every one
+  // of those was admin-UI-only, so an operator asking for a design order over
+  // chat had to be sent to a screen.
+  //
+  // 🔴 The buyer lives in TWO places — the design↔customer link AND
+  // `cart.customer_id` — and the detail read falls back between them, so a
+  // write that touches one side leaves an order that reads as owned on screen
+  // and checks out ANONYMOUS (or the reverse). `attach_design_order_customer`
+  // wraps the route that writes both, cart first. Never write one side by hand.
+  {
+    name: "list_design_orders",
+    description:
+      "List design orders — the carts carrying custom-priced design line items, each with its buyer (if attached), price and whether it has been converted to a real order yet. Start here to find a `lineItemId` for the mutation tools below.",
+    method: "GET",
+    path: "/admin/designs/orders",
+    queryParams: ["limit", "offset"],
+    inputSchema: obj({
+      limit: INT("Max results (default 20)."),
+      offset: INT("Pagination offset."),
+    }),
+    nextSteps: ["get_design_order", "attach_design_order_customer"],
+  },
+  {
+    name: "get_design_order",
+    description:
+      "Get one design order by its LINE ITEM id: the design behind it, the buyer resolved across all three sources (design↔customer link, cart.customer_id, the converted order's customer), the price, and whether it is converted. Read this before any mutation — the mutation tools refuse a converted order with 409.",
+    method: "GET",
+    path: "/admin/designs/orders/:lineItemId",
+    pathParams: ["lineItemId"],
+    inputSchema: obj(
+      {
+        lineItemId: STR(
+          "The design order's CART line item id (starts `cali_`), from list_design_orders. Not an order line item (`ordli_`) and not a cart id."
+        ),
+      },
+      ["lineItemId"]
+    ),
+  },
+  {
+    name: "preview_design_order",
+    description:
+      "Price a design order WITHOUT creating anything: what each selected design would cost, in which currency, and the order total. Read-only and free of side effects — use it to check a price before `create_design_order`, especially when passing `price_overrides`.",
+    method: "POST",
+    path: "/admin/designs/draft-order/preview",
+    bodyParams: [
+      "design_ids",
+      "currency_code",
+      "price_overrides",
+      "override_currency",
+    ],
+    inputSchema: obj(
+      {
+        design_ids: {
+          type: "array",
+          items: { type: "string" },
+          description: "Designs to price into one order.",
+        },
+        currency_code: STR(
+          "Currency for the order, e.g. 'inr'. Defaults to the house store's default."
+        ),
+        price_overrides: {
+          type: "object",
+          description:
+            "Per-design unit price override, as { design_id: price } in MAJOR units. Use when the agreed price is not the design's estimated cost.",
+        },
+        override_currency: STR(
+          "Currency that `price_overrides` are expressed in. Defaults to the store default — set it whenever you set overrides, or the number is valued by one currency and labelled by another."
+        ),
+      },
+      ["design_ids"]
+    ),
+    nextSteps: ["create_design_order"],
+  },
+  {
+    name: "create_design_order",
+    description: [
+      "Collate one or more designs into a single design order (a draft cart the buyer agrees to before it becomes an order). Sensitive: requires confirm:true. Run `preview_design_order` first to see the price.",
+      "",
+      "🔑 The buyer is OPTIONAL and leaving it off is ordinary — a design order with no customer is a draft somebody is attached to later, at checkout or when the order is claimed. What is NOT ordinary is a cart attached to the WRONG customer, so never pass a `customer_id` you are not sure of; attach it afterwards with `attach_design_order_customer`.",
+      "",
+      "⚠️ Passing a `customer_id` attaches the buyer AND sends them the design-order email with a checkout link. Do not pass one unless the operator has said the customer should be emailed.",
+      "",
+      "Refuses designs that are already in an open checkout rather than creating a second cart for them.",
+    ].join("\n"),
+    method: "POST",
+    path: "/admin/designs/draft-order",
+    write: true,
+    sensitive: true,
+    bodyParams: [
+      "design_ids",
+      "customer_id",
+      "currency_code",
+      "price_overrides",
+      "override_currency",
+    ],
+    inputSchema: obj(
+      {
+        design_ids: {
+          type: "array",
+          items: { type: "string" },
+          description: "Designs to collate into ONE order.",
+        },
+        customer_id: STR(
+          "Optional buyer. Attaching one here also EMAILS them a checkout link — omit it to create the order unattached and decide separately."
+        ),
+        currency_code: STR(
+          "Currency for the order, e.g. 'inr'. Defaults to the house store's default."
+        ),
+        price_overrides: {
+          type: "object",
+          description:
+            "Per-design unit price override, as { design_id: price } in MAJOR units.",
+        },
+        override_currency: STR(
+          "Currency that `price_overrides` are expressed in. Set it whenever you set overrides."
+        ),
+      },
+      ["design_ids"]
+    ),
+    sideEffects:
+      "Creates a cart with one custom-priced line item per design. With a customer_id, also attaches the buyer and emails them a checkout link.",
+    nextSteps: ["get_design_order", "attach_design_order_customer"],
+  },
+  {
+    name: "attach_design_order_customer",
+    description: [
+      "Attach a buyer to an existing design order, or DETACH one by sending `customer_id: null`. Sensitive: requires confirm:true.",
+      "",
+      "🔑 Writes BOTH sides — `cart.customer_id` and the design↔customer link — cart first. The detail read falls back between them, so a one-sided write leaves an order that reads as owned on screen and checks out ANONYMOUS. This is the only correct way to set a design order's buyer.",
+      "",
+      "The link is a list on both sides, so attaching also dismisses stale buyer links rather than accumulating them — otherwise the reader takes row [0] and whose order it is becomes a lottery.",
+      "",
+      "Refuses a CONVERTED design order with 409: once the order exists, change the customer on the order itself. Surface that message verbatim — a generic failure leaves an operator retrying something that can never succeed.",
+    ].join("\n"),
+    method: "POST",
+    path: "/admin/designs/orders/:lineItemId/customer",
+    pathParams: ["lineItemId"],
+    write: true,
+    sensitive: true,
+    bodyParams: ["customer_id"],
+    inputSchema: obj(
+      {
+        lineItemId: STR("The design order's cart line item id (`cali_...`)."),
+        customer_id: STR(
+          "Customer to attach. Send null to DETACH the buyer. Required — omitting it is an error, not a detach."
+        ),
+      },
+      ["lineItemId"]
+    ),
+    sideEffects:
+      "Sets the cart's customer and email, and replaces the design's customer link.",
+    nextSteps: ["get_design_order", "convert_design_order"],
+  },
+  {
+    name: "reprice_design_order",
+    description: [
+      "Set the agreed unit price on a design order's line. Sensitive: requires confirm:true. Major units, in the cart's OWN currency.",
+      "",
+      "🔑 There is no currency argument on purpose — the cart's region fixes the currency, and a price entered in a different one would be valued by one number and labelled by another.",
+      "",
+      "Design lines are `is_custom_price: true`, so nothing ever recalculates them: a wrong price stays wrong until somebody writes it again. Refuses anything that is not > 0, because `Number(null)` and `Number(\"\")` are both 0 and a missing field must not arrive looking like a deliberate zero.",
+      "",
+      "Refuses a CONVERTED design order with 409: reprice it through an order edit, not the cart.",
+    ].join("\n"),
+    method: "POST",
+    path: "/admin/designs/orders/:lineItemId/reprice",
+    pathParams: ["lineItemId"],
+    write: true,
+    sensitive: true,
+    bodyParams: ["unit_price"],
+    inputSchema: obj(
+      {
+        lineItemId: STR("The design order's cart line item id (`cali_...`)."),
+        unit_price: {
+          type: "number",
+          description:
+            "The agreed unit price, in MAJOR units of the cart's own currency. Must be greater than 0.",
+        },
+      },
+      ["lineItemId", "unit_price"]
+    ),
+    sideEffects: "Overwrites the agreed price on the design order's line item.",
+    nextSteps: ["get_design_order", "convert_design_order"],
+  },
+  {
+    name: "convert_design_order",
+    description: [
+      "Turn a design order (a cart) into a REAL order, admin-side, without routing the customer through checkout. Sensitive: requires confirm:true.",
+      "",
+      "`payment_mode: \"prepaid\"` (the default) marks the order paid via the system provider — use it when the money has already arrived. `\"cod\"` leaves it unpaid, to be reconciled on remittance.",
+      "",
+      "🔑 Converting does NOT start production. Every item is stamped `no_auto_produce`, so placement creates no runs — producing a converted design order is an explicit step (`produce_order_designs`). That is deliberate: a customer's design order must not spawn work-orders as a side effect of being converted.",
+    ].join("\n"),
+    method: "POST",
+    path: "/admin/designs/orders/:lineItemId/convert",
+    pathParams: ["lineItemId"],
+    write: true,
+    sensitive: true,
+    bodyParams: ["payment_mode"],
+    inputSchema: obj(
+      {
+        lineItemId: STR("The design order's cart line item id (`cali_...`)."),
+        payment_mode: {
+          type: "string",
+          enum: ["prepaid", "cod"],
+          description:
+            "'prepaid' (default) marks the order paid; 'cod' leaves it unpaid for later reconciliation.",
+        },
+      },
+      ["lineItemId"]
+    ),
+    sideEffects:
+      "Creates a real order from the cart and marks it paid when prepaid. Does NOT create production runs.",
+    nextSteps: ["list_order_designs", "produce_order_designs"],
+  },
+
   // ===== Designs (#1166): the design -> production pipeline ==============
   // The designs domain is large; this wraps the operationally meaningful
   // slice — core CRUD (which is also the ONLY way to set size_sets/colors),
