@@ -1,3 +1,17 @@
+# [13.144.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.143.0...v13.144.0) (2026-09-17)
+
+
+### Bug Fixes
+
+* **#1923:** a paid design line finally produces — the !productId guard is gone ([#1970](https://github.com/Jaal-Yantra-Textiles/v2/issues/1970) PR8) ([#2105](https://github.com/Jaal-Yantra-Textiles/v2/issues/2105)) ([20cdcd4](https://github.com/Jaal-Yantra-Textiles/v2/commit/20cdcd4ec42ef9e8dfb42644ed3b165be1f704b8)), closes [#1923](https://github.com/Jaal-Yantra-Textiles/v2/issues/1923) [#1920](https://github.com/Jaal-Yantra-Textiles/v2/issues/1920) [#1919](https://github.com/Jaal-Yantra-Textiles/v2/issues/1919) [#1920](https://github.com/Jaal-Yantra-Textiles/v2/issues/1920)
+
+
+### Features
+
+* **#1970:** approval finally binds the paid line to the variant it just approved (PR9) ([#2107](https://github.com/Jaal-Yantra-Textiles/v2/issues/2107)) ([b9a476d](https://github.com/Jaal-Yantra-Textiles/v2/commit/b9a476da6a03a86d545b98539d9161b2493bdaea)), closes [#1970](https://github.com/Jaal-Yantra-Textiles/v2/issues/1970) [#1970](https://github.com/Jaal-Yantra-Textiles/v2/issues/1970) [#891](https://github.com/Jaal-Yantra-Textiles/v2/issues/891) [#891](https://github.com/Jaal-Yantra-Textiles/v2/issues/891)
+* **#891:** approval gates the goods posting — stock stops entering our books on an unaccepted claim ([#2110](https://github.com/Jaal-Yantra-Textiles/v2/issues/2110)) ([7eb26b3](https://github.com/Jaal-Yantra-Textiles/v2/commit/7eb26b311c4df03797a76a6d56c5c09104b50927)), closes [#891](https://github.com/Jaal-Yantra-Textiles/v2/issues/891) [#891](https://github.com/Jaal-Yantra-Textiles/v2/issues/891) [#891](https://github.com/Jaal-Yantra-Textiles/v2/issues/891)
+* **#1970 PR10:** the design-order create half is no longer invisible to the agent ([#2108](https://github.com/Jaal-Yantra-Textiles/v2/issues/2108)) ([6b161d9](https://github.com/Jaal-Yantra-Textiles/v2/commit/6b161d9a42207bc7764f365646a70160f03a3450)), closes [#1970](https://github.com/Jaal-Yantra-Textiles/v2/issues/1970) [#2099](https://github.com/Jaal-Yantra-Textiles/v2/issues/2099)
+
 # [13.143.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.142.0...v13.143.0) (2026-09-17)
 
 
