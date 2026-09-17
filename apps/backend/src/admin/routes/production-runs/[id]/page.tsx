@@ -735,6 +735,41 @@ const ProductionRunDetailPage = () => {
                 </div>
               </div>
             )}
+
+            {/*
+              The OTHER upstream edge (#1529, #2111 S1): goods being supplied to
+              this partner. A chain that opens with a supplier rather than a
+              maker has an empty `depends_on_run_ids`, so until now such a run
+              rendered with no "Depends On" block at all — it read as idle when
+              it was queued, and the only explanation lived in a dispatch error
+              nobody had triggered yet.
+
+              Met at `Delivered`, never at `Shipped` — said here because a
+              half-remembered rule is what makes someone dispatch by hand.
+
+              The link is `/orders/inventory/:id`; there is NO route at
+              `/inventory-orders/:id`, which is where
+              `partner-inspection-section.tsx:620` points. That dead link is
+              pre-existing and filed, not fixed here.
+            */}
+            {run.depends_on_inventory_order_ids?.length > 0 && (
+              <div className="col-span-2">
+                <Text size="small" className="text-ui-fg-subtle">
+                  Waiting On Goods
+                </Text>
+                <div className="mt-1 flex flex-wrap gap-1">
+                  {run.depends_on_inventory_order_ids.map((depId: string) => (
+                    <Link key={depId} to={`/orders/inventory/${depId}`}>
+                      <Badge color="orange">{depId}</Badge>
+                    </Link>
+                  ))}
+                </div>
+                <Text size="xsmall" className="text-ui-fg-subtle mt-1">
+                  Dispatches itself once every order above is Delivered. Shipped
+                  is not enough — the goods have to have arrived.
+                </Text>
+              </div>
+            )}
           </div>
         </Container>
 

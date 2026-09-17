@@ -43,6 +43,16 @@ const ProductionAssignmentSchema = z.object({
   template_names: z.array(z.string()).nullish(),
   /** #1268 — the preferred, unambiguous form. See production-runs/validators.ts. */
   template_ids: z.array(z.string()).nullish(),
+  /**
+   * #1529 — inventory orders whose goods this stage waits on, met at
+   * `Delivered`. This route hands `assignments` to `approveProductionRunWorkflow`
+   * verbatim and that workflow has understood the field since #1529 — so, exactly
+   * like `materials` and `template_names` above, the handler was already right
+   * and THIS SCHEMA WAS THE WALL: undeclared, the field never reached the
+   * workflow, and a run created here could not be made to wait on arriving
+   * material by any route at all.
+   */
+  depends_on_inventory_order_ids: z.array(z.string().min(1)).nullish(),
 })
 
 export const AdminCreateDesignProductionRunSchema = z.object({

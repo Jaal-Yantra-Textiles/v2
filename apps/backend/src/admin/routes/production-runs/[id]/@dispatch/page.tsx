@@ -162,10 +162,25 @@ const DispatchProductionRunDrawerForm = () => {
   const canDispatch = status === "approved" || status === "sent_to_partner"
   const isAlreadyDispatched = status === "sent_to_partner" || status === "in_progress"
 
-  // Check for unmet dependencies
-  const hasDeps = (run?.depends_on_run_ids as string[] | null)?.length
-  const depsWarning = hasDeps
-    ? "This run has dependencies. Dispatch will fail if dependencies are not completed."
+  /**
+   * Check for unmet dependencies — BOTH kinds (#1529, #2111 S1).
+   *
+   * 🔴 This read run edges only, and a supply-gated stage has an EMPTY
+   * `depends_on_run_ids`: a chain that opens with a supplier has no upstream
+   * run at all. So the one case the warning exists for — a partner waiting on
+   * cloth that has not arrived — showed no warning, and the dispatch then
+   * failed anyway. The guard has always read both (`resolveUnmetDependencies`);
+   * only this warning was half-blind.
+   */
+  const runDeps = (run?.depends_on_run_ids as string[] | null)?.length ?? 0
+  const goodsDeps =
+    (run?.depends_on_inventory_order_ids as string[] | null)?.length ?? 0
+  const depsWarning = runDeps
+    ? goodsDeps
+      ? "This run waits on other runs AND on goods being delivered. Dispatch will fail until every upstream run is completed and every supply order is Delivered."
+      : "This run has dependencies. Dispatch will fail if dependencies are not completed."
+    : goodsDeps
+    ? "This run is waiting on goods being supplied to the partner. Dispatch will fail until every supply order is Delivered — Shipped is not enough. It dispatches itself once they arrive."
     : null
 
   return (
