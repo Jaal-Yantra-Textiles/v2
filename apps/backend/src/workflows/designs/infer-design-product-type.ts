@@ -14,6 +14,14 @@ import {
   parseInferredProductType,
 } from "../../modules/designs/lib/product-type"
 import { makeRoleAiGenerate } from "../../mastra/services/ai-platforms"
+import { askSystemOne, choice, typeSafeConfigured } from "../../lib/ai/typesafe"
+import {
+  buildGarmentState,
+  GARMENT_TYPE_CRITERIA,
+  GARMENT_TYPE_INSTRUCTIONS,
+  isGarmentType,
+  NO_GARMENT_MATCH,
+} from "../../modules/designs/lib/garment-types"
 
 /**
  * Infer and store a design's garment type (#938).
@@ -110,7 +118,7 @@ export const inferDesignProductTypeStep = createStep<
       return skip("already_set", design.product_type)
     }
 
-    let inferred: { product_type?: unknown; confidence?: unknown } | null = null
+    let inferred: InferenceResult | null = null
     try {
       inferred = await runInference(design, container)
     } catch (err) {
@@ -122,6 +130,24 @@ export const inferDesignProductTypeStep = createStep<
         }`
       )
       return skip("inference_failed")
+    }
+
+    /**
+     * 🔑 "This text names no garment" is an ANSWER, not a failure.
+     *
+     * The free-text path could never say it — a model asked to name a garment
+     * always names one, so the only defence was to discard a low confidence
+     * afterwards and report `unusable_result`, which reads as "the model
+     * returned junk". A judgment offers `none_of_these` as an option it can
+     * pick confidently, so a design describing fabric or a collection now says
+     * so in the skip reason instead of looking like a parse failure.
+     */
+    if (inferred?.no_garment_named) {
+      logger?.info?.(
+        `[design-product-type] ${input.design_id}: the text names no garment ` +
+          `(source: ${inferred.source ?? "unknown"})`
+      )
+      return skip("no_garment_named")
     }
 
     const confidence = Number(inferred?.confidence)
@@ -200,10 +226,20 @@ export const inferDesignProductTypeStep = createStep<
  * the precedence rules — which is where the bugs live — without a network call
  * whose answer would differ run to run.
  */
-async function runInference(design: any, container: any) {
+async function runInference(design: any, container: any): Promise<InferenceResult> {
   if (process.env.NODE_ENV === "test") {
-    return { product_type: mockTypeFor(design), confidence: 0.9 }
+    return { product_type: mockTypeFor(design), confidence: 0.9, source: "mock" }
   }
+
+  /**
+   * 🔑 The judgment first, the generator only if it cannot answer.
+   *
+   * See `classifyWithSystemOne`. When TypeSafe is unconfigured or unreachable
+   * this returns null and the original path runs unchanged — so this is
+   * additive, and removing the env var reverts the behaviour completely.
+   */
+  const judged = await classifyWithSystemOne(design, container)
+  if (judged) return judged
 
   const generate = makeRoleAiGenerate(
     container,
@@ -221,7 +257,91 @@ async function runInference(design: any, container: any) {
       `could not read a garment type from the response: ${text.slice(0, 200)}`
     )
   }
-  return parsed
+  return { ...parsed, source: "generated" }
+}
+
+/** What either inference path hands back to the step. */
+type InferenceResult = {
+  product_type?: string | null
+  confidence?: number | null
+  /** The classifier answered that the text names no garment at all. */
+  no_garment_named?: boolean
+  /** Which path answered — the only way to evaluate one against the other. */
+  source?: "judgment" | "generated" | "mock"
+}
+
+/**
+ * Classify with TypeSafe System One — a typed choice instead of prose.
+ *
+ * ## What this replaces
+ *
+ * The generative path below asks for `{product_type, confidence, reasoning}` as
+ * JSON and then needs `parseInferredProductType` to get it back: three routes,
+ * ending in a regex for `**product_type:** trousers`. That parser exists because
+ * `stealth/ox-alpha` returned a correct answer as markdown prose with
+ * `response.object` undefined — while advertising `response_format` support.
+ *
+ * 🔴 The parsing was never the worst part. The gate was the model's OWN
+ * `confidence` field, which it was simply asked to be honest about. A
+ * self-reported number from a generative model is not calibrated, and
+ * `MIN_PRODUCT_TYPE_CONFIDENCE` was a threshold on it. A Choice returns the
+ * probability distribution across the options it actually considered, so the
+ * same threshold now means something measurable.
+ *
+ * And the model can no longer answer "pashmina": it is not an option.
+ *
+ * Returns null — never throws — when System One is unconfigured, unreachable,
+ * or answers with something outside the option list. The caller then runs the
+ * original path, so this is strictly additive.
+ */
+async function classifyWithSystemOne(
+  design: any,
+  container: any
+): Promise<InferenceResult | null> {
+  if (!typeSafeConfigured()) return null
+
+  const logger = container.resolve(ContainerRegistrationKeys.LOGGER) as any
+
+  const result = await askSystemOne(
+    {
+      state: buildGarmentState(design),
+      questions: {
+        garment: choice(GARMENT_TYPE_INSTRUCTIONS, GARMENT_TYPE_CRITERIA),
+      },
+    },
+    { logger }
+  )
+
+  const answer = result?.answers?.garment
+  if (!answer) return null
+
+  if (answer.choice === NO_GARMENT_MATCH) {
+    return { no_garment_named: true, source: "judgment" }
+  }
+
+  /**
+   * ⚠️ An option we did not offer is a contract break, not an answer. Falling
+   * through to the generator is the honest response: storing it would put an
+   * unvetted string in the field this whole list exists to constrain.
+   */
+  if (!isGarmentType(answer.choice)) {
+    logger?.warn?.(
+      `[design-product-type] System One answered "${answer.choice}", which is ` +
+        `not an offered option — falling back to generation.`
+    )
+    return null
+  }
+
+  logger?.info?.(
+    `[design-product-type] ${design?.id}: "${answer.choice}" ` +
+      `confidence ${answer.confidence.toFixed(2)} (judgment)`
+  )
+
+  return {
+    product_type: answer.choice,
+    confidence: answer.confidence,
+    source: "judgment",
+  }
 }
 
 /** PURE. The classification prompt. */
