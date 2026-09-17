@@ -1319,7 +1319,22 @@ export interface CreateDesignOrderPayload {
 
 export interface CreateDesignOrderResponse {
   cart: any
-  checkout_url: string
+  /** Whether the link actually reached the buyer. Absent on older responses. */
+  email?: { sent: boolean; to: string | null; reason: string | null }
+  /**
+   * 🔴 Nullable. The route refuses to build a link it cannot aim — no
+   * storefront host, or no country for the cart — because a guessed one is
+   * re-regioned by the storefront middleware and prices the cart in the wrong
+   * currency (#2051). `checkout_url_reason` says which, in plain words.
+   *
+   * It was typed `string` here while never being one in those cases, the same
+   * shape of lie that made `total_estimated` throw on this very screen.
+   */
+  checkout_url: string | null
+  checkout_url_reason?: string | null
+  /** A PayU link that completes THIS cart. Null off INR — the ordinary case. */
+  payment_link?: string | null
+  payment_link_reason?: string | null
 }
 
 export interface DesignEstimatePreview {

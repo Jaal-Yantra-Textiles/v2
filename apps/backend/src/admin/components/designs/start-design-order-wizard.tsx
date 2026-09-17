@@ -21,6 +21,7 @@ import { DataGrid } from "../data-grid/data-grid"
 import { DataGridCurrencyCell, DataGridReadOnlyCell } from "../data-grid/components"
 import { createDataGridHelper } from "../data-grid/helpers/create-data-grid-column-helper"
 import { KeyboundForm } from "../utilitites/key-bound-form"
+import { DesignOrderCreatedPanel, type CreatedDesignOrder } from "./design-order-created-panel"
 import { RouteFocusModal } from "../modal/route-focus-modal"
 import { useRouteModal } from "../modal/use-route-modal"
 import { sdk } from "../../lib/config"
@@ -59,6 +60,12 @@ import {
 enum Step {
   DESIGNS = "designs",
   REVIEW = "review",
+  /**
+   * The links the create returned. A third step rather than a toast: the
+   * operator was previously told to "share the checkout link" and handed
+   * nothing, because both call sites discarded the response.
+   */
+  CREATED = "created",
 }
 
 type EstimateRow = {
@@ -140,6 +147,7 @@ export const StartDesignOrderWizard = () => {
   const [isPreviewing, setIsPreviewing] = useState(false)
   const [isCreating, setIsCreating] = useState(false)
   const [preview, setPreview] = useState<PreviewResponse | null>(null)
+  const [created, setCreated] = useState<CreatedDesignOrder | null>(null)
   /**
    * Frozen at preview time. The basket stays editable behind the review step,
    * so what the create button posts must be what was actually estimated —
@@ -408,7 +416,7 @@ export const StartDesignOrderWizard = () => {
     setIsCreating(true)
     try {
       const routes = designOrderRoutes(target.customer_id)
-      await sdk.client.fetch(routes.create, {
+      const created = await sdk.client.fetch<CreatedDesignOrder>(routes.create, {
         method: "POST",
         body: designOrderCreateBody({
           design_ids: target.design_ids,
@@ -420,10 +428,12 @@ export const StartDesignOrderWizard = () => {
       })
       toast.success("Design order created", {
         description: target.customer_id
-          ? "Share the checkout link with the customer to complete payment."
+          ? undefined
           : "No buyer is attached yet — attach one from the order, or it is collected at checkout.",
       })
-      handleSuccess()
+      // Show the links rather than dismissing. `handleSuccess` runs from the panel.
+      setCreated(created)
+      setStep(Step.CREATED)
     } catch (err: any) {
       toast.error("Failed to create design order", {
         description: err?.message || "An unexpected error occurred.",
@@ -437,6 +447,27 @@ export const StartDesignOrderWizard = () => {
     step === Step.REVIEW ? "completed" : picked.length ? "in-progress" : "not-started"
   const reviewStatus: ProgressStatus =
     step === Step.REVIEW ? "in-progress" : "not-started"
+
+  /**
+   * The links REPLACE the wizard rather than becoming a third tab. The basket
+   * and its estimate are spent by the time this shows, and a tab the operator
+   * could click back into would offer to create the same order a second time.
+   */
+  if (step === Step.CREATED && created) {
+    return (
+      <div className="flex h-full flex-col overflow-hidden">
+        <RouteFocusModal.Header>
+          {/* Radix refuses a DialogContent with no DialogTitle; see below. */}
+          <RouteFocusModal.Title asChild>
+            <span className="sr-only">Design order created</span>
+          </RouteFocusModal.Title>
+        </RouteFocusModal.Header>
+        <RouteFocusModal.Body className="size-full overflow-auto">
+          <DesignOrderCreatedPanel result={created} onDone={handleSuccess} />
+        </RouteFocusModal.Body>
+      </div>
+    )
+  }
 
   return (
     <RouteFocusModal.Form form={form}>
