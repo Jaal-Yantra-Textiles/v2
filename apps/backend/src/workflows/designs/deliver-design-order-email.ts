@@ -42,8 +42,35 @@ export const deliverDesignOrderEmail = async (
   }
 ): Promise<DesignOrderEmailDelivery> => {
   const logger: any = scope.resolve(ContainerRegistrationKeys.LOGGER)
-  const cart = input.cart
-  const to = String(cart?.email ?? "").trim() || null
+  const query: any = scope.resolve(ContainerRegistrationKeys.QUERY)
+
+  /**
+   * 🔴 The cart handed in by `createDraftOrderFromDesignsWorkflow` is the row
+   * returned by `createCarts` — created BEFORE `addLineItems` ran. It has no
+   * `total` and no `items`. Trusting it emailed the buyer
+   *
+   *     "Your order is ready — null piece(s), ₹0.00"
+   *
+   * because `formatMoney` turns an absent amount into a formatted ZERO rather
+   * than into nothing. So the money is read back from the cart, never taken
+   * from the object the caller happens to hold.
+   */
+  let fresh: any = null
+  try {
+    const { data } = await query.graph({
+      entity: "cart",
+      fields: ["id", "email", "currency_code", "total", "items.id"],
+      filters: { id: input.cart?.id },
+    })
+    fresh = data?.[0] ?? null
+  } catch (e: any) {
+    logger?.warn?.(
+      `[design-order] totals lookup failed for cart ${input.cart?.id}: ${e?.message ?? e}`
+    )
+  }
+
+  const cart = fresh ?? input.cart
+  const to = String(cart?.email ?? input.cart?.email ?? "").trim() || null
 
   const fail = (reason: string): DesignOrderEmailDelivery => {
     logger?.error?.(
@@ -80,6 +107,21 @@ export const deliverDesignOrderEmail = async (
     )
   }
 
+  /**
+   * 🔴 No total, no email. `formatMoney` renders an absent amount as a
+   * well-formed ZERO — "₹0.00" — which reads to a buyer as a real price rather
+   * than as missing data. A silent wrong number is worse than a missing mail
+   * the operator can see failed and send by hand.
+   */
+  const total = Number(cart?.total)
+  if (!Number.isFinite(total) || total <= 0) {
+    return fail(
+      "the order total could not be read, and an email quoting a zero price is worse than none. Send the link by hand."
+    )
+  }
+
+  const itemCount = Array.isArray(cart?.items) ? cart.items.length : null
+
   try {
     const { result } = await sendDesignOrderCreatedEmailWorkflow(scope).run({
       input: {
@@ -89,8 +131,8 @@ export const deliverDesignOrderEmail = async (
           checkout_url: input.checkoutUrl,
           payment_link: input.paymentLink ?? null,
           currency_code: cart?.currency_code ?? null,
-          total: cart?.total ?? null,
-          item_count: Array.isArray(cart?.items) ? cart.items.length : null,
+          total,
+          item_count: itemCount,
           current_year: `${new Date().getFullYear()}`,
         },
       },
