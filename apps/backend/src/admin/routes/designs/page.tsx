@@ -14,6 +14,7 @@ import {
   toast,
   CommandBar,
   Tooltip,
+  Drawer,
 } from "@medusajs/ui";
 import { Outlet, useNavigate, useSearchParams } from "react-router-dom";
 import { keepPreviousData } from "@tanstack/react-query";
@@ -38,6 +39,10 @@ import type { ViewConfiguration } from "../../hooks/api/views";
 import { usePartners } from "../../hooks/api/partners";
 import { sdk } from "../../lib/config";
 import { DesignOrderPreviewDrawer } from "../../components/designs/design-order-preview-drawer";
+import {
+  DesignOrderCreatedPanel,
+  type CreatedDesignOrder,
+} from "../../components/designs/design-order-created-panel";
 import type {
   PreviewDesignOrderResponse,
   CreateDesignOrderResponse,
@@ -162,6 +167,11 @@ const DesignsPage = () => {
   const [orderDesignIds, setOrderDesignIds] = useState<string[]>([]);
   const [previewOpen, setPreviewOpen] = useState(false);
   const [previewData, setPreviewData] = useState<PreviewDesignOrderResponse | null>(null);
+  /**
+   * The created order's links. This response used to be awaited and thrown
+   * away, while the toast told the operator to "share the checkout link".
+   */
+  const [createdOrder, setCreatedOrder] = useState<CreatedDesignOrder | null>(null);
   const [isPreviewing, setIsPreviewing] = useState(false);
   const [isCreatingOrder, setIsCreatingOrder] = useState(false);
 
@@ -698,7 +708,7 @@ const DesignsPage = () => {
     if (orderDesignIds.length === 0) return;
     setIsCreatingOrder(true);
     try {
-      await sdk.client.fetch<CreateDesignOrderResponse>(
+      const created = await sdk.client.fetch<CreateDesignOrderResponse>(
         orderCustomerId
           ? `/admin/customers/${orderCustomerId}/design-order`
           : `/admin/designs/draft-order`,
@@ -715,10 +725,9 @@ const DesignsPage = () => {
       setPreviewOpen(false);
       setPreviewData(null);
       clearSelection();
-      toast.success("Checkout cart created", {
-        description:
-          "Share the checkout link with the customer to complete payment.",
-      });
+      toast.success("Checkout cart created");
+      // Hand over the links instead of describing them.
+      setCreatedOrder(created);
     } catch (err: any) {
       toast.error("Failed to create order", {
         description: err?.message || "An unexpected error occurred.",
@@ -841,6 +850,25 @@ const DesignsPage = () => {
         isConfirming={isCreatingOrder}
       />
     )}
+
+    <Drawer
+      open={Boolean(createdOrder)}
+      onOpenChange={(open) => !open && setCreatedOrder(null)}
+    >
+      <Drawer.Content>
+        <Drawer.Header>
+          <Drawer.Title className="sr-only">Design order created</Drawer.Title>
+        </Drawer.Header>
+        <Drawer.Body className="overflow-auto p-0">
+          {createdOrder && (
+            <DesignOrderCreatedPanel
+              result={createdOrder}
+              onDone={() => setCreatedOrder(null)}
+            />
+          )}
+        </Drawer.Body>
+      </Drawer.Content>
+    </Drawer>
 
     {selectedDesigns.length > 0 && (
       <>
