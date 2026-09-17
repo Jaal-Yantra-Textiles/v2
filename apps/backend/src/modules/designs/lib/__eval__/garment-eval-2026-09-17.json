@@ -1,0 +1,1208 @@
+[
+ {
+  "kind": "fabric",
+  "name": "Cotton",
+  "text": "Cotton :: This cotton is procured from an unknown seller maybe wrong.",
+  "jev_choice": "none_of_these",
+  "jev_confidence": 1,
+  "jev_is_garment": 0.05,
+  "label": "none_of_these"
+ },
+ {
+  "kind": "fabric",
+  "name": "Raw Wool",
+  "text": "Raw Wool :: Some information about the raw wool",
+  "jev_choice": "none_of_these",
+  "jev_confidence": 1,
+  "jev_is_garment": 0.04,
+  "label": "none_of_these"
+ },
+ {
+  "kind": "fabric",
+  "name": "Linen",
+  "text": "Linen :: Linen",
+  "jev_choice": "none_of_these",
+  "jev_confidence": 1,
+  "jev_is_garment": 0.1,
+  "label": "none_of_these"
+ },
+ {
+  "kind": "fabric",
+  "name": "Tussar Silk",
+  "text": "Tussar Silk :: Silk tussar",
+  "jev_choice": "none_of_these",
+  "jev_confidence": 1,
+  "jev_is_garment": 0.05,
+  "label": "none_of_these"
+ },
+ {
+  "kind": "fabric",
+  "name": "Silver Button for Artistic Designs",
+  "text": "Silver Button for Artistic Designs :: Silver button",
+  "jev_choice": "none_of_these",
+  "jev_confidence": 1,
+  "jev_is_garment": 0.06,
+  "label": "none_of_these"
+ },
+ {
+  "kind": "fabric",
+  "name": "Kala Cotton",
+  "text": "Kala Cotton :: Organic Kala Cotton",
+  "jev_choice": "none_of_these",
+  "jev_confidence": 1,
+  "jev_is_garment": 0.07,
+  "label": "none_of_these"
+ },
+ {
+  "kind": "fabric",
+  "name": "Cotton Fabric",
+  "text": "Cotton Fabric :: Created from image extraction",
+  "jev_choice": "none_of_these",
+  "jev_confidence": 1,
+  "jev_is_garment": 0.04,
+  "label": "none_of_these"
+ },
+ {
+  "kind": "fabric",
+  "name": "Polyester Thread",
+  "text": "Polyester Thread :: Created from image extraction",
+  "jev_choice": "none_of_these",
+  "jev_confidence": 1,
+  "jev_is_garment": 0.03,
+  "label": "none_of_these"
+ },
+ {
+  "kind": "fabric",
+  "name": "Yellow cheque 2 by 1",
+  "text": "Yellow cheque 2 by 1 :: Created from image extraction",
+  "jev_choice": "none_of_these",
+  "jev_confidence": 0.86,
+  "jev_is_garment": 0.34,
+  "label": "none_of_these"
+ },
+ {
+  "kind": "fabric",
+  "name": "Brown Black cheque",
+  "text": "Brown Black cheque :: Created from image extraction",
+  "jev_choice": "none_of_these",
+  "jev_confidence": 0.98,
+  "jev_is_garment": 0.36,
+  "label": "none_of_these"
+ },
+ {
+  "kind": "fabric",
+  "name": "Brown Dark Weftline",
+  "text": "Brown Dark Weftline :: he black line is inserted crosswise by the shuttle/picker during weaving. When held off the bolt, these stripes run horizontally from side to side across the fa",
+  "jev_choice": "none_of_these",
+  "jev_confidence": 1,
+  "jev_is_garment": 0.05,
+  "label": "none_of_these"
+ },
+ {
+  "kind": "fabric",
+  "name": "Double Black Stripes Cheque over White Fabric",
+  "text": "Double Black Stripes Cheque over White Fabric :: Windowpane Hairline Stripe",
+  "jev_choice": "none_of_these",
+  "jev_confidence": 0.99,
+  "jev_is_garment": 0.06,
+  "label": "none_of_these"
+ },
+ {
+  "kind": "fabric",
+  "name": "White & Black & Red cheque",
+  "text": "White & Black & Red cheque :: Created from image extraction",
+  "jev_choice": "none_of_these",
+  "jev_confidence": 0.99,
+  "jev_is_garment": 0.38,
+  "label": "none_of_these"
+ },
+ {
+  "kind": "fabric",
+  "name": "White & Indigo cheque",
+  "text": "White & Indigo cheque :: Created from image extraction",
+  "jev_choice": "none_of_these",
+  "jev_confidence": 0.96,
+  "jev_is_garment": 0.3,
+  "label": "none_of_these"
+ },
+ {
+  "kind": "fabric",
+  "name": "Black & Red line & White cheque",
+  "text": "Black & Red line & White cheque :: Created from image extraction",
+  "jev_choice": "none_of_these",
+  "jev_confidence": 0.96,
+  "jev_is_garment": 0.29,
+  "label": "none_of_these"
+ },
+ {
+  "kind": "fabric",
+  "name": "Single Black Cheque Line Over White Fabric",
+  "text": "Single Black Cheque Line Over White Fabric :: Single warp line",
+  "jev_choice": "none_of_these",
+  "jev_confidence": 1,
+  "jev_is_garment": 0.1,
+  "label": "none_of_these"
+ },
+ {
+  "kind": "fabric",
+  "name": "Yellow cheque",
+  "text": "Yellow cheque :: Created from image extraction",
+  "jev_choice": "none_of_these",
+  "jev_confidence": 1,
+  "jev_is_garment": 0.26,
+  "label": "none_of_these"
+ },
+ {
+  "kind": "fabric",
+  "name": "Kala cotton white",
+  "text": "Kala cotton white :: Created from image extraction",
+  "jev_choice": "none_of_these",
+  "jev_confidence": 1,
+  "jev_is_garment": 0.12,
+  "label": "none_of_these"
+ },
+ {
+  "kind": "fabric",
+  "name": "Wool",
+  "text": "Wool :: Semi Pashmina",
+  "jev_choice": "none_of_these",
+  "jev_confidence": 0.92,
+  "jev_is_garment": 0.14,
+  "label": "none_of_these"
+ },
+ {
+  "kind": "fabric",
+  "name": "Linen",
+  "text": "Linen :: This is high quality handloom linen",
+  "jev_choice": "none_of_these",
+  "jev_confidence": 1,
+  "jev_is_garment": 0.05,
+  "label": "none_of_these"
+ },
+ {
+  "kind": "fabric",
+  "name": "Raw Wool ",
+  "text": "Raw Wool  :: This wool was purchased at the Khadi Gram Udyog, Srinagar",
+  "jev_choice": "none_of_these",
+  "jev_confidence": 1,
+  "jev_is_garment": 0.03,
+  "label": "none_of_these"
+ },
+ {
+  "kind": "fabric",
+  "name": "Pant Cotton Material",
+  "text": "Pant Cotton Material :: Full thick version of the cotton",
+  "jev_choice": "trousers",
+  "jev_confidence": 0.99,
+  "jev_is_garment": 0.16,
+  "label": "none_of_these"
+ },
+ {
+  "kind": "fabric",
+  "name": "Khadi",
+  "text": "Khadi :: Offwhite khadi",
+  "jev_choice": "none_of_these",
+  "jev_confidence": 1,
+  "jev_is_garment": 0.08,
+  "label": "none_of_these"
+ },
+ {
+  "kind": "fabric",
+  "name": "White Stripes Fabric ",
+  "text": "White Stripes Fabric  :: White fabric in stripes from Shramdaan",
+  "jev_choice": "none_of_these",
+  "jev_confidence": 1,
+  "jev_is_garment": 0.03,
+  "label": "none_of_these"
+ },
+ {
+  "kind": "fabric",
+  "name": "Linen Shramdaan",
+  "text": "Linen Shramdaan :: Linen from Shramdaan",
+  "jev_choice": "none_of_these",
+  "jev_confidence": 0.99,
+  "jev_is_garment": 0.23,
+  "label": "none_of_these"
+ },
+ {
+  "kind": "fabric",
+  "name": "Olive green shramdaan",
+  "text": "Olive green shramdaan :: Olive Green",
+  "jev_choice": "none_of_these",
+  "jev_confidence": 0.85,
+  "jev_is_garment": 0.44,
+  "label": "none_of_these"
+ },
+ {
+  "kind": "fabric",
+  "name": "Pink Striped Cotton",
+  "text": "Pink Striped Cotton :: Pink striped cotton",
+  "jev_choice": "none_of_these",
+  "jev_confidence": 1,
+  "jev_is_garment": 0.06,
+  "label": "none_of_these"
+ },
+ {
+  "kind": "fabric",
+  "name": "Muslin 100s",
+  "text": "Muslin 100s :: Old muslin cotton 100s count",
+  "jev_choice": "none_of_these",
+  "jev_confidence": 1,
+  "jev_is_garment": 0.04,
+  "label": "none_of_these"
+ },
+ {
+  "kind": "fabric",
+  "name": "Muslin 150s",
+  "text": "Muslin 150s :: 150 S Cotton muslin",
+  "jev_choice": "none_of_these",
+  "jev_confidence": 1,
+  "jev_is_garment": 0.03,
+  "label": "none_of_these"
+ },
+ {
+  "kind": "fabric",
+  "name": "Muslin 60s",
+  "text": "Muslin 60s :: Muslin cotton of 60s ",
+  "jev_choice": "none_of_these",
+  "jev_confidence": 1,
+  "jev_is_garment": 0.04,
+  "label": "none_of_these"
+ },
+ {
+  "kind": "fabric",
+  "name": "Muslin 90s",
+  "text": "Muslin 90s :: 100% Cotton Muslin of 90s",
+  "jev_choice": "none_of_these",
+  "jev_confidence": 1,
+  "jev_is_garment": 0.07,
+  "label": "none_of_these"
+ },
+ {
+  "kind": "fabric",
+  "name": "Kethiya",
+  "text": "Kethiya :: Kethiya silk",
+  "jev_choice": "none_of_these",
+  "jev_confidence": 0.99,
+  "jev_is_garment": 0.08,
+  "label": "none_of_these"
+ },
+ {
+  "kind": "fabric",
+  "name": "Matka",
+  "text": "Matka :: Matka handloom silk",
+  "jev_choice": "none_of_these",
+  "jev_confidence": 0.88,
+  "jev_is_garment": 0.16,
+  "label": "none_of_these"
+ },
+ {
+  "kind": "fabric",
+  "name": "Cotton 33s",
+  "text": "Cotton 33s :: Cotton with 33s",
+  "jev_choice": "none_of_these",
+  "jev_confidence": 1,
+  "jev_is_garment": 0.05,
+  "label": "none_of_these"
+ },
+ {
+  "kind": "fabric",
+  "name": "Black Jaamdaani with print ",
+  "text": "Black Jaamdaani with print  :: Black jaamdaani with print",
+  "jev_choice": "none_of_these",
+  "jev_confidence": 0.71,
+  "jev_is_garment": 0.52,
+  "label": "none_of_these"
+ },
+ {
+  "kind": "fabric",
+  "name": "Red Jaamdani with white prints",
+  "text": "Red Jaamdani with white prints :: Red jaamdani",
+  "jev_choice": "none_of_these",
+  "jev_confidence": 0.89,
+  "jev_is_garment": 0.27,
+  "label": "none_of_these"
+ },
+ {
+  "kind": "fabric",
+  "name": "Tweed Handloom Wool Natural ",
+  "text": "Tweed Handloom Wool Natural  :: This tweed is from Azmat ",
+  "jev_choice": "none_of_these",
+  "jev_confidence": 1,
+  "jev_is_garment": 0.04,
+  "label": "none_of_these"
+ },
+ {
+  "kind": "fabric",
+  "name": "Tweed White and Black ",
+  "text": "Tweed White and Black  :: Handloom tweed wool made by Azmat ",
+  "jev_choice": "none_of_these",
+  "jev_confidence": 1,
+  "jev_is_garment": 0.06,
+  "label": "none_of_these"
+ },
+ {
+  "kind": "fabric",
+  "name": "Red Dyed Kala Cotton",
+  "text": "Red Dyed Kala Cotton :: Red dyed kala cotton",
+  "jev_choice": "none_of_these",
+  "jev_confidence": 1,
+  "jev_is_garment": 0.06,
+  "label": "none_of_these"
+ },
+ {
+  "kind": "fabric",
+  "name": "Yellow Dyed Kala Cotton",
+  "text": "Yellow Dyed Kala Cotton :: Yellow Dyed Cotton",
+  "jev_choice": "none_of_these",
+  "jev_confidence": 1,
+  "jev_is_garment": 0.05,
+  "label": "none_of_these"
+ },
+ {
+  "kind": "fabric",
+  "name": "Black Dyed Kala Cotton",
+  "text": "Black Dyed Kala Cotton :: Black Kala cotton",
+  "jev_choice": "none_of_these",
+  "jev_confidence": 1,
+  "jev_is_garment": 0.05,
+  "label": "none_of_these"
+ },
+ {
+  "kind": "fabric",
+  "name": "Orange Dyed Kala Cotton",
+  "text": "Orange Dyed Kala Cotton :: Orange dyed kala cotton",
+  "jev_choice": "none_of_these",
+  "jev_confidence": 1,
+  "jev_is_garment": 0.05,
+  "label": "none_of_these"
+ },
+ {
+  "kind": "fabric",
+  "name": "Rust Dyed Kala Cotton",
+  "text": "Rust Dyed Kala Cotton :: Kala Cotton in Rust Dye",
+  "jev_choice": "none_of_these",
+  "jev_confidence": 1,
+  "jev_is_garment": 0.08,
+  "label": "none_of_these"
+ },
+ {
+  "kind": "fabric",
+  "name": "Kantha Work Cotton",
+  "text": "Kantha Work Cotton :: Pieces of different cotton material put together as quilt",
+  "jev_choice": "none_of_these",
+  "jev_confidence": 0.99,
+  "jev_is_garment": 0.77,
+  "label": "none_of_these"
+ },
+ {
+  "kind": "fabric",
+  "name": "Black Jaamdaani with print ",
+  "text": "Black Jaamdaani with print  :: Black jaamdaani with print",
+  "jev_choice": "none_of_these",
+  "jev_confidence": 0.73,
+  "jev_is_garment": 0.51,
+  "label": "none_of_these"
+ },
+ {
+  "kind": "fabric",
+  "name": "Tangaliya Weave",
+  "text": "Tangaliya Weave :: Type of weaving where the handloom weaver inserts the embroidery",
+  "jev_choice": "none_of_these",
+  "jev_confidence": 1,
+  "jev_is_garment": 0.19,
+  "label": "none_of_these"
+ },
+ {
+  "kind": "fabric",
+  "name": "Tangaliya Kala Cotton Weave Suit",
+  "text": "Tangaliya Kala Cotton Weave Suit :: Tangaliya Kala Cotton Weave",
+  "jev_choice": "two_piece_set",
+  "jev_confidence": 0.59,
+  "jev_is_garment": 0.44,
+  "label": "none_of_these"
+ },
+ {
+  "kind": "fabric",
+  "name": "Black Shirt Old",
+  "text": "Black Shirt Old :: Black shirt old",
+  "jev_choice": "shirt",
+  "jev_confidence": 1,
+  "jev_is_garment": 0.89,
+  "label": "shirt"
+ },
+ {
+  "kind": "fabric",
+  "name": "White Levis Shirt ",
+  "text": "White Levis Shirt  :: White levis shirt ",
+  "jev_choice": "shirt",
+  "jev_confidence": 1,
+  "jev_is_garment": 0.93,
+  "label": "shirt"
+ },
+ {
+  "kind": "fabric",
+  "name": "Red Jaamdani with white prints",
+  "text": "Red Jaamdani with white prints :: Red jaamdani",
+  "jev_choice": "none_of_these",
+  "jev_confidence": 0.88,
+  "jev_is_garment": 0.3,
+  "label": "none_of_these"
+ },
+ {
+  "kind": "fabric",
+  "name": "Kethiya Silk",
+  "text": "Kethiya Silk :: Katiya silk comes from the same raw material as tussah or muga silk, which are wild silk moth cocoons.Katiya silk results in a fairly thick, irregular yarn with",
+  "jev_choice": "shirt",
+  "jev_confidence": 0.89,
+  "jev_is_garment": 0.04,
+  "label": "none_of_these"
+ },
+ {
+  "kind": "fabric",
+  "name": "Kethiya Silk",
+  "text": "Kethiya Silk :: Katiya silk comes from the same raw material as tussah or muga silk, which are wild silk moth cocoons.Katiya silk results in a fairly thick, irregular yarn with",
+  "jev_choice": "shirt",
+  "jev_confidence": 0.88,
+  "jev_is_garment": 0.04,
+  "label": "none_of_these"
+ },
+ {
+  "kind": "fabric",
+  "name": "Pant Cotton Material",
+  "text": "Pant Cotton Material :: Full thick version of the cotton",
+  "jev_choice": "trousers",
+  "jev_confidence": 0.99,
+  "jev_is_garment": 0.16,
+  "label": "none_of_these"
+ },
+ {
+  "kind": "fabric",
+  "name": "SHAWL1300",
+  "text": "SHAWL1300 :: Shawl Bhuttico",
+  "jev_choice": "shawl",
+  "jev_confidence": 1,
+  "jev_is_garment": 0.88,
+  "label": "shawl"
+ },
+ {
+  "kind": "fabric",
+  "name": "Mulberry Silk Cheque",
+  "text": "Mulberry Silk Cheque :: Mulberry Silk",
+  "jev_choice": "none_of_these",
+  "jev_confidence": 0.95,
+  "jev_is_garment": 0.13,
+  "label": "none_of_these"
+ },
+ {
+  "kind": "fabric",
+  "name": "Cotton and Wool Handloom",
+  "text": "Cotton and Wool Handloom :: Cotton and Wool Handloom",
+  "jev_choice": "none_of_these",
+  "jev_confidence": 1,
+  "jev_is_garment": 0.14,
+  "label": "none_of_these"
+ },
+ {
+  "kind": "fabric",
+  "name": "Mulberry Silk Cheque",
+  "text": "Mulberry Silk Cheque :: Mulberry Silk",
+  "jev_choice": "none_of_these",
+  "jev_confidence": 0.94,
+  "jev_is_garment": 0.13,
+  "label": "none_of_these"
+ },
+ {
+  "kind": "fabric",
+  "name": "Yellow Dyed Kala Cotton",
+  "text": "Yellow Dyed Kala Cotton :: Yellow Dyed Cotton",
+  "jev_choice": "none_of_these",
+  "jev_confidence": 1,
+  "jev_is_garment": 0.05,
+  "label": "none_of_these"
+ },
+ {
+  "kind": "fabric",
+  "name": "Ikkat Dye Silk",
+  "text": "Ikkat Dye Silk :: The ikkat silk dyed fabric from Bhagalpur",
+  "jev_choice": "none_of_these",
+  "jev_confidence": 0.99,
+  "jev_is_garment": 0.05,
+  "label": "none_of_these"
+ },
+ {
+  "kind": "fabric",
+  "name": "Vilot Silk Raw",
+  "text": "Vilot Silk Raw :: This is a silk with multi thread warp and weft ",
+  "jev_choice": "none_of_these",
+  "jev_confidence": 1,
+  "jev_is_garment": 0.03,
+  "label": "none_of_these"
+ },
+ {
+  "kind": "product",
+  "name": "Stunning Yellow",
+  "text": "Stunning Yellow :: This stunning jumpsuit features a vibrant deep yellow, naturally dyed by Sahil Rangrez on lightweight muslin cotton. The bold color and breathable fabric make i",
+  "jev_choice": "jumpsuit",
+  "jev_confidence": 1,
+  "jev_is_garment": 0.95,
+  "label": "jumpsuit"
+ },
+ {
+  "kind": "product",
+  "name": "Two Piece",
+  "text": "Two Piece :: This elegant two-piece set combines comfort and style, featuring a 100% cotton blouse sourced from Basak's powerloom collection, paired with a flowy skirt made ",
+  "jev_choice": "two_piece_set",
+  "jev_confidence": 0.99,
+  "jev_is_garment": 0.95,
+  "label": "two_piece_set"
+ },
+ {
+  "kind": "product",
+  "name": "Single Skirt",
+  "text": "Single Skirt :: This everyday dress is made from Basak's handloom linen, sourced directly from Phulia. Featuring a harmonious combination of green and sky-blue hues, the fabric",
+  "jev_choice": "skirt",
+  "jev_confidence": 0.79,
+  "jev_is_garment": 0.86,
+  "label": "skirt"
+ },
+ {
+  "kind": "product",
+  "name": "Jumpsuit",
+  "text": "Jumpsuit :: Embrace sophistication with this refined jumpsuit, crafted from a luxurious blend of linen and kala cotton. The fabric combines the best of Basak\u2019s handloom exp",
+  "jev_choice": "jumpsuit",
+  "jev_confidence": 1,
+  "jev_is_garment": 0.96,
+  "label": "jumpsuit"
+ },
+ {
+  "kind": "product",
+  "name": "Than's Skirt",
+  "text": "Than's Skirt :: This elegant dress is crafted from 100% cotton bamboo, sourced from Basak's Phulia collection. The rich navy blue color adds a touch of sophistication to its si",
+  "jev_choice": "dress",
+  "jev_confidence": 0.57,
+  "jev_is_garment": 0.89,
+  "label": "dress"
+ },
+ {
+  "kind": "product",
+  "name": "Rosy White",
+  "text": "Rosy White :: This stylish ensemble is crafted from muslin cotton, naturally dyed by the skilled Sahi Rangrez from Delhi, resulting in a beautiful blend of pink and white hue",
+  "jev_choice": "none_of_these",
+  "jev_confidence": 0.62,
+  "jev_is_garment": 0.81,
+  "label": "none_of_these"
+ },
+ {
+  "kind": "product",
+  "name": "Set of Lavender",
+  "text": "Set of Lavender :: This stylish ensemble is crafted from organic kala cotton, featuring the same beautiful blend of lavender and natural white hues as seen in our muslin collectio",
+  "jev_choice": "two_piece_set",
+  "jev_confidence": 0.97,
+  "jev_is_garment": 0.75,
+  "label": "two_piece_set"
+ },
+ {
+  "kind": "product",
+  "name": "Long Dress",
+  "text": "Long Dress :: This versatile dress, perfect for any occasion, is crafted from an exquisite blend of modal silk and bamboo cotton handloomed by Basak. The fabric's luxurious f",
+  "jev_choice": "dress",
+  "jev_confidence": 1,
+  "jev_is_garment": 0.95,
+  "label": "dress"
+ },
+ {
+  "kind": "product",
+  "name": "Split Side",
+  "text": "Split Side :: \nThis elegant dress showcases the beauty of handloom craftsmanship, made from a luxurious blend of Basak's handloom modal and bamboo cotton, ensuring both comfo",
+  "jev_choice": "dress",
+  "jev_confidence": 1,
+  "jev_is_garment": 0.95,
+  "label": "dress"
+ },
+ {
+  "kind": "product",
+  "name": "Verdant Harmony Handwoven Ensemble",
+  "text": "Verdant Harmony Handwoven Ensemble :: Embrace the essence of sustainable fashion with the Verdant Harmony Handwoven Ensemble, a perfect blend of traditional craftsmanship and contemporary style. Thi",
+  "jev_choice": "two_piece_set",
+  "jev_confidence": 0.94,
+  "jev_is_garment": 0.95,
+  "label": "two_piece_set"
+ },
+ {
+  "kind": "product",
+  "name": "Green Side Dress",
+  "text": "Green Side Dress :: This unique handloom linen dress is a true embodiment of global craftsmanship and sustainable fashion. It originates from Phulia, West Bengal, where the fabric ",
+  "jev_choice": "dress",
+  "jev_confidence": 1,
+  "jev_is_garment": 0.96,
+  "label": "dress"
+ },
+ {
+  "kind": "product",
+  "name": "Short Skirt",
+  "text": "Short Skirt :: These timeless short midi dresses are crafted from organic kala cotton sourced from Kutch, spun and woven by Hemraj Haresh. The fabric's handspun quality, earth",
+  "jev_choice": "dress",
+  "jev_confidence": 0.52,
+  "jev_is_garment": 0.9,
+  "label": "dress"
+ },
+ {
+  "kind": "product",
+  "name": "Cotton Shirt",
+  "text": "Cotton Shirt :: Discover the unique charm of this men's short-sleeve shirt, a testament to local Indian craftsmanship. Made from authentic Kala Cotton, known for its natural te",
+  "jev_choice": "shirt",
+  "jev_confidence": 1,
+  "jev_is_garment": 0.96,
+  "label": "shirt"
+ },
+ {
+  "kind": "product",
+  "name": "She in the moment",
+  "text": "She in the moment :: This one-of-a-kind dress is a celebration of sustainable fashion and traditional craftsmanship. The fabric, a recycled piece from a beautiful handloom saree fro",
+  "jev_choice": "dress",
+  "jev_confidence": 1,
+  "jev_is_garment": 0.94,
+  "label": "dress"
+ },
+ {
+  "kind": "product",
+  "name": "Flowers and Silk",
+  "text": "Flowers and Silk :: Embrace sustainable style with this beautifully crafted, unique dress. This sleeveless, knee-length piece features a striking central panel of recycled silk, so",
+  "jev_choice": "dress",
+  "jev_confidence": 1,
+  "jev_is_garment": 0.97,
+  "label": "dress"
+ },
+ {
+  "kind": "product",
+  "name": "Dark J",
+  "text": "Dark J :: hjvfgckgcvliug",
+  "jev_choice": "none_of_these",
+  "jev_confidence": 0.91,
+  "jev_is_garment": 0.47,
+  "label": "none_of_these"
+ },
+ {
+  "kind": "product",
+  "name": "Kala Cotton Pair",
+  "text": "Kala Cotton Pair :: Introducing a truly unique and meaningful garment, our Sharhlo meditation set is a blend of Japanese and Tibetan aesthetics, designed for comfort and tranquilit",
+  "jev_choice": "two_piece_set",
+  "jev_confidence": 0.99,
+  "jev_is_garment": 0.95,
+  "label": "two_piece_set"
+ },
+ {
+  "kind": "product",
+  "name": "Pretty and shiny",
+  "text": "Pretty and shiny :: \nEmbrace the serene comfort of the Himalayan Linen Shirt, a perfect companion for warm summer days. Crafted from the finest handloom linen, this piece offers a ",
+  "jev_choice": "shirt",
+  "jev_confidence": 1,
+  "jev_is_garment": 0.91,
+  "label": "shirt"
+ },
+ {
+  "kind": "product",
+  "name": "Winter wraps",
+  "text": "Winter wraps :: Introducing the Nomad's Wrap, a unique piece inspired by the flowing lines of Japanese design and the robust warmth of traditional Tibetan wear. Crafted from lu",
+  "jev_choice": "shawl",
+  "jev_confidence": 0.82,
+  "jev_is_garment": 0.93,
+  "label": "shawl"
+ },
+ {
+  "kind": "product",
+  "name": "Lhamo Jacket",
+  "text": "Lhamo Jacket :: Embrace the chill with the elegant warmth of the Himalayan Jacket. Woven from a blend of natural camel and yak wool, this jacket is more than just outerwear\u2014it'",
+  "jev_choice": "jacket",
+  "jev_confidence": 1,
+  "jev_is_garment": 0.95,
+  "label": "jacket"
+ },
+ {
+  "kind": "product",
+  "name": "Silk and Cotton Queen",
+  "text": "Silk and Cotton Queen :: Introducing a standout piece from designer Saransh Sharma, this shirt is a masterclass in modern, thoughtful design. It\u2019s an artful blend of textures, featuring",
+  "jev_choice": "shirt",
+  "jev_confidence": 1,
+  "jev_is_garment": 0.96,
+  "label": "shirt"
+ },
+ {
+  "kind": "product",
+  "name": "Tweed Fun",
+  "text": "Tweed Fun :: Step into timeless style with the Pulwama Tweed Jacket, a testament to the enduring craftsmanship of Kashmiri handloom. This classic blazer-style jacket is wove",
+  "jev_choice": "jacket",
+  "jev_confidence": 1,
+  "jev_is_garment": 0.94,
+  "label": "jacket"
+ },
+ {
+  "kind": "product",
+  "name": "Red Random Skirt",
+  "text": "Red Random Skirt :: Experience the art of handloom with the Shramdaan Skirt, a unique piece crafted entirely on cotton looms in the heart of Madhya Pradesh. This skirt is a testame",
+  "jev_choice": "skirt",
+  "jev_confidence": 1,
+  "jev_is_garment": 0.96,
+  "label": "skirt"
+ },
+ {
+  "kind": "product",
+  "name": "Summer Wraps",
+  "text": "Summer Wraps :: Elevate your life with this beautifully crafted Kimono-Style Wrap Top, woven from 100% pure handloom cotton fabric sourced directly from Shramdaan. The textile ",
+  "jev_choice": "top",
+  "jev_confidence": 0.98,
+  "jev_is_garment": 0.95,
+  "label": "top"
+ },
+ {
+  "kind": "product",
+  "name": "Cotton Jump Suit",
+  "text": "Cotton Jump Suit :: Embrace effortless bohemian chic with this stunning white handloom cotton jumpsuit, featuring artistic black tie-dye patchwork that adds a playful, artisanal ed",
+  "jev_choice": "jumpsuit",
+  "jev_confidence": 1,
+  "jev_is_garment": 0.97,
+  "label": "jumpsuit"
+ },
+ {
+  "kind": "product",
+  "name": "Purple in you",
+  "text": "Purple in you :: Crafted from plush velvet, this tunic blends deep purple and violet hues in a subtle play of tone and texture. Its relaxed silhouette drapes effortlessly, offer",
+  "jev_choice": "tunic",
+  "jev_confidence": 1,
+  "jev_is_garment": 0.95,
+  "label": "tunic"
+ },
+ {
+  "kind": "product",
+  "name": "The winter elegance",
+  "text": "The winter elegance :: Experience timeless elegance with our Hand-Embroidered Tweed Wool Jacket, a masterpiece crafted by the skilled hands of Bismah. This exquisite jacket is meticul",
+  "jev_choice": "jacket",
+  "jev_confidence": 1,
+  "jev_is_garment": 0.96,
+  "label": "jacket"
+ },
+ {
+  "kind": "product",
+  "name": "Handwoven Ladakh Wool Shirt",
+  "text": "Handwoven Ladakh Wool Shirt :: Crafted from premium natural wool sourced from the remote highlands of Ladakh, this handwoven shirt celebrates traditional craftsmanship with intricate Tibetan ",
+  "jev_choice": "shirt",
+  "jev_confidence": 1,
+  "jev_is_garment": 0.96,
+  "label": "shirt"
+ },
+ {
+  "kind": "product",
+  "name": "Handcrafted Undyed Tweed Vest",
+  "text": "Handcrafted Undyed Tweed Vest :: Experience timeless elegance with our Original Design Undyed Tweed Vest, meticulously crafted in the renowned artisan hubs of Kashmir. This premium handloom pie",
+  "jev_choice": "vest",
+  "jev_confidence": 1,
+  "jev_is_garment": 0.96,
+  "label": "vest"
+ },
+ {
+  "kind": "product",
+  "name": "Handloom Tweed Wool Jacket",
+  "text": "Handloom Tweed Wool Jacket :: Crafted from premium handloom tweed wool, this elegant jacket showcases the timeless artistry of Kashmir. Each piece is meticulously dyed at a local shop in Sri",
+  "jev_choice": "jacket",
+  "jev_confidence": 1,
+  "jev_is_garment": 0.97,
+  "label": "jacket"
+ },
+ {
+  "kind": "product",
+  "name": "Wool Jacket",
+  "text": "Wool Jacket :: ",
+  "jev_choice": "jacket",
+  "jev_confidence": 1,
+  "jev_is_garment": 0.93,
+  "label": "jacket"
+ },
+ {
+  "kind": "product",
+  "name": "Kashmiri Semi-Pashmina Jacket ",
+  "text": "Kashmiri Semi-Pashmina Jacket  :: Embrace artisanal elegance with this Kashmiri semi-pashmina shawl, ethically sourced from the renowned valleys of Kashmir for exceptional softness and lightweig",
+  "jev_choice": "jacket",
+  "jev_confidence": 0.83,
+  "jev_is_garment": 0.76,
+  "label": "jacket"
+ },
+ {
+  "kind": "product",
+  "name": " Raw Silk in Pure White",
+  "text": " Raw Silk in Pure White :: Experience the elegance of Bhagalpur woven raw silk, meticulously handcrafted in pure white and bleached at home. This luxurious fabric is brought to life with ",
+  "jev_choice": "none_of_these",
+  "jev_confidence": 1,
+  "jev_is_garment": 0.05,
+  "label": "none_of_these"
+ },
+ {
+  "kind": "product",
+  "name": "Shacket ",
+  "text": "Shacket  :: Experience the perfect blend of rugged utility and artistic flair with this bleached shacket, expertly crafted as an intermediate piece between a shirt and a ja",
+  "jev_choice": "none_of_these",
+  "jev_confidence": 0.49,
+  "jev_is_garment": 0.96,
+  "label": "none_of_these"
+ },
+ {
+  "kind": "product",
+  "name": "Vibrant Dye Art",
+  "text": "Vibrant Dye Art :: Crafted from premium handloom fabric, this shirt showcases a unique blend of traditional artistry and modern design. The top features meticulously crafted patch",
+  "jev_choice": "shirt",
+  "jev_confidence": 1,
+  "jev_is_garment": 0.95,
+  "label": "shirt"
+ },
+ {
+  "kind": "product",
+  "name": "Black Bhagalpur Raw Silk ",
+  "text": "Black Bhagalpur Raw Silk  :: Elevate your wardrobe with this versatile cropped jacket, crafted from authentic raw silk dyed in deep black from Bhagalpur's renowned silk heritage. The luxuri",
+  "jev_choice": "jacket",
+  "jev_confidence": 1,
+  "jev_is_garment": 0.92,
+  "label": "jacket"
+ },
+ {
+  "kind": "product",
+  "name": "Tibetan-Inspired Emerald Green Shirt",
+  "text": "Tibetan-Inspired Emerald Green Shirt :: Embrace the vibrant spirit of summer with this exquisite Tibetan-inspired chupa, meticulously handwoven at Shramdaan. Crafted in a rich emerald green hue, its l",
+  "jev_choice": "shirt",
+  "jev_confidence": 0.72,
+  "jev_is_garment": 0.92,
+  "label": "shirt"
+ },
+ {
+  "kind": "product",
+  "name": "Lhamo Ivory Khadi Jacket ",
+  "text": "Lhamo Ivory Khadi Jacket  :: Elevate your wardrobe with the Lhamo Ivory Khadi Jacket, a perfect blend of tradition and modern elegance. Crafted from soft, breathable khadi fabric, this jack",
+  "jev_choice": "jacket",
+  "jev_confidence": 1,
+  "jev_is_garment": 0.95,
+  "label": "jacket"
+ },
+ {
+  "kind": "product",
+  "name": "Bhagalpur Handloom Linen Trousers",
+  "text": "Bhagalpur Handloom Linen Trousers :: Discover these exceptional trousers, handwoven by the skilled artisans of Bhagalpur Handlooms SHG\u2014a special find from our co-founder's journey to Bihar. Crafted",
+  "jev_choice": "trousers",
+  "jev_confidence": 1,
+  "jev_is_garment": 0.96,
+  "label": "trousers"
+ },
+ {
+  "kind": "product",
+  "name": "Hakama-Inspired Overlap Trousers",
+  "text": "Hakama-Inspired Overlap Trousers :: Discover the fusion of Japanese tradition and artisanal ethics with these unique overlap trousers. Designed with a hakama-inspired silhouette, the overlapping p",
+  "jev_choice": "trousers",
+  "jev_confidence": 0.99,
+  "jev_is_garment": 0.96,
+  "label": "trousers"
+ },
+ {
+  "kind": "product",
+  "name": "Quilted Jacket",
+  "text": "Quilted Jacket :: Introducing our stylish and comfortable Quilted Jacket, carefully crafted with attention to detail. The fabric used in this jacket is locally sourced, ensuring ",
+  "jev_choice": "jacket",
+  "jev_confidence": 1,
+  "jev_is_garment": 0.97,
+  "label": "jacket"
+ },
+ {
+  "kind": "product",
+  "name": "Royal Black Silk Jacket",
+  "text": "Royal Black Silk Jacket :: Elevate your style with this exquisite jacket crafted from raw silk dyed in a rich black. The soft cotton inner lining ensures all-day comfort, while the extra ",
+  "jev_choice": "jacket",
+  "jev_confidence": 1,
+  "jev_is_garment": 0.96,
+  "label": "jacket"
+ },
+ {
+  "kind": "product",
+  "name": "Traditional Muslin",
+  "text": "Traditional Muslin :: This are the Hand spun & Handwoven muslin from our best Artisans.",
+  "jev_choice": "none_of_these",
+  "jev_confidence": 1,
+  "jev_is_garment": 0.07,
+  "label": "none_of_these"
+ },
+ {
+  "kind": "product",
+  "name": "Custom Design - Girls of Dust",
+  "text": "Custom Design - Girls of Dust :: Girls of dust imitation in cotton",
+  "jev_choice": "none_of_these",
+  "jev_confidence": 0.96,
+  "jev_is_garment": 0.41,
+  "label": "none_of_these"
+ },
+ {
+  "kind": "product",
+  "name": "Kala Cotton",
+  "text": "Kala Cotton :: ",
+  "jev_choice": "none_of_these",
+  "jev_confidence": 1,
+  "jev_is_garment": 0.1,
+  "label": "none_of_these"
+ },
+ {
+  "kind": "product",
+  "name": "Bengal Jamdani",
+  "text": "Bengal Jamdani :: ",
+  "jev_choice": "none_of_these",
+  "jev_confidence": 0.63,
+  "jev_is_garment": 0.21,
+  "label": "none_of_these"
+ },
+ {
+  "kind": "product",
+  "name": "HandWoven Linen",
+  "text": "HandWoven Linen :: ",
+  "jev_choice": "none_of_these",
+  "jev_confidence": 1,
+  "jev_is_garment": 0.1,
+  "label": "none_of_these"
+ },
+ {
+  "kind": "product",
+  "name": "handmade-fish-dari",
+  "text": "handmade-fish-dari :: This beautiful Handmade Cotton Dari is crafted with care using traditional techniques. The unique fish and bird design adds a vibrant and artistic touch to your",
+  "jev_choice": "none_of_these",
+  "jev_confidence": 0.75,
+  "jev_is_garment": 0.8,
+  "label": "none_of_these"
+ },
+ {
+  "kind": "product",
+  "name": "Tangaliya Weave Flowy Skirt",
+  "text": "Tangaliya Weave Flowy Skirt :: Flowy Skirt with Hand Embroidery ",
+  "jev_choice": "skirt",
+  "jev_confidence": 1,
+  "jev_is_garment": 0.9,
+  "label": "skirt"
+ },
+ {
+  "kind": "product",
+  "name": "Cream Embroidered Shawl with Paisley Motifs",
+  "text": "Cream Embroidered Shawl with Paisley Motifs :: This cream-colored shawl features intricate hand embroidery along the borders. The design showcases traditional paisley and floral patterns stitched in rust, pi",
+  "jev_choice": "shawl",
+  "jev_confidence": 1,
+  "jev_is_garment": 0.95,
+  "label": "shawl"
+ },
+ {
+  "kind": "product",
+  "name": "Dusty Rose Woven Shawl with White Motifs",
+  "text": "Dusty Rose Woven Shawl with White Motifs :: This dusty rose textile features a repeating pattern of small, light-colored motifs scattered across the surface. Decorative borders with detailed stitching fra",
+  "jev_choice": "shawl",
+  "jev_confidence": 1,
+  "jev_is_garment": 0.82,
+  "label": "shawl"
+ },
+ {
+  "kind": "product",
+  "name": "Light Brown Embroidered Shawl with Floral Motifs",
+  "text": "Light Brown Embroidered Shawl with Floral Motifs :: This light brown shawl features delicate embroidery with small floral motifs scattered across the center. Larger, intricate paisley designs accent the lower cor",
+  "jev_choice": "shawl",
+  "jev_confidence": 1,
+  "jev_is_garment": 0.94,
+  "label": "shawl"
+ },
+ {
+  "kind": "product",
+  "name": "Handspun Silk",
+  "text": "Handspun Silk :: ",
+  "jev_choice": "none_of_these",
+  "jev_confidence": 0.99,
+  "jev_is_garment": 0.1,
+  "label": "none_of_these"
+ },
+ {
+  "kind": "product",
+  "name": "Stripes & Checks",
+  "text": "Stripes & Checks :: ",
+  "jev_choice": "none_of_these",
+  "jev_confidence": 0.99,
+  "jev_is_garment": 0.19,
+  "label": "none_of_these"
+ },
+ {
+  "kind": "product",
+  "name": "HandWoven Cotton",
+  "text": "HandWoven Cotton :: ",
+  "jev_choice": "none_of_these",
+  "jev_confidence": 1,
+  "jev_is_garment": 0.1,
+  "label": "none_of_these"
+ },
+ {
+  "kind": "product",
+  "name": "Kilim Rug",
+  "text": "Kilim Rug :: Beautiful handwoven multicolor kilim rug with tribal geometric pattern. Soft, durable and perfect for home decor, living room and bedroom.",
+  "jev_choice": "none_of_these",
+  "jev_confidence": 1,
+  "jev_is_garment": 0.82,
+  "label": "none_of_these"
+ },
+ {
+  "kind": "product",
+  "name": "Handmade Traditional Red Carpet / Rug",
+  "text": "Handmade Traditional Red Carpet / Rug :: This is a beautiful handmade traditional red carpet/rug with an attractive geometric design and soft fabric material. It is perfect for bedrooms, living rooms, ",
+  "jev_choice": "none_of_these",
+  "jev_confidence": 1,
+  "jev_is_garment": 0.83,
+  "label": "none_of_these"
+ },
+ {
+  "kind": "product",
+  "name": "Bakshi's Design",
+  "text": "Bakshi's Design :: This design is inspired by Bakshi's wardrobe who happens to be a Bollywood director. This top is 100 % cotton handwoven at Shramdaan. Design matched through ano",
+  "jev_choice": "top",
+  "jev_confidence": 1,
+  "jev_is_garment": 0.82,
+  "label": "top"
+ },
+ {
+  "kind": "product",
+  "name": "Custom Design - Flowy Skirt",
+  "text": "Custom Design - Flowy Skirt :: Flowy Skirt with Hand Embroidery ",
+  "jev_choice": "skirt",
+  "jev_confidence": 1,
+  "jev_is_garment": 0.92,
+  "label": "skirt"
+ },
+ {
+  "kind": "product",
+  "name": "Off-White Khadi Shirt with Front Pockets",
+  "text": "Off-White Khadi Shirt with Front Pockets :: This off-white khadi shirt features a mandarin collar and two front patch pockets. It is handwoven in Madhya Pradesh and stitched in Dharamshala.",
+  "jev_choice": "shirt",
+  "jev_confidence": 1,
+  "jev_is_garment": 0.97,
+  "label": "shirt"
+ },
+ {
+  "kind": "product",
+  "name": "Royal Blue Geometric Handwoven Rug",
+  "text": "Royal Blue Geometric Handwoven Rug :: Premium 4\u00d76 ft handwoven rug featuring an elegant royal blue base with golden geometric motifs and decorative tassel fringes. Perfect for adding luxury and soph",
+  "jev_choice": "none_of_these",
+  "jev_confidence": 1,
+  "jev_is_garment": 0.88,
+  "label": "none_of_these"
+ },
+ {
+  "kind": "product",
+  "name": "A Hand-Woven Poncho-Top",
+  "text": "A Hand-Woven Poncho-Top :: Artisanal/Avant-Garde Folk & This artisanal ensemble is a masterclass in texture and proportion, beautifully capturing the essence of contemporary slow-fashion ",
+  "jev_choice": "top",
+  "jev_confidence": 0.98,
+  "jev_is_garment": 0.93,
+  "label": "top"
+ },
+ {
+  "kind": "product",
+  "name": "Handloom Cotton Cheque Fabrics Collection",
+  "text": "Handloom Cotton Cheque Fabrics Collection :: Premium handloom cotton cheque fabrics in various color patterns. Each fabric is ethically woven using organic Kala Cotton.",
+  "jev_choice": "none_of_these",
+  "jev_confidence": 1,
+  "jev_is_garment": 0.03,
+  "label": "none_of_these"
+ },
+ {
+  "kind": "product",
+  "name": "Custom Design - Denim Trouser",
+  "text": "Custom Design - Denim Trouser :: Denim based designer trouser",
+  "jev_choice": "trousers",
+  "jev_confidence": 1,
+  "jev_is_garment": 0.92,
+  "label": "trousers"
+ },
+ {
+  "kind": "product",
+  "name": "Custom Design - Butterfly in muslin",
+  "text": "Custom Design - Butterfly in muslin :: Butterfly shirt ",
+  "jev_choice": "shirt",
+  "jev_confidence": 1,
+  "jev_is_garment": 0.83,
+  "label": "shirt"
+ },
+ {
+  "kind": "product",
+  "name": "Reversible Pashmina",
+  "text": "Reversible Pashmina :: ",
+  "jev_choice": "shawl",
+  "jev_confidence": 0.6,
+  "jev_is_garment": 0.76,
+  "label": "shawl"
+ },
+ {
+  "kind": "product",
+  "name": "Custom Design - Design for Oshen",
+  "text": "Custom Design - Design for Oshen :: Spa related design in cotton and linen and silk for summers ",
+  "jev_choice": "none_of_these",
+  "jev_confidence": 0.99,
+  "jev_is_garment": 0.26,
+  "label": "none_of_these"
+ },
+ {
+  "kind": "product",
+  "name": "Custom Design - Oshen \u2014 Cotton & Silk Robes",
+  "text": "Custom Design - Oshen \u2014 Cotton & Silk Robes :: Robes for Oshen (Sunda): a cotton robe and a silk robe, the silk to be non-violent (ahimsa/peace) silk. Component of Design for Oshen \u2014 spa-adjacent summer rang",
+  "jev_choice": "robe",
+  "jev_confidence": 1,
+  "jev_is_garment": 0.74,
+  "label": "robe"
+ },
+ {
+  "kind": "product",
+  "name": "Custom Design - Oshen \u2014 Scarves",
+  "text": "Custom Design - Oshen \u2014 Scarves :: Scarves for Oshen (Sunda), in cotton, silk and linen. Component of Design for Oshen \u2014 spa-adjacent summer range. Palette: red, greyish blue, orange, beige, seaf",
+  "jev_choice": "scarf",
+  "jev_confidence": 1,
+  "jev_is_garment": 0.85,
+  "label": "scarf"
+ },
+ {
+  "kind": "product",
+  "name": "Custom Design - Oshen \u2014 Shawls",
+  "text": "Custom Design - Oshen \u2014 Shawls :: Shawls for Oshen (Sunda), in cotton, silk and linen. Component of Design for Oshen \u2014 spa-adjacent summer range. Palette: red, greyish blue, orange, beige, seafo",
+  "jev_choice": "shawl",
+  "jev_confidence": 1,
+  "jev_is_garment": 0.83,
+  "label": "shawl"
+ },
+ {
+  "kind": "product",
+  "name": "Custom Design - Oshen \u2014 Tea Towels",
+  "text": "Custom Design - Oshen \u2014 Tea Towels :: Tea towels for Oshen (Sunda), in cotton and linen. Component of Design for Oshen \u2014 spa-adjacent summer range. Palette: red, greyish blue, orange, beige, seafoam",
+  "jev_choice": "none_of_these",
+  "jev_confidence": 1,
+  "jev_is_garment": 0.86,
+  "label": "none_of_these"
+ },
+ {
+  "kind": "product",
+  "name": "Mulberry Silk",
+  "text": "Mulberry Silk :: ",
+  "jev_choice": "none_of_these",
+  "jev_confidence": 1,
+  "jev_is_garment": 0.08,
+  "label": "none_of_these"
+ },
+ {
+  "kind": "product",
+  "name": "Handloom Jacket Denim",
+  "text": "Handloom Jacket Denim :: Handloom Jacket in Denim",
+  "jev_choice": "jacket",
+  "jev_confidence": 1,
+  "jev_is_garment": 0.91,
+  "label": "jacket"
+ },
+ {
+  "kind": "product",
+  "name": "Jolly jungle",
+  "text": "Jolly jungle :: Jungle come forward",
+  "jev_choice": "none_of_these",
+  "jev_confidence": 1,
+  "jev_is_garment": 0.25,
+  "label": "none_of_these"
+ }
+]
