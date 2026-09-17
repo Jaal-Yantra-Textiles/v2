@@ -59,6 +59,17 @@ export type AdminGoodsTransfer = {
   shipped_at: string | null
   received_at: string | null
   received_quantity: number | null
+  /**
+   * When the inventory movement was POSTED (#891, 2026-09-13) — distinct from
+   * `received_at` on purpose.
+   *
+   * 🔴 `received_at` set with this null is a real operational state, not a
+   * rounding error: the goods are physically at the destination and still on
+   * the PARTNER's books, because the run behind them has not been approved.
+   * Approval posts it. A screen that shows only `received_at` will say a
+   * transfer is done while our stock says otherwise.
+   */
+  inventory_posted_at: string | null
   notes: string | null
   /** Carries `replaces_transfer_id` / `replaced_by_transfer_id` and the cancellation record. */
   metadata: Record<string, any> | null

@@ -780,6 +780,54 @@ export async function applyRunApprovals(
         `[approve-run-output] #1970 order-line binding failed: ${e?.message ?? e}`
       )
     }
+
+    /**
+     * #891 (2026-09-13) — approval is what lets a goods transfer post.
+     *
+     * Partner completion is a CLAIM; this is the ACCEPTANCE of it, and stock
+     * must not enter our books on an unaccepted claim. A transfer received
+     * before now was recorded but moved nothing (`planTransferMove`'s
+     * `unapproved_run`), and its `inventory_posted_at` is still null. This is
+     * the second half of that pair: whichever of receipt and approval happens
+     * LAST performs the movement.
+     *
+     * Non-fatal and last, for the same reason as the binding above: the
+     * approval decision is already durable, and an unposted transfer is
+     * recoverable — a lost approval is not. It is also idempotent, so a retry
+     * or a re-approval posts nothing twice.
+     */
+    for (const runId of [...new Set(reports.filter((r) => r.outcome === "approved").map((r) => r.run_id))]) {
+      try {
+        /**
+         * 🔴 Imported LAZILY, on purpose. `receive-goods-transfer` pulls in
+         * `production-run-reservations-link`, and `defineLink(...)` THROWS at
+         * module-evaluation time outside a running Medusa container
+         * (`linkable` is undefined). A top-level import here took down
+         * `approve-run-output.unit.spec.ts` entirely — the suite failed to
+         * LOAD, which jest reports as a failed suite with 0 tests, next to a
+         * cheerful "50 passed" from the other files in the same run.
+         *
+         * Deferring it to call time keeps the link out of every importer's
+         * module graph while changing nothing at runtime, where the container
+         * exists by definition.
+         */
+        const { postPendingTransfersForRun } = await import(
+          // `.js`, not `.ts`: this package compiles under nodenext module
+          // resolution, where a relative specifier must name the EMITTED file.
+          "./receive-goods-transfer.js"
+        )
+        const { posted, skipped } = await postPendingTransfersForRun(container, runId)
+        if (posted || skipped) {
+          logger?.info?.(
+            `[approve-run-output] #891 run ${runId}: posted ${posted} deferred transfer(s), skipped ${skipped}`
+          )
+        }
+      } catch (e: any) {
+        logger?.warn?.(
+          `[approve-run-output] #891 deferred transfer posting failed for run ${runId}: ${e?.message ?? e}`
+        )
+      }
+    }
   }
 
   return summarise(input, reports, createdProductIds)

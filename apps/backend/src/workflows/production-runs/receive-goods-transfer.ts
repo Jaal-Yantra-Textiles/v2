@@ -66,6 +66,7 @@ export type MoveSkipReason =
   | "customer_leg"
   | "same_location"
   | "zero_quantity"
+  | "unapproved_run"
 
 export type TransferMovePlan = {
   move: boolean
@@ -73,6 +74,38 @@ export type TransferMovePlan = {
   from_location_id: string
   to_location_id?: string
   skip_reason?: MoveSkipReason
+  /**
+   * What the run ACCEPTED, when the approval said. `null` means the run states
+   * no quantities at all, which is not the same as zero — the plan then trusts
+   * what was counted rather than inventing a cap.
+   */
+  accepted_quantity?: number | null
+}
+
+/** The approval facts a posting decision needs. Nothing else from the run. */
+export type RunApprovalFacts = {
+  approval_decision?: string | null
+  produced_quantity?: number | null
+  rejected_quantity?: number | null
+}
+
+/**
+ * PURE: how many units did this run's approval actually ACCEPT?
+ *
+ * `produced_quantity` is the partner's claim; `rejected_quantity` is what the
+ * review threw out. Accepted is the difference, floored at 0 — a rejected count
+ * larger than the produced one is a data error, and a negative acceptance would
+ * post a movement backwards.
+ *
+ * Returns null when the run states no produced quantity. Null is "unstated",
+ * not zero: capping a real receipt at 0 because a column was never filled in
+ * would silently strand goods that are physically at the destination.
+ */
+export function acceptedQuantity(run: RunApprovalFacts): number | null {
+  const produced = run.produced_quantity
+  if (produced == null || Number.isNaN(Number(produced))) return null
+  const rejected = Number(run.rejected_quantity ?? 0) || 0
+  return Math.max(0, Number(produced) - rejected)
 }
 
 /**
@@ -131,10 +164,11 @@ export function planTransferMove(
     from_location_id?: string | null
     to_location_id?: string | null
   },
-  receivedQuantity?: number | null
+  receivedQuantity?: number | null,
+  run?: RunApprovalFacts | null
 ): TransferMovePlan {
   const sent = Number(transfer.quantity ?? 0)
-  const quantity = Number(
+  const counted = Number(
     receivedQuantity == null || Number.isNaN(Number(receivedQuantity))
       ? sent
       : receivedQuantity
@@ -143,10 +177,53 @@ export function planTransferMove(
   const from = String(transfer.from_location_id || "")
   const to = transfer.to_location_id ? String(transfer.to_location_id) : undefined
 
-  const base = { quantity, from_location_id: from, to_location_id: to }
+  /**
+   * 🔴 Post only what was ACCEPTED (2026-09-13 founder call).
+   *
+   * A run that produced 3 and had 1 rejected accepted 2. Posting all 3 would
+   * put a rejected garment in our books at our location while it is physically
+   * still the partner's problem — a wrong SPLIT, which is the exact family that
+   * once minted a phantom jacket and put it on sale at ₹11,000.
+   *
+   * The cap is a MINIMUM against what was counted, never a replacement for it:
+   * if 2 were accepted but only 1 arrived, 1 moved. Goods that did not turn up
+   * are not posted because the paperwork says they were accepted.
+   */
+  const accepted = run ? acceptedQuantity(run) : null
+  const quantity = accepted == null ? counted : Math.min(counted, accepted)
+
+  const base = {
+    quantity,
+    from_location_id: from,
+    to_location_id: to,
+    accepted_quantity: accepted,
+  }
 
   if (!to) return { ...base, move: false, skip_reason: "customer_leg" }
   if (from && from === to) return { ...base, move: false, skip_reason: "same_location" }
+
+  /**
+   * 🔴 THE APPROVAL GATE (#891, 2026-09-13).
+   *
+   * Partner completion is a CLAIM; admin approval is the ACCEPTANCE of that
+   * claim, and stock must not enter our books on an unaccepted one. Checked
+   * before the quantity test so an unapproved run reports why it did not post,
+   * rather than hiding behind a zero it was capped to.
+   *
+   * The receipt still happens — the box really did arrive, and refusing to
+   * record that would lose a physical fact to an accounting rule. What does not
+   * happen is the movement. `inventory_posted_at` stays null, and the approval
+   * path posts it later; that column is the only thing standing between this
+   * gate and goods stranded on the partner's books forever.
+   *
+   * A run passed as null/undefined is NOT treated as unapproved: callers that
+   * do not know the run (and the historical backfill) keep the old behaviour
+   * rather than silently declining to move real goods.
+   */
+  if (run && run.approval_decision !== "approved") {
+    return { ...base, move: false, skip_reason: "unapproved_run" }
+  }
+
   if (!(quantity > 0)) return { ...base, move: false, skip_reason: "zero_quantity" }
 
   return { ...base, move: true }
@@ -421,7 +498,7 @@ export async function receiveGoodsTransfer(
 
   const run = await runService.retrieveProductionRun(input.run_id)
 
-  const plan = planTransferMove(transfer, input.received_quantity)
+  const plan = planTransferMove(transfer, input.received_quantity, run)
   const shortfall = transferShortfall(transfer.quantity, plan.quantity)
 
   const result: ReceiveGoodsTransferResult = {
@@ -469,6 +546,14 @@ export async function receiveGoodsTransfer(
     status: "delivered",
     received_at: new Date(),
     received_quantity: plan.quantity,
+    /**
+     * Stamped ONLY when inventory actually moved. A receipt that was gated by
+     * `unapproved_run` leaves this null, which is what
+     * `postPendingTransfersForRun` looks for when the approval lands. Setting
+     * it on every receipt would make the deferred posting unfindable and strand
+     * the goods on the partner's books permanently.
+     */
+    ...(result.moved ? { inventory_posted_at: new Date() } : {}),
     ...(input.notes ? { notes: input.notes } : {}),
   })
 
@@ -499,3 +584,137 @@ export const receiveGoodsTransferWorkflow = createWorkflow(
     return new WorkflowResponse(result)
   }
 )
+
+
+/**
+ * #891 (2026-09-13) — post the transfers that were RECEIVED BEFORE the run was
+ * approved.
+ *
+ * The approval gate in `planTransferMove` means a box can arrive, be counted,
+ * and move no stock because the claim had not been accepted yet. Without this,
+ * that is permanent: `assertReceivableTransfer` refuses a second receipt (
+ * rightly — it would move the same goods twice), so nothing would ever come
+ * back to post the movement, and the goods would sit physically at our location
+ * while our books still called them the partner's.
+ *
+ * So the posting is "delivered AND approved", whichever happens second:
+ *
+ *   approved → then received   the receipt posts, inline
+ *   received → then approved   this posts it, here
+ *
+ * Idempotent by construction — it only ever looks at delivered transfers whose
+ * `inventory_posted_at` is null, and stamps it as it posts. Re-approving a run
+ * finds nothing to do. Transfers that predate the column read null and are
+ * excluded by `received_at`-ordering plus the explicit legacy guard below,
+ * because a legacy delivered transfer WAS already posted by the old
+ * unconditional path and posting it again would double the stock.
+ */
+export async function postPendingTransfersForRun(
+  container: MedusaContainer,
+  runId: string,
+  /**
+   * Transfers received before this instant are treated as legacy — already
+   * posted by the unconditional path that shipped before the column existed.
+   * Defaults to the column's own release, so a real deployment needs no
+   * argument and a test can pin it.
+   */
+  legacyBefore: Date = INVENTORY_POSTING_COLUMN_RELEASED_AT
+): Promise<{ posted: number; skipped: number }> {
+  const logger: any = container.resolve(ContainerRegistrationKeys.LOGGER)
+  const runService: any = container.resolve(PRODUCTION_RUNS_MODULE)
+  const transferService: any = container.resolve(FULLFILLED_ORDERS_MODULE)
+
+  const transfers: any[] = await transferService.listGoodsTransfers({
+    production_run_id: runId,
+    status: "delivered",
+  })
+
+  const pending = transfers.filter((t: any) =>
+    isPendingPosting(t, legacyBefore)
+  )
+  if (!pending.length) return { posted: 0, skipped: 0 }
+
+  const run = await runService.retrieveProductionRun(runId)
+
+  let posted = 0
+  let skipped = 0
+
+  for (const transfer of pending) {
+    const plan = planTransferMove(transfer, transfer.received_quantity, run)
+    if (!plan.move || !plan.to_location_id) {
+      skipped++
+      continue
+    }
+
+    const inventoryItemId = await resolveRunInventoryItem(container, run)
+    if (!inventoryItemId) {
+      logger.warn(
+        `[goods-transfer] run ${runId} approved but no inventory item resolves — transfer ${transfer.id} still unposted`
+      )
+      skipped++
+      continue
+    }
+
+    await moveInventory(
+      container,
+      inventoryItemId,
+      plan.from_location_id,
+      plan.to_location_id,
+      plan.quantity
+    )
+    const repointed = await repointReservations(
+      container,
+      runId,
+      inventoryItemId,
+      plan.from_location_id,
+      plan.to_location_id
+    )
+
+    await transferService.updateGoodsTransfers({
+      id: transfer.id,
+      inventory_posted_at: new Date(),
+    })
+
+    posted++
+    logger.info(
+      `[goods-transfer] approval posted deferred transfer ${transfer.id}: ` +
+        `${plan.quantity} unit(s) ${plan.from_location_id} → ${plan.to_location_id}, ` +
+        `${repointed} reservation(s) repointed`
+    )
+  }
+
+  return { posted, skipped }
+}
+
+/**
+ * When `inventory_posted_at` shipped. A delivered transfer received BEFORE this
+ * was posted by the old unconditional path, so its null means "legacy", not
+ * "pending" — and posting it again would double real stock.
+ */
+export const INVENTORY_POSTING_COLUMN_RELEASED_AT = new Date("2026-09-17T00:00:00.000Z")
+
+/**
+ * PURE: is this delivered transfer waiting for an approval to post it?
+ *
+ * 🔴 The null on `inventory_posted_at` means two opposite things depending on
+ * WHEN the transfer was received, which is the whole reason this is a named
+ * function with its own tests rather than an inline `!t.inventory_posted_at`:
+ *
+ *   received after the column shipped  → null means NOT POSTED (post it)
+ *   received before                    → null means UNRECORDED (already posted)
+ *
+ * Treating the second as pending would move the same goods a second time.
+ */
+export function isPendingPosting(
+  transfer: {
+    status?: string | null
+    received_at?: Date | string | null
+    inventory_posted_at?: Date | string | null
+  },
+  legacyBefore: Date
+): boolean {
+  if (transfer.status !== "delivered") return false
+  if (transfer.inventory_posted_at) return false
+  if (!transfer.received_at) return false
+  return new Date(transfer.received_at).getTime() >= legacyBefore.getTime()
+}
