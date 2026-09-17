@@ -31,6 +31,10 @@ const ORDER_FIELDS = [
   "items.id",
   "items.product_id",
   "items.variant_id",
+  // #1923 — the item's own metadata carries #1920's no_auto_produce veto.
+  // Without it in the projection `orderItem?.metadata` is undefined and the
+  // veto is silently never cast.
+  "items.metadata",
   "fulfillments.id",
   "fulfillments.canceled_at",
   "fulfillments.items.line_item_id",
@@ -121,6 +125,16 @@ export const backfillFulfilledRetailRunsJob: MaintenanceJob = {
             productId: orderItem?.product_id,
             variantId: orderItem?.variant_id,
             quantity,
+            /**
+             * 🔴 #1923 — this was never passed, and until now it did not
+             * matter: the planner's `!productId` guard kept this job away from
+             * converted design orders entirely, because their items are
+             * title-only. With that guard lifted, the ONLY thing standing
+             * between an ops backfill and auto-producing an admin-converted
+             * design order is #1920's veto — which it cannot cast unless the
+             * metadata reaches it.
+             */
+            metadata: orderItem?.metadata,
           })
           if (!plan) {
             continue
