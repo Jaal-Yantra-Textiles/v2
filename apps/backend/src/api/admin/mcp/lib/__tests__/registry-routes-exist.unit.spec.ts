@@ -86,8 +86,27 @@ const exportsMethod = (file: string, method: string): boolean => {
   const src = fs.readFileSync(file, "utf8")
   return new RegExp(
     `(export\\s+const\\s+${method}\\b|export\\s+async\\s+function\\s+${method}\\b|export\\s+function\\s+${method}\\b|exports\\.${method}\\s*=)`
-  ).test(src)
+  ).test(src) || reExportsMethod(src, method)
 }
+
+/**
+ * `export { POST } from "../elsewhere/route"` is a REAL export at runtime —
+ * Medusa loads the module and reads its exports, and does not care where the
+ * binding came from. The regex above only knows declarations, so a route that
+ * re-exports its handler read as a phantom: the tool was reported broken while
+ * the route worked perfectly.
+ *
+ * Found by `/admin/designs/draft-order/preview`, which deliberately re-exports
+ * the customer-scoped preview so the two cannot drift. Sharing a handler is the
+ * behaviour we WANT; a checker that punishes it pushes people to copy-paste.
+ *
+ * Deliberately shallow — it proves the name is exported here, not that the
+ * target file defines it. The `NO ROUTE FILE` branch already covers a path that
+ * resolves to nothing, and a re-export from a non-existent module fails the
+ * build long before this suite runs.
+ */
+const reExportsMethod = (src: string, method: string): boolean =>
+  new RegExp(`export\\s*\\{[^}]*\\b${method}\\b[^}]*\\}\\s*from\\s*["']`).test(src)
 
 describe("every admin MCP tool wraps a route that exists (#1907)", () => {
   // Native tools run in-process and wrap no route at all.
@@ -137,6 +156,28 @@ describe("every admin MCP tool wraps a route that exists (#1907)", () => {
       resolveRouteFiles(r, "/admin/products/:id/options/:option_id")
     )
     expect(files).toEqual([])
+  })
+
+  /**
+   * The re-export branch, pinned in BOTH directions. Without the first
+   * assertion somebody deletes `reExportsMethod` as dead weight and every
+   * handler-sharing route reads as a phantom; without the second, the regex
+   * could be loosened into one that matches any re-export of any name and the
+   * guard stops guarding.
+   */
+  it("counts a re-exported handler as a real export, but only for its own method", () => {
+    const preview = path.join(
+      path.resolve(__dirname, "../../../../"),
+      "admin/designs/draft-order/preview/route.ts"
+    )
+    expect(fs.existsSync(preview)).toBe(true)
+
+    // It declares nothing and re-exports POST from the customer-scoped route.
+    expect(fs.readFileSync(preview, "utf8")).toMatch(/export\s*\{\s*POST\s*\}\s*from/)
+    expect(exportsMethod(preview, "POST")).toBe(true)
+
+    // And a method it does NOT re-export is still absent.
+    expect(exportsMethod(preview, "DELETE")).toBe(false)
   })
 
   it("does not mistake a differently-named path param for a missing route", () => {

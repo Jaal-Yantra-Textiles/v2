@@ -170,6 +170,14 @@ export const MCP_SCOPE_EXEMPT_ADMIN_PATHS: readonly string[] = [
   "/admin/mcp/resolve-query",
   "/admin/assistant/vision",
   "/admin/quotes/readiness",
+  /**
+   * #1970 PR10 — prices a design order and writes nothing. POST only because it
+   * takes a list of design ids and per-design overrides in a body; the same
+   * shape as `/admin/quotes/readiness` above. Without this a read-only
+   * credential would see `preview_design_order` in `tools/list` and get a 403
+   * on calling it.
+   */
+  "/admin/designs/draft-order/preview",
 ]
 
 export type ResolvedMcpScope = {
