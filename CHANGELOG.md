@@ -1,3 +1,10 @@
+# [13.143.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.142.0...v13.143.0) (2026-09-17)
+
+
+### Features
+
+* **design-orders:** the operator was told to share a link they were never given ([#1970](https://github.com/Jaal-Yantra-Textiles/v2/issues/1970) PR7) ([#2104](https://github.com/Jaal-Yantra-Textiles/v2/issues/2104)) ([bd92297](https://github.com/Jaal-Yantra-Textiles/v2/commit/bd9229798acb52c7abb0b1cf63080198cd216f65)), closes [#2051](https://github.com/Jaal-Yantra-Textiles/v2/issues/2051) [#1817](https://github.com/Jaal-Yantra-Textiles/v2/issues/1817) [#1333](https://github.com/Jaal-Yantra-Textiles/v2/issues/1333) [#1983](https://github.com/Jaal-Yantra-Textiles/v2/issues/1983)
+
 # [13.142.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.141.0...v13.142.0) (2026-09-17)
 
 
