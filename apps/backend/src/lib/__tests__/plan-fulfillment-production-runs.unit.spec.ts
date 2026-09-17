@@ -31,13 +31,67 @@ const LINE = "ordli_1"
 const PRODUCT = "prod_1"
 
 describe("planLineItemRunAction", () => {
-  it("does nothing without a product — there is nothing to hang a run off", async () => {
+  it("does nothing for a line with neither a product NOR a design", async () => {
     const q = makeQuery()
     expect(
       await planLineItemRunAction(q, { lineItemId: LINE, productId: null, quantity: 1 })
     ).toBeNull()
-    // And it does not even look.
-    expect(q.graph).not.toHaveBeenCalled()
+  })
+
+  /**
+   * 🔴 #1923. The `!productId` guard used to return here BEFORE the
+   * existing-run lookup. Once `order.placed` began minting runs for design-only
+   * lines, that early return meant such a run could never be completed on
+   * fulfillment — it would sit at `pending_review` while the goods were on a
+   * truck, and the customer would be told nothing had been started.
+   */
+  it("completes a design-only line's pre-production run", async () => {
+    const q = makeQuery({
+      production_runs: [{ id: "run_1", status: "pending_review", design_id: "des_1" }],
+    })
+    expect(
+      await planLineItemRunAction(q, { lineItemId: LINE, productId: null, quantity: 2 })
+    ).toEqual({
+      action: "complete",
+      line_item_id: LINE,
+      product_id: undefined,
+      production_run_id: "run_1",
+      from_status: "pending_review",
+      quantity: 2,
+    })
+  })
+
+  it("mints a design-only provenance run when the line shipped without one", async () => {
+    // Resolved through metadata — the legacy design order shape (#1918).
+    const q = makeQuery()
+    expect(
+      await planLineItemRunAction(q, {
+        lineItemId: LINE,
+        productId: null,
+        quantity: 1,
+        metadata: { design_id: "des_legacy" },
+      })
+    ).toEqual({
+      action: "create",
+      line_item_id: LINE,
+      product_id: undefined,
+      variant_id: undefined,
+      design_id: "des_legacy",
+      is_custom_design: true,
+      quantity: 1,
+    })
+  })
+
+  it("still refuses a vetoed design-only line", async () => {
+    const q = makeQuery()
+    expect(
+      await planLineItemRunAction(q, {
+        lineItemId: LINE,
+        productId: null,
+        quantity: 1,
+        metadata: { design_id: "des_legacy", no_auto_produce: true },
+      })
+    ).toBeNull()
   })
 
   describe("a run already bound to this line", () => {

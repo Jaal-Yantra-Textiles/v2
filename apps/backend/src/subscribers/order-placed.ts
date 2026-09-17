@@ -6,11 +6,7 @@ import { sendPartnerOrderPlacedWorkflow } from "../workflows/email/workflows/sen
 import { createProductionRunWorkflow } from "../workflows/production-runs/create-production-run"
 import { linkDesignsToOrder } from "../workflows/designs/link-designs-to-order"
 import { linkDesignsToOrderItems } from "../workflows/designs/link-designs-to-order-items"
-import {
-  hasProductionRunForLineItem,
-  isAutoProduceSuppressed,
-  resolveLineItemDesignId,
-} from "../lib/resolve-line-item-production"
+import { planPlacedLineItemRunAction } from "../lib/plan-placed-production-runs"
 import { lineItemIdsNeedingShippingFlag } from "../lib/requires-shipping"
 
 export default async function orderPlacedHandler({
@@ -103,82 +99,55 @@ export default async function orderPlacedHandler({
     }
 
     for (const item of items) {
-      const lineItemId = item?.id
-      const productId = item?.product_id
-      const variantId = item?.variant_id
-      const quantity = item?.quantity
-
-      if (!lineItemId) {
-        continue
-      }
-
       /**
-       * #1920 — the EXPLICIT no-auto-produce veto, checked first and on its own
-       * terms. `convert-design-order` stamps it on every item of an admin-
-       * converted design order; producing one of those is an explicit admin
-       * step (`createRunsForDesignOrder`), never a side-effect of placement.
-       *
-       * This is deliberately independent of `productId`: when #1923 widens the
-       * guard below so design-only items DO produce, this flag is what still
-       * holds the converted orders back.
+       * #1923 — one planner decides this, and it is asserted in
+       * `plan-placed-production-runs.unit.spec.ts`. The `!productId` guard that
+       * used to sit in this loop is GONE: a design-only line item now produces
+       * like any other, and the converted design orders that must not produce
+       * say so themselves via #1920's explicit veto.
        */
-      if (isAutoProduceSuppressed(item?.metadata)) {
-        logger.info(
-          `[order.placed] Line item ${lineItemId} carries no_auto_produce — skipping production run creation (#1920)`
-        )
-        continue
-      }
-
-      if (!productId) {
-        continue
-      }
-
-      // Idempotency: if we already created a production run for this line item, skip
-      if (await hasProductionRunForLineItem(query, lineItemId)) {
-        continue
-      }
-
-      /**
-       * Resolve the design. The per-item LINK now wins over the variant- and
-       * product-level associations (#1919), so an item re-pointed by an order
-       * edit resolves to what it is for NOW rather than what its variant
-       * happens to be attached to.
-       *
-       * 🔴 This does NOT widen which items get a run. The `!productId` guard
-       * above still skips design-only items; making those produce
-       * automatically is #1923. The converted design orders that MUST stay
-       * unproduced now say so themselves, via the no_auto_produce check above
-       * (#1920), so #1923 can lift the productId guard without unleashing
-       * them.
-       */
-      const { designId, isCustomDesign } = await resolveLineItemDesignId(query, {
-        productId,
-        variantId,
-        lineItemId,
+      const plan = await planPlacedLineItemRunAction(query, {
+        lineItemId: item?.id,
+        productId: item?.product_id,
+        variantId: item?.variant_id,
+        quantity: item?.quantity,
         metadata: item?.metadata,
       })
 
-      if (isCustomDesign) {
-        logger.info(
-          `[order.placed] Found custom design ${designId} for variant ${variantId}`
-        )
-      }
-
-      if (!designId) {
-        logger.info(
-          `[order.placed] No design linked to product ${productId} (variant ${variantId}) — skipping production run creation for line item ${lineItemId}`
-        )
+      if (plan.action === "skip") {
+        if (plan.reason === "no_auto_produce") {
+          logger.info(
+            `[order.placed] Line item ${plan.line_item_id} carries no_auto_produce — skipping production run creation (#1920)`
+          )
+        } else if (plan.reason === "no_design") {
+          logger.info(
+            `[order.placed] No design resolved for line item ${plan.line_item_id} (product ${item?.product_id ?? "none"}, variant ${item?.variant_id ?? "none"}) — skipping production run creation`
+          )
+        }
         continue
       }
 
+      if (plan.is_custom_design) {
+        logger.info(
+          `[order.placed] Found custom design ${plan.design_id} for line item ${plan.line_item_id} (via ${plan.design_source})`
+        )
+      }
+
+      /**
+       * 🔴 A design-only line resolves with NO product and NO variant. That is
+       * supported all the way down — `createProductionRunWorkflow` hangs the
+       * product link and the product snapshot behind `when(product_id)` — but
+       * it does mean the run carries no product spine, so #1970 PR9 is what
+       * later binds the paid line to the approved variant.
+       */
       await createProductionRunWorkflow(container).run({
         input: {
-          design_id: designId,
-          quantity,
-          product_id: productId,
-          variant_id: variantId,
+          design_id: plan.design_id,
+          quantity: plan.quantity,
+          product_id: plan.product_id,
+          variant_id: plan.variant_id,
           order_id: order?.id,
-          order_line_item_id: lineItemId,
+          order_line_item_id: plan.line_item_id,
           // #1126 — a design-backed RETAIL run is provenance, not a partner
           // work-order: don't project it onto the #342 unified view (it would
           // be mis-discriminated as a design work-order). The run is born
@@ -187,7 +156,8 @@ export default async function orderPlacedHandler({
           skip_unified_projection: true,
           metadata: {
             source: "order.placed",
-            is_custom_design: isCustomDesign,
+            is_custom_design: plan.is_custom_design,
+            design_source: plan.design_source,
           },
         },
       })

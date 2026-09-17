@@ -80,6 +80,9 @@ export async function reconcileProvenanceRunsForOrderLines(
         "items.id",
         "items.product_id",
         "items.variant_id",
+        // #1923 — carries #1920's no_auto_produce veto. Absent from the
+        // projection, the veto is silently never cast at the fulfillment door.
+        "items.metadata",
         "fulfillments.canceled_at",
         "fulfillments.items.line_item_id",
         "fulfillments.items.quantity",
@@ -124,6 +127,13 @@ export async function reconcileProvenanceRunsForOrderLines(
           productId: orderItem?.product_id,
           variantId: orderItem?.variant_id,
           quantity: cumulative,
+          /**
+           * #1923 — previously unpassed, and previously harmless because the
+           * planner's `!productId` guard kept this path away from title-only
+           * design-order items. With the guard lifted, the veto is what stops
+           * a converted design order producing here.
+           */
+          metadata: orderItem?.metadata,
         })
 
         if (plan?.action === "create") {
