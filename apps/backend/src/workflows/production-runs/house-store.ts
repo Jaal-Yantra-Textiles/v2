@@ -187,8 +187,42 @@ export async function readHouseStore(container: any): Promise<HouseStore | null>
         withDeleted: true,
       }),
     ])
-    const house = pickHouseStore(stores, partnerStoreIdsFrom(partners)) as any
+    const partnerStoreIds = partnerStoreIdsFrom(partners)
+    const house = pickHouseStore(stores, partnerStoreIds) as any
     if (!house?.id) {
+      /**
+       * 🔴 Null collapses three different situations, and saying which one it
+       * is turns a platform-wide outage into one line of log.
+       *
+       * #2100: an E2E fixture linked the ONE ownerless store to a test partner
+       * and never released it. From that moment the platform had no house store
+       * at all, and every dependent path — design-order creation, the FX
+       * fanout, the sellability gate — simply started refusing. Nothing said
+       * "the house store was taken"; the nearest error named a SALES CHANNEL,
+       * which sends you looking in the wrong place entirely. Finding it meant
+       * counting link rows by hand.
+       *
+       * The counts are the whole diagnosis: `ownerless=0` means a partner has
+       * claimed it, `ownerless=2` means two candidates and the refusal is the
+       * correct one.
+       */
+      const ownerless = (stores as any[]).filter(
+        (st) =>
+          !(partnerStoreIds.size > 0
+            ? partnerStoreIds.has(String(st?.id ?? ""))
+            : !!String(st?.metadata?.partner_id ?? "").trim())
+      )
+      const logger = container.resolve(ContainerRegistrationKeys.LOGGER) as any
+      logger?.error(
+        `[house-store] no single house store: ${stores.length} store(s), ` +
+          `${ownerless.length} owned by no partner ` +
+          `(${ownerless.map((st: any) => st?.id).join(", ") || "none"}). ` +
+          (ownerless.length === 0
+            ? `Every store is claimed through partner-stores-link — a partner has taken the ` +
+              `house store. Dismiss that link to give it back.`
+            : `More than one candidate, so this refuses to guess. Link the partner-owned ones ` +
+              `to their partners.`)
+      )
       return null
     }
     return {

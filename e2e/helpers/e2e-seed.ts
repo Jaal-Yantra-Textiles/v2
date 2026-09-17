@@ -2550,12 +2550,83 @@ async function seedActionFirstRun(container: any): Promise<{
   }
 }
 
+
+/**
+ * The house store must still belong to nobody — checked before AND after.
+ *
+ * 🔴 #2100. A seed run linked the house store (`Medusa Store`) to
+ * `E2E Gate Partner` and never released it. `readHouseStore` identifies the
+ * house store as the one store belonging to NO partner and returns null when
+ * that is not a single unambiguous row, so from that moment the platform had no
+ * house store at all: design-order creation, the FX fanout and the currency
+ * sellability gate all just began refusing, and the nearest error named a SALES
+ * CHANNEL. Finding it meant counting link rows by hand.
+ *
+ * The seeding code was already fixed — every fixture below mints its OWN store
+ * — but "every fixture creates its own" was an incidental property that nothing
+ * asserted. This is the assertion. Run first, it refuses to seed onto a
+ * database already in that state; run last, it names the run that did it.
+ *
+ * 🔑 Deliberately a THROW, not a warning. The failure it guards is silent and
+ * total, and a warning in seed output nobody reads is how it stayed hidden for
+ * six weeks.
+ */
+export async function assertHouseStoreIntact(
+  container: any,
+  logger: any,
+  when: "before" | "after"
+) {
+  const query = container.resolve(ContainerRegistrationKeys.QUERY)
+  const [{ data: stores = [] }, { data: partners = [] }] = await Promise.all([
+    query.graph({ entity: "store", fields: ["id", "name"] }),
+    query.graph({ entity: "partners", fields: ["id", "name", "stores.id"] }),
+  ])
+
+  const owner = new Map<string, string>()
+  for (const p of partners as any[]) {
+    for (const st of (p?.stores ?? []) as any[]) {
+      if (st?.id) owner.set(String(st.id), String(p?.name ?? p?.id))
+    }
+  }
+
+  const ownerless = (stores as any[]).filter((st) => !owner.has(String(st?.id)))
+
+  if (ownerless.length === 1) {
+    logger.info(
+      `E2E seed: house store intact (${when}) — "${ownerless[0]?.name}" belongs to no partner.`
+    )
+    return
+  }
+
+  if (ownerless.length === 0) {
+    const claimed = (stores as any[])
+      .filter((st) => /medusa store/i.test(String(st?.name ?? "")))
+      .map((st) => `"${st?.name}" -> ${owner.get(String(st?.id))}`)
+    throw new Error(
+      `E2E seed (${when}): every one of the ${stores.length} stores is claimed by a partner, ` +
+        `so the platform has NO house store and design orders, the FX fanout and the ` +
+        `sellability gate will all refuse (#2100). ` +
+        (claimed.length ? `Suspect: ${claimed.join(", ")}. ` : "") +
+        `Dismiss the partner-stores-link on the house store, then seed again.`
+    )
+  }
+
+  throw new Error(
+    `E2E seed (${when}): ${ownerless.length} stores belong to no partner ` +
+      `(${ownerless.map((st: any) => `"${st?.name}"`).join(", ")}), so the house store is ` +
+      `ambiguous and readHouseStore refuses to guess (#2100). Link the partner-owned ones ` +
+      `to their partners, or remove the strays.`
+  )
+}
+
 export default async function e2eSeed({ container }: ExecArgs) {
   const logger = container.resolve(ContainerRegistrationKeys.LOGGER)
   const userModule = container.resolve(Modules.USER)
   const authModule = container.resolve(Modules.AUTH)
   const websiteService = container.resolve("websites")
   const socials: any = container.resolve("socials")
+
+  await assertHouseStoreIntact(container, logger, "before")
 
   logger.info("E2E seed: creating admin user...")
 
@@ -2916,6 +2987,10 @@ export default async function e2eSeed({ container }: ExecArgs) {
     actionFirstDesignName: actionFirst.designName,
     actionFirstRunId: actionFirst.runId,
   }
+
+  // Last, and before the seed file is written: a run that took the house store
+  // must not hand the suite a seed file that looks healthy.
+  await assertHouseStoreIntact(container, logger, "after")
 
   fs.writeFileSync(SEED_FILE, JSON.stringify(seedData, null, 2))
   logger.info(`E2E seed complete. Credentials saved to ${SEED_FILE}`)

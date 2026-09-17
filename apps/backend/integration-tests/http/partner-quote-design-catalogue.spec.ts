@@ -1,4 +1,4 @@
-import { ContainerRegistrationKeys } from "@medusajs/framework/utils"
+import { ContainerRegistrationKeys, Modules } from "@medusajs/framework/utils"
 
 import { createAdminUser, getAuthHeaders } from "../helpers/create-admin-user"
 import {
@@ -42,11 +42,12 @@ jest.setTimeout(240 * 1000)
  * over them passed throughout. What was broken is which arguments reached them,
  * which is only observable end to end.
  *
- * 🔑 The fixture deliberately mints the product the OLD way — no
- * `sales_channel_id` — so the starting state is the production one. The
- * precondition is asserted rather than assumed: if the fallback ever happened
- * to pick the partner's own store, every assertion below would pass while
- * testing nothing.
+ * 🔑 The fixture deliberately mints the product into a catalogue that is NOT
+ * the quoting partner's, so the starting state is the production one. The
+ * precondition is asserted rather than assumed: if the mint ever happened to
+ * pick the partner's own store, every assertion below would pass while testing
+ * nothing — which is precisely what began happening once #2059 taught the mint
+ * to follow the design's owning partner. See the note in `beforeAll`.
  */
 
 setupSharedTestSuite(() => {
@@ -107,9 +108,28 @@ setupSharedTestSuite(() => {
       designId = (Array.isArray(created) ? created[0] : created).id
 
       /**
-       * Minted WITHOUT a sales channel, on purpose — this is the production
-       * shape, and the state every existing custom-design product is in.
+       * Minted into SOMEBODY ELSE'S catalogue, on purpose — the state every
+       * custom-design product minted before #2059 is in, and the only starting
+       * state from which "the line's product is not in the quoting partner's
+       * catalogue" means anything.
+       *
+       * 🔴 This used to be expressed by passing no channel at all, and that
+       * stopped reproducing it. The mint's fallback was
+       * `listStores({})[0].default_sales_channel_id` — the core store, never
+       * the partner's — so omission WAS the production shape. #2059 replaced
+       * that lottery with "the caller's channel, else the OWNING PARTNER's
+       * store, else the house store", and this design names the quoting partner
+       * as its owner, so the fallback now lands the product exactly where the
+       * precondition below says it must not be. The bug the fixture simulated
+       * was fixed; the fixture had to say out loud what it had been getting by
+       * accident.
        */
+      const channelService: any = container().resolve(Modules.SALES_CHANNEL)
+      const foreign = await channelService.createSalesChannels({
+        name: `Someone Else's Catalogue ${seed.unique}`,
+      })
+      const foreignChannelId = Array.isArray(foreign) ? foreign[0].id : foreign.id
+
       const { result } = await createProductFromDesignWorkflow(
         container()
       ).run({
@@ -119,6 +139,7 @@ setupSharedTestSuite(() => {
           unit_price: 900,
           currency_code: seed.currencyCode,
           made_to_order: true,
+          sales_channel_id: foreignChannelId,
         } as any,
       })
 
@@ -131,9 +152,11 @@ setupSharedTestSuite(() => {
       // to start in the partner's own channel would make every catalogue
       // assertion below vacuous while still going green.
       expect(product?.metadata?.is_custom_design).toBe(true)
-      expect(
-        (product?.sales_channels ?? []).map((c: any) => c.id)
-      ).not.toContain(seed.salesChannelId)
+      const startingChannels = (product?.sales_channels ?? []).map((c: any) => c.id)
+      expect(startingChannels).not.toContain(seed.salesChannelId)
+      // Positively, not just by absence: a mint that quietly landed in NO
+      // channel would satisfy the line above and test nothing.
+      expect(startingChannels).toContain(foreignChannelId)
     })
 
     it("🔴 a design line's catalogue miss is a WARNING, because the mint fixes it", async () => {

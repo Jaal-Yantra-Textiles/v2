@@ -256,9 +256,26 @@ const createDesignCartStep = createStep(
     const channel = await resolveMintSalesChannel(container, {})
     const salesChannelId = channel.sales_channel_id
     if (!salesChannelId) {
+      /**
+       * 🔴 The remedy is NOT the same for both reasons, and naming the wrong
+       * one costs an afternoon.
+       *
+       * #2100: an E2E fixture had claimed the house store for a test partner,
+       * so the reason was `no_house_store` — there was no house store to give a
+       * channel to — while this message said "the house store needs a default
+       * sales channel" and sent the reader to the sales-channel screen of a
+       * store that was fine. `readHouseStore` now logs the store counts when it
+       * refuses; this says which question to take to them.
+       */
+      const remedy =
+        channel.reason === "no_house_store"
+          ? `There is no single store belonging to no partner — either a partner has claimed ` +
+            `the house store (dismiss that partner-stores-link), or more than one store is ` +
+            `ownerless. The [house-store] log line names the candidates.`
+          : `The house store has no default sales channel. Set one on it.`
       throw new Error(
         `Cannot create a design order cart: no sales channel could be resolved ` +
-          `(${channel.reason}). The house store needs a default sales channel.`
+          `(${channel.reason}). ${remedy}`
       )
     }
 

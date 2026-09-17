@@ -188,6 +188,20 @@ setupSharedTestSuite(() => {
         expect(euRegion).toBeDefined()
       })
 
+      /**
+       * 🔴 This is a TENANCY invariant, and it caught a live leak.
+       *
+       * It was red on `main` for days. `partner.created` links a new partner to
+       * every existing region (#2062) and `region.created` fans a new region out
+       * to every partner — neither asked WHOSE region it was, so "Partner1
+       * Region" was handed to partner 2 the moment partner 2 signed up. A region
+       * link is not cosmetic either: propagation also extends the receiving
+       * partner's `store.supported_currencies` with that region's currency.
+       *
+       * The order below is the whole test: partner 1's region must exist BEFORE
+       * partner 2 is created, because the leak travels on `partner.created`.
+       * Create partner 2 first and this passes while testing nothing.
+       */
       it("regions are scoped per partner - another partner cannot see them", async () => {
         // Create a second region for partner 1
         await api.post(

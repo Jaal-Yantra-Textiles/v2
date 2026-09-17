@@ -371,15 +371,135 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: pnpm semantic-release
 
+  # 🔴 A red `main` must announce itself, not wait to ambush a PR.
+  #
+  # The full batched suite DOES run on every push to main — that was never the
+  # gap. The gap was that "notify" echoed a line into a log nobody opens, so
+  # main ran red for days while `#2096`'s six failures sat there, and the first
+  # person to learn of them was whoever next touched one of those spec files —
+  # at which point they look like that PR's fault.
+  #
+  # PRs still run only their changed specs (fast feedback); this is what makes
+  # the main-push run's verdict impossible to miss.
   notify:
     needs: test
     if: always()
     runs-on: ubuntu-latest
+    permissions:
+      issues: write
     steps:
       - name: Notify on success
         if: ${{ needs.test.result == 'success' }}
         run: |
           echo "Tests passed and release completed successfully!"
+
+      # 🔑 Mirrors `e2e.yml`'s `notify-on-red` deliberately — same sticky
+      # marker, same github-script, same label-free create. That job's own
+      # comment records why: `issues.create` 422s on a label that does not
+      # exist, which leaves the notifier silently unable to notify — the exact
+      # failure it exists to prevent. Two different implementations of one idea
+      # drift; this is the same idea, so it is the same shape.
+      #
+      # What this one adds is the other half: the first GREEN main push closes
+      # the sticky, so nobody has to remember to.
+      - name: Open or update the sticky "main is red" issue
+        if: ${{ needs.test.result == 'failure' && github.event_name == 'push' && github.ref == 'refs/heads/main' }}
+        uses: actions/github-script@v7
+        env:
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          SHA: ${{ github.sha }}
+        with:
+          script: |
+            const MARKER = '<!-- backend-suite-red-sticky -->'
+            const TITLE = '🔴 The backend integration suite is red on main'
+            const { owner, repo } = context.repo
+            const runUrl = process.env.RUN_URL
+            const sha = (process.env.SHA || '').slice(0, 9)
+
+            const existing = await github.paginate(
+              github.rest.issues.listForRepo,
+              { owner, repo, state: 'open', per_page: 100 }
+            )
+            const sticky = existing.find(
+              (i) => !i.pull_request && i.title === TITLE && (i.body || '').includes(MARKER)
+            )
+
+            const line = `- 🔴 \`${sha}\` failed — [run](${runUrl})`
+
+            if (sticky) {
+              await github.rest.issues.createComment({
+                owner, repo, issue_number: sticky.number,
+                body: `${line}\n\nStill red. This is the same sticky issue, not a new one.`,
+              })
+              core.notice(`Updated sticky issue #${sticky.number}`)
+              return
+            }
+
+            const body = [
+              MARKER,
+              '## The backend integration suite is red on `main`',
+              '',
+              line,
+              '',
+              'This issue is **sticky**: while the suite stays red, each failing run on',
+              '`main` adds a comment here instead of filing a new issue. The first GREEN',
+              'push to `main` closes it automatically.',
+              '',
+              '### Why this exists',
+              '',
+              'The full batched suite has always run on every push to `main`. What did',
+              'not exist was anyone learning the result — `notify` echoed "Tests or',
+              'release failed!" into a job log nobody opens. #2096 recorded six failures',
+              'that had been sitting on `main` for days; the full run actually held',
+              'EIGHT, and one of them was a live cross-tenant region leak, not a stale',
+              'test. PRs run only the specs they changed, so the first person to meet a',
+              'red main is whoever next edits one of those files — where it looks like',
+              'their fault.',
+              '',
+              '### What to do',
+              '',
+              '1. Open the failing `test (N)` shard and read the **totals line**, not',
+              '   just the first `●` — a shard can fail more than one spec, and a shard',
+              '   that OOMs prints no totals at all.',
+              '2. Check WHICH jobs ran. An empty check list is indistinguishable from a',
+              '   passing one (#2098).',
+              '3. Reproduce with the shared runner, a few specs at a time:',
+              '   `pnpm test:integration:http:shared ./integration-tests/http/<spec>`',
+            ].join('\n')
+
+            const created = await github.rest.issues.create({
+              owner, repo, title: TITLE, body,
+            })
+            core.notice(`Opened sticky issue #${created.data.number}`)
+
+      - name: Close the sticky when main goes green
+        if: ${{ needs.test.result == 'success' && github.event_name == 'push' && github.ref == 'refs/heads/main' }}
+        uses: actions/github-script@v7
+        env:
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        with:
+          script: |
+            const MARKER = '<!-- backend-suite-red-sticky -->'
+            const TITLE = '🔴 The backend integration suite is red on main'
+            const { owner, repo } = context.repo
+
+            const existing = await github.paginate(
+              github.rest.issues.listForRepo,
+              { owner, repo, state: 'open', per_page: 100 }
+            )
+            const sticky = existing.find(
+              (i) => !i.pull_request && i.title === TITLE && (i.body || '').includes(MARKER)
+            )
+            if (!sticky) return
+
+            await github.rest.issues.createComment({
+              owner, repo, issue_number: sticky.number,
+              body: `✅ Green again — [run](${process.env.RUN_URL})`,
+            })
+            await github.rest.issues.update({
+              owner, repo, issue_number: sticky.number, state: 'closed',
+            })
+            core.notice(`Closed sticky issue #${sticky.number}`)
 
       - name: Notify on failure
         if: ${{ needs.test.result == 'failure' }}
