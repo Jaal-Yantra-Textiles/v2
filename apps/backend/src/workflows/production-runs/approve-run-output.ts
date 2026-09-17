@@ -14,6 +14,10 @@ import {
   resolveRunsSizeLabel,
 } from "../designs/create-product-from-design"
 import { applyDesignProductPlan } from "../designs/design-product-plan"
+import {
+  buildLineBindingPayload,
+  planOrderLineBindings,
+} from "./lib/plan-order-line-binding"
 import updateDesignWorkflow from "../designs/update-design"
 import {
   resolveDesignApprovalTarget,
@@ -754,7 +758,168 @@ export async function applyRunApprovals(
     })
   }
 
+  /**
+   * #1970 item 2 — bind each approved run's PAID ORDER LINE to the variant the
+   * approval just named.
+   *
+   * `create-product-from-design` already does this, but only on the mint path,
+   * which approval reaches exclusively in the `!productExisted` branch. Every
+   * design whose product already existed — a second run, a re-approval —
+   * stamped the run and left the paid line with `variant_id: null` forever.
+   *
+   * Runs LAST, and non-fatally: the approval decision is already durable by
+   * this point, and a failure to reach the order module must not un-approve
+   * work that was genuinely approved. A line left unbound is recoverable; a
+   * lost approval is not.
+   */
+  if (!input.dryRun) {
+    try {
+      await bindApprovedRunsToOrderLines(container, reports, logger)
+    } catch (e: any) {
+      logger?.warn?.(
+        `[approve-run-output] #1970 order-line binding failed: ${e?.message ?? e}`
+      )
+    }
+  }
+
   return summarise(input, reports, createdProductIds)
+}
+
+/**
+ * #1970 item 2 — the write half. Reads the just-decided runs back for their
+ * `order_line_item_id`, plans the bindings (pure, in `plan-order-line-binding`),
+ * and fills in ONLY a missing variant.
+ *
+ * 🔴 THE MONEY INVARIANT. The payload carries no price field — see
+ * `buildLineBindingPayload`. The paid line's `unit_price` is what the customer
+ * was quoted at checkout; the approval price is a different number computed
+ * from run cost × markup. This function exists to connect a line to a variant,
+ * never to reprice one. The order total is read before and after and a drift is
+ * shouted about rather than swallowed, because a silent reprice of a captured
+ * order is the worst thing this file could do.
+ */
+async function bindApprovedRunsToOrderLines(
+  container: any,
+  reports: RunApprovalReport[],
+  logger: any
+): Promise<void> {
+  const approvedRunIds = reports
+    .filter((r) => r.outcome === "approved")
+    .map((r) => r.run_id)
+
+  if (!approvedRunIds.length) return
+
+  const runService: any = container.resolve(PRODUCTION_RUNS_MODULE)
+  const orderService: any = container.resolve(Modules.ORDER)
+  const query: any = container.resolve(ContainerRegistrationKeys.QUERY)
+
+  // Re-read: the stamps were written above, so these rows now carry
+  // `approved_variant_id`. Same guard as the top of this file — never call the
+  // service with an empty id list.
+  const decided: any[] = await runService.listProductionRuns({ id: approvedRunIds })
+
+  const lineIds = [
+    ...new Set(
+      decided
+        .map((r: any) => r?.order_line_item_id)
+        .filter((id: any): id is string => typeof id === "string" && !!id)
+    ),
+  ]
+  if (!lineIds.length) return
+
+  const lines: any[] = await orderService.listOrderLineItems({ id: lineIds })
+  const lineById = new Map<string, any>(
+    (lines || []).map((l: any) => [l.id, l])
+  )
+
+  const { bind, skip } = planOrderLineBindings(decided, lineById)
+
+  for (const s of skip) {
+    if (s.reason === "no_order_line") continue // ordinary: no customer behind it
+    logger?.info?.(
+      `[approve-run-output] #1970 not binding run ${s.run_id} to line ${s.line_item_id}: ${s.reason}`
+    )
+  }
+
+  if (!bind.length) return
+
+  /**
+   * The totals BEFORE, per order. Read from the order module rather than summed
+   * from the lines, because the total is what the customer owes and what the
+   * payment captured — a recomputation of our own would be checking this code
+   * against itself.
+   */
+  const orderIds = [
+    ...new Set(bind.map((b) => b.order_id).filter((id): id is string => !!id)),
+  ]
+  const totalsBefore = await readOrderTotals(query, orderIds)
+
+  for (const binding of bind) {
+    try {
+      let variantDetails: any = null
+      try {
+        const { data } = await query.graph({
+          entity: "variant",
+          fields: ["id", "sku", "title", "product.title"],
+          filters: { id: binding.variant_id },
+        })
+        variantDetails = (data || [])[0] ?? null
+      } catch {
+        // Cosmetic fields only — the binding is the variant_id.
+      }
+
+      await orderService.updateOrderLineItems(
+        binding.line_item_id,
+        buildLineBindingPayload(binding, variantDetails)
+      )
+
+      logger?.info?.(
+        `[approve-run-output] #1970 bound paid line ${binding.line_item_id} to variant ${binding.variant_id} (run ${binding.run_id})`
+      )
+    } catch (e: any) {
+      logger?.warn?.(
+        `[approve-run-output] #1970 could not bind line ${binding.line_item_id}: ${e?.message ?? e}`
+      )
+    }
+  }
+
+  /**
+   * 🔴 Read the row back. A write that reports success may persist nothing, and
+   * here the failure mode that matters is the opposite one: a write that
+   * persisted MORE than it said. If any order's total moved, say so loudly —
+   * it means a binding repriced a captured order, and somebody must look.
+   */
+  const totalsAfter = await readOrderTotals(query, orderIds)
+  for (const [orderId, before] of totalsBefore) {
+    const after = totalsAfter.get(orderId)
+    if (after !== undefined && before !== undefined && after !== before) {
+      logger?.error?.(
+        `[approve-run-output] 🔴 #1970 ORDER TOTAL MOVED on ${orderId}: ${before} → ${after}. ` +
+          `Binding a paid line to a variant must never reprice it.`
+      )
+    }
+  }
+}
+
+/** Order id → current total, for the invariant check above. */
+async function readOrderTotals(
+  query: any,
+  orderIds: string[]
+): Promise<Map<string, number | undefined>> {
+  const totals = new Map<string, number | undefined>()
+  if (!orderIds.length) return totals
+  try {
+    const { data } = await query.graph({
+      entity: "order",
+      fields: ["id", "total"],
+      filters: { id: orderIds },
+    })
+    for (const o of data || []) totals.set(o.id, o?.total)
+  } catch {
+    // Unknowable is not the same as unchanged — an absent entry is skipped by
+    // the comparison above rather than read as "no drift".
+  }
+  return totals
 }
 
 /** The counts an operator reads first, derived from the per-run rows. */
