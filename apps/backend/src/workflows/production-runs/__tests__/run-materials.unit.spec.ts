@@ -1,6 +1,8 @@
 import {
+  checkAllocationEdit,
   checkConsumptionAgainstAllocation,
   normalizeRunMaterials,
+  type NormalizedRunMaterial,
 } from "../lib/run-materials"
 
 /**
@@ -155,5 +157,117 @@ describe("checkConsumptionAgainstAllocation", () => {
       inventoryItemId: undefined,
     })
     expect(verdict.allowed).toBe(false)
+  })
+})
+
+/**
+ * checkAllocationEdit (#2111) — the freeze, made add-only.
+ *
+ * The flat freeze protected the partner from having work retracted under them,
+ * which is right. But it also meant material bought AFTER a run started could
+ * never be attached to it: we bought 2 Mill Spun Pashminas for a tunic whose
+ * run had been under way for a week, and that run was the one run that could
+ * never record them. The consignment gate keys on exactly that attachment, so
+ * the cloth could never come off our books either.
+ *
+ * Adding is allowed. Removing, shrinking and relocating are not — each of those
+ * takes back something the partner was already promised.
+ */
+describe("checkAllocationEdit", () => {
+  const mat = (
+    over: Partial<NormalizedRunMaterial> & { inventory_item_id: string }
+  ): NormalizedRunMaterial => ({
+    planned_quantity: null,
+    location_id: null,
+    resolved_raw_material_id: null,
+    note: null,
+    metadata: null,
+    ...over,
+  })
+
+  const SILK = mat({
+    inventory_item_id: "iitem_silk",
+    planned_quantity: 5,
+    location_id: "sloc_kiyo",
+  })
+  const PASHMINA = mat({
+    inventory_item_id: "iitem_pashmina",
+    planned_quantity: 2,
+    location_id: "sloc_kiyo",
+  })
+
+  const check = (existing: NormalizedRunMaterial[], next: NormalizedRunMaterial[]) =>
+    checkAllocationEdit(existing, next, { accepted: true })
+
+  it("allows anything at all before the partner has accepted", () => {
+    expect(
+      checkAllocationEdit([SILK], [], { accepted: false })
+    ).toEqual({ allowed: true })
+  })
+
+  it("🔴 allows ADDING the pashmina to a run already under way — the case this exists for", () => {
+    expect(check([SILK], [SILK, PASHMINA])).toEqual({ allowed: true })
+  })
+
+  it("allows allocating to a started run that had nothing allocated", () => {
+    expect(check([], [PASHMINA])).toEqual({ allowed: true })
+  })
+
+  it("allows RAISING a quantity — issuing more of what they already have", () => {
+    expect(check([SILK], [{ ...SILK, planned_quantity: 8 }])).toEqual({
+      allowed: true,
+    })
+  })
+
+  it("allows recording a quantity that was never agreed", () => {
+    const unstated = mat({ inventory_item_id: "iitem_silk", location_id: "sloc_kiyo" })
+    expect(check([unstated], [{ ...unstated, planned_quantity: 3 }])).toEqual({
+      allowed: true,
+    })
+  })
+
+  it("🔴 refuses REMOVING an item", () => {
+    const v = check([SILK, PASHMINA], [SILK])
+    expect(v.allowed).toBe(false)
+    expect(!v.allowed && v.reason).toContain("not remove it")
+  })
+
+  it("🔴 refuses clearing the allocation wholesale", () => {
+    const v = check([SILK], [])
+    expect(v.allowed).toBe(false)
+    expect(!v.allowed && v.reason).toContain("not remove it")
+  })
+
+  it("🔴 refuses LOWERING a quantity", () => {
+    const v = check([SILK], [{ ...SILK, planned_quantity: 3 }])
+    expect(v.allowed).toBe(false)
+    expect(!v.allowed && v.reason).toContain("reduce")
+  })
+
+  it("🔴 refuses retracting an agreed quantity back to unstated", () => {
+    const v = check([SILK], [{ ...SILK, planned_quantity: null }])
+    expect(v.allowed).toBe(false)
+    expect(!v.allowed && v.reason).toContain("reduce")
+  })
+
+  it("🔴 refuses MOVING where the material is drawn from", () => {
+    const v = check([SILK], [{ ...SILK, location_id: "sloc_dharamshala" }])
+    expect(v.allowed).toBe(false)
+    expect(!v.allowed && v.reason).toContain("Cannot move")
+  })
+
+  it("allows setting a location where none was recorded", () => {
+    const noLoc = mat({ inventory_item_id: "iitem_silk", planned_quantity: 5 })
+    expect(check([noLoc], [{ ...noLoc, location_id: "sloc_kiyo" }])).toEqual({
+      allowed: true,
+    })
+  })
+
+  it("names the material a human recognises rather than an id", () => {
+    const v = checkAllocationEdit([SILK], [], {
+      accepted: true,
+      label: (id) => (id === "iitem_silk" ? "Mulberry Silk" : id),
+    })
+    expect(!v.allowed && v.reason).toContain("Mulberry Silk")
   })
 })

@@ -154,3 +154,81 @@ export const checkConsumptionAgainstAllocation = (input: {
     reason: `${labels[itemId] || itemId} is not assigned to this run. Assigned: ${assigned}.`,
   }
 }
+
+/**
+ * May this run's allocation be edited, given it has already been accepted or
+ * started? (#2111)
+ *
+ * The freeze exists for a real reason: the allocation is WHAT THE PARTNER WAS
+ * SENT, and rewriting it after they accepted would change the terms of work
+ * already under way. That reasoning covers taking material away. It does not
+ * cover giving them more.
+ *
+ * The case that forced the distinction: we bought 2 Mill Spun Pashminas for a
+ * tunic AFTER the run for that tunic had started. Under a flat freeze, cloth
+ * bought for a run in progress can never be attached to it — and the
+ * consignment gate keys on exactly that attachment, so the material could never
+ * come off our books either. The run the goods were literally bought for was
+ * the one run that could never record them.
+ *
+ * So: on a started run you may ADD an item and RAISE a quantity. You may not
+ * remove an item, lower a quantity, or move where it is drawn from — each of
+ * those retracts something the partner was already promised.
+ *
+ * 🔴 `planned_quantity: null` means "issued, amount not agreed" — NOT zero. So
+ * null → a number is allowed (recording what was always true), while a number →
+ * null is a retraction of the agreed figure and is refused.
+ */
+export type AllocationEditVerdict =
+  | { allowed: true }
+  | { allowed: false; reason: string }
+
+export const checkAllocationEdit = (
+  existing: NormalizedRunMaterial[],
+  next: NormalizedRunMaterial[],
+  runState: { accepted: boolean; label?: (id: string) => string }
+): AllocationEditVerdict => {
+  if (!runState.accepted) {
+    return { allowed: true }
+  }
+
+  const name = (id: string) => runState.label?.(id) || id
+  const byId = new Map(next.map((m) => [m.inventory_item_id, m]))
+
+  for (const was of existing) {
+    const now = byId.get(was.inventory_item_id)
+    if (!now) {
+      return {
+        allowed: false,
+        reason: `Cannot take ${name(
+          was.inventory_item_id
+        )} back off a run the partner has already accepted or started — you may add material to it, not remove it`,
+      }
+    }
+    if (
+      was.planned_quantity !== null &&
+      (now.planned_quantity === null || now.planned_quantity < was.planned_quantity)
+    ) {
+      return {
+        allowed: false,
+        reason: `Cannot reduce ${name(was.inventory_item_id)} from ${
+          was.planned_quantity
+        } to ${
+          now.planned_quantity ?? "unstated"
+        } on a run the partner has already accepted or started`,
+      }
+    }
+    if (was.location_id && now.location_id !== was.location_id) {
+      return {
+        allowed: false,
+        reason: `Cannot move ${name(
+          was.inventory_item_id
+        )} from ${was.location_id} to ${
+          now.location_id ?? "no location"
+        } on a run the partner has already accepted or started — that changes where they were told to draw it from`,
+      }
+    }
+  }
+
+  return { allowed: true }
+}

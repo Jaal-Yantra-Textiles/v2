@@ -1866,6 +1866,58 @@ export const ADMIN_MCP_TOOLS: AdminMcpToolDef[] = [
     ),
   },
   {
+    name: "receive_inventory_order",
+    description:
+      "Record that an inventory order's goods ACTUALLY TURNED UP, and put them on the books at the order's destination. Sensitive: requires confirm:true. " +
+      "🔑 `Delivered` is a CARRIER event, not a receipt. It comes from the Shiprocket webhook and proves a parcel reached a door; it moves NO stock and means nobody counted what was inside. Until this tool is called, the level reads 0 however OTP-verified the scan was. " +
+      "🔴 The goods land at the ORDER's destination, which on a consignment order is a PARTNER's location — that is deliberate: material we procured, stocked where the partner will cut it (#2111). " +
+      "Omit `lines` to receive everything still outstanding, which is the ordinary case. Calling it twice is safe: receipts are cumulative against the order's fulfillment record, so a fully-received order receives nothing rather than posting the stock twice. Read the levels back with list_inventory_levels.",
+    method: "POST",
+    path: "/admin/inventory-orders/:id/receive",
+    pathParams: ["id"],
+    previewPath: "/admin/inventory-orders/:id",
+    write: true,
+    sensitive: true,
+    inputSchema: obj(
+      {
+        id: STR(
+          "Inventory order id, e.g. 'inv_order_...'. Receivable from Processing, Ready for Delivery, Shipped, Partial or Delivered — NOT from Pending (nothing has left the supplier) or Cancelled."
+        ),
+        lines: {
+          type: "array" as const,
+          description:
+            "What actually arrived, line by line. OMIT to receive everything still outstanding — do that unless a short delivery has to be recorded. A quantity above what is outstanding is REFUSED, not clamped.",
+          items: {
+            type: "object" as const,
+            properties: {
+              order_line_id: {
+                type: "string",
+                description: "Order line id, from get_inventory_order.",
+              },
+              quantity: {
+                type: "number",
+                description:
+                  "Quantity received on this line. 0 means this line brought nothing and is skipped.",
+              },
+            },
+            required: ["order_line_id", "quantity"],
+            additionalProperties: false,
+          },
+        },
+        stock_location_id: STR(
+          "Override the destination. Rarely correct — goods go where the order says they go. Use only when the order names no destination at all."
+        ),
+        notes: STR("Free-text note recorded against the receipt."),
+      },
+      ["id"]
+    ),
+    nextSteps: [
+      "list_inventory_levels",
+      "get_inventory_order",
+      "list_inventory_order_activities",
+    ],
+  },
+  {
     name: "list_payable_inventory_orders",
     description:
       "The inventory (purchase) orders this partner can still be billed for — GOODS, as opposed to work. Rows carry what the order is worth by RECEIPTS, what earlier payouts already claimed, and the remaining billable amount. 🔑 A `count: 0` here does NOT mean the partner is owed nothing: this route answers only about ORDERS, and their unbilled work may all be in runs (call list_payable_runs too). A partially received order is billable only for what actually arrived.",
@@ -4838,7 +4890,7 @@ export const ADMIN_MCP_TOOLS: AdminMcpToolDef[] = [
           ...RUN_MATERIALS_PARAM,
           description:
             RUN_MATERIALS_PARAM.description +
-            " REPLACES the run's whole allocation — it is not merged, so send the complete list. Send [] to clear it and make the run unconstrained again. Pre-acceptance only: rejected once the partner has accepted or started, like quantity/role/run_type.",
+            " REPLACES the run's whole allocation — it is not merged, so send the complete list. Send [] to clear it and make the run unconstrained again. ADD-ONLY once the partner has accepted or started (#2111): you may issue MORE material to a running job, but removing an item, lowering a quantity or changing its location is refused. Before acceptance it is freely replaceable.",
         },
         depends_on_inventory_order_ids: {
           ...RUN_INVENTORY_DEPENDENCY_PARAM,

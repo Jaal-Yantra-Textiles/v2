@@ -599,3 +599,164 @@ describe("quantity_basis", () => {
     expect(d).toMatchObject({ action: "apply", quantity: 2.15 })
   })
 })
+
+/**
+ * CONSIGNMENT (#2111) — our cloth on someone else's bench.
+ *
+ * We buy the pashmina, have it delivered to Kiyo Designs, and Kiyo cuts it
+ * there. The material is ours the whole time it stands in her room, so it has
+ * to come off our books when it becomes a garment — even though the building
+ * is not ours.
+ *
+ * 🔴 The danger these tests exist for: partners can create their own inventory
+ * at their own location, so a blanket "open non-core" would let a run deduct a
+ * partner's own goods from our books. The licence is the run's ALLOCATION —
+ * written by us at approval, unforgeable by a partner — and it must be read
+ * per-run and per-item-at-location, never as a flat "this place is fine now".
+ */
+describe("consignment — material we issued to a partner's location", () => {
+  const BRAND = "sloc_dharamshala"
+  const KIYO = "sloc_kiyo"
+  const PASHMINA = "iitem_pashmina"
+  const RUN = "prod_run_kiyo"
+
+  const consignedLog = (
+    over: Partial<ConsumptionApplyLog> = {}
+  ): ConsumptionApplyLog => ({
+    id: "log_1",
+    design_id: "design_tunic",
+    production_run_id: RUN,
+    inventory_item_id: PASHMINA,
+    quantity: 1,
+    quantity_basis: "total",
+    is_committed: true,
+    location_id: null,
+    metadata: null,
+    ...over,
+  })
+
+  /** The pashmina sits at Kiyo and nowhere else; only Dharamshala is ours. */
+  const planAt = (
+    logs: ConsumptionApplyLog[],
+    issuedLocationKeysByRun?: Record<string, Set<string>>
+  ) =>
+    planConsumptionApplication({
+      brandLocationId: BRAND,
+      logs,
+      brandLevels: {},
+      locationByLog: Object.fromEntries(logs.map((l) => [l.id, KIYO])),
+      levelsAtLocation: { [`${PASHMINA}@${KIYO}`]: 2 },
+      coreLocationIds: new Set([BRAND]),
+      issuedLocationKeysByRun,
+    })
+
+  it("refuses the deduction when we recorded issuing nothing — today's behaviour", () => {
+    const [d] = planAt([consignedLog()])
+    expect(d.action).toBe("skip")
+    expect((d as any).reason).toContain("not one of our locations")
+  })
+
+  it("deducts at the partner's location when that run was issued that item there", () => {
+    const [d] = planAt([consignedLog()], {
+      [RUN]: new Set([`${PASHMINA}@${KIYO}`]),
+    })
+    expect(d).toEqual({
+      action: "apply",
+      log_id: "log_1",
+      inventory_item_id: PASHMINA,
+      location_id: KIYO,
+      quantity: 1,
+      before: 2,
+      after: 1,
+      consigned: true,
+    })
+  })
+
+  it("does NOT mark a deduction at our own warehouse as consigned", () => {
+    const [d] = planConsumptionApplication({
+      brandLocationId: BRAND,
+      logs: [consignedLog()],
+      brandLevels: { [PASHMINA]: 5 },
+      coreLocationIds: new Set([BRAND]),
+      issuedLocationKeysByRun: { [RUN]: new Set([`${PASHMINA}@${BRAND}`]) },
+    })
+    expect(d.action).toBe("apply")
+    expect((d as any).consigned).toBeUndefined()
+  })
+
+  it("🔴 refuses a DIFFERENT run standing at the same bench", () => {
+    const [d] = planAt([consignedLog({ production_run_id: "prod_run_other" })], {
+      [RUN]: new Set([`${PASHMINA}@${KIYO}`]),
+    })
+    expect(d.action).toBe("skip")
+    expect((d as any).reason).toContain("was not issued this item there")
+  })
+
+  it("🔴 refuses a DIFFERENT item at a bench where something else was issued", () => {
+    const [d] = planAt(
+      [consignedLog({ inventory_item_id: "iitem_partners_own_silk" })],
+      { [RUN]: new Set([`${PASHMINA}@${KIYO}`]) }
+    )
+    expect(d.action).toBe("skip")
+    expect((d as any).reason).toContain("was not issued this item there")
+  })
+
+  it("🔴 refuses the SAME item issued to a different location", () => {
+    const [d] = planAt([consignedLog()], {
+      [RUN]: new Set([`${PASHMINA}@sloc_somewhere_else`]),
+    })
+    expect(d.action).toBe("skip")
+    expect((d as any).reason).toContain("was not issued this item there")
+  })
+
+  it("refuses a log with no production run — we never recorded issuing it anything", () => {
+    const [d] = planAt([consignedLog({ production_run_id: null })], {
+      [RUN]: new Set([`${PASHMINA}@${KIYO}`]),
+    })
+    expect(d.action).toBe("skip")
+    expect((d as any).reason).toContain("not one of our locations")
+  })
+
+  it("still refuses when the item has no level at the issued location", () => {
+    const [d] = planConsumptionApplication({
+      brandLocationId: BRAND,
+      logs: [consignedLog()],
+      brandLevels: {},
+      locationByLog: { log_1: KIYO },
+      levelsAtLocation: {},
+      coreLocationIds: new Set([BRAND]),
+      issuedLocationKeysByRun: { [RUN]: new Set([`${PASHMINA}@${KIYO}`]) },
+    })
+    expect(d.action).toBe("skip")
+    expect((d as any).reason).toContain("no stock level")
+  })
+
+  it("keeps the partner's balance separate from ours for the same item", () => {
+    const decisions = planConsumptionApplication({
+      brandLocationId: BRAND,
+      logs: [
+        consignedLog({ id: "log_1" }),
+        consignedLog({ id: "log_2", production_run_id: null }),
+      ],
+      brandLevels: { [PASHMINA]: 5 },
+      locationByLog: { log_1: KIYO },
+      levelsAtLocation: { [`${PASHMINA}@${KIYO}`]: 2 },
+      coreLocationIds: new Set([BRAND]),
+      issuedLocationKeysByRun: { [RUN]: new Set([`${PASHMINA}@${KIYO}`]) },
+    })
+    expect(decisions[0]).toMatchObject({
+      action: "apply",
+      location_id: KIYO,
+      before: 2,
+      after: 1,
+    })
+    // The run-less log falls back to the brand default, where our own 5 sit —
+    // untouched by the partner's draw-down.
+    expect(decisions[1]).toMatchObject({
+      action: "apply",
+      location_id: BRAND,
+      before: 5,
+      after: 4,
+    })
+  })
+})

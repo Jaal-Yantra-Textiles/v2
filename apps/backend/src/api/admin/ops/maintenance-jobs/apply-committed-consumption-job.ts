@@ -24,6 +24,7 @@ import {
   resolveLocationsFromLevels,
   type ConsumptionApplyLog,
 } from "../../../../workflows/consumption-logs/lib/apply-to-inventory"
+import { readRunAllocation } from "../../../../lib/production-run-allocation"
 import type { MaintenanceChange, MaintenanceJob, MaintenanceJobResult } from "./registry"
 
 /**
@@ -35,7 +36,10 @@ import type { MaintenanceChange, MaintenanceJob, MaintenanceJobResult } from "./
  * issued from our own warehouse. This job settles the backlog for the latter.
  *
  * Every deduction is gated on a location WE hold the material at, so
- * partner-held consumption is skipped rather than guessed at.
+ * partner-held consumption is skipped rather than guessed at. The one
+ * exception is consignment (#2111): material we bought and had delivered to a
+ * partner's bench is ours while it stands there, and the run's own material
+ * allocation is what says so.
  *
  * Which location that is comes from the MATERIAL, not from the design: an
  * inventory item stocked in exactly one place was drawn from that place. The
@@ -70,7 +74,7 @@ export const applyCommittedConsumptionJob: MaintenanceJob = {
   id: "apply-committed-consumption-to-inventory",
   label: "Apply committed consumption to inventory (our own stock only)",
   description:
-    "Deduct committed material consumption from OUR stock — the movement that committing a consumption log has never performed. Each log deducts from wherever that material is actually stocked (a design's Preferred location overrides it, the brand default catches the rest); material stocked nowhere is partner-held and skipped, never guessed. Labour/energy logs (Hour, kWh — no inventory_item_id) are skipped. Also writes consumed_quantity/consumed_at on the design↔inventory link, which the admin UI renders but nothing has ever written. Idempotent via metadata.inventory_applied_at. Dry-run previews every decision including skips.",
+    "Deduct committed material consumption from OUR stock — the movement that committing a consumption log has never performed. Each log deducts from wherever that material is actually stocked (a design's Preferred location overrides it, the brand default catches the rest); material stocked nowhere is partner-held and skipped, never guessed. Material we ISSUED to a partner's location (named in that run's allocation) is ours and does deduct there — consignment (#2111). Labour/energy logs (Hour, kWh — no inventory_item_id) are skipped. Also writes consumed_quantity/consumed_at on the design↔inventory link, which the admin UI renders but nothing has ever written. Idempotent via metadata.inventory_applied_at. Dry-run previews every decision including skips.",
   params: [
     {
       name: "design_id",
@@ -204,13 +208,45 @@ export const applyCommittedConsumptionJob: MaintenanceJob = {
       allLevels = (data || []) as any[]
     }
 
+    // CONSIGNMENT (#2111) — material we procured and had delivered to a
+    // partner's bench. It is ours the whole time it stands there, so it has to
+    // come off our books when it becomes a garment, even though the building is
+    // not ours. The run's own material allocation is what says we issued it:
+    // written by us at approval, and something a partner cannot forge.
+    const issuedLocationKeysByRun: Record<string, Set<string>> = {}
+    {
+      const runIds = Array.from(
+        new Set(considered.map((l) => l.production_run_id).filter(Boolean))
+      ) as string[]
+      for (const runId of runIds) {
+        const allocation = await readRunAllocation(container, runId)
+        const keys = new Set<string>()
+        for (const row of allocation) {
+          // A row with no location names an item but not where it went, so it
+          // cannot license a deduction anywhere. Left out rather than assumed.
+          if (row.inventory_item_id && row.location_id) {
+            keys.add(levelKey(row.inventory_item_id, row.location_id))
+          }
+        }
+        if (keys.size) {
+          issuedLocationKeysByRun[runId] = keys
+        }
+      }
+    }
+
     // Where each log draws from, most specific first:
     //   explicit param  >  design's Preferred location  >  where the material is
     //   >  brand default
     // The param is the operator's escape hatch and overrides everything.
     const locationByLog = location_id
       ? {}
-      : await resolveLocationByLog(query, considered, allLevels, coreLocationIds)
+      : await resolveLocationByLog(
+          query,
+          considered,
+          allLevels,
+          coreLocationIds,
+          issuedLocationKeysByRun
+        )
 
     const brandLevels: Record<string, number> = {}
     const levelsAtLocation: Record<string, number> = {}
@@ -271,6 +307,7 @@ export const applyCommittedConsumptionJob: MaintenanceJob = {
       locationByLog,
       levelsAtLocation,
       coreLocationIds,
+      issuedLocationKeysByRun,
       maxShortfall: max_shortfall,
       piecesByLog,
       assumeBasisWhenUnknown: assumeBasis,
@@ -370,6 +407,7 @@ export const applyCommittedConsumptionJob: MaintenanceJob = {
         return acc
       }, {})
     const shortfalls = applies.filter((d) => d.shortfall)
+    const consigned = applies.filter((d) => d.consigned)
 
     const summary = [
       `${dry_run ? "Would apply" : "Applied"} ${applies.length} of ${considered.length} committed log(s) at ${
@@ -380,6 +418,11 @@ export const applyCommittedConsumptionJob: MaintenanceJob = {
         ? `⚠️ ${shortfalls.length} log(s) wanted more than the level held (floored at 0): ${shortfalls
             .map((d) => `${d.inventory_item_id} short ${d.shortfall}`)
             .join(", ")}`
+        : "",
+      consigned.length
+        ? `${consigned.length} of those came off material we had issued to a partner's location (consignment) — ${Array.from(
+            new Set(consigned.map((d) => d.location_id))
+          ).join(", ")}`
         : "",
       Object.keys(skipReasons).length
         ? `Skipped: ${Object.entries(skipReasons)
@@ -406,16 +449,23 @@ export const applyCommittedConsumptionJob: MaintenanceJob = {
 /**
  * Map each log to the location that material is drawn from.
  *
- * Two sources, in order:
+ * Three sources, in order:
  *
- * 1. The design↔inventory link's `location_id` — "Preferred location" in the
- *    admin drawer. An explicit operator statement, so it wins.
- * 2. Failing that, WHERE THE MATERIAL ACTUALLY IS: the item's own stock levels
+ * 1. WHERE WE ISSUED IT (#2111). The run's material allocation naming this item
+ *    at a location is the strongest statement available: we chose it, we wrote
+ *    it, and it is the record the consignment gate leans on. It has to be first
+ *    because `resolveLocationsFromLevels` filters to core locations and would
+ *    otherwise place consigned material nowhere at all — the log would then
+ *    fall back to the brand default and skip, which is the exact bug this
+ *    slice exists to fix.
+ * 2. The design↔inventory link's `location_id` — "Preferred location" in the
+ *    admin drawer. An explicit operator statement, so it wins over inference.
+ * 3. Failing both, WHERE THE MATERIAL ACTUALLY IS: the item's own stock levels
  *    (`resolveLocationsFromLevels`). This is the one that does the work —
  *    every design carrying an unsettled material log on prod has the link's
  *    location null, so relying on it alone would resolve nothing.
  *
- * A log neither source can place is omitted, and the planner falls back to the
+ * A log no source can place is omitted, and the planner falls back to the
  * brand default — which is what skips partner-held material, since it has no
  * level there.
  */
@@ -427,8 +477,26 @@ async function resolveLocationByLog(
     location_id: string
     stocked_quantity: number | string | null
   }>,
-  coreLocationIds: Set<string>
+  coreLocationIds: Set<string>,
+  issuedLocationKeysByRun: Record<string, Set<string>> = {}
 ): Promise<Record<string, string>> {
+  /** The location THIS log's run was issued THIS item at, if any. */
+  const issuedLocationFor = (l: ConsumptionApplyLog): string | undefined => {
+    if (!l.production_run_id || !l.inventory_item_id) {
+      return undefined
+    }
+    const keys = issuedLocationKeysByRun[l.production_run_id]
+    if (!keys) {
+      return undefined
+    }
+    const prefix = `${l.inventory_item_id}@`
+    for (const key of keys) {
+      if (key.startsWith(prefix)) {
+        return key.slice(prefix.length)
+      }
+    }
+    return undefined
+  }
   const byMaterial = resolveLocationsFromLevels(allLevels, coreLocationIds)
 
   const pairs = logs.filter((l) => l.design_id && l.inventory_item_id)
@@ -436,8 +504,12 @@ async function resolveLocationByLog(
     // Still place logs by their material even with no design attached.
     return Object.fromEntries(
       logs
-        .filter((l) => l.inventory_item_id && byMaterial[l.inventory_item_id])
-        .map((l) => [l.id, byMaterial[l.inventory_item_id as string]])
+        .map((l) => [
+          l.id,
+          issuedLocationFor(l) ??
+            (l.inventory_item_id ? byMaterial[l.inventory_item_id] : undefined),
+        ])
+        .filter(([, loc]) => Boolean(loc)) as Array<[string, string]>
     )
   }
 
@@ -464,6 +536,7 @@ async function resolveLocationByLog(
   const out: Record<string, string> = {}
   for (const l of logs) {
     const loc =
+      issuedLocationFor(l) ??
       byPair.get(`${l.design_id}::${l.inventory_item_id}`) ??
       (l.inventory_item_id ? byMaterial[l.inventory_item_id] : undefined)
     if (loc) {
