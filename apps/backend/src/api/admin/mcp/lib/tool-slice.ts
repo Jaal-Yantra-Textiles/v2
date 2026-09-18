@@ -151,6 +151,17 @@ const PREFIX_DOMAINS: ReadonlyArray<readonly [string, AdminToolDomain]> = [
    * Longer prefix wins, and this is the whole reason the match is longest-wins.
    */
   ["/admin/partners/:id/credits", "money"],
+  /**
+   * WhatsApp conversation history with partners. `partners` rather than
+   * `marketing`: the asks that reach it are "what did we send Sharlho", "did
+   * they ever reply", "what is message 01KPX…" — partner vocabulary, and the
+   * domain keywords already carry "whatsapp".
+   *
+   * Without this entry both message tools classify as undefined and load in NO
+   * slice: registered, callable in principle, reachable from no ask. That is
+   * the exact failure `tool-slice.unit.spec.ts` names, and it caught these two.
+   */
+  ["/admin/messages", "partners"],
   ["/admin/publishing-campaigns", "marketing"],
   ["/admin/notifications", "marketing"],
   // The stored email bodies every sender renders from. Rides `marketing`
