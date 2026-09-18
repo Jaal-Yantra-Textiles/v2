@@ -30,7 +30,7 @@ type Seed = {
 
 let seed: Seed
 
-test.describe("Inventory-order change: partner proposes and the order locks @partnerui", () => {
+test.describe("Inventory-order change: partner proposes and the payment locks @partnerui", () => {
   test.beforeAll(() => {
     if (!fs.existsSync(SEED_FILE)) {
       throw new Error(
@@ -68,7 +68,7 @@ test.describe("Inventory-order change: partner proposes and the order locks @par
       .waitFor({ timeout: 30_000 })
   }
 
-  test("proposes edits + tax through the drawer, then the order locks", async ({
+  test("proposes edits + tax through the drawer, then the PAYMENT locks", async ({
     page,
   }) => {
     await openOrder(page)
@@ -91,16 +91,40 @@ test.describe("Inventory-order change: partner proposes and the order locks @par
     ).toBeVisible({ timeout: 15_000 })
     await expect(
       page.getByText(
-        "Actions are paused until your changes are approved or rejected.",
+        "Payment is paused until your changes are approved or rejected.",
         { exact: false }
       ).first()
     ).toBeVisible()
 
-    // The lifecycle actions are gone; the proposal remains revisable.
+    /**
+     * What a pending proposal locks: the MONEY, and only the money.
+     *
+     * 🔴 This used to assert `start` was hidden, which encoded a lock on the
+     * whole lifecycle. That contradicted the API underneath:
+     * `approve-inventory-order-change.ts` states approval is "deliberately
+     * post-ship" and guards against a proposal contradicting goods already
+     * ARRIVED — a guard that only has meaning while a proposal is open AND
+     * goods ship. Locking the work made that state unreachable.
+     *
+     * The chain is why it mattered: ready-for-delivery is gated on
+     * `Partial`, which needs completion recorded, so locking `complete`
+     * locked the shipment too.
+     */
     await page.getByRole("button", { name: "Open actions menu" }).first().click()
+
+    // The proposal stays revisable.
     await expect(
       page.getByRole("menuitem", { name: "Edit lines & tax" })
     ).toBeVisible()
-    await expect(page.getByRole("menuitem", { name: /start/i })).toHaveCount(0)
+
+    // Work keeps moving — the partner can still start.
+    await expect(
+      page.getByRole("menuitem", { name: /start/i })
+    ).toHaveCount(1)
+
+    // The payment claim is the one thing that waits for the decision.
+    await expect(
+      page.getByRole("menuitem", { name: /submit payment/i })
+    ).toHaveCount(0)
   })
 })

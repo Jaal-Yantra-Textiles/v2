@@ -3571,7 +3571,7 @@
         "removedLines": "Removed lines",
         "proposedTax": "Proposed tax",
         "taxTotal": "Tax total",
-        "lockedNotice": "Actions are paused until your changes are approved or rejected."
+        "lockedNotice": "Payment is paused until your changes are approved or rejected. You can keep working and shipping as normal."
       }
     },
     "quickOnboarding": {
