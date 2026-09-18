@@ -17,6 +17,36 @@ export const FREEFORM_ROLE = "ai_whatsapp_partner_chat"
  */
 const FREEFORM_AGENT_NAME = process.env.WHATSAPP_FREEFORM_AGENT_NAME || "SS"
 
+/**
+ * The real person a partner is put through to.
+ *
+ * 🔴 Why this is a SEPARATE name from `FREEFORM_AGENT_NAME`.
+ *
+ * Partners ask "who is this?" and "where are you?" — and until now nothing in
+ * this prompt answered either, so the model improvised around the initials
+ * "SS". An invented persona is the worst of the three options: it is neither
+ * the truth nor a real contact, and it varies between replies.
+ *
+ * The answer names BOTH: the business the partner is dealing with, and the
+ * human who stands behind the work. What it must never do is collapse the two
+ * — the assistant does not claim to BE this person.
+ *
+ * That is not squeamishness. Partners act on these messages commercially: they
+ * accept work, ship goods and invoice against them. Someone who believes they
+ * are talking to the founder makes different commitments than someone who
+ * knows they are talking to his assistant, and a reply engineering that belief
+ * is a misrepresentation however friendly it sounds. It is also against
+ * WhatsApp's Business Messaging Policy, where the penalty lands on the
+ * account rather than the message.
+ *
+ * Naming a real contact is the opposite of hiding behind a bot: it gives the
+ * partner a person to hold to account, which is what they were asking for.
+ */
+const TEAM_CONTACT_NAME = process.env.WHATSAPP_TEAM_CONTACT_NAME || "Saransh"
+
+/** Where we are, for the other half of "who and where are you?". */
+const BUSINESS_LOCATION = process.env.WHATSAPP_BUSINESS_LOCATION || "India"
+
 /** True when the free-form chat service is switched on for this environment. */
 export function isFreeformChatEnabled(): boolean {
   const v = (process.env.WHATSAPP_FREEFORM_CHAT_ENABLED || "").trim().toLowerCase()
@@ -120,11 +150,17 @@ export function formatConversationHistory(entries: HistoryEntry[]): string {
  */
 export function buildFreeformSystemPrompt(opts: {
   agentName?: string
+  /** Overrides the real human contact named in replies. Defaults to env. */
+  contactName?: string
+  /** Overrides where we say we are based. Defaults to env. */
+  businessLocation?: string
   partnerName: string
   language?: string
   contextText: string
 }): string {
   const agentName = opts.agentName || FREEFORM_AGENT_NAME
+  const contactName = opts.contactName || TEAM_CONTACT_NAME
+  const businessLocation = opts.businessLocation || BUSINESS_LOCATION
   const languageRule =
     opts.language === "devanagari"
       ? "The partner is writing in Hindi (Devanagari script). Reply in Devanagari Hindi."
@@ -146,6 +182,12 @@ export function buildFreeformSystemPrompt(opts: {
 
 # Language
 - ${languageRule}
+
+# Who you are, when they ask
+- Partners do ask "who is this?", "are you a real person?", "where are you?". Answer plainly, in one short line. Never dodge it and never invent a surname, a role or an office.
+- You are ${agentName}, the production assistant at Jaal Yantra Textiles. ${contactName} is the person here who looks after their work, and you pass things on to ${contactName} and the team. We are based in ${businessLocation}.
+- If they ask directly whether you are a person, say plainly that you are an assistant working with ${contactName} — do not claim to be ${contactName}, and do not sign off as ${contactName}. Say it lightly and carry on with their question; it is not a confession.
+- Never claim to be a human, and never invent a colleague who does not exist.
 
 # Guardrails — never break these
 - NEVER tell the partner to scrap, reject, discard or throw away any pieces. You have no authority to do that, and Hinglish "bache hain" means *remaining*, not scrap. If they mention defects or scrap, just acknowledge and say the team will review.
