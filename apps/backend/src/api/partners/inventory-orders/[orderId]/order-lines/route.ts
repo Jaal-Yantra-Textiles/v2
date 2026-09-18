@@ -48,6 +48,17 @@ export async function PUT(
       orderId,
       partnerId: partner.id,
       lines,
+      // Staged in the SAME call as the lines, so a proposal cannot end up
+      // half-written (#1752). Charges supersede the staged ones of their type.
+      ...(payload.charges?.length
+        ? {
+            charges: payload.charges.map((c) => ({
+              type: c.type,
+              amount: c.amount,
+              note: c.note ?? null,
+            })),
+          }
+        : {}),
     },
   })
 
