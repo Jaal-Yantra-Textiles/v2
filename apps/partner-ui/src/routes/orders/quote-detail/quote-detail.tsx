@@ -15,6 +15,7 @@ import {
   useRevokePartnerQuote,
   type PartnerQuoteEvent,
 } from "../../../hooks/api/partner-quotes"
+import { SingleColumnPageSkeleton } from "../../../components/common/skeleton"
 import { PaymentSchedulePanel } from "./components/payment-schedule-panel"
 
 /**
@@ -144,13 +145,15 @@ export const QuoteDetail = () => {
     }
   }
 
-  if (isLoading || !quote) {
+  if (isLoading) {
+    return <SingleColumnPageSkeleton sections={3} />
+  }
+
+  if (!quote) {
     return (
       <Container>
         <Text size="small" className="text-ui-fg-subtle">
-          {isLoading
-            ? t("general.loading", "Loading…")
-            : t("quotes.notFound", "Quote not found.")}
+          {t("quotes.notFound", "Quote not found.")}
         </Text>
       </Container>
     )
