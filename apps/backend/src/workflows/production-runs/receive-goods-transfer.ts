@@ -271,12 +271,18 @@ async function resolveRunInventoryItem(
 /**
  * Move `quantity` of `inventoryItemId` from one location to the other.
  *
+ * Exported for the MATERIAL transfer path (#2144), which moves cloth between
+ * two locations with no run behind it. Same arithmetic, same origin clamp —
+ * deliberately shared rather than copied, because two functions that both
+ * decrement stock are two chances to disagree about whether an origin may go
+ * negative.
+ *
  * Read-then-absolute-write, because this codebase has no `adjustInventory` —
  * which is exactly why the origin side is clamped at zero. An origin level that
  * is already short must not be driven negative by a receipt; the shortfall is
  * reported instead.
  */
-async function moveInventory(
+export async function moveInventory(
   container: MedusaContainer,
   inventoryItemId: string,
   fromLocationId: string,
