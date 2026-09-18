@@ -1,3 +1,11 @@
+# [13.147.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.146.0...v13.147.0) (2026-09-18)
+
+
+### Features
+
+* **#2138:** a photo joins a batch and gets asked about, instead of guessed at ([#2139](https://github.com/Jaal-Yantra-Textiles/v2/issues/2139)) ([b4d0f67](https://github.com/Jaal-Yantra-Textiles/v2/commit/b4d0f6775b2012997b1a3dde64eafe6ef03fd45b)), closes [#2138](https://github.com/Jaal-Yantra-Textiles/v2/issues/2138) [#2130](https://github.com/Jaal-Yantra-Textiles/v2/issues/2130) [#2122](https://github.com/Jaal-Yantra-Textiles/v2/issues/2122)
+* **whatsapp:** answer small talk, and let one call test the prose carrier ([#2137](https://github.com/Jaal-Yantra-Textiles/v2/issues/2137)) ([16ac999](https://github.com/Jaal-Yantra-Textiles/v2/commit/16ac9990dcb95fd37e627c2978563dd1bdf66ac1))
+
 # [13.146.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.145.0...v13.146.0) (2026-09-18)
 
 
