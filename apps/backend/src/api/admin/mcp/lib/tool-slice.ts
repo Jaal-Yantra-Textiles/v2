@@ -130,6 +130,15 @@ const PREFIX_DOMAINS: ReadonlyArray<readonly [string, AdminToolDomain]> = [
   // that needs a location id — "order 40 m to the Dharamshala warehouse",
   // "this order's route is reversed" — is already an inventory conversation.
   ["/admin/stock-locations", "inventory"],
+  /**
+   * Whose building a location is (#2116). Rides `inventory` beside the
+   * locations themselves: every ask that needs it — "can we deduct here?",
+   * "where is this cloth actually going?" — is already an inventory
+   * conversation. Without this entry the tool classifies as undefined and loads
+   * in NO slice, which is how the two material-transfer tools shipped
+   * unreachable.
+   */
+  ["/admin/location-ownership", "inventory"],
   // Held-but-not-consumed stock (#1905). A reservation is only ever discussed
   // alongside the level it draws down, so it rides the same slice — split out,
   // an ask about "why can't I sell these 40 m" would reach the level tools and
