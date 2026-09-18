@@ -189,3 +189,40 @@ export const describeReceiptConflicts = (conflicts: ReceiptConflict[]): string =
         : `line ${c.line_id} has already received ${c.received}, so it cannot be reduced to ${c.proposed_quantity}`
     )
     .join("; ")
+
+/**
+ * Would this proposal leave the order with NO lines at all?
+ *
+ * 🔴 `order_lines.min(1)` counts MARKERS, not survivors. A partner who ticks
+ * every row sends three entries and passes it, and approval then soft-deletes
+ * all three: an inventory order with no goods on it, a derived `total_price` of
+ * 0, and a payable ceiling of 0 — while the partner's screen said only "changes
+ * proposed". Nothing in the chain errors, because every individual step is
+ * doing exactly what it was asked.
+ *
+ * Checked against the order's OWN line ids rather than the proposal alone. A
+ * proposal is a set of ops, not necessarily the whole order: removing 1 of 3
+ * lines is fine and must stay fine, and "every entry in the payload is a
+ * removal" would wrongly refuse it. The question is only ever whether anything
+ * survives.
+ *
+ * Removing a line is a legitimate thing for a partner to ask for — a bolt that
+ * never arrived, a colour that was cancelled. Emptying the order is not an edit
+ * to it; it is a cancellation, and cancellation is a different decision with a
+ * different owner.
+ */
+export const removesEveryLine = (
+  lines: ProposedLine[] | null | undefined,
+  orderLineIds: Array<string | null | undefined>
+): boolean => {
+  const owned = (orderLineIds ?? []).filter(Boolean).map((id) => String(id))
+  if (owned.length === 0) {
+    return false
+  }
+  const removed = new Set(
+    (lines ?? [])
+      .filter((l) => l?.remove && l?.id)
+      .map((l) => String(l.id))
+  )
+  return owned.every((id) => removed.has(id))
+}
