@@ -477,11 +477,23 @@ const TEMPLATE_PARTNER_WELCOME: TemplateSpec = {
 // flow can use it by pointing at this name instead of growing the `vars: [...]`
 // map.
 //
-// 🔴 The body is NOT only a variable, deliberately. Meta rejects a template
-// whose body consists solely of placeholders, so the closing line is load-bearing
-// rather than decorative. If Meta still objects to a body that OPENS with a
-// placeholder, the fix is a short fixed lead-in above `{{1}}` — not removing the
-// closing line.
+// 🔴 The body neither STARTS nor ENDS with the variable, and both halves are
+// load-bearing. Meta rejects a body made only of placeholders, and it also
+// rejects one that merely opens or closes with one:
+//
+//     code=100 subcode=2388299 "Leading or trailing params not allowed —
+//     Variables can't be at the start or end of the template."
+//
+// This template was written as `"{{1}}\n\nReply to this message…"` and was
+// therefore UNAPPROVABLE from the day it was added. Nobody knew, because it
+// had never been submitted — a spec is not an approval, and an unsubmitted
+// spec is not even a rejection. All three variants failed on first submission
+// (2026-09-18) across both WABAs.
+//
+// The lead-in below is the fix the original note prescribed. Keep it short, and
+// keep it a STATEMENT OF SENDER rather than a greeting: the composed sentence
+// already opens with "Hi <partner>", so a second greeting here reads like two
+// people talking over each other.
 //
 // 🔑 No IMAGE header and no URL button, unlike the three reminder templates.
 // Both were dropped on purpose (founder, 2026-09-18):
@@ -504,7 +516,7 @@ const TEMPLATE_PARTNER_MESSAGE: TemplateSpec = {
   languages: [
     {
       language: "en",
-      body: "{{1}}\n\nReply to this message and we'll pick it up from here.",
+      body: "A note from JYT Textiles.\n\n{{1}}\n\nReply to this message and we'll pick it up from here.",
       examples: [
         "Hi Ksaman Naturals, this is JYT Textiles. We've set you up on WhatsApp so we can send you production work and answer questions here. Have a look when you get a moment.",
       ],
@@ -512,7 +524,7 @@ const TEMPLATE_PARTNER_MESSAGE: TemplateSpec = {
     },
     {
       language: "hi",
-      body: "{{1}}\n\nइस संदेश का उत्तर दें, हम यहीं से आगे बात करेंगे।",
+      body: "JYT Textiles की ओर से एक संदेश.\n\n{{1}}\n\nइस संदेश का उत्तर दें, हम यहीं से आगे बात करेंगे।",
       examples: [
         "नमस्ते Ksaman Naturals, यह JYT Textiles है। हमने आपको व्हाट्सएप पर जोड़ दिया है ताकि हम यहीं से काम भेज सकें।",
       ],
