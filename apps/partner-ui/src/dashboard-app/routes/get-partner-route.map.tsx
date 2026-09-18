@@ -768,6 +768,13 @@ export function getPartnerRouteMap(): RouteObject[] {
                         ),
                     },
                     {
+                      path: "inventory/edit",
+                      lazy: () =>
+                        import(
+                          "../../routes/inventory-orders/inventory-order-edit"
+                        ),
+                    },
+                    {
                       path: "inventory/complete",
                       lazy: () =>
                         import(

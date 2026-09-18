@@ -13172,6 +13172,9 @@
             },
             "detailsHint": {
               "type": "string"
+            },
+            "editLinesTax": {
+              "type": "string"
             }
           },
           "required": [
@@ -13222,7 +13225,8 @@
             "steps",
             "nextAction",
             "details",
-            "detailsHint"
+            "detailsHint",
+            "editLinesTax"
           ],
           "additionalProperties": false
         },
@@ -13388,6 +13392,42 @@
                 "activities"
               ],
               "additionalProperties": false
+            },
+            "changes": {
+              "type": "object",
+              "properties": {
+                "pendingTitle": {
+                  "type": "string"
+                },
+                "awaitingApproval": {
+                  "type": "string"
+                },
+                "lineChanges": {
+                  "type": "string"
+                },
+                "removedLines": {
+                  "type": "string"
+                },
+                "proposedTax": {
+                  "type": "string"
+                },
+                "taxTotal": {
+                  "type": "string"
+                },
+                "lockedNotice": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "pendingTitle",
+                "awaitingApproval",
+                "lineChanges",
+                "removedLines",
+                "proposedTax",
+                "taxTotal",
+                "lockedNotice"
+              ],
+              "additionalProperties": false
             }
           },
           "required": [
@@ -13396,7 +13436,8 @@
             "filters",
             "statusOptions",
             "columns",
-            "detail"
+            "detail",
+            "changes"
           ],
           "additionalProperties": false
         },

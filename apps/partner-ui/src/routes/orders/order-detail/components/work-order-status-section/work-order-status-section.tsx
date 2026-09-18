@@ -2,6 +2,7 @@ import {
   ArrowUpRightOnBox,
   CheckCircle,
   CurrencyDollar,
+  PencilSquare,
   PlaySolid,
   TruckFast,
 } from "@medusajs/icons"
@@ -35,28 +36,41 @@ const buildInventoryActions = (
   inventoryOrder: any,
   t: (k: string) => string
 ): ActionGroup[] => {
+  // #1752 — a pending proposal LOCKs the order's lifecycle actions (start /
+  // complete / ship / pay) until the admin approves or rejects it. The partner
+  // may still re-open "Edit lines & tax" to revise the SAME proposal.
+  const pending = inventoryOrder?.pending_change?.status === "pending"
+
   const info = inventoryOrder?.partner_info || {}
   const status = info.partner_status
   // #790 fulfilment actions gate on the order's CORE status (same sets the admin
   // uses), which the partner view exposes as `inventoryOrder.status`. The
   // endpoints enforce validity and surface a 4xx if the state is wrong.
   const coreStatus = inventoryOrder?.status
+  // #1752 — a partner proposes line edits/tax only while the order is still
+  // editable (Pending / Processing), the same window the admin edit form uses.
+  const editable = ["Pending", "Processing"].includes(coreStatus)
   const showStart =
-    (status === "assigned" || status === "incoming") && !info.partner_started_at
+    !pending &&
+    (status === "assigned" || status === "incoming") &&
+    !info.partner_started_at
   const showComplete =
+    !pending &&
     (status === "in_progress" || status === "finished") &&
     !info.partner_completed_at
-  const showSubmitPayment = !!info.partner_started_at
+  const showSubmitPayment = !pending && !!info.partner_started_at
   // Ready-for-delivery requires completion recorded (Partial) — not raw
   // "Processing", where nothing has been fulfilled yet. The API enforces this.
-  const showReadyForDelivery = coreStatus === "Partial"
+  const showReadyForDelivery = !pending && coreStatus === "Partial"
   const showCreateShipment =
-    coreStatus === "Processing" ||
-    coreStatus === "Ready for Delivery" ||
-    coreStatus === "Partial" ||
-    coreStatus === "Shipped"
+    !pending &&
+    (coreStatus === "Processing" ||
+      coreStatus === "Ready for Delivery" ||
+      coreStatus === "Partial" ||
+      coreStatus === "Shipped")
 
   const actions = [
+    editable && { label: t("partner.workOrders.editLinesTax"), icon: <PencilSquare />, to: "inventory/edit" },
     showStart && { label: t("partner.workOrders.start"), icon: <PlaySolid />, to: "inventory/start" },
     showComplete && { label: t("partner.workOrders.complete"), icon: <CheckCircle />, to: "inventory/complete" },
     showReadyForDelivery && { label: t("partner.workOrders.readyForDelivery"), icon: <CheckCircle />, to: "inventory/ready-for-delivery" },

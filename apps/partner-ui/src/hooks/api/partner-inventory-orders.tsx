@@ -30,6 +30,16 @@ export type PartnerInventoryOrder = Record<string, any> & {
   updated_at?: string
   partner_info?: Record<string, any>
   order_lines?: Array<Record<string, any>>
+  // #1752 — the partner's open (pending) proposed revision, if any.
+  pending_change?: {
+    id: string
+    status: string
+    proposed_lines: Array<Record<string, any>> | null
+    proposed_charges: Array<Record<string, any>> | null
+    submitted_at?: string | null
+    decided_at?: string | null
+    rejection_reason?: string | null
+  } | null
 }
 
 export type ListPartnerInventoryOrdersParams = {
@@ -331,6 +341,71 @@ export const useSubmitPartnerInventoryOrderPayment = (
       queryClient.invalidateQueries({
         queryKey: partnerInventoryOrdersQueryKeys.detail(orderId),
       })
+      options?.onSuccess?.(data, variables, context)
+    },
+    ...options,
+  })
+}
+
+// #1752 — propose line edits/removals (staged, never applied until admin approval).
+export type PartnerUpdateOrderLinesPayload = {
+  order_lines: Array<{
+    id: string
+    quantity?: number
+    price?: number
+    extra_cost?: number | null
+    remove?: boolean
+  }>
+}
+
+export type PartnerChangeResponse = {
+  change: {
+    id: string
+    status: "pending" | "approved" | "rejected"
+    proposed_lines: Array<Record<string, any>> | null
+    proposed_charges: Array<{ type: "tax"; amount: number; note?: string | null }> | null
+    submitted_at?: string | null
+    decided_at?: string | null
+    rejection_reason?: string | null
+  }
+}
+
+export const usePartnerUpdateInventoryOrderLines = (
+  orderId: string,
+  options?: UseMutationOptions<PartnerChangeResponse, FetchError, PartnerUpdateOrderLinesPayload>
+) => {
+  return useMutation({
+    mutationFn: async (payload: PartnerUpdateOrderLinesPayload) =>
+      sdk.client.fetch<PartnerChangeResponse>(
+        `/partners/inventory-orders/${orderId}/order-lines`,
+        { method: "PUT", body: payload }
+      ),
+    onSuccess: (data, variables, context) => {
+      queryClient.invalidateQueries({ queryKey: partnerInventoryOrdersQueryKeys.detail(orderId) })
+      options?.onSuccess?.(data, variables, context)
+    },
+    ...options,
+  })
+}
+
+export type PartnerAddOrderChargePayload = {
+  type: "tax"
+  amount: number
+  note?: string
+}
+
+export const usePartnerAddInventoryOrderCharge = (
+  orderId: string,
+  options?: UseMutationOptions<PartnerChangeResponse, FetchError, PartnerAddOrderChargePayload>
+) => {
+  return useMutation({
+    mutationFn: async (payload: PartnerAddOrderChargePayload) =>
+      sdk.client.fetch<PartnerChangeResponse>(
+        `/partners/inventory-orders/${orderId}/charges`,
+        { method: "POST", body: payload }
+      ),
+    onSuccess: (data, variables, context) => {
+      queryClient.invalidateQueries({ queryKey: partnerInventoryOrdersQueryKeys.detail(orderId) })
       options?.onSuccess?.(data, variables, context)
     },
     ...options,

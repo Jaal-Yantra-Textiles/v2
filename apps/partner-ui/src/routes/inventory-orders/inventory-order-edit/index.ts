@@ -1,0 +1,1 @@
+export { InventoryOrderEdit as Component } from "./inventory-order-edit.tsx"
