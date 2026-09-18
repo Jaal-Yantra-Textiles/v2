@@ -30,6 +30,21 @@ network:
 variables:
   NODE_ENV: production
   MEDUSA_WORKER_MODE: worker
+
+  # #2117 — the free-form partner assistant. OFF by default, and this turns it
+  # ON for prod.
+  #
+  # 🔴 Until now this was unset, which meant every non-command message a partner
+  # sent was SILENTLY SAVED and never answered. A partner writing "Hello Saransh
+  # kaise ho" got nothing back — not an error, not a fallback, just silence in a
+  # channel they were told to use. The small-talk, identity and language work
+  # (#2135, #2137, #2130) was all deployed and unreachable behind this flag.
+  #
+  # The model is an admin-configured External Platform tagged
+  # `ai_whatsapp_partner_chat` (z.ai GLM, free tier), so rotating the provider
+  # or model is a UI action — no redeploy. With no platform the resolver still
+  # degrades to a free model rather than failing.
+  WHATSAPP_FREEFORM_CHAT_ENABLED: "true"
   DISABLE_MEDUSA_ADMIN: "true"
   # Same reasoning as the server manifest: without an explicit heap ceiling
   # Node sizes old-space from the HOST and is SIGKILLed by the cgroup with no

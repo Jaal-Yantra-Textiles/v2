@@ -456,6 +456,39 @@ export async function handleIncomingMessage(
       // the free-form path (which already has a "no follow-up question" rule).
       action = intent.action === "acknowledgment" ? "" : (intent.action ?? "")
       runId = intent.run_id ?? ""
+
+      /**
+       * 🔴 COMMANDS MUTATE; QUESTIONS CONVERSE.
+       *
+       * A partner asked "Mera koi kaam pending h kya?" — do I have any work
+       * pending. The planner classified it `runs`, the command path ran, and
+       * `sendRunsSummary` with zero runs replied with a hardcoded English
+       * string: "You have no active production runs at the moment."
+       *
+       * Not a model, not their language, not a conversation. A constant — and a
+       * dead end, because the one thing a partner asking that wants next is to
+       * talk about what they COULD pick up.
+       *
+       * The branching was backwards: the assistant only ran when the planner
+       * found NOTHING, so the better the planner got at recognising questions,
+       * the more often a partner hit a canned reply instead of an answer.
+       *
+       * So read-only intents go to the conversation, which answers grounded on
+       * the same live data AND can say something useful when the answer is
+       * "nothing". Intents that CHANGE something — accept, start, finish,
+       * complete, decline — stay on the deterministic command path, where a
+       * model must never be the thing that moves a run.
+       *
+       * A `status` naming a specific run is a lookup and keeps its exact
+       * formatted reply; a bare `status` with no run id is a question.
+       */
+      const isQuestion =
+        action === "runs" ||
+        action === "open" ||
+        (action === "status" && !runId)
+      if (isQuestion && isFreeformChatEnabled()) {
+        action = ""
+      }
       intentExtras = {
         quantity: intent.quantity,
         rejectedQuantity: intent.rejected_quantity,
