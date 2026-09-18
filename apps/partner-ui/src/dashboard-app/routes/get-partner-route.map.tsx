@@ -768,6 +768,14 @@ export function getPartnerRouteMap(): RouteObject[] {
                         ),
                     },
                     {
+                      // #1752 — propose line edits + tax (RouteFocusModal).
+                      path: "inventory/edit",
+                      lazy: () =>
+                        import(
+                          "../../routes/inventory-orders/inventory-order-edit"
+                        ),
+                    },
+                    {
                       path: "inventory/complete",
                       lazy: () =>
                         import(

@@ -2,6 +2,7 @@ import {
   ArrowUpRightOnBox,
   CheckCircle,
   CurrencyDollar,
+  PencilSquare,
   PlaySolid,
   TruckFast,
 } from "@medusajs/icons"
@@ -55,8 +56,13 @@ const buildInventoryActions = (
     coreStatus === "Ready for Delivery" ||
     coreStatus === "Partial" ||
     coreStatus === "Shipped"
+  // #1752 — a partner may propose line edits + tax only while the order is
+  // still editable (Pending/Processing), matching ORDER_EDITABLE_STATUSES.
+  const showEditLines =
+    coreStatus === "Pending" || coreStatus === "Processing"
 
   const actions = [
+    showEditLines && { label: "Edit lines", icon: <PencilSquare />, to: "inventory/edit" },
     showStart && { label: t("partner.workOrders.start"), icon: <PlaySolid />, to: "inventory/start" },
     showComplete && { label: t("partner.workOrders.complete"), icon: <CheckCircle />, to: "inventory/complete" },
     showReadyForDelivery && { label: t("partner.workOrders.readyForDelivery"), icon: <CheckCircle />, to: "inventory/ready-for-delivery" },

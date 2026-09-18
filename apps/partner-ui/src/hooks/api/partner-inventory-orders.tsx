@@ -336,3 +336,84 @@ export const useSubmitPartnerInventoryOrderPayment = (
     ...options,
   })
 }
+
+// #1752 — propose line edits on an assigned inventory order. Staged, never
+// applied: nothing reaches the real line table until an admin approves.
+export type PartnerProposeOrderLinesPayload = {
+  order_lines: Array<{
+    id: string
+    quantity?: number
+    price?: number
+    extra_cost?: number
+    remove?: boolean
+  }>
+}
+
+export type PartnerProposeOrderLinesResponse = {
+  change?: Record<string, any> | null
+}
+
+export const useProposePartnerInventoryOrderLines = (
+  orderId: string,
+  options?: UseMutationOptions<
+    PartnerProposeOrderLinesResponse,
+    FetchError,
+    PartnerProposeOrderLinesPayload
+  >
+) => {
+  return useMutation({
+    mutationFn: async (payload) =>
+      sdk.client.fetch<PartnerProposeOrderLinesResponse>(
+        `/partners/inventory-orders/${orderId}/order-lines`,
+        { method: "PUT", body: payload }
+      ),
+    onSuccess: (data, variables, context) => {
+      queryClient.invalidateQueries({
+        queryKey: partnerInventoryOrdersQueryKeys.lists(),
+      })
+      queryClient.invalidateQueries({
+        queryKey: partnerInventoryOrdersQueryKeys.detail(orderId),
+      })
+      options?.onSuccess?.(data, variables, context)
+    },
+    ...options,
+  })
+}
+
+// #1752 — propose a `tax` charge on top of the goods. Staged, never applied.
+export type PartnerProposeChargePayload = {
+  type: "tax"
+  amount: number
+  note?: string
+}
+
+export type PartnerProposeChargeResponse = {
+  change?: Record<string, any> | null
+}
+
+export const useProposePartnerInventoryOrderCharge = (
+  orderId: string,
+  options?: UseMutationOptions<
+    PartnerProposeChargeResponse,
+    FetchError,
+    PartnerProposeChargePayload
+  >
+) => {
+  return useMutation({
+    mutationFn: async (payload) =>
+      sdk.client.fetch<PartnerProposeChargeResponse>(
+        `/partners/inventory-orders/${orderId}/charges`,
+        { method: "POST", body: payload }
+      ),
+    onSuccess: (data, variables, context) => {
+      queryClient.invalidateQueries({
+        queryKey: partnerInventoryOrdersQueryKeys.lists(),
+      })
+      queryClient.invalidateQueries({
+        queryKey: partnerInventoryOrdersQueryKeys.detail(orderId),
+      })
+      options?.onSuccess?.(data, variables, context)
+    },
+    ...options,
+  })
+}
