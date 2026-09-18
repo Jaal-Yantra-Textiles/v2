@@ -28,9 +28,32 @@ import { model } from "@medusajs/framework/utils";
 const GoodsTransfer = model.define("goods_transfer", {
   id: model.id({ prefix: "gtrf" }).primaryKey(),
 
-  // What moved. A transfer always originates in a production run — that is the
-  // only thing that makes goods exist at a location in the first place.
-  production_run_id: model.text().searchable(),
+  /**
+   * What moved, and which of the TWO kinds of movement this is.
+   *
+   * 🔴 Exactly one of these is set, and the pair is the row's discriminator:
+   *
+   *  - `production_run_id` — FINISHED GOODS a partner made. The run is what
+   *    made the goods exist at a location, and the run's approval is what
+   *    gates posting them to our books.
+   *  - `inventory_item_id` — MATERIAL we already own, moving between two
+   *    locations (#2144). Cloth delivered to a partner's bench and sent on to
+   *    our warehouse, or passed to a second partner. There is no run, nothing
+   *    was produced, and no approval applies — the only gate is somebody at the
+   *    far end counting it.
+   *
+   * `production_run_id` became nullable for the second kind. It was non-null
+   * for every transfer that predates this, which is truthful about them: they
+   * were all run output.
+   */
+  production_run_id: model.text().searchable().nullable(),
+  /**
+   * The material being moved, on a material transfer. Null on run output,
+   * where the item is DERIVED from the run's variant/design — see
+   * `resolveTransferInventoryItem`. Naming it here rather than deriving it is
+   * the point: material has no run to derive from.
+   */
+  inventory_item_id: model.text().nullable(),
   design_id: model.text().nullable(),
   quantity: model.float().default(1),
 

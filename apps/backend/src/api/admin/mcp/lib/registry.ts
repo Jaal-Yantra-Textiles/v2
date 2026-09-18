@@ -89,6 +89,14 @@ export { renderToolGuidance } from "../../../../lib/mcp-core"
 const STR = (description: string) => ({ type: "string", description })
 const BOOL = (description: string) => ({ type: "boolean", description })
 const INT = (description: string) => ({ type: "integer", description })
+/**
+ * A decimal number, as distinct from INT.
+ *
+ * Cloth is measured in metres and kilograms: an `integer` schema here tells the
+ * model 26.5 is invalid, and the same rounding already cost this codebase a
+ * silent 1.5 → 2 on a delivery (#342).
+ */
+const NUM = (description: string) => ({ type: "number", description })
 
 const obj = (
   properties: Record<string, any>,
@@ -1916,6 +1924,55 @@ export const ADMIN_MCP_TOOLS: AdminMcpToolDef[] = [
       "get_inventory_order",
       "list_inventory_order_activities",
     ],
+  },
+  {
+    name: "create_material_transfer",
+    description:
+      "Move MATERIAL we already own from one stock location to another — a partner's bench to our warehouse, or on to a second partner. Sensitive: requires confirm:true. " +
+      "🔑 This is NOT a receipt and NOT a purchase. The inventory order's receipt records what arrived from the SUPPLIER; this records material we already hold moving onward. Cloth delivered to a partner who keeps what they will cut and sends the rest on is exactly this. " +
+      "🔴 Nothing moves when you create it. Stock stays counted at the ORIGIN for the whole journey and moves in one step when receive_material_transfer is called — a decrement on dispatch would make the material exist nowhere while it is on a van, and 'nowhere' is what makes a consumption log go negative. " +
+      "🔴 There is NO approval gate here. That gate exists for a production run's output, where partner completion is a claim and admin approval accepts it. Nothing was produced here, so the only gate is somebody at the far end counting it. Get location ids from list_stock_locations and the item id from list_inventory_items.",
+    method: "POST",
+    path: "/admin/inventory-transfers",
+    previewPath: "/admin/inventory-transfers",
+    write: true,
+    sensitive: true,
+    inputSchema: obj(
+      {
+        inventory_item_id: STR("The material being moved, e.g. 'iitem_...'. From list_inventory_items."),
+        from_location_id: STR("Where the material is NOW, e.g. 'sloc_...'. From list_stock_locations."),
+        to_location_id: STR("Where it is going. Must differ from the origin — a move to the same place moves nothing."),
+        quantity: NUM("How much is moving. Decimals are expected — cloth is metres, not units."),
+        reason: STR("Why it is moving: 'finishing', 'qc', 'packaging', 'stock' (parking it there, the default) or 'other'."),
+        source_inventory_order_id: STR("The inventory order this material originally arrived on, kept for the trail."),
+        notes: STR("Free-text note recorded against the transfer."),
+      },
+      ["inventory_item_id", "from_location_id", "to_location_id", "quantity"]
+    ),
+    nextSteps: ["receive_material_transfer", "list_inventory_levels", "list_stock_locations"],
+  },
+  {
+    name: "receive_material_transfer",
+    description:
+      "Record that material sent on a transfer was COUNTED at the destination, and move the stock. Sensitive: requires confirm:true. " +
+      "🔑 This is the step that actually moves the inventory: it decrements the origin level and increments the destination in one act. Until it runs, the material is still counted where it started, however long ago it left. " +
+      "Omit `received_quantity` to accept what was sent, which is the ordinary case. A short count is recorded as a shortfall and only what arrived is posted — goods that did not turn up are never posted because the paperwork said they were sent. " +
+      "🔴 Receiving twice is REFUSED, not repeated: it would move the same material twice. A correction is a new transfer, not a second receipt. Read the levels back with list_inventory_levels.",
+    method: "POST",
+    path: "/admin/inventory-transfers/:id/receive",
+    pathParams: ["id"],
+    previewPath: "/admin/inventory-transfers",
+    write: true,
+    sensitive: true,
+    inputSchema: obj(
+      {
+        id: STR("Material transfer id, e.g. 'gtrf_...'. Must not already be delivered or cancelled."),
+        received_quantity: NUM("What was actually counted. Omit to accept what was sent. 0 is legitimate — 'the box came and was empty' is a fact worth recording, and it still closes the transfer."),
+        notes: STR("What the count found."),
+      },
+      ["id"]
+    ),
+    nextSteps: ["list_inventory_levels", "list_stock_locations"],
   },
   {
     name: "list_partner_payment_methods",
