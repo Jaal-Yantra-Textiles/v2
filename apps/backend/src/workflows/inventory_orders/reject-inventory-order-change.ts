@@ -6,6 +6,7 @@ import {
 } from "@medusajs/framework/workflows-sdk"
 import { MedusaError } from "@medusajs/framework/utils"
 import { ORDER_INVENTORY_MODULE } from "../../modules/inventory_orders"
+import { notifyPartnerOfChangeDecisionStep } from "./lib/notify-partner-of-change-decision"
 
 /**
  * REJECT a partner's proposed revision of an inventory order (#1752).
@@ -90,6 +91,17 @@ export const rejectInventoryOrderChangeWorkflow = createWorkflow(
     const updated = markRejectedStep({
       changeId: input.changeId,
       decidedBy: input.decidedBy,
+      reason: input.reason ?? null,
+    })
+    /**
+     * The half that needed this most: a rejection carries a REASON an operator
+     * typed for the partner, and until now there was no path by which they
+     * would ever read it.
+     */
+    notifyPartnerOfChangeDecisionStep({
+      orderId: input.orderId,
+      changeId: input.changeId,
+      decision: "rejected",
       reason: input.reason ?? null,
     })
     return new WorkflowResponse({ change: updated })

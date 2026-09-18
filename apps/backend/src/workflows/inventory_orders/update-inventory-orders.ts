@@ -293,25 +293,78 @@ export const updateOrderLinesStep = createStep(
     const updated: Array<{ id: string; prevQuantity: number; prevPrice: any; prevExtraCost: any }> = [];
     const removed: Array<{ id: string; inventory_item_id?: string; quantity: number; price: any }> = [];
 
+    /**
+     * 🔴 #2157 — resolve the removed line's inventory item from the LINK, not
+     * from the payload.
+     *
+     * This loop used to dismiss the link only `if (line.inventory_item_id)`,
+     * i.e. only when the CALLER happened to send it. The partner proposal path
+     * maps exactly `{ id, quantity, price, extra_cost, remove }` and the line
+     * schema strips anything else, so a partner-originated removal never
+     * carries one — the field was absent on 100% of them, not some. The line
+     * was soft-deleted and its link row stayed live, pointing at a row that no
+     * longer exists.
+     *
+     * `byId` cannot answer this: it comes from a module-service relation, and
+     * the item lives across the module link. So this is a `query.graph` read,
+     * and it happens BEFORE the soft-delete below while the lines are still
+     * visible to it.
+     *
+     * The payload still wins when it supplies one — the admin path does, and
+     * an explicit item id is a caller saying which link it means.
+     */
+    const removalLineIds = input.order_lines
+      .filter((l) => l.remove && l.id)
+      .map((l) => l.id!);
+    const linkedItemByLineId = new Map<string, string>();
+    if (removalLineIds.length) {
+      try {
+        const query: any = container.resolve(ContainerRegistrationKeys.QUERY);
+        const { data: rows } = await query.graph({
+          entity: "inventory_orders",
+          fields: ["id", "orderlines.id", "orderlines.inventory_items.id"],
+          filters: { id: input.order_id },
+        });
+        for (const ol of (rows?.[0]?.orderlines ?? []) as any[]) {
+          const itemId = (ol?.inventory_items ?? [])[0]?.id;
+          if (ol?.id && itemId) {
+            linkedItemByLineId.set(String(ol.id), String(itemId));
+          }
+        }
+      } catch (err) {
+        // Best-effort: a failed read must not block the removal itself. It
+        // leaves the link behind, which is the pre-#2157 behaviour, and says
+        // so rather than failing silently.
+        console.warn(
+          `[update-inventory-order] could not resolve inventory links for removed lines on ${input.order_id}; their links may be left behind: ${(err as any)?.message || err}`
+        );
+      }
+    }
+
     // Remove orderlines marked for removal
     for (const line of input.order_lines.filter(l => l.remove && l.id)) {
       const prev = byId.get(line.id!);
+      const linkedItemId =
+        line.inventory_item_id ?? linkedItemByLineId.get(String(line.id));
       // Soft delete orderline
       await inventoryOrderService.softDeleteOrderLines(line.id!);
       // Dismiss link between orderline and inventory_item
-      if (line.inventory_item_id) {
+      if (linkedItemId) {
         await remoteLink.dismiss({
           [ORDER_INVENTORY_MODULE]: {
             inventory_order_line_id: line.id!
           },
           [Modules.INVENTORY]: {
-            inventory_item_id: line.inventory_item_id
+            inventory_item_id: linkedItemId
           }
         });
       }
       removed.push({
+        // Carries the RESOLVED id, so the compensation's relink
+        // (`if (r.inventory_item_id)`) can restore what this step dismissed.
+        // It was reading the same absent payload field and restoring nothing.
         id: line.id!,
-        inventory_item_id: line.inventory_item_id,
+        inventory_item_id: linkedItemId,
         quantity: prev?.quantity,
         price: prev?.price,
       });

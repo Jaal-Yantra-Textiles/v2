@@ -306,6 +306,174 @@ setupSharedTestSuite(() => {
       ).toHaveLength(2)
     })
 
+    /**
+     * #2157 — approving a partner's removal must dismiss the line's link too.
+     *
+     * `updateInventoryOrderWorkflow` dismisses the
+     * `inventory_order_line ↔ inventory_item` link only
+     * `if (line.inventory_item_id)` — and the partner route maps exactly
+     * `{ id, quantity, price, extra_cost, remove }`, so a partner-originated
+     * removal NEVER carries one. The line was soft-deleted and the link row
+     * stayed live, pointing at a row that no longer exists.
+     *
+     * Read from the link TABLE, not through the order: the line is
+     * soft-deleted, so every traversal that starts at the order already omits
+     * it and would report clean whether the link survived or not. The table
+     * name is looked up rather than hardcoded — Medusa abbreviates and hashes
+     * a long link table name, so the literal is unguessable and unstable.
+     */
+    it("dismisses the line's inventory link when a removal is approved", async () => {
+      const knex = (getContainer().resolve(
+        ContainerRegistrationKeys.PG_CONNECTION
+      )) as any
+
+      const { rows: tables } = await knex.raw(
+        `select table_name from information_schema.tables
+          where table_name like 'inventory_orders_inventory_order_line_inventory_%'`
+      )
+      expect(tables).toHaveLength(1)
+      const linkTable = tables[0].table_name
+
+      const linkRows = async (lineId: string) => {
+        const { rows } = await knex.raw(
+          `select deleted_at from ??  where inventory_order_line_id = ?`,
+          [linkTable, lineId]
+        )
+        return rows as Array<{ deleted_at: string | null }>
+      }
+
+      // The link exists and is live before we touch anything.
+      const before = await linkRows(lineC.id)
+      expect(before.length).toBeGreaterThan(0)
+      expect(before.every((r) => r.deleted_at === null)).toBe(true)
+
+      const edit = await api.put(
+        `/partners/inventory-orders/${orderId}/order-lines`,
+        {
+          order_lines: [
+            { id: lineA.id, quantity: 10, price: 100 },
+            { id: lineB.id, quantity: 5, price: 200 },
+            { id: lineC.id, remove: true },
+          ],
+        },
+        { headers: ownerHeaders }
+      )
+      expect(edit.status).toBe(200)
+
+      const approve = await api.post(
+        `/admin/inventory-orders/${orderId}/changes/${edit.data.change.id}/approve`,
+        {},
+        adminHeaders
+      )
+      expect(approve.status).toBe(200)
+
+      // The line is gone …
+      const after = await fetchLegacyLines(orderId)
+      expect(after.orderlines.find((l: any) => l.id === lineC.id)).toBeUndefined()
+
+      // … and so is its link. A live row here is a link to a deleted line.
+      const links = await linkRows(lineC.id)
+      expect(links.every((r) => r.deleted_at !== null)).toBe(true)
+
+      // The surviving lines keep theirs.
+      const keptLinks = await linkRows(lineA.id)
+      expect(keptLinks.some((r) => r.deleted_at === null)).toBe(true)
+    })
+
+    /**
+     * #2157 follow-up — the decision must reach the partner.
+     *
+     * Approve and reject used to tell nobody: no event, no notification, no
+     * subscriber. The partner's only signal was the pending banner quietly
+     * ceasing to render the next time they reopened the order, so a proposal
+     * could sit decided for days while they still believed their payment was
+     * on hold.
+     *
+     * Asserted through the partner's OWN bell route rather than the
+     * notification table, because `GET /partners/notifications` scopes on
+     * `receiver_id = partner.id` — a row written without that field exists and
+     * is invisible, which is indistinguishable from not writing one.
+     */
+    const bell = async (headers: any) => {
+      const res = await api.get(
+        `/partners/notifications?limit=50`,
+        { headers }
+      )
+      expect(res.status).toBe(200)
+      return res.data.notifications as any[]
+    }
+
+    it("tells the partner, in their own bell, when a change is APPROVED", async () => {
+      const edit = await api.put(
+        `/partners/inventory-orders/${orderId}/order-lines`,
+        { order_lines: [{ id: lineA.id, quantity: 11, price: 100 }] },
+        { headers: ownerHeaders }
+      )
+      await api.post(
+        `/admin/inventory-orders/${orderId}/changes/${edit.data.change.id}/approve`,
+        {},
+        adminHeaders
+      )
+
+      const rows = await bell(ownerHeaders)
+      const row = rows.find(
+        (n) => n.trigger_type === "inventory_order_change.approved"
+      )
+      expect(row).toBeDefined()
+      expect(row.resource_type).toBe("inventory_order")
+      expect(row.resource_id).toBe(orderId)
+      // The deep link the partner dashboard actually serves (it redirects the
+      // legacy id to the unified order). A wrong path here is #2114 again.
+      expect(row.data.url).toBe(`/inventory-orders/${orderId}`)
+    })
+
+    /**
+     * The rejection is the half that mattered most: it carries a REASON an
+     * operator typed for the partner, and there was no path by which they
+     * would ever read it. So the reason itself is asserted, not just that
+     * something was sent.
+     */
+    it("tells the partner WHY when a change is REJECTED", async () => {
+      const edit = await api.put(
+        `/partners/inventory-orders/${orderId}/order-lines`,
+        { order_lines: [{ id: lineA.id, quantity: 999, price: 100 }] },
+        { headers: ownerHeaders }
+      )
+      const res = await api.post(
+        `/admin/inventory-orders/${orderId}/changes/${edit.data.change.id}/reject`,
+        { reason: "The mill invoice says 10, not 999" },
+        adminHeaders
+      )
+      expect(res.status).toBe(200)
+
+      const rows = await bell(ownerHeaders)
+      const row = rows.find(
+        (n) => n.trigger_type === "inventory_order_change.rejected"
+      )
+      expect(row).toBeDefined()
+      expect(row.data.description).toContain("The mill invoice says 10, not 999")
+    })
+
+    it("does not leak a decision into another partner's bell", async () => {
+      const edit = await api.put(
+        `/partners/inventory-orders/${orderId}/order-lines`,
+        { order_lines: [{ id: lineA.id, quantity: 12, price: 100 }] },
+        { headers: ownerHeaders }
+      )
+      await api.post(
+        `/admin/inventory-orders/${orderId}/changes/${edit.data.change.id}/approve`,
+        {},
+        adminHeaders
+      )
+
+      const rows = await bell(attackerHeaders)
+      expect(
+        rows.filter((n) =>
+          String(n.trigger_type ?? "").startsWith("inventory_order_change.")
+        )
+      ).toHaveLength(0)
+    })
+
     it("a foreign partner cannot stage edits on another partner's order (404, no leak)", async () => {
       const res = await api
         .put(
