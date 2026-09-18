@@ -65,7 +65,7 @@ const Y_SKIP = 320
 
 // ─── Flow definition ─────────────────────────────────────────────────────────
 
-const FLOW_DEF = {
+export const FLOW_DEF = {
   name: FLOW_NAME,
   description:
     "Auto-create DRAFT products from partner WhatsApp messages. Fires on " +
@@ -97,7 +97,7 @@ const FLOW_DEF = {
         id: "eligible",
         type: "operation",
         position: { x: X_CENTER, y: Y_ELIGIBLE },
-        data: { label: "Eligible? (verified partner + image|document + caption)", operationKey: "eligible", operationType: "condition" },
+        data: { label: "Eligible? (verified partner + image|document + STATED product purpose)", operationKey: "eligible", operationType: "condition" },
       },
       {
         id: "extract_attrs",
@@ -149,19 +149,34 @@ const FLOW_DEF = {
     {
       operation_key: "eligible",
       operation_type: "condition",
-      name: "Eligible? (verified partner + image|document + caption)",
+      name: "Eligible? (verified partner + image|document + STATED product purpose)",
       sort_order: 0,
       position_x: X_CENTER,
       position_y: Y_ELIGIBLE,
       options: {
         condition_mode: "expression",
+        // #2138 — a caption is NOT consent to mint a product.
+        //
+        // This used to read "partner + image|document + caption non-empty",
+        // which made ANY captioned photo a product offer. That question —
+        // "what product is this?" — presupposes its own subject, and the
+        // extractor answers confidently when the premise is false: a FABRIC
+        // was classified `trousers` at confidence 1.00. No threshold fixes a
+        // false premise.
+        //
+        // Now the purpose must have been STATED. `photo_purpose` is stamped on
+        // the event only when an admin set a live `photo_context` of
+        // product_submission, or the partner answered the assistant's question
+        // with one. Everything else — stock we asked to see, fabric they want
+        // to sell US, a defect, a bank slip — falls through to log_skip and is
+        // handled by the ask in jobs/ask-about-photo-batches.ts.
         expression:
-          "$trigger.partner_id != null && ($trigger.type === 'image' || $trigger.type === 'document') && ($trigger.caption || '').length > 0",
+          "$trigger.partner_id != null && ($trigger.type === 'image' || $trigger.type === 'document') && $trigger.photo_purpose === 'product_submission'",
         filter_rule: {
           _and: [
             { "$trigger.partner_id": { _null: false } },
             { "$trigger.type": { _in: ["image", "document"] } },
-            { "$trigger.caption": { _empty: false } },
+            { "$trigger.photo_purpose": { _eq: "product_submission" } },
           ],
         },
       },

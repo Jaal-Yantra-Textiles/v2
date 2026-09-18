@@ -14,6 +14,10 @@ import WhatsAppService from "../../modules/social-provider/whatsapp-service"
 import { SOCIAL_PROVIDER_MODULE } from "../../modules/social-provider"
 import type SocialProviderService from "../../modules/social-provider/service"
 import { MESSAGING_MODULE } from "../../modules/messaging"
+import {
+  isPhotoContextLive,
+  recordPhoto,
+} from "./whatsapp-photo-batch"
 import type { WhatsAppAuditContext } from "../../modules/social-provider/whatsapp-service"
 import {
   downloadAndSaveWhatsAppMedia,
@@ -580,6 +584,41 @@ export async function handleIncomingMessage(
                 ? { context_type: "production_run", context_id: attachedRunId }
                 : {}),
             })
+          }
+        }
+
+        /**
+         * #2138 — a photo with NO established purpose joins a batch instead of
+         * being guessed at.
+         *
+         * Only when nothing has already claimed it: a run attachment is an
+         * explicit instruction (the partner tapped "Add Media", or has exactly
+         * one run in progress), and a live `photo_context` means an admin
+         * already said what these photos are for. Either way the purpose is
+         * known and there is nothing to ask.
+         *
+         * Otherwise the photo is recorded and NOTHING is sent from here. The
+         * question is asked once, by `jobs/ask-about-photo-batches.ts`, after
+         * the partner stops sending — asking per photo would mean eight
+         * questions for eight photos, which is worse than guessing.
+         */
+        if (saved && conversationId && !attachedRunId) {
+          const liveContext = isPhotoContextLive(
+            conversationMeta.photo_context as any
+          )
+          if (!liveContext) {
+            const [mediaRow] = await (scope.resolve(MESSAGING_MODULE) as any)
+              .listMessagingMessages({ wa_message_id: message.messageId }, { take: 1 })
+              .catch(() => [null])
+            if (mediaRow?.id) {
+              await updateConversationMetadata(scope, conversationId, {
+                ...conversationMeta,
+                pending_photo_batch: recordPhoto(
+                  conversationMeta.pending_photo_batch as any,
+                  mediaRow.id
+                ),
+              })
+            }
           }
         }
 
