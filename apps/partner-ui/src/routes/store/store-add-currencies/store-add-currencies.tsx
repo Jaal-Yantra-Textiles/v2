@@ -15,7 +15,9 @@ export const StoreAddCurrencies = () => {
   } = usePricePreferences(
     {
       attribute: "currency_code",
-      value: store?.supported_currencies?.map((c) => c.currency_code),
+      value: store?.supported_currencies?.map(
+        (c: { currency_code: string }) => c.currency_code
+      ),
     },
     {
       enabled: !!store,

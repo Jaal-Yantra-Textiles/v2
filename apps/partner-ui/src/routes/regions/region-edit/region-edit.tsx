@@ -4,7 +4,6 @@ import { useParams } from "react-router-dom"
 
 import { RouteDrawer } from "../../../components/modals"
 import { Skeleton } from "../../../components/common/skeleton"
-import { usePaymentProviders } from "../../../hooks/api/payments"
 import { useRegion } from "../../../hooks/api/regions"
 import { useStore } from "../../../hooks/api/store"
 import { currencies } from "../../../lib/data/currencies"
@@ -25,7 +24,6 @@ export const RegionEdit = () => {
   })
 
   const {
-    store,
     isPending: isStoreLoading,
     isError: isStoreError,
     error: storeError,
