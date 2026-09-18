@@ -10,6 +10,7 @@ import { logger } from "@medusajs/framework"
 import  { MESSAGING_MODULE } from "../../../../modules/messaging"
 import { PRODUCTION_RUNS_MODULE } from "../../../../modules/production_runs"
 import { planReminderRollback } from "../../../../workflows/production-runs/emit-production-run-reminder"
+import { findLivePhotoPurpose } from "../../../../workflows/whatsapp/whatsapp-photo-purpose-lookup"
 
 /**
  * GET /webhooks/social/whatsapp
@@ -425,6 +426,27 @@ async function processWhatsAppWebhook(
           // WhatsApp messages without authoring custom subscribers. Partner /
           // admin handlers below still run unchanged — the event is additive.
           // Fire-and-forget: an emit failure must not break message handling.
+          /**
+           * #2138 — the purpose an admin already stated for these photos.
+           *
+           * 🔴 The product-create flow's eligibility rule reads
+           * `$trigger.photo_purpose`, and nothing had ever set it: this payload
+           * carried a fixed key set with no such field, and the flow trigger
+           * subscriber enriches nothing. The condition could not be true, so
+           * photo→product creation was off with nothing having failed.
+           *
+           * Resolved here rather than in the partner handler because the event
+           * is emitted BEFORE that handler runs — its conversation metadata does
+           * not exist yet. Only looked up for a partner's image/document, so an
+           * ordinary text message costs no query, and a failed lookup returns
+           * null, which is the pre-existing behaviour.
+           */
+          const photoPurpose = await findLivePhotoPurpose(scope, {
+            partnerId: partner?.partnerId ?? null,
+            from: incomingMessage.from,
+            messageType: incomingMessage.type,
+          })
+
           try {
             const eventBus = scope.resolve(Modules.EVENT_BUS) as any
             await eventBus.emit([{
@@ -443,6 +465,12 @@ async function processWhatsAppWebhook(
                 partner_id: partner?.partnerId ?? null,
                 partner_name: partner?.adminName ?? null,
                 admin_user_id: admin?.userId ?? null,
+                /**
+                 * `'inventory_offer' | 'product_submission' | 'run_progress'`,
+                 * or null when nobody said. Null is what every photo carried
+                 * before #2138, and it routes the photo to batch-and-ask.
+                 */
+                photo_purpose: photoPurpose,
               },
             }])
           } catch (e: any) {

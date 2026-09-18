@@ -8,6 +8,7 @@ import { createPartnerAdminWithRegistrationWorkflow } from "../partner/create-pa
 import { approveProductionRunWorkflow } from "../production-runs/approve-production-run"
 import { sendProductionRunToProductionWorkflow } from "../production-runs/send-production-run-to-production"
 import { reviewPaymentSubmissionWorkflow } from "../payment_submissions/review-payment-submission"
+import { phoneMatches } from "./whatsapp-phone"
 
 interface IncomingMessage {
   from: string
@@ -1058,9 +1059,6 @@ async function getPartnerName(scope: any, partnerId: string | null): Promise<str
   }
 }
 
-function phoneMatches(a: string, b: string): boolean {
-  return a === b || a.endsWith(b) || b.endsWith(a)
-}
 
 function formatDate(date: string | Date): string {
   const d = new Date(date)
