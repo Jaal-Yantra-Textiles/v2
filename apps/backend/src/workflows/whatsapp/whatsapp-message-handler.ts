@@ -14,6 +14,8 @@ import WhatsAppService from "../../modules/social-provider/whatsapp-service"
 import { SOCIAL_PROVIDER_MODULE } from "../../modules/social-provider"
 import type SocialProviderService from "../../modules/social-provider/service"
 import { MESSAGING_MODULE } from "../../modules/messaging"
+import { resolveLivePhotoContextAction } from "./whatsapp-photo-context-routing"
+import { fileInventoryOfferAnalysis } from "./whatsapp-photo-inventory-offer"
 import {
   isPhotoContextLive,
   recordPhoto,
@@ -565,6 +567,17 @@ export async function handleIncomingMessage(
 
         let attachedRunId: string | null = null
         let attachError: string | null = null
+        /**
+         * #2138 — what a live photo context says back to the partner.
+         *
+         * `photoContextOwnsReply` is separate from the text on purpose: for
+         * `product_submission` the VISUAL FLOW sends the reply, so the right
+         * answer here is "say nothing", which is not the same as "no context".
+         * One nullable string could not tell those apart and the partner would
+         * get two messages for one photo.
+         */
+        let photoContextReply: string | null = null
+        let photoContextOwnsReply = false
 
         if (saved && targetRunId) {
           const result = await attachMediaToRunDesign(scope, {
@@ -637,10 +650,48 @@ export async function handleIncomingMessage(
          * questions for eight photos, which is worse than guessing.
          */
         if (saved && conversationId && !attachedRunId) {
-          const liveContext = isPhotoContextLive(
+          /**
+           * #2138 — a live context now CAUSES something.
+           *
+           * Until this, the context was read only to decide not to batch the
+           * photo, and the photo then fell through to the ordinary shared-folder
+           * reply. An admin who said "these will be the lot they're offering us"
+           * got a file in a catchall and a partner who was told nothing — a
+           * context set and never acted on, which is worse than none, because
+           * the admin believes it was honoured.
+           *
+           * An unrecognised or expired kind returns null and the photo rejoins
+           * the batch-and-ask path. Silence is the failure #2138 exists to
+           * remove, so no branch here may produce it.
+           */
+          const contextAction = resolveLivePhotoContextAction(
             conversationMeta.photo_context as any
           )
-          if (!liveContext) {
+
+          if (contextAction) {
+            photoContextReply =
+              contextAction.reply === "here" ? contextAction.confirmation : null
+            photoContextOwnsReply = true
+
+            if (contextAction.analyse) {
+              // Awaited, like the vision description above it: the partner is
+              // not waiting on a reply that depends on this, but an unawaited
+              // promise in a webhook is a write that may simply never happen.
+              // It never throws — a failed reading must not turn a saved photo
+              // into an error.
+              const filed = await fileInventoryOfferAnalysis(scope, {
+                mediaFileId: saved.mediaFileId,
+                imageUrl: saved.fileUrl,
+                note:
+                  (conversationMeta.photo_context as any)?.note ?? null,
+              })
+              if (filed.skipped_reason) {
+                console.warn(
+                  `[whatsapp-handler] inventory-offer photo not analysed (${filed.skipped_reason})`
+                )
+              }
+            }
+          } else {
             const [mediaRow] = await (scope.resolve(MESSAGING_MODULE) as any)
               .listMessagingMessages({ wa_message_id: message.messageId }, { take: 1 })
               .catch(() => [null])
@@ -678,7 +729,14 @@ export async function handleIncomingMessage(
           })
         }
 
-        if (attachedRunId) {
+        if (photoContextOwnsReply) {
+          // The admin already said what these photos are for, so the generic
+          // "uploaded to your shared folder" would be answering a question
+          // nobody asked. Null means the flow owns the reply.
+          if (photoContextReply) {
+            await whatsapp.sendTextMessage(message.from, photoContextReply)
+          }
+        } else if (attachedRunId) {
           const suffix = contextStillValid
             ? ""
             : " (auto-matched — you only have one run in progress)"

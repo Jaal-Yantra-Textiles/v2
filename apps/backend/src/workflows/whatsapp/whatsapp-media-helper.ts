@@ -250,7 +250,17 @@ export async function downloadAndSaveWhatsAppMedia(
     // partner has a real shared working folder we'd rather route to.
     targetFolderId?: string
   }
-): Promise<{ fileUrl: string; mimeType: string; folderId: string } | null> {
+): Promise<{
+  fileUrl: string
+  mimeType: string
+  folderId: string
+  /**
+   * The `media_file` row's id (#2138). Needed to file a `textile_analysis`
+   * against the image — the link is media↔analysis, so a URL alone cannot
+   * write one.
+   */
+  mediaFileId: string | null
+} | null> {
   const socialProvider = scope.resolve(SOCIAL_PROVIDER_MODULE) as SocialProviderService
   const whatsapp = socialProvider.getWhatsApp(scope)
 
@@ -331,7 +341,7 @@ export async function downloadAndSaveWhatsAppMedia(
 
     if (!fileUrl) return null
 
-    return { fileUrl, mimeType, folderId }
+    return { fileUrl, mimeType, folderId, mediaFileId: firstFile?.id ?? null }
   } catch (e: any) {
     console.error("[whatsapp-media] Failed to download/save media:", e.message)
     return null
