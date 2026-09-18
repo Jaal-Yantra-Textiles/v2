@@ -73,21 +73,145 @@ export type FreeformReplyResult = {
  * Never throws — an empty pack degrades to "no open work on record" rather
  * than failing the reply.
  */
+
+const DESIGN_FIELDS = [
+  "id",
+  "name",
+  "status",
+  "product_type",
+  "target_completion_date",
+]
+
+/**
+ * The designs this partner may be told about.
+ *
+ * 🔴 Fixing a real scoping bug. Both design reads here used
+ * `entity: "designs", filters: { partner_id }` — and **the design model has no
+ * `partner_id`.** It carries `owner_partner_id`, and designs reach a partner
+ * through `links/design-partners-link.ts`, whose partner side declares
+ * `filterable: ["id", "name"]`.
+ *
+ * So that filter was either ignored — in which case any partner could read any
+ * design by name — or it threw, in which case the assistant was permanently
+ * blind to designs. Both reads sat behind `.catch(() => [])` and a bare
+ * `catch {}`, which made the two outcomes indistinguishable at runtime: the
+ * leak and the blindness produce the same empty array in a log.
+ *
+ * This resolves ids the way the rest of the codebase does — the link table,
+ * plus designs the partner OWNS — and then fetches by id. Same shape as
+ * `workflows/designs/list-partner-designs.ts`.
+ *
+ * ⚠️ The link import is LAZY on purpose. `defineLink` throws at module
+ * evaluation outside a container, and a top-level import of one has already
+ * taken a whole jest suite down while the runner cheerfully reported the
+ * neighbouring tests as passing.
+ */
+/**
+ * Resolving the link's entry point is its own seam, and that is deliberate.
+ *
+ * ⚠️ `defineLink(...).entryPoint` is EMPTY outside a container, and importing
+ * the module can throw outright at evaluation time. So a unit test can never
+ * exercise the real link — only an integration test can. Making this injectable
+ * means the SCOPING RULE stays testable even though the link itself is not:
+ * tests supply an entry point, prod gets the lazy import.
+ */
+export type DesignLinkEntryPointResolver = () => Promise<string | null>
+
+const defaultLinkEntryPoint: DesignLinkEntryPointResolver = async () => {
+  // Lazy on purpose: a top-level import of a `defineLink` module throws at
+  // module evaluation outside a container, and has already taken a whole jest
+  // suite down while the runner reported its neighbours as passing.
+  const mod: any = await import("../../links/design-partners-link.js")
+  const link = mod.default ?? mod
+  return link?.entryPoint || null
+}
+
+export async function resolvePartnerDesignIds(
+  scope: any,
+  partnerId: string,
+  logger?: any,
+  linkEntryPoint: DesignLinkEntryPointResolver = defaultLinkEntryPoint
+): Promise<string[]> {
+  const query = scope.resolve(ContainerRegistrationKeys.QUERY) as any
+  const ids = new Set<string>()
+
+  try {
+    const entryPoint = await linkEntryPoint()
+    if (!entryPoint) {
+      // An empty entry point would query entity "" and return an empty array —
+      // indistinguishable from "this partner has no designs". Refuse to make
+      // that call rather than let it answer.
+      throw new Error("design↔partner link entry point unavailable")
+    }
+    const { data } = await query.graph({
+      entity: entryPoint,
+      fields: ["design_id"],
+      filters: { partner_id: partnerId },
+      pagination: { skip: 0, take: 200 },
+    } as any)
+    for (const row of data ?? []) {
+      if (row?.design_id) ids.add(String(row.design_id))
+    }
+  } catch (e: any) {
+    // Narrow, and LOUD. A scoping query that fails must not read as "this
+    // partner has no designs" — that is the shape the original bug hid in.
+    logger?.warn?.(
+      `[whatsapp-freeform] design link lookup failed for partner ${partnerId}: ${e?.message}`
+    )
+  }
+
+  try {
+    const { data: owned } = await query.graph({
+      entity: "design",
+      fields: ["id"],
+      filters: { owner_partner_id: partnerId },
+      pagination: { skip: 0, take: 50 },
+    } as any)
+    for (const d of owned ?? []) {
+      if (d?.id) ids.add(String(d.id))
+    }
+  } catch (e: any) {
+    logger?.warn?.(
+      `[whatsapp-freeform] owned-design lookup failed for partner ${partnerId}: ${e?.message}`
+    )
+  }
+
+  return Array.from(ids)
+}
+
 async function buildPartnerChatContext(
   scope: any,
   partnerId: string
 ): Promise<PartnerChatContext> {
   const query = scope.resolve(ContainerRegistrationKeys.QUERY) as any
 
-  const designsPromise = query
-    .graph({
-      entity: "designs",
-      fields: ["id", "name", "status", "product_type", "target_completion_date"],
-      filters: { partner_id: partnerId },
-      pagination: { skip: 0, take: 20 },
-    } as any)
-    .then(({ data }: any) => (data ?? []) as PartnerChatContext["designs"])
-    .catch(() => [] as PartnerChatContext["designs"])
+  const logger = (() => {
+    try {
+      return scope.resolve(ContainerRegistrationKeys.LOGGER)
+    } catch {
+      return undefined
+    }
+  })()
+
+  const designsPromise = resolvePartnerDesignIds(scope, partnerId, logger)
+    .then(async (ids) => {
+      if (!ids.length) {
+        return [] as PartnerChatContext["designs"]
+      }
+      const { data } = await query.graph({
+        entity: "designs",
+        fields: DESIGN_FIELDS,
+        filters: { id: ids },
+        pagination: { skip: 0, take: 20 },
+      } as any)
+      return (data ?? []) as PartnerChatContext["designs"]
+    })
+    .catch((e: any) => {
+      logger?.warn?.(
+        `[whatsapp-freeform] design context failed for partner ${partnerId}: ${e?.message}`
+      )
+      return [] as PartnerChatContext["designs"]
+    })
 
   const workPromise = getPartnerOpenWork(scope, partnerId).catch(() => ({
     pendingRuns: [] as any[],
@@ -223,7 +347,13 @@ function createLookupDesignTool(scope: any, partnerId: string) {
     }),
     execute: async ({ q }) => {
       const query = scope.resolve(ContainerRegistrationKeys.QUERY) as any
-      const fields = ["id", "name", "status", "product_type", "target_completion_date"]
+      const logger = (() => {
+        try {
+          return scope.resolve(ContainerRegistrationKeys.LOGGER)
+        } catch {
+          return undefined
+        }
+      })()
       const mapDesign = (d: any) => ({
         found: true,
         id: d.id,
@@ -233,24 +363,53 @@ function createLookupDesignTool(scope: any, partnerId: string) {
         target_completion_date: d.target_completion_date ?? null,
       })
 
-      try {
-        const { data } = await query.graph({
-          entity: "designs",
-          fields,
-          filters: { id: q, partner_id: partnerId },
-        } as any)
-        if (data?.[0]) return mapDesign(data[0])
-      } catch { /* not a valid id — fall through to name search */ }
+      // 🔴 Scope FIRST, then search. The previous version filtered designs on a
+      // `partner_id` field the model does not have, so the scope was decided by
+      // a filter that could not work — see `resolvePartnerDesignIds`.
+      const allowed = await resolvePartnerDesignIds(scope, partnerId, logger)
+      if (!allowed.length) {
+        return { found: false }
+      }
 
+      const needle = String(q ?? "").trim()
+      if (!needle) {
+        return { found: false }
+      }
+
+      // An exact id is only answerable if it is one of theirs. A design that
+      // exists but is not this partner's must be indistinguishable from one
+      // that does not exist, or the tool becomes an existence oracle.
+      if (allowed.includes(needle)) {
+        try {
+          const { data } = await query.graph({
+            entity: "designs",
+            fields: DESIGN_FIELDS,
+            filters: { id: needle },
+          } as any)
+          if (data?.[0]) return mapDesign(data[0])
+        } catch (e: any) {
+          logger?.warn?.(`[whatsapp-freeform] lookup_design by id failed: ${e?.message}`)
+        }
+      }
+
+      // Name search, constrained to their own designs and matched in memory —
+      // `q` is a route-level convention, not a `query.graph` filter, so passing
+      // it as one matched nothing (or everything).
       try {
         const { data } = await query.graph({
           entity: "designs",
-          fields,
-          filters: { partner_id: partnerId, q },
-          pagination: { skip: 0, take: 5 },
+          fields: DESIGN_FIELDS,
+          filters: { id: allowed },
+          pagination: { skip: 0, take: 200 },
         } as any)
-        if (data?.[0]) return mapDesign(data[0])
-      } catch { /* ignore */ }
+        const lower = needle.toLowerCase()
+        const hit = (data ?? []).find((d: any) =>
+          String(d?.name ?? "").toLowerCase().includes(lower)
+        )
+        if (hit) return mapDesign(hit)
+      } catch (e: any) {
+        logger?.warn?.(`[whatsapp-freeform] lookup_design by name failed: ${e?.message}`)
+      }
 
       return { found: false }
     },
