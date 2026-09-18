@@ -8,6 +8,7 @@ import {
 } from "@medusajs/icons"
 import { Container, Copy, Heading, StatusBadge, Text } from "@medusajs/ui"
 import { useTranslation } from "react-i18next"
+import type { TFunction } from "i18next"
 
 import { ActionMenu, ActionGroup } from "../../../../../components/common/action-menu"
 import { useDate } from "../../../../../hooks/use-date"
@@ -34,11 +35,12 @@ type WorkOrderStatusSectionProps = {
 // order actions. Routes are relative to /orders/:id.
 const buildInventoryActions = (
   inventoryOrder: any,
-  // i18next's TFunction is overloaded and not assignable to `(k: string) =>
-  // string`; it returns a richer type and takes optional options. Only the
-  // key-lookup shape is used here, so accept the function and narrow the
-  // result at the call sites.
-  t: (k: string) => any
+  // 🔴 `TFunction`, not `(k: string) => string`. i18next types `t` against its
+  // KNOWN keys, so its parameter is NARROWER than `string` — and under
+  // strictFunctionTypes a function taking a narrower parameter is not
+  // assignable to one taking a wider one. Widening the RETURN type does not
+  // help; the parameter is the contravariant half.
+  t: TFunction
 ): ActionGroup[] => {
   // #1752 — a pending proposal locks the partner's PAYMENT claim until the
   // admin approves or rejects it. Work and goods keep moving; see the note on
