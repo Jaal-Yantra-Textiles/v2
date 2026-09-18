@@ -101,6 +101,24 @@ const NO_ROUTE_VALIDATOR = new Set<string>([
   "admin:create_shipping_option",
   "admin:update_shipping_option",
   /**
+   * Wraps the CORE route `POST /admin/stock-locations/:id`, whose validator
+   * core registers in its own middleware config — nothing in this repo's
+   * `middlewares.ts` binds it, so there is nothing here to match against.
+   *
+   * Not unchecked, READ from the installed package
+   * (`@medusajs/medusa/dist/api/admin/stock-locations/validators.js`):
+   * `AdminUpdateStockLocation` accepts `name`, `address`, `address_id` and
+   * `metadata`, and the tool advertises a subset of exactly those three. It
+   * deliberately does NOT advertise `address_id` — repointing a location at
+   * some other location's address row is not a rename, and offering it beside
+   * `name` invites exactly that mistake.
+   *
+   * ⚠️ `name` goes through `z.preprocess((val) => val.trim(), ...)`, which
+   * throws on a non-string rather than rejecting it, so the tool's schema types
+   * it as a plain string with no null.
+   */
+  "admin:update_stock_location",
+  /**
    * `cancel-shipment` registers no matcher in `middlewares.ts` and validates in
    * the handler: it reads `(req.validatedBody || req.body || {})` for `reason`,
    * `force` and `notify_customer`, and `cancelShipmentForFulfillment` enforces
