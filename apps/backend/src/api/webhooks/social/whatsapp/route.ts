@@ -303,6 +303,38 @@ async function processWhatsAppWebhook(
                       id: rollback.production_run_id,
                       reminder_count: current - 1,
                     })
+
+                    // #2122 — the cap is now counted per RULE, so the run's
+                    // column above is no longer the number that decides
+                    // anything; the rule's own row is. Un-count that too, or
+                    // #1279's fix quietly stops working and a partner who was
+                    // never reached still escalates a reminder early.
+                    //
+                    // ⚠️ Which rule? The message's `context_id` is
+                    // `<run_id>:reminder:<date>` and carries NO rule key, so
+                    // the run's `reminder_kind` — dual-written by the emitter
+                    // on every send — is used as "the rule that last fired".
+                    // That is exact today, where reminders are one-at-a-time,
+                    // and becomes approximate once two free-form rules can fire
+                    // on the same run between a send and Meta's answer. Making
+                    // it exact means putting the rule key in `context_id`,
+                    // which seven parsers read; tracked on #2122, not done here.
+                    const ruleKey = run.reminder_kind
+                    if (ruleKey) {
+                      const rows = await runService
+                        .listProductionRunReminders({
+                          production_run_id: rollback.production_run_id,
+                          rule_key: ruleKey,
+                        })
+                        .catch(() => [])
+                      const row = Array.isArray(rows) ? rows[0] : null
+                      if (row && (row.reminder_count ?? 0) > 0) {
+                        await runService.updateProductionRunReminders({
+                          id: row.id,
+                          reminder_count: row.reminder_count - 1,
+                        })
+                      }
+                    }
                     logger.warn(
                       `[whatsapp-webhook] Reminder to ${status.recipient_id} was REJECTED by Meta ` +
                         `(${failReason ?? "no reason given"}) — un-counting it on ` +

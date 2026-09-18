@@ -11,6 +11,8 @@ import type ProductionRunService from "../../modules/production_runs/service"
 import { PRODUCTION_POLICY_MODULE } from "../../modules/production_policy"
 import type ProductionPolicyService from "../../modules/production_policy/service"
 import { PARTNER_MODULE } from "../../modules/partner"
+import { clearReminderRows, restoreReminderRows } from "./reminder-state"
+import type { ReminderRowSnapshot } from "./reminder-state"
 
 /**
  * #1228 — the manual half of #1093's reassignment story.
@@ -46,6 +48,8 @@ type AssignComp = {
   prev_reminder_count: number
   prev_reminder_kind: string | null
   prev_reminder_status: string | null
+  /** #2122 — every rule's own counter, so compensation can put them back. */
+  prev_reminder_rows: ReminderRowSnapshot[]
   prev_reassign_retry_count: number
   prev_dispatch_state: string | null
   prev_dispatch_started_at: Date | null
@@ -94,6 +98,10 @@ const assignPartnerStep = createStep(
     const previousPartnerId = run.partner_id ?? run.previous_partner_id ?? null
     const isSamePartner = previousPartnerId === input.partner_id
 
+    // #2122 — the reminder columns below are one slot; the counters now live
+    // one row per rule and have to be rewound too.
+    const prevReminderRows = await clearReminderRows(service, input.production_run_id)
+
     await service.updateProductionRuns({
       id: input.production_run_id,
       partner_id: input.partner_id,
@@ -139,6 +147,7 @@ const assignPartnerStep = createStep(
         prev_reminder_count: run.reminder_count ?? 0,
         prev_reminder_kind: run.reminder_kind ?? null,
         prev_reminder_status: run.reminder_status ?? null,
+        prev_reminder_rows: prevReminderRows,
         prev_reassign_retry_count: run.reassign_retry_count ?? 0,
         prev_dispatch_state: run.dispatch_state ?? null,
         prev_dispatch_started_at: run.dispatch_started_at ?? null,
@@ -163,6 +172,7 @@ const assignPartnerStep = createStep(
       dispatch_started_at: comp.prev_dispatch_started_at,
       dispatch_completed_at: comp.prev_dispatch_completed_at,
     })
+    await restoreReminderRows(service, comp.prev_reminder_rows)
   }
 )
 
