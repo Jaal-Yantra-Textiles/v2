@@ -94,6 +94,12 @@ export type AiRole =
   // OpenRouter free models. The model drives the Admin API via the shared MCP
   // tool registry — see api/admin/mcp/lib/registry.ts.
   | "ai_admin_assistant"
+  // Free-form WhatsApp chat with partners (#1930). The WhatsApp webhook hands
+  // a partner's non-command message to an LLM that answers in natural language
+  // grounded on their live runs/designs/payments. Resolves from the
+  // admin-configured External Platform; falls back to the tool-capable
+  // OpenRouter free model (`dynamicFreeToolTextModel`).
+  | "ai_whatsapp_partner_chat"
   // String escape hatch so callers can use ad-hoc roles without
   // bumping this union every time.
   | (string & {})
@@ -740,7 +746,7 @@ export type AiUsage = {
   feature: string
   role: AiRole
   provider: AiProviderType
-  source: "platform" | "free"
+  source: "platform" | "env" | "free"
   ok: boolean
   model?: string
   platformId?: string
@@ -945,4 +951,5 @@ export const AI_ROLES: AiRole[] = [
   "ai_design_product_type",
   "ai_partner_assistant",
   "ai_admin_assistant",
+  "ai_whatsapp_partner_chat",
 ]

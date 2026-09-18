@@ -24,6 +24,8 @@ import {
 } from "./whatsapp-media-helper"
 import { BUTTON_TITLE_ACTIONS } from "../../scripts/whatsapp-templates/partner-run-templates"
 import { buildPartnerProductUrl } from "./partner-product-url"
+import { handleFreeFormPartnerReply, isFreeformChatEnabled } from "./whatsapp-freeform-chat"
+import { extractPartnerIntent } from "./whatsapp-intent"
 
 interface IncomingMessage {
   from: string // WhatsApp phone number
@@ -379,6 +381,10 @@ export async function handleIncomingMessage(
   // Determine action from button reply or text
   let action = ""
   let runId = ""
+  // Structured extras + language from the intent "query planner" model call
+  // (when it succeeded) — consumed by finish/complete and the free-form reply.
+  let intentExtras: { quantity?: number | null; rejectedQuantity?: number | null; notes?: string | null } | null = null
+  let intentLanguage: string | undefined
 
   if (message.type === "interactive" && message.buttonReplyId) {
     // W5 — product-create Confirm / Cancel taps. Distinct prefix so the
@@ -433,9 +439,30 @@ export async function handleIncomingMessage(
       }
     }
   } else if (message.type === "text" && message.text) {
-    const parsed = parseTextCommand(message.text.trim())
-    action = parsed.action
-    runId = parsed.runId
+    // Query planner: one model call strips the partner's intent + language.
+    // Falls back to the old regex parser only when no model is reachable.
+    const intent = await extractPartnerIntent(scope, {
+      text: message.text,
+      partnerName: partner.adminName,
+      openRuns: await openRunsForIntent(scope, partner.partnerId),
+      recentMessages: [],
+    })
+    if (intent) {
+      // "acknowledgment" (bare ok/haan/theek) is not a command — route it to
+      // the free-form path (which already has a "no follow-up question" rule).
+      action = intent.action === "acknowledgment" ? "" : (intent.action ?? "")
+      runId = intent.run_id ?? ""
+      intentExtras = {
+        quantity: intent.quantity,
+        rejectedQuantity: intent.rejected_quantity,
+        notes: intent.notes,
+      }
+      intentLanguage = intent.language
+    } else {
+      const parsed = parseTextCommand(message.text.trim())
+      action = parsed.action
+      runId = parsed.runId
+    }
   } else if (message.type === "image" || message.type === "video" || message.type === "document") {
     // Inbound media. Resolution order:
     //   1. `active_media_run_id` — partner tapped "📸 Add Media" on a
@@ -628,6 +655,35 @@ export async function handleIncomingMessage(
   }
 
   if (!action) {
+    // Free-form message. When the free-form chat service is enabled, route a
+    // partner's non-command text through the LLM conversational agent, which
+    // answers in natural language grounded on their live runs/designs/payments
+    // and may ask a follow-up (e.g. "could you share a photo?"). Media and
+    // button replies keep the existing behaviour; a plain text message that
+    // isn't a command is the only thing that reaches the LLM.
+    if (
+      message.type === "text" &&
+      message.text &&
+      isFreeformChatEnabled()
+    ) {
+      try {
+        return await handleFreeFormPartnerReply(scope, {
+          text: message.text,
+          phone: message.from,
+          partnerId: partner.partnerId,
+          partnerName: partner.adminName,
+          conversationId,
+          whatsapp,
+          language:
+            intentLanguage ??
+            (typeof conversationMeta.language === "string" ? conversationMeta.language : undefined),
+        })
+      } catch (e: any) {
+        console.warn("[whatsapp-handler] free-form reply failed:", e.message)
+        // fall through to silent-save below
+      }
+    }
+
     // Casual message — just save to conversation, no bot reply
     // Admin will see it in the messaging inbox and can respond manually
     return { handled: true, action: "conversation" }
@@ -647,10 +703,19 @@ export async function handleIncomingMessage(
           message.from,
           runId,
           partner.partnerId,
-          message.text
+          message.text,
+          intentExtras
         )
       case "complete":
-        return await handleComplete(scope, whatsapp, message.from, runId, partner.partnerId, message.text)
+        return await handleComplete(
+          scope,
+          whatsapp,
+          message.from,
+          runId,
+          partner.partnerId,
+          message.text,
+          intentExtras
+        )
       case "decline":
         // Top-level decline (button tap or text "decline prod_run_…") →
         // prompt for a reason. The reason reply loops back through the
@@ -1044,7 +1109,8 @@ async function handleFinish(
   phone: string,
   runId: string,
   partnerId: string,
-  rawText?: string
+  rawText?: string,
+  extras?: { quantity?: number | null; notes?: string | null } | null
 ): Promise<HandlerResult> {
   const productionRunService: ProductionRunService = scope.resolve(PRODUCTION_RUNS_MODULE)
   const run = await productionRunService.retrieveProductionRun(runId).catch(() => null) as any
@@ -1060,15 +1126,24 @@ async function handleFinish(
     throw new MedusaError(MedusaError.Types.NOT_ALLOWED, "Run must be started first")
   }
 
-  // Parse optional inline detail from the text command. Accepts:
-  //   finish prod_run_X scrap:5 notes:stitching defects
-  //   finish prod_run_X scrap:5
-  //   finish prod_run_X notes:all good
-  //   finish prod_run_X
-  // Partner gets a structured `finish_notes` line on the run plus a
-  // `rejected_quantity` update when scrap is provided — so complete-time
-  // reports stay consistent without a second round trip.
-  const { scrap, notes, finishNote } = parseFinishExtras(rawText)
+  // Scrap + notes now come from the intent query planner (structured model
+  // output). The regex parser below is only a degraded fallback for when no
+  // model was reachable.
+  const { scrap, notes, finishNote } = extras
+    ? {
+        scrap: extras.quantity ?? null,
+        notes: extras.notes ?? null,
+        finishNote:
+          extras.quantity != null || extras.notes
+            ? [
+                extras.quantity != null ? `Scrap: ${extras.quantity}` : null,
+                extras.notes ? `Notes: ${extras.notes}` : null,
+              ]
+                .filter(Boolean)
+                .join(". ") + "."
+            : null,
+      }
+    : parseFinishExtras(rawText)
 
   const update: Record<string, any> = { id: runId, finished_at: new Date() }
   if (finishNote) update.finish_notes = finishNote
@@ -1153,7 +1228,8 @@ async function handleComplete(
   phone: string,
   runId: string,
   partnerId: string,
-  rawText?: string
+  rawText?: string,
+  extras?: { quantity?: number | null; rejectedQuantity?: number | null } | null
 ): Promise<HandlerResult> {
   const productionRunService: ProductionRunService = scope.resolve(PRODUCTION_RUNS_MODULE)
   const run = await productionRunService.retrieveProductionRun(runId).catch(() => null) as any
@@ -1172,11 +1248,15 @@ async function handleComplete(
     return { handled: true, action: "complete_prompt", runId }
   }
 
-  // Parse quantity from text if provided
+  // Produced/rejected quantities come from the intent query planner (structured
+  // model output); the regex block below is only a degraded fallback.
   let producedQuantity: number | undefined
   let rejectedQuantity: number | undefined
 
-  if (rawText) {
+  if (extras) {
+    producedQuantity = extras.quantity ?? undefined
+    rejectedQuantity = extras.rejectedQuantity ?? undefined
+  } else if (rawText) {
     // "complete prod_run_123 produced:100 rejected:5" or "complete prod_run_123 100"
     const producedMatch = rawText.match(/produced[:\s]+(\d+)/i)
     const rejectedMatch = rawText.match(/rejected[:\s]+(\d+)/i)
@@ -1636,6 +1716,26 @@ async function getDesignNameFromDesignId(scope: any, designId: string | null): P
   } catch {
     return designId
   }
+}
+
+/**
+ * The partner's open runs, in the shape the intent query planner consumes —
+ * id + design name + status, so the model can match a design name to its
+ * run id instead of inventing one.
+ */
+async function openRunsForIntent(
+  scope: any,
+  partnerId: string
+): Promise<Array<{ run_id: string; design_name: string | null; status: string }>> {
+  const work = await getPartnerOpenWork(scope, partnerId).catch(() => ({
+    pendingRuns: [] as any[],
+    pendingPayments: [] as any[],
+  }))
+  return (work.pendingRuns ?? []).map((r: any) => ({
+    run_id: r.id,
+    design_name: r.designName ?? null,
+    status: r.status,
+  }))
 }
 
 async function emitEvent(scope: any, name: string, data: Record<string, any>): Promise<void> {

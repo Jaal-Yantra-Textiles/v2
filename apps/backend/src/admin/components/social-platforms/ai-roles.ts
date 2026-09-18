@@ -53,6 +53,10 @@ export const KNOWN_AI_ROLES: KnownAiRole[] = [
     value: "ai_theme_editor",
     label: "Theme Editor — LLM chat (#339)",
   },
+  {
+    value: "ai_whatsapp_partner_chat",
+    label: "WhatsApp — free-form partner chat",
+  },
 ]
 
 /** Sentinel form value selected when the operator wants a free-form role. */
