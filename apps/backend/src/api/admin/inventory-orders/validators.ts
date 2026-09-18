@@ -330,6 +330,18 @@ export type CreateInventoryOrderCharge = z.infer<
 >
 
 /**
+ * Rejecting a partner's proposed change (#1752) — the reason is optional (an
+ * admin may refuse with no explanation), but when given it is shown to the partner.
+ */
+export const rejectInventoryOrderChangeSchema = z.object({
+  reason: z.string().min(1).optional(),
+})
+
+export type RejectInventoryOrderChange = z.infer<
+  typeof rejectInventoryOrderChangeSchema
+>
+
+/**
  * Which partner an inventory order belongs to (#1737).
  *
  * ⚠️ Assignment only — `send-to-partner` is what COMMISSIONS work and tells the

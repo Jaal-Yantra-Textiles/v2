@@ -175,6 +175,9 @@ export async function GET(
             "orderlines.inventory_items.*",
             "orderlines.inventory_items.raw_materials.*",
             "orderlines.line_fulfillments.*",
+            // #1752 — the partner's proposed revision (line edits + tax), so the
+            // detail view can show what they staged and its approval state.
+            "changes.*",
             // #342 — the unified order this inventory order projects into, via
             // the order↔inventory_order link (forward accessor). Lets the
             // partner UI redirect the retired /inventory-orders/:id to /orders/:id.
@@ -330,6 +333,22 @@ export async function GET(
             tracking_number: order.metadata?.partner_tracking_number
         },
         admin_notes: adminNotes, // Now from task metadata instead of order metadata
+        // #1752 — the open (pending) proposed revision, if any.
+        pending_change: (() => {
+            const raw = (order as any).changes
+            const arr = !raw ? [] : Array.isArray(raw) ? raw : [raw]
+            const open = arr.find((c: any) => c?.status === "pending")
+            if (!open) return null
+            return {
+                id: open.id,
+                status: open.status,
+                proposed_lines: open.proposed_lines ?? null,
+                proposed_charges: open.proposed_charges ?? null,
+                submitted_at: open.submitted_at ?? null,
+                decided_at: open.decided_at ?? null,
+                rejection_reason: open.rejection_reason ?? null,
+            }
+        })(),
         created_at: order.created_at,
         updated_at: order.updated_at
     };

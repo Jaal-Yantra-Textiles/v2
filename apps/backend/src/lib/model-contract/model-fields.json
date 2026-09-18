@@ -1958,6 +1958,25 @@
       "updated_at"
     ]
   },
+  "InventoryOrderChange (modules/inventory_orders/models/order-change.ts)": {
+    "file": "modules/inventory_orders/models/order-change.ts",
+    "fields": [
+      "created_at",
+      "decided_at",
+      "decided_by",
+      "deleted_at",
+      "id",
+      "inventory_orders",
+      "metadata",
+      "proposed_charges",
+      "proposed_lines",
+      "rejection_reason",
+      "status",
+      "submitted_at",
+      "submitted_by",
+      "updated_at"
+    ]
+  },
   "InventoryOrderCharge (modules/inventory_orders/models/order-charge.ts)": {
     "file": "modules/inventory_orders/models/order-charge.ts",
     "fields": [
@@ -1999,6 +2018,7 @@
       "cancellation_reason",
       "cancelled_at",
       "cancelled_by",
+      "changes",
       "charges",
       "created_at",
       "currency_code",

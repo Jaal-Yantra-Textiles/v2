@@ -1,6 +1,7 @@
 import { model } from "@medusajs/framework/utils";
 import OrderLine from "./orderline";
 import OrderCharge from "./order-charge";
+import OrderChange from "./order-change";
 
 const InventoryOrder = model.define("inventory_orders", {
   id: model.id({prefix: 'inv_order'}).primaryKey(),
@@ -30,6 +31,8 @@ const InventoryOrder = model.define("inventory_orders", {
    * from both in `lib/order-charges.ts`, never by folding them together.
    */
   charges: model.hasMany(() => OrderCharge),
+  /** Partner-proposed revisions awaiting admin approval (#1752). */
+  changes: model.hasMany(() => OrderChange),
   metadata: model.json().nullable(),
   shipping_address: model.json().nullable(),
   is_sample: model.boolean().default(false),
