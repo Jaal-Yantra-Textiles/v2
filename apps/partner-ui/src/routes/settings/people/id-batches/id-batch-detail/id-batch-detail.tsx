@@ -4,6 +4,7 @@ import { ArrowPath } from "@medusajs/icons"
 import { Badge, Button, Container, Heading, Text, toast } from "@medusajs/ui"
 
 import { SingleColumnPage } from "../../../../../components/layout/pages"
+import { Skeleton } from "../../../../../components/common/skeleton"
 import {
   isBatchSettled,
   useApproveIdExtractionBatch,
@@ -144,9 +145,14 @@ export const IdBatchDetail = () => {
     return (
       <SingleColumnPage widgets={{ before: [], after: [] }}>
         <Container className="p-6">
-          <Text size="small" className="text-ui-fg-subtle">
-            Loading this batch…
-          </Text>
+          <div className="space-y-4">
+            {Array.from({ length: 4 }).map((_, i) => (
+              <div key={i} className="space-y-1.5">
+                <Skeleton className="h-3 w-24" />
+                <Skeleton className="h-9 w-full rounded-md" />
+              </div>
+            ))}
+          </div>
         </Container>
       </SingleColumnPage>
     )

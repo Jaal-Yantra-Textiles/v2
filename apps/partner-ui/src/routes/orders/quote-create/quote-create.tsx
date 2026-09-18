@@ -1,4 +1,5 @@
 import { RouteFocusModal } from "../../../components/modals"
+import { Skeleton } from "../../../components/common/skeleton"
 import { usePartnerStores } from "../../../hooks/api/partner-stores"
 import { QuoteCreateForm } from "./components/quote-create-form/quote-create-form"
 
@@ -34,6 +35,16 @@ export const QuoteCreate = () => {
 
   return (
     <RouteFocusModal>
+      {isPending && (
+        <div className="p-6 space-y-4">
+          {Array.from({ length: 6 }).map((_, i) => (
+            <div key={i} className="space-y-1.5">
+              <Skeleton className="h-3 w-24" />
+              <Skeleton className="h-9 w-full rounded-md" />
+            </div>
+          ))}
+        </div>
+      )}
       {!isPending && (
         <QuoteCreateForm
           currencies={supported}

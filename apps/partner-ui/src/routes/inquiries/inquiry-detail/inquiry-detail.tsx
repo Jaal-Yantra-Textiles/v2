@@ -17,6 +17,7 @@ import { useEffect, useMemo, useRef, useState } from "react"
 import { useParams } from "react-router-dom"
 
 import { RouteFocusModal } from "../../../components/modals"
+import { Skeleton } from "../../../components/common/skeleton"
 import { FileUpload, type FileType } from "../../../components/common/file-upload"
 import {
   IncomingAnswer,
@@ -312,9 +313,14 @@ export const InquiryDetail = () => {
           <RouteFocusModal.Title>Loading…</RouteFocusModal.Title>
         </RouteFocusModal.Header>
         <RouteFocusModal.Body className="overflow-y-auto px-6 py-6">
-          <Text size="small" className="text-ui-fg-subtle">
-            Loading…
-          </Text>
+          <div className="space-y-4">
+            {Array.from({ length: 6 }).map((_, i) => (
+              <div key={i} className="space-y-1.5">
+                <Skeleton className="h-3 w-32" />
+                <Skeleton className="h-9 w-full rounded-md" />
+              </div>
+            ))}
+          </div>
         </RouteFocusModal.Body>
       </RouteFocusModal>
     )
