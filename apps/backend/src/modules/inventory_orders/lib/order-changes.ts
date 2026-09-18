@@ -108,3 +108,84 @@ export const serializeChange = (c: {
     rejection_reason: c.rejection_reason ?? null,
   }
 }
+/**
+ * A proposal must not contradict goods that have already ARRIVED.
+ *
+ * Staging is locked to `Pending`/`Processing`, but approval is deliberately
+ * post-ship and `updateInventoryOrderWorkflow` carries no status lock of its
+ * own — `expectedCurrentStatus` is optional and this caller omits it. So a
+ * change staged while an order was `Processing` can be approved once it is
+ * `Delivered`, and since #2118 that is no longer hypothetical: receipts are
+ * recorded as `line_fulfillments` and a real receipt ran on prod the same day.
+ *
+ * What is NOT a hazard, checked rather than assumed:
+ *
+ *   RAISING a received line's quantity is fine. Outstanding is
+ *   `max(0, ordered − received)` and `planInventoryOrderReceipt` refuses a
+ *   claim above it, so 2-received-of-2 raised to 5 opens capacity for 3 NEW
+ *   units. It does not make the original 2 receivable again.
+ *
+ * What is:
+ *
+ *   - REMOVING a line that has receipts leaves `line_fulfillments` rows and
+ *     posted stock pointing at a line that no longer exists — goods on the
+ *     shelf that no order line accounts for.
+ *   - LOWERING below what was received makes `ordered < received`. Nothing
+ *     crashes (`outstandingOn` floors at 0), and that is exactly the problem:
+ *     the payable ceiling drops while the goods are physically ours and
+ *     already on the books, and no error is raised to say so.
+ *
+ * Deliberately narrow. Lowering to at-or-above what arrived is a legitimate
+ * short-close, and refusing it would block a real workflow to prevent nothing.
+ */
+export type ReceiptConflict = {
+  line_id: string
+  received: number
+  reason: "removed" | "below_received"
+  proposed_quantity?: number
+}
+
+export const receiptConflicts = (
+  lines: ProposedLine[] | null | undefined,
+  /** Cumulative received quantity per order line id, from `line_fulfillments`. */
+  receivedByLine: Record<string, number>
+): ReceiptConflict[] => {
+  const out: ReceiptConflict[] = []
+  for (const line of lines ?? []) {
+    if (!line?.id) {
+      continue
+    }
+    const received = num(receivedByLine[line.id])
+    if (received <= 0) {
+      continue
+    }
+    if (line.remove) {
+      out.push({ line_id: line.id, received, reason: "removed" })
+      continue
+    }
+    // An omitted quantity leaves the line as it is, so it cannot contradict a
+    // receipt. Only a stated one can.
+    if (line.quantity == null) {
+      continue
+    }
+    if (num(line.quantity) < received) {
+      out.push({
+        line_id: line.id,
+        received,
+        reason: "below_received",
+        proposed_quantity: num(line.quantity),
+      })
+    }
+  }
+  return out
+}
+
+/** Readable refusal — this is read by an operator deciding whether to approve. */
+export const describeReceiptConflicts = (conflicts: ReceiptConflict[]): string =>
+  conflicts
+    .map((c) =>
+      c.reason === "removed"
+        ? `line ${c.line_id} has already received ${c.received} and cannot be removed`
+        : `line ${c.line_id} has already received ${c.received}, so it cannot be reduced to ${c.proposed_quantity}`
+    )
+    .join("; ")

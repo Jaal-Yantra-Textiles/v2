@@ -13,12 +13,22 @@ import { z } from "@medusajs/framework/zod"
  */
 
 export const partnerUpdateOrderLinesSchema = z.object({
-  data: z
-    .object({
-      quantity: z.number().optional(),
-      total_price: z.number().optional(),
-    })
-    .optional(),
+  /**
+   * 🔑 There is deliberately NO top-level `data: { quantity, total_price }`
+   * here, though the admin shape has one.
+   *
+   * A partner must not state an order's totals — they are DERIVED from the
+   * validated lines by `computeTotalsFromLines` at approval, which is what
+   * stops a proposal naming its own payable ceiling.
+   *
+   * Accepting the field and ignoring it would be worse than rejecting it: a
+   * partner sending `total_price: 1` would get a 200 and no effect, which is
+   * the same shape as the `tax_id` field that was writable-looking and
+   * silently dropped (#2120). A field that looks supported and behaves
+   * unsupported reports its own failure as a success. Zod's default strip
+   * would do exactly that, so the object is `.strict()` below and an attempt
+   * to send totals is refused outright.
+   */
   order_lines: z
     .array(
       z
@@ -48,7 +58,7 @@ export const partnerUpdateOrderLinesSchema = z.object({
         })
     )
     .min(1, "At least one order line is required"),
-})
+}).strict()
 
 export type PartnerUpdateOrderLines = z.infer<typeof partnerUpdateOrderLinesSchema>
 

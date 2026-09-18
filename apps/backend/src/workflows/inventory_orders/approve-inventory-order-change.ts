@@ -6,11 +6,13 @@ import {
   when,
   WorkflowResponse,
 } from "@medusajs/framework/workflows-sdk"
-import { MedusaError } from "@medusajs/framework/utils"
+import { ContainerRegistrationKeys, MedusaError } from "@medusajs/framework/utils"
 import { ORDER_INVENTORY_MODULE } from "../../modules/inventory_orders"
 import {
   computeTotalsFromLines,
+  describeReceiptConflicts,
   missingLineIds,
+  receiptConflicts,
   type ProposedCharge,
   type ProposedLine,
 } from "../../modules/inventory_orders/lib/order-changes"
@@ -82,6 +84,61 @@ const loadChangeForApprovalStep = createStep(
       throw new MedusaError(
         MedusaError.Types.INVALID_DATA,
         `Order line not found on this order: ${missing.join(", ")}`
+      )
+    }
+
+    /**
+     * 🔴 A proposal must not contradict goods that have already ARRIVED.
+     *
+     * Staging is locked to Pending/Processing, but approval is deliberately
+     * post-ship and `updateInventoryOrderWorkflow` carries no status lock of
+     * its own. Since #2118 that matters: receipts are recorded as
+     * `line_fulfillments`, and a real receipt ran on prod the same day this
+     * shipped.
+     *
+     * Checked HERE rather than at staging, because the receipts may not exist
+     * yet when the partner proposes — the order is still Processing then. The
+     * only moment this can be true is at approval.
+     *
+     * Read from the query graph rather than the service relation: the
+     * cumulative quantity lives on the link, and this is the same field the
+     * receipt planner reads (`orderlines.line_fulfillments.quantity_delta`),
+     * so the two cannot disagree about what "received" means.
+     */
+    const query: any = container.resolve(ContainerRegistrationKeys.QUERY)
+    const receivedByLine: Record<string, number> = {}
+    try {
+      const { data: rows } = await query.graph({
+        entity: "inventory_orders",
+        fields: [
+          "id",
+          "orderlines.id",
+          "orderlines.line_fulfillments.quantity_delta",
+        ],
+        filters: { id: input.orderId },
+      })
+      for (const ol of (rows?.[0]?.orderlines ?? []) as any[]) {
+        if (!ol?.id) continue
+        receivedByLine[String(ol.id)] = ((ol.line_fulfillments ?? []) as any[]).reduce(
+          (sum, f) => sum + (Number(f?.quantity_delta) || 0),
+          0
+        )
+      }
+    } catch (e: any) {
+      // Refuse rather than approve blind. An unreadable receipt state must not
+      // read as "nothing has been received" — that is precisely the reading
+      // this guard exists to prevent.
+      throw new MedusaError(
+        MedusaError.Types.UNEXPECTED_STATE,
+        `Could not read what has already been received on order ${input.orderId}, so this change cannot be approved safely: ${e?.message ?? "unknown error"}`
+      )
+    }
+
+    const conflicts = receiptConflicts(lines, receivedByLine)
+    if (conflicts.length) {
+      throw new MedusaError(
+        MedusaError.Types.NOT_ALLOWED,
+        `This change contradicts goods already received: ${describeReceiptConflicts(conflicts)}. Raising a quantity is still allowed; removing a received line or reducing it below what arrived is not.`
       )
     }
 
