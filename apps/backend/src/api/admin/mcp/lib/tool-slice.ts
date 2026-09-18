@@ -116,6 +116,16 @@ const PREFIX_DOMAINS: ReadonlyArray<readonly [string, AdminToolDomain]> = [
   ["/admin/energy-rates", "production"],
   ["/admin/inventory-items", "inventory"],
   ["/admin/inventory-orders", "inventory"],
+  /**
+   * Moving material we already own between two locations (#2144). Inventory,
+   * not production: nothing is being made, and the ask that reaches these tools
+   * ("the partner is sending the rest to our warehouse") is the same
+   * conversation as the receipt that put the cloth at their bench.
+   *
+   * Without this entry both tools classify as undefined and load in NO slice —
+   * registered, callable in principle, and reachable from no ask.
+   */
+  ["/admin/inventory-transfers", "inventory"],
   // Where stock physically sits. Rides the inventory slice because every ask
   // that needs a location id — "order 40 m to the Dharamshala warehouse",
   // "this order's route is reversed" — is already an inventory conversation.

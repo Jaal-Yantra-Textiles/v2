@@ -29,7 +29,16 @@ export type GoodsTransferStatus = "draft" | "in_transit" | "delivered" | "cancel
 
 export type AdminGoodsTransfer = {
   id: string
-  production_run_id: string
+  /**
+   * 🔴 Nullable since #2144. A transfer is EITHER a production run's finished
+   * output (this is set) or MATERIAL we already own moving between locations
+   * (`inventory_item_id` is set instead). Typing this as a plain string told
+   * every reader a material row could not exist, which is how a screen renders
+   * `undefined` into a run link.
+   */
+  production_run_id: string | null
+  /** The material being moved, on a material transfer. Null on run output. */
+  inventory_item_id?: string | null
   design_id: string | null
   quantity: number
   from_location_id: string
