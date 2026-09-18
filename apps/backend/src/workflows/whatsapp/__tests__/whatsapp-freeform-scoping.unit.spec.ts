@@ -35,7 +35,9 @@ describe("resolvePartnerDesignIds", () => {
   })
 
   it("🔴 never filters designs on a `partner_id` field that does not exist", async () => {
-    const graph = jest.fn(async () => ({ data: [] }))
+    // Explicit parameter: a zero-arg jest.fn() types its calls as the empty
+    // tuple `[]`, and `call[0]` is then a TS2493 error under the PROD tsconfig.
+    const graph = jest.fn(async (_arg: any) => ({ data: [] }))
     await resolvePartnerDesignIds(makeScope(graph), PARTNER, undefined, LINK)
 
     for (const call of graph.mock.calls) {
@@ -84,7 +86,7 @@ describe("resolvePartnerDesignIds", () => {
       resolve: (key: any) => {
         if (key === ContainerRegistrationKeys.QUERY) {
           return {
-            graph: jest.fn(async () => {
+            graph: jest.fn(async (_arg: any) => {
               throw new Error("boom")
             }),
           }
