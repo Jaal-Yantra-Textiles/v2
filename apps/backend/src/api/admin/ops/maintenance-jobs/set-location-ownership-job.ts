@@ -17,10 +17,11 @@ import type { MaintenanceChange, MaintenanceJob, MaintenanceJobResult } from "./
  *
  * Two modes:
  *
- * - `seed: true` proposes a row for every stock location, core when the
- *   location is not a partner store's. This is the bootstrap, and it is only a
- *   STARTING POINT: it reproduces the old inference, orphan and all, so the
- *   dry-run output must be read before applying.
+ * - `seed: true` proposes a row for every stock location, ALWAYS `is_core:
+ *   false`. It records what is known (a partner store's location is not ours)
+ *   and defaults everything it cannot establish to not-ours as well. 🔴 It
+ *   never marks anything core — see the note at the seed loop for what that
+ *   used to cost.
  * - `location_id` + `is_core` sets one location, which is how the orphan gets
  *   corrected and how a new warehouse is added later.
  */
@@ -41,18 +42,69 @@ const paramsSchema = z
     message: "is_core is required when setting a single location",
   })
 
+
+/**
+ * PURE: what the seed proposes for each location. Exported for unit tests.
+ *
+ * 🔴 The invariant this function exists to hold: **`is_core` is NEVER true.**
+ *
+ * It used to be `!isPartnerStoreDefaultLocation`, which is not a definition of
+ * ownership — it is "we could not prove this belongs to a partner", and it
+ * defaulted the unknown to OURS. That is the least safe direction for the one
+ * flag deciding whether stock may leave our books.
+ *
+ * Measured against prod before it was changed: the old rule would have marked
+ * NINE locations core. Six held nothing. One was the bench of the partner
+ * holding our consigned pashminas — and marking that bench ours bypasses the
+ * #2111 allocation gate entirely, making the partner's OWN stock deductible
+ * from our books. Neither of the two genuinely-ours locations was in that set;
+ * both were already recorded by hand and skipped as `existing`.
+ *
+ * A location already recorded is skipped: seeding must never undo a decision a
+ * human has made.
+ */
+export type SeedOwnershipRow = {
+  stock_location_id: string
+  is_core: false
+  note: string
+  label: string
+}
+
+export function planSeedOwnershipRows(
+  locations: Array<{ id: string; name?: string | null }>,
+  partnerLocationIds: Set<string>,
+  existingLocationIds: Set<string>
+): SeedOwnershipRow[] {
+  const rows: SeedOwnershipRow[] = []
+  for (const loc of locations) {
+    if (!loc?.id || existingLocationIds.has(loc.id)) {
+      continue
+    }
+    const isPartner = partnerLocationIds.has(loc.id)
+    rows.push({
+      stock_location_id: loc.id,
+      is_core: false,
+      note: isPartner
+        ? "seeded: partner store location"
+        : "seeded: ownership NOT established — defaulted to not-ours; set explicitly with location_id + is_core if this warehouse is ours",
+      label: loc.name ?? loc.id,
+    })
+  }
+  return rows
+}
+
 export const setLocationOwnershipJob: MaintenanceJob = {
   id: "set-location-ownership",
   label: "Record which stock locations are ours (core)",
   description:
-    "Mark stock locations core (ours) or not. Consumption is only ever deducted from a core location, so this is what lets us stock at several of our own warehouses and what keeps partner-held material off our books. Use seed:true once to propose a row per location from partner linkage — a starting point that reproduces the old inference including any orphan store, so read the dry-run — then correct individual locations with location_id + is_core. Dry-run previews every row.",
+    "Mark stock locations core (ours) or not. Consumption is only ever deducted from a core location, so this is what lets us stock at several of our own warehouses and what keeps partner-held material off our books. Use seed:true once to record a row per location; it ALWAYS writes is_core:false, because 'not provably a partner's' is not the same as 'ours' and defaulting an unknown to ours is what lets a partner's bench be treated as our warehouse. Assert our own warehouses one at a time with location_id + is_core:true. Dry-run previews every row.",
   params: [
     {
       name: "seed",
       type: "boolean",
       required: false,
       description:
-        "Propose a row for every stock location, core when it is not a partner store's. Never overwrites a location already recorded.",
+        "Record a row for every stock location, ALWAYS is_core:false. Never overwrites a location already recorded, and never marks anything ours — use location_id + is_core:true for that.",
     },
     {
       name: "location_id",
@@ -145,19 +197,15 @@ export const setLocationOwnershipJob: MaintenanceJob = {
         fields: ["id", "name"],
       })
 
-      for (const loc of (locations || []) as any[]) {
-        // Seeding never overwrites a recorded decision — an operator who has
-        // already corrected the orphan must not have it undone by a re-run.
-        if (existing.has(loc.id)) {
-          continue
-        }
-        const isPartner = partnerLocationIds.has(loc.id)
-        plan(
-          loc.id,
-          !isPartner,
-          isPartner ? "seeded: partner store location" : "seeded: not a partner location",
-          loc.name ?? loc.id
-        )
+      // The decision itself is pure and unit-tested — see
+      // `planSeedOwnershipRows`, whose whole job is to never return `is_core:
+      // true`. The loop here only turns those rows into planned changes.
+      for (const row of planSeedOwnershipRows(
+        (locations || []) as any[],
+        partnerLocationIds,
+        new Set(existing.keys())
+      )) {
+        plan(row.stock_location_id, row.is_core, row.note, row.label)
       }
     }
 
@@ -180,8 +228,21 @@ export const setLocationOwnershipJob: MaintenanceJob = {
     }
 
     const coreCount = changes.filter((c) => c.after === true).length
+    const unestablished = creates.filter((c) =>
+      String(c.note ?? "").includes("NOT established")
+    ).length
     const summary = changes.length
-      ? `${dry_run ? "Would record" : "Recorded"} ${changes.length} location(s): ${coreCount} core, ${changes.length - coreCount} not ours`
+      ? [
+          `${dry_run ? "Would record" : "Recorded"} ${changes.length} location(s): ${coreCount} core, ${changes.length - coreCount} not ours`,
+          // Said out loud rather than left to be inferred from a count: these
+          // rows are a safe DEFAULT, not a finding. A warehouse of ours sitting
+          // in here reads exactly like a partner's until someone says otherwise.
+          unestablished
+            ? `⚠️ ${unestablished} of those could not be proved either way and were defaulted to NOT ours. If any is our own warehouse, set it explicitly with location_id + is_core:true — the seed will never do it for you.`
+            : "",
+        ]
+          .filter(Boolean)
+          .join(". ")
       : "Every location already holds the requested ownership — nothing to record"
 
     return {
