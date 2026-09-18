@@ -135,6 +135,19 @@ setupSharedTestSuite(() => {
       expect(data.message_id).toBe(messageId)
       expect(data.media_ids).toEqual([])
       expect(typeof data.partner_id === "string" || data.partner_id === null).toBe(true)
+
+      /**
+       * #2138 — the key the product-create flow's eligibility rule reads.
+       *
+       * 🔴 It was absent from this payload entirely, so
+       * `$trigger.photo_purpose === 'product_submission'` could never be true
+       * and photo→product creation was off with nothing having failed. The key
+       * must be PRESENT even when nothing is stated; null is the answer, and an
+       * absent key is the defect.
+       */
+      expect(Object.prototype.hasOwnProperty.call(data, "photo_purpose")).toBe(true)
+      // A text message carries no purpose — the lookup is skipped for it.
+      expect(data.photo_purpose).toBeNull()
     })
   })
 })

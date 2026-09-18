@@ -33,6 +33,7 @@ import { BUTTON_TITLE_ACTIONS } from "../../scripts/whatsapp-templates/partner-r
 import { buildPartnerProductUrl } from "./partner-product-url"
 import { handleFreeFormPartnerReply, isFreeformChatEnabled } from "./whatsapp-freeform-chat"
 import { extractPartnerIntent } from "./whatsapp-intent"
+import { phoneMatches } from "./whatsapp-phone"
 
 interface IncomingMessage {
   from: string // WhatsApp phone number
@@ -1892,9 +1893,6 @@ async function emitEvent(scope: any, name: string, data: Record<string, any>): P
 /**
  * Match two phone numbers accounting for country code prefix variations.
  */
-function phoneMatches(a: string, b: string): boolean {
-  return a === b || a.endsWith(b) || b.endsWith(a)
-}
 
 /**
  * Persist an inbound WhatsApp message to the messaging module.
