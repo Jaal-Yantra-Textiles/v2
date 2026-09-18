@@ -191,9 +191,10 @@ import { investorSchema, investorUpdateSchema, capTableSchema, capTableUpdateSch
 import { partnerPeopleSchema } from "./partners/[id]/validators";
 import { updatePartnerMeSchema } from "./partners/me/validators";
 import { onboardingProfileUpdateSchema } from "./partners/onboarding-profile/validators";
+import { partnerUpdateOrderLinesSchema, partnerAddOrderChargeSchema } from "./partners/inventory-orders/change-schemas";
 import { setLayoutConfigurationSchema } from "./partners/layouts/validators";
 import { AdminGetPartnersParamsSchema } from "./admin/persons/partner/validators";
-import { createInventoryOrdersSchema, listInventoryOrdersQuerySchema, ReadSingleInventoryOrderQuerySchema, updateInventoryOrdersSchema, updateInventoryOrderLinesSchema, createInventoryOrderChargeSchema, assignInventoryOrderPartnerSchema } from "./admin/inventory-orders/validators";
+import { createInventoryOrdersSchema, listInventoryOrdersQuerySchema, ReadSingleInventoryOrderQuerySchema, updateInventoryOrdersSchema, updateInventoryOrderLinesSchema, createInventoryOrderChargeSchema, assignInventoryOrderPartnerSchema, rejectInventoryOrderChangeSchema } from "./admin/inventory-orders/validators";
 import { createRawMaterialGroupSchema, updateRawMaterialGroupSchema, listRawMaterialGroupsQuerySchema, addGroupColorSchema, addGroupColorFullSchema, linkGroupColorsSchema, createGroupOrderSchema, readGroupQuerySchema } from "./admin/raw-material-groups/validators";
 import { pinDesignGroupSchema, updateDesignGroupSchema } from "./admin/designs/[id]/material-groups/validators";
 // Import already defined above
@@ -3633,6 +3634,24 @@ export default defineMiddlewares({
       ],
     },
     {
+      // #1752 — partner proposes line edits/removals (staged, never applied).
+      matcher: "/partners/inventory-orders/:orderId/order-lines",
+      method: "PUT",
+      middlewares: [
+        authenticate("partner", ["session", "bearer"]),
+        validateAndTransformBody(wrapSchema(partnerUpdateOrderLinesSchema)),
+      ],
+    },
+    {
+      // #1752 — partner proposes a `tax` charge (staged, never applied).
+      matcher: "/partners/inventory-orders/:orderId/charges",
+      method: "POST",
+      middlewares: [
+        authenticate("partner", ["session", "bearer"]),
+        validateAndTransformBody(wrapSchema(partnerAddOrderChargeSchema)),
+      ],
+    },
+    {
       matcher: "/partners/inventory-orders/:orderId/start",
       method: "POST",
       middlewares: [
@@ -4475,6 +4494,30 @@ export default defineMiddlewares({
       matcher: "/admin/inventory-orders/:id/charges",
       method: "GET",
       middlewares: [],
+    },
+    /**
+     * #1752 — a partner's proposed revision (line edits + tax) awaiting approval.
+     *
+     * ⚠️ Registered BEFORE `/admin/inventory-orders/:id` for the same reason as
+     * `/charges` above: matching is prefix-based and the `:id` matchers carry
+     * validators that would otherwise claim these paths.
+     */
+    {
+      matcher: "/admin/inventory-orders/:id/changes",
+      method: "GET",
+      middlewares: [],
+    },
+    {
+      matcher: "/admin/inventory-orders/:id/changes/:changeId/approve",
+      method: "POST",
+      middlewares: [],
+    },
+    {
+      matcher: "/admin/inventory-orders/:id/changes/:changeId/reject",
+      method: "POST",
+      middlewares: [
+        validateAndTransformBody(wrapSchema(rejectInventoryOrderChangeSchema)),
+      ],
     },
     {
       matcher: "/admin/inventory-orders/:id",

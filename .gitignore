@@ -142,3 +142,8 @@ e2e/screenshots/
 .design/
 # opencode agent configs — local, not shared with the team (yet)
 .opencode/
+
+# Local agent workspace, tool lockfile and demo recordings — per-machine, never committed.
+.agents/
+skills-lock.json
+jyt-pinterest-flow-demo.mp4
