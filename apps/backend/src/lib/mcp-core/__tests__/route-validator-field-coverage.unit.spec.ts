@@ -101,6 +101,24 @@ const NO_ROUTE_VALIDATOR = new Set<string>([
   "admin:create_shipping_option",
   "admin:update_shipping_option",
   /**
+   * Wraps the CORE route `POST /admin/stock-locations/:id`, whose validator
+   * core registers in its own middleware config — nothing in this repo's
+   * `middlewares.ts` binds it, so there is nothing here to match against.
+   *
+   * Not unchecked, READ from the installed package
+   * (`@medusajs/medusa/dist/api/admin/stock-locations/validators.js`):
+   * `AdminUpdateStockLocation` accepts `name`, `address`, `address_id` and
+   * `metadata`, and the tool advertises a subset of exactly those three. It
+   * deliberately does NOT advertise `address_id` — repointing a location at
+   * some other location's address row is not a rename, and offering it beside
+   * `name` invites exactly that mistake.
+   *
+   * ⚠️ `name` goes through `z.preprocess((val) => val.trim(), ...)`, which
+   * throws on a non-string rather than rejecting it, so the tool's schema types
+   * it as a plain string with no null.
+   */
+  "admin:update_stock_location",
+  /**
    * `cancel-shipment` registers no matcher in `middlewares.ts` and validates in
    * the handler: it reads `(req.validatedBody || req.body || {})` for `reason`,
    * `force` and `notify_customer`, and `cancelShipmentForFulfillment` enforces
@@ -267,6 +285,21 @@ const NO_ROUTE_VALIDATOR = new Set<string>([
   "admin:link_partner_people",
   "admin:unlink_partner_people",
   "admin:create_partner_subscription",
+  /**
+   * ⚠️ `update_partner` is NOT like its neighbours here, and saying so matters.
+   *
+   * The others validate inside their handler. `PUT /admin/partners/:id`
+   * registers `middlewares: []` and, until #2120, validated NOTHING — it
+   * spread its body straight into `updatePartners`. It sat in this list under
+   * a comment that described a check it did not perform.
+   *
+   * It now guards ONE thing, in the handler: `tax_id` / `tax_id_type`, via
+   * `validateTaxIdentity`, because that value lands on carrier manifests and
+   * invoices. Every other field is still unvalidated. A real body validator is
+   * the actual fix and is not done here — this route accepts a wide,
+   * undocumented set of fields (storefront/vercel/hosting columns among them)
+   * and a strict schema would reject callers nobody has enumerated yet.
+   */
   "admin:update_partner",
   "admin:set_partner_person_types",
   "admin:add_partner_admin",

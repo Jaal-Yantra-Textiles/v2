@@ -15,6 +15,23 @@ export type UpdatePartnerInput = {
     logo: string | null
     status: "active" | "inactive" | "pending"
     is_verified: boolean
+    /**
+     * The partner's OWN tax registration (a GSTIN in India), and what kind of
+     * number it is.
+     *
+     * Declared here deliberately. The columns have existed since #348 and the
+     * PUT route passes its body straight through, so they were always writable
+     * — but nothing in the codebase named them, no validator mentioned them and
+     * the MCP tool's bodyParams allowlist silently DROPPED them. The result was
+     * a field that looked unsupported and behaved supported.
+     *
+     * 🔴 Not cosmetic. `tax-id-lib.ts` falls back to the PLATFORM's tax ID when
+     * a partner's is null, so every invoice and shipping label raised for a
+     * partner without one silently carries OUR registration instead of theirs.
+     * A null here is not "unknown", it is "billed as us".
+     */
+    tax_id: string | null
+    tax_id_type: string | null
     country_code: string | null
     currency_code: string | null
     metadata: Record<string, any> | null

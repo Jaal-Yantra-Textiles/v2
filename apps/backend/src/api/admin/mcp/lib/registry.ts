@@ -1918,6 +1918,95 @@ export const ADMIN_MCP_TOOLS: AdminMcpToolDef[] = [
     ],
   },
   {
+    name: "list_partner_payment_methods",
+    description:
+      "Where this partner gets PAID — their bank accounts, cash accounts and wallets. Read. "
+      + "🔑 One of them may be `is_default: true`, and that is the method a payout falls back to when the reviewer names none. A partner with two accounts and no default used to be paid to whichever row came back first, silently — so read this before approving a payment submission, not after.",
+    method: "GET",
+    path: "/admin/payments/partners/:id/methods",
+    pathParams: ["id"],
+    queryParams: ["limit", "offset"],
+    inputSchema: obj(
+      {
+        id: STR("Partner id, e.g. 'partner_...'."),
+        limit: INT("Max results (default 50)."),
+        offset: INT("Pagination offset."),
+      },
+      ["id"]
+    ),
+    nextSteps: ["add_partner_payment_method", "get_partner_ledger", "create_payment_submission"],
+  },
+  {
+    name: "add_partner_payment_method",
+    description:
+      "Record a bank account, cash account or wallet a partner should be PAID into. Sensitive: requires confirm:true. "
+      + "🔴 This is where real money will be sent. Read the details back and check them against what the partner actually gave you — a transposed account number or IFSC is indistinguishable from a correct one until a payout fails or, worse, succeeds to a stranger. "
+      + "`is_default` is EXCLUSIVE per partner: setting it here unsets their other methods. Call list_partner_payment_methods first to see whether they already have one.",
+    method: "POST",
+    path: "/admin/payments/partners/:id/methods",
+    pathParams: ["id"],
+    previewPath: "/admin/payments/partners/:id/methods",
+    write: true,
+    sensitive: true,
+    bodyParams: [
+      "type",
+      "account_name",
+      "account_number",
+      "bank_name",
+      "ifsc_code",
+      "wallet_id",
+      "is_default",
+      "metadata",
+    ],
+    inputSchema: obj(
+      {
+        id: STR("Partner id, e.g. 'partner_...'."),
+        type: STR("'bank_account' | 'cash_account' | 'digital_wallet'."),
+        account_name: STR(
+          "The name the account is held in. REQUIRED. Use the LEGAL entity name exactly as the bank has it — a transfer to a mismatched name is rejected or, in India, may silently credit whoever the number belongs to."
+        ),
+        account_number: STR("Account number, for a bank account."),
+        bank_name: STR("Bank name, and branch if the partner gave one."),
+        ifsc_code: STR("IFSC code, for an Indian bank account. 11 characters, e.g. 'BDBL0002217' — note the 5th character is a ZERO, not the letter O, in every IFSC."),
+        wallet_id: STR("Wallet identifier, for a digital wallet."),
+        is_default: BOOL(
+          "Make this the method payouts fall back to when a reviewer names none. EXCLUSIVE — setting it unsets the partner's other methods."
+        ),
+        metadata: { type: "object", description: "Anything else worth recording against the method (branch, notes)." },
+      },
+      ["id", "type", "account_name"]
+    ),
+    nextSteps: ["list_partner_payment_methods", "get_partner_ledger"],
+  },
+  {
+    name: "update_stock_location",
+    description:
+      "Rename a stock location, or change its address. Sensitive: requires confirm:true. "
+      + "🔑 The NAME is the only thing that tells our warehouses apart from a partner's in list_stock_locations, so it is worth keeping true to who actually holds the building. "
+      + "🔴 Renaming here does NOT rename the carrier's pickup location: `metadata.shiprocket_pickup_location` is the carrier's own handle and keeps its old value, which is correct — changing it would break existing shipments.",
+    method: "POST",
+    path: "/admin/stock-locations/:id",
+    pathParams: ["id"],
+    previewPath: "/admin/stock-locations/:id",
+    write: true,
+    sensitive: true,
+    bodyParams: ["name", "address", "metadata"],
+    inputSchema: obj(
+      {
+        id: STR("Stock location id, e.g. 'sloc_...'. Read it from list_stock_locations."),
+        name: STR("New display name for the location."),
+        address: {
+          type: "object",
+          description:
+            "Replace the location's address. Omit to leave it alone — sending a partial address REPLACES the whole thing, it does not merge.",
+        },
+        metadata: { type: "object", description: "Metadata to merge." },
+      },
+      ["id"]
+    ),
+    nextSteps: ["list_stock_locations", "get_stock_location"],
+  },
+  {
     name: "list_payable_inventory_orders",
     description:
       "The inventory (purchase) orders this partner can still be billed for — GOODS, as opposed to work. Rows carry what the order is worth by RECEIPTS, what earlier payouts already claimed, and the remaining billable amount. 🔑 A `count: 0` here does NOT mean the partner is owed nothing: this route answers only about ORDERS, and their unbilled work may all be in runs (call list_payable_runs too). A partially received order is billable only for what actually arrived.",
@@ -3588,16 +3677,32 @@ export const ADMIN_MCP_TOOLS: AdminMcpToolDef[] = [
     previewPath: "/admin/partners/:id",
     write: true,
     sensitive: true,
-    bodyParams: ["name", "handle", "logo", "status", "is_verified", "workspace_type", "metadata"],
+    bodyParams: [
+      "name",
+      "handle",
+      "logo",
+      "status",
+      "is_verified",
+      "workspace_type",
+      "tax_id",
+      "tax_id_type",
+      "metadata",
+    ],
     inputSchema: obj(
       {
         id: STR("Partner id, e.g. 'partner_...'."),
-        name: STR("New name."),
-        handle: STR("New handle."),
+        name: STR("New name. Use the LEGAL entity name — this is what invoices and shipping labels carry."),
+        handle: STR("New handle. Safe to change while the partner has no storefront_domain/custom_domain; a live storefront URL depends on it."),
         logo: STR("New logo URL."),
         status: STR("New status: 'active' | 'inactive' | 'pending'."),
         is_verified: { type: "boolean", description: "New verification flag." },
-        workspace_type: STR("New workspace type: 'seller' | 'manufacturer' | 'individual' | 'designer'."),
+        workspace_type: STR("New workspace type: 'seller' | 'manufacturer' | 'individual' | 'designer'. 🔑 Do NOT 'correct' this to describe what a partner does — the enum conflates 'sells direct' with 'handles physical goods', which are independent (#2061/#2067)."),
+        tax_id: STR(
+          "The partner's own tax registration number — a GSTIN in India. 🔴 Load-bearing for compliance, NOT decoration: while it is null, invoice and label generation falls back to the PLATFORM's tax ID (#348), so every document raised for this partner silently carries OUR registration instead of theirs. Send tax_id_type with it."
+        ),
+        tax_id_type: STR(
+          "What kind of number tax_id is: 'GSTIN' | 'VAT' | 'PAN'. Send it alongside tax_id — a bare number cannot be validated or printed correctly without knowing what it is."
+        ),
         metadata: { type: "object", description: "Metadata to merge." },
       },
       ["id"]

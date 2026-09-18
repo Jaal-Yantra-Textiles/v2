@@ -134,6 +134,7 @@ import listSinglePartnerWorkflow from "../../../../workflows/partners/list-singl
 import updatePartnerWorkflow from "../../../../workflows/partners/update-partner"
 import deletePartnerWorkflow from "../../../../workflows/partners/delete-partner"
 import { ListPartnersQuerySchema } from "../validators"
+import { validateTaxIdentity } from "../../../../modules/partner/tax-id-lib"
 
 // Get a single partner by id
 export const GET = async (
@@ -185,6 +186,35 @@ export const PUT = async (
 
   const body = (req.validatedBody || (req.body as any) || {}) as any
   const { admin_id, admin_password, ...partnerData } = body
+
+  /**
+   * This route registers NO body validator (`middlewares: []` in
+   * `middlewares.ts`) and spreads whatever it is given straight into the
+   * update. That was survivable while the writable fields were names and
+   * flags; it is not for `tax_id`, which lands on Delhivery's
+   * `seller_gst_tin`, Shiprocket's `gstin` and invoices. A malformed one is
+   * not caught by us — it is caught by a carrier rejecting a shipment, or not
+   * caught at all.
+   *
+   * 🔴 A format check is NOT a verification. A well-formed GSTIN can belong to
+   * nobody. This rejects garbage at the door and nothing more.
+   *
+   * Only runs when the caller actually supplied one of the two fields: absence
+   * is the ordinary state of a partner who has not told us their registration.
+   */
+  if ("tax_id" in partnerData || "tax_id_type" in partnerData) {
+    const verdict = validateTaxIdentity({
+      tax_id: partnerData.tax_id,
+      tax_id_type: partnerData.tax_id_type,
+    })
+    if (!verdict.ok) {
+      return res.status(400).json({ message: verdict.error })
+    }
+    // Normalised (trimmed + upper-cased), so `21aalck3037b1z4` and
+    // ` 21AALCK3037B1Z4 ` cannot become two different registrations.
+    partnerData.tax_id = verdict.tax_id
+    partnerData.tax_id_type = verdict.tax_id_type
+  }
 
   const { result, errors } = await updatePartnerWorkflow(req.scope).run({
     input: {
