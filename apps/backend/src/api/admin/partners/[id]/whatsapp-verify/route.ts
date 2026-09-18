@@ -14,6 +14,30 @@ import { connectPartnerWhatsappWorkflow } from "../../../../../workflows/partner
  *
  * Body: { phone: "919876543210", use_prose?: true }
  */
+/**
+ * 🔴 The MCP dispatcher sends booleans as STRINGS.
+ *
+ * A preview of `connect_partner_whatsapp(use_prose: true)` shows the body it
+ * will POST as `{"use_prose": "true"}` — the string. A strict `use_prose ===
+ * true` is therefore false for every call that arrives through the agent
+ * surface, and the send silently falls back to the fixed welcome template.
+ *
+ * That is the worst shape of failure available here: the caller asked for
+ * prose, the call succeeds, a message goes out, and nothing anywhere says the
+ * flag was ignored. It would read as "the prose carrier does not work".
+ *
+ * So the string is accepted — but only the affirmative spellings, never plain
+ * truthiness. `"false"` is a non-empty string and would otherwise be true,
+ * which is how an opt-in becomes impossible to opt out of.
+ */
+export function wantsProse(v: unknown): boolean {
+  if (v === true) return true
+  if (typeof v === "string") {
+    return ["true", "1", "yes", "on"].includes(v.trim().toLowerCase())
+  }
+  return false
+}
+
 export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
   const { id: partnerId } = req.params
   const body = (req as any).validatedBody || req.body
@@ -46,7 +70,7 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
   }
 
   const { result } = await connectPartnerWhatsappWorkflow(req.scope).run({
-    input: { partner_id: partnerId, phone: normalized, use_prose: use_prose === true },
+    input: { partner_id: partnerId, phone: normalized, use_prose: wantsProse(use_prose) },
   })
 
   return res.json({
