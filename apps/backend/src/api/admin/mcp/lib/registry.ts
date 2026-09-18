@@ -2129,6 +2129,35 @@ export const ADMIN_MCP_TOOLS: AdminMcpToolDef[] = [
   // looking something up would tell a partner their message had been read.
   // `/admin/messages` is the read-only surface built for exactly this.
   {
+    name: "request_partner_photos",
+    description:
+      "Ask a partner for photos AND record what they will be for, in ONE action. Sensitive: requires confirm:true. #2138 — a photo carries no evidence of its own purpose (fabric being sold to us looks exactly like fabric we are having made), so the purpose is taken from the admin who asked rather than guessed from the image. Pass kind: 'inventory_offer' (they are offering us stock or material), 'product_submission' (photos for a storefront product), or 'run_progress' (progress on work they are making for us). `note` is your own words about what this is about and beats the generic sentence. The request is written for this partner in the language they chose at registration, sent as free text inside Meta's 24-hour window and via the approved prose carrier outside it. 🔑 The context is stamped ONLY if the send succeeds — a context live for a request that never arrived would reinterpret photos under an intent nobody communicated. 'document' is deliberately REFUSED: proof of dispatch and invoices have no typed destination yet, so accepting it would file them in a catchall while looking filed.",
+    method: "POST",
+    path: "/admin/messaging/:conversationId/request-photos",
+    pathParams: ["conversationId"],
+    write: true,
+    sensitive: true,
+    bodyParams: ["kind", "note", "message", "ttl_hours"],
+    inputSchema: obj(
+      {
+        conversationId: STR("Conversation id — a bare ULID, from list_messages or the inbox."),
+        kind: STR(
+          "'inventory_offer' | 'product_submission' | 'run_progress'. Required."
+        ),
+        note: STR(
+          "What this is about, in your own words (e.g. 'the leftover pashmina we discussed yesterday'). Used verbatim to write the request."
+        ),
+        message: STR(
+          "Override the written request entirely with your own text. Leave empty to have it composed."
+        ),
+        ttl_hours: INT(
+          "How long the context stays live. Default 72, capped at 168 (7 days)."
+        ),
+      },
+      ["conversationId", "kind"]
+    ),
+  },
+  {
     name: "get_message",
     description:
       "Get ONE message by its id — the answer to 'what is message X'. Returns the message plus the identity of the conversation it belongs to (partner, phone, title), because a message id alone never answers the question actually being asked. Message ids are bare ULIDs with no prefix (e.g. '01KPX...'), which is why they are easy to mistake for a partner or design id. Read-only: unlike opening a conversation, this sends no read receipts and marks nothing read.",

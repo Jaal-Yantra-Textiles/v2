@@ -162,6 +162,11 @@ const PREFIX_DOMAINS: ReadonlyArray<readonly [string, AdminToolDomain]> = [
    * the exact failure `tool-slice.unit.spec.ts` names, and it caught these two.
    */
   ["/admin/messages", "partners"],
+  // The conversation surface itself — `request_partner_photos` lives here.
+  // Without an entry it classifies as undefined and loads in NO slice, which
+  // `tool-slice.unit.spec.ts` fails on by design; it caught exactly this for
+  // get_message / list_messages.
+  ["/admin/messaging", "partners"],
   ["/admin/publishing-campaigns", "marketing"],
   ["/admin/notifications", "marketing"],
   // The stored email bodies every sender renders from. Rides `marketing`
