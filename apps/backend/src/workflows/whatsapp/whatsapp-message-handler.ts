@@ -18,6 +18,7 @@ import {
   isPhotoContextLive,
   recordPhoto,
 } from "./whatsapp-photo-batch"
+import { describePhotoForContext } from "./whatsapp-photo-vision"
 import type { WhatsAppAuditContext } from "../../modules/social-provider/whatsapp-service"
 import {
   downloadAndSaveWhatsAppMedia,
@@ -611,11 +612,23 @@ export async function handleIncomingMessage(
               .listMessagingMessages({ wa_message_id: message.messageId }, { take: 1 })
               .catch(() => [null])
             if (mediaRow?.id) {
+              // What the photo SHOWS — never what it is for. Null when no
+              // vision model is reachable, which only makes the question
+              // plainer. Awaited because the batch row must carry it, and the
+              // partner is not waiting on this reply (the question comes later
+              // from the sweep).
+              const seen = await describePhotoForContext(
+                scope,
+                saved.fileUrl
+              ).catch(() => null)
+
               await updateConversationMetadata(scope, conversationId, {
                 ...conversationMeta,
                 pending_photo_batch: recordPhoto(
                   conversationMeta.pending_photo_batch as any,
-                  mediaRow.id
+                  mediaRow.id,
+                  new Date(),
+                  seen?.text ?? null
                 ),
               })
             }

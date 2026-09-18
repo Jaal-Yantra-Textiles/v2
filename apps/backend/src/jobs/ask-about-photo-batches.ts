@@ -8,6 +8,7 @@ import {
   type PhotoBatch,
 } from "../workflows/whatsapp/whatsapp-photo-batch"
 import { composeOutreachText } from "../workflows/whatsapp/whatsapp-outreach-prose"
+import { describeBatchForQuestion } from "../workflows/whatsapp/whatsapp-photo-vision"
 import { proseLanguageFor } from "../workflows/whatsapp/whatsapp-reminder-prose"
 
 /**
@@ -68,7 +69,13 @@ export default async function askAboutPhotoBatches(container: MedusaContainer) {
       const composed = await composeOutreachText(container as any, {
         partner_name: conv.title || "there",
         business_name: BUSINESS_NAME,
-        purpose: buildPhotoQuestionPurpose({ photos: decision.photos }),
+        purpose: buildPhotoQuestionPurpose({
+          photos: decision.photos,
+          // Saying what we saw makes the question worth answering — it tells
+          // the partner we looked, instead of asking them to describe their
+          // own photo back to us.
+          seen: describeBatchForQuestion(batch?.descriptions ?? []),
+        }),
         // The language they chose at registration (#2130), not one inferred
         // from button taps — those carry our words, not theirs.
         language: proseLanguageFor(meta.language),

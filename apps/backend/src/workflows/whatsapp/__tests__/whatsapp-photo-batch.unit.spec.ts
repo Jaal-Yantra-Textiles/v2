@@ -7,6 +7,7 @@ import {
   recordPhoto,
   type PhotoBatch,
 } from "../whatsapp-photo-batch"
+import { describeBatchForQuestion } from "../whatsapp-photo-vision"
 
 const T = (iso: string) => new Date(iso)
 const BASE = "2026-09-18T10:00:00.000Z"
@@ -172,5 +173,79 @@ describe("buildPhotoQuestionPurpose", () => {
     const p = buildPhotoQuestionPurpose({ photos: 2 })
     expect(p).toContain("2 photos")
     expect(p).not.toContain("undefined")
+  })
+})
+
+describe("#2138 vision — observation, never intent", () => {
+  it("keeps descriptions index-aligned with message_ids", () => {
+    let b = recordPhoto(null, "m1", at(0), "Folded indigo cloth.")
+    b = recordPhoto(b, "m2", at(5), null)
+    b = recordPhoto(b, "m3", at(10), "A printed document.")
+    expect(b.message_ids).toEqual(["m1", "m2", "m3"])
+    expect(b.descriptions).toEqual(["Folded indigo cloth.", null, "A printed document."])
+  })
+
+  it("does not drift when a webhook redelivers the same photo", () => {
+    // 🔴 A descriptions array out of step with message_ids silently mislabels
+    // photos — the description of one photo attached to another.
+    let b = recordPhoto(null, "m1", at(0), "Folded indigo cloth.")
+    b = recordPhoto(b, "m1", at(3), "A completely different thing.")
+    expect(b.message_ids).toEqual(["m1"])
+    expect(b.descriptions).toEqual(["Folded indigo cloth."])
+  })
+
+  it("a fresh batch after asking starts its own descriptions", () => {
+    const asked: PhotoBatch = {
+      message_ids: ["m1"],
+      descriptions: ["Old thing."],
+      first_at: at(0).toISOString(),
+      last_at: at(0).toISOString(),
+      asked_at: at(200).toISOString(),
+    }
+    const b = recordPhoto(asked, "m2", at(300), "New thing.")
+    expect(b.descriptions).toEqual(["New thing."])
+  })
+
+  it("hedges what it saw, and never states a purpose", () => {
+    const p = buildPhotoQuestionPurpose({
+      photos: 1,
+      seen: "it looks like a stack of folded woven fabric",
+    })
+    expect(p).toContain("looks like")
+    expect(p).toContain("we do not know what they are FOR")
+    expect(p).not.toMatch(/product/i)
+  })
+
+  it("falls back to the plain question when nothing was seen", () => {
+    const p = buildPhotoQuestionPurpose({ photos: 3, seen: null })
+    expect(p).toContain("3 photos")
+    expect(p).not.toContain("looks like")
+    expect(p).not.toContain("undefined")
+  })
+})
+
+describe("describeBatchForQuestion", () => {
+  it("quotes ONE description even when several photos arrived", () => {
+    // A list of five descriptions is not a question.
+    const s = describeBatchForQuestion([
+      "A stack of folded woven fabric.",
+      "A close-up of the same cloth.",
+      "A label.",
+    ])
+    expect(s).toContain("the first of them looks like")
+    expect(s).toContain("a stack of folded woven fabric")
+    expect(s).not.toContain("A label")
+  })
+
+  it("uses the singular phrasing for one description", () => {
+    expect(describeBatchForQuestion(["A printed document."])).toBe(
+      "it looks like a printed document"
+    )
+  })
+
+  it("skips empty slots and returns null when nothing was seen", () => {
+    expect(describeBatchForQuestion([null, "  ", "A jacket."])).toContain("a jacket")
+    expect(describeBatchForQuestion([null, null])).toBeNull()
+    expect(describeBatchForQuestion([])).toBeNull()
   })
 })
