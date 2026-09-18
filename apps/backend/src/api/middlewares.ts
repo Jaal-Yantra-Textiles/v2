@@ -236,6 +236,7 @@ import { listPublicPersonsQuerySchema } from "./web/persons/validators";
 import { personContactRequestSchema } from "./web/persons/[id]/contact/validators";
 import { LinkDesignValidator, UnlinkDesignValidator } from "./admin/products/[id]/linkDesign/validators";
 import { sendToPartnerSchema } from "./admin/inventory-orders/[id]/send-to-partner/validators";
+import { receiveInventoryOrderSchema } from "./admin/inventory-orders/[id]/receive/validators";
 import { EmailTemplateQueryParams, EmailTemplateSchema, UpdateEmailTemplateSchema } from "./admin/email-templates/validators";
 import { CreateAgreementSchema, UpdateAgreementSchema } from "./admin/agreements/validators";
 import { AdminImageExtractionReq } from "./admin/ai/image-extraction/validators";
@@ -4495,6 +4496,16 @@ export default defineMiddlewares({
       matcher: "/admin/inventory-orders/:id/tasks/:taskId",
       method: 'POST',
       middlewares: [validateAndTransformBody(wrapSchema(UpdateInventoryOrderTask))],
+    },
+    /**
+     * #2115 — the admin receipt. Registered BEFORE `/admin/inventory-orders/:id`
+     * would be a concern for a GET, but this is a POST on a deeper path; kept
+     * beside its siblings for the same prefix-matching reason as `/charges`.
+     */
+    {
+      matcher: "/admin/inventory-orders/:id/receive",
+      method: 'POST',
+      middlewares: [validateAndTransformBody(wrapSchema(receiveInventoryOrderSchema))],
     },
     {
       matcher: "/admin/inventory-orders/:id/send-to-partner",

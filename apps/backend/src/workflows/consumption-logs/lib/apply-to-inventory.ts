@@ -17,6 +17,16 @@ import { LOCATION_OWNERSHIP_MODULE } from "../../../modules/location_ownership"
  *
  * So every deduction is gated on the brand store's own location. Partner-held
  * consumption keeps behaving exactly as it does today, by construction.
+ *
+ * CONSIGNMENT (#2111). The boundary above needed one more distinction. We buy
+ * cloth, have it delivered to a partner's bench, and they cut it there: that
+ * material is ours the whole time, and it has to come off our books when it
+ * becomes a garment. `is_core` cannot say so — it answers "whose BUILDING is
+ * this", which is a different question from "whose CLOTH is this", and the
+ * moment a partner's building may hold our material one flag is necessarily
+ * wrong about one of them. So the gate asks the other question separately, of
+ * the only record a partner cannot forge: the run's own material allocation,
+ * written by us at approval. See `issuedLocationKeysByRun`.
  */
 
 /** A `Hour`/`kWh` labour or energy log carries raw_material_id, not an item. */
@@ -87,6 +97,27 @@ export type ConsumptionApplyPlanInput = {
    */
   coreLocationIds?: Set<string>
   /**
+   * CONSIGNMENT: `${inventory_item_id}@${location_id}` keys we recorded ISSUING
+   * to a partner, keyed by the production run they were issued for.
+   *
+   * Material we procured and had delivered to a partner's bench is still OURS —
+   * `is_core` answers "whose building is it", not "whose cloth is it", and the
+   * moment a partner's building may hold our material one flag cannot answer
+   * both. A key here is the other question answered: we recorded sending THIS
+   * item to THIS location for THIS run.
+   *
+   * 🔴 Keyed by RUN, not flat, and that is load-bearing. Partners can create
+   * their own inventory at their own location (`POST /partners/inventory-items`,
+   * partner MCP `set_inventory_level`), so their own cloth sits in the same room
+   * as ours. A flat set would let run B deduct against material issued to run A
+   * merely because both stand at the same bench. Their own cloth is never in any
+   * run's allocation, so it is never touched.
+   *
+   * A log with no `production_run_id` resolves no keys and stays refused at a
+   * non-core location — correct: we never recorded issuing it anything.
+   */
+  issuedLocationKeysByRun?: Record<string, Set<string>>
+  /**
    * Refuse any deduction whose shortfall would exceed this, skipping the log
    * instead of applying it.
    *
@@ -136,6 +167,12 @@ export type ConsumptionApplyDecision =
       pieces?: number
       /** Set when the log wanted more than the level held. */
       shortfall?: number
+      /**
+       * Set when this deduction was allowed at a NON-core location because the
+       * run's allocation records us issuing that item there — our material on
+       * a partner's bench, coming off our books as it becomes a garment.
+       */
+      consigned?: true
     }
   | { action: "skip"; log_id: string; reason: string }
 
@@ -287,9 +324,22 @@ export function planConsumptionApplication(
       continue
     }
     // The ownership rule, stated outright: material drawn from a location we
-    // do not own is not ours to move, whatever its stock says.
-    if (input.coreLocationIds && !input.coreLocationIds.has(locationId)) {
-      skip(`${locationId} is not one of our locations (partner-held)`)
+    // do not own is not ours to move, whatever its stock says — UNLESS this
+    // run was issued this very item there, which is us saying it is ours.
+    const issuedKeys = log.production_run_id
+      ? input.issuedLocationKeysByRun?.[log.production_run_id]
+      : undefined
+    const issuedHere = Boolean(
+      issuedKeys?.has(levelKey(log.inventory_item_id, locationId))
+    )
+    if (
+      input.coreLocationIds &&
+      !input.coreLocationIds.has(locationId) &&
+      !issuedHere
+    ) {
+      skip(
+        `${locationId} is not one of our locations, and this run was not issued this item there (partner-held)`
+      )
       continue
     }
     const key = levelKey(log.inventory_item_id, locationId)
@@ -350,6 +400,9 @@ export function planConsumptionApplication(
       after,
       ...(pieces != null ? { per_piece: perPiece, pieces } : {}),
       ...(shortfall > 0 ? { shortfall } : {}),
+      ...(issuedHere && !input.coreLocationIds?.has(locationId)
+        ? { consigned: true as const }
+        : {}),
     })
   }
 
