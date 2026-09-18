@@ -13,6 +13,7 @@ import { InventoryOrderChangeBanner } from "../../../../components/inventory-ord
 import { inventoryOrderLoader } from "./loader";
 import { INVENTORY_ORDER_DETAIL_FIELDS } from "./constants";
 import InventoryOrderIDSection from "../../../../components/inventory-orders/inventory-order-general-orderId";
+import InventoryOrderReceiptSection from "../../../../components/inventory-orders/inventory-order-receipt-section";
 
 const InventoryOrderDetailPage = () => {
   const initialData = useLoaderData() as Awaited<AdminInventoryOrderResponse>
@@ -50,6 +51,9 @@ const InventoryOrderDetailPage = () => {
       <InventoryOrderChangeBanner inventoryOrder={inventoryOrder} />
       <InventoryOrderIDSection inventoryOrder={inventoryOrder} />
       <InventoryOrderGeneralSection inventoryOrder={inventoryOrder} />
+      {/* #2144 — above feedbacks on purpose: when an order is Delivered and
+          uncounted, this is the only thing on the page that needs doing. */}
+      <InventoryOrderReceiptSection inventoryOrder={inventoryOrder} />
       <InventoryOrderFeedbacksSection orderId={inventoryOrder.id} />
       </TwoColumnPage.Main>
       <TwoColumnPage.Sidebar>

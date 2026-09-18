@@ -50,8 +50,16 @@ import {
 
 export type ReceiveInventoryOrderInput = {
   orderId: string
-  /** Omit to receive everything still outstanding. */
-  lines?: Array<{ order_line_id: string; quantity: number }> | null
+  /**
+   * Omit to receive everything still outstanding. Repeat an `order_line_id`
+   * with different `stock_location_id`s to split one delivery across two
+   * destinations (#2144).
+   */
+  lines?: Array<{
+    order_line_id: string
+    quantity: number
+    stock_location_id?: string | null
+  }> | null
   /** Override the order's destination location. */
   stock_location_id?: string | null
   notes?: string | null
@@ -123,6 +131,7 @@ const planReceiptStep = createStep(
     return new StepResponse({
       lines: plan.lines,
       destination_location_id: plan.destination_location_id,
+      destination_location_ids: plan.destination_location_ids,
       postings: postingsFromPlannedLines(plan.lines),
     })
   }
@@ -358,7 +367,10 @@ export const receiveInventoryOrderWorkflow = createWorkflow(
       order_id: input.orderId,
       received: plan.lines,
       postings: plan.postings,
+      // Singular, kept for callers that predate splitting; on a split receipt
+      // it names only ONE of the places the goods went.
       destination_location_id: plan.destination_location_id,
+      destination_location_ids: plan.destination_location_ids,
     })
   }
 )

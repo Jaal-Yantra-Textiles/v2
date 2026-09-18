@@ -14,6 +14,11 @@
  * Body is optional: with no `lines`, everything still outstanding is received,
  * which is the ordinary case for an order the carrier delivered in full.
  *
+ * A line may be listed more than once with different `stock_location_id`s —
+ * one delivery SPLIT across two destinations (#2144), which is the ordinary
+ * case for consignment: the partner keeps what they will cut and the balance
+ * goes to our own warehouse.
+ *
  * Success: 200 -> { order_id, received, postings, destination_location_id }.
  */
 import { AuthenticatedMedusaRequest, MedusaResponse } from "@medusajs/framework"
@@ -27,7 +32,11 @@ export async function POST(
 ) {
   const id = req.params.id
   const body = (req.validatedBody ?? req.body ?? {}) as {
-    lines?: Array<{ order_line_id: string; quantity: number }>
+    lines?: Array<{
+      order_line_id: string
+      quantity: number
+      stock_location_id?: string
+    }>
     stock_location_id?: string
     notes?: string
   }

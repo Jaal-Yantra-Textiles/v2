@@ -1871,7 +1871,8 @@ export const ADMIN_MCP_TOOLS: AdminMcpToolDef[] = [
       "Record that an inventory order's goods ACTUALLY TURNED UP, and put them on the books at the order's destination. Sensitive: requires confirm:true. " +
       "🔑 `Delivered` is a CARRIER event, not a receipt. It comes from the Shiprocket webhook and proves a parcel reached a door; it moves NO stock and means nobody counted what was inside. Until this tool is called, the level reads 0 however OTP-verified the scan was. " +
       "🔴 The goods land at the ORDER's destination, which on a consignment order is a PARTNER's location — that is deliberate: material we procured, stocked where the partner will cut it (#2111). " +
-      "Omit `lines` to receive everything still outstanding, which is the ordinary case. Calling it twice is safe: receipts are cumulative against the order's fulfillment record, so a fully-received order receives nothing rather than posting the stock twice. Read the levels back with list_inventory_levels.",
+      "Omit `lines` to receive everything still outstanding, which is the ordinary case. Calling it twice is safe: receipts are cumulative against the order's fulfillment record, so a fully-received order receives nothing rather than posting the stock twice. Read the levels back with list_inventory_levels. " +
+      "🔑 SPLIT a delivery by listing the SAME `order_line_id` twice with different `stock_location_id`s — the partner keeps what they will cut and the balance goes to our own warehouse. Both halves arrived; this is not a short delivery. The portions are summed per line, so a split cannot receive the same goods twice.",
     method: "POST",
     path: "/admin/inventory-orders/:id/receive",
     pathParams: ["id"],
@@ -1886,7 +1887,7 @@ export const ADMIN_MCP_TOOLS: AdminMcpToolDef[] = [
         lines: {
           type: "array" as const,
           description:
-            "What actually arrived, line by line. OMIT to receive everything still outstanding — do that unless a short delivery has to be recorded. A quantity above what is outstanding is REFUSED, not clamped.",
+            "What actually arrived, line by line. OMIT to receive everything still outstanding — do that unless a short delivery or a split has to be recorded. A quantity above what is outstanding is REFUSED, not clamped. List a line MORE THAN ONCE with different `stock_location_id`s to split it across destinations.",
           items: {
             type: "object" as const,
             properties: {
@@ -1899,13 +1900,18 @@ export const ADMIN_MCP_TOOLS: AdminMcpToolDef[] = [
                 description:
                   "Quantity received on this line. 0 means this line brought nothing and is skipped.",
               },
+              stock_location_id: {
+                type: "string",
+                description:
+                  "Where THIS portion lands. Omit and it follows the order's destination (a partner's location on a consignment order). Name it to send part of the delivery elsewhere — typically our own warehouse for the balance the partner will not cut. Get ids from list_stock_locations.",
+              },
             },
             required: ["order_line_id", "quantity"],
             additionalProperties: false,
           },
         },
         stock_location_id: STR(
-          "Override the destination. Rarely correct — goods go where the order says they go. Use only when the order names no destination at all."
+          "Override the destination for the WHOLE receipt. Rarely correct — goods go where the order says they go, and a per-portion `lines[].stock_location_id` beats this. Use only when the order names no destination at all."
         ),
         notes: STR("Free-text note recorded against the receipt."),
       },
