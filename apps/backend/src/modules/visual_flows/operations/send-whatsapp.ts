@@ -7,6 +7,7 @@ import { SOCIALS_MODULE } from "../../socials"
 import type SocialsService from "../../socials/service"
 import { MESSAGING_MODULE } from "../../messaging"
 import type { WhatsAppAuditContext } from "../../social-provider/whatsapp-service"
+import { sanitizeTemplateParams } from "../../../workflows/whatsapp/whatsapp-template-params"
 
 /**
  * Send a WhatsApp message from a visual flow — template (preferred) or text.
@@ -541,11 +542,38 @@ export const sendWhatsAppOperation: OperationDefinition = {
             ],
           })
         }
-        if (variableValues.length > 0) {
+        /**
+         * #2122 — parameters are cleaned before they reach Meta.
+         *
+         * Meta rejects a body parameter containing a newline, a tab, or more
+         * than 4 consecutive spaces. Until a template variable carried prose,
+         * every value here was a name, an id or a number and the rule was
+         * unreachable; a prose carrier template reaches it on the first send.
+         *
+         * Applied to EVERY parameter, not just prose ones: a design name pasted
+         * from a spreadsheet carries tabs, and that rejection would have looked
+         * like a broken template rather than dirty data.
+         */
+        const sanitizedParams = sanitizeTemplateParams(variableValues)
+        if (sanitizedParams.texts.length > 0) {
           components.push({
             type: "body",
-            parameters: variableValues.map((text) => ({ type: "text", text })),
+            parameters: sanitizedParams.texts.map((text) => ({ type: "text", text })),
           })
+        }
+        if (sanitizedParams.changedIndexes.length) {
+          // Never fatal — the send is correct now. But a value that had to be
+          // cleaned, and especially one that was TRUNCATED, means the partner
+          // read something different from what was composed, and that must be
+          // visible rather than inferred from a short message.
+          // eslint-disable-next-line no-console
+          console.info(
+            `[send-whatsapp] template ${templateName}: sanitized params ` +
+              `[${sanitizedParams.changedIndexes.join(",")}]` +
+              (sanitizedParams.truncatedIndexes.length
+                ? `, TRUNCATED [${sanitizedParams.truncatedIndexes.join(",")}]`
+                : "")
+          )
         }
 
         // Dynamic URL-button parameter. Only attach when the caller both
@@ -617,10 +645,14 @@ export const sendWhatsAppOperation: OperationDefinition = {
           templateName,
           lang,
           components,
-          buildAudit({ variables: variableValues })
+          buildAudit({
+            variables: sanitizedParams.texts,
+            sanitized_indexes: sanitizedParams.changedIndexes,
+            truncated_indexes: sanitizedParams.truncatedIndexes,
+          })
         )
         messageType = "template"
-        contentPreview = `[template:${templateName}] ${variableValues.join(" · ")}`.slice(0, 500)
+        contentPreview = `[template:${templateName}] ${sanitizedParams.texts.join(" · ")}`.slice(0, 500)
         resolvedTemplateName = templateName
         resolvedLanguageCode = lang
       } else if (mode === "image") {

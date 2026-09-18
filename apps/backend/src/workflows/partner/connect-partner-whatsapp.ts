@@ -10,10 +10,27 @@ import { SOCIAL_PROVIDER_MODULE } from "../../modules/social-provider"
 import type SocialProviderService from "../../modules/social-provider/service"
 import { MESSAGING_MODULE } from "../../modules/messaging"
 import { TEMPLATE_NAMES } from "../../scripts/whatsapp-templates/partner-run-templates"
+import { composeOutreachText } from "../whatsapp/whatsapp-outreach-prose"
+import { sanitizeTemplateParam } from "../whatsapp/whatsapp-template-params"
 
 const DEFAULT_TEMPLATE = TEMPLATE_NAMES.PARTNER_WELCOME
 const DEFAULT_LANG = process.env.WHATSAPP_TEMPLATE_LANG || "hi"
 const BUSINESS_NAME = process.env.WHATSAPP_BUSINESS_NAME || "JYT Textiles"
+
+/**
+ * #2122 — the prose carrier template for first contact.
+ *
+ * A template whose body is scaffolding plus ONE free-text variable, so the
+ * sentence a partner reads is written for them rather than assembled from a
+ * fixed string. Set it once it is APPROVED in Meta; until then this is unset
+ * and the old two-variable welcome template is used exactly as before.
+ *
+ * 🔴 Deliberately opt-in by env rather than defaulted. Pointing at a template
+ * that is not approved in every target WABA makes Meta reject the send, and
+ * first contact is the one message we cannot afford to drop — a partner who is
+ * never greeted never onboards.
+ */
+const PROSE_TEMPLATE = process.env.WHATSAPP_PARTNER_WELCOME_PROSE_TEMPLATE || ""
 
 export type ConnectPartnerWhatsappInput = {
   partner_id: string
@@ -62,14 +79,45 @@ const sendWelcomeTemplateStep = createStep(
     let waMessageId: string | null = null
     let templateSent = false
     try {
+      /**
+       * First contact should read like a person wrote it, not like a form
+       * letter with a name slotted in. When a prose carrier template is
+       * configured we compose the sentence; otherwise we send the existing
+       * two-variable welcome exactly as before.
+       *
+       * 🔴 The message is warm and human-sounding. It does NOT claim to be a
+       * person — see the docblock on `composeOutreachText`. A partner deciding
+       * whether to take on work needs to know what they are dealing with, and
+       * WhatsApp's own policy puts the penalty on the template, which with a
+       * single prose carrier is every message we send.
+       */
+      let templateName = DEFAULT_TEMPLATE
+      let parameters = [
+        { type: "text", text: sanitizeTemplateParam(input.partner_name).text },
+        { type: "text", text: sanitizeTemplateParam(BUSINESS_NAME).text },
+      ]
+
+      if (PROSE_TEMPLATE) {
+        const composed = await composeOutreachText(container as any, {
+          partner_name: input.partner_name,
+          business_name: BUSINESS_NAME,
+          purpose:
+            "We are setting them up on WhatsApp so we can send them production work, share designs and answer questions here. Introduce ourselves and invite them to reply.",
+        })
+        templateName = PROSE_TEMPLATE
+        parameters = [{ type: "text", text: composed.text }]
+        if (composed.source === "fallback") {
+          console.warn(
+            `[connect-partner-whatsapp] prose fell back for ${input.phone}: ${composed.reason}`
+          )
+        }
+      }
+
       const waResponse = await whatsapp.sendTemplateMessage(
         input.phone,
-        DEFAULT_TEMPLATE,
+        templateName,
         DEFAULT_LANG,
-        [{ type: "body", parameters: [
-          { type: "text", text: input.partner_name },
-          { type: "text", text: BUSINESS_NAME },
-        ] }]
+        [{ type: "body", parameters }]
       )
       waMessageId = waResponse?.messages?.[0]?.id || null
       templateSent = true
