@@ -41,6 +41,7 @@ describe("planInventoryOrderReceipt", () => {
     expect(result).toEqual({
       ok: true,
       destination_location_id: KIYO,
+      destination_location_ids: [KIYO],
       lines: [
         {
           order_line_id: "line_1",
@@ -211,5 +212,157 @@ describe("postingsFromPlannedLines", () => {
         { order_line_id: "b", quantity: 2, inventory_item_id: "i", location_id: "L2" },
       ])
     ).toHaveLength(2)
+  })
+})
+
+/**
+ * SPLIT RECEIPTS — one delivery, two destinations (#2144).
+ *
+ * The case: GOF delivers 86 m of cloth against a consignment order whose
+ * destination is Ksaman's bench. She keeps what she will cut; the balance goes
+ * to our Main Warehouse. Both halves ARRIVED — this is not a short delivery and
+ * not a return, it is one receipt landing in two places.
+ *
+ * Before this, `stock_location_id` was receipt-wide, so the only way to express
+ * it was two separate receipts — and the second one would have had to claim
+ * against an order the first had already closed.
+ */
+describe("planInventoryOrderReceipt — split destinations", () => {
+  const KSAMAN = "sloc_ksaman"
+  const WAREHOUSE = "sloc_main_warehouse"
+  const CLOTH = "iitem_gof_cloth"
+
+  const splitPlan = (
+    requested: Array<{
+      order_line_id: string
+      quantity: number
+      stock_location_id?: string | null
+    }>
+  ) =>
+    planInventoryOrderReceipt({
+      order_id: "inv_order_gof",
+      status: "Delivered",
+      destination_location_id: KSAMAN,
+      lines: [
+        {
+          id: "line_cloth",
+          quantity: 86,
+          received: 0,
+          inventory_item_id: CLOTH,
+        },
+      ],
+      requested,
+    })
+
+  it("🔴 splits one line across two locations — the partner's bench and our warehouse", () => {
+    const result = splitPlan([
+      { order_line_id: "line_cloth", quantity: 60, stock_location_id: KSAMAN },
+      { order_line_id: "line_cloth", quantity: 26, stock_location_id: WAREHOUSE },
+    ])
+
+    expect(result.ok).toBe(true)
+    expect(result.ok && result.lines).toEqual([
+      {
+        order_line_id: "line_cloth",
+        quantity: 60,
+        inventory_item_id: CLOTH,
+        location_id: KSAMAN,
+      },
+      {
+        order_line_id: "line_cloth",
+        quantity: 26,
+        inventory_item_id: CLOTH,
+        location_id: WAREHOUSE,
+      },
+    ])
+  })
+
+  it("🔴 sums the split entries against what is outstanding, so a split cannot receive twice", () => {
+    // 50 + 50 against an 86 m line. Each entry passes on its own; together they
+    // are an over-receipt of 14 m, and that is the whole point of the guard.
+    const result = splitPlan([
+      { order_line_id: "line_cloth", quantity: 50, stock_location_id: KSAMAN },
+      { order_line_id: "line_cloth", quantity: 50, stock_location_id: WAREHOUSE },
+    ])
+
+    expect(result.ok).toBe(false)
+    expect(!result.ok && result.error).toMatch(/Over-receipt/)
+    expect(!result.ok && result.error).toMatch(/already claimed by an earlier split/)
+  })
+
+  it("reports every destination, not just the first", () => {
+    const result = splitPlan([
+      { order_line_id: "line_cloth", quantity: 60, stock_location_id: KSAMAN },
+      { order_line_id: "line_cloth", quantity: 26, stock_location_id: WAREHOUSE },
+    ])
+
+    expect(result.ok && result.destination_location_ids).toEqual([KSAMAN, WAREHOUSE])
+    // The singular field still answers, and still names only one of the two.
+    expect(result.ok && result.destination_location_id).toBe(KSAMAN)
+  })
+
+  it("falls back to the order's destination for a portion that names none", () => {
+    const result = splitPlan([
+      { order_line_id: "line_cloth", quantity: 60 },
+      { order_line_id: "line_cloth", quantity: 26, stock_location_id: WAREHOUSE },
+    ])
+
+    expect(result.ok && result.lines.map((l) => l.location_id)).toEqual([
+      KSAMAN,
+      WAREHOUSE,
+    ])
+  })
+
+  it("a per-portion location beats the receipt-wide override", () => {
+    const result = planInventoryOrderReceipt({
+      order_id: "inv_order_gof",
+      status: "Delivered",
+      destination_location_id: KSAMAN,
+      location_id: "sloc_override",
+      lines: [
+        { id: "line_cloth", quantity: 86, received: 0, inventory_item_id: CLOTH },
+      ],
+      requested: [
+        { order_line_id: "line_cloth", quantity: 60 },
+        { order_line_id: "line_cloth", quantity: 26, stock_location_id: WAREHOUSE },
+      ],
+    })
+
+    // The portion that names nothing takes the override; the one that names a
+    // location keeps it.
+    expect(result.ok && result.lines.map((l) => l.location_id)).toEqual([
+      "sloc_override",
+      WAREHOUSE,
+    ])
+  })
+
+  it("🔴 keeps the two halves as SEPARATE postings — one level each, never collapsed", () => {
+    const result = splitPlan([
+      { order_line_id: "line_cloth", quantity: 60, stock_location_id: KSAMAN },
+      { order_line_id: "line_cloth", quantity: 26, stock_location_id: WAREHOUSE },
+    ])
+
+    expect(result.ok && postingsFromPlannedLines(result.lines)).toEqual([
+      { inventory_item_id: CLOTH, location_id: KSAMAN, quantity: 60 },
+      { inventory_item_id: CLOTH, location_id: WAREHOUSE, quantity: 26 },
+    ])
+  })
+
+  it("a split receipt leaves the line settled — outstanding falls to zero", () => {
+    const result = splitPlan([
+      { order_line_id: "line_cloth", quantity: 60, stock_location_id: KSAMAN },
+      { order_line_id: "line_cloth", quantity: 26, stock_location_id: WAREHOUSE },
+    ])
+    const received =
+      (result.ok && result.lines.reduce((s, l) => s + l.quantity, 0)) || 0
+
+    expect(
+      outstandingOn({
+        id: "line_cloth",
+        quantity: 86,
+        received,
+        inventory_item_id: CLOTH,
+      })
+    ).toBe(0)
   })
 })

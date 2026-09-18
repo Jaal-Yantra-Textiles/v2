@@ -52,8 +52,20 @@ export type PlanReceiptInput = {
    * What the operator says arrived. Omit entirely to receive EVERYTHING still
    * outstanding — the common case for an order the carrier already delivered
    * in full, and the one that stops a receipt being a typing exercise.
+   *
+   * 🔴 A line may appear MORE THAN ONCE, each entry naming its own
+   * `stock_location_id`. That is a SPLIT receipt and it is the ordinary case
+   * for a consignment delivery: the partner keeps what they will cut and the
+   * balance goes to our own warehouse. Splitting is not a correction — both
+   * halves arrived, they just live in two places. The over-receipt guard sums
+   * the entries per line, so a split cannot be used to receive twice.
    */
-  requested?: Array<{ order_line_id: string; quantity: number }> | null
+  requested?: Array<{
+    order_line_id: string
+    quantity: number
+    /** Where THIS portion lands. Beats the receipt-wide override. */
+    stock_location_id?: string | null
+  }> | null
 }
 
 export type PlannedReceiptLine = {
@@ -64,7 +76,18 @@ export type PlannedReceiptLine = {
 }
 
 export type PlanReceiptResult =
-  | { ok: true; lines: PlannedReceiptLine[]; destination_location_id: string }
+  | {
+      ok: true
+      lines: PlannedReceiptLine[]
+      /**
+       * The first destination. Kept because callers predate splitting, but on
+       * a split receipt it names only one of the places the goods went — read
+       * `destination_location_ids` (or the postings) to describe the receipt.
+       */
+      destination_location_id: string
+      /** Every distinct location this receipt posts to, in the order planned. */
+      destination_location_ids: string[]
+    }
   | { ok: false; error: string }
 
 /**
@@ -116,7 +139,8 @@ export function planInventoryOrderReceipt(
   // No explicit payload means "everything still outstanding". A line already
   // fully received contributes 0 and drops out below, which is what makes a
   // second call a no-op rather than a double-posting.
-  const requested = input.requested?.length
+  const requested: NonNullable<PlanReceiptInput["requested"]> = input.requested
+    ?.length
     ? input.requested
     : input.lines.map((l) => ({
         order_line_id: String(l.id),
@@ -125,6 +149,10 @@ export function planInventoryOrderReceipt(
 
   const planned: PlannedReceiptLine[] = []
   const overReceipts: string[] = []
+  // 🔴 What THIS payload has already claimed per line. Without it a split
+  // receipt is a hole in the over-receipt guard: two entries of 50 against an
+  // 86 m line each pass on their own (50 ≤ 86) and post 100 m between them.
+  const claimedInPayload = new Map<string, number>()
 
   for (const r of requested) {
     const line = byId.get(String(r?.order_line_id ?? ""))
@@ -145,10 +173,14 @@ export function planInventoryOrderReceipt(
       continue
     }
 
-    const remaining = outstandingOn(line)
+    const alreadyClaimed = claimedInPayload.get(String(line.id)) ?? 0
+    const remaining = round(outstandingOn(line) - alreadyClaimed)
     if (qty > remaining + OVER_RECEIPT_TOLERANCE) {
       overReceipts.push(
-        `line ${line.id}: ${remaining} outstanding but ${qty} claimed`
+        `line ${line.id}: ${remaining} outstanding but ${qty} claimed` +
+          (alreadyClaimed
+            ? ` (${alreadyClaimed} already claimed by an earlier split in this receipt)`
+            : "")
       )
       continue
     }
@@ -172,6 +204,7 @@ export function planInventoryOrderReceipt(
     // partner's location, which is exactly the point: the stocking side already
     // intends to post our material at a partner's bench.
     const locationId =
+      r.stock_location_id ||
       input.location_id ||
       input.destination_location_id ||
       line.item_location_ids?.[0]
@@ -181,6 +214,8 @@ export function planInventoryOrderReceipt(
         error: `No destination stock location could be resolved for order ${input.order_id} — pass location_id explicitly`,
       }
     }
+
+    claimedInPayload.set(String(line.id), round(alreadyClaimed + qty))
 
     planned.push({
       order_line_id: String(line.id),
@@ -210,6 +245,9 @@ export function planInventoryOrderReceipt(
     ok: true,
     lines: planned,
     destination_location_id: planned[0].location_id,
+    destination_location_ids: Array.from(
+      new Set(planned.map((l) => l.location_id))
+    ),
   }
 }
 

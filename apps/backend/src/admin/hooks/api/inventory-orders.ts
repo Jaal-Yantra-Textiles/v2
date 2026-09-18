@@ -578,3 +578,77 @@ export const useRejectInventoryOrderChange = (
     },
   });
 };
+
+/**
+ * RECEIVING GOODS — #2144.
+ *
+ * 🔴 `Delivered` is a CARRIER event. It comes from the Shiprocket webhook and
+ * proves a parcel reached a door; it moves NO stock and means nobody counted
+ * what was inside. Until this runs, the level reads 0 however OTP-verified the
+ * scan was — which is exactly how two pashminas sat off our books at Kiyo.
+ *
+ * A line may be listed MORE THAN ONCE with different `stock_location_id`s.
+ * That is a SPLIT receipt and it is the ordinary consignment case: the partner
+ * keeps what they will cut and the balance goes to our own warehouse. Both
+ * halves arrived — it is not a short delivery.
+ */
+export interface ReceiveInventoryOrderPortion {
+  order_line_id: string;
+  quantity: number;
+  /** Where THIS portion lands. Omit to follow the order's destination. */
+  stock_location_id?: string;
+}
+
+export interface ReceiveInventoryOrderPayload {
+  /** Omit entirely to receive everything still outstanding. */
+  lines?: ReceiveInventoryOrderPortion[];
+  /** Whole-receipt destination override. A per-portion location beats it. */
+  stock_location_id?: string;
+  notes?: string;
+}
+
+export interface ReceiveInventoryOrderResponse {
+  order_id: string;
+  received: Array<{
+    order_line_id: string;
+    quantity: number;
+    inventory_item_id: string;
+    location_id: string;
+  }>;
+  postings: Array<{
+    inventory_item_id: string;
+    location_id: string;
+    quantity: number;
+  }>;
+  /** Only ONE of the destinations on a split receipt — prefer the plural. */
+  destination_location_id: string;
+  destination_location_ids?: string[];
+}
+
+export const useReceiveInventoryOrder = (
+  id: string,
+  options?: UseMutationOptions<
+    ReceiveInventoryOrderResponse,
+    FetchError,
+    ReceiveInventoryOrderPayload
+  >,
+) => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (payload: ReceiveInventoryOrderPayload) =>
+      sdk.client.fetch<ReceiveInventoryOrderResponse>(
+        `/admin/inventory-orders/${id}/receive`,
+        { method: "POST", body: payload },
+      ),
+    ...options,
+    onSuccess: (...args) => {
+      queryClient.invalidateQueries({ queryKey: inventoryOrderQueryKeys.detail(id) });
+      queryClient.invalidateQueries({ queryKey: inventoryOrderQueryKeys.lists() });
+      // The whole point is that a level moved. Anything rendering stock has to
+      // re-read, or the receipt looks like it did nothing.
+      queryClient.invalidateQueries({ queryKey: ["inventory_items"] });
+      queryClient.invalidateQueries({ queryKey: ["inventory-levels"] });
+      options?.onSuccess?.(...args);
+    },
+  });
+};

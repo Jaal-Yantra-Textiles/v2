@@ -16,6 +16,14 @@ export const receiveInventoryOrderSchema = z.object({
         // `.nonnegative()` rather than `.positive()`: 0 is a legitimate way to
         // say "this line brought nothing", and the planner drops it.
         quantity: z.number().nonnegative(),
+        /**
+         * Where THIS portion lands (#2144). Omit and it follows the order's
+         * destination. Repeat the same `order_line_id` with different locations
+         * to SPLIT one delivery: the partner keeps what they will cut, the
+         * balance goes to our warehouse. The planner sums the portions per line,
+         * so splitting cannot be used to receive the same goods twice.
+         */
+        stock_location_id: z.string().min(1).optional(),
       })
     )
     .optional(),
