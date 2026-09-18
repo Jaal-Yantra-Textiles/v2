@@ -56,7 +56,33 @@ const orderLineSchema = z
 
 export const EditInventoryOrderLinesSchema = z.object({
   order_lines: z.array(orderLineSchema).min(1, "At least one order line is required"),
-  tax_percent: z.union([z.number(), z.string()]),
+  /**
+   * 🔴 BOUNDED, 0–100. Unbounded, a negative percent rendered a reduced total in
+   * the footer and then proposed nothing at all — the submit guard dropped a
+   * non-positive tax silently, so the partner believed they had proposed a
+   * figure the admin never saw. A screen must not show a total it will not send.
+   *
+   * 0 is valid and means "no tax": it WITHDRAWS a tax proposed earlier, which
+   * is the only way to take one back.
+   */
+  tax_percent: z
+    .union([z.number(), z.string()])
+    .superRefine((val, ctx) => {
+      const n = castNumber(val ?? "")
+      if (val === "" || val == null) {
+        return
+      }
+      if (!Number.isFinite(n)) {
+        ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Tax percent must be a number" })
+        return
+      }
+      if (n < 0) {
+        ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Tax percent cannot be negative" })
+      }
+      if (n > 100) {
+        ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Tax percent cannot exceed 100" })
+      }
+    }),
 })
 
 export type EditInventoryOrderLinesSchemaType = z.infer<

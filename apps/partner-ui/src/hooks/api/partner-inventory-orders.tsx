@@ -347,6 +347,22 @@ export type PartnerProposeOrderLinesPayload = {
     extra_cost?: number
     remove?: boolean
   }>
+  /**
+   * The tax proposed in the SAME request as the lines (#1752).
+   *
+   * 🔑 Staging them separately left a partial-write window: lines written, the
+   * charge call failed, and an admin read a proposal that looked complete and
+   * untaxed while the partner was shown an error. One request now stages both
+   * or neither.
+   *
+   * An `amount` of 0 WITHDRAWS a previously proposed charge of that type — it
+   * is how a partner takes a tax back.
+   */
+  charges?: Array<{
+    type: "tax"
+    amount: number
+    note?: string
+  }>
 }
 
 export type PartnerProposeOrderLinesResponse = {

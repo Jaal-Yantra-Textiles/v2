@@ -13,6 +13,7 @@ import {
   type ProposedCharge,
   type ProposedLine,
 } from "../../modules/inventory_orders/lib/order-changes"
+import { mergeProposedCharges } from "../../modules/inventory_orders/lib/merge-proposed-charges"
 
 /**
  * Stage a partner's PROPOSED revision of an inventory order (#1752).
@@ -30,7 +31,11 @@ export type StageInventoryOrderChangeInput = {
   partnerId: string
   /** When present, REPLACES `proposed_lines` with this full desired set. */
   lines?: ProposedLine[]
-  /** When present, APPENDS these `tax` charges to `proposed_charges`. */
+  /**
+   * When present, these charges SUPERSEDE the staged charges of the same
+   * `type`; other types are left alone and an amount of 0 withdraws the type.
+   * Restating a proposal must not charge for it twice.
+   */
   charges?: ProposedCharge[]
 }
 
@@ -116,7 +121,7 @@ const ensureOpenChangeStep = createStep(
   }
 )
 
-/** Write the staged lines (replace) / charges (append) onto the open change. */
+/** Write the staged lines (replace) / charges (replace by type) onto the open change. */
 const writeStageStep = createStep(
   "write-inventory-order-change-stage",
   async (
@@ -135,10 +140,14 @@ const writeStageStep = createStep(
       data.proposed_lines = input.lines
     }
     if (input.charges) {
-      const current = Array.isArray(change.proposed_charges)
-        ? change.proposed_charges
-        : []
-      data.proposed_charges = [...current, ...input.charges]
+      // 🔴 REPLACE BY TYPE, not append (#1752). Appending meant a partner who
+      // re-submitted their proposal staged a SECOND tax charge, and approval
+      // promotes every proposed charge into a real one — so a corrected typo
+      // doubled the tax. An amount of 0 withdraws the charge.
+      data.proposed_charges = mergeProposedCharges(
+        change.proposed_charges,
+        input.charges
+      )
     }
 
     const prior = {

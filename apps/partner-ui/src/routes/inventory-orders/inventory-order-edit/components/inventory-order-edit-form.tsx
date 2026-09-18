@@ -7,7 +7,6 @@ import { DataGrid } from "../../../../components/data-grid"
 import { RouteFocusModal, useRouteModal } from "../../../../components/modals"
 import { KeyboundForm } from "../../../../components/utilities/keybound-form"
 import {
-  useProposePartnerInventoryOrderCharge,
   useProposePartnerInventoryOrderLines,
 } from "../../../../hooks/api/partner-inventory-orders"
 import { castNumber } from "../../../../lib/cast-number"
@@ -86,10 +85,13 @@ export const InventoryOrderEditForm = ({
 
   const columns = useInventoryOrderEditColumns(currencyCode)
 
+  /**
+   * ONE call, not two (#1752). Lines and the tax used to be staged separately:
+   * a failure between them left a proposal an admin would read as complete and
+   * untaxed, with the partner shown an error. The route now takes both.
+   */
   const { mutateAsync: proposeLines, isPending: isPendingLines } =
     useProposePartnerInventoryOrderLines(inventoryOrder.id)
-  const { mutateAsync: proposeCharge, isPending: isPendingCharge } =
-    useProposePartnerInventoryOrderCharge(inventoryOrder.id)
 
   // Live totals off the watched form rows (the DataGrid writes on blur).
   const watchedLines = useWatch({ control: form.control, name: "order_lines" })
@@ -99,7 +101,13 @@ export const InventoryOrderEditForm = ({
   })
 
   const subtotal = computeSubtotal(watchedLines ?? [])
-  const taxPercent = castNumber(watchedTaxPercent ?? "") || 0
+  /**
+   * 🔑 Blank is NOT zero. The form does not load a tax proposed earlier, so a
+   * blank field means "unknown — leave whatever is staged alone". Only a typed
+   * value is authoritative, and a typed `0` withdraws the staged tax.
+   */
+  const taxStated = String(watchedTaxPercent ?? "").trim() !== ""
+  const taxPercent = taxStated ? castNumber(watchedTaxPercent) || 0 : 0
   const taxAmount = Math.round(subtotal * taxPercent) / 100
   const total = subtotal + taxAmount
 
@@ -117,19 +125,33 @@ export const InventoryOrderEditForm = ({
           }
     )
 
-    const percent = castNumber(data.tax_percent) || 0
+    const stated = String(data.tax_percent ?? "").trim() !== ""
+    const percent = stated ? castNumber(data.tax_percent) || 0 : 0
     const goodsTotal = computeSubtotal(data.order_lines)
     const tax = Math.round(goodsTotal * percent) / 100
 
+    /**
+     * 🔴 Sent whenever a percent was STATED, including 0.
+     *
+     * The old guard only posted when the tax was positive, so a 0 left an
+     * earlier proposal's tax staged while this screen showed none — and a
+     * negative percent showed a reduced total and proposed nothing at all. The
+     * backend now replaces a charge by type and treats 0 as a withdrawal, so
+     * what the footer shows is what the admin sees.
+     *
+     * A blank field sends nothing, because the form cannot see a tax proposed
+     * earlier and must not withdraw one it never displayed.
+     */
+    const charges = stated
+      ? [
+          tax > 0
+            ? { type: "tax" as const, amount: tax, note: `${percent}% tax on goods total` }
+            : { type: "tax" as const, amount: 0 },
+        ]
+      : undefined
+
     try {
-      await proposeLines({ order_lines })
-      if (tax > 0) {
-        await proposeCharge({
-          type: "tax",
-          amount: tax,
-          note: `${percent}% tax on goods total`,
-        })
-      }
+      await proposeLines({ order_lines, ...(charges ? { charges } : {}) })
       toast.success("Changes proposed — awaiting admin approval")
       handleSuccess()
     } catch (error) {
@@ -168,7 +190,13 @@ export const InventoryOrderEditForm = ({
           {/* Tax percent + live totals */}
           <div className="flex flex-col gap-y-3 border-t px-6 py-4">
             <div className="flex items-center justify-between gap-x-4">
-              <Label htmlFor="tax_percent">Tax percent</Label>
+              <div className="flex flex-col">
+                <Label htmlFor="tax_percent">Tax percent</Label>
+                {/* Blank is not zero — see the submit handler. */}
+                <Text size="small" className="text-ui-fg-subtle">
+                  Leave blank to keep any tax proposed earlier. Enter 0 to remove it.
+                </Text>
+              </div>
               <div className="relative w-40">
                 <Controller
                   control={form.control}
@@ -178,6 +206,7 @@ export const InventoryOrderEditForm = ({
                       id="tax_percent"
                       type="number"
                       min={0}
+                      max={100}
                       placeholder="0"
                       value={field.value}
                       onChange={field.onChange}
@@ -225,7 +254,7 @@ export const InventoryOrderEditForm = ({
             <Button
               type="submit"
               size="small"
-              isLoading={isPendingLines || isPendingCharge}
+              isLoading={isPendingLines}
             >
               Save changes
             </Button>

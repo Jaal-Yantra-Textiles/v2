@@ -12,6 +12,21 @@ import { z } from "@medusajs/framework/zod"
  *     is the shipment flow's business).
  */
 
+export const partnerAddOrderChargeSchema = z.object({
+  type: z.literal("tax", {
+    error: "A partner may only propose a 'tax' charge",
+  }),
+  /**
+   * 🔑 `0` WITHDRAWS a previously proposed charge of this type (#1752). It is
+   * not an error: without it a partner who set their tax percent back to 0 had
+   * no way to take the tax back, and their screen showed no tax while the
+   * staged change still carried one. Negative is still refused — a partner may
+   * not propose a credit.
+   */
+  amount: z.number().nonnegative("A charge amount cannot be negative"),
+  note: z.string().min(1).optional(),
+})
+
 export const partnerUpdateOrderLinesSchema = z.object({
   /**
    * 🔑 There is deliberately NO top-level `data: { quantity, total_price }`
@@ -58,16 +73,20 @@ export const partnerUpdateOrderLinesSchema = z.object({
         })
     )
     .min(1, "At least one order line is required"),
+  /**
+   * The tax proposed in the SAME request as the lines (#1752).
+   *
+   * 🔑 Optional, and it exists to close a partial-write window. The UI used to
+   * stage lines and then post the charge as a second call: a failure between
+   * the two left a proposal an admin would read as complete and untaxed, with
+   * the partner shown an error. One request stages both or neither.
+   *
+   * An amount of 0 withdraws a previously proposed charge of that type.
+   */
+  charges: z.array(partnerAddOrderChargeSchema).max(4).optional(),
 }).strict()
 
 export type PartnerUpdateOrderLines = z.infer<typeof partnerUpdateOrderLinesSchema>
 
-export const partnerAddOrderChargeSchema = z.object({
-  type: z.literal("tax", {
-    error: "A partner may only propose a 'tax' charge",
-  }),
-  amount: z.number().positive("A charge amount must be positive"),
-  note: z.string().min(1).optional(),
-})
 
 export type PartnerAddOrderCharge = z.infer<typeof partnerAddOrderChargeSchema>
