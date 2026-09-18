@@ -463,8 +463,67 @@ const TEMPLATE_PARTNER_WELCOME: TemplateSpec = {
   ],
 }
 
+
+// ─────────────────────────────────────────────────────────────────────────────
+// The PROSE CARRIER (#2122)
+//
+// Every other template here interleaves its variables with fixed prose —
+// "Hi {{1}}, your run {{3}} for {{2}}…". That shape needs a NEW Meta review for
+// every new thing we might want to say, which is what made free-form reminders
+// look impossible.
+//
+// This one inverts it: the template is the ENVELOPE and `{{1}}` carries the
+// whole message, composed per partner per moment. One approval, and any visual
+// flow can use it by pointing at this name instead of growing the `vars: [...]`
+// map.
+//
+// 🔴 The body is NOT only a variable, deliberately. Meta rejects a template
+// whose body consists solely of placeholders, so the closing line is load-bearing
+// rather than decorative. If Meta still objects to a body that OPENS with a
+// placeholder, the fix is a short fixed lead-in above `{{1}}` — not removing the
+// closing line.
+//
+// 🔑 No IMAGE header and no URL button, unlike the three reminder templates.
+// Both were dropped on purpose (founder, 2026-09-18):
+//
+//   • A header image on every message is noise once the message itself says
+//     something specific, and an IMAGE-header template REQUIRES a real URL on
+//     every send (code 132012 otherwise) — one more way for a send to fail.
+//   • The deep-link button is better sent WHEN ASKED. A partner who replies is
+//     inside the 24-hour window, where a free-form message may contain a URL
+//     freely — so `generatePartnerDeeplink` can hand them a pre-signed link that
+//     logs them straight in, at the moment they actually want it, instead of a
+//     button nobody taps on every message.
+//
+// That also keeps this template a plain text one, which is the cheapest and
+// least rejection-prone shape Meta offers.
+// ─────────────────────────────────────────────────────────────────────────────
+const TEMPLATE_PARTNER_MESSAGE: TemplateSpec = {
+  name: "jyt_partner_message_v1",
+  category: "UTILITY",
+  languages: [
+    {
+      language: "en",
+      body: "{{1}}\n\nReply to this message and we'll pick it up from here.",
+      examples: [
+        "Hi Ksaman Naturals, this is JYT Textiles. We've set you up on WhatsApp so we can send you production work and answer questions here. Have a look when you get a moment.",
+      ],
+      footer: "JYT Textiles",
+    },
+    {
+      language: "hi",
+      body: "{{1}}\n\nइस संदेश का उत्तर दें, हम यहीं से आगे बात करेंगे।",
+      examples: [
+        "नमस्ते Ksaman Naturals, यह JYT Textiles है। हमने आपको व्हाट्सएप पर जोड़ दिया है ताकि हम यहीं से काम भेज सकें।",
+      ],
+      footer: "JYT Textiles",
+    },
+  ],
+}
+
 export const PARTNER_RUN_TEMPLATES: TemplateSpec[] = [
   TEMPLATE_PARTNER_WELCOME,
+  TEMPLATE_PARTNER_MESSAGE,
   TEMPLATE_ASSIGNED,
   TEMPLATE_CANCELLED,
   TEMPLATE_COMPLETED,
@@ -481,6 +540,8 @@ export const PARTNER_RUN_TEMPLATES: TemplateSpec[] = [
  */
 export const TEMPLATE_NAMES = {
   PARTNER_WELCOME: TEMPLATE_PARTNER_WELCOME.name,
+  /** #2122 — the prose carrier: one free-text variable, no header, no buttons. */
+  PARTNER_MESSAGE: TEMPLATE_PARTNER_MESSAGE.name,
   RUN_ASSIGNED: TEMPLATE_ASSIGNED.name,
   RUN_CANCELLED: TEMPLATE_CANCELLED.name,
   RUN_COMPLETED: TEMPLATE_COMPLETED.name,

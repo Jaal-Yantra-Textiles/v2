@@ -25,12 +25,20 @@ const BUSINESS_NAME = process.env.WHATSAPP_BUSINESS_NAME || "JYT Textiles"
  * fixed string. Set it once it is APPROVED in Meta; until then this is unset
  * and the old two-variable welcome template is used exactly as before.
  *
- * 🔴 Deliberately opt-in by env rather than defaulted. Pointing at a template
- * that is not approved in every target WABA makes Meta reject the send, and
- * first contact is the one message we cannot afford to drop — a partner who is
- * never greeted never onboards.
+ * 🔴 Deliberately opt-in by env rather than defaulted. `jyt_partner_message_v1`
+ * exists as a SPEC in `partner-run-templates.ts`; a spec is not an approval.
+ * Pointing at a template that Meta has not approved in every target WABA makes
+ * the send fail, and first contact is the one message we cannot afford to drop
+ * — a partner who is never greeted never onboards.
+ *
+ * Flip `WHATSAPP_PROSE_TEMPLATE_ENABLED=true` once it is APPROVED, or name a
+ * different carrier outright with `WHATSAPP_PARTNER_WELCOME_PROSE_TEMPLATE`.
  */
-const PROSE_TEMPLATE = process.env.WHATSAPP_PARTNER_WELCOME_PROSE_TEMPLATE || ""
+const PROSE_TEMPLATE =
+  process.env.WHATSAPP_PARTNER_WELCOME_PROSE_TEMPLATE ||
+  (process.env.WHATSAPP_PROSE_TEMPLATE_ENABLED === "true"
+    ? TEMPLATE_NAMES.PARTNER_MESSAGE
+    : "")
 
 export type ConnectPartnerWhatsappInput = {
   partner_id: string
