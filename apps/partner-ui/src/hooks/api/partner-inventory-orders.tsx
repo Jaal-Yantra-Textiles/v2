@@ -30,6 +30,16 @@ export type PartnerInventoryOrder = Record<string, any> & {
   updated_at?: string
   partner_info?: Record<string, any>
   order_lines?: Array<Record<string, any>>
+  // #1752 — the partner's open (pending) proposed revision, if any.
+  pending_change?: {
+    id: string
+    status: string
+    proposed_lines: Array<Record<string, any>> | null
+    proposed_charges: Array<Record<string, any>> | null
+    submitted_at?: string | null
+    decided_at?: string | null
+    rejection_reason?: string | null
+  } | null
 }
 
 export type ListPartnerInventoryOrdersParams = {
@@ -165,14 +175,14 @@ export const useStartPartnerInventoryOrder = (
         `/partners/inventory-orders/${orderId}/start`,
         { method: "POST" }
       ),
-    onSuccess: (data, variables, context) => {
+    onSuccess: (data, variables, onMutateResult, context) => {
       queryClient.invalidateQueries({
         queryKey: partnerInventoryOrdersQueryKeys.lists(),
       })
       queryClient.invalidateQueries({
         queryKey: partnerInventoryOrdersQueryKeys.detail(orderId),
       })
-      options?.onSuccess?.(data, variables, context)
+      options?.onSuccess?.(data, variables, onMutateResult, context)
     },
     ...options,
   })
@@ -192,14 +202,14 @@ export const useCompletePartnerInventoryOrder = (
         `/partners/inventory-orders/${orderId}/complete`,
         { method: "POST", body: payload }
       ),
-    onSuccess: (data, variables, context) => {
+    onSuccess: (data, variables, onMutateResult, context) => {
       queryClient.invalidateQueries({
         queryKey: partnerInventoryOrdersQueryKeys.lists(),
       })
       queryClient.invalidateQueries({
         queryKey: partnerInventoryOrdersQueryKeys.detail(orderId),
       })
-      options?.onSuccess?.(data, variables, context)
+      options?.onSuccess?.(data, variables, onMutateResult, context)
     },
     ...options,
   })
@@ -216,10 +226,10 @@ export const useMarkPartnerInventoryOrderReadyForDelivery = (
         `/partners/inventory-orders/${orderId}/ready-for-delivery`,
         { method: "POST", body: {} }
       ),
-    onSuccess: (data, variables, context) => {
+    onSuccess: (data, variables, onMutateResult, context) => {
       queryClient.invalidateQueries({ queryKey: partnerInventoryOrdersQueryKeys.lists() })
       queryClient.invalidateQueries({ queryKey: partnerInventoryOrdersQueryKeys.detail(orderId) })
-      options?.onSuccess?.(data, variables, context)
+      options?.onSuccess?.(data, variables, onMutateResult, context)
     },
     ...options,
   })
@@ -247,10 +257,10 @@ export const useCreatePartnerInventoryOrderShipment = (
         `/partners/inventory-orders/${orderId}/shipment`,
         { method: "POST", body: payload }
       ),
-    onSuccess: (data, variables, context) => {
+    onSuccess: (data, variables, onMutateResult, context) => {
       queryClient.invalidateQueries({ queryKey: partnerInventoryOrdersQueryKeys.lists() })
       queryClient.invalidateQueries({ queryKey: partnerInventoryOrdersQueryKeys.detail(orderId) })
-      options?.onSuccess?.(data, variables, context)
+      options?.onSuccess?.(data, variables, onMutateResult, context)
     },
     ...options,
   })
@@ -324,14 +334,79 @@ export const useSubmitPartnerInventoryOrderPayment = (
         `/partners/inventory-orders/${orderId}/submit-payment`,
         { method: "POST", body: payload }
       ),
-    onSuccess: (data, variables, context) => {
+    onSuccess: (data, variables, onMutateResult, context) => {
       queryClient.invalidateQueries({
         queryKey: partnerInventoryOrdersQueryKeys.lists(),
       })
       queryClient.invalidateQueries({
         queryKey: partnerInventoryOrdersQueryKeys.detail(orderId),
       })
-      options?.onSuccess?.(data, variables, context)
+      options?.onSuccess?.(data, variables, onMutateResult, context)
+    },
+    ...options,
+  })
+}
+
+// #1752 — propose line edits/removals (staged, never applied until admin approval).
+export type PartnerUpdateOrderLinesPayload = {
+  order_lines: Array<{
+    id: string
+    quantity?: number
+    price?: number
+    extra_cost?: number | null
+    remove?: boolean
+  }>
+}
+
+export type PartnerChangeResponse = {
+  change: {
+    id: string
+    status: "pending" | "approved" | "rejected"
+    proposed_lines: Array<Record<string, any>> | null
+    proposed_charges: Array<{ type: "tax"; amount: number; note?: string | null }> | null
+    submitted_at?: string | null
+    decided_at?: string | null
+    rejection_reason?: string | null
+  }
+}
+
+export const usePartnerUpdateInventoryOrderLines = (
+  orderId: string,
+  options?: UseMutationOptions<PartnerChangeResponse, FetchError, PartnerUpdateOrderLinesPayload>
+) => {
+  return useMutation({
+    mutationFn: async (payload: PartnerUpdateOrderLinesPayload) =>
+      sdk.client.fetch<PartnerChangeResponse>(
+        `/partners/inventory-orders/${orderId}/order-lines`,
+        { method: "PUT", body: payload }
+      ),
+    onSuccess: (data, variables, onMutateResult, context) => {
+      queryClient.invalidateQueries({ queryKey: partnerInventoryOrdersQueryKeys.detail(orderId) })
+      options?.onSuccess?.(data, variables, onMutateResult, context)
+    },
+    ...options,
+  })
+}
+
+export type PartnerAddOrderChargePayload = {
+  type: "tax"
+  amount: number
+  note?: string
+}
+
+export const usePartnerAddInventoryOrderCharge = (
+  orderId: string,
+  options?: UseMutationOptions<PartnerChangeResponse, FetchError, PartnerAddOrderChargePayload>
+) => {
+  return useMutation({
+    mutationFn: async (payload: PartnerAddOrderChargePayload) =>
+      sdk.client.fetch<PartnerChangeResponse>(
+        `/partners/inventory-orders/${orderId}/charges`,
+        { method: "POST", body: payload }
+      ),
+    onSuccess: (data, variables, onMutateResult, context) => {
+      queryClient.invalidateQueries({ queryKey: partnerInventoryOrdersQueryKeys.detail(orderId) })
+      options?.onSuccess?.(data, variables, onMutateResult, context)
     },
     ...options,
   })

@@ -4,6 +4,7 @@ import { Outlet, useLoaderData, useLocation, useParams } from "react-router-dom"
 import { TwoColumnPageSkeleton } from "../../../components/common/skeleton"
 import { TwoColumnPage } from "../../../components/layout/pages"
 import { InventoryOrderLines } from "../../../components/work-orders/inventory-order-lines"
+import { InventoryOrderChangeBanner } from "../../../components/work-orders/inventory-order-change-banner"
 import { DesignOrderLines } from "../../../components/work-orders/design-order-lines"
 import { CollatedDesignRuns } from "../../../components/work-orders/collated-design-runs"
 import { DesignSectionsSkeleton } from "../../../components/work-orders/design-sections-skeleton"
@@ -263,6 +264,10 @@ export const OrderDetail = () => {
               )}
             {kind === "inventory" && inventoryOrder && (
               <>
+                <InventoryOrderChangeBanner
+                  inventoryOrder={inventoryOrder}
+                  currencyCode={(order as any).currency_code}
+                />
                 <WorkOrderSummarySection kind="inventory" inventoryOrder={inventoryOrder} />
                 <InventoryOrderLines
                   orderLines={(inventoryOrder.order_lines ?? []) as Array<Record<string, any>>}

@@ -7,6 +7,8 @@ import { PAYMENT_SCHEDULE_MODULE } from "../../apps/backend/src/modules/payment_
 import { createProductionRunWorkflow } from "../../apps/backend/src/workflows/production-runs/create-production-run"
 import { approveProductionRunWorkflow } from "../../apps/backend/src/workflows/production-runs/approve-production-run"
 import { autoDispatchApprovedChildren } from "../../apps/backend/src/api/admin/production-runs/auto-dispatch-approved-children"
+import { createInventoryOrderWorkflow } from "../../apps/backend/src/workflows/inventory_orders/create-inventory-orders"
+import { ORDER_INVENTORY_MODULE } from "../../apps/backend/src/modules/inventory_orders"
 import Scrypt from "scrypt-kdf"
 import * as fs from "fs"
 import * as path from "path"
@@ -2619,6 +2621,216 @@ export async function assertHouseStoreIntact(
   )
 }
 
+/**
+ * #1752 — a partner's proposed inventory-order revision, driven end-to-end in a
+ * browser: the admin approves a seeded pending change (banner → Approve), and
+ * the partner proposes a fresh one (drawer → banner → actions locked).
+ *
+ * TWO orders on ONE partner:
+ *   - `adminOrderId` carries a PENDING change already (proposed qty edit + a
+ *     removal + tax), so the admin spec only has to approve it. SINGLE-USE: an
+ *     approved change cannot be approved again.
+ *   - `partnerOrderId` is left editable with NO change, so the partner spec
+ *     drives the real proposal through the drawer. The partner↔order and
+ *     partner↔inventory-order links are what make it appear in the partner's
+ *     work-order list and pass the ownership guards.
+ */
+async function seedInventoryOrderChange(container: any): Promise<{
+  adminOrderId: string
+  adminTaxAmount: number
+  adminEditedLineLabel: string
+  adminRemovedLineLabel: string
+  partnerOrderId: string
+  partnerUnifiedOrderId: string
+  partnerEmail: string
+  partnerPassword: string
+  partnerId: string
+  partnerLineLabel: string
+}> {
+  const partnerModule: any = container.resolve("partner")
+  const authModule = container.resolve(Modules.AUTH)
+  const inventory: any = container.resolve(Modules.INVENTORY)
+  const stockLocation: any = container.resolve(Modules.STOCK_LOCATION)
+  const link: any = container.resolve(ContainerRegistrationKeys.LINK)
+  const query: any = container.resolve(ContainerRegistrationKeys.QUERY)
+  const ioService: any = container.resolve(ORDER_INVENTORY_MODULE)
+
+  const stamp = Date.now()
+
+  // Partner with a verified login — mirrors seedActionFirstRun (the verification
+  // row is what lets the partner-UI login page advance past "verify your email").
+  const created = await partnerModule.createPartners({
+    name: `E2E Change Partner ${stamp}`,
+    handle: `e2e-change-${stamp}`,
+    status: "active",
+    is_verified: true,
+  })
+  const partnerId = Array.isArray(created) ? created[0].id : created.id
+
+  const partnerEmail = `e2e-change-${stamp}@jyt.test`
+  await partnerModule.createPartnerAdmins({
+    email: partnerEmail,
+    first_name: "E2E",
+    last_name: "Change",
+    role: "admin",
+    partner_id: partnerId,
+  })
+  const hashConfig = { logN: 15, r: 8, p: 1 }
+  const passwordHash = await Scrypt.kdf(SEED_PASSWORD, hashConfig)
+  const authIdentity: any = await authModule.createAuthIdentities({
+    provider_identities: [
+      {
+        provider: "emailpass",
+        entity_id: partnerEmail,
+        provider_metadata: { password: passwordHash.toString("base64") },
+      },
+    ],
+    app_metadata: { partner_id: partnerId },
+  })
+  const authIdentityId = Array.isArray(authIdentity)
+    ? authIdentity[0].id
+    : authIdentity.id
+  const now = new Date()
+  await authModule.createAuthVerifications([
+    {
+      auth_identity_id: authIdentityId,
+      entity_id: partnerEmail,
+      entity_type: "email",
+      code_provider: "emailpass",
+      requested_at: now,
+      verified_at: now,
+    },
+  ])
+
+  const mkItem = async (label: string) => {
+    const r = await inventory.createInventoryItems({
+      title: `E2E ${label} ${stamp}`,
+      sku: `e2e-change-${label.toLowerCase()}-${stamp}`,
+    })
+    return (Array.isArray(r) ? r[0] : r).id as string
+  }
+  const itemA = await mkItem("Linen")
+  const itemB = await mkItem("Cotton")
+  const itemC = await mkItem("Silk")
+
+  const mkLocation = async (label: string) => {
+    const r = await stockLocation.createStockLocations({
+      name: `E2E Change ${label} ${stamp}`,
+    })
+    return (Array.isArray(r) ? r[0] : r).id as string
+  }
+  const toLoc = await mkLocation("Warehouse")
+  const fromLoc = await mkLocation("Origin")
+
+  const mkOrder = async (lines: Array<{ itemId: string; quantity: number; price: number }>) => {
+    const quantity = lines.reduce((s, l) => s + l.quantity, 0)
+    const total_price = lines.reduce((s, l) => s + l.price * l.quantity, 0)
+    const { result, errors } = await createInventoryOrderWorkflow(container).run({
+      input: {
+        quantity,
+        total_price,
+        currency_code: "inr",
+        status: "Pending",
+        expected_delivery_date: new Date(Date.now() + 7 * 864e5),
+        order_date: new Date(),
+        shipping_address: {},
+        stock_location_id: toLoc,
+        from_stock_location_id: fromLoc,
+        is_sample: false,
+        order_lines: lines.map((l) => ({
+          inventory_item_id: l.itemId,
+          quantity: l.quantity,
+          price: l.price,
+        })),
+      },
+    })
+    if (errors?.length) {
+      throw new Error(
+        `#1752 fixture: create inventory order failed — ${errors
+          .map((e: any) => e?.error?.message || String(e))
+          .join(", ")}`
+      )
+    }
+    return (result as any).order
+  }
+
+  // ── admin order: 3 lines + a PENDING change ────────────────────────────────
+  const adminOrder = await mkOrder([
+    { itemId: itemA, quantity: 10, price: 100 },
+    { itemId: itemB, quantity: 5, price: 200 },
+    { itemId: itemC, quantity: 3, price: 50 },
+  ])
+  const adminOrderId = adminOrder.id as string
+
+  const { data: adminLines } = await query.graph({
+    entity: "inventory_orders",
+    filters: { id: adminOrderId },
+    fields: ["orderlines.id", "orderlines.inventory_items.title"],
+  })
+  const alines = (adminLines?.[0]?.orderlines ?? []) as any[]
+  const byTitle = (title: string) =>
+    alines.find((l: any) =>
+      String(l?.inventory_items?.[0]?.title || "").includes(title)
+    )
+  const adminLineA = byTitle("Linen")
+  const adminLineC = byTitle("Silk")
+
+  await ioService.createOrderChanges({
+    inventory_orders_id: adminOrderId,
+    status: "pending",
+    proposed_lines: [
+      { id: adminLineA.id, quantity: 99, price: 100 },
+      { id: adminLineC.id, remove: true },
+    ],
+    proposed_charges: [{ type: "tax", amount: 50, note: "GST" }],
+    submitted_by: partnerId,
+    submitted_at: new Date().toISOString(),
+  })
+
+  // ── partner order: 1 line, editable, linked to the partner ─────────────────
+  const partnerOrder = await mkOrder([
+    { itemId: itemB, quantity: 4, price: 300 },
+  ])
+  const partnerOrderId = partnerOrder.id as string
+
+  await link.create({
+    partner: { partner_id: partnerId },
+    inventory_orders: { inventory_orders_id: partnerOrderId },
+  })
+
+  const { data: unified } = await query.graph({
+    entity: "inventory_orders",
+    filters: { id: partnerOrderId },
+    fields: ["order.id"],
+  })
+  const partnerUnifiedOrderId = (unified?.[0] as any)?.order?.id as
+    | string
+    | undefined
+  if (!partnerUnifiedOrderId) {
+    throw new Error(
+      "#1752 fixture: partner inventory order did not dual-write a unified order"
+    )
+  }
+
+  await link.create({
+    partner: { partner_id: partnerId },
+    order: { order_id: partnerUnifiedOrderId },
+  })
+
+  return {
+    adminOrderId,
+    adminTaxAmount: 50,
+    adminEditedLineLabel: `E2E Linen ${stamp}`,
+    adminRemovedLineLabel: `E2E Silk ${stamp}`,
+    partnerOrderId,
+    partnerUnifiedOrderId,
+    partnerEmail,
+    partnerPassword: SEED_PASSWORD,
+    partnerId,
+    partnerLineLabel: `E2E Cotton ${stamp}`,
+  }
+}
+
 export default async function e2eSeed({ container }: ExecArgs) {
   const logger = container.resolve(ContainerRegistrationKeys.LOGGER)
   const userModule = container.resolve(Modules.USER)
@@ -2788,6 +3000,9 @@ export default async function e2eSeed({ container }: ExecArgs) {
 
   logger.info("E2E seed: #2018 action-first OFFERED design work-order...")
   const actionFirst = await seedActionFirstRun(container)
+
+  logger.info("E2E seed: #1752 partner inventory-order change fixtures (admin approve + partner propose)...")
+  const invChange = await seedInventoryOrderChange(container)
 
   logger.info("E2E seed: creating the #1867 quote region (declares countries)...")
   const quoteRegion = await seedQuoteRegion(container)
@@ -2986,6 +3201,21 @@ export default async function e2eSeed({ container }: ExecArgs) {
     actionFirstDesignId: actionFirst.designId,
     actionFirstDesignName: actionFirst.designName,
     actionFirstRunId: actionFirst.runId,
+    // #1752 partner inventory-order change — consumed by
+    // inventory-order-change-approval.spec.ts (admin, CI) and
+    // inventory-order-change-propose.spec.ts (@partnerui). The admin order is
+    // SINGLE-USE (approving consumes the pending change); the partner order is
+    // re-proposed per run.
+    invChangeAdminOrderId: invChange.adminOrderId,
+    invChangeAdminTaxAmount: invChange.adminTaxAmount,
+    invChangeAdminEditedLineLabel: invChange.adminEditedLineLabel,
+    invChangeAdminRemovedLineLabel: invChange.adminRemovedLineLabel,
+    invChangePartnerOrderId: invChange.partnerOrderId,
+    invChangePartnerUnifiedOrderId: invChange.partnerUnifiedOrderId,
+    invChangePartnerEmail: invChange.partnerEmail,
+    invChangePartnerPassword: invChange.partnerPassword,
+    invChangePartnerId: invChange.partnerId,
+    invChangePartnerLineLabel: invChange.partnerLineLabel,
   }
 
   // Last, and before the seed file is written: a run that took the house store

@@ -2,11 +2,13 @@ import {
   ArrowUpRightOnBox,
   CheckCircle,
   CurrencyDollar,
+  PencilSquare,
   PlaySolid,
   TruckFast,
 } from "@medusajs/icons"
 import { Container, Copy, Heading, StatusBadge, Text } from "@medusajs/ui"
 import { useTranslation } from "react-i18next"
+import type { TFunction } from "i18next"
 
 import { ActionMenu, ActionGroup } from "../../../../../components/common/action-menu"
 import { useDate } from "../../../../../hooks/use-date"
@@ -33,22 +35,65 @@ type WorkOrderStatusSectionProps = {
 // order actions. Routes are relative to /orders/:id.
 const buildInventoryActions = (
   inventoryOrder: any,
-  t: (k: string) => string
+  // 🔴 `TFunction`, not `(k: string) => string`. i18next types `t` against its
+  // KNOWN keys, so its parameter is NARROWER than `string` — and under
+  // strictFunctionTypes a function taking a narrower parameter is not
+  // assignable to one taking a wider one. Widening the RETURN type does not
+  // help; the parameter is the contravariant half.
+  t: TFunction
 ): ActionGroup[] => {
+  // #1752 — a pending proposal locks the partner's PAYMENT claim until the
+  // admin approves or rejects it. Work and goods keep moving; see the note on
+  // showStart below for why the lock is money-only. The partner may still
+  // re-open "Edit lines & tax" to revise the SAME proposal.
+  const pending = inventoryOrder?.pending_change?.status === "pending"
+
   const info = inventoryOrder?.partner_info || {}
   const status = info.partner_status
   // #790 fulfilment actions gate on the order's CORE status (same sets the admin
   // uses), which the partner view exposes as `inventoryOrder.status`. The
   // endpoints enforce validity and surface a 4xx if the state is wrong.
   const coreStatus = inventoryOrder?.status
+  // #1752 — a partner proposes line edits/tax only while the order is still
+  // editable (Pending / Processing), the same window the admin edit form uses.
+  const editable = ["Pending", "Processing"].includes(coreStatus)
+  /**
+   * What a pending proposal actually locks: the MONEY, and only the money.
+   *
+   * A proposal disputes line quantities and tax — WHAT was supplied and HOW
+   * MUCH it costs. It says nothing about whether the work should proceed.
+   * Submitting a payment claim against amounts still under review is the one
+   * action that cannot be taken back cleanly, so that waits.
+   *
+   * 🔴 Start and complete deliberately do NOT wait, and the chain is why:
+   * ready-for-delivery is gated on `coreStatus === "Partial"`, which only
+   * happens once completion is recorded. Locking `complete` therefore locks
+   * Partial, which locks ready-for-delivery, which locks the shipment — so a
+   * proposal staged at Processing would stop the order ever reaching Shipped.
+   *
+   * That matters because `approve-inventory-order-change.ts` states approval is
+   * "deliberately post-ship", and carries a guard — "a proposal must not
+   * contradict goods that have already ARRIVED" — that exists ONLY for a
+   * proposal still open while goods ship and are received (#2124's review fix).
+   * Locking the chain makes that state unreachable and the guard dead code.
+   *
+   * Same shape as #2111: a freeze argued in one direction that also blocked the
+   * direction nobody meant to block.
+   */
   const showStart =
     (status === "assigned" || status === "incoming") && !info.partner_started_at
   const showComplete =
     (status === "in_progress" || status === "finished") &&
     !info.partner_completed_at
-  const showSubmitPayment = !!info.partner_started_at
+  const showSubmitPayment = !pending && !!info.partner_started_at
   // Ready-for-delivery requires completion recorded (Partial) — not raw
   // "Processing", where nothing has been fulfilled yet. The API enforces this.
+  /**
+   * 🔴 Physical movement is NOT locked by a pending proposal.
+   *
+   * The last two links in the chain described above. The money waits for the
+   * decision; the goods do not.
+   */
   const showReadyForDelivery = coreStatus === "Partial"
   const showCreateShipment =
     coreStatus === "Processing" ||
@@ -57,6 +102,7 @@ const buildInventoryActions = (
     coreStatus === "Shipped"
 
   const actions = [
+    editable && { label: t("partner.workOrders.editLinesTax"), icon: <PencilSquare />, to: "inventory/edit" },
     showStart && { label: t("partner.workOrders.start"), icon: <PlaySolid />, to: "inventory/start" },
     showComplete && { label: t("partner.workOrders.complete"), icon: <CheckCircle />, to: "inventory/complete" },
     showReadyForDelivery && { label: t("partner.workOrders.readyForDelivery"), icon: <CheckCircle />, to: "inventory/ready-for-delivery" },

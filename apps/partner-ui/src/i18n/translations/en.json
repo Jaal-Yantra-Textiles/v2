@@ -3517,7 +3517,8 @@
         "noneCancelled": "This run was cancelled. No action is needed."
       },
       "details": "Details",
-      "detailsHint": "Everything about this job, including earlier stages."
+      "detailsHint": "Everything about this job, including earlier stages.",
+      "editLinesTax": "Edit lines & tax"
     },
     "inventoryOrders": {
       "heading": "Inventory Orders",
@@ -3562,6 +3563,15 @@
           "completed": "Completed",
           "pending": "Pending"
         }
+      },
+      "changes": {
+        "pendingTitle": "Your changes are pending",
+        "awaitingApproval": "Awaiting approval",
+        "lineChanges": "Line changes",
+        "removedLines": "Removed lines",
+        "proposedTax": "Proposed tax",
+        "taxTotal": "Tax total",
+        "lockedNotice": "Payment is paused until your changes are approved or rejected. You can keep working and shipping as normal."
       }
     },
     "quickOnboarding": {
