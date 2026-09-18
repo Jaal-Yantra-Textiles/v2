@@ -13,6 +13,7 @@ Step-by-step instructions for setting up and using JYT Commerce features. Writte
 - **[Ad Planning](/docs/guides/ad-planning/usage-guide)** - Using the ad planning dashboard, metrics, and attribution features
 - **[Analytics](/docs/guides/analytics/setup-summary)** - Setting up website analytics and tracking
 - **[Designs](/docs/guides/designs/design-to-product-minting)** - How a design becomes a sellable product, and what minting guarantees
+- **[Inventory](/docs/guides/inventory/receiving-and-moving-material)** - Receiving material onto our books, and moving it between locations once it is here
 - **[Deployment](/docs/guides/deployment/railway)** - Deploying to Railway, Render, and configuring email
 - **[Social Platforms](/docs/guides/social-platforms/facebook-login)** - OAuth setup, Facebook/Instagram/X publishing, webhooks
 - **[AI & Search](/docs/guides/ai/incremental-indexing)** - Contextual indexing and AI features

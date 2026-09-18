@@ -1,0 +1,8 @@
+{
+  "label": "Inventory",
+  "position": 10,
+  "link": {
+    "type": "generated-index",
+    "description": "Getting material onto our books, and moving it once it is there."
+  }
+}
