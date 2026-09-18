@@ -162,17 +162,21 @@ function phoneMatch(a, b) {
   return ad === bd || ad.endsWith(bd) || bd.endsWith(ad)
 }
 const allAdmins = partner.admins || []
+// #2130 — ONLY the admin whose phone is the number we are messaging.
+//
+// This used to fall back to "the first active admin who has a preference",
+// then to "any admin who has a preference". On Sharlho that picked the OWNER's
+// language for a number stored on no admin at all: three admins, two with
+// phone null, the one whose phone we hold having no preference. The language
+// of a message was decided by list order — the same defect as stores[0]
+// (#2051) and take:1 (#1983).
+//
+// A miss is now a miss. send_whatsapp's own chain then reads the language the
+// recipient actually chose at registration, off the conversation, which is a
+// better answer than another person's portal setting.
 const matchedAdmin =
   allAdmins.find(a => a && a.preferred_language && phoneMatch(a.phone, phone))
-const activeWithLang =
-  allAdmins.find(a => a && a.is_active && a.preferred_language)
-const anyWithLang =
-  allAdmins.find(a => a && a.preferred_language)
-const languageCode =
-  matchedAdmin?.preferred_language ||
-  activeWithLang?.preferred_language ||
-  anyWithLang?.preferred_language ||
-  null
+const languageCode = matchedAdmin?.preferred_language || null
 
 // Extract cancellation / completion context from the event payload where available.
 const notes = $trigger?.payload?.notes || run?.cancelled_reason || "No reason provided"

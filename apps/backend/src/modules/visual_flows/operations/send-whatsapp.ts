@@ -67,6 +67,16 @@ export const sendWhatsAppOperation: OperationDefinition = {
         'Template body placeholder values (strings). Each supports {{ }} interpolation. ' +
           "Order matches {{1}}, {{2}}, ... in the template body."
       ),
+    prose_facts: z
+      .any()
+      .optional()
+      .describe(
+        "#2130 — facts for a PROSE carrier template (one free-text body variable). " +
+          "When present and non-empty, the body variable is WRITTEN from these facts " +
+          "in the language the partner chose at registration, instead of being " +
+          "assembled from `variables`. Ignored when the composed text is unusable, " +
+          "so `variables` remains the fallback. Shape: ReminderFacts."
+      ),
     header_image_url: z
       .string()
       .optional()
@@ -417,9 +427,31 @@ export const sendWhatsAppOperation: OperationDefinition = {
       // computed early so findOrCreateConversation can pin it on the new
       // conversation row's metadata.
       if (mode === "template") {
+        // 🔴 #2130 — REGISTRATION WINS. The conversation's recorded language is
+        // the answer the partner themselves gave, in this channel, to the
+        // question we asked them at onboarding ("कृपया अपनी भाषा चुनें /
+        // Please choose your language"). It is the only value here that the
+        // recipient actually chose.
+        //
+        // It used to sit SECOND, behind `options.language_code` — which the
+        // outbound flows fill from `partner_admin.preferred_language`. That
+        // field is labelled `// UI preferences` on the model: it is the
+        // partner PORTAL's language, and using it to pick a WhatsApp template
+        // conflates two different questions. It is also a mirror, written by
+        // the onboarding handler and a backfill script, so it is only ever as
+        // correct as the last time one of those ran.
+        //
+        // The cost of that ordering, measured on Sharlho: they tapped हिंदी on
+        // 2026-04-23, the conversation still records `language: "hi"` today,
+        // and we sent them 229 of 235 reminders in English because one admin
+        // row said "en". Their own answer was outranked by a stale mirror of
+        // itself.
+        //
+        // The admin field stays in the chain, one place lower, so a partner
+        // with no recorded conversation choice is unaffected.
         resolvedLanguageCode =
-          (options.language_code && interpolateString(options.language_code, dataChain).trim()) ||
           (await resolveLanguageFromConversation(messagingService, partnerId, to)) ||
+          (options.language_code && interpolateString(options.language_code, dataChain).trim()) ||
           inferLanguageFromPhonePrefix(to) ||
           process.env.WHATSAPP_TEMPLATE_LANG ||
           "hi"
@@ -501,11 +533,51 @@ export const sendWhatsAppOperation: OperationDefinition = {
         // string passed Array.isArray() === false and we sent zero
         // localizable_params, which Meta rejected with code 132000.
         const interpolatedVariables = interpolateVariables(options.variables, dataChain)
-        const variableValues: string[] = Array.isArray(interpolatedVariables)
+        let variableValues: string[] = Array.isArray(interpolatedVariables)
           ? interpolatedVariables.map((v: any) =>
               typeof v === "string" ? interpolateString(v, dataChain) : String(v ?? "")
             )
           : []
+
+        // ── #2130: a prose carrier writes its own body ──────────────────────
+        //
+        // A reminder today reads "Sharlho · Alpha 60 Top · prod_run_01M25… · 1
+        // · 1" — the same shape every morning. Sharlho got 235 of them and
+        // replied twelve times in five months. When the caller supplies facts
+        // and the template is a one-variable prose carrier, the sentence is
+        // written for this partner and this moment instead.
+        //
+        // 🔴 Composed in THIS function on purpose: `resolvedLanguageCode` above
+        // is the language the partner chose at registration, and writing the
+        // sentence anywhere else would mean resolving that a second time and
+        // getting a second chance to get it wrong.
+        //
+        // Failure is never fatal. `composeReminderText` always returns sendable
+        // text, and if it somehow does not, `variables` stands untouched — the
+        // partner gets the old rigid reminder rather than no reminder.
+        const proseFacts = interpolateVariables(options.prose_facts, dataChain)
+        if (proseFacts && typeof proseFacts === "object" && !Array.isArray(proseFacts)) {
+          try {
+            const { composeReminderText } = await import(
+              "../../../workflows/whatsapp/whatsapp-reminder-prose.js"
+            )
+            const composed = await composeReminderText(container, {
+              ...(proseFacts as Record<string, any>),
+              language_code: resolvedLanguageCode,
+            } as any)
+            if (composed?.text) {
+              variableValues = [composed.text]
+              preflightMetadata.prose_source = composed.source
+              if (composed.reason) {
+                preflightMetadata.prose_reason = composed.reason
+              }
+            }
+          } catch (proseErr: any) {
+            // Keep `variables` and send the rigid version.
+            preflightMetadata.prose_source = "error"
+            preflightMetadata.prose_reason = proseErr?.message ?? "compose_failed"
+          }
+        }
 
         // HEADER parameter rules (Meta is strict, see roadmap 25c):
         //  - Template has NO header component → must NOT push a header
@@ -1078,20 +1150,58 @@ async function getConversationMetadata(
   }
 }
 
+/**
+ * The language the recipient chose at registration, read from the conversation
+ * we are about to message.
+ *
+ * #2130 — this is now the FIRST thing the template-language chain consults, so
+ * it is worth it being right rather than approximately right.
+ *
+ * The number is tried as an exact `phone_number` match first. The old
+ * implementation only ever listed 50 conversations and scanned them in JS,
+ * which is the `take: 1` / `stores[0]` family: on a partner with more
+ * conversations than the page, or with no partner id at all (the filter then
+ * matches EVERY conversation on the platform), the right row simply may not be
+ * in the page — and a miss here is silent, reading as "no preference" and
+ * falling through to English.
+ *
+ * The scan is kept as a fallback because stored numbers genuinely differ in
+ * shape ("+91 …", "91…", "0…"), so an exact match is not always available.
+ */
 async function resolveLanguageFromConversation(
   messagingService: any,
   partnerId: string | undefined,
   phone: string
 ): Promise<string | null> {
+  const phoneDigits = phone.replace(/[^0-9]/g, "")
+  const languageOf = (c: any): string | null =>
+    ((c?.metadata as Record<string, any>)?.language as string) ?? null
+
+  // 1. Exact number. Cheapest, and correct however many conversations exist.
   try {
-    const phoneDigits = phone.replace(/[^0-9]/g, "")
+    const [exact] = await messagingService.listAndCountMessagingConversations(
+      { phone_number: phone },
+      { take: 1 }
+    )
+    if (exact?.[0] && languageOf(exact[0])) {
+      return languageOf(exact[0])
+    }
+  } catch {
+    // Fall through to the scan.
+  }
+
+  // 2. Suffix-tolerant scan, scoped to the partner when we know it.
+  try {
     const filters: Record<string, any> = partnerId ? { partner_id: partnerId } : {}
-    const [convs] = await messagingService.listAndCountMessagingConversations(filters, { take: 50 })
+    const [convs] = await messagingService.listAndCountMessagingConversations(filters, {
+      take: 50,
+      order: { last_message_at: "DESC" },
+    })
     const hit = (convs || []).find((c: any) => {
       const cd = (c.phone_number || "").replace(/[^0-9]/g, "")
-      return cd === phoneDigits || cd.endsWith(phoneDigits) || phoneDigits.endsWith(cd)
+      return !!cd && (cd === phoneDigits || cd.endsWith(phoneDigits) || phoneDigits.endsWith(cd))
     })
-    return (hit?.metadata as Record<string, any>)?.language ?? null
+    return languageOf(hit)
   } catch {
     return null
   }
