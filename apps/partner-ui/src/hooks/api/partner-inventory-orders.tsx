@@ -175,14 +175,14 @@ export const useStartPartnerInventoryOrder = (
         `/partners/inventory-orders/${orderId}/start`,
         { method: "POST" }
       ),
-    onSuccess: (data, variables, context) => {
+    onSuccess: (data, variables, onMutateResult, context) => {
       queryClient.invalidateQueries({
         queryKey: partnerInventoryOrdersQueryKeys.lists(),
       })
       queryClient.invalidateQueries({
         queryKey: partnerInventoryOrdersQueryKeys.detail(orderId),
       })
-      options?.onSuccess?.(data, variables, context)
+      options?.onSuccess?.(data, variables, onMutateResult, context)
     },
     ...options,
   })
@@ -202,14 +202,14 @@ export const useCompletePartnerInventoryOrder = (
         `/partners/inventory-orders/${orderId}/complete`,
         { method: "POST", body: payload }
       ),
-    onSuccess: (data, variables, context) => {
+    onSuccess: (data, variables, onMutateResult, context) => {
       queryClient.invalidateQueries({
         queryKey: partnerInventoryOrdersQueryKeys.lists(),
       })
       queryClient.invalidateQueries({
         queryKey: partnerInventoryOrdersQueryKeys.detail(orderId),
       })
-      options?.onSuccess?.(data, variables, context)
+      options?.onSuccess?.(data, variables, onMutateResult, context)
     },
     ...options,
   })
@@ -226,10 +226,10 @@ export const useMarkPartnerInventoryOrderReadyForDelivery = (
         `/partners/inventory-orders/${orderId}/ready-for-delivery`,
         { method: "POST", body: {} }
       ),
-    onSuccess: (data, variables, context) => {
+    onSuccess: (data, variables, onMutateResult, context) => {
       queryClient.invalidateQueries({ queryKey: partnerInventoryOrdersQueryKeys.lists() })
       queryClient.invalidateQueries({ queryKey: partnerInventoryOrdersQueryKeys.detail(orderId) })
-      options?.onSuccess?.(data, variables, context)
+      options?.onSuccess?.(data, variables, onMutateResult, context)
     },
     ...options,
   })
@@ -257,10 +257,10 @@ export const useCreatePartnerInventoryOrderShipment = (
         `/partners/inventory-orders/${orderId}/shipment`,
         { method: "POST", body: payload }
       ),
-    onSuccess: (data, variables, context) => {
+    onSuccess: (data, variables, onMutateResult, context) => {
       queryClient.invalidateQueries({ queryKey: partnerInventoryOrdersQueryKeys.lists() })
       queryClient.invalidateQueries({ queryKey: partnerInventoryOrdersQueryKeys.detail(orderId) })
-      options?.onSuccess?.(data, variables, context)
+      options?.onSuccess?.(data, variables, onMutateResult, context)
     },
     ...options,
   })
@@ -334,14 +334,14 @@ export const useSubmitPartnerInventoryOrderPayment = (
         `/partners/inventory-orders/${orderId}/submit-payment`,
         { method: "POST", body: payload }
       ),
-    onSuccess: (data, variables, context) => {
+    onSuccess: (data, variables, onMutateResult, context) => {
       queryClient.invalidateQueries({
         queryKey: partnerInventoryOrdersQueryKeys.lists(),
       })
       queryClient.invalidateQueries({
         queryKey: partnerInventoryOrdersQueryKeys.detail(orderId),
       })
-      options?.onSuccess?.(data, variables, context)
+      options?.onSuccess?.(data, variables, onMutateResult, context)
     },
     ...options,
   })
@@ -380,9 +380,9 @@ export const usePartnerUpdateInventoryOrderLines = (
         `/partners/inventory-orders/${orderId}/order-lines`,
         { method: "PUT", body: payload }
       ),
-    onSuccess: (data, variables, context) => {
+    onSuccess: (data, variables, onMutateResult, context) => {
       queryClient.invalidateQueries({ queryKey: partnerInventoryOrdersQueryKeys.detail(orderId) })
-      options?.onSuccess?.(data, variables, context)
+      options?.onSuccess?.(data, variables, onMutateResult, context)
     },
     ...options,
   })
@@ -404,9 +404,9 @@ export const usePartnerAddInventoryOrderCharge = (
         `/partners/inventory-orders/${orderId}/charges`,
         { method: "POST", body: payload }
       ),
-    onSuccess: (data, variables, context) => {
+    onSuccess: (data, variables, onMutateResult, context) => {
       queryClient.invalidateQueries({ queryKey: partnerInventoryOrdersQueryKeys.detail(orderId) })
-      options?.onSuccess?.(data, variables, context)
+      options?.onSuccess?.(data, variables, onMutateResult, context)
     },
     ...options,
   })

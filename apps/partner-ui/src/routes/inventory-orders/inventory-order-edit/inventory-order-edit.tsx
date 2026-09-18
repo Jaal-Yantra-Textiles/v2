@@ -1,5 +1,5 @@
 import { Button, Checkbox, Heading, Input, Label, Text, toast } from "@medusajs/ui"
-import { useMemo, useState } from "react"
+import { useEffect, useMemo, useState } from "react"
 import { useQueryClient } from "@tanstack/react-query"
 
 import { RouteDrawer, useRouteModal } from "../../../components/modals"
@@ -55,9 +55,17 @@ const InventoryOrderEditContent = () => {
   const [taxAmount, setTaxAmount] = useState("")
   const [taxNote, setTaxNote] = useState("")
 
-  // Seed the form once the order arrives (idempotent — only before first edit).
-  const seeded = useMemo(() => {
-    if (lines !== null || !inventoryOrder) return false
+  /**
+   * Seed the form once the order arrives (idempotent — only before first edit).
+   *
+   * 🔴 An EFFECT, not a useMemo. This was a `useMemo` whose only job was to call
+   * `setLines` and whose return value nobody read — i.e. a state update during
+   * render. React is free to discard or re-run a memo, and under StrictMode it
+   * runs twice, so the seed was never guaranteed to happen exactly once. The
+   * unused-variable error was the symptom; rendering a side effect was the bug.
+   */
+  useEffect(() => {
+    if (lines !== null || !inventoryOrder) return
     const rows = (inventoryOrder.order_lines ?? []).map((l: any) => ({
       id: String(l.id),
       label:
@@ -70,7 +78,6 @@ const InventoryOrderEditContent = () => {
       remove: false,
     }))
     setLines(rows)
-    return true
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [inventoryOrder, lines])
 
