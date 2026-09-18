@@ -78,6 +78,7 @@ import { FLOW_DEF as INVENTORY_ORDER_STATUS_FLOW_DEF } from "../../../../scripts
 import { FLOW_DEF as INVENTORY_SHIPMENT_PICKUP_FLOW_DEF } from "../../../../scripts/seed-inventory-shipment-pickup-flow"
 import { FLOW_DEF as ARTISAN_PRODUCT_APPROVAL_FLOW_DEF } from "../../../../scripts/seed-artisan-product-approval-flow"
 import { FLOW_DEF as PARTNER_RUN_WHATSAPP_FLOW_DEF } from "../../../../scripts/seed-partner-run-whatsapp-flow"
+import { FLOW_DEF as PARTNER_PRODUCT_CREATE_FLOW_DEF } from "../../../../scripts/seed-partner-product-create-flow"
 import { FLOW_DEF as RUN_REMINDERS_FLOW_DEF } from "../../../../scripts/seed-production-run-reminders-flow"
 import { ALL_WHATSAPP_TEMPLATES } from "../../../../scripts/whatsapp-templates/all-templates"
 import {
@@ -4708,6 +4709,70 @@ export const syncWhatsAppTemplatesJob: MaintenanceJob = {
 // seed (single source of truth). No shell / ECS run-task needed.
 // ---------------------------------------------------------------------------
 
+export const syncPartnerProductCreateFlowJob: MaintenanceJob = {
+  id: "sync-partner-product-create-flow",
+  label: "Install / replace partner product-create flow",
+  description:
+    "Install or REPLACE the partner WhatsApp product-create visual flow in place, preserving its id and active/draft status. 🔴 Until #2138 this flow minted a DRAFT product from ANY captioned photo a verified partner sent — the rule presupposed that a photo with a caption is a product offer, which is false for stock we asked to see, fabric they want to sell us, a defect or a bank slip. The replacement requires a STATED purpose (photo_purpose === 'product_submission'). Without running this, that change lives only in the repo: the flow row on this environment keeps the old caption rule, and photos would be BOTH minted and asked about. Dry-run reports create vs replace and the node/connection counts; apply writes it.",
+  params: [],
+  run: async (container, { dry_run }) => {
+    const service: any = container.resolve(VISUAL_FLOWS_MODULE)
+    const def = PARTNER_PRODUCT_CREATE_FLOW_DEF
+    const flowName = def.name
+    const nodeCount = def.canvas_state?.nodes?.length ?? 0
+    const connCount = def.connections?.length ?? 0
+
+    const [existing] = await service.listVisualFlows({ name: flowName })
+    const mode = existing ? "replace" : "create"
+
+    if (!dry_run) {
+      if (existing) {
+        await service.updateCompleteFlow(existing.id, {
+          description: def.description,
+          trigger_type: def.trigger_type,
+          trigger_config: def.trigger_config,
+          canvas_state: def.canvas_state,
+          operations: def.operations,
+          connections: def.connections,
+        })
+      } else {
+        await service.createCompleteFlow({
+          flow: {
+            name: def.name,
+            description: def.description,
+            status: def.status,
+            trigger_type: def.trigger_type,
+            trigger_config: def.trigger_config,
+            canvas_state: def.canvas_state,
+          },
+          operations: def.operations,
+          connections: def.connections,
+        })
+      }
+    }
+
+    return {
+      job_id: "sync-partner-product-create-flow",
+      dry_run,
+      applied: !dry_run,
+      summary: `${dry_run ? "Dry-run: would " : ""}${mode} "${flowName}" (${nodeCount} nodes, ${connCount} connections). ${
+        mode === "replace"
+          ? "Replaces the caption-based eligibility with a STATED photo_purpose (#2138)."
+          : "Created as DRAFT — flip draft→active to go live."
+      }`,
+      changes: [
+        {
+          entity: "visual_flow",
+          id: String(existing?.id ?? flowName),
+          note: "eligibility: caption-present → photo_purpose === 'product_submission'",
+          field: mode,
+          after: { name: flowName, nodes: nodeCount, connections: connCount },
+        },
+      ],
+    }
+  },
+}
+
 export const syncPartnerRunWhatsAppFlowJob: MaintenanceJob = {
   id: "sync-partner-run-whatsapp-flow",
   label: "Install / replace partner-run WhatsApp flow",
@@ -6558,6 +6623,7 @@ export const MAINTENANCE_JOBS: MaintenanceJob[] = [
   installInventoryShipmentPickupFlowJob,
   installArtisanProductApprovalFlowJob,
   syncWhatsAppTemplatesJob,
+  syncPartnerProductCreateFlowJob,
   syncPartnerRunWhatsAppFlowJob,
   syncProductionRunRemindersFlowJob,
   generateWinbackTargetsJob,
