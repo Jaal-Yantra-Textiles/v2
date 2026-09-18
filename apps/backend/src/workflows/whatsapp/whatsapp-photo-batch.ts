@@ -52,6 +52,14 @@ export const PHOTO_BATCH_MAX_AGE_MS = 10 * 60_000
 export type PhotoBatch = {
   /** `messaging_message` ids, in arrival order. */
   message_ids: string[]
+  /**
+   * What the vision model SAW in each photo, aligned to `message_ids`.
+   *
+   * Observation only — never intent (see `whatsapp-photo-vision.ts`). A slot
+   * is null when no vision model was reachable or the call failed, which makes
+   * the question plainer rather than absent.
+   */
+  descriptions?: Array<string | null>
   /** ISO — when the first photo of this batch arrived. */
   first_at: string
   /** ISO — when the most recent photo arrived. Resets the quiet window. */
@@ -110,22 +118,34 @@ export function isPhotoContextLive(
 export function recordPhoto(
   batch: PhotoBatch | null | undefined,
   messageId: string,
-  now: Date = new Date()
+  now: Date = new Date(),
+  description: string | null = null
 ): PhotoBatch {
   const iso = now.toISOString()
 
   if (!batch || batch.asked_at) {
-    return { message_ids: [messageId], first_at: iso, last_at: iso, asked_at: null }
+    return {
+      message_ids: [messageId],
+      descriptions: [description],
+      first_at: iso,
+      last_at: iso,
+      asked_at: null,
+    }
   }
 
   // Idempotent on message id: Meta re-delivers a webhook after a timeout, and
   // counting one photo twice would make a batch of one look like a burst.
-  const ids = batch.message_ids.includes(messageId)
-    ? batch.message_ids
-    : [...batch.message_ids, messageId]
+  const already = batch.message_ids.includes(messageId)
+  const ids = already ? batch.message_ids : [...batch.message_ids, messageId]
+  // Kept index-aligned with message_ids, including on the redelivery path —
+  // a descriptions array that drifts out of step silently mislabels photos.
+  const descriptions = already
+    ? batch.descriptions ?? []
+    : [...(batch.descriptions ?? []), description]
 
   return {
     message_ids: ids,
+    descriptions,
     first_at: batch.first_at || iso,
     last_at: iso,
     asked_at: null,
@@ -191,12 +211,16 @@ export function decidePhotoBatchAction(
 export function buildPhotoQuestionPurpose(opts: {
   photos: number
   openRunLabels?: string[]
+  /** What the vision model saw, already phrased — see describeBatchForQuestion. */
+  seen?: string | null
 }): string {
   const count =
     opts.photos === 1 ? "a photo" : `${opts.photos} photos`
 
   const bits = [
-    `they just sent ${count} and we do not know what they are for — thank them and ask what they would like done with them`,
+    opts.seen
+      ? `they just sent ${count}; ${opts.seen}, but we do not know what they are FOR — thank them, say briefly what you can see so they know you looked, and ask what they would like done with them`
+      : `they just sent ${count} and we do not know what they are for — thank them and ask what they would like done with them`,
   ]
 
   const open = (opts.openRunLabels ?? []).filter(Boolean)
