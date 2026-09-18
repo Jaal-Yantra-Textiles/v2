@@ -140,3 +140,5 @@ scripts/agent-daemon/delegate-logs/
 e2e/screenshots/
 
 .design/
+# Local agent tooling (not part of the app)
+.opencode/
