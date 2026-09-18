@@ -380,6 +380,48 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
   if (producedCorrection !== undefined) update.produced_quantity = producedCorrection
   if (rejectedCorrection !== undefined) update.rejected_quantity = rejectedCorrection
 
+  /**
+   * #1529 / #2111 S1 — attach (or clear) the goods this run is waiting on.
+   *
+   * Approval could already declare this per assignment; nothing could add it to
+   * a run that already existed, which is the ordinary case — the run is planned
+   * before anyone knows which supply order will feed it.
+   *
+   * 🔴 Gated the same way as `materials`, and for a stronger reason: the
+   * dependency is only ever consulted at DISPATCH (the guard) and at RELEASE
+   * (the subscriber, candidates limited to `approved`). Writing one onto a run
+   * the partner has already accepted or finished would record a wait that
+   * nothing will ever read — a field that looks set and means nothing.
+   *
+   * `[]` and `null` both CLEAR it, which is how a chain is unblocked by hand
+   * when an order is cancelled rather than delivered. Ids are not verified to
+   * exist here: an unreadable dependency already counts as UNMET in
+   * `resolveUnmetDependencies`, so a typo stalls the run rather than releasing
+   * it — the safe direction, and recoverable from this same route.
+   */
+  if (body.depends_on_inventory_order_ids !== undefined) {
+    if (run.accepted_at || run.started_at || run.status === "completed") {
+      throw new MedusaError(
+        MedusaError.Types.NOT_ALLOWED,
+        "Cannot change what a production run is waiting on after it has been accepted, started or completed — the dependency is only read at dispatch and release."
+      )
+    }
+    const raw = body.depends_on_inventory_order_ids
+    if (raw === null) {
+      update.depends_on_inventory_order_ids = null
+    } else if (!Array.isArray(raw)) {
+      throw new MedusaError(
+        MedusaError.Types.INVALID_DATA,
+        "depends_on_inventory_order_ids must be an array of inventory order ids, or null to clear it"
+      )
+    } else {
+      const ids = raw
+        .map((v: unknown) => (typeof v === "string" ? v.trim() : ""))
+        .filter((v: string) => v.length > 0)
+      update.depends_on_inventory_order_ids = ids.length ? ids : null
+    }
+  }
+
   // The allocation lives in link rows, not columns, so it is applied
   // separately — and gated BEFORE anything is written, not after.
   const touchesMaterials = body.materials !== undefined
