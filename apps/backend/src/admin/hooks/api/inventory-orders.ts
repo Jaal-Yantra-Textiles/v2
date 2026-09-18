@@ -482,3 +482,99 @@ export const useInventoryOrderPayments = (
   });
   return { ...data, ...rest };
 };
+
+// #1752 — a partner's proposed revision (line edits + tax), staged and awaiting
+// admin approval. Mirrors Medusa's order-change surface: a pending proposal is a
+// request, not a fact, until the operator approves or rejects it.
+export type InventoryOrderChangeLine = {
+  id: string
+  quantity?: number
+  price?: number
+  extra_cost?: number | null
+  remove?: boolean
+}
+
+export type InventoryOrderChangeCharge = {
+  type: "tax"
+  amount: number
+  note?: string | null
+}
+
+export type AdminInventoryOrderChange = {
+  id: string
+  status: "pending" | "approved" | "rejected"
+  proposed_lines: InventoryOrderChangeLine[] | null
+  proposed_charges: InventoryOrderChangeCharge[] | null
+  submitted_by?: string | null
+  submitted_at?: string | null
+  decided_by?: string | null
+  decided_at?: string | null
+  rejection_reason?: string | null
+}
+
+export type InventoryOrderChangesResponse = {
+  changes: AdminInventoryOrderChange[]
+}
+
+export const useInventoryOrderChanges = (
+  id: string,
+  options?: Omit<
+    UseQueryOptions<InventoryOrderChangesResponse, FetchError, InventoryOrderChangesResponse, QueryKey>,
+    "queryFn" | "queryKey"
+  >,
+) => {
+  const { data, ...rest } = useQuery({
+    queryKey: [INVENTORY_ORDER_QUERY_KEY, id, "changes"],
+    queryFn: async () =>
+      sdk.client.fetch<InventoryOrderChangesResponse>(
+        `/admin/inventory-orders/${id}/changes`,
+        { method: "GET" },
+      ),
+    ...options,
+  });
+  return { ...data, ...rest };
+};
+
+export const useApproveInventoryOrderChange = (
+  id: string,
+  options?: UseMutationOptions<{ change: AdminInventoryOrderChange }, FetchError, string>,
+) => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (changeId: string) =>
+      sdk.client.fetch<{ change: AdminInventoryOrderChange }>(
+        `/admin/inventory-orders/${id}/changes/${changeId}/approve`,
+        { method: "POST", body: {} },
+      ),
+    ...options,
+    onSuccess: (...args) => {
+      queryClient.invalidateQueries({ queryKey: [INVENTORY_ORDER_QUERY_KEY, id, "changes"] });
+      queryClient.invalidateQueries({ queryKey: inventoryOrderQueryKeys.detail(id) });
+      options?.onSuccess?.(...args);
+    },
+  });
+};
+
+export const useRejectInventoryOrderChange = (
+  id: string,
+  options?: UseMutationOptions<
+    { change: AdminInventoryOrderChange },
+    FetchError,
+    { changeId: string; reason?: string }
+  >,
+) => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ changeId, reason }: { changeId: string; reason?: string }) =>
+      sdk.client.fetch<{ change: AdminInventoryOrderChange }>(
+        `/admin/inventory-orders/${id}/changes/${changeId}/reject`,
+        { method: "POST", body: { reason } },
+      ),
+    ...options,
+    onSuccess: (...args) => {
+      queryClient.invalidateQueries({ queryKey: [INVENTORY_ORDER_QUERY_KEY, id, "changes"] });
+      queryClient.invalidateQueries({ queryKey: inventoryOrderQueryKeys.detail(id) });
+      options?.onSuccess?.(...args);
+    },
+  });
+};

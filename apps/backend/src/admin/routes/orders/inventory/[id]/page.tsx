@@ -9,6 +9,7 @@ import { InventoryOrderTasksSection } from "../../../../components/inventory-ord
 import { InventoryOrderPaymentsSection } from "../../../../components/inventory-orders/inventory-order-payments-section";
 import { InventoryOrderShipmentsSection } from "../../../../components/inventory-orders/inventory-order-shipments-section";
 import { InventoryOrderFeedbacksSection } from "../../../../components/inventory-orders/inventory-order-feedbacks-section";
+import { InventoryOrderChangeBanner } from "../../../../components/inventory-orders/inventory-order-change-banner";
 import { inventoryOrderLoader } from "./loader";
 import { INVENTORY_ORDER_DETAIL_FIELDS } from "./constants";
 import InventoryOrderIDSection from "../../../../components/inventory-orders/inventory-order-general-orderId";
@@ -46,6 +47,7 @@ const InventoryOrderDetailPage = () => {
     
     <TwoColumnPage data={inventoryOrder} hasOutlet={true} showJSON showMetadata={true} >
       <TwoColumnPage.Main>
+      <InventoryOrderChangeBanner inventoryOrder={inventoryOrder} />
       <InventoryOrderIDSection inventoryOrder={inventoryOrder} />
       <InventoryOrderGeneralSection inventoryOrder={inventoryOrder} />
       <InventoryOrderFeedbacksSection orderId={inventoryOrder.id} />
