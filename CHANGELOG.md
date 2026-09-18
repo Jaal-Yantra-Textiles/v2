@@ -1,3 +1,12 @@
+# [13.145.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.144.0...v13.145.0) (2026-09-18)
+
+
+### Features
+
+* a partner can finally state who they legally are, and where to pay them ([#2120](https://github.com/Jaal-Yantra-Textiles/v2/issues/2120)) ([11c7e5f](https://github.com/Jaal-Yantra-Textiles/v2/commit/11c7e5f4e68d3760145f0b7c093596229f4c5e4b)), closes [#348](https://github.com/Jaal-Yantra-Textiles/v2/issues/348)
+* **#2111 S1:** a run can finally be told to wait for its cloth ([#2112](https://github.com/Jaal-Yantra-Textiles/v2/issues/2112)) ([0d80b4e](https://github.com/Jaal-Yantra-Textiles/v2/commit/0d80b4e73718822437d9b2d0fa066ea88097f312)), closes [#2111](https://github.com/Jaal-Yantra-Textiles/v2/issues/2111) [#1529](https://github.com/Jaal-Yantra-Textiles/v2/issues/1529) [#2111](https://github.com/Jaal-Yantra-Textiles/v2/issues/2111) [#2111](https://github.com/Jaal-Yantra-Textiles/v2/issues/2111)
+* **#2111:** our cloth on someone else's bench — receipt, consignment gate, add-only allocation ([#2118](https://github.com/Jaal-Yantra-Textiles/v2/issues/2118)) ([dbca767](https://github.com/Jaal-Yantra-Textiles/v2/commit/dbca767f139e4b2b03e6215fa4088bc6e598b4a8)), closes [#2111](https://github.com/Jaal-Yantra-Textiles/v2/issues/2111) [#2111](https://github.com/Jaal-Yantra-Textiles/v2/issues/2111) [#2115](https://github.com/Jaal-Yantra-Textiles/v2/issues/2115) [#2061](https://github.com/Jaal-Yantra-Textiles/v2/issues/2061) [#2067](https://github.com/Jaal-Yantra-Textiles/v2/issues/2067) [#2111](https://github.com/Jaal-Yantra-Textiles/v2/issues/2111)
+
 # [13.144.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.143.0...v13.144.0) (2026-09-17)
 
 
