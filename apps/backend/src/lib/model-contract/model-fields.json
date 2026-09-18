@@ -3365,6 +3365,20 @@
       "updated_at"
     ]
   },
+  "ProductionRunReminder (modules/production_runs/models/production-run-reminder.ts)": {
+    "file": "modules/production_runs/models/production-run-reminder.ts",
+    "fields": [
+      "created_at",
+      "deleted_at",
+      "id",
+      "last_reminded_at",
+      "production_run_id",
+      "reminder_count",
+      "reminder_status",
+      "rule_key",
+      "updated_at"
+    ]
+  },
   "ProductionRuns (modules/production_runs/models/production-run.ts)": {
     "file": "modules/production_runs/models/production-run.ts",
     "fields": [

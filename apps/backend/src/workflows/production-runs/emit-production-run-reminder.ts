@@ -15,6 +15,10 @@ import type { ReassignmentPolicy } from "../../modules/production_policy/service
 import { PARTNER_MODULE } from "../../modules/partner"
 import { reassignProductionRunWorkflow } from "./reassign-production-run"
 import { acceptProductionRunWorkflow } from "./accept-production-run"
+import { loadReminderState, persistReminderState } from "./reminder-state"
+
+export type { ReminderState } from "./reminder-state"
+export { resolveReminderState } from "./reminder-state"
 
 export type ReminderKind =
   | "assignment_pending"
@@ -282,17 +286,34 @@ const processReminderStep = createStep(
 
     const eventService = container.resolve(Modules.EVENT_BUS) as IEventBusModuleService
 
+    // #2122 — this rule's OWN counter. Every decision below reads `state`
+    // rather than the run, so a second rule firing on the same run can no
+    // longer zero this one's count.
+    const { state, rowId } = await loadReminderState(
+      service,
+      input.production_run_id,
+      input.reminder_kind,
+      run
+    )
+
     // ── #1279: parked runs escalate to an admin on a cadence ─────────────────
     // Handled before the partner buckets because none of that logic applies:
     // there is nobody to nag, and the cap must not silence this.
     if (isParked) {
-      const parked = decideParkedEscalation(run)
+      // The cadence reads this rule's own `last_reminded_at`; `updated_at` is
+      // the run's and only ever reports how long it has been parked.
+      const parked = decideParkedEscalation({
+        reminder_kind: state.reminder_kind,
+        reminder_status: state.reminder_status,
+        last_reminded_at: state.last_reminded_at,
+        updated_at: run.updated_at,
+      })
 
       if (parked.action === "skipped") {
         return new StepResponse<EmitStepResult>({
           action: "skipped",
           event: eventName,
-          reminder_count: run.reminder_count ?? 0,
+          reminder_count: state.reminder_count,
           reason: parked.reason,
         })
       }
@@ -312,18 +333,31 @@ const processReminderStep = createStep(
         },
       ])
 
+      const escalatedAt = new Date()
+      await persistReminderState(
+        service,
+        input.production_run_id,
+        input.reminder_kind,
+        rowId,
+        {
+          reminder_status: "escalated",
+          // Doubles as "when we last told an admin" — the cadence reads it back.
+          last_reminded_at: escalatedAt,
+        }
+      )
+      // Dual-write: the admin timeline and the activity recorder still read the
+      // run's own columns.
       await service.updateProductionRuns({
         id: input.production_run_id,
         reminder_kind: input.reminder_kind,
         reminder_status: "escalated",
-        // Doubles as "when we last told an admin" — the cadence reads it back.
-        last_reminded_at: new Date(),
+        last_reminded_at: escalatedAt,
       })
 
       return new StepResponse<EmitStepResult>({
         action: "escalated",
         event: eventName,
-        reminder_count: run.reminder_count ?? 0,
+        reminder_count: state.reminder_count,
         reason: null,
       })
     }
@@ -332,7 +366,7 @@ const processReminderStep = createStep(
     // already returned when a partner was missing. Narrow for the type system.
     const partnerId = input.partner_id as string
 
-    const { action, nextCount } = decideReminderAction(run, input.reminder_kind)
+    const { action, nextCount } = decideReminderAction(state, input.reminder_kind)
 
     if (action === "skipped") {
       return new StepResponse<EmitStepResult>({
@@ -356,12 +390,24 @@ const processReminderStep = createStep(
           },
         },
       ])
+      const remindedAt = new Date()
+      await persistReminderState(
+        service,
+        input.production_run_id,
+        input.reminder_kind,
+        rowId,
+        {
+          reminder_count: nextCount,
+          reminder_status: "active",
+          last_reminded_at: remindedAt,
+        }
+      )
       await service.updateProductionRuns({
         id: input.production_run_id,
         reminder_count: nextCount,
         reminder_kind: input.reminder_kind,
         reminder_status: "active",
-        last_reminded_at: new Date(),
+        last_reminded_at: remindedAt,
       })
       return new StepResponse<EmitStepResult>({
         action,
@@ -383,6 +429,13 @@ const processReminderStep = createStep(
       if (outcome === "retry_same_partner") {
         // Keep the partner and the status; just restart the reminder cycle and
         // spend a retry. The next cap on this run will park it.
+        await persistReminderState(
+          service,
+          input.production_run_id,
+          input.reminder_kind,
+          rowId,
+          { reminder_count: 0, reminder_status: null, last_reminded_at: null }
+        )
         await service.updateProductionRuns({
           id: input.production_run_id,
           reassign_retry_count: nextRetryCount,
@@ -485,6 +538,13 @@ const processReminderStep = createStep(
         },
       },
     ])
+    await persistReminderState(
+      service,
+      input.production_run_id,
+      input.reminder_kind,
+      rowId,
+      { reminder_count: nextCount, reminder_status: "escalated" }
+    )
     await service.updateProductionRuns({
       id: input.production_run_id,
       reminder_kind: input.reminder_kind,

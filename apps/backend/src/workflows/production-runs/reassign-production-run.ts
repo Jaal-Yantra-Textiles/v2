@@ -9,6 +9,8 @@ import {
 import { PRODUCTION_RUNS_MODULE } from "../../modules/production_runs"
 import type ProductionRunService from "../../modules/production_runs/service"
 import { TASKS_MODULE } from "../../modules/tasks"
+import { clearReminderRows, restoreReminderRows } from "./reminder-state"
+import type { ReminderRowSnapshot } from "./reminder-state"
 
 /**
  * #1093 — move a run into the admin reassignment queue.
@@ -45,6 +47,8 @@ type ReassignComp = {
   prev_reminder_count: number
   prev_reminder_kind: string | null
   prev_reminder_status: string | null
+  /** #2122 — every rule's own counter, so compensation can put them back. */
+  prev_reminder_rows: ReminderRowSnapshot[]
 }
 
 /**
@@ -63,6 +67,11 @@ const parkForReassignmentStep = createStep(
   ) => {
     const service: ProductionRunService = container.resolve(PRODUCTION_RUNS_MODULE)
     const run = (await service.retrieveProductionRun(input.production_run_id)) as any
+
+    // #2122 — the legacy columns below are one slot; the counters now live one
+    // row per rule and have to be rewound too, or the next partner inherits
+    // the last one's silence.
+    const prevReminderRows = await clearReminderRows(service, input.production_run_id)
 
     await service.updateProductionRuns({
       id: input.production_run_id,
@@ -91,6 +100,7 @@ const parkForReassignmentStep = createStep(
         prev_reminder_count: run.reminder_count ?? 0,
         prev_reminder_kind: run.reminder_kind ?? null,
         prev_reminder_status: run.reminder_status ?? null,
+        prev_reminder_rows: prevReminderRows,
       }
     )
   },
@@ -107,6 +117,7 @@ const parkForReassignmentStep = createStep(
       reminder_kind: comp.prev_reminder_kind,
       reminder_status: comp.prev_reminder_status as any,
     })
+    await restoreReminderRows(service, comp.prev_reminder_rows)
   }
 )
 
