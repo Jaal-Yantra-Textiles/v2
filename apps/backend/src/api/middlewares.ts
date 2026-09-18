@@ -295,7 +295,7 @@ import {
 } from "./admin/payment_reports/reconciliation/validators";
 import { AdminRagSearchQuery } from "./admin/ai/rag/search/validators";
 import { AdminAiChatResolveReq, AdminAiChatResolveQuery } from "./admin/ai/chat/resolve/validators";
-import { ListConversationsQuerySchema, ListMessagesQuerySchema, SendMessageSchema, CreateConversationSchema } from "./admin/messaging/validators";
+import { ListConversationsQuerySchema, ListMessagesQuerySchema, SendMessageSchema, CreateConversationSchema, RequestPartnerPhotosSchema } from "./admin/messaging/validators";
 import { AdminAiChatReq } from "./admin/ai/chat/chat/validators";
 import { AdminAssistantChatSchema } from "./admin/assistant/chat/validators";
 import { AdminAssistantSummarizeSchema } from "./admin/assistant/summarize/validators";
@@ -7430,6 +7430,11 @@ export default defineMiddlewares({
       matcher: "/admin/messaging",
       method: "POST",
       middlewares: [validateAndTransformBody(wrapSchema(CreateConversationSchema))],
+    },
+    {
+      matcher: "/admin/messaging/:conversationId/request-photos",
+      method: "POST",
+      middlewares: [validateAndTransformBody(wrapSchema(RequestPartnerPhotosSchema))],
     },
     {
       matcher: "/admin/messaging/:conversationId",
