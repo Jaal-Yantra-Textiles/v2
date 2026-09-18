@@ -1,3 +1,22 @@
+# [13.146.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.145.0...v13.146.0) (2026-09-18)
+
+
+### Bug Fixes
+
+* **#2130:** the language a partner chose at registration decides the message ([#2132](https://github.com/Jaal-Yantra-Textiles/v2/issues/2132)) ([e56ad9c](https://github.com/Jaal-Yantra-Textiles/v2/commit/e56ad9cc3c31f92dacece82d7ee6b9e64a13a300)), closes [#2130](https://github.com/Jaal-Yantra-Textiles/v2/issues/2130) [#2051](https://github.com/Jaal-Yantra-Textiles/v2/issues/2051) [#1983](https://github.com/Jaal-Yantra-Textiles/v2/issues/1983) [#2126](https://github.com/Jaal-Yantra-Textiles/v2/issues/2126)
+* **#2116:** the ownership seed must never claim a location is OURS ([#2125](https://github.com/Jaal-Yantra-Textiles/v2/issues/2125)) ([40d71f7](https://github.com/Jaal-Yantra-Textiles/v2/commit/40d71f780c2657b31066abc1f3dcb9652e67c0ca)), closes [#2116](https://github.com/Jaal-Yantra-Textiles/v2/issues/2116) [#2111](https://github.com/Jaal-Yantra-Textiles/v2/issues/2111)
+* **#2122:** the prose carrier was unapprovable — its body opened with {{1}} ([#2134](https://github.com/Jaal-Yantra-Textiles/v2/issues/2134)) ([d98cb92](https://github.com/Jaal-Yantra-Textiles/v2/commit/d98cb920a44b96c3dacdb2af229903176c114861)), closes [#2122](https://github.com/Jaal-Yantra-Textiles/v2/issues/2122) [#352](https://github.com/Jaal-Yantra-Textiles/v2/issues/352)
+
+
+### Features
+
+* **messaging:** a read-only messages API + get_message / list_messages MCP tools ([#2128](https://github.com/Jaal-Yantra-Textiles/v2/issues/2128)) ([6ee5cd1](https://github.com/Jaal-Yantra-Textiles/v2/commit/6ee5cd199b474b1e1ceec117c150a25e6227bfa4)), closes [#2108](https://github.com/Jaal-Yantra-Textiles/v2/issues/2108) [#2111](https://github.com/Jaal-Yantra-Textiles/v2/issues/2111)
+* **#2122:** a reminder counts per RULE, not in one shared slot ([#2129](https://github.com/Jaal-Yantra-Textiles/v2/issues/2129)) ([3ad1b81](https://github.com/Jaal-Yantra-Textiles/v2/commit/3ad1b815ddab9f157d755cc07ff52f16b3191612)), closes [#2122](https://github.com/Jaal-Yantra-Textiles/v2/issues/2122) [#2122](https://github.com/Jaal-Yantra-Textiles/v2/issues/2122) [#2122](https://github.com/Jaal-Yantra-Textiles/v2/issues/2122) [#2122](https://github.com/Jaal-Yantra-Textiles/v2/issues/2122)
+* **whatsapp:** free-form partner chat via an intent query planner ([#2117](https://github.com/Jaal-Yantra-Textiles/v2/issues/2117)) ([d537637](https://github.com/Jaal-Yantra-Textiles/v2/commit/d537637cf4838f676a4d848cd3b3220f179b63b6))
+* **#1752:** partners propose inventory-order line edits + tax; admin approves post-ship ([#2124](https://github.com/Jaal-Yantra-Textiles/v2/issues/2124)) ([8c415ce](https://github.com/Jaal-Yantra-Textiles/v2/commit/8c415ce7c051327e13875a3a9f496f879df3c90b)), closes [#1752](https://github.com/Jaal-Yantra-Textiles/v2/issues/1752) [#1752](https://github.com/Jaal-Yantra-Textiles/v2/issues/1752) [#1752](https://github.com/Jaal-Yantra-Textiles/v2/issues/1752) [#1752](https://github.com/Jaal-Yantra-Textiles/v2/issues/1752) [#2118](https://github.com/Jaal-Yantra-Textiles/v2/issues/2118) [#2118](https://github.com/Jaal-Yantra-Textiles/v2/issues/2118) [#2120](https://github.com/Jaal-Yantra-Textiles/v2/issues/2120)
+* **#2122:** template params carry prose — and first contact reads like a person wrote it ([#2126](https://github.com/Jaal-Yantra-Textiles/v2/issues/2126)) ([abc99e8](https://github.com/Jaal-Yantra-Textiles/v2/commit/abc99e8d4578c8f10a21b97d32f5d83d6850a2d9)), closes [#2122](https://github.com/Jaal-Yantra-Textiles/v2/issues/2122) [#2122](https://github.com/Jaal-Yantra-Textiles/v2/issues/2122) [#2117](https://github.com/Jaal-Yantra-Textiles/v2/issues/2117) [#2122](https://github.com/Jaal-Yantra-Textiles/v2/issues/2122) [#1279](https://github.com/Jaal-Yantra-Textiles/v2/issues/1279) [#2122](https://github.com/Jaal-Yantra-Textiles/v2/issues/2122)
+* **whatsapp:** the assistant can answer "who is this?" without pretending ([#2135](https://github.com/Jaal-Yantra-Textiles/v2/issues/2135)) ([f783b38](https://github.com/Jaal-Yantra-Textiles/v2/commit/f783b38c7527092f1f7d90779c1b8a89d2a005be))
+
 # [13.145.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.144.0...v13.145.0) (2026-09-18)
 
 
