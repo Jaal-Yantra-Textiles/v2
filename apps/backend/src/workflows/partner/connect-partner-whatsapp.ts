@@ -44,6 +44,21 @@ export type ConnectPartnerWhatsappInput = {
   partner_id: string
   /** Already-normalized digits-only phone with country code. */
   phone: string
+  /**
+   * Force the PROSE carrier for this one send, whatever the env says.
+   *
+   * 🔴 Why per-call and not just the env flag. `WHATSAPP_PROSE_TEMPLATE_ENABLED`
+   * is global: flipping it makes EVERY first contact prose, for every new
+   * partner, which is not a test — it is a rollout. Wanting to see the carrier
+   * work on one test number should not require that decision first.
+   *
+   * So this opts a single call in. The env flag remains how the rollout happens
+   * once the output has actually been read on a phone.
+   *
+   * Cannot opt a send OUT: `false` and omitted both mean "whatever the env
+   * says", so this can never silence a rollout that is deliberately on.
+   */
+  use_prose?: boolean
 }
 
 /** Set the partner's verified WhatsApp number. Compensation restores prior. */
@@ -81,7 +96,10 @@ const setPartnerWhatsappStep = createStep(
 /** Send the welcome template to initiate the conversation (non-fatal). */
 const sendWelcomeTemplateStep = createStep(
   "connect-wa-send-welcome",
-  async (input: { phone: string; partner_name: string }, { container }) => {
+  async (
+    input: { phone: string; partner_name: string; use_prose?: boolean },
+    { container }
+  ) => {
     const socialProvider = container.resolve(SOCIAL_PROVIDER_MODULE) as SocialProviderService
     const whatsapp = socialProvider.getWhatsApp(container as any)
     let waMessageId: string | null = null
@@ -105,14 +123,19 @@ const sendWelcomeTemplateStep = createStep(
         { type: "text", text: sanitizeTemplateParam(BUSINESS_NAME).text },
       ]
 
-      if (PROSE_TEMPLATE) {
+      // Either the rollout flag or this one call asking for it. `PARTNER_MESSAGE`
+      // is the named carrier when the caller opts in without the env naming one.
+      const proseTemplate =
+        PROSE_TEMPLATE || (input.use_prose ? TEMPLATE_NAMES.PARTNER_MESSAGE : "")
+
+      if (proseTemplate) {
         const composed = await composeOutreachText(container as any, {
           partner_name: input.partner_name,
           business_name: BUSINESS_NAME,
           purpose:
             "We are setting them up on WhatsApp so we can send them production work, share designs and answer questions here. Introduce ourselves and invite them to reply.",
         })
-        templateName = PROSE_TEMPLATE
+        templateName = proseTemplate
         parameters = [{ type: "text", text: composed.text }]
         if (composed.source === "fallback") {
           console.warn(
@@ -192,7 +215,11 @@ export const connectPartnerWhatsappWorkflow = createWorkflow(
   "connect-partner-whatsapp",
   (input: ConnectPartnerWhatsappInput) => {
     const set = setPartnerWhatsappStep(input)
-    const sent = sendWelcomeTemplateStep({ phone: input.phone, partner_name: set.partner_name })
+    const sent = sendWelcomeTemplateStep({
+      phone: input.phone,
+      partner_name: set.partner_name,
+      use_prose: input.use_prose,
+    })
     const conv = recordConversationStep({
       partner_id: input.partner_id,
       phone: input.phone,

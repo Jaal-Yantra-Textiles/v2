@@ -71,3 +71,22 @@ describe("assistant identity in the free-form prompt", () => {
     expect(prompt).toContain("Saransh is the person here")
   })
 })
+
+describe("small talk", () => {
+  it("tells the assistant to answer a greeting rather than pivot to work", () => {
+    const prompt = build()
+    expect(prompt).toMatch(/# Small talk/)
+    expect(prompt).toContain("do not pivot straight into their production runs")
+  })
+
+  it("keeps the honesty rule inside small talk too", () => {
+    // The warm path is exactly where a model is most tempted to invent a day,
+    // a lunch and a personality. The identity rules must not stop at the
+    // work conversation.
+    expect(build()).toContain("you do not have a day or a lunch")
+  })
+
+  it("caps the length so pleasantries do not read as a machine trying", () => {
+    expect(build()).toContain("Keep it to one or two lines")
+  })
+})

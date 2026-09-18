@@ -12,12 +12,15 @@ import { connectPartnerWhatsappWorkflow } from "../../../../../workflows/partner
  * (set number → send template → record conversation) lives in
  * connectPartnerWhatsappWorkflow.
  *
- * Body: { phone: "919876543210" }
+ * Body: { phone: "919876543210", use_prose?: true }
  */
 export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
   const { id: partnerId } = req.params
   const body = (req as any).validatedBody || req.body
-  const { phone } = body as { phone?: string }
+  // #2122 — `use_prose` forces the PROSE carrier for this one send, so the
+  // carrier can be tested on a real number without flipping the global
+  // rollout flag for every new partner. See the workflow's input docblock.
+  const { phone, use_prose } = body as { phone?: string; use_prose?: boolean }
 
   if (!phone) {
     throw new MedusaError(
@@ -43,7 +46,7 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
   }
 
   const { result } = await connectPartnerWhatsappWorkflow(req.scope).run({
-    input: { partner_id: partnerId, phone: normalized },
+    input: { partner_id: partnerId, phone: normalized, use_prose: use_prose === true },
   })
 
   return res.json({
