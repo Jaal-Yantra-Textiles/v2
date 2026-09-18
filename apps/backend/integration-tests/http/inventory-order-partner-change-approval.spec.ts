@@ -204,6 +204,108 @@ setupSharedTestSuite(() => {
       expect(charges.data.payable_ceiling).toBe(10950)
     })
 
+    /**
+     * #2150 — cloth is ordered in METRES. `inventory_order_line.quantity` has
+     * been a Postgres `real` since Migration20250821160920, but both validators
+     * floored it at 1 whole unit, so a partner correcting a length to 12.5 m
+     * got a 400 that blamed their number rather than our rule.
+     *
+     * Asserted end to end and READ BACK from the row, not from the write's
+     * echo: a validator test proves only that zod stopped refusing. What
+     * matters is whether Postgres kept the .5, and whether the totals derived
+     * from it survive the round trip.
+     */
+    it("carries a DECIMAL quantity through propose → approve and stores it unrounded", async () => {
+      const edit = await api.put(
+        `/partners/inventory-orders/${orderId}/order-lines`,
+        {
+          order_lines: [
+            { id: lineA.id, quantity: 12.5, price: 100 },
+            { id: lineB.id, quantity: 0.25, price: 200 },
+            { id: lineC.id, quantity: 3, price: 50 },
+          ],
+        },
+        { headers: ownerHeaders }
+      )
+      expect(edit.status).toBe(200)
+
+      const approve = await api.post(
+        `/admin/inventory-orders/${orderId}/changes/${edit.data.change.id}/approve`,
+        {},
+        adminHeaders
+      )
+      expect(approve.status).toBe(200)
+
+      const after = await fetchLegacyLines(orderId)
+      const a = after.orderlines.find((l: any) => l.id === lineA.id)
+      const b = after.orderlines.find((l: any) => l.id === lineB.id)
+      // The row itself, not the response to the write.
+      expect(Number(a.quantity)).toBe(12.5)
+      expect(Number(b.quantity)).toBe(0.25)
+      // 12.5*100 + 0.25*200 + 3*50 = 1250 + 50 + 150 = 1450.
+      expect(Number(after.total_price)).toBe(1450)
+    })
+
+    it("refuses a quantity of 0 and points at the removal marker instead", async () => {
+      const res = await api
+        .put(
+          `/partners/inventory-orders/${orderId}/order-lines`,
+          { order_lines: [{ id: lineA.id, quantity: 0, price: 100 }] },
+          { headers: ownerHeaders }
+        )
+        .catch((e: any) => e.response)
+      expect(res.status).toBe(400)
+    })
+
+    /**
+     * #2150 — `order_lines.min(1)` counts MARKERS, not survivors, so a payload
+     * that removes everything passed it. Approval then soft-deleted all three
+     * lines: an order with no goods, a derived total of 0 and a payable ceiling
+     * of 0, while the partner's screen said only "changes proposed".
+     *
+     * Refused at STAGING, so the person who made the mistake is still looking
+     * at the screen, and nothing is written to the change row.
+     */
+    it("refuses a proposal that removes EVERY line, and stages nothing", async () => {
+      const res = await api
+        .put(
+          `/partners/inventory-orders/${orderId}/order-lines`,
+          {
+            order_lines: [
+              { id: lineA.id, remove: true },
+              { id: lineB.id, remove: true },
+              { id: lineC.id, remove: true },
+            ],
+          },
+          { headers: ownerHeaders }
+        )
+        .catch((e: any) => e.response)
+      expect(res.status).toBe(400)
+      expect(String(res.data?.message)).toContain("removes every line")
+
+      // The order is untouched — the refusal is not a half-write.
+      const after = await fetchLegacyLines(orderId)
+      expect(after.orderlines).toHaveLength(3)
+    })
+
+    it("still allows removing SOME lines — 2 of 3 is an ordinary edit", async () => {
+      const res = await api.put(
+        `/partners/inventory-orders/${orderId}/order-lines`,
+        {
+          order_lines: [
+            { id: lineA.id, remove: true },
+            { id: lineB.id, remove: true },
+            { id: lineC.id, quantity: 3, price: 50 },
+          ],
+        },
+        { headers: ownerHeaders }
+      )
+      expect(res.status).toBe(200)
+      expect(
+        res.data.change.proposed_lines.filter((l: any) => l.remove)
+      ).toHaveLength(2)
+    })
+
     it("a foreign partner cannot stage edits on another partner's order (404, no leak)", async () => {
       const res = await api
         .put(

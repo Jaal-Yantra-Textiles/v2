@@ -10,6 +10,7 @@ import { ORDER_INVENTORY_MODULE } from "../../modules/inventory_orders"
 import {
   missingLineIds,
   ORDER_EDITABLE_STATUSES,
+  removesEveryLine,
   type ProposedCharge,
   type ProposedLine,
 } from "../../modules/inventory_orders/lib/order-changes"
@@ -50,7 +51,13 @@ type StageContext = {
 const ensureOpenChangeStep = createStep(
   "ensure-open-inventory-order-change",
   async (
-    input: { orderId: string; partnerId: string; lineIds: string[] },
+    input: {
+      orderId: string
+      partnerId: string
+      lineIds: string[]
+      /** The full ops, needed to see whether anything survives the proposal. */
+      lines: ProposedLine[]
+    },
     { container }
   ) => {
     const query: any = container.resolve(ContainerRegistrationKeys.QUERY)
@@ -83,6 +90,21 @@ const ensureOpenChangeStep = createStep(
       throw new MedusaError(
         MedusaError.Types.INVALID_DATA,
         `Order line not found on this order: ${missing.join(", ")}`
+      )
+    }
+
+    /**
+     * 🔴 Refuse a proposal that would leave the order with nothing on it.
+     *
+     * Checked at STAGING as well as at approval, because this is the only end
+     * where the person who made the mistake is still looking at the screen. An
+     * admin reading "remove all three lines" days later can see it is wrong and
+     * cannot see what was meant.
+     */
+    if (removesEveryLine(input.lines, currentIds)) {
+      throw new MedusaError(
+        MedusaError.Types.INVALID_DATA,
+        `This proposal removes every line on order ${input.orderId}, which would leave it with no goods and nothing payable. Emptying an order is a cancellation, not an edit — keep at least one line, or ask for the order to be cancelled.`
       )
     }
 
@@ -182,10 +204,12 @@ export const stageInventoryOrderChangeWorkflow = createWorkflow(
     const lineIds = transform({ input }, ({ input }) =>
       (input.lines ?? []).map((l) => l.id)
     )
+    const lineOps = transform({ input }, ({ input }) => input.lines ?? [])
     const ctx = ensureOpenChangeStep({
       orderId: input.orderId,
       partnerId: input.partnerId,
       lineIds: lineIds as unknown as string[],
+      lines: lineOps as unknown as ProposedLine[],
     })
     const updated = writeStageStep({
       ctx: ctx as any,

@@ -13,6 +13,7 @@ import {
   describeReceiptConflicts,
   missingLineIds,
   receiptConflicts,
+  removesEveryLine,
   type ProposedCharge,
   type ProposedLine,
 } from "../../modules/inventory_orders/lib/order-changes"
@@ -131,6 +132,22 @@ const loadChangeForApprovalStep = createStep(
       throw new MedusaError(
         MedusaError.Types.UNEXPECTED_STATE,
         `Could not read what has already been received on order ${input.orderId}, so this change cannot be approved safely: ${e?.message ?? "unknown error"}`
+      )
+    }
+
+    /**
+     * 🔴 Re-checked here, not only at staging (#1752).
+     *
+     * A change staged when the order had three lines can be approved after an
+     * admin has already deleted two of them, and the survivors are then exactly
+     * the ones the partner ticked. The staging check was true when it ran and
+     * is false by the time it matters, which is the shape of every guard that
+     * validates against a snapshot and applies against the present.
+     */
+    if (removesEveryLine(lines, orderLineIds)) {
+      throw new MedusaError(
+        MedusaError.Types.NOT_ALLOWED,
+        `Approving this change would remove every line on order ${input.orderId}, leaving no goods and nothing payable. Emptying an order is a cancellation, not an edit — reject this change, or cancel the order.`
       )
     }
 

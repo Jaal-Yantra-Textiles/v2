@@ -12,7 +12,16 @@ export const DataGridNumberCell = <TData, TValue = any>({
 }: DataGridCellProps<TData, TValue> & {
   min?: number
   max?: number
+  /**
+   * HTML step. Pass `"any"` for a quantity measured rather than counted —
+   * metres of cloth, kilograms of yarn. Without it `type="number"` defaults to
+   * `step=1`, which marks `12.5` as a step mismatch and makes the spinner jump
+   * in whole units on a field whose column is a Postgres `real`.
+   */
+  step?: number | "any"
   placeholder?: string
+  /** Addresses the cell's input directly from an e2e spec. */
+  "data-testid"?: string
 }) => {
   const { field, control, renderProps } = useDataGridCell({
     context,
@@ -45,7 +54,9 @@ const Inner = ({
   inputProps: InputProps
   min?: number
   max?: number
+  step?: number | "any"
   placeholder?: string
+  "data-testid"?: string
 }) => {
   const { ref, value, onChange: _, onBlur, ...fieldProps } = field
   const {

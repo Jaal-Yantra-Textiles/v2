@@ -56,11 +56,31 @@ export const partnerUpdateOrderLinesSchema = z.object({
         })
         .superRefine((val, ctx) => {
           if (val.remove) return
-          if (val.quantity == null || val.quantity < 1) {
+          /**
+           * 🔑 GREATER THAN ZERO, not "at least 1". The goods on these lines are
+           * cloth, yarn and trim — they are ordered in metres and kilograms, and
+           * `inventory_order_line.quantity` has been a Postgres `real` since
+           * Migration20250821160920 with a `>= 0` check. The floor of 1 was the
+           * validator's own invention: it refused 12.5 m on a column built to
+           * hold it, and a partner correcting a length to 2.5 m got a 400 that
+           * blamed their number rather than our rule.
+           *
+           * 0 is still refused, and deliberately: an emptied line is a REMOVAL,
+           * and `remove: true` is how that is said. Accepting 0 would give the
+           * same intent two spellings, only one of which the approval path
+           * soft-deletes — the other would leave a zero-quantity line on the
+           * order and in the payable ceiling's arithmetic.
+           */
+          if (
+            val.quantity == null ||
+            !Number.isFinite(val.quantity) ||
+            val.quantity <= 0
+          ) {
             ctx.addIssue({
               code: z.ZodIssueCode.custom,
               path: ["quantity"],
-              message: "Quantity must be at least 1",
+              message:
+                "Quantity must be greater than 0 — to take a line off the order, mark it for removal instead",
             })
           }
           if (val.price == null || val.price < 0) {

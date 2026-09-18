@@ -351,10 +351,30 @@ export const useSubmitPartnerInventoryOrderPayment = (
 export type PartnerUpdateOrderLinesPayload = {
   order_lines: Array<{
     id: string
+    /**
+     * Decimal. These goods are cloth, yarn and trim, ordered in metres and
+     * kilograms — `inventory_order_line.quantity` is a Postgres `real`.
+     */
     quantity?: number
     price?: number
     extra_cost?: number | null
     remove?: boolean
+  }>
+  /**
+   * The tax proposed in the SAME request as the lines (#1752).
+   *
+   * 🔑 Staging them separately left a partial-write window: the lines were
+   * written, the charge call failed, and an admin then read a proposal that
+   * looked complete and untaxed while the partner was shown an error. One
+   * request stages both or neither.
+   *
+   * An `amount` of 0 WITHDRAWS a tax proposed earlier — it is how a partner
+   * takes one back.
+   */
+  charges?: Array<{
+    type: "tax"
+    amount: number
+    note?: string
   }>
 }
 
@@ -388,26 +408,3 @@ export const usePartnerUpdateInventoryOrderLines = (
   })
 }
 
-export type PartnerAddOrderChargePayload = {
-  type: "tax"
-  amount: number
-  note?: string
-}
-
-export const usePartnerAddInventoryOrderCharge = (
-  orderId: string,
-  options?: UseMutationOptions<PartnerChangeResponse, FetchError, PartnerAddOrderChargePayload>
-) => {
-  return useMutation({
-    mutationFn: async (payload: PartnerAddOrderChargePayload) =>
-      sdk.client.fetch<PartnerChangeResponse>(
-        `/partners/inventory-orders/${orderId}/charges`,
-        { method: "POST", body: payload }
-      ),
-    onSuccess: (data, variables, onMutateResult, context) => {
-      queryClient.invalidateQueries({ queryKey: partnerInventoryOrdersQueryKeys.detail(orderId) })
-      options?.onSuccess?.(data, variables, onMutateResult, context)
-    },
-    ...options,
-  })
-}

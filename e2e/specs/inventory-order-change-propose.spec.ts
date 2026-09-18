@@ -68,7 +68,7 @@ test.describe("Inventory-order change: partner proposes and the payment locks @p
       .waitFor({ timeout: 30_000 })
   }
 
-  test("proposes edits + tax through the drawer, then the PAYMENT locks", async ({
+  test("proposes a DECIMAL quantity + tax through the grid, then the PAYMENT locks", async ({
     page,
   }) => {
     await openOrder(page)
@@ -77,13 +77,29 @@ test.describe("Inventory-order change: partner proposes and the payment locks @p
     await page.getByRole("button", { name: "Open actions menu" }).first().click()
     await page.getByRole("menuitem", { name: "Edit lines & tax" }).click()
 
-    // The drawer: change the quantity and add tax.
-    await expect(page.getByTestId("inv-change-quantity")).toBeVisible({
-      timeout: 10_000,
-    })
-    await page.getByTestId("inv-change-quantity").fill("6")
-    await page.getByTestId("inv-change-tax-amount").fill("25")
-    await page.getByRole("button", { name: "Propose changes" }).click()
+    /**
+     * The edit screen is a DataGrid in a focus modal, not the old drawer, so
+     * the quantity is a grid cell rather than a labelled field. The cell writes
+     * to the form ON BLUR — filling without blurring leaves the form holding
+     * the seeded value, and the proposal would go out unchanged while the
+     * screen showed the new number.
+     */
+    const quantity = page.getByTestId("inv-change-quantity").first()
+    await expect(quantity).toBeVisible({ timeout: 10_000 })
+
+    /**
+     * 6.5, not 6. These lines are metres of cloth on a Postgres `real`, and the
+     * validators used to floor the quantity at 1 whole unit on both ends. A
+     * whole number here would pass against the old rule too and prove nothing.
+     */
+    await quantity.fill("6.5")
+    await quantity.blur()
+
+    const taxPercent = page.getByTestId("inv-change-tax-percent")
+    await taxPercent.fill("5")
+    await taxPercent.blur()
+
+    await page.getByTestId("inv-change-submit").click()
 
     // The striped banner renders, announcing the pending proposal + the lock.
     await expect(
