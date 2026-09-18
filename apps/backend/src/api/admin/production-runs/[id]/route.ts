@@ -94,9 +94,14 @@ import { ContainerRegistrationKeys, MedusaError } from "@medusajs/framework/util
 import { PRODUCTION_RUNS_MODULE } from "../../../../modules/production_runs"
 import type ProductionRunService from "../../../../modules/production_runs/service"
 import {
+  allocationLabels,
   readRunAllocation,
   setRunAllocation,
 } from "../../../../lib/production-run-allocation"
+import {
+  checkAllocationEdit,
+  normalizeRunMaterials,
+} from "../../../../workflows/production-runs/lib/run-materials"
 import { costTypeGuardMessage } from "../../../../workflows/production-runs/lib/cost-type-guard"
 import { autoDraftRunPayout } from "../../../../workflows/payment_submissions/lib/auto-draft-run-payout"
 import { refreshUnclaimedDraftPayouts } from "../../../../workflows/payment_submissions/lib/refresh-draft-payouts"
@@ -164,9 +169,12 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
  * number feeds cost-per-unit, the design cost engine, goods-transfer quantities
  * and the public production story.
  *
- * `materials` — the per-assignment allocation — follows the STRUCTURAL rule, not
- * the correction rule: it is what the partner was sent, so it is editable while
- * the assignment is still a proposal and frozen once they have accepted it.
+ * `materials` — the per-assignment allocation — is what the partner was SENT,
+ * so it is freely editable while the assignment is still a proposal, and
+ * ADD-ONLY once they have accepted or started (#2111): you may issue them more
+ * material, you may not take it back, shrink it, or move where they draw it
+ * from. A flat freeze made cloth bought after a run started permanently
+ * unattachable to the very run it was bought for.
  * Sending it REPLACES the allocation wholesale (the same shape as
  * `PUT /admin/production-run-policy`); sending `[]` or `null` clears it, which
  * returns the run to unconstrained — the whole design BOM available again.
@@ -426,11 +434,47 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
   // separately — and gated BEFORE anything is written, not after.
   const touchesMaterials = body.materials !== undefined
   if (touchesMaterials) {
-    if (run.accepted_at || run.started_at) {
-      throw new MedusaError(
-        MedusaError.Types.NOT_ALLOWED,
-        "Cannot change the assigned materials after the run has been accepted or started"
+    /**
+     * #2111 — the freeze is ADD-ONLY, not absolute.
+     *
+     * It used to refuse every allocation edit once a partner had accepted or
+     * started. That protects the partner from having work retracted under them,
+     * which is right — but it also meant material bought AFTER a run starts
+     * could never be attached to it. We bought 2 pashminas for a tunic whose
+     * run had been running for a week, and that run was the one run that could
+     * never record them. The consignment gate keys on exactly that attachment,
+     * so the cloth could never come off our books either.
+     *
+     * Adding is now allowed; removing, shrinking and relocating are still
+     * refused. See `checkAllocationEdit`.
+     */
+    const accepted = Boolean(run.accepted_at || run.started_at)
+    if (accepted) {
+      const existing = await readRunAllocation(req.scope, id)
+      // `null` BOM on purpose: this normalise exists only to compare shapes.
+      // `setRunAllocation` re-validates against the design's real bill of
+      // materials moments later, and duplicating that read here would give two
+      // places that could disagree about what the BOM is.
+      const normalized = normalizeRunMaterials(body.materials, null)
+      if (!normalized.ok) {
+        throw new MedusaError(MedusaError.Types.INVALID_DATA, normalized.error)
+      }
+      const labels = allocationLabels(existing)
+      const verdict = checkAllocationEdit(
+        existing.map((row) => ({
+          inventory_item_id: row.inventory_item_id,
+          planned_quantity: row.planned_quantity,
+          location_id: row.location_id,
+          resolved_raw_material_id: row.resolved_raw_material_id,
+          note: row.note,
+          metadata: row.metadata,
+        })),
+        normalized.materials,
+        { accepted: true, label: (itemId) => labels[itemId] }
       )
+      if (!verdict.allowed) {
+        throw new MedusaError(MedusaError.Types.NOT_ALLOWED, verdict.reason)
+      }
     }
     if (run.status === "completed") {
       throw new MedusaError(

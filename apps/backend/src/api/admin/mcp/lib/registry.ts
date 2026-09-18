@@ -4890,7 +4890,7 @@ export const ADMIN_MCP_TOOLS: AdminMcpToolDef[] = [
           ...RUN_MATERIALS_PARAM,
           description:
             RUN_MATERIALS_PARAM.description +
-            " REPLACES the run's whole allocation — it is not merged, so send the complete list. Send [] to clear it and make the run unconstrained again. Pre-acceptance only: rejected once the partner has accepted or started, like quantity/role/run_type.",
+            " REPLACES the run's whole allocation — it is not merged, so send the complete list. Send [] to clear it and make the run unconstrained again. ADD-ONLY once the partner has accepted or started (#2111): you may issue MORE material to a running job, but removing an item, lowering a quantity or changing its location is refused. Before acceptance it is freely replaceable.",
         },
         depends_on_inventory_order_ids: {
           ...RUN_INVENTORY_DEPENDENCY_PARAM,
