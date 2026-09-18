@@ -1932,6 +1932,26 @@ export const ADMIN_MCP_TOOLS: AdminMcpToolDef[] = [
     ],
   },
   {
+    name: "list_location_ownership",
+    description:
+      "Which stock locations are OURS, and which are a partner's. Read. " +
+      "🔑 This is the flag that decides whether consumption may deduct stock AT ALL. Material at a partner's bench is still our cloth (the consignment path), but the BUILDING is theirs — `is_core` answers whose building it is, and deducting from a non-core location is refused. " +
+      "🔴 `recorded: false` is not an unknown. A location with no row is treated as NOT ours on purpose, because defaulting an unknown to 'ours' would deduct partner-held stock. On prod exactly two locations are core: Dharamshala and JYT HQ Delhi. " +
+      "🔴 Read `source` before trusting the list: `recorded` means the table is authoritative; `inferred` means it is EMPTY and one brand location is being guessed at, so nobody has decided anything. Use this before create_material_transfer or receive_inventory_order to say where goods are actually going.",
+    method: "GET",
+    path: "/admin/location-ownership",
+    queryParams: ["is_core"],
+    inputSchema: obj(
+      {
+        is_core: STR(
+          "Filter to 'true' (ours) or 'false' (a partner's, or unrecorded). Omit for every location."
+        ),
+      },
+      []
+    ),
+    nextSteps: ["list_stock_locations", "list_inventory_levels", "create_material_transfer"],
+  },
+  {
     name: "create_material_transfer",
     description:
       "Move MATERIAL we already own from one stock location to another — a partner's bench to our warehouse, or on to a second partner. Sensitive: requires confirm:true. " +
