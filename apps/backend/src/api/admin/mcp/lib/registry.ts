@@ -2120,6 +2120,59 @@ export const ADMIN_MCP_TOOLS: AdminMcpToolDef[] = [
     queryParams: ["limit", "offset", "q"],
     inputSchema: obj({ ...PAGINATION }),
   },
+  // ===== Messaging =========================================================
+  // WhatsApp (and future channel) conversations with partners. Reads only.
+  //
+  // 🔴 These deliberately do NOT point at `/admin/messaging/:conversationId`.
+  // That route is a GET that WRITES — it zeroes `unread_count` and sends
+  // WhatsApp READ RECEIPTS for up to ten unread inbound messages. An agent
+  // looking something up would tell a partner their message had been read.
+  // `/admin/messages` is the read-only surface built for exactly this.
+  {
+    name: "get_message",
+    description:
+      "Get ONE message by its id — the answer to 'what is message X'. Returns the message plus the identity of the conversation it belongs to (partner, phone, title), because a message id alone never answers the question actually being asked. Message ids are bare ULIDs with no prefix (e.g. '01KPX...'), which is why they are easy to mistake for a partner or design id. Read-only: unlike opening a conversation, this sends no read receipts and marks nothing read.",
+    method: "GET",
+    path: "/admin/messages/:id",
+    pathParams: ["id"],
+    inputSchema: obj(
+      { id: STR("Message id — a bare ULID, no prefix.") },
+      ["id"]
+    ),
+  },
+  {
+    name: "list_messages",
+    description:
+      "List messages across conversations, newest first. Filter by conversation_id, direction (inbound/outbound), status (pending/sent/delivered/read/failed/queued), message_type, context_type/context_id (how a message is tied to a run or order), wa_message_id, or q for a substring of the content. Use it to answer what we actually sent someone and what came back — e.g. status='failed' to find deliveries Meta rejected, or q='[template:' to count template sends. Read-only: sends no read receipts.",
+    method: "GET",
+    path: "/admin/messages",
+    queryParams: [
+      "conversation_id",
+      "direction",
+      "status",
+      "message_type",
+      "context_type",
+      "context_id",
+      "wa_message_id",
+      "q",
+      "limit",
+      "offset",
+    ],
+    inputSchema: obj({
+      conversation_id: STR("Only messages in this conversation."),
+      direction: STR("'inbound' | 'outbound'."),
+      status: STR("'pending' | 'sent' | 'delivered' | 'read' | 'failed' | 'queued'."),
+      message_type: STR("'text' | 'interactive' | 'template' | 'media' | 'context_card'."),
+      context_type: STR("What the message is about, e.g. 'production_run'."),
+      context_id: STR("The id within context_type, e.g. '<run_id>:reminder:<date>'."),
+      wa_message_id: STR("Meta's own wamid, when chasing a delivery."),
+      ...PAGINATION,
+      // After the spread on purpose: PAGINATION carries its own generic `q`,
+      // and here it means one specific thing — a substring of the content.
+      q: STR("Case-insensitive substring of the message content."),
+    }),
+  },
+
   {
     name: "list_notifications",
     description: "List platform notifications (paginated). Use to review recent system events.",
