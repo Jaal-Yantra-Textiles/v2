@@ -1,5 +1,6 @@
 import {
   canWriteBoard,
+  coreScene,
   LEGACY_BOARD_ID,
   resolveBoards,
   type MoodboardRow,
@@ -127,5 +128,41 @@ describe("canWriteBoard", () => {
   it("refuses a missing board", () => {
     expect(canWriteBoard(null, { type: "core" })).toBe(false)
     expect(canWriteBoard(undefined, { type: "core" })).toBe(false)
+  })
+})
+
+/**
+ * #2017 — every admin-side producer (editor save, brief seed, tech-pack
+ * generate) has to agree on what is currently on the core board before it
+ * merges onto it. While `generate` read and wrote the legacy column and the
+ * editor read and wrote the row, a generate on a migrated design landed where
+ * nothing reads.
+ */
+describe("coreScene", () => {
+  const rowScene = { elements: [{ id: "row" }] }
+  const blobScene = { elements: [{ id: "blob" }] }
+
+  it("prefers the core row over the legacy blob", () => {
+    expect(coreScene([core({ scene: rowScene })], blobScene)).toBe(rowScene)
+  })
+
+  it("falls back to the blob when there is no core row at all", () => {
+    expect(coreScene([], blobScene)).toBe(blobScene)
+    expect(coreScene(null, blobScene)).toBe(blobScene)
+  })
+
+  it("a partner row is not a core row — the blob still answers", () => {
+    expect(coreScene([partner("p1", { scene: rowScene })], blobScene)).toBe(blobScene)
+  })
+
+  it("an EMPTY core row wins over a populated blob", () => {
+    // "migrated then cleared" is not "predates the entity". Falling back here
+    // would resurrect frames their owner deleted.
+    expect(coreScene([core({ scene: null })], blobScene)).toBeNull()
+  })
+
+  it("no row and no blob is null, not undefined", () => {
+    expect(coreScene([], null)).toBeNull()
+    expect(coreScene([], undefined)).toBeNull()
   })
 })

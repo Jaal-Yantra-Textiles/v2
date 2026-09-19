@@ -1,7 +1,7 @@
 import { MedusaRequest, MedusaResponse } from "@medusajs/framework"
 import { MedusaError } from "@medusajs/framework/utils"
-import updateDesignWorkflow from "../../../../../../workflows/designs/update-design"
 import { buildMoodboardScene } from "../../../../../../workflows/designs/moodboard/build-moodboard-scene"
+import { saveDesignMoodboardWorkflow } from "../../../../../../workflows/designs/moodboard/save-design-moodboard"
 import {
   loadDesignForMoodboard,
   REFRESH_SCENE_OPTS,
@@ -14,10 +14,16 @@ import {
 /**
  * POST /admin/designs/:id/moodboard/generate
  *
- * Seeds the design's `moodboard` with a freshly-built AI tech-pack scene (#892):
+ * Seeds the design's moodboard with a freshly-built AI tech-pack scene (#892):
  * loads the design's structured data (header/flats/size-set/colorways + Construction
  * specs → construction details), runs the deterministic scene builder, persists the
- * result to `design.moodboard`, and returns it.
+ * result to the design's CORE board, and returns it.
+ *
+ * 🔴 The write target is the core board ROW, not `design.moodboard` (#2017).
+ * While this wrote the column and the editor wrote the row, a generate on any
+ * migrated design landed somewhere nothing reads — every surface prefers the
+ * row and ignores the blob the moment one exists, so the button did nothing
+ * visible and reported success.
  *
  * This REPLACES any existing moodboard — it's a seed/regenerate action, not a merge.
  */
@@ -45,11 +51,11 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
   // not the workspace scaffold (this is a replace/regenerate, not a first seed).
   const scene = buildMoodboardScene(input, REFRESH_SCENE_OPTS)
 
-  const { errors } = await updateDesignWorkflow(req.scope).run({
-    input: { id: designId, moodboard: scene } as any,
+  const { errors } = await saveDesignMoodboardWorkflow(req.scope).run({
+    input: { designId, owner: { type: "core" }, scene },
   })
-  if (errors.length > 0) {
-    throw errors
+  if (errors?.length > 0) {
+    throw errors[0].error
   }
 
   res.json({ moodboard: scene })

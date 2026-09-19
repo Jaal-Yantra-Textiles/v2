@@ -116,7 +116,7 @@ setupSharedTestSuite(() => {
   })
 
   describe("POST /admin/designs/:id/moodboard/generate", () => {
-    it("builds a tech-pack scene from the design and persists it to design.moodboard", async () => {
+    it("builds a tech-pack scene from the design and persists it", async () => {
       const res = await api.post(
         `/admin/designs/${designId}/moodboard/generate`,
         {},
@@ -169,7 +169,16 @@ setupSharedTestSuite(() => {
       expect(glyphs.length).toBeGreaterThanOrEqual(3)
     })
 
-    it("persists the same scene onto the design (round-trips through the DB)", async () => {
+    /**
+     * 🔴 #2017 — the scene must land on the design's CORE BOARD ROW, which is
+     * what every surface reads. While generate wrote `design.moodboard` and the
+     * editor wrote the row, this returned a 200 and a scene nobody would ever
+     * see: `resolveBoards` ignores the column the moment a row exists.
+     *
+     * Asserted against the DATABASE, not the response echo — a write's echo is
+     * thinner than a read, and the echo here is the built scene either way.
+     */
+    it("persists the scene onto the design's CORE BOARD (round-trips through the DB)", async () => {
       const gen = await api.post(
         `/admin/designs/${designId}/moodboard/generate`,
         {},
@@ -178,16 +187,28 @@ setupSharedTestSuite(() => {
       const generated = gen.data.moodboard
 
       const designService: any = getContainer().resolve(DESIGN_MODULE)
-      const fetched = await designService.retrieveDesign(designId)
+      const boards = await designService.listDesignMoodboards({
+        design_id: designId,
+        owner_type: "core",
+      })
 
-      expect(fetched.moodboard).toBeTruthy()
-      expect(fetched.moodboard.type).toBe("excalidraw")
-      const persistedFrames = fetched.moodboard.elements.filter(
+      expect(boards).toHaveLength(1)
+      const persisted = boards[0].scene
+      expect(persisted).toBeTruthy()
+      expect(persisted.type).toBe("excalidraw")
+      const persistedFrames = persisted.elements.filter(
         (e: any) => e.type === "frame"
       )
       expect(persistedFrames).toHaveLength(6)
       // deterministic builder → persisted scene equals the returned one.
-      expect(fetched.moodboard.elements.length).toBe(generated.elements.length)
+      expect(persisted.elements.length).toBe(generated.elements.length)
+
+      // And the board the ADMIN SURFACE reads is that same scene — the read
+      // path and the write path have to meet, which is the whole defect.
+      const view = await api.get(`/admin/designs/${designId}/moodboards`, headers)
+      expect(view.data.usedLegacyFallback).toBe(false)
+      expect(view.data.own.is_own).toBe(true)
+      expect(view.data.own.scene.elements.length).toBe(generated.elements.length)
     })
 
     it("404s for an unknown design", async () => {

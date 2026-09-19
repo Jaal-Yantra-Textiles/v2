@@ -138,3 +138,29 @@ export const canWriteBoard = (
   }
   return ownsRow(row, viewer)
 }
+
+/**
+ * The scene to treat as the CORE board's, row first and the legacy blob as
+ * fallback (#2017).
+ *
+ * Every admin-side producer of a scene — the editor save, the brief seed, the
+ * tech-pack generate — has to answer "what is on the board right now" before it
+ * can merge onto it, and they must all answer it the same way. While `generate`
+ * wrote `design.moodboard` and the editor wrote the core row, a design with a
+ * row would take a generate and show nothing: `resolveBoards` ignores the blob
+ * the moment any row exists, so the write landed somewhere nobody reads.
+ *
+ * ⚠️ Row first, ALWAYS — including a row whose scene is empty. An empty core
+ * row means "this board was migrated and then cleared", which is not the same
+ * fact as "this board predates the entity", and falling back to the blob there
+ * would resurrect deleted frames.
+ */
+export const coreScene = (
+  rows: MoodboardRow[] | null | undefined,
+  legacyScene: unknown
+): unknown => {
+  const row = (Array.isArray(rows) ? rows : []).find(
+    (r) => r && r.owner_type === "core"
+  )
+  return row ? row.scene ?? null : legacyScene ?? null
+}

@@ -12,6 +12,7 @@ import { DocumentText } from "@medusajs/icons"
 import {
   useDesign,
   useDesignInventory,
+  useDesignMoodboards,
   LinkedInventoryItem,
   DesignSizeSet,
 } from "../../../../hooks/api/designs"
@@ -109,7 +110,6 @@ const DesignStitchingPrintPage = () => {
       "colors.*",
       "size_sets.*",
       "specifications.*",
-      "moodboard",
       "media_files",
     ],
   })
@@ -137,7 +137,12 @@ const DesignStitchingPrintPage = () => {
 
   if (!design) return null
 
-  const moodboard = design.moodboard as any
+  // #2017 — the scene lives on the design's CORE board row now. `design.moodboard`
+  // is the legacy column, kept only as the route's fallback for a design the
+  // backfill never reached; reading it directly here would show this sheet as
+  // empty the moment the editor saved to the row.
+  const { own: ownBoard } = useDesignMoodboards(id!)
+  const moodboard = (ownBoard?.scene ?? null) as any
   const hasMoodboard = moodboard?.elements?.length > 0
 
   // Combine media from linked folder and any direct media_files on the design

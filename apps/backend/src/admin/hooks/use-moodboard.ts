@@ -1,6 +1,10 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "@medusajs/ui";
-import { useUpdateDesign, useDesign, useUpdateDesignBrief } from "./api/designs";
+import {
+  useDesignMoodboards,
+  useSaveDesignMoodboard,
+  useUpdateDesignBrief,
+} from "./api/designs";
 import { useMoodboardFiles } from "./use-moodboard-files";
 import { extractBriefEdits } from "../components/designs/moodboard-brief";
 import { isEqual } from "lodash";
@@ -18,9 +22,13 @@ export const useMoodboard = ({
 }) => {
   const [isSaving, setIsSaving] = useState(false);
   const [hasChanges, setHasChanges] = useState(false);
-  const { mutate: updateDesign } = useUpdateDesign(designId);
+  const { mutateAsync: saveBoard } = useSaveDesignMoodboard(designId);
   const { mutateAsync: updateBrief } = useUpdateDesignBrief(designId);
-  const { design } = useDesign(designId, { fields: ["moodboard"] });
+  // #2017 — the scene lives on the design's CORE board row, not on the
+  // `design.moodboard` column an admin and a partner both used to write. The
+  // route falls back to that column for a design the backfill never reached,
+  // so an unmigrated board still arrives here as `own`.
+  const { own } = useDesignMoodboards(designId);
 
   const originalStateRef = useRef<any>(null);
   const didInitializeRef = useRef(false);
@@ -36,11 +44,11 @@ export const useMoodboard = ({
   
   // Store the original state when it's first loaded
   useEffect(() => {
-    if (design?.moodboard && !originalStateRef.current) {
-      originalStateRef.current = design.moodboard;
+    if (own?.scene && !originalStateRef.current) {
+      originalStateRef.current = own.scene;
       setHasChanges(false);
     }
-  }, [design]);
+  }, [own]);
 
   const handleChange = useCallback(
     (elements: readonly any[], appState: any, files: any) => {
@@ -150,15 +158,10 @@ export const useMoodboard = ({
         setHasChanges(hasStateChanged);
       }
       
-      await new Promise<void>((resolve, reject) => {
-        updateDesign(
-          { moodboard: excalidrawData },
-          {
-            onSuccess: () => resolve(),
-            onError: (error) => reject(error)
-          }
-        );
-      });
+      // Saves the CORE board. The old door — PUT /admin/designs/:id with
+      // `{ moodboard }` — wrote the column a partner also wrote, so whoever
+      // saved second erased the other's work with a 200 and no warning.
+      await saveBoard({ scene: excalidrawData });
 
       // #1113 — round-trip Concept & Identity edits (concept_theme +
       // aesthetic_keywords) back to the brief columns. Only on explicit saves
@@ -181,7 +184,7 @@ export const useMoodboard = ({
     } finally {
       setIsSaving(false);
     }
-  }, [updateDesign, updateBrief, processImageElements, fileUrlMappingRef, excalidrawAPIRef]);
+  }, [saveBoard, updateBrief, processImageElements, fileUrlMappingRef, excalidrawAPIRef]);
   
   // Update the save ref when the save function changes
   useEffect(() => {
