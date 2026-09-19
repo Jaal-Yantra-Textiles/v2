@@ -197,9 +197,19 @@ export default function CheckoutItemList({ cart }: CheckoutItemListProps) {
           >
             <Modal.Title>Order composition</Modal.Title>
             <Modal.Body>
-              {/* Scrolls inside the dialog: a 30-item cart must not make the
-                  modal itself taller than the viewport. */}
-              <div className="max-h-[60vh] overflow-y-auto pe-1">
+              {/*
+                🔴 `w-full` matters as much as the overflow.
+                `Modal.Body` is `flex justify-center`, so a content-width child
+                is centred and leaves dead gutters — measured at 69px each side
+                of a 576px panel. The dialog locks page scrolling, so a wheel
+                with the pointer in those gutters does NOTHING, and the modal
+                reads as unscrollable depending on where your cursor happens to
+                be. Filling the width makes the whole body the scroll target.
+
+                60vh so a thirty-item cart cannot make the dialog taller than
+                the viewport.
+              */}
+              <div className="w-full max-h-[60vh] overflow-y-auto pe-1">
                 <ItemRows items={items} currencyCode={cart.currency_code} />
               </div>
             </Modal.Body>
