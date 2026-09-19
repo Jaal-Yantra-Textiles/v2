@@ -28,7 +28,10 @@ import { DesignCostSection } from "../../designs/design-detail/components/design
 import { ordersQueryKeys, useOrder, useOrderPreview } from "../../../hooks/api/orders"
 import { usePartnerConsumptionLogs } from "../../../hooks/api/partner-consumption-logs"
 import { usePartnerDesign } from "../../../hooks/api/partner-designs"
-import { usePartnerInventoryOrder } from "../../../hooks/api/partner-inventory-orders"
+import {
+  usePartnerInventoryOrder,
+  usePartnerInventoryOrderCharges,
+} from "../../../hooks/api/partner-inventory-orders"
 import { usePartnerProductionRun } from "../../../hooks/api/partner-production-runs"
 import { usePlugins } from "../../../hooks/api/plugins"
 import { useExtension } from "../../../providers/extension-provider"
@@ -123,6 +126,13 @@ export const OrderDetail = () => {
       enabled: kind === "inventory" && !!legacyId,
     }
   )
+
+  // #1737 follow-up — what was APPLIED on top of the goods (tax, packing), so
+  // the partner sees the figure they will actually be paid against.
+  const { charges: appliedCharges, payableCeiling } =
+    usePartnerInventoryOrderCharges(legacyId ?? "", {
+      enabled: kind === "inventory" && !!legacyId,
+    })
 
   // Resolving an inventory work-order's inventory order takes one hop (order →
   // inventory_order), so the inventory sections used to be absent from the tree
@@ -287,6 +297,8 @@ export const OrderDetail = () => {
                   orderLines={(inventoryOrder.order_lines ?? []) as Array<Record<string, any>>}
                   currencyCode={(order as any).currency_code}
                   totalPrice={(inventoryOrder as any).total_price}
+                  charges={appliedCharges}
+                  payableCeiling={payableCeiling}
                 />
                 <InventoryPaymentsSection
                   payments={((inventoryOrder as any).payments ?? []) as Array<Record<string, any>>}

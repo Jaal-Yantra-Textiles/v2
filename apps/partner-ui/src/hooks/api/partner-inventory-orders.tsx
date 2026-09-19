@@ -161,6 +161,62 @@ export const usePartnerInventoryOrder = (
   }
 }
 
+/**
+ * The APPLIED charges on an inventory order, and what they make it payable to.
+ *
+ * 🔴 The partner charges route was POST-only until #1737 follow-up: a supplier
+ * could propose a tax and never read back what an admin applied. `totals` and
+ * `payable_ceiling` are folded SERVER-SIDE by the same lib the payable guard
+ * uses, and each row carries its own `direction`, so nothing here re-derives
+ * whether a type raises or lowers.
+ */
+export type PartnerInventoryOrderChargesResponse = {
+  charges: Array<{
+    id: string
+    type: string
+    amount: number
+    note?: string | null
+    /** `1` raises, `-1` lowers, `0` unknown-to-the-backend (rendered by no UI). */
+    direction: 1 | -1 | 0
+  }>
+  totals: { raises: number; lowers: number; net: number }
+  goods_total: number
+  payable_ceiling: number
+}
+
+export const usePartnerInventoryOrderCharges = (
+  orderId: string,
+  options?: Omit<
+    UseQueryOptions<
+      PartnerInventoryOrderChargesResponse,
+      FetchError,
+      PartnerInventoryOrderChargesResponse,
+      QueryKey
+    >,
+    "queryFn" | "queryKey"
+  >
+) => {
+  const { data, ...rest } = useQuery({
+    queryKey: [...partnerInventoryOrdersQueryKeys.detail(orderId), "charges"],
+    queryFn: async () => {
+      return await sdk.client.fetch<PartnerInventoryOrderChargesResponse>(
+        `/partners/inventory-orders/${orderId}/charges`,
+        { method: "GET" }
+      )
+    },
+    enabled: !!orderId,
+    ...options,
+  })
+
+  return {
+    charges: data?.charges,
+    chargeTotals: data?.totals,
+    goodsTotal: data?.goods_total,
+    payableCeiling: data?.payable_ceiling,
+    ...rest,
+  }
+}
+
 export const useStartPartnerInventoryOrder = (
   orderId: string,
   options?: UseMutationOptions<

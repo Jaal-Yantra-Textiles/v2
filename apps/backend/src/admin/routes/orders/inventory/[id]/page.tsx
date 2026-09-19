@@ -14,6 +14,7 @@ import { inventoryOrderLoader } from "./loader";
 import { INVENTORY_ORDER_DETAIL_FIELDS } from "./constants";
 import InventoryOrderIDSection from "../../../../components/inventory-orders/inventory-order-general-orderId";
 import InventoryOrderReceiptSection from "../../../../components/inventory-orders/inventory-order-receipt-section";
+import InventoryOrderChargesSection from "../../../../components/inventory-orders/inventory-order-charges-section";
 
 const InventoryOrderDetailPage = () => {
   const initialData = useLoaderData() as Awaited<AdminInventoryOrderResponse>
@@ -51,6 +52,10 @@ const InventoryOrderDetailPage = () => {
       <InventoryOrderChangeBanner inventoryOrder={inventoryOrder} />
       <InventoryOrderIDSection inventoryOrder={inventoryOrder} />
       <InventoryOrderGeneralSection inventoryOrder={inventoryOrder} />
+      {/* #1737 — General shows GOODS. This says what the order is actually
+          worth once tax and freight are counted; it renders nothing when
+          there are no charges, so a plain order looks exactly as before. */}
+      <InventoryOrderChargesSection inventoryOrder={inventoryOrder} />
       {/* #2144 — above feedbacks on purpose: when an order is Delivered and
           uncounted, this is the only thing on the page that needs doing. */}
       <InventoryOrderReceiptSection inventoryOrder={inventoryOrder} />

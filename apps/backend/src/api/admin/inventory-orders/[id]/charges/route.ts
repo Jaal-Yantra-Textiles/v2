@@ -3,6 +3,7 @@ import { MedusaError } from "@medusajs/framework/utils"
 
 import { ORDER_INVENTORY_MODULE } from "../../../../../modules/inventory_orders"
 import {
+  chargeDirection,
   foldOrderCharges,
   orderPayableCeiling,
 } from "../../../../../modules/inventory_orders/lib/order-charges"
@@ -56,8 +57,16 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
     inventory_orders_id: req.params.id,
   })) as any[]
 
+  /**
+   * `direction` rides along so a UI can sign a row without owning the rule.
+   */
+  const decorated = charges.map((charge) => ({
+    ...charge,
+    direction: chargeDirection(charge),
+  }))
+
   return res.status(200).json({
-    charges,
+    charges: decorated,
     /** Folded here too, so a caller never re-derives the direction rule. */
     totals: foldOrderCharges(charges),
     goods_total: Number(order.total_price ?? 0),

@@ -116,7 +116,9 @@ export const InventoryOrderGeneralSection = ({ inventoryOrder }: { inventoryOrde
         <Text size="small">{inventoryOrder.quantity}</Text>
       </div>
       <div className="text-ui-fg-subtle grid grid-cols-2 items-center px-6 py-4">
-        <Text size="small" weight="plus">Total Price</Text>
+        {/* #1737 — "Goods", not "Total": this column excludes tax and freight.
+            The Charges section below carries the payable ceiling. */}
+        <Text size="small" weight="plus">Goods total</Text>
         <Text size="small">{inventoryOrder.total_price}</Text>
       </div>
       <div className="text-ui-fg-subtle grid grid-cols-2 items-center px-6 py-4">

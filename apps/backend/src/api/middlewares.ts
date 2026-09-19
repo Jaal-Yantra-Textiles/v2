@@ -3653,6 +3653,13 @@ export default defineMiddlewares({
       ],
     },
     {
+      // The partner reads back what was APPLIED — the route was write-only, so
+      // an approved tax was invisible to the supplier who proposed it.
+      matcher: "/partners/inventory-orders/:orderId/charges",
+      method: "GET",
+      middlewares: [authenticate("partner", ["session", "bearer"])],
+    },
+    {
       matcher: "/partners/inventory-orders/:orderId/start",
       method: "POST",
       middlewares: [
