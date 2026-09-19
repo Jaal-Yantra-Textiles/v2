@@ -1,8 +1,13 @@
 import { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
-import { ContainerRegistrationKeys, MedusaError } from "@medusajs/framework/utils"
+import {
+  ContainerRegistrationKeys,
+  MedusaError,
+  Modules,
+} from "@medusajs/framework/utils"
 
 import { createDraftOrderFromDesignsWorkflow } from "../../../../workflows/designs/create-draft-order-from-designs"
 import designLineItemLink from "../../../../links/design-line-item-link"
+import { blockingDesignIds } from "../orders/mutate-design-order"
 import { resolveCartCheckoutLink } from "../../../../lib/carts/resolve-cart-link"
 import { createPayuLinkForCart } from "../../../../lib/payments/payu-cart-link"
 import { deliverDesignOrderEmail } from "../../../../workflows/designs/deliver-design-order-email"
@@ -44,24 +49,69 @@ export const createDesignDraftOrder = async (
   const { design_ids, currency_code, price_overrides, override_currency } =
     req.validatedBody as CreateDesignOrderBody
 
-  // Prevent duplicate: check if any of these designs already have a pending cart
+  /**
+   * Prevent a duplicate cart — but only for designs in a LIVE checkout.
+   *
+   * 🔴 This used to match any `design-line-item` link row and never look at
+   * the cart behind it. Nothing in the codebase deletes one of those rows, so
+   * a design was locked to the first cart it ever entered FOREVER, and the
+   * cancel route could retire a wrong-currency order but never let anyone
+   * raise the corrected one. See `blockingDesignIds` for the rule.
+   */
   const query = req.scope.resolve(ContainerRegistrationKeys.QUERY) as any
   const logger: any = req.scope.resolve(ContainerRegistrationKeys.LOGGER)
   try {
-    const { data: existingLinks } = await query.graph({
+    const { data: existingLinks = [] } = await query.graph({
       entity: designLineItemLink.entryPoint,
       filters: { design_id: design_ids },
       fields: ["design_id", "line_item_id"],
     })
 
     if (existingLinks?.length) {
-      const alreadyLinkedIds = [
-        ...new Set(existingLinks.map((l: any) => l.design_id)),
-      ] as string[]
-      throw new MedusaError(
-        MedusaError.Types.DUPLICATE_ERROR,
-        `Designs already in checkout: ${alreadyLinkedIds.join(", ")}. Remove them from existing carts first.`
-      )
+      const cartService = req.scope.resolve(Modules.CART) as any
+
+      const lineItemIds = existingLinks.map((l: any) => l.line_item_id)
+      const lineItems = await cartService
+        .listLineItems({ id: lineItemIds }, { select: ["id", "cart_id"] })
+        .catch(() => [])
+
+      const cartIdByLineItem: Record<string, string> = {}
+      for (const li of lineItems ?? []) {
+        if (li?.id && li?.cart_id) cartIdByLineItem[li.id] = li.cart_id
+      }
+
+      const carts = await cartService
+        .listCarts(
+          { id: [...new Set(Object.values(cartIdByLineItem))] },
+          { select: ["id", "completed_at", "metadata"] }
+        )
+        .catch(() => [])
+
+      const cartById: Record<string, any> = {}
+      for (const c of carts ?? []) {
+        if (c?.id) cartById[c.id] = c
+      }
+
+      const cartByLineItem: Record<string, any> = {}
+      for (const l of existingLinks) {
+        const cartId = cartIdByLineItem[l.line_item_id]
+        cartByLineItem[l.line_item_id] = cartId ? cartById[cartId] : null
+      }
+
+      const alreadyLinkedIds = blockingDesignIds({
+        links: existingLinks as Array<{
+          design_id: string
+          line_item_id: string
+        }>,
+        cartByLineItem,
+      })
+
+      if (alreadyLinkedIds.length) {
+        throw new MedusaError(
+          MedusaError.Types.DUPLICATE_ERROR,
+          `Designs already in checkout: ${alreadyLinkedIds.join(", ")}. Remove them from existing carts first.`
+        )
+      }
     }
   } catch (e: any) {
     if (e instanceof MedusaError) throw e

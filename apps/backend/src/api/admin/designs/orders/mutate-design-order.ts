@@ -65,6 +65,54 @@ export const isConverted = (input: {
   hasLinkedOrder?: boolean
 }): boolean => Boolean(input.cart?.completed_at) || Boolean(input.hasLinkedOrder)
 
+/**
+ * PURE: which of these designs are genuinely stuck in a LIVE checkout.
+ *
+ * 🔴 The duplicate guard on `createDesignDraftOrder` matched ANY
+ * `design-line-item` link row, with no look at the cart behind it. Because
+ * nothing in the codebase ever deletes one of those rows, a design was locked
+ * to the first cart it ever entered, permanently.
+ *
+ * That made the cancel route unable to do the job its own docstring claims:
+ * retiring "a design order created with the wrong currency, buyer or designs"
+ * left the design unusable, so the corrected order could never be raised.
+ * Cancel it and you had nothing; leave it and the buyer had the wrong currency.
+ *
+ * ⚠️ A CONVERTED order still blocks, deliberately. Whether a design that has
+ * already been sold may be ordered a second time is a product question, not
+ * this bug — and answering it here by quietly allowing it would mint a second
+ * cart for a garment somebody has paid for.
+ *
+ * A link whose cart is missing does NOT block: there is no checkout to be in.
+ */
+export function blockingDesignIds(input: {
+  links: Array<{ design_id: string; line_item_id: string }>
+  /** line_item_id → its cart, or null when the cart could not be read. */
+  cartByLineItem: Record<
+    string,
+    | { completed_at?: string | Date | null; metadata?: Record<string, unknown> | null }
+    | null
+    | undefined
+  >
+  /** design_id → true when a real order already exists for it. */
+  hasLinkedOrder?: Record<string, boolean>
+}): string[] {
+  const blocked = new Set<string>()
+
+  for (const link of input.links ?? []) {
+    const cart = input.cartByLineItem?.[link.line_item_id]
+    if (!cart) continue
+    if (isCancelled(cart)) continue
+    blocked.add(link.design_id)
+  }
+
+  for (const [design_id, yes] of Object.entries(input.hasLinkedOrder ?? {})) {
+    if (yes) blocked.add(design_id)
+  }
+
+  return [...blocked]
+}
+
 export type AttachCustomerRefusal =
   | "cart_completed"
   | "no_cart"
