@@ -15590,6 +15590,27 @@
                 },
                 "footerHint": {
                   "type": "string"
+                },
+                "started": {
+                  "type": "string"
+                },
+                "notStarted": {
+                  "type": "string"
+                },
+                "start": {
+                  "type": "string"
+                },
+                "frames": {
+                  "type": "string"
+                },
+                "otherElements": {
+                  "type": "string"
+                },
+                "emptyHint": {
+                  "type": "string"
+                },
+                "autoSeeded": {
+                  "type": "string"
                 }
               },
               "required": [
@@ -15615,7 +15636,14 @@
                 "layers",
                 "save",
                 "savedLabel",
-                "footerHint"
+                "footerHint",
+                "started",
+                "notStarted",
+                "start",
+                "frames",
+                "otherElements",
+                "emptyHint",
+                "autoSeeded"
               ],
               "additionalProperties": false
             },

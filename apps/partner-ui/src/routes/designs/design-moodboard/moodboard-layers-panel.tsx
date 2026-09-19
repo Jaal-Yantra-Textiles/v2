@@ -118,17 +118,19 @@ export const MoodboardLayersPanel = ({
             type="button"
             onClick={refresh}
             title={t("partner.designs.layers.refresh")}
+            aria-label={t("partner.designs.layers.refresh")}
             className="px-1 text-ui-fg-muted hover:text-ui-fg-base"
           >
-            ⟳
+            <span aria-hidden="true">⟳</span>
           </button>
           <button
             type="button"
             onClick={onClose}
             title={t("partner.designs.layers.close")}
+            aria-label={t("partner.designs.layers.close")}
             className="px-1 text-ui-fg-muted hover:text-ui-fg-base"
           >
-            ✕
+            <span aria-hidden="true">✕</span>
           </button>
         </div>
       </div>
@@ -148,11 +150,14 @@ export const MoodboardLayersPanel = ({
                   f.hasContent ? "bg-ui-fg-interactive" : "bg-ui-border-base"
                 }`}
                 title={f.hasContent ? t("partner.designs.layers.hasContent") : t("partner.designs.layers.empty")}
+                role="img"
+                aria-label={f.hasContent ? t("partner.designs.layers.hasContent") : t("partner.designs.layers.empty")}
               />
               <button
                 type="button"
                 onClick={() => jump(f)}
                 title={t("partner.designs.layers.jump")}
+                aria-label={`${t("partner.designs.layers.jump")}: ${f.name || t("partner.designs.layers.untitled")}`}
                 className={`flex-1 min-w-0 text-left text-sm truncate ${
                   f.hidden ? "text-ui-fg-muted line-through" : "text-ui-fg-base"
                 }`}
@@ -163,9 +168,11 @@ export const MoodboardLayersPanel = ({
                 type="button"
                 onClick={() => toggleHidden(f)}
                 title={f.hidden ? t("partner.designs.layers.show") : t("partner.designs.layers.hide")}
+                aria-label={f.hidden ? t("partner.designs.layers.show") : t("partner.designs.layers.hide")}
+                aria-pressed={f.hidden}
                 className="text-sm leading-none opacity-80 hover:opacity-100"
               >
-                {f.hidden ? "🚫" : "👁"}
+                <span aria-hidden="true">{f.hidden ? "🚫" : "👁"}</span>
               </button>
               <button
                 type="button"
@@ -178,9 +185,17 @@ export const MoodboardLayersPanel = ({
                       ? t("partner.designs.layers.unlock")
                       : t("partner.designs.layers.lock")
                 }
+                aria-label={
+                  f.hidden
+                    ? t("partner.designs.layers.lockedWhileHidden")
+                    : f.locked
+                      ? t("partner.designs.layers.unlock")
+                      : t("partner.designs.layers.lock")
+                }
+                aria-pressed={f.locked}
                 className="text-sm leading-none opacity-80 hover:opacity-100 disabled:opacity-30"
               >
-                {f.locked ? "🔒" : "🔓"}
+                <span aria-hidden="true">{f.locked ? "🔒" : "🔓"}</span>
               </button>
             </div>
           ))

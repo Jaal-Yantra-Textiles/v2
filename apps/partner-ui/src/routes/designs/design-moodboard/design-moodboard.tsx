@@ -8,6 +8,8 @@ import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "rea
 import { Excalidraw } from "@excalidraw/excalidraw"
 import type { ExcalidrawElement } from "@excalidraw/excalidraw/element/types"
 import type { BinaryFileData, ExcalidrawImperativeAPI } from "@excalidraw/excalidraw/types"
+import { normalizeMoodboardScene } from "../../../lib/moodboard-scene"
+
 
 import { RouteFocusModal } from "../../../components/modals"
 import {
@@ -38,70 +40,6 @@ type MoodboardData = {
   appState?: Record<string, any>
 }
 
-const normalizeMoodboard = (raw: unknown): MoodboardData | null => {
-  if (!raw) {
-    return null
-  }
-
-  let parsed: any = raw
-  if (typeof raw === "string") {
-    try {
-      parsed = JSON.parse(raw)
-    } catch {
-      return null
-    }
-  }
-
-  if (!parsed || typeof parsed !== "object") {
-    return null
-  }
-
-  const elements: ExcalidrawElement[] = Array.isArray(parsed.elements)
-    ? (parsed.elements as ExcalidrawElement[])
-    : []
-
-  const files: Record<string, BinaryFileData> =
-    parsed.files && typeof parsed.files === "object" ? (parsed.files as any) : {}
-
-  // Excalidraw sometimes expects `files[fileId]` even if the element has a `url`.
-  // Old UI had logic to reconstruct missing file entries from element urls.
-  const nextFiles: Record<string, BinaryFileData> = { ...files }
-  for (const el of elements as any[]) {
-    if (el?.type !== "image") {
-      continue
-    }
-    const fileId = el?.fileId
-    if (!fileId || nextFiles[fileId]) {
-      continue
-    }
-
-    const url: string | undefined =
-      typeof el?.url === "string"
-        ? el.url
-        : typeof el?.src === "string"
-        ? el.src
-        : undefined
-
-    if (url && url.startsWith("http")) {
-      nextFiles[fileId] = {
-        id: fileId,
-        dataURL: url,
-        mimeType: el?.mimeType || "image/png",
-        created: Date.now(),
-        lastRetrieved: Date.now(),
-      } as any
-    }
-  }
-
-  return {
-    type: "excalidraw",
-    version: 2,
-    source: "https://excalidraw.com",
-    elements,
-    appState: (parsed.appState || {}) as Record<string, any>,
-    files: nextFiles,
-  }
-}
 
 // Placeholder copy the generator writes when the concept card is empty — never
 // persist it back as a real value.
@@ -305,7 +243,7 @@ export const DesignMoodboard = () => {
     throw error
   }
 
-  const moodboard = useMemo(() => normalizeMoodboard((design as any)?.moodboard), [design])
+  const moodboard = useMemo(() => normalizeMoodboardScene<ExcalidrawElement, BinaryFileData>((design as any)?.moodboard), [design])
 
   useEffect(() => {
     if (!apiRef.current) {
@@ -382,14 +320,28 @@ export const DesignMoodboard = () => {
           return
         }
         setTimeout(
-          () => loadScene(normalizeMoodboard(scene) || (scene as MoodboardData)),
+          () => loadScene(normalizeMoodboardScene<ExcalidrawElement, BinaryFileData>(scene) ||
+            (scene as MoodboardData)),
           60
         )
+        /**
+         * 🔴 SAY SO (#2019). Opening an empty board POSTs `/moodboard/seed`,
+         * and the partner landed on a canvas full of frames with nothing
+         * anywhere telling them we had just built it from the brief. Work you
+         * did not do, presented as work already there, is indistinguishable
+         * from work someone else did — and the moment they save, it becomes
+         * theirs.
+         *
+         * The write itself is safe and stays: `seedDesignMoodboardIfEmpty`
+         * returns null when the board already has elements, so it cannot
+         * clobber. What was missing was the sentence.
+         */
+        toast.info(t("partner.designs.moodboard.autoSeeded"))
       } catch {
         // best-effort — auto-seed never blocks editing
       }
     })()
-  }, [id, isPending, moodboard, seedMoodboard, loadScene])
+  }, [id, isPending, moodboard, seedMoodboard, loadScene, t])
 
   const handleGenerate = useCallback(async () => {
     if (!id) {
@@ -404,7 +356,8 @@ export const DesignMoodboard = () => {
     toast.loading(t("partner.designs.moodboard.generating"))
     try {
       const { moodboard: scene } = await generateMoodboard()
-      loadScene(normalizeMoodboard(scene) || (scene as MoodboardData))
+      loadScene(normalizeMoodboardScene<ExcalidrawElement, BinaryFileData>(scene) ||
+            (scene as MoodboardData))
       setIsDirty(false)
       toast.dismiss()
       toast.success(t("partner.designs.moodboard.generated"))
