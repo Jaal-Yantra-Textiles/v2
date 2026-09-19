@@ -1699,3 +1699,49 @@ export const useSaveDesignMoodboard = (
     },
   });
 };
+
+/* ------------------------------------------------------------------------ *
+ * Currencies a design order can actually be created in (#2176 item 5).
+ *
+ * 🔴 The set is "currencies that have a REGION", not every currency the
+ * platform knows. `create-draft-order-from-designs` refuses a currency with no
+ * matching region outright — "No region is configured for X, so a cart cannot
+ * be created in it" — because a cart whose region's currency differs from its
+ * own is priced in one currency and taxed as another. Offering a currency the
+ * create will reject would move that refusal from the picker to after the
+ * operator has chosen their designs.
+ * ------------------------------------------------------------------------ */
+
+export type DesignOrderCurrency = {
+  /** Lower-case ISO-4217, e.g. "eur". */
+  code: string
+  /** The region that makes it creatable, for the operator to recognise. */
+  region_name: string
+}
+
+export const designOrderCurrenciesQueryKey = ["design-order-currencies"] as const
+
+export const useDesignOrderCurrencies = () => {
+  const { data, ...rest } = useQuery({
+    queryKey: designOrderCurrenciesQueryKey,
+    queryFn: async () => {
+      const res = await sdk.client.fetch<{
+        regions?: { name?: string; currency_code?: string }[]
+      }>(`/admin/regions?limit=100&fields=id,name,currency_code`);
+
+      const byCode = new Map<string, DesignOrderCurrency>();
+      for (const r of res?.regions ?? []) {
+        const code = String(r?.currency_code ?? "").trim().toLowerCase();
+        if (!code) continue;
+        // First region wins the label. Several regions can share a currency
+        // (usd covers America, Africa and South America here) and the CODE is
+        // what the cart is created with, so the extra names would be noise.
+        if (!byCode.has(code)) {
+          byCode.set(code, { code, region_name: r?.name ?? code.toUpperCase() });
+        }
+      }
+      return [...byCode.values()].sort((a, b) => a.code.localeCompare(b.code));
+    },
+  });
+  return { currencies: data ?? [], ...rest };
+};

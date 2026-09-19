@@ -6,6 +6,7 @@ import {
   Heading,
   ProgressStatus,
   ProgressTabs,
+  Select,
   Text,
   createDataTableColumnHelper,
   toast,
@@ -22,6 +23,7 @@ import { DataGridCurrencyCell, DataGridReadOnlyCell } from "../data-grid/compone
 import { createDataGridHelper } from "../data-grid/helpers/create-data-grid-column-helper"
 import { KeyboundForm } from "../utilitites/key-bound-form"
 import { DesignOrderCreatedPanel, type CreatedDesignOrder } from "./design-order-created-panel"
+import { useDesignOrderCurrencies } from "../../hooks/api/designs"
 import { RouteFocusModal } from "../modal/route-focus-modal"
 import { useRouteModal } from "../modal/use-route-modal"
 import { sdk } from "../../lib/config"
@@ -246,7 +248,24 @@ export const StartDesignOrderWizard = () => {
   })
 
   const estimateRows = preview?.estimates ?? []
-  const currency = preview?.currency_code ?? "inr"
+  /**
+   * #2176 item 5 — the operator CHOOSES the currency; it is no longer read back
+   * off whatever the preview happened to return.
+   *
+   * 🔴 Every design order was INR because nothing ever sent one: the preview
+   * body was `{ design_ids }` and the create workflow falls through to
+   * `currency_code || "inr"`. A European buyer was therefore quoted in rupees
+   * and routed to PayU, the India region's only payment provider — a cart he
+   * could not pay at any price.
+   *
+   * The preview's answer still wins once it exists, because that is the
+   * currency the estimate was actually computed in; disagreeing with it would
+   * label one number with another currency, which is the whole family of bug
+   * this sits in.
+   */
+  const { currencies } = useDesignOrderCurrencies()
+  const [chosenCurrency, setChosenCurrency] = useState<string>("inr")
+  const currency = preview?.currency_code ?? chosenCurrency
 
   /**
    * The review rows are a FORM, not a read-only summary.
@@ -396,7 +415,7 @@ export const StartDesignOrderWizard = () => {
       const routes = designOrderRoutes(resolved.customer_id)
       const data = await sdk.client.fetch<PreviewResponse>(routes.preview, {
         method: "POST",
-        body: { design_ids: resolved.design_ids },
+        body: { design_ids: resolved.design_ids, currency_code: chosenCurrency },
       })
       setTarget({ customer_id: resolved.customer_id, design_ids: resolved.design_ids })
       setPreview(data)
@@ -421,6 +440,8 @@ export const StartDesignOrderWizard = () => {
         body: designOrderCreateBody({
           design_ids: target.design_ids,
           price_overrides: overrides,
+          // The CART's currency — the region it is created in follows from it.
+          currency_code: currency,
           // The cart's currency is the estimate's currency; sending a price in
           // any other would be valued by one number and labelled by another.
           override_currency: currency,
@@ -552,6 +573,56 @@ export const StartDesignOrderWizard = () => {
           className="h-full overflow-y-auto"
         >
           <div className="flex h-full flex-col px-4 py-4 md:px-6">
+          {/*
+            #2176 item 5 — the currency of the ORDER, chosen before the estimate
+            is built rather than inherited from the platform's house store.
+
+            🔴 Only currencies that HAVE A REGION are offered. The create step
+            refuses any other outright ("No region is configured for X"), and a
+            picker that can produce that refusal moves it to after the operator
+            has chosen their designs.
+
+            Locked once a preview exists: the estimate was computed in this
+            currency, and changing the label without recomputing the number is
+            the exact defect this order type keeps hitting. Go back to Designs
+            to change it and the estimate is rebuilt.
+          */}
+          <div className="mb-3 flex items-center justify-between gap-x-4">
+            <div>
+              <Text size="small" weight="plus">Currency</Text>
+              <Text size="small" className="text-ui-fg-subtle">
+                The buyer pays in this currency, and the order is created in its
+                region.
+              </Text>
+            </div>
+            <div className="w-[220px]">
+              <Select
+                value={chosenCurrency}
+                onValueChange={(v) => {
+                  setChosenCurrency(v)
+                  /*
+                    The estimate belongs to the OLD currency, so it is dropped
+                    rather than relabelled — the operator goes back through
+                    Review and the numbers are recomputed. `overrides` derives
+                    from the preview's lines, so it clears with it; there is no
+                    separate state to reset.
+                  */
+                  setPreview(null)
+                }}
+              >
+                <Select.Trigger>
+                  <Select.Value placeholder="Select currency" />
+                </Select.Trigger>
+                <Select.Content>
+                  {currencies.map((c) => (
+                    <Select.Item key={c.code} value={c.code}>
+                      {c.code.toUpperCase()} — {c.region_name}
+                    </Select.Item>
+                  ))}
+                </Select.Content>
+              </Select>
+            </div>
+          </div>
           <DataTable instance={table}>
             {/* Wraps to two rows when the modal is narrow, rather than
                 crushing the search field against the heading. */}

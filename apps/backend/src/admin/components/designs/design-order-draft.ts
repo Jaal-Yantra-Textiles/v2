@@ -105,11 +105,22 @@ export const designOrderCreateBody = (input: {
   design_ids: string[]
   price_overrides?: Record<string, number>
   override_currency?: string
+  /**
+   * The currency the CART is created in (#2176 item 5).
+   *
+   * 🔴 Distinct from `override_currency`, which only says what any manual
+   * prices are denominated in. Without this the create workflow falls through
+   * to `input.currency_code || "inr"`, so every design order was INR — and a
+   * European buyer was quoted in rupees and routed to PayU, the India region's
+   * only payment provider.
+   */
+  currency_code?: string
 }): Record<string, unknown> => {
   const overrides = input.price_overrides ?? {}
   return {
     design_ids: input.design_ids,
     price_overrides: Object.keys(overrides).length > 0 ? overrides : undefined,
     override_currency: input.override_currency,
+    currency_code: input.currency_code,
   }
 }

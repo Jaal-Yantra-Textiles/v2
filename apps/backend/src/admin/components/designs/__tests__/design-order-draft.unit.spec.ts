@@ -121,3 +121,43 @@ describe("designOrderCreateBody", () => {
     expect(body.price_overrides).toEqual({ d1: 0 })
   })
 })
+
+/**
+ * #2176 item 5 — every design order was INR because nothing ever sent a
+ * currency. `create-draft-order-from-designs` falls through to
+ * `input.currency_code || "inr"`, so a European buyer was quoted in rupees and
+ * routed to PayU, the India region's only payment provider.
+ */
+describe("designOrderCreateBody — the cart's currency", () => {
+  it("carries currency_code so the cart is not silently INR", () => {
+    const body = designOrderCreateBody({
+      design_ids: ["d1"],
+      currency_code: "eur",
+    })
+    expect(body.currency_code).toBe("eur")
+  })
+
+  /**
+   * 🔴 Two different facts. `currency_code` is what the CART is created in;
+   * `override_currency` only says what any manual prices are denominated in.
+   * Collapsing them would price a cart in one currency and label the overrides
+   * with another.
+   */
+  it("keeps currency_code and override_currency as separate fields", () => {
+    const body = designOrderCreateBody({
+      design_ids: ["d1"],
+      price_overrides: { d1: 90 },
+      currency_code: "eur",
+      override_currency: "eur",
+    })
+    expect(body.currency_code).toBe("eur")
+    expect(body.override_currency).toBe("eur")
+    expect(body.price_overrides).toEqual({ d1: 90 })
+  })
+
+  it("omitting it leaves the field undefined rather than inventing a default", () => {
+    // The route's own fallback is the one place "inr" should be decided.
+    const body = designOrderCreateBody({ design_ids: ["d1"] })
+    expect(body.currency_code).toBeUndefined()
+  })
+})
