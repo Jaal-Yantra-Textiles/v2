@@ -1,4 +1,5 @@
 import {
+  blockingDesignIds,
   decideCancel,
   decideCustomerAttach,
   decideReprice,
@@ -353,5 +354,83 @@ describe("isCancelled", () => {
   it("a non-string stamp is not a cancellation", () => {
     expect(isCancelled({ metadata: { cancelled_at: true as any } })).toBe(false)
     expect(isCancelled({ metadata: { cancelled_at: 1 as any } })).toBe(false)
+  })
+})
+
+/**
+ * #2176 follow-up — the duplicate guard matched any link row and never looked
+ * at the cart behind it, so a design was locked to the first cart it ever
+ * entered and the cancel route could retire an order but never let the
+ * corrected one be raised.
+ */
+describe("blockingDesignIds", () => {
+  const link = (design_id: string, line_item_id: string) => ({
+    design_id,
+    line_item_id,
+  })
+
+  it("blocks a design sitting in a live cart", () => {
+    expect(
+      blockingDesignIds({
+        links: [link("d1", "li1")],
+        cartByLineItem: { li1: { completed_at: null, metadata: {} } },
+      })
+    ).toEqual(["d1"])
+  })
+
+  it("RELEASES a design whose only cart was cancelled", () => {
+    expect(
+      blockingDesignIds({
+        links: [link("d1", "li1")],
+        cartByLineItem: {
+          li1: { completed_at: null, metadata: { cancelled_at: "2026-09-19T14:00:00.000Z" } },
+        },
+      })
+    ).toEqual([])
+  })
+
+  it("does not block on a link whose cart is missing — there is no checkout to be in", () => {
+    expect(
+      blockingDesignIds({ links: [link("d1", "li1")], cartByLineItem: { li1: null } })
+    ).toEqual([])
+    expect(
+      blockingDesignIds({ links: [link("d1", "li1")], cartByLineItem: {} })
+    ).toEqual([])
+  })
+
+  it("still blocks a design that already has a real order", () => {
+    // Deliberate: re-selling a paid garment is a product decision, not this fix.
+    expect(
+      blockingDesignIds({
+        links: [link("d1", "li1")],
+        cartByLineItem: {
+          li1: { completed_at: null, metadata: { cancelled_at: "2026-09-19T14:00:00.000Z" } },
+        },
+        hasLinkedOrder: { d1: true },
+      })
+    ).toEqual(["d1"])
+  })
+
+  it("blocks only the designs that are actually stuck, not the whole batch", () => {
+    const got = blockingDesignIds({
+      links: [link("live", "li1"), link("cancelled", "li2")],
+      cartByLineItem: {
+        li1: { completed_at: null, metadata: {} },
+        li2: { completed_at: null, metadata: { cancelled_at: "2026-09-19T14:00:00.000Z" } },
+      },
+    })
+    expect(got).toEqual(["live"])
+  })
+
+  it("deduplicates a design linked to several carts", () => {
+    expect(
+      blockingDesignIds({
+        links: [link("d1", "li1"), link("d1", "li2")],
+        cartByLineItem: {
+          li1: { completed_at: null, metadata: {} },
+          li2: { completed_at: null, metadata: {} },
+        },
+      })
+    ).toEqual(["d1"])
   })
 })
