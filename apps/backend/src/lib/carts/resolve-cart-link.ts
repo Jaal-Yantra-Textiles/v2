@@ -98,6 +98,11 @@ export type CartForLink = {
   id: string
   completed_at: string | null
   sales_channel_id: string | null
+  /**
+   * Carries `cancelled_at` when a design order was retired. The redeem route
+   * needs it: a cancelled cart must not send a buyer back into checkout.
+   */
+  metadata: Record<string, unknown> | null
   /** ISO-2 of the cart's region, when the region names any country. */
   country_code: string | null
 }
@@ -147,6 +152,8 @@ export const resolveCartCheckoutLink = async (
       fields: [
         "id",
         "completed_at",
+        // Carries `cancelled_at` — see CartForLink.
+        "metadata",
         "sales_channel_id",
         "region.countries.iso_2",
         // The buyer's own country decides the prefix; the region only bounds it.
@@ -210,6 +217,7 @@ export const resolveCartCheckoutLink = async (
       cart = {
         id: row.id,
         completed_at: row.completed_at ?? null,
+        metadata: (row.metadata ?? null) as Record<string, unknown> | null,
         sales_channel_id: row.sales_channel_id ?? null,
         country_code: picked.country,
       }

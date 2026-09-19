@@ -107,6 +107,7 @@ const update_items = []
 const counts = {
   total: records.length,
   already_reminded: 0,
+  cancelled: 0,
   no_email: 0,
   no_items: 0,
   too_old: 0,
@@ -144,6 +145,15 @@ for (const cart of records) {
   // marker too for carts converted before that fix / via other paths. #443.
   if (md.converted_order_id) {
     counts.converted = (counts.converted || 0) + 1
+    continue
+  }
+  // A design order that was CANCELLED must never get a recovery email. The
+  // cancel is soft — it stamps metadata.cancelled_at and deletes nothing — so
+  // without this the cart still looks abandoned-but-live and we keep chasing a
+  // buyer for an order we withdrew. Seen live: an INR cart an EU buyer could
+  // not pay had already sent one reminder. The redeem route refuses these too.
+  if (typeof md.cancelled_at === "string" && md.cancelled_at.trim()) {
+    counts.cancelled = (counts.cancelled || 0) + 1
     continue
   }
 
