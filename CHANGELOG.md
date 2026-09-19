@@ -1,3 +1,20 @@
+# [13.150.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.149.0...v13.150.0) (2026-09-19)
+
+
+### Bug Fixes
+
+* **#2159:** a removed line drops its variant link too, and a job that can finally count the strays ([#2160](https://github.com/Jaal-Yantra-Textiles/v2/issues/2160)) ([9225801](https://github.com/Jaal-Yantra-Textiles/v2/commit/9225801194d7a5f47def9d1259e2910a6e191644)), closes [#2159](https://github.com/Jaal-Yantra-Textiles/v2/issues/2159) [#2158](https://github.com/Jaal-Yantra-Textiles/v2/issues/2158) [#1873](https://github.com/Jaal-Yantra-Textiles/v2/issues/1873) [#1873](https://github.com/Jaal-Yantra-Textiles/v2/issues/1873)
+
+
+### Features
+
+* **#2019:** a board switcher, and someone else's board is read-only ([#2167](https://github.com/Jaal-Yantra-Textiles/v2/issues/2167)) ([0570640](https://github.com/Jaal-Yantra-Textiles/v2/commit/0570640172796313f033d7cc30e8898ccaa45344)), closes [#2019](https://github.com/Jaal-Yantra-Textiles/v2/issues/2019) [#2017](https://github.com/Jaal-Yantra-Textiles/v2/issues/2017) [#2017](https://github.com/Jaal-Yantra-Textiles/v2/issues/2017) [pre-#2017](https://github.com/pre-/issues/2017)
+* **#2017:** a job that says whether the moodboard backfill actually landed ([#2168](https://github.com/Jaal-Yantra-Textiles/v2/issues/2168)) ([b38516d](https://github.com/Jaal-Yantra-Textiles/v2/commit/b38516d2903f6b3da398c1668942635accd523e9)), closes [#2017](https://github.com/Jaal-Yantra-Textiles/v2/issues/2017)
+* **#2017:** a moodboard belongs to ONE owner — the admin's and the partner's stop being the same row ([#2163](https://github.com/Jaal-Yantra-Textiles/v2/issues/2163)) ([4fc313c](https://github.com/Jaal-Yantra-Textiles/v2/commit/4fc313c23d09616e9227a404a27f97c0ae57a55f)), closes [#2017](https://github.com/Jaal-Yantra-Textiles/v2/issues/2017) [#1113](https://github.com/Jaal-Yantra-Textiles/v2/issues/1113) [#2019](https://github.com/Jaal-Yantra-Textiles/v2/issues/2019)
+* **#2019:** bring the design into the order header, and make the task list a list ([#2162](https://github.com/Jaal-Yantra-Textiles/v2/issues/2162)) ([bb76110](https://github.com/Jaal-Yantra-Textiles/v2/commit/bb761106ce39cdedab95a310b48a8a7a7f5ad998)), closes [#2019](https://github.com/Jaal-Yantra-Textiles/v2/issues/2019) [#2018](https://github.com/Jaal-Yantra-Textiles/v2/issues/2018) [#2018](https://github.com/Jaal-Yantra-Textiles/v2/issues/2018) [#2018](https://github.com/Jaal-Yantra-Textiles/v2/issues/2018)
+* **partner-ui:** skeleton remaining pop-in loading windows ([#2165](https://github.com/Jaal-Yantra-Textiles/v2/issues/2165)) ([2a0c85e](https://github.com/Jaal-Yantra-Textiles/v2/commit/2a0c85e0d402f18028ec82a6d4341abe4e2728aa))
+* **#2019:** the moodboard card says what is on the board, and the layer controls have names ([#2161](https://github.com/Jaal-Yantra-Textiles/v2/issues/2161)) ([b6685af](https://github.com/Jaal-Yantra-Textiles/v2/commit/b6685afa116937569c3afaa32645db6e49ce6c6b)), closes [#2019](https://github.com/Jaal-Yantra-Textiles/v2/issues/2019) [#2019](https://github.com/Jaal-Yantra-Textiles/v2/issues/2019) [#2017](https://github.com/Jaal-Yantra-Textiles/v2/issues/2017) [#2017](https://github.com/Jaal-Yantra-Textiles/v2/issues/2017)
+
 # [13.149.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.148.0...v13.149.0) (2026-09-19)
 
 
