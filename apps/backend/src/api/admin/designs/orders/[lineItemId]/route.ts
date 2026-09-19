@@ -7,6 +7,7 @@ import designLineItemLink from "../../../../../links/design-line-item-link"
 import designCustomerLink from "../../../../../links/design-customer-link"
 import designOrderLink from "../../../../../links/design-order-link"
 import { resolveLineItemDesignId } from "../../../../../lib/resolve-line-item-production"
+import { resolveCartCheckoutLink } from "../../../../../lib/carts/resolve-cart-link"
 import {
   buildOrderItemRow,
   summariseOrderItems,
@@ -418,11 +419,36 @@ export async function GET(
       }
     }
 
-    // 6. Build checkout URL for pending items
-    const storeUrl = process.env.STORE_URL || "https://cicilabel.com"
-    const checkoutUrl = !order && lineItem?.cart_id
-      ? `${storeUrl}/checkout/cart/${lineItem.cart_id}`
-      : null
+    /**
+     * 6. The checkout link for a pending item.
+     *
+     * 🔴 Through `resolveCartCheckoutLink`, NOT built here. This route used to
+     * assemble it itself:
+     *
+     *     `${process.env.STORE_URL}/checkout/cart/${cart_id}`
+     *
+     * which names the platform shop for every tenant and carries NO country
+     * segment — so the storefront middleware substitutes its default region.
+     * That is why a design order opened from Australia landed on `/in/`.
+     *
+     * The create route (`draft-order/lib.ts`) was moved onto the shared
+     * resolver and this one was not, so the two disagreed about where a buyer
+     * goes — exactly the split `resolve-cart-link` was written to end, and the
+     * link an operator actually copies comes from HERE.
+     *
+     * Best-effort by contract: the resolver never throws and returns a null url
+     * with a reason, so a detail page still renders without a link.
+     */
+    let checkoutUrl: string | null = null
+    if (!order && lineItem?.cart_id) {
+      const { link } = await resolveCartCheckoutLink(req.scope, lineItem.cart_id)
+      checkoutUrl = link.url ?? null
+      if (!link.url) {
+        logger.warn(
+          `[design-order detail] no checkout link for cart ${lineItem.cart_id}: ${link.reason}`
+        )
+      }
+    }
 
     res.status(200).json({
       design_order: {
