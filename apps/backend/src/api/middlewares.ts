@@ -6077,6 +6077,30 @@ export default defineMiddlewares({
       middlewares: [authenticate("partner", ["session", "bearer"])],
     },
     {
+      /**
+       * #2017 — the admin's board save. A scene is large; without this the
+       * default body limit rejects a real board and the failure looks like a
+       * save bug rather than a limit. Mirrors the partner PUT's 20mb.
+       */
+      matcher: "/admin/designs/:id/moodboards",
+      method: "POST",
+      bodyParser: { sizeLimit: "20mb" },
+      middlewares: [],
+    },
+    {
+      /**
+       * #2017 — the design's boards, split into the caller's own (editable)
+       * and everyone else's (read-only).
+       *
+       * ⚠️ Registered here because a partner route 401s until this file names
+       * it — `/partners*` above only attaches CORS and locale, not auth. Neither
+       * tsc nor the test suite says a word about the omission.
+       */
+      matcher: "/partners/designs/:designId/moodboards",
+      method: "GET",
+      middlewares: [authenticate("partner", ["session", "bearer"])],
+    },
+    {
       // #1113 Feature A — insert-block palette: list drop-in blocks.
       matcher: "/partners/designs/:designId/moodboard/blocks",
       method: "GET",
