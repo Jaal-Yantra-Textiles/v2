@@ -1,3 +1,16 @@
+# [13.149.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.148.0...v13.149.0) (2026-09-19)
+
+
+### Bug Fixes
+
+* **#2157:** a removed line takes its link with it, and the partner is told the decision ([#2158](https://github.com/Jaal-Yantra-Textiles/v2/issues/2158)) ([77ba6f9](https://github.com/Jaal-Yantra-Textiles/v2/commit/77ba6f9b5d7995292cf0eed5f53aa3e11326c6ac)), closes [#2157](https://github.com/Jaal-Yantra-Textiles/v2/issues/2157) [#2114](https://github.com/Jaal-Yantra-Textiles/v2/issues/2114) [#1873](https://github.com/Jaal-Yantra-Textiles/v2/issues/1873)
+
+
+### Features
+
+* **partner-ui:** add skeleton loaders to detail and edit pages ([#2155](https://github.com/Jaal-Yantra-Textiles/v2/issues/2155)) ([b5ea778](https://github.com/Jaal-Yantra-Textiles/v2/commit/b5ea778ac06842cbc0498161ef1824927cf5c57d))
+* **#1752:** the line-edit grid replaces the drawer, quantities may be decimal, and a removal cannot empty the order ([#2156](https://github.com/Jaal-Yantra-Textiles/v2/issues/2156)) ([4064914](https://github.com/Jaal-Yantra-Textiles/v2/commit/406491433efdbaa074b573b016fce841593af335)), closes [#1752](https://github.com/Jaal-Yantra-Textiles/v2/issues/1752) [#2150](https://github.com/Jaal-Yantra-Textiles/v2/issues/2150) [#2136](https://github.com/Jaal-Yantra-Textiles/v2/issues/2136) [#2153](https://github.com/Jaal-Yantra-Textiles/v2/issues/2153)
+
 # [13.148.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.147.0...v13.148.0) (2026-09-18)
 
 
