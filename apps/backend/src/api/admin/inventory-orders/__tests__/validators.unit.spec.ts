@@ -143,3 +143,49 @@ describe("updateOrderLineSchema — naming a material that does not exist yet", 
     }
   })
 })
+
+describe("updateOrderLineSchema — cloth is measured in metres, not whole units", () => {
+  const line = (quantity: unknown) => ({
+    id: "ol_1",
+    inventory_item_id: "iitem_1",
+    quantity,
+    price: 165,
+  })
+
+  // Every line of GOF invoice GOF/2026-27/007 is a decimal. The create path has
+  // always accepted these; only the edit path floored them at 1.
+  it.each([5.7, 5.6, 5.8, 5.9, 1.2, 0.25])(
+    "accepts %s m",
+    (quantity) => {
+      expect(updateOrderLineSchema.safeParse(line(quantity)).success).toBe(true)
+    }
+  )
+
+  it("still refuses 0 — an emptied line is a removal, and removal has its own spelling", () => {
+    const parsed = updateOrderLineSchema.safeParse(line(0))
+    expect(parsed.success).toBe(false)
+    if (!parsed.success) {
+      expect(JSON.stringify(parsed.error.issues)).toMatch(/removal/)
+    }
+  })
+
+  it("still refuses a negative quantity", () => {
+    expect(updateOrderLineSchema.safeParse(line(-5.7)).success).toBe(false)
+  })
+
+  it("still refuses a missing quantity", () => {
+    expect(updateOrderLineSchema.safeParse(line(undefined)).success).toBe(false)
+  })
+
+  it("refuses NaN, which is neither greater than nor less than 0", () => {
+    // `NaN <= 0` is false, so a bare comparison would have let it through and
+    // written a NaN metre count onto the order.
+    expect(updateOrderLineSchema.safeParse(line(NaN)).success).toBe(false)
+  })
+
+  it("does not apply the quantity rule to a removal marker", () => {
+    expect(
+      updateOrderLineSchema.safeParse({ id: "ol_1", remove: true }).success
+    ).toBe(true)
+  })
+})

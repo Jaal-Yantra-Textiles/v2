@@ -283,11 +283,36 @@ export const updateOrderLineSchema = z
           "Send inventory_item_id or variant_id, not both — variant_id is only for a variant that has no inventory item yet",
       });
     }
-    if (val.quantity == null || val.quantity < 1) {
+    /**
+     * GREATER THAN ZERO, not "at least 1" — the same rule the partner schema
+     * already carries (#2156), and for the same reason.
+     *
+     * The goods on these lines are cloth, yarn and trim, ordered in metres and
+     * kilograms. `inventory_order_line.quantity` is a `model.float()` over a
+     * Postgres `real`, and the CREATE path
+     * (`inventoryOrderLineInputSchema`) has always accepted decimals. Only this
+     * edit path floored them, so an order could be created holding 5.7 m and
+     * then never corrected to 5.8 m: a supplier invoice measured in metres was
+     * refused by our own validator, which blamed the number rather than the
+     * rule. GOF invoice GOF/2026-27/007 is 14 lines and every one of them is a
+     * decimal.
+     *
+     * 0 is still refused, deliberately: an emptied line is a REMOVAL, and
+     * `remove: true` is how that is said. Accepting 0 would give one intent two
+     * spellings, and only the removal path soft-deletes the line — the other
+     * would leave a zero-quantity line on the order and in the payable
+     * ceiling's arithmetic.
+     */
+    if (
+      val.quantity == null ||
+      !Number.isFinite(val.quantity) ||
+      val.quantity <= 0
+    ) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
         path: ["quantity"],
-        message: "Quantity must be at least 1",
+        message:
+          "Quantity must be greater than 0 — to take a line off the order, mark it for removal instead",
       });
     }
     if (val.price == null || val.price < 0) {
