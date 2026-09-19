@@ -2,6 +2,7 @@ import { Badge, Button, Container, Heading, StatusBadge, Text } from "@medusajs/
 import { Link, Outlet } from "react-router-dom"
 
 import { SingleColumnPage } from "../../../components/layout/pages"
+import { Skeleton } from "../../../components/common/skeleton"
 import {
   PartnerInquiryListRow,
   usePartnerInquiries,
@@ -68,10 +69,13 @@ export const InquiryList = () => {
         </div>
 
         {isLoading && (
-          <div className="px-6 py-8">
-            <Text size="small" className="text-ui-fg-subtle">
-              Loading…
-            </Text>
+          <div className="divide-y">
+            {Array.from({ length: 4 }).map((_, i) => (
+              <div key={i} className="flex flex-col gap-y-2 px-6 py-4">
+                <Skeleton className="h-4 w-40" />
+                <Skeleton className="h-3 w-56" />
+              </div>
+            ))}
           </div>
         )}
 

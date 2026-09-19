@@ -8,6 +8,7 @@ import { InventoryOrderChangeBanner } from "../../../components/work-orders/inve
 import { DesignOrderLines } from "../../../components/work-orders/design-order-lines"
 import { CollatedDesignRuns } from "../../../components/work-orders/collated-design-runs"
 import { DesignSectionsSkeleton } from "../../../components/work-orders/design-sections-skeleton"
+import { InventorySectionsSkeleton } from "../../../components/work-orders/inventory-sections-skeleton"
 import {
   InventoryFulfillmentsSection,
   InventoryPaymentsSection,
@@ -116,9 +117,20 @@ export const OrderDetail = () => {
     usePartnerConsumptionLogs(designId ?? "", undefined, { enabled: !!designId })
 
   // Inventory work-order: legacy_id is the inventory_order id.
-  const { inventoryOrder } = usePartnerInventoryOrder(legacyId ?? "", {
-    enabled: kind === "inventory" && !!legacyId,
-  })
+  const { inventoryOrder, isError: isInventoryError } = usePartnerInventoryOrder(
+    legacyId ?? "",
+    {
+      enabled: kind === "inventory" && !!legacyId,
+    }
+  )
+
+  // Resolving an inventory work-order's inventory order takes one hop (order →
+  // inventory_order), so the inventory sections used to be absent from the tree
+  // for a beat and then pop in, shoving the page down — the same failure the
+  // design case skeletons. An inventory order that genuinely 404s sets isError
+  // and falls through — that must not skeleton forever.
+  const isInventoryResolving =
+    kind === "inventory" && !!legacyId && !inventoryOrder && !isInventoryError
 
   const invalidateOrder = () =>
     queryClient.invalidateQueries({ queryKey: ordersQueryKeys.detail(id!) })
@@ -262,6 +274,7 @@ export const OrderDetail = () => {
                   )}
                 </RunDetailsReveal>
               )}
+            {isInventoryResolving && <InventorySectionsSkeleton />}
             {kind === "inventory" && inventoryOrder && (
               <>
                 <InventoryOrderChangeBanner

@@ -8,6 +8,7 @@ import {
 } from "../../../components/common/activities-section"
 import { JsonViewSection } from "../../../components/common/json-view-section"
 import { SectionRow } from "../../../components/common/section"
+import { TwoColumnPageSkeleton } from "../../../components/common/skeleton"
 import { SingleColumnPage, TwoColumnPage } from "../../../components/layout/pages"
 import { getStatusBadgeColor } from "../../../lib/status-badge"
 import {
@@ -37,6 +38,10 @@ export const TaskDetail = () => {
 
   if (isError) {
     throw error
+  }
+
+  if (isPending || !task) {
+    return <TwoColumnPageSkeleton mainSections={5} sidebarSections={2} />
   }
 
   const workflowType = (task?.metadata as any)?.workflow_config?.type
