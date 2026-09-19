@@ -102,6 +102,42 @@ describe("resolveCartCheckoutLink", () => {
 
     expect(cart?.completed_at).toBe("2026-09-17T00:00:00Z")
   })
+
+  /**
+   * The redeem route reads `metadata.cancelled_at` to refuse a retired design
+   * order. It was not in the selected fields, so the route could not have seen
+   * it however carefully it looked — the reason this assertion exists.
+   */
+  it("carries metadata through, so a caller can refuse a CANCELLED order", async () => {
+    const killed = {
+      ...CART,
+      metadata: { cancelled_at: "2026-09-19T22:00:00Z", cancelled_reason: "wrong currency" },
+    }
+    const scope = scopeWith(graphFor(killed, PARTNER_STORE))
+    const { cart } = await resolveCartCheckoutLink(scope, "cart_01")
+
+    expect(cart?.metadata).toEqual({
+      cancelled_at: "2026-09-19T22:00:00Z",
+      cancelled_reason: "wrong currency",
+    })
+  })
+
+  it("asks the cart query for metadata at all", async () => {
+    // Guards the FIELD LIST, not just the mapping: dropping "metadata" from
+    // the graph call makes the route blind again while every other test passes.
+    const graph = graphFor(CART, PARTNER_STORE)
+    await resolveCartCheckoutLink(scopeWith(graph), "cart_01")
+
+    const cartCall = graph.mock.calls.find((c: any[]) => c[0]?.entity === "cart")
+    expect(cartCall?.[0]?.fields).toContain("metadata")
+  })
+
+  it("reports metadata as null when the cart carries none", async () => {
+    const scope = scopeWith(graphFor(CART, PARTNER_STORE))
+    const { cart } = await resolveCartCheckoutLink(scope, "cart_01")
+
+    expect(cart?.metadata).toBeNull()
+  })
 })
 
 /**

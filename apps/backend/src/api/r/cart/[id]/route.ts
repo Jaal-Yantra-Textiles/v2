@@ -1,6 +1,7 @@
 import { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
 import { ContainerRegistrationKeys } from "@medusajs/framework/utils"
 
+import { isCancelled } from "../../../admin/designs/orders/mutate-design-order"
 import {
   platformFallbackOrigin,
   resolveCartCheckoutLink,
@@ -51,6 +52,25 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
    * checkout for it invites a second order.
    */
   if (cart.completed_at) {
+    return res.redirect(302, platformFallbackOrigin())
+  }
+
+  /**
+   * 🔴 A CANCELLED design order must not send a buyer back into checkout.
+   *
+   * The cancel is soft — it stamps `metadata.cancelled_at` and deletes nothing
+   * — and the recovery flow's own gate does not read that stamp either, so a
+   * retired order keeps earning reminder mail. Until that flow is re-seeded
+   * this is what makes the link in those mails harmless: the buyer lands on
+   * the shop front instead of a checkout for an order we have withdrawn.
+   *
+   * Observed on a live order: an INR cart an EU buyer could not pay had
+   * already sent one reminder before anyone noticed.
+   */
+  if (isCancelled(cart)) {
+    logger?.info?.(
+      `[cart-recovery] cart ${cartId} is cancelled — sending the buyer to the shop front`
+    )
     return res.redirect(302, platformFallbackOrigin())
   }
 
