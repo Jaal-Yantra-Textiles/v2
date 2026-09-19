@@ -107,6 +107,7 @@ import { deleteOrphanWorkOrderMirrorsJob } from "./delete-orphan-work-order-mirr
 import { auditDanglingOrderLineLinksJob } from "./audit-dangling-order-line-links-job"
 import { auditMoodboardBackfillJob } from "./audit-moodboard-backfill-job"
 import { patchCartRecoveryCancelledGateJob } from "./patch-cart-recovery-cancelled-gate-job"
+import { setDesignOrderCountryJob } from "./set-design-order-country-job"
 import { purgeAbandonedCartsJob } from "./purge-abandoned-carts-job"
 import { restoreOrphanStoreJob } from "./restore-orphan-store-job"
 import { backfillPartnerEmailVerifiedJob } from "./backfill-partner-email-verified-job"
@@ -6701,6 +6702,7 @@ export const MAINTENANCE_JOBS: MaintenanceJob[] = [
   auditDanglingOrderLineLinksJob,
   auditMoodboardBackfillJob,
   patchCartRecoveryCancelledGateJob,
+  setDesignOrderCountryJob,
   purgeAbandonedCartsJob,
 ]
 
