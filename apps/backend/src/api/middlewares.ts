@@ -3692,6 +3692,20 @@ export default defineMiddlewares({
       ],
     },
     {
+      /**
+       * The printable proforma for an assigned order. GET still needs the
+       * matcher or `req.auth_context` is undefined and the ownership check
+       * cannot run (the partner-route auth gotcha) — which would turn an
+       * authenticated document into an open one.
+       */
+      matcher: "/partners/inventory-orders/:orderId/invoice",
+      method: "GET",
+      middlewares: [
+        createCorsPartnerMiddleware(),
+        authenticate("partner", ["session", "bearer"]),
+      ],
+    },
+    {
       // #641-inv — partner lists Shiprocket courier rates for the order (so it
       // can pick a courier before creating the shipment). GET still needs the
       // matcher or req.auth_context is undefined (partner-route auth gotcha).
@@ -4493,6 +4507,12 @@ export default defineMiddlewares({
     },
     {
       matcher: "/admin/inventory-orders/:id/charges",
+      method: "GET",
+      middlewares: [],
+    },
+    {
+      // The admin mirror of the partner proforma — same gatherer, same bytes.
+      matcher: "/admin/inventory-orders/:id/invoice",
       method: "GET",
       middlewares: [],
     },
