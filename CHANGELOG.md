@@ -1,3 +1,15 @@
+# [13.151.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.150.0...v13.151.0) (2026-09-19)
+
+
+### Bug Fixes
+
+* **inventory-orders:** the admin line edit accepts a part-metre, like the partner one already does ([#2169](https://github.com/Jaal-Yantra-Textiles/v2/issues/2169)) ([07c7e04](https://github.com/Jaal-Yantra-Textiles/v2/commit/07c7e04518e54e3650a63aacac3c080c8180f3d6)), closes [#2156](https://github.com/Jaal-Yantra-Textiles/v2/issues/2156)
+
+
+### Features
+
+* **inventory-orders:** a proforma the partner can sign, generated from the order ([#2170](https://github.com/Jaal-Yantra-Textiles/v2/issues/2170)) ([7dc0126](https://github.com/Jaal-Yantra-Textiles/v2/commit/7dc01266502562f445368c5dfe931ffbaf5e6a49)), closes [#1616](https://github.com/Jaal-Yantra-Textiles/v2/issues/1616)
+
 # [13.150.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.149.0...v13.150.0) (2026-09-19)
 
 
