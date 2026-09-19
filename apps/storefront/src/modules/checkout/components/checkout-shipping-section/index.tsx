@@ -298,12 +298,26 @@ export default function CheckoutShippingSection({
                           ? `Delivery from ${formatDeliveryDate(days.min)}`
                           : null
 
+              /**
+               * 🔴 `?? null`, because `option.amount!` was a lie.
+               *
+               * The `!` is a TypeScript assertion and does nothing at runtime.
+               * A FLAT option carries no amount when it has no price in the
+               * cart's currency — an Australia-zone option priced only in AUD,
+               * offered on a EUR cart. `undefined` then walked straight through
+               * the `priceAmount !== null` guard below (`undefined !== null` is
+               * TRUE) and reached `Intl.NumberFormat.format(undefined)`, which
+               * renders "€NaN". The buyer was shown, and could select, a
+               * shipping method with no price.
+               *
+               * Normalising to null makes the existing guard do its job and the
+               * row falls through to "—". Note `??` and not `||`: a genuine
+               * amount of 0 is FREE shipping, not a missing price.
+               */
               const priceAmount =
                 option.price_type === "flat"
-                  ? option.amount!
-                  : calculatedPricesMap[option.id] !== undefined
-                    ? calculatedPricesMap[option.id]
-                    : null
+                  ? option.amount ?? null
+                  : calculatedPricesMap[option.id] ?? null
               const isFreeShipping = priceAmount === 0
               const price = isFreeShipping
                 ? "Free"
@@ -327,9 +341,14 @@ export default function CheckoutShippingSection({
                   )}
                   data-testid="delivery-option-radio"
                 >
+                  {/*
+                    An option with no price in this currency cannot be chosen.
+                    It used to be fully selectable while displaying "€NaN".
+                  */}
                   <RadioGroup.Item
                     value={option.id}
                     aria-label={option.name}
+                    disabled={priceAmount === null && !isLoadingPrices}
                     className="absolute inset-0 z-10 h-full w-full cursor-pointer rounded-md bg-transparent outline-none [&>div]:hidden focus-visible:shadow-borders-interactive-with-focus"
                   />
                   {/*
