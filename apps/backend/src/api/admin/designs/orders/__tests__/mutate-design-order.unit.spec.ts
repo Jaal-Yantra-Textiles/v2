@@ -1,6 +1,8 @@
 import {
+  decideCancel,
   decideCustomerAttach,
   decideReprice,
+  isCancelled,
   isConverted,
 } from "../mutate-design-order"
 
@@ -248,5 +250,108 @@ describe("the linked order refuses both mutations", () => {
         hasLinkedOrder: false,
       }).ok
     ).toBe(true)
+  })
+})
+
+/**
+ * #2176 item 6 — a design order created wrong could only be ABANDONED.
+ *
+ * `/admin/designs/orders/:lineItemId` was GET only: no cancel, no delete. A
+ * wrong-currency order sat in the list forever, indistinguishable from one a
+ * customer simply had not paid yet. The live case: an INR design order for a
+ * buyer in the EU, which the India region can only offer PayU for.
+ */
+describe("decideCancel", () => {
+  const cart = (over: Record<string, any> = {}) => ({
+    id: "cart_1",
+    completed_at: null,
+    metadata: {},
+    ...over,
+  })
+  const NOW = new Date("2026-09-19T13:00:00.000Z")
+
+  it("cancels an open design order and stamps the time", () => {
+    const d = decideCancel({ cart: cart(), reason: "Wrong currency for an EU buyer", now: NOW })
+    expect(d).toEqual({
+      ok: true,
+      cancelled_at: "2026-09-19T13:00:00.000Z",
+      cancelled_reason: "Wrong currency for an EU buyer",
+    })
+  })
+
+  /**
+   * 🔴 Required, not politeness. A cancelled design order and a stale one look
+   * identical a month later; the reason is the whole difference.
+   */
+  it("refuses without a reason — including whitespace and non-strings", () => {
+    for (const reason of [undefined, null, "", "   ", 42, {}]) {
+      const d = decideCancel({ cart: cart(), reason })
+      expect(d.ok).toBe(false)
+      expect((d as any).reason).toBe("no_reason")
+    }
+  })
+
+  it("trims the reason rather than storing the operator's spacing", () => {
+    const d = decideCancel({ cart: cart(), reason: "  duplicate order  ", now: NOW })
+    expect((d as any).cancelled_reason).toBe("duplicate order")
+  })
+
+  /**
+   * A converted design order has a live ORDER. Stamping its cart would leave
+   * the admin screen saying "cancelled" over an order still being fulfilled.
+   */
+  it("refuses a converted design order — cancel the order instead", () => {
+    const viaLink = decideCancel({ cart: cart(), reason: "x", hasLinkedOrder: true })
+    expect((viaLink as any).reason).toBe("cart_completed")
+
+    const viaCompletedAt = decideCancel({
+      cart: cart({ completed_at: "2026-09-01T00:00:00.000Z" }),
+      reason: "x",
+    })
+    expect((viaCompletedAt as any).reason).toBe("cart_completed")
+  })
+
+  /**
+   * 🔴 Idempotent, and says so. Re-cancelling would overwrite the ORIGINAL
+   * reason and date with today's, losing the only record of why.
+   */
+  it("refuses a second cancel rather than overwriting the first reason", () => {
+    const d = decideCancel({
+      cart: cart({ metadata: { cancelled_at: "2026-09-18T10:00:00.000Z" } }),
+      reason: "changed my mind again",
+    })
+    expect(d.ok).toBe(false)
+    expect((d as any).reason).toBe("already_cancelled")
+    expect((d as any).message).toContain("2026-09-18T10:00:00.000Z")
+  })
+
+  it("an empty cancelled_at stamp does not count as cancelled", () => {
+    const d = decideCancel({
+      cart: cart({ metadata: { cancelled_at: "   " } }),
+      reason: "real reason",
+      now: NOW,
+    })
+    expect(d.ok).toBe(true)
+  })
+
+  it("refuses when there is no cart at all", () => {
+    expect((decideCancel({ cart: null, reason: "x" }) as any).reason).toBe("no_cart")
+  })
+})
+
+describe("isCancelled", () => {
+  it("reads the stamp, and only a real one", () => {
+    expect(isCancelled({ metadata: { cancelled_at: "2026-09-19T13:00:00.000Z" } })).toBe(true)
+    expect(isCancelled({ metadata: { cancelled_at: "" } })).toBe(false)
+    expect(isCancelled({ metadata: { cancelled_at: "  " } })).toBe(false)
+    expect(isCancelled({ metadata: {} })).toBe(false)
+    expect(isCancelled({ metadata: null })).toBe(false)
+    expect(isCancelled(null)).toBe(false)
+    expect(isCancelled(undefined)).toBe(false)
+  })
+
+  it("a non-string stamp is not a cancellation", () => {
+    expect(isCancelled({ metadata: { cancelled_at: true as any } })).toBe(false)
+    expect(isCancelled({ metadata: { cancelled_at: 1 as any } })).toBe(false)
   })
 })

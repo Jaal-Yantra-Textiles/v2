@@ -8,6 +8,7 @@ import designCustomerLink from "../../../../../links/design-customer-link"
 import designOrderLink from "../../../../../links/design-order-link"
 import { resolveLineItemDesignId } from "../../../../../lib/resolve-line-item-production"
 import { resolveCartCheckoutLink } from "../../../../../lib/carts/resolve-cart-link"
+import { isCancelled } from "../mutate-design-order"
 import {
   buildOrderItemRow,
   summariseOrderItems,
@@ -267,15 +268,18 @@ export async function GET(
 
     // 4. Fetch cart details for currency and customer fallback
     let cartCurrencyCode: string | null = null
+    /** Hoisted: the checkout link below is withheld for a cancelled order. */
+    let cartCancelled = false
     if (lineItem?.cart_id) {
       try {
         const { data: carts } = await query.graph({
           entity: "cart",
           filters: { id: lineItem.cart_id },
-          fields: ["customer_id", "currency_code"],
+          fields: ["customer_id", "currency_code", "metadata"],
         })
         const cart = carts?.[0]
         cartCurrencyCode = cart?.currency_code || null
+        cartCancelled = isCancelled(cart)
         if (!customer && cart?.customer_id) {
           try {
             const { data: customers } = await query.graph({
@@ -440,7 +444,12 @@ export async function GET(
      * with a reason, so a detail page still renders without a link.
      */
     let checkoutUrl: string | null = null
-    if (!order && lineItem?.cart_id) {
+    /**
+     * 🔴 A cancelled design order gets NO link. A cancel whose checkout still
+     * works has not happened — the record is soft on purpose, the payability is
+     * not.
+     */
+    if (!order && lineItem?.cart_id && !cartCancelled) {
       const { link } = await resolveCartCheckoutLink(req.scope, lineItem.cart_id)
       checkoutUrl = link.url ?? null
       if (!link.url) {
