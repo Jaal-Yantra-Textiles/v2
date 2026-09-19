@@ -108,17 +108,15 @@ const Modal = ({
         </Transition.Child>
 
         {/*
-          🔴 `overflow-y-auto overscroll-contain`, not `overflow-y-hidden`.
+          Back to the component's original `overflow-y-hidden`.
 
-          A wheel over the backdrop lands HERE. When this container cannot
-          scroll, the wheel CHAINS to the page and the backdrop scrolls under
-          the dialog — measured: page scrollTop 151 -> 482 with the modal open,
-          even though Headless UI had already set `html { overflow: hidden }`.
-          Making it scrollable gives the wheel somewhere to go, and
-          `overscroll-contain` stops it chaining onward. It also lets a dialog
-          taller than the viewport be reached at all.
+          I had made this `overflow-y-auto overscroll-contain` while chasing the
+          scrolling backdrop. That was the wrong lever — the body being in flow
+          was the cause, and it is now `position: fixed`. An extra scroll
+          container between the backdrop and the dialog's own list is one more
+          thing that can swallow a wheel, so it is gone again.
         */}
-        <div className="fixed inset-0 overflow-y-auto overscroll-contain">
+        <div className="fixed inset-0 overflow-y-hidden">
           <div
             className={clx(
               "flex min-h-full h-full justify-center p-4 text-center",

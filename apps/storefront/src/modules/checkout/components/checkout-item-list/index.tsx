@@ -214,7 +214,7 @@ export default function CheckoutItemList({ cart }: CheckoutItemListProps) {
                 width, a ~15px scrollbar sits ON the content and clipped the
                 price — "2 x €8,500.0|0" with the stepper cut off.
               */}
-              <div className="w-full min-h-0 overflow-y-auto pe-4">
+              <div className="w-full min-h-0 overflow-y-auto ps-1 pe-4">
                 <ItemRows items={items} currencyCode={cart.currency_code} />
               </div>
             </Modal.Body>
