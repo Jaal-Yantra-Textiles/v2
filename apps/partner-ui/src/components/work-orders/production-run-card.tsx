@@ -24,7 +24,7 @@ import { TimelineItem } from "./run-timeline-item"
 import { InfoBanner } from "./run-info-banner"
 import { FinishRunForm } from "./finish-run-form"
 import { CompleteRunForm } from "./complete-run-form"
-import { InlineTaskCard } from "./inline-task-card"
+import { TaskRow } from "./task-row"
 
 /**
  * The work surface for a single production run: status, progress stepper,
@@ -505,15 +505,15 @@ export const ProductionRunCard = ({
         </div>
       )}
 
-      {/* Tasks */}
+      {/* Tasks — compact rows; the detail lives in the task drawer (#2019). */}
       {totalTasks > 0 && (
         <div className="px-6 py-4">
-          <Text size="xsmall" weight="plus" className="text-ui-fg-subtle mb-3">
+          <Text size="xsmall" weight="plus" className="text-ui-fg-subtle mb-1">
             Tasks ({completedTasks}/{totalTasks})
           </Text>
-          <div className="flex flex-col gap-y-3">
+          <div className="divide-y divide-ui-border-base">
             {tasks.map((t: any) => (
-              <InlineTaskCard key={String(t.id)} task={t} linkBase={taskLinkBase} />
+              <TaskRow key={String(t.id)} task={t} linkBase={taskLinkBase} />
             ))}
           </div>
         </div>

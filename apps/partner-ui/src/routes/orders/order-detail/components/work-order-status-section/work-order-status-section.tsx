@@ -3,11 +3,14 @@ import {
   CheckCircle,
   CurrencyDollar,
   PencilSquare,
+  PhotoSolid,
   PlaySolid,
+  Swatch,
   TruckFast,
 } from "@medusajs/icons"
 import { Container, Copy, Heading, StatusBadge, Text } from "@medusajs/ui"
 import { useTranslation } from "react-i18next"
+import { Link } from "react-router-dom"
 import type { TFunction } from "i18next"
 
 import { ActionMenu, ActionGroup } from "../../../../../components/common/action-menu"
@@ -18,6 +21,11 @@ import {
   getPartnerWorkStatus,
 } from "../../../../../lib/work-status"
 import { OrderKind } from "../../use-order-kind"
+import { usePartnerDesignInventory } from "../../../../../hooks/api/partner-design-inventory"
+import {
+  splitThumbnails,
+  summarizeBomLines,
+} from "../../../../../lib/work-order-header"
 
 type WorkOrderStatusSectionProps = {
   order: any
@@ -28,6 +36,8 @@ type WorkOrderStatusSectionProps = {
   productionRun?: any
   /** Resolved inventory order — drives the header action menu (inventory kind). */
   inventoryOrder?: any
+  /** Resolved design — drives the header thumbnail strip (design kind). */
+  design?: any
 }
 
 // The inventory work-order lifecycle actions, gated on partner_status. Mirrors
@@ -128,9 +138,30 @@ export const WorkOrderStatusSection = ({
   designId,
   productionRun,
   inventoryOrder,
+  design,
 }: WorkOrderStatusSectionProps) => {
   const { t } = useTranslation()
   const { getFullDate } = useDate()
+
+  /**
+   * #2019 — the header carries what a partner judges the job on: the pictures,
+   * and how many materials it takes.
+   *
+   * These sit ABOVE `RunDetailsReveal` on purpose, so they are there while the
+   * run is still merely offered. #2018 collapsed the spec, sizes, full BOM and
+   * costing at that stage because they are noise against accept/decline —
+   * five thumbnails and a material count are the opposite: they are most of
+   * how you decide.
+   */
+  const { inventory_items: bomLines } = usePartnerDesignInventory(
+    designId ?? "",
+    { enabled: kind === "design" && !!designId }
+  )
+  const bom = summarizeBomLines(bomLines)
+  const thumbs = splitThumbnails(
+    (design?.media_files ?? []) as Array<{ id?: string; url: string }>,
+    5
+  )
 
   const status = getPartnerWorkStatus(order)
 
@@ -141,11 +172,28 @@ export const WorkOrderStatusSection = ({
       ? designId
         ? [
             {
+              /**
+               * #2019 — the moodboard and the media manager already had routes
+               * under the order (`design-details/moodboard`, `.../media`) and
+               * were reachable from NOWHERE on this page: the only way in was
+               * to open Design details and scroll. A route with no entry point
+               * is the same as no route.
+               */
               actions: [
                 {
                   label: t("partner.workOrders.designDetails"),
                   icon: <ArrowUpRightOnBox />,
                   to: "design-details",
+                },
+                {
+                  label: t("partner.designs.moodboard.heading"),
+                  icon: <Swatch />,
+                  to: "design-details/moodboard",
+                },
+                {
+                  label: t("partner.designs.media.heading"),
+                  icon: <PhotoSolid />,
+                  to: "design-details/media",
                 },
               ],
             },
@@ -167,8 +215,11 @@ export const WorkOrderStatusSection = ({
     if (parts.length) producing = `${t("partner.workOrders.producing")}: ${parts.join(" · ")}`
   }
 
+  const showDesignStrip =
+    kind === "design" && (thumbs.shown.length > 0 || bom.materialCount > 0)
+
   return (
-    <Container className="flex flex-col gap-y-3 px-6 py-4 sm:flex-row sm:items-center sm:justify-between">
+    <Container className="flex flex-col gap-y-3 px-6 py-4 sm:flex-row sm:items-start sm:justify-between">
       <div>
         <div className="flex items-center gap-x-1">
           <Heading>#{order.display_id}</Heading>
@@ -185,6 +236,57 @@ export const WorkOrderStatusSection = ({
           <Text size="small" className="text-ui-fg-subtle">
             {producing}
           </Text>
+        )}
+        {showDesignStrip && (
+          <div className="mt-3 flex flex-col gap-y-2">
+            {thumbs.shown.length > 0 && (
+              <div className="flex items-center gap-x-1.5">
+                {thumbs.shown.map((m, i) => (
+                  <Link
+                    key={m.id || String(i)}
+                    to={`design-details/media-preview`}
+                    state={{ curr: i }}
+                    className="shadow-borders-base size-10 overflow-hidden rounded-md bg-ui-bg-component"
+                  >
+                    <img
+                      src={m.url}
+                      alt=""
+                      loading="lazy"
+                      className="size-full object-cover"
+                    />
+                  </Link>
+                ))}
+                {thumbs.overflow > 0 && (
+                  <Link
+                    to="design-details/media"
+                    className="text-ui-fg-subtle hover:text-ui-fg-base shadow-borders-base flex size-10 items-center justify-center rounded-md text-xs"
+                  >
+                    {`+${thumbs.overflow}`}
+                  </Link>
+                )}
+              </div>
+            )}
+            {bom.materialCount > 0 && (
+              /**
+               * 🔴 "on this design", NOT "on this run". The BOM hangs off the
+               * design and carries no run reference at all — a design made
+               * twice has one BOM and two runs. Writing "linked to this run"
+               * here would invent a relationship at the point of display,
+               * which is the worst place to invent one because it looks
+               * derived.
+               */
+              <Text size="small" className="text-ui-fg-subtle">
+                {t("partner.workOrders.bomSummary", {
+                  count: bom.materialCount,
+                })}
+                {bom.consumedCount > 0
+                  ? ` · ${t("partner.workOrders.bomConsumed", {
+                      count: bom.consumedCount,
+                    })}`
+                  : ""}
+              </Text>
+            )}
+          </div>
         )}
       </div>
       <div className="flex items-center gap-x-2">
