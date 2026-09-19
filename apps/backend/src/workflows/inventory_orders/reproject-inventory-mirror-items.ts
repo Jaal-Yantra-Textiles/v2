@@ -1,6 +1,8 @@
 import { ContainerRegistrationKeys, Modules } from "@medusajs/framework/utils"
 import { createStep, StepResponse } from "@medusajs/framework/workflows-sdk"
 
+import { inventoryLineUnitPrice } from "./lib/line-unit-price"
+
 /**
  * Re-project an inventory order's LIVE lines onto its core mirror order's items.
  *
@@ -14,12 +16,20 @@ import { createStep, StepResponse } from "@medusajs/framework/workflows-sdk"
  * lines and the total fixes itself. We key items by metadata.legacy_orderline_id
  * and treat a changed line as remove-old + create-fresh (quantity lives on the
  * order_item detail, so in-place updates are avoided).
+ *
+ * 🔴 The mirrored unit price is the LANDED one — `price + extra_cost`, via
+ * `inventoryLineUnitPrice`. It must be, because that is what the create path
+ * writes; a re-projection at the base rate silently strips the colour job out
+ * of the mirror on the first line edit (#2172, ₹8,208 on the GOF order).
  */
 
 export interface LiveInventoryLine {
   id: string
   quantity: number
+  /** 🔴 PER UNIT, and only the GOODS half — never mirror this alone. */
   price: number
+  /** 🔴 The per-unit colour/dye/finishing charge. Part of the agreed unit. */
+  extra_cost?: number | null
   title: string
   inventory_item_id: string | null
 }
@@ -68,12 +78,16 @@ export function planMirrorReprojection(
   let unchanged = 0
 
   for (const line of liveLines) {
+    // The landed unit — goods + the per-unit job cost. Compared AND written
+    // with the same number, so a mirror still holding a base-rate item from
+    // before #2172 reads as changed and gets recreated at the right price.
+    const unitPrice = inventoryLineUnitPrice(line)
     const existing = mirrorByLegacy.get(line.id)
     if (
       existing &&
       existing.title === line.title &&
       Number(existing.quantity) === line.quantity &&
-      Number(existing.unit_price) === line.price
+      Number(existing.unit_price) === unitPrice
     ) {
       keepItemIds.add(existing.id)
       unchanged++
@@ -82,11 +96,11 @@ export function planMirrorReprojection(
     create.push({
       title: line.title,
       quantity: line.quantity,
-      unit_price: line.price,
+      unit_price: unitPrice,
       metadata: {
         inventory_item_id: line.inventory_item_id,
         legacy_orderline_id: line.id,
-        legacy_unit_price: line.price,
+        legacy_unit_price: unitPrice,
       },
     })
   }
@@ -135,6 +149,10 @@ export async function reprojectInventoryMirrorItems(
       "orderlines.id",
       "orderlines.quantity",
       "orderlines.price",
+      // 🔴 Without this the fold below silently prices every line at the base
+      // rate — an unfetched column arrives as undefined and reads as "no
+      // colour job". #2172.
+      "orderlines.extra_cost",
       "orderlines.material_name",
       "orderlines.inventory_items.id",
       "orderlines.inventory_items.title",
@@ -161,6 +179,7 @@ export async function reprojectInventoryMirrorItems(
     id: String(l.id),
     quantity: Number(l.quantity) || 0,
     price: Number(l.price) || 0,
+    extra_cost: Number(l.extra_cost) || 0,
     title:
       l.material_name ||
       l.inventory_items?.[0]?.title ||
