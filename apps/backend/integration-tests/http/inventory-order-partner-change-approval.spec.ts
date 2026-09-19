@@ -474,6 +474,150 @@ setupSharedTestSuite(() => {
       ).toHaveLength(0)
     })
 
+    /**
+     * #2159 — the VARIANT link, the sibling #2158 deliberately left untested.
+     *
+     * A line may be placed by naming a partner's product variant instead of an
+     * inventory item (#1873), and the create path writes that link. The removal
+     * loop had no branch for it AT ALL — not a wrong condition, as with the item
+     * link, simply absent. So a removed line left its variant link live,
+     * pointing at a soft-deleted row, and the order could no longer say which
+     * product the line was for, which is the whole reason #1873 exists.
+     *
+     * This builds its OWN order rather than extending the shared fixture: the
+     * fixture's quantity/total arithmetic is asserted by name in four other
+     * tests, and a fourth line would move all of them.
+     *
+     * TWO lines, and the variant one is removed — a one-line order could not be
+     * emptied anyway, since #2156 refuses a proposal that removes every line.
+     */
+    it("dismisses the line's product_variant link when a removal is approved", async () => {
+      const knex = (getContainer().resolve(
+        ContainerRegistrationKeys.PG_CONNECTION
+      )) as any
+      const unique = `${Date.now()}${Math.random().toString(36).slice(2, 6)}`
+
+      const { rows: vTables } = await knex.raw(
+        `select table_name from information_schema.tables
+          where table_name like 'inventory_orders_inventory_order_line_product_va%'`
+      )
+      expect(vTables).toHaveLength(1)
+      const variantLinkTable = vTables[0].table_name
+
+      const variantLinkRows = async (lineId: string) => {
+        const { rows } = await knex.raw(
+          `select deleted_at from ?? where inventory_order_line_id = ?`,
+          [variantLinkTable, lineId]
+        )
+        return rows as Array<{ deleted_at: string | null }>
+      }
+
+      const prod = await api.post(
+        "/admin/products",
+        {
+          title: `Variant Line ${unique}`,
+          status: "draft",
+          options: [{ title: "Size", values: ["S"] }],
+          variants: [
+            {
+              title: "S",
+              options: { Size: "S" },
+              prices: [{ currency_code: "inr", amount: 100 }],
+            },
+          ],
+        },
+        adminHeaders
+      )
+      expect(prod.status).toBe(200)
+      const variantId = prod.data.product.variants[0].id
+
+      const keepItem = await createItem(`Keeper ${unique}`)
+      const loc = await api.post(
+        "/admin/stock-locations",
+        { name: `VarWH ${unique}` },
+        adminHeaders
+      )
+      const src = await api.post(
+        "/admin/stock-locations",
+        { name: `VarFrom ${unique}` },
+        adminHeaders
+      )
+
+      const orderRes = await api.post(
+        "/admin/inventory-orders",
+        {
+          order_lines: [
+            { variant_id: variantId, quantity: 2, price: 100 },
+            { inventory_item_id: keepItem, quantity: 1, price: 50 },
+          ],
+          quantity: 3,
+          total_price: 250,
+          status: "Pending",
+          expected_delivery_date: new Date(Date.now() + 7 * 864e5).toISOString(),
+          order_date: new Date().toISOString(),
+          shipping_address: {
+            address_1: "1 St",
+            city: "NY",
+            postal_code: "10001",
+            country_code: "US",
+          },
+          stock_location_id: loc.data.stock_location.id,
+          to_stock_location_id: loc.data.stock_location.id,
+          from_stock_location_id: src.data.stock_location.id,
+          is_sample: false,
+        },
+        adminHeaders
+      )
+      expect(orderRes.status).toBe(201)
+      const varOrderId = orderRes.data.inventoryOrder.id
+      const lines = orderRes.data.inventoryOrder.orderlines
+
+      /**
+       * Find the variant-backed line by its LINK, not by array position: the
+       * create path resolves a variant to an inventory item before writing, so
+       * both lines come back item-backed and look alike from the order's side.
+       * If this finds nothing the link was never written and the rest of the
+       * test would pass vacuously.
+       */
+      let variantLine: any = null
+      for (const l of lines) {
+        const rows = await variantLinkRows(l.id)
+        if (rows.length > 0) {
+          variantLine = l
+          break
+        }
+      }
+      expect(variantLine).not.toBeNull()
+      const keptLine = lines.find((l: any) => l.id !== variantLine.id)
+
+      const before = await variantLinkRows(variantLine.id)
+      expect(before.every((r) => r.deleted_at === null)).toBe(true)
+
+      const removed = await api.put(
+        `/admin/inventory-orders/${varOrderId}/order-lines`,
+        {
+          order_lines: [
+            { id: variantLine.id, remove: true },
+            // An UPDATE to an existing line must still name its item — the
+            // admin schema exempts only removal markers from that rule.
+            { id: keptLine.id, inventory_item_id: keepItem, quantity: 1, price: 50 },
+          ],
+        },
+        adminHeaders
+      )
+      expect(removed.status).toBe(200)
+
+      // The line is gone …
+      const after = await fetchLegacyLines(varOrderId)
+      expect(
+        after.orderlines.find((l: any) => l.id === variantLine.id)
+      ).toBeUndefined()
+
+      // … and its variant link with it.
+      const links = await variantLinkRows(variantLine.id)
+      expect(links.every((r) => r.deleted_at !== null)).toBe(true)
+    })
+
     it("a foreign partner cannot stage edits on another partner's order (404, no leak)", async () => {
       const res = await api
         .put(
