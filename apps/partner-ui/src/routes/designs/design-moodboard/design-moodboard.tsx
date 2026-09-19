@@ -9,11 +9,16 @@ import { Excalidraw } from "@excalidraw/excalidraw"
 import type { ExcalidrawElement } from "@excalidraw/excalidraw/element/types"
 import type { BinaryFileData, ExcalidrawImperativeAPI } from "@excalidraw/excalidraw/types"
 import { normalizeMoodboardScene } from "../../../lib/moodboard-scene"
+import {
+  BoardSwitcher,
+  type BoardOption,
+} from "../../../components/moodboard/board-switcher"
 
 
 import { RouteFocusModal } from "../../../components/modals"
 import {
   usePartnerDesign,
+  usePartnerDesignMoodboards,
   useGenerateMoodboard,
   useMoodboardBlocks,
   useInsertMoodboardBlock,
@@ -228,6 +233,17 @@ export const DesignMoodboard = () => {
 
   const { design, isPending, isError, error } = usePartnerDesign(id || "")
 
+  /**
+   * #2017 — a design has one board per OWNER now. `own` is this partner's and
+   * editable; `others` are the admin's and any other partner's, read-only.
+   */
+  const {
+    own: ownBoard,
+    others: otherBoards,
+    usedLegacyFallback,
+  } = usePartnerDesignMoodboards(id || "", { enabled: !!id })
+  const [selectedBoardId, setSelectedBoardId] = useState<string | null>(null)
+
   const { mutateAsync: generateMoodboard, isPending: isGenerating } =
     useGenerateMoodboard(id || "")
   const { data: blocksData } = useMoodboardBlocks(id || "")
@@ -243,7 +259,40 @@ export const DesignMoodboard = () => {
     throw error
   }
 
-  const moodboard = useMemo(() => normalizeMoodboardScene<ExcalidrawElement, BinaryFileData>((design as any)?.moodboard), [design])
+  const allBoards = useMemo<BoardOption[]>(
+    () => [...(ownBoard ? [ownBoard] : []), ...(otherBoards ?? [])],
+    [ownBoard, otherBoards]
+  )
+  /** Default to your own board; fall back to the first available one. */
+  const activeBoard = useMemo(
+    () =>
+      allBoards.find((b) => b.id === selectedBoardId) ?? ownBoard ?? allBoards[0] ?? null,
+    [allBoards, selectedBoardId, ownBoard]
+  )
+  /**
+   * 🔴 READ-ONLY when the board is not yours. Editing someone else's board is
+   * exactly what #2017 removed at the database — letting the canvas stay
+   * editable would put the same mistake back one layer up, with the save
+   * silently landing on YOUR board instead and the partner believing they had
+   * corrected ours.
+   *
+   * `is_own` comes from the server, not from comparing ids here: the surface
+   * that decides who may write is the one that must answer this.
+   */
+  const isReadOnly = !!activeBoard && !activeBoard.is_own
+
+  /**
+   * The scene to render. Prefer the selected board's; fall back to the legacy
+   * `design.moodboard` column so a design whose rows have not been created yet
+   * still opens on its content rather than a blank canvas.
+   */
+  const moodboard = useMemo(
+    () =>
+      normalizeMoodboardScene<ExcalidrawElement, BinaryFileData>(
+        activeBoard?.scene ?? (design as any)?.moodboard
+      ),
+    [activeBoard, design]
+  )
 
   useEffect(() => {
     if (!apiRef.current) {
@@ -304,7 +353,13 @@ export const DesignMoodboard = () => {
   // "Generate from brief" click. Runs once; the server only fills an empty board
   // (merge-not-clobber) and is no-throw, so there's nothing to undo or toast.
   useEffect(() => {
-    if (didSeedRef.current || !id || isPending) {
+    /**
+     * 🔴 Never seed a board that is not yours (#2017). Seeding writes, and the
+     * write lands on YOUR row — so on an empty admin board this would silently
+     * mint a partner board the viewer never asked for, out of the brief,
+     * while they believed they were looking at ours.
+     */
+    if (didSeedRef.current || !id || isPending || isReadOnly) {
       return
     }
     const els = moodboard?.elements
@@ -341,7 +396,7 @@ export const DesignMoodboard = () => {
         // best-effort — auto-seed never blocks editing
       }
     })()
-  }, [id, isPending, moodboard, seedMoodboard, loadScene, t])
+  }, [id, isPending, isReadOnly, moodboard, seedMoodboard, loadScene, t])
 
   const handleGenerate = useCallback(async () => {
     if (!id) {
@@ -530,6 +585,15 @@ export const DesignMoodboard = () => {
         <RouteFocusModal.Description className="sr-only">
           {t("partner.designs.moodboard.heading")}
         </RouteFocusModal.Description>
+        <div className="ml-4">
+          <BoardSwitcher
+            own={ownBoard}
+            others={otherBoards ?? []}
+            selectedId={activeBoard?.id}
+            onSelect={(b) => setSelectedBoardId(b.id)}
+            usedLegacyFallback={usedLegacyFallback}
+          />
+        </div>
       </RouteFocusModal.Header>
 
       <RouteFocusModal.Body>
@@ -577,7 +641,7 @@ export const DesignMoodboard = () => {
                   appState: { ...(base.appState || {}), theme },
                 }
               })()}
-              viewModeEnabled={false}
+              viewModeEnabled={isReadOnly}
               onChange={handleChange}
               UIOptions={{
                 canvasActions: {
@@ -601,7 +665,7 @@ export const DesignMoodboard = () => {
                   <Button
                     size="small"
                     variant="secondary"
-                    disabled={!id || isSaving || isInserting}
+                    disabled={!id || isReadOnly || isSaving || isInserting}
                     isLoading={isInserting}
                   >
                     {t("partner.designs.moodboard.insertBlock")}
@@ -642,7 +706,7 @@ export const DesignMoodboard = () => {
                 size="small"
                 variant="secondary"
                 onClick={() => setConstructionOpen(true)}
-                disabled={!id || isSaving}
+                disabled={!id || isReadOnly || isSaving}
               >
                 {t("partner.designs.moodboard.addConstruction")}
               </Button>
@@ -650,7 +714,7 @@ export const DesignMoodboard = () => {
                 size="small"
                 variant="secondary"
                 onClick={handleGenerate}
-                disabled={!id || isGenerating || isSaving}
+                disabled={!id || isReadOnly || isGenerating || isSaving}
                 isLoading={isGenerating}
               >
                 {t("partner.designs.moodboard.generate")}
@@ -667,7 +731,7 @@ export const DesignMoodboard = () => {
                 size="small"
                 variant="primary"
                 onClick={handleSave}
-                disabled={!id || isSaving || !isDirty}
+                disabled={!id || isReadOnly || isSaving || !isDirty}
                 isLoading={isSaving}
               >
                 {isDirty
