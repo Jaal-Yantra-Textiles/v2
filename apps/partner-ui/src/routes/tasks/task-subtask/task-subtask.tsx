@@ -3,6 +3,7 @@ import { useMemo, useState } from "react"
 import { useParams } from "react-router-dom"
 
 import { SectionRow } from "../../../components/common/section"
+import { Skeleton } from "../../../components/common/skeleton"
 import { RouteDrawer, useRouteModal } from "../../../components/modals"
 import {
   useAddPartnerAssignedTaskComment,
@@ -238,9 +239,11 @@ const TaskSubtaskContent = () => {
             <Heading level="h2">Comments</Heading>
 
             {isCommentsPending ? (
-              <Text size="small" className="text-ui-fg-subtle">
-                Loading comments...
-              </Text>
+              <div className="flex flex-col gap-y-2">
+                <Skeleton className="h-4 w-32" />
+                <Skeleton className="h-4 w-full" />
+                <Skeleton className="h-4 w-3/4" />
+              </div>
             ) : comments?.length ? (
               <div className="mt-3 flex flex-col gap-y-3">
                 {comments.map((c) => (

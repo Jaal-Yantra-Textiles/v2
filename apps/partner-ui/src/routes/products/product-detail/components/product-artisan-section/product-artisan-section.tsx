@@ -16,6 +16,7 @@ import {
   useArtisanProductDetail,
   useUpsertArtisanProductDetail,
 } from "../../../../../hooks/api/products"
+import { Skeleton } from "../../../../../components/common/skeleton"
 import { usePartnerOnboardingProfile } from "../../../../../hooks/api/onboarding-profile"
 
 type Props = {
@@ -110,6 +111,18 @@ export const ProductArtisanSection = ({ product }: Props) => {
         <Heading level="h2">Made-to-order & maker story</Heading>
       </div>
 
+      {isLoading ? (
+        <div className="flex flex-col gap-y-2 px-6 py-4">
+          <Skeleton className="h-4 w-40" />
+          <Skeleton className="h-9 w-full rounded-md" />
+          <Skeleton className="h-9 w-full rounded-md" />
+          <Skeleton className="h-9 w-full rounded-md" />
+          <Skeleton className="h-24 w-full rounded-md" />
+          <div className="flex justify-end">
+            <Skeleton className="h-8 w-16 rounded-md" />
+          </div>
+        </div>
+      ) : (
       <div className="flex flex-col gap-y-4 px-6 py-4">
         <div className="flex items-center justify-between">
           <div className="flex flex-col">
@@ -204,6 +217,7 @@ export const ProductArtisanSection = ({ product }: Props) => {
           </Button>
         </div>
       </div>
+      )}
     </Container>
   )
 }
