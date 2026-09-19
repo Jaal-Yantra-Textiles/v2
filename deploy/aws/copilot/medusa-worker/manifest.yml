@@ -173,6 +173,10 @@ secrets:
   S3_PREFIX: /jyt/prod/S3_PREFIX
   S3_REGION: /jyt/prod/S3_REGION
   S3_SECRET_ACCESS_KEY: /jyt/prod/S3_SECRET_ACCESS_KEY
+  # 🔴 The buyer-facing SHOP host. The worker runs the delivery subscriber that
+  # builds the post-delivery feedback link, and it carries NEITHER STORE_URL nor
+  # FRONTEND_URL today, so that link resolves to "" here.
+  STORE_URL: /jyt/prod/STORE_URL
   SENTRY_DSN: /jyt/prod/SENTRY_DSN
   # Shiprocket fulfillment provider (#436) — parity with the server so the
   # env-gated provider block in medusa-config.prod.ts loads in the worker too.
