@@ -291,7 +291,7 @@ export const updateOrderLinesStep = createStep(
 
     const created: Array<{ id: string; inventory_item_id?: string; variant_id?: string | null }> = [];
     const updated: Array<{ id: string; prevQuantity: number; prevPrice: any; prevExtraCost: any }> = [];
-    const removed: Array<{ id: string; inventory_item_id?: string; quantity: number; price: any }> = [];
+    const removed: Array<{ id: string; inventory_item_id?: string; variant_id?: string; quantity: number; price: any }> = [];
 
     /**
      * 🔴 #2157 — resolve the removed line's inventory item from the LINK, not
@@ -317,18 +317,43 @@ export const updateOrderLinesStep = createStep(
       .filter((l) => l.remove && l.id)
       .map((l) => l.id!);
     const linkedItemByLineId = new Map<string, string>();
+    /**
+     * 🔴 #2159 — the VARIANT link too.
+     *
+     * A line may be placed by naming a partner's product variant rather than
+     * an inventory item (#1873), and `create-inventory-orders.ts` writes that
+     * link. This loop never dismissed it — not on the wrong condition, as with
+     * the item link: it had no branch for it at all. The only place it was ever
+     * dismissed is the compensation for lines this step CREATED, so a removed
+     * line left its variant link live, pointing at a soft-deleted row.
+     *
+     * That link is what lets an order say which product a line was for, which
+     * is the whole reason #1873 exists.
+     */
+    const linkedVariantByLineId = new Map<string, string>();
     if (removalLineIds.length) {
       try {
         const query: any = container.resolve(ContainerRegistrationKeys.QUERY);
         const { data: rows } = await query.graph({
           entity: "inventory_orders",
-          fields: ["id", "orderlines.id", "orderlines.inventory_items.id"],
+          fields: [
+            "id",
+            "orderlines.id",
+            "orderlines.inventory_items.id",
+            "orderlines.product_variant.id",
+          ],
           filters: { id: input.order_id },
         });
         for (const ol of (rows?.[0]?.orderlines ?? []) as any[]) {
           const itemId = (ol?.inventory_items ?? [])[0]?.id;
           if (ol?.id && itemId) {
             linkedItemByLineId.set(String(ol.id), String(itemId));
+          }
+          // `isList: false` on the product side, so this is one object, not an
+          // array. A line has at most one variant.
+          const variantId = ol?.product_variant?.id;
+          if (ol?.id && variantId) {
+            linkedVariantByLineId.set(String(ol.id), String(variantId));
           }
         }
       } catch (err) {
@@ -346,6 +371,8 @@ export const updateOrderLinesStep = createStep(
       const prev = byId.get(line.id!);
       const linkedItemId =
         line.inventory_item_id ?? linkedItemByLineId.get(String(line.id));
+      const linkedVariantId =
+        line.variant_id ?? linkedVariantByLineId.get(String(line.id));
       // Soft delete orderline
       await inventoryOrderService.softDeleteOrderLines(line.id!);
       // Dismiss link between orderline and inventory_item
@@ -359,12 +386,24 @@ export const updateOrderLinesStep = createStep(
           }
         });
       }
+      // …and between orderline and product_variant (#1873, #2159).
+      if (linkedVariantId) {
+        await remoteLink.dismiss({
+          [ORDER_INVENTORY_MODULE]: {
+            inventory_order_line_id: line.id!
+          },
+          [Modules.PRODUCT]: {
+            product_variant_id: linkedVariantId
+          }
+        });
+      }
       removed.push({
         // Carries the RESOLVED id, so the compensation's relink
         // (`if (r.inventory_item_id)`) can restore what this step dismissed.
         // It was reading the same absent payload field and restoring nothing.
         id: line.id!,
         inventory_item_id: linkedItemId,
+        variant_id: linkedVariantId,
         quantity: prev?.quantity,
         price: prev?.price,
       });
@@ -451,7 +490,7 @@ export const updateOrderLinesStep = createStep(
     compensationData: {
       created: Array<{ id: string; inventory_item_id?: string; variant_id?: string | null }>;
       updated: Array<{ id: string; prevQuantity: number; prevPrice: any; prevExtraCost: any }>;
-      removed: Array<{ id: string; inventory_item_id?: string; quantity: number; price: any }>;
+      removed: Array<{ id: string; inventory_item_id?: string; variant_id?: string; quantity: number; price: any }>;
       order_id: string;
     },
     { container }
@@ -493,6 +532,15 @@ export const updateOrderLinesStep = createStep(
           [ORDER_INVENTORY_MODULE]: { inventory_order_line_id: r.id },
           [Modules.INVENTORY]: { inventory_item_id: r.inventory_item_id },
           data: { order_line_id: r.id, inventory_item_id: r.inventory_item_id },
+        });
+      }
+      // A restored line gets its variant back too, or the rollback is partial:
+      // the line returns and the order can no longer say what product it is
+      // for (#2159).
+      if (r.variant_id) {
+        await remoteLink.create({
+          [ORDER_INVENTORY_MODULE]: { inventory_order_line_id: r.id },
+          [Modules.PRODUCT]: { product_variant_id: r.variant_id },
         });
       }
     }
