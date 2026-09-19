@@ -108,6 +108,55 @@ export interface InventoryOrderQuery {
   fields?: string[];
 }
 
+/**
+ * The APPLIED non-goods amounts on an inventory order (#1737).
+ *
+ * `totals` and `payable_ceiling` are folded SERVER-SIDE by the same pure lib
+ * that backs the payable guard, and each row carries its own `direction`, so
+ * this screen never re-derives whether a type raises or lowers what we owe.
+ */
+export type AdminInventoryOrderCharge = {
+  id: string;
+  type: string;
+  amount: number;
+  note?: string | null;
+  /** `1` raises, `-1` lowers, `0` a type the backend does not understand. */
+  direction: 1 | -1 | 0;
+};
+
+export type AdminInventoryOrderChargesResponse = {
+  charges: AdminInventoryOrderCharge[];
+  totals: { raises: number; lowers: number; net: number };
+  goods_total: number;
+  payable_ceiling: number;
+};
+
+export const useInventoryOrderCharges = (
+  id: string,
+  options?: Omit<
+    UseQueryOptions<
+      AdminInventoryOrderChargesResponse,
+      FetchError,
+      AdminInventoryOrderChargesResponse,
+      QueryKey
+    >,
+    "queryFn" | "queryKey"
+  >,
+) => {
+  const { data, ...rest } = useQuery({
+    queryKey: [...inventoryOrderQueryKeys.detail(id), "charges"],
+    queryFn: async () =>
+      sdk.client.fetch<AdminInventoryOrderChargesResponse>(
+        `/admin/inventory-orders/${id}/charges`,
+        { method: "GET" },
+      ),
+    enabled: !!id,
+    ...options,
+  });
+
+  return { ...data, ...rest };
+};
+
 export const useInventoryOrder = (
   id: string,
   query?: InventoryOrderQuery,

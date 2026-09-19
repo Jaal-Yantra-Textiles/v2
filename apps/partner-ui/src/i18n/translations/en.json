@@ -3449,6 +3449,14 @@
       "amount": "Amount",
       "totalQuantity": "Total quantity",
       "total": "Total",
+      "goodsTotal": "Goods",
+      "payableCeiling": "Payable ceiling",
+      "charge": {
+        "tax": "Tax",
+        "shipping": "Packing & shipping",
+        "discount": "Discount",
+        "adjustment": "Adjustment"
+      },
       "producing": "Producing",
       "start": "Start",
       "complete": "Complete",

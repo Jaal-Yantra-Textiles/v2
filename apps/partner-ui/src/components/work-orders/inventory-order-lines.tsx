@@ -37,13 +37,67 @@ export const InventoryOrderLines = ({
   orderLines,
   currencyCode,
   totalPrice,
+  charges,
+  payableCeiling,
 }: {
   orderLines: Array<Record<string, any>>
   currencyCode?: string
   totalPrice?: number | null
+  /**
+   * APPLIED non-goods amounts — tax, packing, a discount. Read-only here; a
+   * partner proposes a tax elsewhere and an admin decides whether it lands.
+   */
+  charges?: Array<Record<string, any>> | null
+  /**
+   * `goods + raises - lowers`, computed SERVER-SIDE by `orderPayableCeiling`.
+   * Never re-derived in the browser: the same lib backs the write guard, and a
+   * second implementation here is how the screen starts quoting a figure the
+   * guard rejects.
+   */
+  payableCeiling?: number | null
 }) => {
   const { t } = useTranslation()
   const [expanded, setExpanded] = useState(false)
+
+  /**
+   * Only charges that actually moved money. A type the BACKEND did not
+   * recognise arrives as `direction: 0` and is dropped rather than guessed —
+   * rendering it as a raise would invent an obligation on the partner's screen.
+   */
+  const appliedCharges = useMemo(
+    () =>
+      (Array.isArray(charges) ? charges : []).filter(
+        (c) => Number(c?.direction) !== 0 && Number(c?.amount)
+      ),
+    [charges]
+  )
+
+  const signOf = (charge: Record<string, any>) => Number(charge?.direction) || 1
+
+  /**
+   * The supplier's own note first — it names the invoice the charge came from
+   * ("IGST @ 5% — GOF invoice GOF/2026-27/007") and beats any generic label.
+   *
+   * ⚠️ LITERAL translation keys, not an interpolated one: the key type is a
+   * union of every known key, so a template string resolves to `unknown` and
+   * cannot be rendered. Falls back to the raw type for anything unlisted.
+   */
+  const chargeLabel = (charge: Record<string, any>): string => {
+    const note = String(charge?.note ?? "").trim()
+    if (note) return note
+    switch (String(charge?.type ?? "")) {
+      case "tax":
+        return t("partner.workOrders.charge.tax", "Tax")
+      case "shipping":
+        return t("partner.workOrders.charge.shipping", "Packing & shipping")
+      case "discount":
+        return t("partner.workOrders.charge.discount", "Discount")
+      case "adjustment":
+        return t("partner.workOrders.charge.adjustment", "Adjustment")
+      default:
+        return String(charge?.type ?? "")
+    }
+  }
 
   // Deterministic order: by creation time, then id — so rows don't jump around.
   const lines = useMemo(
@@ -199,11 +253,45 @@ export const InventoryOrderLines = ({
         </div>
         {totalPrice != null && (
           <div className="flex items-center justify-between">
+            <Text size="small" weight={appliedCharges.length ? undefined : "plus"}>
+              {appliedCharges.length
+                ? t("partner.workOrders.goodsTotal", "Goods")
+                : t("partner.workOrders.total")}
+            </Text>
+            <Text size="small" weight={appliedCharges.length ? undefined : "plus"}>
+              {totalMoney(Number(totalPrice))}
+            </Text>
+          </div>
+        )}
+
+        {/*
+          #1737 — the applied charges, one row each. This surface was
+          write-only: a partner could propose a tax and never see what was
+          applied, because the figure only ever rendered in the pending-change
+          banner and vanished on approval.
+        */}
+        {appliedCharges.map((charge) => (
+          <div
+            key={String(charge?.id)}
+            className="text-ui-fg-subtle flex items-center justify-between"
+          >
+            <Text size="small">
+              {chargeLabel(charge)}
+            </Text>
+            <Text size="small">
+              {signOf(charge) < 0 ? "-" : ""}
+              {totalMoney(Math.abs(Number(charge?.amount) || 0))}
+            </Text>
+          </div>
+        ))}
+
+        {payableCeiling != null && appliedCharges.length > 0 && (
+          <div className="border-ui-border-base flex items-center justify-between border-t pt-2">
             <Text size="small" weight="plus">
-              {t("partner.workOrders.total")}
+              {t("partner.workOrders.payableCeiling", "Payable ceiling")}
             </Text>
             <Text size="small" weight="plus">
-              {totalMoney(Number(totalPrice))}
+              {totalMoney(Number(payableCeiling))}
             </Text>
           </div>
         )}

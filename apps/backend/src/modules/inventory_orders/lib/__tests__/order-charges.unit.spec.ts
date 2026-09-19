@@ -1,4 +1,5 @@
 import {
+  chargeDirection,
   foldOrderCharges,
   orderPayableCeiling,
 } from "../order-charges"
@@ -101,5 +102,50 @@ describe("orderPayableCeiling", () => {
     expect(
       orderPayableCeiling({ total_price: 0.1 }, [{ type: "tax", amount: 0.2 }])
     ).toBe(0.3)
+  })
+})
+
+/**
+ * The direction rule, exported so a UI can sign a row without owning it.
+ *
+ * 🔴 These exist because the partner and admin screens now render a charge each.
+ * If either kept its own RAISES/LOWERS set, a write-off would eventually show
+ * as an amount owed on one of them. The screens ask; this decides.
+ */
+describe("chargeDirection", () => {
+  it("raises for tax and shipping", () => {
+    expect(chargeDirection({ type: "tax", amount: 2800 })).toBe(1)
+    expect(chargeDirection({ type: "shipping", amount: 60 })).toBe(1)
+  })
+
+  it("lowers for discount and adjustment", () => {
+    expect(chargeDirection({ type: "discount", amount: 829 })).toBe(-1)
+    expect(chargeDirection({ type: "adjustment", amount: 12 })).toBe(-1)
+  })
+
+  it("returns 0 for a type it does not understand, rather than guessing up", () => {
+    expect(chargeDirection({ type: "surcharge", amount: 100 })).toBe(0)
+    expect(chargeDirection({ type: "", amount: 100 })).toBe(0)
+    expect(chargeDirection(null)).toBe(0)
+    expect(chargeDirection(undefined)).toBe(0)
+  })
+
+  it("agrees with foldOrderCharges on every known type", () => {
+    // Guard against the two drifting: one set, two readers.
+    for (const type of ["tax", "shipping"]) {
+      expect(foldOrderCharges([{ type, amount: 10 }]).raises).toBe(10)
+      expect(chargeDirection({ type, amount: 10 })).toBe(1)
+    }
+    for (const type of ["discount", "adjustment"]) {
+      expect(foldOrderCharges([{ type, amount: 10 }]).lowers).toBe(10)
+      expect(chargeDirection({ type, amount: 10 })).toBe(-1)
+    }
+    // An unknown type is counted in NEITHER direction by both.
+    expect(foldOrderCharges([{ type: "surcharge", amount: 10 }])).toEqual({
+      raises: 0,
+      lowers: 0,
+      net: 0,
+    })
+    expect(chargeDirection({ type: "surcharge", amount: 10 })).toBe(0)
   })
 })

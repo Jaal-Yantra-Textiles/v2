@@ -12936,6 +12936,35 @@
             "total": {
               "type": "string"
             },
+            "goodsTotal": {
+              "type": "string"
+            },
+            "payableCeiling": {
+              "type": "string"
+            },
+            "charge": {
+              "type": "object",
+              "properties": {
+                "tax": {
+                  "type": "string"
+                },
+                "shipping": {
+                  "type": "string"
+                },
+                "discount": {
+                  "type": "string"
+                },
+                "adjustment": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "tax",
+                "shipping",
+                "discount",
+                "adjustment"
+              ]
+            },
             "producing": {
               "type": "string"
             },
@@ -13196,6 +13225,9 @@
             "amount",
             "totalQuantity",
             "total",
+            "goodsTotal",
+            "payableCeiling",
+            "charge",
             "producing",
             "start",
             "complete",

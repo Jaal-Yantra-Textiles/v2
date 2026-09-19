@@ -28,6 +28,24 @@ export type OrderCharge = {
 const RAISES = new Set<string>(["tax", "shipping"])
 const LOWERS = new Set<string>(["discount", "adjustment"])
 
+/**
+ * PURE: which way one charge moves what we owe — `1` raises, `-1` lowers, `0`
+ * for a type this code does not understand.
+ *
+ * 🔑 Exported so a UI can render a discount with a minus sign WITHOUT keeping
+ * its own copy of the RAISES/LOWERS sets. Two copies of the direction rule,
+ * one of them in a browser, is how a screen ends up showing a write-off as an
+ * amount owed. The screen asks; it does not decide.
+ */
+export const chargeDirection = (
+  charge: OrderCharge | null | undefined
+): 1 | -1 | 0 => {
+  const type = String(charge?.type ?? "")
+  if (RAISES.has(type)) return 1
+  if (LOWERS.has(type)) return -1
+  return 0
+}
+
 const num = (value: unknown): number => {
   const parsed = Number(value ?? 0)
   return Number.isFinite(parsed) ? parsed : 0
