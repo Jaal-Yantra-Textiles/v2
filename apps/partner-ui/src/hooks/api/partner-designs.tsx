@@ -518,10 +518,71 @@ export const useSaveMoodboard = (
     },
     onSuccess: async (data, variables, onMutateResult, context) => {
       await queryClient.invalidateQueries({ queryKey: partnerDesignsQueryKeys.detail(id) })
+      // #2017 — the save now targets a BOARD ROW, so the boards list is what
+      // goes stale. Without this the switcher keeps showing the scene the
+      // partner has just replaced.
+      await queryClient.invalidateQueries({ queryKey: partnerMoodboardsKey(id) })
       options?.onSuccess?.(data, variables, onMutateResult, context)
     },
     ...options,
   })
+}
+
+// ── Per-owner moodboards (#2017) ────────────────────────────────────────────
+
+/**
+ * One board, as the boards route presents it.
+ *
+ * `is_own` is the whole point: a partner edits theirs and views everyone
+ * else's. `is_legacy` marks the pre-#2017 `design.moodboard` blob, shown when
+ * a design has no board rows at all so an unmigrated design does not read as
+ * empty — it is never the viewer's own to edit.
+ */
+export type PartnerMoodboard = {
+  id: string
+  owner_type: "core" | "partner" | string
+  partner_id?: string | null
+  title?: string | null
+  scene?: MoodboardScene | null
+  thumbnail_url?: string | null
+  updated_at?: string | null
+  is_own: boolean
+  is_legacy: boolean
+}
+
+export type PartnerMoodboardsResponse = {
+  own: PartnerMoodboard | null
+  others: PartnerMoodboard[]
+  usedLegacyFallback: boolean
+}
+
+export const partnerMoodboardsKey = (designId: string) => [
+  ...partnerDesignsQueryKeys.detail(designId),
+  "moodboards",
+]
+
+export const usePartnerDesignMoodboards = (
+  designId: string,
+  options?: Omit<
+    UseQueryOptions<
+      PartnerMoodboardsResponse,
+      FetchError,
+      PartnerMoodboardsResponse,
+      QueryKey
+    >,
+    "queryKey" | "queryFn"
+  >
+) => {
+  const { data, ...rest } = useQuery({
+    queryKey: partnerMoodboardsKey(designId),
+    queryFn: async () =>
+      sdk.client.fetch<PartnerMoodboardsResponse>(
+        `/partners/designs/${designId}/moodboards`
+      ),
+    enabled: !!designId,
+    ...options,
+  })
+  return { ...(data ?? { own: null, others: [], usedLegacyFallback: false }), ...rest }
 }
 
 /** #1113 S3 — the subset of brief columns the moodboard cards round-trip to. */
