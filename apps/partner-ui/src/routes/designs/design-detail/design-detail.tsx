@@ -20,6 +20,7 @@ import {
 } from "../../../hooks/api/partner-designs"
 import { DesignMediaSection } from "./components/design-media-section"
 import { DesignMoodboardSection } from "./components/design-moodboard-section"
+import { DesignSpecificationsSection } from "./components/design-specifications-section"
 import { DesignConsumptionLogsSection } from "./components/design-consumption-logs-section"
 import { DesignProductionSection } from "./components/design-production-section"
 import { DesignOwnerActionsSection } from "./components/design-owner-actions-section"
@@ -268,26 +269,7 @@ export const DesignDetail = ({ designId }: DesignDetailProps = {}) => {
   // ({ size_label, measurements }); fall back to the legacy `custom_sizes` map
   // ({ "S": { chest, length }, ... }). The design that comes with an order carries
   // its sizes on `size_sets`, so this is what the partner needs to see.
-  const sizeSets = (design as any)?.size_sets as
-    | Array<{ size_label?: string; measurements?: any }>
-    | undefined
-  const customSizes = (design as any)?.custom_sizes as Record<string, any> | undefined
-  const sizes = useMemo<Array<{ label: string; measurements: any }>>(() => {
-    if (Array.isArray(sizeSets) && sizeSets.length > 0) {
-      return sizeSets
-        .filter((s) => s?.size_label)
-        .map((s) => ({ label: String(s.size_label), measurements: s?.measurements }))
-    }
-    if (customSizes && typeof customSizes === "object") {
-      return Object.entries(customSizes).map(([label, measurements]) => ({
-        label,
-        measurements,
-      }))
-    }
-    return []
-  }, [sizeSets, customSizes])
-  // Color palette
-  const colorPalette = (design as any)?.color_palette as any[] | Record<string, any> | undefined
+  // Sizes, tags and the colour palette now live in DesignSpecificationsSection.
   // Description
   const description = (design as any)?.description
 
@@ -446,77 +428,7 @@ export const DesignDetail = ({ designId }: DesignDetailProps = {}) => {
           </Container>
         )}
 
-        {/* Tags, Sizes & Colors */}
-        {(Array.isArray((design as any)?.tags) && (design as any).tags.length > 0) ||
-         customSizes ||
-         colorPalette ? (
-          <Container className="divide-y p-0">
-            <div className="px-6 py-4">
-              <Heading level="h2">{t("partner.designs.detail.specifications")}</Heading>
-            </div>
-            {Array.isArray((design as any)?.tags) && (design as any).tags.length > 0 && (
-              <div className="px-6 py-4">
-                <Text size="xsmall" weight="plus" className="text-ui-fg-subtle mb-2">{t("partner.designs.detail.tags")}</Text>
-                <div className="flex flex-wrap gap-1.5">
-                  {((design as any).tags as string[]).map((tag, i) => (
-                    <Badge key={i} size="2xsmall" color="grey">{String(tag)}</Badge>
-                  ))}
-                </div>
-              </div>
-            )}
-            {sizes.length > 0 && (
-              <div className="px-6 py-4">
-                <div className="flex items-center gap-x-2 mb-2">
-                  <Text size="xsmall" weight="plus" className="text-ui-fg-base">{t("partner.designs.sizes")}</Text>
-                  <Badge size="2xsmall" color="blue">{sizes.length}</Badge>
-                </div>
-                {/* Highlighted so the sizes that come with this design stand out to the partner. */}
-                <div className="flex flex-col gap-y-2 rounded-lg bg-ui-bg-highlight p-3">
-                  {sizes.map(({ label, measurements }) => (
-                    <div key={label} className="flex items-start gap-x-3">
-                      <Badge size="2xsmall" color="blue" className="mt-0.5 shrink-0">
-                        {label}
-                      </Badge>
-                      {measurements && typeof measurements === "object" ? (
-                        <div className="flex flex-wrap gap-x-3 gap-y-1">
-                          {Object.entries(measurements as Record<string, any>).map(([key, val]) => (
-                            <Text key={key} size="xsmall" className="text-ui-fg-subtle">
-                              {key}: {val != null ? String(val) : "-"}
-                            </Text>
-                          ))}
-                        </div>
-                      ) : measurements != null ? (
-                        <Text size="xsmall" className="text-ui-fg-subtle">
-                          {String(measurements)}
-                        </Text>
-                      ) : null}
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-            {colorPalette && (
-              <div className="px-6 py-4">
-                <Text size="xsmall" weight="plus" className="text-ui-fg-subtle mb-2">{t("partner.designs.detail.colorPalette")}</Text>
-                <div className="flex flex-wrap gap-2">
-                  {(Array.isArray(colorPalette) ? colorPalette : Object.entries(colorPalette).map(([k, v]) => ({ name: k, value: v }))).map((color: any, i: number) => {
-                    const colorValue = typeof color === "string" ? color : color?.hex || color?.value || color?.code || String(color?.name || color)
-                    const colorName = typeof color === "string" ? color : color?.name || colorValue
-                    return (
-                      <div key={i} className="flex items-center gap-x-1.5">
-                        <div
-                          className="h-4 w-4 rounded-full border border-ui-border-base"
-                          style={{ backgroundColor: colorValue }}
-                        />
-                        <Text size="xsmall">{colorName}</Text>
-                      </div>
-                    )
-                  })}
-                </div>
-              </div>
-            )}
-          </Container>
-        ) : null}
+        {design && <DesignSpecificationsSection design={design} />}
 
         {/* Production & Material Usage — highest priority for partners */}
         {design && <DesignInventoryBomSection design={design} />}

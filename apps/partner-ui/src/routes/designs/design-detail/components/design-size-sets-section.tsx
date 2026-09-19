@@ -2,6 +2,8 @@ import { Badge, Container, Heading, Text } from "@medusajs/ui"
 import { useMemo } from "react"
 import { useTranslation } from "react-i18next"
 
+import { deriveDesignSizes } from "../../../../lib/design-spec"
+
 /**
  * #3 — read-only sizes panel for a design, shared by the standalone design page
  * and the order → production-run design manager (single + collated).
@@ -18,25 +20,17 @@ import { useTranslation } from "react-i18next"
 export const DesignSizeSetsSection = ({ design }: { design: any }) => {
   const { t } = useTranslation()
 
-  const sizeSets = design?.size_sets as
-    | Array<{ size_label?: string; measurements?: any }>
-    | undefined
-  const customSizes = design?.custom_sizes as Record<string, any> | undefined
-
-  const sizes = useMemo<Array<{ label: string; measurements: any }>>(() => {
-    if (Array.isArray(sizeSets) && sizeSets.length > 0) {
-      return sizeSets
-        .filter((s) => s?.size_label)
-        .map((s) => ({ label: String(s.size_label), measurements: s?.measurements }))
-    }
-    if (customSizes && typeof customSizes === "object") {
-      return Object.entries(customSizes).map(([label, measurements]) => ({
-        label,
-        measurements,
-      }))
-    }
-    return []
-  }, [sizeSets, customSizes])
+  /**
+   * #2019 — one derivation, not three. This exact block also lived inline in
+   * `design-detail.tsx` and again in the new specifications section; a rule
+   * with three copies is a rule that will disagree with itself. The prefer-
+   * `size_sets`-then-fall-back-to-`custom_sizes` logic, and the reason the two
+   * must never be merged, now live in `lib/design-spec.ts` with tests.
+   */
+  const sizes = useMemo(
+    () => deriveDesignSizes(design?.size_sets, design?.custom_sizes),
+    [design]
+  )
 
   if (sizes.length === 0) {
     return null
