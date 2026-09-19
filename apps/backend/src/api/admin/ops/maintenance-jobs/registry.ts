@@ -105,6 +105,7 @@ import { capFreeShippingBandJob } from "./cap-free-shipping-band-job"
 import { deleteOrphanStoreJob } from "./delete-orphan-store-job"
 import { deleteOrphanWorkOrderMirrorsJob } from "./delete-orphan-work-order-mirrors-job"
 import { auditDanglingOrderLineLinksJob } from "./audit-dangling-order-line-links-job"
+import { auditMoodboardBackfillJob } from "./audit-moodboard-backfill-job"
 import { purgeAbandonedCartsJob } from "./purge-abandoned-carts-job"
 import { restoreOrphanStoreJob } from "./restore-orphan-store-job"
 import { backfillPartnerEmailVerifiedJob } from "./backfill-partner-email-verified-job"
@@ -6697,6 +6698,7 @@ export const MAINTENANCE_JOBS: MaintenanceJob[] = [
   seedPhotoshootTaskTemplatesJob,
   deleteOrphanWorkOrderMirrorsJob,
   auditDanglingOrderLineLinksJob,
+  auditMoodboardBackfillJob,
   purgeAbandonedCartsJob,
 ]
 
