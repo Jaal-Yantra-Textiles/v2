@@ -4134,7 +4134,14 @@
         "layers": "Layers",
         "save": "Save",
         "savedLabel": "Saved",
-        "footerHint": "Insert, construction, generate, layers & save are in the dock at the bottom of the canvas."
+        "footerHint": "Insert, construction, generate, layers & save are in the dock at the bottom of the canvas.",
+        "started": "Started",
+        "notStarted": "Not started",
+        "start": "Start moodboard",
+        "frames": "Frames",
+        "otherElements": "Other elements",
+        "emptyHint": "Nothing on this board yet. Opening it builds a first draft from the brief, which you can then edit.",
+        "autoSeeded": "We built a first draft from the brief — edit it and save when you're happy."
       },
       "layers": {
         "heading": "Layers",
