@@ -455,6 +455,11 @@ const OrderSection = ({
   lineItemId: string
 }) => {
   const order = designOrder.order
+  /** Same stamp the line-items section reads — one source, two sections. */
+  const cancellation = (designOrder as any).cancellation as
+    | { cancelled_at: string; cancelled_reason: string | null }
+    | null
+    | undefined
   const prompt = usePrompt()
   const { mutateAsync: convert, isPending: isConverting } =
     useConvertDesignOrder(lineItemId)
@@ -536,6 +541,40 @@ const OrderSection = ({
   }
 
   if (!order) {
+    /**
+     * 🔴 A CANCELLED design order must not offer "Convert to Paid Order".
+     *
+     * The line-items section already hides the checkout link and the reprice
+     * action once cancelled, but this section kept both convert buttons live —
+     * and converting is the most consequential of the three: it mints a REAL
+     * order, at the cancelled order's price and currency, for something we
+     * withdrew. On the order this was found on that price was in the wrong
+     * currency, which is why it was cancelled in the first place.
+     *
+     * Shown rather than hidden, so the section still explains itself instead
+     * of silently vanishing from the page.
+     */
+    if (cancellation) {
+      return (
+        <Container className="divide-y p-0">
+          <div className="px-6 py-4">
+            <Heading level="h2">Order</Heading>
+          </div>
+          <div className="px-6 py-4">
+            <Badge size="2xsmall" color="grey">Cancelled</Badge>
+            <Text size="small" className="text-ui-fg-subtle mt-2">
+              This design order was cancelled
+              {cancellation.cancelled_reason
+                ? ` — ${cancellation.cancelled_reason}`
+                : ""}
+              . It cannot be converted into a paid order. Raise a new design
+              order instead.
+            </Text>
+          </div>
+        </Container>
+      )
+    }
+
     return (
       <Container className="divide-y p-0">
         <div className="px-6 py-4">
