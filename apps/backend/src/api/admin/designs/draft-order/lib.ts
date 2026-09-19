@@ -18,6 +18,8 @@ export type CreateDesignOrderBody = {
   price_overrides?: Record<string, number>
   /** Currency of price_overrides (e.g. "inr"). Defaults to store default. */
   override_currency?: string
+  /** ISO-2 the buyer purchases from. See the validator for why it matters. */
+  country_code?: string
 }
 
 /**
@@ -46,8 +48,13 @@ export const createDesignDraftOrder = async (
   res: MedusaResponse,
   customer_id: string | null
 ) => {
-  const { design_ids, currency_code, price_overrides, override_currency } =
-    req.validatedBody as CreateDesignOrderBody
+  const {
+    design_ids,
+    currency_code,
+    price_overrides,
+    override_currency,
+    country_code,
+  } = req.validatedBody as CreateDesignOrderBody
 
   /**
    * Prevent a duplicate cart — but only for designs in a LIVE checkout.
@@ -127,6 +134,7 @@ export const createDesignDraftOrder = async (
       currency_code,
       price_overrides,
       override_currency,
+      country_code,
     },
   })
 
