@@ -351,13 +351,41 @@ async function seedQuoteRegion(container: any): Promise<{
 
   const { data: existing } = await query.graph({
     entity: "region",
-    fields: ["id", "name"],
+    fields: ["id", "name", "currency_code", "countries.iso_2"],
   })
   const found = (existing ?? []).find(
     (r: any) => r.name === "E2E Quote Region"
   )
   if (found) {
     return { id: found.id, name: found.name }
+  }
+
+  /**
+   * 🔴 Find by NAME, then by what the region actually COVERS.
+   *
+   * Name alone was not enough. A country belongs to at most one region, so on
+   * any database that already has an India region — which is every realistic
+   * one, including the platform's own — the create below failed outright:
+   *
+   *     MedusaError: Countries with codes: "in" are already assigned to a region
+   *
+   * and `pnpm e2e:seed` died before writing `.e2e-seed.json`, taking the whole
+   * e2e suite with it. The seed is supposed to be runnable on a working
+   * database, not only on an empty one.
+   *
+   * An existing INR region covering India serves this seed's purpose exactly
+   * (a quote lane priced in rupees), so it is REUSED rather than duplicated —
+   * and duplicating it is not even possible.
+   */
+  const coversIndia = (existing ?? []).find(
+    (r: any) =>
+      String(r?.currency_code ?? "").toLowerCase() === "inr" &&
+      (r?.countries ?? []).some(
+        (c: any) => String(c?.iso_2 ?? "").toLowerCase() === "in"
+      )
+  )
+  if (coversIndia) {
+    return { id: coversIndia.id, name: coversIndia.name }
   }
 
   const created = await regionService.createRegions({

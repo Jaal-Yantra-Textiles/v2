@@ -140,15 +140,50 @@ export const resolveCartCheckoutLink = async (
         // The buyer's own country decides the prefix; the region only bounds it.
         "shipping_address.country_code",
         "billing_address.country_code",
+        /**
+         * 🔴 The CUSTOMER's addresses too, because a design-order cart has
+         * none of its own.
+         *
+         * An admin creates that cart from designs; no address is collected —
+         * it is gathered at checkout. So on a multi-country region the cart
+         * named no country, the link fell back to the storefront default, and
+         * for a EUR cart that default is a DIFFERENT REGION: the buyer would
+         * land on an INR prefix holding a euro cart, which is precisely the
+         * re-regioning this file exists to prevent. Observed locally as
+         * "The cart names no region country and there is no fallback".
+         */
+        "customer.default_billing_address.country_code",
+        "customer.default_shipping_address.country_code",
+        "customer.addresses.country_code",
       ],
       filters: { id: cartId },
     })
     const row: any = data?.[0] ?? null
     if (row) {
+      /**
+       * Cart address first — it is about THIS order. The customer's stored
+       * address is the fallback, and it is read with the same preference
+       * (default billing, then default shipping, then a single address) the
+       * admin wizard uses to suggest a currency, so the link and the price
+       * cannot disagree about where the buyer is.
+       */
+      const customerCountry =
+        row?.customer?.default_billing_address?.country_code ??
+        row?.customer?.default_shipping_address?.country_code ??
+        (() => {
+          const all = (row?.customer?.addresses ?? [])
+            .map((a: any) => String(a?.country_code ?? "").trim().toLowerCase())
+            .filter(Boolean)
+          const distinct = Array.from(new Set(all))
+          // One address, or several that agree. Never `addresses[0]`.
+          return distinct.length === 1 ? distinct[0] : null
+        })()
+
       const picked = pickCheckoutCountry({
         buyerCountry:
           row?.shipping_address?.country_code ??
           row?.billing_address?.country_code ??
+          customerCountry ??
           null,
         regionCountries: (row?.region?.countries ?? []).map((c: any) => c?.iso_2),
       })
