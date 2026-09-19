@@ -892,3 +892,35 @@ export const useCustomerSearch = (q: string) => {
       }),
   })
 }
+
+export type BuyerWithAddresses = AdminCustomerRow & {
+  default_billing_address?: { country_code?: string | null } | null
+  default_shipping_address?: { country_code?: string | null } | null
+  addresses?: { country_code?: string | null }[] | null
+}
+
+/**
+ * One buyer, WITH their addresses — so a design order can be quoted in their
+ * own currency rather than the platform's default (#2176).
+ *
+ * The addresses are the only thing here the search route does not return, and
+ * they are the whole point: `buyerCountry` reads the DEFAULT billing or
+ * shipping address, never `addresses[0]`.
+ */
+export const useBuyerWithAddresses = (customerId: string | null) => {
+  const { data, ...rest } = useQuery({
+    queryKey: ["design-order-buyer", customerId],
+    enabled: !!customerId,
+    queryFn: async () =>
+      sdk.client.fetch<{ customer: BuyerWithAddresses }>(
+        `/admin/customers/${customerId}`,
+        {
+          query: {
+            fields:
+              "id,email,first_name,last_name,*addresses,*default_billing_address,*default_shipping_address",
+          },
+        }
+      ),
+  })
+  return { buyer: data?.customer ?? null, ...rest }
+}

@@ -1725,9 +1725,15 @@ export const useDesignOrderCurrencies = () => {
   const { data, ...rest } = useQuery({
     queryKey: designOrderCurrenciesQueryKey,
     queryFn: async () => {
+      // `*countries` too: the picker needs the currency LIST, and the wizard
+      // needs country → currency to suggest one from the buyer's address.
       const res = await sdk.client.fetch<{
-        regions?: { name?: string; currency_code?: string }[]
-      }>(`/admin/regions?limit=100&fields=id,name,currency_code`);
+        regions?: {
+          name?: string
+          currency_code?: string
+          countries?: { iso_2?: string | null }[]
+        }[]
+      }>(`/admin/regions?limit=100&fields=id,name,currency_code,*countries`);
 
       const byCode = new Map<string, DesignOrderCurrency>();
       for (const r of res?.regions ?? []) {
@@ -1740,8 +1746,13 @@ export const useDesignOrderCurrencies = () => {
           byCode.set(code, { code, region_name: r?.name ?? code.toUpperCase() });
         }
       }
-      return [...byCode.values()].sort((a, b) => a.code.localeCompare(b.code));
+      return {
+        currencies: [...byCode.values()].sort((a, b) =>
+          a.code.localeCompare(b.code)
+        ),
+        regions: res?.regions ?? [],
+      };
     },
   });
-  return { currencies: data ?? [], ...rest };
+  return { currencies: data?.currencies ?? [], regions: data?.regions ?? [], ...rest };
 };

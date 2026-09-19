@@ -1,7 +1,9 @@
 import {
   resolveDesignOrderTarget,
   designOrderRoutes,
+  buyerCountry,
   designOrderCreateBody,
+  suggestCurrencyForCountry,
 } from "../design-order-draft"
 
 describe("resolveDesignOrderTarget", () => {
@@ -159,5 +161,93 @@ describe("designOrderCreateBody — the cart's currency", () => {
     // The route's own fallback is the one place "inr" should be decided.
     const body = designOrderCreateBody({ design_ids: ["d1"] })
     expect(body.currency_code).toBeUndefined()
+  })
+})
+
+/**
+ * #2176 — the currency default was `inr` for everyone, which is only ever right
+ * by luck. It should follow the buyer.
+ */
+describe("buyerCountry", () => {
+  it("prefers the default BILLING address — the one the customer named", () => {
+    expect(
+      buyerCountry({
+        default_billing_address: { country_code: "DE" },
+        default_shipping_address: { country_code: "fr" },
+        addresses: [{ country_code: "in" }],
+      })
+    ).toBe("de")
+  })
+
+  it("falls back to the default shipping address", () => {
+    expect(
+      buyerCountry({ default_shipping_address: { country_code: "au" } })
+    ).toBe("au")
+  })
+
+  it("uses a single address — unambiguous by definition", () => {
+    expect(buyerCountry({ addresses: [{ country_code: "nl" }] })).toBe("nl")
+  })
+
+  it("accepts several addresses that AGREE", () => {
+    expect(
+      buyerCountry({ addresses: [{ country_code: "it" }, { country_code: "IT" }] })
+    ).toBe("it")
+  })
+
+  /**
+   * 🔴 Never `addresses[0]`. Row 0 of an unordered list is the read that put
+   * Albania on every European checkout link and made currency a lottery across
+   * 13 tenants. A guess about the buyer's country is a guess about their money.
+   */
+  it("refuses to guess between addresses that disagree", () => {
+    expect(
+      buyerCountry({ addresses: [{ country_code: "de" }, { country_code: "us" }] })
+    ).toBeNull()
+  })
+
+  it("is null for a buyer with nothing recorded", () => {
+    expect(buyerCountry({ addresses: [] })).toBeNull()
+    expect(buyerCountry({})).toBeNull()
+    expect(buyerCountry(null)).toBeNull()
+    expect(buyerCountry({ addresses: [{ country_code: "  " }] })).toBeNull()
+  })
+})
+
+describe("suggestCurrencyForCountry", () => {
+  const regions = [
+    { currency_code: "inr", countries: [{ iso_2: "in" }] },
+    { currency_code: "eur", countries: [{ iso_2: "al" }, { iso_2: "de" }, { iso_2: "nl" }] },
+    { currency_code: "aud", countries: [{ iso_2: "au" }] },
+  ]
+
+  it("the live case: a buyer in Germany is quoted in EUR, not INR", () => {
+    expect(suggestCurrencyForCountry("de", regions)).toBe("eur")
+  })
+
+  it("matches regardless of case or padding", () => {
+    expect(suggestCurrencyForCountry(" NL ", regions)).toBe("eur")
+  })
+
+  it("an Indian buyer still gets INR", () => {
+    expect(suggestCurrencyForCountry("in", regions)).toBe("inr")
+  })
+
+  /**
+   * Null leaves the existing default standing. Safe precisely because this
+   * only SEEDS a control the operator can change — inventing a currency here
+   * would be a decision nobody made.
+   */
+  it("returns null when no region covers the country", () => {
+    expect(suggestCurrencyForCountry("jp", regions)).toBeNull()
+    expect(suggestCurrencyForCountry(null, regions)).toBeNull()
+    expect(suggestCurrencyForCountry("de", [])).toBeNull()
+    expect(suggestCurrencyForCountry("de", null)).toBeNull()
+  })
+
+  it("ignores a region with no currency rather than matching it", () => {
+    expect(
+      suggestCurrencyForCountry("de", [{ currency_code: "", countries: [{ iso_2: "de" }] }])
+    ).toBeNull()
   })
 })

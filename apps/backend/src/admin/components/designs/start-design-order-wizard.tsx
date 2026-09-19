@@ -24,11 +24,17 @@ import { createDataGridHelper } from "../data-grid/helpers/create-data-grid-colu
 import { KeyboundForm } from "../utilitites/key-bound-form"
 import { DesignOrderCreatedPanel, type CreatedDesignOrder } from "./design-order-created-panel"
 import { useDesignOrderCurrencies } from "../../hooks/api/designs"
+import {
+  useBuyerWithAddresses,
+  useCustomerSearch,
+} from "../../hooks/api/design-orders"
 import { RouteFocusModal } from "../modal/route-focus-modal"
 import { useRouteModal } from "../modal/use-route-modal"
 import { sdk } from "../../lib/config"
 import { useDesigns } from "../../hooks/api/designs"
 import {
+  buyerCountry,
+  suggestCurrencyForCountry,
   designOrderCreateBody,
   designOrderRoutes,
   resolveDesignOrderTarget,
@@ -263,9 +269,55 @@ export const StartDesignOrderWizard = () => {
    * label one number with another currency, which is the whole family of bug
    * this sits in.
    */
-  const { currencies } = useDesignOrderCurrencies()
+  const { currencies, regions } = useDesignOrderCurrencies()
   const [chosenCurrency, setChosenCurrency] = useState<string>("inr")
+  /**
+   * Has the operator touched the currency? A suggestion must never overwrite a
+   * deliberate choice — that is the difference between a helpful default and
+   * the platform quietly deciding what somebody pays in.
+   */
+  const [currencyTouched, setCurrencyTouched] = useState(false)
   const currency = preview?.currency_code ?? chosenCurrency
+
+  /**
+   * #2176 item 3 — the buyer.
+   *
+   * The wizard DERIVES one from the chosen designs and never asked for one, so
+   * an order whose designs imply nobody was created buyer-less with a toast,
+   * and the operator went hunting for it afterwards. The derivation is kept —
+   * a design that was made for somebody names them, and a cart on the WRONG
+   * buyer is worse than a cart on none — but where it resolves to nobody, we
+   * now ask instead of shrugging.
+   */
+  const derivedCustomerId = useMemo(() => {
+    const r = resolveDesignOrderTarget(picked)
+    return r.ok ? r.customer_id : null
+  }, [picked])
+  const [pickedCustomerId, setPickedCustomerId] = useState<string | null>(null)
+  // The derivation WINS. It comes from the designs themselves; a manual choice
+  // only fills the gap it leaves.
+  const customerId = derivedCustomerId ?? pickedCustomerId
+  const [customerQuery, setCustomerQuery] = useState("")
+  const { data: customerResults } = useCustomerSearch(customerQuery)
+  const { buyer } = useBuyerWithAddresses(customerId)
+
+  /**
+   * The currency follows the BUYER, not the platform. Every design order was
+   * INR because nothing ever chose — a buyer in the EU was quoted in rupees and
+   * routed to PayU, the India region's only payment provider.
+   *
+   * Only ever a SUGGESTION: it seeds the control until the operator touches it,
+   * and a buyer whose country no region covers leaves the existing value alone
+   * rather than inventing one.
+   */
+  useEffect(() => {
+    if (currencyTouched || !buyer) return
+    const suggested = suggestCurrencyForCountry(buyerCountry(buyer), regions)
+    if (suggested && suggested !== chosenCurrency) {
+      setChosenCurrency(suggested)
+      setPreview(null)
+    }
+  }, [buyer, regions, currencyTouched, chosenCurrency])
 
   /**
    * The review rows are a FORM, not a read-only summary.
@@ -409,15 +461,17 @@ export const StartDesignOrderWizard = () => {
       toast.error(resolved.error.title, { description: resolved.error.description })
       return
     }
+    // A buyer the operator picked stands in where the designs named nobody.
+    const buyerId = resolved.customer_id ?? pickedCustomerId
 
     setIsPreviewing(true)
     try {
-      const routes = designOrderRoutes(resolved.customer_id)
+      const routes = designOrderRoutes(buyerId)
       const data = await sdk.client.fetch<PreviewResponse>(routes.preview, {
         method: "POST",
         body: { design_ids: resolved.design_ids, currency_code: chosenCurrency },
       })
-      setTarget({ customer_id: resolved.customer_id, design_ids: resolved.design_ids })
+      setTarget({ customer_id: buyerId, design_ids: resolved.design_ids })
       setPreview(data)
       setStep(Step.REVIEW)
     } catch (err: any) {
@@ -587,12 +641,58 @@ export const StartDesignOrderWizard = () => {
             the exact defect this order type keeps hitting. Go back to Designs
             to change it and the estimate is rebuilt.
           */}
+          {/*
+            #2176 item 3 — WHO the order is for, asked on the first step.
+            
+            The buyer is still DERIVED from the designs where they name one, and
+            that derivation wins: a design made for somebody carries them, and a
+            cart on the wrong buyer is worse than a cart on none. What changes is
+            the case where the designs name NOBODY — that used to produce a cart
+            with no buyer and a toast telling the operator to go and attach one.
+          */}
+          <div className="mb-3 flex items-center justify-between gap-x-4">
+            <div>
+              <Text size="small" weight="plus">Buyer</Text>
+              <Text size="small" className="text-ui-fg-subtle">
+                {derivedCustomerId
+                  ? "Taken from the designs — they were made for this customer."
+                  : "These designs name no customer. Pick one, or leave it for checkout."}
+              </Text>
+            </div>
+            <div className="w-[220px]">
+              {derivedCustomerId ? (
+                <Text size="small" className="text-right">
+                  {buyer
+                    ? `${[buyer.first_name, buyer.last_name].filter(Boolean).join(" ") || buyer.email}`
+                    : derivedCustomerId}
+                </Text>
+              ) : (
+                <Select
+                  value={pickedCustomerId ?? ""}
+                  onValueChange={(v) => setPickedCustomerId(v || null)}
+                >
+                  <Select.Trigger>
+                    <Select.Value placeholder="No buyer yet" />
+                  </Select.Trigger>
+                  <Select.Content>
+                    {(customerResults?.customers ?? []).map((c) => (
+                      <Select.Item key={c.id} value={c.id}>
+                        {[c.first_name, c.last_name].filter(Boolean).join(" ") || c.email}
+                      </Select.Item>
+                    ))}
+                  </Select.Content>
+                </Select>
+              )}
+            </div>
+          </div>
+
           <div className="mb-3 flex items-center justify-between gap-x-4">
             <div>
               <Text size="small" weight="plus">Currency</Text>
               <Text size="small" className="text-ui-fg-subtle">
-                The buyer pays in this currency, and the order is created in its
-                region.
+                {buyer && !currencyTouched
+                  ? "Suggested from the buyer's address. Change it if that is wrong."
+                  : "The buyer pays in this currency, and the order is created in its region."}
               </Text>
             </div>
             <div className="w-[220px]">
@@ -600,6 +700,7 @@ export const StartDesignOrderWizard = () => {
                 value={chosenCurrency}
                 onValueChange={(v) => {
                   setChosenCurrency(v)
+                  setCurrencyTouched(true)
                   /*
                     The estimate belongs to the OLD currency, so it is dropped
                     rather than relabelled — the operator goes back through
