@@ -109,11 +109,23 @@ export type ResolvedCartLink = {
 }
 
 /**
- * Where a buyer goes when we cannot name their shop. Deliberately the same
- * expression `/r/cart/:id` already used, so the two cannot drift apart.
+ * Where a buyer goes when we cannot name their shop.
+ *
+ * 🔴 `FRONTEND_URL` is NOT a storefront and was removed from this chain.
+ *
+ * It names the CORPORATE site — agreements, the blog, unsubscribe links all
+ * build `jaalyantra.com` from it — while `STORE_URL` names the shop. On prod
+ * `STORE_URL` is unset and `FRONTEND_URL` is `https://jaalyantra.com`, so this
+ * resolved every fallback checkout link to a site that has no cart: today's
+ * `/r/cart/:id` abandoned-cart recovery links already point there, and routing
+ * the design-order detail route through this resolver was about to send
+ * checkout links the same way.
+ *
+ * The literal default is the storefront and stays the last word, so an
+ * environment that sets neither still gets a shop rather than a brochure.
  */
 export const platformFallbackOrigin = () =>
-  process.env.STORE_URL || process.env.FRONTEND_URL || "https://cicilabel.com"
+  process.env.STORE_URL || "https://cicilabel.com"
 
 /**
  * Never throws: a lookup failure returns a `null` url with a reason, because
