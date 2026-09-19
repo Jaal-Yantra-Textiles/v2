@@ -18,6 +18,7 @@ import { keepPreviousData } from "@tanstack/react-query"
 import { useEffect, useMemo, useState } from "react"
 import { useForm } from "react-hook-form"
 
+import { Combobox } from "../inputs/combobox/combobox"
 import { DataGrid } from "../data-grid/data-grid"
 import { DataGridCurrencyCell, DataGridReadOnlyCell } from "../data-grid/components"
 import { createDataGridHelper } from "../data-grid/helpers/create-data-grid-column-helper"
@@ -67,6 +68,17 @@ import {
 
 enum Step {
   DESIGNS = "designs",
+  /**
+   * WHO is buying, in WHAT currency, and from WHERE.
+   *
+   * Its own step because these three decide each other and each one of them
+   * has cost us a real order: the currency fixes the region, the region fixes
+   * which countries may be picked, and the country is what makes the checkout
+   * link resolvable and the courier list correct. Stacked above the design
+   * table they read as decoration on a screen whose job is picking garments,
+   * and the country in particular was simply never asked.
+   */
+  BUYER = "buyer",
   REVIEW = "review",
   /**
    * The links the create returned. A third step rather than a toast: the
@@ -272,12 +284,58 @@ export const StartDesignOrderWizard = () => {
   const { currencies, regions } = useDesignOrderCurrencies()
   const [chosenCurrency, setChosenCurrency] = useState<string>("inr")
   /**
+   * 🔴 Where the buyer is buying FROM. Asked at mint time because a cart
+   * without it is BROKEN, not merely incomplete: the checkout link cannot be
+   * built, a hand-written one is re-regioned to `countries[0]` (prod sent a
+   * Swedish buyer to /al/ — Albania), and `/store/shipping-options` cannot
+   * geo-filter, so that buyer was offered Delhivery and a Dharamshala pickup.
+   */
+  const [chosenCountry, setChosenCountry] = useState<string>("")
+  /**
    * Has the operator touched the currency? A suggestion must never overwrite a
    * deliberate choice — that is the difference between a helpful default and
    * the platform quietly deciding what somebody pays in.
    */
   const [currencyTouched, setCurrencyTouched] = useState(false)
   const currency = preview?.currency_code ?? chosenCurrency
+
+  /**
+   * The countries the CHOSEN currency's region actually serves.
+   *
+   * ⚠️ Offering anything else would be a trap: the backend refuses a country
+   * the region does not serve (it would leave the storefront re-regioning
+   * while reporting success), so a picker listing every country on earth would
+   * let an operator choose one that silently does nothing.
+   */
+  const countryOptions = useMemo(() => {
+    const region = (regions ?? []).find(
+      (r: any) =>
+        String(r?.currency_code ?? "").trim().toLowerCase() === currency
+    )
+    const seen = new Set<string>()
+    const out: { value: string; label: string }[] = []
+    for (const c of (region as any)?.countries ?? []) {
+      const iso = String(c?.iso_2 ?? "").trim().toLowerCase()
+      if (!iso || seen.has(iso)) continue
+      seen.add(iso)
+      out.push({
+        value: iso,
+        label: `${c?.display_name ?? c?.name ?? iso.toUpperCase()} (${iso.toUpperCase()})`,
+      })
+    }
+    return out.sort((a, b) => a.label.localeCompare(b.label))
+  }, [regions, currency])
+
+  /**
+   * A country chosen for one currency is usually wrong for the next, and a
+   * stale one would be silently dropped by the backend guard. Clear it rather
+   * than carry it across.
+   */
+  useEffect(() => {
+    if (chosenCountry && !countryOptions.some((o) => o.value === chosenCountry)) {
+      setChosenCountry("")
+    }
+  }, [countryOptions, chosenCountry])
 
   /**
    * #2176 item 3 — the buyer.
@@ -455,6 +513,21 @@ export const StartDesignOrderWizard = () => {
     [lines]
   )
 
+  /**
+   * Designs -> Buyer. No estimate yet: the buyer step can still change the
+   * currency, and an estimate computed before that is one this wizard would
+   * have to throw away — the exact relabel-without-recompute defect the
+   * currency picker's own comment warns about.
+   */
+  const goToBuyer = () => {
+    const resolved = resolveDesignOrderTarget(picked)
+    if (!resolved.ok) {
+      toast.error(resolved.error.title, { description: resolved.error.description })
+      return
+    }
+    setStep(Step.BUYER)
+  }
+
   const goToReview = async () => {
     const resolved = resolveDesignOrderTarget(picked)
     if (!resolved.ok) {
@@ -499,6 +572,9 @@ export const StartDesignOrderWizard = () => {
           // The cart's currency is the estimate's currency; sending a price in
           // any other would be valued by one number and labelled by another.
           override_currency: currency,
+          // Omitted rather than sent empty — the backend treats absent as
+          // "not known yet", which is a different thing from a blank string.
+          ...(chosenCountry ? { country_code: chosenCountry } : {}),
         }),
       })
       toast.success("Design order created", {
@@ -519,7 +595,17 @@ export const StartDesignOrderWizard = () => {
   }
 
   const designsStatus: ProgressStatus =
-    step === Step.REVIEW ? "completed" : picked.length ? "in-progress" : "not-started"
+    step === Step.BUYER || step === Step.REVIEW
+      ? "completed"
+      : picked.length
+        ? "in-progress"
+        : "not-started"
+  const buyerStatus: ProgressStatus =
+    step === Step.REVIEW
+      ? "completed"
+      : step === Step.BUYER
+        ? "in-progress"
+        : "not-started"
   const reviewStatus: ProgressStatus =
     step === Step.REVIEW ? "in-progress" : "not-started"
 
@@ -573,9 +659,14 @@ export const StartDesignOrderWizard = () => {
     <ProgressTabs
       value={step}
       onValueChange={(v) => {
-        // Forward movement must go through `goToReview`, which is what
-        // produces the estimate. Clicking the tab cannot skip that.
+        /*
+          BACKWARD movement only. Forward must go through `goToBuyer` (which
+          validates the selection) and `goToReview` (which builds the estimate),
+          so clicking a tab can never skip either — a Review tab reached by
+          click would show the previous currency's numbers, or none.
+        */
         if (v === Step.DESIGNS) setStep(Step.DESIGNS)
+        if (v === Step.BUYER && step === Step.REVIEW) setStep(Step.BUYER)
       }}
       className="flex h-full flex-col overflow-hidden"
     >
@@ -602,6 +693,9 @@ export const StartDesignOrderWizard = () => {
             <ProgressTabs.Trigger status={designsStatus} value={Step.DESIGNS}>
               Designs
             </ProgressTabs.Trigger>
+            <ProgressTabs.Trigger status={buyerStatus} value={Step.BUYER}>
+              Buyer
+            </ProgressTabs.Trigger>
             <ProgressTabs.Trigger
               status={reviewStatus}
               value={Step.REVIEW}
@@ -624,6 +718,25 @@ export const StartDesignOrderWizard = () => {
             The other tab's content is then pushed below the fold and the step
             looks blank. Sizing here, layout on an inner div.
           */
+          className="h-full overflow-y-auto"
+        >
+          <div className="flex h-full flex-col px-4 py-4 md:px-6">
+          <DataTable instance={table}>
+            {/* Wraps to two rows when the modal is narrow, rather than
+                crushing the search field against the heading. */}
+            <DataTable.Toolbar className="flex flex-col items-stretch gap-2 px-0 md:flex-row md:items-center md:justify-between">
+              <Heading level="h2">Choose designs</Heading>
+              <DataTable.Search placeholder="Search designs…" />
+            </DataTable.Toolbar>
+            <DataTable.Table />
+            <DataTable.Pagination />
+          </DataTable>
+          </div>
+        </ProgressTabs.Content>
+
+        <ProgressTabs.Content
+          value={Step.BUYER}
+          /* Sizing here, layout on the inner div — see the DESIGNS panel. */
           className="h-full overflow-y-auto"
         >
           <div className="flex h-full flex-col px-4 py-4 md:px-6">
@@ -660,6 +773,14 @@ export const StartDesignOrderWizard = () => {
               </Text>
             </div>
             <div className="w-[220px]">
+              {/*
+                🔴 The buyer picker is a Combobox driving the SERVER query, not
+                a Select over a fixed array. `useCustomerSearch` fetches
+                `limit: 10`, and nothing was bound to `setCustomerQuery` at all,
+                so it showed the first ten customers and the buyer you wanted
+                was unreachable unless they happened to be in that page. Same
+                family as the partner lookup that searched 5 of 31.
+              */}
               {derivedCustomerId ? (
                 <Text size="small" className="text-right">
                   {buyer
@@ -667,21 +788,20 @@ export const StartDesignOrderWizard = () => {
                     : derivedCustomerId}
                 </Text>
               ) : (
-                <Select
+                <Combobox
+                  options={(customerResults?.customers ?? []).map((c) => ({
+                    label:
+                      [c.first_name, c.last_name].filter(Boolean).join(" ") ||
+                      c.email,
+                    value: c.id,
+                  }))}
                   value={pickedCustomerId ?? ""}
-                  onValueChange={(v) => setPickedCustomerId(v || null)}
-                >
-                  <Select.Trigger>
-                    <Select.Value placeholder="No buyer yet" />
-                  </Select.Trigger>
-                  <Select.Content>
-                    {(customerResults?.customers ?? []).map((c) => (
-                      <Select.Item key={c.id} value={c.id}>
-                        {[c.first_name, c.last_name].filter(Boolean).join(" ") || c.email}
-                      </Select.Item>
-                    ))}
-                  </Select.Content>
-                </Select>
+                  onChange={(v) => setPickedCustomerId((v as string) || null)}
+                  searchValue={customerQuery}
+                  onSearchValueChange={setCustomerQuery}
+                  allowClear
+                  placeholder="Search customers by name or email"
+                />
               )}
             </div>
           </div>
@@ -724,16 +844,35 @@ export const StartDesignOrderWizard = () => {
               </Select>
             </div>
           </div>
-          <DataTable instance={table}>
-            {/* Wraps to two rows when the modal is narrow, rather than
-                crushing the search field against the heading. */}
-            <DataTable.Toolbar className="flex flex-col items-stretch gap-2 px-0 md:flex-row md:items-center md:justify-between">
-              <Heading level="h2">Choose designs</Heading>
-              <DataTable.Search placeholder="Search designs…" />
-            </DataTable.Toolbar>
-            <DataTable.Table />
-            <DataTable.Pagination />
-          </DataTable>
+
+          <div className="mb-3 flex items-center justify-between gap-x-4">
+            <div>
+              <Text size="small" weight="plus">Buying from</Text>
+              <Text size="small" className="text-ui-fg-subtle">
+                {chosenCountry
+                  ? "Decides the checkout link and which couriers are offered."
+                  : "Optional — but without it the checkout link cannot be built, and the buyer is offered every courier we have."}
+              </Text>
+            </div>
+            <div className="w-[220px]">
+              {/*
+                Only the chosen currency's own region is offered: the backend
+                refuses a country the region does not serve, so a wider list
+                would let an operator pick one that silently does nothing.
+              */}
+              <Combobox
+                options={countryOptions}
+                value={chosenCountry}
+                onChange={(v) => setChosenCountry((v as string) || "")}
+                allowClear
+                placeholder={
+                  countryOptions.length
+                    ? "Search countries"
+                    : "No countries on this region"
+                }
+              />
+            </div>
+          </div>
           </div>
         </ProgressTabs.Content>
 
@@ -809,21 +948,35 @@ export const StartDesignOrderWizard = () => {
               Cancel
             </Button>
           </RouteFocusModal.Close>
-          {step === Step.DESIGNS ? (
-            <Button
-              size="small"
-              onClick={goToReview}
-              isLoading={isPreviewing}
-              disabled={!picked.length}
-            >
+          {step === Step.DESIGNS && (
+            <Button size="small" onClick={goToBuyer} disabled={!picked.length}>
               Continue
             </Button>
-          ) : (
+          )}
+          {step === Step.BUYER && (
             <>
               <Button
                 size="small"
                 variant="secondary"
                 onClick={() => setStep(Step.DESIGNS)}
+              >
+                Back
+              </Button>
+              {/*
+                The estimate is built HERE, on leaving the buyer step, because
+                this is the last point the currency can still change.
+              */}
+              <Button size="small" onClick={goToReview} isLoading={isPreviewing}>
+                Continue
+              </Button>
+            </>
+          )}
+          {step === Step.REVIEW && (
+            <>
+              <Button
+                size="small"
+                variant="secondary"
+                onClick={() => setStep(Step.BUYER)}
                 disabled={isCreating}
               >
                 Back
@@ -859,7 +1012,7 @@ export const StartDesignOrderWizard = () => {
           {step === Step.DESIGNS && (
             <>
               <CommandBar.Seperator />
-              <CommandBar.Command action={goToReview} label="Continue" shortcut="r" />
+              <CommandBar.Command action={goToBuyer} label="Continue" shortcut="r" />
             </>
           )}
         </CommandBar.Bar>

@@ -28,6 +28,14 @@ type CreateDraftOrderFromDesignsInput = {
   price_overrides?: Record<string, number>
   /** Currency of price_overrides (e.g. "inr"). Defaults to store default. */
   override_currency?: string
+  /**
+   * 🔴 ISO-2 the buyer is purchasing from. Optional, and a cart without it is
+   * BROKEN rather than merely incomplete: the checkout link cannot be built,
+   * a hand-written one is re-regioned to `countries[0]` (Albania, in prod),
+   * and `/store/shipping-options` cannot geo-filter, so an Indian courier is
+   * offered to a European buyer.
+   */
+  country_code?: string
 }
 
 type DesignEstimate = {
@@ -260,6 +268,8 @@ const createDesignCartStep = createStep(
     input: {
       customer_id: string | null
       currency_code?: string
+      /** ISO-2 the buyer purchases from; only applied if the region serves it. */
+      country_code?: string
       estimates: DesignEstimate[]
     },
     { container }
@@ -273,7 +283,10 @@ const createDesignCartStep = createStep(
     const { data: regions } = await query.graph({
       entity: "region",
       filters: {},
-      fields: ["id", "currency_code"],
+      // `countries.iso_2` is required, not decorative: the country guard below
+      // checks membership against it, and without it the guard rejects EVERY
+      // country silently and the cart is created address-less exactly as before.
+      fields: ["id", "currency_code", "countries.iso_2"],
     })
 
     /**
@@ -351,10 +364,31 @@ const createDesignCartStep = createStep(
     }
 
     // Create the cart
+    /**
+     * ⚠️ COUNTRY ONLY — never a fabricated street, city or postcode.
+     *
+     * The rule below still holds: an invented address is an unreachable buyer
+     * on a real order. But the country is not invented, it is ASKED FOR at
+     * mint time, and without it the cart cannot produce a checkout link or
+     * filter its own shipping options. Checkout collects the rest.
+     *
+     * Only set when the region actually serves it — otherwise the storefront
+     * re-regions anyway and we have written a number that changes nothing.
+     */
+    const buyerCountry = String(input.country_code ?? "").trim().toLowerCase()
+    const regionServes = (region.countries ?? []).map((c: any) =>
+      String(c?.iso_2 ?? "").trim().toLowerCase()
+    )
+    const shippingAddress =
+      buyerCountry && regionServes.includes(buyerCountry)
+        ? { country_code: buyerCountry }
+        : undefined
+
     const cart = await cartService.createCarts({
       region_id: region.id,
       currency_code: currencyCode,
       customer_id: input.customer_id ?? null,
+      ...(shippingAddress ? { shipping_address: shippingAddress } : {}),
       // Null, never a placeholder: an invented address is an unreachable buyer
       // on a real order. Checkout collects it.
       email: customerEmail ?? null,
@@ -467,6 +501,7 @@ export const createDraftOrderFromDesignsWorkflow = createWorkflow(
     const cartResult = createDesignCartStep({
       customer_id: input.customer_id,
       currency_code: input.currency_code,
+      country_code: input.country_code,
       estimates: convertedResult.estimates as unknown as DesignEstimate[],
     })
 
