@@ -66,15 +66,32 @@ export function pickCheckoutCountry(input: {
   if (region.length === 0) {
     return { country: null, reason: "region_names_no_country" }
   }
-  if (buyer) {
-    return region.includes(buyer)
-      ? { country: buyer, reason: "buyer" }
-      : { country: null, reason: "buyer_outside_region" }
+  if (buyer && region.includes(buyer)) {
+    return { country: buyer, reason: "buyer" }
   }
+  /**
+   * 🔴 A buyer outside the cart's region still gets the region's country when
+   * the region names exactly one.
+   *
+   * The cart IS in the wrong region for them — that is worth the loud reason —
+   * but returning null here would make the link carry no country at all, and a
+   * link with no country is precisely what lets the storefront substitute its
+   * default and RE-REGION the cart. This file exists to prevent that, so the
+   * wrong-region diagnosis must not create the very failure it diagnoses.
+   * Naming the region's own country keeps the cart on the prices it was built
+   * with; fixing which region it should have been in is a different job
+   * (#2176 item 5).
+   */
   if (region.length === 1) {
-    return { country: region[0], reason: "sole_region_country" }
+    return {
+      country: region[0],
+      reason: buyer ? "buyer_outside_region" : "sole_region_country",
+    }
   }
-  return { country: null, reason: "ambiguous_region" }
+  return {
+    country: null,
+    reason: buyer ? "buyer_outside_region" : "ambiguous_region",
+  }
 }
 
 export type CartForLink = {

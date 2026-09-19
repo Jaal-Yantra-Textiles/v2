@@ -52,21 +52,32 @@ describe("pickCheckoutCountry", () => {
   })
 
   /**
-   * 🔴 A buyer whose country is not in the cart's region means the cart is in
-   * the WRONG REGION. Sending them to a prefix their cart cannot serve turns a
-   * pricing mistake into a checkout that re-regions itself.
+   * 🔴 A buyer outside the cart's region is NAMED as such — but still gets the
+   * region's own country when the region names one.
+   *
+   * Returning null here would emit a link with no country segment, and that is
+   * exactly what lets the storefront substitute its default and re-region the
+   * cart. The wrong-region diagnosis must not cause the failure it diagnoses.
    */
-  it("refuses a buyer country the region does not contain", () => {
+  it("names a buyer outside the region, and still keeps them on the cart's country", () => {
     expect(
       pickCheckoutCountry({ buyerCountry: "de", regionCountries: ["in"] })
-    ).toEqual({ country: null, reason: "buyer_outside_region" })
+    ).toEqual({ country: "in", reason: "buyer_outside_region" })
   })
 
-  it("the live case: an Australian buyer on an INR cart is not sent to /in/", () => {
-    // Kunal's cart shape — an EU/AU buyer on the India region.
+  it("the live case: an Australian buyer on an INR cart stays on /in/, reported", () => {
+    // Kunal's cart shape — an EU/AU buyer on the India region. The link must
+    // not get WORSE than it was while the real fix (order in their currency)
+    // is still being built.
+    const picked = pickCheckoutCountry({ buyerCountry: "au", regionCountries: ["in"] })
+    expect(picked.country).toBe("in")
+    expect(picked.reason).toBe("buyer_outside_region")
+  })
+
+  it("a buyer outside a MULTI-country region gets no guess", () => {
     expect(
-      pickCheckoutCountry({ buyerCountry: "au", regionCountries: ["in"] }).country
-    ).toBeNull()
+      pickCheckoutCountry({ buyerCountry: "jp", regionCountries: EUROPE })
+    ).toEqual({ country: null, reason: "buyer_outside_region" })
   })
 
   it("normalises case and whitespace on both sides", () => {
