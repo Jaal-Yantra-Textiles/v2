@@ -183,6 +183,7 @@ export const OrderDetail = () => {
               designId={designId}
               productionRun={production_run}
               inventoryOrder={inventoryOrder}
+              design={design}
             />
             {/* #826 S3b — a COLLATED design work-order shows one line per design
                 (the "one order, many designs" view). Legacy per-run design

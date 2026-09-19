@@ -3518,7 +3518,11 @@
       },
       "details": "Details",
       "detailsHint": "Everything about this job, including earlier stages.",
-      "editLinesTax": "Edit lines & tax"
+      "editLinesTax": "Edit lines & tax",
+      "bomSummary_one": "{{count}} material on this design",
+      "bomSummary_other": "{{count}} materials on this design",
+      "bomConsumed_one": "{{count}} with consumption recorded",
+      "bomConsumed_other": "{{count}} with consumption recorded"
     },
     "inventoryOrders": {
       "heading": "Inventory Orders",

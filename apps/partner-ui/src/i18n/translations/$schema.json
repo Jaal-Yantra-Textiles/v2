@@ -13175,6 +13175,18 @@
             },
             "editLinesTax": {
               "type": "string"
+            },
+            "bomSummary_one": {
+              "type": "string"
+            },
+            "bomSummary_other": {
+              "type": "string"
+            },
+            "bomConsumed_one": {
+              "type": "string"
+            },
+            "bomConsumed_other": {
+              "type": "string"
             }
           },
           "required": [
@@ -13226,7 +13238,11 @@
             "nextAction",
             "details",
             "detailsHint",
-            "editLinesTax"
+            "editLinesTax",
+            "bomSummary_one",
+            "bomSummary_other",
+            "bomConsumed_one",
+            "bomConsumed_other"
           ],
           "additionalProperties": false
         },
