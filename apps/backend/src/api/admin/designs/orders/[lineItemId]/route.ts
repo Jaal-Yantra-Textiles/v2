@@ -270,6 +270,7 @@ export async function GET(
     let cartCurrencyCode: string | null = null
     /** Hoisted: the checkout link below is withheld for a cancelled order. */
     let cartCancelled = false
+    let cancellation: { cancelled_at: string; cancelled_reason: string | null } | null = null
     if (lineItem?.cart_id) {
       try {
         const { data: carts } = await query.graph({
@@ -280,6 +281,14 @@ export async function GET(
         const cart = carts?.[0]
         cartCurrencyCode = cart?.currency_code || null
         cartCancelled = isCancelled(cart)
+        if (cartCancelled) {
+          const md = (cart?.metadata ?? {}) as Record<string, unknown>
+          cancellation = {
+            cancelled_at: String(md.cancelled_at),
+            cancelled_reason:
+              typeof md.cancelled_reason === "string" ? md.cancelled_reason : null,
+          }
+        }
         if (!customer && cart?.customer_id) {
           try {
             const { data: customers } = await query.graph({
@@ -518,6 +527,13 @@ export async function GET(
             }
           : null,
         checkout_url: checkoutUrl,
+        /**
+         * 🔴 Surfaced, not merely acted on. Withholding the checkout link is
+         * what makes a cancel take effect, but if that is ALL a reader sees,
+         * a cancelled design order still looks like an unpaid one — which is
+         * the indistinguishability the cancel exists to end. Null when live.
+         */
+        cancellation,
         /** #1918 — ordered vs delivered, per item, with each item's design. */
         order_items: orderItems,
       },

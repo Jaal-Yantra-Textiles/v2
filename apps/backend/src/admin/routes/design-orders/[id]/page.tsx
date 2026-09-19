@@ -349,8 +349,34 @@ const LineItemSection = ({ designOrder }: { designOrder: any }) => {
     )
   }
 
+  const cancellation = (designOrder as any).cancellation as
+    | { cancelled_at: string; cancelled_reason: string | null }
+    | null
+    | undefined
+
   return (
     <Container className="divide-y p-0">
+      {/*
+        🔴 Said, not merely enacted. A cancel takes effect by withholding the
+        checkout link, but if that is all a reader sees, a cancelled design
+        order still looks like one nobody has paid yet — the exact
+        indistinguishability the cancel exists to end (#2176 item 6).
+      */}
+      {cancellation ? (
+        <div className="bg-ui-bg-subtle px-6 py-3">
+          <div className="flex items-center gap-x-2">
+            <Badge size="2xsmall" color="red">Cancelled</Badge>
+            <Text size="small" className="text-ui-fg-subtle">
+              {formatDate(cancellation.cancelled_at)}
+            </Text>
+          </div>
+          {cancellation.cancelled_reason ? (
+            <Text size="small" className="mt-1">
+              {cancellation.cancelled_reason}
+            </Text>
+          ) : null}
+        </div>
+      ) : null}
       <div className="flex items-center justify-between px-6 py-4">
         <Heading level="h2">Items</Heading>
         <div className="flex items-center gap-x-2">
@@ -359,7 +385,10 @@ const LineItemSection = ({ designOrder }: { designOrder: any }) => {
             Only on the pre-checkout view. Once the order exists the branch
             above renders instead, and the reprice route answers 409 — an
             action that cannot succeed should not be offered. #1970 PR5
+            Hidden once cancelled too: repricing something nobody can pay for
+            is busywork, and the cancel route refuses a second cancel.
           */}
+          {!cancellation ? (
           <Button
             size="small"
             variant="secondary"
@@ -367,6 +396,22 @@ const LineItemSection = ({ designOrder }: { designOrder: any }) => {
           >
             Reprice
           </Button>
+          ) : null}
+          {/*
+            Beside Reprice and under the same rule: only on the pre-checkout
+            view. Once the order exists the branch above renders instead and
+            the cancel route answers 409 — cancel the ORDER there, not the
+            cart. An action that cannot succeed should not be offered. #2176
+          */}
+          {!cancellation ? (
+          <Button
+            size="small"
+            variant="secondary"
+            onClick={() => navigate("cancel")}
+          >
+            Cancel
+          </Button>
+          ) : null}
         </div>
       </div>
       <LineItemRow
