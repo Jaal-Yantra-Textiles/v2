@@ -17,6 +17,7 @@ import {
   type ProposedCharge,
   type ProposedLine,
 } from "../../modules/inventory_orders/lib/order-changes"
+import { notifyPartnerOfChangeDecisionStep } from "./lib/notify-partner-of-change-decision"
 import { updateInventoryOrderWorkflow } from "./update-inventory-orders"
 
 /**
@@ -300,6 +301,16 @@ export const approveInventoryOrderChangeWorkflow = createWorkflow(
       markApprovedStep({
         changeId: input.changeId,
         decidedBy: input.decidedBy,
+      })
+      /**
+       * Tell the partner. Last, and only inside this branch: an approval that
+       * was already recorded must not notify twice, and nothing should be
+       * announced before it is true.
+       */
+      notifyPartnerOfChangeDecisionStep({
+        orderId: input.orderId,
+        changeId: input.changeId,
+        decision: "approved",
       })
     })
 
