@@ -300,11 +300,28 @@ test.describe("Moodboard insert blocks + construction (#1113 A/B)", () => {
       )
       expect(saveRes.status()).toBe(200)
 
-      // Reload through a fresh (admin) client to prove it's persisted, not echoed.
-      const reloaded = (
-        await (await admin.get(`/admin/designs/${designId}`)).json()
-      ).design
-      const savedFrame = (reloaded.moodboard?.elements ?? []).find(
+      /**
+       * Reload through a fresh (admin) client to prove it's persisted, not echoed.
+       *
+       * 🔴 Read from the PARTNER'S BOARD, not `design.moodboard` (#2017). That
+       * column used to be what this PUT wrote, and both parties wrote it — which
+       * is the clobber the board entity removed. Since #2163 the partner save
+       * targets their own board row, so asserting against the column checked a
+       * place nothing writes any more: it kept returning the seeded scene, and
+       * the test read `opacity: 100` for a frame it had just saved at 0.
+       *
+       * The admin is not the owner of a partner's board, so it arrives under
+       * `others` — read-only, which is the point.
+       */
+      const boards = await (
+        await admin.get(`/admin/designs/${designId}/moodboards`)
+      ).json()
+      const partnerBoard = (boards.others ?? []).find(
+        (b: any) => b.owner_type === "partner"
+      )
+      expect(partnerBoard).toBeTruthy()
+      expect(partnerBoard.is_own).toBe(false)
+      const savedFrame = (partnerBoard.scene?.elements ?? []).find(
         (e: any) => e.type === "frame"
       )
       expect(savedFrame).toBeTruthy()

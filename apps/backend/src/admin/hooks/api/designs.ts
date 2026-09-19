@@ -1598,3 +1598,104 @@ export const useCommitConsumption = (
  * edge" that a list of rows can never show.
  * ------------------------------------------------------------------------ */
 
+
+/* ------------------------------------------------------------------------ *
+ * Moodboards — one board per OWNER, not one blob per design (#2017).
+ *
+ * The admin used to save the scene through `PUT /admin/designs/:id` with
+ * `{ moodboard }`, i.e. the same `design.moodboard` column a partner wrote
+ * through. Last write won, silently, with a 200: whoever saved second erased
+ * the other's board and nobody was told. These two hooks are the board-scoped
+ * door that replaces it.
+ *
+ * 🔴 The READ has to move with the WRITE. `design.moodboard` is the fallback
+ * for a design the backfill never reached, and every resolver ignores it the
+ * moment a row exists — so a surface that saves to the row and still reads the
+ * column shows the scene reverting on the next load.
+ * ------------------------------------------------------------------------ */
+
+/** A board as the API presents it — the viewer's own, or someone else's. */
+export type DesignMoodboardBoard = {
+  id: string;
+  owner_type: string;
+  partner_id?: string | null;
+  title?: string | null;
+  scene?: any;
+  thumbnail_url?: string | null;
+  updated_at?: string | null;
+  is_own: boolean;
+  /**
+   * True when this is the legacy `design.moodboard` blob rendered as a board
+   * rather than a row of its own. "Predates per-owner boards" is a different
+   * fact from "is your board", and a surface may want to say so.
+   */
+  is_legacy: boolean;
+};
+
+export type DesignMoodboardsResponse = {
+  own: DesignMoodboardBoard | null;
+  others: DesignMoodboardBoard[];
+  usedLegacyFallback: boolean;
+};
+
+export const designMoodboardQueryKey = (designId: string) =>
+  [DESIGN_QUERY_KEY, designId, "moodboards"] as const;
+
+/** The admin's own (core) board plus every partner board, read-only. */
+export const useDesignMoodboards = (
+  designId: string,
+  options?: Omit<
+    UseQueryOptions<
+      DesignMoodboardsResponse,
+      FetchError,
+      DesignMoodboardsResponse,
+      readonly (string | undefined)[]
+    >,
+    "queryFn" | "queryKey"
+  >,
+) => {
+  const { data, ...rest } = useQuery({
+    queryKey: designMoodboardQueryKey(designId) as any,
+    queryFn: async () =>
+      sdk.client.fetch<DesignMoodboardsResponse>(
+        `/admin/designs/${designId}/moodboards`,
+      ),
+    ...options,
+  });
+  return { ...data, ...rest };
+};
+
+/**
+ * Save the scene to the CORE board.
+ *
+ * Sends `scene` (the entity's own name); the route also accepts the older
+ * `moodboard` key, so this hook and the route need no lockstep deploy.
+ */
+export const useSaveDesignMoodboard = (
+  designId: string,
+  options?: UseMutationOptions<
+    { board?: DesignMoodboardBoard; moodboard?: any },
+    FetchError,
+    { scene: any }
+  >,
+) => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (payload: { scene: any }) =>
+      sdk.client.fetch<{ board?: DesignMoodboardBoard; moodboard?: any }>(
+        `/admin/designs/${designId}/moodboards`,
+        { method: "POST", body: payload },
+      ),
+    ...options,
+    onSuccess: (data, variables, _mutateResult, context) => {
+      queryClient.invalidateQueries({
+        queryKey: designMoodboardQueryKey(designId) as any,
+      });
+      // The design detail still carries the legacy `moodboard` field that some
+      // readers have not moved off yet; keep it from going stale beside a
+      // freshly-saved board.
+      queryClient.invalidateQueries({ queryKey: designQueryKeys.detail(designId) });
+      options?.onSuccess?.(data, variables, _mutateResult, context);
+    },
+  });
+};

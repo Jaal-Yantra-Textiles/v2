@@ -5,16 +5,21 @@
  * The moodboard scene builders (build-moodboard-scene.ts) turn a design's brief
  * + tech-pack data into native, editable Excalidraw frames. Historically that
  * only ran on an explicit "Generate from brief" click, so an invited designer
- * opened a blank board. This helper runs the same build and persists it to
- * `design.moodboard` up-front — so the designer lands on a populated,
- * Figma-style board they can edit immediately (the landing preview and the
- * post-accept canvas both render `design.moodboard` verbatim).
+ * opened a blank board. This helper runs the same build and persists it
+ * up-front — so the designer lands on a populated, Figma-style board they can
+ * edit immediately.
+ *
+ * 🔴 It persists to the design's CORE moodboard row, not to `design.moodboard`.
+ * That column is the legacy blob and survives only as a read fallback for
+ * designs the #2017 backfill never reached; writing it now would put the scene
+ * where no surface looks, because every reader prefers the row.
  *
  * Pure orchestration over existing pieces; no new scene logic here.
  */
 import { ContainerRegistrationKeys, MedusaError } from "@medusajs/framework/utils"
-import { updateDesignWorkflow } from "../update-design"
 import DesignRawMaterialGroupLink from "../../../links/design-raw-material-group"
+import { coreScene } from "../../../modules/designs/lib/moodboard-ownership"
+import { saveDesignMoodboardWorkflow } from "./save-design-moodboard"
 import {
   buildMoodboardScene,
   briefHasContent,
@@ -66,7 +71,14 @@ export const DESIGN_MOODBOARD_GRAPH_FIELDS = [
   "milestones",
   "target_completion_date",
   // Existing board (for merge-not-clobber) + tech-pack sources.
+  // `moodboard` is the LEGACY blob and is kept only as the fallback — the core
+  // board row is the live one (#2017). Both are fetched so `coreScene` can
+  // prefer the row and still render a design the backfill never reached.
   "moodboard",
+  "moodboards.id",
+  "moodboards.owner_type",
+  "moodboards.partner_id",
+  "moodboards.scene",
   "size_sets.size_label",
   "size_sets.measurements",
   "specifications.title",
@@ -168,7 +180,12 @@ export async function buildDesignMoodboard(
     return null
   }
 
-  const existing = (design as any).moodboard as MoodboardScene | null
+  // The core board row wins over the legacy blob — merging onto the blob while
+  // saving to the row is how a generate lands where nobody reads (#2017).
+  const existing = coreScene(
+    (design as any).moodboards,
+    (design as any).moodboard
+  ) as MoodboardScene | null
   const scene = buildMoodboardScene(input, opts)
   const merged = mergeFramesIntoScene(existing, scene)
   return { scene, merged, existingHasElements: sceneHasElements(existing) }
@@ -192,8 +209,10 @@ export async function seedDesignMoodboardIfEmpty(
     return null
   }
 
-  await updateDesignWorkflow(scope).run({
-    input: { id: designId, moodboard: built.merged } as any,
+  // Writes the CORE board row, not `design.moodboard` — the column is the
+  // fallback for unmigrated designs, never a write target (#2017).
+  await saveDesignMoodboardWorkflow(scope).run({
+    input: { designId, owner: { type: "core" }, scene: built.merged },
   })
   return built.merged
 }

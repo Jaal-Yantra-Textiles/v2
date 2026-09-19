@@ -9,14 +9,19 @@
  * The scene building itself is covered by build-brief-frames/​build-moodboard-scene
  * specs; here we mock the design load + the persist workflow.
  *
+ * 🔴 #2017 — the persist target is the design's CORE board row, NOT the legacy
+ * `design.moodboard` column. While this wrote the column and the editor wrote
+ * the row, a seed on a migrated design landed where nothing reads: every
+ * resolver prefers the row and ignores the blob the moment one exists.
+ *
  * Run:
  *   TEST_TYPE=unit npx jest --testPathPattern="seed-design-moodboard"
  */
 
 const mockRun = jest.fn().mockResolvedValue({ result: {}, errors: [] })
-jest.mock("../../update-design", () => ({
+jest.mock("../save-design-moodboard", () => ({
   __esModule: true,
-  updateDesignWorkflow: jest.fn(() => ({ run: mockRun })),
+  saveDesignMoodboardWorkflow: jest.fn(() => ({ run: mockRun })),
   default: jest.fn(() => ({ run: mockRun })),
 }))
 
@@ -47,13 +52,63 @@ describe("seedDesignMoodboardIfEmpty", () => {
 
     expect(scene).not.toBeNull()
     expect(scene!.elements.length).toBeGreaterThan(0)
-    // Persisted exactly once with the built scene.
+    // Persisted exactly once, to the CORE BOARD, with the built scene.
     expect(mockRun).toHaveBeenCalledTimes(1)
-    expect(mockRun.mock.calls[0][0].input.id).toBe("des_1")
-    expect(mockRun.mock.calls[0][0].input.moodboard).toBe(scene)
+    const input = mockRun.mock.calls[0][0].input
+    expect(input.designId).toBe("des_1")
+    expect(input.owner).toEqual({ type: "core" })
+    expect(input.scene).toBe(scene)
+    // …and NOT through the design-column door it used to use.
+    expect(input.moodboard).toBeUndefined()
   })
 
-  it("never clobbers a board that already has elements", async () => {
+  it("reads the CORE ROW, not the blob, when deciding the board is populated", async () => {
+    // The state every migrated design is in: rows exist, the blob is stale.
+    // Reading the blob here would re-seed on top of the owner's live board.
+    const scope = scopeFor({
+      id: "des_row",
+      name: "Test",
+      concept_theme: "Anything",
+      moodboard: null,
+      moodboards: [
+        {
+          id: "mb_1",
+          owner_type: "core",
+          partner_id: null,
+          scene: { type: "excalidraw", elements: [{ id: "drawn-by-hand" }] },
+        },
+      ],
+    })
+
+    const scene = await seedDesignMoodboardIfEmpty(scope as any, "des_row")
+
+    expect(scene).toBeNull()
+    expect(mockRun).not.toHaveBeenCalled()
+  })
+
+  it("a PARTNER board is not the core board — an empty core still seeds", async () => {
+    const scope = scopeFor({
+      id: "des_p",
+      name: "Test",
+      concept_theme: "90s Tokyo Streetwear",
+      moodboard: null,
+      moodboards: [
+        {
+          id: "mb_p",
+          owner_type: "partner",
+          partner_id: "p1",
+          scene: { type: "excalidraw", elements: [{ id: "theirs" }] },
+        },
+      ],
+    })
+
+    const scene = await seedDesignMoodboardIfEmpty(scope as any, "des_p")
+
+    expect(scene).not.toBeNull()
+    expect(mockRun.mock.calls[0][0].input.owner).toEqual({ type: "core" })
+  })
+
+  it("the legacy blob is still the fallback for an unmigrated design", async () => {
     const scope = scopeFor({
       id: "des_2",
       name: "Test",

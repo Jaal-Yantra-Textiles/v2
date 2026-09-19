@@ -4,7 +4,7 @@ import "@excalidraw/excalidraw/index.css";
 import { Fragment, useState, useCallback, useEffect, useMemo, useRef } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import {
-  useDesign,
+  useDesignMoodboards,
   useGenerateMoodboard,
   useInsertMoodboardBlock,
   useMoodboardBlocks,
@@ -51,7 +51,12 @@ export function DesignMoodboardSection() {
   const { id } = useParams<{ id: string }>();
   if (!id) return null;
   
-  const { design } = useDesign(id, { fields: ["moodboard"] });
+  // #2017 — the scene comes from the design's CORE board row. `design.moodboard`
+  // is the legacy column an admin and a partner both wrote through; the route
+  // still falls back to it for a design the backfill never reached, so an
+  // unmigrated board arrives here as `own` all the same.
+  const { own: ownBoard } = useDesignMoodboards(id);
+  const scene = (ownBoard?.scene ?? null) as any;
   const navigate = useNavigate();
   
   // Function to close the modal
@@ -113,6 +118,26 @@ export function DesignMoodboardSection() {
     api.scrollToContent(moodboard.elements, { fitToContent: true });
   }, [excalidrawAPIRef]);
 
+  /**
+   * Excalidraw reads `initialData` once, at mount. The board fetch can resolve
+   * after that — and then the canvas sits empty on top of a populated board,
+   * inviting the owner to start over on their own work. Push the scene in the
+   * first time it arrives, and only while the canvas is still empty so a
+   * refetch can never overwrite edits in progress.
+   */
+  const didHydrateRef = useRef(false);
+  useEffect(() => {
+    if (didHydrateRef.current) return;
+    const api = excalidrawAPIRef.current;
+    if (!api || !Array.isArray(scene?.elements) || scene.elements.length === 0) return;
+    if (api.getSceneElements().length > 0) {
+      didHydrateRef.current = true; // mounted with the scene already in place
+      return;
+    }
+    didHydrateRef.current = true;
+    loadMoodboardIntoCanvas(scene);
+  }, [scene, loadMoodboardIntoCanvas, excalidrawAPIRef]);
+
   // Regenerate the tech-pack from the design's structured data (header/flats/
   // size-set/colorways + Construction specs). Persists server-side AND loads the
   // fresh scene straight into the canvas so it's editable immediately.
@@ -143,8 +168,8 @@ export function DesignMoodboardSection() {
   // server only fills an empty board (merge-not-clobber) and is no-throw, so a
   // design with nothing to render yet is a silent no-op.
   useEffect(() => {
-    if (didSeedRef.current || !design) return;
-    const els = (design?.moodboard as any)?.elements;
+    if (didSeedRef.current || ownBoard === undefined) return;
+    const els = scene?.elements;
     if (Array.isArray(els) && els.length > 0) {
       didSeedRef.current = true; // already populated — nothing to seed
       return;
@@ -160,7 +185,7 @@ export function DesignMoodboardSection() {
         // best-effort — auto-seed never blocks editing
       }
     })();
-  }, [design, seedMoodboard, loadMoodboardIntoCanvas]);
+  }, [ownBoard, scene, seedMoodboard, loadMoodboardIntoCanvas]);
 
   // The insert-block palette, grouped for the dropdown menu.
   const groupedBlocks = useMemo(() => {
@@ -326,7 +351,7 @@ export function DesignMoodboardSection() {
               excalidrawAPIRef.current = api;
               
               // Restore files if they exist
-              const savedFiles = (design?.moodboard as any)?.files;
+              const savedFiles = scene?.files;
               if (savedFiles && Object.keys(savedFiles).length > 0) {
                 // Create a simplified version of the files to restore
                 const filesToRestore = Object.entries(savedFiles).map(([id, file]: [string, any]) => {
@@ -363,12 +388,12 @@ export function DesignMoodboardSection() {
               type: "excalidraw",
               version: 2,
               source: "https://excalidraw.com",
-              elements: (design?.moodboard as any)?.elements ?? [],
+              elements: scene?.elements ?? [],
               appState: {
-                ...(design?.moodboard as any)?.appState,
+                ...scene?.appState,
                 collaborators: new Map(),
               },
-              files: (design?.moodboard as any)?.files ?? {}
+              files: scene?.files ?? {}
             }}
             onChange={(elements, appState, files) => {
               handleExcalidrawChange(elements, appState, files);
