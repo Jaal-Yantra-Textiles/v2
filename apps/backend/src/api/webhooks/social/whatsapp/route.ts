@@ -460,6 +460,8 @@ async function processWhatsAppWebhook(
                 media_ids: incomingMessage.mediaId ? [incomingMessage.mediaId] : [],
                 media_url: incomingMessage.mediaUrl ?? null,
                 media_mime_type: incomingMessage.mediaMimeType ?? null,
+                /** Null for an `image` — Meta only carries a name on a `document`. */
+                media_filename: incomingMessage.mediaFilename ?? null,
                 reply_to_wa_message_id: incomingMessage.replyToWaMessageId ?? null,
                 sender_platform_id: wa.getSenderPlatformId?.() ?? null,
                 partner_id: partner?.partnerId ?? null,
@@ -503,6 +505,12 @@ interface ParsedWhatsAppMessage {
   mediaId?: string
   mediaUrl?: string
   mediaMimeType?: string
+  /**
+   * The sender's own filename. 🔴 ONLY a `document` carries one — Meta strips
+   * it from an `image`, so a photo sent from the gallery has no name however
+   * carefully the sender named it on their phone.
+   */
+  mediaFilename?: string
   replyToWaMessageId?: string
 }
 
@@ -572,6 +580,13 @@ function parseWebhookMessage(msg: any): ParsedWhatsAppMessage | null {
         mediaId: msg.document?.id,
         mediaMimeType: msg.document?.mime_type,
         text: msg.document?.caption,
+        /**
+         * 🔴 Read, not derived. Every other field of a document was parsed and
+         * this one was dropped, so a partner who names each file — the only
+         * way they can say which cloth a swatch is of — produced rows that
+         * looked exactly like unnamed ones. Nothing errored.
+         */
+        mediaFilename: msg.document?.filename,
       }
 
     case "audio":
