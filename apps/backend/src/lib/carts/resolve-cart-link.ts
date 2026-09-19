@@ -22,6 +22,61 @@ import { buildCartRecoveryLink, type RecoveryLink } from "./recovery-link"
  * of them stays wrong, so there is now one.
  */
 
+
+/**
+ * PURE: which country segment does this buyer's checkout link carry? (#2177)
+ *
+ * 🔴 NEVER `region.countries[0]`. That read is unambiguous only by accident —
+ * the INR and AUD regions happen to name one country each. The EUR region names
+ * **31**, and row 0 is `al`, so every European buyer's link would have pointed
+ * at an Albanian storefront prefix the moment a EUR order could be created. It
+ * is the same shape as `stores[0]` on a 14-tenant table.
+ *
+ * The buyer's own country is the answer when we have it, and it is checked
+ * against the region rather than trusted: a cart whose region does not contain
+ * the buyer's country is in the WRONG REGION, and sending them to a prefix
+ * their cart cannot serve would turn a pricing mistake into a checkout that
+ * re-regions itself.
+ *
+ * Returns `null` rather than guessing. The caller then falls back to the
+ * configured default, which is at least a decision somebody made.
+ */
+export type CheckoutCountryReason =
+  | "buyer"
+  | "sole_region_country"
+  | "region_names_no_country"
+  | "buyer_outside_region"
+  | "ambiguous_region"
+
+export function pickCheckoutCountry(input: {
+  /** ISO-2 from the cart's shipping or billing address, when it has one. */
+  buyerCountry?: string | null
+  /** Every ISO-2 the cart's region names. */
+  regionCountries?: (string | null | undefined)[] | null
+}): { country: string | null; reason: CheckoutCountryReason } {
+  const norm = (v: unknown): string | null => {
+    if (typeof v !== "string") return null
+    const t = v.trim().toLowerCase()
+    return t ? t : null
+  }
+
+  const buyer = norm(input.buyerCountry)
+  const region = (input.regionCountries ?? []).map(norm).filter(Boolean) as string[]
+
+  if (region.length === 0) {
+    return { country: null, reason: "region_names_no_country" }
+  }
+  if (buyer) {
+    return region.includes(buyer)
+      ? { country: buyer, reason: "buyer" }
+      : { country: null, reason: "buyer_outside_region" }
+  }
+  if (region.length === 1) {
+    return { country: region[0], reason: "sole_region_country" }
+  }
+  return { country: null, reason: "ambiguous_region" }
+}
+
 export type CartForLink = {
   id: string
   completed_at: string | null
@@ -60,16 +115,39 @@ export const resolveCartCheckoutLink = async (
   try {
     const { data } = await query.graph({
       entity: "cart",
-      fields: ["id", "completed_at", "sales_channel_id", "region.countries.iso_2"],
+      fields: [
+        "id",
+        "completed_at",
+        "sales_channel_id",
+        "region.countries.iso_2",
+        // The buyer's own country decides the prefix; the region only bounds it.
+        "shipping_address.country_code",
+        "billing_address.country_code",
+      ],
       filters: { id: cartId },
     })
     const row: any = data?.[0] ?? null
     if (row) {
+      const picked = pickCheckoutCountry({
+        buyerCountry:
+          row?.shipping_address?.country_code ??
+          row?.billing_address?.country_code ??
+          null,
+        regionCountries: (row?.region?.countries ?? []).map((c: any) => c?.iso_2),
+      })
+      if (!picked.country) {
+        // Said out loud: a link with no country segment is the case that lets
+        // the storefront substitute its default and re-region the cart, which
+        // is the whole failure this file exists to prevent.
+        logger?.warn?.(
+          `[cart-link] no confident country for cart ${cartId} (${picked.reason}) — falling back to the configured default`
+        )
+      }
       cart = {
         id: row.id,
         completed_at: row.completed_at ?? null,
         sales_channel_id: row.sales_channel_id ?? null,
-        country_code: row?.region?.countries?.[0]?.iso_2 ?? null,
+        country_code: picked.country,
       }
     }
   } catch (e: any) {
