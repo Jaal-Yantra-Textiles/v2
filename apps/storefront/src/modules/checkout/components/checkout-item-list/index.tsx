@@ -192,7 +192,7 @@ export default function CheckoutItemList({ cart }: CheckoutItemListProps) {
           <Modal
             isOpen={showAll}
             close={() => setShowAll(false)}
-            size="medium"
+            size="large"
             data-testid="checkout-items-modal"
           >
             <Modal.Title>Order composition</Modal.Title>
@@ -206,10 +206,15 @@ export default function CheckoutItemList({ cart }: CheckoutItemListProps) {
                 reads as unscrollable depending on where your cursor happens to
                 be. Filling the width makes the whole body the scroll target.
 
-                60vh so a thirty-item cart cannot make the dialog taller than
-                the viewport.
+                No `max-h-[Nvh]` here: the PANEL already caps at 75vh, and a
+                second cap on the child fought it — 70vh of list plus the title
+                and padding exceeds the panel, which clips it. `min-h-0` lets
+                this shrink to whatever the panel allows, so a few items get a
+                roomy box and thirty get a scroller, with one rule. `pe-4` and not `pe-1`: once the list fills the
+                width, a ~15px scrollbar sits ON the content and clipped the
+                price — "2 x €8,500.0|0" with the stepper cut off.
               */}
-              <div className="w-full max-h-[60vh] overflow-y-auto pe-1">
+              <div className="w-full min-h-0 overflow-y-auto pe-4">
                 <ItemRows items={items} currencyCode={cart.currency_code} />
               </div>
             </Modal.Body>

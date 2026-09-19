@@ -36,10 +36,45 @@ const Modal = ({
    */
   useEffect(() => {
     if (!isOpen) return
-    const previous = document.body.style.overflow
-    document.body.style.overflow = "hidden"
+
+    /**
+     * `position: fixed` on the body, NOT `overflow: hidden`.
+     *
+     * Headless UI already sets `html { overflow: hidden }`, and I then added
+     * `body { overflow: hidden }` on top. BOTH measured as applied and the
+     * page behind STILL scrolled under a real wheel — confirmed by eye, not
+     * just by instrument. Taking the body out of flow is the only lock that
+     * actually holds, and it is the one that also works on iOS Safari.
+     *
+     * The scroll position has to be carried on `top` and restored on close,
+     * or fixing the body jumps the buyer back to the top of checkout.
+     */
+    const scrollY = window.scrollY
+    const body = document.body
+    const previous = {
+      position: body.style.position,
+      top: body.style.top,
+      left: body.style.left,
+      right: body.style.right,
+      width: body.style.width,
+      overflow: body.style.overflow,
+    }
+
+    body.style.position = "fixed"
+    body.style.top = `-${scrollY}px`
+    body.style.left = "0"
+    body.style.right = "0"
+    body.style.width = "100%"
+    body.style.overflow = "hidden"
+
     return () => {
-      document.body.style.overflow = previous
+      body.style.position = previous.position
+      body.style.top = previous.top
+      body.style.left = previous.left
+      body.style.right = previous.right
+      body.style.width = previous.width
+      body.style.overflow = previous.overflow
+      window.scrollTo(0, scrollY)
     }
   }, [isOpen])
 
@@ -149,7 +184,16 @@ const Description: React.FC<{ children: React.ReactNode }> = ({ children }) => {
 }
 
 const Body: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  return <div className="flex justify-center">{children}</div>
+  /**
+   * `w-full min-h-0` so a scrollable child can actually bound itself.
+   *
+   * The Panel is `flex flex-col max-h-[75vh]`. A flex child defaults to
+   * `min-height: auto` and refuses to shrink below its content, so a long list
+   * pushed past the panel's cap and was clipped by its `overflow: visible`.
+   * `w-full` also stops a content-width child being centred, which left dead
+   * gutters either side that swallowed the scroll wheel.
+   */
+  return <div className="flex w-full min-h-0 justify-center">{children}</div>
 }
 
 const Footer: React.FC<{ children: React.ReactNode }> = ({ children }) => {
