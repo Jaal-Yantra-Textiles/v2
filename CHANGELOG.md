@@ -1,3 +1,16 @@
+# [13.152.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.151.0...v13.152.0) (2026-09-19)
+
+
+### Bug Fixes
+
+* **#2017:** the admin moodboard reads and writes the board, not the legacy column ([#2174](https://github.com/Jaal-Yantra-Textiles/v2/issues/2174)) ([96af4df](https://github.com/Jaal-Yantra-Textiles/v2/commit/96af4df0c1f6dd19bdf2b57ab9779d8f1a27bc07)), closes [#2017](https://github.com/Jaal-Yantra-Textiles/v2/issues/2017) [#2017](https://github.com/Jaal-Yantra-Textiles/v2/issues/2017) [#2017](https://github.com/Jaal-Yantra-Textiles/v2/issues/2017) [#2163](https://github.com/Jaal-Yantra-Textiles/v2/issues/2163) [#2017](https://github.com/Jaal-Yantra-Textiles/v2/issues/2017) [#2163](https://github.com/Jaal-Yantra-Textiles/v2/issues/2163) [#2163](https://github.com/Jaal-Yantra-Textiles/v2/issues/2163) [#2163](https://github.com/Jaal-Yantra-Textiles/v2/issues/2163)
+* **#2172:** the unified-order mirror keeps the dye cost through a line edit ([#2173](https://github.com/Jaal-Yantra-Textiles/v2/issues/2173)) ([f462cde](https://github.com/Jaal-Yantra-Textiles/v2/commit/f462cdebefbfb0f30dea683a772aaccac44eaba5)), closes [#2172](https://github.com/Jaal-Yantra-Textiles/v2/issues/2172)
+
+
+### Features
+
+* **whatsapp:** keep the sender's filename, and acknowledge a burst once ([#2175](https://github.com/Jaal-Yantra-Textiles/v2/issues/2175)) ([d521e5d](https://github.com/Jaal-Yantra-Textiles/v2/commit/d521e5d2c5f17ab0cf98fae59d502739ee337777)), closes [#2017](https://github.com/Jaal-Yantra-Textiles/v2/issues/2017) [#2017](https://github.com/Jaal-Yantra-Textiles/v2/issues/2017) [#2163](https://github.com/Jaal-Yantra-Textiles/v2/issues/2163) [#2017](https://github.com/Jaal-Yantra-Textiles/v2/issues/2017) [#2163](https://github.com/Jaal-Yantra-Textiles/v2/issues/2163) [#2163](https://github.com/Jaal-Yantra-Textiles/v2/issues/2163) [#2163](https://github.com/Jaal-Yantra-Textiles/v2/issues/2163) [#2138](https://github.com/Jaal-Yantra-Textiles/v2/issues/2138)
+
 # [13.151.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.150.0...v13.151.0) (2026-09-19)
 
 
