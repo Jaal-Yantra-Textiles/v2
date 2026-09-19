@@ -267,6 +267,11 @@ secrets:
   FACEBOOK_WEBHOOK_VERIFY_TOKEN: /jyt/prod/FACEBOOK_WEBHOOK_VERIFY_TOKEN
   FAL_KEY: /jyt/prod/FAL_KEY
   FRONTEND_URL: /jyt/prod/FRONTEND_URL
+  # 🔴 The buyer-facing SHOP host, and deliberately NOT FRONTEND_URL, which is the
+  # corporate site (jaalyantra.com). Read by the post-delivery feedback link
+  # (STORE_URL -> FRONTEND_URL -> "") and by the Google Merchant landing-url base.
+  # Without this mapping the SSM parameter exists and the container never sees it.
+  STORE_URL: /jyt/prod/STORE_URL
   GOOGLE_REDIRECT_URI: /jyt/prod/GOOGLE_REDIRECT_URI
   JWT_SECRET: /jyt/prod/JWT_SECRET
   # #1059 EmailKit — mass blog/newsletter broadcasts via Kit (kit.com). Gated by
