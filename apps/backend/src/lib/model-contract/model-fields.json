@@ -998,6 +998,7 @@
       "metadata",
       "milestones",
       "moodboard",
+      "moodboards",
       "name",
       "origin_source",
       "owner_partner_id",
@@ -1147,6 +1148,22 @@
       "submitted_at",
       "updated_at",
       "verdict"
+    ]
+  },
+  "DesignMoodboard (modules/designs/models/design_moodboard.ts)": {
+    "file": "modules/designs/models/design_moodboard.ts",
+    "fields": [
+      "created_at",
+      "deleted_at",
+      "design",
+      "id",
+      "metadata",
+      "owner_type",
+      "partner_id",
+      "scene",
+      "thumbnail_url",
+      "title",
+      "updated_at"
     ]
   },
   "DesignSizeSets (modules/designs/models/design_size_set.ts)": {

@@ -3,6 +3,7 @@ import DesignSpecification from "./design_specification";
 import DesignColor from "./design_color";
 import DesignSizeSet from "./design_size_set";
 import DesignComponent from "./design_component";
+import DesignMoodboard from "./design_moodboard";
 
 const Design = model.define("design", {
   id: model.id().primaryKey(),
@@ -125,16 +126,25 @@ const Design = model.define("design", {
   owner_partner_id: model.text().nullable(),
   metadata: model.json().nullable(),
   media_files: model.json().nullable(),
+  /**
+   * ⚠️ LEGACY as of #2017 — the per-owner `design_moodboard` rows are the
+   * source of truth. Deliberately not dropped: a design whose board has not
+   * been migrated yet must still render, and an empty relation read is
+   * indistinguishable from "nobody has a board" unless the blob can still
+   * answer. Drop it only once every reader has moved.
+   */
   moodboard: model.json().nullable(),
   // Relationships
   specifications: model.hasMany(() => DesignSpecification, { mappedBy: "design" }),
   colors: model.hasMany(() => DesignColor, { mappedBy: "design" }),
   size_sets: model.hasMany(() => DesignSizeSet, { mappedBy: "design" }),
+  // #2017 — one board per OWNER, replacing the shared `moodboard` blob above.
+  moodboards: model.hasMany(() => DesignMoodboard, { mappedBy: "design" }),
   // Bundle/composite relationships
   components: model.hasMany(() => DesignComponent, { mappedBy: "parent_design" }),
   used_in: model.hasMany(() => DesignComponent, { mappedBy: "component_design" }),
 }).cascades({
-  delete: ['specifications', 'colors', 'size_sets', 'components', 'used_in']
+  delete: ['specifications', 'colors', 'size_sets', 'moodboards', 'components', 'used_in']
 });
 
 export default Design;

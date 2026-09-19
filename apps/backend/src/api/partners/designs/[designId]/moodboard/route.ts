@@ -14,7 +14,7 @@
  * @module API/Partners/Designs/Moodboard
  */
 import { AuthenticatedMedusaRequest, MedusaResponse } from "@medusajs/framework"
-import updateDesignWorkflow from "../../../../../workflows/designs/update-design"
+import { saveDesignMoodboardWorkflow } from "../../../../../workflows/designs/moodboard/save-design-moodboard"
 import { assertPartnerCanAuthorDesign } from "../../helpers"
 import { SavePartnerMoodboard } from "./validators"
 
@@ -32,16 +32,33 @@ export async function PUT(
   res: MedusaResponse
 ): Promise<void> {
   const { designId } = req.params
-  await assertPartnerCanAuthorDesign(req, designId)
+  const { partner } = await assertPartnerCanAuthorDesign(req, designId)
 
   const { moodboard } = req.validatedBody
 
-  const { errors } = await updateDesignWorkflow(req.scope).run({
-    input: { id: designId, moodboard } as any,
+  /**
+   * 🔴 #2017 — writes THE PARTNER'S OWN BOARD, not `design.moodboard`.
+   *
+   * This used to run `updateDesignWorkflow({ moodboard })`, i.e. replace the
+   * single column the admin also writes. Last write won, silently, with a 200,
+   * and the other party's work was simply gone the next time they opened it.
+   *
+   * `assertPartnerCanAuthorDesign` still gates the DESIGN — owner or invited
+   * designer, the #1113 flow. Which BOARD they get is a separate question,
+   * answered here by their own partner id, so "may author this design" can no
+   * longer quietly mean "may overwrite the admin's board".
+   */
+  const { result, errors } = await saveDesignMoodboardWorkflow(req.scope).run({
+    input: {
+      designId,
+      owner: { type: "partner", partnerId: partner.id },
+      scene: moodboard,
+    },
   })
-  if (errors.length > 0) {
-    throw errors
+  if (errors?.length > 0) {
+    throw errors[0].error
   }
 
-  res.status(200).json({ moodboard })
+  const board = (result as any)?.moodboard
+  res.status(200).json({ moodboard: board?.scene ?? moodboard, board })
 }
