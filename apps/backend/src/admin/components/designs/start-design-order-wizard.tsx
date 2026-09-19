@@ -463,8 +463,28 @@ export const StartDesignOrderWizard = () => {
           </RouteFocusModal.Title>
         </RouteFocusModal.Header>
         <RouteFocusModal.Body className="size-full overflow-auto">
-          <DesignOrderCreatedPanel result={created} onDone={handleSuccess} />
+          <DesignOrderCreatedPanel result={created} />
         </RouteFocusModal.Body>
+        {/*
+          🔴 The primary action belongs in the FOOTER, where it is on both other
+          steps. It used to sit at the bottom of this scrollable Body — beneath
+          the checkout link, the payment link and up to three Alerts — so on a
+          short window it was below the fold and the modal read as stuck after
+          creating the order. #2176
+        */}
+        <RouteFocusModal.Footer>
+          <div className="flex flex-wrap items-center justify-end gap-2">
+            {/*
+              `() => handleSuccess()`, not `onClick={handleSuccess}`.
+              `handleSuccess` takes an optional `path`, so wiring it directly
+              hands it the click EVENT as that path. The old panel button had
+              the same shape.
+            */}
+            <Button size="small" onClick={() => handleSuccess()}>
+              Done
+            </Button>
+          </div>
+        </RouteFocusModal.Footer>
       </div>
     )
   }
@@ -494,8 +514,16 @@ export const StartDesignOrderWizard = () => {
         <RouteFocusModal.Title asChild>
           <span className="sr-only">Start a design order</span>
         </RouteFocusModal.Title>
-        <div className="flex w-full items-center justify-between gap-x-4">
-          <ProgressTabs.List className="flex items-center justify-start">
+        {/*
+          Laid out exactly like every other stepped RouteFocusModal
+          (create-inventory-order, create-social-post-steps, create-blog, …):
+          `-my-2 w-full border-l` on the wrapper and `w-full` on the List. The
+          negative margin is what makes the triggers meet the header's top and
+          bottom edges; without it they float and the steps read as oddly
+          spaced beside any other wizard. #2176
+        */}
+        <div className="-my-2 w-full border-l">
+          <ProgressTabs.List className="flex w-full items-center justify-start">
             <ProgressTabs.Trigger status={designsStatus} value={Step.DESIGNS}>
               Designs
             </ProgressTabs.Trigger>

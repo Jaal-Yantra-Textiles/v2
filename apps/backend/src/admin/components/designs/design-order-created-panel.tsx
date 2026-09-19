@@ -37,10 +37,8 @@ export type CreatedDesignOrder = {
  */
 export const DesignOrderCreatedPanel = ({
   result,
-  onDone,
 }: {
   result: CreatedDesignOrder
-  onDone: () => void
 }) => {
   const copy = async (value: string, label: string) => {
     try {
@@ -121,9 +119,6 @@ export const DesignOrderCreatedPanel = ({
         </Text>
       )}
 
-      <div className="flex justify-end">
-        <Button onClick={onDone}>Done</Button>
-      </div>
     </div>
   )
 }
