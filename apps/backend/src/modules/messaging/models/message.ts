@@ -41,6 +41,26 @@ const Message = model.define("messaging_message", {
      * being asked about. Cleared when the backfill collects it.
      */
     media_pending_reason: model.text().nullable(),
+    /**
+     * The sender's OWN name for the file, as WhatsApp carries it.
+     *
+     * 🔴 Only a `document` has one. A photo sent from the gallery arrives as
+     * `image`, which Meta strips of every filename — so "send it as a file,
+     * not a photo" is a real instruction with a real consequence, not a
+     * preference, and a partner who taps the wrong attach button produces a
+     * row with nothing in this column.
+     *
+     * It exists because a photograph of cloth cannot be identified from the
+     * cloth: six of GOF's eight invoice colours appear on two different
+     * materials, so colour alone never decides which material a swatch belongs
+     * to. The filename is the only channel by which the sender can TELL us,
+     * short of a caption per photo.
+     *
+     * Kept verbatim, never parsed here. What a name means is a question for
+     * whoever matches it to a material, and a normalised copy would be a
+     * second version of a fact the sender owns.
+     */
+    media_filename: model.text().nullable(),
     reply_to_id: model.text().nullable(),
     reply_to_snapshot: model.json().nullable(),
     // Human-readable reason a delivery failed (Meta error code/title/message).

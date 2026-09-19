@@ -20,6 +20,10 @@ import {
   isPhotoContextLive,
   recordPhoto,
 } from "./whatsapp-photo-batch"
+import {
+  recordMediaAck,
+  type MediaAckEntry,
+} from "./whatsapp-media-ack-batch"
 import { describePhotoForContext } from "./whatsapp-photo-vision"
 import type { WhatsAppAuditContext } from "../../modules/social-provider/whatsapp-service"
 import {
@@ -45,6 +49,8 @@ interface IncomingMessage {
   mediaId?: string
   mediaUrl?: string
   mediaMimeType?: string
+  /** The sender's own filename. 🔴 Only a `document` has one — never an `image`. */
+  mediaFilename?: string
   replyToWaMessageId?: string
 }
 
@@ -730,33 +736,57 @@ export async function handleIncomingMessage(
           })
         }
 
-        if (photoContextOwnsReply) {
-          // The admin already said what these photos are for, so the generic
-          // "uploaded to your shared folder" would be answering a question
-          // nobody asked. Null means the flow owns the reply.
-          if (photoContextReply) {
-            await whatsapp.sendTextMessage(message.from, photoContextReply)
+        /**
+         * 🔴 A SUCCESSFUL upload is acknowledged ONCE PER BURST, not per file.
+         *
+         * #2138 batched the question and left the acknowledgement firing per
+         * message, so a partner sending twelve swatches got twelve near-
+         * identical replies — each a push notification, and each burying
+         * anything we actually needed them to read. A burst of photos is one
+         * event that happens to arrive as twelve webhooks.
+         *
+         * So the success branches below RECORD and send nothing;
+         * `jobs/send-media-ack-batches.ts` sends one reply once the partner
+         * goes quiet. Errors are NOT deferred — see the note in
+         * whatsapp-media-ack-batch.ts.
+         */
+        const ackEntry: MediaAckEntry | null = photoContextOwnsReply
+          ? photoContextReply
+            ? { kind: "context", label: photoContextReply }
+            : null // the flow owns the reply; nothing for us to say
+          : attachedRunId
+            ? { kind: "run", label: attachedRunId }
+            : !attachError && sharedFolder
+              ? { kind: "shared_folder", label: sharedFolder.name }
+              : null
+
+        if (ackEntry && conversationId) {
+          const [ackRow] = await (scope.resolve(MESSAGING_MODULE) as any)
+            .listMessagingMessages({ wa_message_id: message.messageId }, { take: 1 })
+            .catch(() => [null])
+          if (ackRow?.id) {
+            /**
+             * Re-read rather than reusing `conversationMeta`: the batch write
+             * above may have already updated this conversation in this same
+             * handler, and writing a stale object back would drop the photo
+             * that was just recorded.
+             */
+            const freshMeta = await readConversationMetadata(scope, conversationId)
+            await updateConversationMetadata(scope, conversationId, {
+              ...freshMeta,
+              pending_media_ack: recordMediaAck(
+                freshMeta.pending_media_ack as any,
+                ackRow.id,
+                ackEntry
+              ),
+            })
           }
-        } else if (attachedRunId) {
-          const suffix = contextStillValid
-            ? ""
-            : " (auto-matched — you only have one run in progress)"
-          const folderSuffix = sharedFolder
-            ? ` Stored in *${sharedFolder.name}*.`
-            : ""
-          await whatsapp.sendTextMessage(
-            message.from,
-            `📎 Photo attached to run ${attachedRunId}${suffix}.${folderSuffix}`
-          )
+        }
+
+        if (photoContextOwnsReply || attachedRunId || (!attachError && sharedFolder)) {
+          // Recorded above; the sweep replies once the burst settles.
         } else if (attachError) {
           await whatsapp.sendTextMessage(message.from, attachError)
-        } else if (sharedFolder) {
-          // Silent shared-folder upload — the new default for partners
-          // not in the middle of a run. No command, no choice prompt.
-          await whatsapp.sendTextMessage(
-            message.from,
-            `✅ Thanks for sharing. Uploaded to your shared folder *${sharedFolder.name}*.`,
-          )
         } else if (!pointedRunId) {
           // No tap, no single run to auto-match, no shared folder.
           // File is in the per-partner WhatsApp catchall — admin will
@@ -1783,6 +1813,35 @@ async function sendHelpMessage(
 /**
  * Update conversation metadata (consent state, onboarding, etc.)
  */
+/**
+ * Re-read a conversation's metadata from the database.
+ *
+ * 🔴 The in-scope `conversationMeta` is a snapshot taken at the top of the
+ * handler, and this same handler may have written to the conversation since —
+ * the photo batch is recorded a few lines before the acknowledgement batch.
+ * Spreading the stale snapshot over a fresh write silently DROPS whatever the
+ * earlier write added; the update succeeds and the photo is simply not in the
+ * batch. A metadata blob is one value, so two writers of different keys still
+ * clobber each other.
+ *
+ * Returns `{}` rather than throwing: a failed read must not turn a saved
+ * photograph into an error.
+ */
+async function readConversationMetadata(
+  scope: any,
+  conversationId: string | null
+): Promise<Record<string, any>> {
+  if (!conversationId) return {}
+  try {
+    const messagingService = scope.resolve(MESSAGING_MODULE) as any
+    const conv = await messagingService.retrieveMessagingConversation(conversationId)
+    return (conv?.metadata ?? {}) as Record<string, any>
+  } catch (e: any) {
+    console.warn("[whatsapp-handler] Failed to read conversation metadata:", e.message)
+    return {}
+  }
+}
+
 async function updateConversationMetadata(
   scope: any,
   conversationId: string | null,
@@ -2008,6 +2067,15 @@ async function persistInboundMessage(
      * this one column.
      */
     media_id: message.mediaId || null,
+    /**
+     * The sender's own name for the file, verbatim.
+     *
+     * 🔴 Null for an `image` — Meta carries a filename only on a `document`.
+     * That is why "send them as files, not photos" is an instruction with a
+     * consequence: the same picture attached the other way arrives nameless,
+     * and nothing about the row says a name was ever lost.
+     */
+    media_filename: message.mediaFilename || null,
     reply_to_id: replyToId,
     reply_to_snapshot: replyToSnapshot,
   })

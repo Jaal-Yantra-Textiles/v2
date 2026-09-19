@@ -2610,6 +2610,7 @@
       "direction",
       "fail_reason",
       "id",
+      "media_filename",
       "media_id",
       "media_mime_type",
       "media_pending_reason",
