@@ -41,6 +41,35 @@ type DesignEstimate = {
   original_currency?: string
 }
 
+
+/**
+ * PURE: what currency is this design's estimate denominated in? (#2176)
+ *
+ * 🔴 The answer is the DESIGN'S `cost_currency`, and it was being guessed from
+ * the house store instead.
+ *
+ * `estimate-design-cost` prices in the design's own currency — its doc says so
+ * outright ("unit_amount is always per finished unit, in the design's cost
+ * currency") and it matches comparable variant prices on that currency. The
+ * draft-order step tagged the estimate with nothing and left the conversion
+ * step to fall back on the house store, which is EUR while 12 of 15 storefronts
+ * sell in INR. A design costed at ₹10,000 with `cost_currency: "inr"` written
+ * on it was therefore read as €10,000 and converted into the rupee cart.
+ *
+ * Returns `undefined` — not a guess — when the design carries no currency, so
+ * the caller's existing fallback still covers rows that predate the column.
+ * An empty string is treated as absent: `''` is not a denomination, and
+ * letting it through would label money with nothing.
+ */
+export function estimateSourceCurrency(
+  design: { cost_currency?: string | null } | null | undefined
+): string | undefined {
+  const raw = design?.cost_currency
+  if (typeof raw !== "string") return undefined
+  const trimmed = raw.trim()
+  return trimmed ? trimmed.toLowerCase() : undefined
+}
+
 // ─── Step 1: Estimate costs for each design ──────────────────────────────────
 
 const estimateDesignCostsStep = createStep(
@@ -62,7 +91,10 @@ const estimateDesignCostsStep = createStep(
       const { data: designs } = await query.graph({
         entity: "design",
         filters: { id: design_id },
-        fields: ["id", "name"],
+        // 🔴 `cost_currency` is what the estimate is DENOMINATED IN. Without it
+        // the conversion step below falls back to the house store's currency
+        // and a rupee estimate gets read as euros. #2176
+        fields: ["id", "name", "cost_currency"],
       })
 
       const design = designs?.[0]
@@ -104,7 +136,28 @@ const estimateDesignCostsStep = createStep(
           name: design.name,
           unit_price: costEstimate.total_estimated,
           confidence: costEstimate.confidence,
-          // Estimation results are in store default currency (no tag = use store default)
+          /**
+           * 🔴 The estimate is in the DESIGN'S cost currency, not the store's.
+           *
+           * This used to be tagged with nothing, under the comment "estimation
+           * results are in store default currency". They are not:
+           * `estimate-design-cost` prices in `design.cost_currency` and says so
+           * ("unit_amount is always per finished unit, in the design's cost
+           * currency"), and it even matches comparable variant prices on that
+           * currency.
+           *
+           * An untagged estimate falls through to the house store's currency,
+           * which is EUR while 12 of 15 storefronts sell in INR. So a design
+           * costed at ₹10,000 — `cost_currency: "inr"`, written on the design —
+           * was read as €10,000 and FX-converted into the rupee cart. The line
+           * kept the evidence in its own metadata: `original_currency: "eur"`
+           * on an `inr` cart (#2176).
+           *
+           * Left undefined when the design carries no currency, which keeps the
+           * old fallback for rows that predate the column rather than inventing
+           * a denomination for them.
+           */
+          source_currency: estimateSourceCurrency(design),
         })
       }
     }

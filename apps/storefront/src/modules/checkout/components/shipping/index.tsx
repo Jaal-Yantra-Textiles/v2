@@ -11,7 +11,7 @@ import ErrorMessage from "@modules/checkout/components/error-message"
 import Divider from "@modules/common/components/divider"
 import MedusaRadio from "@modules/common/components/radio"
 import { usePathname, useRouter, useSearchParams } from "next/navigation"
-import { useEffect, useState } from "react"
+import { useEffect, useMemo, useState } from "react"
 
 const PICKUP_OPTION_ON = "__PICKUP_ON"
 const PICKUP_OPTION_OFF = "__PICKUP_OFF"
@@ -47,6 +47,20 @@ function formatAddress(address: HttpTypes.StoreCartAddress) {
   return ret
 }
 
+/**
+ * The service zone behind an option.
+ *
+ * `service_zone` IS returned by the store API but is absent from Medusa's
+ * published `StoreCartShippingOption` type, so it is read through a narrow cast
+ * rather than `any` — the pickup block below reads it the same way and has
+ * carried the type error ever since.
+ */
+const serviceZoneName = (
+  option: HttpTypes.StoreCartShippingOption
+): string | null =>
+  (option as unknown as { service_zone?: { name?: string | null } })
+    .service_zone?.name ?? null
+
 const Shipping: React.FC<ShippingProps> = ({
   cart,
   availableShippingMethods,
@@ -69,6 +83,21 @@ const Shipping: React.FC<ShippingProps> = ({
   const pathname = usePathname()
 
   const isOpen = searchParams.get("step") === "delivery"
+
+  /**
+   * Option names that appear more than once, so the rows carrying them can say
+   * what makes them different. Computed here rather than in the map so it is
+   * one pass over the list instead of one per row.
+   */
+  const duplicateOptionNames = useMemo(() => {
+    const seen = new Set<string>()
+    const dupes = new Set<string>()
+    for (const o of availableShippingMethods ?? []) {
+      if (seen.has(o.name)) dupes.add(o.name)
+      seen.add(o.name)
+    }
+    return dupes
+  }, [availableShippingMethods])
 
   const _shippingMethods = availableShippingMethods?.filter(
     (sm) => sm.service_zone?.fulfillment_set?.type !== "pickup"
@@ -232,6 +261,19 @@ const Shipping: React.FC<ShippingProps> = ({
                     </Radio>
                   </RadioGroup>
                 )}
+                {/*
+                  🔴 CONTAINED. Every option used to render into an unbounded
+                  column, so a buyer in a country covered by two overlapping
+                  service zones got six delivery rows and the Continue button
+                  went below the fold — they scrolled looking for a button while
+                  the page looked broken. Six was real: Italy matched both a
+                  "Global" zone (5 options, including an Indian domestic courier)
+                  and an International one.
+                  The zone overlap is fixed at the source, but a checkout must
+                  not depend on the catalogue being tidy — a partner can always
+                  add a sixth rate. Capped and scrollable past four; the cap is
+                  in rem so it follows the row height rather than guessing px.
+                */}
                 <RadioGroup
                   value={shippingMethodId}
                   onChange={(v) => {
@@ -239,6 +281,10 @@ const Shipping: React.FC<ShippingProps> = ({
                       return handleSetShippingMethod(v, "shipping")
                     }
                   }}
+                  className={clx({
+                    "max-h-[22rem] overflow-y-auto pr-1":
+                      (_shippingMethods?.length ?? 0) > 4,
+                  })}
                 >
                   {_shippingMethods?.map((option) => {
                     const isDisabled =
@@ -257,7 +303,7 @@ const Shipping: React.FC<ShippingProps> = ({
                           {
                             "border-ui-border-interactive":
                               option.id === shippingMethodId,
-                            "hover:shadow-brders-none cursor-not-allowed":
+                            "hover:shadow-none cursor-not-allowed":
                               isDisabled,
                           }
                         )}
@@ -266,9 +312,27 @@ const Shipping: React.FC<ShippingProps> = ({
                           <MedusaRadio
                             checked={option.id === shippingMethodId}
                           />
-                          <span className="text-base-regular">
-                            {option.name}
-                          </span>
+                          <div className="flex flex-col">
+                            <span className="text-base-regular">
+                              {option.name}
+                            </span>
+                            {/*
+                              🔴 Only when two rows SHARE a name. Overlapping
+                              service zones produce genuinely identical labels —
+                              "International Shipping (Shiprocket)" appeared
+                              twice, once per zone — and two indistinguishable
+                              radio buttons ask the buyer to pick between things
+                              they cannot tell apart. Naming the zone is the
+                              smallest true difference. Silent when names are
+                              already unique, so the common checkout is unchanged.
+                            */}
+                            {duplicateOptionNames.has(option.name) &&
+                            serviceZoneName(option) ? (
+                              <span className="text-small-regular text-ui-fg-muted">
+                                {serviceZoneName(option)}
+                              </span>
+                            ) : null}
+                          </div>
                         </div>
                         <span className="justify-self-end text-ui-fg-base">
                           {option.price_type === "flat" ? (
@@ -276,7 +340,18 @@ const Shipping: React.FC<ShippingProps> = ({
                               amount: option.amount!,
                               currency_code: cart?.currency_code,
                             })
-                          ) : calculatedPricesMap[option.id] ? (
+                          ) : typeof calculatedPricesMap[option.id] ===
+                            "number" ? (
+                            /*
+                              🔴 `typeof … === "number"`, NOT a truthiness check.
+                              A carrier that quotes ZERO is free shipping, and
+                              `0` is falsy — so a free calculated rate fell
+                              through to the "-" below and read as "we could not
+                              price this", on an option that is selectable and
+                              charges nothing. `isDisabled` above already uses
+                              this exact test, so the two disagreed about the
+                              same option.
+                            */
                             convertToLocale({
                               amount: calculatedPricesMap[option.id],
                               currency_code: cart?.currency_code,
@@ -327,7 +402,7 @@ const Shipping: React.FC<ShippingProps> = ({
                             {
                               "border-ui-border-interactive":
                                 option.id === shippingMethodId,
-                              "hover:shadow-brders-none cursor-not-allowed":
+                              "hover:shadow-none cursor-not-allowed":
                                 option.insufficient_inventory,
                             }
                           )}

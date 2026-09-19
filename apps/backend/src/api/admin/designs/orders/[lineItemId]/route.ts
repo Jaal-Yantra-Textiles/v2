@@ -7,6 +7,8 @@ import designLineItemLink from "../../../../../links/design-line-item-link"
 import designCustomerLink from "../../../../../links/design-customer-link"
 import designOrderLink from "../../../../../links/design-order-link"
 import { resolveLineItemDesignId } from "../../../../../lib/resolve-line-item-production"
+import { resolveCartCheckoutLink } from "../../../../../lib/carts/resolve-cart-link"
+import { isCancelled } from "../mutate-design-order"
 import {
   buildOrderItemRow,
   summariseOrderItems,
@@ -266,15 +268,27 @@ export async function GET(
 
     // 4. Fetch cart details for currency and customer fallback
     let cartCurrencyCode: string | null = null
+    /** Hoisted: the checkout link below is withheld for a cancelled order. */
+    let cartCancelled = false
+    let cancellation: { cancelled_at: string; cancelled_reason: string | null } | null = null
     if (lineItem?.cart_id) {
       try {
         const { data: carts } = await query.graph({
           entity: "cart",
           filters: { id: lineItem.cart_id },
-          fields: ["customer_id", "currency_code"],
+          fields: ["customer_id", "currency_code", "metadata"],
         })
         const cart = carts?.[0]
         cartCurrencyCode = cart?.currency_code || null
+        cartCancelled = isCancelled(cart)
+        if (cartCancelled) {
+          const md = (cart?.metadata ?? {}) as Record<string, unknown>
+          cancellation = {
+            cancelled_at: String(md.cancelled_at),
+            cancelled_reason:
+              typeof md.cancelled_reason === "string" ? md.cancelled_reason : null,
+          }
+        }
         if (!customer && cart?.customer_id) {
           try {
             const { data: customers } = await query.graph({
@@ -418,11 +432,41 @@ export async function GET(
       }
     }
 
-    // 6. Build checkout URL for pending items
-    const storeUrl = process.env.STORE_URL || "https://cicilabel.com"
-    const checkoutUrl = !order && lineItem?.cart_id
-      ? `${storeUrl}/checkout/cart/${lineItem.cart_id}`
-      : null
+    /**
+     * 6. The checkout link for a pending item.
+     *
+     * 🔴 Through `resolveCartCheckoutLink`, NOT built here. This route used to
+     * assemble it itself:
+     *
+     *     `${process.env.STORE_URL}/checkout/cart/${cart_id}`
+     *
+     * which names the platform shop for every tenant and carries NO country
+     * segment — so the storefront middleware substitutes its default region.
+     * That is why a design order opened from Australia landed on `/in/`.
+     *
+     * The create route (`draft-order/lib.ts`) was moved onto the shared
+     * resolver and this one was not, so the two disagreed about where a buyer
+     * goes — exactly the split `resolve-cart-link` was written to end, and the
+     * link an operator actually copies comes from HERE.
+     *
+     * Best-effort by contract: the resolver never throws and returns a null url
+     * with a reason, so a detail page still renders without a link.
+     */
+    let checkoutUrl: string | null = null
+    /**
+     * 🔴 A cancelled design order gets NO link. A cancel whose checkout still
+     * works has not happened — the record is soft on purpose, the payability is
+     * not.
+     */
+    if (!order && lineItem?.cart_id && !cartCancelled) {
+      const { link } = await resolveCartCheckoutLink(req.scope, lineItem.cart_id)
+      checkoutUrl = link.url ?? null
+      if (!link.url) {
+        logger.warn(
+          `[design-order detail] no checkout link for cart ${lineItem.cart_id}: ${link.reason}`
+        )
+      }
+    }
 
     res.status(200).json({
       design_order: {
@@ -483,6 +527,13 @@ export async function GET(
             }
           : null,
         checkout_url: checkoutUrl,
+        /**
+         * 🔴 Surfaced, not merely acted on. Withholding the checkout link is
+         * what makes a cancel take effect, but if that is ALL a reader sees,
+         * a cancelled design order still looks like an unpaid one — which is
+         * the indistinguishability the cancel exists to end. Null when live.
+         */
+        cancellation,
         /** #1918 — ordered vs delivered, per item, with each item's design. */
         order_items: orderItems,
       },

@@ -1,4 +1,6 @@
-import { resolveCartCheckoutLink } from "../resolve-cart-link"
+import { resolveCartCheckoutLink,
+  platformFallbackOrigin,
+} from "../resolve-cart-link"
 
 /**
  * The design-order create route used to build its own checkout url —
@@ -99,5 +101,40 @@ describe("resolveCartCheckoutLink", () => {
     const { cart } = await resolveCartCheckoutLink(scope, "cart_01")
 
     expect(cart?.completed_at).toBe("2026-09-17T00:00:00Z")
+  })
+})
+
+/**
+ * The host a buyer lands on when no partner storefront can be named.
+ *
+ * 🔴 `FRONTEND_URL` is the CORPORATE site, not a shop. Prod has
+ * `STORE_URL` unset and `FRONTEND_URL=https://jaalyantra.com`, so while it sat
+ * in this chain every fallback checkout link pointed at a site with no cart.
+ */
+describe("platformFallbackOrigin", () => {
+  const saved = { store: process.env.STORE_URL, front: process.env.FRONTEND_URL }
+  afterEach(() => {
+    if (saved.store === undefined) delete process.env.STORE_URL
+    else process.env.STORE_URL = saved.store
+    if (saved.front === undefined) delete process.env.FRONTEND_URL
+    else process.env.FRONTEND_URL = saved.front
+  })
+
+  it("uses STORE_URL when it is set", () => {
+    process.env.STORE_URL = "https://shop.example.com"
+    expect(platformFallbackOrigin()).toBe("https://shop.example.com")
+  })
+
+  it("🔴 IGNORES FRONTEND_URL — prod's exact shape", () => {
+    delete process.env.STORE_URL
+    process.env.FRONTEND_URL = "https://jaalyantra.com"
+    expect(platformFallbackOrigin()).toBe("https://cicilabel.com")
+    expect(platformFallbackOrigin()).not.toContain("jaalyantra")
+  })
+
+  it("falls back to the storefront, not a brochure, when neither is set", () => {
+    delete process.env.STORE_URL
+    delete process.env.FRONTEND_URL
+    expect(platformFallbackOrigin()).toBe("https://cicilabel.com")
   })
 })

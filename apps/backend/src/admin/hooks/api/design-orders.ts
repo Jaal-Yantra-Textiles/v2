@@ -820,6 +820,61 @@ export const useRepriceDesignOrder = (
   })
 }
 
+/** What the cancel route returns. */
+export type CancelDesignOrderResponse = {
+  design_order_cancel: {
+    line_item_id: string
+    design_id: string
+    cart_id: string
+    cancelled_at: string
+    cancelled_reason: string
+  }
+}
+
+/**
+ * Retire a design order that should never be paid (#2176 item 6).
+ *
+ * 🔴 NOT `useCancelDesignOrder` above. That one POSTs to
+ * `/admin/orders/:id/cancel` and cancels the ORDER a design order became —
+ * it only applies once there is one. This cancels the design order itself,
+ * while it is still a cart, and answers 409 the moment an order exists. The
+ * two are mutually exclusive by design, which is why they are named apart:
+ * a screen that reaches for the wrong one gets a 404 or a 409, never a
+ * silently wrong cancellation.
+ *
+ * 🔴 The reason is REQUIRED by the route, not decoration. A cancelled design
+ * order and a stale one look identical a month later, and the reason is the
+ * difference. The route answers 400 without one.
+ *
+ * Soft: the record and its price stay, the checkout link stops working. A
+ * converted design order is refused with 409 — cancel the ORDER instead.
+ */
+export const useCancelPendingDesignOrder = (
+  lineItemId: string,
+  options?: UseMutationOptions<
+    CancelDesignOrderResponse,
+    FetchError,
+    { reason: string }
+  >
+) => {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async (payload: { reason: string }) =>
+      sdk.client.fetch<CancelDesignOrderResponse>(
+        `/admin/designs/orders/${lineItemId}/cancel`,
+        { method: "POST", body: payload }
+      ),
+    ...options,
+    onSuccess: (...args) => {
+      queryClient.invalidateQueries({
+        queryKey: designOrdersQueryKeys.detail(lineItemId),
+      })
+      queryClient.invalidateQueries({ queryKey: designOrdersQueryKeys.lists() })
+      options?.onSuccess?.(...args)
+    },
+  })
+}
+
 export type AdminCustomerRow = {
   id: string
   email: string
@@ -836,4 +891,36 @@ export const useCustomerSearch = (q: string) => {
         query: { limit: 10, ...(q ? { q } : {}) },
       }),
   })
+}
+
+export type BuyerWithAddresses = AdminCustomerRow & {
+  default_billing_address?: { country_code?: string | null } | null
+  default_shipping_address?: { country_code?: string | null } | null
+  addresses?: { country_code?: string | null }[] | null
+}
+
+/**
+ * One buyer, WITH their addresses — so a design order can be quoted in their
+ * own currency rather than the platform's default (#2176).
+ *
+ * The addresses are the only thing here the search route does not return, and
+ * they are the whole point: `buyerCountry` reads the DEFAULT billing or
+ * shipping address, never `addresses[0]`.
+ */
+export const useBuyerWithAddresses = (customerId: string | null) => {
+  const { data, ...rest } = useQuery({
+    queryKey: ["design-order-buyer", customerId],
+    enabled: !!customerId,
+    queryFn: async () =>
+      sdk.client.fetch<{ customer: BuyerWithAddresses }>(
+        `/admin/customers/${customerId}`,
+        {
+          query: {
+            fields:
+              "id,email,first_name,last_name,*addresses,*default_billing_address,*default_shipping_address",
+          },
+        }
+      ),
+  })
+  return { buyer: data?.customer ?? null, ...rest }
 }

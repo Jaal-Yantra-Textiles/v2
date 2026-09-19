@@ -213,3 +213,119 @@ export function decideReprice(input: {
 
   return { ok: true, unit_price: next, previous }
 }
+
+export type CancelRefusal =
+  | "no_cart"
+  | "cart_completed"
+  | "already_cancelled"
+  | "no_reason"
+
+export type CancelDecision =
+  /**
+   * `cancelled_reason` is the operator's words; the refusal branch's `reason`
+   * is a machine code. Two different things, deliberately not sharing a name —
+   * they did briefly, and a union whose discriminated branches disagree about
+   * what one field MEANS is a trap for every reader after.
+   */
+  | { ok: true; cancelled_at: string; cancelled_reason: string }
+  | { ok: false; reason: CancelRefusal; message: string }
+
+/**
+ * Retire a design order that should never be paid.
+ *
+ * ## Why cancel and not delete
+ *
+ * There was no way to do either: `/admin/designs/orders/:lineItemId` is GET
+ * only, so a design order created with the wrong currency, the wrong buyer or
+ * the wrong designs could only be ABANDONED — left in the list forever, looking
+ * exactly like one a customer simply has not paid yet. The founder's instinct
+ * was "delete it and make a new one"; the record is the reason not to.
+ *
+ * A design order that was sent to somebody is a thing that happened. The
+ * checkout link must stop working, but the row, its price and its links are the
+ * evidence of what was offered and for how much. So this is SOFT: a stamp on
+ * the cart, not a removal.
+ *
+ * ## The reason is required
+ *
+ * 🔴 Not politeness. A cancelled design order and a stale one look identical a
+ * month later, and "why is this cancelled" is the question the next person
+ * asks. An optional field here would be empty on every row that mattered. The
+ * platform already refuses to invent a human's reason on their behalf for
+ * destructive maintenance jobs; this is the same rule.
+ *
+ * ## What it refuses
+ *
+ * A CONVERTED design order, because cancelling its cart would change nothing a
+ * buyer sees — the order is the live object and has its own cancel. Silently
+ * stamping the cart would leave the admin screen saying "cancelled" over an
+ * order still being fulfilled, which is worse than refusing.
+ */
+export function decideCancel(input: {
+  cart: (DesignOrderCart & { metadata?: Record<string, unknown> | null }) | null | undefined
+  reason: unknown
+  /** Does an order already exist for this design? See `isConverted`. */
+  hasLinkedOrder?: boolean
+  now?: Date
+}): CancelDecision {
+  const { cart } = input
+
+  if (!cart) {
+    return { ok: false, reason: "no_cart", message: "This design order has no cart." }
+  }
+
+  if (isConverted({ cart, hasLinkedOrder: input.hasLinkedOrder })) {
+    return {
+      ok: false,
+      reason: "cart_completed",
+      message:
+        "This design order has already been converted to an order. Cancel the " +
+        "order itself — cancelling the cart now would change nothing the buyer sees.",
+    }
+  }
+
+  /**
+   * Idempotent, and says so rather than stamping a second time. Re-cancelling
+   * would overwrite the ORIGINAL reason and date with today's, quietly losing
+   * the only record of why this was retired.
+   */
+  const existing = cart.metadata?.cancelled_at
+  if (typeof existing === "string" && existing.trim()) {
+    return {
+      ok: false,
+      reason: "already_cancelled",
+      message: `This design order was already cancelled on ${existing}.`,
+    }
+  }
+
+  const text = typeof input.reason === "string" ? input.reason.trim() : ""
+  if (!text) {
+    return {
+      ok: false,
+      reason: "no_reason",
+      message:
+        "A cancellation reason is required — a cancelled design order and a " +
+        "stale one look identical later, and the reason is the difference.",
+    }
+  }
+
+  return {
+    ok: true,
+    cancelled_at: (input.now ?? new Date()).toISOString(),
+    cancelled_reason: text,
+  }
+}
+
+/**
+ * PURE: is this design order cancelled?
+ *
+ * One reader, so a surface cannot decide privately. Used by the detail route to
+ * withhold the checkout link — a cancelled order whose link still works is the
+ * cancel not having happened.
+ */
+export const isCancelled = (
+  cart: { metadata?: Record<string, unknown> | null } | null | undefined
+): boolean => {
+  const v = cart?.metadata?.cancelled_at
+  return typeof v === "string" && v.trim().length > 0
+}

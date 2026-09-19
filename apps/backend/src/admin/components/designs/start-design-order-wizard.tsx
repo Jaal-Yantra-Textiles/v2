@@ -6,6 +6,7 @@ import {
   Heading,
   ProgressStatus,
   ProgressTabs,
+  Select,
   Text,
   createDataTableColumnHelper,
   toast,
@@ -22,11 +23,18 @@ import { DataGridCurrencyCell, DataGridReadOnlyCell } from "../data-grid/compone
 import { createDataGridHelper } from "../data-grid/helpers/create-data-grid-column-helper"
 import { KeyboundForm } from "../utilitites/key-bound-form"
 import { DesignOrderCreatedPanel, type CreatedDesignOrder } from "./design-order-created-panel"
+import { useDesignOrderCurrencies } from "../../hooks/api/designs"
+import {
+  useBuyerWithAddresses,
+  useCustomerSearch,
+} from "../../hooks/api/design-orders"
 import { RouteFocusModal } from "../modal/route-focus-modal"
 import { useRouteModal } from "../modal/use-route-modal"
 import { sdk } from "../../lib/config"
 import { useDesigns } from "../../hooks/api/designs"
 import {
+  buyerCountry,
+  suggestCurrencyForCountry,
   designOrderCreateBody,
   designOrderRoutes,
   resolveDesignOrderTarget,
@@ -246,7 +254,70 @@ export const StartDesignOrderWizard = () => {
   })
 
   const estimateRows = preview?.estimates ?? []
-  const currency = preview?.currency_code ?? "inr"
+  /**
+   * #2176 item 5 — the operator CHOOSES the currency; it is no longer read back
+   * off whatever the preview happened to return.
+   *
+   * 🔴 Every design order was INR because nothing ever sent one: the preview
+   * body was `{ design_ids }` and the create workflow falls through to
+   * `currency_code || "inr"`. A European buyer was therefore quoted in rupees
+   * and routed to PayU, the India region's only payment provider — a cart he
+   * could not pay at any price.
+   *
+   * The preview's answer still wins once it exists, because that is the
+   * currency the estimate was actually computed in; disagreeing with it would
+   * label one number with another currency, which is the whole family of bug
+   * this sits in.
+   */
+  const { currencies, regions } = useDesignOrderCurrencies()
+  const [chosenCurrency, setChosenCurrency] = useState<string>("inr")
+  /**
+   * Has the operator touched the currency? A suggestion must never overwrite a
+   * deliberate choice — that is the difference between a helpful default and
+   * the platform quietly deciding what somebody pays in.
+   */
+  const [currencyTouched, setCurrencyTouched] = useState(false)
+  const currency = preview?.currency_code ?? chosenCurrency
+
+  /**
+   * #2176 item 3 — the buyer.
+   *
+   * The wizard DERIVES one from the chosen designs and never asked for one, so
+   * an order whose designs imply nobody was created buyer-less with a toast,
+   * and the operator went hunting for it afterwards. The derivation is kept —
+   * a design that was made for somebody names them, and a cart on the WRONG
+   * buyer is worse than a cart on none — but where it resolves to nobody, we
+   * now ask instead of shrugging.
+   */
+  const derivedCustomerId = useMemo(() => {
+    const r = resolveDesignOrderTarget(picked)
+    return r.ok ? r.customer_id : null
+  }, [picked])
+  const [pickedCustomerId, setPickedCustomerId] = useState<string | null>(null)
+  // The derivation WINS. It comes from the designs themselves; a manual choice
+  // only fills the gap it leaves.
+  const customerId = derivedCustomerId ?? pickedCustomerId
+  const [customerQuery, setCustomerQuery] = useState("")
+  const { data: customerResults } = useCustomerSearch(customerQuery)
+  const { buyer } = useBuyerWithAddresses(customerId)
+
+  /**
+   * The currency follows the BUYER, not the platform. Every design order was
+   * INR because nothing ever chose — a buyer in the EU was quoted in rupees and
+   * routed to PayU, the India region's only payment provider.
+   *
+   * Only ever a SUGGESTION: it seeds the control until the operator touches it,
+   * and a buyer whose country no region covers leaves the existing value alone
+   * rather than inventing one.
+   */
+  useEffect(() => {
+    if (currencyTouched || !buyer) return
+    const suggested = suggestCurrencyForCountry(buyerCountry(buyer), regions)
+    if (suggested && suggested !== chosenCurrency) {
+      setChosenCurrency(suggested)
+      setPreview(null)
+    }
+  }, [buyer, regions, currencyTouched, chosenCurrency])
 
   /**
    * The review rows are a FORM, not a read-only summary.
@@ -390,15 +461,17 @@ export const StartDesignOrderWizard = () => {
       toast.error(resolved.error.title, { description: resolved.error.description })
       return
     }
+    // A buyer the operator picked stands in where the designs named nobody.
+    const buyerId = resolved.customer_id ?? pickedCustomerId
 
     setIsPreviewing(true)
     try {
-      const routes = designOrderRoutes(resolved.customer_id)
+      const routes = designOrderRoutes(buyerId)
       const data = await sdk.client.fetch<PreviewResponse>(routes.preview, {
         method: "POST",
-        body: { design_ids: resolved.design_ids },
+        body: { design_ids: resolved.design_ids, currency_code: chosenCurrency },
       })
-      setTarget({ customer_id: resolved.customer_id, design_ids: resolved.design_ids })
+      setTarget({ customer_id: buyerId, design_ids: resolved.design_ids })
       setPreview(data)
       setStep(Step.REVIEW)
     } catch (err: any) {
@@ -421,6 +494,8 @@ export const StartDesignOrderWizard = () => {
         body: designOrderCreateBody({
           design_ids: target.design_ids,
           price_overrides: overrides,
+          // The CART's currency — the region it is created in follows from it.
+          currency_code: currency,
           // The cart's currency is the estimate's currency; sending a price in
           // any other would be valued by one number and labelled by another.
           override_currency: currency,
@@ -463,8 +538,28 @@ export const StartDesignOrderWizard = () => {
           </RouteFocusModal.Title>
         </RouteFocusModal.Header>
         <RouteFocusModal.Body className="size-full overflow-auto">
-          <DesignOrderCreatedPanel result={created} onDone={handleSuccess} />
+          <DesignOrderCreatedPanel result={created} />
         </RouteFocusModal.Body>
+        {/*
+          🔴 The primary action belongs in the FOOTER, where it is on both other
+          steps. It used to sit at the bottom of this scrollable Body — beneath
+          the checkout link, the payment link and up to three Alerts — so on a
+          short window it was below the fold and the modal read as stuck after
+          creating the order. #2176
+        */}
+        <RouteFocusModal.Footer>
+          <div className="flex flex-wrap items-center justify-end gap-2">
+            {/*
+              `() => handleSuccess()`, not `onClick={handleSuccess}`.
+              `handleSuccess` takes an optional `path`, so wiring it directly
+              hands it the click EVENT as that path. The old panel button had
+              the same shape.
+            */}
+            <Button size="small" onClick={() => handleSuccess()}>
+              Done
+            </Button>
+          </div>
+        </RouteFocusModal.Footer>
       </div>
     )
   }
@@ -494,8 +589,16 @@ export const StartDesignOrderWizard = () => {
         <RouteFocusModal.Title asChild>
           <span className="sr-only">Start a design order</span>
         </RouteFocusModal.Title>
-        <div className="flex w-full items-center justify-between gap-x-4">
-          <ProgressTabs.List className="flex items-center justify-start">
+        {/*
+          Laid out exactly like every other stepped RouteFocusModal
+          (create-inventory-order, create-social-post-steps, create-blog, …):
+          `-my-2 w-full border-l` on the wrapper and `w-full` on the List. The
+          negative margin is what makes the triggers meet the header's top and
+          bottom edges; without it they float and the steps read as oddly
+          spaced beside any other wizard. #2176
+        */}
+        <div className="-my-2 w-full border-l">
+          <ProgressTabs.List className="flex w-full items-center justify-start">
             <ProgressTabs.Trigger status={designsStatus} value={Step.DESIGNS}>
               Designs
             </ProgressTabs.Trigger>
@@ -524,6 +627,103 @@ export const StartDesignOrderWizard = () => {
           className="h-full overflow-y-auto"
         >
           <div className="flex h-full flex-col px-4 py-4 md:px-6">
+          {/*
+            #2176 item 5 — the currency of the ORDER, chosen before the estimate
+            is built rather than inherited from the platform's house store.
+
+            🔴 Only currencies that HAVE A REGION are offered. The create step
+            refuses any other outright ("No region is configured for X"), and a
+            picker that can produce that refusal moves it to after the operator
+            has chosen their designs.
+
+            Locked once a preview exists: the estimate was computed in this
+            currency, and changing the label without recomputing the number is
+            the exact defect this order type keeps hitting. Go back to Designs
+            to change it and the estimate is rebuilt.
+          */}
+          {/*
+            #2176 item 3 — WHO the order is for, asked on the first step.
+            
+            The buyer is still DERIVED from the designs where they name one, and
+            that derivation wins: a design made for somebody carries them, and a
+            cart on the wrong buyer is worse than a cart on none. What changes is
+            the case where the designs name NOBODY — that used to produce a cart
+            with no buyer and a toast telling the operator to go and attach one.
+          */}
+          <div className="mb-3 flex items-center justify-between gap-x-4">
+            <div>
+              <Text size="small" weight="plus">Buyer</Text>
+              <Text size="small" className="text-ui-fg-subtle">
+                {derivedCustomerId
+                  ? "Taken from the designs — they were made for this customer."
+                  : "These designs name no customer. Pick one, or leave it for checkout."}
+              </Text>
+            </div>
+            <div className="w-[220px]">
+              {derivedCustomerId ? (
+                <Text size="small" className="text-right">
+                  {buyer
+                    ? `${[buyer.first_name, buyer.last_name].filter(Boolean).join(" ") || buyer.email}`
+                    : derivedCustomerId}
+                </Text>
+              ) : (
+                <Select
+                  value={pickedCustomerId ?? ""}
+                  onValueChange={(v) => setPickedCustomerId(v || null)}
+                >
+                  <Select.Trigger>
+                    <Select.Value placeholder="No buyer yet" />
+                  </Select.Trigger>
+                  <Select.Content>
+                    {(customerResults?.customers ?? []).map((c) => (
+                      <Select.Item key={c.id} value={c.id}>
+                        {[c.first_name, c.last_name].filter(Boolean).join(" ") || c.email}
+                      </Select.Item>
+                    ))}
+                  </Select.Content>
+                </Select>
+              )}
+            </div>
+          </div>
+
+          <div className="mb-3 flex items-center justify-between gap-x-4">
+            <div>
+              <Text size="small" weight="plus">Currency</Text>
+              <Text size="small" className="text-ui-fg-subtle">
+                {buyer && !currencyTouched
+                  ? "Suggested from the buyer's address. Change it if that is wrong."
+                  : "The buyer pays in this currency, and the order is created in its region."}
+              </Text>
+            </div>
+            <div className="w-[220px]">
+              <Select
+                value={chosenCurrency}
+                onValueChange={(v) => {
+                  setChosenCurrency(v)
+                  setCurrencyTouched(true)
+                  /*
+                    The estimate belongs to the OLD currency, so it is dropped
+                    rather than relabelled — the operator goes back through
+                    Review and the numbers are recomputed. `overrides` derives
+                    from the preview's lines, so it clears with it; there is no
+                    separate state to reset.
+                  */
+                  setPreview(null)
+                }}
+              >
+                <Select.Trigger>
+                  <Select.Value placeholder="Select currency" />
+                </Select.Trigger>
+                <Select.Content>
+                  {currencies.map((c) => (
+                    <Select.Item key={c.code} value={c.code}>
+                      {c.code.toUpperCase()} — {c.region_name}
+                    </Select.Item>
+                  ))}
+                </Select.Content>
+              </Select>
+            </div>
+          </div>
           <DataTable instance={table}>
             {/* Wraps to two rows when the modal is narrow, rather than
                 crushing the search field against the heading. */}
