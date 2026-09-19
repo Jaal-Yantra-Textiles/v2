@@ -8,6 +8,7 @@ import { PARTNER_MODULE } from "../../modules/partner"
 import { UNIFIED_ORDER_STATUS_MODULE } from "../../modules/unified_order_status"
 import { UNIFIED_ORDER_KIND_MODULE } from "../../modules/unified_order_kind"
 import { pickDefaultCurrency } from "../../lib/resolve-store-currency"
+import { inventoryLineUnitPrice } from "./lib/line-unit-price"
 
 // #342 T2 — best-effort projection of legacy inventory orders onto the core
 // `order` entity (kind=inventory = "the order↔inventory_order link exists";
@@ -393,10 +394,12 @@ export const dualWriteUnifiedOrderStep = createStep(
       // `extra_cost` (colour job, …) is a per-unit add-on folded into the legacy
       // order's total, so it folds into the mirrored unit price too — otherwise
       // the unified order understates the legacy order's value by the job cost.
+      // The fold lives in ONE place (`inventoryLineUnitPrice`) because this and
+      // the re-projection on line edit disagreed for a release — #2172.
       const items = orderLines.map((line: any, idx: number) => {
         const legacyLine = input.order_lines[idx]
         const quantity = Number(line.quantity)
-        const unitPrice = Number(line.price) + Number(line.extra_cost || 0)
+        const unitPrice = inventoryLineUnitPrice(line)
         return {
           title: titleByItemId.get(legacyLine?.inventory_item_id) ?? "Raw material",
           quantity,
