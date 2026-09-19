@@ -1,3 +1,16 @@
+# [13.153.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.152.0...v13.153.0) (2026-09-19)
+
+
+### Bug Fixes
+
+* **deploy:** STORE_URL reaches the containers, so the parameter is not inert ([#2181](https://github.com/Jaal-Yantra-Textiles/v2/issues/2181)) ([e546e96](https://github.com/Jaal-Yantra-Textiles/v2/commit/e546e962daefc82ec836024a777992054df03e8a))
+* **#2176:** the design's own cost currency prices its order, and two wizard fixes ([#2179](https://github.com/Jaal-Yantra-Textiles/v2/issues/2179)) ([f8033ab](https://github.com/Jaal-Yantra-Textiles/v2/commit/f8033abb9850d9e63a8fc097707ccc0d6ecc8fca)), closes [#2176](https://github.com/Jaal-Yantra-Textiles/v2/issues/2176) [#2176](https://github.com/Jaal-Yantra-Textiles/v2/issues/2176) [#2177](https://github.com/Jaal-Yantra-Textiles/v2/issues/2177) [#2051](https://github.com/Jaal-Yantra-Textiles/v2/issues/2051) [#1983](https://github.com/Jaal-Yantra-Textiles/v2/issues/1983) [#2177](https://github.com/Jaal-Yantra-Textiles/v2/issues/2177) [#2176](https://github.com/Jaal-Yantra-Textiles/v2/issues/2176) [#2177](https://github.com/Jaal-Yantra-Textiles/v2/issues/2177) [#2176](https://github.com/Jaal-Yantra-Textiles/v2/issues/2176) [#2176](https://github.com/Jaal-Yantra-Textiles/v2/issues/2176) [#2176](https://github.com/Jaal-Yantra-Textiles/v2/issues/2176) [#2176](https://github.com/Jaal-Yantra-Textiles/v2/issues/2176) [#2176](https://github.com/Jaal-Yantra-Textiles/v2/issues/2176) [#2176](https://github.com/Jaal-Yantra-Textiles/v2/issues/2176) [#2177](https://github.com/Jaal-Yantra-Textiles/v2/issues/2177) [#2051](https://github.com/Jaal-Yantra-Textiles/v2/issues/2051) [#2176](https://github.com/Jaal-Yantra-Textiles/v2/issues/2176) [#2177](https://github.com/Jaal-Yantra-Textiles/v2/issues/2177) [#2177](https://github.com/Jaal-Yantra-Textiles/v2/issues/2177)
+
+
+### Features
+
+* **inventory-orders:** the tax an order carries is visible to both sides ([#2182](https://github.com/Jaal-Yantra-Textiles/v2/issues/2182)) ([12c4d2e](https://github.com/Jaal-Yantra-Textiles/v2/commit/12c4d2e06d4c10db3382d36bbd9b843deb8e0cca))
+
 # [13.152.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.151.0...v13.152.0) (2026-09-19)
 
 
