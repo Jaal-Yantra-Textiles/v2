@@ -114,9 +114,21 @@ export default function CheckoutShippingSection({
       .sort((a, b) => a.label.localeCompare(b.label))
   }, [regions])
 
-  const selectedCountryOption =
-    countryOptions.find((o) => o.country === currentCountry) ??
-    countryOptions[0]
+  /**
+   * 🔴 NO `?? countryOptions[0]` fallback.
+   *
+   * This drives both the label on the trigger and which radio reads as
+   * selected. `countryOptions` is every country of every region sorted by
+   * name, so when the buyer's country was not matched the picker confidently
+   * announced the alphabetically-first country on the platform — a Swedish
+   * buyer on a `/se/` checkout was shown "Angola", selected.
+   *
+   * Undefined is the truthful answer, and the trigger already renders "—" for
+   * it. An unknown country should look unknown, not like somebody else's.
+   */
+  const selectedCountryOption = countryOptions.find(
+    (o) => o.country === currentCountry
+  )
 
   const handleRegionChange = (countryCode: string) => {
     const option = countryOptions.find((opt) => opt.country === countryCode)
@@ -320,7 +332,15 @@ export default function CheckoutShippingSection({
                     aria-label={option.name}
                     className="absolute inset-0 z-10 h-full w-full cursor-pointer rounded-md bg-transparent outline-none [&>div]:hidden focus-visible:shadow-borders-interactive-with-focus"
                   />
-                  <span className="txt-compact-medium-plus text-ui-fg-base">
+                  {/*
+                    🔴 `break-words`. The card is a fixed `w-[180px] shrink-0`,
+                    and an option name can carry a ULID — "Quoted freight —
+                    01M0Q0AK64DQVYJR8G4CTFW75S". With the default
+                    `overflow-wrap: normal` that is ONE unbreakable token, so it
+                    rendered straight out of the card and over its neighbour:
+                    the box measured 180px wide with a 258px scrollWidth.
+                  */}
+                  <span className="txt-compact-medium-plus text-ui-fg-base break-words">
                     {option.name}
                   </span>
                   <div className="flex flex-col gap-y-0">
