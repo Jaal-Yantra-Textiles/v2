@@ -99,18 +99,23 @@ const Modal = ({
   /**
    * 🔴 The panel is bigger than its scroller, and the difference is dead.
    *
-   * Retested in a browser with a 9-item cart: a wheel over the middle of the
-   * list scrolls it, and a wheel 12px inside the panel's left edge, or over
-   * the title row, does NOTHING. The panel is `p-5`, so a 20px ring plus the
-   * ~48px title surround the scroller, and those bands belong to the Panel,
-   * which has no overflow. The body is `position: fixed` besides, so the
-   * wheel lands on nothing at all. To the buyer the list reads as
-   * unscrollable-except-by-dragging-the-scrollbar, which is what was
-   * reported, and which depends only on where their cursor happens to rest.
+   * Found with a 9-item checkout list, since moved out of this modal and
+   * inlined into the summary: a wheel over the middle of the list scrolled
+   * it, and a wheel 12px inside the panel's left edge, or over the title row,
+   * did NOTHING. The panel is `p-5`, so a 20px ring plus the ~48px title
+   * surround any scroller a consumer puts here, and those bands belong to the
+   * Panel, which has no overflow. The body is `position: fixed` besides, so
+   * the wheel lands on nothing at all — the list reads as
+   * unscrollable-except-by-dragging-the-scrollbar, depending only on where
+   * the cursor happens to rest.
    *
-   * Forwarding from the panel rather than restructuring the padding, because
-   * `Modal` is shared with the account address cards — moving `p-5` off the
-   * Panel would strip their padding too.
+   * Kept after that list moved out, because it is the shared Modal that is
+   * wrong, not the list: the next consumer to put a scroller in here inherits
+   * the same dead ring. Forwarded rather than restructured, because the
+   * account address cards share this component and moving `p-5` off the Panel
+   * would strip their padding.
+   *
+   * No consumer currently scrolls, so this no-ops until one does.
    *
    * No `preventDefault`: React registers `wheel` passively, and with the body
    * out of flow there is nothing behind this to suppress anyway.

@@ -25,7 +25,9 @@ const CheckoutSummary = async ({
         This used to render at the bottom of the form column, below Contact —
         the last thing on the page, far from the totals it explains. A buyer
         checking their order had to scroll past every checkout step to find it.
-        Collapses past a few items so it can never push the totals off-screen.
+        Scrolls in place past a few items so it can never push the totals
+        off-screen — no dialog to open, and the buyer stays on the page they
+        are paying on.
       */}
       <CheckoutItemList cart={cart} />
 

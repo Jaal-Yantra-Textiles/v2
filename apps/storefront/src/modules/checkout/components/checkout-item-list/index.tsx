@@ -10,8 +10,6 @@ import DeleteButton from "@modules/common/components/delete-button"
 import PlaceholderImage from "@modules/common/icons/placeholder-image"
 import LocalizedClientLink from "@modules/common/components/localized-client-link"
 import { Loader } from "@medusajs/icons"
-import { Button } from "@medusajs/ui"
-import Modal from "@modules/common/components/modal"
 
 interface CheckoutItemListProps {
   cart: HttpTypes.StoreCart
@@ -120,14 +118,20 @@ function CheckoutItem({
 }
 
 /**
- * How many items are shown before the list collapses.
+ * The list scrolls where it stands, rather than opening a dialog.
  *
- * This block lives beside the totals now, and the totals are what a buyer
- * scrolls to. An unbounded list pushed them off-screen — the whole reason it
- * previously sat at the very bottom of the form column, below Contact, which
- * is the last place anyone looks for what they are buying.
+ * It first rendered three items and sent the rest to a modal. That modal was
+ * the whole defect: the panel's padding and title were dead to the wheel, so
+ * whether the list scrolled depended on where the buyer's cursor happened to
+ * rest. A bounded scroller here has no dead ring at all — the box IS the
+ * scroll target — and it keeps the buyer on the page they are paying on.
+ *
+ * The cap is what protects the totals. Three rows come to 338px, so a cart of
+ * three or fewer never overflows and shows no scrollbar; a fourth starts
+ * scrolling and the amount due stays on screen. One rule, no branch.
  */
-const INLINE_ITEM_LIMIT = 3
+const MAX_LIST_HEIGHT = 380
+const NON_SCROLLING_ITEM_COUNT = 3
 
 const ItemRows = ({
   items,
@@ -155,10 +159,7 @@ export default function CheckoutItemList({ cart }: CheckoutItemListProps) {
       )
     : []
 
-  const [showAll, setShowAll] = useState(false)
-
-  const overflowCount = Math.max(0, items.length - INLINE_ITEM_LIMIT)
-  const inlineItems = overflowCount ? items.slice(0, INLINE_ITEM_LIMIT) : items
+  const scrolls = items.length > NON_SCROLLING_ITEM_COUNT
 
   return (
     <div>
@@ -171,56 +172,19 @@ export default function CheckoutItemList({ cart }: CheckoutItemListProps) {
         )}
       </div>
 
-      <ItemRows items={inlineItems} currencyCode={cart.currency_code} />
-
-      {overflowCount > 0 && (
-        <>
-          <Button
-            variant="transparent"
-            className="mt-2 px-0 text-ui-fg-interactive hover:bg-transparent"
-            onClick={() => setShowAll(true)}
-            data-testid="checkout-view-all-items"
-          >
-            View all {items.length} items
-          </Button>
-
-          {/*
-            The same Modal the account address cards use, rather than a
-            bespoke overlay — it traps focus and closes on Escape, which a
-            hand-rolled panel in a checkout would have to get right itself.
-          */}
-          <Modal
-            isOpen={showAll}
-            close={() => setShowAll(false)}
-            size="large"
-            data-testid="checkout-items-modal"
-          >
-            <Modal.Title>Order composition</Modal.Title>
-            <Modal.Body>
-              {/*
-                🔴 `w-full` matters as much as the overflow.
-                `Modal.Body` is `flex justify-center`, so a content-width child
-                is centred and leaves dead gutters — measured at 69px each side
-                of a 576px panel. The dialog locks page scrolling, so a wheel
-                with the pointer in those gutters does NOTHING, and the modal
-                reads as unscrollable depending on where your cursor happens to
-                be. Filling the width makes the whole body the scroll target.
-
-                No `max-h-[Nvh]` here: the PANEL already caps at 75vh, and a
-                second cap on the child fought it — 70vh of list plus the title
-                and padding exceeds the panel, which clips it. `min-h-0` lets
-                this shrink to whatever the panel allows, so a few items get a
-                roomy box and thirty get a scroller, with one rule. `pe-4` and not `pe-1`: once the list fills the
-                width, a ~15px scrollbar sits ON the content and clipped the
-                price — "2 x €8,500.0|0" with the stepper cut off.
-              */}
-              <div className="w-full min-h-0 overflow-y-auto ps-1 pe-4">
-                <ItemRows items={items} currencyCode={cart.currency_code} />
-              </div>
-            </Modal.Body>
-          </Modal>
-        </>
-      )}
+      {/*
+        `pe-4` only once it scrolls: a ~15px scrollbar sits ON the content and
+        clipped the price — "2 x €8,500.0|0" with the stepper cut off. A cart
+        that does not scroll has no scrollbar, and would just carry a gutter
+        to nowhere.
+      */}
+      <div
+        className={scrolls ? "overflow-y-auto pe-4" : undefined}
+        style={scrolls ? { maxHeight: MAX_LIST_HEIGHT } : undefined}
+        data-testid="checkout-item-list"
+      >
+        <ItemRows items={items} currencyCode={cart.currency_code} />
+      </div>
     </div>
   )
 }
