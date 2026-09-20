@@ -29,8 +29,14 @@ export default async function CheckoutForm({
     cart.region?.countries?.[0]?.iso_2 ||
     ""
 
+  /**
+   * `min-w-0` below because this is a GRID CHILD of `lg:grid-cols-[7fr_5fr]`,
+   * and a grid item also defaults to `min-width: auto` — it will happily exceed
+   * its 7fr track rather than let a wide child scroll. Without it the shipping
+   * row's own scroller can shrink and still be overruled from up here.
+   */
   return (
-    <div className="flex flex-col px-4 py-6 lg:pe-10 lg:py-10 lg:ps-0 gap-y-6">
+    <div className="flex min-w-0 flex-col px-4 py-6 lg:pe-10 lg:py-10 lg:ps-0 gap-y-6">
       {!customer && <SignInPrompt />}
 
       <CheckoutShippingSection

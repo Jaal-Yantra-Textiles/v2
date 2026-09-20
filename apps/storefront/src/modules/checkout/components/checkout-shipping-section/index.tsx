@@ -270,8 +270,20 @@ export default function CheckoutShippingSection({
         </DropdownMenu>
       </div>
 
-      {/* Shipping method cards */}
-      <div className="overflow-x-auto no-scrollbar px-px pb-1">
+      {/*
+        Shipping method cards.
+
+        🔴 `min-w-0` is what makes `overflow-x-auto` mean anything. The cards
+        are `w-[180px] shrink-0`, and this scroller sits in a flex column whose
+        children default to `min-width: auto` — so instead of scrolling, it
+        grew to its content and pushed the whole grid column wide. On a live
+        Swedish checkout with 7 options that carried the order summary, and the
+        TOTAL, off the right edge of the screen; the page scrolled sideways.
+        India has 2 options, which is why local testing never showed it.
+
+        Same defect as `min-h-0` on the modal body, one axis over.
+      */}
+      <div className="min-w-0 overflow-x-auto no-scrollbar px-px pb-1">
         {shippingOptions && shippingOptions.length > 0 ? (
           <RadioGroup
             value={shippingMethodId ?? undefined}
