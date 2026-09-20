@@ -3,6 +3,8 @@ import type { HttpTypes } from "@medusajs/types"
 import { convertToLocale } from "@lib/util/money"
 import CheckoutItemList from "@modules/checkout/components/checkout-item-list"
 import CheckoutTotals from "@modules/checkout/components/checkout-totals"
+import QuoteCartNotice from "@modules/cart/components/quote-cart-notice"
+import type { QuoteCartTerms } from "types/quote-terms"
 
 /**
  * What you are buying, and what it costs — at the TOP, on a phone.
@@ -23,7 +25,14 @@ import CheckoutTotals from "@modules/checkout/components/checkout-totals"
  * hydration has not run — which on a checkout opened from an email on a cold
  * mobile connection is a real moment, not a hypothetical.
  */
-const CheckoutMobileSummary = ({ cart }: { cart: HttpTypes.StoreCart }) => {
+const CheckoutMobileSummary = ({
+  cart,
+  quoteTerms,
+}: {
+  cart: HttpTypes.StoreCart
+  /** #1787 — null for an ordinary cart. */
+  quoteTerms?: QuoteCartTerms | null
+}) => {
   const itemCount = cart.items?.length ?? 0
 
   if (!itemCount) {
@@ -69,6 +78,11 @@ const CheckoutMobileSummary = ({ cart }: { cart: HttpTypes.StoreCart }) => {
       <div className="flex flex-col gap-y-6 px-4 pb-6">
         <CheckoutItemList cart={cart} />
         <CheckoutTotals cart={cart} />
+
+        {/* #1787 — directly under the totals, the moment the buyer has just
+            read the full amount. That rule is why this travels with them
+            rather than staying in a column a phone never shows. */}
+        <QuoteCartNotice terms={quoteTerms ?? null} />
       </div>
     </details>
   )

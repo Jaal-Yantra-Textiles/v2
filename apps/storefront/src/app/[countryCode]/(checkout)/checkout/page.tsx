@@ -39,7 +39,7 @@ export default async function Checkout(props: {
             that column stacks UNDERNEATH the whole form, so without this the
             buyer meets the address and card fields before the amount.
           */}
-          <CheckoutMobileSummary cart={cart} />
+          <CheckoutMobileSummary cart={cart} quoteTerms={quoteTerms} />
 
           <div className="lg:content-container flex flex-col lg:grid lg:grid-cols-[7fr_5fr] min-h-screen">
             <CheckoutForm
