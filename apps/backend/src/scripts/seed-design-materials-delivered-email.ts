@@ -15,9 +15,16 @@
  * client — the template fetch is what fails, and the arrival mail simply does
  * not go. The subscriber logs it rather than throwing.
  *
- * Run:
+ * Run — PREFER the maintenance job; it needs no shell and previews first:
+ *   run_maintenance_job id=seed-email-templates set=design-materials-delivered
+ *   (Settings → Data Plumbing, or the MCP tool. Preview writes nothing.)
+ *
+ * The exec path still works and stays for parity with the other seeds:
  *   npx medusa exec ./src/scripts/seed-design-materials-delivered-email.ts
  *   # prod: ./deploy/aws/scripts/run-backfill.sh seed-design-materials-delivered-email
+ *
+ * `designMaterialsDeliveredEmailTemplates` is the single source of truth for
+ * both paths — the registry imports THIS const, so the two can never drift.
  */
 import { EMAIL_TEMPLATES_MODULE } from "../modules/email_templates"
 

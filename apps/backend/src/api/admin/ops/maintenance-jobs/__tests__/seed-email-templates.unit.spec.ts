@@ -144,6 +144,25 @@ describe("ops/maintenance-jobs seed-email-templates (#457)", () => {
       )
     })
 
+    it("exposes the design material-arrival template via its own set and through 'all' (#2111 — seeded from Data Plumbing, not a Fargate one-off)", () => {
+      const set = resolveEmailTemplateSpecs("design-materials-delivered")
+      expect(set.setKeys).toEqual(["design-materials-delivered"])
+      expect(set.specs.map((s) => s.template_key)).toContain(
+        "design-materials-delivered"
+      )
+      // The subscriber fetches by template_key AND locale; a row seeded under
+      // any other locale would leave the arrival mail unsendable while the set
+      // still "contains" the key.
+      const spec = set.specs.find(
+        (s) => s.template_key === "design-materials-delivered"
+      )!
+      expect(spec.locale).toBe("en")
+      expect(spec.is_active).toBe(true)
+      expect(resolveEmailTemplateSpecs("all").specs.map((s) => s.template_key)).toContain(
+        "design-materials-delivered"
+      )
+    })
+
     it("dedupes template_keys across sets so 'all' never lists a key twice", () => {
       const all = resolveEmailTemplateSpecs("all")
       const keys = all.specs.map((s) => s.template_key)
