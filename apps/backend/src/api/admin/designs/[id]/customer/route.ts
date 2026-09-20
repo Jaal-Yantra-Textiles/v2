@@ -35,13 +35,18 @@ export async function POST(
   const query = req.scope.resolve(ContainerRegistrationKeys.QUERY) as any
   const remoteLink = req.scope.resolve(ContainerRegistrationKeys.LINK) as any
 
-  const raw = (req.body as { customer_id?: unknown } | undefined)?.customer_id
-  if (raw !== null && typeof raw !== "string") {
-    res.status(400).json({
-      message: "customer_id must be a customer id, or null to detach.",
-    })
-    return
-  }
+  /*
+   * `validatedBody`, not `body`: the route is bound to
+   * `AttachDesignCustomerSchema`, which is what the MCP route-validator
+   * coverage guard checks the tool's advertised fields against. Reading the
+   * raw body would leave that binding decorative.
+   *
+   * 🔴 The schema makes `customer_id` nullable but NOT optional. An omitted key
+   * and an explicit null are different instructions — omitted is a malformed
+   * request, null is "this design is nobody's" — and collapsing them would turn
+   * a typo into a detach.
+   */
+  const raw = (req.validatedBody as { customer_id: string | null }).customer_id
   const customerId = typeof raw === "string" ? raw.trim() : null
 
   const { data: designs } = await query.graph({

@@ -87,20 +87,17 @@ export async function POST(
   const query = req.scope.resolve(ContainerRegistrationKeys.QUERY) as any
   const remoteLink = req.scope.resolve(ContainerRegistrationKeys.LINK) as any
 
-  const body = (req.body ?? {}) as {
-    inventory_order_id?: unknown
-    notify_customer?: unknown
-    note?: unknown
+  /*
+   * `validatedBody` — the route is bound to `AttachDesignInventoryOrderSchema`,
+   * which also coerces the MCP surface's "true"/"false" STRINGS into booleans
+   * before `!== false` ever sees them.
+   */
+  const body = req.validatedBody as {
+    inventory_order_id: string
+    notify_customer?: boolean
+    note?: string | null
   }
-  const orderId =
-    typeof body.inventory_order_id === "string"
-      ? body.inventory_order_id.trim()
-      : ""
-
-  if (!orderId) {
-    res.status(400).json({ message: "inventory_order_id is required." })
-    return
-  }
+  const orderId = body.inventory_order_id.trim()
 
   const [{ data: designs }, { data: orders }] = await Promise.all([
     query.graph({ entity: "design", filters: { id: designId }, fields: ["id", "name"] }),
