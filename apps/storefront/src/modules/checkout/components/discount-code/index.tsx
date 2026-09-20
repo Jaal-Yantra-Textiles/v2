@@ -6,6 +6,7 @@ import React from "react"
 
 import { convertToLocale } from "@lib/util/money"
 import { HttpTypes } from "@medusajs/types"
+import LocalizedClientLink from "@modules/common/components/localized-client-link"
 import Trash from "@modules/common/icons/trash"
 import ErrorMessage from "../error-message"
 import { SubmitButton } from "../submit-button"
@@ -19,6 +20,12 @@ const DiscountCode: React.FC<DiscountCodeProps> = ({ cart }) => {
   const router = useRouter()
   const [isOpen, setIsOpen] = React.useState(false)
   const [errorMessage, setErrorMessage] = React.useState("")
+  /**
+   * A refusal that a sign-in would actually fix — a one-per-customer code on a
+   * cart with no buyer (#2194). The shopper needs the route, not just the
+   * sentence, so the error renders with a link beside it.
+   */
+  const [needsSignIn, setNeedsSignIn] = React.useState(false)
   const [isBusy, setIsBusy] = React.useState(false)
   const [, startTransition] = React.useTransition()
 
@@ -56,6 +63,7 @@ const DiscountCode: React.FC<DiscountCodeProps> = ({ cart }) => {
     const validPromotions = promotions.filter((promotion) => promotion.code !== code)
 
     setErrorMessage("")
+    setNeedsSignIn(false)
     setIsBusy(true)
     try {
       const res = await fetch("/api/cart/promotions", {
@@ -69,6 +77,7 @@ const DiscountCode: React.FC<DiscountCodeProps> = ({ cart }) => {
       })
       const json = await res.json()
       if (!json?.ok) {
+        setNeedsSignIn(Boolean(json?.requires_sign_in))
         throw new Error(json?.error || "Failed to update promotions")
       }
       refreshCart()
@@ -81,6 +90,7 @@ const DiscountCode: React.FC<DiscountCodeProps> = ({ cart }) => {
 
   const addPromotionCode = async (formData: FormData) => {
     setErrorMessage("")
+    setNeedsSignIn(false)
     if (isBusy) {
       return
     }
@@ -115,6 +125,7 @@ const DiscountCode: React.FC<DiscountCodeProps> = ({ cart }) => {
       })
       const json = await res.json()
       if (!json?.ok) {
+        setNeedsSignIn(Boolean(json?.requires_sign_in))
         throw new Error(json?.error || "Failed to apply promotions")
       }
       /**
@@ -185,6 +196,16 @@ const DiscountCode: React.FC<DiscountCodeProps> = ({ cart }) => {
                 error={errorMessage}
                 data-testid="discount-error-message"
               />
+
+              {needsSignIn && (
+                <LocalizedClientLink
+                  href="/account"
+                  className="mt-1 inline-block text-small-regular text-ui-fg-interactive hover:text-ui-fg-interactive-hover underline"
+                  data-testid="discount-sign-in-link"
+                >
+                  Sign in to use this code
+                </LocalizedClientLink>
+              )}
             </>
           )}
         </form>
