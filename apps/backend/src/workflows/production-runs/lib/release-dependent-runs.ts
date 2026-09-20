@@ -4,6 +4,7 @@ import { PRODUCTION_RUNS_MODULE } from "../../../modules/production_runs"
 import type ProductionRunService from "../../../modules/production_runs/service"
 import { sendProductionRunToProductionWorkflow } from "../send-production-run-to-production"
 import { selectDispatchInput } from "./dispatch-selection"
+import { notifyDispatchByHand } from "./notify-dispatch-by-hand"
 import { PRODUCTION_POLICY_MODULE } from "../../../modules/production_policy"
 import type ProductionPolicyService from "../../../modules/production_policy/service"
 import { resolveDispatchDefault } from "../../../modules/production_policy/policy-config"
@@ -171,9 +172,14 @@ export const findRunsAwaitingInventoryOrder = async (
  * happened to each.
  *
  * A run left `waiting` here is NOT an error — it has another upstream edge
- * still outstanding and will be reconsidered when that one lands. A run with no
- * templates recorded is deliberate too: it was approved to be dispatched by
- * hand. Only `failed` needs a human, and it says why.
+ * still outstanding and will be reconsidered when that one lands.
+ *
+ * 🔴 `no_templates` IS NOT MERELY DELIBERATE, which is what this comment used
+ * to say. "It was approved to be dispatched by hand" is true only of a run that
+ * went through approval at all; a run born from an order never can, so for
+ * those the state is not a choice but a dead end (#2202). Either way the run is
+ * READY and nothing further will happen, so a person is now told — see
+ * `notifyDispatchByHand`. `failed` still needs a human too, and says why.
  */
 export const releaseRunsAwaitingInventoryOrder = async (
   container: any,
@@ -217,6 +223,21 @@ export const releaseRunsAwaitingInventoryOrder = async (
       case "no_templates":
         logger.info(
           `[inventory-order-delivered] run ${outcome.run_id} is ready but no templates were recorded — dispatch by hand`
+        )
+        /*
+         * And TELL SOMEONE. The log line above has existed all along; it is
+         * what let four runs sit ready-and-going-nowhere until a person
+         * happened to ask. Awaited, not fired and forgotten, so the notifier's
+         * own failure is logged rather than lost in an unhandled rejection.
+         */
+        await notifyDispatchByHand(
+          container,
+          {
+            runId: outcome.run_id,
+            releasedBy: inventoryOrderId,
+            releasedByKind: "inventory order",
+          },
+          logger
         )
         break
       case "failed":

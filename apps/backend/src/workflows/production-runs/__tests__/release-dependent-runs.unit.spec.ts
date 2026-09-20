@@ -17,6 +17,7 @@ jest.mock("../send-production-run-to-production", () => ({
 import {
   releaseRunIfReady,
   findRunsAwaitingInventoryOrder,
+  releaseRunsAwaitingInventoryOrder,
 } from "../lib/release-dependent-runs"
 
 const metContainer = {
@@ -297,5 +298,103 @@ describe("releaseRunIfReady — dispatch defaults (#2202)", () => {
 
     expect(outcome.result).toBe("no_templates")
     expect(runMock).not.toHaveBeenCalled()
+  })
+})
+
+
+/**
+ * #2202 — the wiring, not just the helper.
+ *
+ * A notifier that is never called is indistinguishable from the silence it was
+ * written to end, so this drives the real loop.
+ */
+describe("releaseRunsAwaitingInventoryOrder — telling someone", () => {
+  const createNotifications = jest.fn()
+  const logger = { info: jest.fn(), error: jest.fn(), warn: jest.fn() }
+
+  const containerFor = (runs: any[]) => ({
+    resolve: (key: string) => {
+      if (key === "logger") return logger
+      if (key === "production_runs") {
+        return {
+          listProductionRuns: async () => runs,
+          retrieveProductionRun: async (id: string) => ({ id, status: "completed" }),
+        }
+      }
+      if (key === "inventory_orders") {
+        return {
+          retrieveInventoryOrder: async (id: string) => ({ id, status: "Delivered" }),
+        }
+      }
+      if (key === "notification") return { createNotifications }
+      if (key === "production_policy") {
+        return { getPolicyConfig: async () => ({ dispatch_defaults: [] }) }
+      }
+      if (key === "query") return { graph: async () => ({ data: [] }) }
+      throw new Error(`unexpected module ${key}`)
+    },
+  })
+
+  beforeEach(() => {
+    createNotifications.mockReset()
+    createNotifications.mockResolvedValue({ id: "noti_1" })
+    logger.info.mockReset()
+  })
+
+  it("notifies when a released run has no templates and no rule covers it", async () => {
+    const outcomes = await releaseRunsAwaitingInventoryOrder(
+      containerFor([
+        {
+          id: "prod_run_oshen",
+          run_type: "production",
+          depends_on_inventory_order_ids: ["inv_gof"],
+        },
+      ]),
+      "inv_gof"
+    )
+
+    expect(outcomes).toEqual([{ run_id: "prod_run_oshen", result: "no_templates" }])
+    expect(createNotifications).toHaveBeenCalledTimes(1)
+    const [arg] = createNotifications.mock.calls[0]
+    expect(arg.data.metadata).toMatchObject({
+      production_run_id: "prod_run_oshen",
+      released_by: "inv_gof",
+      reason: "no_templates",
+    })
+  })
+
+  it("does NOT notify when the run dispatched — there is nothing to tell", async () => {
+    await releaseRunsAwaitingInventoryOrder(
+      containerFor([
+        {
+          id: "run_ok",
+          dispatch_template_ids: ["tpl_a"],
+          depends_on_inventory_order_ids: ["inv_gof"],
+        },
+      ]),
+      "inv_gof"
+    )
+
+    expect(runMock).toHaveBeenCalled()
+    expect(createNotifications).not.toHaveBeenCalled()
+  })
+
+  it("keeps releasing the rest when one run's notification fails", async () => {
+    /*
+     * The notifier must never be able to stop the loop: a delivery has already
+     * been recorded and the runs behind this one are still owed their release.
+     */
+    createNotifications.mockRejectedValue(new Error("feed down"))
+
+    const outcomes = await releaseRunsAwaitingInventoryOrder(
+      containerFor([
+        { id: "run_a", depends_on_inventory_order_ids: ["inv_gof"] },
+        { id: "run_b", depends_on_inventory_order_ids: ["inv_gof"] },
+      ]),
+      "inv_gof"
+    )
+
+    expect(outcomes.map((o) => o.run_id)).toEqual(["run_a", "run_b"])
+    expect(outcomes.every((o) => o.result === "no_templates")).toBe(true)
   })
 })
