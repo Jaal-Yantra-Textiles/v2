@@ -4804,6 +4804,23 @@ export const ADMIN_MCP_TOOLS: AdminMcpToolDef[] = [
     inputSchema: obj({ id: STR("Production run id.") }, ["id"]),
   },
   {
+    name: "get_entity_neighbours",
+    description:
+      "Read one entity's GRAPH: its neighbours, the edges joining them, and — the part no list can answer — the edges the model EXPECTS and that are missing. `spine` is the kind of thing you are centring on: 'production_run' | 'design' | 'partner' | 'website' | 'social_platform' | 'queue'. Each edge carries a `state`: 'present' (a real link with a record on the other end), 'derived' (the neighbour exists and is not doing its job — an assigned partner who never answered), or 'absent' (expected and not there, with `action` naming what would create it). Use it to answer 'why has this not moved' and 'what is missing here' in one call instead of four. On a production run the two edges worth reading first are the upstream ones: materials (met only at `Delivered`, never `Shipped`) and another partner's run (met at `completed`). An unknown spine is an error naming the valid keys — never an empty graph.",
+    method: "GET",
+    path: "/admin/graph/:spine/:id",
+    pathParams: ["spine", "id"],
+    inputSchema: obj(
+      {
+        spine: STR(
+          "What kind of thing the id is: 'production_run' | 'design' | 'partner' | 'website' | 'social_platform' | 'queue'."
+        ),
+        id: STR("The entity's id. For the 'queue' spine this is the queue's name, not a record id."),
+      },
+      ["spine", "id"]
+    ),
+  },
+  {
     name: "list_production_run_activities",
     description:
       "Read a production run's activity timeline (reminders sent, lifecycle events, notes), newest first. Use to answer 'what happened on this run'.",

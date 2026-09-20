@@ -2,6 +2,7 @@ import { MedusaError } from "@medusajs/framework/utils"
 
 import { queueSpine } from "./queues"
 import { designSpine } from "./spines/design"
+import { productionRunSpine } from "./spines/production-run"
 import { partnerSpine } from "./spines/partner"
 import { socialPlatformSpine } from "./spines/social-platform"
 import { websiteSpine } from "./spines/website"
@@ -24,6 +25,12 @@ export const SPINES: Record<string, SpineDescriptor> = {
   [partnerSpine.key]: partnerSpine,
   [websiteSpine.key]: websiteSpine,
   [socialPlatformSpine.key]: socialPlatformSpine,
+  /*
+   * The production-run spine (#2111 S2). It is the first spine centred on a
+   * unit of WORK rather than on a record someone owns, and the only one whose
+   * most important edges point UPSTREAM — at what the run is waiting for.
+   */
+  [productionRunSpine.key]: productionRunSpine,
   /*
    * The queue spine is centred on a POPULATION, not a record: its `id` is the
    * queue's name. It sits in this same registry on purpose — every surface

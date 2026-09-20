@@ -221,6 +221,21 @@ const PREFIX_DOMAINS: ReadonlyArray<readonly [string, AdminToolDomain]> = [
    * weaver to the partner" — not `customers`, which is the storefront buyer.
    */
   ["/admin/people", "partners"],
+  /**
+   * The entity graph (#2111 S2) — one entity's neighbours and, more to the
+   * point, the edges the model EXPECTS and that are missing.
+   *
+   * 🔴 `observability`, not the domain of whatever you centre it on. The tool
+   * is spine-agnostic: the same call answers "why has this run not started"
+   * and "why is this partner's work stuck", so filing it under `production`
+   * would make it unreachable from every other ask. It is a diagnostic
+   * instrument, which is what this domain collects.
+   *
+   * Without an entry here it classifies as `undefined` and loads in NO slice —
+   * registered, callable in principle, reachable from nothing. The unit test
+   * that enforces this is the reason the gap was caught rather than shipped.
+   */
+  ["/admin/graph", "observability"],
 ]
 
 /** Classify one tool by the route it wraps. */
@@ -398,6 +413,10 @@ const DOMAIN_KEYWORDS: Record<Exclude<AdminToolDomain, "core">, string[]> = {
     "maintenance job", "maintenance jobs", "data plumbing", "backfill",
     "backfills", "repair", "reconcile", "reconciliation", "dry run", "dry-run",
     "reversed", "mis-assigned", "wrong location", "wrong warehouse",
+    // The graph's vocabulary. "Why has this not moved" is the ask it answers,
+    // and nobody phrases it as "entity neighbours".
+    "graph", "neighbours", "neighbors", "waiting on", "blocked by", "stuck",
+    "why hasn't", "why has not", "what is missing", "what's missing",
   ],
   stats: [
     "stats", "stat", "statistics", "metric", "metrics", "dashboard", "dashboards",
