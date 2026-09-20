@@ -3,6 +3,7 @@ import { Link, useLocation } from "react-router-dom"
 
 import ProductsAwaitingQueuePage from "../../queues/products-awaiting/page"
 import RunsRejectedQueuePage from "../../queues/runs-rejected/page"
+import RunsAwaitingDispatchQueuePage from "../../queues/runs-awaiting-dispatch/page"
 import type { EntityPanelConfig } from "../EntityPanel"
 
 /**
@@ -23,17 +24,18 @@ import type { EntityPanelConfig } from "../EntityPanel"
  * pointing at it is unreachable — a dead capability that looks, in this
  * config, exactly like a live one. `QueueSwitcher` is that something: the row
  * of links it draws above each board means whichever one the panel opens on,
- * the other is one click away.
+ * the others are one click away.
  */
 
 /** The boards this panel hosts, in switcher order. */
 const QUEUE_BOARDS = [
   { path: "/queues/products-awaiting", label: "Products awaiting creation" },
   { path: "/queues/runs-rejected", label: "Rejected production runs" },
+  { path: "/queues/runs-awaiting-dispatch", label: "Runs awaiting dispatch" },
 ]
 
 /**
- * One board, with the row of links to its sibling above it. The current
+ * One board, with the row of links to its siblings above it. The current
  * board's link is marked, so the row says where you are as well as where you
  * can go.
  */
@@ -77,6 +79,14 @@ export const queuesEntityConfig: EntityPanelConfig = {
       element: (
         <QueueSwitcher>
           <RunsRejectedQueuePage />
+        </QueueSwitcher>
+      ),
+    },
+    {
+      path: "/queues/runs-awaiting-dispatch",
+      element: (
+        <QueueSwitcher>
+          <RunsAwaitingDispatchQueuePage />
         </QueueSwitcher>
       ),
     },
