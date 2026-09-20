@@ -71,8 +71,14 @@ jobs:
 
       - name: Install AWS Copilot CLI
         run: |
-          curl -fsSL -o /tmp/copilot \
-            https://github.com/aws/copilot-cli/releases/latest/download/copilot-linux
+          # 🔴 PINNED, and retried. `releases/latest` 500'd on 2026-09-20 and
+          # failed "Deploy medusa-worker" while the SERVER deploy had already
+          # succeeded — the worst shape, because subscribers run on the worker,
+          # so prod was left half-current with a green health check. A pin also
+          # stops a surprise upstream version landing mid-deploy.
+          curl -fsSL --retry 5 --retry-delay 3 --retry-all-errors \
+            -o /tmp/copilot \
+            https://github.com/aws/copilot-cli/releases/download/v1.34.1/copilot-linux
           chmod +x /tmp/copilot
           sudo mv /tmp/copilot /usr/local/bin/copilot
           copilot --version
