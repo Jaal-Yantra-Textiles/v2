@@ -1,3 +1,13 @@
+# [13.155.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.154.0...v13.155.0) (2026-09-20)
+
+
+### Features
+
+* **graph:** a design shows the material it is waiting for ([#2111](https://github.com/Jaal-Yantra-Textiles/v2/issues/2111)) ([#2205](https://github.com/Jaal-Yantra-Textiles/v2/issues/2205)) ([baf54fc](https://github.com/Jaal-Yantra-Textiles/v2/commit/baf54fc880fee27a4aeb44dc92a8986f3ae09191)), closes [#2200](https://github.com/Jaal-Yantra-Textiles/v2/issues/2200) [#2199](https://github.com/Jaal-Yantra-Textiles/v2/issues/2199)
+* **production-runs:** a standing rule for what to dispatch when the cloth lands ([#2202](https://github.com/Jaal-Yantra-Textiles/v2/issues/2202)) ([#2206](https://github.com/Jaal-Yantra-Textiles/v2/issues/2206)) ([e842e5a](https://github.com/Jaal-Yantra-Textiles/v2/commit/e842e5ab7a07385b9ea657acaf71502f2765ec18)), closes [#1261](https://github.com/Jaal-Yantra-Textiles/v2/issues/1261)
+* **ops:** the design arrival mail is seeded from Data Plumbing, not a Fargate one-off ([#2111](https://github.com/Jaal-Yantra-Textiles/v2/issues/2111)) ([#2203](https://github.com/Jaal-Yantra-Textiles/v2/issues/2203)) ([81c3c23](https://github.com/Jaal-Yantra-Textiles/v2/commit/81c3c23818499e9d886362bfa4dd724b32c3f957)), closes [#2200](https://github.com/Jaal-Yantra-Textiles/v2/issues/2200) [#2200](https://github.com/Jaal-Yantra-Textiles/v2/issues/2200)
+* **email:** the lodgement mail says what happens next, not that the design is ready ([#2204](https://github.com/Jaal-Yantra-Textiles/v2/issues/2204)) ([0fe1009](https://github.com/Jaal-Yantra-Textiles/v2/commit/0fe10092eb530be468024b35be7f2a030c890ec4)), closes [#2111](https://github.com/Jaal-Yantra-Textiles/v2/issues/2111)
+
 # [13.154.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.153.0...v13.154.0) (2026-09-20)
 
 
