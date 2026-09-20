@@ -5,6 +5,7 @@ import type { IEventBusModuleService, Logger } from "@medusajs/types"
 import { PRODUCTION_RUNS_MODULE } from "../modules/production_runs"
 import type ProductionRunService from "../modules/production_runs/service"
 import { releaseRunIfReady } from "../workflows/production-runs/lib/release-dependent-runs"
+import { notifyDispatchByHand } from "../workflows/production-runs/lib/notify-dispatch-by-hand"
 import { mirrorRunStatusToUnifiedOrder } from "../workflows/production-runs/dual-write-unified-run-order"
 
 export default async function productionRunTaskUpdatedHandler({
@@ -182,6 +183,18 @@ export default async function productionRunTaskUpdatedHandler({
           case "no_templates":
             logger.info(
               `[tasks.task.updated] Dependent run ${outcome.run_id} is ready for dispatch but has no pre-configured templates. Manual dispatch required.`
+            )
+            // Same silence as the inventory-order path, same fix (#2202): the
+            // upstream run finished, this one could start, and nothing will
+            // happen until a person is told.
+            await notifyDispatchByHand(
+              container,
+              {
+                runId: outcome.run_id,
+                releasedBy: productionRunId,
+                releasedByKind: "production run",
+              },
+              logger
             )
             break
           case "failed":
