@@ -29,9 +29,16 @@ const CheckoutSummary = async ({
         off-screen — no dialog to open, and the buyer stays on the page they
         are paying on.
       */}
-      <CheckoutItemList cart={cart} />
+      {/*
+        Desktop only — on a phone these two render at the TOP of the page, in
+        `CheckoutMobileSummary`. Rendering them here as well would show the
+        buyer the same list and the same total twice on one screen.
+      */}
+      <div className="hidden lg:flex lg:flex-col lg:gap-y-8">
+        <CheckoutItemList cart={cart} />
 
-      <CheckoutTotals cart={cart} />
+        <CheckoutTotals cart={cart} />
+      </div>
 
       {/* Directly under the totals: the buyer has just read the full amount,
           and this is the moment the "due today" figure has to appear. */}
