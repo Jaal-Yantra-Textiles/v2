@@ -4,6 +4,9 @@ import { PRODUCTION_RUNS_MODULE } from "../../../modules/production_runs"
 import type ProductionRunService from "../../../modules/production_runs/service"
 import { sendProductionRunToProductionWorkflow } from "../send-production-run-to-production"
 import { selectDispatchInput } from "./dispatch-selection"
+import { PRODUCTION_POLICY_MODULE } from "../../../modules/production_policy"
+import type ProductionPolicyService from "../../../modules/production_policy/service"
+import { resolveDispatchDefault } from "../../../modules/production_policy/policy-config"
 import {
   cleanIds,
   hasUnmet,
@@ -23,13 +26,63 @@ import {
  */
 
 export type ReleaseOutcome =
-  | { run_id: string; result: "dispatched" }
+  /**
+   * `via` is present ONLY when a policy default chose the templates because no
+   * approval had. Its ABSENCE is the ordinary case — a human chose — which
+   * keeps the outcome shape byte-identical for every existing caller, and makes
+   * the field mean exactly one thing when it does appear: nobody picked this.
+   */
+  | { run_id: string; result: "dispatched"; via?: "policy_default" }
   | { run_id: string; result: "waiting"; reason: string }
   | { run_id: string; result: "no_templates" }
   | { run_id: string; result: "failed"; message: string }
 
 /** Only an approved run is a candidate; anything else is already in flight. */
 const RELEASABLE_STATUS = "approved"
+
+/**
+ * The standing answer for this kind of job, or null.
+ *
+ * Reads the DESIGN for `product_type` rather than the run: the run carries
+ * `product_id`/`variant_id`, and its snapshot's `design` block holds name and
+ * status but not the type. A run whose design cannot be read simply has no
+ * product_type — it can still match a rule keyed on `run_type` alone.
+ *
+ * ⚠️ Never throws. This is the last step before a partner is messaged; a policy
+ * read that fails must leave the run un-dispatched and tellable, not take the
+ * caller down with it.
+ */
+const resolveDispatchDefaultForRun = async (
+  container: any,
+  run: any
+): Promise<string[] | null> => {
+  try {
+    const policyService: ProductionPolicyService = container.resolve(
+      PRODUCTION_POLICY_MODULE
+    )
+    const config = await policyService.getPolicyConfig()
+
+    let productType: string | null = null
+    if (run?.design_id) {
+      const query = container.resolve(ContainerRegistrationKeys.QUERY) as any
+      const { data: designs = [] } = await query
+        .graph({
+          entity: "designs",
+          filters: { id: String(run.design_id) },
+          fields: ["id", "product_type"],
+        })
+        .catch(() => ({ data: [] }))
+      productType = (designs as any[])[0]?.product_type ?? null
+    }
+
+    return resolveDispatchDefault(config?.dispatch_defaults, {
+      run_type: run?.run_type ?? null,
+      product_type: productType,
+    })
+  } catch {
+    return null
+  }
+}
 
 export const releaseRunIfReady = async (
   container: any,
@@ -42,16 +95,40 @@ export const releaseRunIfReady = async (
     return { run_id: runId, result: "waiting", reason: describeUnmet(unmet) }
   }
 
-  const selection = selectDispatchInput(run)
+  /*
+   * 🔴 THE FALLBACK LIVES HERE AND NOWHERE ELSE.
+   *
+   * `selectDispatchInput` returning null MEANS "dispatch later, by hand", and
+   * `auto-dispatch-approved-children` depends on that meaning — it calls such a
+   * run `skipped`, "nothing to dispatch, not a failure". Teaching the selector
+   * itself to fall back would change what null means everywhere: on prod
+   * 2026-09-20, 8 of 9 approved runs carried no selection, and they would stop
+   * being parked and start messaging partners for work nobody released.
+   *
+   * This branch is narrower by construction. Everything upstream is already
+   * met — the cloth is demonstrably here — and the only question left is what
+   * to dispatch with. That is the one place an operator's standing answer is
+   * better than a log line no one reads (#2202).
+   */
+  let selection = selectDispatchInput(run)
+  let byDefault = false
+
   if (!selection) {
-    return { run_id: runId, result: "no_templates" }
+    const fallback = await resolveDispatchDefaultForRun(container, run)
+    if (!fallback) {
+      return { run_id: runId, result: "no_templates" }
+    }
+    selection = { template_ids: fallback }
+    byDefault = true
   }
 
   try {
     await sendProductionRunToProductionWorkflow(container).run({
       input: { production_run_id: runId, ...selection },
     })
-    return { run_id: runId, result: "dispatched" }
+    return byDefault
+      ? { run_id: runId, result: "dispatched" as const, via: "policy_default" as const }
+      : { run_id: runId, result: "dispatched" as const }
   } catch (e: any) {
     return {
       run_id: runId,
@@ -117,8 +194,19 @@ export const releaseRunsAwaitingInventoryOrder = async (
 
     switch (outcome.result) {
       case "dispatched":
+        /*
+         * Names the policy default out loud. A partner has just been messaged
+         * and given tasks; whether a person chose those templates or a standing
+         * rule did is the first thing anyone auditing this will want, and it is
+         * not recoverable from the run afterwards — `dispatched_template_ids`
+         * looks identical either way.
+         */
         logger.info(
-          `[inventory-order-delivered] released run ${outcome.run_id} — goods from ${inventoryOrderId} delivered`
+          `[inventory-order-delivered] released run ${outcome.run_id} — goods from ${inventoryOrderId} delivered${
+            outcome.via === "policy_default"
+              ? " (templates from the dispatch-defaults policy, not an approval)"
+              : ""
+          }`
         )
         break
       case "waiting":
