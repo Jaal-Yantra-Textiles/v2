@@ -1,6 +1,7 @@
 "use client"
 
 import { Badge, Heading, Input, Label, Text } from "@medusajs/ui"
+import { useRouter } from "next/navigation"
 import React from "react"
 
 import { convertToLocale } from "@lib/util/money"
@@ -15,14 +16,47 @@ type DiscountCodeProps = {
   }
 }
 const DiscountCode: React.FC<DiscountCodeProps> = ({ cart }) => {
+  const router = useRouter()
   const [isOpen, setIsOpen] = React.useState(false)
   const [errorMessage, setErrorMessage] = React.useState("")
+  const [isBusy, setIsBusy] = React.useState(false)
+  const [, startTransition] = React.useTransition()
 
   const { promotions = [] } = cart
+
+  /**
+   * 🔴 THE MUTATION IS NOT THE END OF THE JOB — THE RE-RENDER IS.
+   *
+   * Both handlers below POST to `/api/cart/promotions` and used to stop
+   * there. `cart` is a prop from a SERVER component, so nothing re-fetched
+   * it and the panel kept rendering the pre-mutation cart until the shopper
+   * happened to reload.
+   *
+   * Observed on a live order, in BOTH directions:
+   *
+   *   remove FRIENDS -> server: no promotions, total €201.81
+   *                     page:   FRIENDS (50%), −€91.00, total €110.81
+   *   apply  FRIENDS -> server: FRIENDS, total €110.81
+   *                     page:   no discount, total €201.81
+   *
+   * Either way the buyer is shown a total that is not the one they would be
+   * charged, off by the whole discount. See #2194.
+   *
+   * `applyPromotions` already calls `revalidateTag`, and that is NOT enough:
+   * it invalidates the server cache, but this runs through a ROUTE HANDLER
+   * rather than a server action, so nothing pushes a fresh render to the
+   * client. `router.refresh()` is what re-fetches the RSC payload. (The tag
+   * can also be a no-op outright — `getCacheTag` returns "" when there is no
+   * `_medusa_cache_id` cookie, which is the case for a buyer arriving from a
+   * link.)
+   */
+  const refreshCart = () => startTransition(() => router.refresh())
 
   const removePromotionCode = async (code: string) => {
     const validPromotions = promotions.filter((promotion) => promotion.code !== code)
 
+    setErrorMessage("")
+    setIsBusy(true)
     try {
       const res = await fetch("/api/cart/promotions", {
         method: "POST",
@@ -37,13 +71,19 @@ const DiscountCode: React.FC<DiscountCodeProps> = ({ cart }) => {
       if (!json?.ok) {
         throw new Error(json?.error || "Failed to update promotions")
       }
+      refreshCart()
     } catch (e: any) {
       setErrorMessage(e?.message || "Failed to update promotions")
+    } finally {
+      setIsBusy(false)
     }
   }
 
   const addPromotionCode = async (formData: FormData) => {
     setErrorMessage("")
+    if (isBusy) {
+      return
+    }
 
     const code = formData.get("code")
     if (!code) {
@@ -66,6 +106,7 @@ const DiscountCode: React.FC<DiscountCodeProps> = ({ cart }) => {
       codes.push(normalized)
     }
 
+    setIsBusy(true)
     try {
       const res = await fetch("/api/cart/promotions", {
         method: "POST",
@@ -76,12 +117,20 @@ const DiscountCode: React.FC<DiscountCodeProps> = ({ cart }) => {
       if (!json?.ok) {
         throw new Error(json?.error || "Failed to apply promotions")
       }
+      /**
+       * Only clear the field on SUCCESS. Clearing it unconditionally — which
+       * is what happened before — wiped a rejected code and left no error
+       * beside it, so a refused promotion was indistinguishable from an
+       * accepted one.
+       */
+      if (input) {
+        input.value = ""
+      }
+      refreshCart()
     } catch (e: any) {
       setErrorMessage(e?.message || "Failed to apply promotions")
-    }
-
-    if (input) {
-      input.value = ""
+    } finally {
+      setIsBusy(false)
     }
   }
 
@@ -120,10 +169,12 @@ const DiscountCode: React.FC<DiscountCodeProps> = ({ cart }) => {
                   name="code"
                   type="text"
                   autoFocus={false}
+                  disabled={isBusy}
                   data-testid="discount-input"
                 />
                 <SubmitButton
                   variant="secondary"
+                  pending={isBusy}
                   data-testid="discount-apply-button"
                 >
                   Apply
@@ -186,7 +237,9 @@ const DiscountCode: React.FC<DiscountCodeProps> = ({ cart }) => {
                     </Text>
                     {!promotion.is_automatic && (
                       <button
-                        className="flex items-center"
+                        className="flex items-center disabled:opacity-50"
+                        type="button"
+                        disabled={isBusy}
                         onClick={() => {
                           if (!promotion.code) {
                             return

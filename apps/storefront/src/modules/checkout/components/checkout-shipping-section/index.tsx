@@ -141,7 +141,41 @@ export default function CheckoutShippingSection({
     })
   }
 
-  const shippingOptions = availableShippingOptions
+  /**
+   * 🔴 Hide an option that cannot be PRICED yet, rather than pricing it wrongly.
+   *
+   * Some carriers quote by destination postcode and will not answer without
+   * one. ShipGlobal is one: an admin-created design order carries a country and
+   * no postcode, so its rate call goes out with `destination_pincode: ""`, the
+   * carrier refuses, and the provider falls back. On a live Swedish checkout
+   * that fallback was `DEFAULT_FLAT_FALLBACK` — 200 — which `flat-fallback.ts`
+   * itself calls "an INR-shaped number and is almost certainly wrong in any
+   * other currency". The buyer was offered €200.00 beside a real €19.81.
+   *
+   * A made-up number the buyer can SELECT is worse than an option that is not
+   * there yet, so it is withheld until the cart can actually be quoted. It
+   * comes back on its own once the address step writes a postcode: that
+   * mutation revalidates the fulfillment tag and this list is refetched —
+   * which only works because the same change stopped force-caching it.
+   *
+   * Driven by the option's own `data`, not by a carrier name hardcoded here:
+   * which carriers need a postcode is the backend's fact to state, and
+   * Shiprocket beside it quotes country-level perfectly well (€19.81, not its
+   * €35 fallback).
+   */
+  const hasPostalCode = Boolean(
+    String(cart.shipping_address?.postal_code ?? "").trim()
+  )
+
+  const withheldForPostalCode = (availableShippingOptions ?? []).filter(
+    (o) => (o.data as Record<string, unknown> | null)?.requires_postal_code
+  ).length
+
+  const shippingOptions = hasPostalCode
+    ? availableShippingOptions
+    : (availableShippingOptions ?? []).filter(
+        (o) => !(o.data as Record<string, unknown> | null)?.requires_postal_code
+      )
 
   useEffect(() => {
     setIsLoadingPrices(true)
@@ -270,8 +304,28 @@ export default function CheckoutShippingSection({
         </DropdownMenu>
       </div>
 
-      {/* Shipping method cards */}
-      <div className="overflow-x-auto no-scrollbar px-px pb-1">
+      {/*
+        Shipping method cards.
+
+        🔴 `min-w-0` is what makes `overflow-x-auto` mean anything. The cards
+        are `w-[180px] shrink-0`, and this scroller sits in a flex column whose
+        children default to `min-width: auto` — so instead of scrolling, it
+        grew to its content and pushed the whole grid column wide. On a live
+        Swedish checkout with 7 options that carried the order summary, and the
+        TOTAL, off the right edge of the screen; the page scrolled sideways.
+        India has 2 options, which is why local testing never showed it.
+
+        Same defect as `min-h-0` on the modal body, one axis over.
+      */}
+      {withheldForPostalCode > 0 && !hasPostalCode && (
+        <p className="txt-compact-small text-ui-fg-muted">
+          {withheldForPostalCode === 1
+            ? "One more delivery option appears once you add your postcode."
+            : `${withheldForPostalCode} more delivery options appear once you add your postcode.`}
+        </p>
+      )}
+
+      <div className="min-w-0 overflow-x-auto no-scrollbar px-px pb-1">
         {shippingOptions && shippingOptions.length > 0 ? (
           <RadioGroup
             value={shippingMethodId ?? undefined}
