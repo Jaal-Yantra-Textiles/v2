@@ -6,8 +6,16 @@ import productDesignLink from "../../../../links/product-design-link"
 import designConsumptionLogLink from "../../../../links/design-consumption-log"
 import designPersonLink from "../../../../links/designs-person-link"
 import designRawMaterialGroupLink from "../../../../links/design-raw-material-group"
+import designInventoryOrderLink from "../../../../links/design-inventory-order"
 import { GraphBuilder, asArray, money, resolveExisting } from "../../builder"
 import { DESIGN_ITEM_NODES, resolveDesignItems } from "./items"
+/*
+ * 🔴 Imported, not re-written. The arrival gate is `Delivered` and NOT
+ * `Shipped`, and a second copy of that rule here is a second place for it to
+ * drift — the design graph would then say the cloth had landed while the run
+ * graph still held dispatch.
+ */
+import { isDependencyMet } from "../production-run/absence"
 import type { EdgeState, Graph, GraphNode, SpineContext, SpineDescriptor } from "../../types"
 import {
   daysWaiting,
@@ -121,6 +129,7 @@ const resolveDesignGraph = async ({ scope, id }: SpineContext): Promise<Graph> =
     { data: consumptionLinks },
     { data: personLinks },
     { data: materialGroupLinks },
+    { data: inventoryOrderLinks },
   ] = await Promise.all([
     query.graph({
       entity: designOrderLink.entryPoint,
@@ -152,6 +161,28 @@ const resolveDesignGraph = async ({ scope, id }: SpineContext): Promise<Graph> =
       filters: { design_id: designId },
       fields: ["raw_material_group_id", "resolved_raw_material_id"],
     }),
+    /*
+     * The material this design is WAITING FOR (#2111), as opposed to the
+     * inventory ITEMS that make up its bill of materials. Attaching an order
+     * (#2200) is what makes the arrival tellable, and until now it left no
+     * trace here at all: the design graph showed items and no orders, so a
+     * design whose cloth was still in transit looked identical to one whose
+     * cloth had never been ordered.
+     *
+     * `notify_customer` / `notified_at` come along because they decide whether
+     * the client hears about the arrival, and that is a fact about this design
+     * that exists nowhere else a reader can see.
+     */
+    query.graph({
+      entity: designInventoryOrderLink.entryPoint,
+      filters: { design_id: designId },
+      fields: [
+        "inventory_orders_id",
+        "notify_customer",
+        "notified_at",
+        "note",
+      ],
+    }),
   ])
   const rawOrderIds = asArray<any>(orderLinks).map((l) => l.order_id).filter(Boolean)
   const folderIds = asArray<any>(folderLinks).map((l) => l.folder_id).filter(Boolean)
@@ -161,6 +192,7 @@ const resolveDesignGraph = async ({ scope, id }: SpineContext): Promise<Graph> =
     .filter(Boolean)
   const personLinkRows = asArray<any>(personLinks)
   const materialGroupRows = asArray<any>(materialGroupLinks)
+  const inventoryOrderRows = asArray<any>(inventoryOrderLinks)
 
   /*
    * 🔴 Keep only the ids with a record behind them.
@@ -200,6 +232,36 @@ const resolveDesignGraph = async ({ scope, id }: SpineContext): Promise<Graph> =
   const materialGroups = materialGroupRows.filter((l) =>
     orNull(materialGroupIds, l.raw_material_group_id)
   )
+
+  /*
+   * 🔴 The orders are fetched as RECORDS, never counted off the link rows —
+   * the same rule the attach route follows. A link row is not a record: the
+   * partner spine once said "4 linked" against four person ids that no longer
+   * existed. The node needs each order's status anyway, since "waiting" and
+   * "arrived" are the whole point of drawing it.
+   */
+  const linkedOrderIds = inventoryOrderRows
+    .map((l) => l.inventory_orders_id)
+    .filter(Boolean)
+    .map(String)
+  const { data: inventoryOrders = [] } = linkedOrderIds.length
+    ? await query.graph({
+        entity: "inventory_orders",
+        filters: { id: linkedOrderIds },
+        fields: ["id", "status", "quantity", "expected_delivery_date"],
+      })
+    : { data: [] }
+  const orderById = new Map(
+    asArray<any>(inventoryOrders).map((o) => [String(o.id), o])
+  )
+  const supplyOrders = inventoryOrderRows
+    .filter((l) => orderById.has(String(l.inventory_orders_id)))
+    .map((l) => ({
+      ...orderById.get(String(l.inventory_orders_id)),
+      notify_customer: l.notify_customer !== false,
+      notified_at: l.notified_at ?? null,
+      note: l.note ?? null,
+    }))
 
   // ---- derived facts the absence rules key on -----------------------------
 
@@ -526,6 +588,62 @@ const resolveDesignGraph = async ({ scope, id }: SpineContext): Promise<Graph> =
         action: null,
       },
       { label: "tasks", state: "present", reason: null }
+    )
+  }
+
+  // ---- supply: the material this design is waiting for --------------------
+
+  /*
+   * Distinct from the Inventory node below. That one is the design's bill of
+   * materials — WHAT it is made of. This one is the purchase that has to land
+   * before anyone can make it, and its status is the difference between "not
+   * started yet" and "cannot start yet".
+   */
+  if (supplyOrders.length) {
+    const unmet = supplyOrders.filter((o) => !isDependencyMet(o.status))
+    const willTell = supplyOrders.filter((o) => o.notify_customer && !o.notified_at)
+    push(
+      {
+        key: "supply_orders",
+        type: "inventory_order",
+        label: "Material on order",
+        sublabel: unmet.length
+          ? `${unmet.length} of ${supplyOrders.length} not delivered`
+          : `${supplyOrders.length} delivered`,
+        state: unmet.length ? "derived" : "present",
+        count: supplyOrders.length,
+        status: unmet.length ? "blocked" : "met",
+        href: null,
+        props: supplyOrders.slice(0, 4).map((o) => ({
+          key: String(o.id),
+          value: String(o.status ?? "—"),
+        })),
+        action: null,
+      },
+      {
+        label: "design ↔ inventory_order",
+        state: unmet.length ? "derived" : "present",
+        /*
+         * Names `Delivered` explicitly, for the same reason the run spine
+         * does: a reader who reads `Shipped` as arrival will chase a maker who
+         * does not have the cloth yet.
+         *
+         * The notify clause is here because it is otherwise invisible. An
+         * attachment with `notify_customer: false` is a deliberate silence,
+         * and a deliberate silence that nothing displays is indistinguishable
+         * from the bug this pipeline exists to end — a client who is told
+         * nothing because nobody noticed.
+         */
+        reason: unmet.length
+          ? `The cloth is not here yet — an order counts as arrived at Delivered, not Shipped. ${unmet
+              .map((o) => `${o.id} is ${o.status}`)
+              .join("; ")}.${
+              willTell.length
+                ? ""
+                : " No attached order will tell this design's client when it lands."
+            }`
+          : null,
+      }
     )
   }
 
