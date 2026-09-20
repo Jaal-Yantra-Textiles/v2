@@ -60,7 +60,7 @@ export const emailTemplatesData = [
   {
     name: "Password Reset",
     template_key: "password-reset",
-    from: "security@jyt.com",
+    from: "security@jaalyantra.com",
     subject: "Password Reset Request",
     html_content: `
       <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; background-color: #f9f9f9;">
@@ -154,7 +154,7 @@ export const emailTemplatesData = [
   {
     name: "Blog Subscriber Email",
     template_key: "blog-subscriber",
-    from: "blog@jyt.com",
+    from: "blog@jaalyantra.com",
     subject: "New Blog Post: {{blog_title}}",
     html_content: `
       <!DOCTYPE html>
@@ -370,7 +370,7 @@ export const emailTemplatesData = [
     {
     name: "Shipment Shipped",
     template_key: "order-shipment-created",
-    from: "orders@jyt.com",
+    from: "orders@jaalyantra.com",
     subject: "Your order {{order_id}} just shipped 🚚",
     html_content: `
       <!doctype html>
@@ -596,7 +596,7 @@ export const emailTemplatesData = [
   {
     name: "Shipment Delivered",
     template_key: "order-shipment-delivered",
-    from: "orders@jyt.com",
+    from: "orders@jaalyantra.com",
     subject: "Delivered: Order {{order_id}} 📦",
     html_content: `
       <!doctype html>
@@ -774,38 +774,65 @@ export const emailTemplatesData = [
   {
     name: "Design Assigned to Customer",
     template_key: "design-assigned",
-    from: "designs@jyt.com",
-    subject: "Your custom design is ready: {{design_name}}",
+    /*
+     * 🔴 `jaalyantra.com`, NOT `jyt.com`. The live row was corrected to
+     * designs@jaalyantra.com; this spec still said jyt.com, so pushing a
+     * redesign with overwrite=true would have silently regressed the sending
+     * domain on a template that mails real clients. A seed spec that has
+     * drifted from prod is not dormant — it is loaded and waiting.
+     */
+    from: "designs@jaalyantra.com",
+    /*
+     * Says the design is LODGED, not finished.
+     *
+     * The old subject was "Your custom design is ready" and the body told the
+     * client their design was complete and invited them to open the editor —
+     * sent at the moment the design is first created for them. It announced an
+     * ending at a beginning, and promised nothing further, so a client heard
+     * "ready" and then heard nothing for weeks while we sourced cloth and
+     * found a maker.
+     *
+     * What it says instead is what actually happens next: we look for the
+     * material, we find the maker, and we write again as each of those lands.
+     * Those two mails already exist — `design-materials-delivered` (#2111) and
+     * `design-production-started` — so this is a promise the platform keeps.
+     *
+     * ⚠️ No dates. We do not know when cloth will be found, and a date here is
+     * a promise made by a template rather than by a person.
+     *
+     * Variables are limited to the four `send-design-assigned-email` actually
+     * supplies (customer_name, design_name, design_url, design_status). A
+     * fifth would render empty.
+     */
+    subject: "We have your design: {{design_name}}",
     html_content: `
-      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; background-color: #f9f9f9;">
-        <div style="background-color: #ffffff; padding: 30px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
-          <h1 style="color: #6366f1; font-size: 24px; margin-bottom: 20px;">Your Design Is Ready</h1>
-          <p style="color: #333333; font-size: 16px; margin-bottom: 15px;">
-            Hi {{customer_name}},
+      <div style="font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;max-width:560px;margin:0 auto;color:#18181b">
+        <h1 style="font-size:18px;margin:0 0 12px">We have your design</h1>
+        <p style="font-size:14px;line-height:1.6;color:#3f3f46">
+          Hi {{customer_name}}, <strong>{{design_name}}</strong> is with us now and we have started work on it.
+        </p>
+        <div style="background:#f4f4f5;padding:16px 18px;border-radius:10px;margin:16px 0">
+          <p style="font-size:13px;line-height:1.7;color:#3f3f46;margin:0 0 10px"><strong>What happens next</strong></p>
+          <p style="font-size:13px;line-height:1.7;color:#3f3f46;margin:0 0 8px">
+            First we source the cloth your piece needs, from the mills and weavers who make it.
           </p>
-          <p style="color: #666666; font-size: 16px; line-height: 1.5; margin-bottom: 20px;">
-            Our design team has created a personalised design brief for you: <strong>{{design_name}}</strong>.
-          </p>
-          <p style="color: #666666; font-size: 15px; line-height: 1.5; margin-bottom: 24px;">
-            Log in to your account to view the design details, explore the moodboard, and open the interactive design editor to customise it further.
-          </p>
-          {{#if design_url}}
-          <div style="margin: 30px 0; text-align: center;">
-            <a href="{{design_url}}" style="background-color: #6366f1; color: white; padding: 14px 28px; text-decoration: none; border-radius: 6px; display: inline-block; font-weight: bold; font-size: 16px;">
-              Open Design Editor
-            </a>
-          </div>
-          {{/if}}
-          <div style="margin-top: 20px; padding: 16px; background-color: #f0f0ff; border-radius: 6px; border-left: 4px solid #6366f1;">
-            <p style="color: #4338ca; font-size: 14px; margin: 0; line-height: 1.5;">
-              <strong>Design:</strong> {{design_name}}<br/>
-              {{#if design_status}}<strong>Status:</strong> {{design_status}}{{/if}}
-            </p>
-          </div>
-          <p style="color: #999999; font-size: 14px; margin-top: 24px; line-height: 1.5;">
-            If you have any questions about your design, reply to this email or contact our support team.
+          <p style="font-size:13px;line-height:1.7;color:#3f3f46;margin:0">
+            Then we place it with the maker who will work it.
           </p>
         </div>
+        <p style="font-size:14px;line-height:1.6;color:#3f3f46">
+          We will write to you at each of those steps — once when the material reaches the maker, and again when work actually begins. Both can take a little time, and we would rather tell you when it is true than guess at a date now.
+        </p>
+        <p style="font-size:14px;line-height:1.6;color:#3f3f46">Nothing is needed from you in the meantime.</p>
+        {{#if design_url}}
+        <p style="font-size:13px;margin:18px 0 0"><a href="{{design_url}}" style="color:#18181b">View your design</a></p>
+        {{/if}}
+        {{#if design_status}}
+        <p style="font-size:12px;color:#a1a1aa;margin:14px 0 0">Status: {{design_status}}</p>
+        {{/if}}
+        <p style="font-size:12px;color:#a1a1aa;margin-top:24px">
+          If anything here looks wrong, just reply to this email.<br/>Jaal Yantra Textiles
+        </p>
       </div>
     `,
     variables: {
@@ -918,7 +945,7 @@ export const emailTemplatesData = [
   {
     name: "Design Inventory Linked",
     template_key: "design-inventory-linked",
-    from: "designs@jyt.com",
+    from: "designs@jaalyantra.com",
     subject: "Materials assigned to your design: {{design_name}}",
     html_content: `
       <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; background-color: #f9f9f9;">
@@ -959,7 +986,7 @@ export const emailTemplatesData = [
   {
     name: "Design Production Started",
     template_key: "design-production-started",
-    from: "designs@jyt.com",
+    from: "designs@jaalyantra.com",
     subject: "Production has started for your design: {{design_name}}",
     html_content: `
       <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; background-color: #f9f9f9;">
@@ -999,7 +1026,7 @@ export const emailTemplatesData = [
   {
     name: "Design Production Completed",
     template_key: "design-production-completed",
-    from: "designs@jyt.com",
+    from: "designs@jaalyantra.com",
     subject: "Production complete for your design: {{design_name}}",
     html_content: `
       <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; background-color: #f9f9f9;">
@@ -1126,7 +1153,7 @@ export const emailTemplatesData = [
   {
     name: "Partner Order Fulfilled",
     template_key: "partner-order-fulfilled",
-    from: "partner@partner.jaalyantra.com",
+    from: "orders@jaalyantra.com",
     subject: "Order #{{order_display_id}} has been fulfilled",
     html_content: `
       <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 24px; background-color: #f4f4f5;">
@@ -1210,7 +1237,7 @@ export const emailTemplatesData = [
   {
     name: "Partner Order Cancelled",
     template_key: "partner-order-cancelled",
-    from: "partner@partner.jaalyantra.com",
+    from: "orders@jaalyantra.com",
     subject: "Order #{{order_display_id}} has been cancelled",
     html_content: `
       <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 24px; background-color: #f4f4f5;">
@@ -1258,7 +1285,7 @@ export const emailTemplatesData = [
   {
     name: "Partner Verified",
     template_key: "partner-verified",
-    from: "partners@jyt.com",
+    from: "partners@jaalyantra.com",
     subject: "Congratulations! Your partner account is verified",
     html_content: `
       <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; background-color: #f9f9f9;">
