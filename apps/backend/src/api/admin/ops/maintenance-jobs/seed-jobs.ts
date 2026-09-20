@@ -19,6 +19,7 @@ import { TEMPLATE_DEFINITION as cartAbandonedTemplate } from "../../../../script
 import { tourEmailTemplate } from "../../../../scripts/seed-tour-email-template"
 import { quoteEmailTemplates } from "../../../../scripts/seed-quote-email-template"
 import { visualFlowLifecycleTemplates } from "../../../../scripts/seed-visual-flow-lifecycle-email-templates"
+import { designMaterialsDeliveredEmailTemplates } from "../../../../scripts/seed-design-materials-delivered-email"
 
 /**
  * #457 Data Plumbing — SEED jobs.
@@ -108,6 +109,21 @@ export const EMAIL_TEMPLATE_SETS: Array<{
     key: "visual-flow-lifecycle",
     label: "visual-flow lifecycle templates",
     specs: visualFlowLifecycleTemplates as EmailTemplateSpec[],
+  },
+  /*
+   * #2111 — the client-facing "your material has arrived" mail.
+   *
+   * Exposed here so the arrival notice can be seeded from Settings → Data
+   * Plumbing instead of a Fargate one-off. It matters more than the usual seed:
+   * the subscriber finds the right client and then fails ONLY on the template
+   * fetch, logging rather than throwing, and the arrival stamp is written AFTER
+   * the send — so with no row the mail never goes and nothing is ever marked
+   * notified, silently, exactly the failure #2200 set out to end.
+   */
+  {
+    key: "design-materials-delivered",
+    label: "design material-arrival template",
+    specs: designMaterialsDeliveredEmailTemplates as EmailTemplateSpec[],
   },
 ]
 
