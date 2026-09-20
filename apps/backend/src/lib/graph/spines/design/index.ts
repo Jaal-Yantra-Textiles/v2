@@ -19,6 +19,7 @@ import {
   productNodeState,
   runsAwaitingProduct,
   runsRejected,
+  reachableCustomers,
 } from "./absence"
 
 /**
@@ -87,7 +88,7 @@ const resolveDesignGraph = async ({ scope, id }: SpineContext): Promise<Graph> =
   const partners = asArray<any>(design.partners)
   const tasks = asArray<any>(design.tasks)
   const inventoryItems = asArray<any>(design.inventory_items)
-  const customers = asArray<any>(design.customers)
+  const customers = reachableCustomers(asArray<any>(design.customers))
   const mediaFiles = asArray<any>(design.media_files)
   const moodboard = asArray<any>(design.moodboard)
   const specifications = asArray<any>(design.specifications)
@@ -635,6 +636,49 @@ const resolveDesignGraph = async ({ scope, id }: SpineContext): Promise<Graph> =
         action: null,
       },
       { label: "customer", state: "present", reason: null }
+    )
+  } else {
+    /**
+     * 🔴 THE ABSENCE THAT COST A MONTH OF SILENCE.
+     *
+     * Until this branch existed the node was drawn ONLY when a customer was
+     * linked, so a design that could reach nobody drew nothing at all — the
+     * absence was invisible on the one surface built to show absences.
+     *
+     * It is not cosmetic. EVERY customer email about a design — production
+     * started, production complete, materials linked, materials delivered,
+     * status changed — resolves its recipient through this link and returns
+     * SILENTLY when there is none: `sendDesignStatusUpdateEmailWorkflow`
+     * returns null and its `when` guard simply does not fire. No exception, no
+     * warning, nothing in any list.
+     *
+     * Measured on prod 2026-09-20: all five Oshen designs, minted into
+     * published products and viewed by the client from Australia, carried no
+     * customer. So did the Pashmina Inspired Tunic, whose run is holding on a
+     * delivery that will fire a production-started mail into nobody.
+     *
+     * Deliberately `absent` and not `derived`: there is no neighbour here doing
+     * its job badly — there is no neighbour.
+     */
+    push(
+      {
+        key: "customers",
+        type: "customer",
+        label: "Customer",
+        sublabel: "nobody",
+        state: "absent",
+        count: 0,
+        status: null,
+        href: null,
+        props: [],
+        action: { label: "Attach the customer", href: `/designs/${designId}` },
+      },
+      {
+        label: "customer",
+        state: "absent",
+        reason:
+          "No customer is linked, so every email about this design reaches nobody and says nothing about it — the send resolves its recipient here and returns silently. A design sold through a design order gets this link from the order; one that came out of a conversation has to be given it.",
+      }
     )
   }
 
