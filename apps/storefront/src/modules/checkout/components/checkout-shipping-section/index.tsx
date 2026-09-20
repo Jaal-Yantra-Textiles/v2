@@ -114,9 +114,21 @@ export default function CheckoutShippingSection({
       .sort((a, b) => a.label.localeCompare(b.label))
   }, [regions])
 
-  const selectedCountryOption =
-    countryOptions.find((o) => o.country === currentCountry) ??
-    countryOptions[0]
+  /**
+   * 🔴 NO `?? countryOptions[0]` fallback.
+   *
+   * This drives both the label on the trigger and which radio reads as
+   * selected. `countryOptions` is every country of every region sorted by
+   * name, so when the buyer's country was not matched the picker confidently
+   * announced the alphabetically-first country on the platform — a Swedish
+   * buyer on a `/se/` checkout was shown "Angola", selected.
+   *
+   * Undefined is the truthful answer, and the trigger already renders "—" for
+   * it. An unknown country should look unknown, not like somebody else's.
+   */
+  const selectedCountryOption = countryOptions.find(
+    (o) => o.country === currentCountry
+  )
 
   const handleRegionChange = (countryCode: string) => {
     const option = countryOptions.find((opt) => opt.country === countryCode)
@@ -286,12 +298,26 @@ export default function CheckoutShippingSection({
                           ? `Delivery from ${formatDeliveryDate(days.min)}`
                           : null
 
+              /**
+               * 🔴 `?? null`, because `option.amount!` was a lie.
+               *
+               * The `!` is a TypeScript assertion and does nothing at runtime.
+               * A FLAT option carries no amount when it has no price in the
+               * cart's currency — an Australia-zone option priced only in AUD,
+               * offered on a EUR cart. `undefined` then walked straight through
+               * the `priceAmount !== null` guard below (`undefined !== null` is
+               * TRUE) and reached `Intl.NumberFormat.format(undefined)`, which
+               * renders "€NaN". The buyer was shown, and could select, a
+               * shipping method with no price.
+               *
+               * Normalising to null makes the existing guard do its job and the
+               * row falls through to "—". Note `??` and not `||`: a genuine
+               * amount of 0 is FREE shipping, not a missing price.
+               */
               const priceAmount =
                 option.price_type === "flat"
-                  ? option.amount!
-                  : calculatedPricesMap[option.id] !== undefined
-                    ? calculatedPricesMap[option.id]
-                    : null
+                  ? option.amount ?? null
+                  : calculatedPricesMap[option.id] ?? null
               const isFreeShipping = priceAmount === 0
               const price = isFreeShipping
                 ? "Free"
@@ -315,12 +341,25 @@ export default function CheckoutShippingSection({
                   )}
                   data-testid="delivery-option-radio"
                 >
+                  {/*
+                    An option with no price in this currency cannot be chosen.
+                    It used to be fully selectable while displaying "€NaN".
+                  */}
                   <RadioGroup.Item
                     value={option.id}
                     aria-label={option.name}
+                    disabled={priceAmount === null && !isLoadingPrices}
                     className="absolute inset-0 z-10 h-full w-full cursor-pointer rounded-md bg-transparent outline-none [&>div]:hidden focus-visible:shadow-borders-interactive-with-focus"
                   />
-                  <span className="txt-compact-medium-plus text-ui-fg-base">
+                  {/*
+                    🔴 `break-words`. The card is a fixed `w-[180px] shrink-0`,
+                    and an option name can carry a ULID — "Quoted freight —
+                    01M0Q0AK64DQVYJR8G4CTFW75S". With the default
+                    `overflow-wrap: normal` that is ONE unbreakable token, so it
+                    rendered straight out of the card and over its neighbour:
+                    the box measured 180px wide with a 258px scrollWidth.
+                  */}
+                  <span className="txt-compact-medium-plus text-ui-fg-base break-words">
                     {option.name}
                   </span>
                   <div className="flex flex-col gap-y-0">

@@ -117,6 +117,41 @@ function CheckoutItem({
   )
 }
 
+/**
+ * The list scrolls where it stands, rather than opening a dialog.
+ *
+ * It first rendered three items and sent the rest to a modal. That modal was
+ * the whole defect: the panel's padding and title were dead to the wheel, so
+ * whether the list scrolled depended on where the buyer's cursor happened to
+ * rest. A bounded scroller here has no dead ring at all — the box IS the
+ * scroll target — and it keeps the buyer on the page they are paying on.
+ *
+ * The cap is what protects the totals. Three rows come to 338px, so a cart of
+ * three or fewer never overflows and shows no scrollbar; a fourth starts
+ * scrolling and the amount due stays on screen. One rule, no branch.
+ */
+const MAX_LIST_HEIGHT = 380
+const NON_SCROLLING_ITEM_COUNT = 3
+
+const ItemRows = ({
+  items,
+  currencyCode,
+}: {
+  items: HttpTypes.StoreCartLineItem[]
+  currencyCode: string
+}) => (
+  <div className="flex flex-col">
+    {items.map((item, idx) => (
+      <div key={item.id}>
+        <CheckoutItem item={item} currencyCode={currencyCode} />
+        {idx < items.length - 1 && (
+          <div className="h-px bg-ui-border-base my-3" />
+        )}
+      </div>
+    ))}
+  </div>
+)
+
 export default function CheckoutItemList({ cart }: CheckoutItemListProps) {
   const items = cart.items
     ? [...cart.items].sort((a, b) =>
@@ -124,18 +159,31 @@ export default function CheckoutItemList({ cart }: CheckoutItemListProps) {
       )
     : []
 
+  const scrolls = items.length > NON_SCROLLING_ITEM_COUNT
+
   return (
     <div>
-      <h2 className="h2-docs mb-3">Order composition</h2>
-      <div className="flex flex-col">
-        {items.map((item, idx) => (
-          <div key={item.id}>
-            <CheckoutItem item={item} currencyCode={cart.currency_code} />
-            {idx < items.length - 1 && (
-              <div className="h-px bg-ui-border-base my-3" />
-            )}
-          </div>
-        ))}
+      <div className="mb-3 flex items-baseline justify-between gap-x-3">
+        <h2 className="h2-docs">Order composition</h2>
+        {items.length > 0 && (
+          <span className="txt-compact-small text-ui-fg-subtle">
+            {items.length} item{items.length === 1 ? "" : "s"}
+          </span>
+        )}
+      </div>
+
+      {/*
+        `pe-4` only once it scrolls: a ~15px scrollbar sits ON the content and
+        clipped the price — "2 x €8,500.0|0" with the stepper cut off. A cart
+        that does not scroll has no scrollbar, and would just carry a gutter
+        to nowhere.
+      */}
+      <div
+        className={scrolls ? "overflow-y-auto pe-4" : undefined}
+        style={scrolls ? { maxHeight: MAX_LIST_HEIGHT } : undefined}
+        data-testid="checkout-item-list"
+      >
+        <ItemRows items={items} currencyCode={cart.currency_code} />
       </div>
     </div>
   )

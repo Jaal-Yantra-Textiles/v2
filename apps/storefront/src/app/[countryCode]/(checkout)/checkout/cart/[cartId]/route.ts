@@ -39,14 +39,56 @@ export async function GET(
   let checkoutCountry = countryCode
 
   try {
-    const cart = await retrieveCart(cartId, "id,region.countries.iso_2")
-    const cartCountry = cart?.region?.countries?.[0]?.iso_2?.toLowerCase()
+    const cart = await retrieveCart(
+      cartId,
+      "id,shipping_address.country_code,region.countries.iso_2"
+    )
 
-    if (cartCountry && cartCountry !== countryCode) {
-      console.log(
-        `[Cart Checkout Route] cart region country=${cartCountry} overrides url countryCode=${countryCode}`
+    const regionCountries = (cart?.region?.countries ?? [])
+      .map((c: { iso_2?: string | null }) =>
+        String(c?.iso_2 ?? "").trim().toLowerCase()
       )
+      .filter(Boolean)
+
+    const cartCountry = String(cart?.shipping_address?.country_code ?? "")
+      .trim()
+      .toLowerCase()
+
+    const urlCountry = String(countryCode ?? "").trim().toLowerCase()
+
+    if (cartCountry && regionCountries.includes(cartCountry)) {
+      /**
+       * The buyer's OWN country, which is what this block always claimed to
+       * use. It previously read `region.countries[0]` — the region's first
+       * country, in whatever order the API returned it — and overrode the URL
+       * with it. A Swedish buyer on a correct `/se/` link was sent to `/at/`
+       * locally and `/al/` (Albania) in production, purely because those rows
+       * happened to come back first.
+       */
       checkoutCountry = cartCountry
+    } else if (urlCountry && regionCountries.includes(urlCountry)) {
+      /**
+       * No country on the cart, but the link named one this region serves.
+       * Honour it — it is the only real signal about the buyer, and
+       * overriding it is what broke `/se/`.
+       */
+      checkoutCountry = urlCountry
+    } else if (regionCountries.length === 1) {
+      // One country: unambiguous, so the region CAN answer.
+      checkoutCountry = regionCountries[0]
+    } else if (regionCountries.length > 1) {
+      /**
+       * ⚠️ LAST RESORT and a genuine guess: the cart names no country and the
+       * link's country is not in its region, so nothing here knows where the
+       * buyer is. Logged as a guess rather than reported as a decision — the
+       * real fix is the country being set when the order is created.
+       */
+      checkoutCountry = regionCountries[0]
+      console.log(
+        `[Cart Checkout Route] GUESSING ${checkoutCountry} for cart ${cartId}: ` +
+          `cart names no country and url "${urlCountry}" is not in its region ` +
+          `(${regionCountries.join(",")})`
+      )
     }
   } catch (e) {
     console.log(`[Cart Checkout Route] region lookup failed, keeping ${countryCode}`, e)
