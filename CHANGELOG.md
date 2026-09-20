@@ -1,3 +1,28 @@
+# [13.154.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.153.0...v13.154.0) (2026-09-20)
+
+
+### Bug Fixes
+
+* **design-orders:** a cancelled design order cannot be converted to a paid one ([#2186](https://github.com/Jaal-Yantra-Textiles/v2/issues/2186)) ([e02fb84](https://github.com/Jaal-Yantra-Textiles/v2/commit/e02fb84763e39de445b72408317be63366d7ec44))
+* **design-orders:** a cancelled design order releases its design ([#2184](https://github.com/Jaal-Yantra-Textiles/v2/issues/2184)) ([f1e2ffc](https://github.com/Jaal-Yantra-Textiles/v2/commit/f1e2ffcf824e339937ac10d12090f25fb1358d4c)), closes [#2179](https://github.com/Jaal-Yantra-Textiles/v2/issues/2179)
+* **cart-recovery:** a cancelled design order stops chasing the buyer ([#2185](https://github.com/Jaal-Yantra-Textiles/v2/issues/2185)) ([0791e31](https://github.com/Jaal-Yantra-Textiles/v2/commit/0791e31b831688d9bd9719d2ecfb507198972e5b))
+* **checkout:** a guest is asked to sign in, not shown the promotion module's error ([#2194](https://github.com/Jaal-Yantra-Textiles/v2/issues/2194)) ([#2198](https://github.com/Jaal-Yantra-Textiles/v2/issues/2198)) ([28af8e1](https://github.com/Jaal-Yantra-Textiles/v2/commit/28af8e1a08e70d9ba334bd55a56993cd3ba59000))
+* **checkout:** a promo code changes the total it is shown next to ([#2194](https://github.com/Jaal-Yantra-Textiles/v2/issues/2194)) ([#2195](https://github.com/Jaal-Yantra-Textiles/v2/issues/2195)) ([4a5dc96](https://github.com/Jaal-Yantra-Textiles/v2/commit/4a5dc961176fe8105aa7b70930430603cceeca88))
+* **shipglobal:** convert the carrier's rupees instead of billing them as euros ([#2192](https://github.com/Jaal-Yantra-Textiles/v2/issues/2192)) ([a827458](https://github.com/Jaal-Yantra-Textiles/v2/commit/a827458d418b0dc03a5b1ecea0d01e38d7c2299d))
+* **checkout:** the buyer's own country, and an option name that stays in its box ([#2189](https://github.com/Jaal-Yantra-Textiles/v2/issues/2189)) ([280c4d9](https://github.com/Jaal-Yantra-Textiles/v2/commit/280c4d9af97111a88d012755641a7ba6bce65377))
+* **mcp:** the design-order tools advertise the country the buyer buys from ([#2190](https://github.com/Jaal-Yantra-Textiles/v2/issues/2190)) ([caa096b](https://github.com/Jaal-Yantra-Textiles/v2/commit/caa096b8c04403a342fc92933fb2181d82e1349a))
+* **checkout:** the shipping options are the buyer's own, and they stay on screen ([#2191](https://github.com/Jaal-Yantra-Textiles/v2/issues/2191)) ([213a526](https://github.com/Jaal-Yantra-Textiles/v2/commit/213a5260ae3eb938d3d04324a23c8bec7da3a811))
+
+
+### Features
+
+* **designs:** a client is told when the cloth for their design arrives ([#2111](https://github.com/Jaal-Yantra-Textiles/v2/issues/2111)) ([#2200](https://github.com/Jaal-Yantra-Textiles/v2/issues/2200)) ([2398e9a](https://github.com/Jaal-Yantra-Textiles/v2/commit/2398e9a96d3d1c6410275fc5f6c19d682f046173))
+* **graph:** a design says when it can reach nobody ([#2201](https://github.com/Jaal-Yantra-Textiles/v2/issues/2201)) ([9ff5cd1](https://github.com/Jaal-Yantra-Textiles/v2/commit/9ff5cd17675a39391a2db4f68e5950888494f1a5))
+* **graph:** a production run can say what it is waiting on ([#2111](https://github.com/Jaal-Yantra-Textiles/v2/issues/2111) S2) ([#2199](https://github.com/Jaal-Yantra-Textiles/v2/issues/2199)) ([23f17fd](https://github.com/Jaal-Yantra-Textiles/v2/commit/23f17fd1067e198ac8f5dfa076efce7548173883)), closes [#2053](https://github.com/Jaal-Yantra-Textiles/v2/issues/2053)
+* **design-orders:** ask who is buying and from where — and stop sending Europeans to Albania ([#2187](https://github.com/Jaal-Yantra-Textiles/v2/issues/2187)) ([8225268](https://github.com/Jaal-Yantra-Textiles/v2/commit/82252680be6529ef71de2df139d12a96ae1859f3))
+* **design-orders:** the cart line carries the design's picture ([#2193](https://github.com/Jaal-Yantra-Textiles/v2/issues/2193)) ([1850495](https://github.com/Jaal-Yantra-Textiles/v2/commit/1850495dd43df1ca40728d4587948102ce00caa7))
+* **checkout:** the left column is what you fill in, the right is the receipt ([#2196](https://github.com/Jaal-Yantra-Textiles/v2/issues/2196)) ([5953a77](https://github.com/Jaal-Yantra-Textiles/v2/commit/5953a778fde34f4603e7b2e29734aac491b4cef5)), closes [#1787](https://github.com/Jaal-Yantra-Textiles/v2/issues/1787)
+
 # [13.153.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.152.0...v13.153.0) (2026-09-19)
 
 
