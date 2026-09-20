@@ -1,6 +1,6 @@
 import { Dialog, Transition } from "@headlessui/react"
 import { clx } from "@medusajs/ui"
-import React, { Fragment, useEffect } from "react"
+import React, { Fragment, useEffect, useRef } from "react"
 
 import { ModalProvider, useModal } from "@lib/context/modal-context"
 import X from "@modules/common/icons/x"
@@ -12,6 +12,22 @@ type ModalProps = {
   search?: boolean
   children: React.ReactNode
   'data-testid'?: string
+}
+
+/**
+ * Can this element absorb a wheel of `delta` right now?
+ *
+ * Both halves matter: an element with `overflow-y: auto` that is already at
+ * the bottom must NOT count, or the panel keeps handing it deltas it cannot
+ * use and the gesture dies at the end of the list instead of doing nothing.
+ */
+const canScroll = (el: HTMLElement, delta: number) => {
+  const overflowY = window.getComputedStyle(el).overflowY
+  if (overflowY !== "auto" && overflowY !== "scroll") return false
+  if (el.scrollHeight <= el.clientHeight) return false
+  return delta > 0
+    ? Math.ceil(el.scrollTop + el.clientHeight) < el.scrollHeight
+    : el.scrollTop > 0
 }
 
 const Modal = ({
@@ -78,6 +94,46 @@ const Modal = ({
     }
   }, [isOpen])
 
+  const panelRef = useRef<HTMLDivElement>(null)
+
+  /**
+   * 🔴 The panel is bigger than its scroller, and the difference is dead.
+   *
+   * Retested in a browser with a 9-item cart: a wheel over the middle of the
+   * list scrolls it, and a wheel 12px inside the panel's left edge, or over
+   * the title row, does NOTHING. The panel is `p-5`, so a 20px ring plus the
+   * ~48px title surround the scroller, and those bands belong to the Panel,
+   * which has no overflow. The body is `position: fixed` besides, so the
+   * wheel lands on nothing at all. To the buyer the list reads as
+   * unscrollable-except-by-dragging-the-scrollbar, which is what was
+   * reported, and which depends only on where their cursor happens to rest.
+   *
+   * Forwarding from the panel rather than restructuring the padding, because
+   * `Modal` is shared with the account address cards — moving `p-5` off the
+   * Panel would strip their padding too.
+   *
+   * No `preventDefault`: React registers `wheel` passively, and with the body
+   * out of flow there is nothing behind this to suppress anyway.
+   */
+  const forwardWheel = (event: React.WheelEvent<HTMLDivElement>) => {
+    const panel = panelRef.current
+    if (!panel || !event.deltaY) return
+
+    // Already over something that can take it — leave the browser alone,
+    // otherwise the list moves twice for one gesture.
+    let node = event.target as HTMLElement | null
+    while (node && node !== panel.parentElement) {
+      if (canScroll(node, event.deltaY)) return
+      node = node.parentElement
+    }
+
+    const scroller = Array.from(
+      panel.querySelectorAll<HTMLElement>("*")
+    ).find((el) => canScroll(el, event.deltaY))
+
+    if (scroller) scroller.scrollTop += event.deltaY
+  }
+
   return (
     <Transition appear show={isOpen} as={Fragment}>
       {/*
@@ -136,6 +192,8 @@ const Modal = ({
               leaveTo="opacity-0 scale-95"
             >
               <Dialog.Panel
+                ref={panelRef}
+                onWheel={forwardWheel}
                 data-testid={dataTestId}
                 className={clx(
                   "flex flex-col justify-start w-full transform p-5 text-left align-middle transition-all max-h-[75vh] h-fit",
