@@ -9,14 +9,26 @@ export function SubmitButton({
   children,
   variant = "primary",
   className,
+  pending: pendingProp,
   "data-testid": dataTestId,
 }: {
   children: React.ReactNode
   variant?: "primary" | "secondary" | "transparent" | "danger" | null
   className?: string
+  /**
+   * Force the pending state.
+   *
+   * 🔴 `useFormStatus` only reports pending for a form submitted through a
+   * SERVER ACTION. A form that calls `preventDefault()` and does its own
+   * `fetch` — which the discount code form does — leaves `pending` false for
+   * the entire request, so the button never disabled and never spun, and a
+   * shopper could submit the same code repeatedly with no feedback at all.
+   */
+  pending?: boolean
   "data-testid"?: string
 }) {
-  const { pending } = useFormStatus()
+  const { pending: formPending } = useFormStatus()
+  const pending = pendingProp ?? formPending
 
   return (
     <Button
