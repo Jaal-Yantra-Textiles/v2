@@ -29,6 +29,8 @@ import { resolvePartnerFeeRate } from "../../../../modules/partner_billing/resol
 import partnerOrderLink from "../../../../links/partner-order"
 import partnerRegionLink from "../../../../links/partner-region"
 import designPartnersLink from "../../../../links/design-partners-link"
+import designLineItemLink from "../../../../links/design-line-item-link"
+import { resolveDesignThumbnail } from "../../../../lib/design-thumbnail"
 import partnerStockLocationLink from "../../../../links/partner-stock-location"
 import propagateRegionToPartnersWorkflow from "../../../../workflows/regions/propagate-region-to-partners"
 import { PARTNER_MODULE } from "../../../../modules/partner"
@@ -6589,7 +6591,167 @@ export const propagateRegionsToAllPartnersJob: MaintenanceJob = {
   },
 }
 
+/**
+ * Repair the design-order carts that predate the line-item thumbnail.
+ *
+ * `create-draft-order-from-designs` never set `thumbnail`, and a design line
+ * carries no variant, so the storefront's `item.variant.product.images[0]`
+ * fallback is null too: every design order already in flight checks out
+ * against a grey placeholder. Setting it forward fixes NEW carts only — the
+ * line stores a snapshot, so the ones already open stay blank.
+ *
+ * Modelled on `backfill-inventory-thumbnail-from-raw-material-media`, which
+ * answers the same question one entity over.
+ *
+ * 🔴 Joins through `designLineItemLink.entryPoint`, never a hand-written table
+ * name — Medusa abbreviates a long link table's name, so a literal string here
+ * would return EMPTY rather than error, and read as "nothing to repair".
+ */
+export const backfillDesignOrderCartThumbnailsJob: MaintenanceJob = {
+  id: "backfill-design-order-cart-thumbnails",
+  label: "Backfill design-order cart thumbnails",
+  description:
+    "Set each design-order CART line item's thumbnail from its design, using the same resolver the partner order list uses (a media file flagged isThumbnail, then metadata.thumbnail, then the first usable media file, then the moodboard's first scene image, skipping formats an <img> cannot decode). Dry-run previews the before/after without persisting; apply writes them back and is idempotent. By default only fills EMPTY thumbnails — set force=true to overwrite. COMPLETED carts are skipped: that cart is an order's paper trail. Scans up to 'limit' links per call (default 500, max 2000).",
+  params: [
+    {
+      name: "force",
+      type: "boolean",
+      required: false,
+      description: "Overwrite a thumbnail that is already set (default false)",
+    },
+    {
+      name: "limit",
+      type: "number",
+      required: false,
+      description: "Max design↔line-item links to scan (default 500, max 2000)",
+    },
+    {
+      name: "cart_id",
+      type: "string",
+      required: false,
+      description:
+        "Repair ONE cart instead of sweeping. Naming it is the intent, so `limit` is ignored.",
+    },
+  ],
+  run: async (container, { dry_run, params }) => {
+    const force = Boolean((params as any)?.force)
+    const cartId = String((params as any)?.cart_id ?? "").trim() || null
+    const rawLimit = Number((params as any)?.limit)
+    const limit = Number.isFinite(rawLimit)
+      ? Math.min(Math.max(1, rawLimit), 2000)
+      : 500
+
+    const query: any = container.resolve(ContainerRegistrationKeys.QUERY)
+    const cartService: any = container.resolve(Modules.CART)
+
+    const { data: links } = await query.graph({
+      entity: designLineItemLink.entryPoint,
+      fields: ["design_id", "line_item_id"],
+    })
+
+    const pairs = (links ?? []).filter(
+      (l: any) => l?.design_id && l?.line_item_id
+    )
+
+    const designIds = [...new Set(pairs.map((l: any) => String(l.design_id)))]
+    const { data: designs } = designIds.length
+      ? await query.graph({
+          entity: "design",
+          filters: { id: designIds },
+          fields: [
+            "id",
+            "name",
+            "thumbnail_url",
+            "media_files",
+            "moodboard",
+            "metadata",
+          ],
+        })
+      : { data: [] }
+
+    const designById: Record<string, any> = {}
+    for (const d of designs ?? []) designById[String(d.id)] = d
+
+    const changes: MaintenanceChange[] = []
+    const errors: Array<{ id: string; message: string }> = []
+    let scanned = 0
+    let alreadySet = 0
+    let noPicture = 0
+    let skippedCompleted = 0
+
+    for (const link of pairs) {
+      if (!cartId && scanned >= limit) break
+
+      const lineItemId = String(link.line_item_id)
+      try {
+        const lineItem = await cartService
+          .retrieveLineItem(lineItemId)
+          .catch(() => null)
+        if (!lineItem) continue
+
+        if (cartId && String(lineItem.cart_id) !== cartId) continue
+        scanned++
+
+        // A completed cart is an order's paper trail — the same refusal the
+        // country and purge jobs make.
+        const cart = await cartService
+          .retrieveCart(String(lineItem.cart_id))
+          .catch(() => null)
+        if (cart?.completed_at) {
+          skippedCompleted++
+          continue
+        }
+
+        const existing = String(lineItem.thumbnail ?? "").trim()
+        if (existing && !force) {
+          alreadySet++
+          continue
+        }
+
+        const resolved = resolveDesignThumbnail(designById[String(link.design_id)])
+        if (!resolved) {
+          noPicture++
+          continue
+        }
+        if (resolved === existing) {
+          alreadySet++
+          continue
+        }
+
+        changes.push({
+          entity: "cart_line_item",
+          id: lineItemId,
+          field: "thumbnail",
+          before: existing || null,
+          after: resolved,
+          note: `cart ${lineItem.cart_id} · design ${link.design_id}`,
+        })
+
+        if (!dry_run) {
+          await cartService.updateLineItems(lineItemId, { thumbnail: resolved })
+        }
+      } catch (e: any) {
+        errors.push({ id: lineItemId, message: e?.message ?? String(e) })
+      }
+    }
+
+    return {
+      job_id: "backfill-design-order-cart-thumbnails",
+      dry_run,
+      applied: !dry_run && changes.length > 0,
+      summary:
+        `${dry_run ? "Would set" : "Set"} ${changes.length} cart line thumbnail(s) ` +
+        `across ${scanned} design line(s) scanned; ${alreadySet} already correct; ` +
+        `${noPicture} design(s) have no picture; ${skippedCompleted} skipped as completed` +
+        (errors.length ? `; ${errors.length} error(s)` : "") + ".",
+      changes,
+      ...(errors.length ? { errors } : {}),
+    }
+  },
+}
+
 export const MAINTENANCE_JOBS: MaintenanceJob[] = [
+  backfillDesignOrderCartThumbnailsJob,
   propagateRegionsToAllPartnersJob,
   backfillPartnerStockLocationsJob,
   reconcileOrderBalancesJob,
