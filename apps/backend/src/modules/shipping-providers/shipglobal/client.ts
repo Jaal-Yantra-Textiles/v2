@@ -283,8 +283,20 @@ export function parseTransitDays(v: unknown): number | undefined {
  * option since ShipGlobal returns no explicit recommended flag.
  */
 export function normalizeShipglobalRates(res: any): RateOption[] {
+  /**
+   * 🔴 Default to RUPEES, not dollars.
+   *
+   * ShipGlobal is an India-origin cross-border aggregator: its own dashboard
+   * rate calculator answers a Sweden lane in INR only, and the live fixture
+   * below is `currency: "INR"`. Defaulting an absent currency to "USD" put a
+   * ~85x mislabel one step away from the buyer's total, and it is the caller
+   * that converts, so the label is what decides the money.
+   *
+   * Absent is still logged as a guess by the consumer rather than trusted
+   * blindly — `service.ts` will not convert a currency it cannot believe.
+   */
   const currency = String(
-    res?.currency ?? res?.data?.currency ?? "USD"
+    res?.currency ?? res?.data?.currency ?? "INR"
   ).toLowerCase()
   const services = res?.services ?? res?.data?.services ?? []
   if (!Array.isArray(services)) return []
