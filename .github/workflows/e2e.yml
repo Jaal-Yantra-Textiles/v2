@@ -11,6 +11,11 @@ on:
     branches: [ main ]
     paths:
       - 'apps/backend/src/admin/**'
+      # The graph spines RENDER INTO ADMIN PAGES, so a change here can break an
+      # admin spec while touching nothing under src/admin. #2205 changed them
+      # and ran NO e2e at all; #2199 broke an admin spec and was caught only
+      # because it happened to also touch src/admin/**.
+      - 'apps/backend/src/lib/graph/**'
       - 'apps/backend/src/scripts/seed.ts'
       - 'e2e/**'
       - '.github/workflows/e2e.yml'
@@ -30,6 +35,11 @@ on:
   # was only ever excluding work that most needed checking.
     paths:
       - 'apps/backend/src/admin/**'
+      # The graph spines RENDER INTO ADMIN PAGES, so a change here can break an
+      # admin spec while touching nothing under src/admin. #2205 changed them
+      # and ran NO e2e at all; #2199 broke an admin spec and was caught only
+      # because it happened to also touch src/admin/**.
+      - 'apps/backend/src/lib/graph/**'
       - 'apps/backend/src/scripts/seed.ts'
       - 'e2e/**'
       - '.github/workflows/e2e.yml'
