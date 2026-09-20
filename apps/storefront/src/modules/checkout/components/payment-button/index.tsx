@@ -9,6 +9,21 @@ import React, { useContext, useState } from "react"
 import ErrorMessage from "../error-message"
 import { StripeContext } from "../payment-wrapper/stripe-wrapper"
 
+/**
+ * The Place Order button is the last thing the buyer does, and it was the
+ * smallest control on the page — Medusa's `size="large"` is a 40px auto-width
+ * button, so it sat left-aligned and content-width under a full-width form.
+ *
+ * Full width and 48px tall on every breakpoint: 48 clears the 44px touch
+ * target a thumb needs, and full width is what makes it read as the end of the
+ * flow rather than one more field.
+ *
+ * Applied to the DISABLED placeholders too. They occupy the same slot before a
+ * method is chosen, and sizing only the live ones makes the page jump the
+ * moment the buyer picks one.
+ */
+const CTA_CLASS = "w-full h-12 text-base"
+
 type PaymentButtonProps = {
   cart: HttpTypes.StoreCart
   selectedPaymentMethod?: string
@@ -46,7 +61,7 @@ const PaymentButton: React.FC<PaymentButtonProps> = ({
           data-testid={dataTestId}
         />
       ) : (
-        <Button disabled size="large">
+        <Button disabled size="large" className={CTA_CLASS}>
           Select a payment method
         </Button>
       )
@@ -63,7 +78,11 @@ const PaymentButton: React.FC<PaymentButtonProps> = ({
         <ManualTestPaymentButton notReady={notReady} data-testid={dataTestId} />
       )
     default:
-      return <Button disabled>Select a payment method</Button>
+      return (
+        <Button disabled size="large" className={CTA_CLASS}>
+          Select a payment method
+        </Button>
+      )
   }
 }
 
@@ -145,6 +164,7 @@ const PayUPaymentButton = ({
         disabled={notReady || !session}
         onClick={handlePayment}
         size="large"
+        className={CTA_CLASS}
         isLoading={submitting}
         data-testid={dataTestId}
       >
@@ -241,6 +261,7 @@ const StripePaymentButton = ({
         disabled={disabled || notReady}
         onClick={handlePayment}
         size="large"
+        className={CTA_CLASS}
         isLoading={submitting}
         data-testid={dataTestId}
       >
@@ -280,6 +301,7 @@ const ManualTestPaymentButton = ({ notReady }: { notReady: boolean }) => {
         isLoading={submitting}
         onClick={handlePayment}
         size="large"
+        className={CTA_CLASS}
         data-testid="submit-order-button"
       >
         Place order
