@@ -33,6 +33,24 @@ import { PRODUCTION_RUN_ITEM_NODES, resolveProductionRunItems } from "./items"
  * names the orders individually rather than aggregating them: at this volume
  * the reader wants the order, not a count.
  *
+ * 🔴 NO NODE ON THIS SPINE CARRIES AN `action`, and that is deliberate.
+ *
+ * A node's action renders as a button on the run page, and every verb this
+ * spine could offer — reassign, assign a partner, approve the output, re-run
+ * dispatch — is an admin operation the page itself owns and GATES. The parked
+ * run proved it: that page withholds Reassign on purpose, and this card put an
+ * inert button reading "Reassign the run" beside the place it was being
+ * withheld. A reader cannot tell an inert suggestion from the real control, so
+ * the card was quietly contradicting the page.
+ *
+ * `production-run-reassign.spec.ts` is what caught it — it asserts Reassign is
+ * absent there, and Playwright matches an accessible name by SUBSTRING, so
+ * "Reassign the run" answered to "Reassign". It was right to.
+ *
+ * So this spine states and does not offer: each edge's `reason` says what is
+ * missing and what it costs, and every verb stays with the page that knows
+ * whether it is allowed.
+ *
  * 🔴 Every link is read through its `entryPoint`, never as a field hop off
  * `production_runs`. A hop from an entity to a linked field can come back with
  * NO KEY AT ALL rather than an error, and here that would claim a run consumed
@@ -294,7 +312,7 @@ const resolveProductionRunGraph = async ({
         status: null,
         href: null,
         props: [],
-        action: { label: "Attach the order line", href: null },
+        action: null,
       },
       {
         label: "order_line_item_id",
@@ -346,7 +364,7 @@ const resolveProductionRunGraph = async ({
             ? [{ key: "mode", value: String(run.execution_mode) }]
             : []),
         ],
-        action: silent ? { label: "Reassign the run", href: null } : null,
+        action: null,
       },
       {
         label: "partner_id",
@@ -368,7 +386,7 @@ const resolveProductionRunGraph = async ({
         status: null,
         href: null,
         props: [{ key: "status", value: String(run.status ?? "—") }],
-        action: { label: "Assign a partner", href: null },
+        action: null,
       },
       {
         label: "partner_id",
@@ -437,7 +455,7 @@ const resolveProductionRunGraph = async ({
         status: null,
         href: null,
         props: [],
-        action: { label: "Approve the output", href: null },
+        action: null,
       },
       {
         label: "approved_product_id",
@@ -462,7 +480,7 @@ const resolveProductionRunGraph = async ({
         status: null,
         href: null,
         props: [{ key: "ordered", value: String(run.quantity ?? "—") }],
-        action: { label: "Record what was made", href: null },
+        action: null,
       },
       {
         label: "produced_quantity",
@@ -543,7 +561,7 @@ const resolveProductionRunGraph = async ({
         status: null,
         href: null,
         props: [{ key: "produced", value: String(run.produced_quantity) }],
-        action: { label: "Bank the finished goods", href: null },
+        action: null,
       },
       {
         label: "stocked_at_location_id",
@@ -593,7 +611,7 @@ const resolveProductionRunGraph = async ({
         status: null,
         href: null,
         props: [{ key: "dispatch", value: String(run.dispatch_state) }],
-        action: { label: "Re-run dispatch", href: null },
+        action: null,
       },
       {
         label: "production_run ↔ task",
@@ -650,7 +668,7 @@ const resolveProductionRunGraph = async ({
         status: null,
         href: null,
         props: [{ key: "allocated", value: String(materialIds.length) }],
-        action: { label: "Log what was consumed", href: null },
+        action: null,
       },
       {
         label: "production_run ↔ consumption_log",
