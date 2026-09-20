@@ -129,3 +129,44 @@ export type UpdateDesign = z.infer<typeof UpdateDesignSchema>;
 export type ReadDesigns = z.infer<typeof ReadDesignsQuerySchema>;
 export type CreateDesignLLM = z.infer<typeof CreateDesignLLMSchema>;
 export type LinkDesignPartner = z.infer<typeof LinkDesignPartnerSchema>;
+/**
+ * Whose design this is (#2111).
+ *
+ * `null` detaches — and it must be spelled `.nullable()` rather than made
+ * optional. An OMITTED key and an explicit `null` are different instructions
+ * here: omitted is a malformed request, null is "this design is nobody's, stop
+ * telling anyone about it". Collapsing them would make a typo a detach.
+ */
+export const AttachDesignCustomerSchema = z.object({
+  customer_id: z.string().min(1).nullable(),
+})
+
+/**
+ * The material a design is waiting for (#2111).
+ *
+ * `notify_customer` is `.optional()` and NOT defaulted here on purpose: the
+ * route reads `!== false`, so an absent flag and an explicit `true` mean the
+ * same thing, and a default would only add a second place for that rule to
+ * live and drift.
+ */
+export const AttachDesignInventoryOrderSchema = z.object({
+  inventory_order_id: z.string().min(1),
+  /**
+   * 🔴 Accepts the STRINGS "true"/"false" as well as real booleans, because the
+   * MCP surface sends strings. Binding this route to a validator is what made
+   * that visible: a bare `z.boolean()` would 400 every call from the tool that
+   * advertises this field, and the tool's own schema says `'false' to
+   * suppress`. The route reads `!== false`, so the coercion has to happen
+   * before it, not after.
+   */
+  notify_customer: z.preprocess(
+    (v) => (v === "false" ? false : v === "true" ? true : v),
+    z.boolean().optional()
+  ),
+  note: z.string().max(500).optional().nullable(),
+})
+
+export type AttachDesignCustomer = z.infer<typeof AttachDesignCustomerSchema>
+export type AttachDesignInventoryOrder = z.infer<
+  typeof AttachDesignInventoryOrderSchema
+>

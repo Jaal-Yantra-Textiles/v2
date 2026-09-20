@@ -150,7 +150,7 @@ import { tagSchema, deleteTagSchema } from "./admin/persons/[id]/tags/validators
 import { rawMaterialSchema, UpdateRawMaterialSchema } from "./admin/inventory-items/[id]/rawmaterials/validators";
 import { splitInventorySchema } from "./admin/inventory-items/[id]/split/validators";
 import { CreateMaterialTypeSchema, ReadRawMaterialCategoriesSchema } from "./admin/categories/rawmaterials/validators";
-import { CreateDesignLLMSchema, designSchema, LinkDesignPartnerSchema, ReadDesignsQuerySchema, UpdateDesignSchema } from "./admin/designs/validators";
+import { AttachDesignCustomerSchema, AttachDesignInventoryOrderSchema, CreateDesignLLMSchema, designSchema, LinkDesignPartnerSchema, ReadDesignsQuerySchema, UpdateDesignSchema } from "./admin/designs/validators";
 import { DesignBriefSchema, UpdateDesignBriefSchema } from "./admin/designs/[id]/brief/validators";
 import { SegmentImageSchema } from "./admin/designs/[id]/segment/validators";
 import { DepthImageSchema } from "./partners/designs/[designId]/segment/depth/validators";
@@ -4969,6 +4969,28 @@ export default defineMiddlewares({
     },
 
     // Inventory linkin on designs
+
+    /*
+     * #2111 — whose design this is, and what material it waits for.
+     *
+     * Both are MCP write tools, and the route-validator coverage guard requires
+     * every one of those to be bound to a validator or written down as knowingly
+     * unbound. Binding is the better half of that choice: it is what lets the
+     * guard check the tool's advertised body params against what the route will
+     * actually accept, so a stray field cannot be advertised into a 400.
+     */
+    {
+      matcher: "/admin/designs/:id/customer",
+      method: "POST",
+      middlewares: [validateAndTransformBody(wrapSchema(AttachDesignCustomerSchema))],
+    },
+    {
+      matcher: "/admin/designs/:id/inventory-orders",
+      method: "POST",
+      middlewares: [
+        validateAndTransformBody(wrapSchema(AttachDesignInventoryOrderSchema)),
+      ],
+    },
 
     {
       matcher: "/admin/designs/:id/inventory",

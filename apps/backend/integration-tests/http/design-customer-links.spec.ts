@@ -60,6 +60,50 @@ setupSharedTestSuite(() => {
     })
 
     describe("POST /admin/customers/:id/designs", () => {
+      it("🔴 replaces the commissioner instead of appending a second one", async () => {
+        /*
+         * `design ↔ customer` answers "whose design is this" — ONE commissioner.
+         * Who has BOUGHT a design is a different question, answered through its
+         * runs and their orders.
+         *
+         * This route used to APPEND, so a design could end up carrying two
+         * customers, and then the answer depended on which surface read it
+         * first: the designs list takes the first row, the design-status email
+         * workflow takes `take: 1`. Two screens could name two different people,
+         * and a client could be sent mail about someone else's piece.
+         */
+        const other = await api.post(
+          "/admin/customers",
+          {
+            first_name: "Other",
+            last_name: "Buyer",
+            email: `other-${Date.now()}@test.com`,
+          },
+          headers
+        )
+
+        await api.post(
+          `/admin/customers/${customerId}/designs`,
+          { design_ids: [designId] },
+          headers
+        )
+        const second = await api.post(
+          `/admin/customers/${other.data.customer.id}/designs`,
+          { design_ids: [designId] },
+          headers
+        )
+
+        expect(second.data.replaced).toBe(1)
+
+        const detail = await api.get(
+          `/admin/designs/${designId}?fields=*,customers.*`,
+          headers
+        )
+        const linked = (detail.data.design.customers || []).filter(Boolean)
+        expect(linked).toHaveLength(1)
+        expect(linked[0].id).toBe(other.data.customer.id)
+      })
+
       it("should link a single design to a customer", async () => {
         const res = await api.post(
           `/admin/customers/${customerId}/designs`,

@@ -4821,6 +4821,55 @@ export const ADMIN_MCP_TOOLS: AdminMcpToolDef[] = [
     ),
   },
   {
+    name: "attach_design_customer",
+    description:
+      "Say whose design this is — write (or clear) the design\u2194customer link. THIS IS WHAT MAKES A DESIGN NOTIFIABLE: every customer email about a design (production started, production complete, materials linked, materials delivered, status changed) resolves its recipient through this link and returns SILENTLY when there is none. A design with no customer is not 'unnotified', it is unreachable, and nothing anywhere reports that. Distinct from attach_design_order_customer, which needs a design ORDER and a cart line; this one works on a bare design, which is how designs that came out of a conversation rather than a checkout get an owner. Pass customer_id null to detach.",
+    method: "POST",
+    path: "/admin/designs/:id/customer",
+    pathParams: ["id"],
+    write: true,
+    sensitive: true,
+    bodyParams: ["customer_id"],
+    inputSchema: obj(
+      {
+        id: STR("Design id."),
+        customer_id: STR("Customer id to attach, or null to detach the current one."),
+      },
+      ["id"]
+    ),
+  },
+  {
+    name: "list_design_inventory_orders",
+    description:
+      "What material a design is WAITING FOR — the inventory orders attached to it, with each one's status, quantity and expected delivery, plus whether the client is told when it lands and whether they already were. Read. Note this is NOT a bill of materials: it says an order is FOR this design, not how much the design consumes (that is the run's allocation and its consumption logs).",
+    method: "GET",
+    path: "/admin/designs/:id/inventory-orders",
+    pathParams: ["id"],
+    inputSchema: obj({ id: STR("Design id.") }, ["id"]),
+  },
+  {
+    name: "attach_design_inventory_order",
+    description:
+      "Attach an incoming inventory order to a design — 'this cloth is for that piece'. Attaching is what makes the arrival tellable: when the order reaches `Delivered` (never `Shipped`), the design's customer is emailed that their material has arrived. Set notify_customer false for cloth bought speculatively or for a client who asked not to be told; omitted, it sends. \u26a0\ufe0f Attaching sends NOTHING now \u2014 it arms a future status change, so an order already Delivered when you attach it will never fire, and that client has to be told by hand.",
+    method: "POST",
+    path: "/admin/designs/:id/inventory-orders",
+    pathParams: ["id"],
+    write: true,
+    sensitive: true,
+    bodyParams: ["inventory_order_id", "notify_customer", "note"],
+    inputSchema: obj(
+      {
+        id: STR("Design id."),
+        inventory_order_id: STR("The inventory order to attach."),
+        notify_customer: STR(
+          "'false' to suppress the arrival email for this design. Defaults to sending."
+        ),
+        note: STR("Why this order is for this design, in your own words."),
+      },
+      ["id", "inventory_order_id"]
+    ),
+  },
+  {
     name: "list_production_run_activities",
     description:
       "Read a production run's activity timeline (reminders sent, lifecycle events, notes), newest first. Use to answer 'what happened on this run'.",

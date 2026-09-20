@@ -1756,3 +1756,47 @@ export const useDesignOrderCurrencies = () => {
   });
   return { currencies: data?.currencies ?? [], regions: data?.regions ?? [], ...rest };
 };
+
+export type AttachDesignCustomer = { customer_id: string | null }
+
+export type DesignCustomerResponse = {
+  design_customer: {
+    design_id: string
+    customer_id: string | null
+    changed: boolean
+    detached?: string[]
+  }
+}
+
+/**
+ * Whose design this is (#2111).
+ *
+ * 🔴 Distinct from `useAttachDesignOrderCustomer`, which takes a LINE ITEM and
+ * needs a design order to exist. This one takes the design, which is the only
+ * way a design that came out of a conversation rather than a checkout can ever
+ * acquire an owner — and without an owner every email about it reaches nobody,
+ * silently.
+ */
+export const useAttachDesignCustomer = (
+  id: string,
+  options?: UseMutationOptions<
+    DesignCustomerResponse,
+    FetchError,
+    AttachDesignCustomer
+  >
+) => {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async (data: AttachDesignCustomer) =>
+      sdk.client.fetch<DesignCustomerResponse>(`/admin/designs/${id}/customer`, {
+        method: "POST",
+        body: data,
+      }),
+    ...options,
+    onSuccess: (data, variables, _mutateResult, context) => {
+      queryClient.invalidateQueries({ queryKey: designQueryKeys.lists() })
+      queryClient.invalidateQueries({ queryKey: designQueryKeys.detail(id) })
+      options?.onSuccess?.(data, variables, _mutateResult, context)
+    },
+  })
+}
