@@ -5588,6 +5588,7 @@ export const ADMIN_MCP_TOOLS: AdminMcpToolDef[] = [
       "currency_code",
       "price_overrides",
       "override_currency",
+      "country_code",
     ],
     inputSchema: obj(
       {
@@ -5607,6 +5608,9 @@ export const ADMIN_MCP_TOOLS: AdminMcpToolDef[] = [
         override_currency: STR(
           "Currency that `price_overrides` are expressed in. Defaults to the store default — set it whenever you set overrides, or the number is valued by one currency and labelled by another."
         ),
+        country_code: STR(
+          "ISO-2 country the buyer purchases from, e.g. 'se'. 🔑 SET IT. The cart carries the country, and without one `resolveCartCheckoutLink` refuses to build a link at all — the order is created and `checkout_url` comes back null. A hand-written URL does not rescue it either: the storefront re-resolves the region from the cart and a Swedish buyer lands on /al/. Must be a country the order's own region serves."
+        ),
       },
       ["design_ids"]
     ),
@@ -5621,6 +5625,8 @@ export const ADMIN_MCP_TOOLS: AdminMcpToolDef[] = [
       "",
       "⚠️ Passing a `customer_id` attaches the buyer AND sends them the design-order email with a checkout link. Do not pass one unless the operator has said the customer should be emailed.",
       "",
+      "🔑 Pass `country_code`. Without it the cart names no country, `checkout_url` comes back null and the buyer cannot be sent anywhere — which then needs the `set-design-order-country` maintenance job to repair by hand. This is what happened to the €91 EUR order minted 2026-09-19.",
+      "",
       "Refuses designs that are already in an open checkout rather than creating a second cart for them.",
     ].join("\n"),
     method: "POST",
@@ -5633,6 +5639,7 @@ export const ADMIN_MCP_TOOLS: AdminMcpToolDef[] = [
       "currency_code",
       "price_overrides",
       "override_currency",
+      "country_code",
     ],
     inputSchema: obj(
       {
@@ -5654,6 +5661,9 @@ export const ADMIN_MCP_TOOLS: AdminMcpToolDef[] = [
         },
         override_currency: STR(
           "Currency that `price_overrides` are expressed in. Set it whenever you set overrides."
+        ),
+        country_code: STR(
+          "ISO-2 country the buyer purchases from, e.g. 'se'. 🔑 SET IT. The cart carries the country, and without one `resolveCartCheckoutLink` refuses to build a link at all — the order is created and `checkout_url` comes back null. A hand-written URL does not rescue it either: the storefront re-resolves the region from the cart and a Swedish buyer lands on /al/. Must be a country the order's own region serves."
         ),
       },
       ["design_ids"]
