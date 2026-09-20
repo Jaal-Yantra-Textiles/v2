@@ -59,7 +59,15 @@ test.describe("Production run manual reassignment (#1228)", () => {
     ).toBeVisible({ timeout: 15000 })
 
     // …and, unlike before #1228, it is actionable.
-    const reassign = page.getByRole("button", { name: "Reassign" })
+    /*
+     * 🔴 `exact: true`. Playwright matches an accessible name by SUBSTRING by
+     * default, and this fixture's design is called "Reassign Fixture (e2e …)".
+     * Any surface on this page that renders the design's NAME — the entity
+     * graph does, as a node button — therefore answers to "Reassign" and makes
+     * this locator match things that are not the button under test. The header
+     * control is named exactly "Reassign".
+     */
+    const reassign = page.getByRole("button", { name: "Reassign", exact: true })
     await expect(reassign).toBeVisible()
     await reassign.click()
 
@@ -90,7 +98,9 @@ test.describe("Production run manual reassignment (#1228)", () => {
     await expect(
       page.getByRole("button", { name: /Dispatch to Partner/i })
     ).toBeVisible({ timeout: 15000 })
-    await expect(page.getByRole("button", { name: "Reassign" })).toHaveCount(0)
+    await expect(
+      page.getByRole("button", { name: "Reassign", exact: true })
+    ).toHaveCount(0)
   })
 
   test("offers a different partner from the overflow menu and records the swap", async ({
