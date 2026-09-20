@@ -24,7 +24,33 @@ export type DesignAttachment = {
   notify_customer?: boolean | null
   /** When this design's customer was already told about THIS order. */
   notified_at?: string | Date | null
+  /** Why this order was attached, in a human's words. */
+  note?: string | null
 }
+
+/**
+ * The full `data` payload to re-create an attachment row with once it has been
+ * dismissed, carrying every column forward and stamping the send.
+ *
+ * 🔴 THE WHOLE ROW, NOT THE ONE FIELD THAT CHANGED. Extra columns on a link are
+ * changed here by `dismiss` + `create` — the idiom the rest of this codebase
+ * uses (`production-run-allocation.ts`) — and a `create` carrying only
+ * `notified_at` would write a row whose `notify_customer` and `note` are gone.
+ * Losing `notify_customer` is the expensive one: a client who asked NOT to be
+ * told would silently revert to the sending default at the next delivery, and
+ * the row would look untouched.
+ *
+ * Same shape as the variant price save that replaces the entire price set: ask
+ * what a write REPLACES, never only what it deletes.
+ */
+export const stampedAttachmentData = (
+  attachment: DesignAttachment,
+  now: Date = new Date()
+): { notify_customer: boolean; note: string | null; notified_at: Date } => ({
+  notify_customer: attachment.notify_customer !== false,
+  note: attachment.note ?? null,
+  notified_at: now,
+})
 
 /**
  * Is this status change the arrival itself?

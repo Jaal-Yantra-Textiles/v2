@@ -8,6 +8,7 @@ import { INVENTORY_ORDER_STATUS_CHANGED_EVENT } from "../workflows/inventory_ord
 import {
   decideArrivalNotice,
   MATERIAL_ARRIVED_TEMPLATE,
+  stampedAttachmentData,
 } from "../workflows/designs/lib/material-arrival-notice"
 import { sendDesignStatusUpdateEmailWorkflow } from "../workflows/email"
 
@@ -49,7 +50,13 @@ export default async function designMaterialsDelivered({
       .graph({
         entity: designInventoryOrderLink.entryPoint,
         filters: { inventory_orders_id: orderId },
-        fields: ["design_id", "inventory_orders_id", "notify_customer", "notified_at"],
+        fields: [
+          "design_id",
+          "inventory_orders_id",
+          "notify_customer",
+          "notified_at",
+          "note",
+        ],
       })
       .catch(() => ({ data: [] }))
 
@@ -59,6 +66,7 @@ export default async function designMaterialsDelivered({
         design_id: String(l.design_id),
         notify_customer: l.notify_customer,
         notified_at: l.notified_at,
+        note: l.note,
       }))
     )
 
@@ -120,11 +128,31 @@ export default async function designMaterialsDelivered({
        * bus and undo nothing while looking like a failure.
        */
       try {
+        const attachment = (links as any[]).find(
+          (l) => String(l.design_id) === String(design.id)
+        )
+        const pair = {
+          [DESIGN_MODULE]: { design_id: String(design.id) },
+          [ORDER_INVENTORY_MODULE]: { inventory_orders_id: orderId },
+        }
+        /*
+         * 🔴 DISMISS THEN CREATE, carrying every column forward. This is the
+         * idiom the rest of the codebase uses for changing a link's extra
+         * columns (`production-run-allocation.ts`), and a bare `create` on an
+         * existing pair is not a safe substitute: it either collides or writes
+         * a row whose `notify_customer` and `note` are gone. Losing
+         * `notify_customer` would silently revert a client who asked NOT to be
+         * told back to the sending default, with the row looking untouched.
+         */
+        await remoteLink.dismiss([pair])
         await remoteLink.create([
           {
-            [DESIGN_MODULE]: { design_id: String(design.id) },
-            [ORDER_INVENTORY_MODULE]: { inventory_orders_id: orderId },
-            data: { notified_at: new Date() },
+            ...pair,
+            data: stampedAttachmentData({
+              design_id: String(design.id),
+              notify_customer: attachment?.notify_customer,
+              note: attachment?.note,
+            }),
           },
         ])
       } catch (stampError: any) {

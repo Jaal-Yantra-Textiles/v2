@@ -2,6 +2,7 @@ import {
   decideArrivalNotice,
   isArrival,
   MATERIAL_ARRIVED_STATUS,
+  stampedAttachmentData,
 } from "../material-arrival-notice"
 
 describe("material arrival notice", () => {
@@ -87,6 +88,32 @@ describe("material arrival notice", () => {
         send: false,
         reason: "not_an_arrival",
       })
+    })
+  })
+})
+
+describe("stampedAttachmentData", () => {
+  it("🔴 carries notify_customer forward instead of dropping it", () => {
+    /*
+     * THE CASE THIS EXISTS FOR. Extra columns on a link are changed by dismiss
+     * + create, so the create writes the WHOLE row. Stamping only notified_at
+     * would erase a client's explicit "do not tell me" and silently revert them
+     * to the sending default at the next delivery — with the row looking
+     * untouched. Same shape as a variant price save replacing the entire set.
+     */
+    const now = new Date("2026-09-20T12:00:00.000Z")
+
+    expect(
+      stampedAttachmentData({ design_id: "d1", notify_customer: false, note: "silk only" }, now)
+    ).toEqual({ notify_customer: false, note: "silk only", notified_at: now })
+  })
+
+  it("keeps the sending default for a row that never set the column", () => {
+    const now = new Date()
+    expect(stampedAttachmentData({ design_id: "d1" }, now)).toEqual({
+      notify_customer: true,
+      note: null,
+      notified_at: now,
     })
   })
 })
