@@ -3,6 +3,7 @@ import {
   isArrival,
   MATERIAL_ARRIVED_STATUS,
   stampedAttachmentData,
+  designsCoveredByProductionStart,
 } from "../material-arrival-notice"
 
 describe("material arrival notice", () => {
@@ -115,5 +116,44 @@ describe("stampedAttachmentData", () => {
       note: null,
       notified_at: now,
     })
+  })
+})
+
+describe("designsCoveredByProductionStart", () => {
+  it("🔴 covers a design whose waiting run can actually dispatch", () => {
+    /*
+     * Delivery already releases such a run, and dispatch emits
+     * design.production_started — which emails the client "production has
+     * started". Sending the arrival mail too would be two mails, seconds
+     * apart, about one event.
+     */
+    expect(
+      designsCoveredByProductionStart([
+        { design_id: "d1", dispatch_template_ids: ["tpl_1"] },
+        { design_id: "d2", dispatch_template_names: ["Sampling"] },
+      ])
+    ).toEqual(new Set(["d1", "d2"]))
+  })
+
+  it("🔴 does NOT cover a run that named no templates", () => {
+    /*
+     * `selectDispatchInput` returns null for it, so the release dispatches
+     * nothing and no production-started mail is sent. The arrival mail is then
+     * the only thing the client would hear, and it must go.
+     */
+    expect(
+      designsCoveredByProductionStart([
+        { design_id: "d1" },
+        { design_id: "d2", dispatch_template_ids: [] },
+        { design_id: "d3", dispatch_template_names: [""] },
+      ])
+    ).toEqual(new Set())
+  })
+
+  it("ignores a run with no design on it", () => {
+    expect(
+      designsCoveredByProductionStart([{ dispatch_template_ids: ["tpl_1"] }])
+    ).toEqual(new Set())
+    expect(designsCoveredByProductionStart([])).toEqual(new Set())
   })
 })

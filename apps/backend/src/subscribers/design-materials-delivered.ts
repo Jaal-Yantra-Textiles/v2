@@ -7,6 +7,7 @@ import { ORDER_INVENTORY_MODULE } from "../modules/inventory_orders"
 import { INVENTORY_ORDER_STATUS_CHANGED_EVENT } from "../workflows/inventory_orders/update-inventory-order"
 import {
   decideArrivalNotice,
+  designsCoveredByProductionStart,
   MATERIAL_ARRIVED_TEMPLATE,
   stampedAttachmentData,
 } from "../workflows/designs/lib/material-arrival-notice"
@@ -82,9 +83,53 @@ export default async function designMaterialsDelivered({
       return
     }
 
+    /*
+     * 🔴 Do not say it twice. This same delivery releases any approved run that
+     * was waiting on the cloth, and dispatch emits `design.production_started`,
+     * which emails this very client "production has started for your design".
+     * A design covered by that hears the better sentence from the better place.
+     *
+     * Read across ALL runs carrying this dependency, not just approved ones:
+     * the two subscribers race on the same event, so by now the other may have
+     * dispatched the run and moved it off `approved`.
+     */
+    const { data: dependentRuns = [] } = await query
+      .graph({
+        entity: "production_runs",
+        filters: { design_id: decision.designIds },
+        fields: [
+          "id",
+          "design_id",
+          "depends_on_inventory_order_ids",
+          "dispatch_template_ids",
+          "dispatch_template_names",
+        ],
+      })
+      .catch(() => ({ data: [] }))
+
+    const covered = designsCoveredByProductionStart(
+      (dependentRuns as any[]).filter((r) =>
+        (Array.isArray(r?.depends_on_inventory_order_ids)
+          ? r.depends_on_inventory_order_ids
+          : []
+        )
+          .map(String)
+          .includes(String(orderId))
+      )
+    )
+
+    const toNotify = decision.designIds.filter((id) => !covered.has(id))
+
+    if (!toNotify.length) {
+      logger.info(
+        `[design.materials_delivered] ${orderId}: no mail sent (production_started covers all ${decision.designIds.length} design(s))`
+      )
+      return
+    }
+
     const { data: designs = [] } = await query.graph({
       entity: "design",
-      filters: { id: decision.designIds },
+      filters: { id: toNotify },
       fields: ["id", "name", "status", "metadata"],
     })
 

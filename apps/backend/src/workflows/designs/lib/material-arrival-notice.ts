@@ -103,3 +103,56 @@ export const decideArrivalNotice = (
   // One design may be attached to the same order twice through different rows.
   return { send: true, designIds: Array.from(new Set(designIds)) }
 }
+
+
+/**
+ * A run that will announce this arrival ITSELF, in better words.
+ *
+ * 🔴 THE REASON THIS GATE EXISTS. Delivery already triggers a chain:
+ * `inventory-order-delivered-release-runs` → `releaseRunIfReady` →
+ * `sendProductionRunToProductionWorkflow`, whose `notifyPartnerStep` is
+ * unconditional and emits `design.production_started` — which emails the
+ * design's customer "Production has started for your design". Without this
+ * gate, a design whose run was waiting on the cloth gets TWO mails seconds
+ * apart about one event, and the arrival mail is the weaker of the two: it says
+ * the material landed, where the other says work has begun.
+ *
+ * The run must carry a dispatch selection to release at all — `selectDispatchInput`
+ * returns null when the approval named no templates, and such a run is "meant
+ * to be dispatched later, by hand", so nothing is dispatched and NO mail is
+ * sent. Then the arrival mail is the only thing the client would hear, and it
+ * should go.
+ *
+ * ⚠️ Deliberately keyed on the run EXISTING with a selection, not on its status
+ * being `approved`. Both subscribers react to the same event concurrently, so
+ * by the time this is evaluated the other one may already have dispatched the
+ * run and moved it off `approved` — reading the status would then say "nothing
+ * will dispatch" and send the duplicate it exists to prevent. The row and its
+ * templates are stable under that race; the status is not.
+ *
+ * The cost of being keyed this way: a run dispatched by hand long before the
+ * cloth arrived is also treated as covered, and that client hears nothing at
+ * delivery. They were told production started when it did, which is the honest
+ * thing to have told them.
+ */
+export type DependentRun = {
+  design_id?: string | null
+  dispatch_template_ids?: string[] | null
+  dispatch_template_names?: string[] | null
+}
+
+const hasSelection = (run: DependentRun): boolean =>
+  (Array.isArray(run.dispatch_template_ids) &&
+    run.dispatch_template_ids.some((v) => typeof v === "string" && v.length > 0)) ||
+  (Array.isArray(run.dispatch_template_names) &&
+    run.dispatch_template_names.some((v) => typeof v === "string" && v.length > 0))
+
+/** Design ids whose arrival will be announced by a production-started mail. */
+export const designsCoveredByProductionStart = (
+  runs: DependentRun[]
+): Set<string> =>
+  new Set(
+    (runs || [])
+      .filter((r) => r?.design_id && hasSelection(r))
+      .map((r) => String(r.design_id))
+  )
