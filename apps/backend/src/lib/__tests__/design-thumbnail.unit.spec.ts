@@ -137,3 +137,85 @@ describe("resolveMoodboardFirstImage", () => {
     expect(resolveMoodboardFirstImage(null)).toBeNull()
   })
 })
+
+describe("resolveDesignThumbnail — design.thumbnail_url (#cart-thumbnail)", () => {
+  it("uses thumbnail_url when no media file is flagged", () => {
+    expect(
+      resolveDesignThumbnail({
+        thumbnail_url: "https://cdn.example.com/stamped.png",
+        media_files: [{ url: "https://cdn.example.com/other.png" }],
+      })
+    ).toBe("https://cdn.example.com/stamped.png")
+  })
+
+  /**
+   * 🔴 Measured before shipping: 4 of 15 live designs carry BOTH. Reordering
+   * would silently repaint those 4 — including in the partner order list, which
+   * already calls this — so the flag keeps precedence.
+   */
+  it("does NOT outrank a flagged media file", () => {
+    expect(
+      resolveDesignThumbnail({
+        thumbnail_url: "https://cdn.example.com/stamped.png",
+        media_files: [
+          { url: "https://cdn.example.com/flagged.png", isThumbnail: true },
+        ],
+      })
+    ).toBe("https://cdn.example.com/flagged.png")
+  })
+
+  it("outranks metadata.thumbnail and an unflagged media file", () => {
+    expect(
+      resolveDesignThumbnail({
+        thumbnail_url: "https://cdn.example.com/stamped.png",
+        metadata: { thumbnail: "https://cdn.example.com/meta.png" },
+        media_files: [{ url: "https://cdn.example.com/first.png" }],
+      })
+    ).toBe("https://cdn.example.com/stamped.png")
+  })
+
+  it("falls through when thumbnail_url is blank or unrenderable", () => {
+    expect(
+      resolveDesignThumbnail({
+        thumbnail_url: "   ",
+        metadata: { thumbnail: "https://cdn.example.com/meta.png" },
+      })
+    ).toBe("https://cdn.example.com/meta.png")
+
+    expect(
+      resolveDesignThumbnail({
+        thumbnail_url: "https://cdn.example.com/photo.heic",
+        metadata: { thumbnail: "https://cdn.example.com/meta.png" },
+      })
+    ).toBe("https://cdn.example.com/meta.png")
+  })
+})
+
+/**
+ * The real prod row for "Tibetan Chupa Style Shirt"
+ * (01M2QDA0VWZXX9PK07317PT6WN) after a media-file upload on 2026-09-20 —
+ * the design on the live €182 Swedish order whose checkout showed a grey
+ * placeholder. Kept verbatim so the shape the upload actually writes is
+ * pinned, not the shape we assumed it writes.
+ */
+describe("resolveDesignThumbnail — the live design-order row", () => {
+  const URL =
+    "https://automatic.jaalyantra.com/automatica/fece54202714d4d384684d69674b7523-01M2Y46SSAFFAH8PX3JZCE6JYJ.jpg"
+
+  it("resolves the uploaded media file", () => {
+    expect(
+      resolveDesignThumbnail({
+        thumbnail_url: null,
+        media_files: [
+          {
+            id: "fece54202714d4d384684d69674b7523-01M2Y46SSAFFAH8PX3JZCE6JYJ.jpg",
+            url: URL,
+            isThumbnail: true,
+          },
+        ],
+        metadata: { thumbnail: URL },
+        moodboard: null,
+      })
+    ).toBe(URL)
+  })
+})
