@@ -4,17 +4,15 @@ import { DetailWidgetProps } from "@medusajs/framework/types"
 import { useState, useMemo, useCallback } from "react"
 import { useNavigate } from "react-router-dom"
 import { ActionMenu } from "../components/common/action-menu"
-import { BellAlert, PencilSquare, Plus, Link as LinkIcon, ShoppingBag, SquareTwoStack, XMarkMini } from "@medusajs/icons"
+import { BellAlert, PencilSquare, Plus, ShoppingBag, SquareTwoStack } from "@medusajs/icons"
 import {
   useDesigns,
   useNotifyDesignCustomer,
   usePreviewDesignOrder,
   useCreateDesignOrder,
   useCustomerOrderedDesigns,
-  useUnlinkDesignsFromCustomer,
   DesignEstimatePreview,
 } from "../hooks/api/designs"
-import { LinkDesignToCustomerDrawer } from "../components/designs/link-design-to-customer-drawer"
 import { DesignOrderPreviewDrawer } from "../components/designs/design-order-preview-drawer"
 
 const designStatusColor = (status: string): "green" | "blue" | "orange" | "grey" | "red" | "purple" => {
@@ -43,6 +41,7 @@ const DesignRow = ({
   onToggle: (id: string) => void
 }) => {
   const prompt = usePrompt()
+  const navigate = useNavigate()
 
   const { mutate: notifyCustomer, isPending: isNotifying } = useNotifyDesignCustomer(design.id, {
     onSuccess: () => {
@@ -56,30 +55,6 @@ const DesignRow = ({
       })
     },
   })
-
-  const { mutate: unlinkDesign, isPending: isUnlinking } = useUnlinkDesignsFromCustomer(customerId, {
-    onSuccess: () => {
-      toast.success("Design unlinked", {
-        description: `"${design.name}" is no longer linked to this customer.`,
-      })
-    },
-    onError: (err: any) => {
-      toast.error("Failed to unlink design", {
-        description: err?.message || "An unexpected error occurred.",
-      })
-    },
-  })
-
-  const handleUnlink = async () => {
-    const confirmed = await prompt({
-      title: "Unlink design",
-      description: `Remove the link between "${design.name}" and this customer? The design itself will not be deleted.`,
-      confirmText: "Unlink",
-      cancelText: "Cancel",
-    })
-    if (!confirmed) return
-    unlinkDesign({ design_ids: [design.id] })
-  }
 
   const actionGroups = [
     {
@@ -104,11 +79,23 @@ const DesignRow = ({
     },
     {
       actions: [
+        /*
+         * 🔴 Changing WHOSE design this is happens on the design, not here.
+         *
+         * A design has ONE commissioner, and that is the edge every customer
+         * email resolves its recipient through. Editing it from a customer's
+         * page invites the opposite model — a list of designs you can add to
+         * and take from — which is what let a design carry two customers and
+         * two screens name different people.
+         *
+         * This row still links straight there, so nothing became harder to
+         * reach; it just happens where the single-owner rule is enforced and
+         * where the absence is shown when there is nobody.
+         */
         {
-          label: isUnlinking ? "Unlinking…" : "Unlink from Customer",
-          icon: <XMarkMini />,
-          onClick: handleUnlink,
-          disabled: isUnlinking,
+          label: "Change customer on the design",
+          icon: <PencilSquare />,
+          onClick: () => navigate(`/designs/${design.id}/customer`),
         },
       ],
     },
@@ -278,7 +265,6 @@ const OrderedDesignsSection = ({ orderedDesigns }: { orderedDesigns: any[] }) =>
 
 const CustomerDesignsWidget = ({ data }: DetailWidgetProps<Customer>) => {
   const navigate = useNavigate()
-  const [drawerOpen, setDrawerOpen] = useState(false)
   const [selectedRows, setSelectedRows] = useState<Record<string, boolean>>({})
 
   // Preview state
@@ -304,7 +290,6 @@ const CustomerDesignsWidget = ({ data }: DetailWidgetProps<Customer>) => {
   )
 
   // All linked IDs (active + ordered) for the drawer to exclude
-  const linkedDesignIds = useMemo(() => allLinkedDesigns.map((d: any) => d.id), [allLinkedDesigns])
 
   const selectedIds = Object.keys(selectedRows).filter((id) => selectedRows[id])
   const selectedCount = selectedIds.length
@@ -368,11 +353,6 @@ const CustomerDesignsWidget = ({ data }: DetailWidgetProps<Customer>) => {
   const headerActionGroups = [
     {
       actions: [
-        {
-          label: "Link Existing Design",
-          icon: <LinkIcon />,
-          onClick: () => setDrawerOpen(true),
-        },
         {
           label: "Create New Design",
           icon: <Plus />,
@@ -458,13 +438,6 @@ const CustomerDesignsWidget = ({ data }: DetailWidgetProps<Customer>) => {
           />
         </CommandBar.Bar>
       </CommandBar>
-
-      <LinkDesignToCustomerDrawer
-        open={drawerOpen}
-        onOpenChange={setDrawerOpen}
-        customerId={data.id}
-        linkedDesignIds={linkedDesignIds}
-      />
 
       {previewData && (
         <DesignOrderPreviewDrawer
