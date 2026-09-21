@@ -1,3 +1,5 @@
+import { isLineUsable } from "./whatsapp-line-prompt"
+
 /**
  * Natural-language wording for the run-lifecycle acknowledgements.
  *
@@ -113,8 +115,11 @@ export function buildRunAckUserPrompt(opts: {
   return lines.join("\n")
 }
 
-/** Longest we will send. Beyond this the model has started writing an essay. */
-export const RUN_ACK_MAX_CHARS = 320
+/**
+ * Longest we will send. Re-exported from the shared rules (#2216) so the two
+ * paths cannot drift apart on what "too long" means.
+ */
+export { LINE_MAX_CHARS as RUN_ACK_MAX_CHARS } from "./whatsapp-line-prompt"
 
 /**
  * PURE: is this reply safe to send to a partner?
@@ -123,40 +128,25 @@ export const RUN_ACK_MAX_CHARS = 320
  * it already had. A partner getting the old robotic line is a small loss; a
  * partner getting an empty message, a wall of text, or a sentence containing
  * a fabricated code is a real one.
+ *
+ * 🔴 The checks themselves now live in `whatsapp-line-prompt.ts` and are
+ * shared with every other generated reply (#2216). They were duplicated for
+ * one release and that was one release too many: two regexes that are meant to
+ * agree about what an identifier looks like eventually disagree, and the
+ * failure mode of that disagreement is an invented `prod_run_…` reaching a
+ * partner. The numbers a run ack may reuse are still decided HERE, because
+ * they come from the run's own quantities and nowhere else.
  */
 export function isRunAckUsable(
   text: unknown,
   facts: RunAckFacts
 ): text is string {
-  if (typeof text !== "string") return false
-  const t = text.trim()
-  if (!t) return false
-  if (t.length > RUN_ACK_MAX_CHARS) return false
-
-  /*
-   * 🔴 An id-shaped token the model produced on its own. It was never given
-   * one, so any occurrence is invented. Checked rather than trusted, because
-   * "the prompt says not to" is not a guarantee.
-   */
-  if (/\b(prod_run|prun|ordli|inv_order|cus|order)_[A-Za-z0-9]{6,}/.test(t)) {
-    return false
-  }
-
-  /*
-   * A number the facts do not contain. Quantities decide money, and a model
-   * that rounds 2 to "a couple" is fine while one that writes 20 is not.
-   * Bare digits only — ordinals inside words ("2nd") are left alone.
-   */
-  const allowed = new Set(
-    [facts.quantity, facts.producedQuantity]
-      .filter((n): n is number => typeof n === "number")
-      .map((n) => String(n))
+  return isLineUsable(
+    text,
+    [facts.quantity, facts.producedQuantity].filter(
+      (n): n is number => typeof n === "number"
+    )
   )
-  for (const m of t.matchAll(/(?<![\w])\d+(?![\w])/g)) {
-    if (!allowed.has(m[0])) return false
-  }
-
-  return true
 }
 
 /**
