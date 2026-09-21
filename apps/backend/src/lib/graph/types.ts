@@ -63,6 +63,16 @@ export type NodeItem = {
   sublabel: string | null
   status: string | null
   href: string | null
+  /**
+   * An image for the row, where the record HAS one and a reader recognises it
+   * faster than its name — a fabric, today.
+   *
+   * Optional and null by default on purpose: most node kinds (tasks, orders,
+   * runs) have no picture, and a placeholder box beside every one of them
+   * would cost the drawer its density to say nothing. A row renders the image
+   * only when a resolver supplies it.
+   */
+  thumbnail?: string | null
   props: GraphProp[]
   /** How to detach this member, or null where the model forbids it. */
   remove: NodeItemRemoval | null

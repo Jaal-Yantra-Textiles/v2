@@ -158,9 +158,33 @@ export const canWriteBoard = (
 export const coreScene = (
   rows: MoodboardRow[] | null | undefined,
   legacyScene: unknown
+): unknown => ownerScene(rows, legacyScene, { type: "core" })
+
+/**
+ * The scene to treat as THIS owner's board — the generalisation of `coreScene`
+ * that the partner side needs.
+ *
+ * 🔴 THE LEGACY BLOB IS ONLY EVER THE CORE BOARD'S FALLBACK.
+ *
+ * `design.moodboard` was one column everybody shared, administered from the
+ * admin side, so `resolveBoards` already presents it to a partner as someone
+ * else's board, read-only. Handing it back here as a partner's own merge base
+ * would take the admin's scene, merge a generate onto it, and save the result
+ * to the partner's row — the same "a partner ends up authoring our board" the
+ * entity exists to prevent, arriving as a copy instead of an overwrite.
+ *
+ * So: a partner with no row of their own has an EMPTY board, not ours.
+ */
+export const ownerScene = (
+  rows: MoodboardRow[] | null | undefined,
+  legacyScene: unknown,
+  owner: MoodboardOwner
 ): unknown => {
   const row = (Array.isArray(rows) ? rows : []).find(
-    (r) => r && r.owner_type === "core"
+    (r) => r && ownsRow(r, owner)
   )
-  return row ? row.scene ?? null : legacyScene ?? null
+  if (row) {
+    return row.scene ?? null
+  }
+  return owner.type === "core" ? legacyScene ?? null : null
 }

@@ -224,6 +224,84 @@ setupSharedTestSuite(() => {
     ])
   })
 
+  /**
+   * 🔴 #2017 tail — a generate must SURVIVE A RELOAD, on the partner's own board.
+   *
+   * The route used to persist through `updateDesignWorkflow({ moodboard })`,
+   * i.e. the legacy design column. `resolveBoards` ignores that column the
+   * moment any board row exists, so on a migrated design the generate landed
+   * where nothing reads: the canvas showed it, the toast said "generated", and
+   * it was gone on reload — with Save greyed out because the UI clears the
+   * dirty flag straight after. This asserts the boards READ, not the write's
+   * own echo, because the echo was never the thing that was wrong.
+   */
+  it("persists a generate to the partner's OWN board, and leaves ours alone", async () => {
+    await api.post(`/admin/designs/${designId}/brief`, brief, headers)
+
+    // Give the design a core board first — this is the migrated state in which
+    // the legacy column stops being read at all.
+    const adminSave = await api.post(
+      `/admin/designs/${designId}/moodboards`,
+      {
+        scene: {
+          type: "excalidraw",
+          version: 2,
+          source: "test",
+          elements: [
+            { id: "ours-only", type: "rectangle", x: 0, y: 0, width: 10, height: 10 },
+          ],
+          appState: {},
+          files: {},
+        },
+      },
+      headers
+    )
+    expect(adminSave.status).toBe(200)
+
+    const mint = await api.post(
+      `/admin/designs/${designId}/designer-invites`,
+      { inviter_name: "Studio JYT" },
+      headers
+    )
+    const accept = await api.post(
+      `/partners/designer-invites/${mint.data.token}/accept`,
+      { name: "Rio Weaver", email: `rio-${uniq()}@example.com`, password: "supersecret123" }
+    )
+    const bearer = { headers: { authorization: `Bearer ${accept.data.token}` } }
+
+    const gen = await api.post(
+      `/partners/designs/${designId}/moodboard/generate`,
+      {},
+      bearer
+    )
+    expect(gen.status).toBe(200)
+
+    // Read it back the way the editor does on its next open.
+    const boards = await api.get(
+      `/partners/designs/${designId}/moodboards`,
+      bearer
+    )
+    expect(boards.status).toBe(200)
+    expect(boards.data.usedLegacyFallback).toBe(false)
+    expect(boards.data.own).toBeTruthy()
+    expect(boards.data.own.owner_type).toBe("partner")
+
+    const ownFrames = boards.data.own.scene.elements
+      .filter((e: any) => e.type === "frame")
+      .map((f: any) => f.name)
+    expect(ownFrames).toEqual(
+      expect.arrayContaining(["Brief · Concept & Identity"])
+    )
+
+    // Our board is untouched — not replaced, and not copied onto theirs.
+    const ourBoard = boards.data.others.find((b: any) => b.owner_type === "core")
+    expect(ourBoard).toBeTruthy()
+    expect(ourBoard.scene.elements.map((e: any) => e.id)).toEqual(["ours-only"])
+    expect(
+      boards.data.own.scene.elements.some((e: any) => e.id === "ours-only")
+    ).toBe(false)
+  })
+
   it("rejects a non-author saving the moodboard scene", async () => {
     await api.post(`/admin/designs/${designId}/brief`, brief, headers)
 

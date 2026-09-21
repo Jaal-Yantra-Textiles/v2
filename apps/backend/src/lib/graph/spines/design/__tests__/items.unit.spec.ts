@@ -87,6 +87,60 @@ describe("inventory", () => {
     expect((items[0].remove!.body as any).inventoryIds).toEqual(["inv_1"])
     expect((items[1].remove!.body as any).inventoryIds).toEqual(["inv_2"])
   })
+
+  /**
+   * The row shows the MATERIAL'S photo. A fabric is recognised by how it looks,
+   * and this row offered a title and an id for it.
+   *
+   * The canonical `{ files: [...] }` shape, deliberately: a bare array is the
+   * easy case, and reading only that is how the partner side rendered blank
+   * thumbnails against real production data.
+   */
+  it("carries the raw material's photo, from the canonical { files } shape", async () => {
+    const query = stubQuery({
+      designs: [
+        {
+          id: "design_1",
+          inventory_items: [
+            {
+              id: "inv_1",
+              title: "Pashmina",
+              sku: "PSH-1",
+              raw_materials: {
+                name: "Pashmina",
+                media: { files: ["https://cdn/pashmina.jpg"] },
+              },
+            },
+          ],
+        },
+      ],
+    })
+
+    const items = await resolveDesignItems(ctx(query), "inventory")
+
+    expect(items[0].thumbnail).toBe("https://cdn/pashmina.jpg")
+    // The relation has to be REQUESTED — `inventory_items.*` is scalars only,
+    // so a row would carry no media however well the helper unwraps it.
+    const fields = (query.graph as jest.Mock).mock.calls[0][0].fields
+    expect(fields).toEqual(
+      expect.arrayContaining(["inventory_items.raw_materials.*"])
+    )
+  })
+
+  it("is null — not a broken image — when the material has no photo", async () => {
+    const query = stubQuery({
+      designs: [
+        {
+          id: "design_1",
+          inventory_items: [{ id: "inv_1", title: "Cotton", sku: "CTN-1" }],
+        },
+      ],
+    })
+
+    const items = await resolveDesignItems(ctx(query), "inventory")
+
+    expect(items[0].thumbnail).toBeNull()
+  })
 })
 
 describe("bundled designs", () => {
