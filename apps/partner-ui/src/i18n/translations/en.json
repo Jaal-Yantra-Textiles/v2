@@ -4153,7 +4153,14 @@
         "frames": "Frames",
         "otherElements": "Other elements",
         "emptyHint": "Nothing on this board yet. Opening it builds a first draft from the brief, which you can then edit.",
-        "autoSeeded": "We built a first draft from the brief — edit it and save when you're happy."
+        "noOwnBoard": "You don't have a board on this design yet.",
+        "noOwnBoardHintOurs": "The board shown is ours — you can read it, but not edit it. Start your own to make changes.",
+        "noOwnBoardHintEmpty": "Nothing has been put on this design yet. Start a board to begin.",
+        "startFromBrief": "Start from the brief",
+        "startBlank": "Start blank",
+        "startedFromBrief": "Your board is ready — built from the brief. Edit it and save when you're happy.",
+        "startedBlank": "Your board is ready.",
+        "startFailed": "Couldn't start your board"
       },
       "layers": {
         "heading": "Layers",
