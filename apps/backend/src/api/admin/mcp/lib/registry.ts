@@ -5426,6 +5426,36 @@ export const ADMIN_MCP_TOOLS: AdminMcpToolDef[] = [
     nextSteps: ["list_task_templates", "send_production_run_to_production"],
   },
   {
+    name: "assign_production_run_partner",
+    description:
+      "Assign — or RE-assign — one production run to a partner. The single-run counterpart to redispatch_parked_production_runs, and the only way a run parked in 'awaiting_reassignment' gets back out. Unlike that batch tool this takes an explicit partner_id, so it can send the run somewhere NEW as well as back to the partner who let it lapse; pass the same partner to mean 'send it to them again'. 🔴 THE RUN LANDS ON `approved`, NOT `sent_to_partner` — nothing is messaged and no tasks are created by this call. Dispatch is what collects templates and templates are what seed the partner's tasks, so the next step is send_production_run_to_production (or redispatch_parked_production_runs, which does assign + dispatch in one). ⚠️ update_production_run deliberately does NOT forward partner_id: ownership moves through this guarded route, which runs the assignment workflow, checks the policy's assign_partner_from list and records the change on the run's activity feed. Refused once a run has been accepted or reached a terminal state. [sensitive: requires confirm:true]",
+    method: "POST",
+    path: "/admin/production-runs/:id/assign-partner",
+    pathParams: ["id"],
+    previewPath: "/admin/production-runs/:id",
+    write: true,
+    sensitive: true,
+    bodyParams: ["partner_id", "note"],
+    inputSchema: obj(
+      {
+        id: STR("Production run id, e.g. 'prod_run_...'."),
+        partner_id: STR(
+          "The partner to give the run to, e.g. '01M20A7X...'. May be the partner it was already parked from — that is the ordinary 'they say they will take it now' case. Required."
+        ),
+        note: STR(
+          "Why, in a human's words. Recorded on the run's activity feed, so it is what a later session reads when it asks why ownership moved. Max 500 characters."
+        ),
+      },
+      ["id", "partner_id"]
+    ),
+    sideEffects:
+      "Sets partner_id, moves the run to `approved`, clears the parked cancellation reason and resets reassign_retry_count, keeping the prior owner on previous_partner_id. Tells the partner NOTHING on its own — dispatch does that.",
+    nextSteps: [
+      "send_production_run_to_production",
+      "redispatch_parked_production_runs",
+    ],
+  },
+  {
     name: "redispatch_parked_production_runs",
     description:
       "Re-send production runs parked in 'awaiting_reassignment' back to the PARTNER THEY CAME FROM, and dispatch them again — the batch answer to 'this partner says they'll take their lapsed runs now'. Each run goes to its own previous_partner_id; partner_id only FILTERS which parked runs are considered, so this can never hand one partner's work to another. THE DRY-RUN RECOVERS WHAT EACH RUN WAS DISPATCHED WITH LAST TIME (from its own tasks) and lists every available template, so you can show the user a real selection instead of asking them to remember: read `would_redispatch[].previous_template_names` and `available_template_names`. Then confirm with use_previous_templates:true to send each run back with ITS OWN set (parked runs usually do NOT share one), or template_names/template_ids to override them all. Recovered history dispatches by template ID where it identified one, so a run that used 'Stitching (Production)' cannot come back as 'Stitching (Pre Production)'; a run that would go out on an AMBIGUOUS name is reported as would_fail_on_ambiguous_name and must be given template_ids. Dry-run by default. Sensitive: requires confirm:true.",

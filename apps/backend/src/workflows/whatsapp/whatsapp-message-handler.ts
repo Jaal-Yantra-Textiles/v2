@@ -14,6 +14,7 @@ import WhatsAppService from "../../modules/social-provider/whatsapp-service"
 import { SOCIAL_PROVIDER_MODULE } from "../../modules/social-provider"
 import type SocialProviderService from "../../modules/social-provider/service"
 import { MESSAGING_MODULE } from "../../modules/messaging"
+import { phraseRunAck } from "./whatsapp-run-ack"
 import { resolveLivePhotoContextAction } from "./whatsapp-photo-context-routing"
 import { fileInventoryOfferAnalysis } from "./whatsapp-photo-inventory-offer"
 import {
@@ -332,6 +333,58 @@ export async function handleIncomingMessage(
     }
 
     /**
+     * 🔴 AN ACTION THAT ARRIVES BEFORE CONSENT MUST BE REMEMBERED TOO.
+     *
+     * The paragraph above learned this for photographs and the lesson was
+     * never carried across to button taps, which is the more expensive half:
+     * a partner's very first contact is the run-assignment template, so the
+     * FIRST thing they ever tap is "Accept" — and it lands here, before
+     * consent exists, and this gate returns without running it.
+     *
+     * Measured on prod: Ksaman Naturals tapped Accept on three runs on
+     * 2026-09-09. Two landed pre-consent (09:40:22 and 09:40:39) and were
+     * discarded; the third, at 12:23 once consent was recorded, worked. The
+     * platform then sent six "you have not responded" reminders over nine days
+     * for runs she HAD accepted, and on 2026-09-18 auto-reassigned one away
+     * from her with `cancelled_reason: "Auto-reassigned: no response after 2
+     * reminders"`. She had responded. Nothing errored, and the only trace was
+     * the absence of an `accepted_at` (#2211).
+     *
+     * 🔴 The run id is resolved and stored NOW, not on replay. It comes from
+     * `pending_run_id`, one mutable slot, and by the time consent arrives it
+     * will name whatever run was sent last (#2212).
+     */
+    const pendingAction =
+      message.type === "interactive" && message.buttonReplyId
+        ? resolveRunActionFromButton(
+            message.buttonReplyId,
+            message.buttonReplyTitle,
+            conversationMeta
+          )
+        : null
+    if (
+      pendingAction &&
+      isTemplateTitleButton(message.buttonReplyId, message.buttonReplyTitle)
+    ) {
+      const fromReply = await resolveRunFromReplyContext(
+        scope,
+        message.replyToWaMessageId
+      )
+      if (fromReply) pendingAction.runId = fromReply
+    }
+    if (pendingAction?.runId && REPLAYABLE_PRE_CONSENT_ACTIONS.has(pendingAction.action)) {
+      conversationMeta = {
+        ...conversationMeta,
+        action_pending_consent: {
+          action: pendingAction.action,
+          run_id: pendingAction.runId,
+          at: new Date().toISOString(),
+        },
+      }
+      await updateConversationMetadata(scope, conversationId, conversationMeta)
+    }
+
+    /**
      * 🔑 One prompt per BURST, not one per message.
      *
      * The gate fires per message, so those ten photographs produced nine
@@ -384,6 +437,73 @@ export async function handleIncomingMessage(
     }
   }
 
+  /**
+   * The tap they made before consent existed, honoured now.
+   *
+   * Cleared BEFORE it runs, not after: a replay that throws must not be
+   * retried on every subsequent message for the rest of the conversation's
+   * life. One attempt, then it is gone — the partner still has the buttons.
+   *
+   * ⚠️ Bounded by REPLAY_TTL. "Accept" means accept THIS job, and a tap that
+   * has been sitting unreplayed for days is no longer a safe statement about
+   * what the partner wants today; past the window we re-offer the buttons
+   * instead of moving the run on their behalf.
+   */
+  const stashed = conversationMeta.action_pending_consent as
+    | { action?: string; run_id?: string; at?: string }
+    | undefined
+  if (stashed?.action && stashed.run_id) {
+    conversationMeta = { ...conversationMeta, action_pending_consent: undefined }
+    await updateConversationMetadata(scope, conversationId, conversationMeta)
+
+    const stashedAt = Date.parse(String(stashed.at ?? ""))
+    const fresh =
+      !Number.isNaN(stashedAt) &&
+      Date.now() - stashedAt < PRE_CONSENT_ACTION_TTL_MS
+
+    if (fresh && stashed.action === "accept") {
+      try {
+        await whatsapp.sendTextMessage(
+          message.from,
+          `Thanks — picking up the *Accept* you sent before we had your consent.`
+        )
+        return await handleAccept(
+          scope,
+          whatsapp,
+          message.from,
+          stashed.run_id,
+          partner.partnerId,
+          String(conversationMeta.language || "en")
+        )
+      } catch (e: any) {
+        console.warn(
+          "[whatsapp-handler] pre-consent accept replay failed:",
+          e?.message
+        )
+        await whatsapp.sendTextMessage(
+          message.from,
+          `I couldn't complete the *Accept* you sent earlier. Please tap Accept again on run ${stashed.run_id}.`
+        )
+        return { handled: true, action: "pre_consent_replay_failed" }
+      }
+    }
+
+    /*
+     * Everything else is re-offered rather than replayed. A Decline needs a
+     * reason the partner has not given yet, and a stale tap of any kind is a
+     * statement about a moment that has passed — so the run's own buttons go
+     * back to them and they decide again.
+     */
+    const designName = await getDesignName(scope, stashed.run_id).catch(() => "")
+    await whatsapp.sendRunActions(
+      message.from,
+      stashed.run_id,
+      "sent_to_partner",
+      designName
+    )
+    return { handled: true, action: "pre_consent_action_reoffered" }
+  }
+
   // If consent given but language not yet selected, prompt for it
   if (!conversationMeta.language) {
     await sendLanguageSelection(whatsapp, message.from)
@@ -425,31 +545,35 @@ export async function handleIncomingMessage(
     //   3. Native interactive ids `<action>_prod_run_<id>` — the long-
     //      standing shape used by sendProductionRunAssignment,
     //      sendRunActions, etc.
-    const titleAction =
-      (message.buttonReplyTitle && BUTTON_TITLE_ACTIONS[message.buttonReplyTitle]) ||
-      BUTTON_TITLE_ACTIONS[message.buttonReplyId]
-    if (titleAction) {
-      action = titleAction
-      runId = typeof conversationMeta.pending_run_id === "string"
-        ? conversationMeta.pending_run_id
-        : ""
-      if (!runId) {
+    const resolved = resolveRunActionFromButton(
+      message.buttonReplyId,
+      message.buttonReplyTitle,
+      conversationMeta
+    )
+    if (resolved) {
+      action = resolved.action
+      runId = resolved.runId
+
+      /*
+       * 🔴 The message she replied to outranks the conversation slot (#2212).
+       * Only for the title path — a native `accept_prod_run_X` id names its
+       * own run explicitly and nothing should second-guess it.
+       */
+      if (isTemplateTitleButton(message.buttonReplyId, message.buttonReplyTitle)) {
+        const fromReply = await resolveRunFromReplyContext(
+          scope,
+          message.replyToWaMessageId
+        )
+        if (fromReply) runId = fromReply
+      }
+      // A template quick-reply with no pinned run: we know WHAT they meant,
+      // not on what. Only the title path can produce this.
+      if (!runId && isTemplateTitleButton(message.buttonReplyId, message.buttonReplyTitle)) {
         await whatsapp.sendTextMessage(
           message.from,
-          `I couldn't tell which run this ${titleAction} refers to. Please reply with \`${titleAction} <run id>\`.`
+          `I couldn't tell which run this ${action} refers to. Please reply with \`${action} <run id>\`.`
         )
         return { handled: true, action: "template_button_no_context" }
-      }
-    } else {
-      const declineParsed = parseDeclineButtonId(message.buttonReplyId)
-      if (declineParsed) {
-        action = declineParsed.action
-        runId = declineParsed.runId
-      } else {
-        // Button replies: "accept_prod_run_123", "start_prod_run_123", etc.
-        const parts = message.buttonReplyId.split("_")
-        action = parts[0] // accept, start, finish, complete, view, media, status
-        runId = parts.slice(1).join("_") // rejoin in case run ID has underscores
       }
     }
   } else if (message.type === "text" && message.text) {
@@ -863,13 +987,21 @@ export async function handleIncomingMessage(
     return { handled: true, action: "conversation" }
   }
 
+  /*
+   * The language the partner chose, for any wording we generate rather than
+   * template. Read from the conversation, which is where the choice was made
+   * — NOT from partner_admin.preferred_language, which is a portal setting
+   * and has silently outranked this choice before.
+   */
+  const partnerLang = String(conversationMeta.language || "en")
+
   // Execute action
   try {
     switch (action) {
       case "accept":
-        return await handleAccept(scope, whatsapp, message.from, runId, partner.partnerId)
+        return await handleAccept(scope, whatsapp, message.from, runId, partner.partnerId, partnerLang)
       case "start":
-        return await handleStart(scope, whatsapp, message.from, runId, partner.partnerId)
+        return await handleStart(scope, whatsapp, message.from, runId, partner.partnerId, partnerLang)
       case "finish":
         return await handleFinish(
           scope,
@@ -878,7 +1010,8 @@ export async function handleIncomingMessage(
           runId,
           partner.partnerId,
           message.text,
-          intentExtras
+          intentExtras,
+          partnerLang
         )
       case "complete":
         return await handleComplete(
@@ -962,6 +1095,135 @@ const DECLINE_REASON_TOKENS: DeclineReason[] = ["capacity", "materials", "schedu
  * return both. Plain `decline_<runId>` (tapped directly on assignment)
  * returns action="decline" so the prompt flow fires.
  */
+/**
+ * Did this tap come from a template QUICK_REPLY (title only, no run id)?
+ *
+ * The distinction matters because only that shape has to guess at the run —
+ * and only that shape should let the reply context override it.
+ */
+export function isTemplateTitleButton(
+  buttonReplyId: string | undefined,
+  buttonReplyTitle: string | undefined
+): boolean {
+  if (!buttonReplyId) return false
+  return Boolean(
+    (buttonReplyTitle && BUTTON_TITLE_ACTIONS[buttonReplyTitle]) ||
+      BUTTON_TITLE_ACTIONS[buttonReplyId]
+  )
+}
+
+/**
+ * PURE: the production run a stored `context_id` names.
+ *
+ * Outbound rows tag the run they are about. An assignment carries the bare id;
+ * a reminder carries `prod_run_…:reminder:2026-09-15`, because the send needs
+ * a distinct key per day to deduplicate. A run id never contains a colon, so
+ * the first colon is the boundary — more general than matching `:reminder:`
+ * alone, which would silently return a whole dedup key if the suffix scheme
+ * ever grows a second shape.
+ */
+export function runIdFromContextId(
+  contextType: string | null | undefined,
+  contextId: string | null | undefined
+): string | null {
+  if (contextType !== "production_run") return null
+  const raw = String(contextId ?? "")
+  if (!raw) return null
+  const colon = raw.indexOf(":")
+  const runId = colon >= 0 ? raw.slice(0, colon) : raw
+  return runId.startsWith("prod_run_") ? runId : null
+}
+
+/**
+ * Which run a template quick-reply is REALLY about (#2212).
+ *
+ * 🔴 `pending_run_id` is ONE SLOT per conversation. Meta forbids variables
+ * inside template QUICK_REPLY buttons, so the tap carries only its title and
+ * the run has to come from state we kept — and the next assignment template
+ * overwrites that state. Ksaman Naturals got two 69 seconds apart on
+ * 2026-09-09; every later tap, on either template, resolved to the newer run.
+ *
+ * But WhatsApp tells us what she tapped: the webhook carries `context.id`, the
+ * wa_message_id of the message the button belongs to, and our own outbound row
+ * for that message is tagged with the run. That is an exact answer where the
+ * slot is a guess, so it is preferred and the slot stays only as the fallback
+ * for taps that arrive with no reply context at all.
+ *
+ * ⚠️ Never throws. A lookup failure must fall back to the slot, not take down
+ * a partner's Accept.
+ */
+async function resolveRunFromReplyContext(
+  scope: any,
+  replyToWaMessageId: string | undefined
+): Promise<string | null> {
+  if (!replyToWaMessageId) return null
+  try {
+    const messagingService = scope.resolve(MESSAGING_MODULE) as any
+    const [row] = await messagingService.listMessagingMessages(
+      { wa_message_id: replyToWaMessageId },
+      { take: 1 }
+    )
+    if (!row) return null
+    return runIdFromContextId(row.context_type, row.context_id)
+  } catch {
+    return null
+  }
+}
+
+/**
+ * PURE: which run action a button reply means, and on which run.
+ *
+ * Extracted because the consent gate and the normal command path both have to
+ * answer this and must never answer it differently. Before this existed only
+ * the command path could, and the gate — which runs FIRST on a partner's very
+ * first message — dropped the tap on the floor (#2211).
+ *
+ * Returns `runId: ""` when the reply is a template quick-reply and the
+ * conversation carries no `pending_run_id`; the caller decides what to say.
+ */
+export function resolveRunActionFromButton(
+  buttonReplyId: string,
+  buttonReplyTitle: string | undefined,
+  conversationMeta: Record<string, any>
+): { action: string; runId: string } | null {
+  if (!buttonReplyId) return null
+
+  const titleAction =
+    (buttonReplyTitle && BUTTON_TITLE_ACTIONS[buttonReplyTitle]) ||
+    BUTTON_TITLE_ACTIONS[buttonReplyId]
+  if (titleAction) {
+    /*
+     * 🔴 `pending_run_id` IS ONE SLOT ON THE CONVERSATION. Meta forbids
+     * variables inside template quick-reply buttons, so a tap carries the
+     * button's title and nothing else, and the run has to come from state we
+     * kept. Two assignment templates sent close together overwrite it, and
+     * every later tap then resolves to the last run sent.
+     *
+     * That is a real defect and it is NOT fixed here — see #2212. What this
+     * function does is make the read happen ONCE, at the moment the tap is
+     * seen, so nothing downstream re-reads a slot that has since moved on.
+     */
+    return {
+      action: titleAction,
+      runId:
+        typeof conversationMeta?.pending_run_id === "string"
+          ? conversationMeta.pending_run_id
+          : "",
+    }
+  }
+
+  const declineParsed = parseDeclineButtonId(buttonReplyId)
+  if (declineParsed) return declineParsed
+
+  // Native interactive ids: "accept_prod_run_123", "start_prod_run_123", …
+  const parts = buttonReplyId.split("_")
+  return {
+    action: parts[0],
+    // rejoined in case the run id itself contains underscores
+    runId: parts.slice(1).join("_"),
+  }
+}
+
 function parseDeclineButtonId(
   buttonId: string
 ): { action: string; runId: string } | null {
@@ -1033,12 +1295,59 @@ function parseTextCommand(text: string): { action: string; runId: string; extra?
   return { action: "", runId: "" }
 }
 
+/**
+ * The lifecycle acknowledgement a partner actually receives.
+ *
+ * Wraps `sendRunActions` so the three lifecycle hops read the same way: work
+ * out the facts, ask for a sentence, fall back to the constant. The language
+ * comes from the conversation the partner is in, which is where they chose it.
+ *
+ * ⚠️ Never throws. Phrasing sits AFTER the state change — the run has already
+ * moved by the time we are choosing words, so a failure here must degrade the
+ * wording and nothing else.
+ */
+async function sendRunAck(
+  scope: any,
+  whatsapp: WhatsAppService,
+  phone: string,
+  runId: string,
+  status: "in_progress" | "started" | "finished",
+  designName: string,
+  language: string,
+  extra?: { quantity?: number | null }
+): Promise<void> {
+  const intent =
+    status === "in_progress"
+      ? "accepted"
+      : status === "started"
+        ? "started"
+        : "finished"
+  try {
+    const body = await phraseRunAck(scope, {
+      intent,
+      facts: {
+        runId,
+        designName: designName || null,
+        quantity: extra?.quantity ?? null,
+      },
+      language,
+      // "" tells sendRunActions to keep the wording it already had.
+      fallback: "",
+    })
+    await whatsapp.sendRunActions(phone, runId, status, designName, body)
+  } catch {
+    await whatsapp.sendRunActions(phone, runId, status, designName)
+  }
+}
+
 async function handleAccept(
   scope: any,
   whatsapp: WhatsAppService,
   phone: string,
   runId: string,
-  partnerId: string
+  partnerId: string,
+  /** The language the partner chose, for the acknowledgement wording. */
+  language = "en"
 ): Promise<HandlerResult> {
   const { result, errors } = await acceptProductionRunWorkflow(scope).run({
     input: { production_run_id: runId, partner_id: partnerId },
@@ -1054,7 +1363,7 @@ async function handleAccept(
 
   // Send next-step buttons
   const designName = await getDesignName(scope, runId)
-  await whatsapp.sendRunActions(phone, runId, "in_progress", designName)
+  await sendRunAck(scope, whatsapp, phone, runId, "in_progress", designName, language)
 
   return { handled: true, action: "accept", runId }
 }
@@ -1243,7 +1552,8 @@ async function handleStart(
   whatsapp: WhatsAppService,
   phone: string,
   runId: string,
-  partnerId: string
+  partnerId: string,
+  language = "en"
 ): Promise<HandlerResult> {
   const productionRunService: ProductionRunService = scope.resolve(PRODUCTION_RUNS_MODULE)
   const run = await productionRunService.retrieveProductionRun(runId).catch(() => null) as any
@@ -1272,7 +1582,9 @@ async function handleStart(
   await emitEvent(scope, "production_run.started", { id: runId, production_run_id: runId, partner_id: partnerId, action: "started" })
 
   const designName = await getDesignName(scope, runId)
-  await whatsapp.sendRunActions(phone, runId, "started", designName)
+  await sendRunAck(scope, whatsapp, phone, runId, "started", designName, language, {
+    quantity: run?.quantity ?? null,
+  })
 
   return { handled: true, action: "start", runId }
 }
@@ -1284,7 +1596,8 @@ async function handleFinish(
   runId: string,
   partnerId: string,
   rawText?: string,
-  extras?: { quantity?: number | null; notes?: string | null } | null
+  extras?: { quantity?: number | null; notes?: string | null } | null,
+  language = "en"
 ): Promise<HandlerResult> {
   const productionRunService: ProductionRunService = scope.resolve(PRODUCTION_RUNS_MODULE)
   const run = await productionRunService.retrieveProductionRun(runId).catch(() => null) as any
@@ -1354,7 +1667,9 @@ async function handleFinish(
   })
 
   const designName = await getDesignName(scope, runId)
-  await whatsapp.sendRunActions(phone, runId, "finished", designName)
+  await sendRunAck(scope, whatsapp, phone, runId, "finished", designName, language, {
+    quantity: run?.quantity ?? null,
+  })
 
   // Extra feedback to the partner when they logged scrap/notes so they
   // see their input landed.
@@ -2291,6 +2606,26 @@ async function handleProductCreateButtonReply(
  * prompts; a window this size collapses any realistic burst into one.
  */
 const CONSENT_PROMPT_COOLDOWN_MS = 10 * 60 * 1000
+
+/**
+ * Actions worth remembering across the consent gate.
+ *
+ * Deliberately the run-moving ones only. `view`/`status`/`media` are reads or
+ * need a follow-up anyway, and replaying a read days later would answer a
+ * question nobody is still asking.
+ */
+const REPLAYABLE_PRE_CONSENT_ACTIONS = new Set([
+  "accept",
+  "start",
+  "decline",
+])
+
+/**
+ * How long a pre-consent tap still speaks for the partner. Two days: long
+ * enough to cover a tap on Friday and consent on Monday morning, short enough
+ * that nobody is signed up to work they chose a week ago.
+ */
+const PRE_CONSENT_ACTION_TTL_MS = 2 * 24 * 60 * 60 * 1000
 
 /** Why a piece of media is sitting undownloaded. One value today. */
 const MEDIA_PENDING_CONSENT = "awaiting_consent"

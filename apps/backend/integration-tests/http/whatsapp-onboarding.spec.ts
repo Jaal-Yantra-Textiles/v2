@@ -220,5 +220,129 @@ setupSharedTestSuite(() => {
         restoreMock()
       }
     })
+
+    /**
+     * 🔴 A RUN ACTION TAPPED BEFORE CONSENT MUST SURVIVE THE GATE (#2211).
+     *
+     * A partner's first ever contact is the run-assignment template, so the
+     * first thing they tap is "Accept" — and it lands before consent exists.
+     * The gate used to return `consent_requested` and drop it. Ksaman Naturals
+     * lost two of three Accepts that way on 2026-09-09; the platform then sent
+     * six "no response" reminders over nine days and auto-reassigned one of
+     * those runs away from her on 2026-09-18. Nothing errored.
+     */
+    it("remembers a run Accept tapped before consent and acts on it after", async () => {
+      const container = getContainer()
+      await createAdminUser(container)
+      const restoreMock = mockWhatsAppService()
+      const phone = "919876500011"
+
+      try {
+        const partnerService = container.resolve(PARTNER_MODULE) as any
+        const unique = Date.now()
+        const partner = await partnerService.createPartners({
+          name: `PreConsent Partner ${unique}`,
+          handle: `wa-preconsent-${unique}`,
+          status: "active",
+          whatsapp_number: phone,
+          whatsapp_verified: true,
+        })
+        await partnerService.createPartnerAdmins({
+          partner_id: partner.id,
+          email: `wa-preconsent-${unique}@jyt.test`,
+          first_name: "Geeta",
+          last_name: "Sharma",
+          phone,
+          is_active: true,
+        })
+
+        const { handleIncomingMessage } = await import(
+          "../../src/workflows/whatsapp/whatsapp-message-handler"
+        )
+
+        // ── Accept tapped as the very first message, before any consent ──
+        mockSentMessages = []
+        const tap = await handleIncomingMessage(container, {
+          messageId: `wamid.preconsent_${Date.now()}`,
+          from: phone,
+          type: "interactive",
+          buttonReplyId: "accept_prod_run_preconsent_demo",
+          timestamp: Math.floor(Date.now() / 1000),
+        } as any)
+
+        // The gate still asks for consent — that part is correct and unchanged.
+        expect(tap.handled).toBe(true)
+        expect(tap.action).toBe("consent_requested")
+
+        // 🔴 …but the tap is now REMEMBERED, with the run resolved at tap time.
+        const messagingService = container.resolve(MESSAGING_MODULE) as any
+        const [convs] = await messagingService.listAndCountMessagingConversations(
+          { partner_id: partner.id },
+          { take: 5 }
+        )
+        expect(convs.length).toBeGreaterThan(0)
+        const stashed = (convs[0].metadata || {}).action_pending_consent
+        expect(stashed).toBeDefined()
+        expect(stashed.action).toBe("accept")
+        expect(stashed.run_id).toBe("prod_run_preconsent_demo")
+
+        // ── Consent, then language: the replay fires on the first message
+        //    after the conversation is fully onboarded ──
+        mockSentMessages = []
+        await handleIncomingMessage(container, {
+          messageId: `wamid.preconsent_agree_${Date.now()}`,
+          from: phone,
+          type: "interactive",
+          buttonReplyId: "consent_agree",
+          timestamp: Math.floor(Date.now() / 1000),
+        } as any)
+
+        mockSentMessages = []
+        const afterLang = await handleIncomingMessage(container, {
+          messageId: `wamid.preconsent_lang_${Date.now()}`,
+          from: phone,
+          type: "interactive",
+          buttonReplyId: "lang_en",
+          timestamp: Math.floor(Date.now() / 1000),
+        } as any)
+        expect(afterLang.action).toBe("language_selected_en")
+
+        mockSentMessages = []
+        const replay = await handleIncomingMessage(container, {
+          messageId: `wamid.preconsent_next_${Date.now()}`,
+          from: phone,
+          type: "text",
+          text: "hello",
+          timestamp: Math.floor(Date.now() / 1000),
+        } as any)
+
+        /*
+         * The run id is synthetic, so accepting it cannot succeed — and that
+         * is precisely what makes this a good assertion. What is being proved
+         * is that the stashed tap was ACTED ON rather than discarded: either
+         * the accept ran, or it was attempted and reported. The old code
+         * returned neither, silently.
+         */
+        expect(
+          [
+            "accept",
+            "pre_consent_replay_failed",
+            "pre_consent_action_reoffered",
+          ]
+        ).toContain(replay.action)
+
+        // And it is cleared, so it cannot re-fire on every later message.
+        const [convsAfter] =
+          await messagingService.listAndCountMessagingConversations(
+            { partner_id: partner.id },
+            { take: 5 }
+          )
+        expect(
+          (convsAfter[0].metadata || {}).action_pending_consent
+        ).toBeFalsy()
+      } finally {
+        restoreMock()
+      }
+    })
   })
 })
