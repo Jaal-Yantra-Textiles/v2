@@ -18,6 +18,7 @@ import {
   releaseRunIfReady,
   findRunsAwaitingInventoryOrder,
   releaseRunsAwaitingInventoryOrder,
+  releaseRunOnDependencyAttach,
 } from "../lib/release-dependent-runs"
 
 const metContainer = {
@@ -396,5 +397,148 @@ describe("releaseRunsAwaitingInventoryOrder — telling someone", () => {
 
     expect(outcomes.map((o) => o.run_id)).toEqual(["run_a", "run_b"])
     expect(outcomes.every((o) => o.result === "no_templates")).toBe(true)
+  })
+})
+
+/**
+ * #2214 — the gate asked at ATTACH time.
+ *
+ * The regression these guard is the one the board found: a dependency attached
+ * to an inventory order that was ALREADY `Delivered` leaves a run waiting for
+ * an event three days in the past. It is `approved`/`idle`, carries good
+ * templates, and looks exactly like a run waiting correctly — so the only thing
+ * that can tell the two apart is whether anyone evaluates the gate at the
+ * moment the edge is written.
+ */
+describe("releaseRunOnDependencyAttach", () => {
+  const attachContainer = (
+    run: any,
+    dependencyStatus = "Delivered"
+  ): any => ({
+    resolve: (key: string) => {
+      if (key === "logger") {
+        return { info: jest.fn(), warn: jest.fn(), error: jest.fn() }
+      }
+      if (key === "production_runs") {
+        return {
+          retrieveProductionRun: async (id: string) =>
+            id === run.id ? run : { id, status: "completed" },
+        }
+      }
+      if (key === "inventory_orders") {
+        return {
+          retrieveInventoryOrder: async (id: string) => ({
+            id,
+            status: dependencyStatus,
+          }),
+        }
+      }
+      if (key === "production_policy") {
+        return { getPolicyConfig: async () => ({ dispatch_defaults: [] }) }
+      }
+      throw new Error(`unexpected module ${key}`)
+    },
+  })
+
+  const attached = { by: "inv_a", kind: "inventory order" as const }
+
+  it("dispatches a run whose upstream was ALREADY met when the edge was attached", async () => {
+    const outcome = await releaseRunOnDependencyAttach(
+      attachContainer({
+        id: "run_late",
+        status: "approved",
+        dispatch_state: "idle",
+        dispatch_template_ids: ["tpl_a"],
+        depends_on_inventory_order_ids: ["inv_a"],
+      }),
+      "run_late",
+      attached
+    )
+
+    expect(outcome).toEqual({ run_id: "run_late", result: "dispatched" })
+    expect(runMock).toHaveBeenCalledWith({
+      input: { production_run_id: "run_late", template_ids: ["tpl_a"] },
+    })
+  })
+
+  it("leaves a run alone while its upstream is genuinely outstanding", async () => {
+    const outcome = await releaseRunOnDependencyAttach(
+      attachContainer(
+        {
+          id: "run_waiting",
+          status: "approved",
+          dispatch_state: "idle",
+          dispatch_template_ids: ["tpl_a"],
+          depends_on_inventory_order_ids: ["inv_a"],
+        },
+        "Shipped"
+      ),
+      "run_waiting",
+      attached
+    )
+
+    expect(outcome.result).toBe("waiting")
+    expect(runMock).not.toHaveBeenCalled()
+  })
+
+  it("never dispatches a run the partner has already taken", async () => {
+    const outcome = await releaseRunOnDependencyAttach(
+      attachContainer({
+        id: "run_live",
+        status: "in_progress",
+        dispatch_state: "idle",
+        dispatch_template_ids: ["tpl_a"],
+        depends_on_inventory_order_ids: ["inv_a"],
+      }),
+      "run_live",
+      attached
+    )
+
+    expect(outcome).toMatchObject({ result: "not_evaluated" })
+    expect(runMock).not.toHaveBeenCalled()
+  })
+
+  /*
+   * The deliberate narrowing. Clearing the list is how a chain is unblocked by
+   * hand when an order is CANCELLED rather than delivered — and a run with no
+   * upstream edge is not released, it is simply parked, which is what the board
+   * already calls it. Dispatching on a clear would redefine "parked" for every
+   * run in the system.
+   */
+  it("does not dispatch a run whose dependencies were cleared", async () => {
+    const outcome = await releaseRunOnDependencyAttach(
+      attachContainer({
+        id: "run_cleared",
+        status: "approved",
+        dispatch_state: "idle",
+        dispatch_template_ids: ["tpl_a"],
+        depends_on_inventory_order_ids: null,
+      }),
+      "run_cleared",
+      attached
+    )
+
+    expect(outcome).toMatchObject({
+      result: "not_evaluated",
+      reason: "run carries no dependency",
+    })
+    expect(runMock).not.toHaveBeenCalled()
+  })
+
+  it("does not dispatch a run that has already dispatched", async () => {
+    const outcome = await releaseRunOnDependencyAttach(
+      attachContainer({
+        id: "run_gone",
+        status: "approved",
+        dispatch_state: "completed",
+        dispatch_template_ids: ["tpl_a"],
+        depends_on_inventory_order_ids: ["inv_a"],
+      }),
+      "run_gone",
+      attached
+    )
+
+    expect(outcome).toMatchObject({ result: "not_evaluated" })
+    expect(runMock).not.toHaveBeenCalled()
   })
 })
