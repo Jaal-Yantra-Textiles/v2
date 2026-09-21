@@ -124,17 +124,58 @@ const resolveRegionAndCurrency = async (container: MedusaContainer) => {
     return { regionId: undefined, currencyCode: undefined }
   }
 
-  const regionId: string | undefined = store.default_region_id ?? undefined
-  if (!regionId) {
-    logger.error(
-      `[orders-unification] house store ${store.id} has no default_region_id — refusing to pick a region, which would decide tax and currency`
-    )
-  }
-
   // #485: centralised default-currency selection (was a hand-rolled is_default
   // scan). Partner is linked AFTER creation, so the platform/base store
   // currency is stamped now; the #457 backfill re-stamps to partner currency.
   const currencyCode = pickDefaultCurrency(store, "inr")
+
+  let regionId: string | undefined = store.default_region_id ?? undefined
+
+  if (!regionId) {
+    /*
+     * ⚠️ A house store with no `default_region_id` is ordinary, not broken —
+     * it is the state every freshly seeded environment starts in, and the E2E
+     * suite runs in exactly that state. An earlier version of this refused
+     * outright and skipped the mirror, which is too blunt: it turned a missing
+     * default into no work order at all.
+     *
+     * 🔴 But the old `take: 1` is not the answer either. A region decides TAX
+     * AND CURRENCY, and picking whichever row came back first is how a work
+     * order ends up denominated in a currency the store does not sell in.
+     *
+     * So: fall back only to a region that matches the currency we are ALREADY
+     * stamping. That is not an arbitrary choice — it is the only region that
+     * cannot contradict the rest of the record. Ordered by id so two runs of
+     * the same data agree, and still refusing when nothing matches, because a
+     * currency-mismatched region is the defect this whole function was fixed
+     * for.
+     */
+    const { data: regions = [] } = await query.graph({
+      entity: "region",
+      fields: ["id", "currency_code"],
+    })
+
+    const matching = (regions as any[])
+      .filter(
+        (r) =>
+          String(r?.currency_code ?? "").toLowerCase() ===
+          String(currencyCode ?? "").toLowerCase()
+      )
+      .sort((a, b) => String(a.id).localeCompare(String(b.id)))
+
+    regionId = matching[0]?.id
+
+    if (regionId) {
+      logger.warn(
+        `[orders-unification] house store ${store.id} has no default_region_id — using region ${regionId}, the ${currencyCode} region matching the currency being stamped`
+      )
+    } else {
+      logger.error(
+        `[orders-unification] house store ${store.id} has no default_region_id and no region sells in ${currencyCode} — refusing to stamp a work order with a currency-mismatched region`
+      )
+    }
+  }
+
   return { regionId, currencyCode }
 }
 
