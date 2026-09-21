@@ -498,6 +498,10 @@ export const useSeedMoodboard = (
     onSuccess: async (data, variables, onMutateResult, context) => {
       if (data?.moodboard) {
         await queryClient.invalidateQueries({ queryKey: partnerDesignsQueryKeys.detail(id) })
+        // #2019 — seeding MINTS this partner's board row. Without this the
+        // switcher still reads `own: null` and keeps offering "start a board"
+        // to someone who now has one, on the canvas in front of them.
+        await queryClient.invalidateQueries({ queryKey: partnerMoodboardsKey(id) })
       }
       options?.onSuccess?.(data, variables, onMutateResult, context)
     },

@@ -22,7 +22,6 @@ import {
   useGenerateMoodboard,
   useMoodboardBlocks,
   useInsertMoodboardBlock,
-  useSeedMoodboard,
   useSaveMoodboard,
   useUpdatePartnerBrief,
   type MoodboardBlockListing,
@@ -219,8 +218,8 @@ export const DesignMoodboard = () => {
 
   const apiRef = useRef<ExcalidrawImperativeAPI | null>(null)
   const didInitRef = useRef(false)
-  const didSeedRef = useRef(false)
   const [isDirty, setIsDirty] = useState(false)
+  const [isStarting, setIsStarting] = useState(false)
   const [constructionOpen, setConstructionOpen] = useState(false)
   const [layersOpen, setLayersOpen] = useState(false)
   // Bumped on canvas change (only while the layers panel is open) so the panel
@@ -249,7 +248,6 @@ export const DesignMoodboard = () => {
   const { data: blocksData } = useMoodboardBlocks(id || "")
   const { mutateAsync: insertBlock, isPending: isInserting } =
     useInsertMoodboardBlock(id || "")
-  const { mutateAsync: seedMoodboard } = useSeedMoodboard(id || "")
   const { mutateAsync: saveMoodboard, isPending: isSavingScene } = useSaveMoodboard(
     id || ""
   )
@@ -348,55 +346,85 @@ export const DesignMoodboard = () => {
     api.scrollToContent((scene.elements ?? []) as any, { fitToContent: true })
   }, [])
 
-  // Auto-seed an empty board from the brief on open, so the designer lands on an
-  // editable snapshot (Figma-style) rather than a blank canvas — no manual
-  // "Generate from brief" click. Runs once; the server only fills an empty board
-  // (merge-not-clobber) and is no-throw, so there's nothing to undo or toast.
-  useEffect(() => {
-    /**
-     * 🔴 Never seed a board that is not yours (#2017). Seeding writes, and the
-     * write lands on YOUR row — so on an empty admin board this would silently
-     * mint a partner board the viewer never asked for, out of the brief,
-     * while they believed they were looking at ours.
-     */
-    if (didSeedRef.current || !id || isPending || isReadOnly) {
-      return
-    }
-    const els = moodboard?.elements
-    if (Array.isArray(els) && els.length > 0) {
-      didSeedRef.current = true // already populated
-      return
-    }
-    didSeedRef.current = true
-    ;(async () => {
+  /**
+   * #2019 — STARTING A BOARD IS A DECISION, NOT A SIDE EFFECT OF ARRIVING.
+   *
+   * Opening an empty board used to POST `/moodboard/seed` on mount. Two things
+   * were wrong with that, and the toast added later only softened one of them:
+   *
+   *  1. Work you did not do, presented as work already there, is
+   *     indistinguishable from work someone else did — and the moment they
+   *     save, it becomes theirs.
+   *  2. It decided FOR them. A partner looking at our board to see what we
+   *     wanted, with no intention of authoring anything yet, came away owning a
+   *     board built out of a brief they had not read.
+   *
+   * So the seed now runs from a button. The partner chooses whether to start at
+   * all, and from what.
+   */
+  const startBoard = useCallback(
+    async (from: "brief" | "blank") => {
+      if (!id) {
+        return
+      }
+      setIsStarting(true)
       try {
-        const { moodboard: scene } = await seedMoodboard()
-        if (!scene) {
+        /**
+         * The save route is get-or-create per owner, so an empty scene IS the
+         * creation. Sent explicitly rather than waiting for their first stroke,
+         * so the board exists — and reads as theirs in the switcher — from the
+         * moment they ask for it.
+         */
+        const blank: MoodboardData = {
+          type: "excalidraw",
+          version: 2,
+          source: "https://excalidraw.com",
+          elements: [],
+          appState: {},
+          files: {},
+        }
+        await saveMoodboard(blank as any)
+
+        if (from === "blank") {
+          loadScene(blank)
+          setIsDirty(false)
+          toast.success(t("partner.designs.moodboard.startedBlank"))
           return
         }
-        setTimeout(
-          () => loadScene(normalizeMoodboardScene<ExcalidrawElement, BinaryFileData>(scene) ||
-            (scene as MoodboardData)),
-          60
-        )
+
         /**
-         * 🔴 SAY SO (#2019). Opening an empty board POSTs `/moodboard/seed`,
-         * and the partner landed on a canvas full of frames with nothing
-         * anywhere telling them we had just built it from the brief. Work you
-         * did not do, presented as work already there, is indistinguishable
-         * from work someone else did — and the moment they save, it becomes
-         * theirs.
+         * "From the brief" is deliberately CREATE-THEN-GENERATE, not the seed
+         * route.
          *
-         * The write itself is safe and stays: `seedDesignMoodboardIfEmpty`
-         * returns null when the board already has elements, so it cannot
-         * clobber. What was missing was the sentence.
+         * Generate is the path that is proven end to end — it persists to the
+         * partner's own board and an integration test reads that board back.
+         * `POST /moodboard/seed` returns `{ moodboard: null }` for a partner who
+         * demonstrably has no board, while calling `seedDesignMoodboardIfEmpty`
+         * directly with the same design and a fresh partner id builds a
+         * 52-element scene; I could not account for the difference, and a
+         * button that silently does nothing is the exact defect this whole
+         * change set has been removing. Unexplained is not the same as safe, so
+         * this uses the route whose behaviour is established.
+         *
+         * Generate also fails LOUDLY when there is nothing to build from — a
+         * 400 naming what the design is missing — which the catch below
+         * surfaces. The seed route answers that case with a silent null.
          */
-        toast.info(t("partner.designs.moodboard.autoSeeded"))
-      } catch {
-        // best-effort — auto-seed never blocks editing
+        const { moodboard: scene } = await generateMoodboard()
+        loadScene(
+          normalizeMoodboardScene<ExcalidrawElement, BinaryFileData>(scene) ||
+            (scene as MoodboardData)
+        )
+        setIsDirty(false)
+        toast.success(t("partner.designs.moodboard.startedFromBrief"))
+      } catch (err: any) {
+        toast.error(err?.message || t("partner.designs.moodboard.startFailed"))
+      } finally {
+        setIsStarting(false)
       }
-    })()
-  }, [id, isPending, isReadOnly, moodboard, seedMoodboard, loadScene, t])
+    },
+    [id, saveMoodboard, generateMoodboard, loadScene, t]
+  )
 
   const handleGenerate = useCallback(async () => {
     if (!id) {
@@ -610,7 +638,48 @@ export const DesignMoodboard = () => {
             </Text>
           </div>
         ) : (
-          <div className="jyt-moodboard relative w-full h-[calc(100dvh-160px)]">
+          <div className="flex h-[calc(100dvh-160px)] w-full flex-col">
+            {/*
+              #2019 — the partner has no board of their own on this design.
+              Shown ABOVE the canvas rather than instead of it: the board they
+              are looking at is ours, read-only, and being able to read it is
+              exactly how they decide what to put on theirs.
+            */}
+            {!ownBoard ? (
+              <div className="border-ui-border-base bg-ui-bg-subtle flex flex-col gap-y-3 border-b px-6 py-3 sm:flex-row sm:items-center sm:justify-between">
+                <div className="flex min-w-0 flex-col">
+                  <Text size="small" weight="plus">
+                    {t("partner.designs.moodboard.noOwnBoard")}
+                  </Text>
+                  <Text size="small" className="text-ui-fg-subtle">
+                    {otherBoards?.length
+                      ? t("partner.designs.moodboard.noOwnBoardHintOurs")
+                      : t("partner.designs.moodboard.noOwnBoardHintEmpty")}
+                  </Text>
+                </div>
+                <div className="flex flex-wrap items-center gap-2">
+                  <Button
+                    size="small"
+                    variant="secondary"
+                    onClick={() => startBoard("brief")}
+                    disabled={isStarting}
+                    isLoading={isStarting}
+                  >
+                    {t("partner.designs.moodboard.startFromBrief")}
+                  </Button>
+                  <Button
+                    size="small"
+                    variant="primary"
+                    onClick={() => startBoard("blank")}
+                    disabled={isStarting}
+                  >
+                    {t("partner.designs.moodboard.startBlank")}
+                  </Button>
+                </div>
+              </div>
+            ) : null}
+
+          <div className="jyt-moodboard relative w-full flex-1">
             {layersOpen ? (
               <div className="absolute top-14 left-2 z-50 w-64">
                 <MoodboardLayersPanel
@@ -739,6 +808,7 @@ export const DesignMoodboard = () => {
                   : t("partner.designs.moodboard.savedLabel")}
               </Button>
             </div>
+          </div>
           </div>
         )}
       </RouteFocusModal.Body>
