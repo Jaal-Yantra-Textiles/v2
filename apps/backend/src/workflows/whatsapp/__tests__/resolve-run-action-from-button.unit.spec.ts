@@ -8,22 +8,23 @@
  * taps on 2026-09-09 died there, and nine days later the platform reassigned
  * one of those runs away from her for "no response".
  *
- * 🔴 Lazily imported. A top-level import of the handler pulls its workflow
- * graph at module-eval time; if that throws, jest reports the suite as 0
- * tests beside a green "passed" line.
+ * ⚠️ Imported STATICALLY, like every other spec in src/. A dynamic
+ * `await import("../whatsapp-message-handler")` is what jest's unit config
+ * wants, but `medusa build` compiles src/** — __tests__ included — under
+ * `moduleResolution: node16`, which rejects a relative dynamic import with no
+ * file extension (TS2835). That broke prod-build while the unit suite and a
+ * scoped tsc both stayed green.
+ *
+ * The cost is that a module-eval failure here takes the whole suite down
+ * rather than failing one test — so read the **Test Suites:** line, not just
+ * Tests:, when this file goes quiet.
  */
-let resolveRunActionFromButton: any
-
-beforeAll(async () => {
-  ;({ resolveRunActionFromButton } = await import(
-    "../whatsapp-message-handler"
-  ))
-})
+import { resolveRunActionFromButton } from "../whatsapp-message-handler"
 
 describe("resolveRunActionFromButton", () => {
-  it("loads the module under test", () => {
-    // Guards the lazy import above: if the handler fails to evaluate, this
-    // fails loudly instead of the suite reporting nothing.
+  it("the module under test actually loaded", () => {
+    // Cheap canary. With a static import a load failure kills the suite, so
+    // this only catches the milder case of the export going missing.
     expect(typeof resolveRunActionFromButton).toBe("function")
   })
 

@@ -2397,6 +2397,13 @@
         "required": false,
         "placeholder": "{{ $last.override_currency }}",
         "description": "Who the order is for — or `null` for a draft with no buyer attached yet (#1817). Most designs carry no customer link, and a cart is perfectly able to acquire one later, at checkout or when the order is claimed. / customer_id: string | null design_ids: string[] currency_code?: string price_overrides?: Record<string, number> /** Currency of price_overrides (e.g. \"inr\"). Defaults to store default."
+      },
+      {
+        "name": "country_code",
+        "type": "string",
+        "required": false,
+        "placeholder": "{{ $last.country_code }}",
+        "description": "Who the order is for — or `null` for a draft with no buyer attached yet (#1817). Most designs carry no customer link, and a cart is perfectly able to acquire one later, at checkout or when the order is claimed. / customer_id: string | null design_ids: string[] currency_code?: string price_overrides?: Record<string, number> /** Currency of price_overrides (e.g. \"inr\"). Defaults to store default. */ override_currency?: string /** 🔴 ISO-2 the buyer is purchasing from. Optional, and a cart without it is BROKEN rather than merely incomplete: the checkout link cannot be built, a hand-written one is re-regioned to `countries[0]` (Albania, in prod), and `/store/shipping-options` cannot geo-filter, so an Indian courier is offered to a European buyer."
       }
     ],
     "source": "custom_ts",
@@ -2677,6 +2684,42 @@
     ],
     "source": "custom_ts",
     "sourceFile": "src/workflows/designs/list-single-design.ts"
+  },
+  "save-design-moodboard": {
+    "fields": [
+      {
+        "name": "designId",
+        "type": "string",
+        "required": true,
+        "placeholder": "{{ $last.designId }}"
+      },
+      {
+        "name": "owner",
+        "type": "string",
+        "required": true,
+        "placeholder": "{{ $last.owner }}"
+      },
+      {
+        "name": "scene",
+        "type": "string",
+        "required": true,
+        "placeholder": "{{ $last.scene }}"
+      },
+      {
+        "name": "title",
+        "type": "string",
+        "required": false,
+        "placeholder": "{{ $last.title }}"
+      },
+      {
+        "name": "thumbnail_url",
+        "type": "string",
+        "required": false,
+        "placeholder": "{{ $last.thumbnail_url }}"
+      }
+    ],
+    "source": "custom_ts",
+    "sourceFile": "src/workflows/designs/moodboard/save-design-moodboard.ts"
   },
   "link-design-partner-workflow": {
     "fields": [
@@ -4136,6 +4179,31 @@
     "source": "custom_ts",
     "sourceFile": "src/workflows/inventory/split-inventory-item.ts"
   },
+  "approve-inventory-order-change": {
+    "fields": [
+      {
+        "name": "orderId",
+        "type": "string",
+        "required": true,
+        "placeholder": "{{ $last.orderId }}"
+      },
+      {
+        "name": "changeId",
+        "type": "string",
+        "required": true,
+        "placeholder": "{{ $last.changeId }}"
+      },
+      {
+        "name": "decidedBy",
+        "type": "string",
+        "required": true,
+        "placeholder": "{{ $last.decidedBy }}",
+        "description": "APPROVE a partner's proposed revision of an inventory order (#1752). The admin route runs this post-ship. It promotes the staged draft into the REAL tables — the line set via the existing `update-inventory-order-workflow` (the same code path as the admin order-lines PUT, so totals, the core mirror and any stock posting are all handled identically), and the `tax` charges as real `inventory_order_charge` rows that raise the payable ceiling. Only then is the change marked approved; a failure anywhere leaves it pending for retry (the engine compensates every completed step). / export type ApproveInventoryOrderChangeInput = { orderId: string changeId: string /** Admin actor id, recorded on the change."
+      }
+    ],
+    "source": "custom_ts",
+    "sourceFile": "src/workflows/inventory_orders/approve-inventory-order-change.ts"
+  },
   "create-inventory-order-shipment": {
     "fields": [
       {
@@ -4333,18 +4401,11 @@
         "placeholder": "{{ $last.orderId }}"
       },
       {
-        "name": "lines",
-        "type": "array",
-        "required": false,
-        "placeholder": "{{ $last.lines }}",
-        "description": "ADMIN RECEIPT — record that goods actually turned up, and put them on the books (#2115, #2111). This is the door that did not exist. `partner-complete-inventory-order` posts stock, but only from `Processing`/`Partial` and only when the PARTNER submits delivered lines. An order the carrier marked `Delivered` — the pashminas at Kiyo — could be received through no door at all, and its level stayed at zero with nothing having errored. 🔴 The destination is the ORDER's destination, which for a consignment order is a PARTNER's location. That is deliberate and is half of #2111: material we procured, stocked where the partner will cut it, and deducted there when it becomes a garment. The other half is the consumption gate in `consumption-logs/lib/apply-to-inventory.ts`, and the two ship together — receipt alone would stock material that could never come off again. Idempotency is cumulative, not a flag: the plan measures against `line_fulfillments` and refuses over-receipt, so calling this twice on a fully-received order receives nothing rather than posting twice. / export type ReceiveInventoryOrderInput = { orderId: string /** Omit to receive everything still outstanding."
-      },
-      {
         "name": "stock_location_id",
         "type": "id",
         "required": false,
         "placeholder": "{{ $last.stock_location_id }}",
-        "description": "ADMIN RECEIPT — record that goods actually turned up, and put them on the books (#2115, #2111). This is the door that did not exist. `partner-complete-inventory-order` posts stock, but only from `Processing`/`Partial` and only when the PARTNER submits delivered lines. An order the carrier marked `Delivered` — the pashminas at Kiyo — could be received through no door at all, and its level stayed at zero with nothing having errored. 🔴 The destination is the ORDER's destination, which for a consignment order is a PARTNER's location. That is deliberate and is half of #2111: material we procured, stocked where the partner will cut it, and deducted there when it becomes a garment. The other half is the consumption gate in `consumption-logs/lib/apply-to-inventory.ts`, and the two ship together — receipt alone would stock material that could never come off again. Idempotency is cumulative, not a flag: the plan measures against `line_fulfillments` and refuses over-receipt, so calling this twice on a fully-received order receives nothing rather than posting twice. / export type ReceiveInventoryOrderInput = { orderId: string /** Omit to receive everything still outstanding. */ lines?: Array<{ order_line_id: string; quantity: number }> | null /** Override the order's destination location."
+        "description": "ADMIN RECEIPT — record that goods actually turned up, and put them on the books (#2115, #2111). This is the door that did not exist. `partner-complete-inventory-order` posts stock, but only from `Processing`/`Partial` and only when the PARTNER submits delivered lines. An order the carrier marked `Delivered` — the pashminas at Kiyo — could be received through no door at all, and its level stayed at zero with nothing having errored. 🔴 The destination is the ORDER's destination, which for a consignment order is a PARTNER's location. That is deliberate and is half of #2111: material we procured, stocked where the partner will cut it, and deducted there when it becomes a garment. The other half is the consumption gate in `consumption-logs/lib/apply-to-inventory.ts`, and the two ship together — receipt alone would stock material that could never come off again. Idempotency is cumulative, not a flag: the plan measures against `line_fulfillments` and refuses over-receipt, so calling this twice on a fully-received order receives nothing rather than posting twice. / export type ReceiveInventoryOrderInput = { orderId: string /** Omit to receive everything still outstanding. Repeat an `order_line_id` with different `stock_location_id`s to split one delivery across two destinations (#2144). / lines?: Array<{ order_line_id: string quantity: number stock_location_id?: string | null }> | null /** Override the order's destination location."
       },
       {
         "name": "notes",
@@ -4361,6 +4422,69 @@
     ],
     "source": "custom_ts",
     "sourceFile": "src/workflows/inventory_orders/receive-inventory-order.ts"
+  },
+  "reject-inventory-order-change": {
+    "fields": [
+      {
+        "name": "orderId",
+        "type": "string",
+        "required": true,
+        "placeholder": "{{ $last.orderId }}"
+      },
+      {
+        "name": "changeId",
+        "type": "string",
+        "required": true,
+        "placeholder": "{{ $last.changeId }}"
+      },
+      {
+        "name": "decidedBy",
+        "type": "string",
+        "required": true,
+        "placeholder": "{{ $last.decidedBy }}"
+      },
+      {
+        "name": "reason",
+        "type": "string",
+        "required": false,
+        "placeholder": "{{ $last.reason }}"
+      }
+    ],
+    "source": "custom_ts",
+    "sourceFile": "src/workflows/inventory_orders/reject-inventory-order-change.ts"
+  },
+  "stage-inventory-order-change": {
+    "fields": [
+      {
+        "name": "orderId",
+        "type": "string",
+        "required": true,
+        "placeholder": "{{ $last.orderId }}"
+      },
+      {
+        "name": "partnerId",
+        "type": "string",
+        "required": true,
+        "placeholder": "{{ $last.partnerId }}",
+        "description": "Stage a partner's PROPOSED revision of an inventory order (#1752). The partner route runs this instead of writing the change row itself. It validates BOTH ends (the order belongs to the caller, the line ids are the order's own) and writes the proposal to the single pending `inventory_order_change` row — never to the real line/charge tables. An admin approval (approve-inventory-order-change) promotes it. / export type StageInventoryOrderChangeInput = { orderId: string /** The acting partner id — validated against the order's linked partner."
+      },
+      {
+        "name": "lines",
+        "type": "array",
+        "required": false,
+        "placeholder": "{{ $last.lines }}",
+        "description": "Stage a partner's PROPOSED revision of an inventory order (#1752). The partner route runs this instead of writing the change row itself. It validates BOTH ends (the order belongs to the caller, the line ids are the order's own) and writes the proposal to the single pending `inventory_order_change` row — never to the real line/charge tables. An admin approval (approve-inventory-order-change) promotes it. / export type StageInventoryOrderChangeInput = { orderId: string /** The acting partner id — validated against the order's linked partner. */ partnerId: string /** When present, REPLACES `proposed_lines` with this full desired set."
+      },
+      {
+        "name": "charges",
+        "type": "array",
+        "required": false,
+        "placeholder": "{{ $last.charges }}",
+        "description": "Stage a partner's PROPOSED revision of an inventory order (#1752). The partner route runs this instead of writing the change row itself. It validates BOTH ends (the order belongs to the caller, the line ids are the order's own) and writes the proposal to the single pending `inventory_order_change` row — never to the real line/charge tables. An admin approval (approve-inventory-order-change) promotes it. / export type StageInventoryOrderChangeInput = { orderId: string /** The acting partner id — validated against the order's linked partner. */ partnerId: string /** When present, REPLACES `proposed_lines` with this full desired set. */ lines?: ProposedLine[] /** When present, these charges SUPERSEDE the staged charges of the same `type`; other types are left alone and an amount of 0 withdraws the type. Restating a proposal must not charge for it twice."
+      }
+    ],
+    "source": "custom_ts",
+    "sourceFile": "src/workflows/inventory_orders/stage-inventory-order-change.ts"
   },
   "sync-inventory-shipment-tracking": {
     "fields": [
@@ -5465,6 +5589,13 @@
         "required": true,
         "placeholder": "{{ $last.phone }}",
         "description": "#2122 — the prose carrier template for first contact. A template whose body is scaffolding plus ONE free-text variable, so the sentence a partner reads is written for them rather than assembled from a fixed string. Set it once it is APPROVED in Meta; until then this is unset and the old two-variable welcome template is used exactly as before. 🔴 Deliberately opt-in by env rather than defaulted. `jyt_partner_message_v1` exists as a SPEC in `partner-run-templates.ts`; a spec is not an approval. Pointing at a template that Meta has not approved in every target WABA makes the send fail, and first contact is the one message we cannot afford to drop — a partner who is never greeted never onboards. Flip `WHATSAPP_PROSE_TEMPLATE_ENABLED=true` once it is APPROVED, or name a different carrier outright with `WHATSAPP_PARTNER_WELCOME_PROSE_TEMPLATE`. / const PROSE_TEMPLATE = process.env.WHATSAPP_PARTNER_WELCOME_PROSE_TEMPLATE || (process.env.WHATSAPP_PROSE_TEMPLATE_ENABLED === \"true\" ? TEMPLATE_NAMES.PARTNER_MESSAGE : \"\") export type ConnectPartnerWhatsappInput = { partner_id: string /** Already-normalized digits-only phone with country code."
+      },
+      {
+        "name": "use_prose",
+        "type": "boolean",
+        "required": false,
+        "placeholder": "false",
+        "description": "#2122 — the prose carrier template for first contact. A template whose body is scaffolding plus ONE free-text variable, so the sentence a partner reads is written for them rather than assembled from a fixed string. Set it once it is APPROVED in Meta; until then this is unset and the old two-variable welcome template is used exactly as before. 🔴 Deliberately opt-in by env rather than defaulted. `jyt_partner_message_v1` exists as a SPEC in `partner-run-templates.ts`; a spec is not an approval. Pointing at a template that Meta has not approved in every target WABA makes the send fail, and first contact is the one message we cannot afford to drop — a partner who is never greeted never onboards. Flip `WHATSAPP_PROSE_TEMPLATE_ENABLED=true` once it is APPROVED, or name a different carrier outright with `WHATSAPP_PARTNER_WELCOME_PROSE_TEMPLATE`. / const PROSE_TEMPLATE = process.env.WHATSAPP_PARTNER_WELCOME_PROSE_TEMPLATE || (process.env.WHATSAPP_PROSE_TEMPLATE_ENABLED === \"true\" ? TEMPLATE_NAMES.PARTNER_MESSAGE : \"\") export type ConnectPartnerWhatsappInput = { partner_id: string /** Already-normalized digits-only phone with country code. */ phone: string /** Force the PROSE carrier for this one send, whatever the env says. 🔴 Why per-call and not just the env flag. `WHATSAPP_PROSE_TEMPLATE_ENABLED` is global: flipping it makes EVERY first contact prose, for every new partner, which is not a test — it is a rollout. Wanting to see the carrier work on one test number should not require that decision first. So this opts a single call in. The env flag remains how the rollout happens once the output has actually been read on a phone. Cannot opt a send OUT: `false` and omitted both mean \"whatever the env says\", so this can never silence a rollout that is deliberately on."
       }
     ],
     "source": "custom_ts",
