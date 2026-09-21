@@ -138,7 +138,22 @@ export const NodeItemList = ({
             key={item.id}
             className="flex items-center justify-between gap-x-2 px-6 py-2"
           >
-            <div className="flex min-w-0 flex-col">
+            {/*
+              The picture, where the resolver supplied one. Only the inventory
+              rows do today: a fabric is recognised by how it LOOKS, and this
+              row used to offer a title and an id for it. Rows without one keep
+              their full width rather than reserving space for an empty box —
+              a placeholder on every task and order would cost the drawer its
+              density to say nothing.
+            */}
+            {item.thumbnail ? (
+              <img
+                src={item.thumbnail}
+                alt={item.label}
+                className="bg-ui-bg-subtle size-8 shrink-0 rounded-md object-cover"
+              />
+            ) : null}
+            <div className="flex min-w-0 flex-1 flex-col">
               {/*
                 A row links out only where the target is a real page. Several
                 item types (`materials`) have no admin route of their own, and

@@ -18,7 +18,10 @@
  */
 import { ContainerRegistrationKeys, MedusaError } from "@medusajs/framework/utils"
 import DesignRawMaterialGroupLink from "../../../links/design-raw-material-group"
-import { coreScene } from "../../../modules/designs/lib/moodboard-ownership"
+import {
+  ownerScene,
+  type MoodboardOwner,
+} from "../../../modules/designs/lib/moodboard-ownership"
 import { saveDesignMoodboardWorkflow } from "./save-design-moodboard"
 import {
   buildMoodboardScene,
@@ -170,7 +173,13 @@ export async function loadDesignForMoodboard(
 export async function buildDesignMoodboard(
   scope: any,
   designId: string,
-  opts?: BuildSceneOptions
+  opts?: BuildSceneOptions,
+  /**
+   * Whose board is being built onto. Defaults to core so every admin-side
+   * caller keeps its behaviour; the partner routes pass their own partner so a
+   * generate merges onto — and lands on — the partner's board (#2017).
+   */
+  owner: MoodboardOwner = { type: "core" }
 ): Promise<BuiltDesignMoodboard | null> {
   const design = await loadDesignForMoodboard(scope, designId)
 
@@ -180,11 +189,13 @@ export async function buildDesignMoodboard(
     return null
   }
 
-  // The core board row wins over the legacy blob — merging onto the blob while
-  // saving to the row is how a generate lands where nobody reads (#2017).
-  const existing = coreScene(
+  // The owner's own row wins over the legacy blob — merging onto the blob while
+  // saving to the row is how a generate lands where nobody reads (#2017). For a
+  // partner the blob is never the base at all: it is the admin's board.
+  const existing = ownerScene(
     (design as any).moodboards,
-    (design as any).moodboard
+    (design as any).moodboard,
+    owner
   ) as MoodboardScene | null
   const scene = buildMoodboardScene(input, opts)
   const merged = mergeFramesIntoScene(existing, scene)
@@ -201,18 +212,29 @@ export async function buildDesignMoodboard(
  */
 export async function seedDesignMoodboardIfEmpty(
   scope: any,
-  designId: string
+  designId: string,
+  /**
+   * Whose board to seed. Defaults to core (the invite-mint and admin paths);
+   * the partner seed route passes the partner, so a designer opening an empty
+   * board gets THEIR OWN first draft instead of minting ours.
+   */
+  owner: MoodboardOwner = { type: "core" }
 ): Promise<MoodboardScene | null> {
   // First seed of an empty board → include the workspace scaffold.
-  const built = await buildDesignMoodboard(scope, designId, WORKSPACE_SCENE_OPTS)
+  const built = await buildDesignMoodboard(
+    scope,
+    designId,
+    WORKSPACE_SCENE_OPTS,
+    owner
+  )
   if (!built || built.existingHasElements) {
     return null
   }
 
-  // Writes the CORE board row, not `design.moodboard` — the column is the
+  // Writes the OWNER'S board row, not `design.moodboard` — the column is the
   // fallback for unmigrated designs, never a write target (#2017).
   await saveDesignMoodboardWorkflow(scope).run({
-    input: { designId, owner: { type: "core" }, scene: built.merged },
+    input: { designId, owner, scene: built.merged },
   })
   return built.merged
 }

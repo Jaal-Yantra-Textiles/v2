@@ -101,6 +101,13 @@ export type NodeItem = {
   sublabel: string | null
   status: string | null
   href: string | null
+  /**
+   * An image for the row, where the resolver supplied one — the inventory
+   * node's materials today. Optional: most node kinds have no picture, and the
+   * row renders text-only rather than an empty box. Mirrors `NodeItem` in
+   * `src/lib/graph/types.ts`, which is where the field is documented.
+   */
+  thumbnail?: string | null
   props: GraphProp[]
   remove: NodeItemRemoval | null
 }

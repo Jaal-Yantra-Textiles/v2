@@ -2373,6 +2373,174 @@ const SEED_PASSWORD = "e2etest123!"
 const SEED_FILE = path.resolve(__dirname, "../../apps/backend/.e2e-seed.json")
 
 /**
+ * The design-detail LAYOUT fixture — a partner-OWNED design that has both
+ * reference images and a photographed material on its BOM.
+ *
+ * Both halves matter and neither is decoration:
+ *  - `media_files` is what the header media strip renders. Without it the strip
+ *    shows its empty state and a spec asserting "the thumbnails are in the
+ *    header" would pass against a page with no thumbnails anywhere.
+ *  - the raw material's `media` is what the admin BOM rows render. The photos
+ *    were already on the wire (`inventory_item.raw_materials.*`); the admin
+ *    section simply printed the inventory id instead.
+ *
+ * `owner_partner_id` AND the design↔partner link: the link is what lets the
+ * partner GET the design at all, the column is what makes `is_owner` true and
+ * therefore what renders the header card the strip lives in. Seeding one
+ * without the other produces a 404 or a headerless page — two different
+ * failures that look identical from the spec.
+ *
+ * Read-only for every consumer, so re-runs and Playwright retries find it
+ * unchanged.
+ */
+async function seedDesignDetailLayout(container: any): Promise<{
+  partnerId: string
+  email: string
+  password: string
+  designId: string
+  designName: string
+  mediaUrl: string
+  materialTitle: string
+  materialPhotoUrl: string
+}> {
+  const partnerModule: any = container.resolve("partner")
+  const authModule = container.resolve(Modules.AUTH)
+  const designService: any = container.resolve("design")
+  const inventoryService: any = container.resolve(Modules.INVENTORY)
+  const rawMaterialService: any = container.resolve("raw_materials")
+  const remoteLink: any = container.resolve(ContainerRegistrationKeys.LINK)
+
+  const stamp = Date.now()
+
+  const created = await partnerModule.createPartners({
+    name: `E2E Layout Partner ${stamp}`,
+    handle: `e2e-layout-${stamp}`,
+    status: "active",
+    is_verified: true,
+  })
+  const partnerId = Array.isArray(created) ? created[0].id : created.id
+
+  const email = `e2e-layout-${stamp}@jyt.test`
+  await partnerModule.createPartnerAdmins({
+    email,
+    first_name: "E2E",
+    last_name: "Layout",
+    role: "admin",
+    partner_id: partnerId,
+  })
+
+  const hashConfig = { logN: 15, r: 8, p: 1 }
+  const passwordHash = await Scrypt.kdf(SEED_PASSWORD, hashConfig)
+  const authIdentity: any = await authModule.createAuthIdentities({
+    provider_identities: [
+      {
+        provider: "emailpass",
+        entity_id: email,
+        provider_metadata: { password: passwordHash.toString("base64") },
+      },
+    ],
+    app_metadata: { partner_id: partnerId },
+  })
+  const authIdentityId = Array.isArray(authIdentity)
+    ? authIdentity[0].id
+    : authIdentity.id
+
+  // Without the verification row the login page shows "verify your email" and
+  // never navigates — see seedActionFirstRun.
+  const now = new Date()
+  await authModule.createAuthVerifications([
+    {
+      auth_identity_id: authIdentityId,
+      entity_id: email,
+      entity_type: "email",
+      code_provider: "emailpass",
+      requested_at: now,
+      verified_at: now,
+    },
+  ])
+
+  /**
+   * A data URI, not a CDN link. The spec asserts the thumbnails RENDER, and a
+   * fixture that depends on the network turns an offline run (or a dead bucket)
+   * into a layout failure. A 1×1 PNG loads everywhere and is still a real
+   * `<img src>` as far as the page is concerned.
+   */
+  const PIXEL =
+    "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg=="
+
+  const designName = `Layout Fixture Tunic (e2e ${stamp})`
+  const design = await designService.createDesigns({
+    name: designName,
+    description: "e2e design-detail layout fixture (media strip + photo BOM)",
+    design_type: "Original",
+    status: "Approved",
+    priority: "Medium",
+    // is_owner — what makes the partner header card (and its media strip) render.
+    owner_partner_id: partnerId,
+    media_files: [
+      { id: `mf_${stamp}_1`, url: PIXEL, isThumbnail: true },
+      { id: `mf_${stamp}_2`, url: PIXEL },
+    ],
+  })
+  const designId = (Array.isArray(design) ? design[0] : design).id as string
+
+  // Access: the partner design routes look this link up before anything else.
+  await remoteLink.create({
+    design: { design_id: designId },
+    partner: { partner_id: partnerId },
+  })
+
+  const materialTitle = `E2E Mill Spun Pashmina ${stamp}`
+  const inventoryItem = await inventoryService.createInventoryItems({
+    title: materialTitle,
+    sku: `e2e-layout-${stamp}`,
+    requires_shipping: false,
+  })
+  const inventoryItemId = (
+    Array.isArray(inventoryItem) ? inventoryItem[0] : inventoryItem
+  ).id as string
+
+  /**
+   * The canonical prod media shape — `{ files: [...] }`. Deliberately NOT a
+   * bare array: that is the shape the partner side used to read, and the one
+   * the admin helper had to grow `mediaUrls` to unwrap. A fixture in the easy
+   * shape would pass on a helper that cannot read production.
+   */
+  const rawMaterial = await rawMaterialService.createRawMaterials({
+    name: materialTitle,
+    composition: "70% Pashmina / 30% Silk",
+    color: "Ecru",
+    media: { files: [PIXEL] },
+  })
+  const rawMaterialId = (
+    Array.isArray(rawMaterial) ? rawMaterial[0] : rawMaterial
+  ).id as string
+
+  // Same shape `create-raw-material` writes in production, `data` included.
+  await remoteLink.create({
+    [Modules.INVENTORY]: { inventory_item_id: inventoryItemId },
+    raw_materials: { raw_materials_id: rawMaterialId },
+    data: { raw_materials_id: rawMaterialId, inventory_id: inventoryItemId },
+  })
+
+  await remoteLink.create({
+    design: { design_id: designId },
+    [Modules.INVENTORY]: { inventory_item_id: inventoryItemId },
+    data: { planned_quantity: 2 },
+  })
+
+  return {
+    partnerId,
+    email,
+    password: SEED_PASSWORD,
+    designId,
+    designName,
+    mediaUrl: PIXEL,
+    materialTitle,
+    materialPhotoUrl: PIXEL,
+  }
+}
+/**
  * #2018 — a design work-order the partner has been OFFERED and not yet
  * accepted, so the action-first layout can be driven in a real browser.
  *
@@ -3029,6 +3197,9 @@ export default async function e2eSeed({ container }: ExecArgs) {
   logger.info("E2E seed: #2018 action-first OFFERED design work-order...")
   const actionFirst = await seedActionFirstRun(container)
 
+  logger.info("E2E seed: design-detail layout fixture (media strip + photo BOM)...")
+  const designLayout = await seedDesignDetailLayout(container)
+
   logger.info("E2E seed: #1752 partner inventory-order change fixtures (admin approve + partner propose)...")
   const invChange = await seedInventoryOrderChange(container)
 
@@ -3244,6 +3415,17 @@ export default async function e2eSeed({ container }: ExecArgs) {
     invChangePartnerPassword: invChange.partnerPassword,
     invChangePartnerId: invChange.partnerId,
     invChangePartnerLineLabel: invChange.partnerLineLabel,
+    // Design-detail layout — consumed by partner-design-media-strip.spec.ts
+    // (@partnerui) and admin-design-material-photos.spec.ts. READ-ONLY: neither
+    // spec mutates the design, so re-runs and retries see the same page.
+    layoutPartnerId: designLayout.partnerId,
+    layoutEmail: designLayout.email,
+    layoutPassword: designLayout.password,
+    layoutDesignId: designLayout.designId,
+    layoutDesignName: designLayout.designName,
+    layoutMediaUrl: designLayout.mediaUrl,
+    layoutMaterialTitle: designLayout.materialTitle,
+    layoutMaterialPhotoUrl: designLayout.materialPhotoUrl,
   }
 
   // Last, and before the seed file is written: a run that took the house store

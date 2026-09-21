@@ -313,13 +313,33 @@ test.describe("Moodboard insert blocks + construction (#1113 A/B)", () => {
        * The admin is not the owner of a partner's board, so it arrives under
        * `others` — read-only, which is the point.
        */
+      /**
+       * 🔴 THIS partner's board, found by ID — not "the first partner board".
+       *
+       * `inviteDesignId` is a SHARED seed design and every spec that touches it
+       * mints a fresh invited designer. Since the generate and seed routes
+       * became per-owner too, each of those designers gets a board row of their
+       * own: this design carries three. `find(owner_type === "partner")` then
+       * returns whichever happens to sort first — a board seeded from the brief,
+       * with its frames at the default opacity 100 — and the test reported that
+       * a frame it had just saved at 0 had not persisted.
+       *
+       * The board the save targeted is the only one that answers the question,
+       * so ask the partner which one is theirs and look that id up.
+       */
+      const ownBoardId = (
+        await (await partner.get(`/partners/designs/${designId}/moodboards`)).json()
+      ).own?.id
+      expect(ownBoardId).toBeTruthy()
+
       const boards = await (
         await admin.get(`/admin/designs/${designId}/moodboards`)
       ).json()
       const partnerBoard = (boards.others ?? []).find(
-        (b: any) => b.owner_type === "partner"
+        (b: any) => b.id === ownBoardId
       )
       expect(partnerBoard).toBeTruthy()
+      expect(partnerBoard.owner_type).toBe("partner")
       expect(partnerBoard.is_own).toBe(false)
       const savedFrame = (partnerBoard.scene?.elements ?? []).find(
         (e: any) => e.type === "frame"

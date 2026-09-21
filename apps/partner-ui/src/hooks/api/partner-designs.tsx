@@ -276,6 +276,11 @@ export const useGenerateMoodboard = (
     },
     onSuccess: async (data, variables, onMutateResult, context) => {
       await queryClient.invalidateQueries({ queryKey: partnerDesignsQueryKeys.detail(id) })
+      // #2017 — generate now persists to the partner's OWN board row, and a
+      // first generate MINTS that row. Without this the switcher still reads
+      // `own: null` and offers them only our board, read-only, while their
+      // freshly generated one sits on the canvas in front of them.
+      await queryClient.invalidateQueries({ queryKey: partnerMoodboardsKey(id) })
       options?.onSuccess?.(data, variables, onMutateResult, context)
     },
     ...options,
