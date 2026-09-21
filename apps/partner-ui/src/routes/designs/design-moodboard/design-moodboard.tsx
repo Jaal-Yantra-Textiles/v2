@@ -216,6 +216,44 @@ export const DesignMoodboard = () => {
     }
   }, [])
 
+  /**
+   * 🔴 Keep the RouteFocusModal open while Excalidraw's own dialogs are used.
+   *
+   * Excalidraw portals its dialogs to `document.body`, OUTSIDE our modal's
+   * content. Radix treats a pointerdown out there as "clicked outside" and
+   * closes us — so once `moodboard.css` restores pointer-events to that portal,
+   * the first click on PNG would export nothing and shut the editor instead.
+   *
+   * Stopped at the CONTAINER on the way up, not at `document` on the way down:
+   * a capture-phase listener would swallow the event before the button ever
+   * saw it, which is the same dead click by another route. Here the button
+   * handles it first, then the bubble stops before Radix's document listener.
+   */
+  useEffect(() => {
+    const swallow = (e: Event) => e.stopPropagation()
+    const wired = new WeakSet<Element>()
+
+    const wire = () => {
+      document
+        .querySelectorAll<HTMLElement>("body > .excalidraw-modal-container")
+        .forEach((el) => {
+          if (wired.has(el)) {
+            return
+          }
+          wired.add(el)
+          // Both, because Radix listens for pointerdown and focus escapes.
+          el.addEventListener("pointerdown", swallow)
+          el.addEventListener("mousedown", swallow)
+          el.addEventListener("touchstart", swallow)
+        })
+    }
+
+    wire()
+    const observer = new MutationObserver(wire)
+    observer.observe(document.body, { childList: true })
+    return () => observer.disconnect()
+  }, [])
+
   const apiRef = useRef<ExcalidrawImperativeAPI | null>(null)
   const didInitRef = useRef(false)
   const [isDirty, setIsDirty] = useState(false)
@@ -240,6 +278,7 @@ export const DesignMoodboard = () => {
     own: ownBoard,
     others: otherBoards,
     usedLegacyFallback,
+    isPending: boardsPending,
   } = usePartnerDesignMoodboards(id || "", { enabled: !!id })
   const [selectedBoardId, setSelectedBoardId] = useState<string | null>(null)
 
@@ -345,6 +384,39 @@ export const DesignMoodboard = () => {
     })
     api.scrollToContent((scene.elements ?? []) as any, { fitToContent: true })
   }, [])
+
+  /**
+   * 🔴 `initialData` IS READ ONCE, AT MOUNT.
+   *
+   * Two things arrive after that and neither reached the canvas:
+   *
+   *  1. The board itself. The editor was gated on the DESIGN query while the
+   *     scene comes from the BOARDS query, so on a fresh load Excalidraw
+   *     mounted with an empty `initialData` and never saw the board. The tell
+   *     was precise and easy to misread as a rendering bug: the canvas sat at
+   *     30% zoom — `scrollToContent` had fitted to the elements' real extent —
+   *     with nothing drawn, and Excalidraw's own export answered "Cannot
+   *     export empty canvas". The board was on the wire and in React state the
+   *     whole time. The mount gate below fixes that case.
+   *  2. A different board, picked in the switcher. Same cause, no gate can fix
+   *     it: the component does not remount.
+   *
+   * So the scene is pushed IMPERATIVELY whenever the active board changes.
+   * `loadScene` triggers Excalidraw's `onChange`, which would light up Save on
+   * work the partner has not done, so the dirty flag is cleared after.
+   */
+  const loadedBoardRef = useRef<string | null>(null)
+  useEffect(() => {
+    const api = apiRef.current
+    const boardId = activeBoard?.id ?? null
+    if (!api || boardId === loadedBoardRef.current) {
+      return
+    }
+    loadedBoardRef.current = boardId
+    loadScene((moodboard ?? { elements: [], files: {}, appState: {} }) as MoodboardData)
+    setIsDirty(false)
+  }, [activeBoard, moodboard, loadScene])
+
 
   /**
    * #2019 — STARTING A BOARD IS A DECISION, NOT A SIDE EFFECT OF ARRIVING.
@@ -631,7 +703,7 @@ export const DesignMoodboard = () => {
               {t("partner.designs.missingId")}
             </Text>
           </div>
-        ) : isPending ? (
+        ) : isPending || boardsPending ? (
           <div className="px-6 py-4">
             <Text size="small" className="text-ui-fg-subtle">
               {t("labels.loading")}
