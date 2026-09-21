@@ -115,6 +115,10 @@ import {
   listPartnerPriorLines,
 } from "../../../../workflows/payment_submissions/lib/run-claims"
 import { PAYMENT_SUBMISSIONS_MODULE } from "../../../../modules/payment_submissions"
+import {
+  releaseRunOnDependencyAttach,
+  type AttachReleaseOutcome,
+} from "../../../../workflows/production-runs/lib/release-dependent-runs"
 
 export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
   const id = req.params.id
@@ -501,7 +505,50 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
   }
 
   await productionRunService.updateProductionRuns({ id, ...update })
-  const updated = await productionRunService.retrieveProductionRun(id)
+  let updated = await productionRunService.retrieveProductionRun(id)
+
+  /**
+   * #2214 — a dependency attached to an upstream that is ALREADY met has no
+   * event left to release it.
+   *
+   * Release is driven by the upstream's TRANSITION: the subscriber fires when
+   * an inventory order reaches `Delivered`. Attach the order three days after
+   * it was delivered and that transition is in the past — the run waits
+   * forever, `approved`/`idle`, looking exactly like a run waiting correctly.
+   *
+   * 🔴 SO THIS PATCH CAN NOW COMMISSION A PARTNER. When every upstream turns
+   * out to be met, the run dispatches from here: tasks are created and the
+   * partner is messaged. That is the correct outcome — the cloth is demonstrably
+   * there — but it makes attaching a dependency an outward-facing act, and the
+   * response says which so the caller is never surprised by it.
+   *
+   * Only ever when the run ENDS UP with a dependency; clearing one leaves the
+   * run parked exactly as before. Best-effort: the attach above is committed,
+   * and a release that could not be evaluated must not fail the write.
+   */
+  let dependencyRelease: AttachReleaseOutcome | null = null
+  if (
+    body.depends_on_inventory_order_ids !== undefined &&
+    update.depends_on_inventory_order_ids
+  ) {
+    dependencyRelease = await releaseRunOnDependencyAttach(req.scope, id, {
+      by: (update.depends_on_inventory_order_ids as string[]).join(", "),
+      kind: "inventory order",
+    })
+    /*
+     * Re-read when it actually went. A dispatch moves `dispatch_state`,
+     * `dispatched_template_ids` and the run's status, and returning the row as
+     * it looked BEFORE that would hand the caller a response whose
+     * `dependency_release` says "dispatched" beside a run that still reads
+     * idle — the two halves of one response disagreeing about what just
+     * happened.
+     */
+    if (dependencyRelease.result === "dispatched") {
+      updated = await productionRunService
+        .retrieveProductionRun(id)
+        .catch(() => updated)
+    }
+  }
 
   /**
    * A correction to the money must reach the DRAFT payout this run pre-filled.
@@ -679,6 +726,12 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
     ...(touchesMaterials
       ? { materials: await readRunAllocation(req.scope, id) }
       : {}),
+    /**
+     * What attaching the dependency DID, when one was attached (#2214). Null
+     * when this request did not touch `depends_on_inventory_order_ids`, or
+     * cleared it. `dispatched` here means a partner has just been messaged.
+     */
+    ...(dependencyRelease ? { dependency_release: dependencyRelease } : {}),
     /**
      * The Draft this correction CREATED, when pricing a completed run that had
      * none. Stated for the same reason as `refreshed_draft_payouts` below: so

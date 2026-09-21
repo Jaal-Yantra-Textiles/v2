@@ -250,3 +250,155 @@ export const releaseRunsAwaitingInventoryOrder = async (
 
   return outcomes
 }
+
+/**
+ * The same question, asked at ATTACH time instead of on the upstream's event
+ * (#2214).
+ *
+ * Everything above is driven by a TRANSITION: an inventory order reaches
+ * `Delivered`, a run reaches `completed`, a subscriber fires, the waiting runs
+ * are reconsidered. That is the whole release mechanism, and it has a hole in
+ * it that nothing above can see.
+ *
+ * 🔴 ATTACHING A DEPENDENCY TO AN UPSTREAM THAT IS ALREADY MET PRODUCES A RUN
+ * WAITING FOR AN EVENT THAT HAS ALREADY HAPPENED. The order was delivered on
+ * Thursday; the dependency was attached on Sunday; there is no transition left
+ * to fire, ever. The run sits `approved`/`idle` holding a perfectly good set of
+ * template ids, indistinguishable from a run waiting correctly — and it reads
+ * as the HEALTHIEST row on the board to anyone asking "does this run have what
+ * it needs?", because it does.
+ *
+ * Measured on prod 2026-09-21: `prod_run_01M2RV80NQJRKKHJE4S99FQ4QG` depended
+ * on an order delivered 2026-09-17 18:17, attached 2026-09-20, and had
+ * dispatched nothing three days later.
+ *
+ * So every path that writes `depends_on_*` asks here afterwards. The decision
+ * itself is still `releaseRunIfReady` — the policy fallback, the id checks and
+ * the dispatch all stay in one place, and this function only decides whether it
+ * is worth asking.
+ *
+ * ## Two deliberate narrowings
+ *
+ * ⚠️ ONLY when the run ends up WITH a dependency. Clearing the list (`null` /
+ * `[]`) leaves the run parked exactly as it is today. Clearing means an order
+ * was cancelled rather than delivered, and a run with no upstream edge is not
+ * "released" — it is simply a parked run, which is what the board already calls
+ * it. Dispatching those would change what parked means for every run in the
+ * system, which is a much larger claim than this fix is making.
+ *
+ * ⚠️ Never throws. The attach itself is already committed by the time we get
+ * here; failing the request afterwards would tell the caller their write did
+ * not happen when it did.
+ *
+ * 🔴 AND NOTE WHAT THIS MAKES AN ATTACH INTO. `releaseRunIfReady` dispatches:
+ * it creates tasks and MESSAGES A PARTNER. After this, editing a field on a run
+ * can commission a human being. That is the intent — it is the whole point of a
+ * dependency being met — but every caller should say so out loud rather than
+ * present it as a quiet field update.
+ */
+export type AttachReleaseOutcome =
+  | ReleaseOutcome
+  /** Not a release candidate. `reason` says why, for the caller's response. */
+  | { run_id: string; result: "not_evaluated"; reason: string }
+
+/** Every dependency id a run carries, of either kind. */
+const dependencyCount = (run: any): number =>
+  cleanIds(run?.depends_on_run_ids).length +
+  cleanIds(run?.depends_on_inventory_order_ids).length
+
+export const releaseRunOnDependencyAttach = async (
+  container: any,
+  runId: string,
+  /** What was attached, and which kind — for the log and the hand-off notice. */
+  attached: {
+    by: string
+    kind: "inventory order" | "production run"
+  }
+): Promise<AttachReleaseOutcome> => {
+  /*
+   * ⚠️ Even the logger is resolved defensively. This function's contract is
+   * that it never throws — it runs AFTER the attach has committed, so throwing
+   * here would report a failed write that actually succeeded. A container
+   * without a logger (a caller under test, a partially built scope) must still
+   * get an answer, not an exception.
+   */
+  let logger: any
+  try {
+    logger = container.resolve(ContainerRegistrationKeys.LOGGER)
+  } catch {
+    logger = null
+  }
+  if (!logger?.info) {
+    logger = { info: () => {}, warn: () => {}, error: () => {} }
+  }
+
+  const notEvaluated = (reason: string): AttachReleaseOutcome => ({
+    run_id: runId,
+    result: "not_evaluated",
+    reason,
+  })
+
+  let run: any
+  try {
+    const productionRunService: ProductionRunService = container.resolve(
+      PRODUCTION_RUNS_MODULE
+    )
+    run = await productionRunService.retrieveProductionRun(runId)
+  } catch (e: any) {
+    logger.warn(
+      `[dependency-attached] could not re-read run ${runId} after attach: ${e?.message}`
+    )
+    return notEvaluated("the run could not be read back")
+  }
+
+  if (String(run?.status) !== RELEASABLE_STATUS) {
+    return notEvaluated(`run is ${run?.status}, not ${RELEASABLE_STATUS}`)
+  }
+  if (run?.dispatch_state === "completed") {
+    return notEvaluated("run has already dispatched")
+  }
+  if (!dependencyCount(run)) {
+    return notEvaluated("run carries no dependency")
+  }
+
+  const outcome = await releaseRunIfReady(container, run)
+
+  switch (outcome.result) {
+    case "dispatched":
+      logger.info(
+        `[dependency-attached] released run ${outcome.run_id} on attach of ${attached.kind} ${attached.by} — every upstream was ALREADY met, so no event would ever have fired${
+          outcome.via === "policy_default"
+            ? " (templates from the dispatch-defaults policy, not an approval)"
+            : ""
+        }`
+      )
+      break
+    case "waiting":
+      /* The ordinary case, and not a problem: the event path takes it from here. */
+      logger.info(
+        `[dependency-attached] run ${outcome.run_id} is waiting for ${outcome.reason}`
+      )
+      break
+    case "no_templates":
+      logger.info(
+        `[dependency-attached] run ${outcome.run_id} is ready but no templates were recorded — dispatch by hand`
+      )
+      await notifyDispatchByHand(
+        container,
+        {
+          runId: outcome.run_id,
+          releasedBy: attached.by,
+          releasedByKind: attached.kind,
+        },
+        logger
+      )
+      break
+    case "failed":
+      logger.error(
+        `[dependency-attached] run ${outcome.run_id} failed to dispatch: ${outcome.message}`
+      )
+      break
+  }
+
+  return outcome
+}

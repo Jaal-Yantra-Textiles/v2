@@ -3,6 +3,7 @@ import {
   selectDispatchInput,
   type DispatchSelection,
 } from "../../../workflows/production-runs/lib/dispatch-selection"
+import { releaseRunOnDependencyAttach } from "../../../workflows/production-runs/lib/release-dependent-runs"
 
 /**
  * Auto-dispatch of the children an approval just created (#1268).
@@ -93,6 +94,52 @@ export const autoDispatchApprovedChildren = async (
 
   if (hasCrossRunOrdering(list)) {
     report.deferred_for_ordering = true
+
+    /**
+     * #2214 — deferring is right for SEQUENCING and wrong for an upstream that
+     * is already met.
+     *
+     * A child born waiting on a sibling run is correctly deferred: that sibling
+     * was created moments ago and cannot be `completed`, so the release
+     * subscriber will take it when the sibling finishes. A child born waiting on
+     * an inventory order that was DELIVERED LAST WEEK is a different animal —
+     * the only event that could ever have released it is already in the past,
+     * and returning here leaves it parked forever, indistinguishable from the
+     * sibling case.
+     *
+     * 🔴 The sequencing guarantee is not weakened by asking. `releaseRunIfReady`
+     * dispatches only when EVERY upstream is met, so a child waiting on a
+     * sibling still waits; only the already-satisfied child goes. That is the
+     * same test the subscriber would have applied had an event existed.
+     */
+    for (const child of list) {
+      const inventoryIds = clean(child?.depends_on_inventory_order_ids)
+      const runIds = clean(child?.depends_on_run_ids)
+      if (!inventoryIds.length && !runIds.length) {
+        /* No edge of its own — it is deferred with the batch, as before. */
+        continue
+      }
+
+      const outcome = await releaseRunOnDependencyAttach(scope, child.id, {
+        by: (inventoryIds.length ? inventoryIds : runIds).join(", "),
+        kind: inventoryIds.length ? "inventory order" : "production run",
+      })
+
+      if (outcome.result === "dispatched") {
+        report.dispatched.push(child.id)
+      } else if (outcome.result === "failed") {
+        report.failed.push({
+          production_run_id: child.id,
+          message: outcome.message,
+        })
+      }
+      /*
+       * `waiting` is the expected answer for a properly sequenced child and is
+       * deliberately not reported as anything: it is the batch working. Same
+       * for `no_templates` — `notifyDispatchByHand` has already told a person.
+       */
+    }
+
     return report
   }
 
