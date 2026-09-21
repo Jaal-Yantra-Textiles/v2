@@ -59,6 +59,10 @@ import designPartnersLink from "../../links/design-partners-link"
 import submissionDesignsLink from "../../links/submission-designs-link"
 import submissionTasksLink from "../../links/submission-tasks-link"
 import partnerTaskLink from "../../links/partner-task"
+import {
+  isTaskPayable,
+  taskPayableVerdict,
+} from "./lib/task-payable"
 import PaymentSubmissionsService from "../../modules/payment_submissions/service"
 
 export type CreatePaymentSubmissionInput = {
@@ -1047,15 +1051,30 @@ const validateTasksForSubmissionStep = createStep(
       )
     }
 
-    // 2. Only completed tasks can be submitted for payment
-    const ELIGIBLE_STATUSES = ["completed"]
-    const ineligible = typedTasks.filter(
-      (t) => !ELIGIBLE_STATUSES.includes(t.status)
-    )
+    /*
+     * 2. Only a finished task can be billed.
+     *
+     * The rule itself lives in `lib/task-payable.ts`, shared with
+     * `GET /partners/payment-submissions/payable-tasks`. It used to be a local
+     * `const ELIGIBLE_STATUSES = ["completed"]` here and a second copy in the
+     * partner UI's create screen. They agreed — but nothing MADE them agree,
+     * and a client on a stale bundle offering a task this step then refuses
+     * surfaces as a failed submission at the end of a filled-in form.
+     *
+     * 🔴 This check stays regardless of what the read route says. A list can be
+     * stale by the time a form is submitted; this is the moment the money is
+     * decided.
+     */
+    const ineligible = typedTasks.filter((t) => !isTaskPayable(t))
     if (ineligible.length) {
       throw new MedusaError(
         MedusaError.Types.INVALID_DATA,
-        `Tasks not eligible for payment (status must be completed): ${ineligible.map((t) => `${t.title || t.id} (${t.status})`).join(", ")}`
+        `Tasks not eligible for payment: ${ineligible
+          .map(
+            (t) =>
+              `${t.title || t.id} (${taskPayableVerdict(t).reason ?? t.status})`
+          )
+          .join(", ")}`
       )
     }
 
