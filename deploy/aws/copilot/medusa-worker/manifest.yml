@@ -45,6 +45,17 @@ variables:
   # or model is a UI action — no redeploy. With no platform the resolver still
   # degrades to a free model rather than failing.
   WHATSAPP_FREEFORM_CHAT_ENABLED: "true"
+  # The platform's own replies — acknowledgements, refusals, the "ready for your
+  # photo" line — written in the language the partner chose rather than English
+  # constants (#2213, #2216). Same switch for both, deliberately: it is one
+  # behaviour, "we reply in sentences", and one flag is easier to reason about
+  # under load than two.
+  #
+  # 🔴 The English constant is still the floor. Flag off, model absent, slow
+  # (>3.5s) or a reply that fails the id/number checks all send the exact string
+  # that shipped before — so turning this on cannot produce silence, and cannot
+  # produce a message naming a run that does not exist.
+  WHATSAPP_NATURAL_RUN_ACKS_ENABLED: "true"
   DISABLE_MEDUSA_ADMIN: "true"
   # Same reasoning as the server manifest: without an explicit heap ceiling
   # Node sizes old-space from the HOST and is SIGKILLed by the cgroup with no

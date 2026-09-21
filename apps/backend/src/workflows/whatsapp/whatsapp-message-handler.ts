@@ -15,6 +15,8 @@ import { SOCIAL_PROVIDER_MODULE } from "../../modules/social-provider"
 import type SocialProviderService from "../../modules/social-provider/service"
 import { MESSAGING_MODULE } from "../../modules/messaging"
 import { phraseRunAck } from "./whatsapp-run-ack"
+import { phraseLine } from "./whatsapp-line"
+import type { LineSpec } from "./whatsapp-line-prompt"
 import { resolveLivePhotoContextAction } from "./whatsapp-photo-context-routing"
 import { fileInventoryOfferAnalysis } from "./whatsapp-photo-inventory-offer"
 import {
@@ -1021,7 +1023,8 @@ export async function handleIncomingMessage(
           runId,
           partner.partnerId,
           message.text,
-          intentExtras
+          intentExtras,
+          partnerLang
         )
       case "decline":
         // Top-level decline (button tap or text "decline prod_run_…") →
@@ -1048,7 +1051,8 @@ export async function handleIncomingMessage(
           message.from,
           runId,
           partner.partnerId,
-          action.replace("decline_", "") as DeclineReason
+          action.replace("decline_", "") as DeclineReason,
+          partnerLang
         )
       case "view":
       case "status":
@@ -1064,18 +1068,27 @@ export async function handleIncomingMessage(
         await sendHelpMessage(scope, whatsapp, message.from, partner.partnerId, partner.adminName, conversationMeta.language)
         return { handled: true, action: "help" }
       default:
-        await whatsapp.sendTextMessage(
-          message.from,
-          `Unknown action: "${action}". Reply *help* to see available commands.`
-        )
+        await sendPhrasedLine(scope, whatsapp, message.from, partnerLang, {
+          brief:
+            "We did not understand what they asked for. Say so without making them feel stupid, and tell them to reply with the word help to see what they can do. Write that word in English as 'help' because that is what the system listens for.",
+          fallback: `Unknown action: "${action}". Reply *help* to see available commands.`,
+        })
         return { handled: true, action: "unknown", error: action }
     }
   } catch (e: any) {
     console.error(`[whatsapp-handler] Action ${action} failed:`, e.message)
-    await whatsapp.sendTextMessage(
-      message.from,
-      `⚠️ Action failed: ${e.message}\n\nPlease try again or use the web portal.`
-    )
+    /*
+     * 🔴 `e.message` is deliberately NOT given to the model. It is internal
+     * text written for us, and it can carry a run id — which the model would
+     * then be free to paraphrase into a code that refers to nothing. The
+     * partner gets "something went wrong at our end, try again"; the detail
+     * stays in the log and in the fallback, where it is at least verbatim.
+     */
+    await sendPhrasedLine(scope, whatsapp, message.from, partnerLang, {
+      brief:
+        "Something went wrong at our end while doing what they asked — this is our fault, not theirs. Apologise briefly and tell them to try again or use the web portal.",
+      fallback: `⚠️ Action failed: ${e.message}\n\nPlease try again or use the web portal.`,
+    })
     return { handled: true, action, runId, error: e.message }
   }
 }
@@ -1369,6 +1382,28 @@ async function handleAccept(
 }
 
 /**
+ * One reply, in the partner's language, with the constant as the floor (#2216).
+ *
+ * Every call site keeps its original English string as `fallback`, so the flag
+ * being off — or the model being slow, absent or wrong — leaves the partner
+ * with exactly the message they got before. The id never goes to the model; it
+ * is appended by code via `tail`.
+ *
+ * ⚠️ Awaited, like the constant it replaces. The partner is waiting on their
+ * phone either way, and `phraseLine` owns the 3.5s ceiling; firing this off
+ * unawaited would reorder replies against the buttons that follow them.
+ */
+async function sendPhrasedLine(
+  scope: any,
+  whatsapp: WhatsAppService,
+  phone: string,
+  language: string,
+  spec: LineSpec
+): Promise<void> {
+  await whatsapp.sendTextMessage(phone, await phraseLine(scope, { spec, language }))
+}
+
+/**
  * Partner tapped "📸 Add Media" on a started run. Verify the run is in a
  * state where media is allowed (between start and complete), then stash a
  * short-lived pointer on the conversation so the next inbound photo /
@@ -1388,26 +1423,43 @@ async function handleMediaPrompt(
   const productionRunService = scope.resolve(PRODUCTION_RUNS_MODULE) as ProductionRunService
   const run = await productionRunService.retrieveProductionRun(runId).catch(() => null) as any
 
+  const mediaLang = String(conversationMeta.language || "en")
+
   if (!run) {
-    await whatsapp.sendTextMessage(phone, `Run ${runId} not found.`)
+    await sendPhrasedLine(scope, whatsapp, phone, mediaLang, {
+      brief:
+        "They tried to add a photo to a job we cannot find. Tell them we could not find it and they should check the job.",
+      tail: `*Run:* ${runId}`,
+      fallback: `Run ${runId} not found.`,
+    })
     return { handled: true, action: "media_not_found", runId }
   }
   if (run.partner_id !== partnerId) {
-    await whatsapp.sendTextMessage(phone, `Run ${runId} is not assigned to your account.`)
+    await sendPhrasedLine(scope, whatsapp, phone, mediaLang, {
+      brief:
+        "They tried to add a photo to a job that belongs to someone else. Tell them plainly that this job is not theirs, without blaming them.",
+      tail: `*Run:* ${runId}`,
+      fallback: `Run ${runId} is not assigned to your account.`,
+    })
     return { handled: true, action: "media_forbidden", runId }
   }
   if (run.status === "cancelled" || run.status === "completed") {
-    await whatsapp.sendTextMessage(
-      phone,
-      `Run ${runId} is ${run.status} — can't attach media anymore.`
-    )
+    await sendPhrasedLine(scope, whatsapp, phone, mediaLang, {
+      brief:
+        "They tried to add a photo to a job that is already finished with. Tell them photos can no longer be added to it.",
+      facts: [{ label: "Job state", value: String(run.status) }],
+      tail: `*Run:* ${runId}`,
+      fallback: `Run ${runId} is ${run.status} — can't attach media anymore.`,
+    })
     return { handled: true, action: "media_blocked_terminal", runId }
   }
   if (!run.started_at || run.status !== "in_progress") {
-    await whatsapp.sendTextMessage(
-      phone,
-      `Run ${runId} hasn't been started yet. Tap *▶️ Start* first, then add media.`
-    )
+    await sendPhrasedLine(scope, whatsapp, phone, mediaLang, {
+      brief:
+        "They tried to add a photo before starting the job. Tell them to tap the Start button first, then send the photo. Write the button name in English as '▶️ Start' because that is what it says on their screen.",
+      tail: `*Run:* ${runId}`,
+      fallback: `Run ${runId} hasn't been started yet. Tap *▶️ Start* first, then add media.`,
+    })
     return { handled: true, action: "media_blocked_not_started", runId }
   }
 
@@ -1419,10 +1471,16 @@ async function handleMediaPrompt(
   })
 
   const designName = await getDesignName(scope, runId).catch(() => runId)
-  await whatsapp.sendTextMessage(
-    phone,
-    `📸 Ready — send your photo, video, or document in the next message and I'll attach it to run ${runId} (${designName}).\n\n_Window: 10 minutes._`
-  )
+  await sendPhrasedLine(scope, whatsapp, phone, mediaLang, {
+    brief:
+      "We are ready for their photo. Tell them to send the photo, video or document in their next message and it will be attached to this job, and that they have ten minutes.",
+    facts: [
+      { label: "Design", value: designName },
+      { label: "Minutes they have", value: 10 },
+    ],
+    tail: `*Run:* ${runId}`,
+    fallback: `📸 Ready — send your photo, video, or document in the next message and I'll attach it to run ${runId} (${designName}).\n\n_Window: 10 minutes._`,
+  })
   return { handled: true, action: "media_prompt", runId }
 }
 
@@ -1454,7 +1512,9 @@ async function handleDecline(
   phone: string,
   runId: string,
   partnerId: string,
-  reason: DeclineReason
+  reason: DeclineReason,
+  /** The language the partner chose, for any wording we generate (#2216). */
+  language = "en"
 ): Promise<HandlerResult> {
   // Short token → backend enum
   const reasonMap: Record<DeclineReason, string> = {
@@ -1472,22 +1532,39 @@ async function handleDecline(
   const productionRunService = scope.resolve(PRODUCTION_RUNS_MODULE) as ProductionRunService
   const run = await productionRunService.retrieveProductionRun(runId).catch(() => null) as any
   if (!run) {
-    await whatsapp.sendTextMessage(phone, `Run ${runId} not found.`)
+    await sendPhrasedLine(scope, whatsapp, phone, language, {
+      brief:
+        "They tried to decline a job we cannot find. Tell them we could not find it.",
+      tail: `*Run:* ${runId}`,
+      fallback: `Run ${runId} not found.`,
+    })
     return { handled: true, action: "decline_not_found", runId }
   }
   if (run.partner_id !== partnerId) {
-    await whatsapp.sendTextMessage(phone, `Run ${runId} is not assigned to your account.`)
+    await sendPhrasedLine(scope, whatsapp, phone, language, {
+      brief:
+        "They tried to decline a job that belongs to someone else. Tell them plainly that this job is not theirs, without blaming them.",
+      tail: `*Run:* ${runId}`,
+      fallback: `Run ${runId} is not assigned to your account.`,
+    })
     return { handled: true, action: "decline_forbidden", runId }
   }
   if (run.status === "cancelled") {
-    await whatsapp.sendTextMessage(phone, `Run ${runId} is already cancelled.`)
+    await sendPhrasedLine(scope, whatsapp, phone, language, {
+      brief:
+        "They tried to decline a job that is already cancelled. Tell them there is nothing left to do here.",
+      tail: `*Run:* ${runId}`,
+      fallback: `Run ${runId} is already cancelled.`,
+    })
     return { handled: true, action: "decline_already", runId }
   }
   if (run.started_at) {
-    await whatsapp.sendTextMessage(
-      phone,
-      `Can't decline ${runId} — work has already started. Please contact admin to cancel mid-production.`
-    )
+    await sendPhrasedLine(scope, whatsapp, phone, language, {
+      brief:
+        "They tried to decline a job they have already started. Tell them it cannot be declined now and they should contact the admin to stop it mid-production.",
+      tail: `*Run:* ${runId}`,
+      fallback: `Can't decline ${runId} — work has already started. Please contact admin to cancel mid-production.`,
+    })
     return { handled: true, action: "decline_blocked_started", runId }
   }
 
@@ -1540,10 +1617,13 @@ async function handleDecline(
     notes: `Declined by partner (${apiReason})`,
   })
 
-  await whatsapp.sendTextMessage(
-    phone,
-    `✖️ Run ${runId} declined (${apiReason.replace(/_/g, " ")}). Admin has been notified.`
-  )
+  await sendPhrasedLine(scope, whatsapp, phone, language, {
+    brief:
+      "They declined this job and gave a reason. Acknowledge it without pressure and tell them the admin has been told.",
+    facts: [{ label: "Reason they gave", value: apiReason.replace(/_/g, " ") }],
+    tail: `*Run:* ${runId}`,
+    fallback: `✖️ Run ${runId} declined (${apiReason.replace(/_/g, " ")}). Admin has been notified.`,
+  })
   return { handled: true, action: `decline_${reason}`, runId }
 }
 
@@ -1718,7 +1798,9 @@ async function handleComplete(
   runId: string,
   partnerId: string,
   rawText?: string,
-  extras?: { quantity?: number | null; rejectedQuantity?: number | null } | null
+  extras?: { quantity?: number | null; rejectedQuantity?: number | null } | null,
+  /** The language the partner chose, for any wording we generate (#2216). */
+  language = "en"
 ): Promise<HandlerResult> {
   const productionRunService: ProductionRunService = scope.resolve(PRODUCTION_RUNS_MODULE)
   const run = await productionRunService.retrieveProductionRun(runId).catch(() => null) as any
@@ -1786,10 +1868,27 @@ async function handleComplete(
     ? `\n*Produced:* ${producedQuantity}${rejectedQuantity ? ` | *Rejected:* ${rejectedQuantity}` : ""}`
     : ""
 
-  await whatsapp.sendTextMessage(
-    phone,
-    `✅ *Production Run Completed!*\n*Run:* ${runId}${qtyInfo}\n\nThe admin has been notified. Thank you!`
-  )
+  /*
+   * The last thing a partner hears about a job they have just finished, and
+   * the one place in this file where the old constant was not merely plain but
+   * slightly cold: "*Production Run Completed!*" is a status line, not a thank
+   * you. The numbers stay in the tail, written by code — they are what the
+   * partner is paid on.
+   */
+  await sendPhrasedLine(scope, whatsapp, phone, language, {
+    brief:
+      "They have completed this job and the admin has been told. Confirm it and thank them.",
+    facts: [
+      ...(producedQuantity != null
+        ? [{ label: "Pieces they made", value: producedQuantity }]
+        : []),
+      ...(rejectedQuantity
+        ? [{ label: "Pieces rejected", value: rejectedQuantity }]
+        : []),
+    ],
+    tail: `*Run:* ${runId}${qtyInfo}`,
+    fallback: `✅ *Production Run Completed!*\n*Run:* ${runId}${qtyInfo}\n\nThe admin has been notified. Thank you!`,
+  })
 
   return { handled: true, action: "complete", runId }
 }
