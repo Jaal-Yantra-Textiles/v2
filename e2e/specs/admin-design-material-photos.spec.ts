@@ -99,23 +99,29 @@ test.describe("Admin design materials: the row shows the fabric", () => {
     await expect(photo).toBeVisible()
 
     /**
-     * The picture sits to the LEFT of the name: it is what the eye reaches
-     * first, which is the whole point of putting it there.
+     * The picture LEADS the row — it is what the eye reaches first, which is
+     * the whole point of putting it there.
      *
-     * Measured against the name IN THIS ROW, not the first match on the page.
-     * The material's title also appears in the inspector's props list above,
-     * and comparing against that compares two unrelated elements that happen
-     * to share a left edge — which is how this assertion first failed on a
-     * page where the photo was rendering perfectly.
+     * 🔴 Asserted as DOM order, not as `photoBox.x < nameBox.x`. That earlier
+     * form compared the bounding boxes of two independently-located elements
+     * and went FLAKY on CI: one attempt measured the photo 6px to the right of
+     * the name (855.66 vs 849.41) and passed on retry, because the name
+     * locator had resolved to a wrapper rather than the title itself. A test
+     * that passes on the second go is not evidence, it is noise on main.
+     *
+     * Document order cannot drift with the viewport, the font or the scroll
+     * position, and it is the real claim: the image is the row's first child,
+     * and the name is in the same row.
      */
-    const row = page.locator("div").filter({ has: photo }).last()
-    const photoBox = await photo.boundingBox()
-    const nameBox = await row
-      .getByText(seed.layoutMaterialTitle, { exact: false })
-      .first()
-      .boundingBox()
-    expect(photoBox).not.toBeNull()
-    expect(nameBox).not.toBeNull()
-    expect(photoBox!.x).toBeLessThan(nameBox!.x)
+    const leads = await photo.evaluate(
+      (img) => img.parentElement?.firstElementChild === img
+    )
+    expect(leads).toBe(true)
+
+    const nameInSameRow = await photo.evaluate(
+      (img, title) => (img.parentElement?.textContent ?? "").includes(title),
+      seed.layoutMaterialTitle
+    )
+    expect(nameInSameRow).toBe(true)
   })
 })
