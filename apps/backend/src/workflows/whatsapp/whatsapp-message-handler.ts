@@ -332,6 +332,48 @@ export async function handleIncomingMessage(
     }
 
     /**
+     * 🔴 AN ACTION THAT ARRIVES BEFORE CONSENT MUST BE REMEMBERED TOO.
+     *
+     * The paragraph above learned this for photographs and the lesson was
+     * never carried across to button taps, which is the more expensive half:
+     * a partner's very first contact is the run-assignment template, so the
+     * FIRST thing they ever tap is "Accept" — and it lands here, before
+     * consent exists, and this gate returns without running it.
+     *
+     * Measured on prod: Ksaman Naturals tapped Accept on three runs on
+     * 2026-09-09. Two landed pre-consent (09:40:22 and 09:40:39) and were
+     * discarded; the third, at 12:23 once consent was recorded, worked. The
+     * platform then sent six "you have not responded" reminders over nine days
+     * for runs she HAD accepted, and on 2026-09-18 auto-reassigned one away
+     * from her with `cancelled_reason: "Auto-reassigned: no response after 2
+     * reminders"`. She had responded. Nothing errored, and the only trace was
+     * the absence of an `accepted_at` (#2211).
+     *
+     * 🔴 The run id is resolved and stored NOW, not on replay. It comes from
+     * `pending_run_id`, one mutable slot, and by the time consent arrives it
+     * will name whatever run was sent last (#2212).
+     */
+    const pendingAction =
+      message.type === "interactive" && message.buttonReplyId
+        ? resolveRunActionFromButton(
+            message.buttonReplyId,
+            message.buttonReplyTitle,
+            conversationMeta
+          )
+        : null
+    if (pendingAction?.runId && REPLAYABLE_PRE_CONSENT_ACTIONS.has(pendingAction.action)) {
+      conversationMeta = {
+        ...conversationMeta,
+        action_pending_consent: {
+          action: pendingAction.action,
+          run_id: pendingAction.runId,
+          at: new Date().toISOString(),
+        },
+      }
+      await updateConversationMetadata(scope, conversationId, conversationMeta)
+    }
+
+    /**
      * 🔑 One prompt per BURST, not one per message.
      *
      * The gate fires per message, so those ten photographs produced nine
@@ -384,6 +426,72 @@ export async function handleIncomingMessage(
     }
   }
 
+  /**
+   * The tap they made before consent existed, honoured now.
+   *
+   * Cleared BEFORE it runs, not after: a replay that throws must not be
+   * retried on every subsequent message for the rest of the conversation's
+   * life. One attempt, then it is gone — the partner still has the buttons.
+   *
+   * ⚠️ Bounded by REPLAY_TTL. "Accept" means accept THIS job, and a tap that
+   * has been sitting unreplayed for days is no longer a safe statement about
+   * what the partner wants today; past the window we re-offer the buttons
+   * instead of moving the run on their behalf.
+   */
+  const stashed = conversationMeta.action_pending_consent as
+    | { action?: string; run_id?: string; at?: string }
+    | undefined
+  if (stashed?.action && stashed.run_id) {
+    conversationMeta = { ...conversationMeta, action_pending_consent: undefined }
+    await updateConversationMetadata(scope, conversationId, conversationMeta)
+
+    const stashedAt = Date.parse(String(stashed.at ?? ""))
+    const fresh =
+      !Number.isNaN(stashedAt) &&
+      Date.now() - stashedAt < PRE_CONSENT_ACTION_TTL_MS
+
+    if (fresh && stashed.action === "accept") {
+      try {
+        await whatsapp.sendTextMessage(
+          message.from,
+          `Thanks — picking up the *Accept* you sent before we had your consent.`
+        )
+        return await handleAccept(
+          scope,
+          whatsapp,
+          message.from,
+          stashed.run_id,
+          partner.partnerId
+        )
+      } catch (e: any) {
+        console.warn(
+          "[whatsapp-handler] pre-consent accept replay failed:",
+          e?.message
+        )
+        await whatsapp.sendTextMessage(
+          message.from,
+          `I couldn't complete the *Accept* you sent earlier. Please tap Accept again on run ${stashed.run_id}.`
+        )
+        return { handled: true, action: "pre_consent_replay_failed" }
+      }
+    }
+
+    /*
+     * Everything else is re-offered rather than replayed. A Decline needs a
+     * reason the partner has not given yet, and a stale tap of any kind is a
+     * statement about a moment that has passed — so the run's own buttons go
+     * back to them and they decide again.
+     */
+    const designName = await getDesignName(scope, stashed.run_id).catch(() => "")
+    await whatsapp.sendRunActions(
+      message.from,
+      stashed.run_id,
+      "sent_to_partner",
+      designName
+    )
+    return { handled: true, action: "pre_consent_action_reoffered" }
+  }
+
   // If consent given but language not yet selected, prompt for it
   if (!conversationMeta.language) {
     await sendLanguageSelection(whatsapp, message.from)
@@ -425,31 +533,22 @@ export async function handleIncomingMessage(
     //   3. Native interactive ids `<action>_prod_run_<id>` — the long-
     //      standing shape used by sendProductionRunAssignment,
     //      sendRunActions, etc.
-    const titleAction =
-      (message.buttonReplyTitle && BUTTON_TITLE_ACTIONS[message.buttonReplyTitle]) ||
-      BUTTON_TITLE_ACTIONS[message.buttonReplyId]
-    if (titleAction) {
-      action = titleAction
-      runId = typeof conversationMeta.pending_run_id === "string"
-        ? conversationMeta.pending_run_id
-        : ""
-      if (!runId) {
+    const resolved = resolveRunActionFromButton(
+      message.buttonReplyId,
+      message.buttonReplyTitle,
+      conversationMeta
+    )
+    if (resolved) {
+      action = resolved.action
+      runId = resolved.runId
+      // A template quick-reply with no pinned run: we know WHAT they meant,
+      // not on what. Only the title path can produce this.
+      if (!runId && BUTTON_TITLE_ACTIONS[message.buttonReplyTitle || message.buttonReplyId]) {
         await whatsapp.sendTextMessage(
           message.from,
-          `I couldn't tell which run this ${titleAction} refers to. Please reply with \`${titleAction} <run id>\`.`
+          `I couldn't tell which run this ${action} refers to. Please reply with \`${action} <run id>\`.`
         )
         return { handled: true, action: "template_button_no_context" }
-      }
-    } else {
-      const declineParsed = parseDeclineButtonId(message.buttonReplyId)
-      if (declineParsed) {
-        action = declineParsed.action
-        runId = declineParsed.runId
-      } else {
-        // Button replies: "accept_prod_run_123", "start_prod_run_123", etc.
-        const parts = message.buttonReplyId.split("_")
-        action = parts[0] // accept, start, finish, complete, view, media, status
-        runId = parts.slice(1).join("_") // rejoin in case run ID has underscores
       }
     }
   } else if (message.type === "text" && message.text) {
@@ -962,6 +1061,60 @@ const DECLINE_REASON_TOKENS: DeclineReason[] = ["capacity", "materials", "schedu
  * return both. Plain `decline_<runId>` (tapped directly on assignment)
  * returns action="decline" so the prompt flow fires.
  */
+/**
+ * PURE: which run action a button reply means, and on which run.
+ *
+ * Extracted because the consent gate and the normal command path both have to
+ * answer this and must never answer it differently. Before this existed only
+ * the command path could, and the gate — which runs FIRST on a partner's very
+ * first message — dropped the tap on the floor (#2211).
+ *
+ * Returns `runId: ""` when the reply is a template quick-reply and the
+ * conversation carries no `pending_run_id`; the caller decides what to say.
+ */
+export function resolveRunActionFromButton(
+  buttonReplyId: string,
+  buttonReplyTitle: string | undefined,
+  conversationMeta: Record<string, any>
+): { action: string; runId: string } | null {
+  if (!buttonReplyId) return null
+
+  const titleAction =
+    (buttonReplyTitle && BUTTON_TITLE_ACTIONS[buttonReplyTitle]) ||
+    BUTTON_TITLE_ACTIONS[buttonReplyId]
+  if (titleAction) {
+    /*
+     * 🔴 `pending_run_id` IS ONE SLOT ON THE CONVERSATION. Meta forbids
+     * variables inside template quick-reply buttons, so a tap carries the
+     * button's title and nothing else, and the run has to come from state we
+     * kept. Two assignment templates sent close together overwrite it, and
+     * every later tap then resolves to the last run sent.
+     *
+     * That is a real defect and it is NOT fixed here — see #2212. What this
+     * function does is make the read happen ONCE, at the moment the tap is
+     * seen, so nothing downstream re-reads a slot that has since moved on.
+     */
+    return {
+      action: titleAction,
+      runId:
+        typeof conversationMeta?.pending_run_id === "string"
+          ? conversationMeta.pending_run_id
+          : "",
+    }
+  }
+
+  const declineParsed = parseDeclineButtonId(buttonReplyId)
+  if (declineParsed) return declineParsed
+
+  // Native interactive ids: "accept_prod_run_123", "start_prod_run_123", …
+  const parts = buttonReplyId.split("_")
+  return {
+    action: parts[0],
+    // rejoined in case the run id itself contains underscores
+    runId: parts.slice(1).join("_"),
+  }
+}
+
 function parseDeclineButtonId(
   buttonId: string
 ): { action: string; runId: string } | null {
@@ -2291,6 +2444,26 @@ async function handleProductCreateButtonReply(
  * prompts; a window this size collapses any realistic burst into one.
  */
 const CONSENT_PROMPT_COOLDOWN_MS = 10 * 60 * 1000
+
+/**
+ * Actions worth remembering across the consent gate.
+ *
+ * Deliberately the run-moving ones only. `view`/`status`/`media` are reads or
+ * need a follow-up anyway, and replaying a read days later would answer a
+ * question nobody is still asking.
+ */
+const REPLAYABLE_PRE_CONSENT_ACTIONS = new Set([
+  "accept",
+  "start",
+  "decline",
+])
+
+/**
+ * How long a pre-consent tap still speaks for the partner. Two days: long
+ * enough to cover a tap on Friday and consent on Monday morning, short enough
+ * that nobody is signed up to work they chose a week ago.
+ */
+const PRE_CONSENT_ACTION_TTL_MS = 2 * 24 * 60 * 60 * 1000
 
 /** Why a piece of media is sitting undownloaded. One value today. */
 const MEDIA_PENDING_CONSENT = "awaiting_consent"
