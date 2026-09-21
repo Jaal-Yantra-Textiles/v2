@@ -14,6 +14,7 @@ import WhatsAppService from "../../modules/social-provider/whatsapp-service"
 import { SOCIAL_PROVIDER_MODULE } from "../../modules/social-provider"
 import type SocialProviderService from "../../modules/social-provider/service"
 import { MESSAGING_MODULE } from "../../modules/messaging"
+import { phraseRunAck } from "./whatsapp-run-ack"
 import { resolveLivePhotoContextAction } from "./whatsapp-photo-context-routing"
 import { fileInventoryOfferAnalysis } from "./whatsapp-photo-inventory-offer"
 import {
@@ -471,7 +472,8 @@ export async function handleIncomingMessage(
           whatsapp,
           message.from,
           stashed.run_id,
-          partner.partnerId
+          partner.partnerId,
+          String(conversationMeta.language || "en")
         )
       } catch (e: any) {
         console.warn(
@@ -985,13 +987,21 @@ export async function handleIncomingMessage(
     return { handled: true, action: "conversation" }
   }
 
+  /*
+   * The language the partner chose, for any wording we generate rather than
+   * template. Read from the conversation, which is where the choice was made
+   * — NOT from partner_admin.preferred_language, which is a portal setting
+   * and has silently outranked this choice before.
+   */
+  const partnerLang = String(conversationMeta.language || "en")
+
   // Execute action
   try {
     switch (action) {
       case "accept":
-        return await handleAccept(scope, whatsapp, message.from, runId, partner.partnerId)
+        return await handleAccept(scope, whatsapp, message.from, runId, partner.partnerId, partnerLang)
       case "start":
-        return await handleStart(scope, whatsapp, message.from, runId, partner.partnerId)
+        return await handleStart(scope, whatsapp, message.from, runId, partner.partnerId, partnerLang)
       case "finish":
         return await handleFinish(
           scope,
@@ -1000,7 +1010,8 @@ export async function handleIncomingMessage(
           runId,
           partner.partnerId,
           message.text,
-          intentExtras
+          intentExtras,
+          partnerLang
         )
       case "complete":
         return await handleComplete(
@@ -1284,12 +1295,59 @@ function parseTextCommand(text: string): { action: string; runId: string; extra?
   return { action: "", runId: "" }
 }
 
+/**
+ * The lifecycle acknowledgement a partner actually receives.
+ *
+ * Wraps `sendRunActions` so the three lifecycle hops read the same way: work
+ * out the facts, ask for a sentence, fall back to the constant. The language
+ * comes from the conversation the partner is in, which is where they chose it.
+ *
+ * ⚠️ Never throws. Phrasing sits AFTER the state change — the run has already
+ * moved by the time we are choosing words, so a failure here must degrade the
+ * wording and nothing else.
+ */
+async function sendRunAck(
+  scope: any,
+  whatsapp: WhatsAppService,
+  phone: string,
+  runId: string,
+  status: "in_progress" | "started" | "finished",
+  designName: string,
+  language: string,
+  extra?: { quantity?: number | null }
+): Promise<void> {
+  const intent =
+    status === "in_progress"
+      ? "accepted"
+      : status === "started"
+        ? "started"
+        : "finished"
+  try {
+    const body = await phraseRunAck(scope, {
+      intent,
+      facts: {
+        runId,
+        designName: designName || null,
+        quantity: extra?.quantity ?? null,
+      },
+      language,
+      // "" tells sendRunActions to keep the wording it already had.
+      fallback: "",
+    })
+    await whatsapp.sendRunActions(phone, runId, status, designName, body)
+  } catch {
+    await whatsapp.sendRunActions(phone, runId, status, designName)
+  }
+}
+
 async function handleAccept(
   scope: any,
   whatsapp: WhatsAppService,
   phone: string,
   runId: string,
-  partnerId: string
+  partnerId: string,
+  /** The language the partner chose, for the acknowledgement wording. */
+  language = "en"
 ): Promise<HandlerResult> {
   const { result, errors } = await acceptProductionRunWorkflow(scope).run({
     input: { production_run_id: runId, partner_id: partnerId },
@@ -1305,7 +1363,7 @@ async function handleAccept(
 
   // Send next-step buttons
   const designName = await getDesignName(scope, runId)
-  await whatsapp.sendRunActions(phone, runId, "in_progress", designName)
+  await sendRunAck(scope, whatsapp, phone, runId, "in_progress", designName, language)
 
   return { handled: true, action: "accept", runId }
 }
@@ -1494,7 +1552,8 @@ async function handleStart(
   whatsapp: WhatsAppService,
   phone: string,
   runId: string,
-  partnerId: string
+  partnerId: string,
+  language = "en"
 ): Promise<HandlerResult> {
   const productionRunService: ProductionRunService = scope.resolve(PRODUCTION_RUNS_MODULE)
   const run = await productionRunService.retrieveProductionRun(runId).catch(() => null) as any
@@ -1523,7 +1582,9 @@ async function handleStart(
   await emitEvent(scope, "production_run.started", { id: runId, production_run_id: runId, partner_id: partnerId, action: "started" })
 
   const designName = await getDesignName(scope, runId)
-  await whatsapp.sendRunActions(phone, runId, "started", designName)
+  await sendRunAck(scope, whatsapp, phone, runId, "started", designName, language, {
+    quantity: run?.quantity ?? null,
+  })
 
   return { handled: true, action: "start", runId }
 }
@@ -1535,7 +1596,8 @@ async function handleFinish(
   runId: string,
   partnerId: string,
   rawText?: string,
-  extras?: { quantity?: number | null; notes?: string | null } | null
+  extras?: { quantity?: number | null; notes?: string | null } | null,
+  language = "en"
 ): Promise<HandlerResult> {
   const productionRunService: ProductionRunService = scope.resolve(PRODUCTION_RUNS_MODULE)
   const run = await productionRunService.retrieveProductionRun(runId).catch(() => null) as any
@@ -1605,7 +1667,9 @@ async function handleFinish(
   })
 
   const designName = await getDesignName(scope, runId)
-  await whatsapp.sendRunActions(phone, runId, "finished", designName)
+  await sendRunAck(scope, whatsapp, phone, runId, "finished", designName, language, {
+    quantity: run?.quantity ?? null,
+  })
 
   // Extra feedback to the partner when they logged scrap/notes so they
   // see their input landed.

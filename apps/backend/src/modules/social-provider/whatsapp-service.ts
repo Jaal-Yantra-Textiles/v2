@@ -449,25 +449,33 @@ export default class WhatsAppService {
   /**
    * Send production run status actions based on current state
    */
+  /**
+   * @param bodyText Optional replacement for the default wording. The caller
+   *   may have phrased the same facts in the partner's language (#2211 follow-
+   *   up). 🔴 It replaces the PROSE only — the buttons below are the action
+   *   surface and stay deterministic, because a mis-worded sentence is a poor
+   *   message while a mis-generated button id is a dead end.
+   */
   async sendRunActions(
     to: string,
     runId: string,
     status: string,
-    designName: string
+    designName: string,
+    bodyText?: string
   ): Promise<WhatsAppMessageResponse> {
     const buttons: WhatsAppInteractiveButton[] = []
-    let bodyText = ""
+    let defaultBody = ""
 
     switch (status) {
       case "in_progress": {
-        bodyText = `✅ *Run Accepted:* ${runId}\n*Design:* ${designName}\n\nYou can now start working on this run.`
+        defaultBody = `✅ *Run Accepted:* ${runId}\n*Design:* ${designName}\n\nYou can now start working on this run.`
         buttons.push(
           { type: "reply", reply: { id: `start_${runId}`, title: "▶️ Start" } },
         )
         break
       }
       case "started": {
-        bodyText = `▶️ *Run Started:* ${runId}\n*Design:* ${designName}\n\nWhen you're done, mark it as finished.`
+        defaultBody = `▶️ *Run Started:* ${runId}\n*Design:* ${designName}\n\nWhen you're done, mark it as finished.`
         buttons.push(
           { type: "reply", reply: { id: `finish_${runId}`, title: "🏁 Finish" } },
           { type: "reply", reply: { id: `media_${runId}`, title: "📸 Add Media" } },
@@ -475,23 +483,25 @@ export default class WhatsAppService {
         break
       }
       case "finished": {
-        bodyText = `🏁 *Run Finished:* ${runId}\n*Design:* ${designName}\n\nReady to complete with final details?`
+        defaultBody = `🏁 *Run Finished:* ${runId}\n*Design:* ${designName}\n\nReady to complete with final details?`
         buttons.push(
           { type: "reply", reply: { id: `complete_${runId}`, title: "✔️ Complete" } },
         )
         break
       }
       default:
-        bodyText = `Production run ${runId} status: ${status}`
+        defaultBody = `Production run ${runId} status: ${status}`
     }
 
+    const body = bodyText?.trim() || defaultBody
+
     if (buttons.length === 0) {
-      return this.sendTextMessage(to, bodyText)
+      return this.sendTextMessage(to, body)
     }
 
     return this.sendInteractiveMessage(to, {
       type: "button",
-      body: { text: bodyText },
+      body: { text: body },
       action: { buttons },
     })
   }
