@@ -1,3 +1,16 @@
+# [13.156.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.155.0...v13.156.0) (2026-09-21)
+
+
+### Bug Fixes
+
+* **whatsapp:** the Accept survives consent, the reply decides the run — and the acks are written, not printed ([#2211](https://github.com/Jaal-Yantra-Textiles/v2/issues/2211), [#2212](https://github.com/Jaal-Yantra-Textiles/v2/issues/2212)) ([#2213](https://github.com/Jaal-Yantra-Textiles/v2/issues/2213)) ([85458e8](https://github.com/Jaal-Yantra-Textiles/v2/commit/85458e81ab7a28913ce87564e148eff79f53d511))
+
+
+### Features
+
+* **production-runs:** a board for the runs that are ready and going nowhere ([#2202](https://github.com/Jaal-Yantra-Textiles/v2/issues/2202)) ([#2210](https://github.com/Jaal-Yantra-Textiles/v2/issues/2210)) ([08d482a](https://github.com/Jaal-Yantra-Textiles/v2/commit/08d482aed8939a6af5e0751ec30f2c8f956a1f45)), closes [#2206](https://github.com/Jaal-Yantra-Textiles/v2/issues/2206)
+* **production-runs:** somebody is told when a run cannot dispatch itself ([#2202](https://github.com/Jaal-Yantra-Textiles/v2/issues/2202)) ([#2207](https://github.com/Jaal-Yantra-Textiles/v2/issues/2207)) ([03b364d](https://github.com/Jaal-Yantra-Textiles/v2/commit/03b364da36379ea938f63b4d866f38acd92cfafc))
+
 # [13.155.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.154.0...v13.155.0) (2026-09-20)
 
 
