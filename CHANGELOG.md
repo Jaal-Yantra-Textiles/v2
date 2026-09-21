@@ -1,3 +1,23 @@
+# [13.157.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.156.0...v13.157.0) (2026-09-21)
+
+
+### Bug Fixes
+
+* **production-runs:** a dependency attached to an already-met upstream releases now, not never ([#2214](https://github.com/Jaal-Yantra-Textiles/v2/issues/2214)) ([#2217](https://github.com/Jaal-Yantra-Textiles/v2/issues/2217)) ([ebbeed6](https://github.com/Jaal-Yantra-Textiles/v2/commit/ebbeed6df846e67df8dbf2042399794ae9e9f579))
+
+
+### Features
+
+* **whatsapp:** the failures speak the partner's language too — and the acks come out of the dark ([#2216](https://github.com/Jaal-Yantra-Textiles/v2/issues/2216)) ([#2218](https://github.com/Jaal-Yantra-Textiles/v2/issues/2218)) ([21b9f53](https://github.com/Jaal-Yantra-Textiles/v2/commit/21b9f53a5b8415061ac273007be7ecc05c8532ca)), closes [#2213](https://github.com/Jaal-Yantra-Textiles/v2/issues/2213)
+
+
+### BREAKING CHANGES
+
+* **whatsapp:** the id guard turns 5 tests red across 3 suites, the #2213 suite among
+them.
+
+Converted — failures, media, completion/decline, as the issue scoped:
+
 # [13.156.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.155.0...v13.156.0) (2026-09-21)
 
 
