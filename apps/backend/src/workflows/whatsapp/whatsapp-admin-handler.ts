@@ -9,6 +9,12 @@ import { approveProductionRunWorkflow } from "../production-runs/approve-product
 import { sendProductionRunToProductionWorkflow } from "../production-runs/send-production-run-to-production"
 import { reviewPaymentSubmissionWorkflow } from "../payment_submissions/review-payment-submission"
 import { phoneMatches } from "./whatsapp-phone"
+import {
+  searchPartners,
+  describeAmbiguous,
+  describeNotFound,
+  PARTNER_SEARCH_PAGE,
+} from "./whatsapp-partner-search"
 
 interface IncomingMessage {
   from: string
@@ -320,19 +326,43 @@ async function handleViewPartner(
   } catch { /* not a valid ID */ }
 
   if (!partner) {
+    /*
+     * #2106 — this used to read FIVE partner rows with no filter and no
+     * ordering and match over those. With 31 partners on prod, 26 could never
+     * be found by name, and the reply said "not found" as though they did not
+     * exist. The page is now larger than the table and, more importantly, the
+     * search says whether it saw everything.
+     */
     const { data } = await query.graph({
       entity: "partners",
       fields: ["id", "name", "handle", "status", "is_verified", "whatsapp_number", "whatsapp_verified", "admins.*"],
-      pagination: { skip: 0, take: 5 },
+      pagination: { skip: 0, take: PARTNER_SEARCH_PAGE },
     })
-    partner = (data || []).find((p: any) =>
-      p.name?.toLowerCase().includes(idOrName.toLowerCase()) ||
-      p.handle?.toLowerCase().includes(idOrName.toLowerCase())
-    )
+
+    const found = searchPartners(data || [], idOrName)
+
+    if (found.kind === "many") {
+      /* Never pick for them — that is how a lottery starts (#1983). */
+      await whatsapp.sendTextMessage(
+        phone,
+        describeAmbiguous(found.partners, idOrName)
+      )
+      return { handled: true, action: "partner", error: "ambiguous" }
+    }
+
+    if (found.kind === "none") {
+      await whatsapp.sendTextMessage(
+        phone,
+        describeNotFound(idOrName, found.truncated)
+      )
+      return { handled: true, action: "partner", error: "not_found" }
+    }
+
+    partner = found.partner
   }
 
   if (!partner) {
-    await whatsapp.sendTextMessage(phone, `Partner "${idOrName}" not found.`)
+    await whatsapp.sendTextMessage(phone, describeNotFound(idOrName, false))
     return { handled: true, action: "partner", error: "not_found" }
   }
 

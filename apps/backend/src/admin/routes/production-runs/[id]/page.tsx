@@ -749,9 +749,8 @@ const ProductionRunDetailPage = () => {
               half-remembered rule is what makes someone dispatch by hand.
 
               The link is `/orders/inventory/:id`; there is NO route at
-              `/inventory-orders/:id`, which is where
-              `partner-inspection-section.tsx:620` points. That dead link is
-              pre-existing and filed, not fixed here.
+              `/inventory-orders/:id`. `partner-inspection-section.tsx` used to
+              point there and was fixed in #2114.
             */}
             {run.depends_on_inventory_order_ids?.length > 0 && (
               <div className="col-span-2">
