@@ -19,7 +19,11 @@
  * rather than failing one test — so read the **Test Suites:** line, not just
  * Tests:, when this file goes quiet.
  */
-import { resolveRunActionFromButton } from "../whatsapp-message-handler"
+import {
+  resolveRunActionFromButton,
+  runIdFromContextId,
+  isTemplateTitleButton,
+} from "../whatsapp-message-handler"
 
 describe("resolveRunActionFromButton", () => {
   it("the module under test actually loaded", () => {
@@ -91,5 +95,61 @@ describe("resolveRunActionFromButton", () => {
 
   it("returns null for an empty button id, so a non-button message falls through", () => {
     expect(resolveRunActionFromButton("", undefined, {})).toBeNull()
+  })
+})
+
+/**
+ * The run a stored outbound row names (#2212).
+ *
+ * This is what lets a template tap beat `pending_run_id`: WhatsApp tells us
+ * which message the button belonged to, and our own row for that message is
+ * tagged with the run.
+ */
+describe("runIdFromContextId", () => {
+  it("reads a bare assignment context", () => {
+    expect(
+      runIdFromContextId("production_run", "prod_run_01M22YXTZKQXBSD23MZAQBVRTE")
+    ).toBe("prod_run_01M22YXTZKQXBSD23MZAQBVRTE")
+  })
+
+  it("🔴 strips the per-day dedup suffix a reminder carries", () => {
+    /*
+     * Real shape from prod: reminders need a distinct key per day, so the
+     * context id is `<run>:reminder:<date>`. Returning that whole string
+     * would look like a run id and match nothing.
+     */
+    expect(
+      runIdFromContextId(
+        "production_run",
+        "prod_run_01M22YXTZKQXBSD23MZAQBVRTE:reminder:2026-09-15"
+      )
+    ).toBe("prod_run_01M22YXTZKQXBSD23MZAQBVRTE")
+  })
+
+  it("ignores a context that is not about a run", () => {
+    expect(runIdFromContextId("design", "01M22YVTXMY4Z2F6C662TTW403")).toBeNull()
+    expect(runIdFromContextId(null, "prod_run_1")).toBeNull()
+  })
+
+  it("🔴 refuses a value that is not a run id rather than passing it through", () => {
+    // A mis-tagged row must read as "no answer", so the caller falls back to
+    // the slot instead of dispatching against a design id.
+    expect(runIdFromContextId("production_run", "01M22YVTX")).toBeNull()
+    expect(runIdFromContextId("production_run", "")).toBeNull()
+    expect(runIdFromContextId("production_run", null)).toBeNull()
+  })
+})
+
+describe("isTemplateTitleButton", () => {
+  it("is true for a template quick-reply, which carries no run id", () => {
+    expect(isTemplateTitleButton("Accept", "Accept")).toBe(true)
+  })
+
+  it("🔴 is false for a native id — it names its own run and must not be overridden", () => {
+    expect(isTemplateTitleButton("accept_prod_run_123", undefined)).toBe(false)
+  })
+
+  it("is false when there is no button at all", () => {
+    expect(isTemplateTitleButton(undefined, undefined)).toBe(false)
   })
 })

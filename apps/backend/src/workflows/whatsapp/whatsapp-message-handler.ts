@@ -361,6 +361,16 @@ export async function handleIncomingMessage(
             conversationMeta
           )
         : null
+    if (
+      pendingAction &&
+      isTemplateTitleButton(message.buttonReplyId, message.buttonReplyTitle)
+    ) {
+      const fromReply = await resolveRunFromReplyContext(
+        scope,
+        message.replyToWaMessageId
+      )
+      if (fromReply) pendingAction.runId = fromReply
+    }
     if (pendingAction?.runId && REPLAYABLE_PRE_CONSENT_ACTIONS.has(pendingAction.action)) {
       conversationMeta = {
         ...conversationMeta,
@@ -541,9 +551,22 @@ export async function handleIncomingMessage(
     if (resolved) {
       action = resolved.action
       runId = resolved.runId
+
+      /*
+       * 🔴 The message she replied to outranks the conversation slot (#2212).
+       * Only for the title path — a native `accept_prod_run_X` id names its
+       * own run explicitly and nothing should second-guess it.
+       */
+      if (isTemplateTitleButton(message.buttonReplyId, message.buttonReplyTitle)) {
+        const fromReply = await resolveRunFromReplyContext(
+          scope,
+          message.replyToWaMessageId
+        )
+        if (fromReply) runId = fromReply
+      }
       // A template quick-reply with no pinned run: we know WHAT they meant,
       // not on what. Only the title path can produce this.
-      if (!runId && BUTTON_TITLE_ACTIONS[message.buttonReplyTitle || message.buttonReplyId]) {
+      if (!runId && isTemplateTitleButton(message.buttonReplyId, message.buttonReplyTitle)) {
         await whatsapp.sendTextMessage(
           message.from,
           `I couldn't tell which run this ${action} refers to. Please reply with \`${action} <run id>\`.`
@@ -1061,6 +1084,81 @@ const DECLINE_REASON_TOKENS: DeclineReason[] = ["capacity", "materials", "schedu
  * return both. Plain `decline_<runId>` (tapped directly on assignment)
  * returns action="decline" so the prompt flow fires.
  */
+/**
+ * Did this tap come from a template QUICK_REPLY (title only, no run id)?
+ *
+ * The distinction matters because only that shape has to guess at the run —
+ * and only that shape should let the reply context override it.
+ */
+export function isTemplateTitleButton(
+  buttonReplyId: string | undefined,
+  buttonReplyTitle: string | undefined
+): boolean {
+  if (!buttonReplyId) return false
+  return Boolean(
+    (buttonReplyTitle && BUTTON_TITLE_ACTIONS[buttonReplyTitle]) ||
+      BUTTON_TITLE_ACTIONS[buttonReplyId]
+  )
+}
+
+/**
+ * PURE: the production run a stored `context_id` names.
+ *
+ * Outbound rows tag the run they are about. An assignment carries the bare id;
+ * a reminder carries `prod_run_…:reminder:2026-09-15`, because the send needs
+ * a distinct key per day to deduplicate. A run id never contains a colon, so
+ * the first colon is the boundary — more general than matching `:reminder:`
+ * alone, which would silently return a whole dedup key if the suffix scheme
+ * ever grows a second shape.
+ */
+export function runIdFromContextId(
+  contextType: string | null | undefined,
+  contextId: string | null | undefined
+): string | null {
+  if (contextType !== "production_run") return null
+  const raw = String(contextId ?? "")
+  if (!raw) return null
+  const colon = raw.indexOf(":")
+  const runId = colon >= 0 ? raw.slice(0, colon) : raw
+  return runId.startsWith("prod_run_") ? runId : null
+}
+
+/**
+ * Which run a template quick-reply is REALLY about (#2212).
+ *
+ * 🔴 `pending_run_id` is ONE SLOT per conversation. Meta forbids variables
+ * inside template QUICK_REPLY buttons, so the tap carries only its title and
+ * the run has to come from state we kept — and the next assignment template
+ * overwrites that state. Ksaman Naturals got two 69 seconds apart on
+ * 2026-09-09; every later tap, on either template, resolved to the newer run.
+ *
+ * But WhatsApp tells us what she tapped: the webhook carries `context.id`, the
+ * wa_message_id of the message the button belongs to, and our own outbound row
+ * for that message is tagged with the run. That is an exact answer where the
+ * slot is a guess, so it is preferred and the slot stays only as the fallback
+ * for taps that arrive with no reply context at all.
+ *
+ * ⚠️ Never throws. A lookup failure must fall back to the slot, not take down
+ * a partner's Accept.
+ */
+async function resolveRunFromReplyContext(
+  scope: any,
+  replyToWaMessageId: string | undefined
+): Promise<string | null> {
+  if (!replyToWaMessageId) return null
+  try {
+    const messagingService = scope.resolve(MESSAGING_MODULE) as any
+    const [row] = await messagingService.listMessagingMessages(
+      { wa_message_id: replyToWaMessageId },
+      { take: 1 }
+    )
+    if (!row) return null
+    return runIdFromContextId(row.context_type, row.context_id)
+  } catch {
+    return null
+  }
+}
+
 /**
  * PURE: which run action a button reply means, and on which run.
  *
