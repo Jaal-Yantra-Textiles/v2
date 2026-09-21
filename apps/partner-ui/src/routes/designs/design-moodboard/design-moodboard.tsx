@@ -9,6 +9,7 @@ import { Excalidraw } from "@excalidraw/excalidraw"
 import type { ExcalidrawElement } from "@excalidraw/excalidraw/element/types"
 import type { BinaryFileData, ExcalidrawImperativeAPI } from "@excalidraw/excalidraw/types"
 import { normalizeMoodboardScene } from "../../../lib/moodboard-scene"
+import { inlineMoodboardImages } from "../../../lib/inline-moodboard-images"
 import {
   BoardSwitcher,
   type BoardOption,
@@ -24,6 +25,7 @@ import {
   useInsertMoodboardBlock,
   useSaveMoodboard,
   useUpdatePartnerBrief,
+  fetchMoodboardImageDataUrl,
   type MoodboardBlockListing,
   type PartnerBriefUpdate,
 } from "../../../hooks/api/partner-designs"
@@ -258,6 +260,14 @@ export const DesignMoodboard = () => {
   const didInitRef = useRef(false)
   const [isDirty, setIsDirty] = useState(false)
   const [isStarting, setIsStarting] = useState(false)
+  /**
+   * Excalidraw hands its API back through a callback, which can fire AFTER the
+   * board data settles. `apiRef` is a ref, so an effect that only reads it does
+   * not re-run when it fills — the scene-loading effect below returned early on
+   * `!api` and was never invoked again. This flag is the dependency that makes
+   * "the canvas is ready" observable.
+   */
+  const [apiReady, setApiReady] = useState(false)
   const [constructionOpen, setConstructionOpen] = useState(false)
   const [layersOpen, setLayersOpen] = useState(false)
   // Bumped on canvas change (only while the layers panel is open) so the panel
@@ -413,9 +423,56 @@ export const DesignMoodboard = () => {
       return
     }
     loadedBoardRef.current = boardId
-    loadScene((moodboard ?? { elements: [], files: {}, appState: {} }) as MoodboardData)
+    const scene = (moodboard ?? {
+      elements: [],
+      files: {},
+      appState: {},
+    }) as MoodboardData
+    loadScene(scene)
     setIsDirty(false)
-  }, [activeBoard, moodboard, loadScene])
+
+    /**
+     * #2228 — swap the board's remote image URLs for real `data:` URIs.
+     *
+     * The scene stores them as `files[id].dataURL = "https://…"`. Excalidraw
+     * sets that as an `<img>` src: here it does not render at all, and in the
+     * admin it renders but TAINTS the canvas, so the export is refused with
+     * "The operation is insecure". A `data:` URI fixes both.
+     *
+     * Done AFTER `loadScene`, not before, so the board appears immediately and
+     * the pictures fill in — blocking the canvas on N image fetches would trade
+     * a visible defect for a slow one. Each inlined file is pushed through
+     * `addFiles`, which is how Excalidraw takes a file update without a remount.
+     */
+    if (!id || !scene.files || !Object.keys(scene.files).length) {
+      return
+    }
+    let cancelled = false
+    void (async () => {
+      const { files, inlined } = await inlineMoodboardImages(
+        scene.files as Record<string, BinaryFileData>,
+        async (src) => {
+          const dataUrl = await fetchMoodboardImageDataUrl(id, src)
+          if (!dataUrl) {
+            throw new Error("not inlined")
+          }
+          return dataUrl
+        }
+      )
+      if (cancelled || !inlined || !apiRef.current) {
+        return
+      }
+      apiRef.current.addFiles(Object.values(files) as any)
+      /**
+       * The files changed, not the elements — Excalidraw re-reads its image
+       * cache on the next render, so nudge one without touching the scene.
+       */
+      apiRef.current.refresh()
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [id, apiReady, activeBoard, moodboard, loadScene])
 
 
   /**
@@ -765,6 +822,7 @@ export const DesignMoodboard = () => {
               theme={theme}
               excalidrawAPI={(api) => {
                 apiRef.current = api
+                setApiReady(true)
               }}
               initialData={(() => {
                 const base = (moodboard as any) || {

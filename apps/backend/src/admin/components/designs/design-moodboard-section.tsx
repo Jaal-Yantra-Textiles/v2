@@ -1,5 +1,6 @@
 // @ts-ignore - Excalidraw is an ESM module, dynamic import not feasible here
 import { Excalidraw } from "@excalidraw/excalidraw";
+import { inlineMoodboardImages } from "../../lib/inline-moodboard-images";
 import "@excalidraw/excalidraw/index.css";
 import { Fragment, useState, useCallback, useEffect, useMemo, useRef } from "react";
 import { useNavigate, useParams } from "react-router-dom";
@@ -116,7 +117,42 @@ export function DesignMoodboardSection() {
       appState: { ...moodboard.appState, collaborators: new Map() },
     });
     api.scrollToContent(moodboard.elements, { fitToContent: true });
-  }, [excalidrawAPIRef]);
+
+    /**
+     * 🔴 #2228 — swap remote image URLs for real `data:` URIs.
+     *
+     * The scene stores images as `files[id].dataURL = "https://…"`. Here they
+     * DO render — and drawing a cross-origin image taints the canvas, so
+     * `toBlob` is refused and "Export image → PNG" fails with
+     * "The operation is insecure." A `data:` URI never taints.
+     *
+     * After the scene is on the canvas, not before: the board should appear at
+     * once and the pictures fill in. A file that cannot be inlined keeps its
+     * URL, so nothing renders worse than it did.
+     */
+    if (!fileList.length) return;
+    void (async () => {
+      const byId = Object.fromEntries(fileList.map((f) => [f.id, f]));
+      const { files: inlinedFiles, inlined } = await inlineMoodboardImages(
+        byId as any,
+        async (src) => {
+          const res = await fetch(
+            `/admin/designs/${id}/moodboard/image?src=${encodeURIComponent(src)}`,
+            { credentials: "include" }
+          );
+          if (!res.ok) throw new Error(`proxy ${res.status}`);
+          const body = await res.json();
+          if (!body?.data_url) throw new Error("no data_url");
+          return body.data_url as string;
+        }
+      );
+      if (!inlined) return;
+      const live = excalidrawAPIRef.current;
+      if (!live) return;
+      live.addFiles(Object.values(inlinedFiles) as any);
+      live.refresh();
+    })();
+  }, [excalidrawAPIRef, id]);
 
   /**
    * Excalidraw reads `initialData` once, at mount. The board fetch can resolve
