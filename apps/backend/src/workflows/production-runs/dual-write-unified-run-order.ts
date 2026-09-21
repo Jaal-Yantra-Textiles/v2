@@ -25,6 +25,10 @@ import {
 } from "../inventory_orders/dual-write-unified-order"
 import { pickDefaultCurrency } from "../../lib/resolve-store-currency"
 import {
+  pickHouseStore,
+  partnerStoreIdsFrom,
+} from "./house-store"
+import {
   aggregatePartnerStatus,
   deriveRunPartnerStatus,
 } from "./lib/run-partner-status"
@@ -68,26 +72,110 @@ type MirrorResult = {
   error?: string
 }
 
+/**
+ * The region and currency stamped on a partner work-order mirror.
+ *
+ * 🔴 THIS USED TO BE `stores?.[0]` AND A `take: 1` REGION READ.
+ *
+ * The platform is multi-tenant — 14 stores on prod, most of them partner
+ * tenants — so "the store" was whichever row came back first, and the currency
+ * and region stamped on a money record were a draw. Eleven tenants default to
+ * INR, one to AUD, two to EUR; row 0 is a EUR one. Same family as #1983, and
+ * as the `stores[0]` read that put an approved product on sale at ~110× its
+ * cost (#1979).
+ *
+ * The house store — the one belonging to no partner — is decided by the TYPED
+ * partner↔store link via `pickHouseStore`, the same authority
+ * `readHouseStore` and `resolveBrandLocationId` already use in production.
+ * Deciding it a second way here is how two answers start to disagree.
+ *
+ * ⚠️ And the arbitrary region fallback is GONE rather than made deterministic.
+ * A region decides tax and currency; picking one because it sorted first is
+ * not better than picking one at random, it is only more repeatable. With no
+ * answer we return none, and the caller's existing `no_region` skip handles it
+ * — refusing, the way an unreadable dependency counts as unmet rather than
+ * released.
+ */
 const resolveRegionAndCurrency = async (container: MedusaContainer) => {
   const query: any = container.resolve(ContainerRegistrationKeys.QUERY)
-  const { data: stores } = await query.graph({
-    entity: "store",
-    fields: ["id", "default_region_id", "supported_currencies.*"],
-  })
-  const store = stores?.[0]
-  let regionId: string | undefined = store?.default_region_id ?? undefined
-  if (!regionId) {
-    const { data: regions } = await query.graph({
-      entity: "region",
-      fields: ["id"],
-      pagination: { take: 1 },
-    })
-    regionId = regions?.[0]?.id
+  const logger: any = container.resolve(ContainerRegistrationKeys.LOGGER)
+
+  const [{ data: stores = [] }, { data: partners = [] }] = await Promise.all([
+    query.graph({
+      entity: "store",
+      // `metadata` is fetched because `pickHouseStore` falls back to it when
+      // the link read comes back empty — a guard reading a field the query
+      // never asked for is dead code that types perfectly.
+      fields: ["id", "metadata", "default_region_id", "supported_currencies.*"],
+    }),
+    query.graph({
+      entity: "partners",
+      fields: ["id", "stores.id"],
+      withDeleted: true,
+    }),
+  ])
+
+  const store = pickHouseStore(stores, partnerStoreIdsFrom(partners)) as any
+
+  if (!store?.id) {
+    logger.error(
+      "[orders-unification] no single house store could be identified — not stamping a region or currency onto a work order from an arbitrary tenant"
+    )
+    return { regionId: undefined, currencyCode: undefined }
   }
+
   // #485: centralised default-currency selection (was a hand-rolled is_default
   // scan). Partner is linked AFTER creation, so the platform/base store
   // currency is stamped now; the #457 backfill re-stamps to partner currency.
   const currencyCode = pickDefaultCurrency(store, "inr")
+
+  let regionId: string | undefined = store.default_region_id ?? undefined
+
+  if (!regionId) {
+    /*
+     * ⚠️ A house store with no `default_region_id` is ordinary, not broken —
+     * it is the state every freshly seeded environment starts in, and the E2E
+     * suite runs in exactly that state. An earlier version of this refused
+     * outright and skipped the mirror, which is too blunt: it turned a missing
+     * default into no work order at all.
+     *
+     * 🔴 But the old `take: 1` is not the answer either. A region decides TAX
+     * AND CURRENCY, and picking whichever row came back first is how a work
+     * order ends up denominated in a currency the store does not sell in.
+     *
+     * So: fall back only to a region that matches the currency we are ALREADY
+     * stamping. That is not an arbitrary choice — it is the only region that
+     * cannot contradict the rest of the record. Ordered by id so two runs of
+     * the same data agree, and still refusing when nothing matches, because a
+     * currency-mismatched region is the defect this whole function was fixed
+     * for.
+     */
+    const { data: regions = [] } = await query.graph({
+      entity: "region",
+      fields: ["id", "currency_code"],
+    })
+
+    const matching = (regions as any[])
+      .filter(
+        (r) =>
+          String(r?.currency_code ?? "").toLowerCase() ===
+          String(currencyCode ?? "").toLowerCase()
+      )
+      .sort((a, b) => String(a.id).localeCompare(String(b.id)))
+
+    regionId = matching[0]?.id
+
+    if (regionId) {
+      logger.warn(
+        `[orders-unification] house store ${store.id} has no default_region_id — using region ${regionId}, the ${currencyCode} region matching the currency being stamped`
+      )
+    } else {
+      logger.error(
+        `[orders-unification] house store ${store.id} has no default_region_id and no region sells in ${currencyCode} — refusing to stamp a work order with a currency-mismatched region`
+      )
+    }
+  }
+
   return { regionId, currencyCode }
 }
 
