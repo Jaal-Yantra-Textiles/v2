@@ -6127,6 +6127,36 @@ export default defineMiddlewares({
     },
     {
       /**
+       * #2228 — the moodboard image proxy. Same per-route auth rule as every
+       * sibling; without this entry the route is dead exactly as seed was.
+       */
+      matcher: "/partners/designs/:designId/moodboard/image",
+      method: "GET",
+      middlewares: [authenticate("partner", ["session", "bearer"])],
+    },
+    {
+      /**
+       * 🔴 #2229 — the seed route had NO auth entry, so it was DEAD.
+       *
+       * Authentication here is per-route: `/partners*` carries only CORS and
+       * locale. Every sibling declares `authenticate("partner", …)` — generate,
+       * blocks, the boards list, the scene PUT — and this one did not, so
+       * `req.auth_context` was never populated and
+       * `assertPartnerCanAuthorDesign` rejected every caller with "Partner
+       * authentication required". It failed closed, so it was a dead route
+       * rather than an open one.
+       *
+       * This is what #2229 could not account for. The confusing part was the
+       * OTHER answer it sometimes gave — a 200 with `{ moodboard: null }` —
+       * which came from a dev server left in a half-reloaded state by a failed
+       * rebind, not from this code.
+       */
+      matcher: "/partners/designs/:designId/moodboard/seed",
+      method: "POST",
+      middlewares: [authenticate("partner", ["session", "bearer"])],
+    },
+    {
+      /**
        * #2017 — the admin's board save. A scene is large; without this the
        * default body limit rejects a real board and the failure looks like a
        * save bug rather than a limit. Mirrors the partner PUT's 20mb.

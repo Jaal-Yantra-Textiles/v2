@@ -134,8 +134,18 @@ test.describe("Partner moodboard: starting a board is explicit @partnerui", () =
      */
     expect((await boards(api)).own).toBeNull()
 
-    // And ours is what they are looking at — readable, not editable.
-    await expect(page.getByRole("button", { name: /^save$/i })).toBeDisabled()
+    /**
+     * And ours is what they are looking at — readable, not editable.
+     *
+     * The name matches BOTH labels: the button reads "Saved" while the board is
+     * clean and "Save" once it is dirty. It used to read "Save" here too, but
+     * only because a programmatic load marked the board dirty on open — Save lit
+     * up on work the partner had not done. Anchoring on `/^save$/` alone made
+     * this assertion depend on that bug.
+     */
+    await expect(
+      page.getByRole("button", { name: /^save$|^saved$/i })
+    ).toBeDisabled()
 
     await api.dispose()
   })

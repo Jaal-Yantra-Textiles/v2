@@ -302,6 +302,59 @@ setupSharedTestSuite(() => {
     ).toBe(false)
   })
 
+  /**
+   * 🔴 #2229 — the seed route had NO `authenticate("partner")` entry.
+   *
+   * Authentication on `/partners/*` is declared per route; `/partners*` itself
+   * carries only CORS and locale. Every sibling had it — generate, blocks, the
+   * boards list, the scene PUT — and seed did not, so `req.auth_context` was
+   * never populated and the guard rejected every caller. It failed closed, so
+   * it was a DEAD route rather than an open one, and nothing in tsc, the unit
+   * suite or a route-level test could see it: the handler is correct, and
+   * calling the workflow directly always worked.
+   *
+   * Asserted through HTTP for that reason. A test that imports the handler
+   * would pass on the broken middleware config.
+   */
+  it("seeds THEIR board through the route — it is actually reachable", async () => {
+    await api.post(`/admin/designs/${designId}/brief`, brief, headers)
+    const mint = await api.post(
+      `/admin/designs/${designId}/designer-invites`,
+      { inviter_name: "Studio JYT" },
+      headers
+    )
+    const accept = await api.post(
+      `/partners/designer-invites/${mint.data.token}/accept`,
+      { name: "Seed Weaver", email: `seed-${uniq()}@example.com`, password: "supersecret123" }
+    )
+    const bearer = { headers: { authorization: `Bearer ${accept.data.token}` } }
+
+    // They start with no board of their own.
+    const before = await api.get(`/partners/designs/${designId}/moodboards`, bearer)
+    expect(before.data.own).toBeNull()
+
+    const seeded = await api.post(
+      `/partners/designs/${designId}/moodboard/seed`,
+      {},
+      bearer
+    )
+    expect(seeded.status).toBe(200)
+    expect(seeded.data.moodboard?.elements?.length ?? 0).toBeGreaterThan(0)
+
+    // …and it landed on THEIR row, not ours.
+    const after = await api.get(`/partners/designs/${designId}/moodboards`, bearer)
+    expect(after.data.own).toBeTruthy()
+    expect(after.data.own.owner_type).toBe("partner")
+    expect(after.data.own.is_own).toBe(true)
+  })
+
+  it("the seed route still refuses an unauthenticated caller", async () => {
+    const err = await api
+      .post(`/partners/designs/${designId}/moodboard/seed`, {})
+      .catch((e) => e)
+    expect([400, 401]).toContain(err.response.status)
+  })
+
   it("rejects a non-author saving the moodboard scene", async () => {
     await api.post(`/admin/designs/${designId}/brief`, brief, headers)
 
