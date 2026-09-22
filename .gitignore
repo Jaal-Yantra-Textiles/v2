@@ -147,3 +147,4 @@ e2e/screenshots/
 .agents/
 skills-lock.json
 jyt-pinterest-flow-demo.mp4
+apps/**/.env.bak*

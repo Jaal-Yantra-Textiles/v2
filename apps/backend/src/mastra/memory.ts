@@ -20,6 +20,21 @@ try {
     process.env.MEDUSA_DB_URL ||
     undefined
 
+  /**
+   * 🔴 Mastra opens its OWN pg pools, separately from Medusa's — one here for
+   * storage, one for the vector index, one more in `mastra/index.ts`. Each
+   * defaults to node-postgres' max of 10, so on a small Postgres the three of
+   * them alone can exhaust the server: a managed instance capped at 20
+   * connections answered a plain `medusa exec seed.ts` with "sorry, too many
+   * clients already" and then "remaining connection slots are reserved for
+   * roles with the SUPERUSER attribute".
+   *
+   * Unset means the library default, so nothing changes where connections are
+   * plentiful; set it where they are not.
+   */
+  const poolMax = Number(process.env.MASTRA_PG_POOL_MAX) || undefined
+  const poolOpts = poolMax ? { max: poolMax } : {}
+
   const embeddingsEnabled =
     process.env.MASTRA_ENABLE_EMBEDDINGS === "true" &&
     !!process.env.GOOGLE_GENERATIVE_AI_API_KEY
@@ -29,7 +44,7 @@ try {
     !embeddingsEnabled
 
   if (connectionString) {
-    sharedStorage = new PostgresStore({ id: "mastra-memory-storage", connectionString })
+    sharedStorage = new PostgresStore({ id: "mastra-memory-storage", connectionString, ...poolOpts })
     if (embeddingsDisabled) {
       memory = new Memory({
         storage: sharedStorage,
@@ -43,7 +58,7 @@ try {
     } else {
       memory = new Memory({
         storage: sharedStorage,
-        vector: new PgVector({ id: "mastra-memory-vector", connectionString }),
+        vector: new PgVector({ id: "mastra-memory-vector", connectionString, ...poolOpts }),
         embedder: google.textEmbeddingModel("gemini-embedding-001", { outputDimensionality: 768 }),
         options: {
           workingMemory: { enabled: true },

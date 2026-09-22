@@ -25,6 +25,9 @@ import { textileExtractionAgent } from "./agents/textileExtractionAgent";
 
 const mastraDisabled = process.env.MASTRA_DISABLED === "true"
 const mastraConnectionString = mastraDisabled ? undefined : (process.env.MASTRA_DATABASE_URL || process.env.DATABASE_URL)
+// See mastra/memory.ts — Mastra's pools are separate from Medusa's and
+// default to 10 each, which does not fit on a small Postgres.
+const mastraPoolMax = Number(process.env.MASTRA_PG_POOL_MAX) || undefined
 
 export const mastra = new Mastra({
     agents: {
@@ -52,7 +55,7 @@ export const mastra = new Mastra({
     ...(sharedStorage
         ? { storage: sharedStorage }
         : (mastraConnectionString
-            ? { storage: new PostgresStore({ id: "mastra-storage", connectionString: mastraConnectionString }) }
+            ? { storage: new PostgresStore({ id: "mastra-storage", connectionString: mastraConnectionString, ...(mastraPoolMax ? { max: mastraPoolMax } : {}) }) }
             : {})),
     observability: {
         default: {

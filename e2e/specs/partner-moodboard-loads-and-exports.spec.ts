@@ -142,13 +142,12 @@ test.describe("Partner moodboard: it loads, and it can be exported @partnerui", 
    * work would go nowhere. Asserted on the ROW through a second request, never
    * on the toast or the button.
    *
-   * ⚠️ Deliberately NOT asserting that Save is disabled before an edit. It is
-   * not: a programmatic load fires Excalidraw's `onChange` asynchronously and
-   * marks the board dirty, so Save reads "Save" on a board nobody has touched.
-   * That is cosmetic and it is real — an attempted fix (suppressing our own
-   * writes) put the editor into an infinite render loop the moment the Layers
-   * panel opened, so it was reverted rather than shipped. A test that asserted
-   * the intended behaviour here would fail on `main` today.
+   * It also asserts what the button SAYS, which #2231 fixed. This used to be
+   * excluded on purpose: a programmatic load fires Excalidraw's `onChange`
+   * asynchronously and re-marked the board dirty, so Save read "Save" on a
+   * board nobody had touched and re-lit itself after every successful save.
+   * Dirtiness is now derived from a scene signature rather than a flag, so the
+   * three states below are real and are locked here.
    */
   test("an edit drawn on the canvas can be saved, and it persists", async ({
     page,
@@ -172,6 +171,18 @@ test.describe("Partner moodboard: it loads, and it can be exported @partnerui", 
 
     const save = page.getByRole("button", { name: /^save$|^saved$/i }).first()
 
+    /**
+     * #2231 — a board nobody has touched is SAVED, and stays that way while the
+     * editor finishes its own writes. The wait is deliberate: the defect was
+     * that the scene push, the scroll-to-fit and the image inlining each fired
+     * `onChange` a tick later and lit the button, so an assertion taken
+     * immediately would have passed on the broken code too.
+     */
+    await expect(save).toHaveText(/^saved$/i, { timeout: 15_000 })
+    await expect(save).toBeDisabled()
+    await page.waitForTimeout(2_000)
+    await expect(save).toBeDisabled()
+
     // Draw a rectangle: pick the tool, drag on empty canvas.
     await page.mouse.click(400, 250)
     await page.keyboard.press("r")
@@ -180,11 +191,20 @@ test.describe("Partner moodboard: it loads, and it can be exported @partnerui", 
     await page.mouse.move(520, 720, { steps: 12 })
     await page.mouse.up()
 
+    // A real edit lights it up.
     await expect(save).toBeEnabled({ timeout: 10_000 })
+    await expect(save).toHaveText(/^save$/i)
     await save.click()
 
     // It persisted — asserted on the ROW, not on the toast or the button.
     await expect.poll(async () => await count(), { timeout: 20_000 }).toBe(before + 1)
+
+    // #2231 — and it goes back to "Saved" and STAYS there. The save invalidates
+    // the boards query, whose refetch re-runs the scroll-to-fit; that used to
+    // re-arm the button, so the partner could never tell their work was in.
+    await expect(save).toHaveText(/^saved$/i, { timeout: 15_000 })
+    await page.waitForTimeout(2_000)
+    await expect(save).toBeDisabled()
 
     await api.dispose()
   })

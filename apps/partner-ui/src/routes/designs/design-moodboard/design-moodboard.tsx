@@ -11,6 +11,10 @@ import type { BinaryFileData, ExcalidrawImperativeAPI } from "@excalidraw/excali
 import { normalizeMoodboardScene } from "../../../lib/moodboard-scene"
 import { inlineMoodboardImages } from "../../../lib/inline-moodboard-images"
 import {
+  EMPTY_SCENE_SIGNATURE,
+  moodboardSceneSignature,
+} from "../../../lib/moodboard-dirty"
+import {
   BoardSwitcher,
   type BoardOption,
 } from "../../../components/moodboard/board-switcher"
@@ -185,6 +189,25 @@ const reidAndTranslate = (
   })
 }
 
+/**
+ * Hoisted, not inline. An object literal in JSX is a new identity on every
+ * render, and this component re-renders on every canvas change — handing
+ * Excalidraw fresh props mid-drag is a channel for exactly the render loop
+ * #2231 hit. Nothing here depends on state.
+ */
+const UI_OPTIONS = {
+  canvasActions: {
+    changeViewBackgroundColor: true,
+    saveToActiveFile: false,
+    saveAsImage: true,
+    export: { saveFileToDisk: true },
+    loadScene: false,
+    clearCanvas: false,
+    // Theme is controlled to follow the admin — no manual toggle.
+    toggleTheme: false,
+  },
+} as const
+
 // Resolve the effective admin theme so the canvas matches its surroundings
 // instead of Excalidraw's hard-coded light default. Medusa's admin (and this
 // embedded dashboard) toggles a `.dark` class on the document root, which itself
@@ -257,8 +280,14 @@ export const DesignMoodboard = () => {
   }, [])
 
   const apiRef = useRef<ExcalidrawImperativeAPI | null>(null)
-  const didInitRef = useRef(false)
   const [isDirty, setIsDirty] = useState(false)
+  /**
+   * #2231 — the scene as we last wrote or saved it. Dirtiness is the difference
+   * between this and what Excalidraw hands us, so the writes we make on the
+   * partner's behalf need no suppressing: see `lib/moodboard-dirty.ts` for why
+   * the flag this replaces could not work.
+   */
+  const baselineRef = useRef<string>(EMPTY_SCENE_SIGNATURE)
   const [isStarting, setIsStarting] = useState(false)
   /**
    * Excalidraw hands its API back through a callback, which can fire AFTER the
@@ -358,17 +387,36 @@ export const DesignMoodboard = () => {
     return () => clearTimeout(t)
   }, [moodboard])
 
-  // Excalidraw fires onChange on mount; ignore that first tick so the Save
-  // button only lights up on a real edit.
-  const handleChange = useCallback(() => {
-    if (!didInitRef.current) {
-      didInitRef.current = true
-      return
-    }
-    setIsDirty(true)
-    if (layersOpenRef.current) {
+  /**
+   * Excalidraw fires this constantly — on every pointer move, every scroll,
+   * every zoom, and once on mount — so it must be cheap and it must not depend
+   * on WHY it fired. Both answers come from the same comparison.
+   *
+   * 🔴 `setLayersTick` is bumped only when the elements actually changed. It
+   * used to bump on every event, which re-rendered the whole editor mid-drag
+   * and fed a state write straight back into the handler that caused it.
+   */
+  const lastTickSigRef = useRef<string>(EMPTY_SCENE_SIGNATURE)
+  const handleChange = useCallback((elements: readonly any[]) => {
+    const signature = moodboardSceneSignature(elements)
+    setIsDirty(signature !== baselineRef.current)
+    if (layersOpenRef.current && signature !== lastTickSigRef.current) {
+      lastTickSigRef.current = signature
       setLayersTick((t) => t + 1)
     }
+  }, [])
+
+  /**
+   * Adopt the canvas as it stands as the clean state. Called after every write
+   * we make on the partner's behalf, and after a successful save.
+   */
+  const markCanvasClean = useCallback(() => {
+    const signature = moodboardSceneSignature(
+      apiRef.current?.getSceneElements() ?? []
+    )
+    baselineRef.current = signature
+    lastTickSigRef.current = signature
+    setIsDirty(false)
   }, [])
 
   // Load a freshly-generated scene straight into the canvas so it's editable.
@@ -429,7 +477,7 @@ export const DesignMoodboard = () => {
       appState: {},
     }) as MoodboardData
     loadScene(scene)
-    setIsDirty(false)
+    markCanvasClean()
 
     /**
      * #2228 — swap the board's remote image URLs for real `data:` URIs.
@@ -472,7 +520,7 @@ export const DesignMoodboard = () => {
     return () => {
       cancelled = true
     }
-  }, [id, apiReady, activeBoard, moodboard, loadScene])
+  }, [id, apiReady, activeBoard, moodboard, loadScene, markCanvasClean])
 
 
   /**
@@ -516,7 +564,7 @@ export const DesignMoodboard = () => {
 
         if (from === "blank") {
           loadScene(blank)
-          setIsDirty(false)
+          markCanvasClean()
           toast.success(t("partner.designs.moodboard.startedBlank"))
           return
         }
@@ -544,7 +592,7 @@ export const DesignMoodboard = () => {
           normalizeMoodboardScene<ExcalidrawElement, BinaryFileData>(scene) ||
             (scene as MoodboardData)
         )
-        setIsDirty(false)
+        markCanvasClean()
         toast.success(t("partner.designs.moodboard.startedFromBrief"))
       } catch (err: any) {
         toast.error(err?.message || t("partner.designs.moodboard.startFailed"))
@@ -552,7 +600,7 @@ export const DesignMoodboard = () => {
         setIsStarting(false)
       }
     },
-    [id, saveMoodboard, generateMoodboard, loadScene, t]
+    [id, saveMoodboard, generateMoodboard, loadScene, markCanvasClean, t]
   )
 
   const handleGenerate = useCallback(async () => {
@@ -570,14 +618,14 @@ export const DesignMoodboard = () => {
       const { moodboard: scene } = await generateMoodboard()
       loadScene(normalizeMoodboardScene<ExcalidrawElement, BinaryFileData>(scene) ||
             (scene as MoodboardData))
-      setIsDirty(false)
+      markCanvasClean()
       toast.dismiss()
       toast.success(t("partner.designs.moodboard.generated"))
     } catch (err: any) {
       toast.dismiss()
       toast.error(err?.message || t("partner.designs.moodboard.generateFailed"))
     }
-  }, [id, generateMoodboard, loadScene, t])
+  }, [id, generateMoodboard, loadScene, markCanvasClean, t])
 
   // The insert-block palette, grouped for the dropdown menu.
   const groupedBlocks = useMemo(() => {
@@ -722,14 +770,14 @@ export const DesignMoodboard = () => {
         }
       }
 
-      setIsDirty(false)
+      markCanvasClean()
       toast.dismiss()
       toast.success(t("partner.designs.moodboard.saved"))
     } catch (err: any) {
       toast.dismiss()
       toast.error(err?.message || t("partner.designs.moodboard.saveFailed"))
     }
-  }, [id, saveMoodboard, updateBrief, design, t])
+  }, [id, saveMoodboard, updateBrief, design, markCanvasClean, t])
 
   const isSaving = isSavingScene
 
@@ -842,18 +890,7 @@ export const DesignMoodboard = () => {
               })()}
               viewModeEnabled={isReadOnly}
               onChange={handleChange}
-              UIOptions={{
-                canvasActions: {
-                  changeViewBackgroundColor: true,
-                  saveToActiveFile: false,
-                  saveAsImage: true,
-                  export: { saveFileToDisk: true },
-                  loadScene: false,
-                  clearCanvas: false,
-                  // Theme is controlled to follow the admin — no manual toggle.
-                  toggleTheme: false,
-                },
-              }}
+              UIOptions={UI_OPTIONS}
               detectScroll={true}
             />
 
