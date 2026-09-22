@@ -80,6 +80,13 @@ test.describe("Partner moodboard: it loads, and it can be exported @partnerui", 
     await api.dispose()
   })
 
+  /** Surface the page's own errors — a crashed route otherwise reads as a missing element. */
+  const watchForCrash = (page: Page) => {
+    const errs: string[] = []
+    page.on("pageerror", (e) => errs.push(String(e.stack || e).split("\n").slice(0, 3).join(" | ")))
+    return errs
+  }
+
   const openMoodboard = async (page: Page) => {
     await page.goto(`${PARTNER_UI}/login`, { waitUntil: "networkidle" })
     await page.locator('input[name="email"]').fill(seed.layoutEmail)
@@ -99,6 +106,7 @@ test.describe("Partner moodboard: it loads, and it can be exported @partnerui", 
   }
 
   test("🔴 the saved board is ON the canvas after a fresh load", async ({ page }) => {
+    const pageErrors = watchForCrash(page)
     const errors: string[] = []
     page.on("console", (m) => {
       if (m.type() === "error") errors.push(m.text())
@@ -112,6 +120,9 @@ test.describe("Partner moodboard: it loads, and it can be exported @partnerui", 
      * scene reach the canvas? A screenshot cannot; React state held the board
      * correctly the whole time the canvas was blank.
      */
+    if (pageErrors.length) {
+      throw new Error("the page crashed before Layers could be opened:\n" + pageErrors.join("\n"))
+    }
     await page.getByRole("button", { name: /^layers$/i }).click()
     await expect(page.getByText(/contents/i).first()).toBeVisible({
       timeout: 15_000,
@@ -120,6 +131,62 @@ test.describe("Partner moodboard: it loads, and it can be exported @partnerui", 
     // And Excalidraw's own verdict on the scene, which is what the export path
     // consults: it must not consider the canvas empty.
     expect(errors.join(" ")).not.toContain("Cannot export empty canvas")
+  })
+
+  /**
+   * 🔴 An edit made on the canvas can be SAVED, and it persists.
+   *
+   * The scene-loading rework (#2227) pushes the board onto the canvas
+   * imperatively, which is exactly the kind of change that can break saving
+   * without breaking rendering — the board would look right and the partner's
+   * work would go nowhere. Asserted on the ROW through a second request, never
+   * on the toast or the button.
+   *
+   * ⚠️ Deliberately NOT asserting that Save is disabled before an edit. It is
+   * not: a programmatic load fires Excalidraw's `onChange` asynchronously and
+   * marks the board dirty, so Save reads "Save" on a board nobody has touched.
+   * That is cosmetic and it is real — an attempted fix (suppressing our own
+   * writes) put the editor into an infinite render loop the moment the Layers
+   * panel opened, so it was reverted rather than shipped. A test that asserted
+   * the intended behaviour here would fail on `main` today.
+   */
+  test("an edit drawn on the canvas can be saved, and it persists", async ({
+    page,
+    baseURL,
+  }) => {
+    const api = await pwRequest.newContext({ baseURL })
+    const auth = await api.post("/auth/partner/emailpass", {
+      data: { email: seed.layoutEmail, password: seed.layoutPassword },
+    })
+    const token = (await auth.json()).token
+    const h = { headers: { authorization: `Bearer ${token}` } }
+    const count = async () => {
+      const r = await api.get(`/partners/designs/${seed.layoutDesignId}/moodboards`, h)
+      return ((await r.json()).own?.scene?.elements ?? []).length
+    }
+
+    const before = await count()
+    expect(before).toBeGreaterThan(0)
+
+    await openMoodboard(page)
+
+    const save = page.getByRole("button", { name: /^save$|^saved$/i }).first()
+
+    // Draw a rectangle: pick the tool, drag on empty canvas.
+    await page.mouse.click(400, 250)
+    await page.keyboard.press("r")
+    await page.mouse.move(300, 600)
+    await page.mouse.down()
+    await page.mouse.move(520, 720, { steps: 12 })
+    await page.mouse.up()
+
+    await expect(save).toBeEnabled({ timeout: 10_000 })
+    await save.click()
+
+    // It persisted — asserted on the ROW, not on the toast or the button.
+    await expect.poll(async () => await count(), { timeout: 20_000 }).toBe(before + 1)
+
+    await api.dispose()
   })
 
   test("the export dialog's PNG button is reachable, and the editor survives it", async ({
