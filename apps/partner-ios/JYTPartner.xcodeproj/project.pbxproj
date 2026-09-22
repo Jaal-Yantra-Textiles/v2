@@ -1,0 +1,332 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	objectVersion = 56;
+	classes = {
+	};
+	objects = {
+
+/* Begin PBXBuildFile section */
+		5A1000000000000000000031 /* Config.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A1000000000000000000011 /* Config.swift */; };
+		5A1000000000000000000032 /* Models.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A1000000000000000000012 /* Models.swift */; };
+		5A1000000000000000000033 /* Keychain.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A1000000000000000000013 /* Keychain.swift */; };
+		5A1000000000000000000034 /* PartnerAPI.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A1000000000000000000014 /* PartnerAPI.swift */; };
+		5A1000000000000000000035 /* AuthStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A1000000000000000000015 /* AuthStore.swift */; };
+		5A1000000000000000000036 /* JYTPartnerApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A1000000000000000000016 /* JYTPartnerApp.swift */; };
+		5A1000000000000000000037 /* RootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A1000000000000000000017 /* RootView.swift */; };
+		5A1000000000000000000038 /* LoginView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A1000000000000000000018 /* LoginView.swift */; };
+		5A1000000000000000000039 /* DesignComponents.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A1000000000000000000019 /* DesignComponents.swift */; };
+		5A100000000000000000003A /* DesignOrdersView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A100000000000000000001A /* DesignOrdersView.swift */; };
+		5A100000000000000000003B /* OrderDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A100000000000000000001B /* OrderDetailView.swift */; };
+		5A100000000000000000003C /* ProfileView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A100000000000000000001C /* ProfileView.swift */; };
+		5A100000000000000000003D /* DesignModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A100000000000000000001E /* DesignModels.swift */; };
+		5A100000000000000000003E /* StatusBadges.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A100000000000000000001F /* StatusBadges.swift */; };
+		5A1000000000000000000040 /* DesignDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A1000000000000000000021 /* DesignDetailView.swift */; };
+		5A1000000000000000000041 /* RunDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A1000000000000000000022 /* RunDetailView.swift */; };
+		5A1000000000000000000042 /* RunActions.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A1000000000000000000023 /* RunActions.swift */; };
+		5A1000000000000000000043 /* MediaPickerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A1000000000000000000024 /* MediaPickerView.swift */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXFileReference section */
+		5A100000000000000000000A /* JYTPartner.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = JYTPartner.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		5A1000000000000000000011 /* Config.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Config.swift; sourceTree = "<group>"; };
+		5A1000000000000000000012 /* Models.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Models.swift; sourceTree = "<group>"; };
+		5A1000000000000000000013 /* Keychain.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Keychain.swift; sourceTree = "<group>"; };
+		5A1000000000000000000014 /* PartnerAPI.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PartnerAPI.swift; sourceTree = "<group>"; };
+		5A1000000000000000000015 /* AuthStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AuthStore.swift; sourceTree = "<group>"; };
+		5A1000000000000000000016 /* JYTPartnerApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JYTPartnerApp.swift; sourceTree = "<group>"; };
+		5A1000000000000000000017 /* RootView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RootView.swift; sourceTree = "<group>"; };
+		5A1000000000000000000018 /* LoginView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LoginView.swift; sourceTree = "<group>"; };
+		5A1000000000000000000019 /* DesignComponents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DesignComponents.swift; sourceTree = "<group>"; };
+		5A100000000000000000001A /* DesignOrdersView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DesignOrdersView.swift; sourceTree = "<group>"; };
+		5A100000000000000000001B /* OrderDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OrderDetailView.swift; sourceTree = "<group>"; };
+		5A100000000000000000001C /* ProfileView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProfileView.swift; sourceTree = "<group>"; };
+		5A100000000000000000001D /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+		5A100000000000000000001E /* DesignModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DesignModels.swift; sourceTree = "<group>"; };
+		5A100000000000000000001F /* StatusBadges.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StatusBadges.swift; sourceTree = "<group>"; };
+		5A1000000000000000000021 /* DesignDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DesignDetailView.swift; sourceTree = "<group>"; };
+		5A1000000000000000000022 /* RunDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RunDetailView.swift; sourceTree = "<group>"; };
+		5A1000000000000000000023 /* RunActions.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RunActions.swift; sourceTree = "<group>"; };
+		5A1000000000000000000024 /* MediaPickerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MediaPickerView.swift; sourceTree = "<group>"; };
+/* End PBXFileReference section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		5A1000000000000000000008 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+		5A1000000000000000000002 = {
+			isa = PBXGroup;
+			children = (
+				5A1000000000000000000004 /* JYTPartner */,
+				5A1000000000000000000003 /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+		5A1000000000000000000003 /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				5A100000000000000000000A /* JYTPartner.app */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+		5A1000000000000000000004 /* JYTPartner */ = {
+			isa = PBXGroup;
+			children = (
+				5A1000000000000000000016 /* JYTPartnerApp.swift */,
+				5A1000000000000000000015 /* AuthStore.swift */,
+				5A1000000000000000000014 /* PartnerAPI.swift */,
+				5A1000000000000000000012 /* Models.swift */,
+				5A100000000000000000001E /* DesignModels.swift */,
+				5A1000000000000000000013 /* Keychain.swift */,
+				5A1000000000000000000011 /* Config.swift */,
+				5A1000000000000000000005 /* Views */,
+				5A100000000000000000001D /* Info.plist */,
+			);
+			path = JYTPartner;
+			sourceTree = "<group>";
+		};
+		5A1000000000000000000005 /* Views */ = {
+			isa = PBXGroup;
+			children = (
+				5A1000000000000000000017 /* RootView.swift */,
+				5A1000000000000000000018 /* LoginView.swift */,
+				5A1000000000000000000019 /* DesignComponents.swift */,
+				5A100000000000000000001A /* DesignOrdersView.swift */,
+				5A100000000000000000001B /* OrderDetailView.swift */,
+				5A100000000000000000001C /* ProfileView.swift */,
+				5A100000000000000000001F /* StatusBadges.swift */,
+				5A1000000000000000000021 /* DesignDetailView.swift */,
+				5A1000000000000000000022 /* RunDetailView.swift */,
+				5A1000000000000000000023 /* RunActions.swift */,
+				5A1000000000000000000024 /* MediaPickerView.swift */,
+			);
+			path = Views;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		5A1000000000000000000006 /* JYTPartner */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 5A100000000000000000000E /* Build configuration list for PBXNativeTarget "JYTPartner" */;
+			buildPhases = (
+				5A1000000000000000000007 /* Sources */,
+				5A1000000000000000000008 /* Frameworks */,
+				5A1000000000000000000009 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = JYTPartner;
+			packageProductDependencies = (
+			);
+			productName = JYTPartner;
+			productReference = 5A100000000000000000000A /* JYTPartner.app */;
+			productType = "com.apple.product-type.application";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		5A1000000000000000000001 /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = 1;
+				LastSwiftUpdateCheck = 1600;
+				LastUpgradeCheck = 1600;
+				TargetAttributes = {
+					5A1000000000000000000006 = {
+						CreatedOnToolsVersion = 16.0;
+					};
+				};
+			};
+			buildConfigurationList = 5A100000000000000000000B /* Build configuration list for PBXProject "JYTPartner" */;
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				en,
+				Base,
+			);
+			mainGroup = 5A1000000000000000000002;
+			minimizedProjectRefProxies = 1;
+			preferredProjectObjectVersion = 56;
+			productRefGroup = 5A1000000000000000000003 /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				5A1000000000000000000006 /* JYTPartner */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		5A1000000000000000000009 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		5A1000000000000000000007 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				5A1000000000000000000031 /* Config.swift in Sources */,
+				5A1000000000000000000032 /* Models.swift in Sources */,
+				5A1000000000000000000033 /* Keychain.swift in Sources */,
+				5A1000000000000000000034 /* PartnerAPI.swift in Sources */,
+				5A1000000000000000000035 /* AuthStore.swift in Sources */,
+				5A1000000000000000000036 /* JYTPartnerApp.swift in Sources */,
+				5A1000000000000000000037 /* RootView.swift in Sources */,
+				5A1000000000000000000038 /* LoginView.swift in Sources */,
+				5A1000000000000000000039 /* DesignComponents.swift in Sources */,
+				5A100000000000000000003A /* DesignOrdersView.swift in Sources */,
+				5A100000000000000000003B /* OrderDetailView.swift in Sources */,
+				5A100000000000000000003C /* ProfileView.swift in Sources */,
+				5A100000000000000000003D /* DesignModels.swift in Sources */,
+				5A100000000000000000003E /* StatusBadges.swift in Sources */,
+				5A1000000000000000000040 /* DesignDetailView.swift in Sources */,
+				5A1000000000000000000041 /* RunDetailView.swift in Sources */,
+				5A1000000000000000000042 /* RunActions.swift in Sources */,
+				5A1000000000000000000043 /* MediaPickerView.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin XCBuildConfiguration section */
+		5A100000000000000000000C /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_TESTABILITY = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu17;
+				GCC_DYNAMIC_NO_PIC = NO;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = ("DEBUG=1", "$(inherited)");
+				IPHONEOS_DEPLOYMENT_TARGET = 16.0;
+				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
+				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
+				MTL_FAST_MATH = YES;
+				ONLY_ACTIVE_ARCH = YES;
+				SDKROOT = iphoneos;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "DEBUG $(inherited)";
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+			};
+			name = Debug;
+		};
+		5A100000000000000000000D /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				ENABLE_NS_ASSERTIONS = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu17;
+				MTL_ENABLE_DEBUG_INFO = NO;
+				MTL_FAST_MATH = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 16.0;
+				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
+				SDKROOT = iphoneos;
+				SWIFT_COMPILATION_MODE = wholemodule;
+				VALIDATE_PRODUCT = YES;
+			};
+			name = Release;
+		};
+		5A100000000000000000000F /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = "";
+				ENABLE_PREVIEWS = YES;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = JYTPartner/Info.plist;
+				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
+				LD_RUNPATH_SEARCH_PATHS = ("$(inherited)", "@executable_path/Frameworks");
+				MARKETING_VERSION = 0.1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.jyt.partner;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+		5A1000000000000000000010 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = "";
+				ENABLE_PREVIEWS = NO;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = JYTPartner/Info.plist;
+				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
+				LD_RUNPATH_SEARCH_PATHS = ("$(inherited)", "@executable_path/Frameworks");
+				MARKETING_VERSION = 0.1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.jyt.partner;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				VALIDATE_PRODUCT = YES;
+			};
+			name = Release;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		5A100000000000000000000B /* Build configuration list for PBXProject "JYTPartner" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				5A100000000000000000000C /* Debug */,
+				5A100000000000000000000D /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		5A100000000000000000000E /* Build configuration list for PBXNativeTarget "JYTPartner" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				5A100000000000000000000F /* Debug */,
+				5A1000000000000000000010 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+/* End XCConfigurationList section */
+	};
+	rootObject = 5A1000000000000000000001 /* Project object */;
+}
