@@ -3,6 +3,7 @@ import type { IRegionModuleService } from "@medusajs/types"
 
 import { setupSharedTestSuite, getSharedTestEnv } from "./shared-test-setup"
 import { createAdminUser, getAuthHeaders } from "../helpers/create-admin-user"
+import { ensureHouseStoreRegion } from "../helpers/ensure-house-store-region"
 import { PRODUCTION_RUNS_MODULE } from "../../src/modules/production_runs"
 import { PARTNER_MODULE } from "../../src/modules/partner"
 import partnerOrderLink from "../../src/links/partner-order"
@@ -97,6 +98,9 @@ setupSharedTestSuite(() => {
           countries: ["in"],
         })
       }
+
+      // The house store needs a region before anything can be stamped with one.
+      await ensureHouseStoreRegion(container)
 
       const partnerService: any = container.resolve(PARTNER_MODULE)
       const unique = Date.now()

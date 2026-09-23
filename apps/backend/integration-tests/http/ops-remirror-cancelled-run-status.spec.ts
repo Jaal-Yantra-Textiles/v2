@@ -1,6 +1,7 @@
 import { ContainerRegistrationKeys, Modules } from "@medusajs/framework/utils"
 
 import { createAdminUser, getAuthHeaders } from "../helpers/create-admin-user"
+import { ensureHouseStoreRegion } from "../helpers/ensure-house-store-region"
 import { setupSharedTestSuite, getSharedTestEnv } from "./shared-test-setup"
 import { setUnifiedOrderPartnerStatus } from "../../src/workflows/inventory_orders/dual-write-unified-order"
 
@@ -36,6 +37,8 @@ setupSharedTestSuite(() => {
 
     beforeAll(async () => {
       await createAdminUser(getContainer())
+      // The house store needs a region before anything can be stamped with one.
+      await ensureHouseStoreRegion(getContainer())
       adminHeaders = await getAuthHeaders(api)
     })
 

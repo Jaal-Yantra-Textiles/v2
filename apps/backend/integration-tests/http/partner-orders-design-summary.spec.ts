@@ -6,6 +6,7 @@
  * usable thumbnail on the row.
  */
 import { createAdminUser, getAuthHeaders } from "../helpers/create-admin-user"
+import { ensureHouseStoreRegion } from "../helpers/ensure-house-store-region"
 import { getSharedTestEnv, setupSharedTestSuite } from "./shared-test-setup"
 
 jest.setTimeout(60000)
@@ -27,6 +28,8 @@ setupSharedTestSuite(() => {
     beforeAll(async () => {
       unique = Date.now()
       await createAdminUser(getContainer())
+      // The house store needs a region before anything can be stamped with one.
+      await ensureHouseStoreRegion(getContainer())
       adminHeaders = await getAuthHeaders(api)
 
       const email = `design-summary-partner-${unique}@jyt.test`

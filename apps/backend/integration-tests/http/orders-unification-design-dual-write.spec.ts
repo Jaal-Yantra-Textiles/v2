@@ -10,6 +10,7 @@
  */
 import { ContainerRegistrationKeys, Modules } from "@medusajs/framework/utils"
 import { createAdminUser, getAuthHeaders } from "../helpers/create-admin-user"
+import { ensureHouseStoreRegion } from "../helpers/ensure-house-store-region"
 import { getSharedTestEnv, setupSharedTestSuite } from "./shared-test-setup"
 import partnerOrderLink from "../../src/links/partner-order"
 import { PARTNER_MODULE } from "../../src/modules/partner"
@@ -44,6 +45,10 @@ setupSharedTestSuite(() => {
         currency_code: "inr",
         countries: ["in"],
       })
+      // Currency follows region: the house store adopts the region this test
+      // just made. Done HERE rather than in beforeEach so that a test which
+      // creates no region really does run without one.
+      await ensureHouseStoreRegion(container)
       return region.id
     }
 
