@@ -1,4 +1,4 @@
-import { actionsFromWords, orderLineToEvidence, runPhotos } from "../read-partner-records"
+import { actionsFromWords, orderLineToEvidence, productKind, runPhotos } from "../read-partner-records"
 
 describe("actionsFromWords", () => {
   it.each([
@@ -36,5 +36,16 @@ describe("runPhotos", () => {
   it("keeps only the photos sent for THIS run", () => {
     const design = { media_files: [{ url: "a", run_id: "r1" }, { url: "b", run_id: "r2" }, { url: "c" }] }
     expect(runPhotos(design, "r1")).toEqual([{ id: null, url: "a" }])
+  })
+})
+
+describe("productKind", () => {
+  it.each([
+    [{ title: "Pashmina Kani Shawl", type: { value: "jyt_tax_in_textile_over_2500" } }, "shawl"],
+    [{ title: "Fish and bird cotton dari", type: { value: "India-25" } }, "dari"],
+    [{ title: "Himalayan Ruby", type: { value: "2026" } }, null],
+    [{ title: "Himalayan Ruby", type: { value: "Stole" } }, "stole"],
+  ])("a tax class or a year is never the kind: %j → %s", (product, kind) => {
+    expect(productKind(product)).toBe(kind)
   })
 })
