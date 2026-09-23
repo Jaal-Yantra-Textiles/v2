@@ -142,11 +142,12 @@ describe("records-specific grouping", () => {
   it("tells supplied cloth apart by material, not one 'fabric' bucket", () => {
     const cat = catalogue()
     const line = (title: string, material: string) => ({ ...cat.products[0], title, product_type: "fabric", images: [], hints: { material, actions: [] } })
-    cat.products = [line("Linen — White", "Linen"), line("Linen — Natural", "Linen"), line("Tussar — Gold", "Tussar Silk")]
+    cat.products = [line("Linen — White", "Linen"), line("Linen — Natural", "Linen"), line("Tussar — Gold", "Tussar Silk"), line("Stripes", "White Stripes Fabric")]
     const p = fallbackProposal(cat, "test")
     expect(p.samples.map((s) => [s.title, s.product_type, s.material, s.evidence.length])).toEqual([
       ["Linen fabric", "fabric", "Linen", 2],
       ["Tussar Silk fabric", "fabric", "Tussar Silk", 1],
+      ["White Stripes Fabric", "fabric", "White Stripes Fabric", 1], // never "Fabric fabric"
     ])
   })
 

@@ -219,6 +219,17 @@ setupSharedTestSuite(() => {
       expect(sample.source_url).toBeNull()
     })
 
+    it("lists the partner's scans, newest first, so a gateway-timed-out scan can be found", async () => {
+      const first = (await scan()).data.scan.id
+      const second = (await scan()).data.scan.id
+      const res = await api.get(`/admin/partners/${partnerId}/capabilities/scans`, adminHeaders)
+      expect(res.status).toBe(200)
+      expect(res.data.scans.map((s: any) => s.id)).toEqual([second, first])
+      expect(res.data.scans[0]).toMatchObject({ kind: "records", status: "proposed", grouped_by: "fallback" })
+      expect(res.data.scans[0].sample_count).toBeGreaterThan(0)
+      expect(res.data.scans[0].proposal).toBeUndefined()
+    })
+
     it("credits weave for supplied cloth once the partner has told us they weave", async () => {
       await (getContainer().resolve("partner_onboarding_profile") as any).createPartnerOnboardingProfiles({
         partner_id: partnerId,

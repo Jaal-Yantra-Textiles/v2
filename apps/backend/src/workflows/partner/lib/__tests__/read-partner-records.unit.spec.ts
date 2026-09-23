@@ -27,6 +27,11 @@ describe("orderLineToEvidence", () => {
     expect(orderLineToEvidence(order, { material_name: "Linen" }, { weaves: true })!.hints!.actions).toEqual(["weave"])
   })
 
+  it("reads the kind from the line's material — a terry towel is a towel", () => {
+    expect(orderLineToEvidence(order, { material_name: "White Terry Towel" }, { weaves: false })!.product_type).toBe("towel")
+    expect(orderLineToEvidence(order, { material_name: "Kala Cotton" }, { weaves: false })!.product_type).toBe("fabric")
+  })
+
   it("skips a line with no material — it evidences nothing", () => {
     expect(orderLineToEvidence(order, { material_name: "  " }, { weaves: true })).toBeNull()
   })

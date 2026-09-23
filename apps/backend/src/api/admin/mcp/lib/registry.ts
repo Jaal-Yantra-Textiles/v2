@@ -4199,6 +4199,16 @@ export const ADMIN_MCP_TOOLS: AdminMcpToolDef[] = [
     nextSteps: ["commit_partner_capability_scan", "get_partner_capability_scan"],
   },
   {
+    name: "list_partner_capability_scans",
+    description:
+      "List a partner's capability scans (website or records), newest first, without their proposals: id, kind, status, grouped_by and proposal counts. Use it to find a scan whose request timed out at the gateway — the server usually finished and stored it — then read it with get_partner_capability_scan.",
+    method: "GET",
+    path: "/admin/partners/:id/capabilities/scans",
+    pathParams: ["id"],
+    inputSchema: obj({ id: STR("Partner id.") }, ["id"]),
+    nextSteps: ["get_partner_capability_scan", "commit_partner_capability_scan"],
+  },
+  {
     name: "get_partner_capability_scan",
     description:
       "Read a stored capability scan (website or records): its proposals and which keys are already committed (committed_keys maps key → created row id).",
