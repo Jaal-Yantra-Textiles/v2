@@ -15,11 +15,14 @@
  *   - `metadata.role = "ai_classification"` — its own role, so a System One row
  *     can never be picked up by the text-LLM resolver (which would reject the
  *     provider and silently fall back to free models);
- *   - `metadata.provider_type = "typesafe" | "codiv"`;
+ *   - `metadata.provider_type = "typesafe" | "codiv" | "openjev"` (the last
+ *     keyless — a self-hosted OpenJev server);
  *   - `metadata.pre_classification = true` — the switch. OFF unless set: a row
  *     that exists but is not switched on does nothing;
  *   - `metadata.scopes = ["partner_capability_scan", …]` or `["*"]` — which
- *     tasks it serves. An exact scope beats `*`; then `is_default`; then newest.
+ *     tasks it serves. Every serving row is tried in turn (failover): an exact
+ *     scope beats `*`, then `metadata.priority` (1 first), then `is_default`,
+ *     then newest.
  *   - the key in `api_config` (encrypted by the socials subscriber), optional
  *     `api_config.base_url` / `default_model` overrides, and optional
  *     `metadata.options` (Codiv: `steps`, `samples`, `think`) over the
@@ -38,7 +41,7 @@ import { askSystemOne, type Question, type SystemOneResult } from "./typesafe"
 
 export const CLASSIFICATION_ROLE = "ai_classification"
 
-export type SystemOneProvider = "typesafe" | "codiv"
+export type SystemOneProvider = "typesafe" | "codiv" | "openjev"
 
 /**
  * Per-provider defaults. `options` are extra request fields the provider
@@ -64,6 +67,10 @@ export const SYSTEM_ONE_PROVIDERS: Record<
      * small. TypeSafe answered all 27 in one request, correctly.
      */
     maxQuestions: number
+    /** Needs no API key (self-hosted OpenJev). */
+    keyless?: boolean
+    /** Accepts only plain-string option criteria, not {what, examples}. */
+    stringCriteria?: boolean
   }
 > = {
   typesafe: { url: "https://api.typesafe.ai/v1/systemone", model: "jev-latest", options: {}, allowed: [], maxQuestions: 36 },
@@ -74,7 +81,44 @@ export const SYSTEM_ONE_PROVIDERS: Record<
     allowed: ["steps", "samples", "think"],
     maxQuestions: 9,
   },
+  /**
+   * An open-source OpenJev server (github.com/ekzhang/openjev-sglang, Qwen3.6-
+   * 35B-A3B) — keyless. Measured 2026-09-24: 24/27 in one 9-item request with
+   * NO confident mistakes (its misses fall under the confidence bar), 6s. It
+   * rejects structured criteria (422 "Input should be a valid string"), so
+   * they are flattened. The default URL is a personal Modal deployment with no
+   * published privacy policy or uptime promise: a last resort, and a row
+   * should override `api_config.base_url` if one is self-hosted.
+   */
+  openjev: {
+    url: "https://ekzhang--openjev-sglang-openjev.us-west.modal.direct/v1/systemone",
+    model: "jev-latest",
+    options: {},
+    allowed: [],
+    maxQuestions: 27,
+    keyless: true,
+    stringCriteria: true,
+  },
 }
+
+/** PURE. `{what, not_for, examples}` criteria as one string, for string-only providers. */
+export const flattenCriteria = (questions: Record<string, Question>): Record<string, Question> =>
+  Object.fromEntries(
+    Object.entries(questions).map(([id, q]) => {
+      if (q.type !== "choice") return [id, q]
+      const criteria = Object.fromEntries(
+        Object.entries(q.criteria).map(([k, c]) => [
+          k,
+          c == null || typeof c === "string"
+            ? c ?? ""
+            : [c.what, c.not_for ? `Not for: ${c.not_for}` : "", c.examples?.length ? `Examples: ${c.examples.join("; ")}` : ""]
+                .filter(Boolean)
+                .join(". "),
+        ])
+      )
+      return [id, { ...q, criteria }]
+    })
+  )
 
 /** PURE. Provider defaults overlaid with a row's whitelisted, numeric options. */
 export const optionsFor = (provider: SystemOneProvider, rowOptions: unknown): Record<string, number> => {
@@ -143,6 +187,9 @@ export const rankClassifierRows = (rows: any[], scope: string): any[] => {
     const meta = r.metadata ?? {}
     return [
       scopesOf(meta).includes(scope) ? 0 : 1, // exact scope beats "*"
+      // Explicit failover order (e.g. Codiv 1 → TypeSafe 2 → OpenJev 3); rows
+      // without one sort after every row that has one.
+      positiveInt(meta.priority) ?? 1000,
       meta.is_default === true ? 0 : 1,
       -Date.parse(r.updated_at ?? r.created_at ?? 0) || 0,
     ]
@@ -161,8 +208,9 @@ const classifierFromRow = (row: any, container: any): ResolvedClassifier | null 
   const cfg = (row.api_config ?? {}) as Record<string, any>
   const provider = String(meta.provider_type ?? cfg.provider_type).toLowerCase() as SystemOneProvider
   if (!(provider in SYSTEM_ONE_PROVIDERS)) return null
-  const apiKey = decryptApiKey(cfg, container)
-  if (!apiKey) return null
+  const spec = SYSTEM_ONE_PROVIDERS[provider]
+  const apiKey = spec.keyless ? decryptApiKey(cfg, container) ?? "" : decryptApiKey(cfg, container)
+  if (!apiKey && !spec.keyless) return null
   return {
     provider,
     url: String(cfg.base_url || row.base_url || SYSTEM_ONE_PROVIDERS[provider].url),
@@ -241,9 +289,18 @@ export const classify = async (
     /* optional */
   }
   for (const c of classifiers) {
+    const spec = SYSTEM_ONE_PROVIDERS[c.provider]
     const result = await askSystemOne(
-      { state: input.state, questions: input.questions },
-      { apiKey: c.apiKey, url: c.url, model: c.model, extra: c.options, timeoutMs: input.timeoutMs, logger }
+      { state: input.state, questions: spec?.stringCriteria ? flattenCriteria(input.questions) : input.questions },
+      {
+        apiKey: c.apiKey,
+        url: c.url,
+        model: c.model,
+        extra: c.options,
+        keyless: spec?.keyless,
+        timeoutMs: input.timeoutMs,
+        logger,
+      }
     )
     if (result) return { ...result, provider: c.provider, platformId: c.platformId }
     logger?.warn?.(`[classify] ${c.provider} (${c.platformId}) did not answer for scope ${input.scope}; trying the next`)

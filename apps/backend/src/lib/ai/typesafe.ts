@@ -147,10 +147,12 @@ export async function askSystemOne(
      * e.g. Codiv's `steps` (denoise passes). Whitelisted by the caller.
      */
     extra?: Record<string, unknown>
+    /** A keyless endpoint (self-hosted OpenJev): send no Authorization header. */
+    keyless?: boolean
   } = {}
 ): Promise<SystemOneResult | null> {
   const apiKey = String(opts.apiKey ?? process.env.TYPESAFE_API_KEY ?? "").trim()
-  if (!apiKey) return null
+  if (!apiKey && !opts.keyless) return null
 
   const controller = new AbortController()
   const timer = setTimeout(
@@ -162,7 +164,7 @@ export async function askSystemOne(
     const res = await fetch(opts.url ?? TYPESAFE_URL, {
       method: "POST",
       headers: {
-        Authorization: `Bearer ${apiKey}`,
+        ...(apiKey ? { Authorization: `Bearer ${apiKey}` } : {}),
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
@@ -179,7 +181,7 @@ export async function askSystemOne(
       // Truncated: this goes to a log line, not a report.
       const detail = await res.text().catch(() => "")
       opts.logger?.warn?.(
-        `[typesafe] ${res.status} ${res.statusText}: ${detail.slice(0, 300)}`
+        `[system-one] ${opts.url ?? TYPESAFE_URL} ${res.status} ${res.statusText}: ${detail.slice(0, 300)}`
       )
       return null
     }
@@ -187,7 +189,7 @@ export async function askSystemOne(
     return readSystemOneResult(await res.json())
   } catch (err) {
     opts.logger?.warn?.(
-      `[typesafe] request failed: ${
+      `[system-one] ${opts.url ?? TYPESAFE_URL} request failed: ${
         err instanceof Error ? err.message : String(err)
       }`
     )

@@ -7,7 +7,7 @@ jest.mock("../../../modules/socials/utils/token-helpers", () => ({
 }))
 
 import { askSystemOne } from "../typesafe"
-import { classify, optionsFor, pickClassifierRow, resolveClassifier } from "../classify"
+import { classify, flattenCriteria, optionsFor, pickClassifierRow, rankClassifierRows, resolveClassifier } from "../classify"
 
 const ask = askSystemOne as jest.MockedFunction<typeof askSystemOne>
 
@@ -98,6 +98,29 @@ describe("resolveClassifier", () => {
 })
 
 describe("failover", () => {
+  it("🔴 follows metadata.priority: Codiv 1 → TypeSafe 2 → OpenJev 3, whatever was edited last", () => {
+    const rows = [
+      row({ id: "openjev", updated_at: "2026-09-30T00:00:00Z", metadata: { provider_type: "openjev", priority: 3, is_default: true } }),
+      row({ id: "typesafe", metadata: { provider_type: "typesafe", priority: 2 } }),
+      row({ id: "codiv", updated_at: "2020-01-01T00:00:00Z", metadata: { priority: 1 } }),
+    ]
+    expect(rankClassifierRows(rows, "partner_capability_scan").map((r) => r.id)).toEqual(["codiv", "typesafe", "openjev"])
+  })
+
+  it("uses the keyless OpenJev with no key, no auth, and flattened criteria", async () => {
+    ask.mockResolvedValueOnce({ model: "jev-latest", answers: { q: { type: "choice", choice: "a", confidence: 1, probabilities: {} } } } as any)
+    const keyless = row({ id: "oj", api_config: { api_key_encrypted: undefined }, metadata: { provider_type: "openjev" } })
+    const r = await classify(containerWith([keyless]), {
+      scope: "partner_capability_scan",
+      state: {},
+      questions: { q: { type: "choice", instructions: "?", criteria: { a: { what: "A thing", examples: ["x"] }, b: "B" } } },
+    })
+    const [body, opts] = ask.mock.calls[0] as any
+    expect(opts).toMatchObject({ keyless: true, apiKey: "", url: "https://ekzhang--openjev-sglang-openjev.us-west.modal.direct/v1/systemone", model: "jev-latest" })
+    expect(body.questions.q.criteria).toEqual({ a: "A thing. Examples: x", b: "B" })
+    expect(r).toMatchObject({ provider: "openjev" })
+  })
+
   it("🔴 moves to the next row serving the scope when the first does not answer", async () => {
     const codiv = row({ id: "codiv", metadata: { is_default: true } })
     const ts = row({ id: "ts", metadata: { provider_type: "typesafe" } })
@@ -110,6 +133,13 @@ describe("failover", () => {
   it("answers null when every row fails", async () => {
     ask.mockResolvedValue(null)
     expect(await classify(containerWith([row()]), { scope: "partner_capability_scan", state: {}, questions: {} })).toBeNull()
+  })
+})
+
+describe("flattenCriteria", () => {
+  it("leaves strings and non-choice questions alone", () => {
+    const q: any = { n: { type: "noul", instructions: "?" }, c: { type: "choice", instructions: "?", criteria: { a: "A", b: null, c: { what: "C", not_for: "D" } } } }
+    expect(flattenCriteria(q)).toEqual({ n: q.n, c: { type: "choice", instructions: "?", criteria: { a: "A", b: "", c: "C. Not for: D" } } })
   })
 })
 

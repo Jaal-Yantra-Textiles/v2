@@ -171,15 +171,20 @@ export const classifyEvidence = async (
   for (let i = 0; i < items.length; i += perRequest) chunks.push(items.slice(i, i + perRequest))
   const out: (ItemClass[] | null)[] = new Array(chunks.length)
   let next = 0
+  // Stop at the first failure: the caller fails over to the next provider for
+  // the WHOLE classification, so every further request here is wasted time
+  // (an overloaded Codiv took 6 failing requests before the handoff).
+  let failed = false
   await Promise.all(
     Array.from({ length: Math.min(REQUEST_CONCURRENCY, chunks.length) }, async () => {
-      while (next < chunks.length) {
+      while (next < chunks.length && !failed) {
         const i = next++
         out[i] = await classifyChunk(container, classifier, chunks[i])
+        if (out[i] === null) failed = true
       }
     })
   )
-  return out.some((c) => c === null) ? null : (out as ItemClass[][]).flat()
+  return failed || out.some((c) => !c) ? null : (out as ItemClass[][]).flat()
 }
 
 const earliest = (products: ScannedProduct[]) => {
@@ -210,7 +215,9 @@ export const proposalFromClasses = (
       return
     }
     const clothLike = cls.kind === "fabric" || cls.kind === "yarn"
-    const key = [cls.kind, cls.technique, clothLike ? cls.material : ""].join("|")
+    // By LABEL, not key: `stitched` and `unclear` both mean "no textile
+    // technique named" and must not split one kind into two identical titles.
+    const key = [cls.kind, TECHNIQUES[cls.technique]?.label ?? "", clothLike ? cls.material : ""].join("|")
     const g = groups.get(key) ?? { cls, products: [] }
     g.products.push(p)
     groups.set(key, g)

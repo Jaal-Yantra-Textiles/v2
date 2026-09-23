@@ -51,6 +51,7 @@ export type AiProviderType =
   // resolved for the `ai_classification` role; never built as a chat model.
   | "typesafe"
   | "codiv"
+  | "openjev"
 
 export type AiRole =
   | "ai_search_chat"
@@ -183,6 +184,11 @@ export const PROVIDER_DEFAULTS: Record<
   codiv: {
     baseUrl: "https://api.codiv.ai/v1/systemone",
     defaultModelHint: "openjev-latest",
+  },
+  openjev: {
+    // Keyless, self-hostable OpenJev (github.com/ekzhang/openjev-sglang).
+    baseUrl: "https://ekzhang--openjev-sglang-openjev.us-west.modal.direct/v1/systemone",
+    defaultModelHint: "jev-latest",
   },
 }
 

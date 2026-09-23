@@ -73,6 +73,13 @@ describe("classifyEvidence", () => {
     expect(ask).toHaveBeenCalledTimes(2)
   })
 
+  it("stops sending after the first failed request — the caller fails over anyway", async () => {
+    ask.mockResolvedValue(null)
+    const many = Array.from({ length: 18 }, (_, i) => item(`Item ${i}`)) // Codiv: 6 chunks
+    expect(await classifyEvidence(container, { ...CODIV, maxQuestions: 9 }, many)).toBeNull()
+    expect(ask.mock.calls.length).toBeLessThanOrEqual(3) // at most one per concurrent worker
+  })
+
   it("🔴 batches by the PROVIDER's question limit — Codiv degrades past ~9 questions", async () => {
     ask.mockResolvedValue(reply({}) as any)
     await classifyEvidence(container, { ...CODIV, maxQuestions: 9 }, Array.from({ length: 9 }, (_, i) => item(`I${i}`)))
@@ -122,6 +129,17 @@ describe("proposalFromClasses", () => {
       [{ kind: "stole", technique: "block_print", material: "cotton" }]
     )
     expect(p.samples[0]).toMatchObject({ title: "Block printed cotton stole", actions: ["print"] })
+  })
+
+  it("does not split one kind into two identical titles over 'stitched' vs 'unclear'", () => {
+    const p = proposalFromClasses(
+      cat([item("Trouser A", { hints: { actions: [] } }), item("Trouser B", { hints: { actions: [] } })]),
+      [
+        { kind: "trousers", technique: "stitched", material: "cotton" },
+        { kind: "trousers", technique: "unclear", material: "cotton" },
+      ]
+    )
+    expect(p.samples.map((s) => [s.title, s.evidence.length])).toEqual([["Cotton trousers", 2]])
   })
 
   it("names a material only when the evidence agrees on one", () => {

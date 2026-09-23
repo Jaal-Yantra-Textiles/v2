@@ -54,10 +54,13 @@ const ProviderTypeEnum = z.enum([
   // System One — typed judgments for pre-classification (lib/ai/classify.ts).
   "typesafe",
   "codiv",
+  "openjev",
 ])
 
 /** Providers that serve pre-classification rather than text generation. */
-const SYSTEM_ONE_PROVIDERS = ["typesafe", "codiv"] as const
+const SYSTEM_ONE_PROVIDERS = ["typesafe", "codiv", "openjev"] as const
+/** Keyless System One servers (self-hosted OpenJev). */
+const isKeyless = (p: string) => p === "openjev"
 const isSystemOne = (p: string) => (SYSTEM_ONE_PROVIDERS as readonly string[]).includes(p)
 
 const Schema = z.object({
@@ -70,14 +73,23 @@ const Schema = z.object({
   role: z.string().min(1, "Role is required"),
   custom_role: z.string().optional().default(""),
   is_default: z.boolean().optional().default(true),
-  api_key: z.string().min(1, "API key is required"),
+  // Required except for keyless providers — enforced in superRefine below.
+  api_key: z.string().optional().default(""),
   default_model: z.string().optional(),
   account_id: z.string().optional(),
   base_url: z.string().url("Must be a valid URL").optional().or(z.literal("")),
   // System One only: the switch, and which tasks this row serves.
   pre_classification: z.boolean().optional().default(true),
   scopes: z.string().optional().default("*"),
+  // Failover order among rows serving the same scope: 1 is tried first.
+  priority: z.string().optional().default(""),
 }).superRefine((data, ctx) => {
+  if (!isKeyless(data.provider_type) && !(data.api_key ?? "").trim()) {
+    ctx.addIssue({ code: "custom", path: ["api_key"], message: "API key is required" })
+  }
+  if ((data.priority ?? "").trim() && !/^[1-9]\d{0,2}$/.test((data.priority ?? "").trim())) {
+    ctx.addIssue({ code: "custom", path: ["priority"], message: "A whole number, 1 = tried first" })
+  }
   if (isSystemOne(data.provider_type)) {
     // Role is fixed to ai_classification on save; only the scopes need a shape.
     if (!/^(\*|[a-z0-9_]+)(\s*,\s*(\*|[a-z0-9_]+))*$/.test((data.scopes ?? "").trim())) {
@@ -138,6 +150,7 @@ const PROVIDER_LABELS: Record<z.infer<typeof ProviderTypeEnum>, string> = {
   custom: "Custom (OpenAI-compatible)",
   typesafe: "TypeSafe — System One (Jev)",
   codiv: "Codiv — System One (OpenJev)",
+  openjev: "OpenJev — self-hosted, no key",
 }
 
 const DEFAULT_MODEL_HINTS: Record<z.infer<typeof ProviderTypeEnum>, string> = {
@@ -154,6 +167,7 @@ const DEFAULT_MODEL_HINTS: Record<z.infer<typeof ProviderTypeEnum>, string> = {
   custom: "your-model-id",
   typesafe: "jev-latest",
   codiv: "openjev-latest",
+  openjev: "jev-latest",
 }
 
 export const CreateAiPlatformComponent = () => {
@@ -174,6 +188,7 @@ export const CreateAiPlatformComponent = () => {
       base_url: "",
       pre_classification: true,
       scopes: "*",
+      priority: "",
     },
   })
 
@@ -217,6 +232,9 @@ export const CreateAiPlatformComponent = () => {
                   .split(",")
                   .map((x) => x.trim())
                   .filter(Boolean),
+                ...((values.priority ?? "").trim()
+                  ? { priority: Number(values.priority) }
+                  : {}),
               }
             : {}),
         },
@@ -387,6 +405,23 @@ export const CreateAiPlatformComponent = () => {
                     </Form.Item>
                   )}
                 />
+                <Form.Field
+                  control={form.control}
+                  name="priority"
+                  render={({ field }) => (
+                    <Form.Item>
+                      <Form.Label optional>Failover priority</Form.Label>
+                      <Form.Control>
+                        <Input {...field} placeholder="1 = tried first, e.g. Codiv 1, TypeSafe 2, OpenJev 3" />
+                      </Form.Control>
+                      <Form.Hint>
+                        Every switched-on row serving a scope is tried in this
+                        order until one answers.
+                      </Form.Hint>
+                      <Form.ErrorMessage />
+                    </Form.Item>
+                  )}
+                />
               </>
             )}
 
@@ -420,7 +455,7 @@ export const CreateAiPlatformComponent = () => {
               name="api_key"
               render={({ field }) => (
                 <Form.Item>
-                  <Form.Label>API key</Form.Label>
+                  <Form.Label optional={isKeyless(providerType)}>API key</Form.Label>
                   <Form.Control>
                     <Input
                       {...field}
