@@ -113,7 +113,8 @@ export const orderLineToEvidence = (
   const when = order.status === "Delivered" || order.status === "Shipped" ? order.updated_at : order.order_date
   return {
     title: [material, line.color].filter(Boolean).join(" — "),
-    product_type: "fabric",
+    // A line's material is free text: "White Terry Towel" is a towel, not cloth.
+    product_type: productNounFromTitle(material) ?? "fabric",
     tags: [order.status],
     description: `Supplied ${line.quantity ?? "?"} to us on inventory order ${order.id} (${order.status}${when ? `, recorded ${day(when)}` : ""}).`,
     images: [],

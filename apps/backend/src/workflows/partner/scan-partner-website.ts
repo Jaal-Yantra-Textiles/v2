@@ -31,7 +31,15 @@ import { PARTNER_CAPABILITY_MODULE } from "../../modules/partner_capability"
 import { assertPartnerExistsStep } from "./steps/assert-partner-exists"
 
 export const WEBSITE_SCAN_ROLE = "ai_partner_website_scan"
-const MODEL_TIMEOUT_MS = 60_000
+/**
+ * The WHOLE model budget, retries included. The scan runs inside an HTTP
+ * request behind a load balancer that answers 504 at ~60s; with the SDK's
+ * default 3 attempts against a rate-limited free model, 11 of 14 paced scans
+ * crossed it (prod, 2026-09-24). One retry inside 25s keeps the request under
+ * the gateway and still falls back cleanly.
+ */
+const MODEL_TIMEOUT_MS = 25_000
+const MODEL_MAX_RETRIES = 1
 
 export type ScanPartnerWebsiteWorkflowInput = {
   partner_id: string
@@ -63,6 +71,7 @@ export const proposeFromCatalogue = async (
       model: resolved.model as any,
       system: SCAN_SYSTEM_PROMPT,
       prompt: buildScanPrompt(catalogue),
+      maxRetries: MODEL_MAX_RETRIES,
       abortSignal: AbortSignal.timeout(MODEL_TIMEOUT_MS),
     })
     const raw = readModelJson(response as any)

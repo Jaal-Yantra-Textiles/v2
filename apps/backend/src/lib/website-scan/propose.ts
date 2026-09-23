@@ -263,7 +263,8 @@ export const fallbackProposal = (
     // Cloth is told apart by what it is MADE of: one "fabric" group would file
     // Bhagalpur's linen and tussar silk as a single capability labelled linen.
     if (/^(fabric|yardage)$/i.test(kind) && p.hints?.material) {
-      return `${titleCase(p.hints.material.trim())} fabric`
+      const m = titleCase(p.hints.material.trim())
+      return /\bfabric$/i.test(m) ? m : `${m} fabric`
     }
     return titleCase(kind)
   }
