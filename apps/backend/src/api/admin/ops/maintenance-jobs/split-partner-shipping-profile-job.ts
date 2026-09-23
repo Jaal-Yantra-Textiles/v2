@@ -3,7 +3,6 @@ import {
   MedusaError,
   Modules,
 } from "@medusajs/framework/utils"
-import { updateShippingOptionsWorkflow } from "@medusajs/medusa/core-flows"
 
 import {
   ensurePartnerShippingProfileId,
@@ -90,6 +89,7 @@ export const splitPartnerShippingProfileJob: MaintenanceJob = {
   run: async (container, { dry_run }): Promise<MaintenanceJobResult> => {
     const query: any = container.resolve(ContainerRegistrationKeys.QUERY)
     const link: any = container.resolve(ContainerRegistrationKeys.LINK)
+    const fulfillment: any = container.resolve(Modules.FULFILLMENT)
 
     const houseChannelId = await resolveHouseSalesChannelId(container)
     if (!houseChannelId) {
@@ -152,8 +152,14 @@ export const splitPartnerShippingProfileJob: MaintenanceJob = {
       })
       if (!dry_run) {
         try {
-          await updateShippingOptionsWorkflow(container).run({
-            input: [{ id: option.id, shipping_profile_id: after } as any],
+          // The fulfillment service directly, NOT updateShippingOptionsWorkflow:
+          // the workflow reads the option's price set, and an option with none
+          // (a `calculated` carrier option, or a price-less leftover) crashed it
+          // with "Cannot read properties of undefined (reading 'prices')" — 6 of
+          // 91 on the first prod apply. Only the profile field is written here,
+          // so nothing price-related can be dropped.
+          await fulfillment.updateShippingOptions(option.id, {
+            shipping_profile_id: after,
           })
         } catch (e: any) {
           errors.push({ id: option.id, message: e?.message ?? String(e) })
@@ -229,13 +235,18 @@ export const splitPartnerShippingProfileJob: MaintenanceJob = {
       }
     }
 
+    // Count what actually moved: a change whose write failed is in `errors`
+    // too, and the first prod apply reported "Moved 91" with 6 still unmoved.
+    const failedIds = new Set(errors.map((e) => e.id))
     const moved = (entity: string) =>
-      changes.filter((c) => c.entity === entity).length
+      changes.filter(
+        (c) => c.entity === entity && (dry_run || !failedIds.has(c.id))
+      ).length
     const verb = dry_run ? "Would move" : "Moved"
     return {
       job_id: splitPartnerShippingProfileJob.id,
       dry_run,
-      applied: !dry_run && changes.length > 0,
+      applied: !dry_run && changes.some((c) => !failedIds.has(c.id)),
       summary:
         `${verb} ${moved("shipping_option")} shipping option(s) and ` +
         `${moved("product")} product(s) onto their side of the split` +
