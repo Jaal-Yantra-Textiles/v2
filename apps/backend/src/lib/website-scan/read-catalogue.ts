@@ -29,15 +29,23 @@ const MAX_CHILD_SITEMAPS = 3
 const PAGE_CONCURRENCY = 4
 const WOO_PAGE_SIZE = 100
 
-const decodeEntities = (s: string) =>
-  s
-    .replace(/&nbsp;/g, " ")
-    .replace(/&amp;/g, "&")
-    .replace(/&lt;/g, "<")
-    .replace(/&gt;/g, ">")
-    .replace(/&quot;/g, '"')
-    .replace(/&#39;|&apos;/g, "'")
-    .replace(/&#(\d+);/g, (_, n) => String.fromCharCode(Number(n)))
+const NAMED_ENTITIES: Record<string, string> = {
+  nbsp: " ", amp: "&", lt: "<", gt: ">", quot: '"', apos: "'",
+}
+
+/**
+ * ONE pass, so each entity is decoded exactly once. Chained replaces decode
+ * `&amp;lt;` to `&lt;` and then to `<` — a double unescape (CodeQL
+ * js/double-escaping on #2250).
+ */
+export const decodeEntities = (s: string) =>
+  s.replace(/&(#\d+|#x[0-9a-f]+|[a-z]+);/gi, (whole, body: string) => {
+    if (body[0] === "#") {
+      const code = body[1] === "x" || body[1] === "X" ? parseInt(body.slice(2), 16) : Number(body.slice(1))
+      return Number.isFinite(code) && code > 0 && code <= 0x10ffff ? String.fromCodePoint(code) : whole
+    }
+    return NAMED_ENTITIES[body.toLowerCase()] ?? whole
+  })
 
 /** HTML → readable text. Scripts, styles and tags go; whitespace collapses. */
 export const htmlToText = (html: string): string =>

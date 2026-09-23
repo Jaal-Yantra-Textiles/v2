@@ -3,6 +3,7 @@ import type { AddressInfo } from "node:net"
 
 import {
   catalogueLinks,
+  decodeEntities,
   extractJsonLdProducts,
   htmlToText,
   isDemoProduct,
@@ -73,6 +74,14 @@ describe("productFromOgCard", () => {
   it("refuses an article's card", () => {
     const html = `<meta property="og:type" content="article"><meta property="og:title" content="Our story"><meta property="og:image" content="/s.jpg">`
     expect(productFromOgCard(html, "https://p.example/products/story")).toBeNull()
+  })
+})
+
+describe("decodeEntities", () => {
+  it("decodes each entity exactly once — &amp;lt; is the text '&lt;', not '<'", () => {
+    expect(decodeEntities("&amp;lt;b&amp;gt;")).toBe("&lt;b&gt;")
+    expect(decodeEntities("&amp;#60;")).toBe("&#60;")
+    expect(decodeEntities("Jamdani &amp; Muslin &#8211; &#x2014; &nbsp;&bogus;")).toBe("Jamdani & Muslin – — \u00a0&bogus;".replace("\u00a0", " "))
   })
 })
 
