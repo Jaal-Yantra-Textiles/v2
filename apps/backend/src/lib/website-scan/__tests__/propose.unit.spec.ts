@@ -138,6 +138,33 @@ describe("fallbackProposal grouping", () => {
   })
 })
 
+describe("records-specific grouping", () => {
+  it("tells supplied cloth apart by material, not one 'fabric' bucket", () => {
+    const cat = catalogue()
+    const line = (title: string, material: string) => ({ ...cat.products[0], title, product_type: "fabric", images: [], hints: { material, actions: [] } })
+    cat.products = [line("Linen — White", "Linen"), line("Linen — Natural", "Linen"), line("Tussar — Gold", "Tussar Silk")]
+    const p = fallbackProposal(cat, "test")
+    expect(p.samples.map((s) => [s.title, s.product_type, s.material, s.evidence.length])).toEqual([
+      ["Linen fabric", "fabric", "Linen", 2],
+      ["Tussar Silk fabric", "fabric", "Tussar Silk", 1],
+    ])
+  })
+
+  it("drops a model 'fact' that only restates an evidence row", () => {
+    const p = proposalFromModel(
+      catalogue(),
+      modelAnswerSchema.parse({
+        capabilities: [{ title: "Muslin", product_indexes: [0] }],
+        knowledge: [
+          { fact: "16.5 units of check fabrics on order 01K36TE2WB5BQR1MS6KESXP7Q3", capability_index: 0 },
+          { fact: "Weaves 150s count muslin", capability_index: 0 },
+        ],
+      })
+    )
+    expect(p.knowledge.map((k) => k.fact)).toEqual(["Weaves 150s count muslin"])
+  })
+})
+
 describe("buildScanPrompt", () => {
   it("numbers products so the model can only answer by index", () => {
     const text = buildScanPrompt(catalogue())

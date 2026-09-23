@@ -19,6 +19,7 @@
  */
 import { ContainerRegistrationKeys } from "@medusajs/framework/utils"
 
+import { productNounFromTitle } from "../../../lib/website-scan/propose"
 import type { ScannedCatalogue, ScannedProduct } from "../../../lib/website-scan/types"
 import { PARTNER_ONBOARDING_PROFILE_MODULE } from "../../../modules/partner-onboarding-profile"
 import { MEDIA_MODULE } from "../../../modules/media"
@@ -127,9 +128,20 @@ export const orderLineToEvidence = (
   }
 }
 
+/**
+ * The kind of product a catalogue row IS. Not `product.type.value`: on this
+ * platform product types are TAX CLASSES (`jyt_tax_in_textile_over_2500`) and
+ * years (`India-2024`, `2026`) — the first bulk records scan proposed those as
+ * capabilities. The title's head noun ("Kullu Shawl" → shawl) is the kind; a
+ * type is used only when it is itself a product noun.
+ */
+export const productKind = (product: any): string | null =>
+  productNounFromTitle(String(product?.title ?? "")) ??
+  productNounFromTitle(String(product?.type?.value ?? ""))
+
 export const productToEvidence = (product: any): ScannedProduct => ({
   title: product.title,
-  product_type: product.type?.value ?? null,
+  product_type: productKind(product),
   tags: [product.status, ...(product.tags ?? []).map((t: any) => t?.value)].filter(Boolean),
   description: [
     product.status === "proposed" ? "Proposed to us, not yet approved." : "Listed with us.",

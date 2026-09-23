@@ -25,6 +25,9 @@ import type {
 export const MAX_PRODUCTS_FOR_MODEL = 120
 export const MAX_SAMPLES = 25
 export const MAX_KNOWLEDGE = 20
+
+/** A ULID or prefixed record id — a fact that cites one is restating a row. */
+const RESTATES_EVIDENCE = /\b(?:[a-z_]+_)?01[0-9A-HJKMNP-TV-Z]{24}\b/
 const MAX_IMAGES_PER_SAMPLE = 3
 
 export const modelAnswerSchema = z.object({
@@ -67,7 +70,7 @@ Rules:
 - "actions" must come ONLY from this list: ${CAPABILITY_ACTIONS.join(", ")}. "handwoven" => weave; "handspun" => spin; "block printed" => print; "embroidered"/"sozni"/"aari"/"chikankari" => embroider; a garment they sell => stitch ONLY if the text says they make it.
 - A reseller of goods it does not make gets "source", not "weave".
 - product_indexes: the [n] numbers of the products that evidence the capability. Every capability needs at least one.
-- knowledge: short, durable facts useful when sourcing from them later (a count, a yarn count, a certification, a region, a lead time, a minimum order, a dye process). One fact per entry. Do not restate a capability title. Link it with capability_index (position in your capabilities array) or product_index when it is about one line; leave both null for a partner-wide fact.
+- knowledge: short, durable facts useful when sourcing from them later (a yarn count, a certification, a region, a lead time, a minimum order, a dye process). One fact per entry. Do NOT restate a capability title, and do NOT restate what a single evidence line already says (its quantity, its order, its date) — that is already on record. Link it with capability_index (position in your capabilities array) or product_index when it is about one line; leave both null for a partner-wide fact.
 - At most ${MAX_SAMPLES} capabilities and ${MAX_KNOWLEDGE} knowledge facts.
 Answer with JSON only, matching: {"summary": string|null, "product_types": string[], "capabilities": [{"title","product_type","technique","material","actions":[],"notes","product_indexes":[]}], "knowledge": [{"fact","capability_index","product_index"}]}`
 
@@ -183,6 +186,9 @@ export const proposalFromModel = (
   for (const k of answer.knowledge.slice(0, MAX_KNOWLEDGE)) {
     const fact = clean(k.fact)
     if (!fact || seenFacts.has(fact.toLowerCase())) continue
+    // A fact naming a record id ("16.5 units … on order 01K36TE2…") restates
+    // the evidence list; it is not knowledge (hrhandloom's first scan: 12 of 13).
+    if (RESTATES_EVIDENCE.test(fact)) continue
     seenFacts.add(fact.toLowerCase())
     const sampleKey =
       (k.capability_index != null ? indexToKey.get(k.capability_index) : null) ??
@@ -253,7 +259,13 @@ export const fallbackProposal = (
 ): ScanProposal => {
   const kindOf = (p: ScannedProduct): string => {
     const type = p.product_type && !MERCHANDISING_LABEL.test(p.product_type) ? p.product_type.trim() : null
-    return type ?? (productNounFromTitle(p.title) ? titleCase(productNounFromTitle(p.title)!) : "Other products")
+    const kind = type ?? (productNounFromTitle(p.title) ? titleCase(productNounFromTitle(p.title)!) : "Other products")
+    // Cloth is told apart by what it is MADE of: one "fabric" group would file
+    // Bhagalpur's linen and tussar silk as a single capability labelled linen.
+    if (/^(fabric|yardage)$/i.test(kind) && p.hints?.material) {
+      return `${titleCase(p.hints.material.trim())} fabric`
+    }
+    return titleCase(kind)
   }
   const groups = new Map<string, ScannedProduct[]>()
   for (const p of catalogue.products) {
@@ -267,7 +279,8 @@ export const fallbackProposal = (
   const samples: ProposedSample[] = ordered.slice(0, MAX_SAMPLES).map(([kind, products], i) => ({
     key: `s${i + 1}`,
     title: kind,
-    product_type: kind === "Other products" ? null : kind.toLowerCase(),
+    product_type:
+      kind === "Other products" ? null : /\bfabric$/i.test(kind) ? "fabric" : kind.toLowerCase(),
     technique: null,
     material: hintedMaterial(products),
     actions: withHintedActions([], products),
