@@ -1,3 +1,10 @@
+## [13.159.2](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.159.1...v13.159.2) (2026-09-23)
+
+
+### Bug Fixes
+
+* **whatsapp:** a partner's Start tap runs the start workflow, so the design leaves Conceptual ([#2247](https://github.com/Jaal-Yantra-Textiles/v2/issues/2247)) ([d5b00b8](https://github.com/Jaal-Yantra-Textiles/v2/commit/d5b00b8c677cf4db7a9636d52e925d04b4b8befa))
+
 ## [13.159.1](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.159.0...v13.159.1) (2026-09-23)
 
 
