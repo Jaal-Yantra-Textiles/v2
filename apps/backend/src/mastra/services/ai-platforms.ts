@@ -47,6 +47,10 @@ export type AiProviderType =
   | "groq"
   | "bazaarlink"
   | "custom"
+  // System One (typed judgments, not text) — lib/ai/classify.ts. Only ever
+  // resolved for the `ai_classification` role; never built as a chat model.
+  | "typesafe"
+  | "codiv"
 
 export type AiRole =
   | "ai_search_chat"
@@ -170,6 +174,16 @@ export const PROVIDER_DEFAULTS: Record<
     defaultModelHint: "fal-ai/flux/schnell",
   },
   custom: {},
+  // System One (typed judgments) — resolved by lib/ai/classify.ts for the
+  // ai_classification role only, never built as a chat model.
+  typesafe: {
+    baseUrl: "https://api.typesafe.ai/v1/systemone",
+    defaultModelHint: "jev-latest",
+  },
+  codiv: {
+    baseUrl: "https://api.codiv.ai/v1/systemone",
+    defaultModelHint: "openjev-latest",
+  },
 }
 
 const normalizeProviderType = (raw: unknown): AiProviderType | null => {
@@ -954,4 +968,7 @@ export const AI_ROLES: AiRole[] = [
   "ai_whatsapp_partner_chat",
   // Groups a partner's website/records into capability proposals (#2249).
   "ai_partner_website_scan",
+  // Pre-classification with a System One model (TypeSafe / Codiv), scoped by
+  // metadata.scopes and switched by metadata.pre_classification (#2249).
+  "ai_classification",
 ]

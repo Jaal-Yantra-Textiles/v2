@@ -131,9 +131,20 @@ export async function askSystemOne(
     state: unknown
     questions: Record<string, Question>
   },
-  opts: { model?: string; timeoutMs?: number; logger?: any } = {}
+  opts: {
+    model?: string
+    timeoutMs?: number
+    logger?: any
+    /**
+     * An explicit provider — what `lib/ai/classify.ts` resolves from an AI
+     * platform row (TypeSafe or Codiv, which speaks the same wire format).
+     * Omitted = the TYPESAFE_API_KEY env var against TypeSafe.
+     */
+    apiKey?: string
+    url?: string
+  } = {}
 ): Promise<SystemOneResult | null> {
-  const apiKey = String(process.env.TYPESAFE_API_KEY ?? "").trim()
+  const apiKey = String(opts.apiKey ?? process.env.TYPESAFE_API_KEY ?? "").trim()
   if (!apiKey) return null
 
   const controller = new AbortController()
@@ -143,7 +154,7 @@ export async function askSystemOne(
   )
 
   try {
-    const res = await fetch(TYPESAFE_URL, {
+    const res = await fetch(opts.url ?? TYPESAFE_URL, {
       method: "POST",
       headers: {
         Authorization: `Bearer ${apiKey}`,

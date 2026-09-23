@@ -51,7 +51,14 @@ const ProviderTypeEnum = z.enum([
   "groq",
   "bazaarlink",
   "custom",
+  // System One — typed judgments for pre-classification (lib/ai/classify.ts).
+  "typesafe",
+  "codiv",
 ])
+
+/** Providers that serve pre-classification rather than text generation. */
+const SYSTEM_ONE_PROVIDERS = ["typesafe", "codiv"] as const
+const isSystemOne = (p: string) => (SYSTEM_ONE_PROVIDERS as readonly string[]).includes(p)
 
 const Schema = z.object({
   name: z.string().min(1, "Name is required"),
@@ -67,7 +74,21 @@ const Schema = z.object({
   default_model: z.string().optional(),
   account_id: z.string().optional(),
   base_url: z.string().url("Must be a valid URL").optional().or(z.literal("")),
+  // System One only: the switch, and which tasks this row serves.
+  pre_classification: z.boolean().optional().default(true),
+  scopes: z.string().optional().default("*"),
 }).superRefine((data, ctx) => {
+  if (isSystemOne(data.provider_type)) {
+    // Role is fixed to ai_classification on save; only the scopes need a shape.
+    if (!/^(\*|[a-z0-9_]+)(\s*,\s*(\*|[a-z0-9_]+))*$/.test((data.scopes ?? "").trim())) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["scopes"],
+        message: "Comma-separated scope slugs, e.g. partner_capability_scan — or * for every task",
+      })
+    }
+    return
+  }
   if (data.role === CUSTOM_ROLE_SENTINEL) {
     if (!ROLE_SLUG_REGEX.test((data.custom_role ?? "").trim())) {
       ctx.addIssue({
@@ -115,6 +136,8 @@ const PROVIDER_LABELS: Record<z.infer<typeof ProviderTypeEnum>, string> = {
   groq: "Groq",
   bazaarlink: "BazaarLink",
   custom: "Custom (OpenAI-compatible)",
+  typesafe: "TypeSafe — System One (Jev)",
+  codiv: "Codiv — System One (OpenJev)",
 }
 
 const DEFAULT_MODEL_HINTS: Record<z.infer<typeof ProviderTypeEnum>, string> = {
@@ -129,6 +152,8 @@ const DEFAULT_MODEL_HINTS: Record<z.infer<typeof ProviderTypeEnum>, string> = {
   bazaarlink: "qwen/qwen3.7-flash:free (vision, free)",
   fal: "fal-ai/flux/schnell — optional; FAL endpoint is chosen per-call",
   custom: "your-model-id",
+  typesafe: "jev-latest",
+  codiv: "openjev-latest",
 }
 
 export const CreateAiPlatformComponent = () => {
@@ -147,6 +172,8 @@ export const CreateAiPlatformComponent = () => {
       default_model: "",
       account_id: "",
       base_url: "",
+      pre_classification: true,
+      scopes: "*",
     },
   })
 
@@ -176,9 +203,22 @@ export const CreateAiPlatformComponent = () => {
         api_config: apiConfig,
         metadata: {
           provider_type: values.provider_type,
-          role: resolveRoleValue(values),
+          // A System One row always serves the pre-classification role, so the
+          // text-LLM resolver can never pick it up (lib/ai/classify.ts).
+          role: isSystemOne(values.provider_type)
+            ? "ai_classification"
+            : resolveRoleValue(values),
           is_default: values.is_default ?? true,
           source: "admin_ui",
+          ...(isSystemOne(values.provider_type)
+            ? {
+                pre_classification: values.pre_classification === true,
+                scopes: (values.scopes || "*")
+                  .split(",")
+                  .map((x) => x.trim())
+                  .filter(Boolean),
+              }
+            : {}),
         },
       })
       toast.success("AI provider created")
@@ -265,6 +305,7 @@ export const CreateAiPlatformComponent = () => {
                 )}
               />
 
+              {!isSystemOne(providerType) && (
               <Form.Field
                 control={form.control}
                 name="role"
@@ -295,9 +336,61 @@ export const CreateAiPlatformComponent = () => {
                   </Form.Item>
                 )}
               />
+              )}
             </div>
 
-            {roleSelection === CUSTOM_ROLE_SENTINEL && (
+            {isSystemOne(providerType) && (
+              <>
+                <Form.Field
+                  control={form.control}
+                  name="pre_classification"
+                  render={({ field }) => (
+                    <Form.Item>
+                      <div className="flex items-center justify-between gap-4">
+                        <div className="flex flex-col">
+                          <Form.Label>Pre-classification on</Form.Label>
+                          <Text size="small" className="text-ui-fg-subtle">
+                            When on, tasks in the scopes below ask this model
+                            their closed questions first and keep their LLM
+                            path as the fallback. Off = the row does nothing.
+                          </Text>
+                        </div>
+                        <Form.Control>
+                          <Switch
+                            checked={field.value === true}
+                            onCheckedChange={(v: boolean) => field.onChange(v)}
+                          />
+                        </Form.Control>
+                      </div>
+                      <Form.ErrorMessage />
+                    </Form.Item>
+                  )}
+                />
+                <Form.Field
+                  control={form.control}
+                  name="scopes"
+                  render={({ field }) => (
+                    <Form.Item>
+                      <Form.Label>Scopes</Form.Label>
+                      <Form.Control>
+                        <Input
+                          {...field}
+                          placeholder="partner_capability_scan  (or * for every task)"
+                          autoComplete="off"
+                        />
+                      </Form.Control>
+                      <Form.Hint>
+                        Comma-separated task scopes this row serves. A row
+                        naming a scope exactly wins over one serving <code>*</code>.
+                      </Form.Hint>
+                      <Form.ErrorMessage />
+                    </Form.Item>
+                  )}
+                />
+              </>
+            )}
+
+            {roleSelection === CUSTOM_ROLE_SENTINEL && !isSystemOne(providerType) && (
               <Form.Field
                 control={form.control}
                 name="custom_role"

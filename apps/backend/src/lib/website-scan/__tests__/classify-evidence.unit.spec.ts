@@ -4,7 +4,11 @@ jest.mock("../../ai/typesafe", () => {
 })
 
 import { askSystemOne } from "../../ai/typesafe"
+import type { ResolvedClassifier } from "../../ai/classify"
 import { classifyEvidence, itemState, proposalFromClasses } from "../classify-evidence"
+
+const CODIV: ResolvedClassifier = { provider: "codiv", url: "https://api.codiv.ai/v1/systemone", model: "openjev-latest", apiKey: "k", platformId: "plat_1" }
+const container = { resolve: () => { throw new Error("no logger") } }
 import type { ScannedCatalogue, ScannedProduct } from "../types"
 
 const ask = askSystemOne as jest.MockedFunction<typeof askSystemOne>
@@ -53,7 +57,9 @@ describe("classifyEvidence", () => {
         kind_1: ["shawl", 0.3], tech_1: ["levitation", 0.99], mat_1: ["unobtainium", 0.99],
       }) as any
     )
-    const out = await classifyEvidence([item("Ikat Pashmina"), item("Mystery")])
+    const out = await classifyEvidence(container, CODIV, [item("Ikat Pashmina"), item("Mystery")])
+    // it went to the platform's provider, not the env default
+    expect(ask.mock.calls[0][1]).toMatchObject({ apiKey: "k", url: "https://api.codiv.ai/v1/systemone", model: "openjev-latest" })
     expect(out).toEqual([
       { kind: "shawl", technique: "ikat", material: "pashmina" },
       { kind: "unclear", technique: "unclear", material: "unclear" },
@@ -63,7 +69,7 @@ describe("classifyEvidence", () => {
   it("returns null when ANY chunk fails — a partial read would hide evidence", async () => {
     const many = Array.from({ length: 13 }, (_, i) => item(`Item ${i}`)) // 2 chunks of 12 + 1
     ask.mockResolvedValueOnce(reply({ kind_0: ["fabric", 1] }) as any).mockResolvedValueOnce(null)
-    expect(await classifyEvidence(many)).toBeNull()
+    expect(await classifyEvidence(container, CODIV, many)).toBeNull()
     expect(ask).toHaveBeenCalledTimes(2)
   })
 })

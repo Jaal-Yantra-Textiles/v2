@@ -18,10 +18,15 @@
  *
  * Egress: only an item's name, its recorded facts (minus free-text notes) and
  * its tags are sent — never a design brief, description or designer notes.
- * TypeSafe does not train on inputs; retention is "as long as reasonably
- * necessary" (privacy policy / DPA, read 2026-09-24).
+ * Neither provider trains on inputs; Codiv processes in memory and writes no
+ * logs, TypeSafe retains "as long as reasonably necessary" (policies read
+ * 2026-09-24). Which one answers is the AI platform row for this scope.
  */
-import { askSystemOne, choice, type ChoiceAnswer, type OptionCriteria } from "../ai/typesafe"
+
+/** The pre-classification scope a platform row names to serve capability scans. */
+export const CAPABILITY_SCAN_SCOPE = "partner_capability_scan"
+import { classify, type ResolvedClassifier } from "../ai/classify"
+import { choice, type ChoiceAnswer, type OptionCriteria } from "../ai/typesafe"
 import { normalizeCapabilityActions } from "../../modules/partner_capability/lib/actions"
 import type { ProposedSample, ScanProposal, ScannedCatalogue, ScannedProduct } from "./types"
 
@@ -124,8 +129,9 @@ const picked = (answer: ChoiceAnswer | null | undefined, options: Record<string,
 
 /** One request's worth. Null when the service did not answer — never a guess. */
 const classifyChunk = async (
-  chunk: ScannedProduct[],
-  logger?: any
+  container: any,
+  classifier: ResolvedClassifier,
+  chunk: ScannedProduct[]
 ): Promise<ItemClass[] | null> => {
   const questions: Record<string, any> = {}
   chunk.forEach((_, i) => {
@@ -133,10 +139,13 @@ const classifyChunk = async (
     questions[`tech_${i}`] = choice(`Which textile technique does \`items[${i}]\` evidence? Only what its name, facts or tags state.`, criteriaOf(TECHNIQUES))
     questions[`mat_${i}`] = choice(`What is \`items[${i}]\` made of? Only what its name, facts or tags state.`, criteriaOf(MATERIALS))
   })
-  const result = await askSystemOne(
-    { state: { items: chunk.map(itemState) }, questions },
-    { timeoutMs: REQUEST_TIMEOUT_MS, logger }
-  )
+  const result = await classify(container, {
+    scope: CAPABILITY_SCAN_SCOPE,
+    classifier,
+    state: { items: chunk.map(itemState) },
+    questions,
+    timeoutMs: REQUEST_TIMEOUT_MS,
+  })
   if (!result) return null
   return chunk.map((_, i) => ({
     kind: picked(result.answers[`kind_${i}`] as ChoiceAnswer, KINDS),
@@ -151,8 +160,9 @@ const classifyChunk = async (
  * evidence from the proposal, which reads as "they don't make that".
  */
 export const classifyEvidence = async (
-  products: ScannedProduct[],
-  logger?: any
+  container: any,
+  classifier: ResolvedClassifier,
+  products: ScannedProduct[]
 ): Promise<ItemClass[] | null> => {
   const items = products.slice(0, MAX_ITEMS)
   const chunks: ScannedProduct[][] = []
@@ -163,7 +173,7 @@ export const classifyEvidence = async (
     Array.from({ length: Math.min(REQUEST_CONCURRENCY, chunks.length) }, async () => {
       while (next < chunks.length) {
         const i = next++
-        out[i] = await classifyChunk(chunks[i], logger)
+        out[i] = await classifyChunk(container, classifier, chunks[i])
       }
     })
   )
