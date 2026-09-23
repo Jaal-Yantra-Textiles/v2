@@ -205,11 +205,25 @@ setupSharedTestSuite(() => {
         [Modules.PRODUCT]: { product_id: legacyProductId },
         [Modules.FULFILLMENT]: { shipping_profile_id: houseProfileId },
       })
-      const { ids } = await storeOptionIds()
+      const { ids, zoneIds } = await storeOptionIds()
       const legacyOptionId = ids[0]
       await fulfillment.updateShippingOptions(legacyOptionId, {
         shipping_profile_id: houseProfileId,
       })
+      // 🔴 An option with NO price set — a calculated carrier option, or a
+      // price-less leftover. Made through the bare service, which links no
+      // price set. On the first prod apply 6 of these crashed
+      // updateShippingOptionsWorkflow ("reading 'prices'") and stayed put.
+      const [pricelessOption] = await fulfillment.createShippingOptions([
+        {
+          name: "Priceless Carrier",
+          price_type: "calculated",
+          provider_id: "manual_manual",
+          service_zone_id: zoneIds[0],
+          shipping_profile_id: houseProfileId,
+          type: { label: "Carrier", description: "Carrier", code: "priceless-carrier" },
+        },
+      ])
 
       // A house product — on the house channel, on the house profile.
       const houseChannelId = await resolveHouseSalesChannelId(container)
@@ -248,6 +262,7 @@ setupSharedTestSuite(() => {
       expect(apply.data.result.errors).toBeUndefined()
       expect(await profileOfProduct(legacyProductId)).toBe(partnerId)
       expect(await profileOfOption(legacyOptionId)).toBe(partnerId)
+      expect(await profileOfOption(pricelessOption.id)).toBe(partnerId)
       expect(await profileOfProduct(houseProductId)).toBe(houseProfileId)
 
       // 3. Idempotent: a second apply finds nothing to move.
