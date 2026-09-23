@@ -1334,10 +1334,26 @@ export const projectChildRunsCollated = async (
         sourceOrderId: partnerRuns[0]?.order_id ?? null,
       })
       if (!result.unified_order_id) {
-        // Collation declined (no region). One mirror each is worse than one
-        // order, but it is better than work with no order at all.
+        /*
+         * 🔴 A missing REGION cannot be fixed by retrying per run:
+         * `projectRunToUnifiedOrder` opens with the same
+         * `resolveRegionAndCurrency` guard and refuses for the same reason, so
+         * this "fallback" used to re-ask the question that had just failed and
+         * log as though it had done something. Say so, and leave the runs
+         * unprojected — loudly — rather than claim a recovery.
+         *
+         * Any OTHER failure (a thrown error) is specific to the collation, so
+         * one mirror each is still worth trying: worse than one order, better
+         * than work with no order at all.
+         */
+        if (result.skipped === "no_region") {
+          logger.error(
+            `[orders-unification] collation refused for partner ${partnerId} (no_region) — per-run mirrors would hit the same guard, so ${partnerRuns.length} run(s) are left with NO work-order`
+          )
+          continue
+        }
         logger.warn(
-          `[orders-unification] collation produced no order for partner ${partnerId} (${result.skipped ?? "unknown"}) — falling back to per-run mirrors`
+          `[orders-unification] collation produced no order for partner ${partnerId} (${result.skipped ?? result.error ?? "unknown"}) — falling back to per-run mirrors`
         )
         for (const run of partnerRuns) {
           await projectRunToUnifiedOrder(container, run.id)

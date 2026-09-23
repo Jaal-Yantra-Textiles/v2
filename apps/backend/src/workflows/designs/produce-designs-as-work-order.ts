@@ -100,6 +100,15 @@ export async function produceDesignsAsWorkOrder(
   not_dispatched: ProduceDesignReport[]
   /** Whether the lines joined an existing work-order or minted a new one. */
   work_order_joined?: boolean
+  /**
+   * Why no work-order exists although runs were created — null when one does.
+   *
+   * 🔴 `work_order_id: null` alone means three different things here: a dry
+   * run, no runs created, or a refusal/failure AFTER the runs were created and
+   * dispatched. Only the last is a problem, and it read as success — the drawer
+   * showed a green "Sent" toast over dispatched work that sat on no order.
+   */
+  work_order_problem?: string | null
 }> {
   const logger: any = container.resolve(ContainerRegistrationKeys.LOGGER)
   const runService = container.resolve(
@@ -349,14 +358,42 @@ export async function produceDesignsAsWorkOrder(
     })
   }
 
+  const workOrderId = projection.unified_order_id ?? null
+  const workOrderProblem = workOrderId ? null : describeMissingWorkOrder(projection)
+  if (workOrderProblem) {
+    logger.error(
+      `[produce-designs-as-work-order] ${runIds.length} run(s) created for partner ${partnerId} but NO work-order: ${workOrderProblem}`
+    )
+  }
+
   return {
     created: runIds.length,
     run_ids: runIds,
     design_ids: producedDesignIds,
-    work_order_id: projection.unified_order_id ?? null,
+    work_order_id: workOrderId,
     designs: reports,
     dispatched: reports.filter((r) => r.dispatched).map((r) => r.design_id),
     not_dispatched: notDispatched,
     work_order_joined: joined,
+    work_order_problem: workOrderProblem,
   }
+}
+
+/**
+ * The projection says WHY it produced no order (`skipped` / `error`); this is
+ * where that reason used to be dropped. Worded for the operator reading a toast.
+ */
+export const describeMissingWorkOrder = (projection: {
+  skipped?: string
+  error?: string
+}): string => {
+  if (projection.skipped === "no_region") {
+    return "No region matches the house store's currency, so the work-order was refused. Set the store's default region."
+  }
+  if (projection.error) {
+    return `The work-order could not be created: ${projection.error}`
+  }
+  return projection.skipped
+    ? `The work-order was skipped (${projection.skipped}).`
+    : "The work-order was not created, and no reason was given."
 }
