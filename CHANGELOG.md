@@ -1,3 +1,10 @@
+## [13.159.1](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.159.0...v13.159.1) (2026-09-23)
+
+
+### Bug Fixes
+
+* **shipping:** the split job moves price-less options too, and counts only what moved ([#1983](https://github.com/Jaal-Yantra-Textiles/v2/issues/1983)) ([#2244](https://github.com/Jaal-Yantra-Textiles/v2/issues/2244)) ([b61ec40](https://github.com/Jaal-Yantra-Textiles/v2/commit/b61ec40a5741a54505d33b77653fe2399cee6185))
+
 # [13.159.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.158.0...v13.159.0) (2026-09-23)
 
 
