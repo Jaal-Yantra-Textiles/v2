@@ -1,3 +1,17 @@
+# [13.160.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.159.2...v13.160.0) (2026-09-23)
+
+
+### Bug Fixes
+
+* **partners:** capability scans — a product's kind comes from its title, cloth splits by material, facts stop restating rows ([#2249](https://github.com/Jaal-Yantra-Textiles/v2/issues/2249)) ([#2252](https://github.com/Jaal-Yantra-Textiles/v2/issues/2252)) ([e4a9b57](https://github.com/Jaal-Yantra-Textiles/v2/commit/e4a9b57dee97b12d2a58056b14fcc235b5e5ef60))
+* **partners:** capability scans fail fast inside the gateway, list a partner's scans, a towel is a towel ([#2249](https://github.com/Jaal-Yantra-Textiles/v2/issues/2249)) ([#2253](https://github.com/Jaal-Yantra-Textiles/v2/issues/2253)) ([6fc427e](https://github.com/Jaal-Yantra-Textiles/v2/commit/6fc427e64a1a08f2d9a79d1b6766cdff385dfcc6))
+* **partners:** records scan — drop designless runs, include legacy store products but never another partner's ([#2249](https://github.com/Jaal-Yantra-Textiles/v2/issues/2249)) ([#2251](https://github.com/Jaal-Yantra-Textiles/v2/issues/2251)) ([8276f0f](https://github.com/Jaal-Yantra-Textiles/v2/commit/8276f0f368eab64ad1bfd68892adf1e09771b26d))
+
+
+### Features
+
+* **partners:** scan a partner's website into their capability library — preview, then commit ([#2249](https://github.com/Jaal-Yantra-Textiles/v2/issues/2249)) ([#2250](https://github.com/Jaal-Yantra-Textiles/v2/issues/2250)) ([eb4b402](https://github.com/Jaal-Yantra-Textiles/v2/commit/eb4b40263cffe81e1b1f4f0650b5c2735d975d49))
+
 ## [13.159.2](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.159.1...v13.159.2) (2026-09-23)
 
 
