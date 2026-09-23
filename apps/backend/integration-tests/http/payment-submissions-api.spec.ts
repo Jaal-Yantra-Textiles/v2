@@ -263,8 +263,9 @@ setupSharedTestSuite(() => {
         )
         .catch((e: any) => e.response)
       expect(rejected.status).toBeGreaterThanOrEqual(400)
+      // The shared payable rule (lib/task-payable.ts) words it for the partner.
       expect(rejected.data.message || rejected.data.error || "").toMatch(
-        /missing cost/i
+        /no cost agreed/i
       )
 
       // With the override the submission succeeds using the entered amount

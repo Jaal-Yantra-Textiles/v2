@@ -60,7 +60,6 @@ import submissionDesignsLink from "../../links/submission-designs-link"
 import submissionTasksLink from "../../links/submission-tasks-link"
 import partnerTaskLink from "../../links/partner-task"
 import {
-  isTaskPayable,
   taskPayableVerdict,
 } from "./lib/task-payable"
 import PaymentSubmissionsService from "../../modules/payment_submissions/service"
@@ -1065,22 +1064,22 @@ const validateTasksForSubmissionStep = createStep(
      * stale by the time a form is submitted; this is the moment the money is
      * decided.
      */
-    const ineligible = typedTasks.filter((t) => !isTaskPayable(t))
+    // The partner's typed price counts as the task's cost (see TaskPayableOptions).
+    const overrides = input.cost_overrides || {}
+    const verdictOf = (t: (typeof typedTasks)[number]) =>
+      taskPayableVerdict(t, { costOverride: overrides[t.id] })
+    const ineligible = typedTasks.filter((t) => !verdictOf(t).payable)
     if (ineligible.length) {
       throw new MedusaError(
         MedusaError.Types.INVALID_DATA,
         `Tasks not eligible for payment: ${ineligible
-          .map(
-            (t) =>
-              `${t.title || t.id} (${taskPayableVerdict(t).reason ?? t.status})`
-          )
+          .map((t) => `${t.title || t.id} (${verdictOf(t).reason ?? t.status})`)
           .join(", ")}`
       )
     }
 
     // 3. Every task must have a cost (prefer actual_cost, fall back to
     // estimated_cost, or a partner-entered override)
-    const overrides = input.cost_overrides || {}
     const noCost = typedTasks.filter(
       (t) =>
         !overrides[t.id] &&

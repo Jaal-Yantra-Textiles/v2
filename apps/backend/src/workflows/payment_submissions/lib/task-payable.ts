@@ -46,7 +46,34 @@ export type TaskPayableVerdict = {
   amount: number | null
 }
 
-const readAmount = (task: PayableTaskInput): number | null => {
+/**
+ * What the partner typed on the submission form for this task, when they did.
+ *
+ * 🔴 A POSITIVE OVERRIDE IS A COST. The create form lets a partner enter the
+ * price of a finished task that has none stored, and the write path has always
+ * billed that amount (`sanitizeCostOverrides` in create-payment-submission.ts).
+ * When this rule first moved here it read only the stored costs, so a task
+ * priced by the partner was refused as "No cost agreed" before the override
+ * was ever looked at — the form was offered, filled in, and then rejected.
+ *
+ * Only the write path passes one. The read route has no form to read from, so
+ * a no-cost task is still OFFERED as not payable, with the reason — which is
+ * what tells the partner to type a price.
+ */
+export type TaskPayableOptions = {
+  costOverride?: number | null
+}
+
+const readAmount = (
+  task: PayableTaskInput,
+  opts: TaskPayableOptions = {}
+): number | null => {
+  const override = Number(opts.costOverride)
+  // Positive only: a zero or junk override must not turn an absent cost into
+  // a free job, nor mask a stored one.
+  if (opts.costOverride != null && Number.isFinite(override) && override > 0) {
+    return override
+  }
   for (const candidate of [task?.actual_cost, task?.estimated_cost]) {
     if (candidate === null || candidate === undefined) continue
     const n = Number(candidate)
@@ -67,9 +94,10 @@ const readAmount = (task: PayableTaskInput): number | null => {
  * twice, once as the parent and once piecemeal.
  */
 export const taskPayableVerdict = (
-  task: PayableTaskInput
+  task: PayableTaskInput,
+  opts: TaskPayableOptions = {}
 ): TaskPayableVerdict => {
-  const amount = readAmount(task)
+  const amount = readAmount(task, opts)
 
   if (task?.parent_task_id) {
     return {
@@ -114,5 +142,7 @@ export const taskPayableVerdict = (
 }
 
 /** Convenience for the write path, which only needs the yes/no. */
-export const isTaskPayable = (task: PayableTaskInput): boolean =>
-  taskPayableVerdict(task).payable
+export const isTaskPayable = (
+  task: PayableTaskInput,
+  opts: TaskPayableOptions = {}
+): boolean => taskPayableVerdict(task, opts).payable
