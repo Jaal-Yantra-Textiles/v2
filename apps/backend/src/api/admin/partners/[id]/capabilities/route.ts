@@ -34,12 +34,18 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
       partner_id: partnerId,
       technique: validated.technique,
       material: validated.material,
+      product_type: validated.product_type,
+      include_knowledge: true,
       limit: validated.limit,
       offset: validated.offset,
     },
   })
 
-  return res.json({ samples: result.samples, count: result.count })
+  return res.json({
+    samples: result.samples,
+    count: result.count,
+    partner_knowledge: (result as any).partner_knowledge ?? [],
+  })
 }
 
 /**
@@ -70,6 +76,8 @@ export const POST = async (
       title: body.title,
       technique: body.technique ?? null,
       material: body.material ?? null,
+      product_type: body.product_type ?? null,
+      actions: body.actions ?? null,
       media_file_ids: body.media_file_ids,
       notes: body.notes ?? null,
       captured_at: body.captured_at ?? null,

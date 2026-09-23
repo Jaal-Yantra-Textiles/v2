@@ -13,6 +13,13 @@ export type ListPartnerCapabilitiesWorkflowInput = {
   partner_id: string
   technique?: string
   material?: string
+  product_type?: string
+  /**
+   * Attach learned knowledge. ADMIN ONLY: an operator's note ("slow to reply
+   * in harvest season") is about the partner, not for them, and the partner
+   * portal reads its own library through this same workflow.
+   */
+  include_knowledge?: boolean
   limit?: number
   offset?: number
 }
@@ -33,6 +40,7 @@ const listPartnerCapabilitiesStep = createStep(
     const filters: Record<string, unknown> = { partner_id: input.partner_id }
     if (input.technique) filters.technique = input.technique
     if (input.material) filters.material = input.material
+    if (input.product_type) filters.product_type = input.product_type
 
     const [samples, count] = await service.listAndCountPartnerCapabilitySamples(
       filters as any,
@@ -43,9 +51,36 @@ const listPartnerCapabilitiesStep = createStep(
       }
     )
 
+    const withMedia = await attachCapabilityMedia(container, samples ?? [])
+
+    // Each sample carries what we have LEARNED about it (#2249), oldest first
+    // so the record reads as it accumulated. Partner-wide facts ride alongside.
+    if (!input.include_knowledge) {
+      return new StepResponse({ samples: withMedia, count })
+    }
+
+    const ids = withMedia.map((s: any) => s.id)
+    const knowledge = await service.listPartnerCapabilityKnowledges(
+      { partner_id: input.partner_id },
+      { order: { observed_at: "ASC" }, take: 500 }
+    )
+    const bySample = new Map<string, any[]>()
+    const partnerWide: any[] = []
+    for (const k of knowledge ?? []) {
+      if (k.sample_id && ids.includes(k.sample_id)) {
+        bySample.set(k.sample_id, [...(bySample.get(k.sample_id) ?? []), k])
+      } else if (!k.sample_id) {
+        partnerWide.push(k)
+      }
+    }
+
     return new StepResponse({
-      samples: await attachCapabilityMedia(container, samples ?? []),
+      samples: withMedia.map((s: any) => ({
+        ...s,
+        knowledge: bySample.get(s.id) ?? [],
+      })),
       count,
+      partner_knowledge: partnerWide,
     })
   }
 )

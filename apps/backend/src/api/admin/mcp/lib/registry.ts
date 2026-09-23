@@ -48,6 +48,7 @@ import {
   PRODUCT_SPEC_WRITE_GUIDANCE,
   productSpecSchemaProps,
 } from "../../../../modules/product-spec/tool-schema"
+import { CAPABILITY_ACTIONS } from "../../../../modules/partner_capability/lib/actions"
 
 /**
  * The FORWARD LIST for `create_product_for_partner`.
@@ -4084,16 +4085,17 @@ export const ADMIN_MCP_TOOLS: AdminMcpToolDef[] = [
   {
     name: "list_partner_capabilities",
     description:
-      "List a partner's capability samples — photographs of things they have actually made, with the technique and material beside each. Read this BEFORE asking a partner for a new photograph: they have usually already shown you the thing they are being asked about. Filter by technique or material to answer 'who can do kani in pashmina' style questions for THIS partner. Each row carries captured_at — when the work was actually on the loom, NOT when it was recorded — and the source (partner wizard/WhatsApp vs an admin typing it up).",
+      "List a partner's capability samples — photographs of things they have actually made, with the technique, material, product_type and actions (spin/weave/dye/print/embroider/stitch/…) beside each, plus the KNOWLEDGE learned about each one and partner_knowledge for partner-wide facts. Read this BEFORE asking a partner for a new photograph: they have usually already shown you the thing they are being asked about. Filter by technique or material to answer 'who can do kani in pashmina' style questions for THIS partner. Each row carries captured_at — when the work was actually on the loom, NOT when it was recorded — and the source (partner wizard/WhatsApp, a website scan, or an admin typing it up).",
     method: "GET",
     path: "/admin/partners/:id/capabilities",
     pathParams: ["id"],
-    queryParams: ["technique", "material", "limit", "offset"],
+    queryParams: ["technique", "material", "product_type", "limit", "offset"],
     inputSchema: obj(
       {
         id: STR("Partner id, e.g. 'partner_...'."),
         technique: STR("Filter by technique, e.g. 'kani twill'."),
         material: STR("Filter by material, e.g. 'pashmina'."),
+        product_type: STR("Filter by product type, e.g. 'stole'."),
         limit: { type: "integer", description: "Max results (default 20, max 100)." },
         offset: { type: "integer", description: "Pagination offset." },
       },
@@ -4110,13 +4112,19 @@ export const ADMIN_MCP_TOOLS: AdminMcpToolDef[] = [
     pathParams: ["id"],
     write: true,
     sensitive: true,
-    bodyParams: ["title", "technique", "material", "media_file_ids", "notes", "captured_at"],
+    bodyParams: ["title", "technique", "material", "product_type", "actions", "media_file_ids", "notes", "captured_at"],
     inputSchema: obj(
       {
         id: STR("Partner id, e.g. 'partner_...'."),
         title: STR("What this is, in the partner's own words (required), e.g. 'kani twill, off-white'."),
         technique: STR("The weaving technique, e.g. 'kani twill'."),
         material: STR("The material, e.g. 'pashmina'."),
+        product_type: STR("The kind of product, e.g. 'stole', 'saree', 'yardage'."),
+        actions: {
+          type: "array",
+          items: { type: "string", enum: [...CAPABILITY_ACTIONS] },
+          description: "What the partner DOES for this item, from a fixed list. Unknown words are dropped.",
+        },
         media_file_ids: {
           type: "array",
           items: { type: "string" },
@@ -4149,6 +4157,108 @@ export const ADMIN_MCP_TOOLS: AdminMcpToolDef[] = [
       ["id", "sampleId"]
     ),
     sideEffects: "Removes the sample row. The uploaded photographs survive — other samples may reference them.",
+    nextSteps: ["list_partner_capabilities"],
+  },
+  // Website scan → capability library (#2249). Scan proposes and stores;
+  // commit files chosen proposals by KEY, copying photos into media.
+  {
+    name: "scan_partner_website",
+    description:
+      "Read a partner's own website (Shopify /products.json, else the page's product data and text) and PROPOSE capability samples — product type, technique, material, actions, photos, publish date — plus knowledge facts. Writes NOTHING to the library: it stores a scan and returns its proposals with keys (s1, s2… for samples, k1… for knowledge). Show the proposals to the admin, then call commit_partner_capability_scan with the keys they approve. `grouped_by: 'fallback'` means the model did not run and technique/material were NOT read — say so. Only public http(s) sites; private/internal addresses are refused. Sensitive: requires confirm:true.",
+    method: "POST",
+    path: "/admin/partners/:id/capabilities/scan",
+    pathParams: ["id"],
+    write: true,
+    // Sensitive although it files nothing: it makes outbound requests on our
+    // behalf and spends a model call, and every admin write is gated.
+    sensitive: true,
+    bodyParams: ["url"],
+    inputSchema: obj(
+      {
+        id: STR("Partner id."),
+        url: STR("The partner's website, e.g. 'gof.asia' or 'https://www.jphandloom.com/'. A product page is fine; the whole store is read."),
+      },
+      ["id", "url"]
+    ),
+    sideEffects:
+      "Fetches the site and calls a model; stores one partner_capability_scan row. Creates no capability, knowledge or media.",
+    nextSteps: ["commit_partner_capability_scan", "get_partner_capability_scan"],
+  },
+  {
+    name: "scan_partner_records",
+    description:
+      "PROPOSE capability samples for a partner from OUR OWN records: production runs they COMPLETED (design, tasks done → actions like stitch/embroider/print, quantity, date, and the photos they sent for that run), cloth they SUPPLIED us on Shipped/Delivered inventory orders (material, colour), and products they list with us. The strongest evidence we hold — prefer this over a website scan, and it works for partners with no website. Writes NOTHING to the library: stores a scan and returns keyed proposals (s1…, k1…); show them to the admin, then commit_partner_capability_scan with the approved keys. `weave` is only credited for supplied cloth when the partner told us they weave. Sensitive: requires confirm:true.",
+    method: "POST",
+    path: "/admin/partners/:id/capabilities/scan-records",
+    pathParams: ["id"],
+    write: true,
+    sensitive: true,
+    inputSchema: obj({ id: STR("Partner id.") }, ["id"]),
+    sideEffects:
+      "Reads runs, inventory orders and products; may call a model; stores one partner_capability_scan row (kind='records'). Creates no capability, knowledge or media.",
+    nextSteps: ["commit_partner_capability_scan", "get_partner_capability_scan"],
+  },
+  {
+    name: "get_partner_capability_scan",
+    description:
+      "Read a stored capability scan (website or records): its proposals and which keys are already committed (committed_keys maps key → created row id).",
+    method: "GET",
+    path: "/admin/partners/:id/capabilities/scans/:scanId",
+    pathParams: ["id", "scanId"],
+    inputSchema: obj(
+      {
+        id: STR("Partner id."),
+        scanId: STR("Scan id, 'pcscan_...', from scan_partner_website or scan_partner_records."),
+      },
+      ["id", "scanId"]
+    ),
+    nextSteps: ["commit_partner_capability_scan"],
+  },
+  {
+    name: "commit_partner_capability_scan",
+    description:
+      "File approved proposals from a capability scan (website or records) into the partner's capability library. Select by KEY only — content cannot be edited in transit, so every row is what its source said. Omit both key lists to commit everything. Photos are downloaded into media and attached; a photo that fails is a warning, not a failure. Keys already committed are skipped, so a retry cannot duplicate. Sensitive: requires confirm:true.",
+    method: "POST",
+    path: "/admin/partners/:id/capabilities/scans/:scanId/commit",
+    pathParams: ["id", "scanId"],
+    previewPath: "/admin/partners/:id/capabilities/scans/:scanId",
+    write: true,
+    sensitive: true,
+    bodyParams: ["sample_keys", "knowledge_keys"],
+    inputSchema: obj(
+      {
+        id: STR("Partner id."),
+        scanId: STR("Scan id, 'pcscan_...'."),
+        sample_keys: { type: "array", items: { type: "string" }, description: "Sample proposal keys to commit, e.g. ['s1','s3']. Omit for all." },
+        knowledge_keys: { type: "array", items: { type: "string" }, description: "Knowledge proposal keys, e.g. ['k2']. Omit for all." },
+      },
+      ["id", "scanId"]
+    ),
+    sideEffects:
+      "Creates capability samples (source='website' or 'records', captured_at = the evidence's earliest date, or the scan date with metadata.captured_at_defaulted) and knowledge rows; photos we already hold are linked, others are copied into the partner's capability media folder.",
+    nextSteps: ["list_partner_capabilities"],
+  },
+  {
+    name: "add_partner_capability_knowledge",
+    description:
+      "Append one thing learned about a partner's capability — 'handles 60 lea linen', '10 m takes three weeks', 'no natural indigo in monsoon'. About one sample (sample_id) or the partner as a whole. Append-only: a new fact never edits an old one; if something stopped being true, add the newer fact. ADMIN-ONLY — the partner does not see knowledge. 🔑 ASK when it was observed and pass observed_at. Sensitive: requires confirm:true.",
+    method: "POST",
+    path: "/admin/partners/:id/capabilities/knowledge",
+    pathParams: ["id"],
+    write: true,
+    sensitive: true,
+    bodyParams: ["fact", "sample_id", "source_url", "observed_at"],
+    inputSchema: obj(
+      {
+        id: STR("Partner id."),
+        fact: STR("One fact, in plain words."),
+        sample_id: STR("Capability sample id ('pcap_...') the fact is about; omit for partner-wide."),
+        source_url: STR("Where it was read, if from a page."),
+        observed_at: STR("ISO date the fact was observed (ask, do not default silently)."),
+      },
+      ["id", "fact"]
+    ),
+    sideEffects: "Adds a permanent knowledge row, stamped source='admin'.",
     nextSteps: ["list_partner_capabilities"],
   },
   {

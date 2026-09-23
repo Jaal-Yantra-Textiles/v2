@@ -306,6 +306,9 @@ import { AdminCreatePartnerTaskReq, AdminUpdatePartnerTaskReq } from "./admin/pa
 import {
   AdminListPartnerCapabilitiesQuery,
   AdminCreatePartnerCapabilityReq,
+  AdminScanPartnerWebsiteReq,
+  AdminCommitPartnerCapabilityScanReq,
+  AdminAddPartnerCapabilityKnowledgeReq,
 } from "./admin/partners/[id]/capabilities/validators";
 import {
   ListPaymentsByPartnerQuerySchema as PartnerListPaymentsByPartnerQuerySchema,
@@ -4838,6 +4841,29 @@ export default defineMiddlewares({
       method: "POST",
       middlewares: [
         validateAndTransformBody(wrapSchema(AdminCreatePartnerCapabilityReq)),
+      ],
+    },
+    // Website scan (#2249): scan proposes and stores; commit files by key.
+    // Registered before `:sampleId` purely for readability — the methods differ.
+    {
+      matcher: "/admin/partners/:id/capabilities/scan",
+      method: "POST",
+      middlewares: [
+        validateAndTransformBody(wrapSchema(AdminScanPartnerWebsiteReq)),
+      ],
+    },
+    {
+      matcher: "/admin/partners/:id/capabilities/scans/:scanId/commit",
+      method: "POST",
+      middlewares: [
+        validateAndTransformBody(wrapSchema(AdminCommitPartnerCapabilityScanReq)),
+      ],
+    },
+    {
+      matcher: "/admin/partners/:id/capabilities/knowledge",
+      method: "POST",
+      middlewares: [
+        validateAndTransformBody(wrapSchema(AdminAddPartnerCapabilityKnowledgeReq)),
       ],
     },
     {

@@ -2778,9 +2778,26 @@
       "updated_at"
     ]
   },
+  "PartnerCapabilityKnowledge (modules/partner_capability/models/partner-capability-knowledge.ts)": {
+    "file": "modules/partner_capability/models/partner-capability-knowledge.ts",
+    "fields": [
+      "created_at",
+      "deleted_at",
+      "fact",
+      "id",
+      "metadata",
+      "observed_at",
+      "partner_id",
+      "sample_id",
+      "source",
+      "source_url",
+      "updated_at"
+    ]
+  },
   "PartnerCapabilitySample (modules/partner_capability/models/partner-capability-sample.ts)": {
     "file": "modules/partner_capability/models/partner-capability-sample.ts",
     "fields": [
+      "actions",
       "captured_at",
       "created_at",
       "deleted_at",
@@ -2790,10 +2807,31 @@
       "metadata",
       "notes",
       "partner_id",
+      "product_type",
       "source",
+      "source_url",
       "technique",
       "title",
       "updated_at"
+    ]
+  },
+  "PartnerCapabilityScan (modules/partner_capability/models/partner-capability-scan.ts)": {
+    "file": "modules/partner_capability/models/partner-capability-scan.ts",
+    "fields": [
+      "committed_at",
+      "committed_keys",
+      "created_at",
+      "deleted_at",
+      "id",
+      "kind",
+      "metadata",
+      "origin",
+      "partner_id",
+      "platform",
+      "proposal",
+      "status",
+      "updated_at",
+      "url"
     ]
   },
   "PartnerCredit (modules/internal_payments/models/partner_credit.ts)": {

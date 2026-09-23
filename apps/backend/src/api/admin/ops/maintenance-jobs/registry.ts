@@ -111,6 +111,7 @@ import { auditMoodboardBackfillJob } from "./audit-moodboard-backfill-job"
 import { patchCartRecoveryCancelledGateJob } from "./patch-cart-recovery-cancelled-gate-job"
 import { setDesignOrderCountryJob } from "./set-design-order-country-job"
 import { purgeAbandonedCartsJob } from "./purge-abandoned-carts-job"
+import { cloneAiPlatformRoleJob } from "./clone-ai-platform-role-job"
 import { restoreOrphanStoreJob } from "./restore-orphan-store-job"
 import { backfillPartnerEmailVerifiedJob } from "./backfill-partner-email-verified-job"
 import { backfillPartnerHostingProviderJob } from "./backfill-partner-hosting-provider-job"
@@ -6868,6 +6869,7 @@ export const MAINTENANCE_JOBS: MaintenanceJob[] = [
   patchCartRecoveryCancelledGateJob,
   setDesignOrderCountryJob,
   purgeAbandonedCartsJob,
+  cloneAiPlatformRoleJob,
 ]
 
 export const getMaintenanceJob = (id: string): MaintenanceJob | undefined =>
