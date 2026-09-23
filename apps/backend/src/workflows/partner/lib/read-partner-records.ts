@@ -162,6 +162,68 @@ const mediaIdsByUrl = async (container: any, urls: string[]): Promise<Map<string
   return out
 }
 
+/**
+ * Products in the partner's stores' default sales channels. Older products
+ * predate the partner↔product ownership link, so the link alone misses them
+ * (Sharlho's 9). But a sales channel can be SHARED — the founder's test partner
+ * "sees" Ksaman's Oshen products through the default channel — so a product
+ * the ownership link gives to ANOTHER partner is dropped. Unlinked legacy
+ * products are kept.
+ */
+const storeChannelProducts = async (
+  query: any,
+  partnerId: string,
+  alreadyOwned: Set<string>
+): Promise<{ products: any[]; foreign: number }> => {
+  const { data: partners } = await query.graph({
+    entity: "partners",
+    fields: ["id", "stores.default_sales_channel_id"],
+    filters: { id: partnerId },
+  })
+  const channelIds = [
+    ...new Set(
+      ((partners?.[0]?.stores ?? []) as any[]).map((s) => s?.default_sales_channel_id).filter(Boolean)
+    ),
+  ]
+  if (!channelIds.length) return { products: [], foreign: 0 }
+
+  const { data: channels } = await query.graph({
+    entity: "sales_channel",
+    fields: [
+      "id",
+      "products_link.product.id", "products_link.product.title", "products_link.product.status",
+      "products_link.product.material", "products_link.product.description",
+      "products_link.product.thumbnail", "products_link.product.created_at",
+      "products_link.product.type.value", "products_link.product.images.url",
+      "products_link.product.tags.value",
+    ],
+    filters: { id: channelIds },
+  })
+  const candidates = new Map<string, any>()
+  for (const c of channels ?? []) {
+    for (const l of c?.products_link ?? []) {
+      const p = l?.product
+      if (p?.id && !alreadyOwned.has(p.id) && LISTED_STATUSES.has(p.status)) candidates.set(p.id, p)
+    }
+  }
+  if (!candidates.size) return { products: [], foreign: 0 }
+
+  const { data: owners } = await query.graph({
+    entity: "product",
+    fields: ["id", "partners.id"],
+    filters: { id: [...candidates.keys()] },
+  })
+  let foreign = 0
+  for (const o of owners ?? []) {
+    const ownerIds = ((o?.partners ?? []) as any[]).map((p) => p?.id).filter(Boolean)
+    if (ownerIds.length && !ownerIds.includes(partnerId)) {
+      candidates.delete(o.id)
+      foreign++
+    }
+  }
+  return { products: [...candidates.values()], foreign }
+}
+
 export const readPartnerRecords = async (
   container: any,
   partnerId: string
@@ -215,12 +277,20 @@ export const readPartnerRecords = async (
 
   const evidence: ScannedProduct[] = []
 
+  // A run with no design says THAT they worked, not WHAT they made — as
+  // evidence it would read "Production run prod_run_01KZ…" (seen on Sharlho's
+  // first real scan), so it is counted, not proposed.
+  let runsWithoutDesign = 0
   for (const run of runs ?? []) {
-    evidence.push(runToEvidence(run, designs.get(run.design_id)))
+    const design = run.design_id ? designs.get(run.design_id) : null
+    if (!design) {
+      runsWithoutDesign++
+      continue
+    }
+    evidence.push(runToEvidence(run, design))
   }
-  const runsWithoutDesign = (runs ?? []).filter((r: any) => !r.design_id).length
   if (runsWithoutDesign) {
-    warnings.push(`${runsWithoutDesign} completed run(s) have no design, so they say little about WHAT was made`)
+    warnings.push(`${runsWithoutDesign} completed run(s) have no design, so they cannot say WHAT was made and were left out`)
   }
 
   const orders = (partner.inventory_orders ?? [])
@@ -233,10 +303,14 @@ export const readPartnerRecords = async (
     }
   }
 
-  const products = (partner.products ?? [])
-    .filter((p: any) => p && LISTED_STATUSES.has(p.status))
-    .slice(0, MAX_PRODUCTS)
-  for (const p of products) evidence.push(productToEvidence(p))
+  const owned = (partner.products ?? []).filter((p: any) => p && LISTED_STATUSES.has(p.status))
+  const storeProducts = await storeChannelProducts(query, partnerId, new Set(owned.map((p: any) => p.id)))
+  if (storeProducts.foreign) {
+    warnings.push(`${storeProducts.foreign} product(s) in their store's sales channel belong to another partner and were left out`)
+  }
+  for (const p of [...owned, ...storeProducts.products].slice(0, MAX_PRODUCTS)) {
+    evidence.push(productToEvidence(p))
+  }
 
   // Our own photo URLs (products, run photos without an id) → existing rows.
   const byUrl = await mediaIdsByUrl(container, evidence.flatMap((e) => e.images))

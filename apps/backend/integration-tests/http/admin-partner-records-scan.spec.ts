@@ -12,7 +12,7 @@
  *
  * Model off (WEBSITE_SCAN_MODEL=off): the mechanical grouping is what lands.
  */
-import { ContainerRegistrationKeys } from "@medusajs/framework/utils"
+import { ContainerRegistrationKeys, Modules } from "@medusajs/framework/utils"
 
 import { getSharedTestEnv, setupSharedTestSuite } from "./shared-test-setup"
 import { createAdminUser, getAuthHeaders } from "../helpers/create-admin-user"
@@ -135,6 +135,37 @@ setupSharedTestSuite(() => {
         [PARTNER_MODULE]: { partner_id: partnerId },
         [ORDER_INVENTORY_MODULE]: { inventory_orders_id: order.id },
       })
+
+      // A run with no design: counted, never proposed.
+      await runs.createProductionRuns({
+        partner_id: partnerId,
+        status: "completed",
+        run_type: "production",
+        quantity: 1,
+        completed_at: new Date("2026-09-11T00:00:00Z"),
+        snapshot: {},
+        captured_at: new Date(),
+      })
+
+      // Their store's channel holds a legacy product (no ownership link — KEEP)
+      // and one the ownership link gives to ANOTHER partner (shared channel — DROP).
+      const other = await (container.resolve(PARTNER_MODULE) as any).createPartners({
+        name: `Records Other ${unique}`,
+        handle: `records-other-${unique}`,
+      })
+      const channel = await (container.resolve(Modules.SALES_CHANNEL) as any).createSalesChannels({ name: `Records SC ${unique}` })
+      const store = await (container.resolve(Modules.STORE) as any).createStores({ name: `Records Store ${unique}`, default_sales_channel_id: channel.id })
+      const productService: any = container.resolve(Modules.PRODUCT)
+      const [legacy, foreign] = await productService.createProducts([
+        { title: `Kantha Throw ${unique}`, status: "published" },
+        { title: `Oshen Robe ${unique}`, status: "published" },
+      ])
+      await link.create([
+        { [PARTNER_MODULE]: { partner_id: partnerId }, [Modules.STORE]: { store_id: store.id } },
+        { [Modules.PRODUCT]: { product_id: legacy.id }, [Modules.SALES_CHANNEL]: { sales_channel_id: channel.id } },
+        { [Modules.PRODUCT]: { product_id: foreign.id }, [Modules.SALES_CHANNEL]: { sales_channel_id: channel.id } },
+        { [PARTNER_MODULE]: { partner_id: other.id }, [Modules.PRODUCT]: { product_id: foreign.id } },
+      ])
     })
 
     const scan = () =>
@@ -147,7 +178,14 @@ setupSharedTestSuite(() => {
       expect([kind, platform]).toEqual(["records", "records"])
 
       const byType = Object.fromEntries(proposal.samples.map((s: any) => [s.product_type, s]))
-      expect(Object.keys(byType).sort()).toEqual(["fabric", "jacket"])
+      // throw = the legacy store product; the other partner's robe is NOT here,
+      // and the designless run is not a "Production run prod_run_…" proposal
+      expect(Object.keys(byType).sort()).toEqual(["fabric", "jacket", "throw"])
+      const allEvidence = proposal.samples.flatMap((s: any) => s.evidence).join(" | ")
+      expect(allEvidence).not.toMatch(/Oshen Robe/)
+      expect(allEvidence).not.toMatch(/Production run prod_run/)
+      expect(proposal.warnings.join()).toMatch(/1 completed run\(s\) have no design/)
+      expect(proposal.warnings.join()).toMatch(/1 product\(s\) in their store's sales channel belong to another partner/)
 
       const jacket = byType.jacket
       expect(jacket.evidence).toHaveLength(1) // the cancelled run is NOT evidence
