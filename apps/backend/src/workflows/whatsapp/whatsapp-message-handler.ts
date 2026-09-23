@@ -4,6 +4,7 @@ import type ProductionRunService from "../../modules/production_runs/service"
 import { PARTNER_MODULE } from "../../modules/partner"
 import { TASKS_MODULE } from "../../modules/tasks"
 import { acceptProductionRunWorkflow } from "../production-runs/accept-production-run"
+import { startProductionRunWorkflow } from "../production-runs/start-production-run"
 import { signalLifecycleStepSuccessWorkflow } from "../production-runs/production-run-steps"
 import {
   awaitRunStartStepId,
@@ -1635,31 +1636,25 @@ async function handleStart(
   partnerId: string,
   language = "en"
 ): Promise<HandlerResult> {
-  const productionRunService: ProductionRunService = scope.resolve(PRODUCTION_RUNS_MODULE)
-  const run = await productionRunService.retrieveProductionRun(runId).catch(() => null) as any
-
-  if (!run || run.partner_id !== partnerId) {
-    throw new MedusaError(MedusaError.Types.NOT_FOUND, `Production run ${runId} not found`)
-  }
-
-  if (run.status !== "in_progress") {
-    throw new MedusaError(MedusaError.Types.NOT_ALLOWED, `Run must be in_progress to start. Current: ${run.status}`)
-  }
-  if (run.started_at) {
-    throw new MedusaError(MedusaError.Types.NOT_ALLOWED, "Run already started")
-  }
-
-  await productionRunService.updateProductionRuns({ id: runId, started_at: new Date() })
-
-  // Signal lifecycle
-  const transactionId = (run as any).lifecycle_transaction_id
-  if (transactionId) {
-    await signalLifecycleStepSuccessWorkflow(scope)
-      .run({ input: { transaction_id: transactionId, step_id: awaitRunStartStepId } })
-      .catch(() => {})
-  }
-
-  await emitEvent(scope, "production_run.started", { id: runId, production_run_id: runId, partner_id: partnerId, action: "started" })
+  /**
+   * 🔴 The tap runs the SAME workflow as the partner portal's Start button.
+   *
+   * It used to stamp `started_at` on the row and emit the event by hand, which
+   * skipped two things the workflow does: the design's move out of
+   * `Conceptual` (→ `In_Development`, or `Sample_Production` for a sample
+   * run), and the unified work-order's in_progress mirror. Partners start
+   * work from WhatsApp, so on prod a started run left its design reading
+   * "Conceptual" (Ksaman's Pashmina Inspired Tunic, started 2026-09-09).
+   *
+   * The workflow's own validation is the policy the portal uses
+   * (`assertCanStartWork`: in_progress, not already started) plus the
+   * partner-ownership check, so a tap that was refused before is refused
+   * now, with the same MedusaError types the caller already handles.
+   */
+  const { result } = await startProductionRunWorkflow(scope).run({
+    input: { production_run_id: runId, partner_id: partnerId },
+  })
+  const run = (result as any)?.run as any
 
   const designName = await getDesignName(scope, runId)
   await sendRunAck(scope, whatsapp, phone, runId, "started", designName, language, {
