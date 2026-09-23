@@ -78,6 +78,75 @@ export const validatePartnerStoreAccess = async (
     return { partner, store }
 }
 
+/**
+ * The stock locations a partner store owns: its default location plus every
+ * location linked to its default sales channel (extra warehouses, #2061).
+ */
+export const partnerStoreLocationIds = async (
+    store: { default_location_id?: string | null; default_sales_channel_id?: string | null },
+    container: MedusaContainer,
+): Promise<Set<string>> => {
+    const ids = new Set<string>()
+    if (store.default_location_id) ids.add(store.default_location_id)
+    if (store.default_sales_channel_id) {
+        const query = container.resolve(ContainerRegistrationKeys.QUERY)
+        const { data } = await query.graph({
+            entity: "sales_channels",
+            fields: ["id", "stock_locations.id"],
+            filters: { id: store.default_sales_channel_id },
+        })
+        for (const loc of ((data?.[0] as any)?.stock_locations || []) as any[]) {
+            if (loc?.id) ids.add(loc.id)
+        }
+    }
+    return ids
+}
+
+/**
+ * 🔴 A shipping option or service zone id in a partner URL/body must belong to
+ * THAT partner's store. `validatePartnerStoreAccess` only proves the caller
+ * owns the store named in the path — it says nothing about the option id next
+ * to it. Without this, any partner could read, re-price or DELETE another
+ * partner's (or the house's) shipping options by id, or create an option in
+ * someone else's service zone.
+ *
+ * Answers NOT_FOUND rather than UNAUTHORIZED, so the response does not confirm
+ * that the id exists elsewhere.
+ */
+export const assertStoreOwnsShippingTarget = async (
+    store: { default_location_id?: string | null; default_sales_channel_id?: string | null },
+    target: { shippingOptionId?: string; serviceZoneId?: string },
+    container: MedusaContainer,
+): Promise<void> => {
+    const query = container.resolve(ContainerRegistrationKeys.QUERY)
+    let locationId: string | undefined
+    if (target.shippingOptionId) {
+        const { data } = await query.graph({
+            entity: "shipping_options",
+            fields: ["id", "service_zone.fulfillment_set.location.id"],
+            filters: { id: target.shippingOptionId },
+        })
+        locationId = (data?.[0] as any)?.service_zone?.fulfillment_set?.location?.id
+    } else if (target.serviceZoneId) {
+        const { data } = await query.graph({
+            entity: "service_zones",
+            fields: ["id", "fulfillment_set.location.id"],
+            filters: { id: target.serviceZoneId },
+        })
+        locationId = (data?.[0] as any)?.fulfillment_set?.location?.id
+    }
+
+    const owned = await partnerStoreLocationIds(store, container)
+    if (!locationId || !owned.has(locationId)) {
+        throw new MedusaError(
+            MedusaError.Types.NOT_FOUND,
+            target.shippingOptionId
+                ? "Shipping option not found for this store"
+                : "Service zone not found for this store"
+        )
+    }
+}
+
 export const getPartnerStore = async (
     authContext: { actor_id?: string | null } | undefined,
     container: MedusaContainer,
