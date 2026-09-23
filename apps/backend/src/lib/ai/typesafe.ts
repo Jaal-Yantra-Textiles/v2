@@ -142,6 +142,11 @@ export async function askSystemOne(
      */
     apiKey?: string
     url?: string
+    /**
+     * Provider-specific request fields sent beside model/state/questions —
+     * e.g. Codiv's `steps` (denoise passes). Whitelisted by the caller.
+     */
+    extra?: Record<string, unknown>
   } = {}
 ): Promise<SystemOneResult | null> {
   const apiKey = String(opts.apiKey ?? process.env.TYPESAFE_API_KEY ?? "").trim()
@@ -161,6 +166,7 @@ export async function askSystemOne(
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
+        ...(opts.extra ?? {}),
         state: input.state,
         model: opts.model ?? DEFAULT_MODEL,
         questions: input.questions,

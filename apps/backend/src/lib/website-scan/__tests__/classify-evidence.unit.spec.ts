@@ -67,10 +67,20 @@ describe("classifyEvidence", () => {
   })
 
   it("returns null when ANY chunk fails — a partial read would hide evidence", async () => {
-    const many = Array.from({ length: 13 }, (_, i) => item(`Item ${i}`)) // 2 chunks of 12 + 1
+    const many = Array.from({ length: 4 }, (_, i) => item(`Item ${i}`)) // Codiv: 3 + 1
     ask.mockResolvedValueOnce(reply({ kind_0: ["fabric", 1] }) as any).mockResolvedValueOnce(null)
-    expect(await classifyEvidence(container, CODIV, many)).toBeNull()
+    expect(await classifyEvidence(container, { ...CODIV, maxQuestions: 9 }, many)).toBeNull()
     expect(ask).toHaveBeenCalledTimes(2)
+  })
+
+  it("🔴 batches by the PROVIDER's question limit — Codiv degrades past ~9 questions", async () => {
+    ask.mockResolvedValue(reply({}) as any)
+    await classifyEvidence(container, { ...CODIV, maxQuestions: 9 }, Array.from({ length: 9 }, (_, i) => item(`I${i}`)))
+    expect(ask).toHaveBeenCalledTimes(3) // 3 items × 3 questions each
+    expect(Object.keys((ask.mock.calls[0][0] as any).questions)).toHaveLength(9)
+    ask.mockClear()
+    await classifyEvidence(container, { ...CODIV, provider: "typesafe", maxQuestions: 36 }, Array.from({ length: 9 }, (_, i) => item(`I${i}`)))
+    expect(ask).toHaveBeenCalledTimes(1)
   })
 })
 

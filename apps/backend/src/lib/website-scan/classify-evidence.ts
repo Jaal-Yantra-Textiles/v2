@@ -30,7 +30,8 @@ import { choice, type ChoiceAnswer, type OptionCriteria } from "../ai/typesafe"
 import { normalizeCapabilityActions } from "../../modules/partner_capability/lib/actions"
 import type { ProposedSample, ScanProposal, ScannedCatalogue, ScannedProduct } from "./types"
 
-const ITEMS_PER_REQUEST = 12
+/** Three questions per item; a request holds as many items as the provider allows. */
+const QUESTIONS_PER_ITEM = 3
 const REQUEST_CONCURRENCY = 3
 const REQUEST_TIMEOUT_MS = 15_000
 const MAX_ITEMS = 120
@@ -166,7 +167,8 @@ export const classifyEvidence = async (
 ): Promise<ItemClass[] | null> => {
   const items = products.slice(0, MAX_ITEMS)
   const chunks: ScannedProduct[][] = []
-  for (let i = 0; i < items.length; i += ITEMS_PER_REQUEST) chunks.push(items.slice(i, i + ITEMS_PER_REQUEST))
+  const perRequest = Math.max(1, Math.floor((classifier.maxQuestions ?? 36) / QUESTIONS_PER_ITEM))
+  for (let i = 0; i < items.length; i += perRequest) chunks.push(items.slice(i, i + perRequest))
   const out: (ItemClass[] | null)[] = new Array(chunks.length)
   let next = 0
   await Promise.all(

@@ -7,7 +7,7 @@ jest.mock("../../../modules/socials/utils/token-helpers", () => ({
 }))
 
 import { askSystemOne } from "../typesafe"
-import { classify, pickClassifierRow, resolveClassifier } from "../classify"
+import { classify, optionsFor, pickClassifierRow, resolveClassifier } from "../classify"
 
 const ask = askSystemOne as jest.MockedFunction<typeof askSystemOne>
 
@@ -74,6 +74,8 @@ describe("resolveClassifier", () => {
       url: "https://api.codiv.ai/v1/systemone",
       model: "openjev-latest",
       apiKey: "dec(ct)",
+      options: { steps: 4 },
+      maxQuestions: 9,
       platformId: "plat_codiv",
     })
   })
@@ -95,6 +97,32 @@ describe("resolveClassifier", () => {
   })
 })
 
+describe("failover", () => {
+  it("🔴 moves to the next row serving the scope when the first does not answer", async () => {
+    const codiv = row({ id: "codiv", metadata: { is_default: true } })
+    const ts = row({ id: "ts", metadata: { provider_type: "typesafe" } })
+    ask.mockResolvedValueOnce(null).mockResolvedValueOnce({ model: "jev-1.13.0", answers: { q: { type: "noul", noul: 1 } } } as any)
+    const r = await classify(containerWith([ts, codiv]), { scope: "partner_capability_scan", state: {}, questions: { q: { type: "noul", instructions: "?" } } })
+    expect(ask.mock.calls.map((c) => (c[1] as any).url)).toEqual(["https://api.codiv.ai/v1/systemone", "https://api.typesafe.ai/v1/systemone"])
+    expect(r).toMatchObject({ provider: "typesafe", platformId: "ts" })
+  })
+
+  it("answers null when every row fails", async () => {
+    ask.mockResolvedValue(null)
+    expect(await classify(containerWith([row()]), { scope: "partner_capability_scan", state: {}, questions: {} })).toBeNull()
+  })
+})
+
+describe("optionsFor", () => {
+  it("🔴 Codiv defaults to steps 4 — one step was confidently wrong on real evidence", () => {
+    expect(optionsFor("codiv", undefined)).toEqual({ steps: 4 })
+  })
+  it("takes a row's whitelisted integer options, and drops anything else", () => {
+    expect(optionsFor("codiv", { steps: "8", samples: 2, temperature: 1, think: -1 })).toEqual({ steps: 8, samples: 2 })
+    expect(optionsFor("typesafe", { steps: 4 })).toEqual({})
+  })
+})
+
 describe("classify", () => {
   it("answers null — never throws — when nothing serves the scope", async () => {
     delete process.env.TYPESAFE_API_KEY
@@ -105,7 +133,7 @@ describe("classify", () => {
   it("sends to the resolved provider and says which one answered", async () => {
     ask.mockResolvedValueOnce({ model: "openjev-0.1", answers: { q: { type: "noul", noul: 0.9 } } } as any)
     const r = await classify(containerWith([row()]), { scope: "partner_capability_scan", state: { a: 1 }, questions: { q: { type: "noul", instructions: "?" } } })
-    expect(ask.mock.calls[0][1]).toMatchObject({ apiKey: "dec(ct)", url: "https://api.codiv.ai/v1/systemone", model: "openjev-latest" })
+    expect(ask.mock.calls[0][1]).toMatchObject({ apiKey: "dec(ct)", url: "https://api.codiv.ai/v1/systemone", model: "openjev-latest", extra: { steps: 4 } })
     expect(r).toMatchObject({ provider: "codiv", platformId: "plat_codiv", answers: { q: { noul: 0.9 } } })
   })
 })
