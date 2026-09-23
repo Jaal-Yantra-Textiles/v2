@@ -952,4 +952,6 @@ export const AI_ROLES: AiRole[] = [
   "ai_partner_assistant",
   "ai_admin_assistant",
   "ai_whatsapp_partner_chat",
+  // Groups a partner's website/records into capability proposals (#2249).
+  "ai_partner_website_scan",
 ]
