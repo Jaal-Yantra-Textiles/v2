@@ -437,13 +437,14 @@ describe("admin-mcp registry + dispatch", () => {
       )
     })
 
-    it("list_partner_capabilities forwards technique and material as query params", async () => {
+    it("list_partner_capabilities forwards technique, material and product_type as query params", async () => {
       const def = ADMIN_MCP_TOOLS.find(
         (t) => t.name === "list_partner_capabilities"
       )!
       expect(def.queryParams).toEqual([
         "technique",
         "material",
+        "product_type",
         "limit",
         "offset",
       ])

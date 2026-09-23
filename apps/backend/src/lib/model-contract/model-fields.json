@@ -2778,9 +2778,26 @@
       "updated_at"
     ]
   },
+  "PartnerCapabilityKnowledge (modules/partner_capability/models/partner-capability-knowledge.ts)": {
+    "file": "modules/partner_capability/models/partner-capability-knowledge.ts",
+    "fields": [
+      "created_at",
+      "deleted_at",
+      "fact",
+      "id",
+      "metadata",
+      "observed_at",
+      "partner_id",
+      "sample_id",
+      "source",
+      "source_url",
+      "updated_at"
+    ]
+  },
   "PartnerCapabilitySample (modules/partner_capability/models/partner-capability-sample.ts)": {
     "file": "modules/partner_capability/models/partner-capability-sample.ts",
     "fields": [
+      "actions",
       "captured_at",
       "created_at",
       "deleted_at",
@@ -2790,7 +2807,9 @@
       "metadata",
       "notes",
       "partner_id",
+      "product_type",
       "source",
+      "source_url",
       "technique",
       "title",
       "updated_at"
@@ -3048,6 +3067,24 @@
       "partner_id",
       "updated_at",
       "zone"
+    ]
+  },
+  "PartnerWebsiteScan (modules/partner_capability/models/partner-website-scan.ts)": {
+    "file": "modules/partner_capability/models/partner-website-scan.ts",
+    "fields": [
+      "committed_at",
+      "committed_keys",
+      "created_at",
+      "deleted_at",
+      "id",
+      "metadata",
+      "origin",
+      "partner_id",
+      "platform",
+      "proposal",
+      "status",
+      "updated_at",
+      "url"
     ]
   },
   "PaymentReconciliation (modules/payment_reports/models/payment_reconciliation.ts)": {

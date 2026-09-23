@@ -14,6 +14,7 @@ import { z } from "@medusajs/framework/zod"
 export const AdminListPartnerCapabilitiesQuery = z.object({
   technique: z.string().optional(),
   material: z.string().optional(),
+  product_type: z.string().optional(),
   limit: z.coerce.number().int().positive().max(100).optional(),
   offset: z.coerce.number().int().nonnegative().optional(),
 })
@@ -31,10 +32,42 @@ export const AdminCreatePartnerCapabilityReq = z.object({
   title: z.string().min(1),
   technique: z.string().optional().nullable(),
   material: z.string().optional().nullable(),
+  product_type: z.string().optional().nullable(),
+  /** CAPABILITY_ACTIONS words; unknown ones are dropped on write, not rejected. */
+  actions: z.array(z.string()).optional().nullable(),
   media_file_ids: z.array(z.string().min(1)).optional(),
   notes: z.string().optional().nullable(),
   captured_at: z.coerce.date().optional().nullable(),
 })
 export type AdminCreatePartnerCapabilityReq = z.infer<
   typeof AdminCreatePartnerCapabilityReq
+>
+
+/** #2249 — read a partner's website into proposals. Writes nothing to the library. */
+export const AdminScanPartnerWebsiteReq = z.object({
+  url: z.string().min(1).max(2048),
+})
+export type AdminScanPartnerWebsiteReq = z.infer<typeof AdminScanPartnerWebsiteReq>
+
+/**
+ * Commit proposals by KEY. There is deliberately no way to send proposal
+ * content: a `website` row must be what the site said, not what a caller
+ * edited. To correct a proposal, commit it and edit, or file it by hand.
+ */
+export const AdminCommitPartnerWebsiteScanReq = z.object({
+  sample_keys: z.array(z.string().min(1)).optional(),
+  knowledge_keys: z.array(z.string().min(1)).optional(),
+})
+export type AdminCommitPartnerWebsiteScanReq = z.infer<
+  typeof AdminCommitPartnerWebsiteScanReq
+>
+
+export const AdminAddPartnerCapabilityKnowledgeReq = z.object({
+  fact: z.string().trim().min(1).max(2000),
+  sample_id: z.string().min(1).optional().nullable(),
+  source_url: z.string().url().optional().nullable(),
+  observed_at: z.coerce.date().optional().nullable(),
+})
+export type AdminAddPartnerCapabilityKnowledgeReq = z.infer<
+  typeof AdminAddPartnerCapabilityKnowledgeReq
 >
