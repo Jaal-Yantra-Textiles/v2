@@ -8,8 +8,12 @@
  * the two-profile world #1983 is about to create.
  */
 import {
+  PARTNER_SHIPPING_PROFILE_NAME,
   describeAmbiguousProfilePick,
+  pickPartnerProfileId,
   pickTargetProfileId,
+  shippingSideForLocation,
+  shippingSideForProduct,
 } from "../shipping-profile-selection"
 
 const DEFAULT = { id: "sp_default", type: "default", name: "Default Shipping Profile" }
@@ -78,5 +82,42 @@ describe("describeAmbiguousProfilePick", () => {
     const msg = describeAmbiguousProfilePick([PARTNER, { id: "sp_other", type: "custom" }])
     expect(msg).toContain("2 profile(s)")
     expect(msg).toContain('0 of type "default"')
+  })
+})
+
+describe("#1983 strict split — the partner profile and each row's side", () => {
+  const REAL_PARTNER = { id: "sp_partner", type: "custom", name: PARTNER_SHIPPING_PROFILE_NAME }
+
+  it("finds the partner profile by exact name AND type, and nothing else", () => {
+    expect(pickPartnerProfileId([DEFAULT, REAL_PARTNER])).toBe("sp_partner")
+    // A lookalike name or a default-typed row is not the partner profile.
+    expect(
+      pickPartnerProfileId([
+        DEFAULT,
+        { id: "sp_x", type: "custom", name: `${PARTNER_SHIPPING_PROFILE_NAME} 2` },
+        { id: "sp_y", type: "default", name: PARTNER_SHIPPING_PROFILE_NAME },
+      ])
+    ).toBeNull()
+  })
+
+  it("refuses two partner profiles instead of splitting options across them", () => {
+    expect(() =>
+      pickPartnerProfileId([REAL_PARTNER, { ...REAL_PARTNER, id: "sp_partner_2" }])
+    ).toThrow(/2 shipping profiles/)
+  })
+
+  it("a product's side is where it is SOLD: the house channel wins, whoever made it", () => {
+    expect(shippingSideForProduct(["sc_house", "sc_partner"], "sc_house")).toBe("house")
+    expect(shippingSideForProduct(["sc_partner"], "sc_house")).toBe("partner")
+    expect(shippingSideForProduct([], "sc_house")).toBe("partner")
+    // Unknown house channel is "cannot decide", never a silent default.
+    expect(shippingSideForProduct(["sc_partner"], null)).toBeNull()
+  })
+
+  it("an option's side is whose building it ships from; no location stays house", () => {
+    const core = new Set(["sloc_dharamshala"])
+    expect(shippingSideForLocation("sloc_dharamshala", core)).toBe("house")
+    expect(shippingSideForLocation("sloc_partner", core)).toBe("partner")
+    expect(shippingSideForLocation(null, core)).toBe("house")
   })
 })

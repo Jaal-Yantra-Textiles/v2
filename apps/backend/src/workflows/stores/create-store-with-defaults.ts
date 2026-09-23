@@ -17,16 +17,12 @@ import {
 } from "@medusajs/medusa/core-flows"
 import {
   ContainerRegistrationKeys,
-  MedusaError,
   Modules,
 } from "@medusajs/framework/utils"
 import type { RemoteQueryFunction } from "@medusajs/types"
 import type { Link } from "@medusajs/modules-sdk"
 import { PARTNER_MODULE } from "../../modules/partner"
-import {
-  describeAmbiguousProfilePick,
-  pickTargetProfileId,
-} from "../../lib/shipping-profile-selection"
+import { ensurePartnerShippingProfileId } from "../../lib/partner-shipping-profile"
 import { registerShiprocketPickup } from "../../modules/shipping-providers/pickup-locations"
 import {
   DEFAULT_QUOTE_FREIGHT_TIERS,
@@ -499,49 +495,16 @@ export const autoLinkFulfillmentProvidersStep = createStep(
           //
           // 🔴 #1983: this read used to be `listShippingProfiles({}, { take: 1 })`
           // — no filter, no ordering — and `profileId` feeds ALL TEN shipping
-          // options created below. With exactly one profile in the database
-          // that is correct by ACCIDENT; the moment a second exists, every new
-          // store gets whichever row came back first, silently and per store.
-          // The store provisions fine, the options are created fine, and the
-          // mismatch surfaces days later as "The shipping option you have
-          // selected don't allow fulfillment of this item" on a real order.
+          // options created below. With exactly one profile that was correct
+          // by accident; with two it became whichever row came back first.
           //
-          // So: no `take`, and the same deterministic rule the product backfill
-          // uses, so a product and the option meant to ship it cannot land on
-          // different profiles.
-          const shippingProfiles =
-            (await fulfillmentService.listShippingProfiles({})) || []
-          let profileId = pickTargetProfileId(shippingProfiles)
-
-          if (!profileId && shippingProfiles.length > 1) {
-            // Ambiguous is NOT the same as absent, and creating a second
-            // "Default" here would make it worse — it would add a third
-            // profile and guarantee the ambiguity for every store after this
-            // one. Refuse, and say which profiles were in the way.
-            throw new MedusaError(
-              MedusaError.Types.INVALID_DATA,
-              `[create-store] ${describeAmbiguousProfilePick(shippingProfiles)} ` +
-                `Found: ${shippingProfiles
-                  .map((p: any) => `${p?.id} (${p?.type ?? "no type"})`)
-                  .join(", ")}`
-            )
-          }
-
-          if (!profileId) {
-            // #1176: a shipping profile only pre-exists because the seed made
-            // one, so a fresh test DB or a brand-new deployment reaches here
-            // with none at all. Create it rather than skip — skipping produced
-            // a store with service zones and ZERO shipping options, whose carts
-            // could never pick a shipping method.
-            const created = await fulfillmentService.createShippingProfiles({
-              name: "Default",
-              type: "default",
-            })
-            profileId = Array.isArray(created) ? created[0]?.id : created?.id
-            console.log(
-              `[create-store] No shipping profile existed — created default ${profileId}`
-            )
-          }
+          // Now it is not a pick at all. This step only ever provisions a
+          // PARTNER's location (a partner store, or a partner warehouse via
+          // create-partner-warehouse), and partner shipping lives on its own
+          // profile — a strict split, founder's decision 2026-09-23. So every
+          // option here goes on the partner profile, created on first use.
+          const profileId: string | undefined =
+            await ensurePartnerShippingProfileId(container)
 
           if (profileId) {
             // Determine provider and currency-specific pricing.

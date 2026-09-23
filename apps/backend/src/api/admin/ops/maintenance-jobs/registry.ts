@@ -155,6 +155,7 @@ import { cleanOrderFulfillmentDataJob } from "./clean-order-fulfillment-data-job
 import { sendCourierChangedEmailJob } from "./send-courier-changed-email-job"
 import { resendShipmentEmailJob } from "./resend-shipment-email-job"
 import { backfillProductShippingProfilesJob } from "./backfill-product-shipping-profiles-job"
+import { splitPartnerShippingProfileJob } from "./split-partner-shipping-profile-job"
 import { normalizeArtisanProductsJob } from "./normalize-artisan-products-job"
 import { linkArtisanDetailRowsJob } from "./link-artisan-detail-rows-job"
 import { setPlatformTaxIdentityActiveJob } from "./set-platform-tax-identity-active-job"
@@ -6850,6 +6851,7 @@ export const MAINTENANCE_JOBS: MaintenanceJob[] = [
   repairShippingOptionStoreVisibilityJob,
   backfillOpenOrderRequiresShippingJob,
   backfillProductShippingProfilesJob,
+  splitPartnerShippingProfileJob,
   normalizeArtisanProductsJob,
   linkArtisanDetailRowsJob,
   setPlatformTaxIdentityActiveJob,
