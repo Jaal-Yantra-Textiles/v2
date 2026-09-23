@@ -1,3 +1,22 @@
+# [13.158.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.157.0...v13.158.0) (2026-09-23)
+
+
+### Bug Fixes
+
+* **designs:** a partner's Generate saves to their own board, and the materials show their photographs ([#2017](https://github.com/Jaal-Yantra-Textiles/v2/issues/2017), [#2019](https://github.com/Jaal-Yantra-Textiles/v2/issues/2019)) ([#2224](https://github.com/Jaal-Yantra-Textiles/v2/issues/2224)) ([e1d6aa6](https://github.com/Jaal-Yantra-Textiles/v2/commit/e1d6aa67a2a265bf799818fc770ae660bfd5bfbb)), closes [#1847](https://github.com/Jaal-Yantra-Textiles/v2/issues/1847)
+* **moodboard:** images survive export, and the seed route is reachable at all ([#2228](https://github.com/Jaal-Yantra-Textiles/v2/issues/2228), [#2229](https://github.com/Jaal-Yantra-Textiles/v2/issues/2229)) ([#2230](https://github.com/Jaal-Yantra-Textiles/v2/issues/2230)) ([e532b86](https://github.com/Jaal-Yantra-Textiles/v2/commit/e532b86260afd9b2e9a39b91920f73fe8dcfe371)), closes [#2227](https://github.com/Jaal-Yantra-Textiles/v2/issues/2227)
+* partners can claim a task they priced themselves; the work-order suites stop refusing ([#2223](https://github.com/Jaal-Yantra-Textiles/v2/issues/2223)) ([#2239](https://github.com/Jaal-Yantra-Textiles/v2/issues/2239)) ([329b9ad](https://github.com/Jaal-Yantra-Textiles/v2/commit/329b9ad7f03d68cfbf10bd7716501c8b5849b9b2)), closes [#2219](https://github.com/Jaal-Yantra-Textiles/v2/issues/2219) [#2219](https://github.com/Jaal-Yantra-Textiles/v2/issues/2219) [#2219](https://github.com/Jaal-Yantra-Textiles/v2/issues/2219) [#2219](https://github.com/Jaal-Yantra-Textiles/v2/issues/2219) [#2219](https://github.com/Jaal-Yantra-Textiles/v2/issues/2219)
+* **moodboard:** Save says whether the partner's work is in ([#2231](https://github.com/Jaal-Yantra-Textiles/v2/issues/2231)) ([#2232](https://github.com/Jaal-Yantra-Textiles/v2/issues/2232)) ([45f2776](https://github.com/Jaal-Yantra-Textiles/v2/commit/45f27761f893f9cb29fdafeaa8d0583d09e9a92e)), closes [#2228](https://github.com/Jaal-Yantra-Textiles/v2/issues/2228)
+* **e2e:** the admin photo test asserts DOM order, not geometry — it was flaky on CI ([#2226](https://github.com/Jaal-Yantra-Textiles/v2/issues/2226)) ([b70d75b](https://github.com/Jaal-Yantra-Textiles/v2/commit/b70d75b9b7254c852590d0cc4cbbcce3ca28cee3)), closes [#2225](https://github.com/Jaal-Yantra-Textiles/v2/issues/2225)
+* **moodboard:** the board reaches the canvas, and the export dialog can be clicked ([#2227](https://github.com/Jaal-Yantra-Textiles/v2/issues/2227)) ([1b93032](https://github.com/Jaal-Yantra-Textiles/v2/commit/1b93032d2120bba4c71f9896ec3886868d27d861)), closes [#2017](https://github.com/Jaal-Yantra-Textiles/v2/issues/2017)
+* **ci:** the test pool cap stops shipping a laptop's size to CI ([#2237](https://github.com/Jaal-Yantra-Textiles/v2/issues/2237)) ([18b0862](https://github.com/Jaal-Yantra-Textiles/v2/commit/18b0862d7b879902b8dcb643d6c8f6d132a2fd96)), closes [#2223](https://github.com/Jaal-Yantra-Textiles/v2/issues/2223)
+* three live defects — a partner who cannot be found, a dead link, and a currency lottery ([#2106](https://github.com/Jaal-Yantra-Textiles/v2/issues/2106), [#2114](https://github.com/Jaal-Yantra-Textiles/v2/issues/2114)) ([#2219](https://github.com/Jaal-Yantra-Textiles/v2/issues/2219)) ([72bc7b1](https://github.com/Jaal-Yantra-Textiles/v2/commit/72bc7b198b3ad6cd3c15604f7e92f48cd0596513)), closes [#1983](https://github.com/Jaal-Yantra-Textiles/v2/issues/1983) [#1983](https://github.com/Jaal-Yantra-Textiles/v2/issues/1983) [#1979](https://github.com/Jaal-Yantra-Textiles/v2/issues/1979) [#310](https://github.com/Jaal-Yantra-Textiles/v2/issues/310)
+
+
+### Features
+
+* **moodboard:** starting a board is the partner's decision, not a side effect of opening the page ([#2019](https://github.com/Jaal-Yantra-Textiles/v2/issues/2019)) ([#2225](https://github.com/Jaal-Yantra-Textiles/v2/issues/2225)) ([0155f13](https://github.com/Jaal-Yantra-Textiles/v2/commit/0155f13b9b68626e30600d469dcda8a850fb1e91))
+
 # [13.157.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.156.0...v13.157.0) (2026-09-21)
 
 
