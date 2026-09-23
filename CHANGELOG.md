@@ -1,3 +1,16 @@
+# [13.159.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.158.0...v13.159.0) (2026-09-23)
+
+
+### Bug Fixes
+
+* **designs:** a dispatch that mints no work-order stops reporting success ([#2240](https://github.com/Jaal-Yantra-Textiles/v2/issues/2240)) ([ef38aa6](https://github.com/Jaal-Yantra-Textiles/v2/commit/ef38aa68f6584e86bb5b1249be1c6ce91a4935ee))
+* **partners:** a partner can only touch shipping options in its own store ([#2243](https://github.com/Jaal-Yantra-Textiles/v2/issues/2243)) ([143409b](https://github.com/Jaal-Yantra-Textiles/v2/commit/143409bb9cef958d39d582e8320de36be0d3b5f2)), closes [#2061](https://github.com/Jaal-Yantra-Textiles/v2/issues/2061)
+
+
+### Features
+
+* **shipping:** partner shipping gets its own profile — a strict house/partner split ([#1983](https://github.com/Jaal-Yantra-Textiles/v2/issues/1983)) ([#2242](https://github.com/Jaal-Yantra-Textiles/v2/issues/2242)) ([8ce548b](https://github.com/Jaal-Yantra-Textiles/v2/commit/8ce548b33dd4a1f6b186eb73d51ec9c66ef0b050)), closes [#2100](https://github.com/Jaal-Yantra-Textiles/v2/issues/2100)
+
 # [13.158.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.157.0...v13.158.0) (2026-09-23)
 
 
