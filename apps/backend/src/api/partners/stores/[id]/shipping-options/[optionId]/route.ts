@@ -51,7 +51,12 @@ export const POST = async (
     req.scope
   )
 
-  const body = PartnerUpdateShippingOptionReq.parse(req.body)
+  // #1983 — a partner cannot move an option between shipping profiles. The
+  // profile is the side of the strict house/partner split, and the server
+  // decides it at create time; dropping it here (rather than forcing the
+  // partner profile) never re-points an option this route did not create.
+  const { shipping_profile_id: _ignoredProfile, ...body } =
+    PartnerUpdateShippingOptionReq.parse(req.body)
 
   // Use updateShippingOptionsWorkflow rather than the bare fulfillment
   // service. Shipping option prices live in the pricing module and are

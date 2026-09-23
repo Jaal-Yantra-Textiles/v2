@@ -2,6 +2,7 @@ import { ContainerRegistrationKeys, MedusaError, Modules } from "@medusajs/frame
 import { createShippingOptionsWorkflow } from "@medusajs/medusa/core-flows"
 import { z } from "@medusajs/framework/zod"
 
+import { makeShippingProfileForLocation } from "../../../../lib/partner-shipping-profile"
 import type { MaintenanceChange, MaintenanceJob, MaintenanceJobResult } from "./registry"
 
 /**
@@ -270,16 +271,10 @@ export const backfillPartnerShippingOptionsJob: MaintenanceJob = {
     const dhlEnabled = enabled.has(DHL_PROVIDER)
     const delhiveryEnabled = enabled.has(DELHIVERY_PROVIDER)
 
-    // 2. Default shipping profile.
-    let profileId: string | undefined = (
-      await fulfillmentService.listShippingProfiles({ type: "default" }, { take: 1 })
-    )?.[0]?.id
-    if (!profileId) {
-      profileId = (await fulfillmentService.listShippingProfiles({}, { take: 1 }))?.[0]?.id
-    }
-    if (!profileId) {
-      throw new MedusaError(MedusaError.Types.NOT_FOUND, "No shipping profile found.")
-    }
+    // 2. Shipping profile, per location (#1983). Partner locations go on the
+    //    partner profile, our own on the house one — never `take: 1`, which
+    //    became a coin flip the moment a second profile existed.
+    const profileFor = await makeShippingProfileForLocation(container)
 
     // 3. International coverage from non-India regions.
     const { data: regions } = await query.graph({
@@ -462,7 +457,7 @@ export const backfillPartnerShippingOptionsJob: MaintenanceJob = {
                   price_type: spec.price_type,
                   provider_id: spec.provider_id,
                   service_zone_id: zone.id,
-                  shipping_profile_id: profileId!,
+                  shipping_profile_id: await profileFor(locationId),
                   type: { label: spec.typeLabel, description: spec.typeDescription, code: spec.typeCode },
                   prices: spec.prices,
                   data: spec.data,

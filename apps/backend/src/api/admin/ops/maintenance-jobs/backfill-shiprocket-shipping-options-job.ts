@@ -2,6 +2,7 @@ import { ContainerRegistrationKeys, MedusaError, Modules } from "@medusajs/frame
 import { createShippingOptionsWorkflow } from "@medusajs/medusa/core-flows"
 import { z } from "@medusajs/framework/zod"
 
+import { makeShippingProfileForLocation } from "../../../../lib/partner-shipping-profile"
 import type { MaintenanceChange, MaintenanceJob, MaintenanceJobResult } from "./registry"
 
 /**
@@ -209,17 +210,10 @@ export const backfillShiprocketShippingOptionsJob: MaintenanceJob = {
     if (location_id) graphArgs.filters = { id: location_id }
     const { data: locations } = await query.graph(graphArgs as any)
 
-    // A shipping profile is required on every option. Reuse the store's rather
-    // than creating one — a second "Default" profile would split the catalogue
-    // across two profiles and silently hide products from the new options.
-    const profiles = await fulfillmentService.listShippingProfiles({}, { take: 1 })
-    const profileId = profiles?.[0]?.id
-    if (!profileId) {
-      throw new MedusaError(
-        MedusaError.Types.NOT_FOUND,
-        "No shipping profile exists, so shipping options cannot be created. Seed one first."
-      )
-    }
+    // #1983 — the profile follows the location: a partner's building gets the
+    // partner profile, ours the house one. This used to be `take: 1`, which
+    // picks whichever profile Postgres returns once a second one exists.
+    const profileFor = await makeShippingProfileForLocation(container)
 
     const changes: MaintenanceChange[] = []
     const errors: Array<{ id: string; message: string }> = []
@@ -269,7 +263,7 @@ export const backfillShiprocketShippingOptionsJob: MaintenanceJob = {
               ? {
                   name: "Standard Shipping (Flat)",
                   service_zone_id: entry.zone_id,
-                  shipping_profile_id: profileId,
+                  shipping_profile_id: await profileFor(location.id),
                   provider_id: MANUAL_PROVIDER_ID,
                   price_type: "flat",
                   type: {
@@ -290,7 +284,7 @@ export const backfillShiprocketShippingOptionsJob: MaintenanceJob = {
                       ? "International Shipping (Shiprocket)"
                       : "Standard Shipping (Shiprocket)",
                   service_zone_id: entry.zone_id,
-                  shipping_profile_id: profileId,
+                  shipping_profile_id: await profileFor(location.id),
                   provider_id: SHIPROCKET_PROVIDER_ID,
                   price_type: "calculated",
                   type: {

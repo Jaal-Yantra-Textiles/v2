@@ -137,7 +137,11 @@ setupSharedTestSuite(() => {
       expect(types).toContain("pickup")
     })
 
-    it("provisions onto the type:'default' profile even when a second profile exists (#1983)", async () => {
+    it("provisions onto the partner profile, never whichever profile comes back first (#1983)", async () => {
+      // ⚠️ UPDATED 2026-09-23. This used to assert the DEFAULT profile; the
+      // strict house/partner split (founder's decision) moved partner options
+      // onto their own "Partner Shipping Profile". The take:1 regression it
+      // was written for is still pinned: neither pre-existing profile may win.
       // 🔴 The regression this pins. Provisioning read
       // `listShippingProfiles({}, { take: 1 })` and fed the answer to all ten
       // of a new store's shipping options — correct by ACCIDENT while exactly
@@ -235,7 +239,14 @@ setupSharedTestSuite(() => {
       // all (the #1176 failure) the set would be empty and every assertion
       // below would hold for the wrong reason.
       expect(profileIds.size).toBeGreaterThan(0)
-      expect([...profileIds]).toEqual([defaultProfileId])
+      const afterRes = await api.get("/admin/shipping-profiles", adminHeaders)
+      const partnerProfile = (afterRes.data.shipping_profiles || []).find(
+        (p: any) => p.name === "Partner Shipping Profile" && p.type === "custom"
+      )
+      expect(partnerProfile).toBeDefined()
+      expect([...profileIds]).toEqual([partnerProfile.id])
+      expect(profileIds.has(defaultProfileId)).toBe(false)
+      expect(profileIds.has(partnerProfileId)).toBe(false)
     })
 
     it("creates a second store without fulfillment set name collisions", async () => {

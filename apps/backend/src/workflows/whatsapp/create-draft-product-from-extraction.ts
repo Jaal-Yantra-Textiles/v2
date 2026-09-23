@@ -13,6 +13,7 @@ import {
 import { createProductsWorkflow } from "@medusajs/medusa/core-flows"
 import { downloadAndSaveWhatsAppMedia } from "./whatsapp-media-helper"
 import { buildPartnerProductUrl } from "./partner-product-url"
+import { resolveProductShippingProfileId } from "../../lib/partner-shipping-profile"
 
 /**
  * Build a draft product from WhatsApp message extraction.
@@ -245,8 +246,16 @@ const buildProductInputStep = createStep(
 const createDraftProductStep = createStep(
   "wa-product-create-invoke-create",
   async (input: { productInput: any }, { container }) => {
+    // #1983 — the profile follows the channel (partner store → partner
+    // profile), or the product cannot ship with that store's options.
+    const shippingProfileId = await resolveProductShippingProfileId(
+      container,
+      (input.productInput?.sales_channels ?? []).map((c: any) => c.id)
+    )
     const { result } = await createProductsWorkflow(container).run({
-      input: { products: [input.productInput] },
+      input: {
+        products: [{ ...input.productInput, shipping_profile_id: shippingProfileId }],
+      },
     })
     const product = (result as any)[0]
     if (!product?.id) {
