@@ -141,6 +141,96 @@ actor PartnerAPI {
     try await get(path: "partners/production-runs/\(id)")
   }
 
+  // MARK: - Inventory orders
+  // The raw-material purchase orders the partner is commissioned for —
+  // the mobile counterpart of the partner-ui inventory-orders hooks
+  // (apps/partner-ui/src/hooks/api/partner-inventory-orders.tsx).
+
+  func inventoryOrders(
+    limit: Int = 20,
+    offset: Int = 0,
+    status: String? = nil,
+    query: String? = nil
+  ) async throws -> PartnerInventoryOrderListResponse {
+    var path = "partners/inventory-orders?limit=\(limit)&offset=\(offset)"
+    if let status, !status.isEmpty {
+      path += "&status=\(status.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? status)"
+    }
+    if let query, !query.isEmpty {
+      path += "&q=\(query.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? query)"
+    }
+    return try await get(path: path)
+  }
+
+  func inventoryOrder(id: String) async throws -> PartnerInventoryOrder {
+    struct Wrapper: Codable { let inventoryOrder: PartnerInventoryOrder }
+    let wrapper: Wrapper = try await get(path: "partners/inventory-orders/\(id)")
+    return wrapper.inventoryOrder
+  }
+
+  /// The applied charges + what they make the order payable to (#1737).
+  func inventoryOrderCharges(id: String) async throws -> InventoryOrderChargesResponse {
+    try await get(path: "partners/inventory-orders/\(id)/charges")
+  }
+
+  /// Pending → Processing — the partner acknowledges the commission.
+  func startInventoryOrder(id: String) async throws {
+    try await post(path: "partners/inventory-orders/\(id)/start")
+  }
+
+  /// Processing/Partial → Ready for Delivery — goods packed (#790).
+  func markInventoryOrderReadyForDelivery(id: String) async throws {
+    try await post(path: "partners/inventory-orders/\(id)/ready-for-delivery")
+  }
+
+  /// The goods receipt: what was actually delivered, per line, with the
+  /// delivery date and tracking number.
+  func completeInventoryOrder(
+    id: String,
+    body: CompleteInventoryOrderBody
+  ) async throws {
+    try await post(
+      path: "partners/inventory-orders/\(id)/complete",
+      json: try JSONEncoder().encode(body)
+    )
+  }
+
+  // MARK: - Push device tokens
+  // The push leg of the partner notification system — the backend's
+  // notification-push provider fans out to whatever the app registers here
+  // (apps/backend/src/api/partners/device-tokens/).
+
+  func registerDeviceToken(
+    token: String,
+    platform: String,
+    appVersion: String? = nil
+  ) async throws {
+    struct Body: Codable {
+      let token: String
+      let platform: String
+      var app_version: String?
+    }
+    try await post(
+      path: "partners/device-tokens",
+      json: try JSONEncoder().encode(
+        Body(token: token, platform: platform, app_version: appVersion)
+      )
+    )
+  }
+
+  func unregisterDeviceToken(token: String) async throws {
+    struct Body: Codable { let token: String }
+    var request = URLRequest(url: Self.makeURL("partners/device-tokens"))
+    request.httpMethod = "DELETE"
+    request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+    if let stored = Keychain.loadToken() {
+      request.setValue("Bearer \(stored)", forHTTPHeaderField: "Authorization")
+    }
+    request.httpBody = try JSONEncoder().encode(Body(token: token))
+    let (data, response) = try await session.data(for: request)
+    try Self.check(response, data: data)
+  }
+
   // MARK: - Run lifecycle actions
   // POST /partners/production-runs/:id/{accept,start,finish,complete} —
   // the same mutations the partner-ui milestone hooks wrap

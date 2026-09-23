@@ -32,6 +32,9 @@ struct ProfileView: View {
 
         Section {
           Button(role: .destructive) {
+            // Sign-out also unregisters the device so a signed-out phone
+            // stops receiving this partner's pushes.
+            PushManager.shared.unregisterCurrentDevice()
             auth.logout()
           } label: {
             Label("Sign out", systemImage: "rectangle.portrait.and.arrow.right")

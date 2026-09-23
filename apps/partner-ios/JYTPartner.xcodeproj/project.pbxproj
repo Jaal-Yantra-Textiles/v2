@@ -25,6 +25,10 @@
 		5A1000000000000000000041 /* RunDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A1000000000000000000022 /* RunDetailView.swift */; };
 		5A1000000000000000000042 /* RunActions.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A1000000000000000000023 /* RunActions.swift */; };
 		5A1000000000000000000043 /* MediaPickerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A1000000000000000000024 /* MediaPickerView.swift */; };
+		5A1000000000000000000044 /* InventoryOrderModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A1000000000000000000025 /* InventoryOrderModels.swift */; };
+		5A1000000000000000000045 /* PushManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A1000000000000000000026 /* PushManager.swift */; };
+		5A1000000000000000000046 /* InventoryOrdersView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A1000000000000000000027 /* InventoryOrdersView.swift */; };
+		5A1000000000000000000047 /* InventoryOrderDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A1000000000000000000028 /* InventoryOrderDetailView.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -48,6 +52,11 @@
 		5A1000000000000000000022 /* RunDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RunDetailView.swift; sourceTree = "<group>"; };
 		5A1000000000000000000023 /* RunActions.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RunActions.swift; sourceTree = "<group>"; };
 		5A1000000000000000000024 /* MediaPickerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MediaPickerView.swift; sourceTree = "<group>"; };
+		5A1000000000000000000025 /* InventoryOrderModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InventoryOrderModels.swift; sourceTree = "<group>"; };
+		5A1000000000000000000026 /* PushManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PushManager.swift; sourceTree = "<group>"; };
+		5A1000000000000000000027 /* InventoryOrdersView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InventoryOrdersView.swift; sourceTree = "<group>"; };
+		5A1000000000000000000028 /* InventoryOrderDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InventoryOrderDetailView.swift; sourceTree = "<group>"; };
+		5A1000000000000000000029 /* JYTPartner.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = JYTPartner.entitlements; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -85,10 +94,13 @@
 				5A1000000000000000000014 /* PartnerAPI.swift */,
 				5A1000000000000000000012 /* Models.swift */,
 				5A100000000000000000001E /* DesignModels.swift */,
+				5A1000000000000000000025 /* InventoryOrderModels.swift */,
+				5A1000000000000000000026 /* PushManager.swift */,
 				5A1000000000000000000013 /* Keychain.swift */,
 				5A1000000000000000000011 /* Config.swift */,
 				5A1000000000000000000005 /* Views */,
 				5A100000000000000000001D /* Info.plist */,
+				5A1000000000000000000029 /* JYTPartner.entitlements */,
 			);
 			path = JYTPartner;
 			sourceTree = "<group>";
@@ -107,6 +119,8 @@
 				5A1000000000000000000022 /* RunDetailView.swift */,
 				5A1000000000000000000023 /* RunActions.swift */,
 				5A1000000000000000000024 /* MediaPickerView.swift */,
+				5A1000000000000000000027 /* InventoryOrdersView.swift */,
+				5A1000000000000000000028 /* InventoryOrderDetailView.swift */,
 			);
 			path = Views;
 			sourceTree = "<group>";
@@ -200,6 +214,10 @@
 				5A1000000000000000000041 /* RunDetailView.swift in Sources */,
 				5A1000000000000000000042 /* RunActions.swift in Sources */,
 				5A1000000000000000000043 /* MediaPickerView.swift in Sources */,
+				5A1000000000000000000044 /* InventoryOrderModels.swift in Sources */,
+				5A1000000000000000000045 /* PushManager.swift in Sources */,
+				5A1000000000000000000046 /* InventoryOrdersView.swift in Sources */,
+				5A1000000000000000000047 /* InventoryOrderDetailView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -267,6 +285,7 @@
 		5A100000000000000000000F /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
+				CODE_SIGN_ENTITLEMENTS = JYTPartner/JYTPartner.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = "";
@@ -287,6 +306,7 @@
 		5A1000000000000000000010 /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
+				CODE_SIGN_ENTITLEMENTS = JYTPartner/JYTPartner.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = "";
