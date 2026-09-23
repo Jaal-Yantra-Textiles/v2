@@ -209,7 +209,7 @@ const classifierFromRow = (row: any, container: any): ResolvedClassifier | null 
   const provider = String(meta.provider_type ?? cfg.provider_type).toLowerCase() as SystemOneProvider
   if (!(provider in SYSTEM_ONE_PROVIDERS)) return null
   const spec = SYSTEM_ONE_PROVIDERS[provider]
-  const apiKey = spec.keyless ? decryptApiKey(cfg, container) ?? "" : decryptApiKey(cfg, container)
+  const apiKey: string = decryptApiKey(cfg, container) ?? ""
   if (!apiKey && !spec.keyless) return null
   return {
     provider,
