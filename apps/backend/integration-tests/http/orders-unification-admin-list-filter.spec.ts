@@ -15,6 +15,7 @@
 import { ContainerRegistrationKeys, Modules } from "@medusajs/framework/utils"
 import { createOrderWorkflow } from "@medusajs/core-flows"
 import { createAdminUser, getAuthHeaders } from "../helpers/create-admin-user"
+import { ensureHouseStoreRegion } from "../helpers/ensure-house-store-region"
 import { getSharedTestEnv, setupSharedTestSuite } from "./shared-test-setup"
 import { ORDER_INVENTORY_MODULE } from "../../src/modules/inventory_orders"
 
@@ -136,6 +137,8 @@ setupSharedTestSuite(() => {
       const container = getContainer()
       unique = Date.now()
       await createAdminUser(container)
+      // The house store needs a region before anything can be stamped with one.
+      await ensureHouseStoreRegion(container)
       adminHeaders = await getAuthHeaders(api)
 
       const region = await (container.resolve(Modules.REGION) as any).createRegions({

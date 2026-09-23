@@ -112,4 +112,45 @@ describe("taskPayableVerdict", () => {
   it("keeps `completed` as the only payable status", () => {
     expect([...PAYABLE_TASK_STATUSES]).toEqual(["completed"])
   })
+
+  /*
+   * The claim form lets a partner type the price of a finished task that has
+   * none stored. Reading only the stored costs refused that task as "No cost
+   * agreed" before the typed price was looked at — every such claim died.
+   */
+  describe("a price the partner typed", () => {
+    const unpriced = task({ estimated_cost: null, actual_cost: null })
+
+    it("counts as the cost of an unpriced task", () => {
+      expect(taskPayableVerdict(unpriced, { costOverride: 1500 })).toEqual({
+        payable: true,
+        reason: null,
+        amount: 1500,
+      })
+      expect(isTaskPayable(unpriced, { costOverride: 1500 })).toBe(true)
+    })
+
+    it("replaces a stored cost, as the write path bills it", () => {
+      expect(taskPayableVerdict(task(), { costOverride: 6500 }).amount).toBe(6500)
+    })
+
+    it("does not turn a missing cost into a free job when it is zero or junk", () => {
+      for (const costOverride of [0, -10, NaN, null, undefined]) {
+        const v = taskPayableVerdict(unpriced, { costOverride: costOverride as any })
+        expect(v.payable).toBe(false)
+        expect(v.reason).toBe("No cost agreed on this task")
+      }
+    })
+
+    it("does not rescue an unfinished task or a subtask", () => {
+      expect(
+        taskPayableVerdict(task({ status: "in_progress" }), { costOverride: 1500 })
+          .payable
+      ).toBe(false)
+      expect(
+        taskPayableVerdict(task({ parent_task_id: "task_0" }), { costOverride: 1500 })
+          .payable
+      ).toBe(false)
+    })
+  })
 })

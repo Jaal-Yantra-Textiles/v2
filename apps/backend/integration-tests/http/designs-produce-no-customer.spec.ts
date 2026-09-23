@@ -3,6 +3,7 @@ import type { IRegionModuleService } from "@medusajs/types"
 
 import { setupSharedTestSuite, getSharedTestEnv } from "./shared-test-setup"
 import { createAdminUser, getAuthHeaders } from "../helpers/create-admin-user"
+import { ensureHouseStoreRegion } from "../helpers/ensure-house-store-region"
 import { produceDesignsAsWorkOrder } from "../../src/workflows/designs/produce-designs-as-work-order"
 import { PRODUCTION_RUNS_MODULE } from "../../src/modules/production_runs"
 import { PARTNER_MODULE } from "../../src/modules/partner"
@@ -30,6 +31,8 @@ setupSharedTestSuite(() => {
     beforeAll(async () => {
       const container = getContainer()
       await createAdminUser(container)
+      // The house store needs a region before anything can be stamped with one.
+      await ensureHouseStoreRegion(container)
       adminHeaders = await getAuthHeaders(api)
 
       const regionsRes = await api.get("/admin/regions", adminHeaders)

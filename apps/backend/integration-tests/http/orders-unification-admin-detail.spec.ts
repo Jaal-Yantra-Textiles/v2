@@ -20,6 +20,7 @@
 import { ContainerRegistrationKeys } from "@medusajs/framework/utils"
 import { createOrderWorkflow } from "@medusajs/core-flows"
 import { createAdminUser, getAuthHeaders } from "../helpers/create-admin-user"
+import { ensureHouseStoreRegion } from "../helpers/ensure-house-store-region"
 import { getSharedTestEnv, setupSharedTestSuite } from "./shared-test-setup"
 
 jest.setTimeout(60000)
@@ -258,6 +259,8 @@ setupSharedTestSuite(() => {
       const container = getContainer()
       unique = Date.now()
       await createAdminUser(container)
+      // The house store needs a region before anything can be stamped with one.
+      await ensureHouseStoreRegion(container)
       adminHeaders = await getAuthHeaders(api)
 
       const inv = await api.post(
