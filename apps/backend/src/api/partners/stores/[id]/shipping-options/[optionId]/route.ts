@@ -4,16 +4,24 @@ import {
   deleteShippingOptionsWorkflow,
   updateShippingOptionsWorkflow,
 } from "@medusajs/medusa/core-flows"
-import { validatePartnerStoreAccess } from "../../../../helpers"
+import {
+  assertStoreOwnsShippingTarget,
+  validatePartnerStoreAccess,
+} from "../../../../helpers"
 import { PartnerUpdateShippingOptionReq } from "../../validators"
 
 export const GET = async (
   req: AuthenticatedMedusaRequest,
   res: MedusaResponse
 ) => {
-  await validatePartnerStoreAccess(
+  const { store } = await validatePartnerStoreAccess(
     req.auth_context,
     req.params.id,
+    req.scope
+  )
+  await assertStoreOwnsShippingTarget(
+    store,
+    { shippingOptionId: req.params.optionId },
     req.scope
   )
 
@@ -45,9 +53,14 @@ export const POST = async (
   req: AuthenticatedMedusaRequest,
   res: MedusaResponse
 ) => {
-  await validatePartnerStoreAccess(
+  const { store } = await validatePartnerStoreAccess(
     req.auth_context,
     req.params.id,
+    req.scope
+  )
+  await assertStoreOwnsShippingTarget(
+    store,
+    { shippingOptionId: req.params.optionId },
     req.scope
   )
 
@@ -94,9 +107,14 @@ export const DELETE = async (
   req: AuthenticatedMedusaRequest,
   res: MedusaResponse
 ) => {
-  await validatePartnerStoreAccess(
+  const { store } = await validatePartnerStoreAccess(
     req.auth_context,
     req.params.id,
+    req.scope
+  )
+  await assertStoreOwnsShippingTarget(
+    store,
+    { shippingOptionId: req.params.optionId },
     req.scope
   )
 
