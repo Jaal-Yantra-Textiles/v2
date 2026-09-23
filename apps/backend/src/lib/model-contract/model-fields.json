@@ -2815,6 +2815,25 @@
       "updated_at"
     ]
   },
+  "PartnerCapabilityScan (modules/partner_capability/models/partner-capability-scan.ts)": {
+    "file": "modules/partner_capability/models/partner-capability-scan.ts",
+    "fields": [
+      "committed_at",
+      "committed_keys",
+      "created_at",
+      "deleted_at",
+      "id",
+      "kind",
+      "metadata",
+      "origin",
+      "partner_id",
+      "platform",
+      "proposal",
+      "status",
+      "updated_at",
+      "url"
+    ]
+  },
   "PartnerCredit (modules/internal_payments/models/partner_credit.ts)": {
     "file": "modules/internal_payments/models/partner_credit.ts",
     "fields": [
@@ -3067,24 +3086,6 @@
       "partner_id",
       "updated_at",
       "zone"
-    ]
-  },
-  "PartnerWebsiteScan (modules/partner_capability/models/partner-website-scan.ts)": {
-    "file": "modules/partner_capability/models/partner-website-scan.ts",
-    "fields": [
-      "committed_at",
-      "committed_keys",
-      "created_at",
-      "deleted_at",
-      "id",
-      "metadata",
-      "origin",
-      "partner_id",
-      "platform",
-      "proposal",
-      "status",
-      "updated_at",
-      "url"
     ]
   },
   "PaymentReconciliation (modules/payment_reports/models/payment_reconciliation.ts)": {

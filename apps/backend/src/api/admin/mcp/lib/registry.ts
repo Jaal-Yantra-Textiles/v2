@@ -4164,7 +4164,7 @@ export const ADMIN_MCP_TOOLS: AdminMcpToolDef[] = [
   {
     name: "scan_partner_website",
     description:
-      "Read a partner's own website (Shopify /products.json, else the page's product data and text) and PROPOSE capability samples — product type, technique, material, actions, photos, publish date — plus knowledge facts. Writes NOTHING to the library: it stores a scan and returns its proposals with keys (s1, s2… for samples, k1… for knowledge). Show the proposals to the admin, then call commit_partner_website_scan with the keys they approve. `grouped_by: 'fallback'` means the model did not run and technique/material were NOT read — say so. Only public http(s) sites; private/internal addresses are refused. Sensitive: requires confirm:true.",
+      "Read a partner's own website (Shopify /products.json, else the page's product data and text) and PROPOSE capability samples — product type, technique, material, actions, photos, publish date — plus knowledge facts. Writes NOTHING to the library: it stores a scan and returns its proposals with keys (s1, s2… for samples, k1… for knowledge). Show the proposals to the admin, then call commit_partner_capability_scan with the keys they approve. `grouped_by: 'fallback'` means the model did not run and technique/material were NOT read — say so. Only public http(s) sites; private/internal addresses are refused. Sensitive: requires confirm:true.",
     method: "POST",
     path: "/admin/partners/:id/capabilities/scan",
     pathParams: ["id"],
@@ -4181,29 +4181,43 @@ export const ADMIN_MCP_TOOLS: AdminMcpToolDef[] = [
       ["id", "url"]
     ),
     sideEffects:
-      "Fetches the site and calls a model; stores one partner_website_scan row. Creates no capability, knowledge or media.",
-    nextSteps: ["commit_partner_website_scan", "get_partner_website_scan"],
+      "Fetches the site and calls a model; stores one partner_capability_scan row. Creates no capability, knowledge or media.",
+    nextSteps: ["commit_partner_capability_scan", "get_partner_capability_scan"],
   },
   {
-    name: "get_partner_website_scan",
+    name: "scan_partner_records",
     description:
-      "Read a stored website scan: its proposals and which keys are already committed (committed_keys maps key → created row id).",
+      "PROPOSE capability samples for a partner from OUR OWN records: production runs they COMPLETED (design, tasks done → actions like stitch/embroider/print, quantity, date, and the photos they sent for that run), cloth they SUPPLIED us on Shipped/Delivered inventory orders (material, colour), and products they list with us. The strongest evidence we hold — prefer this over a website scan, and it works for partners with no website. Writes NOTHING to the library: stores a scan and returns keyed proposals (s1…, k1…); show them to the admin, then commit_partner_capability_scan with the approved keys. `weave` is only credited for supplied cloth when the partner told us they weave. Sensitive: requires confirm:true.",
+    method: "POST",
+    path: "/admin/partners/:id/capabilities/scan-records",
+    pathParams: ["id"],
+    write: true,
+    sensitive: true,
+    inputSchema: obj({ id: STR("Partner id.") }, ["id"]),
+    sideEffects:
+      "Reads runs, inventory orders and products; may call a model; stores one partner_capability_scan row (kind='records'). Creates no capability, knowledge or media.",
+    nextSteps: ["commit_partner_capability_scan", "get_partner_capability_scan"],
+  },
+  {
+    name: "get_partner_capability_scan",
+    description:
+      "Read a stored capability scan (website or records): its proposals and which keys are already committed (committed_keys maps key → created row id).",
     method: "GET",
     path: "/admin/partners/:id/capabilities/scans/:scanId",
     pathParams: ["id", "scanId"],
     inputSchema: obj(
       {
         id: STR("Partner id."),
-        scanId: STR("Scan id, 'pwscan_...', from scan_partner_website."),
+        scanId: STR("Scan id, 'pcscan_...', from scan_partner_website or scan_partner_records."),
       },
       ["id", "scanId"]
     ),
-    nextSteps: ["commit_partner_website_scan"],
+    nextSteps: ["commit_partner_capability_scan"],
   },
   {
-    name: "commit_partner_website_scan",
+    name: "commit_partner_capability_scan",
     description:
-      "File approved proposals from a website scan into the partner's capability library. Select by KEY only — content cannot be edited in transit, so every row is what the site said. Omit both key lists to commit everything. Photos are downloaded into media and attached; a photo that fails is a warning, not a failure. Keys already committed are skipped, so a retry cannot duplicate. Sensitive: requires confirm:true.",
+      "File approved proposals from a capability scan (website or records) into the partner's capability library. Select by KEY only — content cannot be edited in transit, so every row is what its source said. Omit both key lists to commit everything. Photos are downloaded into media and attached; a photo that fails is a warning, not a failure. Keys already committed are skipped, so a retry cannot duplicate. Sensitive: requires confirm:true.",
     method: "POST",
     path: "/admin/partners/:id/capabilities/scans/:scanId/commit",
     pathParams: ["id", "scanId"],
@@ -4214,14 +4228,14 @@ export const ADMIN_MCP_TOOLS: AdminMcpToolDef[] = [
     inputSchema: obj(
       {
         id: STR("Partner id."),
-        scanId: STR("Scan id, 'pwscan_...'."),
+        scanId: STR("Scan id, 'pcscan_...'."),
         sample_keys: { type: "array", items: { type: "string" }, description: "Sample proposal keys to commit, e.g. ['s1','s3']. Omit for all." },
         knowledge_keys: { type: "array", items: { type: "string" }, description: "Knowledge proposal keys, e.g. ['k2']. Omit for all." },
       },
       ["id", "scanId"]
     ),
     sideEffects:
-      "Creates capability samples (source='website', captured_at = the site's publish date, or the scan date with metadata.captured_at_defaulted) and knowledge rows; uploads their photos into the partner's capability media folder.",
+      "Creates capability samples (source='website' or 'records', captured_at = the evidence's earliest date, or the scan date with metadata.captured_at_defaulted) and knowledge rows; photos we already hold are linked, others are copied into the partner's capability media folder.",
     nextSteps: ["list_partner_capabilities"],
   },
   {

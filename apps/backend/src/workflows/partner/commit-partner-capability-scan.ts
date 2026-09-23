@@ -1,12 +1,13 @@
 /**
- * Commit chosen proposals from a website scan into the capability library
- * (#2249).
+ * Commit chosen proposals from a capability scan — a website or our own
+ * records — into the capability library (#2249).
  *
  * Only what the stored scan proposed can be committed — the caller picks KEYS,
- * it cannot supply content — so every `source: "website"` row is something the
- * site actually said. Photos are copied into our media (the partner's
- * capability folder) through the same SSRF guard as the scan: the evidence
- * must survive the partner redesigning their site.
+ * it cannot supply content — so every `website`/`records` row is something
+ * that source actually said. A website's photos are copied into our media
+ * (the partner's capability folder) through the same SSRF guard as the scan:
+ * the evidence must survive the partner redesigning their site. A records
+ * scan's photos are ALREADY ours and are linked, not re-uploaded.
  *
  * Idempotent per key: `committed_keys` maps each proposal key to the row it
  * became, and a key already there is skipped, so a retry or a double-click
@@ -23,6 +24,7 @@ import { MedusaError } from "@medusajs/framework/utils"
 import { ensurePartnerCapabilityFolder } from "../../api/partners/capabilities/uploads/folder"
 import { safeFetch } from "../../lib/website-scan/safe-fetch"
 import type { ScanProposal } from "../../lib/website-scan/types"
+import { MEDIA_MODULE } from "../../modules/media"
 import { PARTNER_CAPABILITY_MODULE } from "../../modules/partner_capability"
 import { normalizeCapabilityActions } from "../../modules/partner_capability/lib/actions"
 import { uploadAndOrganizeMediaWorkflow } from "../media/upload-and-organize-media"
@@ -31,7 +33,7 @@ import { assertPartnerExistsStep } from "./steps/assert-partner-exists"
 
 const MAX_IMAGE_BYTES = 8 * 1024 * 1024
 
-export type CommitPartnerWebsiteScanWorkflowInput = {
+export type CommitPartnerCapabilityScanWorkflowInput = {
   partner_id: string
   scan_id: string
   /** Proposal keys to commit. Omitted = every sample. */
@@ -62,6 +64,14 @@ const copyImage = async (
   imageUrl: string,
   i: number
 ): Promise<{ id: string | null; warning?: string }> => {
+  // Already ours (a URL on our own storage)? Link the row, don't upload a copy.
+  try {
+    const media: any = container.resolve(MEDIA_MODULE)
+    const [existing] = await media.listMediaFiles({ file_path: imageUrl }, { take: 1 })
+    if (existing?.id) return { id: existing.id }
+  } catch {
+    /* fall through to copying */
+  }
   try {
     const res = await safeFetch(imageUrl, {
       maxBytes: MAX_IMAGE_BYTES,
@@ -77,7 +87,7 @@ const copyImage = async (
         // base64, NOT raw bytes — the S3 provider sniffs base64 (whatsapp-media-helper).
         files: [{ filename: filenameFor(res.url, type, i), mimeType: type, content: res.body.toString("base64") }],
         existingFolderId: folderId,
-        metadata: { source: "partner_website_scan", partner_id: partnerId, source_url: res.url },
+        metadata: { source: "partner_capability_scan", partner_id: partnerId, source_url: res.url },
       },
     })
     const id = (result as any)?.mediaFiles?.[0]?.id ?? null
@@ -88,13 +98,13 @@ const copyImage = async (
 }
 
 const loadScanStep = createStep(
-  "commit-website-scan-load-step",
-  async (input: CommitPartnerWebsiteScanWorkflowInput, { container }) => {
+  "commit-capability-scan-load-step",
+  async (input: CommitPartnerCapabilityScanWorkflowInput, { container }) => {
     const service: any = container.resolve(PARTNER_CAPABILITY_MODULE)
-    const [scan] = await service.listPartnerWebsiteScans({ id: input.scan_id })
+    const [scan] = await service.listPartnerCapabilityScans({ id: input.scan_id })
     // Another partner's scan is a 404, not a cross-tenant write.
     if (!scan || scan.partner_id !== input.partner_id) {
-      throw new MedusaError(MedusaError.Types.NOT_FOUND, "Website scan not found for this partner")
+      throw new MedusaError(MedusaError.Types.NOT_FOUND, "Capability scan not found for this partner")
     }
     const proposal = scan.proposal as ScanProposal
     const known = new Set([
@@ -115,15 +125,16 @@ const loadScanStep = createStep(
 )
 
 const commitProposalsStep = createStep(
-  "commit-website-scan-write-step",
+  "commit-capability-scan-write-step",
   async (
-    input: CommitPartnerWebsiteScanWorkflowInput & { scan: any; partner: { id: string; name?: string } },
+    input: CommitPartnerCapabilityScanWorkflowInput & { scan: any; partner: { id: string; name?: string } },
     { container }
   ) => {
     const service: any = container.resolve(PARTNER_CAPABILITY_MODULE)
     const proposal = input.scan.proposal as ScanProposal
     const previous: CommittedKeys = { ...(input.scan.committed_keys ?? {}) }
     const scannedAt = new Date(input.scan.created_at ?? Date.now())
+    const source: "website" | "records" = input.scan.kind === "records" ? "records" : "website"
 
     const wantSamples = input.sample_keys ? new Set(input.sample_keys) : null
     const wantKnowledge = input.knowledge_keys ? new Set(input.knowledge_keys) : null
@@ -144,7 +155,8 @@ const commitProposalsStep = createStep(
 
     try {
       for (const s of samplesToWrite) {
-        const mediaIds: string[] = []
+        // Rows a records scan already resolved come first, as-is.
+        const mediaIds: string[] = [...(s.media_file_ids ?? [])]
         for (const [i, url] of s.image_urls.entries()) {
           const copied = await copyImage(container, folderId!, input.partner_id, url, i)
           if (copied.id) mediaIds.push(copied.id)
@@ -158,14 +170,14 @@ const commitProposalsStep = createStep(
           material: s.material,
           actions: normalizeCapabilityActions(s.actions),
           notes: s.notes,
-          media_file_ids: mediaIds.length ? mediaIds : null,
-          source: "website",
-          source_url: s.source_url ?? input.scan.origin,
+          media_file_ids: mediaIds.length ? [...new Set(mediaIds)] : null,
+          source,
+          source_url: s.source_url ?? input.scan.origin ?? null,
           // The site's publish date when it gave one; otherwise the scan date,
           // and the row SAYS it was defaulted rather than looking fresh.
           captured_at: s.captured_at ? new Date(s.captured_at) : scannedAt,
           metadata: {
-            website_scan_id: input.scan.id,
+            capability_scan_id: input.scan.id,
             proposal_key: s.key,
             captured_at_defaulted: !s.captured_at,
             evidence: s.evidence,
@@ -180,10 +192,10 @@ const commitProposalsStep = createStep(
           partner_id: input.partner_id,
           sample_id: k.sample_key ? (keys[k.sample_key] ?? null) : null,
           fact: k.fact,
-          source: "website",
-          source_url: k.source_url ?? input.scan.origin,
+          source,
+          source_url: k.source_url ?? input.scan.origin ?? null,
           observed_at: scannedAt,
-          metadata: { website_scan_id: input.scan.id, proposal_key: k.key },
+          metadata: { capability_scan_id: input.scan.id, proposal_key: k.key },
         })
         created.knowledge.push(row)
         keys[k.key] = row.id
@@ -196,7 +208,7 @@ const commitProposalsStep = createStep(
       throw e
     }
 
-    await service.updatePartnerWebsiteScans({
+    await service.updatePartnerCapabilityScans({
       id: input.scan.id,
       status: "committed",
       committed_at: new Date(),
@@ -228,7 +240,7 @@ const commitProposalsStep = createStep(
     const service: any = container.resolve(PARTNER_CAPABILITY_MODULE)
     if (comp.sample_ids?.length) await service.deletePartnerCapabilitySamples(comp.sample_ids)
     if (comp.knowledge_ids?.length) await service.deletePartnerCapabilityKnowledges(comp.knowledge_ids)
-    await service.updatePartnerWebsiteScans({
+    await service.updatePartnerCapabilityScans({
       id: comp.scan_id,
       status: comp.previous_status,
       committed_at: comp.previous_committed_at,
@@ -237,9 +249,9 @@ const commitProposalsStep = createStep(
   }
 )
 
-export const commitPartnerWebsiteScanWorkflow = createWorkflow(
-  "commit-partner-website-scan",
-  (input: CommitPartnerWebsiteScanWorkflowInput) => {
+export const commitPartnerCapabilityScanWorkflow = createWorkflow(
+  "commit-partner-capability-scan",
+  (input: CommitPartnerCapabilityScanWorkflowInput) => {
     const partner = assertPartnerExistsStep({ partner_id: input.partner_id })
     const scan = loadScanStep(input)
     const result = commitProposalsStep({
@@ -254,4 +266,4 @@ export const commitPartnerWebsiteScanWorkflow = createWorkflow(
   }
 )
 
-export default commitPartnerWebsiteScanWorkflow
+export default commitPartnerCapabilityScanWorkflow

@@ -106,7 +106,7 @@ setupSharedTestSuite(() => {
       const res = await scan()
       expect(res.status).toBe(201)
       const s = res.data.scan
-      expect(s.id).toEqual(expect.stringContaining("pwscan"))
+      expect(s.id).toEqual(expect.stringContaining("pcscan"))
       expect(s.platform).toBe("shopify")
       expect(s.status).toBe("proposed")
       expect(s.proposal.grouped_by).toBe("fallback")

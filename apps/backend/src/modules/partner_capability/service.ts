@@ -2,12 +2,12 @@ import { MedusaService } from "@medusajs/framework/utils"
 
 import PartnerCapabilityKnowledge from "./models/partner-capability-knowledge"
 import PartnerCapabilitySample from "./models/partner-capability-sample"
-import PartnerWebsiteScan from "./models/partner-website-scan"
+import PartnerCapabilityScan from "./models/partner-capability-scan"
 
 class PartnerCapabilityService extends MedusaService({
   PartnerCapabilitySample,
   PartnerCapabilityKnowledge,
-  PartnerWebsiteScan,
+  PartnerCapabilityScan,
 }) {}
 
 export default PartnerCapabilityService

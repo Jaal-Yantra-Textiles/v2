@@ -7,15 +7,15 @@
  */
 import { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
 
-import { commitPartnerWebsiteScanWorkflow } from "../../../../../../../../workflows/partner/commit-partner-website-scan"
-import type { AdminCommitPartnerWebsiteScanReq } from "../../../validators"
+import { commitPartnerCapabilityScanWorkflow } from "../../../../../../../../workflows/partner/commit-partner-capability-scan"
+import type { AdminCommitPartnerCapabilityScanReq } from "../../../validators"
 
 export const POST = async (
-  req: MedusaRequest<AdminCommitPartnerWebsiteScanReq>,
+  req: MedusaRequest<AdminCommitPartnerCapabilityScanReq>,
   res: MedusaResponse
 ) => {
-  const body = ((req as any).validatedBody || req.body || {}) as AdminCommitPartnerWebsiteScanReq
-  const { result } = await commitPartnerWebsiteScanWorkflow(req.scope).run({
+  const body = ((req as any).validatedBody || req.body || {}) as AdminCommitPartnerCapabilityScanReq
+  const { result } = await commitPartnerCapabilityScanWorkflow(req.scope).run({
     input: {
       partner_id: req.params.id,
       scan_id: req.params.scanId,

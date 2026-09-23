@@ -55,10 +55,11 @@ const PartnerCapabilitySample = model.define("partner_capability_sample", {
    * an `admin` row is someone typing up a conversation from memory, a `wizard`
    * row is the partner's own structured answer, and telling them apart later is
    * the difference between evidence and hearsay. A `website` row is the
-   * partner's own published catalogue, read by a scan (#2249).
+   * partner's own published catalogue, read by a scan; a `records` row rests
+   * on OUR records of their work — a completed run, cloth they supplied (#2249).
    */
   source: model
-    .enum(["wizard", "assistant", "whatsapp", "admin", "website"])
+    .enum(["wizard", "assistant", "whatsapp", "admin", "website", "records"])
     .default("admin"),
 
   /**

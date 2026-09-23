@@ -2,7 +2,7 @@
  * Scan a partner's website into capability PROPOSALS (#2249).
  *
  * Writes nothing to the capability library. It reads the site, asks a model to
- * group what it found, and stores the result as a `partner_website_scan` row —
+ * group what it found, and stores the result as a `partner_capability_scan` row —
  * so an operator looks before anything lands on the partner, and the commit
  * acts on what the SITE said rather than on a proposal handed back by a caller.
  */
@@ -111,8 +111,9 @@ const storeScanStep = createStep(
     { container }
   ) => {
     const service: any = container.resolve(PARTNER_CAPABILITY_MODULE)
-    const scan = await service.createPartnerWebsiteScans({
+    const scan = await service.createPartnerCapabilityScans({
       partner_id: input.partner_id,
+      kind: "website",
       url: input.url,
       origin: input.catalogue.origin,
       platform: input.catalogue.platform,
@@ -124,7 +125,7 @@ const storeScanStep = createStep(
   async (scanId: string | undefined, { container }) => {
     if (!scanId) return
     const service: any = container.resolve(PARTNER_CAPABILITY_MODULE)
-    await service.deletePartnerWebsiteScans(scanId)
+    await service.deletePartnerCapabilityScans(scanId)
   }
 )
 

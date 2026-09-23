@@ -26,7 +26,7 @@ const PartnerCapabilityKnowledge = model
     fact: model.text().searchable(),
 
     source: model
-      .enum(["wizard", "assistant", "whatsapp", "admin", "website"])
+      .enum(["wizard", "assistant", "whatsapp", "admin", "website", "records"])
       .default("admin"),
 
     /** Where the fact was read, when it came from a page. */

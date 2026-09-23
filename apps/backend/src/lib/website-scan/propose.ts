@@ -79,12 +79,16 @@ export const buildScanPrompt = (catalogue: ScannedCatalogue): string => {
       p.product_type ? `type: ${p.product_type}` : null,
       p.tags.length ? `tags: ${p.tags.slice(0, 12).join(", ")}` : null,
       p.description ? `about: ${p.description.slice(0, 300)}` : null,
+      p.hints?.actions?.length ? `recorded actions: ${p.hints.actions.join(", ")}` : null,
+      p.hints?.material ? `recorded material: ${p.hints.material}` : null,
     ]
       .filter(Boolean)
       .join(" | ")
   )
   return [
-    `Website: ${catalogue.origin} (${catalogue.platform})`,
+    catalogue.platform === "records"
+      ? `Source: our own records of this partner's work (completed production runs, cloth they supplied us, products they list with us). Lines marked "recorded" are facts, not guesses.`
+      : `Website: ${catalogue.origin} (${catalogue.platform})`,
     `Products (${catalogue.products.length}${catalogue.products.length > MAX_PRODUCTS_FOR_MODEL ? `, first ${MAX_PRODUCTS_FOR_MODEL} shown` : ""}):`,
     lines.join("\n") || "(none)",
     "",
@@ -107,12 +111,30 @@ const earliestDate = (products: ScannedProduct[]): string | null => {
   return times.length ? new Date(Math.min(...times)).toISOString() : null
 }
 
-const evidenceFacts = (products: ScannedProduct[]) => ({
-  image_urls: [...new Set(products.flatMap((p) => p.images))].slice(0, MAX_IMAGES_PER_SAMPLE),
-  source_url: products.find((p) => p.url)?.url ?? null,
-  captured_at: earliestDate(products),
-  evidence: products.map((p) => p.title).slice(0, 10),
-})
+/** The most common known material across the evidence, if any was recorded. */
+const hintedMaterial = (products: ScannedProduct[]): string | null => {
+  const counts = new Map<string, number>()
+  for (const m of products.map((p) => p.hints?.material?.trim()).filter((m): m is string => !!m)) {
+    counts.set(m, (counts.get(m) ?? 0) + 1)
+  }
+  return [...counts.entries()].sort((a, b) => b[1] - a[1])[0]?.[0] ?? null
+}
+
+const evidenceFacts = (products: ScannedProduct[]) => {
+  const mediaIds = [...new Set(products.flatMap((p) => p.hints?.media_file_ids ?? []))].slice(0, MAX_IMAGES_PER_SAMPLE)
+  return {
+    // Rows we already hold take the photo slots first; URLs fill the rest.
+    image_urls: [...new Set(products.flatMap((p) => p.images))].slice(0, Math.max(0, MAX_IMAGES_PER_SAMPLE - mediaIds.length)),
+    media_file_ids: mediaIds,
+    source_url: products.find((p) => p.url)?.url ?? null,
+    captured_at: earliestDate(products),
+    evidence: products.map((p) => p.title).slice(0, 10),
+  }
+}
+
+/** Actions our own rows recorded, unioned with whatever was proposed. */
+const withHintedActions = (proposed: string[], products: ScannedProduct[]) =>
+  normalizeCapabilityActions([...proposed, ...products.flatMap((p) => p.hints?.actions ?? [])])
 
 /**
  * Build proposals from a model answer. Indexes outside the list are dropped;
@@ -143,8 +165,8 @@ export const proposalFromModel = (
       title,
       product_type: clean(cap.product_type),
       technique: clean(cap.technique),
-      material: clean(cap.material),
-      actions: normalizeCapabilityActions(cap.actions),
+      material: clean(cap.material) ?? hintedMaterial(evidence),
+      actions: withHintedActions(cap.actions, evidence),
       notes: clean(cap.notes),
       ...evidenceFacts(evidence),
     })
@@ -172,7 +194,10 @@ export const proposalFromModel = (
       fact,
       sample_key: sampleKey ?? null,
       source_url:
-        productUrl ?? (sampleKey ? samples.find((s) => s.key === sampleKey)?.source_url : null) ?? catalogue.origin,
+        productUrl ??
+        (sampleKey ? samples.find((s) => s.key === sampleKey)?.source_url : null) ??
+        // A records scan has no page to point at; its origin is a label, not a URL.
+        (catalogue.platform === "records" ? null : catalogue.origin),
     })
   }
 
@@ -244,9 +269,9 @@ export const fallbackProposal = (
     title: kind,
     product_type: kind === "Other products" ? null : kind.toLowerCase(),
     technique: null,
-    material: null,
-    actions: [],
-    notes: products.length > 1 ? `${products.length} products on the site` : null,
+    material: hintedMaterial(products),
+    actions: withHintedActions([], products),
+    notes: products.length > 1 ? `${products.length} pieces of evidence` : null,
     ...evidenceFacts(products),
   }))
   return {
@@ -258,7 +283,7 @@ export const fallbackProposal = (
     product_count: catalogue.products.length,
     warnings: [
       ...catalogue.warnings,
-      `Grouped mechanically (${reason}) — technique, material and actions were NOT read; review before committing`,
+      `Grouped mechanically (${reason}) — technique was NOT read; material and actions come only from what our records state; review before committing`,
     ],
   }
 }

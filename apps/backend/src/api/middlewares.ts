@@ -307,7 +307,7 @@ import {
   AdminListPartnerCapabilitiesQuery,
   AdminCreatePartnerCapabilityReq,
   AdminScanPartnerWebsiteReq,
-  AdminCommitPartnerWebsiteScanReq,
+  AdminCommitPartnerCapabilityScanReq,
   AdminAddPartnerCapabilityKnowledgeReq,
 } from "./admin/partners/[id]/capabilities/validators";
 import {
@@ -4856,7 +4856,7 @@ export default defineMiddlewares({
       matcher: "/admin/partners/:id/capabilities/scans/:scanId/commit",
       method: "POST",
       middlewares: [
-        validateAndTransformBody(wrapSchema(AdminCommitPartnerWebsiteScanReq)),
+        validateAndTransformBody(wrapSchema(AdminCommitPartnerCapabilityScanReq)),
       ],
     },
     {

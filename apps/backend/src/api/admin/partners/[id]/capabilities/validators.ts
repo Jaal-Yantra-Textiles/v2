@@ -54,12 +54,12 @@ export type AdminScanPartnerWebsiteReq = z.infer<typeof AdminScanPartnerWebsiteR
  * content: a `website` row must be what the site said, not what a caller
  * edited. To correct a proposal, commit it and edit, or file it by hand.
  */
-export const AdminCommitPartnerWebsiteScanReq = z.object({
+export const AdminCommitPartnerCapabilityScanReq = z.object({
   sample_keys: z.array(z.string().min(1)).optional(),
   knowledge_keys: z.array(z.string().min(1)).optional(),
 })
-export type AdminCommitPartnerWebsiteScanReq = z.infer<
-  typeof AdminCommitPartnerWebsiteScanReq
+export type AdminCommitPartnerCapabilityScanReq = z.infer<
+  typeof AdminCommitPartnerCapabilityScanReq
 >
 
 export const AdminAddPartnerCapabilityKnowledgeReq = z.object({
