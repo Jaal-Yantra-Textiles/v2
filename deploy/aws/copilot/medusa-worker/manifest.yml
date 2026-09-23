@@ -171,6 +171,11 @@ secrets:
   MISTRAL_API_KEY: /jyt/prod/MISTRAL_API_KEY
   OPENAI_API_KEY: /jyt/prod/OPENAI_API_KEY
   OPENROUTER_API_KEY: /jyt/prod/OPENROUTER_API_KEY
+  # #2249 — TypeSafe System One classifies capability-scan evidence (kind,
+  # technique, material). SecureString, tagged copilot-application=jyt +
+  # copilot-environment=prod (an untagged param is unreadable by ECS and fails
+  # every deploy — #2181). Unset = scans fall back to the LLM/mechanical path.
+  TYPESAFE_API_KEY: /jyt/prod/TYPESAFE_API_KEY
   PAYU_MERCHANT_KEY: /jyt/prod/PAYU_MERCHANT_KEY
   PAYU_MERCHANT_SALT: /jyt/prod/PAYU_MERCHANT_SALT
   PAYU_MODE: /jyt/prod/PAYU_MODE

@@ -17,6 +17,8 @@ import { generateText } from "ai"
 
 import { resolveRoleTextModel } from "../../mastra/services/ai-platforms"
 import { readModelJson } from "../../lib/ai/model-json"
+import { typeSafeConfigured } from "../../lib/ai/typesafe"
+import { classifyEvidence, proposalFromClasses } from "../../lib/website-scan/classify-evidence"
 import { readPartnerCatalogue } from "../../lib/website-scan/read-catalogue"
 import {
   buildScanPrompt,
@@ -60,6 +62,21 @@ export const proposeFromCatalogue = async (
   }
   if (process.env.WEBSITE_SCAN_MODEL === "off") {
     return fallbackProposal(catalogue, "the model is switched off")
+  }
+  // TypeSafe first: three closed choices per item, answered as typed data in
+  // ~1.5s, grouped in code. When it is configured and fails, the scan falls
+  // back mechanically and SAYS so — it does not quietly try a slower model.
+  if (typeSafeConfigured()) {
+    let logger: any
+    try {
+      logger = container.resolve("logger")
+    } catch {
+      /* optional */
+    }
+    const classes = await classifyEvidence(catalogue.products, logger)
+    return classes
+      ? proposalFromClasses(catalogue, classes)
+      : fallbackProposal(catalogue, "TypeSafe did not answer")
   }
   // One attempt. With no platform configured for this role the free-model
   // rotator answers, and some of its pool refuse outright ("only available on

@@ -310,6 +310,11 @@ secrets:
   MISTRAL_API_KEY: /jyt/prod/MISTRAL_API_KEY
   OPENAI_API_KEY: /jyt/prod/OPENAI_API_KEY
   OPENROUTER_API_KEY: /jyt/prod/OPENROUTER_API_KEY
+  # #2249 — TypeSafe System One classifies capability-scan evidence (kind,
+  # technique, material). SecureString, tagged copilot-application=jyt +
+  # copilot-environment=prod (an untagged param is unreadable by ECS and fails
+  # every deploy — #2181). Unset = scans fall back to the LLM/mechanical path.
+  TYPESAFE_API_KEY: /jyt/prod/TYPESAFE_API_KEY
   PARTNER_CORS: /jyt/prod/PARTNER_CORS
   # Go-live switch for partner email verification (native Medusa 2.16+ flow).
   # "true" = a partner's login returns verification_required until they confirm
