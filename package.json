@@ -35,6 +35,8 @@
     "storefront:dev": "pnpm --filter @jyt/storefront dev",
     "storefront-starter:dev": "pnpm --filter @jyt/storefront-starter dev",
     "storefront-mobile:dev": "cd apps/storefront-mobile && pnpm start",
+    "partner-android:build": "cd apps/partner-android && ./gradlew assembleDebug",
+    "partner-android:install": "cd apps/partner-android && ./gradlew installDebug",
     "docs:dev": "cd apps/docs && pnpm start",
     "docs:build": "cd apps/docs && pnpm build",
     "docs:serve": "cd apps/docs && pnpm serve",
