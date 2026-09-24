@@ -845,6 +845,9 @@ module.exports = defineConfig({
     resolve: "./src/modules/unified_order_kind",
   },
   {
+    resolve: "./src/modules/work_orders",
+  },
+  {
     resolve: "./src/modules/platform-tax-identity",
   },
   /**
