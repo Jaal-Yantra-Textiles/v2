@@ -1,3 +1,10 @@
+## [13.162.1](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.162.0...v13.162.1) (2026-09-24)
+
+
+### Bug Fixes
+
+* **billing:** work orders carry no commission; reverse the 44 backfilled fees ([#2262](https://github.com/Jaal-Yantra-Textiles/v2/issues/2262)) ([#2269](https://github.com/Jaal-Yantra-Textiles/v2/issues/2269)) ([460ef24](https://github.com/Jaal-Yantra-Textiles/v2/commit/460ef2478cd730e6c9e2ce445cddc8a8add4ba63)), closes [#342](https://github.com/Jaal-Yantra-Textiles/v2/issues/342)
+
 # [13.162.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.161.2...v13.162.0) (2026-09-24)
 
 
