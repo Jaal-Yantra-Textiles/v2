@@ -14,6 +14,7 @@
 import { z } from "zod"
 
 import { normalizeCapabilityActions, CAPABILITY_ACTIONS } from "../../modules/partner_capability/lib/actions"
+import { materialFromText } from "./material-from-text"
 import type {
   ProposedKnowledge,
   ProposedSample,
@@ -117,7 +118,8 @@ const earliestDate = (products: ScannedProduct[]): string | null => {
 /** The most common known material across the evidence, if any was recorded. */
 const hintedMaterial = (products: ScannedProduct[]): string | null => {
   const counts = new Map<string, number>()
-  for (const m of products.map((p) => p.hints?.material?.trim()).filter((m): m is string => !!m)) {
+  // Free text ("White Stripes Fabric") names no fibre and must not become one.
+  for (const m of products.map((p) => materialFromText(p.hints?.material)).filter((m): m is string => !!m)) {
     counts.set(m, (counts.get(m) ?? 0) + 1)
   }
   return [...counts.entries()].sort((a, b) => b[1] - a[1])[0]?.[0] ?? null
@@ -262,10 +264,8 @@ export const fallbackProposal = (
     const kind = type ?? (productNounFromTitle(p.title) ? titleCase(productNounFromTitle(p.title)!) : "Other products")
     // Cloth is told apart by what it is MADE of: one "fabric" group would file
     // Bhagalpur's linen and tussar silk as a single capability labelled linen.
-    if (/^(fabric|yardage)$/i.test(kind) && p.hints?.material) {
-      const m = titleCase(p.hints.material.trim())
-      return /\bfabric$/i.test(m) ? m : `${m} fabric`
-    }
+    const fibre = /^(fabric|yardage)$/i.test(kind) ? materialFromText(p.hints?.material) : null
+    if (fibre) return `${titleCase(fibre)} fabric`
     return titleCase(kind)
   }
   const groups = new Map<string, ScannedProduct[]>()

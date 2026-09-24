@@ -28,6 +28,7 @@ export const CAPABILITY_SCAN_SCOPE = "partner_capability_scan"
 import { classify, type ResolvedClassifier } from "../ai/classify"
 import { choice, type ChoiceAnswer, type OptionCriteria } from "../ai/typesafe"
 import { normalizeCapabilityActions } from "../../modules/partner_capability/lib/actions"
+import { materialFromText } from "./material-from-text"
 import type { ProposedSample, ScanProposal, ScannedCatalogue, ScannedProduct } from "./types"
 
 /** Three questions per item; a request holds as many items as the provider allows. */
@@ -234,7 +235,8 @@ export const proposalFromClasses = (
         products.map((_, j) => classes[items.indexOf(products[j])]?.material).filter((m) => m && m !== "unclear")
       )
       const material = materials.size === 1 ? MATERIALS[[...materials][0]].label : null
-      const hinted = products.map((p) => p.hints?.material).find(Boolean) ?? null
+      // A recorded material is free text (often the line's own name); only a fibre counts.
+      const hinted = products.map((p) => materialFromText(p.hints?.material)).find(Boolean) ?? null
       // Our records say what the partner DID; technique speaks only where no record exists.
       const recorded = products.flatMap((p) => p.hints?.actions ?? [])
       const hasRecords = products.some((p) => p.hints !== undefined)
