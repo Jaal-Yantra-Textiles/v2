@@ -1,3 +1,10 @@
+# [13.162.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.161.2...v13.162.0) (2026-09-24)
+
+
+### Features
+
+* **work-orders:** work_order module + core-order-shape serializer + parity contract ([#2262](https://github.com/Jaal-Yantra-Textiles/v2/issues/2262)) ([#2268](https://github.com/Jaal-Yantra-Textiles/v2/issues/2268)) ([7a315e6](https://github.com/Jaal-Yantra-Textiles/v2/commit/7a315e6d1c5fbe85cfbfc27d788e395800bb52c9)), closes [#2261](https://github.com/Jaal-Yantra-Textiles/v2/issues/2261) [#342](https://github.com/Jaal-Yantra-Textiles/v2/issues/342) [#2263](https://github.com/Jaal-Yantra-Textiles/v2/issues/2263)
+
 ## [13.161.2](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.161.1...v13.161.2) (2026-09-24)
 
 
