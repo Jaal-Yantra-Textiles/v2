@@ -153,4 +153,22 @@ describe("proposalFromClasses", () => {
     expect(p.samples).toHaveLength(1)
     expect(p.samples[0]).toMatchObject({ title: "Jacket", material: null, technique: null })
   })
+
+  // #2249: a free-text line name became the capability's material on prod.
+  it("never files a line's own name as its material", () => {
+    const p = proposalFromClasses(
+      cat([
+        item("White Stripes Fabric — White", { hints: { actions: [], material: "White Stripes Fabric" } }),
+        item("Shirt", { hints: { actions: ["stitch"], material: "Patterned Block Cotton Animal" } }),
+      ]),
+      [
+        { kind: "fabric", technique: "unclear", material: "unclear" },
+        { kind: "shirt", technique: "stitched", material: "unclear" },
+      ]
+    )
+    expect(p.samples.map((s) => [s.title, s.material])).toEqual([
+      ["Fabric", null],
+      ["Shirt", "cotton"],
+    ])
+  })
 })

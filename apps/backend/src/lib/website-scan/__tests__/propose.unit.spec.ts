@@ -145,9 +145,10 @@ describe("records-specific grouping", () => {
     cat.products = [line("Linen — White", "Linen"), line("Linen — Natural", "Linen"), line("Tussar — Gold", "Tussar Silk"), line("Stripes", "White Stripes Fabric")]
     const p = fallbackProposal(cat, "test")
     expect(p.samples.map((s) => [s.title, s.product_type, s.material, s.evidence.length])).toEqual([
-      ["Linen fabric", "fabric", "Linen", 2],
-      ["Tussar Silk fabric", "fabric", "Tussar Silk", 1],
-      ["White Stripes Fabric", "fabric", "White Stripes Fabric", 1], // never "Fabric fabric"
+      ["Linen fabric", "fabric", "linen", 2],
+      ["Tussar silk fabric", "fabric", "tussar silk", 1],
+      // A line's own name is not a material (#2249) — and never "Fabric fabric".
+      ["Fabric", "fabric", null, 1],
     ])
   })
 
