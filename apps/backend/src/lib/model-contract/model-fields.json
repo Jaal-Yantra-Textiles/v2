@@ -4354,5 +4354,53 @@
       "updated_at",
       "website"
     ]
+  },
+  "WorkOrder (modules/work_orders/models/work-order.ts)": {
+    "file": "modules/work_orders/models/work-order.ts",
+    "fields": [
+      "canceled_at",
+      "collation",
+      "created_at",
+      "currency_assumed",
+      "currency_code",
+      "deleted_at",
+      "display_id",
+      "id",
+      "inventory_order_id",
+      "items",
+      "kind",
+      "metadata",
+      "partner_id",
+      "partner_status",
+      "production_run_ids",
+      "source_order_id",
+      "status",
+      "superseded_by_run_ids",
+      "updated_at"
+    ]
+  },
+  "WorkOrderItem (modules/work_orders/models/work-order-item.ts)": {
+    "file": "modules/work_orders/models/work-order-item.ts",
+    "fields": [
+      "cost_estimate",
+      "cost_type",
+      "created_at",
+      "deleted_at",
+      "design_id",
+      "id",
+      "inventory_item_id",
+      "inventory_order_line_id",
+      "production_run_id",
+      "quantity",
+      "raw_cost_estimate",
+      "raw_quantity",
+      "raw_unit_price",
+      "subtitle",
+      "thumbnail",
+      "title",
+      "unit_price",
+      "updated_at",
+      "work_order"
+    ]
   }
 }
