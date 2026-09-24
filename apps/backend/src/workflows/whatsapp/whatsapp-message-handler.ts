@@ -21,6 +21,8 @@ import {
   recordPhoto,
 } from "./whatsapp-photo-batch"
 import {
+  MEDIA_CTX_NO,
+  MEDIA_CTX_YES,
   recordMediaAck,
   type MediaAckEntry,
 } from "./whatsapp-media-ack-batch"
@@ -32,6 +34,7 @@ import {
   resolvePartnerDefaultSharedFolder,
   listPartnerSharedFolders,
   getPartnerOpenWork,
+  detachMediaFromRunDesign,
 } from "./whatsapp-media-helper"
 import { BUTTON_TITLE_ACTIONS } from "../../scripts/whatsapp-templates/partner-run-templates"
 import { buildPartnerProductUrl } from "./partner-product-url"
@@ -524,6 +527,16 @@ export async function handleIncomingMessage(
     // production-run dispatch below doesn't try to parse them. Exit
     // immediately once handled; the product status mutation IS the
     // intent — no follow-on action needed.
+    if (message.buttonReplyId === MEDIA_CTX_YES || message.buttonReplyId === MEDIA_CTX_NO) {
+      return await handleMediaContextReply(
+        scope,
+        whatsapp,
+        message,
+        partner.partnerId,
+        conversationId
+      )
+    }
+
     if (message.buttonReplyId.startsWith("wa_pc_")) {
       return await handleProductCreateButtonReply(
         scope,
@@ -708,6 +721,9 @@ export async function handleIncomingMessage(
          */
         let photoContextReply: string | null = null
         let photoContextOwnsReply = false
+        // Set when the photo joins `pending_photo_batch`: the sweep asks about
+        // the whole burst once, so nothing may be said about it per photo.
+        let queuedForQuestion = false
 
         if (saved && targetRunId) {
           const result = await attachMediaToRunDesign(scope, {
@@ -845,6 +861,7 @@ export async function handleIncomingMessage(
                   seen?.text ?? null
                 ),
               })
+              queuedForQuestion = true
             }
           }
         }
@@ -878,7 +895,15 @@ export async function handleIncomingMessage(
             ? { kind: "context", label: photoContextReply }
             : null // the flow owns the reply; nothing for us to say
           : attachedRunId
-            ? { kind: "run", label: attachedRunId }
+            ? {
+                kind: "run",
+                label: attachedRunId,
+                // We picked this run (their only one in progress) — say so and
+                // ask; a tapped "📸 Add Media" is their choice and is not asked.
+                ...(!contextStillValid && autoResolveReason === "single"
+                  ? { auto: true, design: await getDesignName(scope, attachedRunId) }
+                  : {}),
+              }
             : !attachError && sharedFolder
               ? { kind: "shared_folder", label: sharedFolder.name }
               : null
@@ -933,7 +958,14 @@ export async function handleIncomingMessage(
           //                   wanted; otherwise admin still sees the file
           //                   in their inbox.
           const hasCaption = typeof message.text === "string" && message.text.trim().length > 0
-          if (!hasCaption) {
+          /**
+           * 🔴 Not per photo when the photo is queued for the burst question.
+           * This line fired once PER IMAGE — Bhagalpur got ~25 identical
+           * "📥 Received" replies for one burst on 2026-09-15 — on top of the
+           * sweep's own "what are these for?". It is only the fallback now,
+           * for a photo that could not be queued.
+           */
+          if (!hasCaption && !queuedForQuestion) {
             const hint =
               autoResolveReason === "multiple"
                 ? "You have several runs in progress — tap *📸 Add Media* on the specific run, then send the photo."
@@ -2586,6 +2618,70 @@ async function persistPartnerAdminLanguage(
 // no-op with a friendly message. If they tap Cancel after Confirm
 // (product already PUBLISHED), refuse so the live storefront product
 // isn't accidentally deleted.
+/**
+ * The partner's answer to "I've added these to <design> — is that what
+ * they're for?" (sent by jobs/send-media-ack-batches.ts when WE picked the run).
+ *
+ * ✅ Yes keeps the files where they are. ❌ No takes them off the run and
+ * queues them for the one-per-burst "what are these for?" question, so a wrong
+ * guess ends in a question rather than a photo filed against the wrong work.
+ */
+async function handleMediaContextReply(
+  scope: any,
+  whatsapp: WhatsAppService,
+  message: IncomingMessage,
+  partnerId: string,
+  conversationId: string | null
+): Promise<HandlerResult> {
+  const meta = await readConversationMetadata(scope, conversationId)
+  const ctx = meta.pending_media_context as
+    | { run_id: string; design: string | null; message_ids: string[] }
+    | undefined
+  const what = ctx?.design ? `*${ctx.design}*` : "that run"
+
+  if (!ctx?.run_id || !conversationId) {
+    // Answered twice, or the question is gone: nothing to undo.
+    await whatsapp.sendTextMessage(message.from, "👍 Noted.")
+    return { handled: true, action: "media_context_none" }
+  }
+
+  if (message.buttonReplyId === MEDIA_CTX_YES) {
+    await updateConversationMetadata(scope, conversationId, { ...meta, pending_media_context: undefined })
+    await whatsapp.sendTextMessage(message.from, `👍 Thanks — they're on ${what}.`)
+    return { handled: true, action: "media_context_confirmed", runId: ctx.run_id }
+  }
+
+  const messagingService = scope.resolve(MESSAGING_MODULE) as any
+  const rows: any[] = ctx.message_ids.length
+    ? await messagingService.listMessagingMessages({ id: ctx.message_ids }, { take: ctx.message_ids.length }).catch(() => [])
+    : []
+  const urls = rows.map((r) => r?.media_url).filter((u): u is string => typeof u === "string" && !!u)
+  await detachMediaFromRunDesign(scope, { runId: ctx.run_id, partnerId, fileUrls: urls })
+
+  // The inbox must stop showing them against the run as well.
+  for (const r of rows) {
+    if (r?.context_type === "production_run" && r?.context_id === ctx.run_id) {
+      await messagingService
+        .updateMessagingMessages({ id: r.id, context_type: null, context_id: null })
+        .catch(() => {})
+    }
+  }
+
+  let batch = meta.pending_photo_batch as any
+  for (const r of rows) batch = recordPhoto(batch, r.id, new Date(), null)
+  await updateConversationMetadata(scope, conversationId, {
+    ...meta,
+    pending_media_context: undefined,
+    ...(rows.length ? { pending_photo_batch: batch } : {}),
+  })
+
+  await whatsapp.sendTextMessage(
+    message.from,
+    `Okay — I've taken ${rows.length === 1 ? "it" : "them"} off ${what}. I'll ask you what ${rows.length === 1 ? "it's" : "they're"} for in a moment.`
+  )
+  return { handled: true, action: "media_context_rejected", runId: ctx.run_id }
+}
+
 async function handleProductCreateButtonReply(
   scope: any,
   whatsapp: any,

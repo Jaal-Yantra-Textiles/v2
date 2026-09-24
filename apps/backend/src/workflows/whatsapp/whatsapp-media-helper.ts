@@ -440,6 +440,41 @@ export async function attachMediaToRunDesign(
   }
 }
 
+/**
+ * The reverse of `attachMediaToRunDesign`: take WhatsApp files off a run's
+ * design when the partner says our guess was wrong. Only entries WE put there
+ * for THIS run (source whatsapp + run_id) are removed — a photo the admin
+ * placed on the design, or one sent for another run, stays.
+ *
+ * Returns how many entries were removed; never throws.
+ */
+export async function detachMediaFromRunDesign(
+  scope: any,
+  options: { runId: string; partnerId: string; fileUrls: string[] }
+): Promise<number> {
+  try {
+    const run: any = await (scope.resolve(PRODUCTION_RUNS_MODULE) as ProductionRunService)
+      .retrieveProductionRun(options.runId)
+    if (!run?.design_id || run.partner_id !== options.partnerId) return 0
+
+    const { result: design } = await listSingleDesignsWorkflow(scope).run({
+      input: { id: run.design_id, fields: ["*"] },
+    })
+    const existing: any[] = (design as any)?.media_files || []
+    const urls = new Set(options.fileUrls)
+    const kept = existing.filter(
+      (m: any) => !(m?.source === "whatsapp" && m?.run_id === options.runId && urls.has(m?.url))
+    )
+    const removed = existing.length - kept.length
+    if (removed > 0) {
+      await updateDesignWorkflow(scope).run({ input: { id: run.design_id, media_files: kept } })
+    }
+    return removed
+  } catch {
+    return 0
+  }
+}
+
 function extensionFromMime(mimeType: string): string {
   const map: Record<string, string> = {
     "image/jpeg": ".jpg",
