@@ -27,6 +27,13 @@ import {
   type MediaAckEntry,
 } from "./whatsapp-media-ack-batch"
 import { describePhotoForContext } from "./whatsapp-photo-vision"
+import { classify } from "../../lib/ai/classify"
+import {
+  buildPhotoRunQuestion,
+  decidePhotoRun,
+  PHOTO_RUN_SCOPE,
+  type CandidateRun,
+} from "./whatsapp-photo-run-match"
 import type { WhatsAppAuditContext } from "../../modules/social-provider/whatsapp-service"
 import {
   downloadAndSaveWhatsAppMedia,
@@ -698,10 +705,31 @@ export async function handleIncomingMessage(
 
         let autoResolvedRunId: string | null = null
         let autoResolveReason: "none" | "single" | "multiple" = "none"
+        // True whenever WE picked the run — the burst reply then asks ✅ / ❌.
+        let runWasGuessed = false
+        // What the photo shows, read once and reused by the batch question.
+        let photoSeen: string | null | undefined
         if (saved && !contextStillValid) {
           const lookup = await findSinglePartnerActiveRun(scope, partner.partnerId)
           autoResolvedRunId = lookup.runId
           autoResolveReason = lookup.reason
+          runWasGuessed = lookup.reason === "single"
+
+          /**
+           * With any run in progress, let System One read what the photo shows
+           * against each run's design. It may pick a run (still a guess — asked
+           * about), or say none, which sends the photo to the question instead
+           * of filing a swatch on a shirt run. When it cannot answer, the old
+           * rule (the one run, or nothing) stands.
+           */
+          if (lookup.reason !== "none") {
+            const matched = await matchPhotoToRun(scope, partner.partnerId, saved.fileUrl, message.text ?? null)
+            photoSeen = matched.seen
+            if (matched.decided) {
+              autoResolvedRunId = matched.runId
+              runWasGuessed = !!matched.runId
+            }
+          }
         }
 
         const targetRunId: string | null = contextStillValid
@@ -847,10 +875,10 @@ export async function handleIncomingMessage(
               // plainer. Awaited because the batch row must carry it, and the
               // partner is not waiting on this reply (the question comes later
               // from the sweep).
-              const seen = await describePhotoForContext(
-                scope,
-                saved.fileUrl
-              ).catch(() => null)
+              const seen =
+                photoSeen !== undefined
+                  ? { text: photoSeen }
+                  : await describePhotoForContext(scope, saved.fileUrl).catch(() => null)
 
               await updateConversationMetadata(scope, conversationId, {
                 ...conversationMeta,
@@ -900,7 +928,7 @@ export async function handleIncomingMessage(
                 label: attachedRunId,
                 // We picked this run (their only one in progress) — say so and
                 // ask; a tapped "📸 Add Media" is their choice and is not asked.
-                ...(!contextStillValid && autoResolveReason === "single"
+                ...(runWasGuessed
                   ? { auto: true, design: await getDesignName(scope, attachedRunId) }
                   : {}),
               }
@@ -2321,6 +2349,41 @@ async function findSinglePartnerActiveRun(
     return { runId: null, reason: "multiple" }
   } catch {
     return { runId: null, reason: "none" }
+  }
+}
+
+/**
+ * Ask System One which of the partner's started runs a photo is for (see
+ * whatsapp-photo-run-match.ts). `decided: false` means it could not answer —
+ * off, unconfigured, nothing to judge from — and the caller keeps its old
+ * rule. Never throws: a photo must be saved whatever the classifier does.
+ */
+async function matchPhotoToRun(
+  scope: any,
+  partnerId: string,
+  fileUrl: string,
+  caption: string | null
+): Promise<{ decided: boolean; runId: string | null; seen: string | null }> {
+  try {
+    const productionRunService: ProductionRunService = scope.resolve(PRODUCTION_RUNS_MODULE)
+    const [runs] = await productionRunService.listAndCountProductionRuns(
+      { partner_id: partnerId, status: "in_progress" as any },
+      { take: 20 }
+    )
+    const started = ((runs as any[]) ?? []).filter((r) => r?.started_at)
+    const candidates: CandidateRun[] = []
+    for (const r of started) {
+      candidates.push({ id: r.id, design: await getDesignName(scope, r.id) })
+    }
+    const seen = (await describePhotoForContext(scope, fileUrl).catch(() => null))?.text ?? null
+    if (!candidates.length || (!seen && !caption)) return { decided: false, runId: null, seen }
+
+    const { state, questions } = buildPhotoRunQuestion(candidates, { seen, caption })
+    const result = await classify(scope, { scope: PHOTO_RUN_SCOPE, state, questions, timeoutMs: 15_000 })
+    if (!result) return { decided: false, runId: null, seen }
+    return { decided: true, runId: decidePhotoRun(result.answers.run, candidates).runId, seen }
+  } catch {
+    return { decided: false, runId: null, seen: null }
   }
 }
 
