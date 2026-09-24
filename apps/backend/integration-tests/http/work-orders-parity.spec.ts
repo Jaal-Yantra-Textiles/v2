@@ -7,25 +7,18 @@
  * the same admin endpoints production uses, which write the mirror):
  *   1. read what partner-ui reads today — `GET /partners/orders/:id` and the
  *      `GET /partners/orders?kind=…` row;
- *   2. convert the mirror with `fromCoreOrder`, PERSIST it in `work_order` /
- *      `work_order_item` (same ids), read it back;
+ *   2. read the work_order the shadow write (#2263) saved for it — same ids —
+ *      back through query.graph;
  *   3. serve it with `toOrderShape` and compare on the contract.
- * Step 2 goes through the database on purpose: bigNumber quantities, the
- * text[] run ids and the typed line columns must survive a round trip.
+ * Step 2 goes through the database on purpose: bigNumber quantities and the
+ * typed line columns must survive a round trip, and every link must resolve.
  */
 import { ContainerRegistrationKeys } from "@medusajs/framework/utils"
-import { PRODUCTION_RUNS_MODULE } from "../../src/modules/production_runs"
-import partnerOrderLink from "../../src/links/partner-order"
-import {
-  WORK_ORDER_MIRROR_FIELDS,
-  fromCoreOrder,
-} from "../../src/lib/work-orders/from-core-order"
 import { toOrderShape } from "../../src/lib/work-orders/to-order-shape"
 import {
   pickWorkOrderContract,
   pickWorkOrderListContract,
 } from "../../src/lib/work-orders/work-order-contract"
-import { WORK_ORDER_MODULE } from "../../src/modules/work_orders"
 import { createAdminUser, getAuthHeaders } from "../helpers/create-admin-user"
 import { ensureHouseStoreRegion } from "../helpers/ensure-house-store-region"
 import { getSharedTestEnv, setupSharedTestSuite } from "./shared-test-setup"
@@ -70,43 +63,15 @@ setupSharedTestSuite(() => {
       return orderId
     }
 
-    /** Convert the mirror, persist it as a work_order, read it back, serve it. */
+    /**
+     * Read the work_order the SHADOW WRITE saved when the mirror was written
+     * (#2263 S1) — through query.graph, so the real run link and the read-only
+     * links (partner, inventory order, line → run / design) are exercised —
+     * and serve it. (Under S0 this spec converted + inserted by hand; the
+     * shadow write now does exactly that on the production path.)
+     */
     const persistAndServe = async (orderId: string) => {
-      const container = getContainer()
-      const query: any = container.resolve(ContainerRegistrationKeys.QUERY)
-      const { data: orders } = await query.graph({
-        entity: "order",
-        fields: WORK_ORDER_MIRROR_FIELDS,
-        filters: { id: orderId },
-      })
-      const { data: links } = await query.graph({
-        entity: partnerOrderLink.entryPoint,
-        fields: ["partner_id"],
-        filters: { order_id: orderId },
-      })
-      const row = fromCoreOrder(orders[0], links?.[0]?.partner_id ?? null)
-      expect(row).not.toBeNull()
-
-      const service: any = container.resolve(WORK_ORDER_MODULE)
-      const { items, production_runs, created_at, updated_at, ...order } = row as any
-      await service.createWorkOrders(order)
-      await service.createWorkOrderItems(
-        items.map(({ created_at: _c, updated_at: _u, ...it }: any) => ({
-          ...it,
-          work_order_id: row!.id,
-        }))
-      )
-      if (production_runs.length) {
-        const link: any = container.resolve(ContainerRegistrationKeys.LINK)
-        await link.create(
-          production_runs.map((r: any) => ({
-            [WORK_ORDER_MODULE]: { work_order_id: row!.id },
-            [PRODUCTION_RUNS_MODULE]: { production_runs_id: r.id },
-          }))
-        )
-      }
-      // Read back THROUGH query.graph, so the real run link and the read-only
-      // links (partner, inventory order, line → run / design) are exercised.
+      const query: any = getContainer().resolve(ContainerRegistrationKeys.QUERY)
       const { data: storedRows } = await query.graph({
         entity: "work_order",
         fields: [
@@ -118,14 +83,11 @@ setupSharedTestSuite(() => {
           "items.production_run.id",
           "items.design.id",
         ],
-        filters: { id: row!.id },
+        filters: { id: orderId },
       })
       const stored = storedRows[0]
       expect(stored).toBeTruthy()
-      // created_at is stamped at insert time, not taken from the input; the
-      // mirror's own timestamp is what the UI shows. The S1 backfill must carry
-      // it explicitly (#2263) — here the converted value is served instead.
-      return { stored, served: toOrderShape({ ...stored, created_at: row!.created_at }) }
+      return { stored, served: toOrderShape(stored) }
     }
 
     const oldDetail = async (orderId: string) => {

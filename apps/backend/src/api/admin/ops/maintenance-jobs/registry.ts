@@ -121,6 +121,7 @@ import { importLeadsToCrmJob } from "./import-leads-to-crm-job"
 import { crmEngagementSweepJob } from "./crm-engagement-sweep-job"
 import { backfillRetailPartnerFeesJob } from "./backfill-retail-partner-fees-job"
 import { reverseWorkOrderFeesJob } from "./reverse-work-order-fees-job"
+import { backfillWorkOrdersJob, workOrderParityJob } from "./work-order-jobs"
 import { recomputeEmailEngagementStatusJob } from "./recompute-email-engagement-status-job"
 import { backfillEngagementFromKitJob } from "./backfill-engagement-from-kit-job"
 import { generateNewsletterWinbackTargetsJob } from "./generate-newsletter-winback-targets-job"
@@ -6565,6 +6566,8 @@ export const MAINTENANCE_JOBS: MaintenanceJob[] = [
   backfillConsumptionLogProductionRunIdJob,
   repairInventoryRawMaterialLinksJob,
   reverseWorkOrderFeesJob,
+  backfillWorkOrdersJob,
+  workOrderParityJob,
   backfillRetailPartnerFeesJob,
   backfillStatsPanelWindowJob,
   backfillOrderPersonsJob,

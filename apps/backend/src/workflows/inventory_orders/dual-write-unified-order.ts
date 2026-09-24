@@ -9,6 +9,7 @@ import { UNIFIED_ORDER_STATUS_MODULE } from "../../modules/unified_order_status"
 import { UNIFIED_ORDER_KIND_MODULE } from "../../modules/unified_order_kind"
 import { pickDefaultCurrency } from "../../lib/resolve-store-currency"
 import { inventoryLineUnitPrice } from "./lib/line-unit-price"
+import { shadowSyncWorkOrder } from "../../lib/work-orders/sync-from-mirror"
 
 // #342 T2 — best-effort projection of legacy inventory orders onto the core
 // `order` entity (kind=inventory = "the order↔inventory_order link exists";
@@ -459,6 +460,8 @@ export const dualWriteUnifiedOrderStep = createStep(
         [ORDER_INVENTORY_MODULE]: { inventory_orders_id: order.id },
       })
 
+      // #2263 S1 — shadow the mirror into work_order (best-effort, never throws).
+      await shadowSyncWorkOrder(container, unified.id, "dual-write-unified-order")
       return new StepResponse<DualWriteResult>({ unified_order_id: unified.id })
     } catch (e: any) {
       logger.warn(
@@ -514,6 +517,7 @@ export const mirrorPartnerLinkOnUnifiedOrderStep = createStep(
       // no lock). A failure throws to the step's swallow-and-warn boundary so the
       // legacy path is never failed.
       await setUnifiedOrderPartnerStatus(container, unifiedOrderId, "assigned")
+      await shadowSyncWorkOrder(container, unifiedOrderId, "mirror-partner-link-on-unified-order")
 
       return new StepResponse<MirrorResult>({
         linked: true,
@@ -576,6 +580,7 @@ export const mirrorUnifiedOrderStatusStep = createStep(
       if (partnerStatus) {
         await setUnifiedOrderPartnerStatus(container, unifiedOrderId, partnerStatus)
       }
+      await shadowSyncWorkOrder(container, unifiedOrderId, "mirror-unified-order-status")
 
       return new StepResponse<MirrorResult>({
         linked: true,

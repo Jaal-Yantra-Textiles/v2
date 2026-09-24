@@ -2,6 +2,7 @@ import { ContainerRegistrationKeys, Modules } from "@medusajs/framework/utils"
 import { createStep, StepResponse } from "@medusajs/framework/workflows-sdk"
 
 import { inventoryLineUnitPrice } from "./lib/line-unit-price"
+import { shadowSyncWorkOrder } from "../../lib/work-orders/sync-from-mirror"
 
 /**
  * Re-project an inventory order's LIVE lines onto its core mirror order's items.
@@ -230,6 +231,8 @@ export async function reprojectInventoryMirrorItems(
   if (plan.removeItemIds.length) {
     await orderService.deleteOrderLineItems(plan.removeItemIds)
   }
+  // #2263 S1 — the work_order's lines follow (best-effort, never throws).
+  await shadowSyncWorkOrder(container, unifiedOrderId, "reproject-inventory-mirror-items")
 
   return summary
 }
