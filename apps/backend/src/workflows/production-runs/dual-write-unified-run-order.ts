@@ -24,6 +24,7 @@ import {
   readIsCollated,
 } from "../inventory_orders/dual-write-unified-order"
 import { pickDefaultCurrency } from "../../lib/resolve-store-currency"
+import { shadowSyncWorkOrder } from "../../lib/work-orders/sync-from-mirror"
 import {
   pickHouseStore,
   partnerStoreIdsFrom,
@@ -441,6 +442,8 @@ export const projectRunToUnifiedOrder = async (
       )
     }
 
+    // #2263 S1 — shadow the mirror into work_order (best-effort, never throws).
+    await shadowSyncWorkOrder(container, unified.id, "project-run-to-unified-order")
     return { unified_order_id: unified.id }
   } catch (e: any) {
     logger.warn(
@@ -734,6 +737,7 @@ export const collateRunsIntoWorkOrder = async (
     )
   }
 
+  await shadowSyncWorkOrder(container, unified.id, "collate-runs-into-work-order")
   return { unified_order_id: unified.id, line_count: items.length }
 }
 
@@ -1063,6 +1067,7 @@ export const joinRunsIntoWorkOrder = async (
     `[orders-unification] collated ${runs.length} run(s) into existing work-order ${orderId} (now ${allRunIds.length} run(s))`
   )
 
+  await shadowSyncWorkOrder(container, orderId, "join-runs-into-work-order")
   return { unified_order_id: orderId, line_count: items.length }
 }
 
@@ -1182,6 +1187,7 @@ export const mirrorRunStatusToUnifiedOrder = async (
       await setUnifiedOrderPartnerStatus(container, unifiedOrderId, partnerStatus)
     }
 
+    await shadowSyncWorkOrder(container, unifiedOrderId, "mirror-run-status-to-unified-order")
     return { linked: true, unified_order_id: unifiedOrderId }
   } catch (e: any) {
     logger.warn(
@@ -1396,6 +1402,7 @@ export const dualWriteChildRunOrdersStep = createStep(
             status: "canceled",
             metadata: { superseded_by_run_ids: input.child_run_ids },
           })
+          await shadowSyncWorkOrder(container, parentOrderId, "supersede-parent-run-order")
         }
       } else {
         // No split — the run itself stays the partner-facing unit; mirror
@@ -1455,6 +1462,7 @@ export const mirrorRunPartnerLinkOnUnifiedOrderStep = createStep(
       // PR-H — partner_status is column-only (single-column sidecar upsert), no
       // longer a metadata patch.
       await setUnifiedOrderPartnerStatus(container, unifiedOrderId, "assigned")
+      await shadowSyncWorkOrder(container, unifiedOrderId, "mirror-run-partner-link")
 
       return new StepResponse<MirrorResult>({
         linked: true,

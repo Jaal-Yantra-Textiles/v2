@@ -21,6 +21,8 @@ export const WORK_ORDER_MIRROR_FIELDS = [
   "updated_at",
   "canceled_at",
   "metadata",
+  // Not converted — read so the parity job can compare the mirror's total.
+  "total",
   // `items.*`, NOT `items.quantity`: a core line's quantity lives on its
   // order_item detail row, and only the wildcard resolves it — a named
   // `items.quantity` comes back undefined (caught by the S0 parity spec; same
