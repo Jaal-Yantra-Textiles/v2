@@ -196,7 +196,7 @@ setupSharedTestSuite(() => {
       expect(jacket.image_urls).toEqual([])
 
       const fabric = byType.fabric
-      expect(fabric.material).toBe("Kala Cotton")
+      expect(fabric.material).toBe("kala cotton")
       // supplying cloth is not weaving it, unless they told us so
       expect(fabric.actions).toEqual([])
     })
