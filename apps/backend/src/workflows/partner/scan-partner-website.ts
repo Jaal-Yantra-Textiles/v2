@@ -17,6 +17,12 @@ import { generateText } from "ai"
 
 import { resolveRoleTextModel } from "../../mastra/services/ai-platforms"
 import { readModelJson } from "../../lib/ai/model-json"
+import { resolveClassifiers } from "../../lib/ai/classify"
+import {
+  CAPABILITY_SCAN_SCOPE,
+  classifyEvidence,
+  proposalFromClasses,
+} from "../../lib/website-scan/classify-evidence"
 import { readPartnerCatalogue } from "../../lib/website-scan/read-catalogue"
 import {
   buildScanPrompt,
@@ -60,6 +66,28 @@ export const proposeFromCatalogue = async (
   }
   if (process.env.WEBSITE_SCAN_MODEL === "off") {
     return fallbackProposal(catalogue, "the model is switched off")
+  }
+  // Pre-classification first (lib/ai/classify.ts): three closed choices per
+  // item, answered as typed data in ~1.5s by whichever System One provider the
+  // AI platform row for this scope names, grouped in code. When it is switched
+  // on and fails, the scan falls back mechanically and SAYS so — it does not
+  // quietly try a slower model.
+  // Each classifier serving the scope, in failover order: a Codiv outage moves
+  // the whole classification to the next row instead of to mechanical grouping.
+  const classifiers = await resolveClassifiers(container, CAPABILITY_SCAN_SCOPE)
+  if (classifiers.length) {
+    for (const classifier of classifiers) {
+      const classes = await classifyEvidence(container, classifier, catalogue.products)
+      if (classes) {
+        const proposal = proposalFromClasses(catalogue, classes)
+        proposal.warnings.push(`Classified by ${classifier.provider} (${classifier.platformId})`)
+        return proposal
+      }
+    }
+    return fallbackProposal(
+      catalogue,
+      `pre-classification did not answer (${classifiers.map((c) => c.provider).join(" → ")})`
+    )
   }
   // One attempt. With no platform configured for this role the free-model
   // rotator answers, and some of its pool refuse outright ("only available on

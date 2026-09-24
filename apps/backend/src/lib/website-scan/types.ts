@@ -66,8 +66,11 @@ export type ScanProposal = {
   product_types: string[]
   samples: ProposedSample[]
   knowledge: ProposedKnowledge[]
-  /** "model" when an LLM grouped it, "fallback" when grouping was mechanical. */
-  grouped_by: "model" | "fallback"
+  /**
+   * "typesafe" when each item was classified by System One and grouped in code,
+   * "model" when an LLM grouped it, "fallback" when grouping was mechanical.
+   */
+  grouped_by: "typesafe" | "model" | "fallback"
   product_count: number
   warnings: string[]
 }
