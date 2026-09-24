@@ -1,3 +1,11 @@
+## [13.161.1](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.161.0...v13.161.1) (2026-09-24)
+
+
+### Bug Fixes
+
+* **partners:** a person type is shared by many partners ([#2249](https://github.com/Jaal-Yantra-Textiles/v2/issues/2249)) ([#2259](https://github.com/Jaal-Yantra-Textiles/v2/issues/2259)) ([d3e4f20](https://github.com/Jaal-Yantra-Textiles/v2/commit/d3e4f20afeb28747a2a6c1137bfc6540aee4b8be))
+* **partners:** a records scan never files a line's own name as its material ([#2249](https://github.com/Jaal-Yantra-Textiles/v2/issues/2249)) ([#2256](https://github.com/Jaal-Yantra-Textiles/v2/issues/2256)) ([a279a35](https://github.com/Jaal-Yantra-Textiles/v2/commit/a279a354b1eb9278efd7052ec7589078016e5f95))
+
 # [13.161.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.160.0...v13.161.0) (2026-09-24)
 
 
