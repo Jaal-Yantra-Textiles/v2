@@ -5,12 +5,8 @@ import { PARTNER_MODULE } from "../../modules/partner"
 import { TASKS_MODULE } from "../../modules/tasks"
 import { acceptProductionRunWorkflow } from "../production-runs/accept-production-run"
 import { startProductionRunWorkflow } from "../production-runs/start-production-run"
-import { signalLifecycleStepSuccessWorkflow } from "../production-runs/production-run-steps"
-import {
-  awaitRunStartStepId,
-  awaitRunFinishStepId,
-  awaitRunCompleteStepId,
-} from "../production-runs/run-production-run-lifecycle"
+import { finishProductionRunWorkflow } from "../production-runs/finish-production-run"
+import { completeProductionRunWorkflow } from "../production-runs/complete-production-run"
 import WhatsAppService from "../../modules/social-provider/whatsapp-service"
 import { SOCIAL_PROVIDER_MODULE } from "../../modules/social-provider"
 import type SocialProviderService from "../../modules/social-provider/service"
@@ -1707,39 +1703,25 @@ async function handleFinish(
       }
     : parseFinishExtras(rawText)
 
-  const update: Record<string, any> = { id: runId, finished_at: new Date() }
-  if (finishNote) update.finish_notes = finishNote
-  if (scrap != null) update.rejected_quantity = scrap
-
-  await productionRunService.updateProductionRuns(update)
-
-  // Move design to Technical_Review
-  if (run.design_id) {
-    try {
-      const designService = scope.resolve("design") as any
-      const design = await designService.retrieveDesign(run.design_id)
-      if (["In_Development", "Sample_Production", "Revision"].includes(design.status)) {
-        await designService.updateDesigns({ id: run.design_id, status: "Technical_Review" })
-      }
-    } catch { /* non-fatal */ }
-  }
-
-  // Signal lifecycle
-  const transactionId = (run as any).lifecycle_transaction_id
-  if (transactionId) {
-    await signalLifecycleStepSuccessWorkflow(scope)
-      .run({ input: { transaction_id: transactionId, step_id: awaitRunFinishStepId } })
-      .catch(() => {})
-  }
-
-  await emitEvent(scope, "production_run.finished", {
-    id: runId,
-    production_run_id: runId,
-    partner_id: partnerId,
-    action: "finished",
-    ...(scrap != null ? { rejected_quantity: scrap } : {}),
-    ...(notes ? { notes } : {}),
+  /**
+   * #2248 — the SAME workflow the partner portal runs. The hand-written
+   * version here set `finished_at`, moved the design to a different status
+   * than the portal did, swallowed every lifecycle-signal error and never
+   * mirrored the unified work order. A guard the workflow enforces (terminal
+   * run, not started) now throws into the dispatcher's catch, as Start does.
+   */
+  await finishProductionRunWorkflow(scope).run({
+    input: {
+      production_run_id: runId,
+      partner_id: partnerId,
+      ...(finishNote ? { notes: finishNote } : {}),
+    },
   })
+
+  // Scrap is a WhatsApp-only input the finish workflow has no field for.
+  if (scrap != null) {
+    await productionRunService.updateProductionRuns({ id: runId, rejected_quantity: scrap })
+  }
 
   const designName = await getDesignName(scope, runId)
   await sendRunAck(scope, whatsapp, phone, runId, "finished", designName, language, {
@@ -1833,30 +1815,32 @@ async function handleComplete(
     if (rejectedMatch) rejectedQuantity = parseInt(rejectedMatch[1])
   }
 
-  // Mark as completed
-  await productionRunService.updateProductionRuns({
-    id: runId,
-    status: "completed" as any,
-    completed_at: new Date(),
-    ...(producedQuantity != null ? { produced_quantity: producedQuantity } : {}),
-    ...(rejectedQuantity != null ? { rejected_quantity: rejectedQuantity } : {}),
-  })
-
-  // Signal lifecycle
-  const transactionId = (run as any).lifecycle_transaction_id
-  if (transactionId) {
-    await signalLifecycleStepSuccessWorkflow(scope)
-      .run({ input: { transaction_id: transactionId, step_id: awaitRunCompleteStepId } })
-      .catch(() => {})
+  /**
+   * The workflow refuses a run with pieces owed and no count (its output
+   * check), so ask for the count rather than failing: the partner tapped
+   * Complete, they did not do anything wrong.
+   */
+  if (producedQuantity == null && Number(run.quantity ?? 0) > 0) {
+    const designName = await getDesignName(scope, runId)
+    await whatsapp.sendCompletionPrompt(phone, runId, designName)
+    return { handled: true, action: "complete_prompt", runId }
   }
 
-  await emitEvent(scope, "production_run.completed", {
-    id: runId,
-    production_run_id: runId,
-    partner_id: partnerId,
-    action: "completed",
-    produced_quantity: producedQuantity,
-    rejected_quantity: rejectedQuantity || 0,
+  /**
+   * #2248 — the SAME workflow the partner portal runs. The hand-written
+   * version only flipped the status: it never banked the finished goods,
+   * reserved them for an order, closed the run's tasks, wrote the design's
+   * cost, cascaded a parent run or mirrored the unified work order. Its
+   * refusals (a shortfall with no reason, a partner with no stock location)
+   * now throw into the dispatcher's catch instead of being skipped silently.
+   */
+  await completeProductionRunWorkflow(scope).run({
+    input: {
+      production_run_id: runId,
+      partner_id: partnerId,
+      ...(producedQuantity != null ? { produced_quantity: producedQuantity } : {}),
+      ...(rejectedQuantity != null ? { rejected_quantity: rejectedQuantity } : {}),
+    },
   })
 
   const qtyInfo = producedQuantity != null
