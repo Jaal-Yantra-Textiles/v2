@@ -5,6 +5,9 @@ import { SOCIAL_PROVIDER_MODULE } from "../modules/social-provider"
 import {
   buildMediaAckText,
   decideMediaAckAction,
+  mediaAckAsksConfirmation,
+  MEDIA_CTX_NO,
+  MEDIA_CTX_YES,
   type MediaAckBatch,
 } from "../workflows/whatsapp/whatsapp-media-ack-batch"
 
@@ -60,7 +63,27 @@ export default async function sendMediaAckBatches(container: MedusaContainer) {
 
     try {
       const wa = socialProvider.getWhatsApp(container as any)
-      await wa.sendTextMessage(conv.phone_number, buildMediaAckText(batch!))
+      const text = buildMediaAckText(batch!)
+      /**
+       * A run WE picked is a guess, so it is stated and asked about: Yes keeps
+       * it, No takes the files off the run and asks what they are for. The
+       * handler routes these ids (media_ctx_*).
+       */
+      const guessed = mediaAckAsksConfirmation(batch!)
+      if (guessed) {
+        await wa.sendInteractiveMessage(conv.phone_number, {
+          type: "button",
+          body: { text },
+          action: {
+            buttons: [
+              { type: "reply", reply: { id: MEDIA_CTX_YES, title: "✅ Yes" } },
+              { type: "reply", reply: { id: MEDIA_CTX_NO, title: "❌ No, not this" } },
+            ],
+          },
+        })
+      } else {
+        await wa.sendTextMessage(conv.phone_number, text)
+      }
 
       /**
        * 🔴 Stamp `acked_at` only AFTER the send resolves.
@@ -84,6 +107,10 @@ export default async function sendMediaAckBatches(container: MedusaContainer) {
         metadata: {
           ...freshMeta,
           pending_media_ack: { ...freshBatch, acked_at: new Date().toISOString() },
+          // What a "❌ No" undoes. Replaced by the next guess, never merged.
+          ...(guessed
+            ? { pending_media_context: { ...guessed, asked_at: new Date().toISOString() } }
+            : {}),
         },
       })
       acked++

@@ -140,6 +140,18 @@ export const productKind = (product: any): string | null =>
   productNounFromTitle(String(product?.title ?? "")) ??
   productNounFromTitle(String(product?.type?.value ?? ""))
 
+/**
+ * A moodboard image is a REFERENCE clipped from someone else's page (the CRM
+ * extension uploads it as `moodboard-<design>-<ts>-<n>.<ext>`,
+ * crm-extension/src/popup.js), and a product minted from that design inherits
+ * it. It shows what we wanted, not what this partner made (#2249: two
+ * capabilities on prod carried an Oshen moodboard picture as their proof).
+ */
+export const isReferenceImage = (url: string): boolean => {
+  const name = decodeURIComponent(url.split("?")[0].split("/").pop() ?? "")
+  return /^moodboard-/i.test(name)
+}
+
 export const productToEvidence = (product: any): ScannedProduct => ({
   title: product.title,
   product_type: productKind(product),
@@ -152,7 +164,7 @@ export const productToEvidence = (product: any): ScannedProduct => ({
     .filter(Boolean)
     .join(" "),
   images: [product.thumbnail, ...(product.images ?? []).map((i: any) => i?.url)]
-    .filter((u): u is string => typeof u === "string" && !!u)
+    .filter((u): u is string => typeof u === "string" && !!u && !isReferenceImage(u))
     .filter((u, i, all) => all.indexOf(u) === i)
     .slice(0, 3),
   url: null,
