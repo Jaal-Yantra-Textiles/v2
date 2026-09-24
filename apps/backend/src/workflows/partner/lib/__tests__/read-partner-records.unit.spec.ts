@@ -1,4 +1,4 @@
-import { actionsFromWords, orderLineToEvidence, productKind, runPhotos } from "../read-partner-records"
+import { actionsFromWords, isReferenceImage, orderLineToEvidence, productKind, productToEvidence, runPhotos } from "../read-partner-records"
 
 describe("actionsFromWords", () => {
   it.each([
@@ -52,5 +52,28 @@ describe("productKind", () => {
     [{ title: "Himalayan Ruby", type: { value: "Stole" } }, "stole"],
   ])("a tax class or a year is never the kind: %j → %s", (product, kind) => {
     expect(productKind(product)).toBe(kind)
+  })
+})
+
+// #2249: an Oshen moodboard picture (clipped from another site by the CRM
+// extension) was filed as proof that a robe was made.
+describe("product evidence never carries a moodboard reference image", () => {
+  const MOODBOARD =
+    "https://automatic.jaalyantra.com/automatica/moodboard-design-for-oshen-1787541847116-1-01M0RWR026Y3WD6BPPZW9ZTG45.jpeg"
+  const PHOTO = "https://automatic.jaalyantra.com/automatica/DSC05916-2-01KKV2BTZBH2PNHF32522J6Q1N.png"
+
+  it("tells a moodboard clip from a photo", () => {
+    expect(isReferenceImage(MOODBOARD)).toBe(true)
+    expect(isReferenceImage(PHOTO)).toBe(false)
+  })
+
+  it("drops it from a listed product's images", () => {
+    const e = productToEvidence({
+      title: "Ahimsa Silk and Cotton Robe",
+      status: "published",
+      thumbnail: MOODBOARD,
+      images: [{ url: MOODBOARD }, { url: PHOTO }],
+    })
+    expect(e.images).toEqual([PHOTO])
   })
 })
