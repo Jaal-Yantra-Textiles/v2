@@ -1,3 +1,10 @@
+# [13.163.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.162.1...v13.163.0) (2026-09-24)
+
+
+### Features
+
+* **work-orders:** shadow-write the mirror into work_order; backfill + parity jobs ([#2263](https://github.com/Jaal-Yantra-Textiles/v2/issues/2263)) ([#2270](https://github.com/Jaal-Yantra-Textiles/v2/issues/2270)) ([f9b19d5](https://github.com/Jaal-Yantra-Textiles/v2/commit/f9b19d567a7b8f87826db3e978bf152e3996c9f2)), closes [#2261](https://github.com/Jaal-Yantra-Textiles/v2/issues/2261) [#342](https://github.com/Jaal-Yantra-Textiles/v2/issues/342) [#2264](https://github.com/Jaal-Yantra-Textiles/v2/issues/2264)
+
 ## [13.162.1](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.162.0...v13.162.1) (2026-09-24)
 
 
