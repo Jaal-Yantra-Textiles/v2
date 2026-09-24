@@ -7,7 +7,7 @@ import type { IOrderModuleService } from "@medusajs/types"
 import { setupSharedTestSuite, getSharedTestEnv } from "./shared-test-setup"
 import { createAdminUser, getAuthHeaders } from "../helpers/create-admin-user"
 import { seedCommonEmailTemplates } from "../helpers/seed-email-templates"
-import orderPlacedAccrueFeeHandler from "../../src/subscribers/order-placed-accrue-fee"
+import { seedCommissionFee } from "../helpers/seed-partner-fee"
 import { PARTNER_MODULE } from "../../src/modules/partner"
 
 jest.setTimeout(60 * 1000)
@@ -79,10 +79,7 @@ setupSharedTestSuite(() => {
       await linkPartnerOrder(partnerId, order.id)
 
       // Accrue a fee (Slice 2) so there is a row to read.
-      await orderPlacedAccrueFeeHandler({
-        event: { data: { id: order.id } },
-        container,
-      } as any)
+      await seedCommissionFee(container, partnerId, order.id)
 
       const res = await api.get(
         `/admin/partners/${partnerId}/fees`,
@@ -132,10 +129,7 @@ setupSharedTestSuite(() => {
       const partnerId = await createPartner(unique)
       const order = await createOrder(unique)
       await linkPartnerOrder(partnerId, order.id)
-      await orderPlacedAccrueFeeHandler({
-        event: { data: { id: order.id } },
-        container,
-      } as any)
+      await seedCommissionFee(container, partnerId, order.id)
 
       // accrued filter → the row; reversed filter → empty.
       const accrued = await api.get(

@@ -10,7 +10,6 @@ import { seedCommonEmailTemplates } from "../helpers/seed-email-templates"
 import orderPlacedAccrueFeeHandler from "../../src/subscribers/order-placed-accrue-fee"
 import { PARTNER_BILLING_MODULE } from "../../src/modules/partner_billing"
 import { PARTNER_MODULE } from "../../src/modules/partner"
-import { computeFee } from "../../src/modules/partner_billing/compute-fee"
 
 jest.setTimeout(60 * 1000)
 
@@ -78,7 +77,12 @@ setupSharedTestSuite(() => {
       ])
     }
 
-    it("accrues one 2% partner_fee for a partner-linked order, and is idempotent", async () => {
+    it("does NOT accrue a commission on a WORK order (partner-linked), even when re-fired", async () => {
+      // #2262, founder decision A (2026-09-24): a work order is a purchase FROM
+      // the partner; no commission on money we pay them. The D3 partner↔order
+      // link is written only by the work-order mirror, so it marks a work order.
+      // This test used to assert a 2% fee here — backfill-partner-order-fees
+      // accrued 44 of them on prod before this was decided.
       const { getContainer } = getSharedTestEnv()
       const container = getContainer()
       const unique = Date.now()
@@ -87,39 +91,18 @@ setupSharedTestSuite(() => {
       const order = await createOrder(unique)
       await linkPartnerOrder(partnerId, order.id)
 
-      // Re-read total post-creation (taxes/shipping may adjust it).
-      const orderService = container.resolve(
-        Modules.ORDER
-      ) as IOrderModuleService
-      const placed: any = await orderService.retrieveOrder(order.id, {
-        select: ["id", "total", "currency_code"],
-      })
-      const expectedFee = computeFee(Number(placed.total), "percentage", 200)
-
+      await orderPlacedAccrueFeeHandler({
+        event: { data: { id: order.id } },
+        container,
+      } as any)
       await orderPlacedAccrueFeeHandler({
         event: { data: { id: order.id } },
         container,
       } as any)
 
       const billing: any = container.resolve(PARTNER_BILLING_MODULE)
-      let fees = await billing.listPartnerFees({ order_id: order.id })
-      expect(fees.length).toBe(1)
-      const fee = fees[0]
-      expect(fee.partner_id).toBe(partnerId)
-      expect(fee.status).toBe("accrued")
-      expect(fee.fee_basis).toBe("percentage")
-      expect(fee.fee_rate).toBe(200)
-      expect(fee.currency_code).toBe("usd")
-      expect(Number(fee.fee_amount)).toBeCloseTo(expectedFee, 2)
-      expect(fee.accrued_at).toBeTruthy()
-
-      // Re-fire → still exactly one (idempotent on order_id).
-      await orderPlacedAccrueFeeHandler({
-        event: { data: { id: order.id } },
-        container,
-      } as any)
-      fees = await billing.listPartnerFees({ order_id: order.id })
-      expect(fees.length).toBe(1)
+      const fees = await billing.listPartnerFees({ order_id: order.id })
+      expect(fees).toEqual([])
     })
 
     it("does NOT accrue a fee for a retail order with no partner link", async () => {
