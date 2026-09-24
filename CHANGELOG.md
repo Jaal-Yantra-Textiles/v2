@@ -1,3 +1,10 @@
+## [13.161.2](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.161.1...v13.161.2) (2026-09-24)
+
+
+### Bug Fixes
+
+* **whatsapp:** Finish/Complete run their workflows; photo bursts reply once and ask about the run (System One); moodboard clips aren't proof ([#2260](https://github.com/Jaal-Yantra-Textiles/v2/issues/2260)) ([15d2591](https://github.com/Jaal-Yantra-Textiles/v2/commit/15d25916ea6681a777b79e230f30b1cbe311bf6a)), closes [#2249](https://github.com/Jaal-Yantra-Textiles/v2/issues/2249) [#2248](https://github.com/Jaal-Yantra-Textiles/v2/issues/2248) [#2247](https://github.com/Jaal-Yantra-Textiles/v2/issues/2247)
+
 ## [13.161.1](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.161.0...v13.161.1) (2026-09-24)
 
 
