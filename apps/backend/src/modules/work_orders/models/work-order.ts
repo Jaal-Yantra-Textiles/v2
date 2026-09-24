@@ -19,6 +19,14 @@ import WorkOrderItem from "./work-order-item"
  * and bookmark keeps resolving. New rows mint with the same `order` prefix so
  * the two populations never need telling apart by id.
  *
+ * ## Only what something READS is stored, and nothing in a blob
+ * No `metadata`. Facts that belong to another module are not copied: the row
+ * keeps the id and a READ-ONLY link follows it (`partner_id` → partner,
+ * `inventory_order_id` → inventory order; see src/links/work-order-*.ts). The
+ * runs a design work order holds are a real link (work_order ↔ production_runs,
+ * one-to-many), the same authoritative pointer the core order uses today.
+ * `toOrderShape()` synthesises the few `metadata` keys readers still use.
+ *
  * ## Kind and collation are COLUMNS
  * Today kind is inferred from which order↔execution link exists, and collation
  * lives in a sidecar (`unified_order_kind`) with a metadata fallback. Here both
@@ -55,28 +63,19 @@ const WorkOrder = model
         "cancelled",
       ])
       .nullable(),
+    /** Read-only link → partner (src/links/work-order-partner.ts). */
     partner_id: model.text().nullable(),
     currency_code: model.text(),
     /**
-     * True when the currency was GUESSED (the mirror took the house store's
-     * default). Carried over so the guess stays visible instead of hardening
-     * into a fact.
+     * For `kind=inventory`: the inventory order this work order IS.
+     * Read-only link → inventory_orders (src/links/work-order-inventory-order.ts).
      */
-    currency_assumed: model.boolean().default(false),
-    /**
-     * For `kind=design`: every run this work order holds (one for `per_run`,
-     * N for `collated`). Carried from the order↔production_run link, NOT
-     * derived from line metadata — a line and a run are not guaranteed 1:1.
-     */
-    production_run_ids: model.array().nullable(),
-    /** For `kind=inventory`: the inventory order this work order IS. */
     inventory_order_id: model.text().nullable(),
     /** The customer (retail) order that commissioned the work, if any. */
     source_order_id: model.text().nullable(),
     canceled_at: model.dateTime().nullable(),
     /** Set when a run split cancelled this order in favour of its children. */
-    superseded_by_run_ids: model.json().nullable(),
-    metadata: model.json().nullable(),
+    superseded_by_run_ids: model.array().nullable(),
     items: model.hasMany(() => WorkOrderItem, { mappedBy: "work_order" }),
   })
   .cascades({ delete: ["items"] })

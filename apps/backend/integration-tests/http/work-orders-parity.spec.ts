@@ -14,6 +14,7 @@
  * text[] run ids and the typed line columns must survive a round trip.
  */
 import { ContainerRegistrationKeys } from "@medusajs/framework/utils"
+import { PRODUCTION_RUNS_MODULE } from "../../src/modules/production_runs"
 import partnerOrderLink from "../../src/links/partner-order"
 import {
   WORK_ORDER_MIRROR_FIELDS,
@@ -87,7 +88,7 @@ setupSharedTestSuite(() => {
       expect(row).not.toBeNull()
 
       const service: any = container.resolve(WORK_ORDER_MODULE)
-      const { items, created_at, updated_at, ...order } = row as any
+      const { items, production_runs, created_at, updated_at, ...order } = row as any
       await service.createWorkOrders(order)
       await service.createWorkOrderItems(
         items.map(({ created_at: _c, updated_at: _u, ...it }: any) => ({
@@ -95,7 +96,32 @@ setupSharedTestSuite(() => {
           work_order_id: row!.id,
         }))
       )
-      const stored = await service.retrieveWorkOrder(row!.id, { relations: ["items"] })
+      if (production_runs.length) {
+        const link: any = container.resolve(ContainerRegistrationKeys.LINK)
+        await link.create(
+          production_runs.map((r: any) => ({
+            [WORK_ORDER_MODULE]: { work_order_id: row!.id },
+            [PRODUCTION_RUNS_MODULE]: { production_runs_id: r.id },
+          }))
+        )
+      }
+      // Read back THROUGH query.graph, so the real run link and the read-only
+      // links (partner, inventory order, line → run / design) are exercised.
+      const { data: storedRows } = await query.graph({
+        entity: "work_order",
+        fields: [
+          "*",
+          "items.*",
+          "production_runs.id",
+          "partner.id",
+          "inventory_orders.id",
+          "items.production_run.id",
+          "items.design.id",
+        ],
+        filters: { id: row!.id },
+      })
+      const stored = storedRows[0]
+      expect(stored).toBeTruthy()
       // created_at is stamped at insert time, not taken from the input; the
       // mirror's own timestamp is what the UI shows. The S1 backfill must carry
       // it explicitly (#2263) — here the converted value is served instead.
@@ -220,9 +246,12 @@ setupSharedTestSuite(() => {
 
       expect(stored.kind).toBe("design")
       expect(stored.partner_id).toBe(partnerId)
-      expect(stored.production_run_ids).toEqual([runId])
-      expect(stored.items[0].production_run_id).toBe(runId)
-      expect(stored.items[0].design_id).toBe(design.data.design.id)
+      expect(stored).not.toHaveProperty("metadata")
+      // The real link and the read-only links all resolve:
+      expect(stored.production_runs.map((r: any) => r.id)).toEqual([runId])
+      expect(stored.partner?.id).toBe(partnerId)
+      expect(stored.items[0].production_run?.id).toBe(runId)
+      expect(stored.items[0].design?.id).toBe(design.data.design.id)
       expect(stored.items[0]).not.toHaveProperty("metadata")
 
       expect(pickWorkOrderContract(served)).toEqual(pickWorkOrderContract(before))
@@ -265,7 +294,8 @@ setupSharedTestSuite(() => {
 
       expect(stored.kind).toBe("inventory")
       expect(stored.inventory_order_id).toBe(invId)
-      expect(stored.items[0].inventory_item_id).toBe(inventoryItemId)
+      expect(stored.inventory_orders?.id ?? stored.inventory_orders?.[0]?.id).toBe(invId)
+      expect(stored.partner?.id).toBe(partnerId)
       expect(stored.items[0].inventory_order_line_id).toBeTruthy()
       expect(Number(stored.items[0].quantity)).toBe(70.6)
 

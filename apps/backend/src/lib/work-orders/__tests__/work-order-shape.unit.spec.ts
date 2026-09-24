@@ -66,6 +66,7 @@ const collatedMirror = {
   items: [
     {
       id: "ordli_A",
+      created_at: "2026-09-04T08:35:21.000Z",
       title: "Oshen — Shawls",
       quantity: 2,
       unit_price: 400,
@@ -73,6 +74,7 @@ const collatedMirror = {
     },
     {
       id: "ordli_B",
+      created_at: "2026-09-04T08:35:22.000Z",
       title: "Oshen — Scarves",
       quantity: 2,
       unit_price: 250,
@@ -166,38 +168,25 @@ describe("work order: mirror → work_order → core-order shape (#2262 S0)", ()
     expect(pickWorkOrderContract(served).partner_status).toBeNull()
   })
 
-  describe("line facts are typed columns, not metadata", () => {
-    it("design line", () => {
+  describe("lines store only what is read, as typed columns", () => {
+    it("design line keeps design_id + production_run_id; the run's cost is NOT copied", () => {
       const [line] = fromCoreOrder(perRunMirror, null)!.items!
       expect(line).toMatchObject({
         design_id: "01KMDCWAKKXQAQGCT3XQGY8MB8",
         production_run_id: "prod_run_01KMQ7SFAFV4AV7EJZADNG7D5W",
-        cost_type: "per_unit",
-        cost_estimate: 7650,
-        inventory_item_id: null,
         inventory_order_line_id: null,
       })
       expect(line).not.toHaveProperty("metadata")
+      expect(line).not.toHaveProperty("cost_type")
+      expect(line).not.toHaveProperty("cost_estimate")
     })
 
-    it("inventory line — legacy_unit_price is not carried", () => {
+    it("inventory line keeps only the line-sync key", () => {
       const [line] = fromCoreOrder(inventoryMirror, null)!.items!
-      expect(line).toMatchObject({
-        inventory_item_id: "iitem_1",
-        inventory_order_line_id: "orderline_1",
-        design_id: null,
-        cost_type: null,
-      })
+      expect(line).toMatchObject({ inventory_order_line_id: "orderline_1", design_id: null })
       expect(line).not.toHaveProperty("metadata")
+      expect(line).not.toHaveProperty("inventory_item_id")
       expect(JSON.stringify(line)).not.toContain("legacy_unit_price")
-    })
-
-    it("an unknown cost_type is refused, not stored", () => {
-      const mirror = {
-        ...perRunMirror,
-        items: [{ ...perRunMirror.items[0], metadata: { ...perRunMirror.items[0].metadata, cost_type: "per_metre" } }],
-      }
-      expect(fromCoreOrder(mirror, null)!.items![0].cost_type).toBeNull()
     })
 
     it("served lines echo ONLY the two keys the UI reads into metadata", () => {
@@ -209,21 +198,60 @@ describe("work order: mirror → work_order → core-order shape (#2262 S0)", ()
     })
   })
 
+  describe("the order stores no metadata; the read keys are synthesised", () => {
+    it("the row carries no metadata blob and no guessed-currency flag", () => {
+      const row = fromCoreOrder(perRunMirror, null)!
+      expect(row).not.toHaveProperty("metadata")
+      expect(row).not.toHaveProperty("currency_assumed")
+    })
+
+    it("per-run: legacy_id + production_run_id point at the run", () => {
+      expect(roundTrip(perRunMirror).metadata).toEqual({
+        legacy_id: "prod_run_01KMQ7SFAFV4AV7EJZADNG7D5W",
+        production_run_id: "prod_run_01KMQ7SFAFV4AV7EJZADNG7D5W",
+      })
+    })
+
+    it("collated: legacy_id is the FIRST-created line's run, even when the link lists it second", () => {
+      // collatedMirror.production_runs is [B, A]; A's line was created first.
+      expect(roundTrip(collatedMirror).metadata).toEqual({
+        legacy_id: "prod_run_A",
+        collated_design_order: true,
+        production_run_ids: ["prod_run_B", "prod_run_A"],
+        source_order_id: "order_RETAIL_1",
+      })
+    })
+
+    it("inventory: legacy_id is the inventory order; its other mirror keys are not carried", () => {
+      expect(roundTrip(inventoryMirror).metadata).toEqual({
+        legacy_id: "inv_order_01M1ZH7Y50W37WMGXYP2DM1KAF",
+      })
+    })
+
+    it("a superseded order keeps superseded_by_run_ids (payment supersession reads it)", () => {
+      const served = roundTrip({
+        ...perRunMirror,
+        status: "canceled",
+        metadata: { ...perRunMirror.metadata, superseded_by_run_ids: ["prod_run_C1", "prod_run_C2"] },
+      })
+      expect(served.metadata.superseded_by_run_ids).toEqual(["prod_run_C1", "prod_run_C2"])
+    })
+  })
+
   it("carries the typed order facts the mirror hid in metadata", () => {
     const row = fromCoreOrder(collatedMirror, "partner_1")!
     expect(row).toMatchObject({
       kind: "design",
       partner_id: "partner_1",
       source_order_id: "order_RETAIL_1",
-      production_run_ids: ["prod_run_B", "prod_run_A"],
+      production_runs: [{ id: "prod_run_B" }, { id: "prod_run_A" }],
       inventory_order_id: null,
     })
-    expect(fromCoreOrder(perRunMirror, null)!.currency_assumed).toBe(true)
     expect(fromCoreOrder(inventoryMirror, null)!).toMatchObject({
       kind: "inventory",
       collation: "per_run",
       inventory_order_id: "inv_order_01M1ZH7Y50W37WMGXYP2DM1KAF",
-      production_run_ids: null,
+      production_runs: [],
     })
   })
 })

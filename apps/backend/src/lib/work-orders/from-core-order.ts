@@ -32,9 +32,6 @@ export const WORK_ORDER_MIRROR_FIELDS = [
   "unified_order_kind.kind",
 ]
 
-const costTypeOf = (v: unknown): "per_unit" | "total" | null =>
-  v === "per_unit" || v === "total" ? v : null
-
 const asList = (rel: any): Array<{ id: string }> =>
   (Array.isArray(rel) ? rel : rel ? [rel] : []).filter((r: any) => r?.id)
 
@@ -71,15 +68,17 @@ export const fromCoreOrder = (
     partner_status: order?.unified_order_status?.partner_status ?? null,
     partner_id: partnerId,
     currency_code: order.currency_code,
-    currency_assumed: metadata.currency_assumed === true,
-    production_run_ids: kind === "design" ? runs.map((r) => r.id) : null,
     inventory_order_id: kind === "inventory" ? invs[0].id : null,
     source_order_id: metadata.source_order_id ?? null,
     canceled_at: order.canceled_at ?? null,
-    superseded_by_run_ids: metadata.superseded_by_run_ids ?? null,
-    // Carried whole: the UI still reads legacy_id / collated_design_order /
-    // production_run_ids from it. Retiring those keys is S3, not a backfill.
-    metadata,
+    superseded_by_run_ids: Array.isArray(metadata.superseded_by_run_ids)
+      ? metadata.superseded_by_run_ids.map(String)
+      : null,
+    // The mirror's order↔production_run link, carried as-is: the backfill
+    // re-creates it as work_order ↔ production_runs. Not derived from lines.
+    production_runs: kind === "design" ? runs.map((r) => ({ id: r.id })) : [],
+    // No metadata is carried. The keys a reader still uses are synthesised by
+    // toOrderShape() from the typed columns; the rest had no reader on the order.
     created_at: order.created_at,
     updated_at: order.updated_at,
     items: (order.items ?? []).map((it: any) => ({
@@ -89,13 +88,13 @@ export const fromCoreOrder = (
       thumbnail: it.thumbnail ?? null,
       quantity: it.quantity,
       unit_price: it.unit_price,
-      // Every key the mirror wrote into line metadata becomes a column.
-      // `legacy_unit_price` is dropped: it always equalled `unit_price`.
+      // Of the mirror's line metadata only these survive as columns:
+      // design_id + production_run_id (the UI reads them) and the inventory
+      // line key (the S3 line sync matches on it). cost_type /
+      // legacy_cost_estimate belong to the run, inventory_item_id to the
+      // inventory order line, legacy_unit_price always equalled unit_price.
       design_id: it.metadata?.design_id ?? null,
       production_run_id: it.metadata?.production_run_id ?? null,
-      cost_type: costTypeOf(it.metadata?.cost_type),
-      cost_estimate: it.metadata?.legacy_cost_estimate ?? null,
-      inventory_item_id: it.metadata?.inventory_item_id ?? null,
       inventory_order_line_id: it.metadata?.legacy_orderline_id ?? null,
       created_at: it.created_at,
       updated_at: it.updated_at,

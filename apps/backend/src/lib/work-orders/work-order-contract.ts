@@ -48,7 +48,9 @@ export const pickWorkOrderListContract = (order: any) => ({
 export const pickWorkOrderContract = (order: any) => ({
   ...pickWorkOrderListContract(order),
   canceled_at: iso(order?.canceled_at),
-  metadata: order?.metadata ?? {},
+  // Only the order-metadata keys something READS (see synthesizeOrderMetadata).
+  source_order_id: order?.metadata?.source_order_id ?? null,
+  superseded_by_run_ids: order?.metadata?.superseded_by_run_ids ?? null,
   production_run_ids: idsOf(order?.production_runs),
   inventory_order_ids: idsOf(order?.inventory_orders),
   items: [...(order?.items ?? [])]
