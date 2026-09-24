@@ -1,3 +1,10 @@
+# [13.161.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.160.0...v13.161.0) (2026-09-24)
+
+
+### Features
+
+* **ai:** pre-classification helper on AI platform rows (TypeSafe / Codiv); capability scans use it ([#2249](https://github.com/Jaal-Yantra-Textiles/v2/issues/2249)) ([#2255](https://github.com/Jaal-Yantra-Textiles/v2/issues/2255)) ([7d14f4f](https://github.com/Jaal-Yantra-Textiles/v2/commit/7d14f4f18427a7e1a0b686e9dd5de016a68ec523))
+
 # [13.160.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.159.2...v13.160.0) (2026-09-23)
 
 
