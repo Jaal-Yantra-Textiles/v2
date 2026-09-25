@@ -20,6 +20,7 @@ import { useTaskTemplates } from "../../hooks/api/task-templates"
 import { sdk } from "../../lib/config"
 import { useQueryClient } from "@tanstack/react-query"
 import { queryKeysFactory } from "../../lib/query-key-factory"
+import { designWorkOrderHref } from "../../lib/work-order-href"
 
 const designQueryKeys = queryKeysFactory("designs" as const)
 
@@ -461,7 +462,7 @@ export const CollateDesignsWizard = ({
                 label: "View work-order",
                 altText: "View the created work-order",
                 onClick: () =>
-                  navigate(`/orders/${design_production.work_order_id}`),
+                  navigate(designWorkOrderHref(design_production.work_order_id)),
               }
             : undefined,
         }

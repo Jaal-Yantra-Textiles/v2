@@ -1,7 +1,7 @@
 import { defineRouteConfig } from "@medusajs/admin-sdk"
 import { SquareTwoStack, ShoppingBag } from "@medusajs/icons"
 import { Badge, Button, Container, Heading, StatusBadge, Text } from "@medusajs/ui"
-import { Link } from "react-router-dom"
+import { Link, useSearchParams } from "react-router-dom"
 
 import { useDesignWorkOrders } from "../../hooks/api/design-work-orders"
 import { ProductionRunList } from "../../components/designs/design-order-production-section"
@@ -24,10 +24,17 @@ const fmtDate = (d?: string) =>
  * never show in the cart-grouped Design Orders list. Each order lists its
  * per-design runs (status + stepper + "Now → Partner's next"); lifecycle
  * actions deep-link to /production-runs/:id.
+ *
+ * #2264 — this IS a collated work order's page: `?id=` narrows it to one
+ * order, which is where the core order screen sends a work order
+ * (widgets/order-work-order-redirect.tsx). There is no "View order" link back
+ * into that sale screen; a commissioned order links its CUSTOMER order.
  */
 const DesignWorkOrdersPage = () => {
+  const [searchParams] = useSearchParams()
+  const onlyId = searchParams.get("id") || undefined
   const { design_work_orders, designs, partners, count, isLoading } =
-    useDesignWorkOrders({ limit: 50 })
+    useDesignWorkOrders({ limit: 50, ...(onlyId ? { id: onlyId } : {}) })
 
   return (
     <div className="flex flex-col gap-y-3">
@@ -40,11 +47,18 @@ const DesignWorkOrdersPage = () => {
               including those produced without a customer.
             </Text>
           </div>
-          {count > 0 && (
-            <Badge size="2xsmall" color="grey">
-              {count}
-            </Badge>
-          )}
+          <div className="flex items-center gap-x-3">
+            {onlyId && (
+              <Button size="small" variant="transparent" asChild>
+                <Link to="/design-work-orders">Show all</Link>
+              </Button>
+            )}
+            {count > 0 && (
+              <Badge size="2xsmall" color="grey">
+                {count}
+              </Badge>
+            )}
+          </div>
         </div>
       </Container>
 
@@ -59,8 +73,9 @@ const DesignWorkOrdersPage = () => {
       {!isLoading && design_work_orders.length === 0 && (
         <Container className="px-6 py-4">
           <Text size="small" className="text-ui-fg-subtle">
-            No design work orders yet. Produce a design order or use "Send to
-            Production" from the Designs list.
+            {onlyId
+              ? "No collated design work order with this id (or all its runs are cancelled)."
+              : 'No design work orders yet. Produce a design order or use "Send to Production" from the Designs list.'}
           </Text>
         </Container>
       )}
@@ -93,12 +108,14 @@ const DesignWorkOrdersPage = () => {
               <Text size="xsmall" className="text-ui-fg-subtle">
                 {fmtDate(wo.created_at)}
               </Text>
-              <Button size="small" variant="secondary" asChild>
-                <Link to={`/orders/${wo.id}`}>
-                  <ShoppingBag />
-                  View order
-                </Link>
-              </Button>
+              {wo.source_order_id && (
+                <Button size="small" variant="secondary" asChild>
+                  <Link to={`/orders/${wo.source_order_id}`}>
+                    <ShoppingBag />
+                    Customer order
+                  </Link>
+                </Button>
+              )}
             </div>
           </div>
           <ProductionRunList
