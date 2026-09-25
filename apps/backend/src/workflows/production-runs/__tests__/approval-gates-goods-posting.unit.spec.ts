@@ -93,13 +93,17 @@ describe("the approval gate on a goods transfer's posting", () => {
 })
 
 describe("acceptedQuantity — post only what the approval accepted", () => {
-  it("is produced minus rejected", () => {
-    expect(acceptedQuantity({ produced_quantity: 3, rejected_quantity: 1 })).toBe(2)
+  /**
+   * #2271 — produced IS the good output (founder 2026-09-25). Subtracting the
+   * rejects again turned 8 good + 2 rejected into 6 accepted.
+   */
+  it("is the good output reported — rejects are not subtracted again", () => {
+    expect(acceptedQuantity({ produced_quantity: 8, rejected_quantity: 2 })).toBe(8)
     expect(acceptedQuantity({ produced_quantity: 3 })).toBe(3)
   })
 
   it("floors at 0 — a negative acceptance would post a movement backwards", () => {
-    expect(acceptedQuantity({ produced_quantity: 1, rejected_quantity: 5 })).toBe(0)
+    expect(acceptedQuantity({ produced_quantity: -1 })).toBe(0)
   })
 
   /**
@@ -117,15 +121,16 @@ describe("acceptedQuantity — post only what the approval accepted", () => {
 
 describe("the accepted quantity caps what is posted", () => {
   /**
-   * 🔴 A run that made 3 and had 1 rejected accepted 2. Posting all 3 puts a
-   * rejected garment in our books at our location while it is physically still
-   * the partner's problem — a wrong SPLIT, the family that once minted a
-   * phantom jacket and put it on sale at ₹11,000.
+   * 🔴 A run that made 3 and had 1 rejected accepted 2 — recorded as produced 2,
+   * rejected 1. Posting all 3 that were counted puts a rejected garment in our
+   * books at our location while it is physically still the partner's problem —
+   * a wrong SPLIT, the family that once minted a phantom jacket and put it on
+   * sale at ₹11,000.
    */
   it("posts only the accepted units when some were rejected", () => {
     const plan = planTransferMove(transfer({ quantity: 3 }), 3, {
       approval_decision: "approved",
-      produced_quantity: 3,
+      produced_quantity: 2,
       rejected_quantity: 1,
     })
     expect(plan.move).toBe(true)
@@ -153,10 +158,10 @@ describe("the accepted quantity caps what is posted", () => {
     expect(plan.accepted_quantity).toBeNull()
   })
 
-  it("refuses to move when everything produced was rejected", () => {
+  it("refuses to move when everything made was rejected", () => {
     const plan = planTransferMove(transfer(), 2, {
       approval_decision: "approved",
-      produced_quantity: 2,
+      produced_quantity: 0,
       rejected_quantity: 2,
     })
     expect(plan.move).toBe(false)

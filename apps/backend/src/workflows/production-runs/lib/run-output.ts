@@ -154,24 +154,31 @@ export function checkOutputLines(
 /**
  * PURE: the good units a completion reports — what stocking banks.
  *
- * `(produced ?? ordered) - rejected`, floored at 0: the same arithmetic
- * stocking has always used, and the reading the 2026-09-13 founder call fixed
- * for goods transfers ("produced 3, 1 rejected, accepted 2"). The split must
- * add up to exactly what is banked, so it shares this one definition.
+ * 🔴 `produced_quantity` IS the good output; rejects are reported beside it,
+ * not inside it (#2271, founder 2026-09-25). That is how `checkCompletionOutput`
+ * accounts (`produced + rejected` against the order), how the partner form is
+ * labelled ("Good pieces produced"), and now how stocking and goods transfers
+ * read it. Stocking used to bank `produced - rejected`, subtracting the rejects
+ * a second time: 8 good + 2 rejected banked 6. No completed prod run had
+ * rejects when this changed (0 of 81, 2026-09-25), so nothing banked moves.
  *
- * ⚠️ OPEN (#2271): `checkCompletionOutput` and the partner form read
- * `produced_quantity` as GOOD units with rejects on top. Under that reading
- * this subtracts rejects twice. Not changed here — it moves stock — pending a
- * founder decision on which reading is the contract.
+ * Only when no produced figure is given is the ordered quantity the fallback,
+ * and then the rejects do come out of it — the order was never split.
+ *
+ * The split must add up to exactly what is banked, so it shares this one
+ * definition.
  */
 export function runGoodQuantity(input: {
   produced_quantity?: number | null
   rejected_quantity?: number | null
   quantity?: number | null
 }): number {
-  const produced = Number(input.produced_quantity ?? input.quantity ?? 0) || 0
+  if (input.produced_quantity != null) {
+    return Math.max(0, Number(input.produced_quantity) || 0)
+  }
+  const ordered = Number(input.quantity ?? 0) || 0
   const rejected = Number(input.rejected_quantity ?? 0) || 0
-  return Math.max(0, produced - rejected)
+  return Math.max(0, ordered - rejected)
 }
 
 export const sumOutput = (lines: ReadonlyArray<OutputLine> | null | undefined): number =>

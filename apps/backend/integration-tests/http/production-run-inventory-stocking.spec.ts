@@ -282,7 +282,7 @@ setupSharedTestSuite(() => {
       expect(completeRes.data.production_run.status).toBe("completed")
       expect(completeRes.data.production_run.produced_quantity).toBe(9)
 
-      // Verify inventory was stocked: 9 - 1 = 8 good units
+      // Verify inventory was stocked: the 9 GOOD units reported (#2271)
       // Find inventory item by design's variant SKU
       const approveRes2 = await api.get(
         `/admin/products?q=InvStock Run Design&fields=*variants`,
@@ -310,8 +310,13 @@ setupSharedTestSuite(() => {
         (l: any) => l.location_id === stockLocationId
       )
       expect(level).toBeDefined()
-      // 9 produced − 1 rejected = 8 good units, banked at the PARTNER's warehouse.
-      expect(level.stocked_quantity).toBe(8)
+      /**
+       * #2271 — produced_quantity IS the good output (founder 2026-09-25): 9
+       * good + 1 rejected accounts for the 10 ordered, and all 9 are banked at
+       * the PARTNER's warehouse. This test used to expect 8, pinning a stocking
+       * step that subtracted the rejects a second time.
+       */
+      expect(level.stocked_quantity).toBe(9)
     })
   })
 })

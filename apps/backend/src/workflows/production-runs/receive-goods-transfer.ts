@@ -92,10 +92,14 @@ export type RunApprovalFacts = {
 /**
  * PURE: how many units did this run's approval actually ACCEPT?
  *
- * `produced_quantity` is the partner's claim; `rejected_quantity` is what the
- * review threw out. Accepted is the difference, floored at 0 — a rejected count
- * larger than the produced one is a data error, and a negative acceptance would
- * post a movement backwards.
+ * `produced_quantity` IS the good output — rejects are reported separately in
+ * `rejected_quantity` and are NOT part of it (#2271, founder 2026-09-25). This
+ * used to take `produced - rejected`, which subtracted the rejects a second
+ * time: a partner reporting 8 good + 2 rejected had only 6 accepted. The
+ * 2026-09-13 example "made 3, 1 rejected, accepted 2" is now recorded as
+ * produced 2, rejected 1.
+ *
+ * Floored at 0 so a bad value can never post a movement backwards.
  *
  * Returns null when the run states no produced quantity. Null is "unstated",
  * not zero: capping a real receipt at 0 because a column was never filled in
@@ -104,8 +108,7 @@ export type RunApprovalFacts = {
 export function acceptedQuantity(run: RunApprovalFacts): number | null {
   const produced = run.produced_quantity
   if (produced == null || Number.isNaN(Number(produced))) return null
-  const rejected = Number(run.rejected_quantity ?? 0) || 0
-  return Math.max(0, Number(produced) - rejected)
+  return Math.max(0, Number(produced))
 }
 
 /**

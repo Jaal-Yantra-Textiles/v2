@@ -517,9 +517,10 @@ export default class WhatsAppService {
     return this.sendTextMessage(
       to,
       `✔️ *Completing Run:* ${runId}\n*Design:* ${designName}\n\n` +
-      `Please reply with the produced quantity and any rejected count.\n\n` +
-      `Format: \`complete ${runId} produced:100 rejected:5\`\n\n` +
-      `Or just reply with the number produced: \`complete ${runId} 100\``
+      `Please reply with the number of *good* pieces, and separately any rejected ones.\n\n` +
+      `Format: \`complete ${runId} produced:95 rejected:5\`\n` +
+      `(95 good + 5 rejected = 100 made)\n\n` +
+      `Or just reply with the number of good pieces: \`complete ${runId} 95\``
     )
   }
 

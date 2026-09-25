@@ -245,19 +245,21 @@ describe("run output per size/colour (#2271)", () => {
 
   /**
    * The split must add up to exactly what stocking banks, so both read this.
-   * Pinned to stocking's existing arithmetic — see the OPEN note on the helper.
+   * Founder 2026-09-25: produced IS the good output; rejects sit beside it.
    */
   describe("runGoodQuantity", () => {
-    it("is produced less rejected, as stocking has always banked", () => {
-      expect(runGoodQuantity({ produced_quantity: 3, rejected_quantity: 1, quantity: 3 })).toBe(2)
+    /** The use case that decided it: 10 made, 8 good, 2 rejected. */
+    it("banks the good pieces reported — rejects are NOT subtracted again", () => {
+      expect(runGoodQuantity({ produced_quantity: 8, rejected_quantity: 2, quantity: 10 })).toBe(8)
     })
 
-    it("falls back to the ordered quantity when nothing was reported", () => {
+    it("falls back to the ordered quantity less rejects when nothing was reported", () => {
       expect(runGoodQuantity({ quantity: 4 })).toBe(4)
+      expect(runGoodQuantity({ quantity: 4, rejected_quantity: 1 })).toBe(3)
     })
 
-    it("never goes negative", () => {
-      expect(runGoodQuantity({ produced_quantity: 1, rejected_quantity: 3 })).toBe(0)
+    it("treats 0 good as 0, not as unreported", () => {
+      expect(runGoodQuantity({ produced_quantity: 0, rejected_quantity: 3, quantity: 3 })).toBe(0)
     })
   })
 })

@@ -162,8 +162,9 @@ export const CompleteRunForm = ({
     shortfallReason,
   })
   const unaccounted = outputPlan.unaccounted
-  // What stocking banks: produced less rejects (runGoodQuantity on the backend).
-  const toStock = Math.max(0, produced - rejected)
+  // What stocking banks: the good pieces (runGoodQuantity on the backend).
+  // Rejects are reported beside them, never subtracted from them.
+  const toStock = Math.max(0, produced)
   const split = planSplit(axes, splitValues, toStock)
   const costValue = parseFloat(partnerEstimate) || 0
   /**
