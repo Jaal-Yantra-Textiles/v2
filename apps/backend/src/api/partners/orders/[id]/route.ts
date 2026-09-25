@@ -2,6 +2,8 @@ import { AuthenticatedMedusaRequest, MedusaResponse } from "@medusajs/framework/
 import { getOrderDetailWorkflow } from "@medusajs/medusa/core-flows"
 import { ContainerRegistrationKeys, Modules } from "@medusajs/framework/utils"
 import { validatePartnerOrderOwnership } from "../../helpers"
+import { findWorkOrder, workOrderReadsEnabled } from "../../../../lib/work-orders/read-work-orders"
+import { toOrderShape } from "../../../../lib/work-orders/to-order-shape"
 import { PROTECTED_UNIFICATION_METADATA_KEYS } from "../../../../workflows/inventory_orders/dual-write-unified-order"
 
 // Fields a partner is allowed to PATCH on an order — mirrors admin's
@@ -43,6 +45,20 @@ export const GET = async (
   res: MedusaResponse
 ) => {
   await validatePartnerOrderOwnership(req.auth_context, req.params.id, req.scope)
+
+  /**
+   * #2264 S2 — a work order is served from `work_order` behind
+   * WORK_ORDER_READS, in the same response shape. Ownership stays the check
+   * above (the D3 link), which is the same for either table. A retail order,
+   * or any id with no work_order row, falls through to core unchanged.
+   */
+  if (workOrderReadsEnabled()) {
+    const workOrder = await findWorkOrder(req.scope, req.params.id)
+    if (workOrder) {
+      res.json({ order: toOrderShape(workOrder) })
+      return
+    }
+  }
 
   const { result } = await getOrderDetailWorkflow(req.scope).run({
     input: {
