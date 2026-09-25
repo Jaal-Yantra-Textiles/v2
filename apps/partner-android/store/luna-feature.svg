@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="500" viewBox="0 0 1024 500">
+  <rect width="1024" height="500" fill="#14161E"/>
+  <g transform="translate(512 140)">
+    <g transform="scale(2.6) translate(-54 -54)">
+      <path d="M54,34 A20,20 0 0 0 54,74 A26,26 0 0 1 54,34 Z" fill="#EDEFF4"/>
+      <path d="M24,54 A30,30 0 1 0 84,54 A30,30 0 1 0 24,54" fill="none" stroke="#8A8FA3" stroke-opacity="0.45" stroke-width="1.4"/>
+      <circle cx="84" cy="54" r="2.4" fill="#AAB0C0"/>
+      <circle cx="75.21" cy="75.21" r="2.4" fill="#AAB0C0"/>
+      <circle cx="54" cy="84" r="2.4" fill="#AAB0C0"/>
+      <circle cx="32.79" cy="75.21" r="2.4" fill="#AAB0C0"/>
+      <circle cx="24" cy="54" r="2.4" fill="#AAB0C0"/>
+      <circle cx="32.79" cy="32.79" r="2.4" fill="#AAB0C0"/>
+      <circle cx="54" cy="24" r="2.4" fill="#AAB0C0"/>
+      <circle cx="75.21" cy="32.79" r="2.4" fill="#AAB0C0"/>
+    </g>
+  </g>
+  <text x="512" y="330" text-anchor="middle" font-family="Helvetica, Arial, sans-serif" font-size="96" font-weight="bold" fill="#EDEFF4">Luna</text>
+  <text x="512" y="402" text-anchor="middle" font-family="Helvetica, Arial, sans-serif" font-size="28" fill="#9AA0AF">Design work-orders, production and deliveries for the makers of JYT</text>
+</svg>

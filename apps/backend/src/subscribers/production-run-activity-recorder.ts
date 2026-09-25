@@ -4,6 +4,7 @@ import { ContainerRegistrationKeys } from "@medusajs/framework/utils"
 import { PRODUCTION_RUNS_MODULE } from "../modules/production_runs"
 import type ProductionRunService from "../modules/production_runs/service"
 import { TEMPLATE_NAMES } from "../scripts/whatsapp-templates/partner-run-templates"
+import { createPartnerNotification } from "../lib/notifications/create-partner-notification"
 
 /**
  * Records every `production_run.*` event we care about as a first-class
@@ -45,6 +46,14 @@ const REMINDER_SUMMARY_BY_KIND: Record<ReminderKind, string> = {
   assignment_pending: "Reminder sent: assignment pending",
   not_started: "Reminder sent: not started",
   idle: "Reminder sent: in-progress run idle",
+}
+
+// The push title a partner sees on their lock screen — action-shaped, not
+// audit-shaped (the summary above is the audit wording for the timeline).
+const REMINDER_PUSH_TITLE_BY_KIND: Record<ReminderKind, string> = {
+  assignment_pending: "New work is waiting for you",
+  not_started: "A run you accepted hasn't started",
+  idle: "Your run has been quiet",
 }
 
 const LIFECYCLE_SUMMARY_BY_KIND: Record<string, string> = {
@@ -149,6 +158,30 @@ export default async function productionRunActivityRecorder({
       payload,
       occurred_at: occurredAt,
     } as any)
+
+    // Partner-facing reminders also land in the partner's notification bell
+    // (GET /partners/notifications) — and, through the push twin the helper
+    // creates, on the partner's phone. The WhatsApp reminder travels over
+    // its own template flow; this is the in-app + APNs/FCN leg of the SAME
+    // nudge, so a partner without WhatsApp open still hears it. Escalations
+    // and reassignment events are admin-facing — partnerId is null there,
+    // and createPartnerNotification refuses a null partner anyway.
+    if (activityType === "reminder_sent" && partnerId) {
+      await createPartnerNotification(container, {
+        partner_id: partnerId,
+        title: REMINDER_PUSH_TITLE_BY_KIND[kind as ReminderKind] ?? summary,
+        description: summary,
+        url: `/production-runs/${productionRunId}`,
+        resource_type: "production_run",
+        resource_id: productionRunId,
+        trigger_type: eventName,
+        data: {
+          production_run_id: productionRunId,
+          design_id: eventData.design_id ?? null,
+          reminder_kind: kind,
+        },
+      })
+    }
   } catch (e: any) {
     logger.error(
       `[production-run-activity-recorder] failed to write activity for ${eventName} run=${productionRunId}: ${e?.message}`
