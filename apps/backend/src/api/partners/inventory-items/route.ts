@@ -1,6 +1,7 @@
 import { AuthenticatedMedusaRequest, MedusaResponse } from "@medusajs/framework/http"
 import { ContainerRegistrationKeys, MedusaError, Modules } from "@medusajs/framework/utils"
-import { getPartnerFromAuthContext, getPartnerStore, tryGetPartnerStore } from "../helpers"
+import { getPartnerFromAuthContext } from "../helpers"
+import { resolvePartnerHomeLocation } from "../lib/partner-home-location"
 import { listPartnerInventoryItemsWorkflow } from "../../../workflows/inventory/list-partner-inventory-items"
 
 export const GET = async (
@@ -15,12 +16,13 @@ export const GET = async (
     )
   }
 
-  const { store } = await tryGetPartnerStore(req.auth_context, req.scope)
-  if (!store) {
-    return res.json({ inventory_items: [], count: 0, offset: 0, limit: 20 })
-  }
-
-  const locationId = store.default_location_id
+  // #2286 — the partner's store location, else their linked warehouse. A
+  // partner with no store used to see an empty list here however much sat in
+  // their warehouse.
+  const { location_id: locationId } = await resolvePartnerHomeLocation(
+    req.auth_context,
+    req.scope
+  )
 
   if (!locationId) {
     return res.json({ inventory_items: [], count: 0, offset: 0, limit: 20 })
@@ -59,11 +61,11 @@ export const POST = async (
 
   // Auto-create a level at the partner's location
   try {
-    const { store } = await getPartnerStore(req.auth_context, req.scope)
-    if (store.default_location_id) {
+    const { location_id } = await resolvePartnerHomeLocation(req.auth_context, req.scope)
+    if (location_id) {
       await inventoryService.createInventoryLevels([{
         inventory_item_id: item.id,
-        location_id: store.default_location_id,
+        location_id,
         stocked_quantity: 0,
       }])
     }

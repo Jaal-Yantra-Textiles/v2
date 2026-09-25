@@ -216,12 +216,16 @@ export type { WorkspaceType }
  * was built for. Three copies of a menu is how that happens; one function is
  * how it stops.
  */
-const ordersNavItems = (t: TFunction) => [
+const ordersNavItems = (t: TFunction): Array<{ label: string; to: string }> => [
   { label: "All", to: "/orders/all" },
   { label: "Design", to: "/orders/design" },
   { label: "Inventory", to: "/orders/inventory" },
+  // #2286 — goods delivered TO this partner, confirmed on arrival.
+  { label: "Incoming deliveries", to: "/orders/incoming" },
   // A sibling of the other order kinds because a quote becomes one.
-  { label: t("app.nav.main.quotes", "Quotes"), to: "/orders/quotes" },
+  // `String()`: this `t` overload types a defaulted lookup as `unknown`, which
+  // CI's changed-file type check rejects against the nav item's `label: string`.
+  { label: String(t("app.nav.main.quotes", "Quotes")), to: "/orders/quotes" },
 ]
 
 export const buildCoreRoutes = (
