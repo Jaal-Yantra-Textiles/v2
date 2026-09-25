@@ -41,7 +41,9 @@ export const GET = async (req: MedusaStoreRequest, res: MedusaResponse) => {
   const { data: product_categories, metadata } = await query.graph(
     {
       entity: "product_category",
-      fields: (req as any).queryConfig?.fields || [
+      // `[]` is truthy: an empty list (what 2.21 hands over when the allowlist
+      // strips everything) must fall back, or every row comes back null.
+      fields: (req as any).queryConfig?.fields?.length ? (req as any).queryConfig.fields : [
         "id", "name", "description", "handle", "rank",
         "parent_category_id", "created_at", "updated_at", "metadata",
         "parent_category.*", "category_children.*",

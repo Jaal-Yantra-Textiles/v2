@@ -46,7 +46,9 @@ export const GET = async (req: MedusaStoreRequest, res: MedusaResponse) => {
       entity: "product_collection",
       filters,
       pagination: (req as any).queryConfig?.pagination,
-      fields: (req as any).queryConfig?.fields || [
+      // `[]` is truthy: an empty list (what 2.21 hands over when the allowlist
+      // strips everything) must fall back, or every row comes back null.
+      fields: (req as any).queryConfig?.fields?.length ? (req as any).queryConfig.fields : [
         "id", "title", "handle", "created_at", "updated_at",
       ],
     },

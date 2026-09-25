@@ -58,6 +58,15 @@ import { GET as oauthAuthorizationServerDoc } from "./well-known/oauth-authoriza
 const wrapSchema = <T extends z.ZodType>(schema: T) => schema as any;
 
 /**
+ * A store route that re-declares its query config must also declare `allowed`:
+ * since Medusa 2.21 a store route strips every field not on the list, and no
+ * list means nothing is allowed. Core's list plus our own defaults, so a
+ * default can never be the thing that gets stripped.
+ */
+const storeAllowed = (core: string[] | undefined, defaults: string[]): string[] =>
+  [...new Set([...(core ?? []), ...defaults])];
+
+/**
  * Like `wrapSchema`, but for a body whose top level is deliberately open.
  *
  * `zodValidator` calls `.strict()` on any schema that exposes it, which
@@ -386,6 +395,8 @@ import {
 } from "@medusajs/medusa/api/admin/regions/query-config";
 import { AdminGetPaymentProvidersParams } from "@medusajs/medusa/api/admin/payments/validators";
 import { listTransformPaymentProvidersQueryConfig } from "@medusajs/medusa/api/admin/payments/query-config";
+import * as storeCollectionQueryConfig from "@medusajs/medusa/api/store/collections/query-config";
+import * as storeCategoryQueryConfig from "@medusajs/medusa/api/store/product-categories/query-config";
 import {
   listInboundEmailsQuerySchema,
   extractInboundEmailSchema,
@@ -1027,6 +1038,12 @@ export default defineMiddlewares({
           }) as any,
           {
             defaults: ["id", "title", "handle", "created_at", "updated_at"],
+            // Medusa 2.21: a store route with no `allowed` list strips EVERY field,
+            // so queryConfig.fields came back [] and each collection as null.
+            allowed: storeAllowed(
+              storeCollectionQueryConfig.listTransformQueryConfig.allowed,
+              ["id", "title", "handle", "created_at", "updated_at"]
+            ),
             defaultLimit: 10,
             isList: true,
           }
@@ -1057,6 +1074,14 @@ export default defineMiddlewares({
               "parent_category_id", "created_at", "updated_at", "metadata",
               "parent_category.*", "category_children.*",
             ],
+            allowed: storeAllowed(
+              storeCategoryQueryConfig.listProductCategoryConfig.allowed,
+              [
+                "id", "name", "description", "handle", "rank",
+                "parent_category_id", "created_at", "updated_at", "metadata",
+                "parent_category.*", "category_children.*",
+              ]
+            ),
             defaultLimit: 50,
             isList: true,
           }

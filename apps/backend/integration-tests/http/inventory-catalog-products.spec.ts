@@ -130,7 +130,7 @@ setupSharedTestSuite(() => {
      * for an `inventory_item` sweep to find. Seeded through the ordinary
      * product-create path, which is how these arrive in production.
      */
-    const seedUntrackedVariantProduct = async (title: string, sku: string) => {
+    const seedUntrackedVariantProduct = async (title: string, sku?: string) => {
       const created = await api.post(
         "/admin/products",
         {
@@ -359,6 +359,10 @@ setupSharedTestSuite(() => {
       const itemId = links.find((l: any) => l?.inventory_item_id)
         ?.inventory_item_id
       expect(itemId).toBeTruthy()
+      // Exactly ONE: since Medusa 2.21 core creates the default item when tracking
+      // is turned on, and ours used to create a second (SKU 400, or a silent
+      // duplicate with no SKU).
+      expect(links.filter((l: any) => l?.inventory_item_id)).toHaveLength(1)
 
       // And the order line points at that same item, not at nothing.
       const orderId = order.data.inventoryOrder.id
@@ -415,6 +419,38 @@ setupSharedTestSuite(() => {
       )
       expect(rowsForVariant).toHaveLength(1)
       expect(rowsForVariant[0].kind).toBe("product")
+    })
+
+    it("ordering an untracked variant with NO sku leaves it with exactly one inventory item", async () => {
+      const { variantId } = await seedUntrackedVariantProduct(`No-SKU Greige ${unique()}`)
+
+      const order = await api.post(
+        "/admin/inventory-orders",
+        {
+          order_lines: [{ variant_id: variantId, quantity: 5, price: 100 }],
+          quantity: 5,
+          total_price: 500,
+          status: "Pending",
+          expected_delivery_date: new Date().toISOString(),
+          order_date: new Date().toISOString(),
+          shipping_address: {},
+          stock_location_id: stockLocationId,
+        },
+        headers
+      )
+      expect(order.status).toBe(201)
+
+      const detail = await api.get(
+        `/admin/products?fields=variants.id,variants.inventory_items.inventory_item_id&limit=1000`,
+        headers
+      )
+      const variant = detail.data.products
+        .flatMap((p: any) => p.variants ?? [])
+        .find((v: any) => v.id === variantId)
+      const links = Array.isArray(variant.inventory_items)
+        ? variant.inventory_items
+        : [variant.inventory_items].filter(Boolean)
+      expect(links.filter((l: any) => l?.inventory_item_id)).toHaveLength(1)
     })
 
     it("records WHICH variant the line was ordered as, not just the item it resolved to (#1873)", async () => {
