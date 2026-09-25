@@ -8,6 +8,7 @@ import { PRODUCTION_RUNS_MODULE } from "../../../../../modules/production_runs"
 import type ProductionRunService from "../../../../../modules/production_runs/service"
 import { adminCompleteProductionRunWorkflow } from "../../../../../workflows/production-runs/admin-complete-production-run"
 import { costTypeGuardMessage } from "../../../../../workflows/production-runs/lib/cost-type-guard"
+import { OutputLinesSchema } from "../../output-schema"
 
 const REJECTION_REASONS = [
   "stitching_defect",
@@ -29,6 +30,8 @@ const CompleteBodySchema = z.object({
   cost_type: z.enum(["per_unit", "total"]).optional(),
   notes: z.string().optional(),
   allow_shortfall: z.boolean().optional(),
+  /** #2271 — what was made, per size/colour. See the partner complete route. */
+  produced_output: OutputLinesSchema.nullish(),
   from_message_id: z.string().optional(),
   from_conversation_id: z.string().optional(),
 })
@@ -125,6 +128,8 @@ export const POST = async (
       allow_shortfall: body.allow_shortfall,
       notes: body.notes,
       override_note: body.notes,
+      produced_output: body.produced_output ?? undefined,
+      require_output_split: true,
     },
     throwOnError: false,
   })

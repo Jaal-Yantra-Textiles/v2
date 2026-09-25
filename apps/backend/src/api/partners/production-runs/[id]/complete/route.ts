@@ -6,6 +6,7 @@ import { PRODUCTION_RUNS_MODULE } from "../../../../../modules/production_runs"
 import type ProductionRunService from "../../../../../modules/production_runs/service"
 import { completeProductionRunWorkflow } from "../../../../../workflows/production-runs/complete-production-run"
 import { costTypeGuardMessage } from "../../../../../workflows/production-runs/lib/cost-type-guard"
+import { OutputLinesSchema } from "../../../../admin/production-runs/output-schema"
 
 const REJECTION_REASONS = [
   "stitching_defect",
@@ -49,6 +50,11 @@ const CompleteBodySchema = z.object({
    * genuine one has to be claimed here AND explained in notes.
    */
   allow_shortfall: z.boolean().optional(),
+  /**
+   * #2271 — what was made, per size/colour, in good units. Required when the
+   * run is for several sizes/colours and has no plan that adds up.
+   */
+  produced_output: OutputLinesSchema.nullish(),
 })
 
 export async function POST(
@@ -94,6 +100,8 @@ export async function POST(
       allow_shortfall: body.allow_shortfall,
       consumptions: body.consumptions,
       notes: body.notes,
+      produced_output: body.produced_output ?? undefined,
+      require_output_split: true,
     },
   })
 

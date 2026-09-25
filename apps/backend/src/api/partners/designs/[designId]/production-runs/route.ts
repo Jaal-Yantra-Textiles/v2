@@ -52,6 +52,7 @@ export async function POST(
       execution_mode: body.execution_mode,
       sub_partner_id:
         body.execution_mode === "outsourced" ? body.sub_partner_id : null,
+      planned_output: body.planned_output ?? undefined,
       metadata: {
         ...(body.metadata ?? {}),
         source: "partner.self_serve",

@@ -120,6 +120,24 @@ const PAGINATION = {
 // `RunMaterialSchema` in the production-run validators — the row IS a contract
 // with its validator (#1348/#1361), so `planned_quantity` carries the same
 // "must be positive" limit here rather than letting a model discover it as a 400.
+/**
+ * #2271 — a run's expected split per size/colour. Checked server-side against
+ * the sizes and colours in the run's snapshot, and must add up to the quantity.
+ */
+const RUN_PLANNED_OUTPUT_PARAM = {
+  type: "array",
+  description:
+    "What this run is expected to make, per size/colour, e.g. [{size_label:'S',quantity:1},{size_label:'M',quantity:2}]. Must add up to the quantity and use only the design's sizes (size_sets) and colour names. The partner confirms against it at completion and it decides which variant each piece is stocked as. Omit when the design states at most one size and colour.",
+  items: obj(
+    {
+      size_label: STR("One of the design's size labels."),
+      color: STR("One of the design's colour names."),
+      quantity: { type: "number", description: "Units of this combination." },
+    },
+    ["quantity"]
+  ),
+}
+
 const RUN_MATERIALS_PARAM = {
   type: "array" as const,
   description:
@@ -5274,6 +5292,7 @@ export const ADMIN_MCP_TOOLS: AdminMcpToolDef[] = [
       "order_line_item_id",
       "metadata",
       "materials",
+      "planned_output",
     ],
     inputSchema: obj(
       {
@@ -5287,6 +5306,7 @@ export const ADMIN_MCP_TOOLS: AdminMcpToolDef[] = [
         order_line_item_id: STR("Optional originating order line item id."),
         metadata: { type: "object", description: "Optional key/value metadata." },
         materials: RUN_MATERIALS_PARAM,
+        planned_output: RUN_PLANNED_OUTPUT_PARAM,
       },
       ["design_id"]
     ),
@@ -6273,7 +6293,7 @@ export const ADMIN_MCP_TOOLS: AdminMcpToolDef[] = [
     previewPath: "/admin/designs/:id",
     write: true,
     sensitive: true,
-    bodyParams: ["quantity", "run_type", "assignments"],
+    bodyParams: ["quantity", "run_type", "planned_output", "assignments"],
     inputSchema: obj(
       {
         id: STR("Design id, e.g. 'design_...'."),
@@ -6283,6 +6303,7 @@ export const ADMIN_MCP_TOOLS: AdminMcpToolDef[] = [
             "Total units. If both quantity and assignments are given, the assignment quantities MUST sum to this.",
         },
         run_type: STR("'production' (default) | 'sample'."),
+        planned_output: RUN_PLANNED_OUTPUT_PARAM,
         assignments: {
           type: "array",
           description:
@@ -6303,6 +6324,11 @@ export const ADMIN_MCP_TOOLS: AdminMcpToolDef[] = [
                 description: "Task templates to auto-dispatch for this partner.",
               },
               depends_on_inventory_order_ids: RUN_INVENTORY_DEPENDENCY_PARAM,
+              planned_output: {
+                ...RUN_PLANNED_OUTPUT_PARAM,
+                description:
+                  "This partner's own split. Omit to inherit the run's planned_output when this assignment covers the same total.",
+              },
             },
             ["partner_id", "quantity"]
           ),
