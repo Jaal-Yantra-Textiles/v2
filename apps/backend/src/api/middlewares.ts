@@ -193,6 +193,7 @@ import { partnerPeopleSchema } from "./partners/[id]/validators";
 import { updatePartnerMeSchema } from "./partners/me/validators";
 import { onboardingProfileUpdateSchema } from "./partners/onboarding-profile/validators";
 import { partnerUpdateOrderLinesSchema, partnerAddOrderChargeSchema } from "./partners/inventory-orders/change-schemas";
+import { registerDeviceTokenSchema, unregisterDeviceTokenSchema } from "./partners/device-tokens/validators";
 import { partnerReceiveIncomingSchema } from "./partners/incoming-deliveries/validators";
 import { setLayoutConfigurationSchema } from "./partners/layouts/validators";
 import { AdminGetPartnersParamsSchema } from "./admin/persons/partner/validators";
@@ -3789,6 +3790,30 @@ export default defineMiddlewares({
       method: "GET",
       middlewares: [
         authenticate("partner", ["session", "bearer"]),
+      ],
+    },
+    // Partner device-token registration — the push leg of the partner
+    // notification system (apps register APNs/FCM tokens here).
+    {
+      matcher: "/partners/device-tokens",
+      method: "POST",
+      middlewares: [
+        createCorsPartnerMiddleware(),
+        authenticate("partner", ["session", "bearer"]),
+        validateAndTransformBody(
+          wrapSchema(registerDeviceTokenSchema)
+        ),
+      ],
+    },
+    {
+      matcher: "/partners/device-tokens",
+      method: "DELETE",
+      middlewares: [
+        createCorsPartnerMiddleware(),
+        authenticate("partner", ["session", "bearer"]),
+        validateAndTransformBody(
+          wrapSchema(unregisterDeviceTokenSchema)
+        ),
       ],
     },
     // Partner Payments APIs

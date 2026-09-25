@@ -142,7 +142,9 @@ module.exports = defineConfig({
       // #1339 — puts the suppression ledger's service into the provider
       // container. Without this the guard in each email provider degrades to
       // "not enforced" (it logs [email-suppression-unavailable] and sends).
-      dependencies: ["email_suppression"],
+      // partnerPush: the device-token store the push provider reads (#1339
+      // pattern again).
+      dependencies: ["email_suppression", "partnerPush"],
       options: {
         providers: [
           {
@@ -180,6 +182,15 @@ module.exports = defineConfig({
             id: "local",
             options: {
               channels: ["feed"],
+            },
+          },
+          {
+            // The APNs/FCM leg of the partner notification system — rides the
+            // rows createPartnerNotification writes.
+            resolve: "./src/modules/notification-push",
+            id: "partner-push",
+            options: {
+              channels: ["push"],
             },
           },
           {
@@ -294,5 +305,8 @@ module.exports = defineConfig({
     {
       resolve: "./src/modules/email-provider-manager",
     },
+  {
+    resolve: "./src/modules/partner-push",
+  },
 ],
 });
