@@ -222,6 +222,24 @@ describe("work order: mirror → work_order → core-order shape (#2262 S0)", ()
       })
     })
 
+    it("collated, lines written in the SAME millisecond: the earlier-created RUN decides, not the line id", () => {
+      // Found by work-orders-admin-reads (#2264): collateRunsIntoWorkOrder writes
+      // every line in one call, so they tie on created_at, and a ULID line id is
+      // random within the millisecond. Here the line ids sort the wrong way
+      // round on purpose: ordli_A carries the LATER run.
+      const at = "2026-09-25T04:58:04.924Z"
+      const row = {
+        ...fromCoreOrder(collatedMirror, null)!,
+        items: [
+          { id: "ordli_A", created_at: at, title: "B", quantity: 1, unit_price: 1, production_run_id: "prod_run_B",
+            production_run: { id: "prod_run_B", created_at: "2026-09-25T04:58:04.900Z" } },
+          { id: "ordli_B", created_at: at, title: "A", quantity: 1, unit_price: 1, production_run_id: "prod_run_A",
+            production_run: { id: "prod_run_A", created_at: "2026-09-25T04:58:04.700Z" } },
+        ],
+      }
+      expect(toOrderShape(row).metadata.legacy_id).toBe("prod_run_A")
+    })
+
     it("inventory: legacy_id is the inventory order; its other mirror keys are not carried", () => {
       expect(roundTrip(inventoryMirror).metadata).toEqual({
         legacy_id: "inv_order_01M1ZH7Y50W37WMGXYP2DM1KAF",

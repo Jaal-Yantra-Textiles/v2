@@ -11,9 +11,17 @@
 import { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
 import { ContainerRegistrationKeys } from "@medusajs/framework/utils"
 
-/** query.graph entity names to count, keyed by the label surfaced to the model. */
+import { workOrderIdsInCore } from "../../../../lib/work-orders/admin-order-reads"
+
+/**
+ * query.graph entity names to count, keyed by the label surfaced to the model.
+ *
+ * #2264 S2c — `orders` is NOT here: a plain count of `order` counted every
+ * work-order mirror as a sale (prod 2026-09-25: 7 retail orders among 100+
+ * rows). It is counted below as retail only, beside `work_orders`.
+ */
 const COUNTS: Record<string, string> = {
-  orders: "order",
+  work_orders: "work_order",
   products: "product",
   customers: "customer",
   partners: "partner",
@@ -25,8 +33,27 @@ const COUNTS: Record<string, string> = {
 export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
   const query = req.scope.resolve(ContainerRegistrationKeys.QUERY)
 
-  const entries = await Promise.all(
-    Object.entries(COUNTS).map(async ([label, entity]) => {
+  const retailOrders = async (): Promise<readonly [string, number | null]> => {
+    try {
+      const workOrderIds = await workOrderIdsInCore(req.scope)
+      const { metadata } = await query.graph({
+        entity: "order",
+        fields: ["id"],
+        filters: {
+          is_draft_order: false,
+          ...(workOrderIds.length ? { id: { $nin: workOrderIds } } : {}),
+        },
+        pagination: { take: 1, skip: 0 },
+      })
+      return ["orders", (metadata as any)?.count ?? null] as const
+    } catch {
+      return ["orders", null] as const
+    }
+  }
+
+  const entries = await Promise.all([
+    retailOrders(),
+    ...Object.entries(COUNTS).map(async ([label, entity]) => {
       try {
         const { metadata } = await query.graph({
           entity,
@@ -38,8 +65,8 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
         // Unknown entity name or module not registered — omit gracefully.
         return [label, null] as const
       }
-    })
-  )
+    }),
+  ])
 
   res.json({ stats: Object.fromEntries(entries) })
 }
