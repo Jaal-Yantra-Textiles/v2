@@ -90,43 +90,6 @@ enum class CostType(val raw: String, val label: String) {
     TOTAL("total", "Total");
 }
 
-/** One material row in the Complete form: used toggle + quantity + unit cost. */
-private class MaterialUsage(val item: DesignInventoryItem) {
-    var used by mutableStateOf(false)
-    var quantityText by mutableStateOf("")
-    var unitCostText by mutableStateOf("")
-
-    val quantity: Double?
-        get() = quantityText.trim().toDoubleOrNull()?.takeIf { it > 0 }
-
-    val unitCost: Double?
-        get() = unitCostText.trim().toDoubleOrNull()?.takeIf { it > 0 }
-}
-
-/** The "Confirm you'll handle this work?" / "Mark started?" dialog. */
-@Composable
-fun RunActionConfirmDialog(
-    action: RunAction?,
-    onConfirm: () -> Unit,
-    onDismiss: () -> Unit,
-) {
-    if (action == null) return
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text(if (action == RunAction.ACCEPT) "Accept this run" else "Start production") },
-        text = {
-            Text(
-                if (action == RunAction.ACCEPT)
-                    "Confirm you'll handle this work?"
-                else
-                    "Mark this run as started?"
-            )
-        },
-        confirmButton = { TextButton(onClick = onConfirm) { Text("Confirm") } },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } },
-    )
-}
-
 /** Finish sheet — the FinishRunForm essentials: pending-tasks ack + notes. */
 @Composable
 fun FinishRunSheet(
@@ -195,9 +158,13 @@ fun FinishRunSheet(
     )
 }
 
-/** Complete sheet — the CompleteRunForm essentials, including the backend's
+/** The Complete sheet — the CompleteRunForm essentials, including the backend's
  *  shortfall gate (#1271): produced + rejected must cover the order unless
- *  the shortfall is claimed AND explained. */
+ *  the shortfall is claimed AND explained.
+ *
+ *  Material rows live in saveable maps keyed by item id (not a remembered
+ *  object list) so a rotation — or the parent screen reloading while the
+ *  sheet is open — doesn't wipe what the partner has ticked and typed. */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun CompleteRunSheet(
@@ -216,7 +183,19 @@ fun CompleteRunSheet(
     var reasonMenuOpen by remember { mutableStateOf(false) }
     var notes by rememberSaveable { mutableStateOf("") }
     var shortfallExplanation by rememberSaveable { mutableStateOf("") }
-    val usage = remember(materials) { materials.map { MaterialUsage(it) } }
+
+    // Keyed by the material id list, so the same BOM after a reload (same
+    // ids, new object identities) restores the typed state.
+    val materialIds = materials.map { it.id }
+    var usedMap by rememberSaveable(materialIds) { mutableStateOf(materials.associate { it.id to false }) }
+    var qtyMap by rememberSaveable(materialIds) { mutableStateOf(mapOf<String, String>()) }
+    var costMap by rememberSaveable(materialIds) { mutableStateOf(mapOf<String, String>()) }
+
+    fun qtyOf(id: String): Double? =
+        qtyMap[id]?.trim()?.toDoubleOrNull()?.takeIf { it > 0 }
+
+    fun costOf(id: String): Double? =
+        costMap[id]?.trim()?.toDoubleOrNull()?.takeIf { it > 0 }
 
     val produced = producedQty.toIntOrNull() ?: 0
     val rejected = rejectedQty.toIntOrNull() ?: 0
@@ -226,14 +205,14 @@ fun CompleteRunSheet(
     val shortfall = orderedQuantity > 0 && produced + rejected < orderedQuantity
 
     val consumptions: List<PartnerApi.ConsumptionEntry>? =
-        usage.mapNotNull { row ->
-            if (!row.used) return@mapNotNull null
-            val qty = row.quantity ?: return@mapNotNull null
+        materials.mapNotNull { item ->
+            if (usedMap[item.id] != true) return@mapNotNull null
+            val qty = qtyOf(item.id) ?: return@mapNotNull null
             PartnerApi.ConsumptionEntry(
-                inventoryItemId = row.item.id,
+                inventoryItemId = item.id,
                 quantity = qty,
-                unitCost = row.unitCost,
-                unitOfMeasure = row.item.unitOfMeasure,
+                unitCost = costOf(item.id),
+                unitOfMeasure = item.unitOfMeasure,
                 consumptionType = "production",
             )
         }.takeIf { it.isNotEmpty() }
@@ -297,24 +276,31 @@ fun CompleteRunSheet(
                         modifier = Modifier.fillMaxWidth(),
                     )
                 }
-                if (usage.isNotEmpty()) {
+                if (materials.isNotEmpty()) {
                     Text("Materials used", fontWeight = FontWeight.SemiBold)
                     Text(
                         "The design's bill of materials. Log what this run actually consumed — it drives the cost rollup.",
                         fontSize = 11.sp,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
-                    usage.forEach { row ->
+                    materials.forEach { item ->
                         Column {
                             Row(verticalAlignment = Alignment.CenterVertically) {
-                                Checkbox(checked = row.used, onCheckedChange = { row.used = it })
-                                Text(row.item.displayName)
+                                Checkbox(
+                                    checked = usedMap[item.id] == true,
+                                    onCheckedChange = { checked ->
+                                        usedMap = usedMap + (item.id to checked)
+                                    },
+                                )
+                                Text(item.displayName)
                             }
-                            if (row.used) {
+                            if (usedMap[item.id] == true) {
                                 OutlinedTextField(
-                                    value = row.quantityText,
-                                    onValueChange = { row.quantityText = it },
-                                    label = { Text("Quantity used (${row.item.unitOfMeasure ?: "units"})") },
+                                    value = qtyMap[item.id] ?: "",
+                                    onValueChange = { text ->
+                                        qtyMap = qtyMap + (item.id to text)
+                                    },
+                                    label = { Text("Quantity used (${item.unitOfMeasure ?: "units"})") },
                                     keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(keyboardType = KeyboardType.Decimal),
                                     singleLine = true,
                                     modifier = Modifier
@@ -322,8 +308,10 @@ fun CompleteRunSheet(
                                         .padding(start = 32.dp),
                                 )
                                 OutlinedTextField(
-                                    value = row.unitCostText,
-                                    onValueChange = { row.unitCostText = it },
+                                    value = costMap[item.id] ?: "",
+                                    onValueChange = { text ->
+                                        costMap = costMap + (item.id to text)
+                                    },
                                     label = { Text("Unit cost (optional)") },
                                     keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(keyboardType = KeyboardType.Decimal),
                                     singleLine = true,

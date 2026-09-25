@@ -1,34 +1,61 @@
 package com.jyt.partner.ui
 
+import androidx.compose.animation.core.Animatable
 import androidx.compose.foundation.background
+import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowForward
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 import com.jyt.partner.models.InventoryOrderStatus
 import com.jyt.partner.models.WorkStatus
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
+import kotlin.math.roundToInt
 
 // Shared status badges + thumbnails — the DesignComponents/StatusBadges
 // counterpart, same color vocabulary: progress warm, completed green,
 // refusals red, admin cancels neutral.
 
 private fun badgeColors(base: Color): Color = base
+
+/** Plain "2.5" / "3" text for editable quantity fields — never
+ *  locale-formatted, so it round-trips through toDoubleOrNull cleanly. */
+internal fun plainQuantity(value: Double): String =
+    if (value == value.toLong().toDouble()) value.toLong().toString() else value.toString()
 
 @Composable
 fun WorkStatusBadge(status: WorkStatus) {
@@ -150,5 +177,104 @@ fun EmptyState(icon: androidx.compose.ui.graphics.vector.ImageVector, title: Str
             fontSize = 14.sp,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
+    }
+}
+
+/** The "Your next step" action as a full-width bottom bar — drag the knob
+ *  to the far edge to fire it. The deliberate drag IS the confirmation, so
+ *  the action runs directly (no follow-up dialog); releasing early snaps
+ *  the knob back. A completed slide buzzes and resets. */
+@Composable
+fun SlideToConfirmBar(
+    text: String,
+    enabled: Boolean,
+    onSlideComplete: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val density = LocalDensity.current
+    val haptics = LocalHapticFeedback.current
+    val scope = rememberCoroutineScope()
+
+    val knobSize = 48.dp
+    val trackInset = 6.dp
+    var trackWidthPx by remember { mutableStateOf(0) }
+    val knobPx = with(density) { knobSize.toPx() }
+    val insetPx = with(density) { trackInset.toPx() }
+    val maxDrag = (trackWidthPx - knobPx - 2 * insetPx).coerceAtLeast(0f)
+
+    val dragX = remember { Animatable(0f) }
+    var completing by remember { mutableStateOf(false) }
+    val progress = if (maxDrag > 0f) dragX.value / maxDrag else 0f
+
+    Box(
+        modifier = modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 10.dp)
+            .height(60.dp)
+            .clip(RoundedCornerShape(30.dp))
+            .background(
+                if (enabled) {
+                    MaterialTheme.colorScheme.primary.copy(alpha = 0.16f + 0.5f * progress)
+                } else {
+                    MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f)
+                }
+            )
+            .onGloballyPositioned { trackWidthPx = it.size.width }
+            .pointerInput(enabled, maxDrag) {
+                detectHorizontalDragGestures(
+                    onHorizontalDrag = { change, amount ->
+                        if (enabled && !completing) {
+                            change.consume()
+                            scope.launch {
+                                dragX.snapTo((dragX.value + amount).coerceIn(0f, maxDrag))
+                            }
+                        }
+                    },
+                    onDragEnd = {
+                        if (enabled && !completing && maxDrag > 0f && dragX.value >= maxDrag * 0.92f) {
+                            completing = true
+                            haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+                            onSlideComplete()
+                            scope.launch {
+                                dragX.animateTo(maxDrag)
+                                delay(280)
+                                dragX.snapTo(0f)
+                                completing = false
+                            }
+                        } else if (dragX.value > 0f) {
+                            scope.launch { dragX.animateTo(0f) }
+                        }
+                    },
+                )
+            },
+    ) {
+        Text(
+            text = text,
+            fontSize = 15.sp,
+            fontWeight = FontWeight.SemiBold,
+            color = if (enabled) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier
+                .align(Alignment.Center)
+                .padding(horizontal = 24.dp),
+        )
+        Box(
+            modifier = Modifier
+                .align(Alignment.CenterStart)
+                .padding(start = trackInset)
+                .offset { IntOffset(dragX.value.roundToInt(), 0) }
+                .size(knobSize)
+                .clip(CircleShape)
+                .background(
+                    if (enabled) MaterialTheme.colorScheme.primary
+                    else MaterialTheme.colorScheme.outline
+                ),
+            contentAlignment = Alignment.Center,
+        ) {
+            Icon(
+                Icons.AutoMirrored.Filled.ArrowForward,
+                contentDescription = null,
+                tint = if (enabled) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.surface,
+            )
+        }
     }
 }

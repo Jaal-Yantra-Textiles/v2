@@ -9,6 +9,7 @@ import com.jyt.partner.models.AttachMediaFile
 import com.jyt.partner.models.CompleteInventoryOrderBody
 import com.jyt.partner.models.DesignDetail
 import com.jyt.partner.models.DesignDetailResponse
+import com.jyt.partner.models.IncomingDeliveriesResponse
 import com.jyt.partner.models.InventoryOrderChargesResponse
 import com.jyt.partner.models.PartnerInventoryOrder
 import com.jyt.partner.models.PartnerInventoryOrderDetailResponse
@@ -21,6 +22,7 @@ import com.jyt.partner.models.PartnerOrderDetailResponse
 import com.jyt.partner.models.PartnerOrderListResponse
 import com.jyt.partner.models.ProductionRunDetail
 import com.jyt.partner.models.ProductionRunListResponse
+import com.jyt.partner.models.ReceiveIncomingBody
 import com.jyt.partner.models.UploadFile
 import com.jyt.partner.models.UploadFilesResponse
 import kotlinx.coroutines.Dispatchers
@@ -264,6 +266,23 @@ class PartnerApi private constructor(private val context: Context) {
         post(
             "partners/inventory-orders/$id/complete",
             json.encodeToString(CompleteInventoryOrderBody.serializer(), body)
+        )
+    }
+
+    // ── Incoming deliveries (#2286) ──────────────────────────────────────
+    // The other side of the inventory orders: goods delivered TO this
+    // partner's warehouse, whoever supplies them.
+
+    /** Default lists only what is still outstanding; all=true includes
+     *  fully received orders too. */
+    suspend fun incomingDeliveries(all: Boolean = false): IncomingDeliveriesResponse =
+        get(if (all) "partners/incoming-deliveries?all=true" else "partners/incoming-deliveries")
+
+    /** The receiving partner states what arrived, per line. */
+    suspend fun receiveIncomingDelivery(orderId: String, body: ReceiveIncomingBody) {
+        post(
+            "partners/incoming-deliveries/$orderId/receive",
+            json.encodeToString(ReceiveIncomingBody.serializer(), body)
         )
     }
 

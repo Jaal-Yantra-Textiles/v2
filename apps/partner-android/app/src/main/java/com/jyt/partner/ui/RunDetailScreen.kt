@@ -16,7 +16,6 @@ import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.RadioButtonUnchecked
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -31,6 +30,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -67,9 +67,8 @@ fun RunDetailScreen(
 
     var acting by remember { mutableStateOf(false) }
     var actionError by remember { mutableStateOf<String?>(null) }
-    var pendingConfirm by remember { mutableStateOf<RunAction?>(null) }
-    var showFinish by remember { mutableStateOf(false) }
-    var showComplete by remember { mutableStateOf(false) }
+    var showFinish by rememberSaveable { mutableStateOf(false) }
+    var showComplete by rememberSaveable { mutableStateOf(false) }
 
     suspend fun load() {
         loading = detail == null
@@ -92,6 +91,9 @@ fun RunDetailScreen(
 
     suspend fun run(action: RunAction, notes: String? = null, completeBody: PartnerApi.CompleteRunBody? = null) {
         if (acting) return
+        // Resolve before flipping the spinner — an early return after
+        // `acting = true` would wedge the action button forever.
+        if (action == RunAction.COMPLETE && completeBody == null) return
         acting = true
         try {
             val api = PartnerApi.get(context)
@@ -99,30 +101,53 @@ fun RunDetailScreen(
                 RunAction.ACCEPT -> api.acceptRun(runId)
                 RunAction.START -> api.startRun(runId)
                 RunAction.FINISH -> api.finishRun(runId, notes)
-                RunAction.COMPLETE -> api.completeRun(runId, completeBody ?: return)
+                RunAction.COMPLETE -> api.completeRun(runId, requireNotNull(completeBody))
             }
             detail = null
             design = null
             load()
         } catch (e: Exception) {
             actionError = e.message
+        } finally {
+            acting = false
         }
-        acting = false
     }
 
     val current = detail
-    Column(modifier = Modifier.fillMaxSize()) {
-        TopAppBar(
-            title = { Text("Run") },
-            navigationIcon = {
-                IconButton(onClick = onBack) {
-                    Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
-                }
-            },
-        )
-
-        when {
-            loading -> Box(Modifier.fillMaxSize()) {
+    val currentRun = current?.productionRun
+    val nextAction = currentRun?.let { nextRunAction(it) }
+    val isSample = currentRun?.runType == "sample"
+    androidx.compose.material3.Scaffold(
+        topBar = {
+            TopAppBar(
+                title = { Text("Run") },
+                navigationIcon = {
+                    IconButton(onClick = onBack) {
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+                    }
+                },
+            )
+        },
+        bottomBar = {
+            val action = nextAction
+            if (action != null) {
+                SlideToConfirmBar(
+                    text = "Slide to ${action.label.replaceFirstChar { it.lowercase() }}",
+                    enabled = !acting,
+                    onSlideComplete = {
+                        when (action) {
+                            RunAction.ACCEPT, RunAction.START -> scope.launch { run(action) }
+                            RunAction.FINISH -> showFinish = true
+                            RunAction.COMPLETE -> showComplete = true
+                        }
+                    },
+                )
+            }
+        },
+    ) { padding ->
+        Box(Modifier.fillMaxSize().padding(padding)) {
+            when {
+                loading -> Box(Modifier.fillMaxSize()) {
                 CircularProgressIndicator(Modifier.align(Alignment.Center))
             }
             current == null -> Box(Modifier.fillMaxSize().padding(24.dp)) {
@@ -130,9 +155,6 @@ fun RunDetailScreen(
             }
             else -> {
                 val run = current.productionRun
-                val nextAction = nextRunAction(run)
-                val isSample = run.runType == "sample"
-
                 LazyColumn(
                     modifier = Modifier.fillMaxSize(),
                     contentPadding = androidx.compose.foundation.layout.PaddingValues(vertical = 8.dp),
@@ -142,23 +164,11 @@ fun RunDetailScreen(
                         item {
                             SectionCard("Your next step") {
                                 Text(nextAction.hint(isSample), fontSize = 13.sp)
-                                Button(
-                                    onClick = {
-                                        when (nextAction) {
-                                            RunAction.ACCEPT, RunAction.START -> pendingConfirm = nextAction
-                                            RunAction.FINISH -> showFinish = true
-                                            RunAction.COMPLETE -> showComplete = true
-                                        }
-                                    },
-                                    enabled = !acting,
-                                    modifier = Modifier.fillMaxWidth().padding(top = 6.dp),
-                                ) {
-                                    if (acting) {
-                                        CircularProgressIndicator(Modifier.size(20.dp))
-                                        Spacer(Modifier.size(8.dp))
-                                    }
-                                    Text(nextAction.label, fontWeight = FontWeight.SemiBold)
-                                }
+                                Text(
+                                    "Drag the bar below to continue.",
+                                    fontSize = 11.sp,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                )
                             }
                         }
                     } else if (run.status == "completed") {
@@ -266,17 +276,8 @@ fun RunDetailScreen(
                 }
             }
         }
+        }
     }
-
-    RunActionConfirmDialog(
-        action = pendingConfirm,
-        onConfirm = {
-            val action = pendingConfirm
-            pendingConfirm = null
-            if (action != null) scope.launch { run(action) }
-        },
-        onDismiss = { pendingConfirm = null },
-    )
 
     if (showFinish) {
         FinishRunSheet(

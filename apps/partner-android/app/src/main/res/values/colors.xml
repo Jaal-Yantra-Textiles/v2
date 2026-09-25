@@ -1,4 +1,4 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="app_name">Luna</string>
+    <color name="brand_navy">#14161E</color>
 </resources>

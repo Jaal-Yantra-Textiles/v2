@@ -46,6 +46,7 @@ import com.jyt.partner.models.ApiDate
 import com.jyt.partner.models.formatDate
 import com.jyt.partner.models.PartnerOrder
 import com.jyt.partner.models.WorkStatus
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import java.text.NumberFormat
 import java.util.Currency
@@ -78,8 +79,12 @@ fun OrdersScreen(onOpenOrder: (String) -> Unit) {
     var appending by remember { mutableStateOf(false) }
     var nextPageOffset by remember { mutableStateOf<Int?>(null) }
     var errorText by remember { mutableStateOf<String?>(null) }
+    // Monotonic request sequence — a slower, older response must never
+    // overwrite a newer one's results.
+    var requestSeq by remember { mutableStateOf(0) }
 
     suspend fun load(reset: Boolean) {
+        val seq = ++requestSeq
         if (reset) initialLoading = orders.isEmpty() else appending = true
         val offset = if (reset) 0 else orders.size
         try {
@@ -89,21 +94,28 @@ fun OrdersScreen(onOpenOrder: (String) -> Unit) {
                 offset = offset,
                 query = search.takeIf { it.isNotBlank() },
             )
+            if (seq != requestSeq) return // superseded by a newer request
             orders = if (reset) page.orders else orders + page.orders
             val next = page.offset + page.limit
             nextPageOffset = if (next < page.count) next else null
             errorText = null
         } catch (e: Exception) {
-            if (orders.isEmpty()) errorText = e.message ?: "Something went wrong."
+            if (orders.isEmpty() && seq == requestSeq) {
+                errorText = e.message ?: "Something went wrong."
+            }
         }
-        initialLoading = false
-        appending = false
+        if (seq == requestSeq) {
+            initialLoading = false
+            appending = false
+        }
     }
 
-    LaunchedEffect(Unit) { load(reset = true) }
-    // Search fires on submit AND when the field clears (Debounce-free —
-    // 20-row pages are cheap; the Swift app behaves the same).
-    LaunchedEffect(search) { load(reset = true) }
+    // One effect for the initial load AND debounced search — the empty
+    // initial search loads immediately; typing settles for 350ms first.
+    LaunchedEffect(search) {
+        if (search.isNotEmpty()) delay(350)
+        load(reset = true)
+    }
 
     val listState = rememberLazyListState()
     val shouldLoadNext by remember {
@@ -113,7 +125,9 @@ fun OrdersScreen(onOpenOrder: (String) -> Unit) {
             info.totalItemsCount > 0 && last >= info.totalItemsCount - 4
         }
     }
-    LaunchedEffect(shouldLoadNext) {
+    // Re-fires when a page lands (nextPageOffset moves) so a list that is
+    // still within the load window keeps paginating without a nudge.
+    LaunchedEffect(shouldLoadNext, nextPageOffset) {
         if (shouldLoadNext && nextPageOffset != null && !appending) {
             load(reset = false)
         }

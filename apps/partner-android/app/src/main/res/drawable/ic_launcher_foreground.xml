@@ -4,13 +4,39 @@
     android:height="108dp"
     android:viewportWidth="108"
     android:viewportHeight="108">
-    <!-- A "J" — the JYT Partner mark, centered in the adaptive-icon safe zone -->
+    <!-- Luna — a gold crescent inside a symmetric dotted orbit,
+         centered in the adaptive-icon safe zone -->
     <path
-        android:pathData="M64,34 v26 a14,14 0 0 1 -28,0 h10 a4,4 0 0 0 8,0 v-26 z"
-        android:fillColor="#C9A227" />
+        android:pathData="M54,34 A20,20 0 0 0 54,74 A26,26 0 0 1 54,34 Z"
+        android:fillColor="#EDEFF4" />
     <path
-        android:pathData="M74,42 h-8"
-        android:strokeColor="#C9A227"
-        android:strokeWidth="5"
-        android:strokeLineCap="round" />
+        android:pathData="M24,54 A30,30 0 1 0 84,54 A30,30 0 1 0 24,54"
+        android:strokeColor="#8A8FA3"
+        android:strokeWidth="1.4"
+        android:strokeAlpha="0.45"
+        android:fillColor="#00000000" />
+    <path
+        android:pathData="M84,54 m-2.4,0 a2.4,2.4 0 1 0 4.8,0 a2.4,2.4 0 1 0 -4.8,0"
+        android:fillColor="#AAB0C0" />
+    <path
+        android:pathData="M75.21,75.21 m-2.4,0 a2.4,2.4 0 1 0 4.8,0 a2.4,2.4 0 1 0 -4.8,0"
+        android:fillColor="#AAB0C0" />
+    <path
+        android:pathData="M54,84 m-2.4,0 a2.4,2.4 0 1 0 4.8,0 a2.4,2.4 0 1 0 -4.8,0"
+        android:fillColor="#AAB0C0" />
+    <path
+        android:pathData="M32.79,75.21 m-2.4,0 a2.4,2.4 0 1 0 4.8,0 a2.4,2.4 0 1 0 -4.8,0"
+        android:fillColor="#AAB0C0" />
+    <path
+        android:pathData="M24,54 m-2.4,0 a2.4,2.4 0 1 0 4.8,0 a2.4,2.4 0 1 0 -4.8,0"
+        android:fillColor="#AAB0C0" />
+    <path
+        android:pathData="M32.79,32.79 m-2.4,0 a2.4,2.4 0 1 0 4.8,0 a2.4,2.4 0 1 0 -4.8,0"
+        android:fillColor="#AAB0C0" />
+    <path
+        android:pathData="M54,24 m-2.4,0 a2.4,2.4 0 1 0 4.8,0 a2.4,2.4 0 1 0 -4.8,0"
+        android:fillColor="#AAB0C0" />
+    <path
+        android:pathData="M75.21,32.79 m-2.4,0 a2.4,2.4 0 1 0 4.8,0 a2.4,2.4 0 1 0 -4.8,0"
+        android:fillColor="#AAB0C0" />
 </vector>

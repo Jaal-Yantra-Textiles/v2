@@ -1,8 +1,20 @@
+import java.util.Properties
+
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
     id("org.jetbrains.kotlin.plugin.compose")
     id("org.jetbrains.kotlin.plugin.serialization")
+}
+
+// Release signing is property-driven (gradle.properties, ~/.gradle/gradle.properties
+// or -P on the command line — never committed):
+//   JYT_PARTNER_STORE_FILE, JYT_PARTNER_STORE_PASSWORD,
+//   JYT_PARTNER_KEY_ALIAS,   JYT_PARTNER_KEY_PASSWORD
+// Without them, bundleRelease produces an unsigned bundle (safe default).
+val keystoreProps = Properties().apply {
+    val f = rootProject.file("keystore.properties")
+    if (f.exists()) f.inputStream().use { load(it) }
 }
 
 android {
@@ -13,12 +25,14 @@ android {
         applicationId = "com.jyt.partner"
         minSdk = 26
         targetSdk = 36
-        versionCode = 1
-        versionName = "0.1.0"
+        versionCode = 2
+        versionName = "0.1.1"
 
         // The backend the app talks to. The Android emulator reaches the
         // host's localhost through 10.0.2.2 — the counterpart of the iOS
-        // app's Info.plist PartnerBackendURL override.
+        // app's Info.plist PartnerBackendURL override. A PLAY RELEASE MUST
+        // override this with the https production URL, e.g.:
+        //   ./gradlew bundleRelease -PpartnerBackendUrl=https://api.example.com
         buildConfigField(
             "String",
             "BACKEND_URL",
@@ -26,16 +40,35 @@ android {
         )
     }
 
+    signingConfigs {
+        if (keystoreProps.isNotEmpty()) {
+            create("release") {
+                storeFile = rootProject.file(keystoreProps.getProperty("storeFile"))
+                storePassword = keystoreProps.getProperty("storePassword")
+                keyAlias = keystoreProps.getProperty("keyAlias")
+                keyPassword = keystoreProps.getProperty("keyPassword")
+            }
+        }
+    }
+
     buildTypes {
         release {
             isMinifyEnabled = false
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
+            signingConfig = signingConfigs.findByName("release")
         }
     }
 
     buildFeatures {
         compose = true
         buildConfig = true
+    }
+
+    lint {
+        // Pure-Compose app — no fragments anywhere. The activity-result
+        // lint check misfires on ComponentActivity without a Fragment
+        // dependency on the classpath.
+        disable += "InvalidFragmentVersionForActivityResult"
     }
 
     compileOptions {
@@ -69,6 +102,9 @@ dependencies {
     // (guarded init) until one is dropped in.
     implementation("com.google.firebase:firebase-messaging:24.0.2")
     implementation("androidx.core:core-ktx:1.13.1")
+    // System splash (API 31+) with the pre-31 backport, held on screen
+    // while the stored session restores.
+    implementation("androidx.core:core-splashscreen:1.0.1")
 
     debugImplementation("androidx.compose.ui:ui-tooling")
 }

@@ -21,7 +21,6 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.AddAPhoto
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -40,6 +39,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -84,23 +84,20 @@ fun OrderDetailScreen(
     var acting by remember { mutableStateOf(false) }
     var uploading by remember { mutableStateOf(false) }
     var actionError by remember { mutableStateOf<String?>(null) }
-    var pendingConfirm by remember { mutableStateOf<RunAction?>(null) }
-    var showFinish by remember { mutableStateOf(false) }
-    var showComplete by remember { mutableStateOf(false) }
+    var showFinish by rememberSaveable { mutableStateOf(false) }
+    var showComplete by rememberSaveable { mutableStateOf(false) }
     var showActionMenu by remember { mutableStateOf(false) }
 
     suspend fun loadRuns(orderDetail: PartnerOrder?) {
         val refs = orderDetail?.productionRuns ?: return
-        val fetched = refs.mapNotNull { ref ->
-            runCatching { PartnerApi.get(context).productionRun(ref.id).productionRun }.getOrNull()
+        // One detail read per run carries BOTH the run and its tasks.
+        val details = refs.mapNotNull { ref ->
+            runCatching { PartnerApi.get(context).productionRun(ref.id) }.getOrNull()
         }
-        runs = fetched
-        val tasks = mutableMapOf<String, List<RunTask>>()
-        fetched.forEach { run ->
-            runCatching { PartnerApi.get(context).productionRun(run.id) }
-                .getOrNull()?.tasks?.let { tasks[run.id] = it }
-        }
-        runTasks = tasks
+        runs = details.map { it.productionRun }
+        runTasks = details.mapNotNull { d ->
+            d.tasks?.let { d.productionRun.id to it }
+        }.toMap()
     }
 
     suspend fun load() {
@@ -133,15 +130,18 @@ fun OrderDetailScreen(
 
     suspend fun run(action: RunAction, notes: String? = null, completeBody: PartnerApi.CompleteRunBody? = null) {
         if (acting) return
+        // Resolve the target BEFORE flipping the spinner on — an early
+        // return after `acting = true` would wedge the button forever.
+        val runId = activeRun?.id ?: return
+        if (action == RunAction.COMPLETE && completeBody == null) return
         acting = true
         try {
             val api = PartnerApi.get(context)
-            val runId = activeRun?.id ?: return
             when (action) {
                 RunAction.ACCEPT -> api.acceptRun(runId)
                 RunAction.START -> api.startRun(runId)
                 RunAction.FINISH -> api.finishRun(runId, notes)
-                RunAction.COMPLETE -> api.completeRun(runId, completeBody ?: return)
+                RunAction.COMPLETE -> api.completeRun(runId, requireNotNull(completeBody))
             }
             // Re-read everything — status, runs and design media all change.
             detail = null
@@ -151,8 +151,9 @@ fun OrderDetailScreen(
             load()
         } catch (e: Exception) {
             actionError = e.message
+        } finally {
+            acting = false
         }
-        acting = false
     }
 
     // Photo picker — the library path (the camera path stays on iOS parity
@@ -162,6 +163,14 @@ fun OrderDetailScreen(
     ) { uri ->
         if (uri == null) return@rememberLauncherForActivityResult
         scope.launch {
+            // Guard BEFORE flipping the spinner — a completed run means
+            // there is no upload target, and a stuck "Uploading…" is worse
+            // than a clear refusal (mirrors the iOS upload() guard).
+            val runId = activeRun?.id
+            if (runId == null) {
+                actionError = "This order has no production run to attach media to."
+                return@launch
+            }
             uploading = true
             try {
                 val api = PartnerApi.get(context)
@@ -173,33 +182,56 @@ fun OrderDetailScreen(
                     c.getString(c.getColumnIndexOrThrow(android.provider.OpenableColumns.DISPLAY_NAME))
                 } ?: "upload.jpg"
                 val files = api.uploadRunMedia(
-                    activeRun?.id ?: return@launch,
+                    runId,
                     listOf(PartnerApi.MediaPart(name, mime, bytes)),
                 )
-                api.attachRunMedia(activeRun?.id ?: return@launch, files)
+                api.attachRunMedia(runId, files)
                 design = runCatching {
                     detail?.designs?.firstOrNull()?.id?.let { api.design(it) }
                 }.getOrNull() ?: design
             } catch (e: Exception) {
                 actionError = e.message
+            } finally {
+                uploading = false
             }
-            uploading = false
         }
     }
 
-    Column(modifier = Modifier.fillMaxSize()) {
-        TopAppBar(
-            title = { Text("Order #${detail?.displayId ?: "…"}") },
-            navigationIcon = {
-                IconButton(onClick = onBack) {
-                    Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
-                }
-            },
-        )
-
-        val current = detail
-        when {
-            loading -> Box(Modifier.fillMaxSize()) {
+    val current = detail
+    androidx.compose.material3.Scaffold(
+        topBar = {
+            TopAppBar(
+                title = { Text("Order #${detail?.displayId ?: "…"}") },
+                navigationIcon = {
+                    IconButton(onClick = onBack) {
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+                    }
+                },
+            )
+        },
+        bottomBar = {
+            // The next step as a slide-to-confirm bar — the deliberate drag
+            // is the confirmation, so ACCEPT/START fire directly and
+            // FINISH/COMPLETE open their forms.
+            val action = nextAction
+            if (action != null) {
+                SlideToConfirmBar(
+                    text = "Slide to ${action.label.replaceFirstChar { it.lowercase() }}",
+                    enabled = !acting && !uploading,
+                    onSlideComplete = {
+                        when (action) {
+                            RunAction.ACCEPT, RunAction.START -> scope.launch { run(action) }
+                            RunAction.FINISH -> showFinish = true
+                            RunAction.COMPLETE -> showComplete = true
+                        }
+                    },
+                )
+            }
+        },
+    ) { padding ->
+        Box(Modifier.fillMaxSize().padding(padding)) {
+            when {
+                loading -> Box(Modifier.fillMaxSize()) {
                 CircularProgressIndicator(Modifier.align(Alignment.Center))
             }
             current == null -> Box(Modifier.fillMaxSize().padding(24.dp)) {
@@ -230,23 +262,11 @@ fun OrderDetailScreen(
                                     fontSize = 13.sp,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                                 )
-                                Button(
-                                    onClick = {
-                                        when (nextAction) {
-                                            RunAction.ACCEPT, RunAction.START -> pendingConfirm = nextAction
-                                            RunAction.FINISH -> showFinish = true
-                                            RunAction.COMPLETE -> showComplete = true
-                                        }
-                                    },
-                                    enabled = !acting && !uploading,
-                                    modifier = Modifier.fillMaxWidth(),
-                                ) {
-                                    if (acting || uploading) {
-                                        CircularProgressIndicator(Modifier.size(20.dp))
-                                        Spacer(Modifier.size(8.dp))
-                                    }
-                                    Text(nextAction.label, fontWeight = FontWeight.SemiBold)
-                                }
+                                Text(
+                                    "Drag the bar below to continue.",
+                                    fontSize = 11.sp,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                )
                             } else {
                                 OutlinedButton(
                                     onClick = {
@@ -292,7 +312,8 @@ fun OrderDetailScreen(
                     }
                 }
 
-                // ── Designs
+                // ── Designs — the loaded design gets the rich row; the
+                // list summaries fill the rest WITHOUT duplicating it.
                 if (!current.designs.isNullOrEmpty() || design != null) {
                     item {
                         SectionCard("Designs") {
@@ -309,13 +330,15 @@ fun OrderDetailScreen(
                                     Text(d.name ?: "Untitled design", fontWeight = FontWeight.SemiBold)
                                 }
                             }
-                            current.designs.orEmpty().forEach { row ->
-                                ClickableRow(onClick = { onOpenDesign(row.id) }) {
-                                    DesignThumb(name = row.name, thumbnail = row.thumbnail, size = 44)
-                                    Spacer(Modifier.size(12.dp))
-                                    Text(row.name ?: "Untitled design")
+                            current.designs.orEmpty()
+                                .filter { row -> row.id != design?.id }
+                                .forEach { row ->
+                                    ClickableRow(onClick = { onOpenDesign(row.id) }) {
+                                        DesignThumb(name = row.name, thumbnail = row.thumbnail, size = 44)
+                                        Spacer(Modifier.size(12.dp))
+                                        Text(row.name ?: "Untitled design")
+                                    }
                                 }
-                            }
                         }
                     }
                 }
@@ -400,21 +423,16 @@ fun OrderDetailScreen(
             }
         }
     }
-
-    // Dialogs and sheets
-    RunActionConfirmDialog(
-        action = pendingConfirm,
-        onConfirm = {
-            val action = pendingConfirm
-            pendingConfirm = null
-            if (action != null) scope.launch { run(action) }
-        },
-        onDismiss = { pendingConfirm = null },
-    )
+    }
 
     if (showFinish) {
         FinishRunSheet(
-            pendingTasks = activeRun?.let { runTasks[it.id] }.orEmpty(),
+            // Same gate as RunDetailScreen: only genuinely pending tasks
+            // count against the acknowledgement.
+            pendingTasks = activeRun
+                ?.let { runTasks[it.id].orEmpty() }
+                .orEmpty()
+                .filter { it.status == "pending" },
             isSample = isSample,
             onConfirm = { notes ->
                 scope.launch { run(RunAction.FINISH, notes = notes) }

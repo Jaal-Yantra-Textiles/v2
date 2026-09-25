@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
@@ -45,6 +46,7 @@ import com.jyt.partner.api.PartnerApi
 import com.jyt.partner.models.ApiDate
 import com.jyt.partner.models.formatDate
 import com.jyt.partner.models.CompleteInventoryOrderBody
+import com.jyt.partner.models.InventoryOrderLine
 import com.jyt.partner.models.InventoryOrderStatus
 import com.jyt.partner.models.PartnerInventoryOrder
 import kotlinx.coroutines.launch
@@ -305,14 +307,39 @@ fun InventoryOrderDetailScreen(
 private enum class NextStep { START, RECORD_DELIVERY, NONE }
 
 /** The goods receipt — per-line delivered quantities (prefilled with what's
- *  outstanding), delivery date, tracking number and notes. */
+ *  outstanding), delivery date, tracking number and notes. Quantities are
+ *  editable decimals: cloth is metres and kilograms, so whole-number
+ *  steppers alone can't record what actually shipped (iOS parity — its
+ *  sheet pairs the steppers with a .decimalPad text field). */
 @Composable
 private fun DeliveryReceiptSheet(order: PartnerInventoryOrder, onDone: () -> Unit) {
+    // The clamped numeric truth, plus the raw editable text per line.
     var quantities by remember(order.id) {
         mutableStateOf(
             order.orderLines.orEmpty().associate { it.id to it.outstanding }
         )
     }
+    var quantityText by remember(order.id) {
+        mutableStateOf(
+            order.orderLines.orEmpty().associate { it.id to plainQuantity(it.outstanding) }
+        )
+    }
+
+    /** Digits and a single dot, nothing else. */
+    fun sanitize(raw: String): String {
+        val filtered = raw.filter { it.isDigit() || it == '.' }
+        val firstDot = filtered.indexOf('.')
+        return if (firstDot >= 0) {
+            filtered.take(firstDot + 1) + filtered.substring(firstDot + 1).replace(".", "")
+        } else filtered
+    }
+
+    fun step(line: InventoryOrderLine, delta: Double) {
+        val next = ((quantities[line.id] ?: 0.0) + delta).coerceIn(0.0, line.outstanding)
+        quantities = quantities + (line.id to next)
+        quantityText = quantityText + (line.id to plainQuantity(next))
+    }
+
     var deliveryDateMillis by rememberSaveable { mutableStateOf(System.currentTimeMillis()) }
     var trackingNumber by rememberSaveable { mutableStateOf("") }
     var notes by rememberSaveable { mutableStateOf("") }
@@ -349,24 +376,28 @@ private fun DeliveryReceiptSheet(order: PartnerInventoryOrder, onDone: () -> Uni
                             horizontalArrangement = Arrangement.spacedBy(8.dp),
                         ) {
                             IconButton(
-                                onClick = {
-                                    quantities = quantities + (
-                                        line.id to ((quantities[line.id] ?: 0.0) - 1.0).coerceAtLeast(0.0)
-                                        )
-                                },
+                                onClick = { step(line, -1.0) },
                             ) { Icon(Icons.Filled.Remove, contentDescription = "Less") }
-                            Text(
-                                text = formatQuantity(quantities[line.id] ?: 0.0),
-                                fontWeight = FontWeight.SemiBold,
+                            OutlinedTextField(
+                                value = quantityText[line.id] ?: "",
+                                onValueChange = { raw ->
+                                    val clean = sanitize(raw)
+                                    quantityText = quantityText + (line.id to clean)
+                                    clean.toDoubleOrNull()?.let { parsed ->
+                                        quantities = quantities + (
+                                            line.id to parsed.coerceIn(0.0, line.outstanding)
+                                            )
+                                    }
+                                },
+                                label = { Text("Delivered") },
+                                keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
+                                    keyboardType = KeyboardType.Decimal
+                                ),
+                                singleLine = true,
+                                modifier = Modifier.width(110.dp),
                             )
                             IconButton(
-                                onClick = {
-                                    quantities = quantities + (
-                                        line.id to (
-                                            (quantities[line.id] ?: 0.0) + 1.0
-                                            ).coerceAtMost(line.outstanding)
-                                        )
-                                },
+                                onClick = { step(line, 1.0) },
                             ) { Icon(Icons.Filled.Add, contentDescription = "More") }
                             if (line.fulfilled > 0) {
                                 Text(

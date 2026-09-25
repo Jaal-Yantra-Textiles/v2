@@ -47,6 +47,7 @@ import com.jyt.partner.models.ApiDate
 import com.jyt.partner.models.formatDate
 import com.jyt.partner.models.InventoryOrderStatus
 import com.jyt.partner.models.PartnerInventoryOrder
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 /** The inventory orders list — the InventoryOrdersView counterpart: the
@@ -64,8 +65,12 @@ fun InventoryOrdersScreen(onOpenOrder: (String) -> Unit) {
     var appending by remember { mutableStateOf(false) }
     var nextPageOffset by remember { mutableStateOf<Int?>(null) }
     var errorText by remember { mutableStateOf<String?>(null) }
+    // Monotonic request sequence — a slower, older response must never
+    // overwrite a newer one's results.
+    var requestSeq by remember { mutableStateOf(0) }
 
     suspend fun load(reset: Boolean) {
+        val seq = ++requestSeq
         if (reset) initialLoading = orders.isEmpty() else appending = true
         val offset = if (reset) 0 else orders.size
         try {
@@ -75,19 +80,27 @@ fun InventoryOrdersScreen(onOpenOrder: (String) -> Unit) {
                 status = statusFilter?.raw,
                 query = search.takeIf { it.isNotBlank() },
             )
+            if (seq != requestSeq) return // superseded by a newer request
             orders = if (reset) page.inventoryOrders else orders + page.inventoryOrders
             val next = page.offset + page.limit
             nextPageOffset = if (next < page.count) next else null
             errorText = null
         } catch (e: Exception) {
-            if (orders.isEmpty()) errorText = e.message ?: "Something went wrong."
+            if (orders.isEmpty() && seq == requestSeq) {
+                errorText = e.message ?: "Something went wrong."
+            }
         }
-        initialLoading = false
-        appending = false
+        if (seq == requestSeq) {
+            initialLoading = false
+            appending = false
+        }
     }
 
-    LaunchedEffect(Unit) { load(reset = true) }
-    LaunchedEffect(search, statusFilter) { load(reset = true) }
+    // One effect for the initial load, debounced search and filter changes.
+    LaunchedEffect(search, statusFilter) {
+        if (search.isNotEmpty()) delay(350)
+        load(reset = true)
+    }
 
     val listState = rememberLazyListState()
     val shouldLoadNext by remember {
@@ -97,7 +110,9 @@ fun InventoryOrdersScreen(onOpenOrder: (String) -> Unit) {
             info.totalItemsCount > 0 && last >= info.totalItemsCount - 4
         }
     }
-    LaunchedEffect(shouldLoadNext) {
+    // Re-fires when a page lands (nextPageOffset moves) so a list that is
+    // still within the load window keeps paginating without a nudge.
+    LaunchedEffect(shouldLoadNext, nextPageOffset) {
         if (shouldLoadNext && nextPageOffset != null && !appending) {
             load(reset = false)
         }

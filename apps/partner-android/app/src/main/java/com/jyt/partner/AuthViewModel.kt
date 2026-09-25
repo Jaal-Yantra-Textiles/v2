@@ -5,6 +5,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.jyt.partner.api.PartnerApi
 import com.jyt.partner.push.PushManager
+import com.jyt.partner.models.PartnerException
 import com.jyt.partner.models.PartnerMe
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -13,12 +14,18 @@ import kotlinx.coroutines.launch
 /**
  * Holds the partner session — the AuthStore counterpart: restores on cold
  * start from the stored token by asking /partners/me, exposes login/logout.
+ *
+ * A restore failure is NOT always "the token is stale": the backend being
+ * unreachable (offline, flaky data) must not wipe the session — only a
+ * 401 does. Anything else parks in [State.RestoreFailed] with the token
+ * kept, so a Retry re-runs the restore instead of forcing a sign-in.
  */
 class AuthViewModel : ViewModel() {
 
     sealed interface State {
         data object Restoring : State
         data object SignedOut : State
+        data object RestoreFailed : State
         data class SignedIn(val me: PartnerMe) : State
     }
 
@@ -40,11 +47,25 @@ class AuthViewModel : ViewModel() {
         }
         try {
             _state.value = State.SignedIn(api.me())
+        } catch (e: PartnerException.Http) {
+            if (e.status == 401) {
+                // A stored token /partners/me no longer accepts is as good as none.
+                TokenStore.clearToken(appContext)
+                _state.value = State.SignedOut
+            } else {
+                _state.value = State.RestoreFailed
+            }
         } catch (e: Exception) {
-            // A stored token /partners/me no longer accepts is as good as none.
-            TokenStore.clearToken(appContext)
-            _state.value = State.SignedOut
+            // Network down / server unreachable — keep the token, let the
+            // user retry rather than silently wiping the session.
+            _state.value = State.RestoreFailed
         }
+    }
+
+    /** Re-runs the session restore after a transient failure. */
+    fun retryRestore() {
+        _state.value = State.Restoring
+        viewModelScope.launch { restore() }
     }
 
     fun login(context: Context, email: String, password: String) {
