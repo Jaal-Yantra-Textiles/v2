@@ -1903,6 +1903,9 @@ export const ADMIN_MCP_TOOLS: AdminMcpToolDef[] = [
     method: "POST",
     path: "/admin/inventory-orders/:id/receive",
     pathParams: ["id"],
+    // Without this the dispatcher sends an EMPTY body, which the route reads
+    // as "receive everything outstanding"; a partial count became a full one.
+    bodyParams: ["lines", "stock_location_id", "notes"],
     previewPath: "/admin/inventory-orders/:id",
     write: true,
     sensitive: true,
@@ -1979,6 +1982,17 @@ export const ADMIN_MCP_TOOLS: AdminMcpToolDef[] = [
       "🔴 There is NO approval gate here. That gate exists for a production run's output, where partner completion is a claim and admin approval accepts it. Nothing was produced here, so the only gate is somebody at the far end counting it. Get location ids from list_stock_locations and the item id from list_inventory_items.",
     method: "POST",
     path: "/admin/inventory-transfers",
+    // `reason` is also a dispatcher control arg; listing it here still
+    // forwards it (pick reads the raw args), so the transfer keeps its reason.
+    bodyParams: [
+      "inventory_item_id",
+      "from_location_id",
+      "to_location_id",
+      "quantity",
+      "reason",
+      "source_inventory_order_id",
+      "notes",
+    ],
     previewPath: "/admin/inventory-transfers",
     write: true,
     sensitive: true,
@@ -2006,6 +2020,7 @@ export const ADMIN_MCP_TOOLS: AdminMcpToolDef[] = [
     method: "POST",
     path: "/admin/inventory-transfers/:id/receive",
     pathParams: ["id"],
+    bodyParams: ["received_quantity", "notes"],
     previewPath: "/admin/inventory-transfers",
     write: true,
     sensitive: true,
