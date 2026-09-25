@@ -164,6 +164,21 @@ const ProductionRun = model.define("production_runs", {
   stocked_quantity: model.float().nullable(),
   stocked_at: model.dateTime().nullable(),
 
+  /**
+   * #2271 — the split the run is EXPECTED to make, per size/colour, set before
+   * production: `[{ size_label, color, quantity }]`. Adds up to `quantity`.
+   * It is the default a partner confirms against at completion. See
+   * `workflows/production-runs/lib/run-output.ts`.
+   */
+  planned_output: model.json().nullable(),
+  /**
+   * #2271 — the split the run ACTUALLY made, in good units, as confirmed at
+   * completion (or taken from the plan / the run's only combination). Null
+   * means the run states several combinations and nobody said which: stock
+   * must not guess one.
+   */
+  produced_output: model.json().nullable(),
+
   // Cost
   partner_cost_estimate: model.float().nullable(),
   cost_type: model.enum(["per_unit", "total"]).default("total").nullable(),

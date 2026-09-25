@@ -1,5 +1,7 @@
 import { z } from "@medusajs/framework/zod"
 
+import { OutputLinesSchema } from "./output-schema"
+
 /**
  * The materials an assignment is issued — a subset of the design's bill of
  * materials, not a free-form list. The workflow re-checks membership against
@@ -76,6 +78,8 @@ export const AdminCreateProductionRunReq = z.object({
   order_line_item_id: z.string().optional(),
   metadata: z.record(z.string(), z.any()).optional(),
   materials: z.array(RunMaterialSchema).nullish(),
+  /** #2271 — the expected split per size/colour. See output-schema.ts. */
+  planned_output: OutputLinesSchema.nullish(),
 })
 
 export const AdminApproveProductionRunReq = z.object({

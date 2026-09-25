@@ -1,5 +1,7 @@
 import { z } from "@medusajs/framework/zod"
 
+import { OutputLinesSchema } from "../../../production-runs/output-schema"
+
 /**
  * Mirrors `RunMaterialSchema` in production-runs/validators.ts, because it is
  * the same thing arriving by a different door: this route hands `assignments`
@@ -53,6 +55,11 @@ const ProductionAssignmentSchema = z.object({
    * material by any route at all.
    */
   depends_on_inventory_order_ids: z.array(z.string().min(1)).nullish(),
+  /**
+   * #2271 — this partner's expected split per size/colour. Omit to inherit the
+   * parent's `planned_output` when this assignment covers the same total.
+   */
+  planned_output: OutputLinesSchema.nullish(),
 })
 
 export const AdminCreateDesignProductionRunSchema = z.object({
@@ -66,6 +73,12 @@ export const AdminCreateDesignProductionRunSchema = z.object({
    */
   quantity: z.number().positive().nullish(),
   run_type: z.enum(["production", "sample"]).optional(),
+  /**
+   * #2271 — what the run is expected to make, per size/colour, e.g.
+   * `[{ size_label: "S", quantity: 1 }, { size_label: "M", quantity: 2 }]`.
+   * Must add up to `quantity` and use only the design's sizes and colours.
+   */
+  planned_output: OutputLinesSchema.nullish(),
   assignments: z.array(ProductionAssignmentSchema).min(1).optional(),
   /**
    * The template selection to give assignments this route builds ITSELF, when

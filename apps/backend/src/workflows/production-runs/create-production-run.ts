@@ -11,6 +11,7 @@ import type { Link } from "@medusajs/modules-sdk"
 import type { LinkDefinition } from "@medusajs/framework/types"
 
 import { PRODUCTION_RUNS_MODULE } from "../../modules/production_runs"
+import { checkOutputLines, runOutputAxes, type OutputLine } from "./lib/run-output"
 import type ProductionRunService from "../../modules/production_runs/service"
 
 import { TASKS_MODULE } from "../../modules/tasks"
@@ -85,6 +86,13 @@ export type CreateProductionRunInput = {
   // are collated into ONE work-order by the batch projection
   // (projectDesignOrderToUnifiedOrder), so they must NOT each mint their own.
   skip_unified_projection?: boolean
+  /**
+   * #2271 — the split this run is expected to make, per size/colour. Checked
+   * against the sizes and colours in the run's own snapshot and, when the run
+   * has an agreed quantity, must add up to it. Omit when the run states at most
+   * one combination: completion infers it.
+   */
+  planned_output?: OutputLine[] | null
 }
 
 const fetchDesignSnapshotStep = createStep(
@@ -338,6 +346,24 @@ const createProductionRunStep = createStep(
       PRODUCTION_RUNS_MODULE
     )
 
+    let plannedOutput: OutputLine[] | null = null
+    if (input.payload.planned_output != null) {
+      const quantity =
+        input.payload.quantity === null ? null : (input.payload.quantity ?? 1)
+      const check = checkOutputLines(
+        input.payload.planned_output,
+        runOutputAxes(input.snapshot),
+        quantity
+      )
+      if (!check.ok) {
+        throw new MedusaError(
+          MedusaError.Types.INVALID_DATA,
+          `planned_output: ${check.reason}`
+        )
+      }
+      plannedOutput = check.lines.length ? check.lines : null
+    }
+
     const created = await productionRunService.createProductionRuns({
       design_id: input.payload.design_id ?? null,
       partner_id: input.payload.partner_id ?? null,
@@ -359,6 +385,7 @@ const createProductionRunStep = createStep(
       snapshot: input.snapshot,
       captured_at: input.captured_at,
       metadata: input.payload.metadata,
+      planned_output: plannedOutput,
       // Phase 4: only set when explicitly provided so admin/order
       // paths keep the model defaults (status=pending_review,
       // execution_mode=in_house).

@@ -19,6 +19,7 @@ import { DESIGN_MODULE } from "../../modules/designs"
 import { PARTNER_MODULE } from "../../modules/partner"
 import designPartnersLink from "../../links/design-partners-link"
 import { dualWriteChildRunOrdersStep } from "./dual-write-unified-run-order"
+import { childPlannedOutput, type OutputLine } from "./lib/run-output"
 import DesignInventoryLink from "../../links/design-inventory-link"
 import {
   normalizeRunMaterials,
@@ -67,6 +68,12 @@ export type ProductionRunAssignment = {
    * or on both, and the two edges are checked together.
    */
   depends_on_inventory_order_ids?: string[]
+  /**
+   * #2271 — this child's own expected split per size/colour. Omit to inherit
+   * the parent's plan, which happens only when this child accounts for the
+   * same total the plan does.
+   */
+  planned_output?: OutputLine[] | null
 }
 
 export type ApproveProductionRunInput = {
@@ -222,6 +229,14 @@ const approveProductionRunStep = createStep(
           }
         : originalSnapshot
 
+      const plannedOutput = childPlannedOutput({
+        assignment: a.planned_output,
+        parent: (original as any).planned_output,
+        snapshot,
+        quantity,
+        partnerId: a.partner_id,
+      })
+
       return {
         parent_run_id: original.id,
         role: a.role ?? null,
@@ -244,6 +259,7 @@ const approveProductionRunStep = createStep(
           ? a.depends_on_inventory_order_ids
           : null,
         metadata: Object.keys(inheritedMetadata).length ? inheritedMetadata : null,
+        planned_output: plannedOutput,
       }
     })
 

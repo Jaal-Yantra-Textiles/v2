@@ -207,6 +207,7 @@ export const POST = async (
       order_line_item_id: body.order_line_item_id,
       metadata: body.metadata,
       materials: body.materials ?? undefined,
+      planned_output: body.planned_output ?? undefined,
     },
   })
 
