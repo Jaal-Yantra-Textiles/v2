@@ -56,8 +56,15 @@ jobs:
       # Installs the SDK tools and accepts licenses, so AGP can fetch the
       # compileSdk 36 platform itself instead of depending on what the runner
       # image happens to ship.
+      #
+      # `packages` overrides the action's default ("tools platform-tools"): the
+      # legacy `tools` package no longer exists in current sdkmanager, and
+      # asking for it fails the step ("Failed to find package 'tools'").
       - name: Set up Android SDK
         uses: android-actions/setup-android@v3
+        with:
+          packages: 'platform-tools'
+          log-accepted-android-sdk-licenses: false
 
       # Caches the Gradle distribution and dependencies between runs.
       - name: Set up Gradle
