@@ -92,10 +92,14 @@ export type RunApprovalFacts = {
 /**
  * PURE: how many units did this run's approval actually ACCEPT?
  *
- * `produced_quantity` is the partner's claim; `rejected_quantity` is what the
- * review threw out. Accepted is the difference, floored at 0 — a rejected count
- * larger than the produced one is a data error, and a negative acceptance would
- * post a movement backwards.
+ * `produced_quantity` IS the good output — rejects are reported separately in
+ * `rejected_quantity` and are NOT part of it (#2271, founder 2026-09-25). This
+ * used to take `produced - rejected`, which subtracted the rejects a second
+ * time: a partner reporting 8 good + 2 rejected had only 6 accepted. The
+ * 2026-09-13 example "made 3, 1 rejected, accepted 2" is now recorded as
+ * produced 2, rejected 1.
+ *
+ * Floored at 0 so a bad value can never post a movement backwards.
  *
  * Returns null when the run states no produced quantity. Null is "unstated",
  * not zero: capping a real receipt at 0 because a column was never filled in
@@ -104,8 +108,7 @@ export type RunApprovalFacts = {
 export function acceptedQuantity(run: RunApprovalFacts): number | null {
   const produced = run.produced_quantity
   if (produced == null || Number.isNaN(Number(produced))) return null
-  const rejected = Number(run.rejected_quantity ?? 0) || 0
-  return Math.max(0, Number(produced) - rejected)
+  return Math.max(0, Number(produced))
 }
 
 /**
@@ -248,7 +251,11 @@ export function transferShortfall(
 /** Resolve the inventory item the run's output is banked as. */
 async function resolveRunInventoryItem(
   container: MedusaContainer,
-  run: { variant_id?: string | null; design_id?: string | null }
+  run: {
+    variant_id?: string | null
+    approved_variant_id?: string | null
+    design_id?: string | null
+  }
 ): Promise<string | undefined> {
   /**
    * 🔴 Was a verbatim second copy of `stockFinishedGoodsStep`'s resolution —
@@ -263,6 +270,7 @@ async function resolveRunInventoryItem(
    */
   const resolved = await resolveRunVariant(container, {
     variant_id: run.variant_id,
+    approved_variant_id: run.approved_variant_id,
     design_id: run.design_id,
   })
   return resolved.inventory_item_id
@@ -296,7 +304,13 @@ export async function moveInventory(
     location_id: fromLocationId,
   })
   if (originLevel) {
-    await inventoryService.updateInventoryLevels(originLevel.id, {
+    // 🔴 Medusa's signature is updateInventoryLevels({ inventory_item_id,
+    // location_id, ... }). The `(level.id, data)` form this used passes the id
+    // string as the update and throws "Item undefined is not stocked at location
+    // undefined" — every banking onto an EXISTING level failed (#2271).
+    await inventoryService.updateInventoryLevels({
+      inventory_item_id: inventoryItemId,
+      location_id: fromLocationId,
       stocked_quantity: Math.max(
         0,
         (originLevel.stocked_quantity || 0) - quantity
@@ -309,7 +323,9 @@ export async function moveInventory(
     location_id: toLocationId,
   })
   if (destinationLevel) {
-    await inventoryService.updateInventoryLevels(destinationLevel.id, {
+    await inventoryService.updateInventoryLevels({
+      inventory_item_id: inventoryItemId,
+      location_id: toLocationId,
       stocked_quantity: (destinationLevel.stocked_quantity || 0) + quantity,
     })
   } else {

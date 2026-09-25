@@ -2,6 +2,9 @@ import { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
 import { getOrderDetailWorkflow } from "@medusajs/core-flows"
 import { ContainerRegistrationKeys } from "@medusajs/framework/utils"
 
+import { findWorkOrder, workOrderReadsEnabled } from "../../../../lib/work-orders/read-work-orders"
+import { toOrderShape } from "../../../../lib/work-orders/to-order-shape"
+
 // #403 (orders unification → admin): override the built-in admin order DETAIL so
 // /admin/orders/:id self-describes its kind + work-status, mirroring what the
 // partner detail route already does (`/partners/orders/:id`).
@@ -23,6 +26,16 @@ import { ContainerRegistrationKeys } from "@medusajs/framework/utils"
 export { POST } from "@medusajs/medusa/api/admin/orders/[id]/route"
 
 export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
+  // #2264 S2b — a work order is served from `work_order` in the core-order
+  // shape (links, work-status, summary and line detail included). Anything
+  // else is a retail order and falls through to core.
+  if (workOrderReadsEnabled()) {
+    const workOrder = await findWorkOrder(req.scope, req.params.id)
+    if (workOrder) {
+      return res.json({ order: toOrderShape(workOrder) })
+    }
+  }
+
   const { result } = await getOrderDetailWorkflow(req.scope).run({
     input: {
       fields: (req as any).queryConfig.fields,

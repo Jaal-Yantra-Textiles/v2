@@ -1,3 +1,31 @@
+# [13.163.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.162.1...v13.163.0) (2026-09-24)
+
+
+### Features
+
+* **work-orders:** shadow-write the mirror into work_order; backfill + parity jobs ([#2263](https://github.com/Jaal-Yantra-Textiles/v2/issues/2263)) ([#2270](https://github.com/Jaal-Yantra-Textiles/v2/issues/2270)) ([f9b19d5](https://github.com/Jaal-Yantra-Textiles/v2/commit/f9b19d567a7b8f87826db3e978bf152e3996c9f2)), closes [#2261](https://github.com/Jaal-Yantra-Textiles/v2/issues/2261) [#342](https://github.com/Jaal-Yantra-Textiles/v2/issues/342) [#2264](https://github.com/Jaal-Yantra-Textiles/v2/issues/2264)
+
+## [13.162.1](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.162.0...v13.162.1) (2026-09-24)
+
+
+### Bug Fixes
+
+* **billing:** work orders carry no commission; reverse the 44 backfilled fees ([#2262](https://github.com/Jaal-Yantra-Textiles/v2/issues/2262)) ([#2269](https://github.com/Jaal-Yantra-Textiles/v2/issues/2269)) ([460ef24](https://github.com/Jaal-Yantra-Textiles/v2/commit/460ef2478cd730e6c9e2ce445cddc8a8add4ba63)), closes [#342](https://github.com/Jaal-Yantra-Textiles/v2/issues/342)
+
+# [13.162.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.161.2...v13.162.0) (2026-09-24)
+
+
+### Features
+
+* **work-orders:** work_order module + core-order-shape serializer + parity contract ([#2262](https://github.com/Jaal-Yantra-Textiles/v2/issues/2262)) ([#2268](https://github.com/Jaal-Yantra-Textiles/v2/issues/2268)) ([7a315e6](https://github.com/Jaal-Yantra-Textiles/v2/commit/7a315e6d1c5fbe85cfbfc27d788e395800bb52c9)), closes [#2261](https://github.com/Jaal-Yantra-Textiles/v2/issues/2261) [#342](https://github.com/Jaal-Yantra-Textiles/v2/issues/342) [#2263](https://github.com/Jaal-Yantra-Textiles/v2/issues/2263)
+
+## [13.161.2](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.161.1...v13.161.2) (2026-09-24)
+
+
+### Bug Fixes
+
+* **whatsapp:** Finish/Complete run their workflows; photo bursts reply once and ask about the run (System One); moodboard clips aren't proof ([#2260](https://github.com/Jaal-Yantra-Textiles/v2/issues/2260)) ([15d2591](https://github.com/Jaal-Yantra-Textiles/v2/commit/15d25916ea6681a777b79e230f30b1cbe311bf6a)), closes [#2249](https://github.com/Jaal-Yantra-Textiles/v2/issues/2249) [#2248](https://github.com/Jaal-Yantra-Textiles/v2/issues/2248) [#2247](https://github.com/Jaal-Yantra-Textiles/v2/issues/2247)
+
 ## [13.161.1](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.161.0...v13.161.1) (2026-09-24)
 
 

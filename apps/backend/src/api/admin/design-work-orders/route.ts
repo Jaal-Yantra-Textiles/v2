@@ -6,6 +6,69 @@ import {
   readIsCollated,
 } from "../../../workflows/inventory_orders/dual-write-unified-order"
 import { PARTNER_MODULE } from "../../../modules/partner"
+import { workOrderReadsEnabled } from "../../../lib/work-orders/read-work-orders"
+
+/** The run fields each row shows — read off the run, never copied onto the order. */
+const RUN_FIELDS = [
+  "id",
+  "design_id",
+  "status",
+  "partner_id",
+  "quantity",
+  "partner_cost_estimate",
+  "accepted_at",
+  "started_at",
+  "finished_at",
+  "completed_at",
+]
+
+/**
+ * The collated design orders, in the shape the flag-off path builds below
+ * (`production_runs`, `unified_order_status`, `metadata.source_order_id`).
+ *
+ * #2264 S2b — with `WORK_ORDER_READS=true` they come from `work_order`: kind,
+ * collation, id and source order are COLUMNS, filtered in SQL, instead of
+ * reading every order in the internal channel and deciding collation per row
+ * from the sidecar-or-blob. The run conditions (visible runs, partner, run
+ * status) still filter in memory: they are facts of the runs, not the order.
+ */
+const loadCollatedFromWorkOrders = async (
+  query: any,
+  f: { id: string; sourceOrderId: string }
+): Promise<any[]> => {
+  const { data } = await query.graph({
+    entity: "work_order",
+    fields: [
+      "id",
+      "display_id",
+      "status",
+      "created_at",
+      "currency_code",
+      "partner_status",
+      "source_order_id",
+      ...RUN_FIELDS.map((k) => `production_runs.${k}`),
+    ],
+    filters: {
+      kind: "design",
+      collation: "collated",
+      ...(f.id ? { id: f.id } : {}),
+      ...(f.sourceOrderId ? { source_order_id: f.sourceOrderId } : {}),
+    },
+  })
+  return (data ?? []).map((wo: any) => ({
+    id: wo.id,
+    display_id: wo.display_id,
+    status: wo.status,
+    created_at: wo.created_at,
+    currency_code: wo.currency_code,
+    // A work order has no buyer. The mirror never carried one either (both
+    // writers omit email), so `has_customer` reads false exactly as before.
+    email: null,
+    metadata: { source_order_id: wo.source_order_id ?? null },
+    production_runs: wo.production_runs ?? [],
+    unified_order_status: wo.partner_status ? { partner_status: wo.partner_status } : null,
+  }))
+}
 
 /**
  * #826 — list COLLATED design work-orders (the projection orders that hold N
@@ -50,44 +113,55 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
       ? runs
       : runs.filter((r: any) => String(r?.status) !== "cancelled")
 
-  const [channel] = await scService.listSalesChannels({
-    name: PARTNER_WORK_ORDERS_CHANNEL,
-  })
-  if (!channel) {
-    return res.json({ design_work_orders: [], designs: {}, partners: {}, count: 0, limit, offset })
-  }
+  // With work_order the SQL filter already decided collation.
+  const fromWorkOrder = workOrderReadsEnabled()
+  let orders: any[]
+  if (fromWorkOrder) {
+    orders = await loadCollatedFromWorkOrders(query, {
+      id: idFilter,
+      sourceOrderId: sourceOrderFilter,
+    })
+  } else {
+    const [channel] = await scService.listSalesChannels({
+      name: PARTNER_WORK_ORDERS_CHANNEL,
+    })
+    if (!channel) {
+      return res.json({ design_work_orders: [], designs: {}, partners: {}, count: 0, limit, offset })
+    }
 
-  const { data: orders } = await query.graph({
-    entity: "order",
-    fields: [
-      "id",
-      "display_id",
-      "status",
-      "created_at",
-      "currency_code",
-      "email",
-      "metadata",
-      "production_runs.id",
-      "production_runs.design_id",
-      "production_runs.status",
-      "production_runs.partner_id",
-      "production_runs.quantity",
-      "production_runs.partner_cost_estimate",
-      "production_runs.accepted_at",
-      "production_runs.started_at",
-      "production_runs.finished_at",
-      "production_runs.completed_at",
-      "unified_order_status.partner_status",
-      // #2029 item 4 — the typed kind, one hop, alongside the status sidecar.
-      "unified_order_kind.kind",
-    ],
-    filters: { sales_channel_id: channel.id },
-  })
+    const { data } = await query.graph({
+      entity: "order",
+      fields: [
+        "id",
+        "display_id",
+        "status",
+        "created_at",
+        "currency_code",
+        "email",
+        "metadata",
+        "production_runs.id",
+        "production_runs.design_id",
+        "production_runs.status",
+        "production_runs.partner_id",
+        "production_runs.quantity",
+        "production_runs.partner_cost_estimate",
+        "production_runs.accepted_at",
+        "production_runs.started_at",
+        "production_runs.finished_at",
+        "production_runs.completed_at",
+        "unified_order_status.partner_status",
+        // #2029 item 4 — the typed kind, one hop, alongside the status sidecar.
+        "unified_order_kind.kind",
+      ],
+      filters: { sales_channel_id: channel.id },
+    })
+    orders = data ?? []
+  }
 
   const collated = (orders || []).filter((o: any) => {
     // #2029 item 4 — typed kind decides; the blob answers only for orders
     // written before the sidecar existed.
-    if (!readIsCollated(o)) return false
+    if (!fromWorkOrder && !readIsCollated(o)) return false
     // 🔴 Emptiness is tested on the VISIBLE runs, so an order whose every run
     // was cancelled drops out of the list entirely rather than rendering as a
     // work-order with no designs in it.

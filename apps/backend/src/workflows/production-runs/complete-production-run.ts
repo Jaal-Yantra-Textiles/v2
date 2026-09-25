@@ -16,6 +16,7 @@ import { MedusaError, Modules } from "@medusajs/framework/utils"
 
 import { PRODUCTION_RUNS_MODULE } from "../../modules/production_runs"
 import { runUnitCost } from "./lib/run-payable"
+import { resolveProducedOutput, runGoodQuantity, type OutputLine } from "./lib/run-output"
 import type ProductionRunService from "../../modules/production_runs/service"
 import { awaitRunCompleteStepId } from "./run-production-run-lifecycle"
 import { logConsumptionWorkflow } from "../consumption-logs/log-consumption"
@@ -28,6 +29,7 @@ import {
   resolvePartnerLocationStep,
   completeLinkedTasksStep,
   stockFinishedGoodsStep,
+  resolveRunStockTargetStep,
   recordStockedLocationStep,
   type PartnerRunInput,
 } from "./partner-run-steps"
@@ -69,6 +71,19 @@ export type CompleteProductionRunInput = PartnerRunInput & {
    * shortfall must carry an explanation.
    */
   allow_shortfall?: boolean
+  /**
+   * #2271 — what was actually made, per size/colour, in GOOD units. Omit to
+   * take the run's `planned_output` (when it adds up to the good units) or its
+   * only combination. An invalid split is refused, never replaced.
+   */
+  produced_output?: OutputLine[] | null
+  /**
+   * #2271 — refuse completion when the run states several sizes/colours and
+   * neither `produced_output` nor the plan says which were made. Set by the
+   * HTTP doors where a person is completing and can answer; the WhatsApp and
+   * last-task paths leave it off and record no split rather than block.
+   */
+  require_output_split?: boolean
 }
 
 export type CompletionOutputCheck =
@@ -229,6 +244,8 @@ type CompleteRunData = {
   cost_type?: "per_unit" | "total"
   notes?: string
   allow_shortfall?: boolean
+  produced_output?: OutputLine[] | null
+  require_output_split?: boolean
 }
 
 const completeRunWithLockStep = createStep(
@@ -272,6 +289,31 @@ const completeRunWithLockStep = createStep(
         return
       }
 
+      /**
+       * #2271 — which sizes/colours those good units are. Resolved against the
+       * FRESH run for the same reason as the gate above: its plan and snapshot
+       * as they stand now.
+       */
+      const goodQuantity = runGoodQuantity({
+        produced_quantity: input.produced_quantity,
+        rejected_quantity: input.rejected_quantity,
+        quantity: freshRun.quantity,
+      })
+      const output = resolveProducedOutput({
+        confirmed: input.produced_output,
+        planned_output: freshRun.planned_output,
+        snapshot: freshRun.snapshot,
+        good_quantity: goodQuantity,
+      })
+      if (
+        !output.ok &&
+        (output.code === "invalid_confirmed" || input.require_output_split)
+      ) {
+        outputError = `produced_output: ${output.reason}`
+        return
+      }
+      const producedOutput = output.ok && output.lines.length ? output.lines : null
+
       previousStatus = freshRun.status
 
       await service.updateProductionRuns({
@@ -285,6 +327,8 @@ const completeRunWithLockStep = createStep(
         ...(input.cost_estimate ? { partner_cost_estimate: input.cost_estimate } : {}),
         ...(input.cost_type ? { cost_type: input.cost_type } : {}),
         ...(input.notes ? { completion_notes: input.notes } : {}),
+        // A json column is typed as a record; the list is what it holds.
+        produced_output: producedOutput as any,
       })
     })
 
@@ -304,6 +348,7 @@ const completeRunWithLockStep = createStep(
       id: rollbackData.production_run_id,
       status: (rollbackData.previous_status || "in_progress") as any,
       completed_at: null,
+      produced_output: null,
     })
   }
 )
@@ -475,6 +520,8 @@ export const completeProductionRunWorkflow = createWorkflow(
       cost_type: data.input.cost_type,
       notes: data.input.notes,
       allow_shortfall: data.input.allow_shortfall,
+      produced_output: data.input.produced_output,
+      require_output_split: data.input.require_output_split,
     }))
 
     completeRunWithLockStep(completeData)
@@ -508,14 +555,32 @@ export const completeProductionRunWorkflow = createWorkflow(
 
     updateDesignOnCompleteStep(designUpdateInput)
 
+    /**
+     * #2271 — where the good units go: the path they always took, one variant
+     * per size/colour made (minting a draft product when the design has none),
+     * or nowhere, with a reason, when that would take a guess.
+     */
+    const stockTargetInput = transform({ run, input, partnerLocation }, (data) => ({
+      production_run_id: data.input.production_run_id,
+      location_id: (data.partnerLocation as any)?.location_id ?? null,
+      good_quantity: runGoodQuantity({
+        produced_quantity: data.input.produced_quantity,
+        rejected_quantity: data.input.rejected_quantity,
+        quantity: (data.run as any).quantity,
+      }),
+    }))
+    const stockTarget = resolveRunStockTargetStep(stockTargetInput)
+
     // Stock finished goods
     const stockInput = transform(
-      { run, input, partnerLocation },
+      { run, input, partnerLocation, stockTarget },
       (data) => {
         const r = data.run as any
-        const goodQty =
-          (data.input.produced_quantity ?? r.quantity ?? 0) -
-          (data.input.rejected_quantity ?? 0)
+        const goodQty = runGoodQuantity({
+          produced_quantity: data.input.produced_quantity,
+          rejected_quantity: data.input.rejected_quantity,
+          quantity: r.quantity,
+        })
         return {
           production_run_id: data.input.production_run_id,
           design_id: r.design_id,
@@ -523,6 +588,7 @@ export const completeProductionRunWorkflow = createWorkflow(
           // #1872 — the run's own variant, when it has one. Falls back to the
           // design lookup inside the step.
           variant_id: r.variant_id ?? null,
+          approved_variant_id: r.approved_variant_id ?? null,
           good_quantity: goodQty,
           location_id: data.partnerLocation.location_id,
           // Carries WHICH hop failed, so the refusal names it. #2053
@@ -530,6 +596,7 @@ export const completeProductionRunWorkflow = createWorkflow(
           order_id: r.order_id || null,
           order_line_item_id: r.order_line_item_id || null,
           run_quantity: r.quantity || 0,
+          target: data.stockTarget,
         }
       }
     )

@@ -61,6 +61,11 @@ variables:
   # Node sizes old-space from the HOST and is SIGKILLed by the cgroup with no
   # stack trace. 1536 of 2048 leaves headroom for non-heap memory.
   NODE_OPTIONS: --max-old-space-size=1536
+  # #2264 S2 — work-order reads come from the `work_order` module, not the
+  # core-order mirror. Flipped 2026-09-25 after `work-order-parity` passed on
+  # prod (105/105 match, admin lists identical). The mirror is still written, so
+  # rollback is deleting this line and redeploying.
+  WORK_ORDER_READS: "true"
   # #707/#712 — base URL for partner-portal product links in WhatsApp confirmation
   # messages. The worker runs the subscribers (visual-flow-event-trigger →
   # createDraftProductFromExtractionWorkflow) that build these links via

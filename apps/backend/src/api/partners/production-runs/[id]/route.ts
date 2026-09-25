@@ -107,6 +107,7 @@ import { ContainerRegistrationKeys, MedusaError } from "@medusajs/framework/util
 import { PRODUCTION_RUNS_MODULE } from "../../../../modules/production_runs"
 import type ProductionRunService from "../../../../modules/production_runs/service"
 import { readRunAllocation } from "../../../../lib/production-run-allocation"
+import { workOrderIdForRun, workOrderReadsEnabled } from "../../../../lib/work-orders/read-work-orders"
 
 export async function GET(
   req: AuthenticatedMedusaRequest & { params: { id: string } },
@@ -177,9 +178,14 @@ export async function GET(
 
   const node = (data || [])[0] || run
 
-  const unifiedOrderId = Array.isArray((node as any)?.order)
+  const mirrorOrderId = Array.isArray((node as any)?.order)
     ? (node as any).order[0]?.id
     : (node as any)?.order?.id
+  // #2264 S2c — from work_order's own run link when reads are flipped; the
+  // mirror's answer stays as the fallback.
+  const unifiedOrderId = workOrderReadsEnabled()
+    ? (await workOrderIdForRun(req.scope, id)) ?? mirrorOrderId
+    : mirrorOrderId
 
   // The materials THIS run was assigned. Empty means no selection was ever
   // made, which is not the same as "no materials" — the UI falls back to the

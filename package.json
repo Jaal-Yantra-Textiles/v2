@@ -1,6 +1,6 @@
 {
   "name": "jyt-commerce-api",
-  "version": "13.161.1",
+  "version": "13.163.0",
   "private": true,
   "workspaces": [
     "apps/analytics",
@@ -44,7 +44,7 @@
     "ph": "bash apps/backend/scripts/push.sh"
   },
   "devDependencies": {
-    "@medusajs/types": "2.20.1",
+    "@medusajs/types": "2.21.1",
     "@semantic-release/changelog": "^6.0.3",
     "@semantic-release/commit-analyzer": "^11.1.0",
     "@semantic-release/git": "^10.0.1",

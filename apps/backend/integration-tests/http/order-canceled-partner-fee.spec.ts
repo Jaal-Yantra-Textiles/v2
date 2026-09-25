@@ -7,7 +7,7 @@ import type { IOrderModuleService } from "@medusajs/types"
 import { setupSharedTestSuite, getSharedTestEnv } from "./shared-test-setup"
 import { createAdminUser, getAuthHeaders } from "../helpers/create-admin-user"
 import { seedCommonEmailTemplates } from "../helpers/seed-email-templates"
-import orderPlacedAccrueFeeHandler from "../../src/subscribers/order-placed-accrue-fee"
+import { seedCommissionFee } from "../helpers/seed-partner-fee"
 import orderCanceledReverseFeeHandler from "../../src/subscribers/order-canceled-reverse-fee"
 import { PARTNER_BILLING_MODULE } from "../../src/modules/partner_billing"
 import { PARTNER_MODULE } from "../../src/modules/partner"
@@ -86,10 +86,7 @@ setupSharedTestSuite(() => {
       await linkPartnerOrder(partnerId, order.id)
 
       // Accrue first (Slice 2), so there is a fee to reverse.
-      await orderPlacedAccrueFeeHandler({
-        event: { data: { id: order.id } },
-        container,
-      } as any)
+      await seedCommissionFee(container, partnerId, order.id)
 
       const billing: any = container.resolve(PARTNER_BILLING_MODULE)
       let fees = await billing.listPartnerFees({ order_id: order.id })

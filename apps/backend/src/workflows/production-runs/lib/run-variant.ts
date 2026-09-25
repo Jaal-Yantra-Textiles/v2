@@ -26,8 +26,11 @@ export type RunVariantFailure =
 export type ResolveRunVariantResult = {
   variant_id?: string
   inventory_item_id?: string
-  /** "run" when the run named its own variant, "design_link" for the fallback. */
-  source?: "run" | "design_link"
+  /**
+   * "run" when the run named its own variant, "approval" when output approval
+   * stamped it, "design_link" for the fallback.
+   */
+  source?: "run" | "approval" | "design_link"
   reason?: RunVariantFailure
   /** Every variant the design links to — populated when the answer is ambiguous. */
   candidate_variant_ids?: string[]
@@ -56,20 +59,36 @@ export function pickDesignVariant(
 /**
  * Resolve the variant AND its inventory item for a run's output.
  *
- * The run's own `variant_id` wins; the design link is the fallback for runs
- * written before that column was populated. Returns a `reason` rather than a
- * bare `undefined` so a caller can tell "this design has no product yet" (a
- * legitimate no-op) from "this design has two variants and nobody said which"
- * (a refusal).
+ * Order of authority: the run's own `variant_id`, then the `approved_variant_id`
+ * output approval stamped on it, then the design link for runs written before
+ * either was populated. Returns a `reason` rather than a bare `undefined` so a
+ * caller can tell "this design has no product yet" (a legitimate no-op) from
+ * "this design has two variants and nobody said which" (a refusal).
+ *
+ * 🔴 #2271. Approval stamps `approved_variant_id` per run (#2094) and nothing
+ * here read it. The two approved Sharlho runs carry it with `variant_id: null`,
+ * so their goods resolved through the design link — correct only while each
+ * design has ONE variant. Once a design holds a variant per size, the link is
+ * ambiguous and stocking refused a run whose approval had already named the
+ * exact variant it made.
  */
 export async function resolveRunVariant(
   container: any,
-  run: { variant_id?: string | null; design_id?: string | null }
+  run: {
+    variant_id?: string | null
+    approved_variant_id?: string | null
+    design_id?: string | null
+  }
 ): Promise<ResolveRunVariantResult> {
   const query: any = container.resolve(ContainerRegistrationKeys.QUERY)
 
   let variantId: string | undefined = run.variant_id ?? undefined
-  let source: "run" | "design_link" = "run"
+  let source: "run" | "approval" | "design_link" = "run"
+
+  if (!variantId && run.approved_variant_id) {
+    variantId = run.approved_variant_id
+    source = "approval"
+  }
 
   if (!variantId) {
     if (!run.design_id) return { reason: "no_variant_and_no_design" }

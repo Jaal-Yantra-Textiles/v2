@@ -12,6 +12,7 @@ import { ORDER_INVENTORY_MODULE } from "../../modules/inventory_orders";
 import Fullfilled_ordersService from "../../modules/fullfilled_orders/service";
 import { createInventoryLevelsWorkflow, updateInventoryLevelsWorkflow, sendNotificationsStep } from "@medusajs/medusa/core-flows";
 import type { UpdateInventoryLevelInput } from "@medusajs/framework/types";
+import { resolveInventoryOrderDestination } from "./lib/order-destination";
 
 export type PartnerCompleteOrderLine = {
   order_line_id: string
@@ -326,6 +327,15 @@ const validateAndFetchOrderStep = createStep(
       partner_delivered_lines: input.lines,
       partner_delivery_history: [...existingDeliveryHistory, deliveryEntry],
     }
+
+    // #2286 — the posting below prefers `order.to_stock_location_id`, which no
+    // model field ever filled, so it fell through to `stock_locations[0]` —
+    // on a two-ended order that can be the SUPPLIER's warehouse. The flagged
+    // destination fills it here, where the step can await.
+    ;(order as any).to_stock_location_id =
+      (await resolveInventoryOrderDestination(container, (order as any).id)) ??
+      (order as any).to_stock_location_id ??
+      null
 
     const response = { order, completionMetadata, fullyFulfilled, shortages }
     return new StepResponse(response)

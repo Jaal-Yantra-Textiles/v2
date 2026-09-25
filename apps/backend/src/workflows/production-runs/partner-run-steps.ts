@@ -26,6 +26,11 @@ import {
   type ResolvePartnerLocationResult,
 } from "./lib/partner-location"
 import { resolveRunVariant } from "./lib/run-variant"
+import {
+  bankStockLines,
+  resolveRunStockTarget,
+  type RunStockTarget,
+} from "./lib/run-output-variants"
 
 export {
   pickPartnerLocation,
@@ -332,19 +337,32 @@ export type StockFinishedGoodsInput = {
    * the two land together.
    */
   variant_id?: string | null
+  /** #2271 — the variant output approval stamped, when the run names none. */
+  approved_variant_id?: string | null
   /**
    * Why `location_id` is absent, from `resolvePartnerLocationStep`. Present only
    * on the failure path — it turns "nowhere to bank this" into a message that
    * names the broken hop instead of a silent no-op.
    */
   location_failure_reason?: PartnerLocationFailure | null
+  /**
+   * #2271 — where the goods go, from `resolveRunStockTargetStep`. Absent or
+   * `legacy` keeps the single-variant path below exactly as it was.
+   */
+  target?: RunStockTarget | null
 }
 
-type StockRollbackData = {
-  inventory_item_id: string
-  location_id: string
-  quantity: number
-} | null
+type StockRollbackData =
+  | {
+      inventory_item_id: string
+      location_id: string
+      quantity: number
+    }
+  | {
+      /** #2271 — one entry per banked line. */
+      lines: Array<{ inventory_item_id: string; location_id: string; quantity: number }>
+    }
+  | null
 
 /**
  * What the step did, for #891 S1's audit record.
@@ -395,12 +413,57 @@ export const stockFinishedGoodsStep = createStep(
     }
 
     /**
+     * #2271 — goods exist and cannot be banked without guessing (the run is for
+     * several sizes and nobody said which, the product is shared, it cannot be
+     * priced). The run completes; `stocked_at` stays null, which is the flag
+     * the repair job reads. Said in the log so it is not silent.
+     */
+    if (input.target?.mode === "skip") {
+      const log: any = container.resolve(ContainerRegistrationKeys.LOGGER)
+      log?.warn?.(
+        `[stock-finished-goods] run ${input.production_run_id}: ${input.good_quantity} ` +
+          `good unit(s) NOT banked — ${input.target.reason}`
+      )
+      return new StepResponse({ stocked: false }, null as StockRollbackData)
+    }
+
+    /** #2271 — one variant per size/colour made, banked line by line. */
+    if (input.target?.mode === "lines") {
+      if (!input.location_id) {
+        const reason = input.location_failure_reason ?? "no_link_and_no_store"
+        throw new MedusaError(
+          MedusaError.Types.NOT_ALLOWED,
+          `Cannot complete production run ${input.production_run_id}: partner ` +
+            `${input.partner_id} has no stock location to bank ${input.good_quantity} ` +
+            `finished unit(s) at (${reason}). Link a stock location to this partner — ` +
+            `run the "backfill-partner-stock-locations" maintenance job, or link one manually — ` +
+            `then complete the run again.`
+        )
+      }
+      const banked = await bankStockLines(container, {
+        location_id: input.location_id,
+        lines: input.target.lines,
+      })
+      const total = banked.reduce((acc, b) => acc + b.quantity, 0)
+      return new StepResponse(
+        {
+          stocked: total > 0,
+          location_id: input.location_id,
+          inventory_item_id: banked.length === 1 ? banked[0].inventory_item_id : null,
+          quantity: total,
+        } as StockFinishedGoodsResult,
+        { lines: banked } as StockRollbackData
+      )
+    }
+
+    /**
      * What did this run actually make? Shared with `receive-goods-transfer`,
      * which asks the identical question at the far end of a hop — see
      * `lib/run-variant.ts` for why one copy matters. #2057
      */
     const variantResult = await resolveRunVariant(container, {
       variant_id: input.variant_id,
+      approved_variant_id: input.approved_variant_id,
       design_id: input.design_id,
     })
 
@@ -471,7 +534,13 @@ export const stockFinishedGoodsStep = createStep(
     })
 
     if (existingLevel) {
-      await inventoryService.updateInventoryLevels(existingLevel.id, {
+    // 🔴 Medusa's signature is updateInventoryLevels({ inventory_item_id,
+    // location_id, ... }). The `(level.id, data)` form this used passes the id
+    // string as the update and throws "Item undefined is not stocked at location
+    // undefined" — every banking onto an EXISTING level failed (#2271).
+      await inventoryService.updateInventoryLevels({
+        inventory_item_id: inventoryItemId,
+        location_id: input.location_id,
         stocked_quantity: (existingLevel.stocked_quantity || 0) + input.good_quantity,
       })
     } else {
@@ -587,6 +656,19 @@ export const stockFinishedGoodsStep = createStep(
   },
   // Compensation: remove the stocked quantity
   async (rollbackData: StockRollbackData, { container }) => {
+    if (!rollbackData) return
+    const entries =
+      "lines" in rollbackData ? rollbackData.lines : [rollbackData]
+    for (const entry of entries) {
+      await rollbackStockEntry(container, entry)
+    }
+  }
+)
+
+async function rollbackStockEntry(
+  container: any,
+  rollbackData: { inventory_item_id: string; location_id: string; quantity: number }
+) {
     if (!rollbackData?.inventory_item_id) return
     const inventoryService = container.resolve(Modules.INVENTORY) as any
     const [level] = await inventoryService.listInventoryLevels({
@@ -595,7 +677,9 @@ export const stockFinishedGoodsStep = createStep(
     })
     if (level) {
       try {
-        await inventoryService.updateInventoryLevels(level.id, {
+        await inventoryService.updateInventoryLevels({
+          inventory_item_id: rollbackData.inventory_item_id,
+          location_id: rollbackData.location_id,
           stocked_quantity: Math.max(0, (level.stocked_quantity || 0) - rollbackData.quantity),
         })
       } catch (e: any) {
@@ -611,6 +695,60 @@ export const stockFinishedGoodsStep = createStep(
         )
       }
     }
+}
+
+// ---------------------------------------------------------------------------
+// Step: Decide where a completed run's goods go (#2271)
+// ---------------------------------------------------------------------------
+
+/**
+ * Reads the run AFTER the completion write, so `produced_output` is the one
+ * just recorded. Creates the variants (and a draft product) the goods need;
+ * see `lib/run-output-variants.ts`.
+ *
+ * No compensation, deliberately: what it creates is catalogue structure — a
+ * draft product, a variant per size — that a retried completion finds and
+ * reuses rather than duplicating. Deleting it on a later failure would race
+ * with that retry.
+ */
+export const resolveRunStockTargetStep = createStep(
+  "resolve-run-stock-target",
+  async (
+    input: { production_run_id: string; good_quantity: number; location_id?: string | null },
+    { container }
+  ) => {
+    if (!(input.good_quantity > 0)) {
+      return new StepResponse({ mode: "legacy" } as RunStockTarget)
+    }
+    const query = container.resolve(ContainerRegistrationKeys.QUERY) as any
+    const { data: children } = await query.graph({
+      entity: "production_runs",
+      filters: { parent_run_id: input.production_run_id },
+      fields: ["id"],
+    })
+    if (children?.length) {
+      return new StepResponse({ mode: "legacy" } as RunStockTarget)
+    }
+    const service: any = container.resolve(PRODUCTION_RUNS_MODULE)
+    const run = await service.retrieveProductionRun(input.production_run_id)
+    const target = await resolveRunStockTarget(container, {
+      run,
+      good_quantity: input.good_quantity,
+      has_location: !!input.location_id,
+    })
+
+    /**
+     * Name the product (and the variant, when there is exactly one) on the run,
+     * so goods transfers and approval read the answer instead of re-deriving it.
+     */
+    if (target.mode === "lines") {
+      await service.updateProductionRuns({
+        id: run.id,
+        product_id: target.product_id,
+        ...(target.lines.length === 1 ? { variant_id: target.lines[0].variant_id } : {}),
+      })
+    }
+    return new StepResponse(target)
   }
 )
 

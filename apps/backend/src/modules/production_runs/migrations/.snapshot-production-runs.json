@@ -964,6 +964,38 @@
           "enumItems": [],
           "mappedType": "datetime"
         },
+        "planned_output": {
+          "name": "planned_output",
+          "type": "jsonb",
+          "unsigned": false,
+          "autoincrement": false,
+          "primary": false,
+          "nullable": true,
+          "unique": false,
+          "length": null,
+          "precision": null,
+          "scale": null,
+          "default": null,
+          "comment": null,
+          "enumItems": [],
+          "mappedType": "json"
+        },
+        "produced_output": {
+          "name": "produced_output",
+          "type": "jsonb",
+          "unsigned": false,
+          "autoincrement": false,
+          "primary": false,
+          "nullable": true,
+          "unique": false,
+          "length": null,
+          "precision": null,
+          "scale": null,
+          "default": null,
+          "comment": null,
+          "enumItems": [],
+          "mappedType": "json"
+        },
         "partner_cost_estimate": {
           "name": "partner_cost_estimate",
           "type": "real",

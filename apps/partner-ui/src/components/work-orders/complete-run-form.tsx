@@ -14,6 +14,14 @@ import {
 import { useState } from "react"
 import { PartnerDesign } from "../../hooks/api/partner-designs"
 import { planCompletionOutput } from "../../lib/completion-output"
+import {
+  comboKey,
+  comboLabel,
+  initialSplit,
+  planSplit,
+  splitAxes,
+  splitCombos,
+} from "../../lib/completion-split"
 import { resolveRunMaterialOptions } from "../../lib/run-materials"
 
 export const UNIT_OPTIONS = [
@@ -91,6 +99,15 @@ export const CompleteRunForm = ({
   const [shortfallReason, setShortfallReason] = useState("")
 
   /**
+   * #2271 — which sizes/colours were made. Only asked when the run is for
+   * several; pre-filled from the run's plan when that adds up.
+   */
+  const axes = splitAxes(run)
+  const [splitValues, setSplitValues] = useState<Record<string, string>>(() =>
+    initialSplit(run, axes, runQuantity)
+  )
+
+  /**
    * ── Step 2: Cost ──
    *
    * 🔴 Starts UNSET, not "total". It used to default to "total" with that
@@ -145,6 +162,10 @@ export const CompleteRunForm = ({
     shortfallReason,
   })
   const unaccounted = outputPlan.unaccounted
+  // What stocking banks: the good pieces (runGoodQuantity on the backend).
+  // Rejects are reported beside them, never subtracted from them.
+  const toStock = Math.max(0, produced)
+  const split = planSplit(axes, splitValues, toStock)
   const costValue = parseFloat(partnerEstimate) || 0
   /**
    * 🔴 The payout multiplier is the ORDERED quantity, not the produced one —
@@ -204,6 +225,7 @@ export const CompleteRunForm = ({
 
     if (noteParts.length) body.notes = noteParts.join("\n")
     if (outputPlan.allowShortfall) body.allow_shortfall = true
+    if (split.needed) body.produced_output = split.lines
 
     return body
   }
@@ -219,6 +241,13 @@ export const CompleteRunForm = ({
             "Say what happened to them — record them as rejected, or write the reason in the shortfall box. Don't raise the produced count to cover them.",
         }
       )
+      return
+    }
+
+    if (split.needed && !split.ok) {
+      toast.error("Sizes don't add up", {
+        description: `The sizes you entered add up to ${split.total}, but ${split.target} piece${split.target !== 1 ? "s are" : " is"} going to stock. Say how many of each were made.`,
+      })
       return
     }
 
@@ -388,6 +417,54 @@ export const CompleteRunForm = ({
           </div>
         )}
       </div>
+
+      {/* ── Step 1b: which sizes/colours (#2271) ── */}
+      {split.needed && (
+        <div className="rounded-xl border border-ui-border-base bg-ui-bg-base px-4 py-4 mb-4">
+          <Text size="small" weight="plus" className="mb-1">What was made</Text>
+          <Text size="xsmall" className="text-ui-fg-subtle mb-3">
+            This run is for{" "}
+            {[
+              axes.sizes.length > 1 ? `sizes ${axes.sizes.join(", ")}` : null,
+              axes.colors.length > 1 ? `colours ${axes.colors.join(", ")}` : null,
+            ]
+              .filter(Boolean)
+              .join(" and ")}
+            . Say how many of each are going to stock, so they're recorded as the right size.
+          </Text>
+          <div className="grid grid-cols-2 gap-3 md:grid-cols-3">
+            {splitCombos(axes).map((c) => {
+              const key = comboKey(c.size_label, c.color)
+              return (
+                <div key={key}>
+                  <Text size="xsmall" className="text-ui-fg-subtle mb-1">
+                    {comboLabel(c)}
+                  </Text>
+                  <Input
+                    type="number"
+                    min="0"
+                    step="1"
+                    placeholder="0"
+                    value={splitValues[key] ?? ""}
+                    onChange={(e) =>
+                      setSplitValues((prev) => ({ ...prev, [key]: e.target.value }))
+                    }
+                  />
+                </div>
+              )
+            })}
+          </div>
+          <Text
+            size="xsmall"
+            className={clx(
+              "mt-3",
+              split.ok ? "text-ui-fg-muted" : "text-ui-tag-orange-text"
+            )}
+          >
+            {split.total} of {split.target} piece{split.target !== 1 ? "s" : ""} going to stock
+          </Text>
+        </div>
+      )}
 
       {/* ── Step 2: Cost ── */}
       <div className="rounded-xl border border-ui-border-base bg-ui-bg-base px-4 py-4 mb-4">

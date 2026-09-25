@@ -3,7 +3,7 @@ import type { IOrderModuleService } from "@medusajs/types"
 
 import { setupSharedTestSuite, getSharedTestEnv } from "./shared-test-setup"
 import { createAdminUser, getAuthHeaders } from "../helpers/create-admin-user"
-import orderPlacedAccrueFeeHandler from "../../src/subscribers/order-placed-accrue-fee"
+import { seedCommissionFee } from "../helpers/seed-partner-fee"
 import { PARTNER_MODULE } from "../../src/modules/partner"
 
 jest.setTimeout(60 * 1000)
@@ -104,10 +104,7 @@ setupSharedTestSuite(() => {
       const { partnerId } = await createPartner(unique)
       const order = await createOrder(unique)
       await linkPartnerOrder(partnerId, order.id)
-      await orderPlacedAccrueFeeHandler({
-        event: { data: { id: order.id } },
-        container,
-      } as any)
+      await seedCommissionFee(container, partnerId, order.id)
 
       const res = await api.get(
         `/admin/orders/${order.id}/partner-fee`,
@@ -152,10 +149,7 @@ setupSharedTestSuite(() => {
       const { partnerId, headers } = await createPartner(unique)
       const order = await createOrder(unique)
       await linkPartnerOrder(partnerId, order.id)
-      await orderPlacedAccrueFeeHandler({
-        event: { data: { id: order.id } },
-        container,
-      } as any)
+      await seedCommissionFee(container, partnerId, order.id)
 
       const res = await api.get(
         `/partners/orders/${order.id}/partner-fee`,
@@ -175,10 +169,7 @@ setupSharedTestSuite(() => {
       const intruder = await createPartner(unique + 1)
       const order = await createOrder(unique)
       await linkPartnerOrder(owner.partnerId, order.id)
-      await orderPlacedAccrueFeeHandler({
-        event: { data: { id: order.id } },
-        container,
-      } as any)
+      await seedCommissionFee(container, owner.partnerId, order.id)
 
       // Intruder (has their own store, but doesn't own this order) → 404.
       await expect(

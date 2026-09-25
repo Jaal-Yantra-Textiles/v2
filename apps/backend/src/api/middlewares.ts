@@ -9,6 +9,7 @@ import {
   MedusaRequest,
   MedusaResponse,
   MedusaNextFunction,
+  allowFields,
 } from "@medusajs/framework/http";
 import multer from "multer";
 import os from "os";
@@ -193,6 +194,7 @@ import { updatePartnerMeSchema } from "./partners/me/validators";
 import { onboardingProfileUpdateSchema } from "./partners/onboarding-profile/validators";
 import { partnerUpdateOrderLinesSchema, partnerAddOrderChargeSchema } from "./partners/inventory-orders/change-schemas";
 import { registerDeviceTokenSchema, unregisterDeviceTokenSchema } from "./partners/device-tokens/validators";
+import { partnerReceiveIncomingSchema } from "./partners/incoming-deliveries/validators";
 import { setLayoutConfigurationSchema } from "./partners/layouts/validators";
 import { AdminGetPartnersParamsSchema } from "./admin/persons/partner/validators";
 import { createInventoryOrdersSchema, listInventoryOrdersQuerySchema, ReadSingleInventoryOrderQuerySchema, updateInventoryOrdersSchema, updateInventoryOrderLinesSchema, createInventoryOrderChargeSchema, assignInventoryOrderPartnerSchema, rejectInventoryOrderChangeSchema } from "./admin/inventory-orders/validators";
@@ -866,6 +868,51 @@ const publicCors = cors({ origin: "*", credentials: false });
 
 export default defineMiddlewares({
   routes: [
+    /**
+     * Medusa 2.21 — every Store API route now returns ONLY fields on its
+     * `allowed` list and SILENTLY strips the rest (a 200 with the data gone).
+     * These re-expose exactly what our storefronts already request and nothing
+     * more; each is our own module link, which core's lists cannot know about.
+     *
+     * 🔴 GLOBAL on purpose — no `method` / `methods`. The allowlist is read by
+     * core's `validateAndTransformQuery`, which runs before any method-scoped
+     * middleware; a method-scoped `allowFields` never takes effect.
+     *
+     * Measured on 2.21.1 against the fields the apps request (2026-09-25):
+     *   /store/products        storefront lib/data/products.ts:74 (listProducts
+     *                          default) → designs.*, artisan_product_detail.*;
+     *                          storefront-starter lib/data/products.ts:66 →
+     *                          artisan_detail.*
+     *   /store/customers/me    storefront lib/data/customer.ts:56 → *orders
+     * ⚠️ `designs.tasks.*` is served publicly today and stays so here; whether
+     * a storefront should see a design's tasks at all is a separate decision.
+     */
+    ...["/store/products", "/store/products/:id"].map((matcher) => ({
+      matcher,
+      middlewares: [
+        allowFields(
+          "artisan_product_detail",
+          "artisan_product_detail.*",
+          "artisan_detail",
+          "artisan_detail.*",
+          "designs",
+          "designs.*",
+          "designs.partners",
+          "designs.partners.*",
+          "designs.tasks",
+          "designs.tasks.*",
+          "designs.inventory_items",
+          "designs.inventory_items.raw_materials",
+          "designs.inventory_items.raw_materials.*",
+          "designs.inventory_items.raw_materials.material_type",
+          "designs.inventory_items.raw_materials.material_type.*"
+        ),
+      ],
+    })),
+    {
+      matcher: "/store/customers/me",
+      middlewares: [allowFields("orders", "orders.*")],
+    },
     // OAuth revocation check (#1306 Track B). Method-less on purpose, exactly
     // like the scope guard below — a "global" entry is concatenated ahead of
     // every /admin/* handler — and registered FIRST so a revoked credential is
@@ -3621,6 +3668,25 @@ export default defineMiddlewares({
       ],
     },
     // Partner Inventory Orders APIs
+    {
+      // #2286 — inventory orders delivered TO this partner's warehouse.
+      matcher: "/partners/incoming-deliveries",
+      method: "GET",
+      middlewares: [
+        createCorsPartnerMiddleware(),
+        authenticate("partner", ["session", "bearer"]),
+      ],
+    },
+    {
+      // #2286 — the receiving partner confirms what arrived.
+      matcher: "/partners/incoming-deliveries/:orderId/receive",
+      method: "POST",
+      middlewares: [
+        createCorsPartnerMiddleware(),
+        authenticate("partner", ["session", "bearer"]),
+        validateAndTransformBody(wrapSchema(partnerReceiveIncomingSchema)),
+      ],
+    },
     {
       matcher: "/partners/inventory-orders",
       method: "GET",

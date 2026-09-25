@@ -210,7 +210,9 @@ as the discriminator/pointer. Instead:
   - **Known scale limit (accepted, revisit later):** the injected id array is
     unbounded (all work-orders for retail; all of a kind otherwise) → a large
     `IN`/`NOT IN` at scale. Fine for an early-stage admin-only list.
-  - Tests: `integration-tests/http/orders-unification-admin-list-filter.spec.ts`
+  - Tests: `integration-tests/http/work-orders-admin-reads.spec.ts` (#2264 S2b
+    replaced `orders-unification-admin-list-filter`, `-admin-detail` and
+    `-admin-list-workstatus` with one spec run flag-off AND flag-on)
     — stands up a retail order (`createOrderWorkflow`) + an inventory work-order +
     a design work-order, asserts by SPECIFIC id (shared-DB-robust) that default
     hides work-orders, each `?kind=` surfaces its own, `?kind=all` shows all.

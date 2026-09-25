@@ -152,7 +152,7 @@ setupSharedTestSuite(() => {
       expect(result.action).toBe("complete_prompt")
       const after = await readBack(run.id, design.id)
       expect(after.run.status).toBe("in_progress")
-      expect(sent.some((m) => typeof m.payload === "string" && /produced quantity/i.test(m.payload))).toBe(true)
+      expect(sent.some((m) => typeof m.payload === "string" && /number of \*good\* pieces/i.test(m.payload))).toBe(true)
     })
   })
 })

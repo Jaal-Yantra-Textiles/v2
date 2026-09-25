@@ -25,6 +25,7 @@ import {
   postingsFromPlannedLines,
   type PlannedReceiptLine,
 } from "./lib/plan-inventory-order-receipt"
+import { resolveInventoryOrderDestination } from "./lib/order-destination"
 
 /**
  * ADMIN RECEIPT — record that goods actually turned up, and put them on the
@@ -64,6 +65,11 @@ export type ReceiveInventoryOrderInput = {
   stock_location_id?: string | null
   notes?: string | null
   received_by?: string | null
+  /**
+   * #2286 — set when the RECEIVING PARTNER confirms the delivery from their
+   * portal; the audit row then names them rather than an admin.
+   */
+  received_by_partner_id?: string | null
 }
 
 const planReceiptStep = createStep(
@@ -117,8 +123,13 @@ const planReceiptStep = createStep(
     const plan = planInventoryOrderReceipt({
       order_id: input.orderId,
       status: (order as any).status,
-      destination_location_id:
-        ((order as any).stock_locations || [])[0]?.id ?? null,
+      // #2286 — the flagged `to_location` end of the route, not
+      // `stock_locations[0]`, which can be the SOURCE (the supplier's own
+      // warehouse) on any order that has one.
+      destination_location_id: await resolveInventoryOrderDestination(
+        container,
+        input.orderId
+      ),
       location_id: input.stock_location_id ?? null,
       lines,
       requested: input.lines ?? null,
@@ -217,6 +228,7 @@ const recordReceiptActivityStep = createStep(
       postings: Array<{ inventory_item_id: string; location_id: string; quantity: number }>
       notes?: string | null
       received_by?: string | null
+      received_by_partner_id?: string | null
     },
     { container }
   ) => {
@@ -231,9 +243,9 @@ const recordReceiptActivityStep = createStep(
       inventory_order_id: input.orderId,
       activity_type: "lifecycle_event",
       kind: "goods_received",
-      actor_type: "admin",
+      actor_type: input.received_by_partner_id ? "partner" : "admin",
       actor_id: input.received_by ?? null,
-      partner_id: null,
+      partner_id: input.received_by_partner_id ?? null,
       channel: null,
       message_id: null,
       template_name: null,
@@ -361,6 +373,7 @@ export const receiveInventoryOrderWorkflow = createWorkflow(
       postings: plan.postings,
       notes: input.notes,
       received_by: input.received_by,
+      received_by_partner_id: input.received_by_partner_id,
     })
 
     return new WorkflowResponse({
