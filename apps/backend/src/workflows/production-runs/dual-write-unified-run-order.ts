@@ -1490,9 +1490,35 @@ export const projectDispatchedCustomerOrderRun = async (
       target = open?.order?.id ?? null
     }
 
+    // The partner's design page is gated on the design↔partner link.
+    // `joinRunsIntoWorkOrder` writes it only for designs NEW to the order, and
+    // the per-run projection never does — so the FIRST run of a customer
+    // order (the one that mints the mirror) 404'd for the partner: Oshen Tea
+    // Towels on work order #116. Written here, for every path, idempotently.
+    const ensureDesignPartnerLink = async () => {
+      if (!run.design_id) return
+      const remoteLink = container.resolve(ContainerRegistrationKeys.LINK) as Link
+      await remoteLink
+        .create([
+          {
+            [DESIGN_MODULE]: { design_id: run.design_id },
+            [PARTNER_MODULE]: { partner_id: run.partner_id },
+          },
+        ])
+        .catch((e: any) => {
+          if (!/duplicate|already exists|unique/i.test(e?.message || "")) {
+            logger.warn(
+              `[orders-unification] design↔partner link failed for run ${productionRunId}: ${e?.message}`
+            )
+          }
+        })
+    }
+
     if (target) {
       try {
-        return await joinRunsIntoWorkOrder(container, target, [run])
+        const joined = await joinRunsIntoWorkOrder(container, target, [run])
+        await ensureDesignPartnerLink()
+        return joined
       } catch (e: any) {
         // join throws rather than half-apply; a mirror of its own is worse
         // than one order, better than dispatched work with no order at all.
@@ -1501,7 +1527,9 @@ export const projectDispatchedCustomerOrderRun = async (
         )
       }
     }
-    return await projectRunToUnifiedOrder(container, productionRunId)
+    const projected = await projectRunToUnifiedOrder(container, productionRunId)
+    await ensureDesignPartnerLink()
+    return projected
   } catch (e: any) {
     logger.warn(
       `[orders-unification] customer-order run projection failed for ${productionRunId}: ${e?.message}`
