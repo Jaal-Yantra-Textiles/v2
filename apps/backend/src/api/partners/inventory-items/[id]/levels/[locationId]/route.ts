@@ -1,14 +1,16 @@
 import { AuthenticatedMedusaRequest, MedusaResponse } from "@medusajs/framework/http"
 import { MedusaError, Modules } from "@medusajs/framework/utils"
 import { deleteInventoryLevelsWorkflow } from "@medusajs/medusa/core-flows"
-import { getPartnerFromAuthContext, getPartnerStore } from "../../../../helpers"
+import { getPartnerFromAuthContext } from "../../../../helpers"
+import { resolvePartnerHomeLocation } from "../../../../lib/partner-home-location"
 
 async function verifyLocationAccess(
   req: AuthenticatedMedusaRequest,
   locationId: string
 ) {
-  const { store } = await getPartnerStore(req.auth_context, req.scope)
-  if (store.default_location_id !== locationId) {
+  // #2286 — the store location, else the linked warehouse (store-less partners).
+  const { location_id: homeLocationId } = await resolvePartnerHomeLocation(req.auth_context, req.scope)
+  if (homeLocationId !== locationId) {
     throw new MedusaError(
       MedusaError.Types.UNAUTHORIZED,
       "You can only manage inventory at your own stock location"

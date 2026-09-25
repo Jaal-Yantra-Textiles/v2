@@ -192,6 +192,7 @@ import { partnerPeopleSchema } from "./partners/[id]/validators";
 import { updatePartnerMeSchema } from "./partners/me/validators";
 import { onboardingProfileUpdateSchema } from "./partners/onboarding-profile/validators";
 import { partnerUpdateOrderLinesSchema, partnerAddOrderChargeSchema } from "./partners/inventory-orders/change-schemas";
+import { partnerReceiveIncomingSchema } from "./partners/incoming-deliveries/validators";
 import { setLayoutConfigurationSchema } from "./partners/layouts/validators";
 import { AdminGetPartnersParamsSchema } from "./admin/persons/partner/validators";
 import { createInventoryOrdersSchema, listInventoryOrdersQuerySchema, ReadSingleInventoryOrderQuerySchema, updateInventoryOrdersSchema, updateInventoryOrderLinesSchema, createInventoryOrderChargeSchema, assignInventoryOrderPartnerSchema, rejectInventoryOrderChangeSchema } from "./admin/inventory-orders/validators";
@@ -3620,6 +3621,25 @@ export default defineMiddlewares({
       ],
     },
     // Partner Inventory Orders APIs
+    {
+      // #2286 — inventory orders delivered TO this partner's warehouse.
+      matcher: "/partners/incoming-deliveries",
+      method: "GET",
+      middlewares: [
+        createCorsPartnerMiddleware(),
+        authenticate("partner", ["session", "bearer"]),
+      ],
+    },
+    {
+      // #2286 — the receiving partner confirms what arrived.
+      matcher: "/partners/incoming-deliveries/:orderId/receive",
+      method: "POST",
+      middlewares: [
+        createCorsPartnerMiddleware(),
+        authenticate("partner", ["session", "bearer"]),
+        validateAndTransformBody(wrapSchema(partnerReceiveIncomingSchema)),
+      ],
+    },
     {
       matcher: "/partners/inventory-orders",
       method: "GET",

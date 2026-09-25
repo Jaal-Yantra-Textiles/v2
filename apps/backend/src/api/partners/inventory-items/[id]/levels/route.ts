@@ -1,6 +1,7 @@
 import { AuthenticatedMedusaRequest, MedusaResponse } from "@medusajs/framework/http"
 import { MedusaError, Modules } from "@medusajs/framework/utils"
-import { getPartnerFromAuthContext, getPartnerStore } from "../../../helpers"
+import { getPartnerFromAuthContext } from "../../../helpers"
+import { resolvePartnerHomeLocation } from "../../../lib/partner-home-location"
 
 export const GET = async (
   req: AuthenticatedMedusaRequest,
@@ -14,8 +15,9 @@ export const GET = async (
     )
   }
 
-  const { store } = await getPartnerStore(req.auth_context, req.scope)
-  const locationId = store.default_location_id
+  // #2286 — the store location, else the linked warehouse (store-less partners).
+  const { location_id: homeLocationId } = await resolvePartnerHomeLocation(req.auth_context, req.scope)
+  const locationId = homeLocationId
 
   const { id } = req.params
   const inventoryService = req.scope.resolve(Modules.INVENTORY) as any

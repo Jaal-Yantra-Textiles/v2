@@ -1,7 +1,8 @@
 import { AuthenticatedMedusaRequest, MedusaResponse } from "@medusajs/framework/http"
 import { ContainerRegistrationKeys, MedusaError } from "@medusajs/framework/utils"
 import { batchInventoryItemLevelsWorkflow } from "@medusajs/medusa/core-flows"
-import { getPartnerFromAuthContext, getPartnerStore } from "../../helpers"
+import { getPartnerFromAuthContext } from "../../helpers"
+import { resolvePartnerHomeLocation } from "../../lib/partner-home-location"
 
 export const POST = async (
   req: AuthenticatedMedusaRequest,
@@ -12,8 +13,9 @@ export const POST = async (
     throw new MedusaError(MedusaError.Types.UNAUTHORIZED, "No partner associated")
   }
 
-  const { store } = await getPartnerStore(req.auth_context, req.scope)
-  const partnerLocationId = store.default_location_id
+  // #2286 — the store location, else the linked warehouse (store-less partners).
+  const { location_id: homeLocationId } = await resolvePartnerHomeLocation(req.auth_context, req.scope)
+  const partnerLocationId = homeLocationId
 
   const body = req.body as Record<string, any>
 

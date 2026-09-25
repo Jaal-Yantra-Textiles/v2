@@ -648,6 +648,20 @@ export function getPartnerRouteMap(): RouteObject[] {
                   lazy: () => import("../../routes/orders/order-list"),
                   handle: { breadcrumb: () => "All" },
                 },
+                // #2286 — deliveries TO this partner's warehouse, and the
+                // receipt they confirm. Static, so it ranks above `:id`.
+                {
+                  path: "incoming",
+                  lazy: () => import("../../routes/orders/incoming-deliveries"),
+                  handle: { breadcrumb: () => "Incoming deliveries" },
+                  children: [
+                    {
+                      path: ":orderId/receive",
+                      lazy: () =>
+                        import("../../routes/orders/incoming-delivery-receive"),
+                    },
+                  ],
+                },
                 // #1389 S3 — quotes. A static segment, so it ranks above
                 // `:id` and a quote id never collides with an order id.
                 {

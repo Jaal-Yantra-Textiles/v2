@@ -6,7 +6,7 @@ import { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
 import { z } from "zod"
 import { listPartnerInventoryItemsWorkflow } from "../../../../../workflows/inventory/list-partner-inventory-items"
 import { resolvePartnerInspectionContext } from "../lib/partner-inspection"
-import { tryGetPartnerStore } from "../../../../partners/helpers"
+import { resolvePartnerHomeLocation } from "../../../../partners/lib/partner-home-location"
 
 /**
  * The partner route reads `q`/`limit`/`offset` straight off the request with no
@@ -14,7 +14,8 @@ import { tryGetPartnerStore } from "../../../../partners/helpers"
  *
  * Deliberately NO `store_id` selector, unlike the products mirror: the partner
  * inventory surface has no multi-store notion at all — it reads the partner's
- * first store's default location and nothing else. Offering a store picker here
+ * home location (#2286: their store's default location, else their linked
+ * warehouse) and nothing else. Offering a store picker here
  * would make the mirror show something the partner cannot see, which is the one
  * thing it must never do.
  */
@@ -32,7 +33,7 @@ const inspectInventoryQuerySchema = z.object({
  * search-then-paginate semantics — because it runs the same workflow, just with
  * the partner resolved from `:id` instead of from a partner bearer.
  *
- * A partner with no store, or a store with no default location, has no
+ * A partner with neither a store location nor a linked warehouse has no
  * inventory to show — an empty list, not an error. That is exactly what the
  * partner route returns them, and it is a state the operator wants to SEE.
  *
@@ -57,8 +58,7 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
 
   // The location — not the store — is this surface's scoping rule, resolved via
   // the partner portal's own helper so admin cannot scope it differently.
-  const { store } = await tryGetPartnerStore(authContext, req.scope)
-  const locationId = store?.default_location_id
+  const { location_id: locationId } = await resolvePartnerHomeLocation(authContext, req.scope)
 
   if (!locationId) {
     return res.json({ inventory_items: [], count: 0, offset, limit })

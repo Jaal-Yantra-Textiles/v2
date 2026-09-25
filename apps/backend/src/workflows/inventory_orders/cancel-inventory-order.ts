@@ -14,6 +14,7 @@ import { TASKS_MODULE } from "../../modules/tasks"
 import inventoryOrdersTasks from "../../links/inventory-orders-tasks"
 import { resolveExistingLevelsStep } from "./partner-complete-inventory-order"
 import { updateInventoryOrderWorkflow } from "./update-inventory-order"
+import { resolveInventoryOrderDestination } from "./lib/order-destination"
 import {
   assertCancellable,
   buildReversalLevels,
@@ -70,8 +71,12 @@ export const loadOrderForCancelStep = createStep(
     assertCancellable(order.status)
 
     const deliveredLines = (order.metadata?.partner_delivered_lines || []) as DeliveredLine[]
+    // #2286 — reverse stock from where it was POSTED: the flagged destination,
+    // not `stock_locations[0]` (which can be the supplier's warehouse).
+    const flaggedDestination = await resolveInventoryOrderDestination(container, order.id)
     const destLocationId =
       input.stockLocationId ||
+      flaggedDestination ||
       order.to_stock_location_id ||
       order.stock_location_id ||
       order.destination_stock_location_id ||
