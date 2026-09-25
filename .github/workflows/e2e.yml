@@ -26,6 +26,12 @@ on:
       - 'apps/backend/src/workflows/orders/**'
       - 'apps/partner-ui/src/routes/orders/**'
       - 'apps/partner-ui/src/components/work-orders/**'
+      # A dependency bump (a Medusa upgrade above all) changes every screen
+      # at once; without these the upgrade PR ran no browser test.
+      - 'pnpm-lock.yaml'
+      - 'apps/backend/package.json'
+      - 'apps/partner-ui/package.json'
+      - 'apps/backend/src/api/middlewares.ts'
       - 'e2e/**'
       - '.github/workflows/e2e.yml'
   pull_request:
@@ -59,6 +65,12 @@ on:
       - 'apps/backend/src/workflows/orders/**'
       - 'apps/partner-ui/src/routes/orders/**'
       - 'apps/partner-ui/src/components/work-orders/**'
+      # A dependency bump (a Medusa upgrade above all) changes every screen
+      # at once; without these the upgrade PR ran no browser test.
+      - 'pnpm-lock.yaml'
+      - 'apps/backend/package.json'
+      - 'apps/partner-ui/package.json'
+      - 'apps/backend/src/api/middlewares.ts'
       - 'e2e/**'
       - '.github/workflows/e2e.yml'
 
