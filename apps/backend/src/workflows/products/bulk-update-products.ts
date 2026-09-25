@@ -357,6 +357,22 @@ async function resolveTargetIds(
  * Returns the inventory item id to stock, or null when one could not be
  * established.
  */
+async function linkedInventoryItemId(
+  container: MedusaContainer,
+  variantId: string
+): Promise<string | null> {
+  const query: any = container.resolve(ContainerRegistrationKeys.QUERY)
+  const { data } = await query.graph({
+    entity: "product_variant",
+    fields: ["id", "inventory_items.inventory_item_id"],
+    filters: { id: variantId },
+  })
+  const id = (data?.[0] as any)?.inventory_items?.find(
+    (i: any) => i?.inventory_item_id
+  )?.inventory_item_id
+  return id ? String(id) : null
+}
+
 export async function enableInventoryTracking(
   container: MedusaContainer,
   variant: any,
@@ -379,6 +395,15 @@ export async function enableInventoryTracking(
 
   if (alreadyLinked) {
     return String(alreadyLinked)
+  }
+
+  // Since Medusa 2.21, turning manage_inventory on makes core create and link
+  // a default item itself (createProductVariantsDefaultInventoryStep). Creating
+  // another here 400'd on the variant's SKU, or, with no SKU, gave the variant
+  // TWO items. Use core's when it made one.
+  const coreItemId = await linkedInventoryItemId(container, variant.id)
+  if (coreItemId) {
+    return coreItemId
   }
 
   // Mirror the shape core uses when it creates a default item at variant-create

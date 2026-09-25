@@ -2947,6 +2947,19 @@
       "updated_at"
     ]
   },
+  "PartnerPushToken (modules/partner-push/models/partner-push-token.ts)": {
+    "file": "modules/partner-push/models/partner-push-token.ts",
+    "fields": [
+      "app_version",
+      "created_at",
+      "deleted_at",
+      "id",
+      "partner_id",
+      "platform",
+      "token",
+      "updated_at"
+    ]
+  },
   "PartnerQuote (modules/partner-quote/models/partner-quote.ts)": {
     "file": "modules/partner-quote/models/partner-quote.ts",
     "fields": [
