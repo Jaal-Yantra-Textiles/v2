@@ -1420,6 +1420,107 @@ export const dualWriteChildRunOrdersStep = createStep(
   }
 )
 
+/**
+ * #2281 — give a dispatched CUSTOMER-ORDER run a work-order.
+ *
+ * `order.placed` creates its runs with `skip_unified_projection` (#1126): while
+ * nobody has been asked to make anything, a run is only "sold, not yet made"
+ * provenance and belongs on no work-order. Dispatch changes that — a partner
+ * now has the job, and without an order their portal lists nothing (the four
+ * Oshen runs of order #101 sent to Ksaman on 2026-09-25).
+ *
+ * The unit is (customer order, partner): the first run dispatched gets a
+ * per-run mirror; each later sibling for the SAME partner joins it, which
+ * promotes the mirror to a collated order. So order #101 → one Ksaman order,
+ * four lines. A second partner on the same customer order gets their own.
+ *
+ * 🔑 Deliberately NOT `findOpenPartnerWorkOrder`: that would pour a customer's
+ * runs into whatever unrelated batch the partner has open this fortnight.
+ *
+ * Idempotent (a run already on an order is left alone) and best-effort — a
+ * failure here must not undo a dispatch that already messaged the partner.
+ */
+export const projectDispatchedCustomerOrderRun = async (
+  container: MedusaContainer,
+  productionRunId: string
+): Promise<ProjectionResult> => {
+  const logger: any = container.resolve(ContainerRegistrationKeys.LOGGER)
+  try {
+    const runService: ProductionRunService =
+      container.resolve(PRODUCTION_RUNS_MODULE)
+    const run: any = await runService
+      .retrieveProductionRun(productionRunId)
+      .catch(() => null)
+    if (!run?.order_id || !run?.partner_id) {
+      return { unified_order_id: null, skipped: "not_customer_order_run" }
+    }
+
+    const existing = await resolveUnifiedOrderIdByLink(
+      container,
+      "production_runs",
+      productionRunId
+    )
+    if (existing) {
+      return { unified_order_id: existing, skipped: "already_projected" }
+    }
+
+    const siblings: any[] = await runService.listProductionRuns(
+      { order_id: [run.order_id], partner_id: [run.partner_id] } as any,
+      { select: ["id"] }
+    )
+    const siblingIds = siblings
+      .map((r) => String(r.id))
+      .filter((id) => id !== productionRunId)
+
+    let target: string | null = null
+    if (siblingIds.length) {
+      const query: any = container.resolve(ContainerRegistrationKeys.QUERY)
+      const { data } = await query.graph({
+        entity: "production_runs",
+        fields: ["id", "order.id", "order.status"],
+        filters: { id: siblingIds },
+      })
+      const open = (data || []).find(
+        (r: any) =>
+          r?.order?.id &&
+          !["completed", "canceled", "cancelled"].includes(
+            String(r.order.status ?? "")
+          )
+      )
+      target = open?.order?.id ?? null
+    }
+
+    if (target) {
+      try {
+        return await joinRunsIntoWorkOrder(container, target, [run])
+      } catch (e: any) {
+        // join throws rather than half-apply; a mirror of its own is worse
+        // than one order, better than dispatched work with no order at all.
+        logger.warn(
+          `[orders-unification] could not join customer-order run ${productionRunId} into ${target} (${e?.message}) — minting its own work-order`
+        )
+      }
+    }
+    return await projectRunToUnifiedOrder(container, productionRunId)
+  } catch (e: any) {
+    logger.warn(
+      `[orders-unification] customer-order run projection failed for ${productionRunId}: ${e?.message}`
+    )
+    return { unified_order_id: null, error: e?.message }
+  }
+}
+
+export const projectDispatchedCustomerOrderRunStep = createStep(
+  "project-dispatched-customer-order-run",
+  async (input: { production_run_id: string }, { container }) => {
+    const result = await projectDispatchedCustomerOrderRun(
+      container,
+      input.production_run_id
+    )
+    return new StepResponse<ProjectionResult>(result)
+  }
+)
+
 // Send-side mirror: once the run is dispatched the partner is committed —
 // scope the unified order to them (D3 link) and stamp partner_status
 // "assigned" (§5). Same best-effort contract as the other steps.
