@@ -1,12 +1,13 @@
 import { AuthenticatedMedusaRequest, MedusaResponse } from "@medusajs/framework/http"
 import { cancelOrderTransferRequestWorkflow } from "@medusajs/medusa/core-flows"
-import { validatePartnerOrderOwnership } from "../../../../helpers"
+import { assertNotWorkOrder, validatePartnerOrderOwnership } from "../../../../helpers"
 
 export const POST = async (
   req: AuthenticatedMedusaRequest,
   res: MedusaResponse
 ) => {
   await validatePartnerOrderOwnership(req.auth_context, req.params.id, req.scope)
+  await assertNotWorkOrder(req.params.id, req.scope)
 
   const { result } = await cancelOrderTransferRequestWorkflow(req.scope).run({
     input: {

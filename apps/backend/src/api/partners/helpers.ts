@@ -1,6 +1,7 @@
 import { MedusaContainer } from "@medusajs/framework"
 import { ContainerRegistrationKeys, MedusaError, Modules } from "@medusajs/framework/utils"
 import partnerOrderLink from "../../links/partner-order"
+import { PARTNER_WORK_ORDERS_CHANNEL } from "../../workflows/inventory_orders/dual-write-unified-order"
 import { pickPartnerShipFromLocation } from "./lib/ship-from-location"
 
 export const refetchPartner = async (
@@ -489,6 +490,57 @@ export const validatePartnerOrderOwnership = async (
     }
 
     return { partner, store }
+}
+
+/**
+ * Refuses a RETAIL-only action on a work order (#2265 S3a).
+ *
+ * `validatePartnerOrderOwnership` deliberately admits work orders (the D3 link
+ * is how a partner owns one), so on its own it lets a partner run core order
+ * machinery on a design or inventory work order: `cancelOrderWorkflow` fires
+ * `order.canceled` (partner email, fee reversal, provenance runs), and the
+ * fulfillment / transfer / credit-line / balance routes write core rows a work
+ * order must never have. partner-ui already hides these actions for work
+ * orders; this closes the API behind them.
+ *
+ * A work order is EITHER a `work_order` row OR a core order in the internal
+ * work-orders channel. Both, because the S1 shadow write is best-effort: a
+ * mirror whose shadow sync failed still has no `work_order` row.
+ */
+export const assertNotWorkOrder = async (
+    orderId: string,
+    container: MedusaContainer,
+): Promise<void> => {
+    const query = container.resolve(ContainerRegistrationKeys.QUERY)
+
+    const { data: workOrders } = await query.graph({
+        entity: "work_order",
+        fields: ["id"],
+        filters: { id: orderId },
+    })
+    let isWorkOrder = (workOrders?.length ?? 0) > 0
+
+    if (!isWorkOrder) {
+        const salesChannels = container.resolve(Modules.SALES_CHANNEL)
+        const [channel] = await salesChannels.listSalesChannels({
+            name: PARTNER_WORK_ORDERS_CHANNEL,
+        })
+        if (channel) {
+            const { data: orders } = await query.graph({
+                entity: "orders",
+                fields: ["id"],
+                filters: { id: orderId, sales_channel_id: channel.id },
+            })
+            isWorkOrder = (orders?.length ?? 0) > 0
+        }
+    }
+
+    if (isWorkOrder) {
+        throw new MedusaError(
+            MedusaError.Types.NOT_ALLOWED,
+            "This is a work order. Retail order actions (cancel, fulfill, transfer, credit, balance request, shipping labels) do not apply to it; use the production run or inventory order instead."
+        )
+    }
 }
 
 /**

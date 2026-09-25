@@ -1,6 +1,6 @@
 import { AuthenticatedMedusaRequest, MedusaResponse } from "@medusajs/framework/http"
 import { ContainerRegistrationKeys, Modules } from "@medusajs/framework/utils"
-import { validatePartnerOrderOwnership } from "../../../helpers"
+import { assertNotWorkOrder, validatePartnerOrderOwnership } from "../../../helpers"
 
 export const POST = async (
   req: AuthenticatedMedusaRequest,
@@ -17,6 +17,7 @@ export const POST = async (
   const orderChange = data?.[0] as any
   if (orderChange?.order_id) {
     await validatePartnerOrderOwnership(req.auth_context, orderChange.order_id, req.scope)
+    await assertNotWorkOrder(orderChange.order_id, req.scope)
   }
 
   const orderService = req.scope.resolve(Modules.ORDER) as any

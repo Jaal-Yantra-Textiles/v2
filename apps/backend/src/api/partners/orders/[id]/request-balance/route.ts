@@ -1,7 +1,7 @@
 import { AuthenticatedMedusaRequest, MedusaResponse } from "@medusajs/framework/http"
 
 import { requestOrderBalanceWorkflow } from "../../../../../workflows/payments/request-order-balance"
-import { validatePartnerOrderOwnership } from "../../../helpers"
+import { assertNotWorkOrder, validatePartnerOrderOwnership } from "../../../helpers"
 
 /**
  * POST /partners/orders/:id/request-balance
@@ -42,6 +42,7 @@ export const POST = async (
     orderId,
     req.scope
   )
+  await assertNotWorkOrder(orderId, req.scope)
 
   const { result } = await requestOrderBalanceWorkflow(req.scope).run({
     input: {

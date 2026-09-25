@@ -443,6 +443,41 @@ setupSharedTestSuite(() => {
       }
     })
 
+    // #2265 S3a — ownership admits a partner's own work orders, so the retail
+    // action routes must refuse them: cancel ran core cancelOrderWorkflow
+    // (order.canceled → partner email, fee reversal, provenance runs).
+    it("partner CANNOT run retail actions (cancel, fulfill) on its OWN work orders; the order stays uncanceled", async () => {
+      const inv = await createInventoryWorkOrder(partnerA)
+      const design = await createDesignWorkOrder(partnerA)
+
+      for (const id of [inv.unifiedId, design.unifiedId]) {
+        const cancel = await api
+          .post(`/partners/orders/${id}/cancel`, {}, partnerA.headers)
+          .catch((e: any) => e.response)
+        expect(cancel.status).toBe(400)
+        expect(cancel.data.message).toMatch(/work order/i)
+
+        const fulfill = await api
+          .post(`/partners/orders/${id}/fulfillments`, { items: [] }, partnerA.headers)
+          .catch((e: any) => e.response)
+        expect(fulfill.status).toBe(400)
+        expect(fulfill.data.message).toMatch(/work order/i)
+
+        const after = await getDetail(id, partnerA.headers)
+        expect(after.status).toBe(200)
+        expect(after.data.order.status).not.toBe("canceled")
+      }
+    })
+
+    it("a RETAIL order is not refused by the work-order guard", async () => {
+      const retailId = await createRetailOrder(partnerA)
+      const cancel = await api
+        .post(`/partners/orders/${retailId}/cancel`, {}, partnerA.headers)
+        .catch((e: any) => e.response)
+      // Whatever core decides about cancelling it, it is not the work-order refusal.
+      expect(String(cancel.data?.message ?? "")).not.toMatch(/work order/i)
+    })
+
     // #342 (session 2) — the retired `/production-runs/:id` partner-ui route
     // redirects to the unified order detail by reading `unified_order_id` off
     // the production-run responses (resolved via the order↔production_run link).

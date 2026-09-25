@@ -1,6 +1,6 @@
 import { AuthenticatedMedusaRequest, MedusaResponse } from "@medusajs/framework/http"
 import { ContainerRegistrationKeys, MedusaError } from "@medusajs/framework/utils"
-import { validatePartnerOrderOwnership } from "../../../../../helpers"
+import { assertNotWorkOrder, validatePartnerOrderOwnership } from "../../../../../helpers"
 import { persistPickupBookingSafely } from "../../../../../../../lib/persist-pickup-booking"
 import { resolveOriginAddress } from "../../../../../../../modules/shipping-providers/origin-address"
 import {
@@ -14,6 +14,7 @@ export const POST = async (
   res: MedusaResponse
 ) => {
   await validatePartnerOrderOwnership(req.auth_context, req.params.id, req.scope)
+  await assertNotWorkOrder(req.params.id, req.scope)
 
   const query = req.scope.resolve(ContainerRegistrationKeys.QUERY)
   const { data: orders } = await query.graph({

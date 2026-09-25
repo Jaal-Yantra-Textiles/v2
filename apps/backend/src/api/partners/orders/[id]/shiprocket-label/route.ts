@@ -2,6 +2,7 @@ import { AuthenticatedMedusaRequest, MedusaResponse } from "@medusajs/framework/
 import { MedusaError } from "@medusajs/framework/utils"
 import {
   resolvePartnerShipFromLocation,
+  assertNotWorkOrder,
   validatePartnerOrderOwnership,
 } from "../../../helpers"
 import { ensureOrderFulfillment } from "../../../../../workflows/orders/fulfillment-context"
@@ -39,6 +40,7 @@ export const POST = async (
 ) => {
   const orderId = req.params.id
   await validatePartnerOrderOwnership(req.auth_context, orderId, req.scope)
+  await assertNotWorkOrder(orderId, req.scope)
 
   const body = (req.body || {}) as {
     carrier?: string
