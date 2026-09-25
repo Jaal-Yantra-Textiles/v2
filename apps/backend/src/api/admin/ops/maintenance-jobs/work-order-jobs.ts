@@ -2,7 +2,10 @@ import { isDeepStrictEqual } from "node:util"
 import { ContainerRegistrationKeys } from "@medusajs/framework/utils"
 import { z } from "@medusajs/framework/zod"
 
+import { collectWorkOrderIds } from "../../orders/route"
+import { workOrderIdsInCore } from "../../../../lib/work-orders/admin-order-reads"
 import { WORK_ORDER_MIRROR_FIELDS } from "../../../../lib/work-orders/from-core-order"
+import { WORK_ORDER_READ_FIELDS } from "../../../../lib/work-orders/read-work-orders"
 import { syncWorkOrderFromMirror } from "../../../../lib/work-orders/sync-from-mirror"
 import { toOrderShape } from "../../../../lib/work-orders/to-order-shape"
 import { pickWorkOrderContract } from "../../../../lib/work-orders/work-order-contract"
@@ -14,7 +17,8 @@ import type { MaintenanceChange, MaintenanceJob, MaintenanceJobResult } from "./
  *
  *   backfill-work-orders — copy / resync every #342 mirror into work_order
  *   work-order-parity    — read-only: does each work_order read to the UI
- *                          exactly as its mirror does?
+ *                          exactly as its mirror does, and do the admin lists
+ *                          hold the same orders from either source?
  */
 
 const MAX_SCAN = 5000
@@ -138,11 +142,39 @@ export const diffContract = (served: any, mirror: any): string[] => {
   return Object.keys(b).filter((k) => !isDeepStrictEqual(a[k], b[k]))
 }
 
+export type ListSets = { design: string[]; inventory: string[]; retail_excluded: string[] }
+
+/**
+ * Pure: where the admin order lists would hold DIFFERENT orders with
+ * `WORK_ORDER_READS` on (#2264 S2b) than they do today. `off` is what the
+ * flag-off route computes (links + the `legacy_id` metadata net); `on` is
+ * `work_order` by kind, and the retail exclusion `workOrderIdsInCore`.
+ * Exported for unit testing.
+ */
+export const diffListMembership = (off: ListSets, on: ListSets): MaintenanceChange[] => {
+  const changes: MaintenanceChange[] = []
+  for (const list of ["design", "inventory", "retail_excluded"] as const) {
+    const a = new Set(off[list])
+    const b = new Set(on[list])
+    for (const id of a) {
+      if (!b.has(id)) {
+        changes.push({ entity: "order", id, field: `list:${list}`, before: "listed", after: "not listed", note: "flag off → flag on" })
+      }
+    }
+    for (const id of b) {
+      if (!a.has(id)) {
+        changes.push({ entity: "order", id, field: `list:${list}`, before: "not listed", after: "listed", note: "flag off → flag on" })
+      }
+    }
+  }
+  return changes
+}
+
 export const workOrderParityJob: MaintenanceJob = {
   id: "work-order-parity",
   label: "Work order parity with the core-order mirror",
   description:
-    "#2263 S1 (#2261). READ-ONLY. For every mirror: is there a work_order, and does it read to partner-ui / admin exactly as the mirror does (pickWorkOrderContract on toOrderShape(work_order) vs the mirror)? Reports each mismatch with the fields that differ, and each mirror with no work_order. Writes nothing in either mode. The target before S2 (#2264) flips reads: 0 mismatches, 0 missing.",
+    "#2263 S1 (#2261). READ-ONLY. For every mirror: is there a work_order, and does it read to partner-ui / admin exactly as the mirror does (pickWorkOrderContract on toOrderShape(work_order) vs the mirror)? Reports each mismatch with the fields that differ, and each mirror with no work_order. Unless order_ids is given, also compares the ADMIN LISTS (#2264 S2b): which orders GET /admin/orders?kind=design|inventory holds, and which it keeps out of retail, flag off vs WORK_ORDER_READS on — each difference is a change with field list:<name>. Writes nothing in either mode. The target before flipping WORK_ORDER_READS: 0 mismatches, 0 missing, 0 list differences.",
   params: [
     { name: "order_ids", type: "string", required: false, description: "Comma-separated mirror order ids (default: every mirror)" },
   ],
@@ -163,7 +195,8 @@ export const workOrderParityJob: MaintenanceJob = {
       })
       const { data: stored } = await query.graph({
         entity: "work_order",
-        fields: ["*", "items.*", "production_runs.id"],
+        // The fields the S2 routes read — so this checks what they serve.
+        fields: WORK_ORDER_READ_FIELDS,
         filters: { id: batch },
       })
       const byId = new Map<string, any>((stored ?? []).map((w: any) => [w.id, w]))
@@ -191,11 +224,34 @@ export const workOrderParityJob: MaintenanceJob = {
       }
     }
 
+    // The admin lists, flag off vs on — only on a full run: a targeted run
+    // cannot say what a whole list holds.
+    let listSummary = ""
+    if (!order_ids.length) {
+      const [design, inventory, retailExcludedOn, { data: rows }] = await Promise.all([
+        collectWorkOrderIds(query, "design"),
+        collectWorkOrderIds(query, "inventory"),
+        workOrderIdsInCore(container),
+        query.graph({ entity: "work_order", fields: ["id", "kind"] }),
+      ])
+      const byKind = (k: string) => (rows ?? []).filter((r: any) => r.kind === k).map((r: any) => r.id)
+      const listChanges = diffListMembership(
+        { design, inventory, retail_excluded: [...new Set([...design, ...inventory])] },
+        { design: byKind("design"), inventory: byKind("inventory"), retail_excluded: retailExcludedOn }
+      )
+      changes.push(...listChanges)
+      listSummary =
+        `; admin lists: design ${design.length}→${byKind("design").length}, ` +
+        `inventory ${inventory.length}→${byKind("inventory").length}, ` +
+        `kept out of retail ${new Set([...design, ...inventory]).size}→${retailExcludedOn.length}, ` +
+        `${listChanges.length} list difference(s)`
+    }
+
     return {
       job_id: workOrderParityJob.id,
       dry_run,
       applied: false,
-      summary: `${targets.length} mirror(s): ${targets.length - missing - mismatched} match, ${mismatched} mismatch, ${missing} missing a work_order`,
+      summary: `${targets.length} mirror(s): ${targets.length - missing - mismatched} match, ${mismatched} mismatch, ${missing} missing a work_order${listSummary}`,
       changes,
       errors: [],
     }

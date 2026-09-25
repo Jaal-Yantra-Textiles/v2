@@ -17,6 +17,7 @@
 import { createOrderWorkflow } from "@medusajs/core-flows"
 import { ContainerRegistrationKeys, Modules } from "@medusajs/framework/utils"
 
+import { workOrderParityJob } from "../../src/api/admin/ops/maintenance-jobs/work-order-jobs"
 import { PARTNER_MODULE } from "../../src/modules/partner"
 import { WORK_ORDER_MODULE } from "../../src/modules/work_orders"
 import { produceDesignsAsWorkOrder } from "../../src/workflows/designs/produce-designs-as-work-order"
@@ -446,6 +447,30 @@ setupSharedTestSuite(() => {
       )
       expect(after.on).toBe("finished")
       expect(after.off).not.toBe("finished")
+    })
+
+    // ------------------------------------------------------ PROD GATE JOB --
+
+    it("work-order-parity (full run): 0 mismatches, 0 missing, 0 admin-list differences", async () => {
+      // The job the flag flip is gated on (run read-only on prod). A full run
+      // also compares the admin lists flag off vs on.
+      const r = await workOrderParityJob.run(getContainer(), { dry_run: true, params: {} })
+      expect({ changes: r.changes }).toEqual({ changes: [] })
+      expect(r.summary).toMatch(/ 0 mismatch, 0 missing a work_order; admin lists: .* 0 list difference\(s\)$/)
+    })
+
+    it("work-order-parity names an order the two admin lists disagree on", async () => {
+      // Drop the collated order's work_order: flag on would lose it from
+      // kind=design. (The channel still keeps it out of retail.)
+      const service: any = getContainer().resolve(WORK_ORDER_MODULE)
+      await service.deleteWorkOrders([collated.orderId])
+      const r = await workOrderParityJob.run(getContainer(), { dry_run: true, params: {} })
+      expect(r.changes).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({ id: collated.orderId, field: "list:design", after: "not listed" }),
+        ])
+      )
+      expect(r.changes.some((c: any) => c.field === "list:retail_excluded")).toBe(false)
     })
 
     // --------------------------------------------------------------- STATS --
