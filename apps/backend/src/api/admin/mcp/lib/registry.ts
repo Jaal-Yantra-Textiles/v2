@@ -5035,6 +5035,27 @@ export const ADMIN_MCP_TOOLS: AdminMcpToolDef[] = [
     pathParams: ["id"],
     inputSchema: obj({ id: STR("Production run id.") }, ["id"]),
   },
+  // #2271 — replay completion against prod data with no side effects.
+  {
+    name: "preview_production_run_completion",
+    description:
+      "What completing a production run WOULD do, writing nothing — a GET, safe on prod. Reports: whether the completion gate would refuse; the per-size/colour split it would record (confirmed → plan → the run's only combination, else refused); the stock path (legacy single variant | one variant per size/colour | skipped with a reason); every write it would make (mint a DRAFT product and at what price, add Size/Color options, create or reuse variants, stock +N at which warehouse). On an already-completed, unbanked run it shows what the bank-unstocked-run job would do. Pass produced_quantity / rejected_quantity / produced_output ('S:1,M:2') to ask 'what if'.",
+    method: "GET",
+    path: "/admin/production-runs/:id/completion-preview",
+    pathParams: ["id"],
+    queryParams: ["produced_quantity", "rejected_quantity", "produced_output", "allow_shortfall", "notes"],
+    inputSchema: obj(
+      {
+        id: STR("Production run id."),
+        produced_quantity: { type: "number", description: "Good pieces to complete with. Defaults to what the run recorded." },
+        rejected_quantity: { type: "number", description: "Rejected pieces. Defaults to what the run recorded." },
+        produced_output: STR("The split per size/colour, e.g. 'S:1,M:2' or 'S/Indigo:1'."),
+        allow_shortfall: STR("'true' to preview a deliberate shortfall."),
+        notes: STR("Completion notes, as the shortfall gate reads them."),
+      },
+      ["id"]
+    ),
+  },
   // ----- What a run actually consumed (#1974) -----------------------------
   // `get_production_run_cost_summary` could REPORT a cost but nothing here
   // could CREATE one, so a run with no consumption logs was uncostable through

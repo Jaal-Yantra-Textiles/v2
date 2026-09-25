@@ -4,6 +4,7 @@ import { PRODUCTION_RUNS_MODULE } from "../../../../modules/production_runs"
 import { resolvePartnerLocation } from "../../../../workflows/production-runs/lib/partner-location"
 import {
   checkOutputLines,
+  parseOutputParam,
   resolveProducedOutput,
   runGoodQuantity,
   runOutputAxes,
@@ -36,26 +37,7 @@ import type { MaintenanceChange, MaintenanceJob, MaintenanceJobResult } from "./
  * Preview (dry_run, the default) writes nothing and does not mint.
  */
 
-/** PURE: "S:1, M:2" or "S/Indigo:1" → lines. Exported for tests. */
-export function parseOutputParam(raw: string): OutputLine[] {
-  return raw
-    .split(",")
-    .map((part) => part.trim())
-    .filter(Boolean)
-    .map((part) => {
-      const idx = part.lastIndexOf(":")
-      if (idx <= 0) {
-        throw new MedusaError(
-          MedusaError.Types.INVALID_DATA,
-          `produced_output: "${part}" is not SIZE:QTY (e.g. S:1,M:2)`
-        )
-      }
-      const combo = part.slice(0, idx).trim()
-      const quantity = Number(part.slice(idx + 1).trim())
-      const [size, color] = combo.split("/").map((s) => s.trim())
-      return { size_label: size || null, color: color || null, quantity }
-    })
-}
+export { parseOutputParam }
 
 export const bankUnstockedRunJob: MaintenanceJob = {
   id: "bank-unstocked-run",

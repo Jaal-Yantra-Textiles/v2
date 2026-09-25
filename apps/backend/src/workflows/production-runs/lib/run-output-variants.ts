@@ -461,15 +461,19 @@ async function resolveDesignProductId(container: any, designId: string): Promise
     : { product_id: null, ambiguous: ids.length > 1 }
 }
 
+export type DraftPrice =
+  | { price: number; currency: string; source: "run_cost" | "design_estimate" }
+  | { reason: string }
+
 /**
- * Mint a DRAFT product for a design that has none, priced as output approval
- * would price it (run cost x markup, else the design estimate). Approval later
- * finds and reuses it.
+ * What a DRAFT product for this run's design would be listed at — the same
+ * price output approval would give it (run cost x markup, else the design
+ * estimate). Read-only; shared by the mint and the completion preview.
  */
-async function mintDraftProduct(
+export async function priceDraftProduct(
   container: any,
   run: { id: string; design_id: string }
-): Promise<{ product_id: string } | { reason: string }> {
+): Promise<DraftPrice> {
   const query: any = container.resolve(ContainerRegistrationKeys.QUERY)
   const { data: designs } = await query.graph({
     entity: "design",
@@ -505,32 +509,42 @@ async function mintDraftProduct(
         `consumption on the run and no estimated_cost on the design`,
     }
   }
-  const currency = resolveApprovalCurrency({
-    runCurrency: priced.source === "run_cost" ? runCurrency : null,
-    designCurrency: design.cost_currency,
-  })
-
-  try {
-    const minted = await applyDesignProductPlan(container, {
-      design_id: run.design_id,
-      estimated_cost: priced.price,
-      currency_code: currency,
-    })
-    return minted?.product_id
-      ? { product_id: minted.product_id }
-      : { reason: `minting a draft product for design ${run.design_id} returned nothing` }
-  } catch (e: any) {
-    return { reason: `could not mint a draft product: ${e?.message ?? e}` }
+  return {
+    price: priced.price,
+    source: priced.source,
+    currency: resolveApprovalCurrency({
+      runCurrency: priced.source === "run_cost" ? runCurrency : null,
+      designCurrency: design.cost_currency,
+    }),
   }
 }
 
+/* -------------------------------------------------------------------------
+ * Decide (read-only), then apply
+ * ---------------------------------------------------------------------- */
+
+export type RunStockDecision =
+  | { mode: "legacy" }
+  | { mode: "skip"; reason: string }
+  | {
+      mode: "lines"
+      lines: OutputLine[]
+      /** The design's product, or null when a draft would be minted. */
+      product_id: string | null
+      /** Set when product_id is null: what the draft would be listed at. */
+      draft_price?: Extract<DraftPrice, { price: number }>
+      /** Set when product_id is known: exactly what applying would create. */
+      plan?: Extract<OutputVariantPlan, { ok: true }>
+      product?: PlanProduct
+    }
+
 /**
- * Where a completed run's good units go. See `RunStockTarget`.
- *
- * `allowMint: false` is for a caller that must not create catalogue rows (a
- * preview).
+ * Everything completion decides about a run's goods, WITHOUT writing. The
+ * completion preview returns this as-is; `resolveRunStockTarget` applies it.
+ * One decision, two callers — a preview that re-derived it would drift from
+ * what completion actually does.
  */
-export async function resolveRunStockTarget(
+export async function decideRunStockTarget(
   container: any,
   input: {
     run: {
@@ -544,17 +558,10 @@ export async function resolveRunStockTarget(
       produced_output?: unknown
     }
     good_quantity: number
-    allowMint?: boolean
-    /**
-     * Whether the partner has a warehouse. Without one the per-line path mints
-     * nothing and banks nothing — the run still completes, as it did before
-     * #2271 for a design with no product. Minting a product and then refusing
-     * the completion would block every partner still missing a location
-     * (13 on prod, #2053) on work they have finished.
-     */
+    /** See `resolveRunStockTarget`. */
     has_location?: boolean
   }
-): Promise<RunStockTarget> {
+): Promise<RunStockDecision> {
   const { run } = input
   if (!(input.good_quantity > 0) || !run.design_id) return { mode: "legacy" }
 
@@ -571,12 +578,6 @@ export async function resolveRunStockTarget(
     designHasProduct: !!designProduct.product_id || designProduct.ambiguous,
   })
   if (path === "legacy") return { mode: "legacy" }
-  if (input.has_location === false) {
-    return {
-      mode: "skip",
-      reason: "the partner has no stock location — link one, then bank with the bank-unstocked-run job",
-    }
-  }
   if (path === "split_unknown") {
     return {
       mode: "skip",
@@ -585,38 +586,95 @@ export async function resolveRunStockTarget(
         `said which were made; record produced_output, then bank it`,
     }
   }
-
+  /**
+   * Without a warehouse the per-line path mints nothing and banks nothing — the
+   * run still completes, as it did before #2271 for a design with no product.
+   * Minting and then refusing the completion would block every partner still
+   * missing a location (13 on prod, #2053) on work they have finished.
+   */
+  if (input.has_location === false) {
+    return {
+      mode: "skip",
+      reason: "the partner has no stock location — link one, then bank with the bank-unstocked-run job",
+    }
+  }
   if (designProduct.ambiguous) {
     return { mode: "skip", reason: `design ${run.design_id}'s variants sit on several products` }
-  }
-
-  let productId = designProduct.product_id
-  let minted = false
-  if (!productId) {
-    if (input.allowMint === false) {
-      return { mode: "skip", reason: `design ${run.design_id} has no product (preview does not mint)` }
-    }
-    const mint = await mintDraftProduct(container, { id: run.id, design_id: run.design_id })
-    if ("reason" in mint) return { mode: "skip", reason: mint.reason }
-    productId = mint.product_id
-    minted = true
   }
 
   const effectiveLines: OutputLine[] = lines?.length
     ? lines
     : [{ size_label: null, color: null, quantity: input.good_quantity }]
 
+  if (!designProduct.product_id) {
+    const price = await priceDraftProduct(container, { id: run.id, design_id: run.design_id })
+    if ("reason" in price) return { mode: "skip", reason: price.reason }
+    return { mode: "lines", lines: effectiveLines, product_id: null, draft_price: price }
+  }
+
   const { product, designVariantIds } = await readPlanInputs(container, {
     design_id: run.design_id,
-    product_id: productId,
+    product_id: designProduct.product_id,
   })
   const plan = planOutputVariants({ product, designVariantIds, lines: effectiveLines })
   if (!plan.ok) return { mode: "skip", reason: `${plan.reason}: ${plan.detail}` }
-
-  const stockLines = await applyOutputVariantPlan(container, {
-    design_id: run.design_id,
+  return {
+    mode: "lines",
+    lines: effectiveLines,
+    product_id: designProduct.product_id,
     plan,
     product,
+  }
+}
+
+/**
+ * Where a completed run's good units go — `decideRunStockTarget`, applied:
+ * mints the draft when one is needed, then creates the variants.
+ */
+export async function resolveRunStockTarget(
+  container: any,
+  input: Parameters<typeof decideRunStockTarget>[1]
+): Promise<RunStockTarget> {
+  const decision = await decideRunStockTarget(container, input)
+  if (decision.mode !== "lines") return decision
+  const designId = input.run.design_id as string
+
+  let productId = decision.product_id
+  let plan = decision.plan
+  let product = decision.product
+  let minted = false
+
+  if (!productId) {
+    const price = decision.draft_price!
+    try {
+      const result = await applyDesignProductPlan(container, {
+        design_id: designId,
+        estimated_cost: price.price,
+        currency_code: price.currency,
+      })
+      productId = result?.product_id ?? null
+    } catch (e: any) {
+      return { mode: "skip", reason: `could not mint a draft product: ${e?.message ?? e}` }
+    }
+    if (!productId) {
+      return { mode: "skip", reason: `minting a draft product for design ${designId} returned nothing` }
+    }
+    minted = true
+    const read = await readPlanInputs(container, { design_id: designId, product_id: productId })
+    product = read.product
+    const replanned = planOutputVariants({
+      product: read.product,
+      designVariantIds: read.designVariantIds,
+      lines: decision.lines,
+    })
+    if (!replanned.ok) return { mode: "skip", reason: `${replanned.reason}: ${replanned.detail}` }
+    plan = replanned
+  }
+
+  const stockLines = await applyOutputVariantPlan(container, {
+    design_id: designId,
+    plan: plan!,
+    product: product!,
   })
   return { mode: "lines", product_id: productId, lines: stockLines, minted_product: minted }
 }

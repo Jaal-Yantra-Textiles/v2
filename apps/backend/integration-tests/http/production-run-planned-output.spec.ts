@@ -476,5 +476,87 @@ setupSharedTestSuite(() => {
       })
       expect(again.status).toBeGreaterThanOrEqual(400)
     })
+    /**
+     * The completion preview must be a pure read: it reports the mint, the
+     * options, the variants and the stock it WOULD write, and afterwards the
+     * database is exactly as it was.
+     */
+    it("completion-preview reports what completion would do and writes nothing", async () => {
+      const designId = await createSizedDesign()
+      const { partnerId, locationId, headers } = await registerPartner("preview")
+      const runRes = await api.post(
+        "/admin/production-runs",
+        { design_id: designId, partner_id: partnerId, quantity: 3 },
+        adminHeaders
+      )
+      const runId = runRes.data.production_run.id
+      await walkToFinished(runId, headers)
+      const before = await readRun(runId)
+
+      const preview = await api.get(
+        `/admin/production-runs/${runId}/completion-preview?produced_quantity=3&produced_output=S:1,M:2`,
+        adminHeaders
+      )
+      expect(preview.status).toBe(200)
+      const body = preview.data
+      expect(body.completion_gate.ok).toBe(true)
+      expect(body.stock_path).toBe("lines")
+      expect(body.warehouse.location_id).toBe(locationId)
+      expect(body.would_write.join("\n")).toContain("mint DRAFT product")
+      expect(body.would_write.join("\n")).toContain("create variant S, then stock +1")
+      expect(body.would_write.join("\n")).toContain("create variant M, then stock +2")
+
+      // Without a split the complete routes would refuse — and the preview says so.
+      const noSplit = await api.get(
+        `/admin/production-runs/${runId}/completion-preview?produced_quantity=3`,
+        adminHeaders
+      )
+      expect(noSplit.data.produced_output.ok).toBe(false)
+      expect(noSplit.data.notes.join(" ")).toContain("REFUSE")
+
+      // 🔑 Nothing written: no product, no variant, run unchanged.
+      const { productIds } = await levelsByVariant(designId, locationId)
+      expect(productIds).toEqual([])
+      const after = await readRun(runId)
+      expect(after.status).toBe(before.status)
+      expect(after.produced_output).toBeNull()
+      expect(after.stocked_at).toBeNull()
+    })
+
+    /** The Luong Shirt replay: completed, unbanked, sizeless product from approval. */
+    it("completion-preview replays a completed, unbanked run without touching the product", async () => {
+      const designId = await createSizedDesign()
+      const { partnerId, locationId } = await registerPartner("replay")
+      const runRes = await api.post(
+        "/admin/production-runs",
+        { design_id: designId, partner_id: partnerId, quantity: 3 },
+        adminHeaders
+      )
+      const runId = runRes.data.production_run.id
+      const service = getContainer().resolve("production_runs") as any
+      await service.updateProductionRuns({
+        id: runId,
+        status: "completed",
+        completed_at: new Date(),
+        produced_quantity: 3,
+      })
+      await api.post(`/admin/designs/${designId}/approve`, {}, adminHeaders)
+      const productBefore = await levelsByVariant(designId, locationId)
+
+      const preview = await api.get(
+        `/admin/production-runs/${runId}/completion-preview?produced_output=S:1,M:2`,
+        adminHeaders
+      )
+      const lines = preview.data.would_write.join("\n")
+      expect(preview.data.stock_path).toBe("lines")
+      expect(lines).toContain("add option Size: S, M, Made to order")
+      expect(lines).toContain('"Size":"Made to order"')
+      expect(lines).not.toContain("mint DRAFT")
+      expect(preview.data.notes.join(" ")).toContain("NOT banked")
+
+      // The product still has its one sizeless variant, and no stock moved.
+      expect(await levelsByVariant(designId, locationId)).toEqual(productBefore)
+      expect((await readRun(runId)).stocked_at).toBeNull()
+    })
   })
 })
