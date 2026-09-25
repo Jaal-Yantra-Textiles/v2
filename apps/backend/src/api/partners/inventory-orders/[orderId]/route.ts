@@ -140,6 +140,7 @@
 import { AuthenticatedMedusaRequest, MedusaResponse } from "@medusajs/framework";
 import { ContainerRegistrationKeys, MedusaError } from "@medusajs/framework/utils";
 import { getPartnerFromAuthContext } from "../../helpers";
+import { workOrderForInventoryOrder, workOrderReadsEnabled } from "../../../../lib/work-orders/read-work-orders";
 
 export async function GET(
     req: AuthenticatedMedusaRequest,
@@ -248,13 +249,20 @@ export async function GET(
         }
     }
     
+    // The unified order id (#342). Single object on a 1:1 link; tolerate array.
+    const mirrorOrderId = Array.isArray((order as any).order)
+        ? (order as any).order[0]?.id
+        : (order as any).order?.id;
+    // #2264 S2c — from work_order when reads are flipped; the mirror's answer
+    // stays as the fallback.
+    const unifiedOrderId = workOrderReadsEnabled()
+        ? (await workOrderForInventoryOrder(req.scope, order.id))?.id ?? mirrorOrderId
+        : mirrorOrderId;
+
     // Format the response for partner view - now using task-based status
     const partnerOrderView = {
         id: order.id,
-        // The unified order id (#342). Single object on a 1:1 link; tolerate array.
-        unified_order_id: Array.isArray((order as any).order)
-            ? (order as any).order[0]?.id
-            : (order as any).order?.id,
+        unified_order_id: unifiedOrderId,
         status: order.status,
         quantity: order.quantity,
         total_price: order.total_price,
