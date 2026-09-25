@@ -144,6 +144,7 @@ import { backfillDesignCostCurrencyJob } from "./backfill-design-cost-currency-j
 import { recordPaymentLineRunJob } from "./record-payment-line-run-job"
 import { deduplicateTaskTemplateNamesJob } from "./deduplicate-task-template-names-job"
 import { recordManualInventoryCorrectionJob } from "./record-manual-inventory-correction-job"
+import { bankUnstockedRunJob } from "./bank-unstocked-run-job"
 import { applyCommittedConsumptionJob } from "./apply-committed-consumption-job"
 import { backfillConsumptionAppliedColumnsJob } from "./backfill-consumption-applied-columns-job"
 import { reconcileConsumptionVsProductionJob } from "./reconcile-consumption-vs-production-job"
@@ -6631,6 +6632,7 @@ export const MAINTENANCE_JOBS: MaintenanceJob[] = [
   backfillDesignCostCurrencyJob,
   recordPaymentLineRunJob,
   recordManualInventoryCorrectionJob,
+  bankUnstockedRunJob,
   applyCommittedConsumptionJob,
   backfillConsumptionAppliedColumnsJob,
   reconcileConsumptionVsProductionJob,

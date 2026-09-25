@@ -29,6 +29,7 @@ import {
   resolvePartnerLocationStep,
   completeLinkedTasksStep,
   stockFinishedGoodsStep,
+  resolveRunStockTargetStep,
   recordStockedLocationStep,
   type PartnerRunInput,
 } from "./partner-run-steps"
@@ -554,9 +555,25 @@ export const completeProductionRunWorkflow = createWorkflow(
 
     updateDesignOnCompleteStep(designUpdateInput)
 
+    /**
+     * #2271 — where the good units go: the path they always took, one variant
+     * per size/colour made (minting a draft product when the design has none),
+     * or nowhere, with a reason, when that would take a guess.
+     */
+    const stockTargetInput = transform({ run, input, partnerLocation }, (data) => ({
+      production_run_id: data.input.production_run_id,
+      location_id: (data.partnerLocation as any)?.location_id ?? null,
+      good_quantity: runGoodQuantity({
+        produced_quantity: data.input.produced_quantity,
+        rejected_quantity: data.input.rejected_quantity,
+        quantity: (data.run as any).quantity,
+      }),
+    }))
+    const stockTarget = resolveRunStockTargetStep(stockTargetInput)
+
     // Stock finished goods
     const stockInput = transform(
-      { run, input, partnerLocation },
+      { run, input, partnerLocation, stockTarget },
       (data) => {
         const r = data.run as any
         const goodQty = runGoodQuantity({
@@ -579,6 +596,7 @@ export const completeProductionRunWorkflow = createWorkflow(
           order_id: r.order_id || null,
           order_line_item_id: r.order_line_item_id || null,
           run_quantity: r.quantity || 0,
+          target: data.stockTarget,
         }
       }
     )

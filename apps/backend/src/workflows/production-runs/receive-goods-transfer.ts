@@ -304,7 +304,13 @@ export async function moveInventory(
     location_id: fromLocationId,
   })
   if (originLevel) {
-    await inventoryService.updateInventoryLevels(originLevel.id, {
+    // 🔴 Medusa's signature is updateInventoryLevels({ inventory_item_id,
+    // location_id, ... }). The `(level.id, data)` form this used passes the id
+    // string as the update and throws "Item undefined is not stocked at location
+    // undefined" — every banking onto an EXISTING level failed (#2271).
+    await inventoryService.updateInventoryLevels({
+      inventory_item_id: inventoryItemId,
+      location_id: fromLocationId,
       stocked_quantity: Math.max(
         0,
         (originLevel.stocked_quantity || 0) - quantity
@@ -317,7 +323,9 @@ export async function moveInventory(
     location_id: toLocationId,
   })
   if (destinationLevel) {
-    await inventoryService.updateInventoryLevels(destinationLevel.id, {
+    await inventoryService.updateInventoryLevels({
+      inventory_item_id: inventoryItemId,
+      location_id: toLocationId,
       stocked_quantity: (destinationLevel.stocked_quantity || 0) + quantity,
     })
   } else {
