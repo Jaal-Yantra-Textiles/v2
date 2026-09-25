@@ -146,8 +146,10 @@ setupSharedTestSuite(() => {
       const a = await createPartner("a")
       const b = await createPartner("b")
 
-      const runA1 = await placeRun(await createDesign(1), customerOrderId, 3)
-      const runA2 = await placeRun(await createDesign(2), customerOrderId)
+      const designA1 = await createDesign(1)
+      const designA2 = await createDesign(2)
+      const runA1 = await placeRun(designA1, customerOrderId, 3)
+      const runA2 = await placeRun(designA2, customerOrderId)
       const runB = await placeRun(await createDesign(3), customerOrderId)
       const unassigned = await placeRun(await createDesign(4), customerOrderId)
 
@@ -183,6 +185,15 @@ setupSharedTestSuite(() => {
       const idsA = (listA.data.orders || []).map((o: any) => String(o.id))
       expect(idsA).toContain(String(orderA))
       expect(idsA).not.toContain(String(orderB))
+
+      // The partner can open EVERY design on the order — including the FIRST
+      // run's, which minted the order. Prod: Oshen Tea Towels 404'd on #116.
+      for (const designId of [designA1, designA2]) {
+        const page = await api
+          .get(`/partners/designs/${designId}`, a.partnerHeaders)
+          .catch((e: any) => e.response)
+        expect({ designId, status: page.status }).toEqual({ designId, status: 200 })
+      }
     })
 
     it("collate-customer-order-runs repairs runs dispatched before the hook", async () => {
