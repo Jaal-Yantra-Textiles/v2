@@ -37,6 +37,7 @@
     "storefront-mobile:dev": "cd apps/storefront-mobile && pnpm start",
     "partner-android:build": "cd apps/partner-android && ./gradlew assembleDebug",
     "partner-android:install": "cd apps/partner-android && ./gradlew installDebug",
+    "partner-android:test": "cd apps/partner-android && ./gradlew testDebugUnitTest",
     "docs:dev": "cd apps/docs && pnpm start",
     "docs:build": "cd apps/docs && pnpm build",
     "docs:serve": "cd apps/docs && pnpm serve",
