@@ -58,6 +58,15 @@ import { GET as oauthAuthorizationServerDoc } from "./well-known/oauth-authoriza
 const wrapSchema = <T extends z.ZodType>(schema: T) => schema as any;
 
 /**
+ * A store route that re-declares its query config must also declare `allowed`:
+ * since Medusa 2.21 a store route strips every field not on the list, and no
+ * list means nothing is allowed. Core's list plus our own defaults, so a
+ * default can never be the thing that gets stripped.
+ */
+const storeAllowed = (core: string[] | undefined, defaults: string[]): string[] =>
+  [...new Set([...(core ?? []), ...defaults])];
+
+/**
  * Like `wrapSchema`, but for a body whose top level is deliberately open.
  *
  * `zodValidator` calls `.strict()` on any schema that exposes it, which
@@ -193,6 +202,7 @@ import { partnerPeopleSchema } from "./partners/[id]/validators";
 import { updatePartnerMeSchema } from "./partners/me/validators";
 import { onboardingProfileUpdateSchema } from "./partners/onboarding-profile/validators";
 import { partnerUpdateOrderLinesSchema, partnerAddOrderChargeSchema } from "./partners/inventory-orders/change-schemas";
+import { registerDeviceTokenSchema, unregisterDeviceTokenSchema } from "./partners/device-tokens/validators";
 import { partnerReceiveIncomingSchema } from "./partners/incoming-deliveries/validators";
 import { setLayoutConfigurationSchema } from "./partners/layouts/validators";
 import { AdminGetPartnersParamsSchema } from "./admin/persons/partner/validators";
@@ -240,6 +250,7 @@ import { personContactRequestSchema } from "./web/persons/[id]/contact/validator
 import { LinkDesignValidator, UnlinkDesignValidator } from "./admin/products/[id]/linkDesign/validators";
 import { sendToPartnerSchema } from "./admin/inventory-orders/[id]/send-to-partner/validators";
 import { receiveInventoryOrderSchema } from "./admin/inventory-orders/[id]/receive/validators";
+import { createMaterialTransferSchema, receiveMaterialTransferSchema } from "./admin/inventory-transfers/validators";
 import { EmailTemplateQueryParams, EmailTemplateSchema, UpdateEmailTemplateSchema } from "./admin/email-templates/validators";
 import { CreateAgreementSchema, UpdateAgreementSchema } from "./admin/agreements/validators";
 import { AdminImageExtractionReq } from "./admin/ai/image-extraction/validators";
@@ -385,6 +396,8 @@ import {
 } from "@medusajs/medusa/api/admin/regions/query-config";
 import { AdminGetPaymentProvidersParams } from "@medusajs/medusa/api/admin/payments/validators";
 import { listTransformPaymentProvidersQueryConfig } from "@medusajs/medusa/api/admin/payments/query-config";
+import * as storeCollectionQueryConfig from "@medusajs/medusa/api/store/collections/query-config";
+import * as storeCategoryQueryConfig from "@medusajs/medusa/api/store/product-categories/query-config";
 import {
   listInboundEmailsQuerySchema,
   extractInboundEmailSchema,
@@ -1026,6 +1039,12 @@ export default defineMiddlewares({
           }) as any,
           {
             defaults: ["id", "title", "handle", "created_at", "updated_at"],
+            // Medusa 2.21: a store route with no `allowed` list strips EVERY field,
+            // so queryConfig.fields came back [] and each collection as null.
+            allowed: storeAllowed(
+              storeCollectionQueryConfig.listTransformQueryConfig.allowed,
+              ["id", "title", "handle", "created_at", "updated_at"]
+            ),
             defaultLimit: 10,
             isList: true,
           }
@@ -1056,6 +1075,14 @@ export default defineMiddlewares({
               "parent_category_id", "created_at", "updated_at", "metadata",
               "parent_category.*", "category_children.*",
             ],
+            allowed: storeAllowed(
+              storeCategoryQueryConfig.listProductCategoryConfig.allowed,
+              [
+                "id", "name", "description", "handle", "rank",
+                "parent_category_id", "created_at", "updated_at", "metadata",
+                "parent_category.*", "category_children.*",
+              ]
+            ),
             defaultLimit: 50,
             isList: true,
           }
@@ -3791,6 +3818,30 @@ export default defineMiddlewares({
         authenticate("partner", ["session", "bearer"]),
       ],
     },
+    // Partner device-token registration — the push leg of the partner
+    // notification system (apps register APNs/FCM tokens here).
+    {
+      matcher: "/partners/device-tokens",
+      method: "POST",
+      middlewares: [
+        createCorsPartnerMiddleware(),
+        authenticate("partner", ["session", "bearer"]),
+        validateAndTransformBody(
+          wrapSchema(registerDeviceTokenSchema)
+        ),
+      ],
+    },
+    {
+      matcher: "/partners/device-tokens",
+      method: "DELETE",
+      middlewares: [
+        createCorsPartnerMiddleware(),
+        authenticate("partner", ["session", "bearer"]),
+        validateAndTransformBody(
+          wrapSchema(unregisterDeviceTokenSchema)
+        ),
+      ],
+    },
     // Partner Payments APIs
     {
       matcher: "/partners/:id/payments",
@@ -4645,6 +4696,16 @@ export default defineMiddlewares({
       matcher: "/admin/inventory-orders/:id/receive",
       method: 'POST',
       middlewares: [validateAndTransformBody(wrapSchema(receiveInventoryOrderSchema))],
+    },
+    {
+      matcher: "/admin/inventory-transfers",
+      method: 'POST',
+      middlewares: [validateAndTransformBody(wrapSchema(createMaterialTransferSchema))],
+    },
+    {
+      matcher: "/admin/inventory-transfers/:id/receive",
+      method: 'POST',
+      middlewares: [validateAndTransformBody(wrapSchema(receiveMaterialTransferSchema))],
     },
     {
       matcher: "/admin/inventory-orders/:id/send-to-partner",

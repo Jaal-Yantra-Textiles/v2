@@ -113,8 +113,17 @@ export async function createPartnerNotification(
     url: input.url ?? null,
   }
 
-  try {
-    await notificationService.createNotifications({
+  // The push twin — same event, `push` channel. The notification module
+  // routes it to the partner-push provider (APNs/FCM), which resolves this
+  // partner's device tokens and fans out. Riding the SAME row shape means
+  // the bell, the push and any future channel stay in lockstep: one call,
+  // one trigger_type, one resource.
+  //
+  // Only for the default feed channel: an explicit channel override
+  // (email/whatsapp/…) is a deliberate single-channel send, and a push row
+  // for it would double-notify.
+  const rows: any[] = [
+    {
       to,
       channel,
       template: input.template ?? "",
@@ -124,7 +133,29 @@ export async function createPartnerNotification(
       resource_id: input.resource_id ?? undefined,
       receiver_id: input.partner_id,
       idempotency_key: input.idempotency_key ?? undefined,
-    } as any)
+    },
+  ]
+
+  if (channel === "feed") {
+    rows.push({
+      to,
+      channel: "push",
+      template: input.template ?? "",
+      data,
+      trigger_type: input.trigger_type ?? undefined,
+      resource_type: input.resource_type ?? undefined,
+      resource_id: input.resource_id ?? undefined,
+      receiver_id: input.partner_id,
+      // A distinct idempotency suffix so a deduped rerun doesn't collapse
+      // the push leg into the feed leg's key space.
+      idempotency_key: input.idempotency_key
+        ? `${input.idempotency_key}:push`
+        : undefined,
+    })
+  }
+
+  try {
+    await notificationService.createNotifications(rows)
     return true
   } catch (e: any) {
     logger?.warn(

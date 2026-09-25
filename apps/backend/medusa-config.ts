@@ -392,6 +392,11 @@ module.exports = defineConfig({
 
     {
       resolve: "@medusajs/medusa/notification",
+      // #1339 pattern — puts the partner device-token store into the push
+      // provider's container. Without it the provider logs
+      // [partner-push] token lookup failed and the push leg degrades to
+      // "not delivered" (never blocking the producing workflow).
+      dependencies: ["partnerPush"],
       options: {
         providers: [
           {
@@ -402,6 +407,16 @@ module.exports = defineConfig({
               // partner-order notifications persist a row in the test env and can
               // be inspected — see partner-order-email-notification.spec.ts.
               channels: ["feed", "email", "email_partner"],
+            },
+          },
+          {
+            // The APNs/FCM leg of the partner notification system. Rides the
+            // same rows createPartnerNotification writes — every partner feed
+            // notification has a `push` twin routed here by channel.
+            resolve: "./src/modules/notification-push",
+            id: "partner-push",
+            options: {
+              channels: ["push"],
             },
           },
           {
@@ -932,6 +947,9 @@ module.exports = defineConfig({
   },
   {
     resolve: "./src/modules/audience",
+  },
+  {
+    resolve: "./src/modules/partner-push",
   },
   {
     resolve: "./src/modules/messaging",

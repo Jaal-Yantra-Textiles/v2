@@ -66,6 +66,12 @@ export const GET = async (
   const filters: Record<string, any> = { receiver_id: partner.id }
   if (typeof req.query.channel === "string" && req.query.channel.trim()) {
     filters.channel = req.query.channel.trim()
+  } else {
+    // The `push` channel rows are the delivery twins of feed rows (see
+    // createPartnerNotification) — the platform's APNs/FCM audit. The bell
+    // shows the feed row; showing its push twin too would double-render every
+    // notification. An explicit `channel=push` still surfaces them.
+    filters.channel = { $ne: "push" }
   }
   if (
     typeof req.query.trigger_type === "string" &&
