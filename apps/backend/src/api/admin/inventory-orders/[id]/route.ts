@@ -85,6 +85,7 @@ import updateInventoryOrderWorkflow from "../../../../workflows/inventory_orders
 import { ListInventoryOrdersStepInput } from "../../../../workflows/inventory_orders/list-inventory-orders";
 import listSingleInventoryOrderWorkflow from "../../../../workflows/inventory_orders/list-single-inventory-order";
 import { deleteInventoryOrderWorkflow } from "../../../../workflows/inventory_orders/delete-inventory-order";
+import { workOrderForInventoryOrder, workOrderReadsEnabled } from "../../../../lib/work-orders/read-work-orders";
 
 export const PUT = async (
   req: MedusaRequest<UpdateInventoryOrder>,
@@ -142,6 +143,14 @@ export const GET = async(
       const link = data?.[0]
       if (link && inventoryOrder) {
         ;(inventoryOrder as any).unified_order_status = link.order?.unified_order_status ?? null
+        // #2264 S2c — the work status from work_order when reads are flipped;
+        // the mirror's sidecar stays as the fallback.
+        if (workOrderReadsEnabled()) {
+          const wo = await workOrderForInventoryOrder(req.scope, id)
+          if (wo) {
+            ;(inventoryOrder as any).unified_order_status = { partner_status: wo.partner_status }
+          }
+        }
         ;(inventoryOrder as any).shipments = (() => {
           const raw = (link as any).inventory_shipments
           const arr = !raw ? [] : Array.isArray(raw) ? raw : [raw]

@@ -127,6 +127,7 @@ import { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
 import { ContainerRegistrationKeys, MedusaError } from "@medusajs/framework/utils"
 
 import { buildQSearchFilter } from "../../../lib/list-search-filters"
+import { runIdsOnWorkOrder, workOrderReadsEnabled } from "../../../lib/work-orders/read-work-orders"
 import {
   createProductionRunWorkflow,
 } from "../../../workflows/production-runs/create-production-run"
@@ -302,6 +303,12 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
     workOrderRunIds = linkedRuns
       .map((r: any) => r?.id)
       .filter(Boolean) as string[]
+    // #2264 S2c — work_order's own run link when reads are flipped; the
+    // mirror's list stays as the fallback for an id work_order does not know.
+    if (workOrderReadsEnabled()) {
+      const fromWorkOrder = await runIdsOnWorkOrder(req.scope, String(q.work_order_id))
+      if (fromWorkOrder) workOrderRunIds = fromWorkOrder
+    }
     if (!workOrderRunIds!.length) {
       return res.status(200).json({
         production_runs: [],
