@@ -9,6 +9,8 @@ import { approveProductionRunWorkflow } from "../../apps/backend/src/workflows/p
 import { autoDispatchApprovedChildren } from "../../apps/backend/src/api/admin/production-runs/auto-dispatch-approved-children"
 import { createInventoryOrderWorkflow } from "../../apps/backend/src/workflows/inventory_orders/create-inventory-orders"
 import { ORDER_INVENTORY_MODULE } from "../../apps/backend/src/modules/inventory_orders"
+import { produceDesignsAsWorkOrder } from "../../apps/backend/src/workflows/designs/produce-designs-as-work-order"
+import { syncWorkOrderFromMirror } from "../../apps/backend/src/lib/work-orders/sync-from-mirror"
 import Scrypt from "scrypt-kdf"
 import * as fs from "fs"
 import * as path from "path"
@@ -2750,6 +2752,225 @@ async function seedActionFirstRun(container: any): Promise<{
 
 
 /**
+ * #2264 — one work order of each kind, for partner-work-orders.spec.ts.
+ *
+ * Partner A holds an INVENTORY work order and a one-run DESIGN work order;
+ * partner B holds a COLLATED design work order (two designs). Two partners on
+ * purpose: produced for partner A, the batch would JOIN A's open design work
+ * order (#1597) instead of making its own, and the spec would test a join.
+ *
+ * Everything goes through the real workflows, so the core-order mirror AND the
+ * `work_order` row (#2263 shadow write) both exist — the spec reads whichever
+ * `WORK_ORDER_READS` selects, and the CI job runs it both ways.
+ *
+ * READ-ONLY for the spec: it opens pages and reads the API, never accepts or
+ * cancels, so a re-run and every Playwright RETRY see the same fixture.
+ */
+async function seedWorkOrdersFixture(container: any): Promise<{
+  partnerAEmail: string
+  partnerBEmail: string
+  password: string
+  inventoryOrderId: string
+  inventoryWorkOrderId: string
+  inventoryLineTitle: string
+  runId: string
+  designWorkOrderId: string
+  designName: string
+  collatedWorkOrderId: string
+  collatedDesignNames: string[]
+}> {
+  const partnerModule: any = container.resolve("partner")
+  const authModule = container.resolve(Modules.AUTH)
+  const inventory: any = container.resolve(Modules.INVENTORY)
+  const stockLocation: any = container.resolve(Modules.STOCK_LOCATION)
+  const link: any = container.resolve(ContainerRegistrationKeys.LINK)
+  const query: any = container.resolve(ContainerRegistrationKeys.QUERY)
+  const designService: any = container.resolve("design")
+  const taskService: any = container.resolve("tasks")
+  const stamp = Date.now()
+
+  // A partner with a VERIFIED login (see seedActionFirstRun for why).
+  const mkPartner = async (label: string) => {
+    const created = await partnerModule.createPartners({
+      name: `E2E WorkOrders ${label} ${stamp}`,
+      handle: `e2e-wo-${label.toLowerCase()}-${stamp}`,
+      status: "active",
+      is_verified: true,
+    })
+    const partnerId = (Array.isArray(created) ? created[0] : created).id as string
+    const email = `e2e-wo-${label.toLowerCase()}-${stamp}@jyt.test`
+    await partnerModule.createPartnerAdmins({
+      email,
+      first_name: "E2E",
+      last_name: `WO ${label}`,
+      role: "admin",
+      partner_id: partnerId,
+    })
+    const hash = await Scrypt.kdf(SEED_PASSWORD, { logN: 15, r: 8, p: 1 })
+    const identity: any = await authModule.createAuthIdentities({
+      provider_identities: [
+        {
+          provider: "emailpass",
+          entity_id: email,
+          provider_metadata: { password: hash.toString("base64") },
+        },
+      ],
+      app_metadata: { partner_id: partnerId },
+    })
+    const now = new Date()
+    await authModule.createAuthVerifications([
+      {
+        auth_identity_id: (Array.isArray(identity) ? identity[0] : identity).id,
+        entity_id: email,
+        entity_type: "email",
+        code_provider: "emailpass",
+        requested_at: now,
+        verified_at: now,
+      },
+    ])
+    return { partnerId, email }
+  }
+  const a = await mkPartner("A")
+  const b = await mkPartner("B")
+
+  const mirrorOf = async (entity: "inventory_orders" | "production_runs", id: string) => {
+    const { data } = await query.graph({ entity, filters: { id }, fields: ["order.id"] })
+    const orderId = (data?.[0] as any)?.order?.id as string | undefined
+    if (!orderId) throw new Error(`#2264 fixture: ${entity} ${id} has no work order`)
+    return orderId
+  }
+
+  // ── INVENTORY: 70.6 m of cloth, linked to partner A ─────────────────────────
+  const inventoryLineTitle = `E2E WO Linen ${stamp}`
+  const item = await inventory.createInventoryItems({
+    title: inventoryLineTitle,
+    sku: `e2e-wo-linen-${stamp}`,
+  })
+  const itemId = (Array.isArray(item) ? item[0] : item).id as string
+  const mkLocation = async (label: string) => {
+    const r = await stockLocation.createStockLocations({ name: `E2E WO ${label} ${stamp}` })
+    return (Array.isArray(r) ? r[0] : r).id as string
+  }
+  const { result: invResult, errors: invErrors } = await createInventoryOrderWorkflow(container).run({
+    input: {
+      quantity: 70.6,
+      total_price: 48714,
+      currency_code: "inr",
+      status: "Pending",
+      expected_delivery_date: new Date(Date.now() + 7 * 864e5),
+      order_date: new Date(),
+      shipping_address: {},
+      stock_location_id: await mkLocation("Warehouse"),
+      from_stock_location_id: await mkLocation("Mill"),
+      is_sample: false,
+      order_lines: [{ inventory_item_id: itemId, quantity: 70.6, price: 690 }],
+    },
+  })
+  if (invErrors?.length) {
+    throw new Error(`#2264 fixture: inventory order failed — ${invErrors.map((e: any) => e?.error?.message).join(", ")}`)
+  }
+  const inventoryOrderId = (invResult as any).order.id as string
+  const inventoryWorkOrderId = await mirrorOf("inventory_orders", inventoryOrderId)
+  await link.create({
+    partner: { partner_id: a.partnerId },
+    inventory_orders: { inventory_orders_id: inventoryOrderId },
+  })
+  await link.create({
+    partner: { partner_id: a.partnerId },
+    order: { order_id: inventoryWorkOrderId },
+  })
+  // The partner link was written by hand, so bring work_order along the same
+  // way every mirror writer does.
+  await syncWorkOrderFromMirror(container, inventoryWorkOrderId)
+
+  // ── DESIGN, one run: approved + dispatched to partner A ──────────────────────
+  const designName = `E2E WO Kurta ${stamp}`
+  const design = await designService.createDesigns({
+    name: designName,
+    description: "e2e #2264 work-order fixture",
+    design_type: "Original",
+    status: "Approved",
+    priority: "Medium",
+  })
+  const designId = (Array.isArray(design) ? design[0] : design).id as string
+  const template = await taskService.createTaskTemplates({
+    name: `e2e-wo-${stamp}`,
+    description: "e2e #2264 dispatch template",
+    priority: "medium",
+    estimated_duration: 60,
+    required_fields: {},
+    eventable: false,
+    notifiable: false,
+    message_template: "",
+    metadata: { workflow_type: "production_run" },
+  })
+  const templateId = (Array.isArray(template) ? template[0] : template).id as string
+  const { result: parent } = await createProductionRunWorkflow(container).run({
+    input: {
+      design_id: designId,
+      partner_id: null,
+      quantity: 4,
+      run_type: "production",
+      metadata: { source: "admin.designs.manual" },
+    },
+  })
+  const { result: approved } = await approveProductionRunWorkflow(container).run({
+    input: {
+      production_run_id: (parent as any).id,
+      assignments: [
+        { partner_id: a.partnerId, quantity: 4, role: "stitching", template_ids: [templateId] },
+      ],
+    },
+  })
+  const child = ((approved as any)?.children || [])[0]
+  if (!child?.id) throw new Error("#2264 fixture: approval produced no child run")
+  const dispatch = await autoDispatchApprovedChildren(container, [child] as any)
+  if (!dispatch.dispatched?.includes(child.id)) {
+    throw new Error(`#2264 fixture: run ${child.id} was not dispatched (${JSON.stringify(dispatch)})`)
+  }
+  const designWorkOrderId = await mirrorOf("production_runs", child.id)
+
+  // ── DESIGN, collated: two designs sent to partner B as ONE work order ───────
+  const collatedDesignNames = [`E2E WO Shawl ${stamp}`, `E2E WO Scarf ${stamp}`]
+  const batch: string[] = []
+  for (const name of collatedDesignNames) {
+    const d = await designService.createDesigns({
+      name,
+      description: "e2e #2264 collated fixture",
+      design_type: "Original",
+      status: "Approved",
+      priority: "Medium",
+    })
+    batch.push((Array.isArray(d) ? d[0] : d).id)
+  }
+  const produced = await produceDesignsAsWorkOrder(container, batch, b.partnerId)
+  if (!produced.work_order_id) {
+    throw new Error("#2264 fixture: produce made no collated work order")
+  }
+
+  // Every mirror must have its work_order, or the flag-on run tests nothing.
+  const ids = [inventoryWorkOrderId, designWorkOrderId, produced.work_order_id]
+  const { data: rows } = await query.graph({ entity: "work_order", fields: ["id"], filters: { id: ids } })
+  if ((rows ?? []).length !== ids.length) {
+    throw new Error(`#2264 fixture: work_order rows ${JSON.stringify(rows)} for ${ids.join(",")}`)
+  }
+
+  return {
+    partnerAEmail: a.email,
+    partnerBEmail: b.email,
+    password: SEED_PASSWORD,
+    inventoryOrderId,
+    inventoryWorkOrderId,
+    inventoryLineTitle,
+    runId: child.id as string,
+    designWorkOrderId,
+    designName,
+    collatedWorkOrderId: produced.work_order_id,
+    collatedDesignNames,
+  }
+}
+
+/**
  * The house store must still belong to nobody — checked before AND after.
  *
  * 🔴 #2100. A seed run linked the house store (`Medusa Store`) to
@@ -3200,6 +3421,9 @@ export default async function e2eSeed({ container }: ExecArgs) {
   logger.info("E2E seed: design-detail layout fixture (media strip + photo BOM)...")
   const designLayout = await seedDesignDetailLayout(container)
 
+  logger.info("E2E seed: #2264 work orders (inventory, one-run design, collated)...")
+  const workOrders = await seedWorkOrdersFixture(container)
+
   logger.info("E2E seed: #1752 partner inventory-order change fixtures (admin approve + partner propose)...")
   const invChange = await seedInventoryOrderChange(container)
 
@@ -3426,6 +3650,19 @@ export default async function e2eSeed({ container }: ExecArgs) {
     layoutMediaUrl: designLayout.mediaUrl,
     layoutMaterialTitle: designLayout.materialTitle,
     layoutMaterialPhotoUrl: designLayout.materialPhotoUrl,
+    // #2264 work orders — consumed by partner-work-orders.spec.ts (@partnerui
+    // + admin). READ-ONLY: the spec opens pages and reads the API only.
+    woPartnerAEmail: workOrders.partnerAEmail,
+    woPartnerBEmail: workOrders.partnerBEmail,
+    woPassword: workOrders.password,
+    woInventoryOrderId: workOrders.inventoryOrderId,
+    woInventoryWorkOrderId: workOrders.inventoryWorkOrderId,
+    woInventoryLineTitle: workOrders.inventoryLineTitle,
+    woRunId: workOrders.runId,
+    woDesignWorkOrderId: workOrders.designWorkOrderId,
+    woDesignName: workOrders.designName,
+    woCollatedWorkOrderId: workOrders.collatedWorkOrderId,
+    woCollatedDesignNames: workOrders.collatedDesignNames,
   }
 
   // Last, and before the seed file is written: a run that took the house store

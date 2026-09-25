@@ -17,6 +17,15 @@ on:
       # because it happened to also touch src/admin/**.
       - 'apps/backend/src/lib/graph/**'
       - 'apps/backend/src/scripts/seed.ts'
+      # #2264 — work orders are READ by partner-ui and redirected by the admin
+      # through these, none of which live under src/admin. Without them a PR
+      # that changes what a partner's order page receives runs no browser test.
+      - 'apps/backend/src/lib/work-orders/**'
+      - 'apps/backend/src/api/admin/orders/**'
+      - 'apps/backend/src/api/partners/orders/**'
+      - 'apps/backend/src/workflows/orders/**'
+      - 'apps/partner-ui/src/routes/orders/**'
+      - 'apps/partner-ui/src/components/work-orders/**'
       - 'e2e/**'
       - '.github/workflows/e2e.yml'
   pull_request:
@@ -41,6 +50,15 @@ on:
       # because it happened to also touch src/admin/**.
       - 'apps/backend/src/lib/graph/**'
       - 'apps/backend/src/scripts/seed.ts'
+      # #2264 — work orders are READ by partner-ui and redirected by the admin
+      # through these, none of which live under src/admin. Without them a PR
+      # that changes what a partner's order page receives runs no browser test.
+      - 'apps/backend/src/lib/work-orders/**'
+      - 'apps/backend/src/api/admin/orders/**'
+      - 'apps/backend/src/api/partners/orders/**'
+      - 'apps/backend/src/workflows/orders/**'
+      - 'apps/partner-ui/src/routes/orders/**'
+      - 'apps/partner-ui/src/components/work-orders/**'
       - 'e2e/**'
       - '.github/workflows/e2e.yml'
 
@@ -214,6 +232,26 @@ jobs:
           SHIPROCKET_EMAIL: "e2e@shiprocket.example"
           SHIPROCKET_PASSWORD: "e2e-stub-secret"
         run: pnpm run e2e
+
+      # #2264 — the work-order specs AGAIN, with reads served from `work_order`
+      # (WORK_ORDER_READS=true), the state prod moves to when the flag flips.
+      # The step above ran them with the flag OFF — what prod serves today — so
+      # both sources are exercised on every run.
+      #
+      # No re-seed: the @workorders fixture is read-only. Playwright boots a
+      # fresh `medusa develop` for this invocation and it inherits this step's
+      # env, and the spec reads the same variable to assert WHICH source
+      # answered (sales_channel_id is null only when work_order served it), so
+      # a flag that silently did not reach the server fails rather than passes.
+      #
+      # `!cancelled()`: a red suite above must not hide this result.
+      - name: Run e2e — work orders read from work_order
+        if: ${{ !cancelled() }}
+        working-directory: apps/backend
+        env:
+          PARTNER_UI: "1"
+          WORK_ORDER_READS: "true"
+        run: pnpm run e2e:test --grep @workorders
 
       - name: Upload Playwright report
         if: ${{ !cancelled() }}
