@@ -35,6 +35,7 @@ import { TwoColumnPageSkeleton } from "../../../components/table/skeleton"
 import { ProductionRunChildrenSection } from "../../../components/production-runs/production-run-children-section"
 import { ProductionRunActivityTimeline } from "../../../components/production-runs/production-run-activity-timeline"
 import { GoodsTransferSection } from "../../../components/production-runs/goods-transfer-section"
+import { EntityGraph } from "../../../components/graph/entity-graph"
 import { productionRunLoader } from "./loader"
 import {
   useAdminAcceptRun,
@@ -748,9 +749,8 @@ const ProductionRunDetailPage = () => {
               half-remembered rule is what makes someone dispatch by hand.
 
               The link is `/orders/inventory/:id`; there is NO route at
-              `/inventory-orders/:id`, which is where
-              `partner-inspection-section.tsx:620` points. That dead link is
-              pre-existing and filed, not fixed here.
+              `/inventory-orders/:id`. `partner-inspection-section.tsx` used to
+              point there and was fixed in #2114.
             */}
             {run.depends_on_inventory_order_ids?.length > 0 && (
               <div className="col-span-2">
@@ -772,6 +772,20 @@ const ProductionRunDetailPage = () => {
             )}
           </div>
         </Container>
+
+        {/*
+          The run spine (#2111 S2). It sits above the sections below it for the
+          same reason it does on a partner: every one of them renders what IS
+          there, and the two edges that decide whether this run can start are
+          the ones nothing else on this page can show — what it is waiting on,
+          and who it was commissioned for.
+        */}
+        <EntityGraph
+          spine="production_run"
+          id={id}
+          title="Graph"
+          expandHref={`/production-runs/${id}/graph`}
+        />
 
         {/* Children / Sub-runs */}
         {isParent && <ProductionRunChildrenSection parentId={id} />}

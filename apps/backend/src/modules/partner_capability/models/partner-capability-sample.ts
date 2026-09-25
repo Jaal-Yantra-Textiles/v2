@@ -32,6 +32,19 @@ const PartnerCapabilitySample = model.define("partner_capability_sample", {
   technique: model.text().searchable().nullable(),
   material: model.text().searchable().nullable(),
 
+  /** The kind of product ("stole", "saree", "yardage"). Answers "who makes stoles". */
+  product_type: model.text().searchable().nullable(),
+
+  /**
+   * What the partner DOES for this item, from the fixed CAPABILITY_ACTIONS
+   * vocabulary (lib/actions.ts). A json array, normalised on write so an
+   * unknown word never reaches a search.
+   */
+  actions: model.json().nullable(),
+
+  /** Where the evidence was read from — a product page for a `website` row. */
+  source_url: model.text().nullable(),
+
   /** media_file ids. */
   media_file_ids: model.json().nullable(),
 
@@ -41,10 +54,12 @@ const PartnerCapabilitySample = model.define("partner_capability_sample", {
    * How it reached us. Kept because the channels have different reliability:
    * an `admin` row is someone typing up a conversation from memory, a `wizard`
    * row is the partner's own structured answer, and telling them apart later is
-   * the difference between evidence and hearsay.
+   * the difference between evidence and hearsay. A `website` row is the
+   * partner's own published catalogue, read by a scan; a `records` row rests
+   * on OUR records of their work — a completed run, cloth they supplied (#2249).
    */
   source: model
-    .enum(["wizard", "assistant", "whatsapp", "admin"])
+    .enum(["wizard", "assistant", "whatsapp", "admin", "website", "records"])
     .default("admin"),
 
   /**

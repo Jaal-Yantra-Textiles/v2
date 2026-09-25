@@ -2429,7 +2429,7 @@ export const PARTNER_MCP_TOOLS: PartnerMcpToolDef[] = [
   {
     name: "add_store_shipping_option",
     description:
-      "Add a shipping option to a store. Needs a service zone and a shipping profile, and prices are an array — one entry per currency or region, not a single amount.",
+      "Add a shipping option to a store. Needs a service zone, and prices are an array — one entry per currency or region, not a single amount. The shipping profile is set by the server (the partner shipping profile, #1983) and cannot be chosen.",
     method: "POST",
     path: "/partners/stores/:id/shipping-options",
     pathParams: ["id"],
@@ -2444,7 +2444,6 @@ export const PARTNER_MCP_TOOLS: PartnerMcpToolDef[] = [
       "provider_id",
       "price_type",
       "service_zone_id",
-      "shipping_profile_id",
       "prices",
     ],
     inputSchema: obj(
@@ -2454,7 +2453,6 @@ export const PARTNER_MCP_TOOLS: PartnerMcpToolDef[] = [
         provider_id: STR("Fulfillment provider id."),
         price_type: STR("Price type, e.g. 'flat'."),
         service_zone_id: STR("Service zone this option serves."),
-        shipping_profile_id: STR("Shipping profile this option belongs to."),
         prices: {
           type: "array",
           description:
@@ -2477,7 +2475,6 @@ export const PARTNER_MCP_TOOLS: PartnerMcpToolDef[] = [
         "price_type",
         "provider_id",
         "service_zone_id",
-        "shipping_profile_id",
         "prices",
       ]
     ),

@@ -9,6 +9,31 @@ loadEnv(process.env.NODE_ENV || 'development', process.cwd())
 module.exports = defineConfig({
   projectConfig: {
     databaseUrl: process.env.DATABASE_URL,
+    /**
+     * 🔴 A CAP ON MEDUSA'S OWN POOL, because the database may have very few
+     * connections to give. The Aiven free tier allows 20 in total and its own
+     * processes hold ~13 of them; knex defaults to a max of 10 and a min of 2,
+     * and Mastra opens three more pools beside this one (see
+     * `src/mastra/memory.ts`), so a plain seed answered "sorry, too many
+     * clients already".
+     *
+     * ⚠️ `min` is set alongside `max` deliberately: Medusa's own default min is
+     * 2, and knex throws when min exceeds max, so a max of 1 is unreachable
+     * without it.
+     *
+     * Unset means Medusa's defaults, so CI and any roomy Postgres are
+     * untouched — this is opt-in per environment through `.env`/`.env.test`.
+     */
+    ...(process.env.DB_POOL_MAX
+      ? {
+          databaseDriverOptions: {
+            pool: {
+              min: Number(process.env.DB_POOL_MIN ?? 0),
+              max: Number(process.env.DB_POOL_MAX),
+            },
+          },
+        }
+      : {}),
     http: {
       storeCors: process.env.STORE_CORS!,
       adminCors: process.env.ADMIN_CORS!,

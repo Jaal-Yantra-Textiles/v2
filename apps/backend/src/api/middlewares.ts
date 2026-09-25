@@ -150,7 +150,7 @@ import { tagSchema, deleteTagSchema } from "./admin/persons/[id]/tags/validators
 import { rawMaterialSchema, UpdateRawMaterialSchema } from "./admin/inventory-items/[id]/rawmaterials/validators";
 import { splitInventorySchema } from "./admin/inventory-items/[id]/split/validators";
 import { CreateMaterialTypeSchema, ReadRawMaterialCategoriesSchema } from "./admin/categories/rawmaterials/validators";
-import { CreateDesignLLMSchema, designSchema, LinkDesignPartnerSchema, ReadDesignsQuerySchema, UpdateDesignSchema } from "./admin/designs/validators";
+import { AttachDesignCustomerSchema, AttachDesignInventoryOrderSchema, CreateDesignLLMSchema, designSchema, LinkDesignPartnerSchema, ReadDesignsQuerySchema, UpdateDesignSchema } from "./admin/designs/validators";
 import { DesignBriefSchema, UpdateDesignBriefSchema } from "./admin/designs/[id]/brief/validators";
 import { SegmentImageSchema } from "./admin/designs/[id]/segment/validators";
 import { DepthImageSchema } from "./partners/designs/[designId]/segment/depth/validators";
@@ -307,6 +307,9 @@ import { AdminCreatePartnerTaskReq, AdminUpdatePartnerTaskReq } from "./admin/pa
 import {
   AdminListPartnerCapabilitiesQuery,
   AdminCreatePartnerCapabilityReq,
+  AdminScanPartnerWebsiteReq,
+  AdminCommitPartnerCapabilityScanReq,
+  AdminAddPartnerCapabilityKnowledgeReq,
 } from "./admin/partners/[id]/capabilities/validators";
 import {
   ListPaymentsByPartnerQuerySchema as PartnerListPaymentsByPartnerQuerySchema,
@@ -4865,6 +4868,29 @@ export default defineMiddlewares({
         validateAndTransformBody(wrapSchema(AdminCreatePartnerCapabilityReq)),
       ],
     },
+    // Website scan (#2249): scan proposes and stores; commit files by key.
+    // Registered before `:sampleId` purely for readability — the methods differ.
+    {
+      matcher: "/admin/partners/:id/capabilities/scan",
+      method: "POST",
+      middlewares: [
+        validateAndTransformBody(wrapSchema(AdminScanPartnerWebsiteReq)),
+      ],
+    },
+    {
+      matcher: "/admin/partners/:id/capabilities/scans/:scanId/commit",
+      method: "POST",
+      middlewares: [
+        validateAndTransformBody(wrapSchema(AdminCommitPartnerCapabilityScanReq)),
+      ],
+    },
+    {
+      matcher: "/admin/partners/:id/capabilities/knowledge",
+      method: "POST",
+      middlewares: [
+        validateAndTransformBody(wrapSchema(AdminAddPartnerCapabilityKnowledgeReq)),
+      ],
+    },
     {
       matcher: "/admin/partners/:id/capabilities/:sampleId",
       method: "DELETE",
@@ -4994,6 +5020,28 @@ export default defineMiddlewares({
     },
 
     // Inventory linkin on designs
+
+    /*
+     * #2111 — whose design this is, and what material it waits for.
+     *
+     * Both are MCP write tools, and the route-validator coverage guard requires
+     * every one of those to be bound to a validator or written down as knowingly
+     * unbound. Binding is the better half of that choice: it is what lets the
+     * guard check the tool's advertised body params against what the route will
+     * actually accept, so a stray field cannot be advertised into a 400.
+     */
+    {
+      matcher: "/admin/designs/:id/customer",
+      method: "POST",
+      middlewares: [validateAndTransformBody(wrapSchema(AttachDesignCustomerSchema))],
+    },
+    {
+      matcher: "/admin/designs/:id/inventory-orders",
+      method: "POST",
+      middlewares: [
+        validateAndTransformBody(wrapSchema(AttachDesignInventoryOrderSchema)),
+      ],
+    },
 
     {
       matcher: "/admin/designs/:id/inventory",
@@ -6125,6 +6173,36 @@ export default defineMiddlewares({
       // #1113 S2 — partner moodboard generate (brief-as-cards). Owner OR
       // assigned partner (the invited designer); guard is in the route.
       matcher: "/partners/designs/:designId/moodboard/generate",
+      method: "POST",
+      middlewares: [authenticate("partner", ["session", "bearer"])],
+    },
+    {
+      /**
+       * #2228 — the moodboard image proxy. Same per-route auth rule as every
+       * sibling; without this entry the route is dead exactly as seed was.
+       */
+      matcher: "/partners/designs/:designId/moodboard/image",
+      method: "GET",
+      middlewares: [authenticate("partner", ["session", "bearer"])],
+    },
+    {
+      /**
+       * 🔴 #2229 — the seed route had NO auth entry, so it was DEAD.
+       *
+       * Authentication here is per-route: `/partners*` carries only CORS and
+       * locale. Every sibling declares `authenticate("partner", …)` — generate,
+       * blocks, the boards list, the scene PUT — and this one did not, so
+       * `req.auth_context` was never populated and
+       * `assertPartnerCanAuthorDesign` rejected every caller with "Partner
+       * authentication required". It failed closed, so it was a dead route
+       * rather than an open one.
+       *
+       * This is what #2229 could not account for. The confusing part was the
+       * OTHER answer it sometimes gave — a 200 with `{ moodboard: null }` —
+       * which came from a dev server left in a half-reloaded state by a failed
+       * rebind, not from this code.
+       */
+      matcher: "/partners/designs/:designId/moodboard/seed",
       method: "POST",
       middlewares: [authenticate("partner", ["session", "bearer"])],
     },

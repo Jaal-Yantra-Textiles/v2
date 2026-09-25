@@ -1,3 +1,146 @@
+## [13.161.1](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.161.0...v13.161.1) (2026-09-24)
+
+
+### Bug Fixes
+
+* **partners:** a person type is shared by many partners ([#2249](https://github.com/Jaal-Yantra-Textiles/v2/issues/2249)) ([#2259](https://github.com/Jaal-Yantra-Textiles/v2/issues/2259)) ([d3e4f20](https://github.com/Jaal-Yantra-Textiles/v2/commit/d3e4f20afeb28747a2a6c1137bfc6540aee4b8be))
+* **partners:** a records scan never files a line's own name as its material ([#2249](https://github.com/Jaal-Yantra-Textiles/v2/issues/2249)) ([#2256](https://github.com/Jaal-Yantra-Textiles/v2/issues/2256)) ([a279a35](https://github.com/Jaal-Yantra-Textiles/v2/commit/a279a354b1eb9278efd7052ec7589078016e5f95))
+
+# [13.161.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.160.0...v13.161.0) (2026-09-24)
+
+
+### Features
+
+* **ai:** pre-classification helper on AI platform rows (TypeSafe / Codiv); capability scans use it ([#2249](https://github.com/Jaal-Yantra-Textiles/v2/issues/2249)) ([#2255](https://github.com/Jaal-Yantra-Textiles/v2/issues/2255)) ([7d14f4f](https://github.com/Jaal-Yantra-Textiles/v2/commit/7d14f4f18427a7e1a0b686e9dd5de016a68ec523))
+
+# [13.160.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.159.2...v13.160.0) (2026-09-23)
+
+
+### Bug Fixes
+
+* **partners:** capability scans — a product's kind comes from its title, cloth splits by material, facts stop restating rows ([#2249](https://github.com/Jaal-Yantra-Textiles/v2/issues/2249)) ([#2252](https://github.com/Jaal-Yantra-Textiles/v2/issues/2252)) ([e4a9b57](https://github.com/Jaal-Yantra-Textiles/v2/commit/e4a9b57dee97b12d2a58056b14fcc235b5e5ef60))
+* **partners:** capability scans fail fast inside the gateway, list a partner's scans, a towel is a towel ([#2249](https://github.com/Jaal-Yantra-Textiles/v2/issues/2249)) ([#2253](https://github.com/Jaal-Yantra-Textiles/v2/issues/2253)) ([6fc427e](https://github.com/Jaal-Yantra-Textiles/v2/commit/6fc427e64a1a08f2d9a79d1b6766cdff385dfcc6))
+* **partners:** records scan — drop designless runs, include legacy store products but never another partner's ([#2249](https://github.com/Jaal-Yantra-Textiles/v2/issues/2249)) ([#2251](https://github.com/Jaal-Yantra-Textiles/v2/issues/2251)) ([8276f0f](https://github.com/Jaal-Yantra-Textiles/v2/commit/8276f0f368eab64ad1bfd68892adf1e09771b26d))
+
+
+### Features
+
+* **partners:** scan a partner's website into their capability library — preview, then commit ([#2249](https://github.com/Jaal-Yantra-Textiles/v2/issues/2249)) ([#2250](https://github.com/Jaal-Yantra-Textiles/v2/issues/2250)) ([eb4b402](https://github.com/Jaal-Yantra-Textiles/v2/commit/eb4b40263cffe81e1b1f4f0650b5c2735d975d49))
+
+## [13.159.2](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.159.1...v13.159.2) (2026-09-23)
+
+
+### Bug Fixes
+
+* **whatsapp:** a partner's Start tap runs the start workflow, so the design leaves Conceptual ([#2247](https://github.com/Jaal-Yantra-Textiles/v2/issues/2247)) ([d5b00b8](https://github.com/Jaal-Yantra-Textiles/v2/commit/d5b00b8c677cf4db7a9636d52e925d04b4b8befa))
+
+## [13.159.1](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.159.0...v13.159.1) (2026-09-23)
+
+
+### Bug Fixes
+
+* **shipping:** the split job moves price-less options too, and counts only what moved ([#1983](https://github.com/Jaal-Yantra-Textiles/v2/issues/1983)) ([#2244](https://github.com/Jaal-Yantra-Textiles/v2/issues/2244)) ([b61ec40](https://github.com/Jaal-Yantra-Textiles/v2/commit/b61ec40a5741a54505d33b77653fe2399cee6185))
+
+# [13.159.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.158.0...v13.159.0) (2026-09-23)
+
+
+### Bug Fixes
+
+* **designs:** a dispatch that mints no work-order stops reporting success ([#2240](https://github.com/Jaal-Yantra-Textiles/v2/issues/2240)) ([ef38aa6](https://github.com/Jaal-Yantra-Textiles/v2/commit/ef38aa68f6584e86bb5b1249be1c6ce91a4935ee))
+* **partners:** a partner can only touch shipping options in its own store ([#2243](https://github.com/Jaal-Yantra-Textiles/v2/issues/2243)) ([143409b](https://github.com/Jaal-Yantra-Textiles/v2/commit/143409bb9cef958d39d582e8320de36be0d3b5f2)), closes [#2061](https://github.com/Jaal-Yantra-Textiles/v2/issues/2061)
+
+
+### Features
+
+* **shipping:** partner shipping gets its own profile — a strict house/partner split ([#1983](https://github.com/Jaal-Yantra-Textiles/v2/issues/1983)) ([#2242](https://github.com/Jaal-Yantra-Textiles/v2/issues/2242)) ([8ce548b](https://github.com/Jaal-Yantra-Textiles/v2/commit/8ce548b33dd4a1f6b186eb73d51ec9c66ef0b050)), closes [#2100](https://github.com/Jaal-Yantra-Textiles/v2/issues/2100)
+
+# [13.158.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.157.0...v13.158.0) (2026-09-23)
+
+
+### Bug Fixes
+
+* **designs:** a partner's Generate saves to their own board, and the materials show their photographs ([#2017](https://github.com/Jaal-Yantra-Textiles/v2/issues/2017), [#2019](https://github.com/Jaal-Yantra-Textiles/v2/issues/2019)) ([#2224](https://github.com/Jaal-Yantra-Textiles/v2/issues/2224)) ([e1d6aa6](https://github.com/Jaal-Yantra-Textiles/v2/commit/e1d6aa67a2a265bf799818fc770ae660bfd5bfbb)), closes [#1847](https://github.com/Jaal-Yantra-Textiles/v2/issues/1847)
+* **moodboard:** images survive export, and the seed route is reachable at all ([#2228](https://github.com/Jaal-Yantra-Textiles/v2/issues/2228), [#2229](https://github.com/Jaal-Yantra-Textiles/v2/issues/2229)) ([#2230](https://github.com/Jaal-Yantra-Textiles/v2/issues/2230)) ([e532b86](https://github.com/Jaal-Yantra-Textiles/v2/commit/e532b86260afd9b2e9a39b91920f73fe8dcfe371)), closes [#2227](https://github.com/Jaal-Yantra-Textiles/v2/issues/2227)
+* partners can claim a task they priced themselves; the work-order suites stop refusing ([#2223](https://github.com/Jaal-Yantra-Textiles/v2/issues/2223)) ([#2239](https://github.com/Jaal-Yantra-Textiles/v2/issues/2239)) ([329b9ad](https://github.com/Jaal-Yantra-Textiles/v2/commit/329b9ad7f03d68cfbf10bd7716501c8b5849b9b2)), closes [#2219](https://github.com/Jaal-Yantra-Textiles/v2/issues/2219) [#2219](https://github.com/Jaal-Yantra-Textiles/v2/issues/2219) [#2219](https://github.com/Jaal-Yantra-Textiles/v2/issues/2219) [#2219](https://github.com/Jaal-Yantra-Textiles/v2/issues/2219) [#2219](https://github.com/Jaal-Yantra-Textiles/v2/issues/2219)
+* **moodboard:** Save says whether the partner's work is in ([#2231](https://github.com/Jaal-Yantra-Textiles/v2/issues/2231)) ([#2232](https://github.com/Jaal-Yantra-Textiles/v2/issues/2232)) ([45f2776](https://github.com/Jaal-Yantra-Textiles/v2/commit/45f27761f893f9cb29fdafeaa8d0583d09e9a92e)), closes [#2228](https://github.com/Jaal-Yantra-Textiles/v2/issues/2228)
+* **e2e:** the admin photo test asserts DOM order, not geometry — it was flaky on CI ([#2226](https://github.com/Jaal-Yantra-Textiles/v2/issues/2226)) ([b70d75b](https://github.com/Jaal-Yantra-Textiles/v2/commit/b70d75b9b7254c852590d0cc4cbbcce3ca28cee3)), closes [#2225](https://github.com/Jaal-Yantra-Textiles/v2/issues/2225)
+* **moodboard:** the board reaches the canvas, and the export dialog can be clicked ([#2227](https://github.com/Jaal-Yantra-Textiles/v2/issues/2227)) ([1b93032](https://github.com/Jaal-Yantra-Textiles/v2/commit/1b93032d2120bba4c71f9896ec3886868d27d861)), closes [#2017](https://github.com/Jaal-Yantra-Textiles/v2/issues/2017)
+* **ci:** the test pool cap stops shipping a laptop's size to CI ([#2237](https://github.com/Jaal-Yantra-Textiles/v2/issues/2237)) ([18b0862](https://github.com/Jaal-Yantra-Textiles/v2/commit/18b0862d7b879902b8dcb643d6c8f6d132a2fd96)), closes [#2223](https://github.com/Jaal-Yantra-Textiles/v2/issues/2223)
+* three live defects — a partner who cannot be found, a dead link, and a currency lottery ([#2106](https://github.com/Jaal-Yantra-Textiles/v2/issues/2106), [#2114](https://github.com/Jaal-Yantra-Textiles/v2/issues/2114)) ([#2219](https://github.com/Jaal-Yantra-Textiles/v2/issues/2219)) ([72bc7b1](https://github.com/Jaal-Yantra-Textiles/v2/commit/72bc7b198b3ad6cd3c15604f7e92f48cd0596513)), closes [#1983](https://github.com/Jaal-Yantra-Textiles/v2/issues/1983) [#1983](https://github.com/Jaal-Yantra-Textiles/v2/issues/1983) [#1979](https://github.com/Jaal-Yantra-Textiles/v2/issues/1979) [#310](https://github.com/Jaal-Yantra-Textiles/v2/issues/310)
+
+
+### Features
+
+* **moodboard:** starting a board is the partner's decision, not a side effect of opening the page ([#2019](https://github.com/Jaal-Yantra-Textiles/v2/issues/2019)) ([#2225](https://github.com/Jaal-Yantra-Textiles/v2/issues/2225)) ([0155f13](https://github.com/Jaal-Yantra-Textiles/v2/commit/0155f13b9b68626e30600d469dcda8a850fb1e91))
+
+# [13.157.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.156.0...v13.157.0) (2026-09-21)
+
+
+### Bug Fixes
+
+* **production-runs:** a dependency attached to an already-met upstream releases now, not never ([#2214](https://github.com/Jaal-Yantra-Textiles/v2/issues/2214)) ([#2217](https://github.com/Jaal-Yantra-Textiles/v2/issues/2217)) ([ebbeed6](https://github.com/Jaal-Yantra-Textiles/v2/commit/ebbeed6df846e67df8dbf2042399794ae9e9f579))
+
+
+### Features
+
+* **whatsapp:** the failures speak the partner's language too — and the acks come out of the dark ([#2216](https://github.com/Jaal-Yantra-Textiles/v2/issues/2216)) ([#2218](https://github.com/Jaal-Yantra-Textiles/v2/issues/2218)) ([21b9f53](https://github.com/Jaal-Yantra-Textiles/v2/commit/21b9f53a5b8415061ac273007be7ecc05c8532ca)), closes [#2213](https://github.com/Jaal-Yantra-Textiles/v2/issues/2213)
+
+
+### BREAKING CHANGES
+
+* **whatsapp:** the id guard turns 5 tests red across 3 suites, the #2213 suite among
+them.
+
+Converted — failures, media, completion/decline, as the issue scoped:
+
+# [13.156.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.155.0...v13.156.0) (2026-09-21)
+
+
+### Bug Fixes
+
+* **whatsapp:** the Accept survives consent, the reply decides the run — and the acks are written, not printed ([#2211](https://github.com/Jaal-Yantra-Textiles/v2/issues/2211), [#2212](https://github.com/Jaal-Yantra-Textiles/v2/issues/2212)) ([#2213](https://github.com/Jaal-Yantra-Textiles/v2/issues/2213)) ([85458e8](https://github.com/Jaal-Yantra-Textiles/v2/commit/85458e81ab7a28913ce87564e148eff79f53d511))
+
+
+### Features
+
+* **production-runs:** a board for the runs that are ready and going nowhere ([#2202](https://github.com/Jaal-Yantra-Textiles/v2/issues/2202)) ([#2210](https://github.com/Jaal-Yantra-Textiles/v2/issues/2210)) ([08d482a](https://github.com/Jaal-Yantra-Textiles/v2/commit/08d482aed8939a6af5e0751ec30f2c8f956a1f45)), closes [#2206](https://github.com/Jaal-Yantra-Textiles/v2/issues/2206)
+* **production-runs:** somebody is told when a run cannot dispatch itself ([#2202](https://github.com/Jaal-Yantra-Textiles/v2/issues/2202)) ([#2207](https://github.com/Jaal-Yantra-Textiles/v2/issues/2207)) ([03b364d](https://github.com/Jaal-Yantra-Textiles/v2/commit/03b364da36379ea938f63b4d866f38acd92cfafc))
+
+# [13.155.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.154.0...v13.155.0) (2026-09-20)
+
+
+### Features
+
+* **graph:** a design shows the material it is waiting for ([#2111](https://github.com/Jaal-Yantra-Textiles/v2/issues/2111)) ([#2205](https://github.com/Jaal-Yantra-Textiles/v2/issues/2205)) ([baf54fc](https://github.com/Jaal-Yantra-Textiles/v2/commit/baf54fc880fee27a4aeb44dc92a8986f3ae09191)), closes [#2200](https://github.com/Jaal-Yantra-Textiles/v2/issues/2200) [#2199](https://github.com/Jaal-Yantra-Textiles/v2/issues/2199)
+* **production-runs:** a standing rule for what to dispatch when the cloth lands ([#2202](https://github.com/Jaal-Yantra-Textiles/v2/issues/2202)) ([#2206](https://github.com/Jaal-Yantra-Textiles/v2/issues/2206)) ([e842e5a](https://github.com/Jaal-Yantra-Textiles/v2/commit/e842e5ab7a07385b9ea657acaf71502f2765ec18)), closes [#1261](https://github.com/Jaal-Yantra-Textiles/v2/issues/1261)
+* **ops:** the design arrival mail is seeded from Data Plumbing, not a Fargate one-off ([#2111](https://github.com/Jaal-Yantra-Textiles/v2/issues/2111)) ([#2203](https://github.com/Jaal-Yantra-Textiles/v2/issues/2203)) ([81c3c23](https://github.com/Jaal-Yantra-Textiles/v2/commit/81c3c23818499e9d886362bfa4dd724b32c3f957)), closes [#2200](https://github.com/Jaal-Yantra-Textiles/v2/issues/2200) [#2200](https://github.com/Jaal-Yantra-Textiles/v2/issues/2200)
+* **email:** the lodgement mail says what happens next, not that the design is ready ([#2204](https://github.com/Jaal-Yantra-Textiles/v2/issues/2204)) ([0fe1009](https://github.com/Jaal-Yantra-Textiles/v2/commit/0fe10092eb530be468024b35be7f2a030c890ec4)), closes [#2111](https://github.com/Jaal-Yantra-Textiles/v2/issues/2111)
+
+# [13.154.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.153.0...v13.154.0) (2026-09-20)
+
+
+### Bug Fixes
+
+* **design-orders:** a cancelled design order cannot be converted to a paid one ([#2186](https://github.com/Jaal-Yantra-Textiles/v2/issues/2186)) ([e02fb84](https://github.com/Jaal-Yantra-Textiles/v2/commit/e02fb84763e39de445b72408317be63366d7ec44))
+* **design-orders:** a cancelled design order releases its design ([#2184](https://github.com/Jaal-Yantra-Textiles/v2/issues/2184)) ([f1e2ffc](https://github.com/Jaal-Yantra-Textiles/v2/commit/f1e2ffcf824e339937ac10d12090f25fb1358d4c)), closes [#2179](https://github.com/Jaal-Yantra-Textiles/v2/issues/2179)
+* **cart-recovery:** a cancelled design order stops chasing the buyer ([#2185](https://github.com/Jaal-Yantra-Textiles/v2/issues/2185)) ([0791e31](https://github.com/Jaal-Yantra-Textiles/v2/commit/0791e31b831688d9bd9719d2ecfb507198972e5b))
+* **checkout:** a guest is asked to sign in, not shown the promotion module's error ([#2194](https://github.com/Jaal-Yantra-Textiles/v2/issues/2194)) ([#2198](https://github.com/Jaal-Yantra-Textiles/v2/issues/2198)) ([28af8e1](https://github.com/Jaal-Yantra-Textiles/v2/commit/28af8e1a08e70d9ba334bd55a56993cd3ba59000))
+* **checkout:** a promo code changes the total it is shown next to ([#2194](https://github.com/Jaal-Yantra-Textiles/v2/issues/2194)) ([#2195](https://github.com/Jaal-Yantra-Textiles/v2/issues/2195)) ([4a5dc96](https://github.com/Jaal-Yantra-Textiles/v2/commit/4a5dc961176fe8105aa7b70930430603cceeca88))
+* **shipglobal:** convert the carrier's rupees instead of billing them as euros ([#2192](https://github.com/Jaal-Yantra-Textiles/v2/issues/2192)) ([a827458](https://github.com/Jaal-Yantra-Textiles/v2/commit/a827458d418b0dc03a5b1ecea0d01e38d7c2299d))
+* **checkout:** the buyer's own country, and an option name that stays in its box ([#2189](https://github.com/Jaal-Yantra-Textiles/v2/issues/2189)) ([280c4d9](https://github.com/Jaal-Yantra-Textiles/v2/commit/280c4d9af97111a88d012755641a7ba6bce65377))
+* **mcp:** the design-order tools advertise the country the buyer buys from ([#2190](https://github.com/Jaal-Yantra-Textiles/v2/issues/2190)) ([caa096b](https://github.com/Jaal-Yantra-Textiles/v2/commit/caa096b8c04403a342fc92933fb2181d82e1349a))
+* **checkout:** the shipping options are the buyer's own, and they stay on screen ([#2191](https://github.com/Jaal-Yantra-Textiles/v2/issues/2191)) ([213a526](https://github.com/Jaal-Yantra-Textiles/v2/commit/213a5260ae3eb938d3d04324a23c8bec7da3a811))
+
+
+### Features
+
+* **designs:** a client is told when the cloth for their design arrives ([#2111](https://github.com/Jaal-Yantra-Textiles/v2/issues/2111)) ([#2200](https://github.com/Jaal-Yantra-Textiles/v2/issues/2200)) ([2398e9a](https://github.com/Jaal-Yantra-Textiles/v2/commit/2398e9a96d3d1c6410275fc5f6c19d682f046173))
+* **graph:** a design says when it can reach nobody ([#2201](https://github.com/Jaal-Yantra-Textiles/v2/issues/2201)) ([9ff5cd1](https://github.com/Jaal-Yantra-Textiles/v2/commit/9ff5cd17675a39391a2db4f68e5950888494f1a5))
+* **graph:** a production run can say what it is waiting on ([#2111](https://github.com/Jaal-Yantra-Textiles/v2/issues/2111) S2) ([#2199](https://github.com/Jaal-Yantra-Textiles/v2/issues/2199)) ([23f17fd](https://github.com/Jaal-Yantra-Textiles/v2/commit/23f17fd1067e198ac8f5dfa076efce7548173883)), closes [#2053](https://github.com/Jaal-Yantra-Textiles/v2/issues/2053)
+* **design-orders:** ask who is buying and from where — and stop sending Europeans to Albania ([#2187](https://github.com/Jaal-Yantra-Textiles/v2/issues/2187)) ([8225268](https://github.com/Jaal-Yantra-Textiles/v2/commit/82252680be6529ef71de2df139d12a96ae1859f3))
+* **design-orders:** the cart line carries the design's picture ([#2193](https://github.com/Jaal-Yantra-Textiles/v2/issues/2193)) ([1850495](https://github.com/Jaal-Yantra-Textiles/v2/commit/1850495dd43df1ca40728d4587948102ce00caa7))
+* **checkout:** the left column is what you fill in, the right is the receipt ([#2196](https://github.com/Jaal-Yantra-Textiles/v2/issues/2196)) ([5953a77](https://github.com/Jaal-Yantra-Textiles/v2/commit/5953a778fde34f4603e7b2e29734aac491b4cef5)), closes [#1787](https://github.com/Jaal-Yantra-Textiles/v2/issues/1787)
+
 # [13.153.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.152.0...v13.153.0) (2026-09-19)
 
 

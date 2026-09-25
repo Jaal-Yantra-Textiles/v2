@@ -101,3 +101,29 @@
 .jyt-moodboard .excalidraw .dropdown-menu-item {
   border-radius: var(--border-radius-md);
 }
+
+/*
+ * 🔴 Excalidraw's dialogs are PORTALED TO document.body.
+ *
+ * The export dialog ("Export image" → PNG / SVG / Copy to clipboard) is not
+ * rendered inside the canvas container: Excalidraw appends
+ * `div.excalidraw.excalidraw-modal-container` to the body. Our editor lives
+ * inside a RouteFocusModal, and Radix sets `pointer-events: none` on the body
+ * while a dialog is open, re-enabling it only on its OWN content. The export
+ * dialog is outside that subtree, so it inherited `none` all the way down:
+ *
+ *     BODY                                   [pe=none]
+ *     └ div.excalidraw-modal-container       [pe=none]
+ *       └ … └ button.ExcButton  (PNG)        [pe=none]
+ *
+ * It rendered, it looked enabled, and `document.elementFromPoint` over the PNG
+ * button returned the CANVAS behind it. Every click went to the drawing
+ * surface. That is why the moodboard could not be exported at all.
+ *
+ * Not scoped under `.jyt-moodboard` because the container is a sibling of our
+ * whole tree — the class is Excalidraw's own and only exists while one of its
+ * dialogs is open.
+ */
+body > .excalidraw-modal-container {
+  pointer-events: auto;
+}

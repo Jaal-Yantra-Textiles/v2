@@ -1,6 +1,7 @@
 import { createStep, StepResponse } from "@medusajs/framework/workflows-sdk"
 import { createProductsWorkflow } from "@medusajs/medusa/core-flows"
 import { Modules } from "@medusajs/framework/utils"
+import { resolveProductShippingProfileId } from "../../../../lib/partner-shipping-profile"
 
 export type CreateProductsBatchInput = {
     analyzedProducts: Array<{
@@ -69,8 +70,19 @@ export const createProductsBatchStep = createStep(
         }))
 
         // Create products using Medusa's core workflow
+        // #1983 — the profile follows the channel (partner store → partner
+        // profile), or the product cannot ship with that store's options.
+        const shippingProfileId = await resolveProductShippingProfileId(
+            container,
+            [store.default_sales_channel_id]
+        )
         const { result } = await createProductsWorkflow(container).run({
-            input: { products: productInputs },
+            input: {
+                products: productInputs.map((p: any) => ({
+                    ...p,
+                    shipping_profile_id: shippingProfileId,
+                })),
+            },
         })
 
         return new StepResponse(

@@ -490,6 +490,8 @@ const DELIBERATELY_OMITTED: Record<string, Record<string, string>> = {
     type_id: "GAP (#1394): alternative to `type`, same gap",
     rules: "GAP (#1394): rule arrays need their own schema",
     data: "provider-specific blob, never assistant-written",
+    shipping_profile_id:
+      "#1983: accepted for old clients and IGNORED — the server always puts a partner's option on the partner shipping profile",
   },
   "partner:update_design": {
     design_files: "files go through the media tools",

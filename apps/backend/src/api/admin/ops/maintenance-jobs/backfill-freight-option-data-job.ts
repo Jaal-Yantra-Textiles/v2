@@ -13,6 +13,7 @@ import {
 } from "../../../../lib/freight-default-rates"
 import { isQuoteOnlyOption } from "../../../../lib/quote-freight-tiers"
 
+import { makeShippingProfileForLocation } from "../../../../lib/partner-shipping-profile"
 import type { MaintenanceChange, MaintenanceJob, MaintenanceJobResult } from "./registry"
 
 /**
@@ -346,17 +347,9 @@ export const backfillFreightOptionDataJob: MaintenanceJob = {
     if (location_id) graphArgs.filters = { id: location_id }
     const { data: locations } = await query.graph(graphArgs as any)
 
-    // Reuse the store's shipping profile rather than creating one — a second
-    // "Default" profile splits the catalogue and silently hides products from
-    // the new option.
-    const profiles = await fulfillmentService.listShippingProfiles({}, { take: 1 })
-    const profileId = profiles?.[0]?.id
-    if (!profileId && create_missing_quote_tier) {
-      throw new MedusaError(
-        MedusaError.Types.NOT_FOUND,
-        "No shipping profile exists, so a quote-only option cannot be created. Seed one first."
-      )
-    }
+    // #1983 — the profile follows the location (partner building → partner
+    // profile, ours → house). This used to be `take: 1`.
+    const profileFor = await makeShippingProfileForLocation(container)
 
     const changes: MaintenanceChange[] = []
     const errors: Array<{ id: string; message: string }> = []
@@ -408,7 +401,7 @@ export const backfillFreightOptionDataJob: MaintenanceJob = {
                   price_type: "flat",
                   provider_id: MANUAL_PROVIDER_ID,
                   service_zone_id: entry.zone_id,
-                  shipping_profile_id: profileId,
+                  shipping_profile_id: await profileFor(location.id),
                   type: {
                     label: "Quote freight",
                     description:

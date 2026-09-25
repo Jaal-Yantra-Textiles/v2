@@ -1,6 +1,7 @@
 import { LoaderFunctionArgs, UIMatch, useLoaderData, useParams } from "react-router-dom";
 import { AdminDesignResponse, useDesign } from "../../../hooks/api/designs";
 import { DesignGeneralSection } from "../../../components/designs/design-general-section";
+import { DesignCustomerSection } from "../../../components/designs/design-customer-section";
 import { DesignGraphSection } from "../../../components/designs/design-graph-section";
 import { DesignDesignerInvitesSection } from "../../../components/designs/design-designer-invites-section";
 import { DesignMediaSection } from "../../../components/designs/design-media-section";
@@ -105,6 +106,13 @@ const DesignDetailPage = () => {
               - designer invites — not on the graph at all yet.
           */}
           <DesignGraphSection design={design} />
+          {/*
+            Who hears about this design. Directly under the graph, which is the
+            other surface that now states this absence — and above the sections
+            that describe the design itself, because a design nobody can be told
+            about is a different kind of problem from an incomplete one.
+          */}
+          <DesignCustomerSection design={design} />
           <DesignDesignerInvitesSection design={design} />
           <DesignConsumptionLogsSection design={design} />
         </TwoColumnPage.Main>

@@ -118,7 +118,9 @@ export const PartnerCreateShippingOptionReq = z.object({
   price_type: z.string().min(1),
   provider_id: z.string().min(1),
   service_zone_id: z.string().min(1),
-  shipping_profile_id: z.string().min(1),
+  // #1983 — accepted for compatibility with existing clients, and IGNORED: the
+  // server always puts a partner's option on the partner shipping profile.
+  shipping_profile_id: z.string().optional(),
   type: z.object({
     label: z.string().min(1),
     description: z.string().optional(),

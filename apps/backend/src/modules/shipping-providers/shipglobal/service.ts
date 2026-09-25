@@ -15,8 +15,19 @@ import {
   FlatFallbackConfig,
   resolveFlatFallbackAmount,
 } from "../shiprocket/flat-fallback"
+import {
+  applyRateToCarrierAmount,
+  hasKnownCurrency,
+} from "../shiprocket/rate-currency"
 
-type InjectedDeps = { logger: Logger }
+/**
+ * 🔑 `fx_rates` is ALREADY in this provider's cradle — it is declared on the
+ * fulfillment module's `dependencies` in both `medusa-config.ts` and
+ * `medusa-config.prod.ts`, which covers every provider registered under it.
+ * This service simply destructured `{ logger }` and threw it away, which is
+ * why its quotes were never converted. No config change was needed.
+ */
+type InjectedDeps = { logger: Logger; fx_rates?: any }
 
 /**
  * ShipGlobal fulfillment provider (#shipglobal).
@@ -32,15 +43,20 @@ class ShipglobalFulfillmentService extends AbstractFulfillmentProviderService {
   static identifier = "shipglobal"
 
   protected client: ShipglobalClient
+  protected deps: InjectedDeps
   protected logger: Logger
   /** What an unquotable lane costs. See `shiprocket/flat-fallback.ts`. */
   protected fallbackConfig: FlatFallbackConfig
 
   constructor(
-    { logger }: InjectedDeps,
+    deps: InjectedDeps,
     options: ShipglobalOptions & FlatFallbackConfig
   ) {
     super()
+    const { logger } = deps
+    // The WHOLE cradle, as shiprocket and packlink keep it — `fx_rates` is
+    // reached through it at quote time.
+    this.deps = deps
     this.logger = logger
     this.client = new ShipglobalClient(options)
     this.fallbackConfig = {
@@ -112,8 +128,44 @@ class ShipglobalFulfillmentService extends AbstractFulfillmentProviderService {
           currencyCode
         )
       }
+      /**
+       * 🔴 CONVERT. This returned `Number(recommended.amount)` raw.
+       *
+       * ShipGlobal is an India-origin cross-border aggregator and quotes in
+       * RUPEES — confirmed against its own dashboard rate calculator, which
+       * answers Sweden in INR only, and against the live fixture in
+       * `client.unit.spec.ts` (`currency: "INR"`). The cart is denominated in
+       * whatever the buyer buys in, so a rupee figure handed back unconverted
+       * is billed as euros.
+       *
+       * Exactly the bug shiprocket already fixed — "prod measured an AU cart
+       * being quoted ₹890 as A$890" — using the same `fx_rates` module that
+       * has been in this cradle the whole time.
+       *
+       * Converts FROM the quote's own currency rather than a constant, because
+       * unlike shiprocket this carrier states it per response.
+       */
+      const quoted = await this.toCartCurrency(
+        Number(recommended.amount),
+        recommended.currency_code,
+        currencyCode
+      )
+
+      if (quoted == null) {
+        return this.flatFallback(
+          destinationCountry,
+          `ShipGlobal quoted ${recommended.amount} ${String(
+            recommended.currency_code ?? "?"
+          ).toUpperCase()} and it could not be converted to ${
+            currencyCode ?? "an unknown cart currency"
+          }`,
+          optionData,
+          currencyCode
+        )
+      }
+
       return {
-        calculated_amount: Number(recommended.amount),
+        calculated_amount: quoted,
         is_calculated_price_tax_inclusive: true,
       }
     } catch (e: any) {
@@ -124,6 +176,66 @@ class ShipglobalFulfillmentService extends AbstractFulfillmentProviderService {
         optionData,
         currencyCode
       )
+    }
+  }
+
+  /**
+   * Convert a carrier quote into the cart's currency, or answer null.
+   *
+   * Null means "the flat fallback is a better answer than this number", and it
+   * covers an unknown cart currency, an unknown QUOTE currency, a missing
+   * `fx_rates` module and an unavailable rate alike. The raw foreign amount is
+   * never returned — that is the whole defect this exists to prevent.
+   */
+  protected async toCartCurrency(
+    amount: number,
+    quoteCurrency: string | null | undefined,
+    cartCurrency: string | null
+  ): Promise<number | null> {
+    if (!hasKnownCurrency(cartCurrency)) {
+      this.logger.warn(
+        `[shipglobal] rate ${amount} has no cart currency to convert into; using the flat fallback instead of quoting it raw.`
+      )
+      return null
+    }
+
+    if (!hasKnownCurrency(quoteCurrency)) {
+      this.logger.warn(
+        `[shipglobal] rate ${amount} arrived with no currency of its own; using the flat fallback rather than guessing one.`
+      )
+      return null
+    }
+
+    const from = String(quoteCurrency).toUpperCase()
+    const target = String(cartCurrency).toUpperCase()
+
+    if (from === target) {
+      return Number.isFinite(Number(amount)) ? Number(amount) : null
+    }
+
+    const fx = this.deps?.fx_rates
+
+    if (!fx?.getRate) {
+      this.logger.warn(
+        `[shipglobal] no fx_rates module in the provider cradle — declare it in the fulfillment module's \`dependencies\`. Falling back rather than quoting ${from} as ${target}.`
+      )
+      return null
+    }
+
+    try {
+      const rate = await fx.getRate(from, target)
+      const converted = applyRateToCarrierAmount(amount, rate)
+      if (converted == null) {
+        this.logger.warn(
+          `[shipglobal] unusable ${from}->${target} rate (${rate}); falling back.`
+        )
+      }
+      return converted
+    } catch (e: any) {
+      this.logger.warn(
+        `[shipglobal] no ${from}->${target} rate (${e?.message}); falling back.`
+      )
+      return null
     }
   }
 

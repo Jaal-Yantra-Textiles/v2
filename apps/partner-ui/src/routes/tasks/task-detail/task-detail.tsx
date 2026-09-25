@@ -23,27 +23,6 @@ export const TaskDetail = () => {
     enabled: !!id,
   })
 
-  if (!id) {
-    return (
-      <SingleColumnPage widgets={{ before: [], after: [] }} hasOutlet={false}>
-        <Container className="p-6">
-          <Heading>Task</Heading>
-          <Text size="small" className="text-ui-fg-subtle">
-            Missing task id
-          </Text>
-        </Container>
-      </SingleColumnPage>
-    )
-  }
-
-  if (isError) {
-    throw error
-  }
-
-  if (isPending || !task) {
-    return <TwoColumnPageSkeleton mainSections={5} sidebarSections={2} />
-  }
-
   const workflowType = (task?.metadata as any)?.workflow_config?.type
   const isSequential = workflowType === "sequential"
 
@@ -110,6 +89,46 @@ export const TaskDetail = () => {
 
     return items
   }, [completedCount, isSequential, nextSubtask, task, totalCount])
+
+  /*
+   * 🔴 EVERY HOOK ABOVE, EVERY GUARD BELOW.
+   *
+   * These three returns used to sit between `usePartnerAssignedTask` and the
+   * four `useMemo`s under it. So the first render — pending, no task — ran two
+   * hooks, and the render after the fetch resolved ran six. React counts hooks
+   * per render and refuses when the number changes: "Rendered more hooks than
+   * during the previous render" (minified #310), which is a thrown error, not a
+   * degraded page.
+   *
+   * ⚠️ AND IT WAS INTERMITTENT, which is why it survived. A task already in the
+   * react-query cache — arriving from the list, or a revisit — resolves on the
+   * first render, the early return never fires, and the page loads perfectly.
+   * Cold-load it and it crashes. "Sometimes it works" was the symptom that made
+   * this look like a data problem for days; the data was never wrong.
+   *
+   * The memos all read `task?.` and cope with undefined, so hoisting them costs
+   * nothing.
+   */
+  if (!id) {
+    return (
+      <SingleColumnPage widgets={{ before: [], after: [] }} hasOutlet={false}>
+        <Container className="p-6">
+          <Heading>Task</Heading>
+          <Text size="small" className="text-ui-fg-subtle">
+            Missing task id
+          </Text>
+        </Container>
+      </SingleColumnPage>
+    )
+  }
+
+  if (isError) {
+    throw error
+  }
+
+  if (isPending || !task) {
+    return <TwoColumnPageSkeleton mainSections={5} sidebarSections={2} />
+  }
 
   return (
     <TwoColumnPage

@@ -114,9 +114,21 @@ export default function CheckoutShippingSection({
       .sort((a, b) => a.label.localeCompare(b.label))
   }, [regions])
 
-  const selectedCountryOption =
-    countryOptions.find((o) => o.country === currentCountry) ??
-    countryOptions[0]
+  /**
+   * 🔴 NO `?? countryOptions[0]` fallback.
+   *
+   * This drives both the label on the trigger and which radio reads as
+   * selected. `countryOptions` is every country of every region sorted by
+   * name, so when the buyer's country was not matched the picker confidently
+   * announced the alphabetically-first country on the platform — a Swedish
+   * buyer on a `/se/` checkout was shown "Angola", selected.
+   *
+   * Undefined is the truthful answer, and the trigger already renders "—" for
+   * it. An unknown country should look unknown, not like somebody else's.
+   */
+  const selectedCountryOption = countryOptions.find(
+    (o) => o.country === currentCountry
+  )
 
   const handleRegionChange = (countryCode: string) => {
     const option = countryOptions.find((opt) => opt.country === countryCode)
@@ -129,7 +141,41 @@ export default function CheckoutShippingSection({
     })
   }
 
-  const shippingOptions = availableShippingOptions
+  /**
+   * 🔴 Hide an option that cannot be PRICED yet, rather than pricing it wrongly.
+   *
+   * Some carriers quote by destination postcode and will not answer without
+   * one. ShipGlobal is one: an admin-created design order carries a country and
+   * no postcode, so its rate call goes out with `destination_pincode: ""`, the
+   * carrier refuses, and the provider falls back. On a live Swedish checkout
+   * that fallback was `DEFAULT_FLAT_FALLBACK` — 200 — which `flat-fallback.ts`
+   * itself calls "an INR-shaped number and is almost certainly wrong in any
+   * other currency". The buyer was offered €200.00 beside a real €19.81.
+   *
+   * A made-up number the buyer can SELECT is worse than an option that is not
+   * there yet, so it is withheld until the cart can actually be quoted. It
+   * comes back on its own once the address step writes a postcode: that
+   * mutation revalidates the fulfillment tag and this list is refetched —
+   * which only works because the same change stopped force-caching it.
+   *
+   * Driven by the option's own `data`, not by a carrier name hardcoded here:
+   * which carriers need a postcode is the backend's fact to state, and
+   * Shiprocket beside it quotes country-level perfectly well (€19.81, not its
+   * €35 fallback).
+   */
+  const hasPostalCode = Boolean(
+    String(cart.shipping_address?.postal_code ?? "").trim()
+  )
+
+  const withheldForPostalCode = (availableShippingOptions ?? []).filter(
+    (o) => (o.data as Record<string, unknown> | null)?.requires_postal_code
+  ).length
+
+  const shippingOptions = hasPostalCode
+    ? availableShippingOptions
+    : (availableShippingOptions ?? []).filter(
+        (o) => !(o.data as Record<string, unknown> | null)?.requires_postal_code
+      )
 
   useEffect(() => {
     setIsLoadingPrices(true)
@@ -258,8 +304,28 @@ export default function CheckoutShippingSection({
         </DropdownMenu>
       </div>
 
-      {/* Shipping method cards */}
-      <div className="overflow-x-auto no-scrollbar px-px pb-1">
+      {/*
+        Shipping method cards.
+
+        🔴 `min-w-0` is what makes `overflow-x-auto` mean anything. The cards
+        are `w-[180px] shrink-0`, and this scroller sits in a flex column whose
+        children default to `min-width: auto` — so instead of scrolling, it
+        grew to its content and pushed the whole grid column wide. On a live
+        Swedish checkout with 7 options that carried the order summary, and the
+        TOTAL, off the right edge of the screen; the page scrolled sideways.
+        India has 2 options, which is why local testing never showed it.
+
+        Same defect as `min-h-0` on the modal body, one axis over.
+      */}
+      {withheldForPostalCode > 0 && !hasPostalCode && (
+        <p className="txt-compact-small text-ui-fg-muted">
+          {withheldForPostalCode === 1
+            ? "One more delivery option appears once you add your postcode."
+            : `${withheldForPostalCode} more delivery options appear once you add your postcode.`}
+        </p>
+      )}
+
+      <div className="min-w-0 overflow-x-auto no-scrollbar px-px pb-1">
         {shippingOptions && shippingOptions.length > 0 ? (
           <RadioGroup
             value={shippingMethodId ?? undefined}
@@ -286,12 +352,26 @@ export default function CheckoutShippingSection({
                           ? `Delivery from ${formatDeliveryDate(days.min)}`
                           : null
 
+              /**
+               * 🔴 `?? null`, because `option.amount!` was a lie.
+               *
+               * The `!` is a TypeScript assertion and does nothing at runtime.
+               * A FLAT option carries no amount when it has no price in the
+               * cart's currency — an Australia-zone option priced only in AUD,
+               * offered on a EUR cart. `undefined` then walked straight through
+               * the `priceAmount !== null` guard below (`undefined !== null` is
+               * TRUE) and reached `Intl.NumberFormat.format(undefined)`, which
+               * renders "€NaN". The buyer was shown, and could select, a
+               * shipping method with no price.
+               *
+               * Normalising to null makes the existing guard do its job and the
+               * row falls through to "—". Note `??` and not `||`: a genuine
+               * amount of 0 is FREE shipping, not a missing price.
+               */
               const priceAmount =
                 option.price_type === "flat"
-                  ? option.amount!
-                  : calculatedPricesMap[option.id] !== undefined
-                    ? calculatedPricesMap[option.id]
-                    : null
+                  ? option.amount ?? null
+                  : calculatedPricesMap[option.id] ?? null
               const isFreeShipping = priceAmount === 0
               const price = isFreeShipping
                 ? "Free"
@@ -315,12 +395,25 @@ export default function CheckoutShippingSection({
                   )}
                   data-testid="delivery-option-radio"
                 >
+                  {/*
+                    An option with no price in this currency cannot be chosen.
+                    It used to be fully selectable while displaying "€NaN".
+                  */}
                   <RadioGroup.Item
                     value={option.id}
                     aria-label={option.name}
+                    disabled={priceAmount === null && !isLoadingPrices}
                     className="absolute inset-0 z-10 h-full w-full cursor-pointer rounded-md bg-transparent outline-none [&>div]:hidden focus-visible:shadow-borders-interactive-with-focus"
                   />
-                  <span className="txt-compact-medium-plus text-ui-fg-base">
+                  {/*
+                    🔴 `break-words`. The card is a fixed `w-[180px] shrink-0`,
+                    and an option name can carry a ULID — "Quoted freight —
+                    01M0Q0AK64DQVYJR8G4CTFW75S". With the default
+                    `overflow-wrap: normal` that is ONE unbreakable token, so it
+                    rendered straight out of the card and over its neighbour:
+                    the box measured 180px wide with a 258px scrollWidth.
+                  */}
+                  <span className="txt-compact-medium-plus text-ui-fg-base break-words">
                     {option.name}
                   </span>
                   <div className="flex flex-col gap-y-0">

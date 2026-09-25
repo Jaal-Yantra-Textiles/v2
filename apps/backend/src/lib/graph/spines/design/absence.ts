@@ -166,3 +166,28 @@ export const expectsConsumptionLog = (
 ): boolean =>
   consumptionLogCount === 0 &&
   runs.some((r) => FINISHED_RUN_STATUSES.has(String(r.status)))
+
+/**
+ * A customer this design can actually send mail to.
+ *
+ * 🔴 A LINK ROW IS NOT A RECORD, and here that distinction decides whether a
+ * client hears from us at all. `design.customers` is a field hop, so a link
+ * pointing at a customer who no longer exists can come back as a row with
+ * nothing in it. Counting those rows would draw a "Customers: 1" node over a
+ * design that reaches nobody — which is worse than drawing nothing, because it
+ * answers the question wrongly instead of leaving it open.
+ *
+ * `email` is required, not just an id: the send is an email, and a customer
+ * record without one is unreachable by the only channel this link feeds.
+ */
+export type CustomerLike = {
+  id?: string | null
+  email?: string | null
+}
+
+export const reachableCustomers = <T extends CustomerLike>(
+  customers: (T | null | undefined)[]
+): T[] =>
+  (customers || []).filter(
+    (c): c is T => !!c && !!c.id && !!String(c.email ?? "").trim()
+  )

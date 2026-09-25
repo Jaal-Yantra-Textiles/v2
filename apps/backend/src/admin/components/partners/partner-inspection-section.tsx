@@ -616,8 +616,15 @@ const InventoryOrdersTable = ({ partnerId }: { partnerId: string }) => {
           {inventoryOrders.map((order) => (
             <Table.Row key={order.id}>
               <Table.Cell>
+                {/*
+                  #2114 — this pointed at `/inventory-orders/:id`, which has
+                  never existed. The route is `/orders/inventory/:id`; every
+                  other caller in the admin already uses that form. A dead link
+                  in an inspection panel is quietly expensive: the panel is what
+                  someone opens when they are already confused about a partner.
+                */}
                 <Link
-                  to={`/inventory-orders/${order.id}`}
+                  to={`/orders/inventory/${order.id}`}
                   className="text-ui-fg-interactive"
                 >
                   {order.id}

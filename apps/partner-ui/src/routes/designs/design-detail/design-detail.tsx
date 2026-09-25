@@ -18,7 +18,7 @@ import {
 import {
   usePartnerDesign,
 } from "../../../hooks/api/partner-designs"
-import { DesignMediaSection } from "./components/design-media-section"
+import { DesignMediaStrip } from "./components/design-media-strip"
 import { DesignMoodboardSection } from "./components/design-moodboard-section"
 import { DesignSpecificationsSection } from "./components/design-specifications-section"
 import { DesignConsumptionLogsSection } from "./components/design-consumption-logs-section"
@@ -308,6 +308,16 @@ export const DesignDetail = ({ designId }: DesignDetailProps = {}) => {
     <TwoColumnPage widgets={{ before: [], after: [], sideBefore: [], sideAfter: [] }} hasOutlet>
       <TwoColumnPage.Main>
         {design && <DesignOwnerActionsSection design={design} />}
+        {/* The media strip rides inside the owner header card. A design this
+            partner was merely ASSIGNED has no header card at all
+            (DesignOwnerActionsSection renders null for a non-owner), so the
+            strip stands on its own there rather than the assigned designer
+            losing the reference images the sidebar card used to show them. */}
+        {design && !design.is_owner && (
+          <Container className="px-6 py-3">
+            <DesignMediaStrip design={design} />
+          </Container>
+        )}
         <Container className="divide-y p-0">
           <div className="px-6 py-4">
             <Heading level="h2">{t("partner.designs.detail.general")}</Heading>
@@ -529,7 +539,6 @@ export const DesignDetail = ({ designId }: DesignDetailProps = {}) => {
       </TwoColumnPage.Main>
 
       <TwoColumnPage.Sidebar>
-        {design && <DesignMediaSection design={design} />}
         {design && <DesignMoodboardSection design={design} />}
       </TwoColumnPage.Sidebar>
     </TwoColumnPage>

@@ -4,16 +4,24 @@ import {
   deleteShippingOptionsWorkflow,
   updateShippingOptionsWorkflow,
 } from "@medusajs/medusa/core-flows"
-import { validatePartnerStoreAccess } from "../../../../helpers"
+import {
+  assertStoreOwnsShippingTarget,
+  validatePartnerStoreAccess,
+} from "../../../../helpers"
 import { PartnerUpdateShippingOptionReq } from "../../validators"
 
 export const GET = async (
   req: AuthenticatedMedusaRequest,
   res: MedusaResponse
 ) => {
-  await validatePartnerStoreAccess(
+  const { store } = await validatePartnerStoreAccess(
     req.auth_context,
     req.params.id,
+    req.scope
+  )
+  await assertStoreOwnsShippingTarget(
+    store,
+    { shippingOptionId: req.params.optionId },
     req.scope
   )
 
@@ -45,13 +53,23 @@ export const POST = async (
   req: AuthenticatedMedusaRequest,
   res: MedusaResponse
 ) => {
-  await validatePartnerStoreAccess(
+  const { store } = await validatePartnerStoreAccess(
     req.auth_context,
     req.params.id,
     req.scope
   )
+  await assertStoreOwnsShippingTarget(
+    store,
+    { shippingOptionId: req.params.optionId },
+    req.scope
+  )
 
-  const body = PartnerUpdateShippingOptionReq.parse(req.body)
+  // #1983 — a partner cannot move an option between shipping profiles. The
+  // profile is the side of the strict house/partner split, and the server
+  // decides it at create time; dropping it here (rather than forcing the
+  // partner profile) never re-points an option this route did not create.
+  const { shipping_profile_id: _ignoredProfile, ...body } =
+    PartnerUpdateShippingOptionReq.parse(req.body)
 
   // Use updateShippingOptionsWorkflow rather than the bare fulfillment
   // service. Shipping option prices live in the pricing module and are
@@ -89,9 +107,14 @@ export const DELETE = async (
   req: AuthenticatedMedusaRequest,
   res: MedusaResponse
 ) => {
-  await validatePartnerStoreAccess(
+  const { store } = await validatePartnerStoreAccess(
     req.auth_context,
     req.params.id,
+    req.scope
+  )
+  await assertStoreOwnsShippingTarget(
+    store,
+    { shippingOptionId: req.params.optionId },
     req.scope
   )
 

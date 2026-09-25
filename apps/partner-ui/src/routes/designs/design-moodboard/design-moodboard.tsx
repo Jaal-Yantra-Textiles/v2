@@ -9,6 +9,11 @@ import { Excalidraw } from "@excalidraw/excalidraw"
 import type { ExcalidrawElement } from "@excalidraw/excalidraw/element/types"
 import type { BinaryFileData, ExcalidrawImperativeAPI } from "@excalidraw/excalidraw/types"
 import { normalizeMoodboardScene } from "../../../lib/moodboard-scene"
+import { inlineMoodboardImages } from "../../../lib/inline-moodboard-images"
+import {
+  EMPTY_SCENE_SIGNATURE,
+  moodboardSceneSignature,
+} from "../../../lib/moodboard-dirty"
 import {
   BoardSwitcher,
   type BoardOption,
@@ -22,9 +27,9 @@ import {
   useGenerateMoodboard,
   useMoodboardBlocks,
   useInsertMoodboardBlock,
-  useSeedMoodboard,
   useSaveMoodboard,
   useUpdatePartnerBrief,
+  fetchMoodboardImageDataUrl,
   type MoodboardBlockListing,
   type PartnerBriefUpdate,
 } from "../../../hooks/api/partner-designs"
@@ -184,6 +189,25 @@ const reidAndTranslate = (
   })
 }
 
+/**
+ * Hoisted, not inline. An object literal in JSX is a new identity on every
+ * render, and this component re-renders on every canvas change — handing
+ * Excalidraw fresh props mid-drag is a channel for exactly the render loop
+ * #2231 hit. Nothing here depends on state.
+ */
+const UI_OPTIONS = {
+  canvasActions: {
+    changeViewBackgroundColor: true,
+    saveToActiveFile: false,
+    saveAsImage: true,
+    export: { saveFileToDisk: true },
+    loadScene: false,
+    clearCanvas: false,
+    // Theme is controlled to follow the admin — no manual toggle.
+    toggleTheme: false,
+  },
+} as const
+
 // Resolve the effective admin theme so the canvas matches its surroundings
 // instead of Excalidraw's hard-coded light default. Medusa's admin (and this
 // embedded dashboard) toggles a `.dark` class on the document root, which itself
@@ -217,10 +241,62 @@ export const DesignMoodboard = () => {
     }
   }, [])
 
+  /**
+   * 🔴 Keep the RouteFocusModal open while Excalidraw's own dialogs are used.
+   *
+   * Excalidraw portals its dialogs to `document.body`, OUTSIDE our modal's
+   * content. Radix treats a pointerdown out there as "clicked outside" and
+   * closes us — so once `moodboard.css` restores pointer-events to that portal,
+   * the first click on PNG would export nothing and shut the editor instead.
+   *
+   * Stopped at the CONTAINER on the way up, not at `document` on the way down:
+   * a capture-phase listener would swallow the event before the button ever
+   * saw it, which is the same dead click by another route. Here the button
+   * handles it first, then the bubble stops before Radix's document listener.
+   */
+  useEffect(() => {
+    const swallow = (e: Event) => e.stopPropagation()
+    const wired = new WeakSet<Element>()
+
+    const wire = () => {
+      document
+        .querySelectorAll<HTMLElement>("body > .excalidraw-modal-container")
+        .forEach((el) => {
+          if (wired.has(el)) {
+            return
+          }
+          wired.add(el)
+          // Both, because Radix listens for pointerdown and focus escapes.
+          el.addEventListener("pointerdown", swallow)
+          el.addEventListener("mousedown", swallow)
+          el.addEventListener("touchstart", swallow)
+        })
+    }
+
+    wire()
+    const observer = new MutationObserver(wire)
+    observer.observe(document.body, { childList: true })
+    return () => observer.disconnect()
+  }, [])
+
   const apiRef = useRef<ExcalidrawImperativeAPI | null>(null)
-  const didInitRef = useRef(false)
-  const didSeedRef = useRef(false)
   const [isDirty, setIsDirty] = useState(false)
+  /**
+   * #2231 — the scene as we last wrote or saved it. Dirtiness is the difference
+   * between this and what Excalidraw hands us, so the writes we make on the
+   * partner's behalf need no suppressing: see `lib/moodboard-dirty.ts` for why
+   * the flag this replaces could not work.
+   */
+  const baselineRef = useRef<string>(EMPTY_SCENE_SIGNATURE)
+  const [isStarting, setIsStarting] = useState(false)
+  /**
+   * Excalidraw hands its API back through a callback, which can fire AFTER the
+   * board data settles. `apiRef` is a ref, so an effect that only reads it does
+   * not re-run when it fills — the scene-loading effect below returned early on
+   * `!api` and was never invoked again. This flag is the dependency that makes
+   * "the canvas is ready" observable.
+   */
+  const [apiReady, setApiReady] = useState(false)
   const [constructionOpen, setConstructionOpen] = useState(false)
   const [layersOpen, setLayersOpen] = useState(false)
   // Bumped on canvas change (only while the layers panel is open) so the panel
@@ -241,6 +317,7 @@ export const DesignMoodboard = () => {
     own: ownBoard,
     others: otherBoards,
     usedLegacyFallback,
+    isPending: boardsPending,
   } = usePartnerDesignMoodboards(id || "", { enabled: !!id })
   const [selectedBoardId, setSelectedBoardId] = useState<string | null>(null)
 
@@ -249,7 +326,6 @@ export const DesignMoodboard = () => {
   const { data: blocksData } = useMoodboardBlocks(id || "")
   const { mutateAsync: insertBlock, isPending: isInserting } =
     useInsertMoodboardBlock(id || "")
-  const { mutateAsync: seedMoodboard } = useSeedMoodboard(id || "")
   const { mutateAsync: saveMoodboard, isPending: isSavingScene } = useSaveMoodboard(
     id || ""
   )
@@ -311,17 +387,36 @@ export const DesignMoodboard = () => {
     return () => clearTimeout(t)
   }, [moodboard])
 
-  // Excalidraw fires onChange on mount; ignore that first tick so the Save
-  // button only lights up on a real edit.
-  const handleChange = useCallback(() => {
-    if (!didInitRef.current) {
-      didInitRef.current = true
-      return
-    }
-    setIsDirty(true)
-    if (layersOpenRef.current) {
+  /**
+   * Excalidraw fires this constantly — on every pointer move, every scroll,
+   * every zoom, and once on mount — so it must be cheap and it must not depend
+   * on WHY it fired. Both answers come from the same comparison.
+   *
+   * 🔴 `setLayersTick` is bumped only when the elements actually changed. It
+   * used to bump on every event, which re-rendered the whole editor mid-drag
+   * and fed a state write straight back into the handler that caused it.
+   */
+  const lastTickSigRef = useRef<string>(EMPTY_SCENE_SIGNATURE)
+  const handleChange = useCallback((elements: readonly any[]) => {
+    const signature = moodboardSceneSignature(elements)
+    setIsDirty(signature !== baselineRef.current)
+    if (layersOpenRef.current && signature !== lastTickSigRef.current) {
+      lastTickSigRef.current = signature
       setLayersTick((t) => t + 1)
     }
+  }, [])
+
+  /**
+   * Adopt the canvas as it stands as the clean state. Called after every write
+   * we make on the partner's behalf, and after a successful save.
+   */
+  const markCanvasClean = useCallback(() => {
+    const signature = moodboardSceneSignature(
+      apiRef.current?.getSceneElements() ?? []
+    )
+    baselineRef.current = signature
+    lastTickSigRef.current = signature
+    setIsDirty(false)
   }, [])
 
   // Load a freshly-generated scene straight into the canvas so it's editable.
@@ -348,55 +443,165 @@ export const DesignMoodboard = () => {
     api.scrollToContent((scene.elements ?? []) as any, { fitToContent: true })
   }, [])
 
-  // Auto-seed an empty board from the brief on open, so the designer lands on an
-  // editable snapshot (Figma-style) rather than a blank canvas — no manual
-  // "Generate from brief" click. Runs once; the server only fills an empty board
-  // (merge-not-clobber) and is no-throw, so there's nothing to undo or toast.
+  /**
+   * 🔴 `initialData` IS READ ONCE, AT MOUNT.
+   *
+   * Two things arrive after that and neither reached the canvas:
+   *
+   *  1. The board itself. The editor was gated on the DESIGN query while the
+   *     scene comes from the BOARDS query, so on a fresh load Excalidraw
+   *     mounted with an empty `initialData` and never saw the board. The tell
+   *     was precise and easy to misread as a rendering bug: the canvas sat at
+   *     30% zoom — `scrollToContent` had fitted to the elements' real extent —
+   *     with nothing drawn, and Excalidraw's own export answered "Cannot
+   *     export empty canvas". The board was on the wire and in React state the
+   *     whole time. The mount gate below fixes that case.
+   *  2. A different board, picked in the switcher. Same cause, no gate can fix
+   *     it: the component does not remount.
+   *
+   * So the scene is pushed IMPERATIVELY whenever the active board changes.
+   * `loadScene` triggers Excalidraw's `onChange`, which would light up Save on
+   * work the partner has not done, so the dirty flag is cleared after.
+   */
+  const loadedBoardRef = useRef<string | null>(null)
   useEffect(() => {
+    const api = apiRef.current
+    const boardId = activeBoard?.id ?? null
+    if (!api || boardId === loadedBoardRef.current) {
+      return
+    }
+    loadedBoardRef.current = boardId
+    const scene = (moodboard ?? {
+      elements: [],
+      files: {},
+      appState: {},
+    }) as MoodboardData
+    loadScene(scene)
+    markCanvasClean()
+
     /**
-     * 🔴 Never seed a board that is not yours (#2017). Seeding writes, and the
-     * write lands on YOUR row — so on an empty admin board this would silently
-     * mint a partner board the viewer never asked for, out of the brief,
-     * while they believed they were looking at ours.
+     * #2228 — swap the board's remote image URLs for real `data:` URIs.
+     *
+     * The scene stores them as `files[id].dataURL = "https://…"`. Excalidraw
+     * sets that as an `<img>` src: here it does not render at all, and in the
+     * admin it renders but TAINTS the canvas, so the export is refused with
+     * "The operation is insecure". A `data:` URI fixes both.
+     *
+     * Done AFTER `loadScene`, not before, so the board appears immediately and
+     * the pictures fill in — blocking the canvas on N image fetches would trade
+     * a visible defect for a slow one. Each inlined file is pushed through
+     * `addFiles`, which is how Excalidraw takes a file update without a remount.
      */
-    if (didSeedRef.current || !id || isPending || isReadOnly) {
+    if (!id || !scene.files || !Object.keys(scene.files).length) {
       return
     }
-    const els = moodboard?.elements
-    if (Array.isArray(els) && els.length > 0) {
-      didSeedRef.current = true // already populated
-      return
+    let cancelled = false
+    void (async () => {
+      const { files, inlined } = await inlineMoodboardImages(
+        scene.files as Record<string, BinaryFileData>,
+        async (src) => {
+          const dataUrl = await fetchMoodboardImageDataUrl(id, src)
+          if (!dataUrl) {
+            throw new Error("not inlined")
+          }
+          return dataUrl
+        }
+      )
+      if (cancelled || !inlined || !apiRef.current) {
+        return
+      }
+      apiRef.current.addFiles(Object.values(files) as any)
+      /**
+       * The files changed, not the elements — Excalidraw re-reads its image
+       * cache on the next render, so nudge one without touching the scene.
+       */
+      apiRef.current.refresh()
+    })()
+    return () => {
+      cancelled = true
     }
-    didSeedRef.current = true
-    ;(async () => {
+  }, [id, apiReady, activeBoard, moodboard, loadScene, markCanvasClean])
+
+
+  /**
+   * #2019 — STARTING A BOARD IS A DECISION, NOT A SIDE EFFECT OF ARRIVING.
+   *
+   * Opening an empty board used to POST `/moodboard/seed` on mount. Two things
+   * were wrong with that, and the toast added later only softened one of them:
+   *
+   *  1. Work you did not do, presented as work already there, is
+   *     indistinguishable from work someone else did — and the moment they
+   *     save, it becomes theirs.
+   *  2. It decided FOR them. A partner looking at our board to see what we
+   *     wanted, with no intention of authoring anything yet, came away owning a
+   *     board built out of a brief they had not read.
+   *
+   * So the seed now runs from a button. The partner chooses whether to start at
+   * all, and from what.
+   */
+  const startBoard = useCallback(
+    async (from: "brief" | "blank") => {
+      if (!id) {
+        return
+      }
+      setIsStarting(true)
       try {
-        const { moodboard: scene } = await seedMoodboard()
-        if (!scene) {
+        /**
+         * The save route is get-or-create per owner, so an empty scene IS the
+         * creation. Sent explicitly rather than waiting for their first stroke,
+         * so the board exists — and reads as theirs in the switcher — from the
+         * moment they ask for it.
+         */
+        const blank: MoodboardData = {
+          type: "excalidraw",
+          version: 2,
+          source: "https://excalidraw.com",
+          elements: [],
+          appState: {},
+          files: {},
+        }
+        await saveMoodboard(blank as any)
+
+        if (from === "blank") {
+          loadScene(blank)
+          markCanvasClean()
+          toast.success(t("partner.designs.moodboard.startedBlank"))
           return
         }
-        setTimeout(
-          () => loadScene(normalizeMoodboardScene<ExcalidrawElement, BinaryFileData>(scene) ||
-            (scene as MoodboardData)),
-          60
-        )
+
         /**
-         * 🔴 SAY SO (#2019). Opening an empty board POSTs `/moodboard/seed`,
-         * and the partner landed on a canvas full of frames with nothing
-         * anywhere telling them we had just built it from the brief. Work you
-         * did not do, presented as work already there, is indistinguishable
-         * from work someone else did — and the moment they save, it becomes
-         * theirs.
+         * "From the brief" is deliberately CREATE-THEN-GENERATE, not the seed
+         * route.
          *
-         * The write itself is safe and stays: `seedDesignMoodboardIfEmpty`
-         * returns null when the board already has elements, so it cannot
-         * clobber. What was missing was the sentence.
+         * Generate is the path that is proven end to end — it persists to the
+         * partner's own board and an integration test reads that board back.
+         * `POST /moodboard/seed` returns `{ moodboard: null }` for a partner who
+         * demonstrably has no board, while calling `seedDesignMoodboardIfEmpty`
+         * directly with the same design and a fresh partner id builds a
+         * 52-element scene; I could not account for the difference, and a
+         * button that silently does nothing is the exact defect this whole
+         * change set has been removing. Unexplained is not the same as safe, so
+         * this uses the route whose behaviour is established.
+         *
+         * Generate also fails LOUDLY when there is nothing to build from — a
+         * 400 naming what the design is missing — which the catch below
+         * surfaces. The seed route answers that case with a silent null.
          */
-        toast.info(t("partner.designs.moodboard.autoSeeded"))
-      } catch {
-        // best-effort — auto-seed never blocks editing
+        const { moodboard: scene } = await generateMoodboard()
+        loadScene(
+          normalizeMoodboardScene<ExcalidrawElement, BinaryFileData>(scene) ||
+            (scene as MoodboardData)
+        )
+        markCanvasClean()
+        toast.success(t("partner.designs.moodboard.startedFromBrief"))
+      } catch (err: any) {
+        toast.error(err?.message || t("partner.designs.moodboard.startFailed"))
+      } finally {
+        setIsStarting(false)
       }
-    })()
-  }, [id, isPending, isReadOnly, moodboard, seedMoodboard, loadScene, t])
+    },
+    [id, saveMoodboard, generateMoodboard, loadScene, markCanvasClean, t]
+  )
 
   const handleGenerate = useCallback(async () => {
     if (!id) {
@@ -413,14 +618,14 @@ export const DesignMoodboard = () => {
       const { moodboard: scene } = await generateMoodboard()
       loadScene(normalizeMoodboardScene<ExcalidrawElement, BinaryFileData>(scene) ||
             (scene as MoodboardData))
-      setIsDirty(false)
+      markCanvasClean()
       toast.dismiss()
       toast.success(t("partner.designs.moodboard.generated"))
     } catch (err: any) {
       toast.dismiss()
       toast.error(err?.message || t("partner.designs.moodboard.generateFailed"))
     }
-  }, [id, generateMoodboard, loadScene, t])
+  }, [id, generateMoodboard, loadScene, markCanvasClean, t])
 
   // The insert-block palette, grouped for the dropdown menu.
   const groupedBlocks = useMemo(() => {
@@ -565,14 +770,14 @@ export const DesignMoodboard = () => {
         }
       }
 
-      setIsDirty(false)
+      markCanvasClean()
       toast.dismiss()
       toast.success(t("partner.designs.moodboard.saved"))
     } catch (err: any) {
       toast.dismiss()
       toast.error(err?.message || t("partner.designs.moodboard.saveFailed"))
     }
-  }, [id, saveMoodboard, updateBrief, design, t])
+  }, [id, saveMoodboard, updateBrief, design, markCanvasClean, t])
 
   const isSaving = isSavingScene
 
@@ -603,14 +808,55 @@ export const DesignMoodboard = () => {
               {t("partner.designs.missingId")}
             </Text>
           </div>
-        ) : isPending ? (
+        ) : isPending || boardsPending ? (
           <div className="px-6 py-4">
             <Text size="small" className="text-ui-fg-subtle">
               {t("labels.loading")}
             </Text>
           </div>
         ) : (
-          <div className="jyt-moodboard relative w-full h-[calc(100dvh-160px)]">
+          <div className="flex h-[calc(100dvh-160px)] w-full flex-col">
+            {/*
+              #2019 — the partner has no board of their own on this design.
+              Shown ABOVE the canvas rather than instead of it: the board they
+              are looking at is ours, read-only, and being able to read it is
+              exactly how they decide what to put on theirs.
+            */}
+            {!ownBoard ? (
+              <div className="border-ui-border-base bg-ui-bg-subtle flex flex-col gap-y-3 border-b px-6 py-3 sm:flex-row sm:items-center sm:justify-between">
+                <div className="flex min-w-0 flex-col">
+                  <Text size="small" weight="plus">
+                    {t("partner.designs.moodboard.noOwnBoard")}
+                  </Text>
+                  <Text size="small" className="text-ui-fg-subtle">
+                    {otherBoards?.length
+                      ? t("partner.designs.moodboard.noOwnBoardHintOurs")
+                      : t("partner.designs.moodboard.noOwnBoardHintEmpty")}
+                  </Text>
+                </div>
+                <div className="flex flex-wrap items-center gap-2">
+                  <Button
+                    size="small"
+                    variant="secondary"
+                    onClick={() => startBoard("brief")}
+                    disabled={isStarting}
+                    isLoading={isStarting}
+                  >
+                    {t("partner.designs.moodboard.startFromBrief")}
+                  </Button>
+                  <Button
+                    size="small"
+                    variant="primary"
+                    onClick={() => startBoard("blank")}
+                    disabled={isStarting}
+                  >
+                    {t("partner.designs.moodboard.startBlank")}
+                  </Button>
+                </div>
+              </div>
+            ) : null}
+
+          <div className="jyt-moodboard relative w-full flex-1">
             {layersOpen ? (
               <div className="absolute top-14 left-2 z-50 w-64">
                 <MoodboardLayersPanel
@@ -624,6 +870,7 @@ export const DesignMoodboard = () => {
               theme={theme}
               excalidrawAPI={(api) => {
                 apiRef.current = api
+                setApiReady(true)
               }}
               initialData={(() => {
                 const base = (moodboard as any) || {
@@ -643,18 +890,7 @@ export const DesignMoodboard = () => {
               })()}
               viewModeEnabled={isReadOnly}
               onChange={handleChange}
-              UIOptions={{
-                canvasActions: {
-                  changeViewBackgroundColor: true,
-                  saveToActiveFile: false,
-                  saveAsImage: true,
-                  export: { saveFileToDisk: true },
-                  loadScene: false,
-                  clearCanvas: false,
-                  // Theme is controlled to follow the admin — no manual toggle.
-                  toggleTheme: false,
-                },
-              }}
+              UIOptions={UI_OPTIONS}
               detectScroll={true}
             />
 
@@ -739,6 +975,7 @@ export const DesignMoodboard = () => {
                   : t("partner.designs.moodboard.savedLabel")}
               </Button>
             </div>
+          </div>
           </div>
         )}
       </RouteFocusModal.Body>

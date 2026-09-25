@@ -64,6 +64,40 @@ export type MediaAckEntry = {
   kind: MediaAckKind
   /** The shared folder's name, the run id, or a context confirmation line. */
   label: string | null
+  /**
+   * True when WE chose the run (the partner has exactly one in progress), not
+   * the partner (they tapped "📸 Add Media"). A guess must be shown and
+   * confirmed, never filed silently.
+   */
+  auto?: boolean
+  /** The run's design name, so the partner can recognise the guess. */
+  design?: string | null
+}
+
+/** Reply-button ids for "is that the right run?" — routed by the handler. */
+export const MEDIA_CTX_YES = "media_ctx_yes"
+export const MEDIA_CTX_NO = "media_ctx_no"
+
+export type AutoMatchedRun = { run_id: string; design: string | null; message_ids: string[] }
+
+/**
+ * PURE: the run we GUESSED for this burst, with the files we put on it — or
+ * null when nothing in the burst was guessed. One run only: the guess is
+ * "your only run in progress", so a burst cannot guess two.
+ */
+export function autoMatchedRun(batch: MediaAckBatch): AutoMatchedRun | null {
+  const entries = batch.entries ?? []
+  const ids: string[] = []
+  let run: string | null = null
+  let design: string | null = null
+  entries.forEach((e, i) => {
+    if (e?.kind === "run" && e.auto && e.label) {
+      run = run ?? e.label
+      design = design ?? e.design ?? null
+      if (e.label === run && batch.message_ids[i]) ids.push(batch.message_ids[i])
+    }
+  })
+  return run ? { run_id: run, design, message_ids: ids } : null
 }
 
 export type MediaAckBatch = {
@@ -180,6 +214,20 @@ export function decideMediaAckAction(
 }
 
 /**
+ * PURE: the guess this acknowledgement must ask about, or null. Asked only
+ * when the whole burst went to that one guessed run — a mixed burst is
+ * described plainly, because two buttons cannot answer three destinations.
+ * The job sends the Yes/No buttons exactly when this is non-null.
+ */
+export function mediaAckAsksConfirmation(batch: MediaAckBatch): AutoMatchedRun | null {
+  const guessed = autoMatchedRun(batch)
+  if (!guessed) return null
+  const entries = batch.entries ?? []
+  const allOnIt = entries.every((e) => e?.kind === "context" || (e?.kind === "run" && e.label === guessed.run_id))
+  return allOnIt ? guessed : null
+}
+
+/**
  * PURE: the acknowledgement for a settled burst.
  *
  * Names the count, because a partner who sent twelve files and is told
@@ -213,6 +261,18 @@ export function buildMediaAckText(batch: MediaAckBatch): string {
         .map((e) => e.label as string)
     )
   )
+
+  /**
+   * A GUESSED run is stated with the design the partner will recognise and
+   * put as a question — the buttons under this text answer it. A run id alone
+   * means nothing to a weaver.
+   */
+  const guessed = mediaAckAsksConfirmation(batch)
+  if (guessed) {
+    const what = guessed.design ? `*${guessed.design}*` : "your run in progress"
+    const head = `✅ Got ${files}. I've added ${total === 1 ? "it" : "them"} to ${what} (${guessed.run_id}).\n\nIs that what ${total === 1 ? "it's" : "they're"} for?`
+    return contextLines.length ? `${head}\n\n${contextLines.join("\n")}` : head
+  }
 
   const parts: string[] = []
   if (runIds.length === 1) {

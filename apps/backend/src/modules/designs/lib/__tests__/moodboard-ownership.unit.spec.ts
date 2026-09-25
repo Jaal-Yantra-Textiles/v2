@@ -2,6 +2,7 @@ import {
   canWriteBoard,
   coreScene,
   LEGACY_BOARD_ID,
+  ownerScene,
   resolveBoards,
   type MoodboardRow,
 } from "../moodboard-ownership"
@@ -164,5 +165,47 @@ describe("coreScene", () => {
   it("no row and no blob is null, not undefined", () => {
     expect(coreScene([], null)).toBeNull()
     expect(coreScene([], undefined)).toBeNull()
+  })
+})
+
+/**
+ * #2017 tail — the partner generate/seed paths need "what is on MY board"
+ * answered the same way the core paths answer it, with one difference that is
+ * the whole point: the legacy blob belongs to the core board only.
+ */
+describe("ownerScene", () => {
+  const rowScene = { elements: [{ id: "row" }] }
+  const blobScene = { elements: [{ id: "blob" }] }
+  const ada = { type: "partner" as const, partnerId: "p1" }
+
+  it("gives a partner their own row", () => {
+    expect(
+      ownerScene([core({ scene: blobScene }), partner("p1", { scene: rowScene })], null, ada)
+    ).toBe(rowScene)
+  })
+
+  it("never hands a partner the legacy blob — that is the admin's board", () => {
+    expect(ownerScene([], blobScene, ada)).toBeNull()
+    expect(ownerScene(null, blobScene, ada)).toBeNull()
+  })
+
+  it("never hands a partner the core row either", () => {
+    expect(ownerScene([core({ scene: rowScene })], blobScene, ada)).toBeNull()
+  })
+
+  it("is not another partner's board", () => {
+    expect(ownerScene([partner("p2", { scene: rowScene })], null, ada)).toBeNull()
+  })
+
+  it("an empty own row is an empty board, not a fallback", () => {
+    expect(ownerScene([partner("p1", { scene: null })], blobScene, ada)).toBeNull()
+  })
+
+  it("for the core owner it is exactly coreScene — blob fallback and all", () => {
+    expect(ownerScene([], blobScene, { type: "core" })).toBe(blobScene)
+    expect(ownerScene([core({ scene: rowScene })], blobScene, { type: "core" })).toBe(rowScene)
+    expect(ownerScene([partner("p1", { scene: rowScene })], blobScene, { type: "core" })).toBe(
+      blobScene
+    )
   })
 })

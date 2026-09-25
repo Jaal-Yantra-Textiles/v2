@@ -8,9 +8,13 @@ const logger: any = {
   debug: jest.fn(),
 }
 
-const buildService = (options: any = {}, clientOverrides: any = {}) => {
+const buildService = (
+  options: any = {},
+  clientOverrides: any = {},
+  fx_rates?: any
+) => {
   const svc = new ShipglobalFulfillmentService(
-    { logger },
+    { logger, fx_rates },
     { username: "u@example.com", password: "pw", ...options }
   )
   ;(svc as any).client = {
@@ -50,6 +54,90 @@ describe("ShipglobalFulfillmentService", () => {
       calculated_amount: 1250.5,
       is_calculated_price_tax_inclusive: true,
     })
+  })
+
+  /**
+   * 🔴 The reason this file exists in its current form.
+   *
+   * ShipGlobal quotes RUPEES — its dashboard rate calculator answers a Sweden
+   * lane in INR only. The success path used to return `recommended.amount`
+   * raw, so a live EUR checkout billed ₹ as €. Prod showed €200.00 beside a
+   * converted Shiprocket quote of €19.81 for the same parcel.
+   */
+  const EUR_CONTEXT: any = {
+    shipping_address: { country_code: "SE", postal_code: "11120" },
+    items: [{ variant: { weight: 600 }, quantity: 2 }],
+    currency_code: "eur",
+  }
+
+  it("converts a rupee quote into the cart's currency", async () => {
+    const getRate = jest.fn().mockResolvedValue(0.011)
+    const svc = buildService(
+      undefined,
+      {
+        getRates: jest.fn().mockResolvedValue([
+          { courier_name: "ShipGlobal Direct", amount: 3200, currency_code: "inr" },
+        ]),
+      },
+      { getRate }
+    )
+
+    const result = await svc.calculatePrice({}, {}, EUR_CONTEXT)
+
+    expect(getRate).toHaveBeenCalledWith("INR", "EUR")
+    // 3200 * 0.011 = 35.2, NOT the raw 3200.
+    expect(result).toEqual({
+      calculated_amount: 35.2,
+      is_calculated_price_tax_inclusive: true,
+    })
+  })
+
+  it("falls back rather than quoting rupees as euros when there is no fx module", async () => {
+    const svc = buildService(undefined, {
+      getRates: jest.fn().mockResolvedValue([
+        { courier_name: "ShipGlobal Direct", amount: 3200, currency_code: "inr" },
+      ]),
+    })
+
+    const result = await svc.calculatePrice({}, {}, EUR_CONTEXT)
+
+    expect(result.calculated_amount).not.toBe(3200)
+    expect(result.calculated_amount).toBe(DEFAULT_FLAT_FALLBACK)
+    expect(result.is_calculated_price_tax_inclusive).toBe(false)
+  })
+
+  it("falls back rather than guessing when the quote states no currency", async () => {
+    const getRate = jest.fn()
+    const svc = buildService(
+      undefined,
+      {
+        getRates: jest.fn().mockResolvedValue([
+          { courier_name: "ShipGlobal Direct", amount: 3200 },
+        ]),
+      },
+      { getRate }
+    )
+
+    const result = await svc.calculatePrice({}, {}, EUR_CONTEXT)
+
+    expect(getRate).not.toHaveBeenCalled()
+    expect(result.calculated_amount).toBe(DEFAULT_FLAT_FALLBACK)
+  })
+
+  it("falls back when the fx module has no rate for the pair", async () => {
+    const svc = buildService(
+      undefined,
+      {
+        getRates: jest.fn().mockResolvedValue([
+          { courier_name: "ShipGlobal Direct", amount: 3200, currency_code: "inr" },
+        ]),
+      },
+      { getRate: jest.fn().mockRejectedValue(new Error("no inr->eur rate")) }
+    )
+
+    const result = await svc.calculatePrice({}, {}, EUR_CONTEXT)
+
+    expect(result.calculated_amount).toBe(DEFAULT_FLAT_FALLBACK)
   })
 
   it("falls back to the flat rate when getRates returns no courier", async () => {

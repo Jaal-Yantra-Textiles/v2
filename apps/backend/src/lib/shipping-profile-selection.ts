@@ -63,3 +63,77 @@ export function describeAmbiguousProfilePick(
     `${defaults} of type "default". Pass an explicit profile id.`
   )
 }
+
+/**
+ * #1983 — partner shipping lives on its OWN profile.
+ *
+ * Founder's decision (2026-09-23): a STRICT split. A house option ships house
+ * products only; a partner option ships partner products only. Medusa enforces
+ * it for us once the two sides sit on different profiles — both
+ * `validateShippingStep` (checkout) and create-fulfillment compare
+ * `product.shipping_profile.id` with `shippingOption.shipping_profile_id`.
+ *
+ * The profile is found by NAME and type. There is no typed "role" column on a
+ * shipping profile, and a name is at least visible to whoever renames it.
+ */
+export const PARTNER_SHIPPING_PROFILE_NAME = "Partner Shipping Profile"
+export const PARTNER_SHIPPING_PROFILE_TYPE = "custom"
+
+/**
+ * PURE: the partner profile among `profiles`.
+ *
+ * `null` means none exists yet (the caller may create it). More than one is an
+ * error, not a choice — the same refusal as `pickTargetProfileId`, for the same
+ * reason: picking one of two would split partner options across them.
+ */
+export function pickPartnerProfileId(profiles: any[]): string | null {
+  const matches = profiles.filter(
+    (p) =>
+      p?.name === PARTNER_SHIPPING_PROFILE_NAME &&
+      p?.type === PARTNER_SHIPPING_PROFILE_TYPE
+  )
+  if (matches.length > 1) {
+    throw new Error(
+      `Found ${matches.length} shipping profiles named "${PARTNER_SHIPPING_PROFILE_NAME}" ` +
+        `(${matches.map((p) => p.id).join(", ")}). Remove the duplicates; ` +
+        `partner options must all share one profile.`
+    )
+  }
+  return matches[0]?.id ?? null
+}
+
+export type ShippingSide = "house" | "partner"
+
+/**
+ * PURE: which side a PRODUCT belongs to — decided by where it is SOLD, not by
+ * who made it.
+ *
+ * 🔴 "Made by a partner" is the wrong test: an artisan lists onto the house
+ * channel through the partner workflow (`isCoreChannelListing`), and that
+ * product is sold and shipped by the house. So: on the house channel → house;
+ * otherwise → partner.
+ *
+ * `null` when the house channel is unknown — the caller must refuse, never
+ * guess, because a wrong guess makes the product uncheckoutable.
+ */
+export function shippingSideForProduct(
+  salesChannelIds: string[],
+  houseChannelId: string | null | undefined
+): ShippingSide | null {
+  if (!houseChannelId) return null
+  return salesChannelIds.includes(houseChannelId) ? "house" : "partner"
+}
+
+/**
+ * PURE: which side a SHIPPING OPTION belongs to — decided by whose building it
+ * ships from (`location_ownership.is_core`). An option with no location
+ * (a zone with no fulfillment set location) is left to the house: it is not a
+ * partner's, and moving it would be a guess.
+ */
+export function shippingSideForLocation(
+  locationId: string | null | undefined,
+  coreLocationIds: ReadonlySet<string>
+): ShippingSide {
+  if (!locationId) return "house"
+  return coreLocationIds.has(locationId) ? "house" : "partner"
+}

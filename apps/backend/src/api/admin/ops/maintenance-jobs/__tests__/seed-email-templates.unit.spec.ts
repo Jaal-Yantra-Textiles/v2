@@ -144,6 +144,64 @@ describe("ops/maintenance-jobs seed-email-templates (#457)", () => {
       )
     })
 
+    it("exposes the design material-arrival template via its own set and through 'all' (#2111 — seeded from Data Plumbing, not a Fargate one-off)", () => {
+      const set = resolveEmailTemplateSpecs("design-materials-delivered")
+      expect(set.setKeys).toEqual(["design-materials-delivered"])
+      expect(set.specs.map((s) => s.template_key)).toContain(
+        "design-materials-delivered"
+      )
+      // The subscriber fetches by template_key AND locale; a row seeded under
+      // any other locale would leave the arrival mail unsendable while the set
+      // still "contains" the key.
+      const spec = set.specs.find(
+        (s) => s.template_key === "design-materials-delivered"
+      )!
+      expect(spec.locale).toBe("en")
+      expect(spec.is_active).toBe(true)
+      expect(resolveEmailTemplateSpecs("all").specs.map((s) => s.template_key)).toContain(
+        "design-materials-delivered"
+      )
+    })
+
+    it("the lodgement mail says the design is WITH us and names what comes next, never that it is ready", () => {
+      const spec = resolveEmailTemplateSpecs("core").specs.find(
+        (s) => s.template_key === "design-assigned"
+      )! as any
+
+      /*
+       * Sent the moment a design is created for a customer. The old copy said
+       * "Your custom design is ready" and invited them into the editor — an
+       * ending announced at a beginning, followed by weeks of silence while we
+       * sourced cloth and found a maker.
+       */
+      expect(String(spec.subject).toLowerCase()).not.toContain("ready")
+      expect(String(spec.html_content).toLowerCase()).not.toContain("your design is ready")
+
+      // It must promise the two mails that actually follow, and both exist.
+      const body = String(spec.html_content).toLowerCase()
+      expect(body).toContain("cloth")
+      expect(body).toContain("maker")
+
+      // 🔴 The sender that prod actually uses. The spec said jyt.com while the
+      // live row said jaalyantra.com, so an overwrite push would have moved a
+      // client-facing template onto the wrong domain.
+      expect(spec.from).toBe("designs@jaalyantra.com")
+    })
+
+    it("no spec promises a variable its sender does not supply (#design-assigned)", () => {
+      const spec = resolveEmailTemplateSpecs("core").specs.find(
+        (s) => s.template_key === "design-assigned"
+      )! as any
+      // send-design-assigned-email supplies exactly these four.
+      const supplied = ["customer_name", "design_name", "design_url", "design_status"]
+      const used = Array.from(
+        String(spec.html_content).matchAll(/\{\{#?if? ?([a-z_]+)\}\}/g)
+      ).map((m: any) => m[1])
+      for (const v of used) {
+        expect(supplied).toContain(v)
+      }
+    })
+
     it("dedupes template_keys across sets so 'all' never lists a key twice", () => {
       const all = resolveEmailTemplateSpecs("all")
       const keys = all.specs.map((s) => s.template_key)

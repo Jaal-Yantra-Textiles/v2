@@ -4,6 +4,7 @@ import designConsumptionLogLink from "../../../../links/design-consumption-log"
 import designOrderLink from "../../../../links/design-order-link"
 import designPersonLink from "../../../../links/designs-person-link"
 import designRawMaterialGroupLink from "../../../../links/design-raw-material-group"
+import { firstMediaUrl } from "../../../../utils/first-media-url"
 import { asArray } from "../../builder"
 import type { NodeItem, SpineContext } from "../../types"
 
@@ -63,12 +64,35 @@ const inventoryItems = async (
   query: any,
   designId: string
 ): Promise<NodeItem[]> => {
-  const design = await loadDesign(query, designId, ["inventory_items.*"])
+  /*
+   * `raw_materials.*` alongside the item itself: the material is where the
+   * PHOTOGRAPH lives, and for a fabric that picture identifies the row faster
+   * than "E2E Mill Spun Pashmina" ever will. The relation was already asked for
+   * by the design's own inventory list; this node listed the same items and
+   * showed the id.
+   */
+  const design = await loadDesign(query, designId, [
+    "inventory_items.*",
+    "inventory_items.raw_materials.*",
+  ])
   return asArray<any>(design.inventory_items).map((i) => ({
     id: String(i.id),
     label: String(i.title || i.sku || i.id),
     sublabel: i.sku ? String(i.sku) : null,
     status: null,
+    /*
+     * The material's photo, then the item's own — `firstMediaUrl` unwraps every
+     * shape `media` has been persisted in, `{ files: [...] }` included, which
+     * is the canonical one in production and the one a naive read misses.
+     * Undefined where there is no picture, so the row stays text-only rather
+     * than reserving space for a box it cannot fill.
+     */
+    thumbnail:
+      asArray<any>(i.raw_materials)
+        .map((rm) => firstMediaUrl(rm?.media))
+        .find(Boolean) ??
+      firstMediaUrl(i?.metadata?.media) ??
+      null,
     /*
      * 🔴 The DESIGN-scoped drawer, not `/inventory/:id`.
      *

@@ -14,6 +14,7 @@ import { resolveMintSalesChannel } from "./lib/mint-sales-channel";
 import { buildDesignSpec } from "./lib/design-product-spec";
 import { upsertProductSpecWorkflow } from "../products/upsert-product-spec";
 import type { Link } from "@medusajs/modules-sdk";
+import { resolveProductShippingProfileId } from "../../lib/partner-shipping-profile"
 import { resolveLineItemDesignId } from "../../lib/resolve-line-item-production"
 import designCustomerLink from "../../links/design-customer-link"
 import designOrderLineItemLink from "../../links/design-order-line-item-link"
@@ -653,9 +654,15 @@ const createProductAndVariantStep = createStep(
         ],
       };
 
+      // #1983 — the profile follows the channel: a design minted into a
+      // partner's catalogue must ship on the partner profile.
+      const shippingProfileId = await resolveProductShippingProfileId(
+        container,
+        [salesChannelId]
+      );
       const { result } = await createProductsWorkflow(container).run({
         input: {
-          products: [productInput],
+          products: [{ ...productInput, shipping_profile_id: shippingProfileId }],
         },
       });
 

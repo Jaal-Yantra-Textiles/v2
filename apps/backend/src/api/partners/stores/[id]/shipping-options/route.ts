@@ -1,7 +1,11 @@
 import { AuthenticatedMedusaRequest, MedusaResponse } from "@medusajs/framework/http"
 import { ContainerRegistrationKeys, MedusaError } from "@medusajs/framework/utils"
 import { createShippingOptionsWorkflow } from "@medusajs/medusa/core-flows"
-import { validatePartnerStoreAccess } from "../../../helpers"
+import { ensurePartnerShippingProfileId } from "../../../../../lib/partner-shipping-profile"
+import {
+  assertStoreOwnsShippingTarget,
+  validatePartnerStoreAccess,
+} from "../../../helpers"
 import { PartnerCreateShippingOptionReq } from "../validators"
 
 export const GET = async (
@@ -84,16 +88,30 @@ export const POST = async (
   req: AuthenticatedMedusaRequest,
   res: MedusaResponse
 ) => {
-  await validatePartnerStoreAccess(
+  const { store } = await validatePartnerStoreAccess(
     req.auth_context,
     req.params.id,
     req.scope
   )
 
   const body = PartnerCreateShippingOptionReq.parse(req.body)
+  await assertStoreOwnsShippingTarget(
+    store,
+    { serviceZoneId: body.service_zone_id },
+    req.scope
+  )
 
+  // #1983 — a partner's option always goes on the partner profile, whatever the
+  // client sent. The profile table is platform-wide, so a client-chosen id
+  // could put a partner's courier on the HOUSE profile and let it ship house
+  // goods — the exact crossing the strict split exists to stop.
   const { result } = await createShippingOptionsWorkflow(req.scope).run({
-    input: [body as any],
+    input: [
+      {
+        ...body,
+        shipping_profile_id: await ensurePartnerShippingProfileId(req.scope),
+      } as any,
+    ],
   })
 
   // Refetch the created option with its prices/relations so the create

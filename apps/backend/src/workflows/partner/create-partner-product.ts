@@ -31,6 +31,7 @@ import { MedusaError, Modules } from "@medusajs/framework/utils"
 import { createProductsWorkflow } from "@medusajs/medusa/core-flows"
 import { ensureInventoryLevelsForVariants } from "../../api/partners/helpers"
 import { requestVariantPriceFanout } from "../fx/fanout-variant-prices"
+import { resolveProductShippingProfileId } from "../../lib/partner-shipping-profile"
 import {
   isCoreChannelListingPartner,
   recordArtisanProposal,
@@ -130,6 +131,19 @@ export const resolvePartnerProductContextStep = createStep(
       ms: Date.now() - t0,
     })
   }
+)
+
+/**
+ * #1983 — which shipping profile a new partner product goes on: decided by
+ * where it is SOLD, not who made it (an artisan listing onto the house channel
+ * is shipped by the house). See `resolveProductShippingProfileId`.
+ */
+export const resolvePartnerProductShippingProfileStep = createStep(
+  "resolve-partner-product-shipping-profile",
+  async (input: { channelIds: string[] }, { container }) =>
+    new StepResponse(
+      await resolveProductShippingProfileId(container, input.channelIds)
+    )
 )
 
 /**
@@ -235,29 +249,42 @@ export const createPartnerProductWorkflow = createWorkflow(
       }))
     )
 
-    // Sales-channel injection + the artisan status override, in one place.
-    // The proposal override deliberately wins over any client-supplied status.
-    const products = transform({ input, ctx }, ({ input, ctx }) => {
-      const product: Record<string, any> = {
-        ...input.product,
-        title: input.product?.title || "",
-      }
-      if (ctx.isCoreChannelListing) {
-        product.status = "proposed"
-      }
-      // An explicit channel list wins; otherwise force the store default, which
-      // is what every partner route has always done (a client-supplied
-      // `sales_channels` has never been honoured here and still is not).
-      const channelIds = input.salesChannelIds?.length
+    // An explicit channel list wins; otherwise force the store default, which
+    // is what every partner route has always done (a client-supplied
+    // `sales_channels` has never been honoured here and still is not).
+    const channelIds = transform({ input, ctx }, ({ input, ctx }) =>
+      input.salesChannelIds?.length
         ? input.salesChannelIds
         : ctx.store.default_sales_channel_id
           ? [ctx.store.default_sales_channel_id]
           : []
-      if (channelIds.length) {
-        product.sales_channels = channelIds.map((id: string) => ({ id }))
-      }
-      return [product]
+    )
+
+    const shippingProfileId = resolvePartnerProductShippingProfileStep({
+      channelIds,
     })
+
+    // Sales-channel injection + the artisan status override, in one place.
+    // The proposal override deliberately wins over any client-supplied status.
+    const products = transform(
+      { input, ctx, channelIds, shippingProfileId },
+      ({ input, ctx, channelIds, shippingProfileId }) => {
+        const product: Record<string, any> = {
+          ...input.product,
+          title: input.product?.title || "",
+          // #1983 — decided server-side, like the channel. A client-supplied
+          // profile could cross the strict house/partner split.
+          shipping_profile_id: shippingProfileId,
+        }
+        if (ctx.isCoreChannelListing) {
+          product.status = "proposed"
+        }
+        if (channelIds.length) {
+          product.sales_channels = channelIds.map((id: string) => ({ id }))
+        }
+        return [product]
+      }
+    )
 
     const created = createProductsWorkflow.runAsStep({
       input: { products: products as any },

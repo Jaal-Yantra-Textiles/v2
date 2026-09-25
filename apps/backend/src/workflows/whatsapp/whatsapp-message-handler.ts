@@ -4,16 +4,16 @@ import type ProductionRunService from "../../modules/production_runs/service"
 import { PARTNER_MODULE } from "../../modules/partner"
 import { TASKS_MODULE } from "../../modules/tasks"
 import { acceptProductionRunWorkflow } from "../production-runs/accept-production-run"
-import { signalLifecycleStepSuccessWorkflow } from "../production-runs/production-run-steps"
-import {
-  awaitRunStartStepId,
-  awaitRunFinishStepId,
-  awaitRunCompleteStepId,
-} from "../production-runs/run-production-run-lifecycle"
+import { startProductionRunWorkflow } from "../production-runs/start-production-run"
+import { finishProductionRunWorkflow } from "../production-runs/finish-production-run"
+import { completeProductionRunWorkflow } from "../production-runs/complete-production-run"
 import WhatsAppService from "../../modules/social-provider/whatsapp-service"
 import { SOCIAL_PROVIDER_MODULE } from "../../modules/social-provider"
 import type SocialProviderService from "../../modules/social-provider/service"
 import { MESSAGING_MODULE } from "../../modules/messaging"
+import { phraseRunAck } from "./whatsapp-run-ack"
+import { phraseLine } from "./whatsapp-line"
+import type { LineSpec } from "./whatsapp-line-prompt"
 import { resolveLivePhotoContextAction } from "./whatsapp-photo-context-routing"
 import { fileInventoryOfferAnalysis } from "./whatsapp-photo-inventory-offer"
 import {
@@ -21,10 +21,19 @@ import {
   recordPhoto,
 } from "./whatsapp-photo-batch"
 import {
+  MEDIA_CTX_NO,
+  MEDIA_CTX_YES,
   recordMediaAck,
   type MediaAckEntry,
 } from "./whatsapp-media-ack-batch"
 import { describePhotoForContext } from "./whatsapp-photo-vision"
+import { classify } from "../../lib/ai/classify"
+import {
+  buildPhotoRunQuestion,
+  decidePhotoRun,
+  PHOTO_RUN_SCOPE,
+  type CandidateRun,
+} from "./whatsapp-photo-run-match"
 import type { WhatsAppAuditContext } from "../../modules/social-provider/whatsapp-service"
 import {
   downloadAndSaveWhatsAppMedia,
@@ -32,6 +41,7 @@ import {
   resolvePartnerDefaultSharedFolder,
   listPartnerSharedFolders,
   getPartnerOpenWork,
+  detachMediaFromRunDesign,
 } from "./whatsapp-media-helper"
 import { BUTTON_TITLE_ACTIONS } from "../../scripts/whatsapp-templates/partner-run-templates"
 import { buildPartnerProductUrl } from "./partner-product-url"
@@ -332,6 +342,58 @@ export async function handleIncomingMessage(
     }
 
     /**
+     * 🔴 AN ACTION THAT ARRIVES BEFORE CONSENT MUST BE REMEMBERED TOO.
+     *
+     * The paragraph above learned this for photographs and the lesson was
+     * never carried across to button taps, which is the more expensive half:
+     * a partner's very first contact is the run-assignment template, so the
+     * FIRST thing they ever tap is "Accept" — and it lands here, before
+     * consent exists, and this gate returns without running it.
+     *
+     * Measured on prod: Ksaman Naturals tapped Accept on three runs on
+     * 2026-09-09. Two landed pre-consent (09:40:22 and 09:40:39) and were
+     * discarded; the third, at 12:23 once consent was recorded, worked. The
+     * platform then sent six "you have not responded" reminders over nine days
+     * for runs she HAD accepted, and on 2026-09-18 auto-reassigned one away
+     * from her with `cancelled_reason: "Auto-reassigned: no response after 2
+     * reminders"`. She had responded. Nothing errored, and the only trace was
+     * the absence of an `accepted_at` (#2211).
+     *
+     * 🔴 The run id is resolved and stored NOW, not on replay. It comes from
+     * `pending_run_id`, one mutable slot, and by the time consent arrives it
+     * will name whatever run was sent last (#2212).
+     */
+    const pendingAction =
+      message.type === "interactive" && message.buttonReplyId
+        ? resolveRunActionFromButton(
+            message.buttonReplyId,
+            message.buttonReplyTitle,
+            conversationMeta
+          )
+        : null
+    if (
+      pendingAction &&
+      isTemplateTitleButton(message.buttonReplyId, message.buttonReplyTitle)
+    ) {
+      const fromReply = await resolveRunFromReplyContext(
+        scope,
+        message.replyToWaMessageId
+      )
+      if (fromReply) pendingAction.runId = fromReply
+    }
+    if (pendingAction?.runId && REPLAYABLE_PRE_CONSENT_ACTIONS.has(pendingAction.action)) {
+      conversationMeta = {
+        ...conversationMeta,
+        action_pending_consent: {
+          action: pendingAction.action,
+          run_id: pendingAction.runId,
+          at: new Date().toISOString(),
+        },
+      }
+      await updateConversationMetadata(scope, conversationId, conversationMeta)
+    }
+
+    /**
      * 🔑 One prompt per BURST, not one per message.
      *
      * The gate fires per message, so those ten photographs produced nine
@@ -384,6 +446,73 @@ export async function handleIncomingMessage(
     }
   }
 
+  /**
+   * The tap they made before consent existed, honoured now.
+   *
+   * Cleared BEFORE it runs, not after: a replay that throws must not be
+   * retried on every subsequent message for the rest of the conversation's
+   * life. One attempt, then it is gone — the partner still has the buttons.
+   *
+   * ⚠️ Bounded by REPLAY_TTL. "Accept" means accept THIS job, and a tap that
+   * has been sitting unreplayed for days is no longer a safe statement about
+   * what the partner wants today; past the window we re-offer the buttons
+   * instead of moving the run on their behalf.
+   */
+  const stashed = conversationMeta.action_pending_consent as
+    | { action?: string; run_id?: string; at?: string }
+    | undefined
+  if (stashed?.action && stashed.run_id) {
+    conversationMeta = { ...conversationMeta, action_pending_consent: undefined }
+    await updateConversationMetadata(scope, conversationId, conversationMeta)
+
+    const stashedAt = Date.parse(String(stashed.at ?? ""))
+    const fresh =
+      !Number.isNaN(stashedAt) &&
+      Date.now() - stashedAt < PRE_CONSENT_ACTION_TTL_MS
+
+    if (fresh && stashed.action === "accept") {
+      try {
+        await whatsapp.sendTextMessage(
+          message.from,
+          `Thanks — picking up the *Accept* you sent before we had your consent.`
+        )
+        return await handleAccept(
+          scope,
+          whatsapp,
+          message.from,
+          stashed.run_id,
+          partner.partnerId,
+          String(conversationMeta.language || "en")
+        )
+      } catch (e: any) {
+        console.warn(
+          "[whatsapp-handler] pre-consent accept replay failed:",
+          e?.message
+        )
+        await whatsapp.sendTextMessage(
+          message.from,
+          `I couldn't complete the *Accept* you sent earlier. Please tap Accept again on run ${stashed.run_id}.`
+        )
+        return { handled: true, action: "pre_consent_replay_failed" }
+      }
+    }
+
+    /*
+     * Everything else is re-offered rather than replayed. A Decline needs a
+     * reason the partner has not given yet, and a stale tap of any kind is a
+     * statement about a moment that has passed — so the run's own buttons go
+     * back to them and they decide again.
+     */
+    const designName = await getDesignName(scope, stashed.run_id).catch(() => "")
+    await whatsapp.sendRunActions(
+      message.from,
+      stashed.run_id,
+      "sent_to_partner",
+      designName
+    )
+    return { handled: true, action: "pre_consent_action_reoffered" }
+  }
+
   // If consent given but language not yet selected, prompt for it
   if (!conversationMeta.language) {
     await sendLanguageSelection(whatsapp, message.from)
@@ -405,6 +534,16 @@ export async function handleIncomingMessage(
     // production-run dispatch below doesn't try to parse them. Exit
     // immediately once handled; the product status mutation IS the
     // intent — no follow-on action needed.
+    if (message.buttonReplyId === MEDIA_CTX_YES || message.buttonReplyId === MEDIA_CTX_NO) {
+      return await handleMediaContextReply(
+        scope,
+        whatsapp,
+        message,
+        partner.partnerId,
+        conversationId
+      )
+    }
+
     if (message.buttonReplyId.startsWith("wa_pc_")) {
       return await handleProductCreateButtonReply(
         scope,
@@ -425,31 +564,35 @@ export async function handleIncomingMessage(
     //   3. Native interactive ids `<action>_prod_run_<id>` — the long-
     //      standing shape used by sendProductionRunAssignment,
     //      sendRunActions, etc.
-    const titleAction =
-      (message.buttonReplyTitle && BUTTON_TITLE_ACTIONS[message.buttonReplyTitle]) ||
-      BUTTON_TITLE_ACTIONS[message.buttonReplyId]
-    if (titleAction) {
-      action = titleAction
-      runId = typeof conversationMeta.pending_run_id === "string"
-        ? conversationMeta.pending_run_id
-        : ""
-      if (!runId) {
+    const resolved = resolveRunActionFromButton(
+      message.buttonReplyId,
+      message.buttonReplyTitle,
+      conversationMeta
+    )
+    if (resolved) {
+      action = resolved.action
+      runId = resolved.runId
+
+      /*
+       * 🔴 The message she replied to outranks the conversation slot (#2212).
+       * Only for the title path — a native `accept_prod_run_X` id names its
+       * own run explicitly and nothing should second-guess it.
+       */
+      if (isTemplateTitleButton(message.buttonReplyId, message.buttonReplyTitle)) {
+        const fromReply = await resolveRunFromReplyContext(
+          scope,
+          message.replyToWaMessageId
+        )
+        if (fromReply) runId = fromReply
+      }
+      // A template quick-reply with no pinned run: we know WHAT they meant,
+      // not on what. Only the title path can produce this.
+      if (!runId && isTemplateTitleButton(message.buttonReplyId, message.buttonReplyTitle)) {
         await whatsapp.sendTextMessage(
           message.from,
-          `I couldn't tell which run this ${titleAction} refers to. Please reply with \`${titleAction} <run id>\`.`
+          `I couldn't tell which run this ${action} refers to. Please reply with \`${action} <run id>\`.`
         )
         return { handled: true, action: "template_button_no_context" }
-      }
-    } else {
-      const declineParsed = parseDeclineButtonId(message.buttonReplyId)
-      if (declineParsed) {
-        action = declineParsed.action
-        runId = declineParsed.runId
-      } else {
-        // Button replies: "accept_prod_run_123", "start_prod_run_123", etc.
-        const parts = message.buttonReplyId.split("_")
-        action = parts[0] // accept, start, finish, complete, view, media, status
-        runId = parts.slice(1).join("_") // rejoin in case run ID has underscores
       }
     }
   } else if (message.type === "text" && message.text) {
@@ -562,10 +705,31 @@ export async function handleIncomingMessage(
 
         let autoResolvedRunId: string | null = null
         let autoResolveReason: "none" | "single" | "multiple" = "none"
+        // True whenever WE picked the run — the burst reply then asks ✅ / ❌.
+        let runWasGuessed = false
+        // What the photo shows, read once and reused by the batch question.
+        let photoSeen: string | null | undefined
         if (saved && !contextStillValid) {
           const lookup = await findSinglePartnerActiveRun(scope, partner.partnerId)
           autoResolvedRunId = lookup.runId
           autoResolveReason = lookup.reason
+          runWasGuessed = lookup.reason === "single"
+
+          /**
+           * With any run in progress, let System One read what the photo shows
+           * against each run's design. It may pick a run (still a guess — asked
+           * about), or say none, which sends the photo to the question instead
+           * of filing a swatch on a shirt run. When it cannot answer, the old
+           * rule (the one run, or nothing) stands.
+           */
+          if (lookup.reason !== "none") {
+            const matched = await matchPhotoToRun(scope, partner.partnerId, saved.fileUrl, message.text ?? null)
+            photoSeen = matched.seen
+            if (matched.decided) {
+              autoResolvedRunId = matched.runId
+              runWasGuessed = !!matched.runId
+            }
+          }
         }
 
         const targetRunId: string | null = contextStillValid
@@ -585,6 +749,9 @@ export async function handleIncomingMessage(
          */
         let photoContextReply: string | null = null
         let photoContextOwnsReply = false
+        // Set when the photo joins `pending_photo_batch`: the sweep asks about
+        // the whole burst once, so nothing may be said about it per photo.
+        let queuedForQuestion = false
 
         if (saved && targetRunId) {
           const result = await attachMediaToRunDesign(scope, {
@@ -708,10 +875,10 @@ export async function handleIncomingMessage(
               // plainer. Awaited because the batch row must carry it, and the
               // partner is not waiting on this reply (the question comes later
               // from the sweep).
-              const seen = await describePhotoForContext(
-                scope,
-                saved.fileUrl
-              ).catch(() => null)
+              const seen =
+                photoSeen !== undefined
+                  ? { text: photoSeen }
+                  : await describePhotoForContext(scope, saved.fileUrl).catch(() => null)
 
               await updateConversationMetadata(scope, conversationId, {
                 ...conversationMeta,
@@ -722,6 +889,7 @@ export async function handleIncomingMessage(
                   seen?.text ?? null
                 ),
               })
+              queuedForQuestion = true
             }
           }
         }
@@ -755,7 +923,15 @@ export async function handleIncomingMessage(
             ? { kind: "context", label: photoContextReply }
             : null // the flow owns the reply; nothing for us to say
           : attachedRunId
-            ? { kind: "run", label: attachedRunId }
+            ? {
+                kind: "run",
+                label: attachedRunId,
+                // We picked this run (their only one in progress) — say so and
+                // ask; a tapped "📸 Add Media" is their choice and is not asked.
+                ...(runWasGuessed
+                  ? { auto: true, design: await getDesignName(scope, attachedRunId) }
+                  : {}),
+              }
             : !attachError && sharedFolder
               ? { kind: "shared_folder", label: sharedFolder.name }
               : null
@@ -810,7 +986,14 @@ export async function handleIncomingMessage(
           //                   wanted; otherwise admin still sees the file
           //                   in their inbox.
           const hasCaption = typeof message.text === "string" && message.text.trim().length > 0
-          if (!hasCaption) {
+          /**
+           * 🔴 Not per photo when the photo is queued for the burst question.
+           * This line fired once PER IMAGE — Bhagalpur got ~25 identical
+           * "📥 Received" replies for one burst on 2026-09-15 — on top of the
+           * sweep's own "what are these for?". It is only the fallback now,
+           * for a photo that could not be queued.
+           */
+          if (!hasCaption && !queuedForQuestion) {
             const hint =
               autoResolveReason === "multiple"
                 ? "You have several runs in progress — tap *📸 Add Media* on the specific run, then send the photo."
@@ -863,13 +1046,21 @@ export async function handleIncomingMessage(
     return { handled: true, action: "conversation" }
   }
 
+  /*
+   * The language the partner chose, for any wording we generate rather than
+   * template. Read from the conversation, which is where the choice was made
+   * — NOT from partner_admin.preferred_language, which is a portal setting
+   * and has silently outranked this choice before.
+   */
+  const partnerLang = String(conversationMeta.language || "en")
+
   // Execute action
   try {
     switch (action) {
       case "accept":
-        return await handleAccept(scope, whatsapp, message.from, runId, partner.partnerId)
+        return await handleAccept(scope, whatsapp, message.from, runId, partner.partnerId, partnerLang)
       case "start":
-        return await handleStart(scope, whatsapp, message.from, runId, partner.partnerId)
+        return await handleStart(scope, whatsapp, message.from, runId, partner.partnerId, partnerLang)
       case "finish":
         return await handleFinish(
           scope,
@@ -878,7 +1069,8 @@ export async function handleIncomingMessage(
           runId,
           partner.partnerId,
           message.text,
-          intentExtras
+          intentExtras,
+          partnerLang
         )
       case "complete":
         return await handleComplete(
@@ -888,7 +1080,8 @@ export async function handleIncomingMessage(
           runId,
           partner.partnerId,
           message.text,
-          intentExtras
+          intentExtras,
+          partnerLang
         )
       case "decline":
         // Top-level decline (button tap or text "decline prod_run_…") →
@@ -915,7 +1108,8 @@ export async function handleIncomingMessage(
           message.from,
           runId,
           partner.partnerId,
-          action.replace("decline_", "") as DeclineReason
+          action.replace("decline_", "") as DeclineReason,
+          partnerLang
         )
       case "view":
       case "status":
@@ -931,18 +1125,27 @@ export async function handleIncomingMessage(
         await sendHelpMessage(scope, whatsapp, message.from, partner.partnerId, partner.adminName, conversationMeta.language)
         return { handled: true, action: "help" }
       default:
-        await whatsapp.sendTextMessage(
-          message.from,
-          `Unknown action: "${action}". Reply *help* to see available commands.`
-        )
+        await sendPhrasedLine(scope, whatsapp, message.from, partnerLang, {
+          brief:
+            "We did not understand what they asked for. Say so without making them feel stupid, and tell them to reply with the word help to see what they can do. Write that word in English as 'help' because that is what the system listens for.",
+          fallback: `Unknown action: "${action}". Reply *help* to see available commands.`,
+        })
         return { handled: true, action: "unknown", error: action }
     }
   } catch (e: any) {
     console.error(`[whatsapp-handler] Action ${action} failed:`, e.message)
-    await whatsapp.sendTextMessage(
-      message.from,
-      `⚠️ Action failed: ${e.message}\n\nPlease try again or use the web portal.`
-    )
+    /*
+     * 🔴 `e.message` is deliberately NOT given to the model. It is internal
+     * text written for us, and it can carry a run id — which the model would
+     * then be free to paraphrase into a code that refers to nothing. The
+     * partner gets "something went wrong at our end, try again"; the detail
+     * stays in the log and in the fallback, where it is at least verbatim.
+     */
+    await sendPhrasedLine(scope, whatsapp, message.from, partnerLang, {
+      brief:
+        "Something went wrong at our end while doing what they asked — this is our fault, not theirs. Apologise briefly and tell them to try again or use the web portal.",
+      fallback: `⚠️ Action failed: ${e.message}\n\nPlease try again or use the web portal.`,
+    })
     return { handled: true, action, runId, error: e.message }
   }
 }
@@ -962,6 +1165,135 @@ const DECLINE_REASON_TOKENS: DeclineReason[] = ["capacity", "materials", "schedu
  * return both. Plain `decline_<runId>` (tapped directly on assignment)
  * returns action="decline" so the prompt flow fires.
  */
+/**
+ * Did this tap come from a template QUICK_REPLY (title only, no run id)?
+ *
+ * The distinction matters because only that shape has to guess at the run —
+ * and only that shape should let the reply context override it.
+ */
+export function isTemplateTitleButton(
+  buttonReplyId: string | undefined,
+  buttonReplyTitle: string | undefined
+): boolean {
+  if (!buttonReplyId) return false
+  return Boolean(
+    (buttonReplyTitle && BUTTON_TITLE_ACTIONS[buttonReplyTitle]) ||
+      BUTTON_TITLE_ACTIONS[buttonReplyId]
+  )
+}
+
+/**
+ * PURE: the production run a stored `context_id` names.
+ *
+ * Outbound rows tag the run they are about. An assignment carries the bare id;
+ * a reminder carries `prod_run_…:reminder:2026-09-15`, because the send needs
+ * a distinct key per day to deduplicate. A run id never contains a colon, so
+ * the first colon is the boundary — more general than matching `:reminder:`
+ * alone, which would silently return a whole dedup key if the suffix scheme
+ * ever grows a second shape.
+ */
+export function runIdFromContextId(
+  contextType: string | null | undefined,
+  contextId: string | null | undefined
+): string | null {
+  if (contextType !== "production_run") return null
+  const raw = String(contextId ?? "")
+  if (!raw) return null
+  const colon = raw.indexOf(":")
+  const runId = colon >= 0 ? raw.slice(0, colon) : raw
+  return runId.startsWith("prod_run_") ? runId : null
+}
+
+/**
+ * Which run a template quick-reply is REALLY about (#2212).
+ *
+ * 🔴 `pending_run_id` is ONE SLOT per conversation. Meta forbids variables
+ * inside template QUICK_REPLY buttons, so the tap carries only its title and
+ * the run has to come from state we kept — and the next assignment template
+ * overwrites that state. Ksaman Naturals got two 69 seconds apart on
+ * 2026-09-09; every later tap, on either template, resolved to the newer run.
+ *
+ * But WhatsApp tells us what she tapped: the webhook carries `context.id`, the
+ * wa_message_id of the message the button belongs to, and our own outbound row
+ * for that message is tagged with the run. That is an exact answer where the
+ * slot is a guess, so it is preferred and the slot stays only as the fallback
+ * for taps that arrive with no reply context at all.
+ *
+ * ⚠️ Never throws. A lookup failure must fall back to the slot, not take down
+ * a partner's Accept.
+ */
+async function resolveRunFromReplyContext(
+  scope: any,
+  replyToWaMessageId: string | undefined
+): Promise<string | null> {
+  if (!replyToWaMessageId) return null
+  try {
+    const messagingService = scope.resolve(MESSAGING_MODULE) as any
+    const [row] = await messagingService.listMessagingMessages(
+      { wa_message_id: replyToWaMessageId },
+      { take: 1 }
+    )
+    if (!row) return null
+    return runIdFromContextId(row.context_type, row.context_id)
+  } catch {
+    return null
+  }
+}
+
+/**
+ * PURE: which run action a button reply means, and on which run.
+ *
+ * Extracted because the consent gate and the normal command path both have to
+ * answer this and must never answer it differently. Before this existed only
+ * the command path could, and the gate — which runs FIRST on a partner's very
+ * first message — dropped the tap on the floor (#2211).
+ *
+ * Returns `runId: ""` when the reply is a template quick-reply and the
+ * conversation carries no `pending_run_id`; the caller decides what to say.
+ */
+export function resolveRunActionFromButton(
+  buttonReplyId: string,
+  buttonReplyTitle: string | undefined,
+  conversationMeta: Record<string, any>
+): { action: string; runId: string } | null {
+  if (!buttonReplyId) return null
+
+  const titleAction =
+    (buttonReplyTitle && BUTTON_TITLE_ACTIONS[buttonReplyTitle]) ||
+    BUTTON_TITLE_ACTIONS[buttonReplyId]
+  if (titleAction) {
+    /*
+     * 🔴 `pending_run_id` IS ONE SLOT ON THE CONVERSATION. Meta forbids
+     * variables inside template quick-reply buttons, so a tap carries the
+     * button's title and nothing else, and the run has to come from state we
+     * kept. Two assignment templates sent close together overwrite it, and
+     * every later tap then resolves to the last run sent.
+     *
+     * That is a real defect and it is NOT fixed here — see #2212. What this
+     * function does is make the read happen ONCE, at the moment the tap is
+     * seen, so nothing downstream re-reads a slot that has since moved on.
+     */
+    return {
+      action: titleAction,
+      runId:
+        typeof conversationMeta?.pending_run_id === "string"
+          ? conversationMeta.pending_run_id
+          : "",
+    }
+  }
+
+  const declineParsed = parseDeclineButtonId(buttonReplyId)
+  if (declineParsed) return declineParsed
+
+  // Native interactive ids: "accept_prod_run_123", "start_prod_run_123", …
+  const parts = buttonReplyId.split("_")
+  return {
+    action: parts[0],
+    // rejoined in case the run id itself contains underscores
+    runId: parts.slice(1).join("_"),
+  }
+}
+
 function parseDeclineButtonId(
   buttonId: string
 ): { action: string; runId: string } | null {
@@ -1033,12 +1365,59 @@ function parseTextCommand(text: string): { action: string; runId: string; extra?
   return { action: "", runId: "" }
 }
 
+/**
+ * The lifecycle acknowledgement a partner actually receives.
+ *
+ * Wraps `sendRunActions` so the three lifecycle hops read the same way: work
+ * out the facts, ask for a sentence, fall back to the constant. The language
+ * comes from the conversation the partner is in, which is where they chose it.
+ *
+ * ⚠️ Never throws. Phrasing sits AFTER the state change — the run has already
+ * moved by the time we are choosing words, so a failure here must degrade the
+ * wording and nothing else.
+ */
+async function sendRunAck(
+  scope: any,
+  whatsapp: WhatsAppService,
+  phone: string,
+  runId: string,
+  status: "in_progress" | "started" | "finished",
+  designName: string,
+  language: string,
+  extra?: { quantity?: number | null }
+): Promise<void> {
+  const intent =
+    status === "in_progress"
+      ? "accepted"
+      : status === "started"
+        ? "started"
+        : "finished"
+  try {
+    const body = await phraseRunAck(scope, {
+      intent,
+      facts: {
+        runId,
+        designName: designName || null,
+        quantity: extra?.quantity ?? null,
+      },
+      language,
+      // "" tells sendRunActions to keep the wording it already had.
+      fallback: "",
+    })
+    await whatsapp.sendRunActions(phone, runId, status, designName, body)
+  } catch {
+    await whatsapp.sendRunActions(phone, runId, status, designName)
+  }
+}
+
 async function handleAccept(
   scope: any,
   whatsapp: WhatsAppService,
   phone: string,
   runId: string,
-  partnerId: string
+  partnerId: string,
+  /** The language the partner chose, for the acknowledgement wording. */
+  language = "en"
 ): Promise<HandlerResult> {
   const { result, errors } = await acceptProductionRunWorkflow(scope).run({
     input: { production_run_id: runId, partner_id: partnerId },
@@ -1054,9 +1433,31 @@ async function handleAccept(
 
   // Send next-step buttons
   const designName = await getDesignName(scope, runId)
-  await whatsapp.sendRunActions(phone, runId, "in_progress", designName)
+  await sendRunAck(scope, whatsapp, phone, runId, "in_progress", designName, language)
 
   return { handled: true, action: "accept", runId }
+}
+
+/**
+ * One reply, in the partner's language, with the constant as the floor (#2216).
+ *
+ * Every call site keeps its original English string as `fallback`, so the flag
+ * being off — or the model being slow, absent or wrong — leaves the partner
+ * with exactly the message they got before. The id never goes to the model; it
+ * is appended by code via `tail`.
+ *
+ * ⚠️ Awaited, like the constant it replaces. The partner is waiting on their
+ * phone either way, and `phraseLine` owns the 3.5s ceiling; firing this off
+ * unawaited would reorder replies against the buttons that follow them.
+ */
+async function sendPhrasedLine(
+  scope: any,
+  whatsapp: WhatsAppService,
+  phone: string,
+  language: string,
+  spec: LineSpec
+): Promise<void> {
+  await whatsapp.sendTextMessage(phone, await phraseLine(scope, { spec, language }))
 }
 
 /**
@@ -1079,26 +1480,43 @@ async function handleMediaPrompt(
   const productionRunService = scope.resolve(PRODUCTION_RUNS_MODULE) as ProductionRunService
   const run = await productionRunService.retrieveProductionRun(runId).catch(() => null) as any
 
+  const mediaLang = String(conversationMeta.language || "en")
+
   if (!run) {
-    await whatsapp.sendTextMessage(phone, `Run ${runId} not found.`)
+    await sendPhrasedLine(scope, whatsapp, phone, mediaLang, {
+      brief:
+        "They tried to add a photo to a job we cannot find. Tell them we could not find it and they should check the job.",
+      tail: `*Run:* ${runId}`,
+      fallback: `Run ${runId} not found.`,
+    })
     return { handled: true, action: "media_not_found", runId }
   }
   if (run.partner_id !== partnerId) {
-    await whatsapp.sendTextMessage(phone, `Run ${runId} is not assigned to your account.`)
+    await sendPhrasedLine(scope, whatsapp, phone, mediaLang, {
+      brief:
+        "They tried to add a photo to a job that belongs to someone else. Tell them plainly that this job is not theirs, without blaming them.",
+      tail: `*Run:* ${runId}`,
+      fallback: `Run ${runId} is not assigned to your account.`,
+    })
     return { handled: true, action: "media_forbidden", runId }
   }
   if (run.status === "cancelled" || run.status === "completed") {
-    await whatsapp.sendTextMessage(
-      phone,
-      `Run ${runId} is ${run.status} — can't attach media anymore.`
-    )
+    await sendPhrasedLine(scope, whatsapp, phone, mediaLang, {
+      brief:
+        "They tried to add a photo to a job that is already finished with. Tell them photos can no longer be added to it.",
+      facts: [{ label: "Job state", value: String(run.status) }],
+      tail: `*Run:* ${runId}`,
+      fallback: `Run ${runId} is ${run.status} — can't attach media anymore.`,
+    })
     return { handled: true, action: "media_blocked_terminal", runId }
   }
   if (!run.started_at || run.status !== "in_progress") {
-    await whatsapp.sendTextMessage(
-      phone,
-      `Run ${runId} hasn't been started yet. Tap *▶️ Start* first, then add media.`
-    )
+    await sendPhrasedLine(scope, whatsapp, phone, mediaLang, {
+      brief:
+        "They tried to add a photo before starting the job. Tell them to tap the Start button first, then send the photo. Write the button name in English as '▶️ Start' because that is what it says on their screen.",
+      tail: `*Run:* ${runId}`,
+      fallback: `Run ${runId} hasn't been started yet. Tap *▶️ Start* first, then add media.`,
+    })
     return { handled: true, action: "media_blocked_not_started", runId }
   }
 
@@ -1110,10 +1528,16 @@ async function handleMediaPrompt(
   })
 
   const designName = await getDesignName(scope, runId).catch(() => runId)
-  await whatsapp.sendTextMessage(
-    phone,
-    `📸 Ready — send your photo, video, or document in the next message and I'll attach it to run ${runId} (${designName}).\n\n_Window: 10 minutes._`
-  )
+  await sendPhrasedLine(scope, whatsapp, phone, mediaLang, {
+    brief:
+      "We are ready for their photo. Tell them to send the photo, video or document in their next message and it will be attached to this job, and that they have ten minutes.",
+    facts: [
+      { label: "Design", value: designName },
+      { label: "Minutes they have", value: 10 },
+    ],
+    tail: `*Run:* ${runId}`,
+    fallback: `📸 Ready — send your photo, video, or document in the next message and I'll attach it to run ${runId} (${designName}).\n\n_Window: 10 minutes._`,
+  })
   return { handled: true, action: "media_prompt", runId }
 }
 
@@ -1145,7 +1569,9 @@ async function handleDecline(
   phone: string,
   runId: string,
   partnerId: string,
-  reason: DeclineReason
+  reason: DeclineReason,
+  /** The language the partner chose, for any wording we generate (#2216). */
+  language = "en"
 ): Promise<HandlerResult> {
   // Short token → backend enum
   const reasonMap: Record<DeclineReason, string> = {
@@ -1163,22 +1589,39 @@ async function handleDecline(
   const productionRunService = scope.resolve(PRODUCTION_RUNS_MODULE) as ProductionRunService
   const run = await productionRunService.retrieveProductionRun(runId).catch(() => null) as any
   if (!run) {
-    await whatsapp.sendTextMessage(phone, `Run ${runId} not found.`)
+    await sendPhrasedLine(scope, whatsapp, phone, language, {
+      brief:
+        "They tried to decline a job we cannot find. Tell them we could not find it.",
+      tail: `*Run:* ${runId}`,
+      fallback: `Run ${runId} not found.`,
+    })
     return { handled: true, action: "decline_not_found", runId }
   }
   if (run.partner_id !== partnerId) {
-    await whatsapp.sendTextMessage(phone, `Run ${runId} is not assigned to your account.`)
+    await sendPhrasedLine(scope, whatsapp, phone, language, {
+      brief:
+        "They tried to decline a job that belongs to someone else. Tell them plainly that this job is not theirs, without blaming them.",
+      tail: `*Run:* ${runId}`,
+      fallback: `Run ${runId} is not assigned to your account.`,
+    })
     return { handled: true, action: "decline_forbidden", runId }
   }
   if (run.status === "cancelled") {
-    await whatsapp.sendTextMessage(phone, `Run ${runId} is already cancelled.`)
+    await sendPhrasedLine(scope, whatsapp, phone, language, {
+      brief:
+        "They tried to decline a job that is already cancelled. Tell them there is nothing left to do here.",
+      tail: `*Run:* ${runId}`,
+      fallback: `Run ${runId} is already cancelled.`,
+    })
     return { handled: true, action: "decline_already", runId }
   }
   if (run.started_at) {
-    await whatsapp.sendTextMessage(
-      phone,
-      `Can't decline ${runId} — work has already started. Please contact admin to cancel mid-production.`
-    )
+    await sendPhrasedLine(scope, whatsapp, phone, language, {
+      brief:
+        "They tried to decline a job they have already started. Tell them it cannot be declined now and they should contact the admin to stop it mid-production.",
+      tail: `*Run:* ${runId}`,
+      fallback: `Can't decline ${runId} — work has already started. Please contact admin to cancel mid-production.`,
+    })
     return { handled: true, action: "decline_blocked_started", runId }
   }
 
@@ -1231,10 +1674,13 @@ async function handleDecline(
     notes: `Declined by partner (${apiReason})`,
   })
 
-  await whatsapp.sendTextMessage(
-    phone,
-    `✖️ Run ${runId} declined (${apiReason.replace(/_/g, " ")}). Admin has been notified.`
-  )
+  await sendPhrasedLine(scope, whatsapp, phone, language, {
+    brief:
+      "They declined this job and gave a reason. Acknowledge it without pressure and tell them the admin has been told.",
+    facts: [{ label: "Reason they gave", value: apiReason.replace(/_/g, " ") }],
+    tail: `*Run:* ${runId}`,
+    fallback: `✖️ Run ${runId} declined (${apiReason.replace(/_/g, " ")}). Admin has been notified.`,
+  })
   return { handled: true, action: `decline_${reason}`, runId }
 }
 
@@ -1243,36 +1689,33 @@ async function handleStart(
   whatsapp: WhatsAppService,
   phone: string,
   runId: string,
-  partnerId: string
+  partnerId: string,
+  language = "en"
 ): Promise<HandlerResult> {
-  const productionRunService: ProductionRunService = scope.resolve(PRODUCTION_RUNS_MODULE)
-  const run = await productionRunService.retrieveProductionRun(runId).catch(() => null) as any
-
-  if (!run || run.partner_id !== partnerId) {
-    throw new MedusaError(MedusaError.Types.NOT_FOUND, `Production run ${runId} not found`)
-  }
-
-  if (run.status !== "in_progress") {
-    throw new MedusaError(MedusaError.Types.NOT_ALLOWED, `Run must be in_progress to start. Current: ${run.status}`)
-  }
-  if (run.started_at) {
-    throw new MedusaError(MedusaError.Types.NOT_ALLOWED, "Run already started")
-  }
-
-  await productionRunService.updateProductionRuns({ id: runId, started_at: new Date() })
-
-  // Signal lifecycle
-  const transactionId = (run as any).lifecycle_transaction_id
-  if (transactionId) {
-    await signalLifecycleStepSuccessWorkflow(scope)
-      .run({ input: { transaction_id: transactionId, step_id: awaitRunStartStepId } })
-      .catch(() => {})
-  }
-
-  await emitEvent(scope, "production_run.started", { id: runId, production_run_id: runId, partner_id: partnerId, action: "started" })
+  /**
+   * 🔴 The tap runs the SAME workflow as the partner portal's Start button.
+   *
+   * It used to stamp `started_at` on the row and emit the event by hand, which
+   * skipped two things the workflow does: the design's move out of
+   * `Conceptual` (→ `In_Development`, or `Sample_Production` for a sample
+   * run), and the unified work-order's in_progress mirror. Partners start
+   * work from WhatsApp, so on prod a started run left its design reading
+   * "Conceptual" (Ksaman's Pashmina Inspired Tunic, started 2026-09-09).
+   *
+   * The workflow's own validation is the policy the portal uses
+   * (`assertCanStartWork`: in_progress, not already started) plus the
+   * partner-ownership check, so a tap that was refused before is refused
+   * now, with the same MedusaError types the caller already handles.
+   */
+  const { result } = await startProductionRunWorkflow(scope).run({
+    input: { production_run_id: runId, partner_id: partnerId },
+  })
+  const run = (result as any)?.run as any
 
   const designName = await getDesignName(scope, runId)
-  await whatsapp.sendRunActions(phone, runId, "started", designName)
+  await sendRunAck(scope, whatsapp, phone, runId, "started", designName, language, {
+    quantity: run?.quantity ?? null,
+  })
 
   return { handled: true, action: "start", runId }
 }
@@ -1284,7 +1727,8 @@ async function handleFinish(
   runId: string,
   partnerId: string,
   rawText?: string,
-  extras?: { quantity?: number | null; notes?: string | null } | null
+  extras?: { quantity?: number | null; notes?: string | null } | null,
+  language = "en"
 ): Promise<HandlerResult> {
   const productionRunService: ProductionRunService = scope.resolve(PRODUCTION_RUNS_MODULE)
   const run = await productionRunService.retrieveProductionRun(runId).catch(() => null) as any
@@ -1319,42 +1763,30 @@ async function handleFinish(
       }
     : parseFinishExtras(rawText)
 
-  const update: Record<string, any> = { id: runId, finished_at: new Date() }
-  if (finishNote) update.finish_notes = finishNote
-  if (scrap != null) update.rejected_quantity = scrap
-
-  await productionRunService.updateProductionRuns(update)
-
-  // Move design to Technical_Review
-  if (run.design_id) {
-    try {
-      const designService = scope.resolve("design") as any
-      const design = await designService.retrieveDesign(run.design_id)
-      if (["In_Development", "Sample_Production", "Revision"].includes(design.status)) {
-        await designService.updateDesigns({ id: run.design_id, status: "Technical_Review" })
-      }
-    } catch { /* non-fatal */ }
-  }
-
-  // Signal lifecycle
-  const transactionId = (run as any).lifecycle_transaction_id
-  if (transactionId) {
-    await signalLifecycleStepSuccessWorkflow(scope)
-      .run({ input: { transaction_id: transactionId, step_id: awaitRunFinishStepId } })
-      .catch(() => {})
-  }
-
-  await emitEvent(scope, "production_run.finished", {
-    id: runId,
-    production_run_id: runId,
-    partner_id: partnerId,
-    action: "finished",
-    ...(scrap != null ? { rejected_quantity: scrap } : {}),
-    ...(notes ? { notes } : {}),
+  /**
+   * #2248 — the SAME workflow the partner portal runs. The hand-written
+   * version here set `finished_at`, moved the design to a different status
+   * than the portal did, swallowed every lifecycle-signal error and never
+   * mirrored the unified work order. A guard the workflow enforces (terminal
+   * run, not started) now throws into the dispatcher's catch, as Start does.
+   */
+  await finishProductionRunWorkflow(scope).run({
+    input: {
+      production_run_id: runId,
+      partner_id: partnerId,
+      ...(finishNote ? { notes: finishNote } : {}),
+    },
   })
 
+  // Scrap is a WhatsApp-only input the finish workflow has no field for.
+  if (scrap != null) {
+    await productionRunService.updateProductionRuns({ id: runId, rejected_quantity: scrap })
+  }
+
   const designName = await getDesignName(scope, runId)
-  await whatsapp.sendRunActions(phone, runId, "finished", designName)
+  await sendRunAck(scope, whatsapp, phone, runId, "finished", designName, language, {
+    quantity: run?.quantity ?? null,
+  })
 
   // Extra feedback to the partner when they logged scrap/notes so they
   // see their input landed.
@@ -1403,7 +1835,9 @@ async function handleComplete(
   runId: string,
   partnerId: string,
   rawText?: string,
-  extras?: { quantity?: number | null; rejectedQuantity?: number | null } | null
+  extras?: { quantity?: number | null; rejectedQuantity?: number | null } | null,
+  /** The language the partner chose, for any wording we generate (#2216). */
+  language = "en"
 ): Promise<HandlerResult> {
   const productionRunService: ProductionRunService = scope.resolve(PRODUCTION_RUNS_MODULE)
   const run = await productionRunService.retrieveProductionRun(runId).catch(() => null) as any
@@ -1441,40 +1875,59 @@ async function handleComplete(
     if (rejectedMatch) rejectedQuantity = parseInt(rejectedMatch[1])
   }
 
-  // Mark as completed
-  await productionRunService.updateProductionRuns({
-    id: runId,
-    status: "completed" as any,
-    completed_at: new Date(),
-    ...(producedQuantity != null ? { produced_quantity: producedQuantity } : {}),
-    ...(rejectedQuantity != null ? { rejected_quantity: rejectedQuantity } : {}),
-  })
-
-  // Signal lifecycle
-  const transactionId = (run as any).lifecycle_transaction_id
-  if (transactionId) {
-    await signalLifecycleStepSuccessWorkflow(scope)
-      .run({ input: { transaction_id: transactionId, step_id: awaitRunCompleteStepId } })
-      .catch(() => {})
+  /**
+   * The workflow refuses a run with pieces owed and no count (its output
+   * check), so ask for the count rather than failing: the partner tapped
+   * Complete, they did not do anything wrong.
+   */
+  if (producedQuantity == null && Number(run.quantity ?? 0) > 0) {
+    const designName = await getDesignName(scope, runId)
+    await whatsapp.sendCompletionPrompt(phone, runId, designName)
+    return { handled: true, action: "complete_prompt", runId }
   }
 
-  await emitEvent(scope, "production_run.completed", {
-    id: runId,
-    production_run_id: runId,
-    partner_id: partnerId,
-    action: "completed",
-    produced_quantity: producedQuantity,
-    rejected_quantity: rejectedQuantity || 0,
+  /**
+   * #2248 — the SAME workflow the partner portal runs. The hand-written
+   * version only flipped the status: it never banked the finished goods,
+   * reserved them for an order, closed the run's tasks, wrote the design's
+   * cost, cascaded a parent run or mirrored the unified work order. Its
+   * refusals (a shortfall with no reason, a partner with no stock location)
+   * now throw into the dispatcher's catch instead of being skipped silently.
+   */
+  await completeProductionRunWorkflow(scope).run({
+    input: {
+      production_run_id: runId,
+      partner_id: partnerId,
+      ...(producedQuantity != null ? { produced_quantity: producedQuantity } : {}),
+      ...(rejectedQuantity != null ? { rejected_quantity: rejectedQuantity } : {}),
+    },
   })
 
   const qtyInfo = producedQuantity != null
     ? `\n*Produced:* ${producedQuantity}${rejectedQuantity ? ` | *Rejected:* ${rejectedQuantity}` : ""}`
     : ""
 
-  await whatsapp.sendTextMessage(
-    phone,
-    `✅ *Production Run Completed!*\n*Run:* ${runId}${qtyInfo}\n\nThe admin has been notified. Thank you!`
-  )
+  /*
+   * The last thing a partner hears about a job they have just finished, and
+   * the one place in this file where the old constant was not merely plain but
+   * slightly cold: "*Production Run Completed!*" is a status line, not a thank
+   * you. The numbers stay in the tail, written by code — they are what the
+   * partner is paid on.
+   */
+  await sendPhrasedLine(scope, whatsapp, phone, language, {
+    brief:
+      "They have completed this job and the admin has been told. Confirm it and thank them.",
+    facts: [
+      ...(producedQuantity != null
+        ? [{ label: "Pieces they made", value: producedQuantity }]
+        : []),
+      ...(rejectedQuantity
+        ? [{ label: "Pieces rejected", value: rejectedQuantity }]
+        : []),
+    ],
+    tail: `*Run:* ${runId}${qtyInfo}`,
+    fallback: `✅ *Production Run Completed!*\n*Run:* ${runId}${qtyInfo}\n\nThe admin has been notified. Thank you!`,
+  })
 
   return { handled: true, action: "complete", runId }
 }
@@ -1899,6 +2352,41 @@ async function findSinglePartnerActiveRun(
   }
 }
 
+/**
+ * Ask System One which of the partner's started runs a photo is for (see
+ * whatsapp-photo-run-match.ts). `decided: false` means it could not answer —
+ * off, unconfigured, nothing to judge from — and the caller keeps its old
+ * rule. Never throws: a photo must be saved whatever the classifier does.
+ */
+async function matchPhotoToRun(
+  scope: any,
+  partnerId: string,
+  fileUrl: string,
+  caption: string | null
+): Promise<{ decided: boolean; runId: string | null; seen: string | null }> {
+  try {
+    const productionRunService: ProductionRunService = scope.resolve(PRODUCTION_RUNS_MODULE)
+    const [runs] = await productionRunService.listAndCountProductionRuns(
+      { partner_id: partnerId, status: "in_progress" as any },
+      { take: 20 }
+    )
+    const started = ((runs as any[]) ?? []).filter((r) => r?.started_at)
+    const candidates: CandidateRun[] = []
+    for (const r of started) {
+      candidates.push({ id: r.id, design: await getDesignName(scope, r.id) })
+    }
+    const seen = (await describePhotoForContext(scope, fileUrl).catch(() => null))?.text ?? null
+    if (!candidates.length || (!seen && !caption)) return { decided: false, runId: null, seen }
+
+    const { state, questions } = buildPhotoRunQuestion(candidates, { seen, caption })
+    const result = await classify(scope, { scope: PHOTO_RUN_SCOPE, state, questions, timeoutMs: 15_000 })
+    if (!result) return { decided: false, runId: null, seen }
+    return { decided: true, runId: decidePhotoRun(result.answers.run, candidates).runId, seen }
+  } catch {
+    return { decided: false, runId: null, seen: null }
+  }
+}
+
 async function getDesignName(scope: any, runId: string): Promise<string> {
   try {
     const productionRunService: ProductionRunService = scope.resolve(PRODUCTION_RUNS_MODULE)
@@ -2193,6 +2681,70 @@ async function persistPartnerAdminLanguage(
 // no-op with a friendly message. If they tap Cancel after Confirm
 // (product already PUBLISHED), refuse so the live storefront product
 // isn't accidentally deleted.
+/**
+ * The partner's answer to "I've added these to <design> — is that what
+ * they're for?" (sent by jobs/send-media-ack-batches.ts when WE picked the run).
+ *
+ * ✅ Yes keeps the files where they are. ❌ No takes them off the run and
+ * queues them for the one-per-burst "what are these for?" question, so a wrong
+ * guess ends in a question rather than a photo filed against the wrong work.
+ */
+async function handleMediaContextReply(
+  scope: any,
+  whatsapp: WhatsAppService,
+  message: IncomingMessage,
+  partnerId: string,
+  conversationId: string | null
+): Promise<HandlerResult> {
+  const meta = await readConversationMetadata(scope, conversationId)
+  const ctx = meta.pending_media_context as
+    | { run_id: string; design: string | null; message_ids: string[] }
+    | undefined
+  const what = ctx?.design ? `*${ctx.design}*` : "that run"
+
+  if (!ctx?.run_id || !conversationId) {
+    // Answered twice, or the question is gone: nothing to undo.
+    await whatsapp.sendTextMessage(message.from, "👍 Noted.")
+    return { handled: true, action: "media_context_none" }
+  }
+
+  if (message.buttonReplyId === MEDIA_CTX_YES) {
+    await updateConversationMetadata(scope, conversationId, { ...meta, pending_media_context: undefined })
+    await whatsapp.sendTextMessage(message.from, `👍 Thanks — they're on ${what}.`)
+    return { handled: true, action: "media_context_confirmed", runId: ctx.run_id }
+  }
+
+  const messagingService = scope.resolve(MESSAGING_MODULE) as any
+  const rows: any[] = ctx.message_ids.length
+    ? await messagingService.listMessagingMessages({ id: ctx.message_ids }, { take: ctx.message_ids.length }).catch(() => [])
+    : []
+  const urls = rows.map((r) => r?.media_url).filter((u): u is string => typeof u === "string" && !!u)
+  await detachMediaFromRunDesign(scope, { runId: ctx.run_id, partnerId, fileUrls: urls })
+
+  // The inbox must stop showing them against the run as well.
+  for (const r of rows) {
+    if (r?.context_type === "production_run" && r?.context_id === ctx.run_id) {
+      await messagingService
+        .updateMessagingMessages({ id: r.id, context_type: null, context_id: null })
+        .catch(() => {})
+    }
+  }
+
+  let batch = meta.pending_photo_batch as any
+  for (const r of rows) batch = recordPhoto(batch, r.id, new Date(), null)
+  await updateConversationMetadata(scope, conversationId, {
+    ...meta,
+    pending_media_context: undefined,
+    ...(rows.length ? { pending_photo_batch: batch } : {}),
+  })
+
+  await whatsapp.sendTextMessage(
+    message.from,
+    `Okay — I've taken ${rows.length === 1 ? "it" : "them"} off ${what}. I'll ask you what ${rows.length === 1 ? "it's" : "they're"} for in a moment.`
+  )
+  return { handled: true, action: "media_context_rejected", runId: ctx.run_id }
+}
+
 async function handleProductCreateButtonReply(
   scope: any,
   whatsapp: any,
@@ -2291,6 +2843,26 @@ async function handleProductCreateButtonReply(
  * prompts; a window this size collapses any realistic burst into one.
  */
 const CONSENT_PROMPT_COOLDOWN_MS = 10 * 60 * 1000
+
+/**
+ * Actions worth remembering across the consent gate.
+ *
+ * Deliberately the run-moving ones only. `view`/`status`/`media` are reads or
+ * need a follow-up anyway, and replaying a read days later would answer a
+ * question nobody is still asking.
+ */
+const REPLAYABLE_PRE_CONSENT_ACTIONS = new Set([
+  "accept",
+  "start",
+  "decline",
+])
+
+/**
+ * How long a pre-consent tap still speaks for the partner. Two days: long
+ * enough to cover a tap on Friday and consent on Monday morning, short enough
+ * that nobody is signed up to work they chose a week ago.
+ */
+const PRE_CONSENT_ACTION_TTL_MS = 2 * 24 * 60 * 60 * 1000
 
 /** Why a piece of media is sitting undownloaded. One value today. */
 const MEDIA_PENDING_CONSENT = "awaiting_consent"

@@ -57,6 +57,14 @@ export const KNOWN_AI_ROLES: KnownAiRole[] = [
     value: "ai_whatsapp_partner_chat",
     label: "WhatsApp — free-form partner chat",
   },
+  {
+    value: "ai_partner_website_scan",
+    label: "Partner capabilities — group a website/records scan",
+  },
+  {
+    value: "ai_classification",
+    label: "Pre-classification — System One (TypeSafe / Codiv)",
+  },
 ]
 
 /** Sentinel form value selected when the operator wants a free-form role. */

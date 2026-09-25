@@ -38,11 +38,18 @@ type CreateDraftOrderFromDesignsInput = {
   country_code?: string
 }
 
+import { resolveDesignThumbnail } from "../../lib/design-thumbnail"
+
 type DesignEstimate = {
   design_id: string
   name: string
   unit_price: number
   confidence: string
+  /**
+   * The design's picture, resolved at collation time. Null is ordinary — most
+   * designs have no image yet.
+   */
+  thumbnail?: string | null
   /** Currency this estimate is denominated in (set by estimate step) */
   source_currency?: string
   original_price?: number
@@ -102,7 +109,21 @@ const estimateDesignCostsStep = createStep(
         // 🔴 `cost_currency` is what the estimate is DENOMINATED IN. Without it
         // the conversion step below falls back to the house store's currency
         // and a rupee estimate gets read as euros. #2176
-        fields: ["id", "name", "cost_currency"],
+        //
+        // The rest feed `resolveDesignThumbnail`. A design line has NO VARIANT,
+        // so the storefront's `item.variant.product.images[0]` fallback is null
+        // by construction — if the line does not carry a thumbnail, the buyer
+        // checks out looking at a grey placeholder, which is what every design
+        // order did until now.
+        fields: [
+          "id",
+          "name",
+          "cost_currency",
+          "thumbnail_url",
+          "media_files",
+          "moodboard",
+          "metadata",
+        ],
       })
 
       const design = designs?.[0]
@@ -116,6 +137,7 @@ const estimateDesignCostsStep = createStep(
           name: design.name,
           unit_price: overrides[design_id],
           confidence: "manual",
+          thumbnail: resolveDesignThumbnail(design as any),
           // Tag with the override currency so the conversion step knows
           source_currency: input.override_currency?.toLowerCase(),
         })
@@ -144,6 +166,7 @@ const estimateDesignCostsStep = createStep(
           name: design.name,
           unit_price: costEstimate.total_estimated,
           confidence: costEstimate.confidence,
+          thumbnail: resolveDesignThumbnail(design as any),
           /**
            * 🔴 The estimate is in the DESIGN'S cost currency, not the store's.
            *
@@ -404,6 +427,10 @@ const createDesignCartStep = createStep(
       cart.id,
       input.estimates.map((est) => ({
         title: est.name,
+        // Snapshot, like `title` and `unit_price` beside it: the line records
+        // what was bought, so a later edit to the design does not repaint an
+        // order already placed.
+        thumbnail: est.thumbnail ?? null,
         unit_price: est.unit_price,
         is_custom_price: true,
         // #1195: MUST stay false on the CART. `completeCartWorkflow` runs

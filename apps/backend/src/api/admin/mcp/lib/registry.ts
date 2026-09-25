@@ -48,6 +48,7 @@ import {
   PRODUCT_SPEC_WRITE_GUIDANCE,
   productSpecSchemaProps,
 } from "../../../../modules/product-spec/tool-schema"
+import { CAPABILITY_ACTIONS } from "../../../../modules/partner_capability/lib/actions"
 
 /**
  * The FORWARD LIST for `create_product_for_partner`.
@@ -4084,16 +4085,17 @@ export const ADMIN_MCP_TOOLS: AdminMcpToolDef[] = [
   {
     name: "list_partner_capabilities",
     description:
-      "List a partner's capability samples — photographs of things they have actually made, with the technique and material beside each. Read this BEFORE asking a partner for a new photograph: they have usually already shown you the thing they are being asked about. Filter by technique or material to answer 'who can do kani in pashmina' style questions for THIS partner. Each row carries captured_at — when the work was actually on the loom, NOT when it was recorded — and the source (partner wizard/WhatsApp vs an admin typing it up).",
+      "List a partner's capability samples — photographs of things they have actually made, with the technique, material, product_type and actions (spin/weave/dye/print/embroider/stitch/…) beside each, plus the KNOWLEDGE learned about each one and partner_knowledge for partner-wide facts. Read this BEFORE asking a partner for a new photograph: they have usually already shown you the thing they are being asked about. Filter by technique or material to answer 'who can do kani in pashmina' style questions for THIS partner. Each row carries captured_at — when the work was actually on the loom, NOT when it was recorded — and the source (partner wizard/WhatsApp, a website scan, or an admin typing it up).",
     method: "GET",
     path: "/admin/partners/:id/capabilities",
     pathParams: ["id"],
-    queryParams: ["technique", "material", "limit", "offset"],
+    queryParams: ["technique", "material", "product_type", "limit", "offset"],
     inputSchema: obj(
       {
         id: STR("Partner id, e.g. 'partner_...'."),
         technique: STR("Filter by technique, e.g. 'kani twill'."),
         material: STR("Filter by material, e.g. 'pashmina'."),
+        product_type: STR("Filter by product type, e.g. 'stole'."),
         limit: { type: "integer", description: "Max results (default 20, max 100)." },
         offset: { type: "integer", description: "Pagination offset." },
       },
@@ -4110,13 +4112,19 @@ export const ADMIN_MCP_TOOLS: AdminMcpToolDef[] = [
     pathParams: ["id"],
     write: true,
     sensitive: true,
-    bodyParams: ["title", "technique", "material", "media_file_ids", "notes", "captured_at"],
+    bodyParams: ["title", "technique", "material", "product_type", "actions", "media_file_ids", "notes", "captured_at"],
     inputSchema: obj(
       {
         id: STR("Partner id, e.g. 'partner_...'."),
         title: STR("What this is, in the partner's own words (required), e.g. 'kani twill, off-white'."),
         technique: STR("The weaving technique, e.g. 'kani twill'."),
         material: STR("The material, e.g. 'pashmina'."),
+        product_type: STR("The kind of product, e.g. 'stole', 'saree', 'yardage'."),
+        actions: {
+          type: "array",
+          items: { type: "string", enum: [...CAPABILITY_ACTIONS] },
+          description: "What the partner DOES for this item, from a fixed list. Unknown words are dropped.",
+        },
         media_file_ids: {
           type: "array",
           items: { type: "string" },
@@ -4149,6 +4157,118 @@ export const ADMIN_MCP_TOOLS: AdminMcpToolDef[] = [
       ["id", "sampleId"]
     ),
     sideEffects: "Removes the sample row. The uploaded photographs survive — other samples may reference them.",
+    nextSteps: ["list_partner_capabilities"],
+  },
+  // Website scan → capability library (#2249). Scan proposes and stores;
+  // commit files chosen proposals by KEY, copying photos into media.
+  {
+    name: "scan_partner_website",
+    description:
+      "Read a partner's own website (Shopify /products.json, else the page's product data and text) and PROPOSE capability samples — product type, technique, material, actions, photos, publish date — plus knowledge facts. Writes NOTHING to the library: it stores a scan and returns its proposals with keys (s1, s2… for samples, k1… for knowledge). Show the proposals to the admin, then call commit_partner_capability_scan with the keys they approve. `grouped_by: 'fallback'` means the model did not run and technique/material were NOT read — say so. Only public http(s) sites; private/internal addresses are refused. Sensitive: requires confirm:true.",
+    method: "POST",
+    path: "/admin/partners/:id/capabilities/scan",
+    pathParams: ["id"],
+    write: true,
+    // Sensitive although it files nothing: it makes outbound requests on our
+    // behalf and spends a model call, and every admin write is gated.
+    sensitive: true,
+    bodyParams: ["url"],
+    inputSchema: obj(
+      {
+        id: STR("Partner id."),
+        url: STR("The partner's website, e.g. 'gof.asia' or 'https://www.jphandloom.com/'. A product page is fine; the whole store is read."),
+      },
+      ["id", "url"]
+    ),
+    sideEffects:
+      "Fetches the site and calls a model; stores one partner_capability_scan row. Creates no capability, knowledge or media.",
+    nextSteps: ["commit_partner_capability_scan", "get_partner_capability_scan"],
+  },
+  {
+    name: "scan_partner_records",
+    description:
+      "PROPOSE capability samples for a partner from OUR OWN records: production runs they COMPLETED (design, tasks done → actions like stitch/embroider/print, quantity, date, and the photos they sent for that run), cloth they SUPPLIED us on Shipped/Delivered inventory orders (material, colour), and products they list with us. The strongest evidence we hold — prefer this over a website scan, and it works for partners with no website. Writes NOTHING to the library: stores a scan and returns keyed proposals (s1…, k1…); show them to the admin, then commit_partner_capability_scan with the approved keys. `weave` is only credited for supplied cloth when the partner told us they weave. Sensitive: requires confirm:true.",
+    method: "POST",
+    path: "/admin/partners/:id/capabilities/scan-records",
+    pathParams: ["id"],
+    write: true,
+    sensitive: true,
+    inputSchema: obj({ id: STR("Partner id.") }, ["id"]),
+    sideEffects:
+      "Reads runs, inventory orders and products; may call a model; stores one partner_capability_scan row (kind='records'). Creates no capability, knowledge or media.",
+    nextSteps: ["commit_partner_capability_scan", "get_partner_capability_scan"],
+  },
+  {
+    name: "list_partner_capability_scans",
+    description:
+      "List a partner's capability scans (website or records), newest first, without their proposals: id, kind, status, grouped_by and proposal counts. Use it to find a scan whose request timed out at the gateway — the server usually finished and stored it — then read it with get_partner_capability_scan.",
+    method: "GET",
+    path: "/admin/partners/:id/capabilities/scans",
+    pathParams: ["id"],
+    inputSchema: obj({ id: STR("Partner id.") }, ["id"]),
+    nextSteps: ["get_partner_capability_scan", "commit_partner_capability_scan"],
+  },
+  {
+    name: "get_partner_capability_scan",
+    description:
+      "Read a stored capability scan (website or records): its proposals and which keys are already committed (committed_keys maps key → created row id).",
+    method: "GET",
+    path: "/admin/partners/:id/capabilities/scans/:scanId",
+    pathParams: ["id", "scanId"],
+    inputSchema: obj(
+      {
+        id: STR("Partner id."),
+        scanId: STR("Scan id, 'pcscan_...', from scan_partner_website or scan_partner_records."),
+      },
+      ["id", "scanId"]
+    ),
+    nextSteps: ["commit_partner_capability_scan"],
+  },
+  {
+    name: "commit_partner_capability_scan",
+    description:
+      "File approved proposals from a capability scan (website or records) into the partner's capability library. Select by KEY only — content cannot be edited in transit, so every row is what its source said. Omit both key lists to commit everything. Photos are downloaded into media and attached; a photo that fails is a warning, not a failure. Keys already committed are skipped, so a retry cannot duplicate. Sensitive: requires confirm:true.",
+    method: "POST",
+    path: "/admin/partners/:id/capabilities/scans/:scanId/commit",
+    pathParams: ["id", "scanId"],
+    previewPath: "/admin/partners/:id/capabilities/scans/:scanId",
+    write: true,
+    sensitive: true,
+    bodyParams: ["sample_keys", "knowledge_keys"],
+    inputSchema: obj(
+      {
+        id: STR("Partner id."),
+        scanId: STR("Scan id, 'pcscan_...'."),
+        sample_keys: { type: "array", items: { type: "string" }, description: "Sample proposal keys to commit, e.g. ['s1','s3']. Omit for all." },
+        knowledge_keys: { type: "array", items: { type: "string" }, description: "Knowledge proposal keys, e.g. ['k2']. Omit for all." },
+      },
+      ["id", "scanId"]
+    ),
+    sideEffects:
+      "Creates capability samples (source='website' or 'records', captured_at = the evidence's earliest date, or the scan date with metadata.captured_at_defaulted) and knowledge rows; photos we already hold are linked, others are copied into the partner's capability media folder.",
+    nextSteps: ["list_partner_capabilities"],
+  },
+  {
+    name: "add_partner_capability_knowledge",
+    description:
+      "Append one thing learned about a partner's capability — 'handles 60 lea linen', '10 m takes three weeks', 'no natural indigo in monsoon'. About one sample (sample_id) or the partner as a whole. Append-only: a new fact never edits an old one; if something stopped being true, add the newer fact. ADMIN-ONLY — the partner does not see knowledge. 🔑 ASK when it was observed and pass observed_at. Sensitive: requires confirm:true.",
+    method: "POST",
+    path: "/admin/partners/:id/capabilities/knowledge",
+    pathParams: ["id"],
+    write: true,
+    sensitive: true,
+    bodyParams: ["fact", "sample_id", "source_url", "observed_at"],
+    inputSchema: obj(
+      {
+        id: STR("Partner id."),
+        fact: STR("One fact, in plain words."),
+        sample_id: STR("Capability sample id ('pcap_...') the fact is about; omit for partner-wide."),
+        source_url: STR("Where it was read, if from a page."),
+        observed_at: STR("ISO date the fact was observed (ask, do not default silently)."),
+      },
+      ["id", "fact"]
+    ),
+    sideEffects: "Adds a permanent knowledge row, stamped source='admin'.",
     nextSteps: ["list_partner_capabilities"],
   },
   {
@@ -4804,6 +4924,72 @@ export const ADMIN_MCP_TOOLS: AdminMcpToolDef[] = [
     inputSchema: obj({ id: STR("Production run id.") }, ["id"]),
   },
   {
+    name: "get_entity_neighbours",
+    description:
+      "Read one entity's GRAPH: its neighbours, the edges joining them, and — the part no list can answer — the edges the model EXPECTS and that are missing. `spine` is the kind of thing you are centring on: 'production_run' | 'design' | 'partner' | 'website' | 'social_platform' | 'queue'. Each edge carries a `state`: 'present' (a real link with a record on the other end), 'derived' (the neighbour exists and is not doing its job — an assigned partner who never answered), or 'absent' (expected and not there, with `action` naming what would create it). Use it to answer 'why has this not moved' and 'what is missing here' in one call instead of four. On a production run the two edges worth reading first are the upstream ones: materials (met only at `Delivered`, never `Shipped`) and another partner's run (met at `completed`). An unknown spine is an error naming the valid keys — never an empty graph.",
+    method: "GET",
+    path: "/admin/graph/:spine/:id",
+    pathParams: ["spine", "id"],
+    inputSchema: obj(
+      {
+        spine: STR(
+          "What kind of thing the id is: 'production_run' | 'design' | 'partner' | 'website' | 'social_platform' | 'queue'."
+        ),
+        id: STR("The entity's id. For the 'queue' spine this is the queue's name, not a record id."),
+      },
+      ["spine", "id"]
+    ),
+  },
+  {
+    name: "attach_design_customer",
+    description:
+      "Say whose design this is — write (or clear) the design\u2194customer link. THIS IS WHAT MAKES A DESIGN NOTIFIABLE: every customer email about a design (production started, production complete, materials linked, materials delivered, status changed) resolves its recipient through this link and returns SILENTLY when there is none. A design with no customer is not 'unnotified', it is unreachable, and nothing anywhere reports that. Distinct from attach_design_order_customer, which needs a design ORDER and a cart line; this one works on a bare design, which is how designs that came out of a conversation rather than a checkout get an owner. Pass customer_id null to detach.",
+    method: "POST",
+    path: "/admin/designs/:id/customer",
+    pathParams: ["id"],
+    write: true,
+    sensitive: true,
+    bodyParams: ["customer_id"],
+    inputSchema: obj(
+      {
+        id: STR("Design id."),
+        customer_id: STR("Customer id to attach, or null to detach the current one."),
+      },
+      ["id"]
+    ),
+  },
+  {
+    name: "list_design_inventory_orders",
+    description:
+      "What material a design is WAITING FOR — the inventory orders attached to it, with each one's status, quantity and expected delivery, plus whether the client is told when it lands and whether they already were. Read. Note this is NOT a bill of materials: it says an order is FOR this design, not how much the design consumes (that is the run's allocation and its consumption logs).",
+    method: "GET",
+    path: "/admin/designs/:id/inventory-orders",
+    pathParams: ["id"],
+    inputSchema: obj({ id: STR("Design id.") }, ["id"]),
+  },
+  {
+    name: "attach_design_inventory_order",
+    description:
+      "Attach an incoming inventory order to a design — 'this cloth is for that piece'. Attaching is what makes the arrival tellable: when the order reaches `Delivered` (never `Shipped`), the design's customer is emailed that their material has arrived. Set notify_customer false for cloth bought speculatively or for a client who asked not to be told; omitted, it sends. \u26a0\ufe0f Attaching sends NOTHING now \u2014 it arms a future status change, so an order already Delivered when you attach it will never fire, and that client has to be told by hand.",
+    method: "POST",
+    path: "/admin/designs/:id/inventory-orders",
+    pathParams: ["id"],
+    write: true,
+    sensitive: true,
+    bodyParams: ["inventory_order_id", "notify_customer", "note"],
+    inputSchema: obj(
+      {
+        id: STR("Design id."),
+        inventory_order_id: STR("The inventory order to attach."),
+        notify_customer: STR(
+          "'false' to suppress the arrival email for this design. Defaults to sending."
+        ),
+        note: STR("Why this order is for this design, in your own words."),
+      },
+      ["id", "inventory_order_id"]
+    ),
+  },
+  {
     name: "list_production_run_activities",
     description:
       "Read a production run's activity timeline (reminders sent, lifecycle events, notes), newest first. Use to answer 'what happened on this run'.",
@@ -5360,6 +5546,36 @@ export const ADMIN_MCP_TOOLS: AdminMcpToolDef[] = [
     nextSteps: ["list_task_templates", "send_production_run_to_production"],
   },
   {
+    name: "assign_production_run_partner",
+    description:
+      "Assign — or RE-assign — one production run to a partner. The single-run counterpart to redispatch_parked_production_runs, and the only way a run parked in 'awaiting_reassignment' gets back out. Unlike that batch tool this takes an explicit partner_id, so it can send the run somewhere NEW as well as back to the partner who let it lapse; pass the same partner to mean 'send it to them again'. 🔴 THE RUN LANDS ON `approved`, NOT `sent_to_partner` — nothing is messaged and no tasks are created by this call. Dispatch is what collects templates and templates are what seed the partner's tasks, so the next step is send_production_run_to_production (or redispatch_parked_production_runs, which does assign + dispatch in one). ⚠️ update_production_run deliberately does NOT forward partner_id: ownership moves through this guarded route, which runs the assignment workflow, checks the policy's assign_partner_from list and records the change on the run's activity feed. Refused once a run has been accepted or reached a terminal state. [sensitive: requires confirm:true]",
+    method: "POST",
+    path: "/admin/production-runs/:id/assign-partner",
+    pathParams: ["id"],
+    previewPath: "/admin/production-runs/:id",
+    write: true,
+    sensitive: true,
+    bodyParams: ["partner_id", "note"],
+    inputSchema: obj(
+      {
+        id: STR("Production run id, e.g. 'prod_run_...'."),
+        partner_id: STR(
+          "The partner to give the run to, e.g. '01M20A7X...'. May be the partner it was already parked from — that is the ordinary 'they say they will take it now' case. Required."
+        ),
+        note: STR(
+          "Why, in a human's words. Recorded on the run's activity feed, so it is what a later session reads when it asks why ownership moved. Max 500 characters."
+        ),
+      },
+      ["id", "partner_id"]
+    ),
+    sideEffects:
+      "Sets partner_id, moves the run to `approved`, clears the parked cancellation reason and resets reassign_retry_count, keeping the prior owner on previous_partner_id. Tells the partner NOTHING on its own — dispatch does that.",
+    nextSteps: [
+      "send_production_run_to_production",
+      "redispatch_parked_production_runs",
+    ],
+  },
+  {
     name: "redispatch_parked_production_runs",
     description:
       "Re-send production runs parked in 'awaiting_reassignment' back to the PARTNER THEY CAME FROM, and dispatch them again — the batch answer to 'this partner says they'll take their lapsed runs now'. Each run goes to its own previous_partner_id; partner_id only FILTERS which parked runs are considered, so this can never hand one partner's work to another. THE DRY-RUN RECOVERS WHAT EACH RUN WAS DISPATCHED WITH LAST TIME (from its own tasks) and lists every available template, so you can show the user a real selection instead of asking them to remember: read `would_redispatch[].previous_template_names` and `available_template_names`. Then confirm with use_previous_templates:true to send each run back with ITS OWN set (parked runs usually do NOT share one), or template_names/template_ids to override them all. Recovered history dispatches by template ID where it identified one, so a run that used 'Stitching (Production)' cannot come back as 'Stitching (Pre Production)'; a run that would go out on an AMBIGUOUS name is reported as would_fail_on_ambiguous_name and must be given template_ids. Dry-run by default. Sensitive: requires confirm:true.",
@@ -5588,6 +5804,7 @@ export const ADMIN_MCP_TOOLS: AdminMcpToolDef[] = [
       "currency_code",
       "price_overrides",
       "override_currency",
+      "country_code",
     ],
     inputSchema: obj(
       {
@@ -5607,6 +5824,9 @@ export const ADMIN_MCP_TOOLS: AdminMcpToolDef[] = [
         override_currency: STR(
           "Currency that `price_overrides` are expressed in. Defaults to the store default — set it whenever you set overrides, or the number is valued by one currency and labelled by another."
         ),
+        country_code: STR(
+          "ISO-2 country the buyer purchases from, e.g. 'se'. 🔑 SET IT. The cart carries the country, and without one `resolveCartCheckoutLink` refuses to build a link at all — the order is created and `checkout_url` comes back null. A hand-written URL does not rescue it either: the storefront re-resolves the region from the cart and a Swedish buyer lands on /al/. Must be a country the order's own region serves."
+        ),
       },
       ["design_ids"]
     ),
@@ -5621,6 +5841,8 @@ export const ADMIN_MCP_TOOLS: AdminMcpToolDef[] = [
       "",
       "⚠️ Passing a `customer_id` attaches the buyer AND sends them the design-order email with a checkout link. Do not pass one unless the operator has said the customer should be emailed.",
       "",
+      "🔑 Pass `country_code`. Without it the cart names no country, `checkout_url` comes back null and the buyer cannot be sent anywhere — which then needs the `set-design-order-country` maintenance job to repair by hand. This is what happened to the €91 EUR order minted 2026-09-19.",
+      "",
       "Refuses designs that are already in an open checkout rather than creating a second cart for them.",
     ].join("\n"),
     method: "POST",
@@ -5633,6 +5855,7 @@ export const ADMIN_MCP_TOOLS: AdminMcpToolDef[] = [
       "currency_code",
       "price_overrides",
       "override_currency",
+      "country_code",
     ],
     inputSchema: obj(
       {
@@ -5654,6 +5877,9 @@ export const ADMIN_MCP_TOOLS: AdminMcpToolDef[] = [
         },
         override_currency: STR(
           "Currency that `price_overrides` are expressed in. Set it whenever you set overrides."
+        ),
+        country_code: STR(
+          "ISO-2 country the buyer purchases from, e.g. 'se'. 🔑 SET IT. The cart carries the country, and without one `resolveCartCheckoutLink` refuses to build a link at all — the order is created and `checkout_url` comes back null. A hand-written URL does not rescue it either: the storefront re-resolves the region from the cart and a Swedish buyer lands on /al/. Must be a country the order's own region serves."
         ),
       },
       ["design_ids"]

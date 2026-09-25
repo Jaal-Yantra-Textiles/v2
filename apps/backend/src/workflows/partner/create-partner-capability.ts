@@ -6,6 +6,7 @@ import {
 } from "@medusajs/framework/workflows-sdk"
 
 import { PARTNER_CAPABILITY_MODULE } from "../../modules/partner_capability"
+import { normalizeCapabilityActions } from "../../modules/partner_capability/lib/actions"
 import { attachCapabilityMedia } from "./capability-media"
 import { assertPartnerExistsStep } from "./steps/assert-partner-exists"
 
@@ -18,6 +19,9 @@ export type CreatePartnerCapabilityWorkflowInput = {
   title: string
   technique?: string | null
   material?: string | null
+  product_type?: string | null
+  /** From CAPABILITY_ACTIONS; anything else is dropped on write. */
+  actions?: string[] | null
   /** media_file ids — the photograph itself must be uploaded beforehand. */
   media_file_ids?: string[] | null
   notes?: string | null
@@ -40,6 +44,10 @@ const createPartnerCapabilityStep = createStep(
       title: input.title,
       technique: input.technique ?? null,
       material: input.material ?? null,
+      product_type: input.product_type ?? null,
+      actions: input.actions?.length
+        ? normalizeCapabilityActions(input.actions)
+        : null,
       media_file_ids: input.media_file_ids?.length ? input.media_file_ids : null,
       notes: input.notes ?? null,
       // The model distinguishes an operator typing up a conversation from the

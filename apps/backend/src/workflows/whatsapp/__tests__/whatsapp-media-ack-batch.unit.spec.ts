@@ -1,4 +1,6 @@
 import {
+  autoMatchedRun,
+  mediaAckAsksConfirmation,
   buildMediaAckText,
   decideMediaAckAction,
   MEDIA_ACK_MAX_AGE_MS,
@@ -213,5 +215,33 @@ describe("buildMediaAckText", () => {
   it("survives a burst with no labels at all", () => {
     const text = buildMediaAckText(b([{ kind: "shared_folder", label: null }]))
     expect(text).toBe("✅ Got 1 file.")
+  })
+})
+
+// A run WE picked (the partner's only one in progress) is a guess: it is named
+// with its design and asked about, and the Yes/No buttons answer it.
+describe("a guessed run is stated and asked about", () => {
+  const guess = { kind: "run" as const, label: "prod_run_1", auto: true, design: "Luong Shirt" }
+  const burst = (entries: any[]) =>
+    entries.reduce((b, e, i) => recordMediaAck(b, `m${i + 1}`, e, at(T0)), null as any)
+
+  it("names the design and asks, for a burst that all went to the guess", () => {
+    const b = burst([guess, guess, guess])
+    expect(mediaAckAsksConfirmation(b)).toEqual({ run_id: "prod_run_1", design: "Luong Shirt", message_ids: ["m1", "m2", "m3"] })
+    expect(buildMediaAckText(b)).toBe(
+      "✅ Got 3 files. I've added them to *Luong Shirt* (prod_run_1).\n\nIs that what they're for?"
+    )
+  })
+
+  it("does not ask when the partner chose the run (tapped Add Media)", () => {
+    const b = burst([{ kind: "run", label: "prod_run_1" }])
+    expect(mediaAckAsksConfirmation(b)).toBeNull()
+    expect(buildMediaAckText(b)).toBe("✅ Got 1 file — attached to run prod_run_1.")
+  })
+
+  it("does not ask about a mixed burst — two buttons cannot answer two destinations", () => {
+    const b = burst([guess, { kind: "shared_folder", label: "GOF" }])
+    expect(mediaAckAsksConfirmation(b)).toBeNull()
+    expect(autoMatchedRun(b)?.message_ids).toEqual(["m1"])
   })
 })

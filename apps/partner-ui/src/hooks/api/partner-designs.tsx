@@ -276,10 +276,38 @@ export const useGenerateMoodboard = (
     },
     onSuccess: async (data, variables, onMutateResult, context) => {
       await queryClient.invalidateQueries({ queryKey: partnerDesignsQueryKeys.detail(id) })
+      // #2017 — generate now persists to the partner's OWN board row, and a
+      // first generate MINTS that row. Without this the switcher still reads
+      // `own: null` and offers them only our board, read-only, while their
+      // freshly generated one sits on the canvas in front of them.
+      await queryClient.invalidateQueries({ queryKey: partnerMoodboardsKey(id) })
       options?.onSuccess?.(data, variables, onMutateResult, context)
     },
     ...options,
   })
+}
+
+/**
+ * #2228 — one of the board's images, as a real `data:` URI.
+ *
+ * Through our API rather than fetching the CDN directly: the CDN sends no
+ * `Access-Control-Allow-Origin`, so the browser blocks that request before it
+ * is made. Returns null on any failure — the caller keeps the original URL and
+ * the board renders exactly as it did before.
+ */
+export const fetchMoodboardImageDataUrl = async (
+  designId: string,
+  src: string
+): Promise<string | null> => {
+  try {
+    const res = await sdk.client.fetch<{ data_url: string }>(
+      `/partners/designs/${designId}/moodboard/image`,
+      { method: "GET", query: { src } }
+    )
+    return res?.data_url ?? null
+  } catch {
+    return null
+  }
 }
 
 /** #1113 S3+ — one insertable moodboard block in the palette. */
@@ -493,6 +521,10 @@ export const useSeedMoodboard = (
     onSuccess: async (data, variables, onMutateResult, context) => {
       if (data?.moodboard) {
         await queryClient.invalidateQueries({ queryKey: partnerDesignsQueryKeys.detail(id) })
+        // #2019 — seeding MINTS this partner's board row. Without this the
+        // switcher still reads `own: null` and keeps offering "start a board"
+        // to someone who now has one, on the canvas in front of them.
+        await queryClient.invalidateQueries({ queryKey: partnerMoodboardsKey(id) })
       }
       options?.onSuccess?.(data, variables, onMutateResult, context)
     },

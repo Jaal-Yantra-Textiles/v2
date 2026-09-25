@@ -45,6 +45,8 @@ interface ProduceDesignsResponse {
     not_dispatched?: ProduceDesignReport[]
     /** #1597 — whether the lines joined an existing work-order or minted one. */
     work_order_joined?: boolean
+    /** Why no work-order exists although runs were created; null when one does. */
+    work_order_problem?: string | null
   }
 }
 
@@ -425,10 +427,29 @@ export const CollateDesignsWizard = ({
         )
       }
 
+      const sentLabel = `Sent ${design_production.created} design${
+        design_production.created > 1 ? "s" : ""
+      } to ${selectedPartner?.name || "partner"}`
+
+      /*
+       * Runs created, no work-order. The runs exist and may already be with the
+       * partner, so this is not an error — but it is not a success either: the
+       * work sits on no order. This used to fall through to the green toast
+       * below with its description and action quietly dropped.
+       */
+      if (design_production.created > 0 && !design_production.work_order_id) {
+        toast.warning(`${sentLabel} — but no work-order was created`, {
+          description:
+            design_production.work_order_problem ||
+            "The runs exist without a work-order. Check the production runs list.",
+        })
+        onOpenChange(false)
+        onComplete()
+        return
+      }
+
       toast.success(
-        `Sent ${design_production.created} design${
-          design_production.created > 1 ? "s" : ""
-        } to ${selectedPartner?.name || "partner"}`,
+        sentLabel,
         {
           description: design_production.work_order_id
             ? design_production.work_order_joined

@@ -56,9 +56,115 @@ export const DEFAULT_TRANSITIONS: Record<string, string[]> = {
   ],
 }
 
+/**
+ * #2202 — what to dispatch a run with when its cloth arrives and NOBODY chose.
+ *
+ * Templates are written in exactly one place: `approve-production-run.ts:242`,
+ * per assignment, by a human. A run born `approved` from `order.placed` never
+ * passes through that workflow — and it cannot, because approval mints a CHILD
+ * carrying the parent's `order_line_item_id`, which collides with the partial
+ * unique index `IDX_production_runs_order_line_item_active`. So such a run can
+ * never carry a selection, and when its materials land it reaches
+ * `releaseRunIfReady` with nothing to dispatch: one `logger.info` saying
+ * "dispatch by hand", and no one told. Measured on prod 2026-09-20: 4 runs in
+ * exactly that state, all on one inventory order, all due the same day.
+ *
+ * A default here is NOT the guess `selectDispatchInput` refuses. That refusal
+ * is about a template NAME being ambiguous at dispatch time — "Stitching"
+ * exists in both Pre Production and Production and they are different process
+ * steps (#1261). These rules carry IDS, written ahead of time by an operator
+ * who decided once for a kind of job.
+ *
+ * 🔴 EMPTY BY DEFAULT, and deliberately so. Dispatch is not a bookkeeping
+ * write: it creates the partner's tasks, notifies them and commissions the
+ * work. Until somebody writes a rule, the answer stays "tell a human".
+ */
+export type DispatchDefaultMatch = {
+  /** 'production' | 'sample' — the same axis the run carries. */
+  run_type?: string
+  /** The DESIGN's product_type: robe, tea_towel, scarf, shawl, … */
+  product_type?: string
+}
+
+export type DispatchDefault = {
+  when: DispatchDefaultMatch
+  /** Task template IDS. Names are not accepted here — see above. */
+  template_ids: string[]
+  /** Why this rule exists, in an operator's words. Never read by code. */
+  note?: string
+}
+
+/** No rule until someone writes one. Silence beats a guess that messages a partner. */
+export const DEFAULT_DISPATCH_DEFAULTS: DispatchDefault[] = []
+
+/** The keys a `when` may constrain. A rule naming anything else is ignored. */
+const MATCH_KEYS: Array<keyof DispatchDefaultMatch> = ["run_type", "product_type"]
+
+/**
+ * PURE: is this a rule we are willing to act on?
+ *
+ * 🔴 A MALFORMED RULE MUST NEVER DISPATCH. A typo in the settings screen that
+ * quietly messaged a partner would be far worse than one that quietly did
+ * nothing, so validation fails CLOSED: anything not exactly this shape is
+ * treated as absent. `missingPolicyKeys` is what tells the operator their
+ * section is unsaved; a malformed entry is visible there as its own absence.
+ */
+export const isUsableDispatchDefault = (rule: unknown): rule is DispatchDefault => {
+  if (!rule || typeof rule !== "object") return false
+  const r = rule as any
+  const ids = Array.isArray(r.template_ids) ? r.template_ids : null
+  if (!ids || !ids.length) return false
+  if (!ids.every((v: unknown) => typeof v === "string" && v.length > 0)) return false
+  if (!r.when || typeof r.when !== "object" || Array.isArray(r.when)) return false
+  const keys = Object.keys(r.when)
+  if (!keys.length) return false
+  if (!keys.every((k) => (MATCH_KEYS as string[]).includes(k))) return false
+  return keys.every((k) => typeof r.when[k] === "string" && r.when[k].length > 0)
+}
+
+export type DispatchSubject = {
+  run_type?: string | null
+  product_type?: string | null
+}
+
+/**
+ * PURE: the template ids a rule set prescribes for this job, or null.
+ *
+ * Most specific wins — a rule naming both `run_type` and `product_type` beats
+ * one naming either alone — so a general fallback and a narrow exception can
+ * coexist without ordering games. Ties go to the FIRST rule written, which is
+ * the operator's own order and the only tiebreak they can see.
+ *
+ * Every key a rule names must match. A rule is a claim about a kind of job, and
+ * a partly-matching claim is not a claim about THIS job.
+ */
+export const resolveDispatchDefault = (
+  rules: unknown,
+  subject: DispatchSubject
+): string[] | null => {
+  const usable = (Array.isArray(rules) ? rules : []).filter(isUsableDispatchDefault)
+  if (!usable.length) return null
+
+  let best: DispatchDefault | null = null
+  let bestScore = -1
+  for (const rule of usable) {
+    const keys = Object.keys(rule.when) as Array<keyof DispatchDefaultMatch>
+    const matches = keys.every(
+      (k) => String(subject?.[k] ?? "") === String(rule.when[k])
+    )
+    if (!matches) continue
+    if (keys.length > bestScore) {
+      best = rule
+      bestScore = keys.length
+    }
+  }
+  return best ? [...best.template_ids] : null
+}
+
 export const defaultPolicyConfig = (): Record<string, any> => ({
   transitions: { ...DEFAULT_TRANSITIONS },
   reassignment: { ...DEFAULT_REASSIGNMENT_POLICY },
+  dispatch_defaults: [...DEFAULT_DISPATCH_DEFAULTS],
 })
 
 /**
@@ -101,14 +207,37 @@ export const mergePolicyConfig = (
         : DEFAULT_REASSIGNMENT_POLICY.auto_accept_on_retry,
   }
 
+  /*
+   * Dispatch defaults are carried through AS STORED, not filtered here.
+   * `resolveDispatchDefault` is what refuses a malformed rule, and it refuses
+   * at the moment of dispatch. Dropping bad entries here instead would hand the
+   * settings screen a list shorter than what the operator saved, which is the
+   * exact failure this file was written to end — the screen showing fewer rules
+   * than are in force.
+   */
+  const storedDispatchDefaults = Array.isArray(cfg.dispatch_defaults)
+    ? cfg.dispatch_defaults
+    : [...DEFAULT_DISPATCH_DEFAULTS]
+
   // Carry any other top-level keys the stored config has, so this never
   // silently discards something an operator put there.
   const rest: Record<string, any> = {}
   for (const [key, value] of Object.entries(cfg)) {
-    if (key !== "transitions" && key !== "reassignment") rest[key] = value
+    if (
+      key !== "transitions" &&
+      key !== "reassignment" &&
+      key !== "dispatch_defaults"
+    ) {
+      rest[key] = value
+    }
   }
 
-  return { ...rest, transitions, reassignment }
+  return {
+    ...rest,
+    transitions,
+    reassignment,
+    dispatch_defaults: storedDispatchDefaults,
+  }
 }
 
 /**
@@ -132,6 +261,14 @@ export const missingPolicyKeys = (
   const sections: string[] = []
   if (!cfg.transitions) sections.push("transitions")
   if (!cfg.reassignment) sections.push("reassignment")
+  /*
+   * 🔴 `dispatch_defaults` is deliberately NOT reported here. This list means
+   * "rules in force that your row has never heard of", and the dispatch default
+   * is empty by design — an absent section enforces NOTHING. Listing it would
+   * have the settings screen warn that a rule is silently in force when the
+   * truth is the opposite: nothing will dispatch itself until the operator
+   * writes one.
+   */
 
   return { transitions, sections }
 }
