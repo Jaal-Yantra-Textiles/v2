@@ -126,6 +126,60 @@ export async function listPartnerWorkOrderIds(
   return out
 }
 
+/**
+ * #2264 S2c — the back-pointers, from `work_order`'s own links.
+ *
+ * The run and inventory-order routes still answered "which work order is this
+ * on?" through the mirror's `order` link. The ids are the same (the shadow write
+ * keeps them), so the answer only changes where the two sources disagree —
+ * which is exactly when it matters, and what S5 (deleting the mirror) needs.
+ * Each returns null when `work_order` has no answer; the caller keeps the
+ * mirror's, so a row the shadow write missed never loses its pointer.
+ */
+
+/** The work order a run sits on, via `work_order ↔ production_runs`. */
+export async function workOrderIdForRun(container: any, runId: string): Promise<string | null> {
+  if (!runId) return null
+  const query: any = container.resolve(ContainerRegistrationKeys.QUERY)
+  const { data } = await query.graph({
+    entity: "production_runs",
+    fields: ["id", "work_order.id"],
+    filters: { id: runId },
+  })
+  const wo = data?.[0]?.work_order
+  return (Array.isArray(wo) ? wo[0]?.id : wo?.id) ?? null
+}
+
+/** The inventory work order for an inventory order (`work_order.inventory_order_id`). */
+export async function workOrderForInventoryOrder(
+  container: any,
+  inventoryOrderId: string
+): Promise<{ id: string; partner_status: string | null } | null> {
+  if (!inventoryOrderId) return null
+  const query: any = container.resolve(ContainerRegistrationKeys.QUERY)
+  const { data } = await query.graph({
+    entity: "work_order",
+    fields: ["id", "partner_status"],
+    filters: { inventory_order_id: inventoryOrderId },
+  })
+  const row = data?.[0]
+  return row ? { id: row.id, partner_status: row.partner_status ?? null } : null
+}
+
+/** The runs a work order holds, or null when there is no such work order. */
+export async function runIdsOnWorkOrder(container: any, workOrderId: string): Promise<string[] | null> {
+  if (!workOrderId) return null
+  const query: any = container.resolve(ContainerRegistrationKeys.QUERY)
+  const { data } = await query.graph({
+    entity: "work_order",
+    fields: ["id", "production_runs.id"],
+    filters: { id: workOrderId },
+  })
+  const row = data?.[0]
+  if (!row) return null
+  return (row.production_runs ?? []).map((r: any) => r?.id).filter(Boolean)
+}
+
 /** Columns a work order can be sorted by; anything else sorts newest-first. */
 const SORTABLE = new Set(["created_at", "updated_at", "display_id", "status"])
 
