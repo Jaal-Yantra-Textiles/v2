@@ -188,7 +188,7 @@ export const ADMIN_MCP_TOOLS: AdminMcpToolDef[] = [
   {
     name: "get_admin_stats",
     description:
-      "Get a high-level snapshot of the platform: counts of orders, products, partners, designs, production runs and stores. Call this FIRST to ground yourself before answering operational questions.",
+      "Get a high-level snapshot of the platform: counts of orders (customer sales only), work_orders (partner purchase orders: design runs and inventory), products, partners, designs, production runs and stores. Call this FIRST to ground yourself before answering operational questions.",
     method: "GET",
     path: "/admin/mcp/stats",
     inputSchema: obj({}),

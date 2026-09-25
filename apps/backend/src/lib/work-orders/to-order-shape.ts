@@ -24,6 +24,8 @@ export type WorkOrderItemRow = {
   inventory_order_line_id?: string | null
   created_at?: Date | string
   updated_at?: Date | string
+  /** The line's run, when the read followed the read-only line → run link. */
+  production_run?: { id: string; created_at?: Date | string } | null
 }
 
 export type WorkOrderRow = {
@@ -64,8 +66,17 @@ const lineMetadata = (item: WorkOrderItemRow): Record<string, unknown> => {
 const ms = (v: Date | string | undefined): number =>
   v == null ? 0 : new Date(v).getTime() || 0
 
+/**
+ * Line order, earliest first. A collated order's lines are all written in ONE
+ * core `createOrderWorkflow` call, so they share a `created_at` to the
+ * millisecond, and a line id (a ULID) is random within the millisecond. The
+ * tie is broken by the RUN's creation time: the mirror named `runs[0]`, and
+ * every caller lists the runs it just created in insertion order.
+ */
 const byCreation = (a: WorkOrderItemRow, b: WorkOrderItemRow): number =>
-  ms(a.created_at) - ms(b.created_at) || a.id.localeCompare(b.id)
+  ms(a.created_at) - ms(b.created_at) ||
+  ms(a.production_run?.created_at) - ms(b.production_run?.created_at) ||
+  a.id.localeCompare(b.id)
 
 /**
  * The order-level `metadata` keys something still READS, synthesised from
@@ -135,6 +146,20 @@ export const toOrderShape = (wo: WorkOrderRow) => {
       original_total: lineTotal,
       tax_total: 0,
       discount_total: 0,
+      // The admin order page reads `item.detail.fulfilled_quantity` with no
+      // optional chain (dashboard order-summary-section). The mirror's line
+      // had a core order_item detail; a work-order line was never fulfilled
+      // through core, so every movement count is zero.
+      detail: {
+        quantity,
+        fulfilled_quantity: 0,
+        delivered_quantity: 0,
+        shipped_quantity: 0,
+        return_requested_quantity: 0,
+        return_received_quantity: 0,
+        return_dismissed_quantity: 0,
+        written_off_quantity: 0,
+      },
     }
   })
 
@@ -203,6 +228,22 @@ export const toOrderShape = (wo: WorkOrderRow) => {
     fulfillments: [],
     shipping_methods: [],
     credit_lines: [],
+    promotions: [],
+    region: null,
+    order_change: null,
+    // The admin order page reads `order.summary.pending_difference` with no
+    // optional chain. Nothing is paid through core, so the whole total is
+    // still pending — what core computed for the mirror.
+    summary: {
+      current_order_total: total,
+      original_order_total: total,
+      accounting_total: total,
+      pending_difference: total,
+      transaction_total: 0,
+      paid_total: 0,
+      refunded_total: 0,
+      credit_line_total: 0,
+    },
     // The discriminators the UI keys on (useOrderKind / isCollatedOrder).
     production_runs: productionRuns,
     inventory_orders: inventoryOrders,

@@ -18,8 +18,18 @@ import { toOrderShape, type WorkOrderRow } from "./to-order-shape"
 export const workOrderReadsEnabled = (): boolean =>
   String(process.env.WORK_ORDER_READS ?? "").toLowerCase() === "true"
 
-/** What a served work order needs: the row, its lines, its runs. */
-export const WORK_ORDER_READ_FIELDS = ["*", "items.*", "production_runs.id"]
+/**
+ * What a served work order needs: the row, its lines, its runs — and each
+ * line's run creation time, which orders a collated order's lines (they share
+ * a `created_at`; see `byCreation` in to-order-shape.ts).
+ */
+export const WORK_ORDER_READ_FIELDS = [
+  "*",
+  "items.*",
+  "items.production_run.id",
+  "items.production_run.created_at",
+  "production_runs.id",
+]
 
 export type WorkOrderKind = "design" | "inventory"
 
@@ -145,24 +155,61 @@ export function toWorkOrderOrder(
   return Object.keys(out).length ? out : { created_at: "DESC" }
 }
 
-/** One page of work orders, served in the core-order shape. */
+/**
+ * PURE: can a work order satisfy these core-order list filters at all?
+ *
+ * `toWorkOrderFilters` keeps only the columns a work order has, and DROPS the
+ * rest — right for the partner list, which never sends them, wrong for the
+ * admin list, where `?customer_id=` on `kind=design` would otherwise WIDEN to
+ * every design work order. A work order has no customer, region or sales
+ * channel, and is always unpaid and unfulfilled through core (the mirror read
+ * exactly that), so a filter on any of those decides the whole kind.
+ */
+export function workOrderFiltersCanMatch(baseFilters: Record<string, any> | undefined): boolean {
+  const f = baseFilters ?? {}
+  const given = (v: unknown) =>
+    v != null && !(Array.isArray(v) && v.length === 0) && v !== ""
+  if (["customer_id", "region_id", "sales_channel_id"].some((k) => given(f[k]))) {
+    return false
+  }
+  const allows = (v: unknown, constant: string) =>
+    !given(v) || (Array.isArray(v) ? v.map(String).includes(constant) : String(v) === constant)
+  return allows(f.payment_status, "not_paid") && allows(f.fulfillment_status, "not_fulfilled")
+}
+
+/**
+ * One page of work orders, served in the core-order shape.
+ *
+ * Scoped by `ids` (the partner lists: what the partner↔order link grants),
+ * by `kind` (the admin lists: every work order of that kind), or both.
+ * `ids: []` is an empty scope and returns nothing — never "no scope".
+ */
 export async function listWorkOrdersPage(
   container: any,
   input: {
-    ids: string[]
+    ids?: string[]
+    kind?: WorkOrderKind | WorkOrderKind[]
     baseFilters?: Record<string, any>
     order?: Record<string, "ASC" | "DESC">
     skip: number
     take: number
   }
 ): Promise<{ orders: any[]; count: number }> {
-  if (!input.ids.length) return { orders: [], count: 0 }
+  if (input.ids && !input.ids.length) return { orders: [], count: 0 }
+  if (!input.ids && !input.kind) {
+    throw new Error("listWorkOrdersPage needs ids or kind — refusing an unscoped read")
+  }
   const query: any = container.resolve(ContainerRegistrationKeys.QUERY)
   const { filters, q } = toWorkOrderFilters(input.baseFilters)
   const { data, metadata } = await query.graph({
     entity: "work_order",
     fields: WORK_ORDER_READ_FIELDS,
-    filters: { ...filters, id: input.ids, ...(q ? { q } : {}) },
+    filters: {
+      ...filters,
+      ...(input.ids ? { id: input.ids } : {}),
+      ...(input.kind ? { kind: input.kind } : {}),
+      ...(q ? { q } : {}),
+    },
     pagination: {
       skip: input.skip,
       take: input.take,

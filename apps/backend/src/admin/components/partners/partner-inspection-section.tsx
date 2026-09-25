@@ -15,6 +15,7 @@
 import { Badge, Container, Heading, Table, Tabs, Text } from "@medusajs/ui"
 import { useState } from "react"
 import { Link } from "react-router-dom"
+import { orderHref } from "../../lib/work-order-href"
 import { Skeleton } from "../table/skeleton"
 import {
   PartnerDesignBucket,
@@ -200,7 +201,7 @@ const OrdersPanel = ({ partnerId }: { partnerId: string }) => {
                 <Table.Row key={order.id}>
                   <Table.Cell>
                     <Link
-                      to={`/orders/${order.id}`}
+                      to={orderHref(order)}
                       className="text-ui-fg-interactive"
                     >
                       #{order.custom_display_id || order.display_id || order.id}

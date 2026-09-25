@@ -1,4 +1,4 @@
-import { diffContract } from "../work-order-jobs"
+import { diffContract, diffListMembership } from "../work-order-jobs"
 
 describe("work-order-parity — diffContract (#2263)", () => {
   const mirror = {
@@ -31,5 +31,25 @@ describe("work-order-parity — diffContract (#2263)", () => {
   it("catches a line whose quantity drifted", () => {
     const served = { ...mirror, items: [{ ...mirror.items[0], quantity: 4 }] }
     expect(diffContract(served, mirror)).toEqual(["items"])
+  })
+})
+
+describe("work-order-parity — diffListMembership (#2264 S2b)", () => {
+  const same = { design: ["order_D"], inventory: ["order_I"], retail_excluded: ["order_D", "order_I"] }
+
+  it("reports nothing when both sources list the same orders", () => {
+    expect(diffListMembership(same, { ...same, design: ["order_D"] })).toEqual([])
+  })
+
+  it("names an order each way: dropped by work_order, and newly listed", () => {
+    const changes = diffListMembership(same, {
+      design: [],
+      inventory: ["order_I"],
+      retail_excluded: ["order_D", "order_I", "order_ORPHAN"],
+    })
+    expect(changes.map((c) => [c.id, c.field, c.after])).toEqual([
+      ["order_D", "list:design", "not listed"],
+      ["order_ORPHAN", "list:retail_excluded", "listed"],
+    ])
   })
 })

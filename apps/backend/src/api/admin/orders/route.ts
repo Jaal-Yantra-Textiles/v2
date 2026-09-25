@@ -1,6 +1,8 @@
 import { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
 import { ContainerRegistrationKeys } from "@medusajs/framework/utils"
 import { getOrdersListWorkflow } from "@medusajs/core-flows"
+import { listAdminOrders } from "../../../lib/work-orders/admin-order-reads"
+import { workOrderReadsEnabled } from "../../../lib/work-orders/read-work-orders"
 import { AdminGetOrdersKindParam, AdminOrderKind } from "./validators"
 
 // Chunk 4 (T3.3, #342): override the built-in admin orders LIST so /admin/orders
@@ -180,6 +182,22 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
   const filters: Record<string, any> = {
     ...req.filterableFields,
     is_draft_order: false,
+  }
+
+  // #2264 S2b — work orders come from `work_order`, retail from core. Every
+  // row a work order returns already carries `unified_order_status`.
+  if (workOrderReadsEnabled()) {
+    const { skip, take, order } = (req.queryConfig.pagination ?? {}) as any
+    return res.json(
+      await listAdminOrders(req.scope, {
+        kind: resolved,
+        filters,
+        fields: req.queryConfig.fields,
+        skip: Number(skip ?? 0),
+        take: Number(take ?? 50),
+        order,
+      })
+    )
   }
 
   if (resolved !== "all") {
