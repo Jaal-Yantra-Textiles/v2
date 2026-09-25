@@ -5,7 +5,7 @@ import {
   buildPartnerOrderListParams,
   PARTNER_ORDER_LIST_FIELDS as DEFAULT_FIELDS,
 } from "./list-params"
-import { listPartnerOrdersWorkflow } from "../../../workflows/orders/list-partner-orders"
+import { listPartnerOrders } from "../../../workflows/orders/list-partner-orders-dispatch"
 
 // Chunk 5 (T3.4, #342): the partner orders list is `?kind=`-aware (retail |
 // design | inventory | all), mirroring admin's Chunk 4 contract. The route is
@@ -33,17 +33,16 @@ export const GET = async (
     resolvedKind
   )
 
-  const { result } = await listPartnerOrdersWorkflow(req.scope).run({
-    input: {
-      partnerId: partner?.id ?? null,
-      salesChannelId,
-      kind: resolvedKind,
-      fields: DEFAULT_FIELDS,
-      baseFilters,
-      order,
-      skip,
-      take,
-    },
+  // #2264 — one door; reads work orders from work_order behind WORK_ORDER_READS.
+  const result = await listPartnerOrders(req.scope, {
+    partnerId: partner?.id ?? null,
+    salesChannelId,
+    kind: resolvedKind,
+    fields: DEFAULT_FIELDS,
+    baseFilters,
+    order,
+    skip,
+    take,
   })
 
   res.json(result)
