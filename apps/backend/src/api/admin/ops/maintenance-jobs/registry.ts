@@ -97,6 +97,7 @@ import { backfillTextileAnalysisJob } from "./backfill-textile-analysis-job"
 import { backfillFreightOptionDataJob } from "./backfill-freight-option-data-job"
 import { recoverWhatsappMediaJob } from "./recover-whatsapp-media-job"
 import { auditInventoryReceiptDriftJob } from "./audit-inventory-receipt-drift-job"
+import { auditPostingsAtSourceJob } from "./audit-postings-at-source-job"
 import { repairRoundedReceiptQuantitiesJob } from "./repair-rounded-receipt-quantities-job"
 import { backfillOrderLineMaterialJob } from "./backfill-order-line-material-job"
 import { auditPartnerPayoutQuantityJob } from "./audit-partner-payout-quantity-job"
@@ -6599,6 +6600,7 @@ export const MAINTENANCE_JOBS: MaintenanceJob[] = [
   backfillFreightOptionDataJob,
   recoverWhatsappMediaJob,
   auditInventoryReceiptDriftJob,
+  auditPostingsAtSourceJob,
   repairRoundedReceiptQuantitiesJob,
   backfillOrderLineMaterialJob,
   auditPartnerPayoutQuantityJob,
