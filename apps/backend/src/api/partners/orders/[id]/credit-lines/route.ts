@@ -1,12 +1,13 @@
 import { AuthenticatedMedusaRequest, MedusaResponse } from "@medusajs/framework/http"
 import { Modules } from "@medusajs/framework/utils"
-import { validatePartnerOrderOwnership } from "../../../helpers"
+import { assertNotWorkOrder, validatePartnerOrderOwnership } from "../../../helpers"
 
 export const POST = async (
   req: AuthenticatedMedusaRequest,
   res: MedusaResponse
 ) => {
   await validatePartnerOrderOwnership(req.auth_context, req.params.id, req.scope)
+  await assertNotWorkOrder(req.params.id, req.scope)
 
   const orderService = req.scope.resolve(Modules.ORDER) as any
   const body = req.body as any
