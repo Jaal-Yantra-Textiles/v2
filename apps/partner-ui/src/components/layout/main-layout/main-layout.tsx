@@ -221,7 +221,7 @@ const ordersNavItems = (t: TFunction) => [
   { label: "Design", to: "/orders/design" },
   { label: "Inventory", to: "/orders/inventory" },
   // #2286 — goods delivered TO this partner, confirmed on arrival.
-  { label: t("app.nav.main.incomingDeliveries", "Incoming deliveries"), to: "/orders/incoming" },
+  { label: "Incoming deliveries", to: "/orders/incoming" },
   // A sibling of the other order kinds because a quote becomes one.
   { label: t("app.nav.main.quotes", "Quotes"), to: "/orders/quotes" },
 ]
