@@ -30,7 +30,10 @@ import { PARTNER_MODULE } from "../../modules/partner"
 import {
   runProductionRunLifecycleWorkflow,
 } from "./run-production-run-lifecycle"
-import { mirrorRunPartnerLinkOnUnifiedOrderStep } from "./dual-write-unified-run-order"
+import {
+  mirrorRunPartnerLinkOnUnifiedOrderStep,
+  projectDispatchedCustomerOrderRunStep,
+} from "./dual-write-unified-run-order"
 
 export type SendProductionRunToProductionInput = {
   production_run_id: string
@@ -604,6 +607,13 @@ export const sendProductionRunToProductionWorkflow = createWorkflow(
 
     // Start the long-running lifecycle workflow fire-and-forget
     startLifecycleWorkflowStep({
+      production_run_id: input.production_run_id,
+    })
+
+    // #2281 — a customer-order run skipped projection at order.placed (#1126);
+    // dispatched, it is partner work and needs its (order, partner) work-order.
+    // Before the mirror below, which links the partner to whatever order exists.
+    projectDispatchedCustomerOrderRunStep({
       production_run_id: input.production_run_id,
     })
 
