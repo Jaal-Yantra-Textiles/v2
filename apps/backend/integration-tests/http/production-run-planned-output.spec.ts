@@ -59,10 +59,14 @@ setupSharedTestSuite(() => {
         [Modules.STOCK_LOCATION]: { stock_location_id: locRes.data.stock_location.id },
       })
 
-      return { partnerId, headers: { Authorization: `Bearer ${login2.data.token}` } }
+      return {
+        partnerId,
+        locationId: locRes.data.stock_location.id as string,
+        headers: { Authorization: `Bearer ${login2.data.token}` },
+      }
     }
 
-    const createSizedDesign = async () => {
+    const createSizedDesign = async (sized = true) => {
       const res = await api.post(
         "/admin/designs",
         {
@@ -70,10 +74,16 @@ setupSharedTestSuite(() => {
           design_type: "Original",
           status: "In_Development",
           priority: "Medium",
-          size_sets: [
-            { size_label: "S", measurements: { chest: 35 } },
-            { size_label: "M", measurements: { chest: 37 } },
-          ],
+          // A price for the draft product minted at completion (#2271).
+          estimated_cost: 400,
+          ...(sized
+            ? {
+                size_sets: [
+                  { size_label: "S", measurements: { chest: 35 } },
+                  { size_label: "M", measurements: { chest: 37 } },
+                ],
+              }
+            : {}),
         },
         adminHeaders
       )
@@ -246,6 +256,307 @@ setupSharedTestSuite(() => {
         { size_label: "S", color: null, quantity: 1 },
         { size_label: "M", color: null, quantity: 2 },
       ])
+    })
+    /** Stock levels of a design's variants at a location, keyed by variant title. */
+    const levelsByVariant = async (designId: string, locationId: string) => {
+      const query = getContainer().resolve(ContainerRegistrationKeys.QUERY) as any
+      const { data: links } = await query.graph({
+        entity: "design_product_variant",
+        filters: { design_id: designId },
+        fields: ["product_variant_id"],
+      })
+      const variantIds = links.map((l: any) => l.product_variant_id)
+      const { data: variants } = await query.graph({
+        entity: "product_variant",
+        filters: { id: variantIds },
+        fields: ["id", "title", "product_id", "options.value", "options.option.title", "inventory_items.inventory_item_id"],
+      })
+      const inventory = getContainer().resolve(Modules.INVENTORY) as any
+      const out: Record<string, number> = {}
+      for (const v of variants) {
+        const size =
+          (v.options || []).find((o: any) => o.option?.title === "Size")?.value ?? "(none)"
+        const itemId = v.inventory_items?.[0]?.inventory_item_id
+        const [level] = itemId
+          ? await inventory.listInventoryLevels({ inventory_item_id: itemId, location_id: locationId })
+          : []
+        out[size] = level?.stocked_quantity ?? 0
+      }
+      return { levels: out, productIds: Array.from(new Set(variants.map((v: any) => v.product_id))) }
+    }
+
+    const completeWithSplit = async (
+      runId: string,
+      headers: any,
+      produced: number,
+      produced_output?: any[]
+    ) => {
+      const r = await api
+        .post(
+          `/partners/production-runs/${runId}/complete`,
+          { produced_quantity: produced, ...(produced_output ? { produced_output } : {}) },
+          { headers }
+        )
+        .catch((e: any) => e.response)
+      if (r.status !== 200) {
+        throw new Error(`Complete failed ${r.status}: ${JSON.stringify(r.data)}`)
+      }
+    }
+
+    /**
+     * The Luong Shirt case end to end: a design stating S and M with NO product.
+     * Completion mints a draft, adds a Size axis, creates S and M, and banks
+     * each size at the partner's warehouse.
+     */
+    it("mints a draft, creates a variant per size, and banks each size", async () => {
+      const designId = await createSizedDesign()
+      const { partnerId, locationId, headers } = await registerPartner("sizes")
+
+      const runRes = await api.post(
+        "/admin/production-runs",
+        { design_id: designId, partner_id: partnerId, quantity: 3 },
+        adminHeaders
+      )
+      const runId = runRes.data.production_run.id
+      await walkToFinished(runId, headers)
+      await completeWithSplit(runId, headers, 3, [
+        { size_label: "S", quantity: 1 },
+        { size_label: "M", quantity: 2 },
+      ])
+
+      const { levels, productIds } = await levelsByVariant(designId, locationId)
+      expect(productIds).toHaveLength(1)
+      expect(levels).toEqual({ "Made to order": 0, S: 1, M: 2 })
+
+      const product = (
+        await api.get(`/admin/products/${productIds[0]}`, adminHeaders)
+      ).data.product
+      expect(product.status).toBe("draft")
+
+      const run = await readRun(runId)
+      expect(run.stocked_quantity).toBe(3)
+      expect(run.stocked_at_location_id).toBe(locationId)
+      expect(run.product_id).toBe(productIds[0])
+
+      // A second run reuses S and M — no duplicate variants.
+      const run2 = await api.post(
+        "/admin/production-runs",
+        { design_id: designId, partner_id: partnerId, quantity: 2 },
+        adminHeaders
+      )
+      const run2Id = run2.data.production_run.id
+      await walkToFinished(run2Id, headers)
+      await completeWithSplit(run2Id, headers, 2, [{ size_label: "S", quantity: 2 }])
+
+      const after = await levelsByVariant(designId, locationId)
+      expect(after.levels).toEqual({ "Made to order": 0, S: 3, M: 2 })
+    })
+
+    /** Alpha 60 Top: no sizes, no product. One draft, one unit, no axis. */
+    it("mints a draft and banks a sizeless run onto its only variant", async () => {
+      const designId = await createSizedDesign(false)
+      const { partnerId, locationId, headers } = await registerPartner("nosize")
+
+      const runRes = await api.post(
+        "/admin/production-runs",
+        { design_id: designId, partner_id: partnerId, quantity: 1 },
+        adminHeaders
+      )
+      const runId = runRes.data.production_run.id
+      await walkToFinished(runId, headers)
+      await completeWithSplit(runId, headers, 1)
+
+      const { levels, productIds } = await levelsByVariant(designId, locationId)
+      expect(productIds).toHaveLength(1)
+      expect(levels).toEqual({ "(none)": 1 })
+
+      const run = await readRun(runId)
+      expect(run.stocked_quantity).toBe(1)
+      expect(run.variant_id).toBeTruthy()
+    })
+    /**
+     * 🔴 The legacy single-variant path, banking onto a level that ALREADY
+     * exists. `updateInventoryLevels(level.id, data)` threw "Item undefined is
+     * not stocked at location undefined", so the second completed run of any
+     * design at the same warehouse failed. Found by #2271's per-size test.
+     */
+    it("banks a second run onto an existing level (legacy path)", async () => {
+      const designId = await createSizedDesign(false)
+      const approve = await api
+        .post(`/admin/designs/${designId}/approve`, {}, adminHeaders)
+        .catch((e: any) => e.response)
+      if (approve.status !== 200) {
+        throw new Error(`Approve failed ${approve.status}: ${JSON.stringify(approve.data)}`)
+      }
+      const { partnerId, locationId, headers } = await registerPartner("legacy")
+
+      for (const qty of [2, 3]) {
+        const runRes = await api.post(
+          "/admin/production-runs",
+          { design_id: designId, partner_id: partnerId, quantity: qty },
+          adminHeaders
+        )
+        const runId = runRes.data.production_run.id
+        await walkToFinished(runId, headers)
+        await completeWithSplit(runId, headers, qty)
+      }
+
+      const { levels } = await levelsByVariant(designId, locationId)
+      expect(levels).toEqual({ "(none)": 5 })
+    })
+    /**
+     * The Luong Shirt state on prod: a run completed while the design had no
+     * product (nothing banked), then approval minted a SIZELESS product. The
+     * repair job adds S and M and banks 1 + 2 at the partner's warehouse.
+     */
+    it("bank-unstocked-run: previews without writing, then banks S and M", async () => {
+      const designId = await createSizedDesign()
+      const { partnerId, locationId } = await registerPartner("repair")
+
+      const runRes = await api.post(
+        "/admin/production-runs",
+        { design_id: designId, partner_id: partnerId, quantity: 3 },
+        adminHeaders
+      )
+      const runId = runRes.data.production_run.id
+      const service = getContainer().resolve("production_runs") as any
+      // Completed the old way: no stock, no split.
+      await service.updateProductionRuns({
+        id: runId,
+        status: "completed",
+        completed_at: new Date(),
+        produced_quantity: 3,
+      })
+      const approve = await api
+        .post(`/admin/designs/${designId}/approve`, {}, adminHeaders)
+        .catch((e: any) => e.response)
+      expect(approve.status).toBe(200)
+
+      const runJob = (body: any) =>
+        api
+          .post(`/admin/ops/maintenance-jobs/bank-unstocked-run/run`, body, adminHeaders)
+          .catch((e: any) => e.response)
+
+      // No split on a two-size run: refused, never guessed.
+      const noSplit = await runJob({ dry_run: true, params: { run_id: runId } })
+      expect(noSplit.status).toBeGreaterThanOrEqual(400)
+
+      const preview = await runJob({
+        dry_run: true,
+        params: { run_id: runId, produced_output: "S:1,M:2" },
+      })
+      expect(preview.status).toBe(200)
+      expect(preview.data.result.applied).toBe(false)
+      expect((await readRun(runId)).stocked_at).toBeNull()
+      expect((await levelsByVariant(designId, locationId)).levels).toEqual({ "(none)": 0 })
+
+      const apply = await runJob({
+        dry_run: false,
+        params: { run_id: runId, produced_output: "S:1,M:2" },
+      })
+      if (apply.status !== 200) {
+        throw new Error(`apply failed ${apply.status}: ${JSON.stringify(apply.data)}`)
+      }
+      expect((await levelsByVariant(designId, locationId)).levels).toEqual({
+        "Made to order": 0,
+        S: 1,
+        M: 2,
+      })
+      const run = await readRun(runId)
+      expect(run.stocked_quantity).toBe(3)
+      expect(run.produced_output).toEqual([
+        { size_label: "S", color: null, quantity: 1 },
+        { size_label: "M", color: null, quantity: 2 },
+      ])
+
+      // A second apply is refused — the run is already banked.
+      const again = await runJob({
+        dry_run: false,
+        params: { run_id: runId, produced_output: "S:1,M:2" },
+      })
+      expect(again.status).toBeGreaterThanOrEqual(400)
+    })
+    /**
+     * The completion preview must be a pure read: it reports the mint, the
+     * options, the variants and the stock it WOULD write, and afterwards the
+     * database is exactly as it was.
+     */
+    it("completion-preview reports what completion would do and writes nothing", async () => {
+      const designId = await createSizedDesign()
+      const { partnerId, locationId, headers } = await registerPartner("preview")
+      const runRes = await api.post(
+        "/admin/production-runs",
+        { design_id: designId, partner_id: partnerId, quantity: 3 },
+        adminHeaders
+      )
+      const runId = runRes.data.production_run.id
+      await walkToFinished(runId, headers)
+      const before = await readRun(runId)
+
+      const preview = await api.get(
+        `/admin/production-runs/${runId}/completion-preview?produced_quantity=3&produced_output=S:1,M:2`,
+        adminHeaders
+      )
+      expect(preview.status).toBe(200)
+      const body = preview.data
+      expect(body.completion_gate.ok).toBe(true)
+      expect(body.stock_path).toBe("lines")
+      expect(body.warehouse.location_id).toBe(locationId)
+      expect(body.would_write.join("\n")).toContain("mint DRAFT product")
+      expect(body.would_write.join("\n")).toContain("create variant S, then stock +1")
+      expect(body.would_write.join("\n")).toContain("create variant M, then stock +2")
+
+      // Without a split the complete routes would refuse — and the preview says so.
+      const noSplit = await api.get(
+        `/admin/production-runs/${runId}/completion-preview?produced_quantity=3`,
+        adminHeaders
+      )
+      expect(noSplit.data.produced_output.ok).toBe(false)
+      expect(noSplit.data.notes.join(" ")).toContain("REFUSE")
+
+      // 🔑 Nothing written: no product, no variant, run unchanged.
+      const { productIds } = await levelsByVariant(designId, locationId)
+      expect(productIds).toEqual([])
+      const after = await readRun(runId)
+      expect(after.status).toBe(before.status)
+      expect(after.produced_output).toBeNull()
+      expect(after.stocked_at).toBeNull()
+    })
+
+    /** The Luong Shirt replay: completed, unbanked, sizeless product from approval. */
+    it("completion-preview replays a completed, unbanked run without touching the product", async () => {
+      const designId = await createSizedDesign()
+      const { partnerId, locationId } = await registerPartner("replay")
+      const runRes = await api.post(
+        "/admin/production-runs",
+        { design_id: designId, partner_id: partnerId, quantity: 3 },
+        adminHeaders
+      )
+      const runId = runRes.data.production_run.id
+      const service = getContainer().resolve("production_runs") as any
+      await service.updateProductionRuns({
+        id: runId,
+        status: "completed",
+        completed_at: new Date(),
+        produced_quantity: 3,
+      })
+      await api.post(`/admin/designs/${designId}/approve`, {}, adminHeaders)
+      const productBefore = await levelsByVariant(designId, locationId)
+
+      const preview = await api.get(
+        `/admin/production-runs/${runId}/completion-preview?produced_output=S:1,M:2`,
+        adminHeaders
+      )
+      const lines = preview.data.would_write.join("\n")
+      expect(preview.data.stock_path).toBe("lines")
+      expect(lines).toContain("add option Size: S, M, Made to order")
+      expect(lines).toContain('"Size":"Made to order"')
+      expect(lines).not.toContain("mint DRAFT")
+      expect(preview.data.notes.join(" ")).toContain("NOT banked")
+
+      // The product still has its one sizeless variant, and no stock moved.
+      expect(await levelsByVariant(designId, locationId)).toEqual(productBefore)
+      expect((await readRun(runId)).stocked_at).toBeNull()
     })
   })
 })

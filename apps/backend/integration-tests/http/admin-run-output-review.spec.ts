@@ -255,9 +255,16 @@ setupSharedTestSuite(() => {
 
       const report = first.data.run_approvals
       expect(report.approved).toHaveLength(2)
-      expect(report.created_product_ids).toHaveLength(1)
+      /**
+       * #2271 (founder 2026-09-25): completion mints the DRAFT product when the
+       * design has none, so approval finds it and creates nothing. What must
+       * still hold is the point of these tests: one product, one variant, and
+       * every run names it.
+       */
+      expect(report.created_product_ids).toEqual([])
 
-      const productId = report.created_product_ids[0]
+      const productId = report.runs[0].product_id
+      expect(productId).toBeTruthy()
       const product = await readProduct(adminHeaders, productId)
       expect(product.variants).toHaveLength(1)
 
@@ -326,7 +333,13 @@ setupSharedTestSuite(() => {
           adminHeaders
         )
       )
-      const productId = approvedFirst.data.run_approvals.created_product_ids[0]
+      /**
+       * #2271 (founder 2026-09-25): completion mints the DRAFT product when the
+       * design has none, so approval finds it and creates nothing. What must
+       * still hold is the point of these tests: one product, one variant, and
+       * every run names it.
+       */
+      const productId = approvedFirst.data.run_approvals.runs[0].product_id
       expect(productId).toBeTruthy()
       expect((await readProduct(adminHeaders, productId)).variants).toHaveLength(1)
 
@@ -387,7 +400,8 @@ setupSharedTestSuite(() => {
         )
       )
 
-      const productId = res.data.run_approvals.created_product_ids[0]
+      // #2271 — minted at completion as a draft; approval names it.
+      const productId = res.data.run_approvals.runs[0].product_id
       const product = await readProduct(adminHeaders, productId)
       const currencies = (product.variants?.[0]?.prices ?? []).map(
         (p: any) => p.currency_code
