@@ -248,7 +248,11 @@ export function transferShortfall(
 /** Resolve the inventory item the run's output is banked as. */
 async function resolveRunInventoryItem(
   container: MedusaContainer,
-  run: { variant_id?: string | null; design_id?: string | null }
+  run: {
+    variant_id?: string | null
+    approved_variant_id?: string | null
+    design_id?: string | null
+  }
 ): Promise<string | undefined> {
   /**
    * 🔴 Was a verbatim second copy of `stockFinishedGoodsStep`'s resolution —
@@ -263,6 +267,7 @@ async function resolveRunInventoryItem(
    */
   const resolved = await resolveRunVariant(container, {
     variant_id: run.variant_id,
+    approved_variant_id: run.approved_variant_id,
     design_id: run.design_id,
   })
   return resolved.inventory_item_id

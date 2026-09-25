@@ -523,6 +523,7 @@ export const completeProductionRunWorkflow = createWorkflow(
           // #1872 — the run's own variant, when it has one. Falls back to the
           // design lookup inside the step.
           variant_id: r.variant_id ?? null,
+          approved_variant_id: r.approved_variant_id ?? null,
           good_quantity: goodQty,
           location_id: data.partnerLocation.location_id,
           // Carries WHICH hop failed, so the refusal names it. #2053

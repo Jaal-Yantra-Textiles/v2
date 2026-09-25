@@ -332,6 +332,8 @@ export type StockFinishedGoodsInput = {
    * the two land together.
    */
   variant_id?: string | null
+  /** #2271 — the variant output approval stamped, when the run names none. */
+  approved_variant_id?: string | null
   /**
    * Why `location_id` is absent, from `resolvePartnerLocationStep`. Present only
    * on the failure path — it turns "nowhere to bank this" into a message that
@@ -401,6 +403,7 @@ export const stockFinishedGoodsStep = createStep(
      */
     const variantResult = await resolveRunVariant(container, {
       variant_id: input.variant_id,
+      approved_variant_id: input.approved_variant_id,
       design_id: input.design_id,
     })
 

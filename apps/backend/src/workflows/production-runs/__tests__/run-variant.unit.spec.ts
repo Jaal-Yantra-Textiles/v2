@@ -130,6 +130,47 @@ describe("run variant resolution (#2057)", () => {
       expect(res.variant_id).toBe("var_m")
     })
 
+    /**
+     * #2271 — approval stamps `approved_variant_id` per run and leaves
+     * `variant_id` null (both approved Sharlho runs on prod). On a design that
+     * holds a variant per size the link is ambiguous, so without this the
+     * stocking step refused a run whose approval had already named its variant.
+     */
+    it("uses the variant approval stamped when the run names none", async () => {
+      const container = makeContainer(
+        withInventory((args) => {
+          if (args.entity === "design_product_variant") {
+            return {
+              data: [{ product_variant_id: "var_s" }, { product_variant_id: "var_m" }],
+            }
+          }
+          return { data: [] }
+        })
+      )
+      await expect(
+        resolveRunVariant(container, {
+          variant_id: null,
+          approved_variant_id: "var_m",
+          design_id: "des_1",
+        })
+      ).resolves.toEqual({
+        variant_id: "var_m",
+        inventory_item_id: "iitem_for_var_m",
+        source: "approval",
+      })
+    })
+
+    it("the run's own variant still beats the approval stamp", async () => {
+      const container = makeContainer(withInventory(() => ({ data: [] })))
+      const res = await resolveRunVariant(container, {
+        variant_id: "var_on_run",
+        approved_variant_id: "var_approved",
+        design_id: "des_1",
+      })
+      expect(res.variant_id).toBe("var_on_run")
+      expect(res.source).toBe("run")
+    })
+
     it("says design_has_no_variant when the design links none", async () => {
       const container = makeContainer(
         withInventory((args) => {
