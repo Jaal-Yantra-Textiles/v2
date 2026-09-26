@@ -1,3 +1,15 @@
+# [13.166.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.165.0...v13.166.0) (2026-09-26)
+
+
+### Bug Fixes
+
+* **#2265 S3b:** a partner a run is moved away from loses its work order ([#2311](https://github.com/Jaal-Yantra-Textiles/v2/issues/2311)) ([08f095e](https://github.com/Jaal-Yantra-Textiles/v2/commit/08f095ecb86d00951b03def45bdf1e016dfaa1da)), closes [#2265](https://github.com/Jaal-Yantra-Textiles/v2/issues/2265)
+
+
+### Features
+
+* **#2306 S2:** approval prefills its stages from the design's partners ([#2312](https://github.com/Jaal-Yantra-Textiles/v2/issues/2312)) ([e1c237b](https://github.com/Jaal-Yantra-Textiles/v2/commit/e1c237be2188a912e25433b9e0cf3f61fab48fba)), closes [#2306](https://github.com/Jaal-Yantra-Textiles/v2/issues/2306)
+
 # [13.165.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.164.0...v13.165.0) (2026-09-26)
 
 
