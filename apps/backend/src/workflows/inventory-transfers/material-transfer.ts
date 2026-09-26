@@ -139,6 +139,31 @@ export type ReceiveMaterialTransferResult = {
 }
 
 /**
+ * What was counted. Omitting `received_quantity` means "all of it arrived", so
+ * it is the SENT quantity, not 0. Reading it as 0 reported every accept-all
+ * receipt as a full shortfall (the stored received_quantity was right).
+ */
+export function receiptCountedQuantity(
+  sentQuantity: number | null | undefined,
+  receivedQuantity: number | null | undefined
+): number {
+  return receivedQuantity ?? Number(sentQuantity ?? 0)
+}
+
+/**
+ * The receipt note is ADDED to the transfer's note, not written over it: the
+ * creation note is the why (who approved the move), and replacing it on
+ * receipt erased that trail.
+ */
+export function mergeReceiptNotes(
+  existing: string | null | undefined,
+  receipt: string
+): string {
+  const before = (existing ?? "").trim()
+  return before ? `${before}\nReceipt: ${receipt}` : receipt
+}
+
+/**
  * Count the material in at the far end, and move the stock.
  *
  * The receipt and the posting happen together here — unlike run output, there
@@ -171,7 +196,10 @@ export async function receiveMaterialTransfer(
   // No run is passed, deliberately: the approval gate does not apply to
   // material. `planTransferMove` still refuses a same-location or zero move.
   const plan = planTransferMove(transfer, input.receivedQuantity, null)
-  const shortfall = transferShortfall(transfer.quantity, input.receivedQuantity)
+  const shortfall = transferShortfall(
+    transfer.quantity,
+    receiptCountedQuantity(transfer.quantity, input.receivedQuantity)
+  )
 
   if (plan.move && plan.to_location_id) {
     await moveInventory(
@@ -191,7 +219,7 @@ export async function receiveMaterialTransfer(
     // Only set when the stock actually moved. A transfer received but not
     // posted is the one state a reader must not mistake for "moved".
     ...(plan.move ? { inventory_posted_at: new Date() } : {}),
-    ...(input.notes ? { notes: input.notes } : {}),
+    ...(input.notes ? { notes: mergeReceiptNotes(transfer.notes, input.notes) } : {}),
   })
 
   return {
