@@ -541,56 +541,64 @@ export const mirrorPartnerLinkOnUnifiedOrderStep = createStep(
 export const mirrorUnifiedOrderStatusStep = createStep(
   "mirror-unified-order-status",
   async (input: { inventoryOrderId: string }, { container }) => {
-    const logger: any = container.resolve(ContainerRegistrationKeys.LOGGER)
-    try {
-      const query: any = container.resolve(ContainerRegistrationKeys.QUERY)
-      const { data: invOrders } = await query.graph({
-        entity: "inventory_orders",
-        fields: ["id", "status", "order.id", "metadata"],
-        filters: { id: input.inventoryOrderId },
-      })
-      const legacy = invOrders?.[0]
-      // D5-3 — resolve the unified order via the order↔inventory_order link
-      // (forward, authoritative). #2029 item 5 removed the
-      // `metadata.unified_order_id` fallback: prod carries 0 rows that need it
-      // and nothing writes a new one. Fetched in the same query as `status`.
-      const unifiedOrderId = legacy?.order?.id
-      if (!unifiedOrderId) {
-        return new StepResponse<MirrorResult>({
-          linked: false,
-          skipped: "no_unified_order",
-        })
-      }
-
-      const coreStatus = LEGACY_TO_CORE_STATUS[legacy.status]
-      const partnerStatus = LEGACY_TO_PARTNER_STATUS[legacy.status]
-
-      // core order.status is a single column — a blind write, last-writer-wins,
-      // nothing to lose, so no lock (PR-H retired withUnifiedOrderMetadataLock).
-      if (coreStatus) {
-        const orderService: any = container.resolve(Modules.ORDER)
-        await orderService.updateOrders([
-          { id: unifiedOrderId, status: coreStatus },
-        ])
-      }
-
-      // PR-H — partner_status is column-only now: single-column upsert on the
-      // typed `unified_order_status` sidecar. Throws to the step's swallow-and-
-      // warn boundary on failure (best-effort: never fails the legacy path).
-      if (partnerStatus) {
-        await setUnifiedOrderPartnerStatus(container, unifiedOrderId, partnerStatus)
-      }
-      await shadowSyncWorkOrder(container, unifiedOrderId, "mirror-unified-order-status")
-
-      return new StepResponse<MirrorResult>({
-        linked: true,
-        unified_order_id: unifiedOrderId,
-      })
-    } catch (e: any) {
-      logger.warn(
-        `[orders-unification] status mirror failed for ${input.inventoryOrderId}: ${e?.message}`
-      )
-      return new StepResponse<MirrorResult>({ linked: false, error: e?.message })
-    }
+    return new StepResponse<MirrorResult>(
+      await mirrorInventoryOrderStatusToUnified(container, input.inventoryOrderId)
+    )
   }
 )
+
+/**
+ * The status mirror as a plain function, for callers that are not a workflow
+ * (the close-received-inventory-orders job). Same best-effort contract: never
+ * throws, reports what happened.
+ */
+export const mirrorInventoryOrderStatusToUnified = async (
+  container: any,
+  inventoryOrderId: string
+): Promise<MirrorResult> => {
+  const logger: any = container.resolve(ContainerRegistrationKeys.LOGGER)
+  try {
+    const query: any = container.resolve(ContainerRegistrationKeys.QUERY)
+    const { data: invOrders } = await query.graph({
+      entity: "inventory_orders",
+      fields: ["id", "status", "order.id", "metadata"],
+      filters: { id: inventoryOrderId },
+    })
+    const legacy = invOrders?.[0]
+    // D5-3 — resolve the unified order via the order↔inventory_order link
+    // (forward, authoritative). #2029 item 5 removed the
+    // `metadata.unified_order_id` fallback: prod carries 0 rows that need it
+    // and nothing writes a new one. Fetched in the same query as `status`.
+    const unifiedOrderId = legacy?.order?.id
+    if (!unifiedOrderId) {
+      return { linked: false, skipped: "no_unified_order" }
+    }
+
+    const coreStatus = LEGACY_TO_CORE_STATUS[legacy.status]
+    const partnerStatus = LEGACY_TO_PARTNER_STATUS[legacy.status]
+
+    // core order.status is a single column — a blind write, last-writer-wins,
+    // nothing to lose, so no lock (PR-H retired withUnifiedOrderMetadataLock).
+    if (coreStatus) {
+      const orderService: any = container.resolve(Modules.ORDER)
+      await orderService.updateOrders([
+        { id: unifiedOrderId, status: coreStatus },
+      ])
+    }
+
+    // PR-H — partner_status is column-only now: single-column upsert on the
+    // typed `unified_order_status` sidecar. Throws to this function's swallow-
+    // and-warn boundary on failure (best-effort: never fails the legacy path).
+    if (partnerStatus) {
+      await setUnifiedOrderPartnerStatus(container, unifiedOrderId, partnerStatus)
+    }
+    await shadowSyncWorkOrder(container, unifiedOrderId, "mirror-unified-order-status")
+
+    return { linked: true, unified_order_id: unifiedOrderId }
+  } catch (e: any) {
+    logger.warn(
+      `[orders-unification] status mirror failed for ${inventoryOrderId}: ${e?.message}`
+    )
+    return { linked: false, error: e?.message }
+  }
+}
