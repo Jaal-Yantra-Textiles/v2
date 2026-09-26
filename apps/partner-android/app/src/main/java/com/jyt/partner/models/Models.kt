@@ -140,13 +140,19 @@ object ApiDate {
         SimpleDateFormat("EEE MMM dd yyyy HH:mm:ss 'GMT'Z", Locale.US)
     }
 
+    /** Parse without throwing: each format is tried in turn and a mismatch
+     *  falls through to the next (the throwing `parse(String)` crashed on
+     *  the first mismatch, so an ISO date without millis — or a JS-format
+     *  date — took the whole composable down instead of rendering "—"). */
     fun parse(raw: String?): Date? {
         if (raw.isNullOrBlank()) return null
-        iso.parse(raw)?.let { return it }
-        isoNoMillis.parse(raw)?.let { return it }
+        val pos = java.text.ParsePosition(0)
+        iso.parse(raw, pos)?.let { return it }
+        pos.index = 0
+        isoNoMillis.parse(raw, pos)?.let { return it }
         val candidate = raw.substringBefore(" (")
-        js.parse(candidate)?.let { return it }
-        return null
+        pos.index = 0
+        return js.parse(candidate, pos)
     }
 }
 

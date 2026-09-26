@@ -51,14 +51,48 @@ import java.util.concurrent.TimeUnit
  * the hard way: appending mangles the `?`); dates stay strings in the
  * models and parse through ApiDate, which takes ISO-8601 AND the JS
  * `Date.toString()` format some design routes emit.
+ *
+ * The token store and base URL sit behind small seams ([TokenAccess] /
+ * [baseUrlOverride]) so the integration tests can drive the whole client
+ * — OkHttp, serialization, auth headers, multipart — against a local
+ * mock server on the JVM, no emulator.
  */
-class PartnerApi private constructor(private val context: Context) {
+class PartnerApi private constructor(
+    private val context: Context?,
+    private val baseUrlOverride: String? = null,
+    private val tokens: TokenAccess = RealTokenAccess,
+) {
+
+    /** The JWT store seam — the encrypted TokenStore in production, an
+     *  in-memory map in tests. */
+    internal interface TokenAccess {
+        fun load(context: Context?): String?
+        fun save(context: Context?, token: String)
+        fun clear(context: Context?)
+    }
+
+    internal object RealTokenAccess : TokenAccess {
+        override fun load(context: Context?): String? =
+            context?.let { TokenStore.loadToken(it) }
+
+        override fun save(context: Context?, token: String) {
+            context?.let { TokenStore.saveToken(it, token) }
+        }
+
+        override fun clear(context: Context?) {
+            context?.let { TokenStore.clearToken(it) }
+        }
+    }
 
     private val json = Json {
         ignoreUnknownKeys = true
         isLenient = true
         coerceInputValues = true
         explicitNulls = false
+        // Wire contracts: default-valued fields (DeviceTokenBody.platform)
+        // must still reach the server — the device-tokens zod makes
+        // platform required, and kotlinx omits defaults without this.
+        encodeDefaults = true
     }
 
     private val client: OkHttpClient = OkHttpClient.Builder()
@@ -85,12 +119,12 @@ class PartnerApi private constructor(private val context: Context) {
         }
         val token = map["token"] as? String ?: map["access_token"] as? String
             ?: throw PartnerException.InvalidResponse
-        TokenStore.saveToken(context, token)
+        tokens.save(context, token)
         return LoginOutcome(verificationRequired = false, email = email)
     }
 
     fun logout() {
-        TokenStore.clearToken(context)
+        tokens.clear(context)
     }
 
     suspend fun me(): PartnerMe = get("partners/me")
@@ -325,7 +359,7 @@ class PartnerApi private constructor(private val context: Context) {
      *  configured backend — path and query are separated explicitly so the
      *  query's `?` is never mangled. */
     private fun url(path: String): String {
-        val base = BuildConfig.BACKEND_URL.trimEnd('/')
+        val base = (baseUrlOverride ?: BuildConfig.BACKEND_URL).trimEnd('/')
         return if (path.contains('?')) {
             val parts = path.split('?', limit = 2)
             "$base/${parts[0]}?${parts[1]}"
@@ -339,7 +373,7 @@ class PartnerApi private constructor(private val context: Context) {
 
     private fun baseRequest(path: String): Request.Builder {
         val builder = Request.Builder().url(url(path))
-        TokenStore.loadToken(context)?.let {
+        tokens.load(context)?.let {
             builder.header("Authorization", "Bearer $it")
         }
         return builder
@@ -415,5 +449,12 @@ class PartnerApi private constructor(private val context: Context) {
             instance ?: synchronized(this) {
                 instance ?: PartnerApi(context.applicationContext).also { instance = it }
             }
+
+        /** The integration-test entry point: a client against an explicit
+         *  base URL with an in-memory token store — no Android framework. */
+        internal fun forTesting(
+            baseUrl: String,
+            tokens: TokenAccess,
+        ): PartnerApi = PartnerApi(context = null, baseUrlOverride = baseUrl, tokens = tokens)
     }
 }

@@ -1,0 +1,85 @@
+name: Partner Android Check
+
+# `apps/partner-android` had a 21-test JVM suite (#2296) that nothing ran: no
+# workflow called Gradle, so the suite gated only whoever remembered
+# `pnpm partner-android:test`. That suite caught two real bugs on its first
+# run (every push registration 400'd; a date format crashed a screen). A check
+# that never runs catches neither the next time.
+#
+# ## What is gated here
+#
+#   test  — HARD gate. `testDebugUnitTest`: the whole API client (OkHttp,
+#           kotlinx serialization, auth headers, multipart, dates) against a
+#           local MockWebServer. JVM only; no emulator.
+#
+#   build — HARD gate. `assembleDebug`, so a change that breaks compilation of
+#           the app itself (not just the tests) is caught on the PR.
+#
+# No secrets are needed: the release keystore (`keystore.properties`) and
+# `google-services.json` are both optional in build.gradle.kts, and the debug
+# build uses neither.
+#
+# ⚠️ Do not add a step whose command is red on main. A permanently-failing job
+# trains everyone to ignore the job, which is worse than not having it.
+
+on:
+  pull_request:
+    paths:
+      - 'apps/partner-android/**'
+      - '.github/workflows/partner-android-check.yml'
+  push:
+    branches: [ main ]
+    paths:
+      - 'apps/partner-android/**'
+      - '.github/workflows/partner-android-check.yml'
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
+
+jobs:
+  partner-android:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    defaults:
+      run:
+        working-directory: apps/partner-android
+    steps:
+      - uses: actions/checkout@v4
+
+      # AGP needs JDK 17+; the app compiles to 17 (compileOptions).
+      - name: Use JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      # Installs the SDK tools and accepts licenses, so AGP can fetch the
+      # compileSdk 36 platform itself instead of depending on what the runner
+      # image happens to ship.
+      #
+      # `packages` overrides the action's default ("tools platform-tools"): the
+      # legacy `tools` package no longer exists in current sdkmanager, and
+      # asking for it fails the step ("Failed to find package 'tools'").
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+        with:
+          packages: 'platform-tools'
+          log-accepted-android-sdk-licenses: false
+
+      # Caches the Gradle distribution and dependencies between runs.
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Unit + API integration tests
+        run: ./gradlew testDebugUnitTest --console=plain
+
+      - name: Build debug APK
+        run: ./gradlew assembleDebug --console=plain
+
+      - name: Upload test reports
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: partner-android-test-reports
+          path: apps/partner-android/app/build/reports/tests/
+          retention-days: 7

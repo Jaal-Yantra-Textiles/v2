@@ -71,6 +71,14 @@ android {
         disable += "InvalidFragmentVersionForActivityResult"
     }
 
+    testOptions {
+        unitTests {
+            // android.util.Log in plain JVM tests (PartnerApi logs decode
+            // failures) returns defaults instead of throwing.
+            isReturnDefaultValues = true
+        }
+    }
+
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
@@ -107,4 +115,9 @@ dependencies {
     implementation("androidx.core:core-splashscreen:1.0.1")
 
     debugImplementation("androidx.compose.ui:ui-tooling")
+
+    // JVM integration tests — the whole client (OkHttp + serialization +
+    // auth + multipart) against a local MockWebServer, no emulator.
+    testImplementation("junit:junit:4.13.2")
+    testImplementation("com.squareup.okhttp3:mockwebserver:4.12.0")
 }
