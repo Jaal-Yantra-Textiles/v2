@@ -16,25 +16,6 @@ import { ADMIN_MCP_TOOLS } from "../registry"
 /** Consumed by the dispatcher itself (see CONTROL_ARGS in mcp-core/dispatch). */
 const CONTROL_ARGS = new Set(["dry_run", "confirm", "store", "reason", "context"])
 
-/**
- * Known READ-only gaps: these list tools advertise `q` (via PAGINATION) but do
- * not forward it, so a search silently returns the unfiltered page. Some routes
- * read `q`, some do not, two are core routes. Tracked in #2292;
- * delete an entry when its tool is fixed. Never add a WRITE tool here.
- */
-const KNOWN_DROPPED_Q = new Set([
-  "list_stores",
-  "list_payment_providers",
-  "list_fulfillment_providers",
-  "list_notifications",
-  "list_maintenance_job_runs",
-  "list_crm_contacts",
-  "list_crm_companies",
-  "list_crm_opportunities",
-  "list_crm_tasks",
-  "list_crm_notes",
-  "list_crm_activities",
-])
 
 describe("admin MCP registry: advertised fields are forwarded", () => {
   const proxied = ADMIN_MCP_TOOLS.filter((t) => !t.native && t.path)
@@ -46,12 +27,7 @@ describe("admin MCP registry: advertised fields are forwarded", () => {
       ...(tool.bodyParams ?? []),
     ])
     const advertised = Object.keys(tool.inputSchema?.properties ?? {})
-    const dropped = advertised.filter(
-      (k) =>
-        !claimed.has(k) &&
-        !CONTROL_ARGS.has(k) &&
-        !(k === "q" && KNOWN_DROPPED_Q.has(tool.name))
-    )
+    const dropped = advertised.filter((k) => !claimed.has(k) && !CONTROL_ARGS.has(k))
     expect(dropped).toEqual([])
   })
 })
