@@ -182,6 +182,12 @@ variables:
 # Non-rotating config (CORS, URLs, etc.) comes from SSM Parameter Store — listed
 # in the SSM section below; ECS resolves both at task start.
 secrets:
+  # Partner push (FCM, Firebase project luna-d094c): the service account the
+  # notification-push provider signs its OAuth token with. SecureString, and it
+  # MUST carry the copilot-application=jyt / copilot-environment=prod tags or
+  # the execution role cannot read it and no task starts. Both services: pushes
+  # are sent from subscribers and jobs (worker) as well as routes (server).
+  FCM_SERVICE_ACCOUNT_JSON: /jyt/prod/FCM_SERVICE_ACCOUNT_JSON
   ADMIN_CORS: /jyt/prod/ADMIN_CORS
   # #1092 — retire the legacy V4 admin chat (routes 410 → new MCP assistant).
   ADMIN_V4_CHAT_DEPRECATED: /jyt/prod/ADMIN_V4_CHAT_DEPRECATED
