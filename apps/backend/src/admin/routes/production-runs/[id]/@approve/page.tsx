@@ -9,7 +9,7 @@ import {
   Text,
   toast,
 } from "@medusajs/ui"
-import { useCallback, useMemo, useState } from "react"
+import { useCallback, useEffect, useMemo, useState } from "react"
 import { useForm } from "react-hook-form"
 import { useParams } from "react-router-dom"
 import { z } from "@medusajs/framework/zod"
@@ -22,8 +22,17 @@ import { useStackedModal } from "../../../../components/modal/stacked-modal/use-
 import { usePartners } from "../../../../hooks/api/partners"
 import { useTaskTemplates } from "../../../../hooks/api/task-templates"
 import { useApproveProductionRun, useProductionRun } from "../../../../hooks/api/production-runs"
-import { useDesignInventory, useDesignPartnerRoster } from "../../../../hooks/api/designs"
-import { stageRoleLabel } from "../../../../components/designs/stage-role-select"
+import {
+  DesignInventoryOrderRow,
+  useDesignInventory,
+  useDesignInventoryOrders,
+  useDesignPartnerRoster,
+} from "../../../../hooks/api/designs"
+import { StageRoleSelect, stageRoleLabel } from "../../../../components/designs/stage-role-select"
+import {
+  draftStagesFromRoster,
+  isDesignPartnerStageRole,
+} from "../../../../../modules/designs/partner-stage-roles"
 import {
   cleanAssignmentMaterialsForSave,
   type DraftMaterial,
@@ -36,6 +45,8 @@ const assignmentSchema = z.object({
   order: z.coerce.number().int().positive().optional(),
   template_names: z.array(z.string()).optional(),
   template_ids: z.array(z.string()).optional(),
+  /** Inventory orders this stage waits for before it can be sent (#1529). */
+  depends_on_inventory_order_ids: z.array(z.string()).optional(),
   /**
    * Draft rows for the material picker — every BOM item, selected or not. They
    * are cleaned into the API's `materials` on submit; an unselected row is
@@ -57,6 +68,7 @@ type Assignment = {
   order?: number
   template_names?: string[]
   template_ids?: string[]
+  depends_on_inventory_order_ids?: string[]
   materials_draft?: DraftMaterial[]
 }
 
@@ -67,10 +79,13 @@ const AssignmentsModal = ({
   partners,
   templatesToShow,
   bomItems,
+  openInventoryOrders,
 }: {
   form: any
   partners: any[]
   templatesToShow: any[]
+  /** The design's inventory orders not yet delivered — what a stage can wait for. */
+  openInventoryOrders: DesignInventoryOrderRow[]
   /** The design's bill of materials — what an assignment may be a subset OF. */
   bomItems: Array<{ id: string; label: string; planned_quantity?: number | null }>
 }) => {
@@ -268,11 +283,11 @@ const AssignmentsModal = ({
                   </div>
 
                   <div>
-                    <Text size="small" weight="plus" className="mb-1">Role</Text>
-                    <Input
-                      placeholder="e.g. cutter"
-                      value={assignment.role || ""}
-                      onChange={(e) => updateField(idx, "role", e.target.value)}
+                    <Text size="small" weight="plus" className="mb-1">Stage</Text>
+                    <StageRoleSelect
+                      size="base"
+                      value={isDesignPartnerStageRole(assignment.role) ? assignment.role : null}
+                      onChange={(v) => updateField(idx, "role", v ?? "")}
                     />
                   </div>
 
@@ -305,6 +320,42 @@ const AssignmentsModal = ({
                     />
                   </div>
                 </div>
+
+                {openInventoryOrders.length > 0 && (
+                  <div className="mt-4">
+                    <Text size="small" weight="plus" className="mb-1">
+                      Waits for delivery
+                    </Text>
+                    <Text size="xsmall" className="text-ui-fg-subtle mb-2">
+                      This stage cannot be sent until every order picked here is delivered.
+                    </Text>
+                    <div className="flex flex-wrap gap-2">
+                      {openInventoryOrders.map((io) => {
+                        const selected = (assignment.depends_on_inventory_order_ids || []).includes(io.id)
+                        return (
+                          <button
+                            key={io.id}
+                            type="button"
+                            className="rounded-md border px-3 py-1.5 text-sm"
+                            onClick={() =>
+                              updateField(
+                                idx,
+                                "depends_on_inventory_order_ids",
+                                selected
+                                  ? (assignment.depends_on_inventory_order_ids || []).filter((x) => x !== io.id)
+                                  : [...(assignment.depends_on_inventory_order_ids || []), io.id]
+                              )
+                            }
+                          >
+                            <Badge color={selected ? "green" : "grey"}>
+                              {`${io.partner?.name || "No supplier"} · ${io.status} · …${io.id.slice(-6)}`}
+                            </Badge>
+                          </button>
+                        )
+                      })}
+                    </div>
+                  </div>
+                )}
 
                 <div className="mt-4">
                   <Text size="small" weight="plus" className="mb-2">
@@ -463,9 +514,52 @@ const ApproveProductionRunDrawerForm = () => {
     [designInventory]
   )
 
+  const { data: rosterData } = useDesignPartnerRoster(designId)
+  const { data: designInventoryOrders } = useDesignInventoryOrders(designId)
+  const openInventoryOrders = useMemo(
+    () =>
+      (designInventoryOrders?.design_inventory_orders ?? []).filter(
+        (io) => io.status !== "Delivered" && io.status !== "Cancelled"
+      ),
+    [designInventoryOrders]
+  )
+
+  /**
+   * #2306 S2 — the design's roster becomes the draft stages, once, when the
+   * form is still empty. Supplier entries are not stages: the first stage
+   * waits for their open inventory orders instead. Everything stays editable
+   * in the Assignments modal; nothing is sent until Approve.
+   */
+  const rosterPlan = useMemo(
+    () => (rosterData ? draftStagesFromRoster(rosterData.roster) : null),
+    [rosterData]
+  )
+  const [prefilled, setPrefilled] = useState(false)
+  useEffect(() => {
+    if (prefilled || !rosterPlan || !designInventoryOrders || !production_run) return
+    setPrefilled(true)
+    if (!rosterPlan.stages.length || (form.getValues("assignments") || []).length) return
+    const supplierWaits = openInventoryOrders
+      .filter((io) => io.partner?.id && rosterPlan.supplier_partner_ids.includes(io.partner.id))
+      .map((io) => io.id)
+    const quantity = Number((production_run as any)?.quantity) || 1
+    form.setValue(
+      "assignments",
+      rosterPlan.stages.map((st) => ({
+        partner_id: st.partner_id,
+        role: st.stage_role,
+        quantity,
+        order: st.order,
+        template_ids: [],
+        materials_draft: [],
+        depends_on_inventory_order_ids: st.order === 1 ? supplierWaits : [],
+      })),
+      { shouldDirty: true }
+    )
+  }, [prefilled, rosterPlan, designInventoryOrders, openInventoryOrders, production_run, form])
+
   // Roster partners lead the picker. A roster partner outside the first page
   // of `usePartners` is still offered, from the roster's own partner record.
-  const { data: rosterData } = useDesignPartnerRoster(designId)
   const pickerPartners = useMemo(() => {
     const roster = rosterData?.roster ?? []
     const rosterIds = new Set(roster.map((r) => r.partner_id))
@@ -554,8 +648,29 @@ const ApproveProductionRunDrawerForm = () => {
                   partners={pickerPartners}
                   templatesToShow={templatesToShow}
                   bomItems={bomItems}
+                  openInventoryOrders={openInventoryOrders}
                 />
               </div>
+
+              {rosterPlan && (rosterPlan.stages.length > 0 || rosterPlan.not_prefilled.length > 0) && (
+                <div className="px-6 py-3">
+                  <Text size="small" className="text-ui-fg-subtle">
+                    {rosterPlan.stages.length > 0
+                      ? `Prefilled ${rosterPlan.stages.length} stage(s) from the design's partners. Edit, remove or reorder them under Manage Assignments.`
+                      : "No partner on this design has a making stage yet."}
+                    {rosterPlan.supplier_partner_ids.length > 0 &&
+                      " Supplier deliveries are set as what the first stage waits for."}
+                  </Text>
+                  {rosterPlan.not_prefilled.length > 0 && (
+                    <Text size="xsmall" className="text-ui-fg-muted mt-1">
+                      Not prefilled:{" "}
+                      {rosterPlan.not_prefilled
+                        .map((n) => `${partnerName(n.partner_id)} (${n.reason})`)
+                        .join(", ")}
+                    </Text>
+                  )}
+                </div>
+              )}
 
               {assignments.length > 0 && (
                 <div className="px-6 py-3">
@@ -563,7 +678,9 @@ const ApproveProductionRunDrawerForm = () => {
                     {assignments.length} assignment{assignments.length > 1 ? "s" : ""} —{" "}
                     {assignments
                       .map((a: any) =>
-                        a.partner_id ? partnerName(a.partner_id) : "Unassigned"
+                        `${a.order ? `${a.order}. ` : ""}${a.partner_id ? partnerName(a.partner_id) : "Unassigned"}${
+                          a.role ? ` (${stageRoleLabel(a.role)})` : ""
+                        }`
                       )
                       .join(", ")}
                   </Text>
