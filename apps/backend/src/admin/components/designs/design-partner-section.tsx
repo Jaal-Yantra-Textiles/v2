@@ -3,9 +3,13 @@ import { Plus, Trash, XCircle, TriangleRightMini } from "@medusajs/icons";
 import { ActionMenu } from "../common/action-menu";
 import {
   AdminDesign,
+  DesignPartnerStageRole,
   useUnlinkDesignFromPartner,
   useCancelPartnerAssignment,
+  useDesignPartnerRoster,
+  useLinkDesignToPartner,
 } from "../../hooks/api/designs";
+import { StageRoleSelect } from "./stage-role-select";
 import { AdminPartner } from "../../hooks/api/partners";
 import { useProductionRuns } from "../../hooks/api/production-runs";
 import { useNavigate } from "react-router-dom";
@@ -20,6 +24,21 @@ export const DesignPartnerSection = ({ design }: DesignPartnerSectionProps) => {
   const partners = design.partners || [];
   const { mutateAsync: unlinkPartner, isPending: isUnlinking } = useUnlinkDesignFromPartner(design.id)
   const { mutateAsync: cancelAssignment, isPending: isCancelling } = useCancelPartnerAssignment(design.id)
+  const { mutateAsync: linkPartners, isPending: isSavingStage } = useLinkDesignToPartner(design.id)
+  // The stage and relationship live on the link row, not on `design.partners`.
+  const { data: rosterData } = useDesignPartnerRoster(design.id)
+  const rosterByPartner = new Map(
+    (rosterData?.roster ?? []).map((r) => [r.partner_id, r])
+  )
+
+  const handleStageChange = async (partnerId: string, stageRole: DesignPartnerStageRole | null) => {
+    try {
+      await linkPartners({ partners: [{ partner_id: partnerId, stage_role: stageRole }] })
+      toast.success("Stage updated")
+    } catch (err: any) {
+      toast.error(err?.message || "Failed to update stage")
+    }
+  }
   const { production_runs = [] } = useProductionRuns({
     design_id: design.id,
     limit: 50,
@@ -71,7 +90,7 @@ export const DesignPartnerSection = ({ design }: DesignPartnerSectionProps) => {
     }
   }
 
-  const isAnyLoading = isUnlinking || isCancelling
+  const isAnyLoading = isUnlinking || isCancelling || isSavingStage
 
   return (
     <Container className="p-0">
@@ -79,7 +98,7 @@ export const DesignPartnerSection = ({ design }: DesignPartnerSectionProps) => {
         <div>
           <Heading level="h2">Partners</Heading>
           <Text className="text-ui-fg-subtle" size="small">
-            Partners linked to this design
+            Who does which stage on this design. Adding a partner does not message them.
           </Text>
         </div>
         <ActionMenu
@@ -109,6 +128,7 @@ export const DesignPartnerSection = ({ design }: DesignPartnerSectionProps) => {
             const runStatus = partnerRunStatus(partner.id)
             const isRunActive = hasActiveRun(partner.id)
             const canUnlink = !isRunActive
+            const rosterEntry = rosterByPartner.get(partner.id)
 
             const Inner = (
               <div className="shadow-elevation-card-rest bg-ui-bg-component rounded-md px-4 py-2 transition-colors">
@@ -123,6 +143,26 @@ export const DesignPartnerSection = ({ design }: DesignPartnerSectionProps) => {
                     </span>
                   </div>
                   <div className="flex items-center gap-2">
+                    {/* How they relate to the design (prospect / maker / designer) */}
+                    {rosterEntry?.role && (
+                      <Badge size="2xsmall" color="grey">{rosterEntry.role}</Badge>
+                    )}
+
+                    {/* Production stage. Stops the click so the row's link does not navigate. */}
+                    <div
+                      className="w-44"
+                      onClick={(e) => {
+                        e.preventDefault()
+                        e.stopPropagation()
+                      }}
+                    >
+                      <StageRoleSelect
+                        value={rosterEntry?.stage_role ?? null}
+                        disabled={isSavingStage || !rosterEntry}
+                        onChange={(v) => handleStageChange(partner.id, v)}
+                      />
+                    </div>
+
                     {/* Production run status */}
                     {runStatus && (
                       <Badge color={

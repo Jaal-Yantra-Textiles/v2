@@ -1,5 +1,7 @@
 import { z } from "@medusajs/framework/zod";
 
+import { DESIGN_PARTNER_STAGE_ROLES } from "../../../modules/designs/partner-stage-roles";
+
 const colorPaletteSchema = z.array(
   z.object({
     name: z.string(),
@@ -120,9 +122,29 @@ export const CreateDesignLLMSchema = z.object({
   existingValues: z.record(z.string(), z.any()).optional()
 });
 
-export const LinkDesignPartnerSchema = z.object({
-  partnerIds: z.array(z.string()),
-})
+/**
+ * Link partners to a design (#2306 S1).
+ *
+ * `partnerIds` is the original shape and still links with no stage. `partners`
+ * carries a stage per partner. On a partner already on the roster, an OMITTED
+ * `stage_role` leaves theirs alone and an explicit `null` clears it — so a
+ * re-link from an old caller can never wipe a stage someone chose.
+ */
+export const LinkDesignPartnerSchema = z
+  .object({
+    partnerIds: z.array(z.string().min(1)).optional(),
+    partners: z
+      .array(
+        z.object({
+          partner_id: z.string().min(1),
+          stage_role: z.enum(DESIGN_PARTNER_STAGE_ROLES).nullable().optional(),
+        })
+      )
+      .optional(),
+  })
+  .refine((b) => (b.partnerIds?.length ?? 0) + (b.partners?.length ?? 0) > 0, {
+    message: "Pass at least one partner in partnerIds or partners",
+  })
 
 export type Design = z.infer<typeof designSchema>;
 export type UpdateDesign = z.infer<typeof UpdateDesignSchema>;

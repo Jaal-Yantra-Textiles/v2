@@ -13,7 +13,8 @@ import { useState, useMemo, useCallback, useEffect } from "react"
 import { useModalChrome } from "../../modal/chrome/use-modal-chrome"
 import { AdminPartner, usePartners } from "../../../hooks/api/partners"
 import { usePartnerColumns } from "../send-to-partner/hooks/use-partner-columns"
-import { useLinkDesignToPartner } from "../../../hooks/api/designs"
+import { DesignPartnerStageRole, useLinkDesignToPartner } from "../../../hooks/api/designs"
+import { StageRoleSelect } from "../../designs/stage-role-select"
 
 interface LinkDesignPartnerFormProps {
   designId: string
@@ -40,6 +41,8 @@ export const LinkDesignPartnerForm = ({ designId }: LinkDesignPartnerFormProps) 
   })
   const [search, setSearch] = useState("")
   const [filtering, setFiltering] = useState<DataTableFilteringState>({})
+  // The stage every selected partner joins with (#2306); null = none yet.
+  const [stageRole, setStageRole] = useState<DesignPartnerStageRole | null>(null)
 
   const { mutate: linkPartners, isPending: isLinking } = useLinkDesignToPartner(designId)
 
@@ -158,7 +161,12 @@ export const LinkDesignPartnerForm = ({ designId }: LinkDesignPartnerFormProps) 
       return
     }
 
-    linkPartners({ partnerIds: selectedPartnerIds }, {
+    // A stage is only sent when one is picked: an omitted stage leaves an
+    // already-linked partner's stage alone instead of clearing it.
+    const partners = selectedPartnerIds.map((partner_id) =>
+      stageRole ? { partner_id, stage_role: stageRole } : { partner_id }
+    )
+    linkPartners({ partners }, {
         onSuccess: () => {
             toast.success(`Successfully linked to ${selectedCount} partner${selectedCount > 1 ? 's' : ''}`)
             setSelectedRows({})
@@ -167,7 +175,7 @@ export const LinkDesignPartnerForm = ({ designId }: LinkDesignPartnerFormProps) 
             toast.error(error.message || "Failed to link to partners")
         }
     })
-  }, [selectedPartnerIds, selectedCount, linkPartners])
+  }, [selectedPartnerIds, selectedCount, linkPartners, stageRole])
 
   return (
     <>
@@ -191,10 +199,13 @@ export const LinkDesignPartnerForm = ({ designId }: LinkDesignPartnerFormProps) 
           <div>
             <Heading>Link to Partner</Heading>
             <Text className="text-ui-fg-subtle" size="small">
-              Select partners to link to this design
+              Select partners and the stage they do. Linking does not message them.
             </Text>
           </div>
           <div className="flex items-center gap-x-2">
+            <div className="w-48">
+              <StageRoleSelect value={stageRole} onChange={setStageRole} />
+            </div>
             <DataTable.Search />
             <DataTable.FilterMenu tooltip="Filter partners" />
           </div>

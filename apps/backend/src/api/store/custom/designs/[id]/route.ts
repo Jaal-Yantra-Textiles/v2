@@ -168,7 +168,7 @@ export async function PUT(
         await linkDesignPartnerWorkflow(req.scope).run({
           input: {
             design_id: designId,
-            partner_ids: [body.partner_id],
+            partners: [{ partner_id: body.partner_id }],
           },
         })
       } catch (err) {

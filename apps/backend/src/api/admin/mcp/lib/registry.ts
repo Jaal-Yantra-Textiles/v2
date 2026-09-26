@@ -27,6 +27,7 @@
  * size is a per-request token cost.
  */
 import type { McpToolDef } from "../../../../lib/mcp-core"
+import { DESIGN_PARTNER_STAGE_ROLES } from "../../../../modules/designs/partner-stage-roles"
 /**
  * The quote vocabulary, shared with the partner surface (#1439). Both surfaces
  * mint; a body list written out twice is one edit away from the two assistants
@@ -6280,25 +6281,50 @@ export const ADMIN_MCP_TOOLS: AdminMcpToolDef[] = [
     sideEffects: "Setting status to 'Approved' here does NOT create a product — that is a separate approval action in the UI.",
   },
   {
+    name: "list_design_partners",
+    description:
+      "List a design's partner roster: each partner with its production stage (stage_role: supplier, weaving, dyeing, printing, embroidery, cutting, stitching, finishing, sampling, photoshoot; null = not chosen yet) and its relationship role (role: prospect / maker / designer / null).",
+    method: "GET",
+    path: "/admin/designs/:id/partner",
+    pathParams: ["id"],
+    inputSchema: obj({ id: STR("Design id, e.g. 'design_...'.") }, ["id"]),
+  },
+  {
     name: "link_design_partners",
     description:
-      "Link one or more partners to a design, making them eligible for its production runs. Sensitive: requires confirm:true.",
+      "Add partners to a design's roster, optionally with the production stage each one does. Sends the partner NOTHING — it does not commission work. For a partner already on the roster, a given stage_role replaces theirs, null clears it, and omitting it leaves it alone. Sensitive: requires confirm:true.",
     method: "POST",
     path: "/admin/designs/:id/partner",
     pathParams: ["id"],
     write: true,
     sensitive: true,
-    bodyParams: ["partnerIds"],
+    bodyParams: ["partnerIds", "partners"],
     inputSchema: obj(
       {
         id: STR("Design id, e.g. 'design_...'."),
         partnerIds: {
           type: "array",
           items: { type: "string" },
-          description: "Partner ids to link to the design (required).",
+          description: "Partner ids to link with no stage. Pass this or partners.",
+        },
+        partners: {
+          type: "array",
+          description: "Partners with a stage each. Pass this or partnerIds.",
+          items: {
+            type: "object",
+            properties: {
+              partner_id: STR("Partner id."),
+              stage_role: {
+                type: ["string", "null"],
+                enum: [...DESIGN_PARTNER_STAGE_ROLES, null],
+                description: "Production stage this partner does on the design; null clears it.",
+              },
+            },
+            required: ["partner_id"],
+          },
         },
       },
-      ["id", "partnerIds"]
+      ["id"]
     ),
     nextSteps: ["create_design_production_run"],
   },

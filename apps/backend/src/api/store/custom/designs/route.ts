@@ -440,7 +440,7 @@ export async function POST(
         const { result: partnerResult, errors: partnerErrors } = await linkDesignPartnerWorkflow(req.scope).run({
           input: {
             design_id: designId,
-            partner_ids: [body.partner_id],
+            partners: [{ partner_id: body.partner_id }],
           },
         });
 

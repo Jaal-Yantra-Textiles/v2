@@ -22,7 +22,8 @@ import { useStackedModal } from "../../../../components/modal/stacked-modal/use-
 import { usePartners } from "../../../../hooks/api/partners"
 import { useTaskTemplates } from "../../../../hooks/api/task-templates"
 import { useApproveProductionRun, useProductionRun } from "../../../../hooks/api/production-runs"
-import { useDesignInventory } from "../../../../hooks/api/designs"
+import { useDesignInventory, useDesignPartnerRoster } from "../../../../hooks/api/designs"
+import { stageRoleLabel } from "../../../../components/designs/stage-role-select"
 import {
   cleanAssignmentMaterialsForSave,
   type DraftMaterial,
@@ -237,11 +238,31 @@ const AssignmentsModal = ({
                         <Select.Value placeholder="Select partner" />
                       </Select.Trigger>
                       <Select.Content>
-                        {partners.map((p: any) => (
-                          <Select.Item key={String(p.id)} value={String(p.id)}>
-                            {String(p.name || p.handle || p.id)}
-                          </Select.Item>
-                        ))}
+                        {/* The design's roster first (#2306), then everyone else. */}
+                        {partners.some((p: any) => p.on_roster) && (
+                          <Select.Group>
+                            <Select.Label>On this design</Select.Label>
+                            {partners
+                              .filter((p: any) => p.on_roster)
+                              .map((p: any) => (
+                                <Select.Item key={String(p.id)} value={String(p.id)}>
+                                  {`${String(p.name || p.handle || p.id)} · ${stageRoleLabel(p.stage_role)}`}
+                                </Select.Item>
+                              ))}
+                          </Select.Group>
+                        )}
+                        <Select.Group>
+                          {partners.some((p: any) => p.on_roster) && (
+                            <Select.Label>Other partners</Select.Label>
+                          )}
+                          {partners
+                            .filter((p: any) => !p.on_roster)
+                            .map((p: any) => (
+                              <Select.Item key={String(p.id)} value={String(p.id)}>
+                                {String(p.name || p.handle || p.id)}
+                              </Select.Item>
+                            ))}
+                        </Select.Group>
                       </Select.Content>
                     </Select>
                   </div>
@@ -442,6 +463,23 @@ const ApproveProductionRunDrawerForm = () => {
     [designInventory]
   )
 
+  // Roster partners lead the picker. A roster partner outside the first page
+  // of `usePartners` is still offered, from the roster's own partner record.
+  const { data: rosterData } = useDesignPartnerRoster(designId)
+  const pickerPartners = useMemo(() => {
+    const roster = rosterData?.roster ?? []
+    const rosterIds = new Set(roster.map((r) => r.partner_id))
+    const byId = new Map(partners.map((p: any) => [String(p.id), p]))
+    return [
+      ...roster.map((r) => ({
+        ...(byId.get(r.partner_id) ?? r.partner ?? { id: r.partner_id }),
+        on_roster: true,
+        stage_role: r.stage_role,
+      })),
+      ...partners.filter((p: any) => !rosterIds.has(String(p.id))),
+    ]
+  }, [rosterData, partners])
+
   const templatesToShow = useMemo(() => {
     return [...(taskTemplates || [])].sort((a: any, b: any) =>
       String(a?.name || "").localeCompare(String(b?.name || ""))
@@ -451,7 +489,7 @@ const ApproveProductionRunDrawerForm = () => {
   const { mutateAsync: approveRun, isPending } = useApproveProductionRun(runId || "")
 
   const partnerName = (id: string) => {
-    const p = partners.find((p: any) => String(p.id) === id)
+    const p = pickerPartners.find((p: any) => String(p.id) === id)
     return p ? String(p.name || p.handle || p.id) : id
   }
 
@@ -513,7 +551,7 @@ const ApproveProductionRunDrawerForm = () => {
                 </div>
                 <AssignmentsModal
                   form={form}
-                  partners={partners}
+                  partners={pickerPartners}
                   templatesToShow={templatesToShow}
                   bomItems={bomItems}
                 />
