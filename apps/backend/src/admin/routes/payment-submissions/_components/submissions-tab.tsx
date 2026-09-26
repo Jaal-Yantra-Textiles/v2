@@ -1,18 +1,24 @@
 import { useMemo, useState } from "react"
-import { Link, useNavigate } from "react-router-dom"
+import { Link, useNavigate, useSearchParams } from "react-router-dom"
 import {
   Button,
+  CommandBar,
   Container,
   StatusBadge,
   DataTable,
+  createDataTableColumnHelper,
   createDataTableFilterHelper,
   useDataTable,
+  usePrompt,
+  toast,
   type DataTableFilteringState,
+  type DataTablePaginationState,
+  type DataTableRowSelectionState,
 } from "@medusajs/ui"
-import { createColumnHelper } from "@tanstack/react-table"
 import { keepPreviousData } from "@tanstack/react-query"
 import {
   usePaymentSubmissions,
+  useReviewPaymentSubmission,
   type PaymentSubmission,
 } from "../../../hooks/api/payment-submissions"
 import {
@@ -32,14 +38,100 @@ const SUBMISSION_STATUSES = [
   "Paid",
 ] as const
 
-const columnHelper = createColumnHelper<PaymentSubmission>()
+/**
+ * The only statuses the review workflow accepts. "Approve All" skips anything
+ * else in the selection rather than sending it to a route that refuses it.
+ */
+const REVIEWABLE_STATUSES = new Set<string>(["Pending", "Under_Review"])
 
+const PAGE_SIZE = 20
+const SEARCH_PARAM = "q"
+const PAGE_PARAM = "page"
+
+/**
+ * 🔴 Medusa's OWN helper, not `@tanstack/react-table`'s. Only this one has
+ * `.select()`, and without that column the table renders no checkboxes at
+ * all — `rowSelection` state is wired, nothing can set it, and the bulk
+ * command bar can never open.
+ */
+const columnHelper = createDataTableColumnHelper<PaymentSubmission>()
+
+/**
+ * A select filter's value is a scalar once picked, `[]` while it has just been
+ * added and left empty. `[]` and "" mean "no filter" — never a query value.
+ */
+const scalarFilterValue = (value: unknown): string | null => {
+  if (Array.isArray(value)) return value.length ? String(value[0]) : null
+  if (value === null || value === undefined) return null
+  const s = String(value)
+  return s === "" ? null : s
+}
 
 export const SubmissionsTab = () => {
   const navigate = useNavigate()
-  const [pagination, setPagination] = useState({ pageIndex: 0, pageSize: 20 })
-  const [search, setSearch] = useState<string>("")
-  const [filtering, setFiltering] = useState<DataTableFilteringState>({})
+  const [searchParams, setSearchParams] = useSearchParams()
+
+  /**
+   * The URL is the single source of truth for search, filters and page, so the
+   * view survives the round trip into a submission's detail page and back —
+   * and a refresh, and a pasted link.
+   *
+   * `page` is 1-based in the URL (what a human reads) and 0-based in the
+   * table (what tanstack expects).
+   */
+  const pageFromUrl = parseInt(searchParams.get(PAGE_PARAM) || "1", 10)
+  const pageIndex = Math.max(0, (Number.isNaN(pageFromUrl) ? 1 : pageFromUrl) - 1)
+  const search = searchParams.get(SEARCH_PARAM) || ""
+
+  const filtering = useMemo<DataTableFilteringState>(() => {
+    const partnerId = searchParams.get("partner_id")
+    const status = searchParams.get("status")
+    return {
+      ...(partnerId ? { partner_id: partnerId } : {}),
+      ...(status ? { status } : {}),
+    }
+  }, [searchParams])
+
+  const pagination: DataTablePaginationState = {
+    pageIndex,
+    pageSize: PAGE_SIZE,
+  }
+
+  /** Read-modify-write: never drop params owned by other concerns (`tab`). */
+  const writeParams = (mutate: (params: URLSearchParams) => void) => {
+    const params = new URLSearchParams(searchParams)
+    mutate(params)
+    setSearchParams(params, { replace: true })
+  }
+
+  const handlePaginationChange = (state: DataTablePaginationState) => {
+    writeParams((params) => {
+      if (state.pageIndex > 0) params.set(PAGE_PARAM, String(state.pageIndex + 1))
+      else params.delete(PAGE_PARAM)
+    })
+  }
+
+  /** A new search or filter re-pages from the start; page 3 of the old result
+   *  set is not page 3 of the new one. */
+  const handleSearchChange = (value: string) => {
+    writeParams((params) => {
+      if (value) params.set(SEARCH_PARAM, value)
+      else params.delete(SEARCH_PARAM)
+      params.delete(PAGE_PARAM)
+    })
+  }
+
+  const handleFilteringChange = (value: DataTableFilteringState) => {
+    writeParams((params) => {
+      const partnerId = scalarFilterValue(value["partner_id"])
+      const status = scalarFilterValue(value["status"])
+      if (partnerId) params.set("partner_id", partnerId)
+      else params.delete("partner_id")
+      if (status) params.set("status", status)
+      else params.delete("status")
+      params.delete(PAGE_PARAM)
+    })
+  }
 
   /**
    * The partners a filter can offer. The list route has taken `partner_id`
@@ -57,8 +149,8 @@ export const SubmissionsTab = () => {
   )
 
   const query = useMemo(() => {
-    const partnerFilter = filtering["partner_id"] as any
-    const statusFilter = filtering["status"] as any
+    const partnerFilter = filtering["partner_id"]
+    const statusFilter = filtering["status"]
 
     /**
      * ⚠️ `zodValidator` forces `.strict()` on the list query, so an undefined
@@ -67,13 +159,13 @@ export const SubmissionsTab = () => {
      * scalar, and sending an array would 400 rather than widen the search.
      */
     return {
-      limit: pagination.pageSize,
-      offset: pagination.pageIndex * pagination.pageSize,
+      limit: PAGE_SIZE,
+      offset: pageIndex * PAGE_SIZE,
       ...(search ? { q: search } : {}),
       ...(partnerFilter ? { partner_id: String(partnerFilter) } : {}),
       ...(statusFilter ? { status: String(statusFilter) } : {}),
     }
-  }, [pagination, search, filtering])
+  }, [pageIndex, search, filtering])
 
   const {
     payment_submissions,
@@ -104,13 +196,77 @@ export const SubmissionsTab = () => {
     [partnerOptions]
   )
 
-  /** A new filter or search re-pages from the start; page 3 of the old result
-   *  set is not page 3 of the new one. */
-  const resetToFirstPage = () =>
-    setPagination((p) => ({ ...p, pageIndex: 0 }))
+  const [rowSelection, setRowSelection] = useState<DataTableRowSelectionState>({})
+  const prompt = usePrompt()
+  const { mutateAsync: reviewSubmission } = useReviewPaymentSubmission()
+
+  const selectedSubmissions = useMemo(
+    () => (payment_submissions ?? []).filter((s) => !!rowSelection[s.id]),
+    [payment_submissions, rowSelection]
+  )
+
+  const reviewableSelected = useMemo(
+    () => selectedSubmissions.filter((s) => REVIEWABLE_STATUSES.has(s.status)),
+    [selectedSubmissions]
+  )
+
+  const skippedCount = selectedSubmissions.length - reviewableSelected.length
+
+  /**
+   * Bulk review. Approve stops at `Approved` — the money is moved by settling
+   * the reconciliation, not here — and the payment method is resolved
+   * server-side (the partner's default, or their only one). A partner with
+   * several methods and no default is refused, and lands in the failure list
+   * rather than being paid to an arbitrary account.
+   */
+  const approveSelected = async () => {
+    if (!reviewableSelected.length) {
+      toast.info(
+        "Nothing to approve — only Pending / Under Review submissions can be approved"
+      )
+      return
+    }
+
+    const n = reviewableSelected.length
+    const confirmed = await prompt({
+      title: `Approve ${n} submission${n === 1 ? "" : "s"}?`,
+      description:
+        `Each payout goes to the partner's default payment method (or their only one).` +
+        (skippedCount
+          ? ` ${skippedCount} selected submission${skippedCount === 1 ? "" : "s"} not up for review will be skipped.`
+          : ""),
+      variant: "confirmation",
+      confirmText: "Approve",
+      cancelText: "Cancel",
+    })
+    if (!confirmed) return
+
+    let approved = 0
+    const failed: string[] = []
+    for (const submission of reviewableSelected) {
+      try {
+        await reviewSubmission({ id: submission.id, action: "approve" })
+        approved++
+      } catch (e: any) {
+        failed.push(`${submission.id.slice(0, 8)}: ${e?.message || "failed"}`)
+      }
+    }
+
+    if (failed.length) {
+      toast.error(`${approved} approved, ${failed.length} failed`, {
+        description:
+          failed.slice(0, 3).join(" · ") +
+          (failed.length > 3 ? ` · +${failed.length - 3} more` : ""),
+      })
+    } else {
+      toast.success(`Approved ${approved} submission${approved === 1 ? "" : "s"}`)
+    }
+    setRowSelection({})
+  }
 
   const columns = useMemo(
     () => [
+      columnHelper.select(),
       columnHelper.accessor("id", {
         header: "ID",
         cell: ({ getValue }) => (
@@ -176,20 +332,21 @@ export const SubmissionsTab = () => {
     rowCount: count ?? 0,
     isLoading,
     filters,
-    pagination: { state: pagination, onPaginationChange: setPagination },
+    rowSelection: {
+      state: rowSelection,
+      onRowSelectionChange: setRowSelection,
+    },
+    pagination: {
+      state: pagination,
+      onPaginationChange: handlePaginationChange,
+    },
     search: {
       state: search,
-      onSearchChange: (value: string) => {
-        setSearch(value)
-        resetToFirstPage()
-      },
+      onSearchChange: handleSearchChange,
     },
     filtering: {
       state: filtering,
-      onFilteringChange: (value: DataTableFilteringState) => {
-        setFiltering(value)
-        resetToFirstPage()
-      },
+      onFilteringChange: handleFilteringChange,
     },
   })
 
@@ -210,6 +367,25 @@ export const SubmissionsTab = () => {
         <DataTable.Table />
         <DataTable.Pagination />
       </DataTable>
+
+      {/*
+        The bulk review queue: select the submissions that came in, approve
+        them in one go. Only what is up for review is approved — the rest of
+        the selection is skipped, because the review route refuses them.
+      */}
+      <CommandBar open={selectedSubmissions.length > 0}>
+        <CommandBar.Bar>
+          <CommandBar.Value>
+            {selectedSubmissions.length} selected
+          </CommandBar.Value>
+          <CommandBar.Seperator />
+          <CommandBar.Command
+            label="Approve All"
+            shortcut="a"
+            action={approveSelected}
+          />
+        </CommandBar.Bar>
+      </CommandBar>
     </Container>
   )
 }

@@ -1,3 +1,11 @@
+# [13.165.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.164.0...v13.165.0) (2026-09-26)
+
+
+### Features
+
+* **#2306 S1:** a design's partner roster carries a production stage ([#2309](https://github.com/Jaal-Yantra-Textiles/v2/issues/2309)) ([ab8b5c4](https://github.com/Jaal-Yantra-Textiles/v2/commit/ab8b5c4e4fdff21ef0d312467f9c97fd77ea1185)), closes [#2306](https://github.com/Jaal-Yantra-Textiles/v2/issues/2306) [#2306](https://github.com/Jaal-Yantra-Textiles/v2/issues/2306)
+* **payments:** bulk Approve All on the submissions table; list filters persist in the URL ([#2310](https://github.com/Jaal-Yantra-Textiles/v2/issues/2310)) ([0535f41](https://github.com/Jaal-Yantra-Textiles/v2/commit/0535f41c71195394de18374c719e45a08d6d1314))
+
 # [13.164.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.163.0...v13.164.0) (2026-09-26)
 
 
