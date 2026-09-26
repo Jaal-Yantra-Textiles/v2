@@ -307,6 +307,35 @@ setupSharedTestSuite(() => {
         })
       })
 
+      it("names the supplier, so approval can wait on a supplier's delivery (#2306 S2)", async () => {
+        const unique = Date.now()
+        const partner = await api.post(
+          "/admin/partners",
+          {
+            partner: { name: `Arrival Supplier ${unique}`, handle: `arrival-supplier-${unique}` },
+            admin: { email: `arrival-supplier-${unique}@jyt.test`, first_name: "S", last_name: "P" },
+          },
+          headers
+        )
+        const partnerId = partner.data.partner.id
+        await api.post(
+          `/admin/inventory-orders/${inventoryOrderId}/assign-partner`,
+          { partner_id: partnerId },
+          headers
+        )
+        await api.post(
+          `/admin/designs/${designId}/inventory-orders`,
+          { inventory_order_id: inventoryOrderId },
+          headers
+        )
+
+        const list = await api.get(`/admin/designs/${designId}/inventory-orders`, headers)
+        expect(list.data.design_inventory_orders[0].partner).toMatchObject({
+          id: partnerId,
+          name: `Arrival Supplier ${unique}`,
+        })
+      })
+
       it("🔴 carries notify_customer: false through the round trip", async () => {
         /*
          * This is the switch that decides whether a client is written to. A

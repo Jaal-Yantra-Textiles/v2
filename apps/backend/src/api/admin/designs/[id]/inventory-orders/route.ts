@@ -61,6 +61,10 @@ export async function GET(
           "total_price",
           "currency_code",
           "expected_delivery_date",
+          // Who supplies it — the approve form matches this against the
+          // design's supplier-role partners (#2306 S2).
+          "partner.id",
+          "partner.name",
         ],
       })
     : { data: [] }

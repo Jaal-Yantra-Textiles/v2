@@ -10,6 +10,11 @@ import { syncWorkOrderFromMirror } from "../../../../lib/work-orders/sync-from-m
 import { toOrderShape } from "../../../../lib/work-orders/to-order-shape"
 import { pickWorkOrderContract } from "../../../../lib/work-orders/work-order-contract"
 import { WORK_ORDER_MODULE } from "../../../../modules/work_orders"
+import partnerOrderLink from "../../../../links/partner-order"
+import {
+  dismissWorkOrderPartnerLinks,
+  planWorkOrderPartnerLinks,
+} from "../../../../workflows/production-runs/lib/reconcile-work-order-partner-links"
 import type { MaintenanceChange, MaintenanceJob, MaintenanceJobResult } from "./registry"
 
 /**
@@ -19,6 +24,8 @@ import type { MaintenanceChange, MaintenanceJob, MaintenanceJobResult } from "./
  *   work-order-parity    — read-only: does each work_order read to the UI
  *                          exactly as its mirror does, and do the admin lists
  *                          hold the same orders from either source?
+ *   reconcile-work-order-partner-links — #2265 S3b: drop partner links a
+ *                          reassignment left behind on design work orders.
  */
 
 const MAX_SCAN = 5000
@@ -254,6 +261,101 @@ export const workOrderParityJob: MaintenanceJob = {
       summary: `${targets.length} mirror(s): ${targets.length - missing - mismatched} match, ${mismatched} mismatch, ${missing} missing a work_order${listSummary}`,
       changes,
       errors: [],
+    }
+  },
+}
+
+/** Design work orders: mirrors linked to a production run. */
+const listDesignMirrorOrderIds = async (container: any): Promise<string[]> => {
+  const query: any = container.resolve(ContainerRegistrationKeys.QUERY)
+  const { data } = await query.graph({
+    entity: "production_runs",
+    fields: ["id", "order.id"],
+    pagination: { take: MAX_SCAN },
+  })
+  return [...new Set<string>((data ?? []).map((r: any) => r?.order?.id).filter(Boolean))].sort()
+}
+
+export const reconcileWorkOrderPartnerLinksJob: MaintenanceJob = {
+  id: "reconcile-work-order-partner-links",
+  label: "Remove partner links a reassignment left on work orders",
+  description:
+    "#2265 S3b. Partner access to a work order comes only from the partner↔order link, and until this fix a reassigned run never took the old partner's link away — so a partner a run was moved AWAY from still listed and opened that work order, and readers that take the first link (work_order.partner_id, shipping origin, emails) could name them. For every DESIGN work order this keeps a partner linked only while they are the partner (or outsourced sub-partner) on at least one of its runs, whatever that run's status. Dry-run lists each stale link with the work order's status; apply dismisses them and refreshes the work_order row. Never ADDS a link. The summary also counts work orders (design AND inventory) linked to 2+ partners. Inventory work orders are counted but not changed.",
+  params: [
+    { name: "order_ids", type: "string", required: false, description: "Comma-separated work order ids (default: every design work order)" },
+  ],
+  run: async (container, { dry_run, params }): Promise<MaintenanceJobResult> => {
+    const { order_ids } = z.object({ order_ids: idsParam }).parse(params)
+    const query: any = container.resolve(ContainerRegistrationKeys.QUERY)
+    const targets = order_ids.length ? order_ids : await listDesignMirrorOrderIds(container)
+
+    const changes: MaintenanceChange[] = []
+    const errors: Array<{ id: string; message: string }> = []
+    let staleLinks = 0
+    let ordersTouched = 0
+
+    for (const batch of chunks(targets, CHUNK)) {
+      const { data: orders } = await query.graph({
+        entity: "order",
+        fields: ["id", "status", "display_id"],
+        filters: { id: batch },
+      })
+      const byId = new Map<string, any>((orders ?? []).map((o: any) => [o.id, o]))
+      for (const orderId of batch) {
+        try {
+          const { linked, stale } = await planWorkOrderPartnerLinks(container, orderId)
+          if (!stale.length) continue
+          staleLinks += stale.length
+          ordersTouched++
+          const order = byId.get(orderId)
+          for (const partnerId of stale) {
+            changes.push({
+              entity: "partner_order_link",
+              id: `${orderId}:${partnerId}`,
+              field: "linked",
+              before: true,
+              after: false,
+              note: `work order #${order?.display_id ?? "?"} (${order?.status ?? "?"}); linked partners ${linked.length}, kept ${linked.length - stale.length}`,
+            })
+          }
+          if (!dry_run) {
+            await dismissWorkOrderPartnerLinks(container, orderId, stale)
+          }
+        } catch (e: any) {
+          errors.push({ id: orderId, message: e?.message ?? String(e) })
+        }
+      }
+    }
+
+    // Step 1 of S3b: how many work orders — design or inventory — carry 2+
+    // partner links, whether or not they are stale.
+    let multiPartner = 0
+    if (!order_ids.length) {
+      const all = await listMirrorOrderIds(container)
+      const counts = new Map<string, number>()
+      for (const batch of chunks(all, CHUNK)) {
+        const { data: links } = await query.graph({
+          entity: partnerOrderLink.entryPoint,
+          fields: ["order_id", "partner_id"],
+          filters: { order_id: batch },
+        })
+        for (const l of links ?? []) {
+          counts.set(l.order_id, (counts.get(l.order_id) ?? 0) + 1)
+        }
+      }
+      multiPartner = [...counts.values()].filter((n) => n >= 2).length
+    }
+
+    const verb = dry_run ? "Would remove" : "Removed"
+    return {
+      job_id: reconcileWorkOrderPartnerLinksJob.id,
+      dry_run,
+      applied: !dry_run && staleLinks > 0,
+      summary:
+        `${verb} ${staleLinks} stale partner link(s) on ${ordersTouched} of ${targets.length} design work order(s)` +
+        (order_ids.length ? "" : `; ${multiPartner} work order(s) (design + inventory) have 2+ partner links`),
+      changes,
+      errors,
     }
   },
 }

@@ -143,6 +143,27 @@ export interface DesignPartnerRosterResponse {
   count: number;
 }
 
+export interface DesignInventoryOrderRow {
+  id: string;
+  status: string;
+  quantity?: number | null;
+  expected_delivery_date?: string | null;
+  partner?: { id: string; name?: string | null } | null;
+  note?: string | null;
+}
+
+/** Inventory orders linked to a design — what a stage can wait for (#2306 S2). */
+export const useDesignInventoryOrders = (designId: string) =>
+  useQuery({
+    queryKey: ["designs", "inventory-orders", designId] as const,
+    queryFn: async () =>
+      sdk.client.fetch<{ design_inventory_orders: DesignInventoryOrderRow[] }>(
+        `/admin/designs/${designId}/inventory-orders`,
+        { method: "GET" }
+      ),
+    enabled: !!designId,
+  });
+
 export const designRosterQueryKey = (designId: string) =>
   ["designs", "roster", designId] as const;
 
