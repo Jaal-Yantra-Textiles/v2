@@ -1566,11 +1566,28 @@ export const mirrorRunPartnerLinkOnUnifiedOrderStep = createStep(
       // D5-3 — resolve the unified order via the link (forward, authoritative);
       // the run is still read above for partner_id / execution_mode /
       // sub_partner_id. Metadata backref is the pre-D5-2 fallback.
-      const unifiedOrderId = await resolveUnifiedOrderIdByLink(
+      let unifiedOrderId = await resolveUnifiedOrderIdByLink(
         container,
         "production_runs",
         input.production_run_id
       )
+      /**
+       * #2306 S3 — a run created without a partner has no work order yet;
+       * dispatch is where it becomes someone's work, so mint it here.
+       *
+       * ⚠️ Only for a run with no `order_id`. A customer-order or design-order
+       * run is collated by its own path (projectDispatchedCustomerOrderRun,
+       * projectDesignOrderToUnifiedOrder); a per-run mirror here would split
+       * its batch.
+       */
+      if (!unifiedOrderId && run?.partner_id && !run?.order_id) {
+        await projectRunToUnifiedOrder(container, input.production_run_id)
+        unifiedOrderId = await resolveUnifiedOrderIdByLink(
+          container,
+          "production_runs",
+          input.production_run_id
+        )
+      }
       if (!unifiedOrderId || !run?.partner_id) {
         return new StepResponse<MirrorResult>({
           linked: false,
