@@ -135,6 +135,15 @@ variables:
   # prod (105/105 match, admin lists identical). The mirror is still written, so
   # rollback is deleting this line and redeploying.
   WORK_ORDER_READS: "true"
+  # The admin MCP proxies every tool call to an admin route. With this unset it
+  # called back through the PUBLIC host (v3.jaalyantra.com → Cloudflare → ALB),
+  # and Cloudflare sometimes answered a bare 403 before the request reached the
+  # app (2026-09-25/26: three create_material_transfer calls and one GET). The
+  # MCP runs inside this task, so loop back to its own port instead. Only the
+  # admin surface is pointed here; no MCP tool builds URLs from the Host header
+  # (the two admin routes that do are webhook-setup routes, not tools).
+  # Rollback: delete this line and redeploy.
+  ADMIN_MCP_LOOPBACK_URL: http://127.0.0.1:9000
   # #707/#712 — base URL for partner-portal product links in WhatsApp confirmation
   # messages. Read by buildPartnerProductUrl (src/workflows/whatsapp/partner-product-url.ts),
   # which falls back to a hardcoded default if unset; this makes the prod value explicit.
