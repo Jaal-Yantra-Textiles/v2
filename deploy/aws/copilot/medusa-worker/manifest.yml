@@ -79,6 +79,12 @@ variables:
 # Worker needs DB + Redis + R2 (for export/report jobs that write files).
 # Does NOT need JWT/COOKIE/CORS (no HTTP surface).
 secrets:
+  # Partner push (FCM, Firebase project luna-d094c): the service account the
+  # notification-push provider signs its OAuth token with. SecureString, and it
+  # MUST carry the copilot-application=jyt / copilot-environment=prod tags or
+  # the execution role cannot read it and no task starts. Both services: pushes
+  # are sent from subscribers and jobs (worker) as well as routes (server).
+  FCM_SERVICE_ACCOUNT_JSON: /jyt/prod/FCM_SERVICE_ACCOUNT_JSON
   # #559 — the drain-analytics-buffer scheduled job runs HERE (worker mode), not on
   # medusa-server (server mode skips scheduled jobs). The flag MUST be set on the
   # worker too or the drain early-returns and the Redis buffer never persists.
