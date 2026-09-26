@@ -25,6 +25,15 @@ const config: Config = {
     format: "md",
   },
 
+  // Mermaid diagrams: see src/client/mermaid.js.
+  scripts: [
+    {
+      src: "https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.min.js",
+      defer: true,
+    },
+  ],
+  clientModules: ["./src/client/mermaid.js"],
+
   plugins: [
     "./src/plugins/tailwind-config.js",
     // Second docs instance: publish a CURATED set of notes/ at /notes.

@@ -145,3 +145,14 @@ html {
 ::selection {
   background-color: rgba(124, 58, 237, 0.2);
 }
+
+/* Client-rendered mermaid diagrams (src/client/mermaid.js) */
+.mermaid-diagram {
+  margin: 0 0 var(--ifm-leading) 0;
+  overflow-x: auto;
+  text-align: center;
+}
+.mermaid-diagram svg {
+  max-width: 100%;
+  height: auto;
+}
