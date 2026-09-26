@@ -53,6 +53,19 @@ describe("readSupersession (#2026)", () => {
     expect(readSupersession(undefined)).toBeUndefined()
   })
 
+  it("#2306 S3: a SPLIT run with no mirror order is superseded by its stages", () => {
+    // A partnerless run gets no work order until it has a partner, so a parent
+    // split after an admin assigned it has nothing to cancel — it must not bill
+    // beside its own stages.
+    expect(readSupersession(null, ["prod_run_stage_a", "prod_run_stage_b"])).toEqual({
+      reason: "superseded_run",
+      superseded_by_run_ids: ["prod_run_stage_a", "prod_run_stage_b"],
+      mirror_order_id: null,
+    })
+    // No stages and no order is still "no evidence": it bills.
+    expect(readSupersession(null, [])).toBeUndefined()
+  })
+
   it("tolerates a non-array superseded_by_run_ids without excluding on a guess", () => {
     const v = readSupersession({
       id: "order_5",

@@ -15,6 +15,7 @@ import { getSharedTestEnv, setupSharedTestSuite } from "./shared-test-setup"
 import partnerOrderLink from "../../src/links/partner-order"
 import { PARTNER_MODULE } from "../../src/modules/partner"
 import designOrderLink from "../../src/links/design-order-link"
+import { fetchRunSupersessions } from "../../src/workflows/payment_submissions/lib/run-supersession"
 
 jest.setTimeout(120000)
 
@@ -162,13 +163,25 @@ setupSharedTestSuite(() => {
       adminHeaders = await getAuthHeaders(api)
     })
 
-    it("dual-writes a kind=design core order on run create", async () => {
+    it("dual-writes a kind=design core order on run create — once the run has a partner (#2306 S3)", async () => {
       await createRegion()
       const designId = await createDesign()
+      const { partnerId } = await createPartner("direct")
 
-      const createRes = await post(
+      // #2306 S3 — a run created with NO partner is a plan and gets no work
+      // order; the design route with no assignments and no linked partners
+      // makes exactly that.
+      const planRes = await post(
         `/admin/designs/${designId}/production-runs`,
         { quantity: 5 },
+        adminHeaders
+      )
+      expect(planRes.status).toBe(201)
+      expect(await unifiedOrderIdOf(planRes.data.production_run.id)).toBeNull()
+
+      const createRes = await post(
+        `/admin/production-runs`,
+        { design_id: designId, quantity: 5, partner_id: partnerId },
         adminHeaders
       )
       expect(createRes.status).toBe(201)
@@ -187,9 +200,6 @@ setupSharedTestSuite(() => {
       expect(unified.metadata.production_run_id).toBe(runId)
       expect(unified.metadata.run_type).toBe("production")
       expect(unified.metadata.currency_assumed).toBe(true)
-      // legacy run metadata merged in (route stamps this source)
-      expect(unified.metadata.source).toBe("admin.designs.manual")
-
       // §5: pending_review → core draft, no partner_status yet
       expect(unified.status).toBe("draft")
       expect(unified.unified_order_status?.partner_status ?? null).toBeNull()
@@ -259,12 +269,11 @@ setupSharedTestSuite(() => {
       const parentId = createRes.data.production_run.id
       const childId = createRes.data.children[0].id
 
-      // Parent order: created at create time, then superseded by the split
+      // #2306 S3 — the parent is a plan with no partner: it never gets a work
+      // order, so there is nothing to supersede (it used to be minted at
+      // create time and canceled 15 s later).
       const parentOrderId = await unifiedOrderIdOf(parentId)
-      expect(parentOrderId).toBeTruthy()
-      const parentOrder = await fetchUnifiedOrder(parentOrderId)
-      expect(parentOrder.status).toBe("canceled")
-      expect(parentOrder.metadata.superseded_by_run_ids).toEqual([childId])
+      expect(parentOrderId).toBeNull()
 
       // Child order: the partner-facing commercial artifact (§4)
       const childOrderId = await unifiedOrderIdOf(childId)
@@ -288,9 +297,7 @@ setupSharedTestSuite(() => {
       expect(linkRows[0].partner_id).toBe(partnerId)
 
       // D5-2: each child run owns its own order↔production_run link, and the
-      // parent run still points at its (now superseded) order. Confirms the
-      // re-entrant projection links every child distinctly rather than reusing
-      // the parent's order.
+      // parent (a plan, #2306 S3) points at none.
       const { data: childLink } = await query.graph({
         entity: "production_runs",
         filters: { id: childId },
@@ -302,7 +309,7 @@ setupSharedTestSuite(() => {
         filters: { id: parentId },
         fields: ["id", "order.id"],
       })
-      expect(parentLink?.[0]?.order?.id).toBe(parentOrderId)
+      expect(parentLink?.[0]?.order?.id ?? null).toBeNull()
 
       // ——— partner lifecycle: accept → start → finish → complete ———
       const accept = await post(
@@ -345,9 +352,8 @@ setupSharedTestSuite(() => {
       expect(childOrder.status).toBe("completed")
       expect(childOrder.unified_order_status?.partner_status).toBe("completed")
 
-      // Parent order stays superseded even after the completion cascade
-      const parentAfter = await fetchUnifiedOrder(parentOrderId)
-      expect(parentAfter.status).toBe("canceled")
+      // The completion cascade does not mint a work order for the plan either
+      expect(await unifiedOrderIdOf(parentId)).toBeNull()
     })
 
     it("reassigns a partner decline (run parked, order left active) [#1093]", async () => {
@@ -397,9 +403,11 @@ setupSharedTestSuite(() => {
       await createRegion()
       const designId = await createDesign()
 
+      // A partnered run: only those get a work order at create (#2306 S3).
+      const { partnerId } = await createPartner("q3")
       const createRes = await post(
-        `/admin/designs/${designId}/production-runs`,
-        { quantity: 3 },
+        `/admin/production-runs`,
+        { design_id: designId, quantity: 3, partner_id: partnerId },
         adminHeaders
       )
       expect(createRes.status).toBe(201)
@@ -444,9 +452,11 @@ setupSharedTestSuite(() => {
       await createRegion()
       const designId = await createDesign()
 
+      // A partnered run: only those get a work order at create (#2306 S3).
+      const { partnerId } = await createPartner("q4")
       const createRes = await post(
-        `/admin/designs/${designId}/production-runs`,
-        { quantity: 4 },
+        `/admin/production-runs`,
+        { design_id: designId, quantity: 4, partner_id: partnerId },
         adminHeaders
       )
       expect(createRes.status).toBe(201)
@@ -549,13 +559,13 @@ setupSharedTestSuite(() => {
         collated.items.map((i: any) => Number(i.quantity)).sort()
       ).toEqual([2, 3])
 
-      // The parent is still superseded, so billing cannot double-count (#2026).
-      const parentOrderId = await unifiedOrderIdOf(
-        createRes.data.production_run.id
-      )
-      const parentOrder = await fetchUnifiedOrder(parentOrderId)
-      expect(parentOrder.status).toBe("canceled")
-      expect(parentOrder.metadata.superseded_by_run_ids).toEqual(
+      // The parent is a plan with no work order (#2306 S3), and billing still
+      // cannot double-count it (#2026): the payout guard sees its stages.
+      const parentId = createRes.data.production_run.id
+      expect(await unifiedOrderIdOf(parentId)).toBeNull()
+      const verdicts = await fetchRunSupersessions(getContainer() as any, [parentId])
+      expect(verdicts.get(parentId)?.reason).toBe("superseded_run")
+      expect(verdicts.get(parentId)?.superseded_by_run_ids).toEqual(
         expect.arrayContaining(children.map((c: any) => c.id))
       )
     })
@@ -715,23 +725,28 @@ setupSharedTestSuite(() => {
         `design-unification-superseded-${unique}`
       )
 
+      // Since #2306 S3 only a PARTNERED parent still has an order to
+      // supersede — the historical shape (Sharlho's order 110), and the one
+      // the filter below has to keep handling.
       const createRes = await post(
-        `/admin/designs/${designId}/production-runs`,
-        {
-          assignments: [
-            {
-              partner_id: partnerId,
-              quantity: 2,
-              role: "cutting",
-              template_names: [templateName],
-            },
-          ],
-        },
+        `/admin/production-runs`,
+        { design_id: designId, quantity: 2, partner_id: partnerId },
         adminHeaders
       )
       expect(createRes.status).toBe(201)
       const parentId = createRes.data.production_run.id
-      const childId = createRes.data.children[0].id
+      const approve = await post(
+        `/admin/production-runs/${parentId}/approve`,
+        { assignments: [{ partner_id: partnerId, quantity: 2, role: "cutting" }] },
+        adminHeaders
+      )
+      const childId = (approve.data.result?.children || [])[0]?.id
+      expect(childId).toBeTruthy()
+      await post(
+        `/admin/production-runs/${childId}/send-to-production`,
+        { template_names: [templateName] },
+        adminHeaders
+      )
 
       const parentOrderId = await unifiedOrderIdOf(parentId)
       const childOrderId = await unifiedOrderIdOf(childId)
