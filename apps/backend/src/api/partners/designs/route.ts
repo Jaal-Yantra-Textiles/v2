@@ -195,7 +195,7 @@ export async function POST(
   await linkDesignPartnerWorkflow(req.scope).run({
     input: {
       design_id: result.id,
-      partner_ids: [partner.id],
+      partners: [{ partner_id: partner.id }],
     },
   })
 

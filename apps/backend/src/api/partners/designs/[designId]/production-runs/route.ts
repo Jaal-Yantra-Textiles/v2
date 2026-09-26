@@ -75,7 +75,7 @@ export async function POST(
   if (body.execution_mode === "outsourced" && body.sub_partner_id) {
     try {
       await linkDesignPartnerWorkflow(req.scope).run({
-        input: { design_id: designId, partner_ids: [body.sub_partner_id] },
+        input: { design_id: designId, partners: [{ partner_id: body.sub_partner_id }] },
       })
     } catch {
       // Non-fatal — the run is created; link mirror is best-effort.

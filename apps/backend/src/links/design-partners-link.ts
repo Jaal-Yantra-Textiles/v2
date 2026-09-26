@@ -12,7 +12,11 @@ export default defineLink(
   {
     database: {
       extraColumns: {
+        // How the partner relates to the design: prospect / maker / designer.
         role: { type: "text", nullable: true },
+        // Which production stage they do on it (#2306). Values are fixed in
+        // modules/designs/partner-stage-roles.ts; null = no stage chosen yet.
+        stage_role: { type: "text", nullable: true },
         sla_days: { type: "integer", nullable: true },
         performance_score: { type: "bigint", nullable: true },
         transaction_id: { type: "text", nullable: true },

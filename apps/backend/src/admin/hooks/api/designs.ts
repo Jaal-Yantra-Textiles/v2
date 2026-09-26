@@ -10,6 +10,7 @@ import {
 } from "@tanstack/react-query";
 import { sdk } from "../../lib/config";
 import { queryKeysFactory } from "../../lib/query-key-factory";
+import type { DesignPartnerStageRole as DesignPartnerStageRoleValue } from "../../../modules/designs/partner-stage-roles";
 
 export interface ColorPalette {
   name: string;
@@ -116,9 +117,51 @@ export interface AdminDesignsQuery {
   q?: string;
 }
 
+/** Mirrors modules/designs/partner-stage-roles.ts — the fixed stage list (#2306). */
+export type DesignPartnerStageRole = DesignPartnerStageRoleValue;
+
 export interface LinkDesignPartner {
-  partnerIds: string[];
+  partnerIds?: string[];
+  /** `stage_role` omitted leaves an existing partner's stage alone; null clears it. */
+  partners?: { partner_id: string; stage_role?: DesignPartnerStageRole | null }[];
 }
+
+export interface DesignPartnerRosterEntry {
+  partner_id: string;
+  /** How the partner relates to the design: prospect / maker / designer. */
+  role: string | null;
+  /** Which production stage they do on it; null = not chosen yet. */
+  stage_role: DesignPartnerStageRole | null;
+  sla_days: number | null;
+  created_at: string;
+  partner: { id: string; name?: string | null; handle?: string | null; logo?: string | null } | null;
+}
+
+export interface DesignPartnerRosterResponse {
+  design_id: string;
+  roster: DesignPartnerRosterEntry[];
+  count: number;
+}
+
+export const designRosterQueryKey = (designId: string) =>
+  ["designs", "roster", designId] as const;
+
+export const useDesignPartnerRoster = (
+  designId: string,
+  options?: Omit<
+    UseQueryOptions<DesignPartnerRosterResponse, FetchError, DesignPartnerRosterResponse, QueryKey>,
+    "queryFn" | "queryKey"
+  >,
+) =>
+  useQuery({
+    queryKey: designRosterQueryKey(designId),
+    queryFn: async () =>
+      sdk.client.fetch<DesignPartnerRosterResponse>(`/admin/designs/${designId}/partner`, {
+        method: "GET",
+      }),
+    enabled: !!designId,
+    ...options,
+  });
 
 const DESIGN_QUERY_KEY = "designs" as const;
 export const designQueryKeys = queryKeysFactory(DESIGN_QUERY_KEY);
@@ -761,10 +804,16 @@ export const useUpdateInventoryLink = (
   });
 };
 
+/** Partner ids newly linked, and those whose stage changed. */
+export interface LinkDesignPartnerResponse {
+  linked: string[];
+  stage_changed: string[];
+}
+
 export const useLinkDesignToPartner = (
     id: string,
     options?: UseMutationOptions<
-    AdminDesignResponse,
+    LinkDesignPartnerResponse,
     FetchError,
     LinkDesignPartner
   >,
@@ -772,7 +821,7 @@ export const useLinkDesignToPartner = (
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: async (data: LinkDesignPartner) =>
-      sdk.client.fetch<AdminDesignResponse>(`/admin/designs/${id}/partner`, {
+      sdk.client.fetch<LinkDesignPartnerResponse>(`/admin/designs/${id}/partner`, {
         method: "POST",
         body: data,
       }),
@@ -780,6 +829,7 @@ export const useLinkDesignToPartner = (
     onSuccess: (data, variables, _mutateResult, context) => {
       queryClient.invalidateQueries({ queryKey: designQueryKeys.lists() });
       queryClient.invalidateQueries({ queryKey: designQueryKeys.detail(id) });
+      queryClient.invalidateQueries({ queryKey: designRosterQueryKey(id) });
       options?.onSuccess?.(data, variables, _mutateResult, context);
     },
   });
@@ -804,6 +854,7 @@ export const useUnlinkDesignFromPartner = (
     onSuccess: (data, variables, _mutateResult, context) => {
       queryClient.invalidateQueries({ queryKey: designQueryKeys.lists() });
       queryClient.invalidateQueries({ queryKey: designQueryKeys.detail(designId) });
+      queryClient.invalidateQueries({ queryKey: designRosterQueryKey(designId) });
       options?.onSuccess?.(data, variables, _mutateResult, context);
     },
   });
