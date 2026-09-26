@@ -17,7 +17,11 @@ const PaymentSubmissionsPage = () => {
   const activeTab = searchParams.get(TAB_PARAM) || DEFAULT_TAB
 
   const handleTabChange = (value: string) => {
-    setSearchParams({ [TAB_PARAM]: value }, { replace: true })
+    // Read-modify-write: replacing the whole string would drop the list's
+    // filter/page params, which must survive a hop to the other tab and back.
+    const params = new URLSearchParams(searchParams)
+    params.set(TAB_PARAM, value)
+    setSearchParams(params, { replace: true })
   }
 
   return (
