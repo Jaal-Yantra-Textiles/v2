@@ -10,10 +10,11 @@
  *
  * @param req - MedusaRequest<LinkDesignPartner>:
  *   - req.params.id: string — the design id to link
- *   - req.validatedBody.partnerIds: string[] — partner ids to associate with the design
+ *   - req.validatedBody.partnerIds: string[] — partner ids to link with no stage
+ *   - req.validatedBody.partners: { partner_id, stage_role? }[] — with a stage (#2306)
  * @param res - MedusaResponse used to send the HTTP response
  *
- * @returns {void} Sends a 201 response with the workflow result as JSON.
+ * @returns {void} Sends a 201 response: `{ linked, stage_changed }` partner ids.
  *
  * @throws {any} Rethrows workflow errors if the returned errors array is non-empty.
  *
@@ -27,10 +28,29 @@
  */
 import { MedusaRequest, MedusaResponse } from "@medusajs/framework";
 import { ContainerRegistrationKeys, MedusaError } from "@medusajs/framework/utils";
-import { linkDesignPartnerWorkflow } from "../../../../../workflows/designs/partner/link-design-to-partner";
+import {
+  DesignPartnerRosterEntry,
+  linkDesignPartnerWorkflow,
+} from "../../../../../workflows/designs/partner/link-design-to-partner";
 import { LinkDesignPartner } from "../../validators";
 import { DESIGN_MODULE } from "../../../../../modules/designs";
 import { PARTNER_MODULE } from "../../../../../modules/partner";
+import designPartnersLink from "../../../../../links/design-partners-link";
+
+/**
+ * Both body shapes as one list. A partner named in `partners` wins over the
+ * same id in `partnerIds`, since only `partners` can say what their stage is.
+ */
+const toRosterEntries = (body: LinkDesignPartner): DesignPartnerRosterEntry[] => {
+  const entries = new Map<string, DesignPartnerRosterEntry>()
+  for (const id of body.partnerIds ?? []) {
+    entries.set(id, { partner_id: id })
+  }
+  for (const p of body.partners ?? []) {
+    entries.set(p.partner_id, p)
+  }
+  return [...entries.values()]
+}
 
 
  export const POST = async (
@@ -44,7 +64,7 @@ import { PARTNER_MODULE } from "../../../../../modules/partner";
     const { result, errors } = await linkDesignPartnerWorkflow(req.scope).run({
       input: {
         design_id: designId,
-        partner_ids: req.validatedBody.partnerIds
+        partners: toRosterEntries(req.validatedBody),
       },
     })
   
@@ -55,6 +75,43 @@ import { PARTNER_MODULE } from "../../../../../modules/partner";
   
     res.status(201).json( result );
   };
+
+/**
+ * GET /admin/designs/:id/partner
+ * The design's roster (#2306 S1): each linked partner with its production
+ * stage (`stage_role`) and its relationship to the design (`role`). The
+ * design's own `partners.*` field cannot carry these — they live on the link.
+ */
+export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
+  const query = req.scope.resolve(ContainerRegistrationKeys.QUERY) as any
+
+  const { data } = await query.graph({
+    entity: designPartnersLink.entryPoint,
+    filters: { design_id: req.params.id },
+    fields: [
+      "partner_id",
+      "role",
+      "stage_role",
+      "sla_days",
+      "created_at",
+      "partner.id",
+      "partner.name",
+      "partner.handle",
+      "partner.logo",
+    ],
+  })
+
+  const roster = (data ?? []).map((l: any) => ({
+    partner_id: l.partner_id,
+    role: l.role ?? null,
+    stage_role: l.stage_role ?? null,
+    sla_days: l.sla_days ?? null,
+    created_at: l.created_at,
+    partner: l.partner ?? null,
+  }))
+
+  res.json({ design_id: req.params.id, roster, count: roster.length })
+}
 
 /**
  * DELETE /admin/designs/:id/partner
