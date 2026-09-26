@@ -89,6 +89,18 @@ export function readSupersession(
   order: MirrorOrderForSupersession,
   childRunIds?: string[]
 ): Supersession | undefined {
+  /**
+   * #2306 S3 — a run that was SPLIT carries its work in its stages, whether or
+   * not it ever had a mirror order. Since S3 a partnerless run gets no work
+   * order until it has a partner, so a parent split after an admin put a
+   * partner on it has nothing to cancel; and a `recreate-production-run`
+   * bundle never had orders at all. Without this, "no order → bill it" would
+   * pay the parent beside its stages — the #2026 double payment again.
+   */
+  const stages = (childRunIds ?? []).map(String).filter(Boolean)
+  if (!order && stages.length) {
+    return { reason: "superseded_run", superseded_by_run_ids: stages, mirror_order_id: null }
+  }
   if (!order) return undefined
   if (String(order.status ?? "").toLowerCase() !== "canceled") return undefined
 

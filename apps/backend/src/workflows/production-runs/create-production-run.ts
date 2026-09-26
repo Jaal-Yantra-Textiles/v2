@@ -571,7 +571,17 @@ export const createProductionRunWorkflow = createWorkflow(
     // #342 — best-effort projection onto a kind=design core order. Skipped for
     // design-order runs (#826 S3a): they're collated into one work-order by the
     // batch projection instead of each minting their own.
-    when({ input }, (data) => !data.input.skip_unified_projection).then(() => {
+    //
+    // #2306 S3 — and skipped while the run has NO partner. A work order is
+    // work given to someone; a partnerless run is a plan. Minting one here is
+    // what made every split cancel a "superseded" order (51 of 52 split
+    // parents on prod had no partner). The run gets its work order when it
+    // is split (the stages do), approved unsplit with a partner, or first
+    // dispatched (mirrorRunPartnerLinkOnUnifiedOrderStep).
+    when(
+      { input },
+      (data) => !data.input.skip_unified_projection && Boolean(data.input.partner_id)
+    ).then(() => {
       dualWriteUnifiedRunOrderStep({ production_run_id: productionRunId })
     })
 
