@@ -11,6 +11,7 @@ import type ProductionRunService from "../../modules/production_runs/service"
 import { TASKS_MODULE } from "../../modules/tasks"
 import { clearReminderRows, restoreReminderRows } from "./reminder-state"
 import type { ReminderRowSnapshot } from "./reminder-state"
+import { reconcileWorkOrderPartnerLinksStep } from "./lib/reconcile-work-order-partner-links"
 
 /**
  * #1093 — move a run into the admin reassignment queue.
@@ -198,6 +199,8 @@ export const reassignProductionRunWorkflow = createWorkflow(
       composed_reason: input.composed_reason,
     })
     cancelReassignedTasksStep({ production_run_id: input.production_run_id })
+    // The departing partner stops seeing the run's work order (#2265 S3b).
+    reconcileWorkOrderPartnerLinksStep({ production_run_id: input.production_run_id })
     emitReassignEventsStep(input)
 
     return new WorkflowResponse({ ok: true })
