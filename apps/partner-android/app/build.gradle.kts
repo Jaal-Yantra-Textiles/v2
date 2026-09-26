@@ -7,6 +7,15 @@ plugins {
     id("org.jetbrains.kotlin.plugin.serialization")
 }
 
+// Firebase config only when it is present. FirebaseApp.initializeApp(context)
+// reads the google_app_id / api-key resources that ONLY this plugin generates
+// from google-services.json, so without the plugin, dropping the file in did
+// nothing and push stayed off. Conditional, so a checkout without the file
+// (CI, a fresh clone) still builds and push degrades to the guarded no-op.
+if (file("google-services.json").exists()) {
+    apply(plugin = "com.google.gms.google-services")
+}
+
 // Release signing is property-driven (gradle.properties, ~/.gradle/gradle.properties
 // or -P on the command line — never committed):
 //   JYT_PARTNER_STORE_FILE, JYT_PARTNER_STORE_PASSWORD,
@@ -105,9 +114,9 @@ dependencies {
     implementation("com.squareup.okhttp3:okhttp:4.12.0")
     implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.7.3")
     implementation("io.coil-kt:coil-compose:2.7.0")
-    // FCM — deliberately WITHOUT the google-services plugin: the build must
-    // succeed without google-services.json, and push degrades to a no-op
-    // (guarded init) until one is dropped in.
+    // FCM. The google-services plugin is applied only when google-services.json
+    // exists (top of this file); without it the build still succeeds and push
+    // degrades to the guarded no-op in JytPartnerApp.
     implementation("com.google.firebase:firebase-messaging:24.0.2")
     implementation("androidx.core:core-ktx:1.13.1")
     // System splash (API 31+) with the pre-31 backport, held on screen
