@@ -13,6 +13,7 @@ import type ProductionPolicyService from "../../modules/production_policy/servic
 import { PARTNER_MODULE } from "../../modules/partner"
 import { clearReminderRows, restoreReminderRows } from "./reminder-state"
 import type { ReminderRowSnapshot } from "./reminder-state"
+import { reconcileWorkOrderPartnerLinksStep } from "./lib/reconcile-work-order-partner-links"
 
 /**
  * #1228 — the manual half of #1093's reassignment story.
@@ -215,6 +216,10 @@ export const assignProductionRunPartnerWorkflow = createWorkflow(
     assertPartnerExistsStep({ partner_id: input.partner_id })
 
     const assigned = assignPartnerStep(input)
+
+    // The previous partner stops seeing the run's work order (#2265 S3b). The
+    // new one is linked when the run is dispatched to them, as before.
+    reconcileWorkOrderPartnerLinksStep({ production_run_id: input.production_run_id })
 
     emitAssignedEventStep({
       production_run_id: input.production_run_id,
