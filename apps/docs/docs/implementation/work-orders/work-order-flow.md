@@ -270,9 +270,9 @@ flowchart LR
 ## 10. Watch-outs
 
 - **One partner per row.** `work_order.partner_id` keeps only the first linked partner, and not in a fixed order. That is why ownership still reads the mirror's `partner_order` link. S3b adds a many-to-many link.
-- **Admin core order routes have no guard.** `/admin/orders/:id/cancel` on a work order skips the work-order writers. Only a resync repairs it.
-- **`declined` is never set.** A declined run goes back for reassignment. The work order doesn't record it.
-- **A cancelled inventory work order keeps its old `partner_status`.**
+- **Admin core order routes have no guard.** `/admin/orders/:id/cancel` on a work order skips the work-order writers. Only a resync repairs it. (#2305)
+- **`declined` is never set.** A declined run goes back for reassignment. The work order doesn't record it. (#2303)
+- **A cancelled inventory work order keeps its old `partner_status`.** (#2304)
 - **`run.order_id` is the customer order, not the work order.** The work order is found through the work order ↔ run link.
 - **Admin order list shows superseded work orders.** The partner list hides them.
 
