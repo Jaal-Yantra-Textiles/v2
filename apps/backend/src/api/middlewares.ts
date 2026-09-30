@@ -190,7 +190,7 @@ import {
   postPagesSchema,
 } from "./admin/websites/[id]/pages/validators";
 import { createBlocksSchema, ReadBlocksQuerySchema, updateBlockSchema } from "./admin/websites/[id]/pages/[pageId]/blocks/validators";
-import { AdminPostDesignInventoryReq, AdminDeleteDesignInventoryReq } from "./admin/designs/[id]/inventory/validators";
+import { AdminPostDesignInventoryReq, AdminDeleteDesignInventoryReq, AdminPatchDesignInventoryLinkReq } from "./admin/designs/[id]/inventory/validators";
 import { AdminPostConsumptionLogReq, AdminPostCommitConsumptionReq, AdminPatchConsumptionLogReq } from "./admin/designs/[id]/consumption-logs/validators";
 import { AdminPostRunConsumptionLogReq, AdminPostRunCommitConsumptionReq } from "./admin/production-runs/[id]/consumption-logs/validators";
 import { AdminAttachSubmissionDocumentsReq } from "./admin/payment-submissions/[id]/documents/validators";
@@ -5172,6 +5172,13 @@ export default defineMiddlewares({
       matcher: "/admin/designs/:id/inventory/delink",
       method: "POST",
       middlewares: [validateAndTransformBody(wrapSchema(AdminDeleteDesignInventoryReq))],
+    },
+    // The PATCH read `req.validatedBody ?? req.body` with nothing registered,
+    // so its schema never ran.
+    {
+      matcher: "/admin/designs/:id/inventory/:inventoryLinkId",
+      method: "PATCH",
+      middlewares: [validateAndTransformBody(wrapSchema(AdminPatchDesignInventoryLinkReq))],
     },
 
     // Raw-material groups pinned to a design (#817 S4)

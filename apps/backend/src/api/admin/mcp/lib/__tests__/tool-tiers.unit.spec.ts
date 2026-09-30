@@ -120,6 +120,10 @@ describe("admin MCP tool tiers", () => {
         "log_crm_activity",
         "log_crm_note",
         "link_design_inventory",
+        // #2315 — the rest of the design BOM: change a material's metres, or
+        // drop it. The design's list only; no stock moves, runs keep theirs.
+        "update_design_inventory_link",
+        "unlink_design_inventory",
         "link_design_material_group",
         "set_product_spec",
         "update_crm_contact",
