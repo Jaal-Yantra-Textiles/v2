@@ -61,6 +61,9 @@ export interface AdminInventoryOrder {
   stock_locations: StockLocations[];
   order_lines: OrderLine[];
   is_sample?: boolean;
+  /** #2315 — when the supplier is paid. */
+  payment_terms?: "on_receipt" | "advance";
+  advance_percent?: number | null;
   tasks?: any[];
   partner?: any;
   metadata?: Record<string, any> | null;

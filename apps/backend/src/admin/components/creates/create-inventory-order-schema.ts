@@ -29,8 +29,22 @@ export const inventoryOrderFormSchema = z
     ),
     // Order-level tax entered at create time (recorded as an order charge).
     tax_amount: z.number().nonnegative("Tax must be zero or positive").optional(),
+    // #2315 — the supplier is paid (part or all) before delivery.
+    pay_in_advance: z.boolean().optional(),
+    advance_percent: z.number().optional(),
   })
   .superRefine((data, ctx) => {
+    if (data.pay_in_advance) {
+      const pct = Number(data.advance_percent);
+      if (!Number.isInteger(pct) || pct < 1 || pct > 100) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: "Advance must be a whole number from 1 to 100",
+          path: ["advance_percent"],
+        });
+      }
+    }
+
     const lines = data.order_lines ?? [];
     const filledIdx = lines
       .map((line, index) => ({ line, index }))

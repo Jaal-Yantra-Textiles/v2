@@ -149,3 +149,67 @@ describe("listPayableInventoryOrders — receipts already claimed (#1712)", () =
     expect(row.recorded_covers_amount).toBe(true)
   })
 })
+
+/**
+ * #2315 — an order paid in advance is offered BEFORE any receipt, from the
+ * same `orderBillableLimit` the submit guard enforces. The Chupa wool order is
+ * the shape: 10 m merino, ₹8,095.20, nothing received.
+ */
+describe("listPayableInventoryOrders — payment terms (#2315)", () => {
+  const WOOL = {
+    id: "inv_order_wool",
+    status: "Pending",
+    total_price: 8095.2,
+    currency_code: "inr",
+    orderlines: [
+      { id: "l1", quantity: 10, price: 809.52, material_name: "Merino", line_fulfillments: [] },
+    ],
+    internal_payments: [],
+  }
+
+  it("offers nothing before receipt on a pay-on-receipt order", async () => {
+    claimsOf({})
+    const [row] = await listPayableInventoryOrders(containerFor([WOOL]), "partner_1")
+    expect(row.amount).toBe(0)
+    expect(row.payable).toBe(false)
+    expect(row.payment_terms).toBe("on_receipt")
+    expect(row.is_advance).toBe(false)
+  })
+
+  it("offers the full order before receipt on a 100% advance order", async () => {
+    claimsOf({})
+    const [row] = await listPayableInventoryOrders(
+      containerFor([{ ...WOOL, payment_terms: "advance", advance_percent: 100 }]),
+      "partner_1"
+    )
+    expect(row.amount).toBe(8095.2)
+    expect(row.is_advance).toBe(true)
+    expect(row.advance_percent).toBe(100)
+  })
+
+  it("offers only the unclaimed advance on a 50% order already part-billed", async () => {
+    claimsOf({ inv_order_wool: 3000 })
+    const [row] = await listPayableInventoryOrders(
+      containerFor([{ ...WOOL, payment_terms: "advance", advance_percent: 50 }]),
+      "partner_1"
+    )
+    expect(row.amount).toBe(1047.6)
+  })
+
+  it("offers nothing more once a fully advanced order is received", async () => {
+    claimsOf({ inv_order_wool: 8095.2 })
+    const [row] = await listPayableInventoryOrders(
+      containerFor([
+        {
+          ...WOOL,
+          payment_terms: "advance",
+          advance_percent: 100,
+          orderlines: [{ ...WOOL.orderlines[0], line_fulfillments: [{ quantity_delta: 10 }] }],
+        },
+      ]),
+      "partner_1"
+    )
+    expect(row.amount).toBe(0)
+    expect(row.is_advance).toBe(false)
+  })
+})

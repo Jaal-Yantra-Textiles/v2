@@ -1330,6 +1330,11 @@ const InventoryOrderRow = ({
               Sample
             </Badge>
           )}
+          {order.is_advance && (
+            <Badge color="blue" size="2xsmall">
+              Advance {order.advance_percent}%
+            </Badge>
+          )}
         </div>
         <Text size="small" className="mt-1 text-ui-fg-subtle">
           {order.status || "Unknown"}

@@ -179,6 +179,12 @@ export const PayableInventoryOrdersGrid = ({
                     sample
                   </Badge>
                 )}
+                {/* #2315 — money out before the goods arrive. */}
+                {order.is_advance && (
+                  <Badge color="blue" size="2xsmall" className="shrink-0">
+                    advance {order.advance_percent}%
+                  </Badge>
+                )}
                 {order.claimed_total > 0 && (
                   <Badge color="orange" size="2xsmall" className="shrink-0">
                     part-paid
@@ -186,7 +192,9 @@ export const PayableInventoryOrdersGrid = ({
                 )}
                 {!order.payable && (
                   <Badge color="red" size="2xsmall" className="shrink-0">
-                    {order.receipts_total > 0 ? "fully paid" : "no receipts"}
+                    {order.receipts_total > 0 || order.claimed_total > 0
+                      ? "fully paid"
+                      : "no receipts"}
                   </Badge>
                 )}
               </div>

@@ -45,6 +45,14 @@ import {
   orderPayableCeiling,
   type OrderCharge,
 } from "../../../modules/inventory_orders/lib/order-charges"
+import {
+  orderBillableLimit,
+  type BillableBasis,
+} from "../../../modules/inventory_orders/lib/payment-terms"
+import {
+  valueInventoryOrderByReceipts,
+  type InventoryOrderLineForValue,
+} from "./inventory-order-value"
 
 export type PriorRunLine = {
   submission_id: string | null
@@ -740,6 +748,14 @@ export type OverclaimedInventoryOrder = {
   ceiling: number
   claimed_total: number
   requested: number
+  /**
+   * The most the order may have billed RIGHT NOW (#2315). Equals `ceiling`
+   * once goods are received; before that it is the advance share, or 0.
+   */
+  limit: number
+  /** Which rule set `limit` — see `orderBillableLimit`. */
+  basis: BillableBasis
+  advance_percent: number
 }
 
 /**
@@ -772,6 +788,15 @@ export function assessInventoryOrderClaims(input: {
        * That property is what makes adding a term to a live money guard safe.
        */
       charges?: OrderCharge[] | null
+      /**
+       * 🔴 The receipts, `orderlines.line_fulfillments.quantity_delta` (#2315).
+       * Must be FETCHED by the caller. Absent reads as "nothing received",
+       * which refuses a pay-on-receipt claim — it fails CLOSED, never open.
+       */
+      orderlines?: InventoryOrderLineForValue[] | null
+      payment_terms?: string | null
+      advance_percent?: number | string | null
+      is_sample?: boolean | null
     }
   >
   claims: Map<string, InventoryOrderClaim>
@@ -812,15 +837,32 @@ export function assessInventoryOrderClaims(input: {
 
     const claimedTotal = input.claims.get(orderId)?.claimed_total ?? 0
 
+    /**
+     * 🔴 WHEN it may be billed, not only how much (#2315). Before any receipt
+     * an order may bill only its advance share — 0 for a pay-on-receipt order.
+     * Once goods arrive the limit is the whole ceiling, exactly as before.
+     */
+    const received = valueInventoryOrderByReceipts(
+      order.orderlines || []
+    ).received_quantity
+    const { limit, basis, advance_percent } = orderBillableLimit(
+      order,
+      ceiling,
+      received
+    )
+
     // Half a paisa of tolerance: amounts are rounded to 2dp upstream, and
     // refusing a legitimate final tranche over float noise is worse than
     // allowing a rounding error.
-    if (claimedTotal + requested > ceiling + 0.005) {
+    if (claimedTotal + requested > limit + 0.005) {
       overclaimed.push({
         order_id: orderId,
         ceiling,
         claimed_total: claimedTotal,
         requested,
+        limit,
+        basis,
+        advance_percent,
       })
     }
   }
@@ -838,7 +880,27 @@ export function inventoryOrdersAlreadyClaimedMessage(
    * order is still billable and who holds the rest.
    */
   const detail = overclaimed
-    .map(({ order_id, ceiling, claimed_total, requested }) => {
+    .map(({ order_id, ceiling, claimed_total, requested, limit, basis, advance_percent }) => {
+      /**
+       * A refusal BEFORE any receipt is a timing rule, not a value rule
+       * (#2315). Saying "exceeds what the order is worth" there would send the
+       * operator looking for a pricing mistake that does not exist.
+       */
+      if (basis === "awaiting_receipt") {
+        return (
+          `${order_id}: nothing has been received yet and the order is paid on receipt` +
+          ` — record the delivery first, or set the order's payment terms to advance` +
+          ` (this line asks for ${requested})`
+        )
+      }
+      if (basis === "advance") {
+        const left = Math.max(0, limit - claimed_total)
+        return (
+          `${order_id}: nothing has been received yet; the ${advance_percent}% advance` +
+          ` allows ${limit} of ${ceiling} before delivery, already claimed ${claimed_total},` +
+          ` ${left} remaining — this line asks for ${requested}`
+        )
+      }
       const holders = (claims.get(order_id)?.claims ?? [])
         .map(
           (c) =>
@@ -856,5 +918,10 @@ export function inventoryOrdersAlreadyClaimedMessage(
     })
     .join(" | ")
 
-  return `Inventory order payout exceeds what the order is worth: ${detail}`
+  const timing = overclaimed.some(
+    (o) => o.basis === "awaiting_receipt" || o.basis === "advance"
+  )
+  return timing
+    ? `Inventory order payout is not billable yet: ${detail}`
+    : `Inventory order payout exceeds what the order is worth: ${detail}`
 }

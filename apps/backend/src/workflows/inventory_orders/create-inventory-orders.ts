@@ -61,6 +61,9 @@ export interface CreateInventoryOrderInput {
   is_sample: boolean;
   // Order-level tax, recorded as an order charge of type "tax" at create.
   tax_amount?: number;
+  // #2315 — when the supplier is paid. Omitted → the column default, on_receipt.
+  payment_terms?: "on_receipt" | "advance";
+  advance_percent?: number | null;
 }
 
 // --- Inventory Orders Steps ---

@@ -49,6 +49,8 @@ export const CreateInventoryOrderComponent = () => {
       stock_location_id: "",
       from_stock_location_id: undefined,
       is_sample: false,
+      pay_in_advance: false,
+      advance_percent: 100,
       // Seed multiple empty rows so users can start filling without needing to add immediately
       order_lines: Array.from({ length: 5 }, () => ({ inventory_item_id: "", quantity: 0, price: 0, extra_cost: 0 })),
     },
@@ -58,6 +60,7 @@ export const CreateInventoryOrderComponent = () => {
   // A sample order may be created with nothing picked — the lines are filled
   // in once the swatches arrive — so the Order Lines copy changes to say so.
   const isSampleOrder = form.watch("is_sample");
+  const payInAdvance = form.watch("pay_in_advance");
 
   const [tab, setTab] = useState<Tab>(Tab.GENERAL);
   const [tabState, setTabState] = useState<TabState>({
@@ -199,6 +202,10 @@ export const CreateInventoryOrderComponent = () => {
           batch_number: batch_number ?? null,
         })),
       tax_amount: data.tax_amount != null ? Number(data.tax_amount) : undefined,
+      // #2315 — omitted means the default, pay on receipt.
+      ...(data.pay_in_advance
+        ? { payment_terms: "advance", advance_percent: Number(data.advance_percent) }
+        : {}),
     };
     if (data.from_stock_location_id) {
       payload.from_stock_location_id = data.from_stock_location_id;
@@ -398,6 +405,62 @@ export const CreateInventoryOrderComponent = () => {
                     )}
                   />
                 </div>
+                {/* #2315 — when the supplier is paid. Off = pay on receipt. */}
+                <div className="mt-4">
+                  <Form.Field
+                    control={form.control}
+                    name="pay_in_advance"
+                    render={({ field: { value, onChange, ref } }) => (
+                      <Form.Item>
+                        <div className="flex items-center gap-x-2">
+                          <Switch
+                            id="pay-in-advance-switch"
+                            checked={!!value}
+                            onCheckedChange={onChange}
+                            ref={ref}
+                          />
+                          <Label htmlFor="pay-in-advance-switch">
+                            Supplier is paid in advance
+                          </Label>
+                        </div>
+                        <Text size="small" className="text-ui-fg-subtle mt-1">
+                          Off: the supplier can be paid only once goods are received.
+                        </Text>
+                        <Form.ErrorMessage />
+                      </Form.Item>
+                    )}
+                  />
+                </div>
+                {payInAdvance && (
+                  <div className="mt-4">
+                    <Form.Field
+                      control={form.control}
+                      name="advance_percent"
+                      render={({ field }) => (
+                        <Form.Item>
+                          <Form.Label>Advance % (paid before delivery)</Form.Label>
+                          <Form.Control>
+                            <Input
+                              type="number"
+                              min={1}
+                              max={100}
+                              step={1}
+                              value={field.value == null ? "" : field.value}
+                              onChange={(e) =>
+                                field.onChange(
+                                  e.target.value === "" ? undefined : Number(e.target.value)
+                                )
+                              }
+                              onBlur={field.onBlur}
+                              ref={field.ref}
+                            />
+                          </Form.Control>
+                          <Form.ErrorMessage />
+                        </Form.Item>
+                      )}
+                    />
+                  </div>
+                )}
               </div>
             </ProgressTabs.Content>
             <ProgressTabs.Content value={Tab.ORDER_LINES} className="flex flex-col h-full">

@@ -47,6 +47,8 @@ import {
   describeInventoryOrderValue,
   valueInventoryOrderByReceipts,
 } from "./lib/inventory-order-value"
+import { orderPayableCeiling } from "../../modules/inventory_orders/lib/order-charges"
+import { orderBillableLimit } from "../../modules/inventory_orders/lib/payment-terms"
 import {
   resolveRunLinePrice,
   runPayableAmount,
@@ -1386,6 +1388,11 @@ const validateInventoryOrderLinesStep = createStep(
         "status",
         "total_price",
         "currency_code",
+        // 🔴 When the order may be billed (#2315). `assessInventoryOrderClaims`
+        // reads these; unfetched they read as pay-on-receipt and refuse.
+        "payment_terms",
+        "advance_percent",
+        "is_sample",
         "partner.id",
         "orderlines.id",
         "orderlines.quantity",
@@ -1465,17 +1472,39 @@ const validateInventoryOrderLinesStep = createStep(
 
       const value = valueInventoryOrderByReceipts(order.orderlines || [])
 
+      /**
+       * An amountless line on an ADVANCE order with nothing received defaults
+       * to the advance still unclaimed (#2315) — the receipts figure would be 0
+       * and refuse a payout the terms allow. The guard below still has the
+       * final word on it.
+       */
+      const ceiling = orderPayableCeiling(order, order.charges)
+      const terms = orderBillableLimit(order, ceiling, value.received_quantity)
+      const isAdvance = terms.basis === "advance"
+      const advanceLeft = isAdvance
+        ? Math.round(
+            Math.max(
+              0,
+              terms.limit -
+                (claimed.get(line.inventory_order_id)?.claimed_total ?? 0)
+            ) * 100
+          ) / 100
+        : 0
+
       const amount =
         line.amount != null && Number.isFinite(Number(line.amount))
           ? Math.round(Number(line.amount) * 100) / 100
-          : value.total
+          : isAdvance
+            ? advanceLeft
+            : value.total
 
       if (!(amount > 0)) {
         throw new MedusaError(
           MedusaError.Types.INVALID_DATA,
           `Inventory order ${line.inventory_order_id} has no recorded receipts to bill ` +
             `(status ${order.status}). Nothing has been delivered against it, so a payout ` +
-            `would be for nothing — record the delivery first, or send an explicit amount.`
+            `would be for nothing — record the delivery first, or, if the supplier is ` +
+            `paid in advance, set the order's payment terms to advance.`
         )
       }
 
@@ -1487,7 +1516,18 @@ const validateInventoryOrderLinesStep = createStep(
         cost_breakdown: {
           source: "inventory_order",
           basis:
-            line.amount != null ? "explicit_total" : "received_x_unit_price",
+            line.amount != null
+              ? "explicit_total"
+              : isAdvance
+                ? "advance"
+                : "received_x_unit_price",
+          /**
+           * 🔑 Paid before delivery, under the order's advance terms (#2315).
+           * Stated on the line so a reviewer and the partner can see it —
+           * whatever `basis` says about how the figure was chosen.
+           */
+          is_advance: isAdvance,
+          advance_percent: terms.advance_percent,
           ordered_total: Number(order.total_price ?? 0),
           received_quantity: value.received_quantity,
           lines: value.lines,

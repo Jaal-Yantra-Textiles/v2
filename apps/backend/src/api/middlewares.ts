@@ -206,7 +206,7 @@ import { registerDeviceTokenSchema, unregisterDeviceTokenSchema } from "./partne
 import { partnerReceiveIncomingSchema } from "./partners/incoming-deliveries/validators";
 import { setLayoutConfigurationSchema } from "./partners/layouts/validators";
 import { AdminGetPartnersParamsSchema } from "./admin/persons/partner/validators";
-import { createInventoryOrdersSchema, listInventoryOrdersQuerySchema, ReadSingleInventoryOrderQuerySchema, updateInventoryOrdersSchema, updateInventoryOrderLinesSchema, createInventoryOrderChargeSchema, assignInventoryOrderPartnerSchema, rejectInventoryOrderChangeSchema } from "./admin/inventory-orders/validators";
+import { createInventoryOrdersSchema, listInventoryOrdersQuerySchema, ReadSingleInventoryOrderQuerySchema, updateInventoryOrdersSchema, updateInventoryOrderLinesSchema, createInventoryOrderChargeSchema, updateInventoryOrderChargeSchema, assignInventoryOrderPartnerSchema, rejectInventoryOrderChangeSchema } from "./admin/inventory-orders/validators";
 import { createRawMaterialGroupSchema, updateRawMaterialGroupSchema, listRawMaterialGroupsQuerySchema, addGroupColorSchema, addGroupColorFullSchema, linkGroupColorsSchema, createGroupOrderSchema, readGroupQuerySchema } from "./admin/raw-material-groups/validators";
 import { pinDesignGroupSchema, updateDesignGroupSchema } from "./admin/designs/[id]/material-groups/validators";
 // Import already defined above
@@ -4625,6 +4625,23 @@ export default defineMiddlewares({
      * otherwise claim this path. Same trap as `/settles` and
      * `/records-against` on the payments side.
      */
+    /**
+     * #2315 — correct or remove ONE charge. MUST precede the `/charges` POST:
+     * matching is prefix-based, and the create schema (which requires `type`)
+     * would otherwise claim this path and reject an amount-only edit.
+     */
+    {
+      matcher: "/admin/inventory-orders/:id/charges/:chargeId",
+      method: "POST",
+      middlewares: [
+        validateAndTransformBody(wrapSchema(updateInventoryOrderChargeSchema)),
+      ],
+    },
+    {
+      matcher: "/admin/inventory-orders/:id/charges/:chargeId",
+      method: "DELETE",
+      middlewares: [],
+    },
     {
       matcher: "/admin/inventory-orders/:id/charges",
       method: "POST",

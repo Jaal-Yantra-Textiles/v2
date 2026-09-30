@@ -110,6 +110,26 @@ const obj = (
   additionalProperties: false,
 })
 
+/**
+ * #2315 — an inventory order's supplier payment terms, shared by the create
+ * tool and set_inventory_order_payment_terms so the two cannot drift.
+ */
+const PAYMENT_TERMS_PARAMS = {
+  payment_terms: {
+    type: "string",
+    enum: ["on_receipt", "advance"],
+    description:
+      "When the supplier is paid. `on_receipt` (default): nothing billable until goods are received. `advance`: `advance_percent` of the payable ceiling may be billed before delivery.",
+  },
+  advance_percent: {
+    type: "integer",
+    minimum: 1,
+    maximum: 100,
+    description:
+      "Share billable before delivery, 1–100. REQUIRED with `advance`; omit with `on_receipt`.",
+  },
+} as const
+
 /** Pagination props shared by list tools. */
 const PAGINATION = {
   limit: { type: "integer", description: "Max results (default 20)." },
@@ -1605,6 +1625,8 @@ export const ADMIN_MCP_TOOLS: AdminMcpToolDef[] = [
       "to_stock_location_id",
       "is_sample",
       "tax_amount",
+      "payment_terms",
+      "advance_percent",
       "metadata",
     ],
     inputSchema: obj(
@@ -1671,6 +1693,7 @@ export const ADMIN_MCP_TOOLS: AdminMcpToolDef[] = [
           description:
             "Order-level tax, recorded as a charge of type 'tax'. Raises the payable ceiling; never folded into total_price.",
         },
+        ...PAYMENT_TERMS_PARAMS,
       },
       [
         "order_lines",
@@ -1684,6 +1707,49 @@ export const ADMIN_MCP_TOOLS: AdminMcpToolDef[] = [
       ]
     ),
     nextSteps: ["list_inventory_orders"],
+  },
+  {
+    name: "set_inventory_order_ship_from",
+    description:
+      "Set or correct WHERE an inventory order ships from — its `from` stock location, usually the supplier's warehouse. Sensitive: requires confirm:true. " +
+      "The shipment and carrier-rate flows refuse to guess an origin, so an order with no `from` cannot book a pickup. Repoints the order's from-link; no stock moves. " +
+      "Read the id from list_stock_locations, or create_partner_warehouse if the supplier has none. Must differ from the order's destination.",
+    method: "PUT",
+    path: "/admin/inventory-orders/:id",
+    pathParams: ["id"],
+    previewPath: "/admin/inventory-orders/:id",
+    write: true,
+    sensitive: true,
+    bodyParams: ["from_stock_location_id"],
+    inputSchema: obj(
+      {
+        id: STR("Inventory order id, e.g. 'inv_order_...'."),
+        from_stock_location_id: STR("Stock location id ('sloc_...') the goods ship FROM."),
+      },
+      ["id", "from_stock_location_id"]
+    ),
+    nextSteps: ["get_inventory_order"],
+  },
+  {
+    name: "set_inventory_order_payment_terms",
+    description:
+      "Set WHEN a supplier is paid for an inventory order (#2315): `on_receipt` (the default — nothing is billable until goods are received) or `advance` with `advance_percent` 1–100 (that share of the payable ceiling may be billed before delivery, through the normal payout flow). Sensitive: requires confirm:true. " +
+      "🔑 The advance is an early PAYOUT (create_payment_submission), not a standalone payment: once billed it counts in the order's claimed total, so when the goods arrive only the remainder is offered — nothing is netted by hand. " +
+      "⚠️ Terms change what may be billed from now on; a payout already raised is not re-checked. Read list_payable_inventory_orders afterwards to see the offer.",
+    method: "PUT",
+    path: "/admin/inventory-orders/:id",
+    pathParams: ["id"],
+    write: true,
+    sensitive: true,
+    bodyParams: ["payment_terms", "advance_percent"],
+    inputSchema: obj(
+      {
+        id: STR("Inventory order id, e.g. 'inv_order_...'."),
+        ...PAYMENT_TERMS_PARAMS,
+      },
+      ["id", "payment_terms"]
+    ),
+    nextSteps: ["list_payable_inventory_orders", "create_payment_submission"],
   },
 
   // ===== Money =============================================================
@@ -2095,6 +2161,44 @@ export const ADMIN_MCP_TOOLS: AdminMcpToolDef[] = [
       ["id", "type", "account_name"]
     ),
     nextSteps: ["list_partner_payment_methods", "get_partner_ledger"],
+  },
+  {
+    name: "create_partner_warehouse",
+    description:
+      "Give a partner a warehouse — a stock location linked to them — without a store, sales channel or currency (#2061). Sensitive: requires confirm:true. " +
+      "Use when list_stock_locations shows nothing for a supplier, e.g. an inventory order's `from` location is empty because the supplier has nowhere to ship from. " +
+      "🔴 Refused if the partner already has a warehouse (one per partner; the error names it). " +
+      "⚠️ Creating it also registers the address as a PICKUP point with the carriers (Shiprocket/Delhivery) — an outward-facing call, so get the address right first. " +
+      "Then set it as an order's ship-from with set_inventory_order_ship_from.",
+    method: "POST",
+    path: "/admin/partners/:id/warehouses",
+    pathParams: ["id"],
+    write: true,
+    sensitive: true,
+    bodyParams: ["name", "address", "metadata", "currency_code"],
+    inputSchema: obj(
+      {
+        id: STR("Partner id."),
+        name: STR("Warehouse name, e.g. '<Partner> Warehouse' — the name is how list_stock_locations tells partner buildings from ours."),
+        address: obj(
+          {
+            address_1: STR("Street address (required — carriers need it to register a pickup)."),
+            address_2: STR("Second address line."),
+            city: STR("City."),
+            province: STR("State / province."),
+            postal_code: STR("Postal code."),
+            country_code: STR("ISO-2 country code, e.g. 'IN'. Decides which carriers are registered."),
+            phone: STR("Contact phone for pickups."),
+            company: STR("Company / legal name on the pickup."),
+          },
+          ["address_1", "country_code"]
+        ),
+        metadata: { type: "object", description: "Optional metadata." },
+        currency_code: STR("Optional ISO-3; read only by carrier auto-registration."),
+      },
+      ["id", "name", "address"]
+    ),
+    nextSteps: ["list_stock_locations", "set_inventory_order_ship_from"],
   },
   {
     name: "update_stock_location",
@@ -7749,7 +7853,35 @@ export const ADMIN_MCP_TOOLS: AdminMcpToolDef[] = [
       { id: STR("Inventory order id, e.g. 'inv_order_...'.") },
       ["id"]
     ),
-    nextSteps: ["get_inventory_order", "list_payable_inventory_orders"],
+    nextSteps: [
+      "get_inventory_order",
+      "list_payable_inventory_orders",
+      "update_inventory_order_charge",
+    ],
+  },
+  {
+    name: "update_inventory_order_charge",
+    description:
+      "Correct ONE charge on an inventory order — its `amount` and/or `note` (#2315). E.g. an order's goods were cut and its 5% tax must follow: read get_inventory_order_charges for the charge id, then send the new amount. Sensitive: requires confirm:true. ALWAYS dry_run first. " +
+      "⚠️ The type cannot be changed (a tax turned into a discount is a different fact). " +
+      "🔴 Refused if the new payable ceiling would fall below what live payouts already claim on the order — reject or reduce the payout first. A discount/adjustment must keep a note.",
+    method: "POST",
+    path: "/admin/inventory-orders/:id/charges/:chargeId",
+    pathParams: ["id", "chargeId"],
+    previewPath: "/admin/inventory-orders/:id/charges",
+    write: true,
+    sensitive: true,
+    bodyParams: ["amount", "note"],
+    inputSchema: obj(
+      {
+        id: STR("Inventory order id, e.g. 'inv_order_...'."),
+        chargeId: STR("Charge id, e.g. 'invchg_...', from get_inventory_order_charges."),
+        amount: NUM("New amount, always positive — the charge's type carries the direction."),
+        note: STR("Why. Required to stay non-empty on a discount/adjustment."),
+      },
+      ["id", "chargeId"]
+    ),
+    nextSteps: ["get_inventory_order_charges"],
   },
   {
     name: "list_inventory_order_activities",

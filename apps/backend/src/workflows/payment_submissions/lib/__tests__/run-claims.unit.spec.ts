@@ -305,6 +305,9 @@ describe("inventoryOrdersAlreadyClaimedMessage", () => {
           ceiling: 35000,
           claimed_total: 30000,
           requested: 10000,
+          limit: 35000,
+          basis: "received",
+          advance_percent: 0,
         },
       ],
       claims
@@ -323,6 +326,15 @@ describe("inventoryOrdersAlreadyClaimedMessage", () => {
  * The money decision itself. Inventory-order-sourced payouts have NO
  * integration coverage, so these are the only tests that exercise the ceiling.
  */
+/**
+ * Goods have arrived: one receipt on one line. The cases below are about HOW
+ * MUCH an order may bill, so they start from "received" — the WHEN rule
+ * (#2315) has its own describe below.
+ */
+const RECEIVED = {
+  orderlines: [{ id: "l1", quantity: 1, price: 1, line_fulfillments: [{ quantity_delta: 1 }] }],
+}
+
 describe("assessInventoryOrderClaims", () => {
   const claimsOf = (amount: number, status = "Paid") =>
     foldInventoryOrderClaims([
@@ -344,7 +356,7 @@ describe("assessInventoryOrderClaims", () => {
     expect(
       assessInventoryOrderClaims({
         requestedByOrder: new Map([["inv_order_1", 5000]]),
-        orders: new Map([["inv_order_1", { total_price: 35000 }]]),
+        orders: new Map([["inv_order_1", { ...RECEIVED, total_price: 35000 }]]),
         claims: claimsOf(30000),
       })
     ).toEqual([])
@@ -353,7 +365,7 @@ describe("assessInventoryOrderClaims", () => {
   it("refuses the excess over what the order is worth", () => {
     const result = assessInventoryOrderClaims({
       requestedByOrder: new Map([["inv_order_1", 10000]]),
-      orders: new Map([["inv_order_1", { total_price: 35000 }]]),
+      orders: new Map([["inv_order_1", { ...RECEIVED, total_price: 35000 }]]),
       claims: claimsOf(30000),
     })
 
@@ -363,6 +375,9 @@ describe("assessInventoryOrderClaims", () => {
         ceiling: 35000,
         claimed_total: 30000,
         requested: 10000,
+        limit: 35000,
+        basis: "received",
+        advance_percent: 0,
       },
     ])
   })
@@ -376,7 +391,7 @@ describe("assessInventoryOrderClaims", () => {
   it("refuses an amountless line that defaults to the receipts value", () => {
     const result = assessInventoryOrderClaims({
       requestedByOrder: new Map([["inv_order_1", 64274]]),
-      orders: new Map([["inv_order_1", { total_price: 63375.75 }]]),
+      orders: new Map([["inv_order_1", { ...RECEIVED, total_price: 63375.75 }]]),
       claims: new Map(),
     })
 
@@ -392,7 +407,7 @@ describe("assessInventoryOrderClaims", () => {
   it("coerces string amounts from bigNumber columns", () => {
     const result = assessInventoryOrderClaims({
       requestedByOrder: new Map([["inv_order_1", 10000]]),
-      orders: new Map([["inv_order_1", { total_price: "35000" }]]),
+      orders: new Map([["inv_order_1", { ...RECEIVED, total_price: "35000" }]]),
       claims: claimsOf(30000),
     })
 
@@ -404,7 +419,7 @@ describe("assessInventoryOrderClaims", () => {
     expect(
       assessInventoryOrderClaims({
         requestedByOrder: new Map([["inv_order_1", 35000]]),
-        orders: new Map([["inv_order_1", { total_price: 35000 }]]),
+        orders: new Map([["inv_order_1", { ...RECEIVED, total_price: 35000 }]]),
         claims: claimsOf(30000, "Rejected"),
       })
     ).toEqual([])
@@ -416,7 +431,7 @@ describe("assessInventoryOrderClaims", () => {
     expect(
       assessInventoryOrderClaims({
         requestedByOrder: new Map([["inv_order_1", 5000]]),
-        orders: new Map([["inv_order_1", { total_price: 0 }]]),
+        orders: new Map([["inv_order_1", { ...RECEIVED, total_price: 0 }]]),
         claims: new Map(),
       })
     ).toEqual([])
@@ -426,8 +441,133 @@ describe("assessInventoryOrderClaims", () => {
     expect(
       assessInventoryOrderClaims({
         requestedByOrder: new Map([["inv_order_1", 5000.001]]),
-        orders: new Map([["inv_order_1", { total_price: 35000 }]]),
+        orders: new Map([["inv_order_1", { ...RECEIVED, total_price: 35000 }]]),
         claims: claimsOf(30000),
+      })
+    ).toEqual([])
+  })
+})
+
+/**
+ * #2315 — WHEN an order may be billed. Before any receipt a pay-on-receipt
+ * order may bill nothing, and an advance order its advance share. The
+ * load-bearing case is the pay-on-receipt refusal: before #2315 an explicit
+ * amount on an undelivered order passed straight through.
+ */
+describe("assessInventoryOrderClaims — payment terms (#2315)", () => {
+  const NOTHING_RECEIVED = {
+    orderlines: [{ id: "l1", quantity: 10, price: 809.52, line_fulfillments: [] }],
+  }
+  const claimsOf = (amount: number) =>
+    foldInventoryOrderClaims([
+      {
+        submission_id: "sub_advance",
+        submission_status: "Approved",
+        production_run_ids: null,
+        inventory_order_id: "inv_order_1",
+        amount,
+      },
+    ])
+
+  it("refuses a pay-on-receipt order before anything is received", () => {
+    const result = assessInventoryOrderClaims({
+      requestedByOrder: new Map([["inv_order_1", 8095.2]]),
+      orders: new Map([
+        ["inv_order_1", { ...NOTHING_RECEIVED, total_price: 8095.2, payment_terms: "on_receipt" }],
+      ]),
+      claims: new Map(),
+    })
+
+    expect(result).toEqual([
+      expect.objectContaining({ limit: 0, basis: "awaiting_receipt" }),
+    ])
+    expect(inventoryOrdersAlreadyClaimedMessage(result, new Map())).toContain(
+      "paid on receipt"
+    )
+  })
+
+  it("refuses an order that never set terms, the same as pay-on-receipt", () => {
+    const result = assessInventoryOrderClaims({
+      requestedByOrder: new Map([["inv_order_1", 100]]),
+      orders: new Map([["inv_order_1", { ...NOTHING_RECEIVED, total_price: 8095.2 }]]),
+      claims: new Map(),
+    })
+    expect(result).toHaveLength(1)
+  })
+
+  it("allows a 100% advance order to bill in full before delivery", () => {
+    expect(
+      assessInventoryOrderClaims({
+        requestedByOrder: new Map([["inv_order_1", 8095.2]]),
+        orders: new Map([
+          [
+            "inv_order_1",
+            { ...NOTHING_RECEIVED, total_price: 8095.2, payment_terms: "advance", advance_percent: 100 },
+          ],
+        ]),
+        claims: new Map(),
+      })
+    ).toEqual([])
+  })
+
+  it("caps a 50% advance at half, and counts the advance already claimed", () => {
+    const order = { ...NOTHING_RECEIVED, total_price: 10000, payment_terms: "advance", advance_percent: 50 }
+
+    expect(
+      assessInventoryOrderClaims({
+        requestedByOrder: new Map([["inv_order_1", 5000]]),
+        orders: new Map([["inv_order_1", order]]),
+        claims: new Map(),
+      })
+    ).toEqual([])
+
+    const second = assessInventoryOrderClaims({
+      requestedByOrder: new Map([["inv_order_1", 1]]),
+      orders: new Map([["inv_order_1", order]]),
+      claims: claimsOf(5000),
+    })
+    expect(second).toEqual([
+      expect.objectContaining({ limit: 5000, basis: "advance", advance_percent: 50 }),
+    ])
+  })
+
+  it("bills the remainder of a 50% advance once goods are received", () => {
+    expect(
+      assessInventoryOrderClaims({
+        requestedByOrder: new Map([["inv_order_1", 5000]]),
+        orders: new Map([
+          [
+            "inv_order_1",
+            { ...RECEIVED, total_price: 10000, payment_terms: "advance", advance_percent: 50 },
+          ],
+        ]),
+        claims: claimsOf(5000),
+      })
+    ).toEqual([])
+  })
+
+  it("never bills past the ceiling on a fully advanced, received order", () => {
+    const result = assessInventoryOrderClaims({
+      requestedByOrder: new Map([["inv_order_1", 1]]),
+      orders: new Map([
+        [
+          "inv_order_1",
+          { ...RECEIVED, total_price: 8095.2, payment_terms: "advance", advance_percent: 100 },
+        ],
+      ]),
+      claims: claimsOf(8095.2),
+    })
+    expect(result).toEqual([expect.objectContaining({ basis: "received" })])
+  })
+
+  it("leaves a sample order ungated — it posts no receipts by design", () => {
+    expect(
+      assessInventoryOrderClaims({
+        requestedByOrder: new Map([["inv_order_1", 1300]]),
+        orders: new Map([
+          ["inv_order_1", { ...NOTHING_RECEIVED, total_price: 1300, is_sample: true }],
+        ]),
+        claims: new Map(),
       })
     ).toEqual([])
   })

@@ -12,6 +12,8 @@ interface EditInventoryOrderFormProps {
 interface EditInventoryOrderFormData {
   order_date: Date;
   expected_delivery_date: Date;
+  payment_terms: "on_receipt" | "advance";
+  advance_percent?: number;
 }
 
 export const EditInventoryOrderForm = ({ order }: EditInventoryOrderFormProps) => {
@@ -41,6 +43,23 @@ export const EditInventoryOrderForm = ({ order }: EditInventoryOrderFormProps) =
         placeholder: t("placeholders.selectDate"),
       },
     },
+    {
+      name: "payment_terms",
+      label: "Payment terms",
+      type: "select",
+      required: true,
+      options: [
+        { value: "on_receipt", label: "Pay on receipt" },
+        { value: "advance", label: "Advance" },
+      ],
+      hint: "Pay on receipt: the supplier can be paid only once goods are received. Advance: part or all can be paid before delivery.",
+    },
+    {
+      name: "advance_percent",
+      label: "Advance %",
+      type: "number",
+      hint: "1–100. Only used with Advance — e.g. 100 for full payment before delivery.",
+    },
   ];
 
   const handleSubmit = async (data: EditInventoryOrderFormData) => {
@@ -48,6 +67,11 @@ export const EditInventoryOrderForm = ({ order }: EditInventoryOrderFormProps) =
       {
         order_date: data.order_date.toISOString(),
         expected_delivery_date: data.expected_delivery_date.toISOString(),
+        // #2315 — a percent is only meaningful with advance terms; the API
+        // refuses one on a pay-on-receipt order, so clear it there.
+        payment_terms: data.payment_terms,
+        advance_percent:
+          data.payment_terms === "advance" ? data.advance_percent ?? null : null,
       },
       {
         onSuccess: () => {
@@ -60,6 +84,8 @@ export const EditInventoryOrderForm = ({ order }: EditInventoryOrderFormProps) =
   const initialValues: Partial<EditInventoryOrderFormData> = {
     order_date: new Date(order.order_date),
     expected_delivery_date: new Date(order.expected_delivery_date),
+    payment_terms: order.payment_terms ?? "on_receipt",
+    advance_percent: order.advance_percent ?? undefined,
   };
 
   // Do not render if order is not pending (handled by parent component)

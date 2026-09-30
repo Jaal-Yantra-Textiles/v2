@@ -57,6 +57,16 @@ const InventoryOrder = model.define("inventory_orders", {
    * duplicate the tasks, the partner notification, and the workflow.
    */
   partner_assignment_id: model.text().nullable(),
+  /**
+   * When the supplier is paid (#2315). `on_receipt` — nothing is billable until
+   * goods are received — is the default for every order, old and new.
+   * `advance` lets `advance_percent` of the payable ceiling be billed before
+   * any receipt. The arithmetic lives in `lib/payment-terms.ts` and nowhere
+   * else, so the payable offer and the submit guard cannot disagree.
+   */
+  payment_terms: model.enum(["on_receipt", "advance"]).default("on_receipt"),
+  /** 1–100. Read only when `payment_terms` is `advance`. */
+  advance_percent: model.number().nullable(),
 }).cascades({
   delete: ['orderlines']
 });
