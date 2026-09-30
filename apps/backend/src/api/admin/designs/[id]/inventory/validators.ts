@@ -2,7 +2,9 @@ import { z } from "@medusajs/framework/zod";
 
 const inventoryLinkItemSchema = z.object({
   inventoryId: z.string(),
-  plannedQuantity: z.number().int().optional(),
+  // Metres of cloth are fractional (2.7 m of leftover after a robe is cut);
+  // the link column is decimal. `.int()` here refused real allocations.
+  plannedQuantity: z.number().nonnegative().optional(),
   // Nullable, matching the PATCH schema: the link UI captures where a material
   // is stocked and sends an explicit null when that is not unambiguous, which
   // `.optional()` alone would reject.
@@ -35,7 +37,7 @@ export type AdminDeleteDesignInventoryReq = z.infer<typeof AdminDeleteDesignInve
 
 export const AdminPatchDesignInventoryLinkReq = z
   .object({
-    plannedQuantity: z.number().int().nullable().optional(),
+    plannedQuantity: z.number().nonnegative().nullable().optional(),
     locationId: z.string().nullable().optional(),
     metadata: z.record(z.string(), z.any()).nullable().optional(),
   })

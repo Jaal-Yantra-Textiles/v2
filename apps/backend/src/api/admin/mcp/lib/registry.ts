@@ -6935,7 +6935,63 @@ export const ADMIN_MCP_TOOLS: AdminMcpToolDef[] = [
       },
       ["id"]
     ),
-    nextSteps: ["list_design_inventory", "create_design_production_run"],
+    nextSteps: [
+      "list_design_inventory",
+      "update_design_inventory_link",
+      "create_design_production_run",
+    ],
+  },
+  {
+    name: "update_design_inventory_link",
+    description:
+      "Change ONE material already on a design's bill of materials — its planned quantity (e.g. metres per piece, decimals allowed), stock location or metadata. Sensitive: requires confirm:true. " +
+      "⚠️ link_design_inventory does NOT update an item that is already linked — re-linking is a silent no-op — so use this to change the metres. " +
+      "`inventoryLinkId` is the INVENTORY ITEM id as list_design_inventory shows it. Runs already created keep their own allocation; this changes the design, not them.",
+    method: "PATCH",
+    path: "/admin/designs/:id/inventory/:inventoryLinkId",
+    pathParams: ["id", "inventoryLinkId"],
+    previewPath: "/admin/designs/:id/inventory",
+    write: true,
+    sensitive: true,
+    tier: "write",
+    bodyParams: ["plannedQuantity", "locationId", "metadata"],
+    inputSchema: obj(
+      {
+        id: STR("Design id."),
+        inventoryLinkId: STR("Inventory item id of the linked material ('iitem_...'), from list_design_inventory."),
+        plannedQuantity: NUM("Planned quantity per piece, e.g. 2.7 (metres). null clears it."),
+        locationId: STR("Stock location the material is drawn from."),
+        metadata: { type: "object", description: "Metadata for the link, e.g. { note }." },
+      },
+      ["id", "inventoryLinkId"]
+    ),
+    nextSteps: ["list_design_inventory"],
+  },
+  {
+    name: "unlink_design_inventory",
+    description:
+      "Remove materials from a design's bill of materials. Sensitive: requires confirm:true. " +
+      "Nothing is consumed or moved — the inventory item and its stock are untouched; the design just stops listing it. Runs already created keep their own allocation.",
+    method: "POST",
+    path: "/admin/designs/:id/inventory/delink",
+    pathParams: ["id"],
+    previewPath: "/admin/designs/:id/inventory",
+    write: true,
+    sensitive: true,
+    tier: "write",
+    bodyParams: ["inventoryIds"],
+    inputSchema: obj(
+      {
+        id: STR("Design id."),
+        inventoryIds: {
+          type: "array",
+          items: { type: "string" },
+          description: "Inventory item ids to remove from the design.",
+        },
+      },
+      ["id", "inventoryIds"]
+    ),
+    nextSteps: ["list_design_inventory"],
   },
   {
     name: "list_design_material_groups",

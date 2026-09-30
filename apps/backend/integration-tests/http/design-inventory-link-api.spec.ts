@@ -163,6 +163,72 @@ setupSharedTestSuite(() => {
       });
     });
 
+    /**
+     * #2315 — cloth is planned in metres, and metres are fractional: the
+     * leftover after a 3 m robe is cut from 5.7 m is 2.7 m. The link column is
+     * decimal; only the validator's `.int()` refused it.
+     */
+    describe("planned metres are decimal (#2315)", () => {
+      const planned = async () => {
+        const res = await api.get(`/admin/designs/${designId}/inventory`, headers)
+        return res.data.inventory_items.find(
+          (item) => item.inventory_item_id === cottonFabricId
+        )?.planned_quantity
+      }
+
+      it("links with a fractional planned quantity", async () => {
+        const res = await api.post(
+          `/admin/designs/${designId}/inventory`,
+          { inventoryItems: [{ inventoryId: cottonFabricId, plannedQuantity: 2.7 }] },
+          headers
+        )
+        expect(res.status).toBe(201)
+        expect(Number(await planned())).toBe(2.7)
+      })
+
+      it("changes an existing link's metres through PATCH, and validates it", async () => {
+        await api.post(
+          `/admin/designs/${designId}/inventory`,
+          { inventoryItems: [{ inventoryId: cottonFabricId, plannedQuantity: 3 }] },
+          headers
+        )
+
+        const bad = await api
+          .patch(
+            `/admin/designs/${designId}/inventory/${cottonFabricId}`,
+            { plannedQuantity: -1 },
+            headers
+          )
+          .catch((e) => e.response)
+        expect(bad.status).toBe(400)
+
+        const ok = await api.patch(
+          `/admin/designs/${designId}/inventory/${cottonFabricId}`,
+          { plannedQuantity: 2.8 },
+          headers
+        )
+        expect(ok.status).toBe(200)
+        expect(Number(await planned())).toBe(2.8)
+      })
+
+      it("removes a material from the design", async () => {
+        await api.post(
+          `/admin/designs/${designId}/inventory`,
+          { inventoryIds: [cottonFabricId, buttonsId] },
+          headers
+        )
+        const res = await api.post(
+          `/admin/designs/${designId}/inventory/delink`,
+          { inventoryIds: [cottonFabricId] },
+          headers
+        )
+        expect(res.status).toBe(200)
+        const list = await api.get(`/admin/designs/${designId}/inventory`, headers)
+        const ids = list.data.inventory_items.map((i) => i.inventory_item_id)
+        expect(ids).toEqual([buttonsId])
+      })
+    })
+
     describe("GET /admin/designs/:id/inventory", () => {
       it("should return linked inventory items", async () => {
         // First link some inventory items
