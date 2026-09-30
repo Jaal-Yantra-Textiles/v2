@@ -5,6 +5,7 @@ import {
   INVENTORY_ORDER_STATUS_INPUT,
   type InventoryOrderInputStatus,
 } from "../../../modules/inventory_orders/constants";
+import { PAYMENT_TERMS } from "../../../modules/inventory_orders/lib/payment-terms";
 
 // Input schema for inventory order lines
 export const inventoryOrderLineInputSchema = z.object({
@@ -77,10 +78,43 @@ const inventoryOrdersBaseSchema = z.object({
   from_stock_location_id: z.string().optional(),
   to_stock_location_id: z.string().optional(),
   is_sample: z.boolean().optional().default(false),
+  /**
+   * When the supplier is paid (#2315). Omitted on create → the DB default,
+   * `on_receipt`. `advance` needs `advance_percent` (1–100).
+   */
+  payment_terms: z.enum(PAYMENT_TERMS).optional(),
+  advance_percent: z.number().int().min(1).max(100).nullable().optional(),
 });
+
+/**
+ * #2315 — an `advance` order must say how much. Without this, `advance` with no
+ * percent would save and quietly allow nothing early — terms that read as
+ * "paid in advance" and behave as "paid on receipt".
+ */
+const refinePaymentTerms = (
+  data: { payment_terms?: string; advance_percent?: number | null },
+  ctx: z.RefinementCtx
+) => {
+  if (data.payment_terms === "advance" && data.advance_percent == null) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: "advance_percent (1–100) is required when payment_terms is 'advance'",
+      path: ["advance_percent"],
+    })
+  }
+  if (data.payment_terms === "on_receipt" && data.advance_percent != null) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: "advance_percent must be omitted or null when payment_terms is 'on_receipt'",
+      path: ["advance_percent"],
+    })
+  }
+}
 
 // Input schema for creating inventory orders
 export const createInventoryOrdersSchema = inventoryOrdersBaseSchema.superRefine((data, ctx) => {
+  refinePaymentTerms(data, ctx);
+
   // A samples/swatch order legitimately starts empty: the box has to arrive
   // before anyone can say what is in it, and the lines are filled in
   // afterwards. Every other order still needs something to order.
@@ -142,7 +176,8 @@ export const ReadSingleInventoryOrderQuerySchema = z.object({
 // Re-declare as plain optional (no default) so omission stays omitted.
 export const updateInventoryOrdersSchema = inventoryOrdersBaseSchema
   .partial()
-  .extend({ is_sample: z.boolean().optional() });
+  .extend({ is_sample: z.boolean().optional() })
+  .superRefine(refinePaymentTerms);
 
 // Type definitions for inventory orders
 export type UpdateInventoryOrder = z.infer<typeof updateInventoryOrdersSchema>;
@@ -352,6 +387,27 @@ export const createInventoryOrderChargeSchema = z.object({
 
 export type CreateInventoryOrderCharge = z.infer<
   typeof createInventoryOrderChargeSchema
+>
+
+/**
+ * Correcting ONE charge (#2315): its amount and/or note. The type is fixed —
+ * a tax turned into a discount is a different fact; remove it and add another.
+ */
+export const updateInventoryOrderChargeSchema = z
+  .object({
+    amount: z
+      .number()
+      .positive("A charge amount must be positive — the type carries the direction")
+      .optional(),
+    note: z.string().nullable().optional(),
+  })
+  .strict()
+  .refine((d) => d.amount !== undefined || d.note !== undefined, {
+    message: "Send an amount or a note to change",
+  })
+
+export type UpdateInventoryOrderCharge = z.infer<
+  typeof updateInventoryOrderChargeSchema
 >
 
 /**

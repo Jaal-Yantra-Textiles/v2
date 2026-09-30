@@ -9,6 +9,7 @@ import {
   foldOrderCharges,
   orderPayableCeiling,
 } from "../../../modules/inventory_orders/lib/order-charges"
+import { orderBillableLimit } from "../../../modules/inventory_orders/lib/payment-terms"
 
 /**
  * What a partner is owed for GOODS, as opposed to for work (#1612, #1710).
@@ -78,6 +79,16 @@ export type PayableInventoryOrder = {
    * bill. The signal a screen must not stay quiet about.
    */
   recorded_covers_amount: boolean
+  /** The order's terms (#2315). `on_receipt` for every order that never set them. */
+  payment_terms: "on_receipt" | "advance"
+  /** The advance share applied, 0 unless `payment_terms` is `advance`. */
+  advance_percent: number
+  /**
+   * Whether `amount` is offered BEFORE any goods were received, under the
+   * order's advance terms. A screen must say so: this is money out ahead of
+   * the cloth.
+   */
+  is_advance: boolean
   order_date: string | null
   expected_delivery_date: string | null
   payable: boolean
@@ -133,6 +144,9 @@ export const listPayableInventoryOrders = async (
       "inventory_orders.expected_delivery_date",
       "inventory_orders.order_date",
       "inventory_orders.is_sample",
+      // When the order may be billed (#2315) — see `orderBillableLimit`.
+      "inventory_orders.payment_terms",
+      "inventory_orders.advance_percent",
       "inventory_orders.orderlines.id",
       "inventory_orders.orderlines.quantity",
       "inventory_orders.orderlines.price",
@@ -254,8 +268,26 @@ export const listPayableInventoryOrders = async (
        * A silent cap is a reduction nobody decided, so `capped_by_ceiling` says
        * it happened and the raw figure stays on the row beside it.
        */
-      const amount =
-        remaining == null
+      /**
+       * 🔴 Before any receipt, an ADVANCE order offers its advance share still
+       * unclaimed (#2315) — from the same `orderBillableLimit` the submit guard
+       * enforces. Everything else keeps the receipts-based offer, which is
+       * already 0 when nothing has been received.
+       */
+      const terms = orderBillableLimit(
+        order,
+        ceiling ?? 0,
+        value.received_quantity
+      )
+      const isAdvance = terms.basis === "advance"
+      const advanceLeft =
+        Math.round(Math.max(0, terms.limit - claimedTotal) * 100) / 100
+
+      const amount = isAdvance
+        ? remaining == null
+          ? advanceLeft
+          : Math.round(Math.min(advanceLeft, remaining) * 100) / 100
+        : remaining == null
           ? unclaimedReceipts
           : Math.round(Math.min(unclaimedReceipts, remaining) * 100) / 100
 
@@ -295,7 +327,12 @@ export const listPayableInventoryOrders = async (
          * claimed, and `uncapped > remaining` would report the ceiling as the
          * cause whenever prior claims were the real reason.
          */
-        capped_by_ceiling: remaining != null && unclaimedReceipts > remaining,
+        capped_by_ceiling:
+          !isAdvance && remaining != null && unclaimedReceipts > remaining,
+        payment_terms: order.payment_terms === "advance" ? "advance" : "on_receipt",
+        advance_percent: terms.advance_percent,
+        /** `amount` is an advance: offered before any goods were received. */
+        is_advance: isAdvance && amount > 0,
         recorded_total: recordedTotal,
         recorded_covers_amount: amount > 0 && recordedTotal >= amount,
         order_date: order.order_date ?? null,

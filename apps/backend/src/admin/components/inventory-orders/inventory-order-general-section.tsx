@@ -130,6 +130,15 @@ export const InventoryOrderGeneralSection = ({ inventoryOrder }: { inventoryOrde
         <Text size="small">{new Date(inventoryOrder.expected_delivery_date).toLocaleDateString()}</Text>
       </div>
       <div className="text-ui-fg-subtle grid grid-cols-2 items-center px-6 py-4">
+        {/* #2315 — when the supplier may be paid. */}
+        <Text size="small" weight="plus">Payment terms</Text>
+        <Text size="small">
+          {inventoryOrder.payment_terms === "advance"
+            ? `Advance ${inventoryOrder.advance_percent ?? 0}% before delivery`
+            : "Pay on receipt"}
+        </Text>
+      </div>
+      <div className="text-ui-fg-subtle grid grid-cols-2 items-center px-6 py-4">
         <Text size="small" weight="plus">Sample Order</Text>
         {inventoryOrder.is_sample ? (
           <Text size="small">{'Yes'}</Text>

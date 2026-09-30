@@ -2033,6 +2033,7 @@
   "InventoryOrders (modules/inventory_orders/models/order.ts)": {
     "file": "modules/inventory_orders/models/order.ts",
     "fields": [
+      "advance_percent",
       "cancellation_reason",
       "cancelled_at",
       "cancelled_by",
@@ -2048,6 +2049,7 @@
       "order_date",
       "orderlines",
       "partner_assignment_id",
+      "payment_terms",
       "quantity",
       "raw_total_price",
       "shipping_address",

@@ -455,6 +455,10 @@ export interface PayableInventoryOrder {
   recorded_total: number
   /** Whether what has already been paid meets or exceeds what this row bills. */
   recorded_covers_amount: boolean
+  /** #2315 — the order's terms, and whether `amount` is paid before delivery. */
+  payment_terms: "on_receipt" | "advance"
+  advance_percent: number
+  is_advance: boolean
   order_date: string | null
   expected_delivery_date: string | null
   payable: boolean

@@ -50,6 +50,13 @@ export interface PayableInventoryOrder {
   recorded_total: number
   /** Whether what has already been paid meets or exceeds what this row bills. */
   recorded_covers_amount: boolean
+  /**
+   * #2315 — the order's payment terms. `is_advance` means `amount` is offered
+   * BEFORE any goods were received, because the order is paid in advance.
+   */
+  payment_terms: "on_receipt" | "advance"
+  advance_percent: number
+  is_advance: boolean
   order_date: string | null
   expected_delivery_date: string | null
   /**

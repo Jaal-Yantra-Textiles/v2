@@ -4502,7 +4502,17 @@ setupSharedTestSuite(() => {
     const seedOrderForPartner = async (
       partnerId: string,
       tag: string,
-      opts?: { quantity?: number; price?: number }
+      opts?: {
+        quantity?: number
+        price?: number
+        /**
+         * #2315 — nothing is billable before a receipt unless the order is
+         * paid in advance. Cases that bill an order they never received
+         * against (settlement, charges, ownership) are advance orders, so the
+         * rule under test there is not "when may it be billed".
+         */
+        advancePercent?: number
+      }
     ) => {
       await seedOrderTaskTemplates()
       const inventoryItemId = await seedInventoryItem(tag)
@@ -4519,6 +4529,9 @@ setupSharedTestSuite(() => {
             ],
             quantity,
             total_price: quantity * price,
+            ...(opts?.advancePercent
+              ? { payment_terms: "advance", advance_percent: opts.advancePercent }
+              : {}),
             status: "Pending",
             expected_delivery_date: new Date().toISOString(),
             order_date: new Date().toISOString(),
@@ -4812,15 +4825,16 @@ setupSharedTestSuite(() => {
         const owner = await createPartnerWithAuth(stamp)
         const orderId = await seedOrderForPartner(
           owner.partnerId,
-          `pbill-${stamp}`
+          `pbill-${stamp}`,
+          { advancePercent: 100 }
         )
 
         const res = await api
           .post(
             "/partners/payment-submissions",
             {
-              // An explicit amount: this order has no receipts recorded, and
-              // an amountless line is correctly refused there.
+              // An explicit amount on a 100% ADVANCE order (#2315): nothing
+              // has been received, so only its terms make it billable.
               inventory_order_lines: [
                 { inventory_order_id: orderId, amount: 600 },
               ],
@@ -4972,7 +4986,7 @@ setupSharedTestSuite(() => {
         it("settles a payout in PART — the reading neither status could give", async () => {
           const stamp = Date.now() + 70
           const owner = await createPartnerWithAuth(stamp)
-          const orderId = await seedOrderForPartner(owner.partnerId, `psettle-${stamp}`)
+          const orderId = await seedOrderForPartner(owner.partnerId, `psettle-${stamp}`, { advancePercent: 100 })
 
           const submissionId = await billOrder(owner.partnerHeaders, orderId, 1000)
           const paymentId = await recordPayment(orderId, 400)
@@ -5015,7 +5029,7 @@ setupSharedTestSuite(() => {
            */
           const stamp = Date.now() + 80
           const owner = await createPartnerWithAuth(stamp)
-          const orderId = await seedOrderForPartner(owner.partnerId, `pidem-${stamp}`)
+          const orderId = await seedOrderForPartner(owner.partnerId, `pidem-${stamp}`, { advancePercent: 100 })
           const submissionId = await billOrder(owner.partnerHeaders, orderId, 1000)
           const paymentId = await recordPayment(orderId, 400)
 
@@ -5037,7 +5051,7 @@ setupSharedTestSuite(() => {
         it("takes the statement back, and the money returns to unmatched", async () => {
           const stamp = Date.now() + 90
           const owner = await createPartnerWithAuth(stamp)
-          const orderId = await seedOrderForPartner(owner.partnerId, `punlink-${stamp}`)
+          const orderId = await seedOrderForPartner(owner.partnerId, `punlink-${stamp}`, { advancePercent: 100 })
           const submissionId = await billOrder(owner.partnerHeaders, orderId, 1000)
           const paymentId = await recordPayment(orderId, 400)
 
@@ -5089,7 +5103,7 @@ setupSharedTestSuite(() => {
            */
           const stamp = Date.now() + 110
           const owner = await createPartnerWithAuth(stamp)
-          const orderId = await seedOrderForPartner(owner.partnerId, `porder-${stamp}`)
+          const orderId = await seedOrderForPartner(owner.partnerId, `porder-${stamp}`, { advancePercent: 100 })
           const submissionId = await billOrder(owner.partnerHeaders, orderId, 1000)
           const paymentId = await recordPayment(orderId, 400)
 
@@ -5460,7 +5474,7 @@ setupSharedTestSuite(() => {
         it("lets a claim reach the tax the partner invoiced", async () => {
           const stamp = Date.now() + 370
           const owner = await createPartnerWithAuth(stamp)
-          const orderId = await seedOrderForPartner(owner.partnerId, `chg6-${stamp}`)
+          const orderId = await seedOrderForPartner(owner.partnerId, `chg6-${stamp}`, { advancePercent: 100 })
           const row = await orderRow(owner.partnerId, orderId)
           const goods = row.ordered_total
 
@@ -5497,6 +5511,199 @@ setupSharedTestSuite(() => {
             )
             .catch((e: any) => e.response)
           expect(accepted.status).toBe(201)
+        })
+      })
+
+      /**
+       * #2315 — WHEN a supplier may be paid. The live case: Bhuttico wants the
+       * whole Chupa wool order paid before it ships. Before this, a payout on
+       * an undelivered order passed with any typed amount and nothing said
+       * whether that was an advance or a mistake.
+       */
+      describe("supplier payment terms (#2315)", () => {
+        const orderRow = async (partnerId: string, orderId: string) => {
+          const res = await api.get(
+            `/admin/payment-submissions/payable-inventory-orders?partner_id=${partnerId}`,
+            adminHeaders
+          )
+          expect(res.status).toBe(200)
+          return res.data.payable_inventory_orders.find(
+            (o: any) => o.inventory_order_id === orderId
+          )
+        }
+
+        const bill = (headers: any, orderId: string, amount?: number) =>
+          api
+            .post(
+              "/partners/payment-submissions",
+              {
+                inventory_order_lines: [
+                  amount == null
+                    ? { inventory_order_id: orderId }
+                    : { inventory_order_id: orderId, amount },
+                ],
+              },
+              { headers }
+            )
+            .catch((e: any) => e.response)
+
+        it("refuses to bill a pay-on-receipt order before anything is received", async () => {
+          const stamp = Date.now() + 610
+          const owner = await createPartnerWithAuth(stamp)
+          const orderId = await seedOrderForPartner(owner.partnerId, `terms0-${stamp}`)
+
+          const row = await orderRow(owner.partnerId, orderId)
+          expect(row.payment_terms).toBe("on_receipt")
+          expect(row.amount).toBe(0)
+          expect(row.is_advance).toBe(false)
+
+          const res = await bill(owner.partnerHeaders, orderId, 500)
+          expect(res.status).toBe(400)
+          expect(res.data.message).toContain("paid on receipt")
+        })
+
+        it("offers and bills a 50% advance, and no more, before delivery", async () => {
+          const stamp = Date.now() + 620
+          const owner = await createPartnerWithAuth(stamp)
+          // 4 × 250 = 1,000 goods.
+          const orderId = await seedOrderForPartner(owner.partnerId, `terms50-${stamp}`, {
+            advancePercent: 50,
+          })
+
+          const row = await orderRow(owner.partnerId, orderId)
+          expect(row.payment_terms).toBe("advance")
+          expect(row.advance_percent).toBe(50)
+          expect(row.amount).toBe(500)
+          expect(row.is_advance).toBe(true)
+
+          // An amountless line defaults to the advance still unclaimed.
+          const first = await bill(owner.partnerHeaders, orderId)
+          expect(first.status).toBe(201)
+          expect(Number(first.data.payment_submission.total_amount)).toBe(500)
+          const line = (first.data.payment_submission.items || [])[0]
+          expect(line.cost_breakdown?.is_advance).toBe(true)
+
+          // The advance is spent: nothing more before the goods arrive.
+          const after = await orderRow(owner.partnerId, orderId)
+          expect(after.amount).toBe(0)
+          const second = await bill(owner.partnerHeaders, orderId, 1)
+          expect(second.status).toBe(400)
+          expect(second.data.message).toContain("50% advance")
+        })
+
+        it("sets terms on an existing order through the order edit", async () => {
+          const stamp = Date.now() + 630
+          const owner = await createPartnerWithAuth(stamp)
+          const orderId = await seedOrderForPartner(owner.partnerId, `termsput-${stamp}`)
+
+          const missingPct = await api
+            .put(
+              `/admin/inventory-orders/${orderId}`,
+              { payment_terms: "advance" },
+              adminHeaders
+            )
+            .catch((e: any) => e.response)
+          expect(missingPct.status).toBe(400)
+
+          const set = await api
+            .put(
+              `/admin/inventory-orders/${orderId}`,
+              { payment_terms: "advance", advance_percent: 100 },
+              adminHeaders
+            )
+            .catch((e: any) => e.response)
+          expect(set.status).toBe(200)
+          // Read the row back — a 200 is not proof it persisted.
+          expect(set.data.inventoryOrder.payment_terms).toBe("advance")
+          expect(set.data.inventoryOrder.advance_percent).toBe(100)
+
+          const row = await orderRow(owner.partnerId, orderId)
+          expect(row.amount).toBe(1000)
+          expect((await bill(owner.partnerHeaders, orderId, 1000)).status).toBe(201)
+        })
+
+        /**
+         * The J.P. Handloom shape: goods cut, 5% tax left at the old figure. A
+         * charge could only be added, so the fix was a second offsetting row.
+         */
+        it("corrects a stale tax charge in place, and reads it back", async () => {
+          const stamp = Date.now() + 640
+          const owner = await createPartnerWithAuth(stamp)
+          const orderId = await seedOrderForPartner(owner.partnerId, `chgfix-${stamp}`)
+          const added = await api.post(
+            `/admin/inventory-orders/${orderId}/charges`,
+            { type: "tax", amount: 130 },
+            adminHeaders
+          )
+          const chargeId = added.data.charge.id
+
+          const fixed = await api
+            .post(
+              `/admin/inventory-orders/${orderId}/charges/${chargeId}`,
+              { amount: 50, note: "5% of 1,000" },
+              adminHeaders
+            )
+            .catch((e: any) => e.response)
+          expect(fixed.status).toBe(200)
+          expect(fixed.data.previous.amount).toBe(130)
+
+          const read = await api.get(`/admin/inventory-orders/${orderId}/charges`, adminHeaders)
+          expect(read.data.charges).toHaveLength(1)
+          expect(Number(read.data.charges[0].amount)).toBe(50)
+          expect(read.data.payable_ceiling).toBe(1050)
+        })
+
+        it("refuses a charge edit that would sink the ceiling below a live payout", async () => {
+          const stamp = Date.now() + 650
+          const owner = await createPartnerWithAuth(stamp)
+          const orderId = await seedOrderForPartner(owner.partnerId, `chgsink-${stamp}`, {
+            advancePercent: 100,
+          })
+          const added = await api.post(
+            `/admin/inventory-orders/${orderId}/charges`,
+            { type: "tax", amount: 50 },
+            adminHeaders
+          )
+          const chargeId = added.data.charge.id
+          expect((await bill(owner.partnerHeaders, orderId, 1050)).status).toBe(201)
+
+          const lowered = await api
+            .post(
+              `/admin/inventory-orders/${orderId}/charges/${chargeId}`,
+              { amount: 10 },
+              adminHeaders
+            )
+            .catch((e: any) => e.response)
+          expect(lowered.status).toBe(400)
+          expect(lowered.data.message).toContain("already claim")
+
+          const removed = await api
+            .delete(`/admin/inventory-orders/${orderId}/charges/${chargeId}`, adminHeaders)
+            .catch((e: any) => e.response)
+          expect(removed.status).toBe(400)
+
+          const read = await api.get(`/admin/inventory-orders/${orderId}/charges`, adminHeaders)
+          expect(Number(read.data.charges[0].amount)).toBe(50)
+        })
+
+        it("removes a charge nobody has claimed against", async () => {
+          const stamp = Date.now() + 660
+          const owner = await createPartnerWithAuth(stamp)
+          const orderId = await seedOrderForPartner(owner.partnerId, `chgdel-${stamp}`)
+          const added = await api.post(
+            `/admin/inventory-orders/${orderId}/charges`,
+            { type: "shipping", amount: 80 },
+            adminHeaders
+          )
+          const removed = await api
+            .delete(
+              `/admin/inventory-orders/${orderId}/charges/${added.data.charge.id}`,
+              adminHeaders
+            )
+            .catch((e: any) => e.response)
+          expect(removed.status).toBe(200)
+          const read = await api.get(`/admin/inventory-orders/${orderId}/charges`, adminHeaders)
+          expect(read.data.charges).toHaveLength(0)
         })
       })
 

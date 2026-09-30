@@ -189,3 +189,40 @@ describe("updateOrderLineSchema — cloth is measured in metres, not whole units
     ).toBe(true)
   })
 })
+
+describe("payment terms (#2315)", () => {
+  it("accepts advance with a percent", () => {
+    const parsed = updateInventoryOrdersSchema.parse({
+      payment_terms: "advance",
+      advance_percent: 100,
+    })
+    expect(parsed.payment_terms).toBe("advance")
+    expect(parsed.advance_percent).toBe(100)
+  })
+
+  it("refuses advance without a percent", () => {
+    expect(
+      updateInventoryOrdersSchema.safeParse({ payment_terms: "advance" }).success
+    ).toBe(false)
+  })
+
+  it("refuses a percent outside 1–100", () => {
+    expect(
+      updateInventoryOrdersSchema.safeParse({ payment_terms: "advance", advance_percent: 0 }).success
+    ).toBe(false)
+    expect(
+      updateInventoryOrdersSchema.safeParse({ payment_terms: "advance", advance_percent: 101 }).success
+    ).toBe(false)
+  })
+
+  it("refuses a percent on a pay-on-receipt order", () => {
+    expect(
+      updateInventoryOrdersSchema.safeParse({ payment_terms: "on_receipt", advance_percent: 50 }).success
+    ).toBe(false)
+  })
+
+  it("leaves terms out of an update that does not mention them", () => {
+    const parsed = updateInventoryOrdersSchema.parse({ status: "Shipped" })
+    expect("payment_terms" in parsed).toBe(false)
+  })
+})
