@@ -119,6 +119,12 @@ const NO_ROUTE_VALIDATOR = new Set<string>([
    */
   "admin:update_stock_location",
   /**
+   * #2315 — `POST /admin/partners/:id/warehouses` registers no matcher and
+   * parses in the handler with `CreatePartnerWarehouseReq.parse(req.body)`
+   * (name, address, metadata, currency_code) — exactly what the tool forwards.
+   */
+  "admin:create_partner_warehouse",
+  /**
    * `cancel-shipment` registers no matcher in `middlewares.ts` and validates in
    * the handler: it reads `(req.validatedBody || req.body || {})` for `reason`,
    * `force` and `notify_customer`, and `cancelShipmentForFulfillment` enforces
@@ -346,6 +352,39 @@ const NO_ROUTE_VALIDATOR = new Set<string>([
  *     come back, not a claim that the omission is correct.
  */
 const DELIBERATELY_OMITTED: Record<string, Record<string, string>> = {
+  "admin:set_inventory_order_ship_from": {
+    order_lines: "a NARROW tool on the broad order edit (#2315): it sets one thing, and offering the whole edit invites a status or line change riding along",
+    quantity: "as order_lines",
+    total_price: "as order_lines",
+    tax_amount: "as order_lines",
+    currency_code: "as order_lines",
+    status: "as order_lines",
+    expected_delivery_date: "as order_lines",
+    order_date: "as order_lines",
+    metadata: "as order_lines",
+    shipping_address: "as order_lines",
+    stock_location_id: "as order_lines",
+    to_stock_location_id: "as order_lines",
+    is_sample: "as order_lines",
+    payment_terms: "as order_lines",
+    advance_percent: "as order_lines",
+  },
+  "admin:set_inventory_order_payment_terms": {
+    order_lines: "a NARROW tool on the broad order edit (#2315): it sets one thing, and offering the whole edit invites a status or line change riding along",
+    quantity: "as order_lines",
+    total_price: "as order_lines",
+    tax_amount: "as order_lines",
+    currency_code: "as order_lines",
+    status: "as order_lines",
+    expected_delivery_date: "as order_lines",
+    order_date: "as order_lines",
+    metadata: "as order_lines",
+    shipping_address: "as order_lines",
+    stock_location_id: "as order_lines",
+    to_stock_location_id: "as order_lines",
+    is_sample: "as order_lines",
+    from_stock_location_id: "as order_lines",
+  },
   "admin:create_social_post": {
     post_url: "set by the publisher callback, not by the author",
     posted_at: "as post_url",
