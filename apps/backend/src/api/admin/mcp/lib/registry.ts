@@ -1713,7 +1713,7 @@ export const ADMIN_MCP_TOOLS: AdminMcpToolDef[] = [
     description:
       "Set or correct WHERE an inventory order ships from — its `from` stock location, usually the supplier's warehouse. Sensitive: requires confirm:true. " +
       "The shipment and carrier-rate flows refuse to guess an origin, so an order with no `from` cannot book a pickup. Repoints the order's from-link; no stock moves. " +
-      "Read the id from list_stock_locations; a supplier with none needs one created (Settings → Locations) and linked (backfill-partner-stock-locations job). Must differ from the order's destination.",
+      "Read the id from list_stock_locations, or create_partner_warehouse if the supplier has none. Must differ from the order's destination.",
     method: "PUT",
     path: "/admin/inventory-orders/:id",
     pathParams: ["id"],
@@ -2161,6 +2161,44 @@ export const ADMIN_MCP_TOOLS: AdminMcpToolDef[] = [
       ["id", "type", "account_name"]
     ),
     nextSteps: ["list_partner_payment_methods", "get_partner_ledger"],
+  },
+  {
+    name: "create_partner_warehouse",
+    description:
+      "Give a partner a warehouse — a stock location linked to them — without a store, sales channel or currency (#2061). Sensitive: requires confirm:true. " +
+      "Use when list_stock_locations shows nothing for a supplier, e.g. an inventory order's `from` location is empty because the supplier has nowhere to ship from. " +
+      "🔴 Refused if the partner already has a warehouse (one per partner; the error names it). " +
+      "⚠️ Creating it also registers the address as a PICKUP point with the carriers (Shiprocket/Delhivery) — an outward-facing call, so get the address right first. " +
+      "Then set it as an order's ship-from with set_inventory_order_ship_from.",
+    method: "POST",
+    path: "/admin/partners/:id/warehouses",
+    pathParams: ["id"],
+    write: true,
+    sensitive: true,
+    bodyParams: ["name", "address", "metadata", "currency_code"],
+    inputSchema: obj(
+      {
+        id: STR("Partner id."),
+        name: STR("Warehouse name, e.g. '<Partner> Warehouse' — the name is how list_stock_locations tells partner buildings from ours."),
+        address: obj(
+          {
+            address_1: STR("Street address (required — carriers need it to register a pickup)."),
+            address_2: STR("Second address line."),
+            city: STR("City."),
+            province: STR("State / province."),
+            postal_code: STR("Postal code."),
+            country_code: STR("ISO-2 country code, e.g. 'IN'. Decides which carriers are registered."),
+            phone: STR("Contact phone for pickups."),
+            company: STR("Company / legal name on the pickup."),
+          },
+          ["address_1", "country_code"]
+        ),
+        metadata: { type: "object", description: "Optional metadata." },
+        currency_code: STR("Optional ISO-3; read only by carrier auto-registration."),
+      },
+      ["id", "name", "address"]
+    ),
+    nextSteps: ["list_stock_locations", "set_inventory_order_ship_from"],
   },
   {
     name: "update_stock_location",
