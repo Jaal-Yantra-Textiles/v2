@@ -1709,6 +1709,28 @@ export const ADMIN_MCP_TOOLS: AdminMcpToolDef[] = [
     nextSteps: ["list_inventory_orders"],
   },
   {
+    name: "set_inventory_order_ship_from",
+    description:
+      "Set or correct WHERE an inventory order ships from — its `from` stock location, usually the supplier's warehouse. Sensitive: requires confirm:true. " +
+      "The shipment and carrier-rate flows refuse to guess an origin, so an order with no `from` cannot book a pickup. Repoints the order's from-link; no stock moves. " +
+      "Read the id from list_stock_locations; a supplier with none needs one created (Settings → Locations) and linked (backfill-partner-stock-locations job). Must differ from the order's destination.",
+    method: "PUT",
+    path: "/admin/inventory-orders/:id",
+    pathParams: ["id"],
+    previewPath: "/admin/inventory-orders/:id",
+    write: true,
+    sensitive: true,
+    bodyParams: ["from_stock_location_id"],
+    inputSchema: obj(
+      {
+        id: STR("Inventory order id, e.g. 'inv_order_...'."),
+        from_stock_location_id: STR("Stock location id ('sloc_...') the goods ship FROM."),
+      },
+      ["id", "from_stock_location_id"]
+    ),
+    nextSteps: ["get_inventory_order"],
+  },
+  {
     name: "set_inventory_order_payment_terms",
     description:
       "Set WHEN a supplier is paid for an inventory order (#2315): `on_receipt` (the default — nothing is billable until goods are received) or `advance` with `advance_percent` 1–100 (that share of the payable ceiling may be billed before delivery, through the normal payout flow). Sensitive: requires confirm:true. " +
