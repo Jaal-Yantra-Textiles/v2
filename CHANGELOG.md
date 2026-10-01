@@ -1,3 +1,12 @@
+# [13.167.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.166.0...v13.167.0) (2026-10-01)
+
+
+### Features
+
+* **#2306 S3:** a work order waits for a partner — no more superseded orders ([#2313](https://github.com/Jaal-Yantra-Textiles/v2/issues/2313)) ([ad42f80](https://github.com/Jaal-Yantra-Textiles/v2/commit/ad42f80896f3eae2afe9307729f911be001585b2)), closes [#2306](https://github.com/Jaal-Yantra-Textiles/v2/issues/2306)
+* **#2315:** design fabric in fractional metres; agent can change and remove a design's fabric ([#2317](https://github.com/Jaal-Yantra-Textiles/v2/issues/2317)) ([6f74815](https://github.com/Jaal-Yantra-Textiles/v2/commit/6f74815641edab83af0b39568b4ec59ad4780065)), closes [#2315](https://github.com/Jaal-Yantra-Textiles/v2/issues/2315) [#1548](https://github.com/Jaal-Yantra-Textiles/v2/issues/1548)
+* **#2315:** supplier payment terms — an inventory order can be paid in advance ([#2316](https://github.com/Jaal-Yantra-Textiles/v2/issues/2316)) ([65ed55f](https://github.com/Jaal-Yantra-Textiles/v2/commit/65ed55fb2a2b30906ea32194e02c8697f7909401)), closes [#2315](https://github.com/Jaal-Yantra-Textiles/v2/issues/2315) [#2315](https://github.com/Jaal-Yantra-Textiles/v2/issues/2315) [#2315](https://github.com/Jaal-Yantra-Textiles/v2/issues/2315) [#2315](https://github.com/Jaal-Yantra-Textiles/v2/issues/2315) [#2315](https://github.com/Jaal-Yantra-Textiles/v2/issues/2315)
+
 # [13.166.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.165.0...v13.166.0) (2026-09-26)
 
 
