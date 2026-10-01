@@ -69,9 +69,13 @@ setupSharedTestSuite(() => {
      * ⚠️ The TOP-LEVEL run, not `children[0]`. An assignment's child run is
      * not projected to a unified order, so a fixture built on it reports
      * `no_unified_order` and every assertion below fails for a reason that has
-     * nothing to do with the job. No partner is needed at all —
-     * `deriveRunPartnerStatus` reads `run.status`, and a cancelled run says
-     * "cancelled" whoever was holding it.
+     * nothing to do with the job.
+     *
+     * 🔴 The run MUST have a partner (#2306 S3, #2313). A partnerless run is a
+     * plan, not work given to anyone, so it no longer mints a work order at
+     * create — and a run with no order reads `orderId: undefined` here. The
+     * partner does not change the status under test: `deriveRunPartnerStatus`
+     * reads `run.status`, and a cancelled run says "cancelled" whoever held it.
      */
     const cancelledRunWithOrder = async (unique: number) => {
       const designRes = await api.post(
@@ -87,9 +91,27 @@ setupSharedTestSuite(() => {
       )
       const designId = designRes.data.design.id
 
+      const partnerRes = await api.post(
+        "/admin/partners",
+        {
+          partner: {
+            name: `Remirror Partner ${unique}`,
+            handle: `remirror-partner-${unique}`,
+          },
+          admin: {
+            email: `remirror-${unique}@jyt.test`,
+            first_name: "Remirror",
+            last_name: "Partner",
+          },
+        },
+        adminHeaders
+      )
+      expect(partnerRes.status).toBe(201)
+      const partnerId = partnerRes.data.partner.id
+
       const run = await api.post(
-        `/admin/designs/${designId}/production-runs`,
-        { quantity: 5 },
+        "/admin/production-runs",
+        { design_id: designId, partner_id: partnerId, quantity: 5 },
         adminHeaders
       )
       expect(run.status).toBe(201)
