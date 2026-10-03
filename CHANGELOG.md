@@ -1,3 +1,15 @@
+# [13.168.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.167.0...v13.168.0) (2026-10-03)
+
+
+### Bug Fixes
+
+* **design orders:** a partner's work order on the design is not the customer's purchase ([#2323](https://github.com/Jaal-Yantra-Textiles/v2/issues/2323)) ([60cec78](https://github.com/Jaal-Yantra-Textiles/v2/commit/60cec783d63c82cc9692cab259fd13be891ee40d)), closes [#2306](https://github.com/Jaal-Yantra-Textiles/v2/issues/2306) [#119](https://github.com/Jaal-Yantra-Textiles/v2/issues/119) [#119](https://github.com/Jaal-Yantra-Textiles/v2/issues/119)
+
+
+### Features
+
+* **#2320:** partner admins log in with phone number + PIN (web, Android, iOS) ([#2321](https://github.com/Jaal-Yantra-Textiles/v2/issues/2321)) ([b162c05](https://github.com/Jaal-Yantra-Textiles/v2/commit/b162c05e326ebcd2bd44104dddcf61e08fa1bbe1)), closes [#2320](https://github.com/Jaal-Yantra-Textiles/v2/issues/2320) [#2320](https://github.com/Jaal-Yantra-Textiles/v2/issues/2320) [#2320](https://github.com/Jaal-Yantra-Textiles/v2/issues/2320) [#2320](https://github.com/Jaal-Yantra-Textiles/v2/issues/2320) [#2320](https://github.com/Jaal-Yantra-Textiles/v2/issues/2320)
+
 # [13.167.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.166.0...v13.167.0) (2026-10-01)
 
 
