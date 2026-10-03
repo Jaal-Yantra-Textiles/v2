@@ -25,8 +25,8 @@ android {
         applicationId = "com.jyt.partner"
         minSdk = 26
         targetSdk = 36
-        versionCode = 2
-        versionName = "0.1.1"
+        versionCode = 3
+        versionName = "0.1.2"
 
         // The backend the app talks to. The Android emulator reaches the
         // host's localhost through 10.0.2.2 — the counterpart of the iOS
