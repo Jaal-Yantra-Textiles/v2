@@ -295,6 +295,8 @@ actor PartnerAPI {
     var allow_shortfall: Bool?
     var notes: String?
     var consumptions: [ConsumptionEntry]?
+    /// Which sizes/colours were made — required when the run is for several (#2271).
+    var produced_output: [OutputLine]?
   }
 
   func completeRun(id: String, body: CompleteRunBody) async throws {

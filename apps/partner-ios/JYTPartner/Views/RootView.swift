@@ -25,6 +25,21 @@ struct RootView: View {
           .tabItem { Label("Profile", systemImage: "person") }
       }
       .onAppear { push.enableAfterSignIn() }
+      .sheet(isPresented: Binding(
+        get: { push.pendingRunID != nil },
+        set: { if !$0 { push.pendingRunID = nil } }
+      )) {
+        if let runID = push.pendingRunID {
+          NavigationStack {
+            RunDetailView(runID: runID)
+              .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                  Button("Close") { push.pendingRunID = nil }
+                }
+              }
+          }
+        }
+      }
     }
   }
 }

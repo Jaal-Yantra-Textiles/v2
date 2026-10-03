@@ -56,6 +56,7 @@ import com.jyt.partner.models.formatDate
 import com.jyt.partner.models.DesignDetail
 import com.jyt.partner.models.PartnerOrder
 import com.jyt.partner.models.ProductionRun
+import com.jyt.partner.models.resolveDesignId
 import com.jyt.partner.models.RunTask
 import kotlinx.coroutines.launch
 
@@ -110,7 +111,7 @@ fun OrderDetailScreen(
             // The linked design carries the media gallery + materials for
             // the Complete form.
             design?.let { return }
-            val designId = fetched.designs?.firstOrNull()?.id
+            val designId = fetched.resolveDesignId(runs)
             if (designId != null) {
                 design = runCatching { PartnerApi.get(context).design(designId) }.getOrNull()
             }
@@ -187,7 +188,7 @@ fun OrderDetailScreen(
                 )
                 api.attachRunMedia(runId, files)
                 design = runCatching {
-                    detail?.designs?.firstOrNull()?.id?.let { api.design(it) }
+                    detail?.resolveDesignId(runs)?.let { api.design(it) }
                 }.getOrNull() ?: design
             } catch (e: Exception) {
                 actionError = e.message
@@ -445,6 +446,7 @@ fun OrderDetailScreen(
         CompleteRunSheet(
             orderedQuantity = activeRun?.quantity ?: 0,
             materials = design?.inventoryItems.orEmpty(),
+            run = activeRun,
             onConfirm = { body -> scope.launch { run(RunAction.COMPLETE, completeBody = body) } },
             onDismiss = { showComplete = false },
         )

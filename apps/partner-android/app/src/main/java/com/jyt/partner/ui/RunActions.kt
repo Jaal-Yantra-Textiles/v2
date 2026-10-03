@@ -32,6 +32,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.jyt.partner.api.PartnerApi
 import com.jyt.partner.models.DesignInventoryItem
+import com.jyt.partner.models.SplitPlan
+import com.jyt.partner.models.CompletionSplit
 import com.jyt.partner.models.ProductionRun
 import com.jyt.partner.models.RunTask
 
@@ -170,6 +172,8 @@ fun FinishRunSheet(
 fun CompleteRunSheet(
     orderedQuantity: Int,
     materials: List<DesignInventoryItem>,
+    /** The run being completed — its snapshot says which sizes/colours it is for (#2271). */
+    run: ProductionRun?,
     onConfirm: (PartnerApi.CompleteRunBody) -> Unit,
     onDismiss: () -> Unit,
 ) {
@@ -183,6 +187,12 @@ fun CompleteRunSheet(
     var reasonMenuOpen by remember { mutableStateOf(false) }
     var notes by rememberSaveable { mutableStateOf("") }
     var shortfallExplanation by rememberSaveable { mutableStateOf("") }
+
+    // #2271 — which sizes/colours were made, when the run is for several.
+    val axes = remember(run?.id) { CompletionSplit.axes(run) }
+    var splitMap by rememberSaveable(run?.id) {
+        mutableStateOf(CompletionSplit.initial(run, axes, max(orderedQuantity, 0).toDouble()))
+    }
 
     // Keyed by the material id list, so the same BOM after a reload (same
     // ids, new object identities) restores the typed state.
@@ -204,6 +214,10 @@ fun CompleteRunSheet(
     // produced + rejected must cover the order unless explained (#1271).
     val shortfall = orderedQuantity > 0 && produced + rejected < orderedQuantity
 
+    // The split must add up to the GOOD pieces — produced is the good output.
+    val split = CompletionSplit.plan(axes, splitMap, produced.toDouble())
+    val splitOk = split !is SplitPlan.Needed || split.ok
+
     val consumptions: List<PartnerApi.ConsumptionEntry>? =
         materials.mapNotNull { item ->
             if (usedMap[item.id] != true) return@mapNotNull null
@@ -220,7 +234,8 @@ fun CompleteRunSheet(
     val canSubmit = produced >= 0 && rejected >= 0 &&
         (rejected <= 0 || rejectionReason != null) &&
         (cost == null || costType != null) &&
-        (!shortfall || shortfallExplanation.isNotBlank())
+        (!shortfall || shortfallExplanation.isNotBlank()) &&
+        splitOk
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -231,7 +246,7 @@ fun CompleteRunSheet(
                 OutlinedTextField(
                     value = producedQty,
                     onValueChange = { producedQty = it.filter { c -> c.isDigit() } },
-                    label = { Text("Produced") },
+                    label = { Text("Good pieces produced") },
                     keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(keyboardType = KeyboardType.Number),
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth(),
@@ -274,6 +289,32 @@ fun CompleteRunSheet(
                         onValueChange = { rejectionNotes = it },
                         label = { Text("Rejection notes") },
                         modifier = Modifier.fillMaxWidth(),
+                    )
+                }
+                if (split is SplitPlan.Needed) {
+                    Text("Which sizes and colours", fontWeight = FontWeight.SemiBold)
+                    Text(
+                        "This run is for several sizes or colours. Say how many good pieces of each were made, so stock gets the right ones.",
+                        fontSize = 11.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    CompletionSplit.combos(axes).forEach { combo ->
+                        OutlinedTextField(
+                            value = splitMap[combo.key] ?: "",
+                            onValueChange = { text ->
+                                splitMap = splitMap + (combo.key to text.filter { c -> c.isDigit() })
+                            },
+                            label = { Text(combo.label.ifEmpty { "Pieces" }) },
+                            keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(keyboardType = KeyboardType.Number),
+                            singleLine = true,
+                            modifier = Modifier.fillMaxWidth(),
+                        )
+                    }
+                    Text(
+                        "Adds up to ${CompletionSplit.formatQty(split.total)} of $produced good pieces",
+                        fontSize = 12.sp,
+                        color = if (split.ok) MaterialTheme.colorScheme.onSurfaceVariant
+                        else MaterialTheme.colorScheme.error,
                     )
                 }
                 if (materials.isNotEmpty()) {
@@ -396,6 +437,7 @@ fun CompleteRunSheet(
                             allowShortfall = if (shortfall) true else null,
                             notes = combinedNotes.takeIf { it.isNotBlank() },
                             consumptions = consumptions,
+                            producedOutput = (split as? SplitPlan.Needed)?.lines,
                         )
                     )
                     onDismiss()

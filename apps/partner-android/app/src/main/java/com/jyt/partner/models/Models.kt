@@ -75,7 +75,20 @@ data class PartnerOrderItem(
     val thumbnail: String? = null,
     val quantity: Int = 0,
     val total: Double = 0.0,
+    /** The work-order line's design — a typed column on the detail read.
+     *  (`metadata.design_id` is only a compatibility echo; don't read it.) */
+    @SerialName("design_id") val designId: String? = null,
 )
+
+/**
+ * The design an order is for. The order DETAIL read carries no `designs` list
+ * (only list rows do), so: the line's typed `design_id`, then a production
+ * run's `design_id`, then the list-row summary.
+ */
+fun PartnerOrder.resolveDesignId(runs: List<com.jyt.partner.models.ProductionRun>): String? =
+    items.orEmpty().firstNotNullOfOrNull { it.designId }
+        ?: runs.firstNotNullOfOrNull { it.designId }
+        ?: designs?.firstOrNull()?.id
 
 @Serializable
 data class PartnerOrderListResponse(

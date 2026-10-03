@@ -232,6 +232,8 @@ class PartnerApi private constructor(
         @SerialName("allow_shortfall") val allowShortfall: Boolean? = null,
         val notes: String? = null,
         val consumptions: List<ConsumptionEntry>? = null,
+        /** Which sizes/colours were made — required when the run is for several (#2271). */
+        @SerialName("produced_output") val producedOutput: List<com.jyt.partner.models.OutputLine>? = null,
     )
 
     suspend fun completeRun(id: String, body: CompleteRunBody) {

@@ -172,6 +172,11 @@ data class ProductionRun(
     @SerialName("completed_at") val completedAt: String? = null,
     @SerialName("created_at") val createdAt: String? = null,
     @SerialName("updated_at") val updatedAt: String? = null,
+    /** The sizes/colours the run was commissioned for (#2271). Kept raw and
+     *  read leniently by CompletionSplit — an odd snapshot must not stop the
+     *  whole run from decoding. */
+    val snapshot: JsonElement? = null,
+    @SerialName("planned_output") val plannedOutput: JsonElement? = null,
 )
 
 @Serializable

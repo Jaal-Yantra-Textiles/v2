@@ -131,7 +131,8 @@ struct RunDetailView: View {
     .sheet(isPresented: $showCompleteSheet) {
       CompleteRunSheet(
         orderedQuantity: detail?.production_run.quantity ?? 0,
-        materials: design?.inventory_items ?? []
+        materials: design?.inventory_items ?? [],
+        run: detail?.production_run
       ) { body in
         Task { await run(.complete, completeBody: body) }
       }

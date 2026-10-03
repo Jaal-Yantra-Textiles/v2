@@ -2,12 +2,15 @@ import { AuthenticatedMedusaRequest, MedusaResponse } from "@medusajs/framework"
 import { PartnerPostConsumptionLogReq } from "./validators"
 import { logConsumptionWorkflow } from "../../../../../workflows/consumption-logs/log-consumption"
 import { listConsumptionLogsWorkflow } from "../../../../../workflows/consumption-logs/list-consumption-logs"
+import { assertPartnerCanAuthorDesign } from "../../helpers"
 
 export const POST = async (
   req: AuthenticatedMedusaRequest<PartnerPostConsumptionLogReq>,
   res: MedusaResponse
 ) => {
   const designId = req.params.designId
+  // Only the design's owner or a linked partner may log against it.
+  await assertPartnerCanAuthorDesign(req, designId)
 
   const { result, errors } = await logConsumptionWorkflow(req.scope).run({
     input: {
@@ -39,6 +42,8 @@ export const GET = async (
   res: MedusaResponse
 ) => {
   const designId = req.params.designId
+  // Only the design's owner or a linked partner may read its logs.
+  await assertPartnerCanAuthorDesign(req, designId)
   const query = req.query as Record<string, any>
 
   const { result, errors } = await listConsumptionLogsWorkflow(req.scope).run({

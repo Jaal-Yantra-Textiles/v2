@@ -129,7 +129,8 @@ struct FinishRunSheet: View {
             .foregroundStyle(.secondary)
         }
 
-        if isSample && consumptionCount == 0 {
+        // -1 = the caller doesn't know the count; nudge then too (as Android does).
+        if isSample && consumptionCount <= 0 {
           Section {
             Label {
               VStack(alignment: .leading, spacing: 2) {
@@ -251,6 +252,8 @@ struct CompleteRunSheet: View {
   /// The design's inventory items — the Complete form's material options
   /// (the web's resolveRunMaterialOptions). Logged as consumptions.
   var materials: [DesignInventoryItem] = []
+  /// The run being completed — its snapshot says which sizes/colours it is for (#2271).
+  var run: ProductionRun?
   let onConfirm: (PartnerAPI.CompleteRunBody) -> Void
   @Environment(\.dismiss) private var dismiss
 
@@ -263,18 +266,33 @@ struct CompleteRunSheet: View {
   @State private var notes = ""
   @State private var shortfallExplanation = ""
   @State private var usage: [MaterialUsage] = []
+  @State private var splitValues: [String: String] = [:]
 
   init(
     orderedQuantity: Int,
     materials: [DesignInventoryItem] = [],
+    run: ProductionRun? = nil,
     onConfirm: @escaping (PartnerAPI.CompleteRunBody) -> Void
   ) {
     self.orderedQuantity = orderedQuantity
     self.materials = materials
+    self.run = run
     self.onConfirm = onConfirm
     _producedQty = State(initialValue: String(max(orderedQuantity, 0)))
     _usage = State(initialValue: materials.map { MaterialUsage(item: $0) })
+    _splitValues = State(initialValue: CompletionSplit.initial(
+      planned: run?.planned_output?.lines ?? [],
+      snapshot: run?.snapshot ?? RunSnapshot(),
+      target: Double(max(orderedQuantity, 0))))
   }
+
+  private var snapshot: RunSnapshot { run?.snapshot ?? RunSnapshot() }
+  private var splitNeeded: Bool { CompletionSplit.needed(snapshot) }
+  private var split: (lines: [OutputLine], total: Double) {
+    CompletionSplit.plan(snapshot, values: splitValues)
+  }
+  /// The split must add up to the GOOD pieces — produced is the good output.
+  private var splitOk: Bool { !splitNeeded || split.total == Double(produced) }
 
   private var produced: Int { Int(producedQty) ?? 0 }
   private var rejected: Int { Int(rejectedQty) ?? 0 }
@@ -311,7 +329,7 @@ struct CompleteRunSheet: View {
     if shortfall && shortfallExplanation.trimmingCharacters(in: .whitespaces).isEmpty {
       return false
     }
-    return true
+    return splitOk
   }
 
   var body: some View {
@@ -323,7 +341,7 @@ struct CompleteRunSheet: View {
             Spacer()
             Text("\(orderedQuantity)").foregroundStyle(.secondary)
           }
-          LabeledContent("Produced") {
+          LabeledContent("Good pieces produced") {
             TextField("0", text: $producedQty)
               .keyboardType(.numberPad)
               .multilineTextAlignment(.trailing)
@@ -346,6 +364,26 @@ struct CompleteRunSheet: View {
               }
             }
             TextField("Rejection notes", text: $rejectionNotes)
+          }
+        }
+
+        if splitNeeded {
+          Section {
+            ForEach(CompletionSplit.combos(snapshot)) { combo in
+              LabeledContent(combo.label.isEmpty ? "Pieces" : combo.label) {
+                TextField("0", text: Binding(
+                  get: { splitValues[combo.id] ?? "" },
+                  set: { splitValues[combo.id] = $0.filter(\.isNumber) }))
+                  .keyboardType(.numberPad)
+                  .multilineTextAlignment(.trailing)
+                  .frame(maxWidth: 90)
+              }
+            }
+          } header: {
+            Text("Which sizes and colours")
+          } footer: {
+            Text("Adds up to \(CompletionSplit.format(split.total)) of \(produced) good pieces. Say how many of each were made, so stock gets the right ones.")
+              .foregroundStyle(splitOk ? Color.secondary : Color.red)
           }
         }
 
@@ -435,7 +473,8 @@ struct CompleteRunSheet: View {
               cost_type: costType?.rawValue,
               allow_shortfall: shortfall ? true : nil,
               notes: combinedNotes.isEmpty ? nil : combinedNotes,
-              consumptions: consumptions
+              consumptions: consumptions,
+              produced_output: splitNeeded ? split.lines : nil
             ))
             dismiss()
           }

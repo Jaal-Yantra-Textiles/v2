@@ -126,6 +126,9 @@ struct DesignDetailView: View {
       if let created = design.created_at {
         LabeledContent("Created", value: Self.date.string(from: created) ?? "—")
       }
+      if let description = design.description, !description.isEmpty {
+        Text(description).font(.footnote)
+      }
       if let notes = design.designer_notes, !notes.isEmpty {
         Text(notes).font(.footnote).foregroundStyle(.secondary)
       }
