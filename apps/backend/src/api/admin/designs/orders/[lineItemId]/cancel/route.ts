@@ -5,7 +5,7 @@ import {
 import { ContainerRegistrationKeys, Modules } from "@medusajs/framework/utils"
 
 import designLineItemLink from "../../../../../../links/design-line-item-link"
-import designOrderLink from "../../../../../../links/design-order-link"
+import { hasLinkedSaleOrder } from "../../linked-sale-order"
 import { decideCancel } from "../../mutate-design-order"
 
 /**
@@ -62,18 +62,13 @@ export async function POST(
      * 2 of 48 carts carry that locally, so a guard keyed on it is a guard that
      * does not fire. Same read the reprice route and the detail page use.
      */
-    const { data: orderLinks = [] } = await query
-      .graph({
-        entity: designOrderLink.entryPoint,
-        filters: { design_id: linkRows[0].design_id },
-        fields: ["order_id"],
-      })
-      .catch(() => ({ data: [] }))
+    // Sale orders only — a partner's work order on this design is not a purchase.
+    const linkedSaleOrder = await hasLinkedSaleOrder(query, linkRows[0].design_id)
 
     const decision = decideCancel({
       cart,
       reason: (req.body as { reason?: unknown } | undefined)?.reason,
-      hasLinkedOrder: (orderLinks as any[]).some((l) => l?.order_id),
+      hasLinkedOrder: linkedSaleOrder,
     })
 
     if (!decision.ok) {
