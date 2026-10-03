@@ -4,6 +4,10 @@ struct LoginView: View {
   @EnvironmentObject private var auth: AuthStore
   @State private var email = ""
   @State private var password = ""
+  // Phone number + PIN (#2320).
+  @State private var usePhone = false
+  @State private var phone = ""
+  @State private var pin = ""
   @State private var submitting = false
   @State private var errorText: String?
 
@@ -27,21 +31,49 @@ struct LoginView: View {
           .padding(.horizontal, 32)
       }
 
+      HStack(spacing: 4) {
+        methodButton("Email", selected: !usePhone) { usePhone = false }
+        methodButton("Phone", selected: usePhone) { usePhone = true }
+      }
+
       VStack(spacing: 14) {
-        VStack(alignment: .leading, spacing: 6) {
-          Text("Email").font(.caption).foregroundStyle(.secondary)
-          TextField("you@example.com", text: $email)
-            .textInputAutocapitalization(.never)
-            .keyboardType(.emailAddress)
-            .autocorrectionDisabled()
-            .padding(12)
-            .background(Color(.tertiarySystemFill), in: RoundedRectangle(cornerRadius: 10))
-        }
-        VStack(alignment: .leading, spacing: 6) {
-          Text("Password").font(.caption).foregroundStyle(.secondary)
-          SecureField("••••••••", text: $password)
-            .padding(12)
-            .background(Color(.tertiarySystemFill), in: RoundedRectangle(cornerRadius: 10))
+        if usePhone {
+          VStack(alignment: .leading, spacing: 6) {
+            Text("Phone number").font(.caption).foregroundStyle(.secondary)
+            TextField("98765 43210", text: $phone)
+              .keyboardType(.phonePad)
+              .textContentType(.telephoneNumber)
+              .padding(12)
+              .background(Color(.tertiarySystemFill), in: RoundedRectangle(cornerRadius: 10))
+          }
+          VStack(alignment: .leading, spacing: 6) {
+            Text("PIN").font(.caption).foregroundStyle(.secondary)
+            SecureField("6-digit PIN", text: $pin)
+              .keyboardType(.numberPad)
+              .textContentType(.password)
+              .onChange(of: pin) { value in
+                let digits = String(value.filter(\.isNumber).prefix(6))
+                if digits != value { pin = digits }
+              }
+              .padding(12)
+              .background(Color(.tertiarySystemFill), in: RoundedRectangle(cornerRadius: 10))
+          }
+        } else {
+          VStack(alignment: .leading, spacing: 6) {
+            Text("Email").font(.caption).foregroundStyle(.secondary)
+            TextField("you@example.com", text: $email)
+              .textInputAutocapitalization(.never)
+              .keyboardType(.emailAddress)
+              .autocorrectionDisabled()
+              .padding(12)
+              .background(Color(.tertiarySystemFill), in: RoundedRectangle(cornerRadius: 10))
+          }
+          VStack(alignment: .leading, spacing: 6) {
+            Text("Password").font(.caption).foregroundStyle(.secondary)
+            SecureField("••••••••", text: $password)
+              .padding(12)
+              .background(Color(.tertiarySystemFill), in: RoundedRectangle(cornerRadius: 10))
+          }
         }
         if let errorText {
           Text(errorText)
@@ -64,6 +96,12 @@ struct LoginView: View {
         }
         .buttonStyle(.borderedProminent)
         .disabled(submitting)
+        if usePhone {
+          Text("Set your phone number and PIN in your profile on the partner dashboard first. Forgot your PIN? Sign in with email and set a new one.")
+            .font(.caption)
+            .foregroundStyle(.secondary)
+            .multilineTextAlignment(.center)
+        }
       }
       .padding(20)
       .background(
@@ -75,21 +113,47 @@ struct LoginView: View {
       Spacer()
     }
     .animation(.easeOut(duration: 0.15), value: errorText)
+    .onChange(of: usePhone) { _ in errorText = nil }
+  }
+
+  /// One option of the Email / Phone switch — the chosen one is tinted.
+  @ViewBuilder
+  private func methodButton(_ label: String, selected: Bool, action: @escaping () -> Void) -> some View {
+    if selected {
+      Button(label, action: action).buttonStyle(.bordered).fontWeight(.semibold)
+    } else {
+      Button(label, action: action).buttonStyle(.borderless).foregroundStyle(.secondary)
+    }
   }
 
   private func signIn() {
     guard !submitting else { return }
     errorText = nil
+    if usePhone {
+      let phone = phone.trimmingCharacters(in: .whitespacesAndNewlines)
+      guard !phone.isEmpty, pin.count == 6 else {
+        errorText = "Enter your phone number and 6-digit PIN."
+        return
+      }
+      let pin = pin
+      self.pin = ""
+      run { try await auth.loginWithPhone(phone: phone, pin: pin) }
+      return
+    }
     let email = email.trimmingCharacters(in: .whitespacesAndNewlines)
     guard !email.isEmpty, !password.isEmpty else {
       errorText = "Enter your email and password."
       return
     }
+    run { try await auth.login(email: email, password: password) }
+  }
+
+  private func run(_ attempt: @escaping () async throws -> Void) {
     submitting = true
     Task {
       defer { submitting = false }
       do {
-        try await auth.login(email: email, password: password)
+        try await attempt()
       } catch {
         errorText = (error as? LocalizedError)?.errorDescription
           ?? "Could not sign in. Check your connection and try again."

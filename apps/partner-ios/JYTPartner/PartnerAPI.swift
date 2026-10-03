@@ -84,6 +84,26 @@ actor PartnerAPI {
     return LoginOutcome(verificationRequired: false, email: email)
   }
 
+  /// POST /auth/partner/phone-pin — phone number + 6-digit PIN (#2320).
+  /// The backend reads the number in any format and locks it after 5 wrong PINs.
+  func loginWithPhone(phone: String, pin: String) async throws {
+    let body: [String: String] = ["phone": phone, "pin": pin]
+    var request = URLRequest(url: Self.makeURL("auth/partner/phone-pin"))
+    request.httpMethod = "POST"
+    request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+    request.httpBody = try JSONSerialization.data(withJSONObject: body)
+
+    let (data, response) = try await session.data(for: request)
+    try Self.check(response, data: data)
+
+    let parsed = try? JSONSerialization.jsonObject(with: data) as? [String: Any]
+    guard let token = parsed?["token"] as? String
+            ?? (parsed?["access_token"] as? String) else {
+      throw PartnerError.invalidResponse
+    }
+    Keychain.saveToken(token)
+  }
+
   nonisolated func logout() {
     Keychain.clearToken()
   }

@@ -86,6 +86,27 @@ class AuthViewModel : ViewModel() {
         }
     }
 
+    /** Phone number + PIN (#2320). */
+    fun loginWithPhone(context: Context, phone: String, pin: String) {
+        viewModelScope.launch {
+            loginError.value = null
+            val api = PartnerApi.get(context)
+            try {
+                api.loginWithPhone(phone.trim(), pin)
+                _state.value = State.SignedIn(api.me())
+            } catch (e: PartnerException.Http) {
+                loginError.value = when {
+                    e.status != 401 -> e.message ?: "Sign in failed."
+                    e.serverMessage.contains("Too many wrong PINs") ->
+                        "Too many wrong PINs. Wait 15 minutes, or sign in with your email."
+                    else -> "Wrong phone number or PIN."
+                }
+            } catch (e: Exception) {
+                loginError.value = e.message ?: "Sign in failed."
+            }
+        }
+    }
+
     fun logout(context: Context) {
         // Sign-out also unregisters the device so a signed-out phone stops
         // receiving this partner's pushes.
