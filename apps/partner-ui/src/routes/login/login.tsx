@@ -162,7 +162,7 @@ export const Login = () => {
           {getWidgets("login.before").map((Component, i) => {
             return <Component key={i} />
           })}
-          <div className="bg-ui-bg-component shadow-borders-base grid grid-cols-2 gap-1 rounded-md p-1">
+          <div className="flex items-center justify-center gap-x-1">
             {(["email", "phone"] as const).map((m) => (
               <Button
                 key={m}
