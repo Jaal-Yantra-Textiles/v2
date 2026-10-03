@@ -17,6 +17,22 @@ import designOrderLink from "../../../../links/design-order-link"
  *
  * A lookup failure answers "linked" — the guard's safe direction.
  */
+/**
+ * Which of these order ids are WORK ORDERS (have a typed `work_order` row).
+ * A partner's job, not a customer's purchase — never the order a design order
+ * "is", so never displayed as one (its currency and ₹0 lines are the partner's).
+ */
+export async function workOrderIdSet(query: any, orderIds: string[]): Promise<Set<string>> {
+  const ids = Array.from(new Set(orderIds.filter(Boolean).map(String)))
+  if (!ids.length) return new Set()
+  const { data: workOrders = [] } = await query.graph({
+    entity: "work_order",
+    filters: { id: ids },
+    fields: ["id"],
+  })
+  return new Set((workOrders as any[]).map((w) => String(w.id)))
+}
+
 export async function hasLinkedSaleOrder(query: any, designId: string): Promise<boolean> {
   try {
     const { data: links = [] } = await query.graph({
@@ -29,12 +45,7 @@ export async function hasLinkedSaleOrder(query: any, designId: string): Promise<
     )
     if (!orderIds.length) return false
 
-    const { data: workOrders = [] } = await query.graph({
-      entity: "work_order",
-      filters: { id: orderIds },
-      fields: ["id"],
-    })
-    const workOrderIds = new Set((workOrders as any[]).map((w) => String(w.id)))
+    const workOrderIds = await workOrderIdSet(query, orderIds)
     return orderIds.some((id) => !workOrderIds.has(id))
   } catch {
     return true

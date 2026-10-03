@@ -93,14 +93,34 @@ setupSharedTestSuite(() => {
       const designId = await makeDesign("In production before payment")
       const lineItemId = await makeDesignOrder(designId)
 
+      // As on prod: the work order is mirrored as a real order (EUR, ₹0 line)
+      // AND has its typed work_order row under the same id.
+      const orderModule = getContainer().resolve(Modules.ORDER) as any
+      const [mirror] = await orderModule.createOrders([
+        {
+          currency_code: "eur",
+          items: [{ title: "Partner work", quantity: 2, unit_price: 0 }],
+        },
+      ])
       const workOrders = getContainer().resolve(WORK_ORDER_MODULE) as any
-      const wo = await workOrders.createWorkOrders({ kind: "design", currency_code: "inr" })
-      await linkDesignToOrder(designId, wo.id)
+      await workOrders.createWorkOrders({ id: mirror.id, kind: "design", currency_code: "eur" })
+      await linkDesignToOrder(designId, mirror.id)
 
       const res = await api
         .post(`/admin/designs/orders/${lineItemId}/customer`, { customer_id: customerId }, adminHeaders)
         .catch((e: any) => e.response)
       expect(res.status).toBe(200)
+
+      // The screen shows the cart, not the partner's work order: no order, the
+      // cart's currency (the work order's EUR ₹0 was displayed before).
+      const detail = await api.get(`/admin/designs/orders/${lineItemId}`, adminHeaders)
+      expect(detail.data.design_order.order).toBeNull()
+      expect(detail.data.design_order.currency_code).toBe("usd")
+      const list = await api.get(`/admin/designs/orders?limit=50`, adminHeaders)
+      const row = (list.data.design_orders as any[]).find((d) =>
+        (d.items || []).some((i: any) => i.line_item_id === lineItemId)
+      )
+      expect(row?.order ?? null).toBeNull()
 
       // Reprice is unblocked by the same rule.
       const reprice = await api

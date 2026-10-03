@@ -14,6 +14,7 @@ import {
   summariseOrderItems,
 } from "../order-items-view"
 import { newestLinkPerLine } from "../newest-link-per-line"
+import { workOrderIdSet } from "../linked-sale-order"
 
 /**
  * GET /admin/designs/orders/:lineItemId
@@ -86,7 +87,15 @@ export async function GET(
     const design = designResult.data?.[0]
     let customer = customerLinkResult.data?.[0]?.customer || null
     const orderLinkRows = orderLinkResult.data ?? []
-    const order = orderLinkRows[0]?.order || null
+    // The displayed order is the customer's SALE — never a partner's work order
+    // linked to the same design (e.g. #119: EUR, ₹0 lines). Work status below
+    // still reads from every linked order, work orders included.
+    const workOrderIds = await workOrderIdSet(
+      query,
+      orderLinkRows.map((r: any) => r?.order_id)
+    ).catch(() => new Set<string>())
+    const order =
+      orderLinkRows.find((r: any) => r?.order && !workOrderIds.has(String(r.order.id)))?.order || null
     // A design can be linked to BOTH a retail purchase order AND a production
     // work-order; the partner work-status lives on the work-order, so surface it
     // from whichever linked order carries it (independent of which order we
