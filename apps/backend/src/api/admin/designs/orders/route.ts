@@ -9,6 +9,7 @@ import {
 import designLineItemLink from "../../../../links/design-line-item-link";
 import designCustomerLink from "../../../../links/design-customer-link";
 import designOrderLink from "../../../../links/design-order-link";
+import { workOrderIdSet } from "./linked-sale-order";
 
 /**
  * GET /admin/designs/orders
@@ -78,9 +79,15 @@ export async function GET(
     // separately from the displayed order. #403 (slice 4).
     const orderByDesignId: Record<string, any> = {};
     const workStatusByDesignId: Record<string, any> = {};
+    // The displayed order is the customer's SALE — never a partner's work order
+    // linked to the same design (its EUR ₹0 lines are not what the buyer owes).
+    const workOrderIds = await workOrderIdSet(
+      query,
+      (orderLinksResult.data as any[]).map((ol) => ol?.order_id)
+    ).catch(() => new Set<string>());
     for (const ol of orderLinksResult.data as any[]) {
       if (ol.design_id && ol.order) {
-        if (!orderByDesignId[ol.design_id]) {
+        if (!orderByDesignId[ol.design_id] && !workOrderIds.has(String(ol.order.id))) {
           orderByDesignId[ol.design_id] = ol.order;
         }
         const ws = ol.order?.unified_order_status;
