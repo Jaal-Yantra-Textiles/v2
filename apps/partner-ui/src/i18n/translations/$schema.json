@@ -9316,13 +9316,58 @@
             },
             "usageInsightsHint": {
               "type": "string"
+            },
+            "phoneHint": {
+              "type": "string"
+            },
+            "pinLabel": {
+              "type": "string"
+            },
+            "newPinLabel": {
+              "type": "string"
+            },
+            "pinConfirmLabel": {
+              "type": "string"
+            },
+            "pinHintUnset": {
+              "type": "string"
+            },
+            "pinHintSet": {
+              "type": "string"
+            },
+            "pinErrors": {
+              "type": "object",
+              "properties": {
+                "digits": {
+                  "type": "string"
+                },
+                "mismatch": {
+                  "type": "string"
+                },
+                "needsPhone": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "digits",
+                "mismatch",
+                "needsPhone"
+              ],
+              "additionalProperties": false
             }
           },
           "required": [
             "header",
             "languageHint",
             "languagePlaceholder",
-            "usageInsightsHint"
+            "usageInsightsHint",
+            "phoneHint",
+            "pinLabel",
+            "newPinLabel",
+            "pinConfirmLabel",
+            "pinHintUnset",
+            "pinHintSet",
+            "pinErrors"
           ],
           "additionalProperties": false
         },
@@ -10796,9 +10841,62 @@
         },
         "hint": {
           "type": "string"
+        },
+        "phone": {
+          "type": "object",
+          "properties": {
+            "useEmail": {
+              "type": "string"
+            },
+            "usePhone": {
+              "type": "string"
+            },
+            "numberPlaceholder": {
+              "type": "string"
+            },
+            "pinLabel": {
+              "type": "string"
+            },
+            "pinPlaceholder": {
+              "type": "string"
+            },
+            "submit": {
+              "type": "string"
+            },
+            "hint": {
+              "type": "string"
+            },
+            "errors": {
+              "type": "object",
+              "properties": {
+                "invalid": {
+                  "type": "string"
+                },
+                "locked": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "invalid",
+                "locked"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "required": [
+            "useEmail",
+            "usePhone",
+            "numberPlaceholder",
+            "pinLabel",
+            "pinPlaceholder",
+            "submit",
+            "hint",
+            "errors"
+          ],
+          "additionalProperties": false
         }
       },
-      "required": ["forgotPassword", "title", "hint"],
+      "required": ["forgotPassword", "title", "hint", "phone"],
       "additionalProperties": false
     },
     "invite": {

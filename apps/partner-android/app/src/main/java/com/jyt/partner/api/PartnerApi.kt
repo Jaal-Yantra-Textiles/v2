@@ -123,6 +123,21 @@ class PartnerApi private constructor(
         return LoginOutcome(verificationRequired = false, email = email)
     }
 
+    /** POST /auth/partner/phone-pin — phone number + 6-digit PIN (#2320).
+     *  The backend reads the number in any format and locks it after 5 wrong PINs. */
+    @Serializable
+    private data class PhonePinBody(val phone: String, val pin: String)
+
+    suspend fun loginWithPhone(phone: String, pin: String) {
+        val map = postObject(
+            "auth/partner/phone-pin",
+            json.encodeToString(PhonePinBody.serializer(), PhonePinBody(phone, pin))
+        )
+        val token = map["token"] as? String ?: map["access_token"] as? String
+            ?: throw PartnerException.InvalidResponse
+        tokens.save(context, token)
+    }
+
     fun logout() {
         tokens.clear(context)
     }
@@ -217,6 +232,8 @@ class PartnerApi private constructor(
         @SerialName("allow_shortfall") val allowShortfall: Boolean? = null,
         val notes: String? = null,
         val consumptions: List<ConsumptionEntry>? = null,
+        /** Which sizes/colours were made — required when the run is for several (#2271). */
+        @SerialName("produced_output") val producedOutput: List<com.jyt.partner.models.OutputLine>? = null,
     )
 
     suspend fun completeRun(id: String, body: CompleteRunBody) {

@@ -3,6 +3,7 @@ import path from "path";
 import { parseFlatFallbackAmounts } from "./src/modules/shipping-providers/shiprocket/flat-fallback"
 import { SOCIALS_MODULE } from "./src/modules/socials"
 import { ENCRYPTION_MODULE } from "./src/modules/encryption"
+import { authModuleConfig } from "./src/lib/auth/auth-module-config"
 
 loadEnv(process.env.NODE_ENV || 'development', process.cwd())
 
@@ -162,6 +163,8 @@ module.exports = defineConfig({
   ],
 
   modules: [
+    // Auth: emailpass + phone-pin (#2320). Re-declares emailpass — see the helper.
+    authModuleConfig(),
     // Custom app modules
     {
       resolve: "./src/modules/census",

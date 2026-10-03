@@ -75,7 +75,20 @@ data class PartnerOrderItem(
     val thumbnail: String? = null,
     val quantity: Int = 0,
     val total: Double = 0.0,
+    /** The work-order line's design — a typed column on the detail read.
+     *  (`metadata.design_id` is only a compatibility echo; don't read it.) */
+    @SerialName("design_id") val designId: String? = null,
 )
+
+/**
+ * The design an order is for. The order DETAIL read carries no `designs` list
+ * (only list rows do), so: the line's typed `design_id`, then a production
+ * run's `design_id`, then the list-row summary.
+ */
+fun PartnerOrder.resolveDesignId(runs: List<com.jyt.partner.models.ProductionRun>): String? =
+    items.orEmpty().firstNotNullOfOrNull { it.designId }
+        ?: runs.firstNotNullOfOrNull { it.designId }
+        ?: designs?.firstOrNull()?.id
 
 @Serializable
 data class PartnerOrderListResponse(
@@ -116,9 +129,11 @@ data class PartnerMe(
 sealed class PartnerException(message: String) : Exception(message) {
     object InvalidResponse : PartnerException("The server sent an unexpected response.")
     class Decoding(detail: String) : PartnerException("The server sent an unexpected response ($detail).")
-    class Http(val status: Int, message: String) : PartnerException(
+    /** [serverMessage] is the backend's own text, kept for callers that
+     *  need more than the generic 401 wording (phone login: locked vs wrong PIN). */
+    class Http(val status: Int, val serverMessage: String) : PartnerException(
         if (status == 401) "Invalid email or password."
-        else message.ifEmpty { "Request failed (HTTP $status)." }
+        else serverMessage.ifEmpty { "Request failed (HTTP $status)." }
     )
 }
 

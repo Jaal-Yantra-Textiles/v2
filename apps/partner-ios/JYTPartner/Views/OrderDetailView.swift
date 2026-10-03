@@ -48,8 +48,11 @@ struct OrderDetailView: View {
 
   private var isSample: Bool { activeRun?.run_type == "sample" }
 
+  /// Tasks still open on the active run — the same filter as Run detail.
   private var pendingTasks: [RunTask] {
-    activeRun.flatMap { runTasks[$0.id] } ?? []
+    (activeRun.flatMap { runTasks[$0.id] } ?? []).filter {
+      !["completed", "cancelled"].contains($0.status ?? "")
+    }
   }
 
   var body: some View {
@@ -173,7 +176,8 @@ struct OrderDetailView: View {
   private var completeSheet: some View {
     CompleteRunSheet(
       orderedQuantity: activeRun?.quantity ?? 0,
-      materials: design?.inventory_items ?? []
+      materials: design?.inventory_items ?? [],
+      run: activeRun
     ) { body in
       Task { await run(.complete, completeBody: body) }
     }
@@ -539,8 +543,9 @@ struct OrderDetailView: View {
   /// Two-step, like the web: upload the file(s), then attach to the design.
   @MainActor
   private func upload(_ pick: MediaFilePick) async {
-    guard let run = activeRun ?? runDetails.first else {
-      actionError = "This order has no production run to attach media to."
+    // Only the active run — never a completed or cancelled one (as Android).
+    guard let run = activeRun else {
+      actionError = "This order has no active production run to attach media to."
       return
     }
     uploading = true

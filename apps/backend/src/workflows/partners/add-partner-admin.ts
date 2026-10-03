@@ -6,6 +6,8 @@ import { PARTNER_MODULE } from "../../modules/partner"
 import PartnerService from "../../modules/partner/service"
 import { randomBytes } from "crypto"
 import Scrypt from "scrypt-kdf"
+import { normalizePhoneE164 } from "../../lib/phone/normalize-phone"
+import { syncPartnerAdminPhoneIdentityStep } from "./steps/sync-partner-admin-phone-identity"
 
 export type AddPartnerAdminInput = {
   partner_id: string
@@ -42,6 +44,8 @@ const addPartnerAdminStep = createStep(
 
     const created = await partnerService.createPartnerAdmins({
       ...input.admin,
+      // E.164 so the phone-login identity (#2320) and the row agree.
+      phone: normalizePhoneE164(input.admin.phone) ?? input.admin.phone ?? null,
       partner_id: input.partner_id,
     } as any)
 
@@ -116,6 +120,12 @@ export const addPartnerAdminWorkflow = createWorkflow(
       authIdentityId: registered.authIdentityId,
       actorType: "partner",
       value: result.partner.id,
+    })
+
+    // Phone login (#2320): attach the admin's number to this login.
+    syncPartnerAdminPhoneIdentityStep({
+      authIdentityId: registered.authIdentityId,
+      phone: input.admin.phone,
     })
 
     const emitData = transform(

@@ -10,3 +10,13 @@ export const updatePartnerMeSchema = z
   .strict()
 
 export type UpdatePartnerMeInput = z.infer<typeof updatePartnerMeSchema>
+
+// Phone login PIN (#2320). Strength rules live in the workflow (pinProblem) so
+// the message names what is wrong; this only bounds the shape.
+export const setPartnerMePinSchema = z
+  .object({
+    pin: z.string().min(1).max(12),
+  })
+  .strict()
+
+export type SetPartnerMePinInput = z.infer<typeof setPartnerMePinSchema>

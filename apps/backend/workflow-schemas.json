@@ -6431,6 +6431,37 @@
     "source": "custom_ts",
     "sourceFile": "src/workflows/partners/resolve-partner-website.ts"
   },
+  "set-partner-admin-pin": {
+    "fields": [
+      {
+        "name": "authIdentityId",
+        "type": "string",
+        "required": true,
+        "placeholder": "{{ $last.authIdentityId }}",
+        "description": "The logged-in admin's auth identity (req.auth_context.auth_identity_id)."
+      },
+      {
+        "name": "pin",
+        "type": "string",
+        "required": true,
+        "placeholder": "{{ $last.pin }}"
+      }
+    ],
+    "source": "custom_ts",
+    "sourceFile": "src/workflows/partners/set-partner-admin-pin.ts"
+  },
+  "update-partner-admin": {
+    "fields": [
+      {
+        "name": "id",
+        "type": "id",
+        "required": true,
+        "placeholder": "{{ $last.id }}"
+      }
+    ],
+    "source": "custom_ts",
+    "sourceFile": "src/workflows/partners/update-partner-admin.ts"
+  },
   "set-default-payment-method": {
     "fields": [
       {

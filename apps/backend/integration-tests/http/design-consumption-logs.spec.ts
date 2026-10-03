@@ -504,6 +504,38 @@ setupSharedTestSuite(() => {
         dbg("partner.log.created", log)
       })
 
+      it("refuses a partner who neither owns nor is linked to the design", async () => {
+        // A second partner with no link to this design.
+        const strangerEmail = `stranger-${Date.now()}@consumption-log-test.com`
+        await api.post("/auth/partner/emailpass/register", { email: strangerEmail, password: "supersecret" })
+        const login1: any = await api.post("/auth/partner/emailpass", { email: strangerEmail, password: "supersecret" })
+        await api.post(
+          "/partners",
+          {
+            name: "Stranger Partner",
+            handle: `stranger-partner-${Date.now()}`,
+            admin: { email: strangerEmail, first_name: "S", last_name: "P" },
+          },
+          { headers: { Authorization: `Bearer ${login1.data.token}` } }
+        )
+        const login2: any = await api.post("/auth/partner/emailpass", { email: strangerEmail, password: "supersecret" })
+        const strangerHeaders = { Authorization: `Bearer ${login2.data.token}` }
+
+        const write = await api
+          .post(
+            `/partners/designs/${designId}/consumption-logs`,
+            { inventoryItemId, quantity: 1, consumptionType: "sample", locationId: stockLocationId },
+            { headers: strangerHeaders }
+          )
+          .catch((e: any) => e.response)
+        expect(write.status).toBe(400)
+
+        const read = await api
+          .get(`/partners/designs/${designId}/consumption-logs`, { headers: strangerHeaders })
+          .catch((e: any) => e.response)
+        expect(read.status).toBe(400)
+      })
+
       it("should allow partner to list their consumption logs", async () => {
         // Partner logs two entries
         await api.post(

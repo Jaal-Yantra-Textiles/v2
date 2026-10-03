@@ -52,6 +52,21 @@ final class AuthStore: ObservableObject {
     state = .signedIn(me)
   }
 
+  /// Phone number + PIN (#2320). A 401 is a wrong number/PIN or a locked
+  /// number; the generic "Invalid email or password." would mislead here.
+  func loginWithPhone(phone: String, pin: String) async throws {
+    do {
+      try await PartnerAPI.shared.loginWithPhone(phone: phone, pin: pin)
+    } catch PartnerError.http(let status, let message) where status == 401 {
+      throw LoginError(
+        message: message.contains("Too many wrong PINs")
+          ? "Too many wrong PINs. Wait 15 minutes, or sign in with your email."
+          : "Wrong phone number or PIN.")
+    }
+    let me = try await PartnerAPI.shared.me()
+    state = .signedIn(me)
+  }
+
   func logout() {
     PartnerAPI.shared.logout()
     state = .signedOut

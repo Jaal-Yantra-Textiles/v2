@@ -292,6 +292,7 @@ fun RunDetailScreen(
         CompleteRunSheet(
             orderedQuantity = current?.productionRun?.quantity ?: 0,
             materials = design?.inventoryItems.orEmpty(),
+            run = current?.productionRun,
             onConfirm = { body -> scope.launch { run(RunAction.COMPLETE, completeBody = body) } },
             onDismiss = { showComplete = false },
         )

@@ -13,6 +13,8 @@ import PartnerService from "../../modules/partner/service"
 import { ContainerRegistrationKeys, MedusaError, Modules } from "@medusajs/framework/utils"
 import { randomBytes } from "crypto"
 import type { IAuthModuleService } from "@medusajs/types"
+import { normalizePhoneE164 } from "../../lib/phone/normalize-phone"
+import { syncPartnerAdminPhoneIdentityStep } from "../partners/steps/sync-partner-admin-phone-identity"
 
 export type CreatePartnerAdminWorkflowInput = {
     partner: {
@@ -168,6 +170,8 @@ const createPartnerAndAdminStep = createStep(
         // Create partner admin
         const partnerAdmin = await partnerService.createPartnerAdmins({
             ...adminData,
+            // E.164 so the phone-login identity (#2320) and the row agree.
+            phone: normalizePhoneE164(adminData.phone) ?? adminData.phone ?? null,
             partner_id: createdPartner.id
         })
         const partnerWithAdmin = {
@@ -326,6 +330,12 @@ const createPartnerAdminWorkflow = createWorkflow(
             email: input.admin.email,
         })
 
+        // Phone login (#2320): attach the admin's number to this login.
+        syncPartnerAdminPhoneIdentityStep({
+            authIdentityId: input.authIdentityId,
+            phone: input.admin.phone,
+        })
+
         return new WorkflowResponse(
             partnerWithAdmin
         )
@@ -403,6 +413,12 @@ export const createPartnerAdminWithRegistrationWorkflow = createWorkflow(
         verifyPartnerAuthEmailStep({
             authIdentityId: registered.authIdentityId,
             email: input.admin.email,
+        })
+
+        // Phone login (#2320): attach the admin's number to this login.
+        syncPartnerAdminPhoneIdentityStep({
+            authIdentityId: registered.authIdentityId,
+            phone: input.admin.phone,
         })
 
         return new WorkflowResponse({

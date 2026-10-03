@@ -169,6 +169,9 @@ struct ProductionRun: Codable, Identifiable, Hashable {
   var completed_at: Date?
   var created_at: Date?
   var updated_at: Date?
+  /// The sizes/colours the run was commissioned for (#2271).
+  var snapshot: RunSnapshot?
+  var planned_output: OutputLines?
 }
 
 struct ProductionRunListResponse: Codable {
@@ -215,5 +218,133 @@ struct FlexibleDouble: Codable, Hashable {
   func encode(to encoder: Encoder) throws {
     var container = encoder.singleValueContainer()
     try container.encode(value)
+  }
+}
+
+// MARK: - Completion split (#2271)
+
+// #2271 — which sizes/colours a completed run made. The iOS twin of
+// partner-ui's lib/completion-split.ts.
+//
+// The run's snapshot states the sizes and colours it was commissioned for.
+// When it states several, the backend refuses Complete unless the partner
+// says how many of each were made (or the run's plan already adds up to the
+// good units), so goods reach stock as the right variant. The backend
+// re-checks all of this; this only decides what the sheet shows and sends.
+
+struct OutputLine: Codable, Hashable {
+  var size_label: String?
+  var color: String?
+  var quantity: Double
+}
+
+/// The parts of a run snapshot the split reads. Decodes leniently: an odd
+/// snapshot becomes empty instead of failing the whole run.
+struct RunSnapshot: Codable, Hashable {
+  var sizes: [String] = []
+  var colors: [String] = []
+
+  private enum Keys: String, CodingKey { case size_sets, colors }
+  private struct Named: Decodable {
+    var size_label: String?
+    var name: String?
+  }
+
+  init(sizes: [String] = [], colors: [String] = []) {
+    self.sizes = sizes
+    self.colors = colors
+  }
+
+  init(from decoder: Decoder) throws {
+    guard let c = try? decoder.container(keyedBy: Keys.self) else { return }
+    let sizeRows = (try? c.decodeIfPresent([Named].self, forKey: .size_sets)) ?? nil
+    let colorRows = (try? c.decodeIfPresent([Named].self, forKey: .colors)) ?? nil
+    sizes = CompletionSplit.dedupe((sizeRows ?? []).map { $0.size_label ?? "" })
+    colors = CompletionSplit.dedupe((colorRows ?? []).map { $0.name ?? "" })
+  }
+
+  func encode(to encoder: Encoder) throws {}
+}
+
+/// A run's planned_output, skipping malformed lines.
+struct OutputLines: Codable, Hashable {
+  var lines: [OutputLine] = []
+
+  init(_ lines: [OutputLine] = []) { self.lines = lines }
+
+  init(from decoder: Decoder) throws {
+    guard var c = try? decoder.unkeyedContainer() else { return }
+    while !c.isAtEnd {
+      if let line = try? c.decode(OutputLine.self) {
+        lines.append(line)
+      } else {
+        _ = try? c.decode(Skip.self)
+      }
+    }
+  }
+
+  func encode(to encoder: Encoder) throws {
+    var c = encoder.unkeyedContainer()
+    try c.encode(contentsOf: lines)
+  }
+
+  private struct Skip: Decodable {}
+}
+
+struct SplitCombo: Hashable, Identifiable {
+  var size_label: String?
+  var color: String?
+  var id: String { "\(size_label ?? "")\u{0}\(color ?? "")" }
+  var label: String { [size_label, color].compactMap { $0 }.joined(separator: " · ") }
+}
+
+enum CompletionSplit {
+  static func dedupe(_ values: [String]) -> [String] {
+    var out: [String] = []
+    for raw in values {
+      let v = raw.trimmingCharacters(in: .whitespaces)
+      if !v.isEmpty && !out.contains(v) { out.append(v) }
+    }
+    return out
+  }
+
+  static func needed(_ s: RunSnapshot) -> Bool { s.sizes.count > 1 || s.colors.count > 1 }
+
+  /// Every size × colour combination the run is for, one row each.
+  static func combos(_ s: RunSnapshot) -> [SplitCombo] {
+    let sizes: [String?] = s.sizes.isEmpty ? [nil] : s.sizes
+    let colors: [String?] = s.colors.isEmpty ? [nil] : s.colors
+    return sizes.flatMap { size in colors.map { SplitCombo(size_label: size, color: $0) } }
+  }
+
+  /// Starting quantities: the plan when it adds up to `target` (the good
+  /// units); otherwise blank.
+  static func initial(planned: [OutputLine], snapshot: RunSnapshot, target: Double) -> [String: String] {
+    var values: [String: String] = [:]
+    if !planned.isEmpty && planned.reduce(0, { $0 + $1.quantity }) == target {
+      for line in planned {
+        let size = line.size_label?.trimmingCharacters(in: .whitespaces)
+        let color = line.color?.trimmingCharacters(in: .whitespaces)
+        let combo = SplitCombo(
+          size_label: (size?.isEmpty ?? true) ? nil : size,
+          color: (color?.isEmpty ?? true) ? nil : color)
+        values[combo.id] = format(line.quantity)
+      }
+    }
+    for combo in combos(snapshot) where values[combo.id] == nil { values[combo.id] = "" }
+    return values
+  }
+
+  /// The lines to send as produced_output, with their total.
+  static func plan(_ s: RunSnapshot, values: [String: String]) -> (lines: [OutputLine], total: Double) {
+    let lines = combos(s).compactMap { combo -> OutputLine? in
+      let q = Double(values[combo.id]?.trimmingCharacters(in: .whitespaces) ?? "") ?? 0
+      return q > 0 ? OutputLine(size_label: combo.size_label, color: combo.color, quantity: q) : nil
+    }
+    return (lines, lines.reduce(0) { $0 + $1.quantity })
+  }
+
+  static func format(_ q: Double) -> String {
+    q.truncatingRemainder(dividingBy: 1) == 0 ? String(Int(q)) : String(q)
   }
 }

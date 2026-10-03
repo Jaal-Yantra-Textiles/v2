@@ -99,6 +99,34 @@ class PartnerApiIntegrationTest {
     }
 
     @Test
+    fun `phone login posts phone and PIN and stores the token`() = runBlocking {
+        enqueueJson("""{"token":"jwt-phone"}""")
+
+        api.loginWithPhone("98765 43210", "482913")
+
+        val request = take()
+        assertEquals("POST", request.method)
+        assertEquals("/auth/partner/phone-pin", request.path)
+        assertEquals("""{"phone":"98765 43210","pin":"482913"}""", request.body.readUtf8())
+        assertNull(request.getHeader("Authorization"))
+        assertEquals("jwt-phone", tokens.value)
+    }
+
+    @Test
+    fun `a phone login 401 keeps the server's lockout message`() = runBlocking {
+        enqueueJson("""{"message":"Too many wrong PINs. Try again after 15 minutes."}""", code = 401)
+
+        try {
+            api.loginWithPhone("+919876543210", "111222")
+            fail("expected PartnerException.Http")
+        } catch (e: PartnerException.Http) {
+            assertEquals(401, e.status)
+            assertTrue(e.serverMessage.contains("Too many wrong PINs"))
+        }
+        assertNull(tokens.value)
+    }
+
+    @Test
     fun `the stored token rides every request as a Bearer header`() = runBlocking {
         tokens.value = "jwt-123"
         enqueueJson("""{"admin":{"id":"a1","email":"e@example.com"}}""")
