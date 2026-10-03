@@ -1,8 +1,7 @@
 import { AuthenticatedMedusaRequest, MedusaResponse } from "@medusajs/framework"
 import { MedusaError, Modules } from "@medusajs/framework/utils"
 import type { IAuthModuleService } from "@medusajs/types"
-import { PARTNER_MODULE } from "../../../modules/partner"
-import PartnerService from "../../../modules/partner/service"
+import { updatePartnerAdminWorkflow } from "../../../workflows/partners/update-partner-admin"
 import { getPartnerFromAuthContext } from "../helpers"
 
 const resolveCurrentAdmin = async (
@@ -107,12 +106,10 @@ export const PATCH = async (
     return
   }
 
-  const partnerService: PartnerService = req.scope.resolve(PARTNER_MODULE)
-  const updated = await partnerService.updatePartnerAdmins({
-    id: admin.id,
-    ...update,
-  } as any)
-
-  const updatedAdmin = Array.isArray(updated) ? updated[0] : updated
+  // Through the workflow so a phone change also moves the admin's phone-login
+  // identity (#2320).
+  const { result: updatedAdmin } = await updatePartnerAdminWorkflow(req.scope).run({
+    input: { id: admin.id, update },
+  })
   res.json({ admin: updatedAdmin })
 }

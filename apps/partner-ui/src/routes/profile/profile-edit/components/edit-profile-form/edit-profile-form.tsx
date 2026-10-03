@@ -1,13 +1,20 @@
 import { zodResolver } from "@hookform/resolvers/zod"
 import { Button, Input, Select, toast } from "@medusajs/ui"
+import { useMemo } from "react"
 import { useForm } from "react-hook-form"
+import type { TFunction } from "i18next"
 import { useTranslation } from "react-i18next"
 import { z as zod } from "@medusajs/framework/zod"
 
 import { Form } from "../../../../../components/common/form"
 import { RouteDrawer, useRouteModal } from "../../../../../components/modals"
 import { KeyboundForm } from "../../../../../components/utilities/keybound-form"
-import { PartnerUser, useUpdateMe } from "../../../../../hooks/api/users"
+import {
+  PartnerUser,
+  usePhonePinStatus,
+  useSetPhonePin,
+  useUpdateMe,
+} from "../../../../../hooks/api/users"
 import { languages } from "../../../../../i18n/languages"
 import { extractErrorMessage } from "../../../../../lib/extract-error-message"
 
@@ -16,12 +23,29 @@ type EditProfileProps = {
   // usageInsights: boolean
 }
 
-const EditProfileSchema = zod.object({
-  first_name: zod.string().optional(),
-  last_name: zod.string().optional(),
-  language: zod.string(),
-  // usage_insights: zod.boolean(),
-})
+const makeEditProfileSchema = (t: TFunction) =>
+  zod
+  .object({
+    first_name: zod.string().optional(),
+    last_name: zod.string().optional(),
+    phone: zod.string().optional(),
+    // Phone login PIN (#2320). Blank = leave the current PIN alone.
+    pin: zod
+      .string()
+      .regex(/^(\d{6})?$/, { message: t("profile.edit.pinErrors.digits") })
+      .optional(),
+    pin_confirm: zod.string().optional(),
+    language: zod.string(),
+    // usage_insights: zod.boolean(),
+  })
+  .refine((v) => !v.pin || v.pin === v.pin_confirm, {
+    path: ["pin_confirm"],
+    message: t("profile.edit.pinErrors.mismatch"),
+  })
+  .refine((v) => !v.pin || !!v.phone?.trim(), {
+    path: ["phone"],
+    message: t("profile.edit.pinErrors.needsPhone"),
+  })
 
 const resolveInitialLanguage = (
   user: PartnerUser,
@@ -36,23 +60,32 @@ const resolveInitialLanguage = (
 export const EditProfileForm = ({ user }: EditProfileProps) => {
   const { t, i18n } = useTranslation()
   const { handleSuccess } = useRouteModal()
-  const form = useForm<zod.infer<typeof EditProfileSchema>>({
+  const schema = useMemo(() => makeEditProfileSchema(t), [t])
+  const form = useForm<zod.infer<ReturnType<typeof makeEditProfileSchema>>>({
     defaultValues: {
       first_name: user.first_name ?? "",
       last_name: user.last_name ?? "",
+      phone: user.phone ?? "",
+      pin: "",
+      pin_confirm: "",
       language: resolveInitialLanguage(user, i18n.language),
       // usage_insights: usageInsights,
     },
-    resolver: zodResolver(EditProfileSchema),
+    resolver: zodResolver(schema),
   })
 
   const { mutateAsync, isPending } = useUpdateMe()
+  const { mutateAsync: setPin, isPending: isSettingPin } = useSetPhonePin()
+  const { data: pinStatus } = usePhonePinStatus()
 
   const handleSubmit = form.handleSubmit(async (values) => {
     await mutateAsync(
       {
         first_name: values.first_name,
         last_name: values.last_name,
+        // Saved as E.164 by the backend, which also links it to phone login
+        // (#2320) — or refuses a number another admin already uses.
+        phone: values.phone?.trim() ? values.phone.trim() : null,
         preferred_language: values.language,
       },
       {
@@ -62,6 +95,18 @@ export const EditProfileForm = ({ user }: EditProfileProps) => {
         },
       }
     )
+
+    // After the profile save: the PIN hangs off the phone just saved.
+    if (values.pin) {
+      await setPin(
+        { pin: values.pin },
+        {
+          onError: (error) => {
+            toast.error(extractErrorMessage(error))
+          },
+        }
+      )
+    }
 
     if (values.language && values.language !== i18n.language) {
       await i18n.changeLanguage(values.language)
@@ -103,6 +148,79 @@ export const EditProfileForm = ({ user }: EditProfileProps) => {
                   </Form.Item>
                 )}
               />
+            </div>
+            <Form.Field
+              control={form.control}
+              name="phone"
+              render={({ field }) => (
+                <Form.Item>
+                  <Form.Label optional>{t("fields.phone")}</Form.Label>
+                  <Form.Control>
+                    <Input
+                      {...field}
+                      type="tel"
+                      inputMode="tel"
+                      autoComplete="tel"
+                      placeholder="+91 98765 43210"
+                    />
+                  </Form.Control>
+                  <Form.Hint>{t("profile.edit.phoneHint")}</Form.Hint>
+                  <Form.ErrorMessage />
+                </Form.Item>
+              )}
+            />
+            <div className="flex flex-col gap-y-2">
+              <div className="grid grid-cols-2 gap-4">
+                <Form.Field
+                  control={form.control}
+                  name="pin"
+                  render={({ field }) => (
+                    <Form.Item>
+                      <Form.Label optional>
+                        {pinStatus?.pin_set
+                          ? t("profile.edit.newPinLabel")
+                          : t("profile.edit.pinLabel")}
+                      </Form.Label>
+                      <Form.Control>
+                        <Input
+                          {...field}
+                          onChange={(e) => field.onChange(e.target.value.replace(/\D/g, ""))}
+                          type="password"
+                          inputMode="numeric"
+                          autoComplete="new-password"
+                          maxLength={6}
+                        />
+                      </Form.Control>
+                      <Form.ErrorMessage />
+                    </Form.Item>
+                  )}
+                />
+                <Form.Field
+                  control={form.control}
+                  name="pin_confirm"
+                  render={({ field }) => (
+                    <Form.Item>
+                      <Form.Label optional>{t("profile.edit.pinConfirmLabel")}</Form.Label>
+                      <Form.Control>
+                        <Input
+                          {...field}
+                          onChange={(e) => field.onChange(e.target.value.replace(/\D/g, ""))}
+                          type="password"
+                          inputMode="numeric"
+                          autoComplete="new-password"
+                          maxLength={6}
+                        />
+                      </Form.Control>
+                      <Form.ErrorMessage />
+                    </Form.Item>
+                  )}
+                />
+              </div>
+              <Form.Hint>
+                {pinStatus?.pin_set
+                  ? t("profile.edit.pinHintSet")
+                  : t("profile.edit.pinHintUnset")}
+              </Form.Hint>
             </div>
             <Form.Field
               control={form.control}
@@ -180,7 +298,7 @@ export const EditProfileForm = ({ user }: EditProfileProps) => {
                 {t("actions.cancel")}
               </Button>
             </RouteDrawer.Close>
-            <Button size="small" type="submit" isLoading={isPending}>
+            <Button size="small" type="submit" isLoading={isPending || isSettingPin}>
               {t("actions.save")}
             </Button>
           </div>

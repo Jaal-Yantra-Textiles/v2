@@ -41,8 +41,31 @@ export const useSignInWithEmailPass = (
       }
       return { verificationRequired: false, email: (payload as any).email }
     },
-    onSuccess: async (data, variables, context) => {
-      options?.onSuccess?.(data, variables, context)
+    onSuccess: (...args) => {
+      options?.onSuccess?.(...args)
+    },
+    ...options,
+  })
+}
+
+/**
+ * Phone login (#2320): phone number + 6-digit PIN for a partner session. The
+ * backend refuses numbers with no PIN set and locks a number after 5 wrong PINs.
+ */
+export const useSignInWithPhonePin = (
+  options?: UseMutationOptions<void, FetchError, { phone: string; pin: string }>
+) => {
+  return useMutation({
+    mutationFn: async (payload) => {
+      const res = await sdk.client.fetch<any>("/auth/partner/phone-pin", {
+        method: "POST",
+        body: payload,
+      })
+      const token = getTokenFromResponse(res)
+      if (!token) {
+        throw new Error("Phone login did not return a session")
+      }
+      await sdk.client.setToken(token)
     },
     ...options,
   })
@@ -76,8 +99,8 @@ export const useSignUpWithEmailPass = (
 ) => {
   return useMutation({
     mutationFn: (payload) => sdk.auth.register("partner", "emailpass", payload),
-    onSuccess: async (data, variables, context) => {
-      options?.onSuccess?.(data, variables, context)
+    onSuccess: (...args) => {
+      options?.onSuccess?.(...args)
     },
     ...options,
   })
@@ -91,8 +114,8 @@ export const useResetPasswordForEmailPass = (
       sdk.auth.resetPassword("partner", "emailpass", {
         identifier: payload.email,
       }),
-    onSuccess: async (data, variables, context) => {
-      options?.onSuccess?.(data, variables, context)
+    onSuccess: (...args) => {
+      options?.onSuccess?.(...args)
     },
     ...options,
   })
@@ -112,8 +135,8 @@ export const useUpdateProviderForEmailPass = (
   return useMutation({
     mutationFn: (payload) =>
       sdk.auth.updateProvider("partner", "emailpass", payload, token),
-    onSuccess: async (data, variables, context) => {
-      options?.onSuccess?.(data, variables, context)
+    onSuccess: (...args) => {
+      options?.onSuccess?.(...args)
     },
     ...options,
   })

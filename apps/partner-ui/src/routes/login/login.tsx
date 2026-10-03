@@ -16,6 +16,7 @@ import { i18n } from "../../components/utilities/i18n"
 import { languages } from "../../i18n/languages"
 import { isFetchError } from "../../lib/is-fetch-error"
 import { useExtension } from "../../providers/extension-provider"
+import { PhoneLogin } from "./components/phone-login"
 
 const LoginSchema = z.object({
   email: z.string().email(),
@@ -49,6 +50,9 @@ export const Login = () => {
     email: string
     password: string
   } | null>(null)
+
+  // Phone + PIN login (#2320).
+  const [method, setMethod] = useState<"email" | "phone">("email")
 
   const handleSubmit = form.handleSubmit(async ({ email, password }) => {
     await mutateAsync(
@@ -158,6 +162,22 @@ export const Login = () => {
           {getWidgets("login.before").map((Component, i) => {
             return <Component key={i} />
           })}
+          <div className="bg-ui-bg-component shadow-borders-base grid grid-cols-2 gap-1 rounded-md p-1">
+            {(["email", "phone"] as const).map((m) => (
+              <Button
+                key={m}
+                type="button"
+                size="small"
+                variant={method === m ? "secondary" : "transparent"}
+                onClick={() => setMethod(m)}
+              >
+                {m === "email" ? t("login.phone.useEmail") : t("login.phone.usePhone")}
+              </Button>
+            ))}
+          </div>
+          {method === "phone" ? (
+            <PhoneLogin onSignedIn={() => navigate(from, { replace: true })} />
+          ) : (
           <Form {...form}>
             <form
               onSubmit={handleSubmit}
@@ -224,6 +244,7 @@ export const Login = () => {
               </Button>
             </form>
           </Form>
+          )}
           {getWidgets("login.after").map((Component, i) => {
             return <Component key={i} />
           })}

@@ -199,7 +199,7 @@ import { AdminCreateEnergyRateReq, AdminUpdateEnergyRateReq } from "./admin/ener
 import { partnerSchema, partnerUpdateSchema } from "./partners/validators";
 import { investorSchema, investorUpdateSchema, capTableSchema, capTableUpdateSchema, shareClassSchema, stakeSchema, fundingRoundSchema, pipelineSchema, callForSharesSchema, paymentSchema, documentSchema, companySchema, companyUpdateSchema, investorAdminSchema } from "./investors/validators";
 import { partnerPeopleSchema } from "./partners/[id]/validators";
-import { updatePartnerMeSchema } from "./partners/me/validators";
+import { setPartnerMePinSchema, updatePartnerMeSchema } from "./partners/me/validators";
 import { onboardingProfileUpdateSchema } from "./partners/onboarding-profile/validators";
 import { partnerUpdateOrderLinesSchema, partnerAddOrderChargeSchema } from "./partners/inventory-orders/change-schemas";
 import { registerDeviceTokenSchema, unregisterDeviceTokenSchema } from "./partners/device-tokens/validators";
@@ -1263,6 +1263,24 @@ export default defineMiddlewares({
         createCorsPartnerMiddleware(),
         authenticate("partner", ["session", "bearer"]),
         validateAndTransformBody(wrapSchema(updatePartnerMeSchema)),
+      ],
+    },
+    {
+      matcher: "/partners/me/pin",
+      method: "GET",
+      middlewares: [
+        createCorsPartnerMiddleware(),
+        authenticate("partner", ["session", "bearer"]),
+      ],
+    },
+    {
+      // Phone login PIN (#2320)
+      matcher: "/partners/me/pin",
+      method: "POST",
+      middlewares: [
+        createCorsPartnerMiddleware(),
+        authenticate("partner", ["session", "bearer"]),
+        validateAndTransformBody(wrapSchema(setPartnerMePinSchema)),
       ],
     },
     {

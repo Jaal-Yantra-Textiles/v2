@@ -164,6 +164,7 @@
     "json-edit-react": "^1.27.2",
     "jszip": "^3.10.1",
     "leaflet": "^1.9.4",
+    "libphonenumber-js": "^1.13.14",
     "lodash": "^4.17.21",
     "lowlight": "^3.3.0",
     "lucide-react": "^0.503.0",

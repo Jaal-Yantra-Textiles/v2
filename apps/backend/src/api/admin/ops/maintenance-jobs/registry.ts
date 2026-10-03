@@ -113,6 +113,7 @@ import { purgeAbandonedCartsJob } from "./purge-abandoned-carts-job"
 import { cloneAiPlatformRoleJob } from "./clone-ai-platform-role-job"
 import { restoreOrphanStoreJob } from "./restore-orphan-store-job"
 import { backfillPartnerEmailVerifiedJob } from "./backfill-partner-email-verified-job"
+import { backfillPartnerAdminPhoneLoginJob } from "./backfill-partner-admin-phone-login-job"
 import { backfillPartnerHostingProviderJob } from "./backfill-partner-hosting-provider-job"
 import { repointPartnerStorefrontSharedJob } from "./repoint-partner-storefront-shared-job"
 import { enableStripeConnectEurRegionsJob } from "./enable-stripe-connect-eur-regions-job"
@@ -6615,6 +6616,7 @@ export const MAINTENANCE_JOBS: MaintenanceJob[] = [
   deleteOrphanStoreJob,
   restoreOrphanStoreJob,
   backfillPartnerEmailVerifiedJob,
+  backfillPartnerAdminPhoneLoginJob,
   backfillPartnerHostingProviderJob,
   repointPartnerStorefrontSharedJob,
   enableStripeConnectEurRegionsJob,

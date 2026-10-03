@@ -15,6 +15,8 @@ const USERS_QUERY_KEY = "users" as const
 const usersQueryKeys = {
   ...queryKeysFactory(USERS_QUERY_KEY),
   me: () => [USERS_QUERY_KEY, "me"],
+  // Under "me" so a profile save (which may change the phone) refreshes it.
+  phonePin: () => [USERS_QUERY_KEY, "me", "phone-pin"],
 }
 
 export type PartnerAdmin = {
@@ -188,14 +190,14 @@ export const useUpdateUser = (
 ) => {
   return useMutation({
     mutationFn: (payload) => sdk.admin.user.update(id, payload, query),
-    onSuccess: (data, variables, context) => {
+    onSuccess: (...args) => {
       queryClient.invalidateQueries({ queryKey: usersQueryKeys.detail(id) })
       queryClient.invalidateQueries({ queryKey: usersQueryKeys.lists() })
 
       // We invalidate the me query in case the user updates their own profile
       queryClient.invalidateQueries({ queryKey: usersQueryKeys.me() })
 
-      options?.onSuccess?.(data, variables, context)
+      options?.onSuccess?.(...args)
     },
     ...options,
   })
@@ -225,9 +227,9 @@ export const useUpdateMe = (
         method: "PATCH",
         body: payload,
       }),
-    onSuccess: (data, variables, context) => {
+    onSuccess: (...args) => {
       queryClient.invalidateQueries({ queryKey: usersQueryKeys.me() })
-      options?.onSuccess?.(data, variables, context)
+      options?.onSuccess?.(...args)
     },
     ...options,
   })
@@ -243,14 +245,56 @@ export const useDeleteUser = (
 ) => {
   return useMutation({
     mutationFn: () => sdk.admin.user.delete(id),
-    onSuccess: (data, variables, context) => {
+    onSuccess: (...args) => {
       queryClient.invalidateQueries({ queryKey: usersQueryKeys.detail(id) })
       queryClient.invalidateQueries({ queryKey: usersQueryKeys.lists() })
 
       // We invalidate the me query in case the user updates their own profile
       queryClient.invalidateQueries({ queryKey: usersQueryKeys.me() })
 
-      options?.onSuccess?.(data, variables, context)
+      options?.onSuccess?.(...args)
+    },
+    ...options,
+  })
+}
+
+/** Phone login (#2320): the number it uses and whether a PIN is set. */
+export type PhonePinStatus = {
+  phone: string | null
+  pin_set: boolean
+  pin_set_at: string | null
+}
+
+export const usePhonePinStatus = (
+  options?: Omit<
+    UseQueryOptions<PhonePinStatus, FetchError, PhonePinStatus, QueryKey>,
+    "queryKey" | "queryFn"
+  >
+) => {
+  return useQuery({
+    queryFn: () =>
+      sdk.client.fetch<PhonePinStatus>("/partners/me/pin", { method: "GET" }),
+    queryKey: usersQueryKeys.phonePin(),
+    ...options,
+  })
+}
+
+export const useSetPhonePin = (
+  options?: UseMutationOptions<
+    { phone: string; pin_set: boolean },
+    FetchError,
+    { pin: string }
+  >
+) => {
+  return useMutation({
+    mutationFn: (payload) =>
+      sdk.client.fetch<{ phone: string; pin_set: boolean }>("/partners/me/pin", {
+        method: "POST",
+        body: payload,
+      }),
+    onSuccess: (...args) => {
+      queryClient.invalidateQueries({ queryKey: usersQueryKeys.phonePin() })
+      options?.onSuccess?.(...args)
     },
     ...options,
   })
