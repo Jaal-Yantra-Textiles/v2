@@ -5,6 +5,7 @@ import type { Link } from "@medusajs/modules-sdk"
 import { ORDER_INVENTORY_MODULE } from "../../../../modules/inventory_orders"
 import { PARTNER_MODULE } from "../../../../modules/partner"
 import {
+  areGoodsFinished,
   assessInventoryOrderFinished,
   loadInventoryOrderFinishEvidence,
 } from "../../../../workflows/inventory_orders/lib/order-finished"
@@ -268,6 +269,19 @@ export const relinkRolledBackInventoryOrderPartnersJob: MaintenanceJob = {
       if (!evidence) continue
       const verdict = assessInventoryOrderFinished(evidence)
       if (!verdict.finished) continue
+      // Only GOODS evidence may end a partner's workflow. A paid payout alone
+      // (a 100%-advance order still in transit) is not finished — signalling it
+      // would close the partner's tracking before anything shipped.
+      if (!areGoodsFinished(evidence)) {
+        changes.push({
+          entity: "workflow_transaction",
+          id: t.transaction_id,
+          field: "audit",
+          before: t.order_id,
+          note: `in-flight send-to-partner, NOT signalled: paid but goods not finished (${verdict.reasons.join("; ")})`,
+        })
+        continue
+      }
       finishedInFlight++
 
       let note = `in-flight send-to-partner on a finished order (${verdict.reasons.join("; ")}) — will time out unless signalled`
