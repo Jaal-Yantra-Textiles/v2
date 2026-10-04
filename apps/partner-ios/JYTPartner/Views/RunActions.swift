@@ -111,7 +111,9 @@ struct RunNextStepSection: View {
 struct FinishRunSheet: View {
   let pendingTasks: [RunTask]
   let isSample: Bool
-  let consumptionCount: Int
+  /// Materials logged on the run; nil when the count couldn't be read —
+  /// then the sheet reminds instead of claiming nothing was logged.
+  let consumptionCount: Int?
   let onConfirm: (String?) -> Void
   @Environment(\.dismiss) private var dismiss
 
@@ -129,8 +131,7 @@ struct FinishRunSheet: View {
             .foregroundStyle(.secondary)
         }
 
-        // -1 = the caller doesn't know the count; nudge then too (as Android does).
-        if isSample && consumptionCount <= 0 {
+        if isSample, let count = consumptionCount, count <= 0 {
           Section {
             Label {
               VStack(alignment: .leading, spacing: 2) {
@@ -142,6 +143,18 @@ struct FinishRunSheet: View {
             } icon: {
               Image(systemName: "exclamationmark.circle")
                 .foregroundStyle(.orange)
+            }
+          }
+        } else if isSample && consumptionCount == nil {
+          // Count unknown: remind, don't claim nothing was logged.
+          Section {
+            Label {
+              Text("For sample runs, material usage data is needed for cost estimation. Make sure the materials you used are logged.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+            } icon: {
+              Image(systemName: "info.circle")
+                .foregroundStyle(.secondary)
             }
           }
         }
@@ -221,7 +234,7 @@ enum CostType: String, CaseIterable, Identifiable {
 
   var label: String {
     switch self {
-    case .perUnit: return "Per unit"
+    case .perUnit: return "Per piece"
     case .total: return "Total"
     }
   }
@@ -248,14 +261,19 @@ private struct MaterialUsage: Identifiable {
 }
 
 struct CompleteRunSheet: View {
-  let orderedQuantity: Int
+  let orderedQuantity: Double
   /// The design's inventory items — the Complete form's material options
   /// (the web's resolveRunMaterialOptions). Logged as consumptions.
   var materials: [DesignInventoryItem] = []
   /// The run being completed — its snapshot says which sizes/colours it is for (#2271).
   var run: ProductionRun?
-  let onConfirm: (PartnerAPI.CompleteRunBody) -> Void
+  /// Sends the completion. The sheet stays open until this returns; a
+  /// throw keeps everything typed and shows the error inside the sheet.
+  let onConfirm: (PartnerAPI.CompleteRunBody) async throws -> Void
   @Environment(\.dismiss) private var dismiss
+
+  @State private var submitting = false
+  @State private var submitError: String?
 
   @State private var producedQty: String
   @State private var rejectedQty = ""
@@ -269,21 +287,51 @@ struct CompleteRunSheet: View {
   @State private var splitValues: [String: String] = [:]
 
   init(
-    orderedQuantity: Int,
+    orderedQuantity: Double,
     materials: [DesignInventoryItem] = [],
     run: ProductionRun? = nil,
-    onConfirm: @escaping (PartnerAPI.CompleteRunBody) -> Void
+    onConfirm: @escaping (PartnerAPI.CompleteRunBody) async throws -> Void
   ) {
     self.orderedQuantity = orderedQuantity
     self.materials = materials
     self.run = run
     self.onConfirm = onConfirm
-    _producedQty = State(initialValue: String(max(orderedQuantity, 0)))
+    _producedQty = State(initialValue: CompletionSplit.format(max(orderedQuantity, 0)))
     _usage = State(initialValue: materials.map { MaterialUsage(item: $0) })
     _splitValues = State(initialValue: CompletionSplit.initial(
       planned: run?.planned_output?.lines ?? [],
       snapshot: run?.snapshot ?? RunSnapshot(),
-      target: Double(max(orderedQuantity, 0))))
+      target: max(orderedQuantity, 0)))
+  }
+
+  private var currencyCode: String { run?.costCurrencyCode ?? "INR" }
+
+  /// 🔴 The payout multiplies a per-piece cost by the ORDERED quantity
+  /// (`runPayableAmount`), never the produced one — so the preview does too
+  /// (web complete-run-form.tsx).
+  private var costUnits: Double { orderedQuantity > 0 ? orderedQuantity : 1 }
+
+  /// "₹150 × 10 ordered = ₹1,500 total" / "₹1,500 total · ₹150 per piece of 10".
+  private var costPreview: String? {
+    guard let cost, let costType else { return nil }
+    let units = CompletionSplit.format(costUnits)
+    switch costType {
+    case .perUnit:
+      let total = (cost * costUnits * 100).rounded() / 100
+      return "\(Self.money(cost, currencyCode)) × \(units) ordered = \(Self.money(total, currencyCode)) total"
+    case .total:
+      let perPiece = (cost / costUnits * 100).rounded() / 100
+      return "\(Self.money(cost, currencyCode)) total · \(Self.money(perPiece, currencyCode)) per piece of \(units)"
+    }
+  }
+
+  static func money(_ amount: Double, _ code: String) -> String {
+    let f = NumberFormatter()
+    f.numberStyle = .currency
+    f.currencyCode = code
+    f.minimumFractionDigits = 0
+    f.maximumFractionDigits = 2
+    return f.string(from: NSNumber(value: amount)) ?? "\(code) \(amount)"
   }
 
   private var snapshot: RunSnapshot { run?.snapshot ?? RunSnapshot() }
@@ -292,10 +340,10 @@ struct CompleteRunSheet: View {
     CompletionSplit.plan(snapshot, values: splitValues)
   }
   /// The split must add up to the GOOD pieces — produced is the good output.
-  private var splitOk: Bool { !splitNeeded || split.total == Double(produced) }
+  private var splitOk: Bool { !splitNeeded || split.total == produced }
 
-  private var produced: Int { Int(producedQty) ?? 0 }
-  private var rejected: Int { Int(rejectedQty) ?? 0 }
+  private var produced: Double { Double(producedQty.trimmingCharacters(in: .whitespaces)) ?? 0 }
+  private var rejected: Double { Double(rejectedQty.trimmingCharacters(in: .whitespaces)) ?? 0 }
   private var cost: Double? {
     let value = Double(costText.trimmingCharacters(in: .whitespaces))
     return (value ?? 0) > 0 ? value : nil
@@ -323,9 +371,10 @@ struct CompleteRunSheet: View {
   }
 
   private var canSubmit: Bool {
-    guard produced >= 0, rejected >= 0 else { return false }
+    guard !submitting, produced >= 0, rejected >= 0 else { return false }
     if rejected > 0 && rejectionReason == nil { return false }
-    if let cost, costType == nil { return false }
+    // A cost without its basis is never sent: per piece vs total pay very differently.
+    if cost != nil && costType == nil { return false }
     if shortfall && shortfallExplanation.trimmingCharacters(in: .whitespaces).isEmpty {
       return false
     }
@@ -339,7 +388,7 @@ struct CompleteRunSheet: View {
           HStack {
             Text("Ordered")
             Spacer()
-            Text("\(orderedQuantity)").foregroundStyle(.secondary)
+            Text(CompletionSplit.format(orderedQuantity)).foregroundStyle(.secondary)
           }
           LabeledContent("Good pieces produced") {
             TextField("0", text: $producedQty)
@@ -382,7 +431,7 @@ struct CompleteRunSheet: View {
           } header: {
             Text("Which sizes and colours")
           } footer: {
-            Text("Adds up to \(CompletionSplit.format(split.total)) of \(produced) good pieces. Say how many of each were made, so stock gets the right ones.")
+            Text("Adds up to \(CompletionSplit.format(split.total)) of \(CompletionSplit.format(produced)) good pieces. Say how many of each were made, so stock gets the right ones.")
               .foregroundStyle(splitOk ? Color.secondary : Color.red)
           }
         }
@@ -428,59 +477,104 @@ struct CompleteRunSheet: View {
         }
 
         Section {
-          LabeledContent("Your cost") {
+          LabeledContent("Your cost (\(currencyCode))") {
             TextField("e.g. 1500", text: $costText)
               .keyboardType(.decimalPad)
               .multilineTextAlignment(.trailing)
               .frame(maxWidth: 120)
           }
-          Picker("Cost type", selection: $costType) {
-            Text("Select…").tag(CostType?.none)
-            ForEach(CostType.allCases) { type in
-              Text(type.label).tag(CostType?.some(type))
+          VStack(alignment: .leading, spacing: 6) {
+            Text("Is that per piece, or for the whole run?")
+              .font(.caption)
+              .foregroundStyle(.secondary)
+            Picker("Cost type", selection: $costType) {
+              ForEach(CostType.allCases) { type in
+                Text(type.label).tag(CostType?.some(type))
+              }
             }
+            .pickerStyle(.segmented)
+            .labelsHidden()
+          }
+          if let costPreview {
+            Text(costPreview)
+              .font(.footnote)
+              .foregroundStyle(.secondary)
+          } else if cost != nil && costType == nil {
+            // The unchosen state is real, and silence about it is how a
+            // per-piece rate once got billed as the total.
+            Text("Is that per piece, or for all \(CompletionSplit.format(costUnits))? The two are paid very differently.")
+              .font(.footnote)
+              .foregroundStyle(.red)
           }
         } header: {
           Text("Cost")
         } footer: {
-          Text("Per unit or for the whole run. Drives the design's pricing — leave blank if unsure.")
+          Text("Drives the design's pricing and your payout — leave blank if unsure.")
         }
 
         Section("Notes (optional)") {
           TextEditor(text: $notes)
             .frame(minHeight: 70)
         }
+
+        if let submitError {
+          Section {
+            Label(submitError, systemImage: "exclamationmark.triangle")
+              .font(.footnote)
+              .foregroundStyle(.red)
+          }
+        }
       }
       .navigationTitle("Complete the run")
       .navigationBarTitleDisplayMode(.inline)
+      .interactiveDismissDisabled(submitting)
       .toolbar {
         ToolbarItem(placement: .cancellationAction) {
           Button("Cancel") { dismiss() }
+            .disabled(submitting)
         }
         ToolbarItem(placement: .confirmationAction) {
-          Button("Submit") {
-            var combinedNotes = notes.trimmingCharacters(in: .whitespacesAndNewlines)
-            if shortfall {
-              let explanation = "Shortfall explanation: \(shortfallExplanation.trimmingCharacters(in: .whitespacesAndNewlines))"
-              combinedNotes = combinedNotes.isEmpty ? explanation : "\(combinedNotes)\n\(explanation)"
-            }
-            onConfirm(PartnerAPI.CompleteRunBody(
-              produced_quantity: produced,
-              rejected_quantity: rejected > 0 ? rejected : nil,
-              rejection_reason: rejectionReason?.rawValue,
-              rejection_notes: rejectionNotes.isEmpty ? nil : rejectionNotes,
-              partner_cost_estimate: cost,
-              cost_type: costType?.rawValue,
-              allow_shortfall: shortfall ? true : nil,
-              notes: combinedNotes.isEmpty ? nil : combinedNotes,
-              consumptions: consumptions,
-              produced_output: splitNeeded ? split.lines : nil
-            ))
-            dismiss()
+          if submitting {
+            ProgressView()
+          } else {
+            Button("Submit") { Task { await submit() } }
+              .disabled(!canSubmit)
           }
-          .disabled(!canSubmit)
         }
       }
+    }
+  }
+
+  @MainActor
+  private func submit() async {
+    guard canSubmit else { return }
+    var combinedNotes = notes.trimmingCharacters(in: .whitespacesAndNewlines)
+    if shortfall {
+      let explanation = "Shortfall explanation: \(shortfallExplanation.trimmingCharacters(in: .whitespacesAndNewlines))"
+      combinedNotes = combinedNotes.isEmpty ? explanation : "\(combinedNotes)\n\(explanation)"
+    }
+    let body = PartnerAPI.CompleteRunBody(
+      produced_quantity: produced,
+      rejected_quantity: rejected > 0 ? rejected : nil,
+      rejection_reason: rejectionReason?.rawValue,
+      rejection_notes: rejectionNotes.isEmpty ? nil : rejectionNotes,
+      partner_cost_estimate: cost,
+      cost_type: costType?.rawValue,
+      allow_shortfall: shortfall ? true : nil,
+      notes: combinedNotes.isEmpty ? nil : combinedNotes,
+      consumptions: consumptions,
+      produced_output: splitNeeded ? split.lines : nil
+    )
+    submitting = true
+    submitError = nil
+    defer { submitting = false }
+    do {
+      try await onConfirm(body)
+      dismiss()
+    } catch {
+      // Keep everything typed; say what went wrong right here.
+      submitError = (error as? LocalizedError)?.errorDescription
+        ?? "Couldn't complete the run. Try again."
     }
   }
 }

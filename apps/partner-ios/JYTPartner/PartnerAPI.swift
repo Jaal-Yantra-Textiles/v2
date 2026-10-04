@@ -214,6 +214,20 @@ actor PartnerAPI {
     try await get(path: "partners/production-runs/\(id)")
   }
 
+  /// The run's cost rollup (partner rate/total, materials, cost per piece).
+  func runCostSummary(id: String) async throws -> RunCostSummary {
+    let wrapper: RunCostSummaryResponse =
+      try await get(path: "partners/production-runs/\(id)/cost-summary")
+    return wrapper.cost_summary
+  }
+
+  /// How many consumption logs the run has (only the count is fetched).
+  func runConsumptionLogCount(id: String) async throws -> Int {
+    let response: ConsumptionLogCountResponse =
+      try await get(path: "partners/production-runs/\(id)/consumption-logs?limit=1")
+    return response.count
+  }
+
   // MARK: - Inventory orders
   // The raw-material purchase orders the partner is commissioned for —
   // the mobile counterpart of the partner-ui inventory-orders hooks
@@ -251,9 +265,57 @@ actor PartnerAPI {
     try await post(path: "partners/inventory-orders/\(id)/start")
   }
 
-  /// Processing/Partial → Ready for Delivery — goods packed (#790).
+  /// Partial → Ready for Delivery — goods packed (#790). The backend allows
+  /// it ONLY from Partial: a delivery must be recorded first, and a full
+  /// delivery already moves the order to Shipped.
   func markInventoryOrderReadyForDelivery(id: String) async throws {
     try await post(path: "partners/inventory-orders/\(id)/ready-for-delivery")
+  }
+
+  /// Courier options for the order's shipment, cheapest first is the
+  /// caller's job. `weightGrams`/dimensions refine the quote.
+  func inventoryOrderShippingRates(
+    id: String,
+    carrier: String,
+    weightGrams: Int?,
+    dimensions: InventoryShipmentDimensions?
+  ) async throws -> InventoryShippingRatesResponse {
+    var path = "partners/inventory-orders/\(id)/shiprocket-rates?carrier=\(carrier)"
+    if let weightGrams { path += "&weight_grams=\(weightGrams)" }
+    if let length = dimensions?.length { path += "&length=\(CompletionSplit.format(length))" }
+    if let breadth = dimensions?.breadth { path += "&breadth=\(CompletionSplit.format(breadth))" }
+    if let height = dimensions?.height { path += "&height=\(CompletionSplit.format(height))" }
+    return try await get(path: path)
+  }
+
+  /// Book a carrier shipment (AWB + label, optional pickup) for the order.
+  func createInventoryOrderShipment(
+    id: String,
+    body: CreateInventoryShipmentBody
+  ) async throws -> CreatedInventoryShipment {
+    let response: CreateInventoryShipmentResponse = try await post(
+      path: "partners/inventory-orders/\(id)/shipment",
+      json: try JSONEncoder().encode(body)
+    )
+    return response.shipment
+  }
+
+  // MARK: - Incoming deliveries (#2286)
+  // Goods delivered TO this partner's warehouse, whoever supplies them —
+  // the receiving side of inventory orders (no prices).
+
+  /// Default: only orders with something outstanding; `all` adds the
+  /// fully received ones. There is no single-delivery route.
+  func incomingDeliveries(all: Bool = false) async throws -> IncomingDeliveriesResponse {
+    try await get(path: all ? "partners/incoming-deliveries?all=true" : "partners/incoming-deliveries")
+  }
+
+  /// The receiving partner states what arrived, per line (0 allowed).
+  func receiveIncomingDelivery(orderId: String, body: ReceiveIncomingBody) async throws {
+    try await post(
+      path: "partners/incoming-deliveries/\(orderId)/receive",
+      json: try JSONEncoder().encode(body)
+    )
   }
 
   /// The goods receipt: what was actually delivered, per line, with the
@@ -322,9 +384,8 @@ actor PartnerAPI {
     )
   }
 
-  /// `complete` output + cost — the CompleteRunForm essentials. The web form
-  /// also logs consumptions; those stay on the consumption surfaces, and the
-  /// backend accepts a completion without them.
+  /// `complete` — output, cost, and the materials consumed (logged with the
+  /// completion, as the web CompleteRunForm does).
   struct ConsumptionEntry: Codable {
     var inventory_item_id: String?
     var quantity: Double
@@ -335,8 +396,8 @@ actor PartnerAPI {
   }
 
   struct CompleteRunBody: Codable {
-    var produced_quantity: Int?
-    var rejected_quantity: Int?
+    var produced_quantity: Double?
+    var rejected_quantity: Double?
     var rejection_reason: String?
     var rejection_notes: String?
     var partner_cost_estimate: Double?
@@ -429,6 +490,11 @@ actor PartnerAPI {
       request.httpBody = json
     }
     return try await authorizedData(request)
+  }
+
+  private func post<T: Decodable>(path: String, json: Data? = nil) async throws -> T {
+    let data = try await postData(path: path, json: json)
+    return try decode(data)
   }
 
   // MARK: - Authenticated transport

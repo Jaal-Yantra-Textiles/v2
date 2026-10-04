@@ -29,6 +29,8 @@
 		5A1000000000000000000045 /* PushManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A1000000000000000000026 /* PushManager.swift */; };
 		5A1000000000000000000046 /* InventoryOrdersView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A1000000000000000000027 /* InventoryOrdersView.swift */; };
 		5A1000000000000000000047 /* InventoryOrderDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A1000000000000000000028 /* InventoryOrderDetailView.swift */; };
+		5A1000000000000000000048 /* InventoryShipmentSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A100000000000000000002A /* InventoryShipmentSheet.swift */; };
+		5A1000000000000000000049 /* IncomingDeliveriesView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A100000000000000000002B /* IncomingDeliveriesView.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -56,6 +58,8 @@
 		5A1000000000000000000026 /* PushManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PushManager.swift; sourceTree = "<group>"; };
 		5A1000000000000000000027 /* InventoryOrdersView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InventoryOrdersView.swift; sourceTree = "<group>"; };
 		5A1000000000000000000028 /* InventoryOrderDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InventoryOrderDetailView.swift; sourceTree = "<group>"; };
+		5A100000000000000000002A /* InventoryShipmentSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InventoryShipmentSheet.swift; sourceTree = "<group>"; };
+		5A100000000000000000002B /* IncomingDeliveriesView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IncomingDeliveriesView.swift; sourceTree = "<group>"; };
 		5A1000000000000000000029 /* JYTPartner.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = JYTPartner.entitlements; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
@@ -121,6 +125,8 @@
 				5A1000000000000000000024 /* MediaPickerView.swift */,
 				5A1000000000000000000027 /* InventoryOrdersView.swift */,
 				5A1000000000000000000028 /* InventoryOrderDetailView.swift */,
+				5A100000000000000000002A /* InventoryShipmentSheet.swift */,
+				5A100000000000000000002B /* IncomingDeliveriesView.swift */,
 			);
 			path = Views;
 			sourceTree = "<group>";
@@ -218,6 +224,8 @@
 				5A1000000000000000000045 /* PushManager.swift in Sources */,
 				5A1000000000000000000046 /* InventoryOrdersView.swift in Sources */,
 				5A1000000000000000000047 /* InventoryOrderDetailView.swift in Sources */,
+				5A1000000000000000000048 /* InventoryShipmentSheet.swift in Sources */,
+				5A1000000000000000000049 /* IncomingDeliveriesView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
