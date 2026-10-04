@@ -7,6 +7,9 @@ import com.jyt.partner.TokenStore
 import com.jyt.partner.models.AttachMediaBody
 import com.jyt.partner.models.AttachMediaFile
 import com.jyt.partner.models.CompleteInventoryOrderBody
+import com.jyt.partner.models.CreateShipmentBody
+import com.jyt.partner.models.CreateShipmentResponse
+import com.jyt.partner.models.CreatedShipment
 import com.jyt.partner.models.DesignDetail
 import com.jyt.partner.models.DesignDetailResponse
 import com.jyt.partner.models.IncomingDeliveriesResponse
@@ -23,6 +26,9 @@ import com.jyt.partner.models.PartnerOrderListResponse
 import com.jyt.partner.models.ProductionRunDetail
 import com.jyt.partner.models.ProductionRunListResponse
 import com.jyt.partner.models.ReceiveIncomingBody
+import com.jyt.partner.models.RunCostSummary
+import com.jyt.partner.models.RunCostSummaryResponse
+import com.jyt.partner.models.ShippingRatesResponse
 import com.jyt.partner.models.UploadFile
 import com.jyt.partner.models.UploadFilesResponse
 import kotlinx.coroutines.Dispatchers
@@ -308,6 +314,10 @@ class PartnerApi private constructor(
     suspend fun productionRun(id: String): ProductionRunDetail =
         get("partners/production-runs/$id")
 
+    /** The run's cost rollup — your rate and total, materials, cost per piece. */
+    suspend fun productionRunCostSummary(id: String): RunCostSummary =
+        get<RunCostSummaryResponse>("partners/production-runs/$id/cost-summary").costSummary
+
     // ── Run lifecycle actions ────────────────────────────────────────────
 
     suspend fun acceptRun(id: String) {
@@ -427,7 +437,9 @@ class PartnerApi private constructor(
         post("partners/inventory-orders/$id/start")
     }
 
-    /** Processing/Partial → Ready for Delivery — goods packed. */
+    /** Partial → Ready for Delivery — goods packed. The backend allows it
+     *  ONLY from Partial (a delivery must be recorded first; a full delivery
+     *  goes straight to Shipped), and 400s from any other status. */
     suspend fun markInventoryOrderReadyForDelivery(id: String) {
         post("partners/inventory-orders/$id/ready-for-delivery")
     }
@@ -438,6 +450,37 @@ class PartnerApi private constructor(
             "partners/inventory-orders/$id/complete",
             json.encodeToString(CompleteInventoryOrderBody.serializer(), body)
         )
+    }
+
+    /** Courier quotes for the order's shipment, so the partner can choose one.
+     *  Every refinement is optional; blanks are left off the query. */
+    suspend fun inventoryOrderShippingRates(
+        orderId: String,
+        carrier: String,
+        weightGrams: Int? = null,
+        length: Double? = null,
+        breadth: Double? = null,
+        height: Double? = null,
+    ): ShippingRatesResponse {
+        var path = "partners/inventory-orders/$orderId/shiprocket-rates?carrier=${urlEncode(carrier)}"
+        weightGrams?.let { path += "&weight_grams=$it" }
+        length?.let { path += "&length=${plainNumber(it)}" }
+        breadth?.let { path += "&breadth=${plainNumber(it)}" }
+        height?.let { path += "&height=${plainNumber(it)}" }
+        return get(path)
+    }
+
+    /** Book the carrier shipment (AWB + label, pickup on the given date). */
+    suspend fun createInventoryOrderShipment(
+        orderId: String,
+        body: CreateShipmentBody,
+    ): CreatedShipment {
+        val request = baseRequest("partners/inventory-orders/$orderId/shipment")
+            .post(
+                json.encodeToString(CreateShipmentBody.serializer(), body)
+                    .toRequestBody("application/json".toMediaType())
+            ).build()
+        return decodeBody<CreateShipmentResponse>(execute(request)).shipment
     }
 
     // ── Incoming deliveries (#2286) ──────────────────────────────────────
@@ -508,6 +551,10 @@ class PartnerApi private constructor(
     private fun urlEncode(value: String): String =
         java.net.URLEncoder.encode(value, "UTF-8")
 
+    /** "12" for 12.0, "12.5" otherwise — query values, never locale-formatted. */
+    private fun plainNumber(value: Double): String =
+        if (value == value.toLong().toDouble()) value.toLong().toString() else value.toString()
+
     private fun baseRequest(path: String): Request.Builder {
         val builder = Request.Builder().url(url(path))
         tokens.load(context)?.let {
@@ -560,11 +607,21 @@ class PartnerApi private constructor(
         throw httpError(retryStatus, String(retryData))
     }
 
+    /** The server's own words — `message`, else `error` — or nothing, in
+     *  which case PartnerException.Http falls back to a short generic line.
+     *  Never the raw body: a JSON dump or an HTML gateway page is not a
+     *  message a partner can act on. */
     private fun httpError(status: Int, body: String): PartnerException {
         val message = runCatching {
             val obj = Json.parseToJsonElement(body).jsonObject
-            (obj["message"] as? JsonPrimitive)?.content
-        }.getOrNull() ?: body.take(300)
+            listOf("message", "error").firstNotNullOfOrNull { key ->
+                (obj[key] as? JsonPrimitive)
+                    ?.takeIf { it.isString }
+                    ?.content
+                    ?.trim()
+                    ?.takeIf { it.isNotEmpty() }
+            }
+        }.getOrNull()
         return PartnerException.Http(status, message ?: "")
     }
 

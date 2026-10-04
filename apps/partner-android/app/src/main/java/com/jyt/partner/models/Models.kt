@@ -136,7 +136,7 @@ sealed class PartnerException(message: String) : Exception(message) {
     object SessionExpired : PartnerException("Your session expired, please sign in again.")
     class Http(val status: Int, val serverMessage: String) : PartnerException(
         if (status == 401) "Invalid email or password."
-        else serverMessage.ifEmpty { "Request failed (HTTP $status)." }
+        else serverMessage.ifEmpty { "Something went wrong (error $status). Please try again." }
     )
 }
 

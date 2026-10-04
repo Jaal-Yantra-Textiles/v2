@@ -44,6 +44,7 @@ import com.jyt.partner.models.ApiDate
 import com.jyt.partner.models.formatDate
 import com.jyt.partner.models.DesignDetail
 import com.jyt.partner.models.ProductionRunDetail
+import com.jyt.partner.models.RunCostSummary
 import com.jyt.partner.models.RunTask
 import kotlinx.coroutines.launch
 import java.util.Date
@@ -62,6 +63,10 @@ fun RunDetailScreen(
 
     var detail by remember { mutableStateOf<ProductionRunDetail?>(null) }
     var design by remember { mutableStateOf<DesignDetail?>(null) }
+    // The design load used to fail silently, leaving the Complete sheet
+    // without materials and no hint why.
+    var designFailed by remember { mutableStateOf(false) }
+    var costSummary by remember { mutableStateOf<RunCostSummary?>(null) }
     var loading by remember { mutableStateOf(true) }
     var errorText by remember { mutableStateOf<String?>(null) }
 
@@ -69,6 +74,15 @@ fun RunDetailScreen(
     var actionError by remember { mutableStateOf<String?>(null) }
     var showFinish by rememberSaveable { mutableStateOf(false) }
     var showComplete by rememberSaveable { mutableStateOf(false) }
+
+    suspend fun loadDesign(designId: String) {
+        try {
+            design = PartnerApi.get(context).design(designId)
+            designFailed = false
+        } catch (e: Exception) {
+            designFailed = true
+        }
+    }
 
     suspend fun load() {
         loading = detail == null
@@ -78,9 +92,12 @@ fun RunDetailScreen(
             errorText = null
             // The linked design carries the complete form's material options.
             if (design == null) {
-                design = fetched.productionRun.designId
-                    ?.let { runCatching { PartnerApi.get(context).design(it) }.getOrNull() }
+                fetched.productionRun.designId?.let { loadDesign(it) }
             }
+            // A completed run shows what it pays; the card hides if this fails.
+            costSummary = if (fetched.productionRun.status == "completed") {
+                runCatching { PartnerApi.get(context).productionRunCostSummary(runId) }.getOrNull()
+            } else null
         } catch (e: Exception) {
             errorText = e.message
         }
@@ -209,8 +226,13 @@ fun RunDetailScreen(
                                 StatRow("Type", if (it == "sample") "Sample" else "Production")
                             }
                             run.role?.takeIf { it.isNotBlank() }?.let { StatRow("Role", it) }
-                            run.quantity?.let { StatRow("Quantity", it.toString()) }
+                            run.quantity?.let { StatRow("Quantity", formatQuantity(it)) }
+                            run.producedQuantity?.let { StatRow("Produced", formatQuantity(it)) }
                         }
+                    }
+
+                    costSummary?.let { summary ->
+                        item { RunCostCard(summary, fallbackCurrency = run.costCurrency) }
                     }
 
                     run.designId?.let { designId ->
@@ -224,6 +246,24 @@ fun RunDetailScreen(
                                         contentDescription = null,
                                         tint = MaterialTheme.colorScheme.onSurfaceVariant,
                                     )
+                                }
+                                if (designFailed) {
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        Text(
+                                            "Couldn't load materials",
+                                            fontSize = 12.sp,
+                                            color = MaterialTheme.colorScheme.error,
+                                        )
+                                        Text(
+                                            " · ",
+                                            fontSize = 12.sp,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        )
+                                        TextButton(
+                                            onClick = { scope.launch { loadDesign(designId) } },
+                                            contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 4.dp),
+                                        ) { Text("Retry", fontSize = 12.sp) }
+                                    }
                                 }
                             }
                         }
@@ -290,10 +330,18 @@ fun RunDetailScreen(
 
     if (showComplete) {
         CompleteRunSheet(
-            orderedQuantity = current?.productionRun?.quantity ?: 0,
+            orderedQuantity = current?.productionRun?.quantity ?: 0.0,
             materials = design?.inventoryItems.orEmpty(),
             run = current?.productionRun,
-            onConfirm = { body -> scope.launch { run(RunAction.COMPLETE, completeBody = body) } },
+            // Throws on failure, so the sheet keeps the input and shows why.
+            onSubmit = { body ->
+                PartnerApi.get(context).completeRun(runId, body)
+                scope.launch {
+                    detail = null
+                    design = null
+                    load()
+                }
+            },
             onDismiss = { showComplete = false },
         )
     }
@@ -332,5 +380,32 @@ fun LifecycleRow(label: String, date: Date?) {
             fontSize = 12.sp,
             color = if (date == null) Color.Gray else MaterialTheme.colorScheme.onSurfaceVariant,
         )
+    }
+}
+
+/** What a completed run pays — the partner's rate, their total, and the
+ *  all-in cost per piece. Only shown when the cost-summary call succeeds. */
+@Composable
+private fun RunCostCard(summary: RunCostSummary, fallbackCurrency: String?) {
+    val currency = (summary.currency ?: fallbackCurrency)
+        ?.trim()?.takeIf { it.isNotEmpty() }?.uppercase() ?: "INR"
+    val partner = summary.partner
+    SectionCard("Cost") {
+        partner?.estimate?.let { rate ->
+            StatRow(
+                "Your rate",
+                formatCurrency(rate, currency) +
+                    if (partner.costType == "per_unit") " per piece" else " total",
+            )
+        }
+        partner?.total?.let { StatRow("Your total", formatCurrency(it, currency)) }
+        summary.costPerUnit?.let { StatRow("Cost per piece", formatCurrency(it, currency)) }
+        if (partner?.estimate == null && partner?.total == null && summary.costPerUnit == null) {
+            Text(
+                "No cost was recorded for this run.",
+                fontSize = 12.sp,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
     }
 }

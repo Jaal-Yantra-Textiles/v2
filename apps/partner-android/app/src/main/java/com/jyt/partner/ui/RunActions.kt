@@ -7,14 +7,19 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Checkbox
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExposedDropdownMenuBox
 import androidx.compose.material3.ExposedDropdownMenuDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.SegmentedButton
+import androidx.compose.material3.SegmentedButtonDefaults
+import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -22,6 +27,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -36,6 +42,9 @@ import com.jyt.partner.models.SplitPlan
 import com.jyt.partner.models.CompletionSplit
 import com.jyt.partner.models.ProductionRun
 import com.jyt.partner.models.RunTask
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.launch
+import kotlin.math.round
 
 // The partner's next action on a run, ported from the web
 // (apps/partner-ui/src/lib/run-phase.ts::getRunNextAction). Status keys
@@ -88,8 +97,23 @@ enum class RejectionReason(val raw: String, val label: String) {
 }
 
 enum class CostType(val raw: String, val label: String) {
-    PER_UNIT("per_unit", "Per unit"),
+    PER_UNIT("per_unit", "Per piece"),
     TOTAL("total", "Total");
+}
+
+/** What a cost works out to, stated against the ORDERED quantity — that is
+ *  the payout's multiplier (runPayableAmount), so a preview against the
+ *  produced figure would show a total the payment never matches. Mirrors
+ *  the web complete-run form. */
+internal data class CostPreview(val total: Double, val perPiece: Double, val units: Double)
+
+internal fun costPreview(cost: Double, type: CostType, orderedQuantity: Double): CostPreview {
+    val units = if (orderedQuantity > 0) orderedQuantity else 1.0
+    fun cents(v: Double) = round(v * 100) / 100
+    return when (type) {
+        CostType.PER_UNIT -> CostPreview(total = cents(cost * units), perPiece = cost, units = units)
+        CostType.TOTAL -> CostPreview(total = cost, perPiece = cents(cost / units), units = units)
+    }
 }
 
 /** Finish sheet — the FinishRunForm essentials: pending-tasks ack + notes. */
@@ -164,26 +188,36 @@ fun FinishRunSheet(
  *  shortfall gate (#1271): produced + rejected must cover the order unless
  *  the shortfall is claimed AND explained.
  *
+ *  The sheet stays open until [onSubmit] returns: a failure (it throws)
+ *  keeps everything typed and shows the error inside the sheet.
+ *
  *  Material rows live in saveable maps keyed by item id (not a remembered
  *  object list) so a rotation — or the parent screen reloading while the
  *  sheet is open — doesn't wipe what the partner has ticked and typed. */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun CompleteRunSheet(
-    orderedQuantity: Int,
+    /** The run's ORDERED quantity — the payout multiplier. */
+    orderedQuantity: Double,
     materials: List<DesignInventoryItem>,
     /** The run being completed — its snapshot says which sizes/colours it is for (#2271). */
     run: ProductionRun?,
-    onConfirm: (PartnerApi.CompleteRunBody) -> Unit,
+    /** Sends the completion; throws on failure. The sheet closes only on success. */
+    onSubmit: suspend (PartnerApi.CompleteRunBody) -> Unit,
     onDismiss: () -> Unit,
 ) {
-    var producedQty by rememberSaveable { mutableStateOf(max(orderedQuantity, 0).toString()) }
+    val ordered = max(orderedQuantity, 0.0)
+    // The run's cost currency, else INR (the web falls back the same way).
+    val currency = run?.costCurrency?.trim()?.takeIf { it.isNotEmpty() }?.uppercase() ?: "INR"
+    var producedQty by rememberSaveable { mutableStateOf(ordered.toLong().toString()) }
     var rejectedQty by rememberSaveable { mutableStateOf("") }
     var rejectionReason by rememberSaveable { mutableStateOf<RejectionReason?>(null) }
     var rejectionNotes by rememberSaveable { mutableStateOf("") }
     var costText by rememberSaveable { mutableStateOf("") }
     var costType by rememberSaveable { mutableStateOf<CostType?>(null) }
-    var costMenuOpen by remember { mutableStateOf(false) }
+    var submitting by remember { mutableStateOf(false) }
+    var submitError by remember { mutableStateOf<String?>(null) }
+    val scope = rememberCoroutineScope()
     var reasonMenuOpen by remember { mutableStateOf(false) }
     var notes by rememberSaveable { mutableStateOf("") }
     var shortfallExplanation by rememberSaveable { mutableStateOf("") }
@@ -191,7 +225,7 @@ fun CompleteRunSheet(
     // #2271 — which sizes/colours were made, when the run is for several.
     val axes = remember(run?.id) { CompletionSplit.axes(run) }
     var splitMap by rememberSaveable(run?.id) {
-        mutableStateOf(CompletionSplit.initial(run, axes, max(orderedQuantity, 0).toDouble()))
+        mutableStateOf(CompletionSplit.initial(run, axes, ordered))
     }
 
     // Keyed by the material id list, so the same BOM after a reload (same
@@ -212,7 +246,7 @@ fun CompleteRunSheet(
     val cost = costText.trim().toDoubleOrNull()?.takeIf { it > 0 }
 
     // produced + rejected must cover the order unless explained (#1271).
-    val shortfall = orderedQuantity > 0 && produced + rejected < orderedQuantity
+    val shortfall = ordered > 0 && produced + rejected < ordered
 
     // The split must add up to the GOOD pieces — produced is the good output.
     val split = CompletionSplit.plan(axes, splitMap, produced.toDouble())
@@ -231,18 +265,18 @@ fun CompleteRunSheet(
             )
         }.takeIf { it.isNotEmpty() }
 
-    val canSubmit = produced >= 0 && rejected >= 0 &&
+    val canSubmit = !submitting && produced >= 0 && rejected >= 0 &&
         (rejected <= 0 || rejectionReason != null) &&
         (cost == null || costType != null) &&
         (!shortfall || shortfallExplanation.isNotBlank()) &&
         splitOk
 
     AlertDialog(
-        onDismissRequest = onDismiss,
+        onDismissRequest = { if (!submitting) onDismiss() },
         title = { Text("Complete the run") },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                Text("Ordered: $orderedQuantity", fontSize = 13.sp)
+                Text("Ordered: ${formatQuantity(ordered)}", fontSize = 13.sp)
                 OutlinedTextField(
                     value = producedQty,
                     onValueChange = { producedQty = it.filter { c -> c.isDigit() } },
@@ -377,37 +411,49 @@ fun CompleteRunSheet(
                         modifier = Modifier.fillMaxWidth(),
                     )
                 }
-                ExposedDropdownMenuBox(
-                    expanded = costMenuOpen,
-                    onExpandedChange = { costMenuOpen = it },
-                ) {
-                    OutlinedTextField(
-                        value = costText,
-                        onValueChange = { costText = it },
-                        label = { Text("Your cost (per unit or total)") },
-                        keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(keyboardType = KeyboardType.Decimal),
-                        singleLine = true,
-                        trailingIcon = {
-                            Text(
-                                costType?.label ?: "type",
-                                fontSize = 12.sp,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                modifier = Modifier.padding(end = 12.dp),
-                            )
-                        },
-                        modifier = Modifier.menuAnchor().fillMaxWidth(),
-                    )
-                    ExposedDropdownMenu(expanded = costMenuOpen, onDismissRequest = { costMenuOpen = false }) {
-                        CostType.entries.forEach { type ->
-                            DropdownMenuItem(
-                                text = { Text(type.label) },
-                                onClick = {
-                                    costType = type
-                                    costMenuOpen = false
-                                },
-                            )
-                        }
+                Text("Your cost", fontWeight = FontWeight.SemiBold)
+                OutlinedTextField(
+                    value = costText,
+                    onValueChange = { costText = it.filter { c -> c.isDigit() || c == '.' } },
+                    label = { Text("Amount ($currency)") },
+                    keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                // An explicit, visible choice — the per-piece rate was once
+                // billed as a total because the type hid behind a menu.
+                SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
+                    CostType.entries.forEachIndexed { index, type ->
+                        SegmentedButton(
+                            selected = costType == type,
+                            onClick = { costType = type },
+                            shape = SegmentedButtonDefaults.itemShape(index, CostType.entries.size),
+                        ) { Text(type.label) }
                     }
+                }
+                val type = costType
+                if (cost != null && type != null) {
+                    val preview = costPreview(cost, type, ordered)
+                    val units = formatQuantity(preview.units)
+                    Text(
+                        when (type) {
+                            CostType.PER_UNIT ->
+                                "${formatCurrency(cost, currency)} × $units ordered = " +
+                                    "${formatCurrency(preview.total, currency)} total"
+                            CostType.TOTAL ->
+                                "${formatCurrency(preview.total, currency)} total · " +
+                                    "${formatCurrency(preview.perPiece, currency)} per piece of $units"
+                        },
+                        fontSize = 12.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                } else if (cost != null) {
+                    Text(
+                        "Is that per piece, or for all ${formatQuantity(if (ordered > 0) ordered else 1.0)}? " +
+                            "The two are paid very differently.",
+                        fontSize = 12.sp,
+                        color = MaterialTheme.colorScheme.error,
+                    )
                 }
                 OutlinedTextField(
                     value = notes,
@@ -415,10 +461,15 @@ fun CompleteRunSheet(
                     label = { Text("Notes (optional)") },
                     modifier = Modifier.fillMaxWidth(),
                 )
+                submitError?.let {
+                    Text(it, fontSize = 12.sp, color = MaterialTheme.colorScheme.error)
+                }
             }
         },
         confirmButton = {
-            TextButton(
+            if (submitting) {
+                CircularProgressIndicator(Modifier.size(20.dp))
+            } else TextButton(
                 onClick = {
                     var combinedNotes = notes.trim()
                     if (shortfall) {
@@ -426,7 +477,7 @@ fun CompleteRunSheet(
                         combinedNotes = if (combinedNotes.isEmpty()) explanation
                         else "$combinedNotes\n$explanation"
                     }
-                    onConfirm(
+                    val body =
                         PartnerApi.CompleteRunBody(
                             producedQuantity = produced,
                             rejectedQuantity = if (rejected > 0) rejected else null,
@@ -439,12 +490,26 @@ fun CompleteRunSheet(
                             consumptions = consumptions,
                             producedOutput = (split as? SplitPlan.Needed)?.lines,
                         )
-                    )
-                    onDismiss()
+                    submitting = true
+                    submitError = null
+                    scope.launch {
+                        val failure = try {
+                            onSubmit(body)
+                            null
+                        } catch (e: CancellationException) {
+                            throw e
+                        } catch (e: Exception) {
+                            e.message ?: "Couldn't complete the run. Please try again."
+                        }
+                        submitting = false
+                        if (failure == null) onDismiss() else submitError = failure
+                    }
                 },
                 enabled = canSubmit,
             ) { Text("Submit") }
         },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } },
+        dismissButton = {
+            TextButton(onClick = onDismiss, enabled = !submitting) { Text("Cancel") }
+        },
     )
 }
