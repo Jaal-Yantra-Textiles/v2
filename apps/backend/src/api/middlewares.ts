@@ -1220,6 +1220,15 @@ export default defineMiddlewares({
       method: "GET",
       middlewares: [],
     },
+    // Partner session refresh — PUBLIC on purpose: the bearer may be EXPIRED
+    // (up to 30 days), and `authenticate("partner", …)` would reject it before
+    // the handler runs. The route verifies the signature itself.
+    // 🔴 Never add authenticate() here or a wildcard that matches it.
+    {
+      matcher: "/partners/auth/refresh",
+      method: "POST",
+      middlewares: [],
+    },
     {
       matcher: "/partners*",
       middlewares: [
