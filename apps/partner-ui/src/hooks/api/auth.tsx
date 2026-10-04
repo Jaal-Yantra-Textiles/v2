@@ -2,6 +2,7 @@ import { FetchError } from "@medusajs/js-sdk"
 import { HttpTypes } from "@medusajs/types"
 import { UseMutationOptions, useMutation } from "@tanstack/react-query"
 import { sdk } from "../../lib/client"
+import { markSessionRefreshed } from "../../lib/client/session-refresh"
 import {
   getTokenFromResponse,
   isVerificationRequired,
@@ -38,6 +39,7 @@ export const useSignInWithEmailPass = (
       const token = getTokenFromResponse(res)
       if (token) {
         await sdk.client.setToken(token)
+        markSessionRefreshed()
       }
       return { verificationRequired: false, email: (payload as any).email }
     },
@@ -66,6 +68,7 @@ export const useSignInWithPhonePin = (
         throw new Error("Phone login did not return a session")
       }
       await sdk.client.setToken(token)
+      markSessionRefreshed()
     },
     ...options,
   })

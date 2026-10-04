@@ -30,6 +30,9 @@ export const Login = () => {
   const { getWidgets } = useExtension()
 
   const from = location.state?.from?.pathname || "/"
+  // Set by endPartnerSession when the server refused to renew the token.
+  const sessionExpired =
+    new URLSearchParams(location.search).get("session_expired") === "1"
 
   const form = useForm<z.infer<typeof LoginSchema>>({
     resolver: zodResolver(LoginSchema),
@@ -122,6 +125,11 @@ export const Login = () => {
             {t("login.hint")}
           </Text>
         </div>
+        {sessionExpired && !unverified && (
+          <Alert variant="warning" className="mb-4 w-full p-3">
+            <Text size="small">{t("login.sessionExpired")}</Text>
+          </Alert>
+        )}
         {unverified ? (
           <div className="flex w-full flex-col gap-y-4">
             <Alert variant="warning" className="items-start p-3">
