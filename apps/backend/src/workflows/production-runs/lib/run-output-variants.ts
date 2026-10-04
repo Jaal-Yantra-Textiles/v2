@@ -225,6 +225,63 @@ export function planOutputVariants(input: {
   }
 }
 
+export type SharedOption = {
+  id: string
+  title: string
+  values?: Array<{ id: string; value?: string | null }> | null
+}
+
+export type OptionLinkInput = {
+  add: Array<string | { id: string; value_ids: string[] } | { title: string; values: string[] }>
+  update: Array<{ product_option_id: string; add: Array<{ value: string }> }>
+}
+
+/**
+ * PURE: turn the plan's option changes into the link workflow's input, REUSING
+ * a shared option instead of creating a second one with the same title (#2326).
+ *
+ * Since Medusa 2.16 an option can be shared (`is_exclusive: false`) and a
+ * shared option's title is unique. The link workflow creates shared options,
+ * so the first run that added `Size` made THE shared `Size`, and every later
+ * request to create `Size` was refused — every completion that added a size
+ * axis failed. A shared option is linked with the wanted values it already
+ * has; the values it lacks are added through `update`, which the workflow runs
+ * after the link.
+ */
+export function planOptionLinks(
+  plan: Pick<Extract<OutputVariantPlan, { ok: true }>, "add_options" | "add_values">,
+  shared: SharedOption[]
+): OptionLinkInput {
+  const sharedByTitle = new Map(shared.map((o) => [o.title, o]))
+  const add: OptionLinkInput["add"] = []
+  const update: OptionLinkInput["update"] = plan.add_values.map((o) => ({
+    product_option_id: o.option_id,
+    add: o.values.map((value) => ({ value })),
+  }))
+
+  for (const option of plan.add_options) {
+    const existing = sharedByTitle.get(option.title)
+    if (!existing) {
+      add.push({ title: option.title, values: option.values })
+      continue
+    }
+    const idByValue = new Map(
+      (existing.values ?? []).map((v) => [String(v?.value ?? ""), v.id])
+    )
+    const valueIds = option.values
+      .map((v) => idByValue.get(v))
+      .filter((id): id is string => !!id)
+    const missing = option.values.filter((v) => !idByValue.has(v))
+    // No wanted value exists yet: link the bare option — `update` then adds them.
+    add.push(valueIds.length ? { id: existing.id, value_ids: valueIds } : existing.id)
+    if (missing.length) {
+      update.push({ product_option_id: existing.id, add: missing.map((value) => ({ value })) })
+    }
+  }
+
+  return { add, update }
+}
+
 export type StockLine = PlannedLine & { variant_id: string; inventory_item_id: string }
 
 /**
@@ -245,15 +302,15 @@ export async function applyOutputVariantPlan(
   const remoteLink: any = container.resolve(ContainerRegistrationKeys.LINK)
 
   if (plan.add_options.length || plan.add_values.length) {
+    const shared: SharedOption[] = plan.add_options.length
+      ? await productService.listProductOptions(
+          { title: plan.add_options.map((o) => o.title), is_exclusive: false },
+          { relations: ["values"] }
+        )
+      : []
+    const links = planOptionLinks(plan, shared)
     await createAndLinkProductOptionsToProductWorkflow(container).run({
-      input: {
-        product_id: plan.product_id,
-        add: plan.add_options.map((o) => ({ title: o.title, values: o.values })) as any,
-        update: plan.add_values.map((o) => ({
-          product_option_id: o.option_id,
-          add: o.values.map((value) => ({ value })),
-        })),
-      },
+      input: { product_id: plan.product_id, add: links.add as any, update: links.update },
     })
   }
 
