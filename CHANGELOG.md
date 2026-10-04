@@ -1,3 +1,10 @@
+## [13.168.1](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.168.0...v13.168.1) (2026-10-04)
+
+
+### Bug Fixes
+
+* **#2326:** run completion reuses the shared Size option instead of re-creating it ([#2327](https://github.com/Jaal-Yantra-Textiles/v2/issues/2327)) ([7fcec3b](https://github.com/Jaal-Yantra-Textiles/v2/commit/7fcec3baf4f5c6ee7d95873084e4a0f870823d9d)), closes [#2326](https://github.com/Jaal-Yantra-Textiles/v2/issues/2326)
+
 # [13.168.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.167.0...v13.168.0) (2026-10-03)
 
 
