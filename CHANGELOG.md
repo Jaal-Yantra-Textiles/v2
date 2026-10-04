@@ -1,3 +1,16 @@
+# [13.169.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.168.1...v13.169.0) (2026-10-04)
+
+
+### Bug Fixes
+
+* **#2328:** design-order conversion captures the GST-inclusive total ([#2333](https://github.com/Jaal-Yantra-Textiles/v2/issues/2333)) ([752ac0f](https://github.com/Jaal-Yantra-Textiles/v2/commit/752ac0fc60bde2be397e53ae2c031c80dacbd2bb)), closes [#2328](https://github.com/Jaal-Yantra-Textiles/v2/issues/2328) [#124](https://github.com/Jaal-Yantra-Textiles/v2/issues/124) [#123](https://github.com/Jaal-Yantra-Textiles/v2/issues/123)
+* **#2324:** send-to-partner timeout no longer un-links a finished inventory order ([#2330](https://github.com/Jaal-Yantra-Textiles/v2/issues/2330)) ([035b5db](https://github.com/Jaal-Yantra-Textiles/v2/commit/035b5db9f8b2952c7897c6132bdded2a46bebe48)), closes [#2324](https://github.com/Jaal-Yantra-Textiles/v2/issues/2324)
+
+
+### Features
+
+* **partners:** POST /partners/auth/refresh renews a partner session from an expired token ([#2329](https://github.com/Jaal-Yantra-Textiles/v2/issues/2329)) ([22f2914](https://github.com/Jaal-Yantra-Textiles/v2/commit/22f29142a3dfe4b7e270ec258a03f73cc764da96))
+
 ## [13.168.1](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.168.0...v13.168.1) (2026-10-04)
 
 
