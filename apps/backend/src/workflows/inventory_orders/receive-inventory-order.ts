@@ -26,6 +26,11 @@ import {
   type PlannedReceiptLine,
 } from "./lib/plan-inventory-order-receipt"
 import { resolveInventoryOrderDestination } from "./lib/order-destination"
+import {
+  isFullyReceived,
+  loadInventoryOrderFinishEvidence,
+} from "./lib/order-finished"
+import { signalPartnerWorkflowFinished } from "./lib/signal-partner-workflow"
 
 /**
  * ADMIN RECEIPT — record that goods actually turned up, and put them on the
@@ -275,6 +280,38 @@ const recordReceiptActivityStep = createStep(
   }
 )
 
+/**
+ * #2324 — once a receipt covers every line, finish the partner workflow that is
+ * still waiting on this order (`await-order-start` / `await-order-completion`).
+ * Left waiting, it times out after 23 days and its compensation used to
+ * un-link the partner.
+ *
+ * Last step, no compensation, never throws: an order with no in-flight
+ * transaction is the common case and must not fail the receipt.
+ */
+const signalPartnerWorkflowAfterReceiptStep = createStep(
+  "receive-inventory-order-signal-partner-workflow",
+  async (input: { orderId: string }, { container }) => {
+    try {
+      const evidence = await loadInventoryOrderFinishEvidence(container, input.orderId)
+      if (!evidence || !isFullyReceived(evidence.lines)) {
+        return new StepResponse({ signalled: false, reason: "not fully received" })
+      }
+      const result = await signalPartnerWorkflowFinished(
+        container,
+        input.orderId,
+        "receive-inventory-order"
+      )
+      return new StepResponse({
+        signalled: result.outcomes.some((o) => o.ok),
+        reason: null,
+      })
+    } catch (e: any) {
+      return new StepResponse({ signalled: false, reason: e?.message ?? String(e) })
+    }
+  }
+)
+
 export const receiveInventoryOrderWorkflow = createWorkflow(
   "receive-inventory-order",
   (input: ReceiveInventoryOrderInput) => {
@@ -375,6 +412,8 @@ export const receiveInventoryOrderWorkflow = createWorkflow(
       received_by: input.received_by,
       received_by_partner_id: input.received_by_partner_id,
     })
+
+    signalPartnerWorkflowAfterReceiptStep({ orderId: input.orderId })
 
     return new WorkflowResponse({
       order_id: input.orderId,
