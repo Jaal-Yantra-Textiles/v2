@@ -26,12 +26,13 @@ import { NO_AUTO_PRODUCE_METADATA_KEY } from "../../lib/resolve-line-item-produc
  *
  *   1. createOrderWorkflow  (is_draft_order: true, status: "draft")  — build the
  *      draft from the cart's line items, addresses, customer, region, currency.
- *   2. prepaid → createOrderPaymentCollectionWorkflow + markPaymentCollectionAsPaid
+ *   2. convertDraftOrderWorkflow — recomputes tax lines, flips status
+ *      draft→pending, is_draft_order→false, and emits OrderWorkflowEvents.PLACED.
+ *   3. createOrderPaymentCollectionWorkflow for the order's TAXED total (read
+ *      back after step 2 — #2328); prepaid → markPaymentCollectionAsPaid
  *      (core's `pp_system_default` manual provider, no region config needed) so
- *      the order lands payment_status=captured. COD → skip; the order stays
- *      not_paid and is reconciled later via Shiprocket remittance (P4 decision).
- *   3. convertDraftOrderWorkflow — flips status draft→pending, is_draft_order
- *      →false, and emits OrderWorkflowEvents.PLACED.
+ *      the order lands payment_status=captured. COD → not captured; the order
+ *      stays not_paid and is reconciled later via Shiprocket remittance (P4).
  *
  * Plain async helper (not a createWorkflow) to mirror projectRunToUnifiedOrder —
  * it composes core workflows the same way the partner routes do.
@@ -237,12 +238,26 @@ export async function convertDesignOrderToOrder(
       )
   }
 
-  // 7. Payment treatment. Always create a payment collection so the order
+  // 7. Convert draft → pending order (emits PLACED; side-effects are safe, see
+  // header). This MUST run before the payment below: convertDraftOrderWorkflow
+  // recomputes the order's tax lines, so only after it does `order.total`
+  // include GST. #2328 — capturing first captured the pre-tax amount, and
+  // every prepaid conversion showed its GST as still owed.
+  await convertDraftOrderWorkflow(container).run({ input: { id: order.id } })
+
+  // 8. Payment treatment. Always create a payment collection so the order
   // tracks the amount owed (and so COD has a record for the P4 Shiprocket-
   // remittance reconciliation). prepaid → mark it paid via the system provider
-  // (payment_status=captured); cod → leave it not_paid.
+  // (payment_status=captured); cod → leave it not_paid. The amount is the
+  // order's total read back AFTER conversion — tax included.
+  const { data: taxedRows } = await query.graph({
+    entity: "order",
+    fields: ["id", "total"],
+    filters: { id: order.id },
+  })
+  const taxedTotal = Number((taxedRows?.[0] as any)?.total)
   const total =
-    Number(order.total) ||
+    taxedTotal ||
     orderItems.reduce(
       (s, i) => s + (Number(i.unit_price) || 0) * (Number(i.quantity) || 0),
       0
@@ -262,10 +277,6 @@ export async function convertDesignOrderToOrder(
       },
     })
   }
-
-  // 8. Convert draft → pending order (emits PLACED; side-effects are safe, see
-  // header).
-  await convertDraftOrderWorkflow(container).run({ input: { id: order.id } })
 
   // 9. Stamp the idempotency marker on the cart (last, so a mid-failure retry
   // isn't blocked). Also set `completed_at`: this cart has become a real order,

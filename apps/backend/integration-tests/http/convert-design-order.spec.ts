@@ -1,3 +1,4 @@
+import { createTaxRegionsWorkflow } from "@medusajs/medusa/core-flows"
 import { ContainerRegistrationKeys, Modules } from "@medusajs/framework/utils"
 import type { IRegionModuleService } from "@medusajs/types"
 
@@ -107,6 +108,22 @@ setupSharedTestSuite(() => {
       designId = designRes.data.design.id
       await setupCheckoutInfrastructure(container, regionId)
 
+      // #2328 — the region must charge tax, or a capture of the PRE-tax total
+      // is indistinguishable from the right one. 5% like Indian GST on textiles.
+      const tax: any = container.resolve(Modules.TAX)
+      const existingTax = await tax.listTaxRegions({ country_code: "us" })
+      if (!existingTax.length) {
+        await createTaxRegionsWorkflow(container).run({
+          input: [
+            {
+              country_code: "us",
+              provider_id: "tp_system",
+              default_tax_rate: { name: "Test GST", code: "TEST-GST", rate: 5 },
+            } as any,
+          ],
+        })
+      }
+
       const { customer } = await createTestCustomer(container)
       customerHeaders = await getCustomerAuthHeaders()
       const remoteLink = container.resolve(
@@ -139,6 +156,22 @@ setupSharedTestSuite(() => {
       expect(["paid", "captured", "authorized", "completed"]).toContain(
         conv.payment_status
       )
+
+      // #2328 — the capture covers the TAXED total: tax lines exist, the
+      // collection equals order.total, and nothing is left owed.
+      const orderRes = await api.get(
+        `/admin/orders/${conv.order_id}?fields=id,total,tax_total,summary,*payment_collections`,
+        adminHeaders
+      )
+      const placed = orderRes.data.order
+      expect(Number(placed.tax_total)).toBeGreaterThan(0)
+      const collection = placed.payment_collections[0]
+      expect(Number(collection.amount)).toBeCloseTo(Number(placed.total), 2)
+      expect(Number(collection.captured_amount)).toBeCloseTo(
+        Number(placed.total),
+        2
+      )
+      expect(Number(placed.summary.pending_difference)).toBeCloseTo(0, 2)
 
       // ── idempotency: re-converting the same design order is rejected ──
       const again = await api
