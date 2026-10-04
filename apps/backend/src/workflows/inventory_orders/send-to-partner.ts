@@ -22,6 +22,49 @@ import { createTasksFromTemplatesWorkflow } from "./create-tasks-from-templates"
 import { mirrorPartnerLinkOnUnifiedOrderStep } from "./dual-write-unified-order"
 import { TASKS_MODULE } from "../../modules/tasks"
 import TaskService from "../../modules/tasks/service"
+import {
+    assessInventoryOrderFinished,
+    loadInventoryOrderFinishEvidence,
+} from "./lib/order-finished"
+
+/**
+ * #2324 — the compensation guard. True when the order is finished by real
+ * evidence (see `assessInventoryOrderFinished`), in which case the rollback
+ * keeps the partner link (and the assignment claim) and emits no
+ * `inventory_order_partner_link_rolled_back` event.
+ *
+ * If the evidence cannot be read it answers false — the pre-#2324 behaviour —
+ * and says so in the log, rather than guessing.
+ */
+const isFinishedForRollback = async (container: any, orderId: string | undefined): Promise<boolean> => {
+    if (!orderId) {
+        return false
+    }
+    let logger: any = null
+    try {
+        logger = container.resolve(ContainerRegistrationKeys.LOGGER)
+    } catch {
+        logger = null
+    }
+    try {
+        const evidence = await loadInventoryOrderFinishEvidence(container, orderId)
+        if (!evidence) {
+            return false
+        }
+        const verdict = assessInventoryOrderFinished(evidence)
+        if (verdict.finished) {
+            logger?.info?.(
+                `[inventory-order] send-to-partner rollback kept the partner link on finished order ${orderId}: ${verdict.reasons.join("; ")}`
+            )
+        }
+        return verdict.finished
+    } catch (e: any) {
+        logger?.warn?.(
+            `[inventory-order] send-to-partner rollback could not read finish evidence for ${orderId}; rolling back as before: ${e?.message ?? e}`
+        )
+        return false
+    }
+}
 
 type SendInventoryOrderToPartnerInput = {
     inventoryOrderId: string,
@@ -127,6 +170,10 @@ const claimPartnerAssignmentStep = createStep(
         if (!claimed) {
             return
         }
+        // #2324 — a finished order keeps its claim, alongside its link.
+        if (await isFinishedForRollback(container, claimed.inventoryOrderId)) {
+            return
+        }
         const pg = container.resolve(ContainerRegistrationKeys.PG_CONNECTION) as any
         // Release only our own claim — the transaction id is in the predicate,
         // so a rollback can never clear an assignment another run owns.
@@ -204,6 +251,16 @@ const linkInventoryOrderWithPartnerStep = createStep(
         if (!links || links.length === 0) {
             return
         }
+
+        // #2324 — a finished order keeps its partner. The await steps time out
+        // after 23 days when the order was finished through a door that never
+        // signalled them (admin receive, the close-received job); un-linking
+        // then hid a delivered, paid order from the partner's portal.
+        const guardOrderId = (links[0] as any)?.[ORDER_INVENTORY_MODULE]?.inventory_orders_id
+        if (await isFinishedForRollback(container, guardOrderId)) {
+            return
+        }
+
         const remoteLink = container.resolve(ContainerRegistrationKeys.LINK) as Link
         await remoteLink.dismiss(links)
 

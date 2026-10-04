@@ -4,6 +4,7 @@ import { z } from "zod"
 import { ORDER_INVENTORY_MODULE } from "../../../../modules/inventory_orders"
 import { mirrorInventoryOrderStatusToUnified } from "../../../../workflows/inventory_orders/dual-write-unified-order"
 import { planCloseAsReceived } from "../../../../workflows/inventory_orders/lib/plan-close-as-received"
+import { signalPartnerWorkflowFinished } from "../../../../workflows/inventory_orders/lib/signal-partner-workflow"
 import type {
   MaintenanceChange,
   MaintenanceJob,
@@ -239,10 +240,22 @@ export const closeReceivedInventoryOrdersJob: MaintenanceJob = {
         occurred_at: new Date(closedAt),
       })
 
+      // #2324 — finish the partner workflow still waiting on this order, or it
+      // times out in 23 days and its rollback un-links the partner. Best-effort:
+      // most closed orders have no in-flight transaction.
+      const signal = await signalPartnerWorkflowFinished(
+        container,
+        id,
+        "close-received-inventory-orders"
+      )
+      const signalled = signal.outcomes.filter((o) => o.ok).map((o) => o.step_id)
+
       closed++
       changes.push({
         ...change,
-        note: `${change.note}${mirror.linked ? "" : ` · ⚠️ work-order mirror: ${mirror.skipped ?? mirror.error}`}`,
+        note: `${change.note}${mirror.linked ? "" : ` · ⚠️ work-order mirror: ${mirror.skipped ?? mirror.error}`}${
+          signalled.length ? ` · partner workflow signalled (${signalled.join(", ")})` : ""
+        }`,
       })
     }
 
