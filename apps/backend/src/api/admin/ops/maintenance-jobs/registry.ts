@@ -168,6 +168,7 @@ import { backfillProductShippingProfilesJob } from "./backfill-product-shipping-
 import { splitPartnerShippingProfileJob } from "./split-partner-shipping-profile-job"
 import { normalizeArtisanProductsJob } from "./normalize-artisan-products-job"
 import { linkArtisanDetailRowsJob } from "./link-artisan-detail-rows-job"
+import { repointDesignProductJob } from "./repoint-design-product-job"
 import { setPlatformTaxIdentityActiveJob } from "./set-platform-tax-identity-active-job"
 import { backfillFulfilledRetailRunsJob } from "./backfill-fulfilled-retail-runs-job"
 import { backfillParentRunProducedQuantityJob } from "./backfill-parent-run-produced-quantity-job"
@@ -6658,6 +6659,7 @@ export const MAINTENANCE_JOBS: MaintenanceJob[] = [
   splitPartnerShippingProfileJob,
   normalizeArtisanProductsJob,
   linkArtisanDetailRowsJob,
+  repointDesignProductJob,
   setPlatformTaxIdentityActiveJob,
   backfillFulfilledRetailRunsJob,
   backfillParentRunProducedQuantityJob,

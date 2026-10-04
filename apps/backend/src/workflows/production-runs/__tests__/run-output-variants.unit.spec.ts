@@ -13,6 +13,7 @@ jest.mock("../../../modules/platform-cost-config/read-config", () => ({
 import {
   MADE_TO_ORDER,
   needsLinePath,
+  planOptionLinks,
   planOutputVariants,
   type PlanProduct,
 } from "../lib/run-output-variants"
@@ -158,6 +159,63 @@ describe("planOutputVariants (#2271)", () => {
     if (!plan.ok) throw new Error(plan.detail)
     expect(plan.add_options.map((o) => o.title)).toEqual(["Size", "Color"])
     expect(plan.lines[0].axis_values).toEqual({ Size: "S", Color: "Indigo" })
+  })
+})
+
+describe("planOptionLinks (#2326)", () => {
+  // The shared Size prod holds since the first sized run, 2026-09-25.
+  const SHARED_SIZE = {
+    id: "opt_shared_size",
+    title: "Size",
+    values: [
+      { id: "val_s", value: "S" },
+      { id: "val_m", value: "M" },
+      { id: "val_mto", value: MADE_TO_ORDER },
+    ],
+  }
+
+  it("creates an axis no shared option has taken", () => {
+    const links = planOptionLinks(
+      { add_options: [{ title: "Size", values: ["S", MADE_TO_ORDER] }], add_values: [] },
+      []
+    )
+    expect(links).toEqual({ add: [{ title: "Size", values: ["S", MADE_TO_ORDER] }], update: [] })
+  })
+
+  it("LINKS the shared Size instead of creating a second one, and adds the values it lacks", () => {
+    const links = planOptionLinks(
+      { add_options: [{ title: "Size", values: ["L", MADE_TO_ORDER] }], add_values: [] },
+      [SHARED_SIZE]
+    )
+    expect(links.add).toEqual([{ id: "opt_shared_size", value_ids: ["val_mto"] }])
+    expect(links.update).toEqual([{ product_option_id: "opt_shared_size", add: [{ value: "L" }] }])
+  })
+
+  it("links the bare shared option when it has none of the wanted values", () => {
+    const links = planOptionLinks(
+      { add_options: [{ title: "Size", values: ["XL"] }], add_values: [] },
+      [SHARED_SIZE]
+    )
+    expect(links.add).toEqual(["opt_shared_size"])
+    expect(links.update).toEqual([{ product_option_id: "opt_shared_size", add: [{ value: "XL" }] }])
+  })
+
+  it("keeps the product's own missing values, and creates only the axis that is free", () => {
+    const links = planOptionLinks(
+      {
+        add_options: [
+          { title: "Size", values: ["S"] },
+          { title: "Color", values: ["White", MADE_TO_ORDER] },
+        ],
+        add_values: [{ option_id: "opt_own", title: "Fabric", values: ["Cotton"] }],
+      },
+      [SHARED_SIZE]
+    )
+    expect(links.add).toEqual([
+      { id: "opt_shared_size", value_ids: ["val_s"] },
+      { title: "Color", values: ["White", MADE_TO_ORDER] },
+    ])
+    expect(links.update).toEqual([{ product_option_id: "opt_own", add: [{ value: "Cotton" }] }])
   })
 })
 
