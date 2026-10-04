@@ -121,6 +121,13 @@ enum PartnerError: LocalizedError {
   case invalidResponse
   case decoding(String)
   case http(status: Int, message: String)
+  /// The email login refused the credentials. Only the login call maps a
+  /// 401 to this — on a data screen a 401 means the session, not a password.
+  case invalidCredentials
+  /// The token was refused and could not be refreshed; AuthStore signs out.
+  case sessionExpired
+
+  static let sessionExpiredMessage = "Your session expired, please sign in again."
 
   var errorDescription: String? {
     switch self {
@@ -128,11 +135,21 @@ enum PartnerError: LocalizedError {
       return "The server sent an unexpected response."
     case .decoding(let detail):
       return "The server sent an unexpected response (\(detail))."
+    case .invalidCredentials:
+      return "Invalid email or password."
+    case .sessionExpired:
+      return Self.sessionExpiredMessage
     case .http(let status, let message):
-      if status == 401 {
-        return "Invalid email or password."
-      }
       return message.isEmpty ? "Request failed (HTTP \(status))." : message
+    }
+  }
+
+  /// A 401 — the server refused who we are (not a validation error).
+  var isUnauthorized: Bool {
+    switch self {
+    case .sessionExpired: return true
+    case .http(let status, _): return status == 401
+    default: return false
     }
   }
 }

@@ -161,7 +161,15 @@ struct ProductionRun: Codable, Identifiable, Hashable {
   var status: String?
   var run_type: String?
   var role: String?
-  var quantity: Int?
+  /// The ORDERED quantity — a float column on the backend, and the payout
+  /// multiplier for a per-piece cost. Show it with `quantityText`.
+  var quantity: Double?
+  var produced_quantity: Double?
+  /// The partner's stated cost, its basis (`per_unit` | `total`) and the
+  /// currency it is in (lowercased code; null = not stated → INR).
+  var partner_cost_estimate: Double?
+  var cost_type: String?
+  var cost_currency: String?
   var design_id: String?
   var accepted_at: Date?
   var started_at: Date?
@@ -172,6 +180,48 @@ struct ProductionRun: Codable, Identifiable, Hashable {
   /// The sizes/colours the run was commissioned for (#2271).
   var snapshot: RunSnapshot?
   var planned_output: OutputLines?
+}
+
+extension ProductionRun {
+  /// "12" for a whole quantity, "12.5" otherwise.
+  var quantityText: String? { quantity.map(CompletionSplit.format) }
+
+  /// The currency the run's cost is in, uppercased — INR when unstated
+  /// (the backend's own fallback when it prices the run).
+  var costCurrencyCode: String {
+    let code = (cost_currency ?? "").trimmingCharacters(in: .whitespaces)
+    return code.isEmpty ? "INR" : code.uppercased()
+  }
+}
+
+/// `GET /partners/production-runs/:id/cost-summary` — the same numbers the
+/// admin sees (`computeRunCostSummary`). Only the fields the app shows.
+struct RunCostSummary: Codable {
+  struct Partner: Codable {
+    var estimate: Double?
+    var cost_type: String?
+    var total: Double?
+  }
+  struct Material: Codable {
+    var total: Double?
+  }
+  var currency: String?
+  var quantity: Double?
+  var produced_quantity: Double?
+  var partner: Partner?
+  var material: Material?
+  var grand_total: Double?
+  var cost_per_unit: Double?
+}
+
+struct RunCostSummaryResponse: Codable {
+  let cost_summary: RunCostSummary
+}
+
+/// `GET /partners/production-runs/:id/consumption-logs` — only the count
+/// is read (the Finish sheet's "no materials logged" nudge).
+struct ConsumptionLogCountResponse: Codable {
+  let count: Int
 }
 
 struct ProductionRunListResponse: Codable {

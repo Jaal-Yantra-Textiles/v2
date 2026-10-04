@@ -1,9 +1,10 @@
 import SwiftUI
 
 /// An inventory order — the raw material the partner is commissioned to
-/// supply. Leads with the next step (start / record the delivery), lists
-/// the goods lines with fulfilled vs outstanding, and shows what charges
-/// make the order payable. The receipt sheet is the mobile counterpart of
+/// supply. Leads with the next steps (start / record the delivery / mark
+/// ready / create a carrier shipment), lists the goods lines with fulfilled
+/// vs outstanding, the booked shipments, and what charges make the order
+/// payable. The receipt sheet is the mobile counterpart of
 /// the partner-ui inventory-order-complete flow: per-line delivered
 /// quantities, delivery date, tracking number, notes.
 struct InventoryOrderDetailView: View {
@@ -19,7 +20,9 @@ struct InventoryOrderDetailView: View {
   @State private var actionError: String?
   @State private var acting = false
   @State private var showStartConfirm = false
+  @State private var showReadyConfirm = false
   @State private var showReceiptSheet = false
+  @State private var showShipmentSheet = false
 
   private var display: PartnerInventoryOrder {
     detail ?? listRow
@@ -30,19 +33,23 @@ struct InventoryOrderDetailView: View {
         created_at: nil, updated_at: nil)
   }
 
-  /// What the partner owes next, by status. `Ready for Delivery` onwards is
-  /// waiting on the carrier/admin — nothing the partner can do here.
-  private enum NextStep {
+  /// What the partner can do next, by status (the backend's own gates):
+  /// Pending → start; Processing → record delivery, ship; Partial → record
+  /// the rest, mark ready, ship; Ready for Delivery / Shipped → ship.
+  private enum NextStep: Hashable {
     case start
     case recordDelivery
-    case none
+    case readyForDelivery
+    case createShipment
   }
 
-  private var nextStep: NextStep {
+  private var nextSteps: [NextStep] {
     switch display.statusEnum {
-    case .pending: return .start
-    case .processing, .partial: return .recordDelivery
-    default: return .none
+    case .pending: return [.start]
+    case .processing: return [.recordDelivery, .createShipment]
+    case .partial: return [.recordDelivery, .readyForDelivery, .createShipment]
+    case .readyForDelivery, .shipped: return [.createShipment]
+    default: return []
     }
   }
 
@@ -70,6 +77,9 @@ struct InventoryOrderDetailView: View {
         }
         if let charges, charges.charges.isEmpty == false {
           chargesSection(charges)
+        }
+        if let shipments = detail?.shipments, !shipments.isEmpty {
+          shipmentsSection(shipments)
         }
         if let info = display.partner_info {
           partnerSection(info)
@@ -101,8 +111,23 @@ struct InventoryOrderDetailView: View {
     } message: {
       Text("Confirm you'll supply the goods on this order?")
     }
+    .confirmationDialog(
+      "Mark ready for delivery?",
+      isPresented: $showReadyConfirm,
+      titleVisibility: .visible
+    ) {
+      Button("Mark ready") { Task { await markReady() } }
+      Button("Cancel", role: .cancel) {}
+    } message: {
+      Text("Confirm the goods are packed and ready to hand to the carrier.")
+    }
     .sheet(isPresented: $showReceiptSheet) {
       DeliveryReceiptSheet(order: display) {
+        Task { await load() }
+      }
+    }
+    .sheet(isPresented: $showShipmentSheet) {
+      CreateInventoryShipmentSheet(orderID: orderID) {
         Task { await load() }
       }
     }
@@ -158,36 +183,96 @@ struct InventoryOrderDetailView: View {
 
   @ViewBuilder
   private var nextStepSection: some View {
-    Section {
-      switch nextStep {
-      case .start:
+    let steps = nextSteps
+    if !steps.isEmpty {
+      Section {
         VStack(alignment: .leading, spacing: 8) {
           Text("Your next step").font(.body.weight(.semibold))
-          Text("Confirm you can supply this order — it moves to Processing and the team is notified.")
+          Text(nextStepHint(steps))
             .font(.footnote).foregroundStyle(.secondary)
-          Button {
-            showStartConfirm = true
-          } label: {
-            if acting { ProgressView().frame(maxWidth: .infinity) }
-            else { Text("Start this order").frame(maxWidth: .infinity) }
+          ForEach(Array(steps.enumerated()), id: \.element) { index, step in
+            nextStepButton(step, primary: index == 0)
           }
-          .buttonStyle(.borderedProminent)
-          .disabled(acting)
         }
-      case .recordDelivery:
-        VStack(alignment: .leading, spacing: 8) {
-          Text("Your next step").font(.body.weight(.semibold))
-          Text("Record what you delivered — the quantities the team receives against stock, with the delivery date and tracking number.")
-            .font(.footnote).foregroundStyle(.secondary)
-          Button {
-            showReceiptSheet = true
-          } label: {
-            Text("Record delivery").frame(maxWidth: .infinity)
+      }
+    }
+  }
+
+  private func nextStepHint(_ steps: [NextStep]) -> String {
+    switch steps.first {
+    case .start:
+      return "Confirm you can supply this order — it moves to Processing and the team is notified."
+    case .recordDelivery:
+      return display.statusEnum == .partial
+        ? "Part of this order is recorded. Record the rest, mark it ready once packed, or book a carrier shipment."
+        : "Record what you delivered — the quantities the team receives against stock — or book a carrier shipment."
+    default:
+      return "Book a carrier shipment (AWB + label) for these goods."
+    }
+  }
+
+  @ViewBuilder
+  private func nextStepButton(_ step: NextStep, primary: Bool) -> some View {
+    let button = Button {
+      switch step {
+      case .start: showStartConfirm = true
+      case .recordDelivery: showReceiptSheet = true
+      case .readyForDelivery: showReadyConfirm = true
+      case .createShipment: showShipmentSheet = true
+      }
+    } label: {
+      Group {
+        if acting && (step == .start || step == .readyForDelivery) {
+          ProgressView()
+        } else {
+          switch step {
+          case .start: Text("Start this order")
+          case .recordDelivery: Text("Record delivery")
+          case .readyForDelivery: Text("Mark ready for delivery")
+          case .createShipment: Label("Create shipment", systemImage: "shippingbox")
           }
-          .buttonStyle(.borderedProminent)
         }
-      case .none:
-        EmptyView()
+      }
+      .frame(maxWidth: .infinity)
+    }
+    .disabled(acting)
+    if primary {
+      button.buttonStyle(.borderedProminent)
+    } else {
+      button.buttonStyle(.bordered)
+    }
+  }
+
+  private func shipmentsSection(_ shipments: [InventoryShipment]) -> some View {
+    Section("Shipments") {
+      ForEach(shipments) { shipment in
+        VStack(alignment: .leading, spacing: 4) {
+          HStack {
+            Text((shipment.carrier ?? "Carrier").capitalized)
+              .font(.body.weight(.medium))
+            Spacer()
+            if let status = shipment.status {
+              Text(status.replacingOccurrences(of: "_", with: " ").capitalized)
+                .font(.caption).foregroundStyle(.secondary)
+            }
+          }
+          if let awb = shipment.awb ?? shipment.tracking_number, !awb.isEmpty {
+            Text("AWB \(awb)").font(.footnote).monospaced()
+              .textSelection(.enabled)
+          }
+          if let pickup = shipment.pickup_scheduled_date, !pickup.isEmpty {
+            Text("Pickup \(pickup)").font(.caption).foregroundStyle(.secondary)
+          }
+          HStack(spacing: 16) {
+            if let link = shipment.tracking_url.flatMap(URL.init(string:)) {
+              Link("Track", destination: link).font(.footnote)
+            }
+            if let link = shipment.label_url.flatMap(URL.init(string:)) {
+              Link("Label", destination: link).font(.footnote)
+            }
+          }
+        }
+        .padding(.vertical, 2)
       }
     }
   }
@@ -298,6 +383,21 @@ struct InventoryOrderDetailView: View {
     } catch {
       actionError = (error as? LocalizedError)?.errorDescription
         ?? "Couldn't start this order."
+    }
+  }
+
+  /// Partial → Ready for Delivery (the backend refuses any other status).
+  @MainActor
+  private func markReady() async {
+    acting = true
+    defer { acting = false }
+    do {
+      try await PartnerAPI.shared.markInventoryOrderReadyForDelivery(id: orderID)
+      NotificationCenter.default.post(name: .inventoryOrderDidMutate, object: nil)
+      await load()
+    } catch {
+      actionError = (error as? LocalizedError)?.errorDescription
+        ?? "Couldn't mark this order ready."
     }
   }
 
@@ -412,13 +512,22 @@ private struct DeliveryReceiptSheet: View {
             .textInputAutocapitalization(.characters)
         }
 
-        Section("Notes") {
+        Section {
           TextField(
-            "Anything the team should know (optional)",
+            isPartial
+              ? "Why is this a partial delivery? (required)"
+              : "Anything the team should know (optional)",
             text: $notes,
             axis: .vertical
           )
           .lineLimit(2...4)
+        } header: {
+          Text("Notes")
+        } footer: {
+          if isPartial {
+            Text("You're delivering less than what's outstanding. Say why — the rest stays open on the order.")
+              .foregroundStyle(.orange)
+          }
         }
 
         if let sendError {
@@ -439,12 +548,25 @@ private struct DeliveryReceiptSheet: View {
           } else {
             Button("Submit") { Task { await submit() } }
               .fontWeight(.semibold)
+              .disabled(isPartial && trimmedNotes.isEmpty)
           }
         }
       }
       .interactiveDismissDisabled(sending)
     }
     .onAppear { prefill() }
+  }
+
+  /// Less than everything outstanding is going out — a partial delivery,
+  /// which needs a note saying why.
+  private var isPartial: Bool {
+    (order.order_lines ?? []).contains { line in
+      line.outstanding > 0 && (quantities[line.id] ?? 0) < line.outstanding
+    }
+  }
+
+  private var trimmedNotes: String {
+    notes.trimmingCharacters(in: .whitespacesAndNewlines)
   }
 
   private func prefill() {
@@ -475,6 +597,10 @@ private struct DeliveryReceiptSheet: View {
       sendError = "Record at least one line's delivered quantity."
       return
     }
+    guard !isPartial || !trimmedNotes.isEmpty else {
+      sendError = "This is a partial delivery — add a note saying why."
+      return
+    }
 
     sending = true
     sendError = nil
@@ -488,7 +614,7 @@ private struct DeliveryReceiptSheet: View {
       try await PartnerAPI.shared.completeInventoryOrder(
         id: order.id,
         body: CompleteInventoryOrderBody(
-          notes: notes.isEmpty ? nil : notes,
+          notes: trimmedNotes.isEmpty ? nil : trimmedNotes,
           deliveryDate: formatter.string(from: deliveryDate),
           trackingNumber: trackingNumber.isEmpty ? nil : trackingNumber,
           lines: lines
