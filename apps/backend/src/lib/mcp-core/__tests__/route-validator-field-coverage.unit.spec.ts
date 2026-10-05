@@ -69,6 +69,14 @@ import { buildToolInputSchema } from "../schema"
  */
 const NO_ROUTE_VALIDATOR = new Set<string>([
   /**
+   * `inventory-orders/[id]/shipment/route.ts` parses its body with an inline
+   * zod `bodySchema` (carrier, preferred_courier_id, weight_grams,
+   * dimensions_cm{length,breadth,height}, pickup_date YYYY-MM-DD,
+   * pickup_stock_location_id). `inventory-order-shipment-tools.unit.spec.ts`
+   * pins the tool's forward list to those names.
+   */
+  "admin:create_inventory_order_shipment",
+  /**
    * #1970 PR10 — the three design-order mutations validate INSIDE the handler,
    * so `middlewares.ts` binds nothing for this file to match against. Read, not
    * inferred:

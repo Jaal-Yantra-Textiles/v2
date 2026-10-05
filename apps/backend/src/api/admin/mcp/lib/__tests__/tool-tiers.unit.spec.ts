@@ -125,6 +125,9 @@ describe("admin MCP tool tiers", () => {
         "update_design_inventory_link",
         "unlink_design_inventory",
         "link_design_material_group",
+        // Sets group_id on existing raw materials: a catalogue grouping. No
+        // stock moves, no money, no carrier, nobody messaged.
+        "link_raw_material_group_colors",
         "set_product_spec",
         "update_crm_contact",
         "update_crm_opportunity",
