@@ -42,7 +42,7 @@ function InventoryItemRow({
     selectedValue: selectedInventoryItemId,
     queryFn: (params) => sdk.client.fetch<any>("/partners/inventory-items", { method: "GET", query: params }),
     getOptions: (data) =>
-      data.inventory_items.map((item) => ({
+      data.inventory_items.map((item: { id: string; title?: string | null; sku?: string | null }) => ({
         label: `${item.title} ${item.sku ? `(${item.sku})` : ""}`,
         value: item.id,
       })),
@@ -233,14 +233,19 @@ export const ProductCreateInventoryKitSection = ({
     <div id="organize" className="flex flex-col gap-y-8">
       <Heading>{t("products.create.inventory.heading")}</Heading>
 
+      {/* Keep each variant's position in the FORM array. Filtering first and
+          then using the filtered index wrote a kit into whichever variant sat
+          at that position: with "1 m" (no kit) before "12 m pack" (kit), the
+          12 m kit landed on "1 m" and the pack got none. */}
       {variants.fields
-        .filter((v) => v.inventory_kit)
-        .map((variant, variantIndex) => (
+        .map((variant, formIndex) => ({ variant, formIndex }))
+        .filter(({ variant }) => variant.manage_inventory && variant.inventory_kit)
+        .map(({ variant, formIndex }) => (
           <VariantSection
             key={variant.id}
             form={form}
             variant={variant}
-            index={variantIndex}
+            index={formIndex}
           />
         ))}
     </div>

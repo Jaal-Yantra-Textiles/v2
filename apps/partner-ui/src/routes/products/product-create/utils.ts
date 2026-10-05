@@ -58,7 +58,10 @@ export const normalizeVariants = (
   productTitle?: string
 ): HttpTypes.AdminCreateProductVariant[] => {
   return variants.map((variant) => {
-    const inventoryItems = (variant.inventory || [])
+    // Only a variant marked as a kit sends kit rows. Rows left behind after
+    // the kit toggle (or managed inventory) is switched off must not ride along.
+    const isKit = !!variant.manage_inventory && !!variant.inventory_kit
+    const inventoryItems = (isKit ? variant.inventory || [] : [])
       .map((i) => {
         const quantity = i.required_quantity
           ? castNumber(i.required_quantity)

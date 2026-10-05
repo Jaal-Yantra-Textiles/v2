@@ -17,7 +17,13 @@ export function VariantGeneralSection({ variant }: VariantGeneralSectionProps) {
   const prompt = usePrompt()
   const navigate = useNavigate()
 
-  const hasInventoryKit = variant.inventory?.length > 1
+  // `variant.inventory` is not on this payload; `inventory_items` is. A kit is
+  // more than one item OR one item used more than once (a 12 m pack).
+  const kitLinks = ((variant as any).inventory_items ?? []) as Array<{
+    required_quantity?: number
+  }>
+  const hasInventoryKit =
+    kitLinks.length > 1 || kitLinks.some((i) => (i.required_quantity ?? 1) > 1)
 
   const { mutateAsync } = useDeleteVariant(variant.product_id!, variant.id)
 

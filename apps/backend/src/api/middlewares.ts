@@ -398,6 +398,7 @@ import { AdminGetPaymentProvidersParams } from "@medusajs/medusa/api/admin/payme
 import { listTransformPaymentProvidersQueryConfig } from "@medusajs/medusa/api/admin/payments/query-config";
 import * as storeCollectionQueryConfig from "@medusajs/medusa/api/store/collections/query-config";
 import * as storeCategoryQueryConfig from "@medusajs/medusa/api/store/product-categories/query-config";
+import { PartnerBatchVariantInventoryItemsSchema } from "./partners/stores/[id]/products/[productId]/variants/inventory-items/batch/validators";
 import {
   listInboundEmailsQuerySchema,
   extractInboundEmailSchema,
@@ -3496,6 +3497,17 @@ export default defineMiddlewares({
           z.object({ fields: z.string().optional() }) as any,
           { defaults: BATCH_VARIANT_FIELDS }
         ),
+      ],
+    },
+    {
+      // Edit an existing variant's inventory kit. partner-ui's "Manage
+      // inventory items" form posted here long before the route existed.
+      matcher: "/partners/stores/:id/products/:productId/variants/inventory-items/batch",
+      method: "POST",
+      middlewares: [
+        createCorsPartnerMiddleware(),
+        authenticate("partner", ["session", "bearer"]),
+        validateAndTransformBody(wrapSchema(PartnerBatchVariantInventoryItemsSchema)),
       ],
     },
     {
