@@ -64,6 +64,22 @@ export function assessInventoryOrderFinished(
   return { finished: reasons.length > 0, reasons }
 }
 
+/**
+ * Stricter than `assessInventoryOrderFinished`: did the GOODS finish — is it
+ * safe to end the partner's tracking workflow? A paid payout keeps a partner's
+ * link (we paid them; the order must not vanish from their portal) but is no
+ * evidence the goods arrived: a 100%-advance order is "paid" before it ships.
+ * Nor is a partial receipt. Delivered, closed-as-received, or every line fully
+ * received.
+ */
+export function areGoodsFinished(
+  evidence: Pick<LoadedFinishEvidence, "status" | "metadata" | "lines">
+): boolean {
+  if (String(evidence.status ?? "") === "Delivered") return true
+  if (evidence.metadata?.closed_as_received) return true
+  return isFullyReceived(evidence.lines ?? [])
+}
+
 /** Ordered vs received per line: true only when every line is fully received. */
 export function isFullyReceived(
   lines: Array<{ quantity: number | string | null | undefined; received: number }>

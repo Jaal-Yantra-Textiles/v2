@@ -1,4 +1,8 @@
-import { assessInventoryOrderFinished, isFullyReceived } from "../order-finished"
+import {
+  areGoodsFinished,
+  assessInventoryOrderFinished,
+  isFullyReceived,
+} from "../order-finished"
 import { latestWorkflowRollbacks } from "../../../../api/admin/ops/maintenance-jobs/relink-rolled-back-inventory-order-partners-job"
 
 /**
@@ -56,6 +60,32 @@ describe("assessInventoryOrderFinished", () => {
   it("a zero or negative received quantity is not a posting", () => {
     expect(assessInventoryOrderFinished({ ...base, status: "Shipped", received_quantity: 0 }).finished).toBe(false)
     expect(assessInventoryOrderFinished({ ...base, status: "Shipped", received_quantity: -2 }).finished).toBe(false)
+  })
+})
+
+describe("areGoodsFinished — may the partner's workflow be ended?", () => {
+  const line = (quantity: number, received: number) => ({ id: "l", quantity, received })
+
+  it("a paid 100% advance with nothing shipped is NOT finished (Bhuttico wool, 2026-10-04)", () => {
+    expect(
+      areGoodsFinished({ status: "Processing", metadata: {}, lines: [line(10, 0)] })
+    ).toBe(false)
+  })
+
+  it("a partial receipt is not finished", () => {
+    expect(
+      areGoodsFinished({ status: "Partial", metadata: {}, lines: [line(10, 4)] })
+    ).toBe(false)
+  })
+
+  it("Delivered, closed-as-received, or every line received is finished", () => {
+    expect(areGoodsFinished({ status: "Delivered", metadata: {}, lines: [] })).toBe(true)
+    expect(
+      areGoodsFinished({ status: "Shipped", metadata: { closed_as_received: true }, lines: [] })
+    ).toBe(true)
+    expect(
+      areGoodsFinished({ status: "Shipped", metadata: {}, lines: [line(10, 10)] })
+    ).toBe(true)
   })
 })
 
