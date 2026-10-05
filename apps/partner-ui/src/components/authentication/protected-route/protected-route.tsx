@@ -3,7 +3,12 @@ import { useEffect, useState } from "react"
 import { Navigate, Outlet, useLocation, useNavigate } from "react-router-dom"
 import { backendUrl } from "../../../lib/client/client"
 import { useMe } from "../../../hooks/api/users"
-import { queryClient } from "../../../lib/query-client"
+import { endPartnerSession, queryClient } from "../../../lib/query-client"
+import {
+  isRefreshDue,
+  markSessionRefreshed,
+  refreshPartnerSession,
+} from "../../../lib/client/session-refresh"
 import { SearchProvider } from "../../../providers/search-provider/search-provider"
 import { SidebarProvider } from "../../../providers/sidebar-provider"
 
@@ -42,6 +47,7 @@ async function exchangeWaToken(waToken: string): Promise<string | null> {
     const data = (await resp.json()) as WaAuthResponse
     if (!data?.token) return null
     window.localStorage.setItem(JWT_TOKEN_STORAGE_KEY, data.token)
+    markSessionRefreshed()
     return data.redirect || "/"
   } catch {
     return null
@@ -84,13 +90,50 @@ export const ProtectedRoute = () => {
     }
   }, [waToken, navigate])
 
+  // Renew the bearer before the first `me` call when it is more than 6 h old,
+  // so a partner returning after a day (or up to 30) isn't sent to /login by an
+  // expired token. Only a refused renewal ends the session; a network error
+  // keeps it and lets `me` decide.
+  const [refreshing, setRefreshing] = useState(() => !waToken && isRefreshDue())
+
+  useEffect(() => {
+    if (!refreshing) return
+    let cancelled = false
+    refreshPartnerSession().then((outcome) => {
+      if (cancelled) return
+      if (outcome === "rejected") {
+        endPartnerSession()
+        return
+      }
+      setRefreshing(false)
+    })
+    return () => {
+      cancelled = true
+    }
+  }, [refreshing])
+
+  // Renew again when the partner comes back to a tab left open for hours.
+  useEffect(() => {
+    const onVisible = () => {
+      if (document.visibilityState !== "visible" || !isRefreshDue()) return
+      refreshPartnerSession().then((outcome) => {
+        if (outcome === "rejected") {
+          endPartnerSession()
+        }
+      })
+    }
+    document.addEventListener("visibilitychange", onVisible)
+    return () => document.removeEventListener("visibilitychange", onVisible)
+  }, [])
+
   const { user, isLoading } = useMe({
-    // Skip the `me` query while we're still exchanging the wa_token —
-    // it would 401 on the first paint and trigger the login redirect.
-    enabled: waExchangeState !== "pending",
+    // Skip the `me` query while we're still exchanging the wa_token or
+    // renewing the bearer — it would 401 on the first paint and trigger the
+    // login redirect.
+    enabled: waExchangeState !== "pending" && !refreshing,
   })
 
-  if (waExchangeState === "pending" || isLoading) {
+  if (waExchangeState === "pending" || refreshing || isLoading) {
     return (
       <div className="flex min-h-screen items-center justify-center">
         <Spinner className="text-ui-fg-interactive animate-spin" />

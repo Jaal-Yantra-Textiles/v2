@@ -10842,6 +10842,9 @@
         "hint": {
           "type": "string"
         },
+        "sessionExpired": {
+          "type": "string"
+        },
         "phone": {
           "type": "object",
           "properties": {
@@ -10896,7 +10899,7 @@
           "additionalProperties": false
         }
       },
-      "required": ["forgotPassword", "title", "hint", "phone"],
+      "required": ["forgotPassword", "title", "hint", "sessionExpired", "phone"],
       "additionalProperties": false
     },
     "invite": {

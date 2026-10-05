@@ -2902,6 +2902,7 @@
     "forgotPassword": "Forgot password? - <0>Reset</0>",
     "title": "Welcome to Partner Dashboard",
     "hint": "Sign in to access the account area",
+    "sessionExpired": "Your session expired, please sign in again.",
     "phone": {
       "useEmail": "Email",
       "usePhone": "Phone",
