@@ -22,6 +22,7 @@ import { createTasksFromTemplatesWorkflow } from "./create-tasks-from-templates"
 import { mirrorPartnerLinkOnUnifiedOrderStep } from "./dual-write-unified-order"
 import { TASKS_MODULE } from "../../modules/tasks"
 import TaskService from "../../modules/tasks/service"
+import { isWaitExpiry } from "./lib/wait-expiry"
 import {
     assessInventoryOrderFinished,
     loadInventoryOrderFinishEvidence,
@@ -63,6 +64,60 @@ const isFinishedForRollback = async (container: any, orderId: string | undefined
             `[inventory-order] send-to-partner rollback could not read finish evidence for ${orderId}; rolling back as before: ${e?.message ?? e}`
         )
         return false
+    }
+}
+
+/**
+ * 🔴 The wait expiring is NOT a reason to take the order away from the partner.
+ *
+ * Before this, an order nobody had finished in 23 days was silently UNLINKED:
+ * the partner lost it from their portal while it still read "Processing" in
+ * the admin, and the only trace was a feed item saying "Failed to send order".
+ * 2026-10-05: JP Handloom's sample `inv_order_01M2AK0ET8005WDMWKSENX4PV2`
+ * (sent 12 Sep, courier pickup failing for 10 days) lost its partner exactly
+ * 23 days after it was sent.
+ *
+ * Cancelling instead would be worse — a slow but real order (cloth still on
+ * the loom, a pickup that keeps slipping) cancelled behind everyone's back,
+ * and a message to a partner cannot be recalled. So the order stays exactly as
+ * it is, assigned, and a PERSON is told to decide: follow up, or cancel.
+ */
+const reportWaitExpired = async (
+    container: any,
+    orderId: string | undefined,
+    partnerId: string | undefined
+) => {
+    try {
+        const eventService = container.resolve(Modules.EVENT_BUS) as IEventBusModuleService
+        await eventService.emit({
+            name: "inventory_order_partner_wait_expired",
+            data: {
+                inventory_order_id: orderId,
+                partner_id: partnerId,
+                timeout_days: Math.round(AWAIT_TIMEOUT_SECONDS / 86400),
+                timestamp: new Date().toISOString(),
+            },
+        })
+    } catch {
+        // best-effort: the order itself is untouched either way
+    }
+    try {
+        const notificationService = container.resolve(Modules.NOTIFICATION) as any
+        await notificationService.createNotifications([
+            {
+                to: "",
+                channel: "feed",
+                template: "admin-ui",
+                data: {
+                    title: "Inventory order: no update from partner",
+                    description: `Order ${orderId} has had no update from partner ${partnerId} for ${Math.round(
+                        AWAIT_TIMEOUT_SECONDS / 86400
+                    )} days. It is still assigned to them. Follow up, or cancel the order.`,
+                },
+            },
+        ])
+    } catch {
+        // best-effort
     }
 }
 
@@ -164,6 +219,7 @@ const claimPartnerAssignmentStep = createStep(
         return new StepResponse({ inventoryOrderId: input.inventoryOrderId, transactionId }, {
             inventoryOrderId: input.inventoryOrderId,
             transactionId,
+            claimedAt: new Date().toISOString(),
         })
     },
     async (claimed, { container }) => {
@@ -172,6 +228,11 @@ const claimPartnerAssignmentStep = createStep(
         }
         // #2324 — a finished order keeps its claim, alongside its link.
         if (await isFinishedForRollback(container, claimed.inventoryOrderId)) {
+            return
+        }
+        // …and so does one whose 23-day wait merely ran out (see
+        // reportWaitExpired). The link step's compensation does the telling.
+        if (isWaitExpiry((claimed as any).claimedAt)) {
             return
         }
         const pg = container.resolve(ContainerRegistrationKeys.PG_CONNECTION) as any
@@ -258,6 +319,17 @@ const linkInventoryOrderWithPartnerStep = createStep(
         // then hid a delivered, paid order from the partner's portal.
         const guardOrderId = (links[0] as any)?.[ORDER_INVENTORY_MODULE]?.inventory_orders_id
         if (await isFinishedForRollback(container, guardOrderId)) {
+            return
+        }
+
+        // The wait ran out on an unfinished order: keep the partner, tell a person.
+        const assignedAt = (links[0] as any)?.data?.assigned_at
+        if (isWaitExpiry(assignedAt)) {
+            await reportWaitExpired(
+                container,
+                guardOrderId,
+                (links[0] as any)?.[PARTNER_MODULE]?.partner_id
+            )
             return
         }
 
@@ -449,7 +521,10 @@ export const sendInventoryOrderToPartnerWorkflow = createWorkflow(
                     template: "admin-ui",
                     data: {
                         title: "Inventory Order Partner Workflow",
-                        description: `Failed to send order ${data.input.inventoryOrderId} to partner ${data.input.partnerId}.`,
+                        // Fires for a kickoff failure AND for the 23-day wait
+                        // running out; the latter now keeps the partner and
+                        // posts its own "no update from partner" item.
+                        description: `The partner workflow for order ${data.input.inventoryOrderId} (partner ${data.input.partnerId}) stopped. Open the order to see whether the partner is still assigned.`,
                     },
                 },
             ]
