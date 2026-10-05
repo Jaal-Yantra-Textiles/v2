@@ -115,11 +115,10 @@ const mapPartnerResponseToUser = (
 }
 
 export const useMe = (
-  options?: UseQueryOptions<
-    PartnerUserResponse,
-    FetchError,
-    PartnerUserResponse,
-    QueryKey
+  // The hook owns queryKey/queryFn; callers only tune behaviour (enabled, retry).
+  options?: Omit<
+    UseQueryOptions<PartnerUserResponse, FetchError, PartnerUserResponse, QueryKey>,
+    "queryKey" | "queryFn"
   >
 ) => {
   const { data, ...rest } = useQuery({
