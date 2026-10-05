@@ -1,3 +1,18 @@
+# [13.170.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.169.0...v13.170.0) (2026-10-05)
+
+
+### Bug Fixes
+
+* **production-runs:** admin complete works on a run that was only accepted ([#2336](https://github.com/Jaal-Yantra-Textiles/v2/issues/2336)) ([c002a36](https://github.com/Jaal-Yantra-Textiles/v2/commit/c002a36fa09d572dc0d6e1a0efe3b513f5e4a71f))
+* **partner-ui:** keep partners signed in past the 1-day token ([#2334](https://github.com/Jaal-Yantra-Textiles/v2/issues/2334)) ([2916d7a](https://github.com/Jaal-Yantra-Textiles/v2/commit/2916d7a6632df28c4b65c9748af6a38a7882bc9e)), closes [#2329](https://github.com/Jaal-Yantra-Textiles/v2/issues/2329)
+* **#2324:** the repair job ends a partner workflow only when the GOODS finished ([#2335](https://github.com/Jaal-Yantra-Textiles/v2/issues/2335)) ([a1266a3](https://github.com/Jaal-Yantra-Textiles/v2/commit/a1266a39b2cc99bacbfd042ee16925689e50054c)), closes [#2324](https://github.com/Jaal-Yantra-Textiles/v2/issues/2324)
+
+
+### Features
+
+* **partner-android:** stay signed in; run cost preview; inventory fixes; carrier shipments ([#2331](https://github.com/Jaal-Yantra-Textiles/v2/issues/2331)) ([902a916](https://github.com/Jaal-Yantra-Textiles/v2/commit/902a91622ce27347b54d95b630ece446cb4e50fc))
+* **inventory-orders:** tell the partner on WhatsApp, item by item, when an order is sent ([#2337](https://github.com/Jaal-Yantra-Textiles/v2/issues/2337)) ([4383134](https://github.com/Jaal-Yantra-Textiles/v2/commit/43831348f532843fa04f8abc850f9e55283101d0))
+
 # [13.169.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.168.1...v13.169.0) (2026-10-04)
 
 
