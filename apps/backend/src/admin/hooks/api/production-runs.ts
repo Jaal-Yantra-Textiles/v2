@@ -439,6 +439,10 @@ export type AdminUpdateProductionRunPayload = {
   run_type?: string
   partner_cost_estimate?: number | null
   cost_type?: "total" | "per_unit"
+  /** #2306 — runs this one waits on; `[]` clears. Pre-acceptance only. */
+  depends_on_run_ids?: string[]
+  /** #2306 — templates the run is dispatched with once its waits are met. */
+  dispatch_template_ids?: string[]
 }
 
 export const useUpdateProductionRun = (

@@ -19,6 +19,8 @@ import {
   findRunsAwaitingInventoryOrder,
   releaseRunsAwaitingInventoryOrder,
   releaseRunOnDependencyAttach,
+  findRunsAwaitingRun,
+  releaseRunsAwaitingRun,
 } from "../lib/release-dependent-runs"
 
 const metContainer = {
@@ -539,6 +541,85 @@ describe("releaseRunOnDependencyAttach", () => {
     )
 
     expect(outcome).toMatchObject({ result: "not_evaluated" })
+    expect(runMock).not.toHaveBeenCalled()
+  })
+})
+
+
+/**
+ * #2306 — a finished stage releases the stage waiting on it, wherever it lives.
+ *
+ * The old release scanned only the completed run's SIBLINGS. A wait attached
+ * after approval points at a run under another parent (embroidery added later
+ * for the same pieces Sharlho stitches), and a sibling scan never sees it.
+ */
+describe("findRunsAwaitingRun / releaseRunsAwaitingRun", () => {
+  it("matches approved runs naming this run, under ANY parent", async () => {
+    const rows = [
+      { id: "stitch", parent_run_id: "parent_1", depends_on_run_ids: ["embroider"] },
+      { id: "other", parent_run_id: "parent_2", depends_on_run_ids: ["elsewhere"] },
+      { id: "none", parent_run_id: "parent_2", depends_on_run_ids: null },
+    ]
+    const listProductionRuns = jest.fn().mockResolvedValue(rows)
+    const container = { resolve: () => ({ listProductionRuns }) }
+
+    const found = await findRunsAwaitingRun(container, "embroider")
+
+    expect(found.map((r: any) => r.id)).toEqual(["stitch"])
+    // Narrowed by STATUS only — never by parent, which is the whole fix.
+    expect(listProductionRuns).toHaveBeenCalledWith({ status: "approved" })
+  })
+
+  it("dispatches the waiting stage once its upstream run is completed", async () => {
+    const logger = { info: jest.fn(), error: jest.fn(), warn: jest.fn() }
+    const container = {
+      resolve: (key: string) => {
+        if (key === "logger") return logger
+        if (key === "production_runs") {
+          return {
+            listProductionRuns: async () => [
+              {
+                id: "stitch",
+                parent_run_id: "parent_sharlho",
+                dispatch_template_ids: ["tpl_stitch"],
+                depends_on_run_ids: ["embroider"],
+              },
+            ],
+            retrieveProductionRun: async (id: string) => ({ id, status: "completed" }),
+          }
+        }
+        throw new Error(`unexpected module ${key}`)
+      },
+    }
+
+    const outcomes = await releaseRunsAwaitingRun(container, "embroider")
+
+    expect(outcomes).toEqual([{ run_id: "stitch", result: "dispatched" }])
+    expect(runMock).toHaveBeenCalledWith({
+      input: { production_run_id: "stitch", template_ids: ["tpl_stitch"] },
+    })
+  })
+
+  it("leaves it waiting while the upstream run is still in progress", async () => {
+    const logger = { info: jest.fn(), error: jest.fn(), warn: jest.fn() }
+    const container = {
+      resolve: (key: string) => {
+        if (key === "logger") return logger
+        if (key === "production_runs") {
+          return {
+            listProductionRuns: async () => [
+              { id: "stitch", dispatch_template_ids: ["tpl"], depends_on_run_ids: ["embroider"] },
+            ],
+            retrieveProductionRun: async (id: string) => ({ id, status: "in_progress" }),
+          }
+        }
+        throw new Error(`unexpected module ${key}`)
+      },
+    }
+
+    const outcomes = await releaseRunsAwaitingRun(container, "embroider")
+
+    expect(outcomes[0].result).toBe("waiting")
     expect(runMock).not.toHaveBeenCalled()
   })
 })

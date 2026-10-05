@@ -14,8 +14,9 @@
  * the item schema deliberately, because that is where the field lives.
  *
  * The other half of the pair, `depends_on_run_ids`, is DERIVED at approval from
- * the assignment `order` and is settable by no route at all. Advertising it as
- * an input would be a lie that returns 200, so its absence is asserted too.
+ * the assignment `order` — and, since #2306, can be ATTACHED afterwards on the
+ * update route, for stages working the same pieces in turn. So it is offered on
+ * exactly one tool, update_production_run, and nowhere it would be discarded.
  */
 
 import { ADMIN_MCP_TOOLS } from "../registry"
@@ -77,15 +78,24 @@ describe("#2111 S1 — run dependencies are advertised where they can be SET", (
       expect(tool("create_production_run").description).toContain("approve_production_run")
     })
 
-    it("no tool anywhere advertises depends_on_run_ids as an input", () => {
-      // It is computed from the assignment `order` in approve-production-run.ts.
-      // Offering it would accept a value the backend silently discards.
-      const offenders = ADMIN_MCP_TOOLS.filter((t: any) =>
+    it("only update_production_run advertises depends_on_run_ids as an input — and forwards it", () => {
+      // Approval computes it from `order` and would discard a value sent there;
+      // the update route (#2306) is the one place that writes it.
+      const offering = ADMIN_MCP_TOOLS.filter((t: any) =>
         JSON.stringify(t.inputSchema?.properties ?? {}).includes(
           '"depends_on_run_ids"'
         )
       ).map((t: any) => t.name)
-      expect(offenders).toEqual([])
+      expect(offering).toEqual(["update_production_run"])
+      expect(tool("update_production_run").bodyParams).toContain("depends_on_run_ids")
+    })
+
+    it("update_production_run can choose the templates a waiting run is sent with", () => {
+      // Without them a released run is only 'ready, dispatch by hand' — the
+      // hand-over is automatic only when the wait and its templates travel together.
+      const t = tool("update_production_run")
+      expect(t.inputSchema.properties.dispatch_template_ids).toBeDefined()
+      expect(t.bodyParams).toContain("dispatch_template_ids")
     })
 
     it("the `order` field is documented as the run-to-run edge, on both tools that take assignments", () => {

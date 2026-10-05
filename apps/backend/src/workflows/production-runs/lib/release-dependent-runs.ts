@@ -252,6 +252,102 @@ export const releaseRunsAwaitingInventoryOrder = async (
 }
 
 /**
+ * Runs waiting on a specific production run — ANYWHERE, not only its siblings.
+ *
+ * 🔴 The release on completion used to look only under the completed run's own
+ * parent (`production-run-task-updated`). That was enough while the only way to
+ * write `depends_on_run_ids` was approval, which links children of ONE parent.
+ * Once an approved run can be told to wait on another run after the fact, the
+ * upstream is routinely under a DIFFERENT parent — a stage added later for the
+ * same pieces (2026-10-05: Embroprint's embroidery run, created after
+ * Sharlho's stitching run, which must wait on it). A sibling-only scan would
+ * never see that edge, and the downstream run would wait forever.
+ *
+ * Same in-memory filter, same small candidate set, as
+ * `findRunsAwaitingInventoryOrder`.
+ */
+export const findRunsAwaitingRun = async (
+  container: any,
+  upstreamRunId: string
+): Promise<any[]> => {
+  const productionRunService: ProductionRunService = container.resolve(
+    PRODUCTION_RUNS_MODULE
+  )
+
+  const candidates = await productionRunService.listProductionRuns({
+    status: RELEASABLE_STATUS,
+  } as any)
+
+  return (candidates || []).filter((run: any) =>
+    cleanIds(run?.depends_on_run_ids).includes(String(upstreamRunId))
+  )
+}
+
+/**
+ * Release every run that was waiting on `upstreamRunId`, which has just
+ * completed. The run-to-run twin of `releaseRunsAwaitingInventoryOrder`.
+ *
+ * Driven by `production_run.completed`, which every completion path emits (the
+ * partner's complete, the admin complete — both via
+ * `completeProductionRunWorkflow` — and the all-tasks-done cascade), so this is
+ * the ONE place a finished stage hands over to the next.
+ */
+export const releaseRunsAwaitingRun = async (
+  container: any,
+  upstreamRunId: string
+): Promise<ReleaseOutcome[]> => {
+  const logger = container.resolve(ContainerRegistrationKeys.LOGGER)
+
+  const waiting = await findRunsAwaitingRun(container, upstreamRunId)
+
+  const outcomes: ReleaseOutcome[] = []
+
+  for (const run of waiting) {
+    const outcome = await releaseRunIfReady(container, run)
+    outcomes.push(outcome)
+
+    switch (outcome.result) {
+      case "dispatched":
+        logger.info(
+          `[production-run-completed] released run ${outcome.run_id} — upstream run ${upstreamRunId} completed${
+            outcome.via === "policy_default"
+              ? " (templates from the dispatch-defaults policy, not an approval)"
+              : ""
+          }`
+        )
+        break
+      case "waiting":
+        logger.info(
+          `[production-run-completed] run ${outcome.run_id} still waiting for ${outcome.reason}`
+        )
+        break
+      case "no_templates":
+        logger.info(
+          `[production-run-completed] run ${outcome.run_id} is ready but no templates were recorded — dispatch by hand`
+        )
+        await notifyDispatchByHand(
+          container,
+          {
+            runId: outcome.run_id,
+            releasedBy: upstreamRunId,
+            releasedByKind: "production run",
+          },
+          logger
+        )
+        break
+      case "failed":
+        // One run failing must not stop the ones behind it (#1268).
+        logger.error(
+          `[production-run-completed] run ${outcome.run_id} failed to dispatch: ${outcome.message}`
+        )
+        break
+    }
+  }
+
+  return outcomes
+}
+
+/**
  * The same question, asked at ATTACH time instead of on the upstream's event
  * (#2214).
  *

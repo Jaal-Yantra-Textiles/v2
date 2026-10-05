@@ -45,7 +45,7 @@ export default function EditProductionRunPage() {
         <div className="flex flex-col gap-y-0.5">
           <Heading>Edit production run</Heading>
           <Text size="xsmall" className="text-ui-fg-subtle">
-            Adjust quantity, role, and type
+            Adjust quantity, role, type, and what it waits for
           </Text>
         </div>
       </RouteDrawer.Header>

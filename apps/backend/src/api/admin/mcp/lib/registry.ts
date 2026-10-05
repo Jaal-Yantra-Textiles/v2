@@ -201,7 +201,7 @@ const RUN_INVENTORY_DEPENDENCY_PARAM = {
   type: "array" as const,
   items: { type: "string" as const },
   description:
-    "Inventory orders whose GOODS this assignment is waiting on (ids from list_inventory_orders). The child run is created approved but is NOT dispatched — it holds until every listed order is delivered, then releases itself and dispatches its templates.\n\n🔴 MET AT `Delivered`, NEVER AT `Shipped`. `Shipped` only says the goods left the supplier; the partner cannot cut cloth that is in a van. A dependency that cannot be READ counts as UNMET, so a lookup failure stalls the chain rather than releasing work whose materials may not exist.\n\n⚠️ NOT interchangeable with the run-to-run edge. Use this when a SUPPLIER feeds the stage (GOF ships cloth → Kiyo makes the tunic). Use assignment `order` when another PARTNER'S RUN feeds it (weaver → embroiderer) — `depends_on_run_ids` is DERIVED from `order` at approval and cannot be set directly.\n\nDeclaring this on ANY child also defers auto-dispatch for the WHOLE approval batch — sequencing then belongs to start_production_run_dispatch and the release subscribers, deliberately, so nothing starts out of order.",
+    "Inventory orders whose GOODS this assignment is waiting on (ids from list_inventory_orders). The child run is created approved but is NOT dispatched — it holds until every listed order is delivered, then releases itself and dispatches its templates.\n\n🔴 MET AT `Delivered`, NEVER AT `Shipped`. `Shipped` only says the goods left the supplier; the partner cannot cut cloth that is in a van. A dependency that cannot be READ counts as UNMET, so a lookup failure stalls the chain rather than releasing work whose materials may not exist.\n\n⚠️ NOT interchangeable with the run-to-run edge. Use this when a SUPPLIER feeds the stage (GOF ships cloth → Kiyo makes the tunic). Use assignment `order` when another PARTNER'S RUN feeds it (weaver → embroiderer) — `depends_on_run_ids` is DERIVED from `order` at approval, or attached afterwards with update_production_run.\n\nDeclaring this on ANY child also defers auto-dispatch for the WHOLE approval batch — sequencing then belongs to start_production_run_dispatch and the release subscribers, deliberately, so nothing starts out of order.",
 }
 
 export const ADMIN_MCP_TOOLS: AdminMcpToolDef[] = [
@@ -5168,7 +5168,7 @@ export const ADMIN_MCP_TOOLS: AdminMcpToolDef[] = [
   {
     name: "get_production_run",
     description:
-      "Get a single production run by id, with its linked tasks and its assigned materials. Use to read the run's status, quantity, assigned partner, dispatch state and cost fields. `materials` is what THIS run was allocated; `materials_constrained: false` means no selection was made and the partner may use the design's whole bill of materials.\n\nTo answer 'why has this run not started', read its two upstream edges: `depends_on_inventory_order_ids` (goods being supplied to this partner — met only at `Delivered`) and `depends_on_run_ids` (another partner's run — met at `completed`, derived from the assignment order at approval). A run sitting at `approved` with either of these non-empty is WAITING, not stuck.",
+      "Get a single production run by id, with its linked tasks and its assigned materials. Use to read the run's status, quantity, assigned partner, dispatch state and cost fields. `materials` is what THIS run was allocated; `materials_constrained: false` means no selection was made and the partner may use the design's whole bill of materials.\n\nTo answer 'why has this run not started', read its two upstream edges: `depends_on_inventory_order_ids` (goods being supplied to this partner — met only at `Delivered`) and `depends_on_run_ids` (another partner's run — met at `completed`, derived from the assignment order at approval or attached with update_production_run). A run sitting at `approved` with either of these non-empty is WAITING, not stuck.",
     method: "GET",
     path: "/admin/production-runs/:id",
     pathParams: ["id"],
@@ -5570,7 +5570,7 @@ export const ADMIN_MCP_TOOLS: AdminMcpToolDef[] = [
   {
     name: "update_production_run",
     description:
-      "Update a production run's quantity, role, run type, assigned materials, partner cost estimate, or correct the output the partner reported (produced_quantity / rejected_quantity). Sensitive: requires confirm:true. Structural edits (quantity/role/run_type) are REJECTED once the run has been accepted or started, and any edit is rejected on a cancelled run — but output corrections are allowed precisely BECAUSE the run is completed. Use dry_run to see the current run first.",
+      "Update a production run's quantity, role, run type, assigned materials, partner cost estimate, what it waits on (goods via depends_on_inventory_order_ids, other runs via depends_on_run_ids), or correct the output the partner reported (produced_quantity / rejected_quantity). Sensitive: requires confirm:true. Structural edits (quantity/role/run_type) are REJECTED once the run has been accepted or started, and any edit is rejected on a cancelled run — but output corrections are allowed precisely BECAUSE the run is completed. Use dry_run to see the current run first.",
     method: "POST",
     path: "/admin/production-runs/:id",
     pathParams: ["id"],
@@ -5588,6 +5588,8 @@ export const ADMIN_MCP_TOOLS: AdminMcpToolDef[] = [
       "correction_reason",
       "materials",
       "depends_on_inventory_order_ids",
+      "depends_on_run_ids",
+      "dispatch_template_ids",
     ],
     inputSchema: obj(
       {
@@ -5631,6 +5633,18 @@ export const ADMIN_MCP_TOOLS: AdminMcpToolDef[] = [
             RUN_INVENTORY_DEPENDENCY_PARAM.description +
             "\n\nOn THIS tool: REPLACES the whole list, and `[]` clears it — which is how you unblock a run by hand when the supply order is cancelled rather than delivered. Pre-acceptance only, and for a stronger reason than the other frozen fields: the dependency is read ONLY at dispatch and at release (candidates limited to `approved`), so setting one on a started or completed run would record a wait nothing will ever read.",
         },
+        depends_on_run_ids: {
+          type: "array",
+          items: { type: "string" },
+          description:
+            "Other PRODUCTION RUNS this run waits on (prod_run_ ids — the partner's CHILD run, not the parent). The run stays approved and undispatched until every listed run is `completed`, then dispatches itself with its recorded templates — or, if it has none, a person is told to dispatch it by hand. The upstream may sit under ANY parent.\n\nUse it for stages on the SAME pieces in sequence (embroider → stitch), which assignment `order` cannot express because it splits pieces between partners. REPLACES the whole list; `[]` clears it.\n\nRefused: a run waiting on itself, an id that is not a run, a CANCELLED run (it never completes), and anything that makes a loop. Pre-acceptance only. ⚠️ If every listed run is ALREADY completed, saving this dispatches the run immediately and messages its partner — the response's `dependency_release` says so.",
+        },
+        dispatch_template_ids: {
+          type: "array",
+          items: { type: "string" },
+          description:
+            "Task template IDS (from list_task_templates) this run will be dispatched with when its waits are met. Without them a released run lands as 'ready, dispatch by hand' and an admin is notified instead — so set them together with depends_on_run_ids for a hand-over that needs nobody. Only while the run is approved and not yet dispatched; unknown ids are refused. ⚠️ If the run's waits are ALREADY met, saving this dispatches it immediately and messages its partner.",
+        },
       },
       ["id"]
     ),
@@ -5661,7 +5675,7 @@ export const ADMIN_MCP_TOOLS: AdminMcpToolDef[] = [
               order: {
                 type: "integer",
                 description:
-                  "Dispatch sequence position — and the ONLY way to express a run-to-run dependency. Approval turns it into `depends_on_run_ids`: every child at order N waits on every child at the order below it, met at `completed`. There is no field to set those ids directly.",
+                  "Dispatch sequence position — and the ONLY way to express a run-to-run dependency. Approval turns it into `depends_on_run_ids`: every child at order N waits on every child at the order below it, met at `completed`. `order` SPLITS the pieces between partners; for two partners working the SAME pieces in turn (embroider, then stitch), create the runs and then attach the wait with update_production_run's depends_on_run_ids.",
               },
               template_names: {
                 type: "array",
@@ -6595,7 +6609,7 @@ export const ADMIN_MCP_TOOLS: AdminMcpToolDef[] = [
               order: {
                 type: "integer",
                 description:
-                  "Dispatch sequence position — and the ONLY way to express a run-to-run dependency. Approval turns it into `depends_on_run_ids` (met at `completed`); there is no field to set those ids directly.",
+                  "Dispatch sequence position — and the ONLY way to express a run-to-run dependency. Approval turns it into `depends_on_run_ids` (met at `completed`). For stages on the SAME pieces, attach the wait afterwards with update_production_run's depends_on_run_ids.",
               },
               template_names: {
                 type: "array",

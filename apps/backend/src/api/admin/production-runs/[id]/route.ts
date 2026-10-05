@@ -119,6 +119,9 @@ import {
   releaseRunOnDependencyAttach,
   type AttachReleaseOutcome,
 } from "../../../../workflows/production-runs/lib/release-dependent-runs"
+import { checkRunDependencyAttach } from "../../../../workflows/production-runs/lib/attach-run-dependencies"
+import { TASKS_MODULE } from "../../../../modules/tasks"
+import { cleanIds } from "../../../../workflows/production-runs/lib/run-dependencies"
 
 export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
   const id = req.params.id
@@ -434,6 +437,92 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
     }
   }
 
+  /**
+   * #2306 — attach (or clear) the RUNS this run is waiting on.
+   *
+   * Approval derives `depends_on_run_ids` from the assignment `order`, which
+   * only links children of one parent that SPLIT the pieces. Two partners
+   * working the same pieces in turn (embroider, then stitch) could not be
+   * expressed at all, so the next stage had to be dispatched by hand. This lets
+   * the wait be added once both runs exist.
+   *
+   * Same gate as the goods edge, for the same reason: it is read only at
+   * dispatch and at release. The checks that matter more here — self, cancelled
+   * upstream, unknown id, a cycle — live in `checkRunDependencyAttach`, because
+   * each of them stalls a run forever while reading like a healthy wait.
+   */
+  if (body.depends_on_run_ids !== undefined) {
+    if (run.accepted_at || run.started_at || run.status === "completed") {
+      throw new MedusaError(
+        MedusaError.Types.NOT_ALLOWED,
+        "Cannot change what a production run is waiting on after it has been accepted, started or completed — the dependency is only read at dispatch and release."
+      )
+    }
+    const check = await checkRunDependencyAttach(
+      id,
+      body.depends_on_run_ids,
+      (ids) => productionRunService.listProductionRuns({ id: ids } as any)
+    )
+    if (!check.ok) {
+      throw new MedusaError(MedusaError.Types.INVALID_DATA, check.message)
+    }
+    update.depends_on_run_ids = check.ids.length ? check.ids : null
+  }
+
+  /**
+   * #2306 — the templates a WAITING run will be dispatched with when released.
+   *
+   * A run approved with no templates (the ordinary case for a later stage,
+   * whose steps nobody chose up front) is released as `no_templates`: ready,
+   * and going nowhere until a person dispatches it by hand. Pairing a wait with
+   * its templates is what makes the hand-over automatic.
+   *
+   * Only while the run is still undispatched — once tasks exist, these ids
+   * would describe a dispatch that already happened differently. Ids are
+   * checked to exist, because an unknown one fails the RELEASE later, when
+   * nobody is watching.
+   */
+  if (body.dispatch_template_ids !== undefined) {
+    if (
+      run.status !== "approved" ||
+      run.dispatch_state === "completed" ||
+      run.accepted_at ||
+      run.started_at
+    ) {
+      throw new MedusaError(
+        MedusaError.Types.NOT_ALLOWED,
+        "Templates can only be chosen for an approved run that has not been dispatched yet."
+      )
+    }
+    const raw = body.dispatch_template_ids
+    if (raw !== null && !Array.isArray(raw)) {
+      throw new MedusaError(
+        MedusaError.Types.INVALID_DATA,
+        "dispatch_template_ids must be an array of task template ids, or null to clear it"
+      )
+    }
+    const ids: string[] = Array.from(
+      new Set(
+        (raw ?? [])
+          .map((v: unknown) => (typeof v === "string" ? v.trim() : ""))
+          .filter((v: string) => v.length > 0)
+      )
+    )
+    if (ids.length) {
+      const taskService: any = req.scope.resolve(TASKS_MODULE)
+      const found = await taskService.listTaskTemplates({ id: ids }, { take: null })
+      const known = new Set((found || []).map((t: any) => String(t.id)))
+      const missing = ids.filter((i) => !known.has(i))
+      if (missing.length) {
+        throw new MedusaError(
+          MedusaError.Types.INVALID_DATA,
+          `No task template found for: ${missing.join(", ")}`
+        )
+      }
+    }
+    update.dispatch_template_ids = ids.length ? ids : null
+  }
+
   // The allocation lives in link rows, not columns, so it is applied
   // separately — and gated BEFORE anything is written, not after.
   const touchesMaterials = body.materials !== undefined
@@ -527,13 +616,32 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
    * and a release that could not be evaluated must not fail the write.
    */
   let dependencyRelease: AttachReleaseOutcome | null = null
-  if (
-    body.depends_on_inventory_order_ids !== undefined &&
-    update.depends_on_inventory_order_ids
-  ) {
+  const attachedRunIds = (update.depends_on_run_ids as string[] | null) ?? null
+  const attachedOrderIds =
+    (update.depends_on_inventory_order_ids as string[] | null) ?? null
+  /*
+   * Either edge can be attached to an upstream that is ALREADY met (an order
+   * delivered last week, a stage completed yesterday) — asked once, after both
+   * are written, so a run carrying both is evaluated against the pair.
+   */
+  /*
+   * Choosing templates for a run whose upstream is already met is the same
+   * situation from the other side: it was released as `no_templates` and
+   * nothing will ever ask again. The helper does nothing for a run with no
+   * dependency, so this only ever finishes a hand-over that was stuck.
+   */
+  const choseTemplates = !!(update.dispatch_template_ids as string[] | null)?.length
+  if (attachedRunIds?.length || attachedOrderIds?.length || choseTemplates) {
+    const current = run as any
+    const runIds =
+      "depends_on_run_ids" in update ? attachedRunIds ?? [] : cleanIds(current.depends_on_run_ids)
+    const orderIds =
+      "depends_on_inventory_order_ids" in update
+        ? attachedOrderIds ?? []
+        : cleanIds(current.depends_on_inventory_order_ids)
     dependencyRelease = await releaseRunOnDependencyAttach(req.scope, id, {
-      by: (update.depends_on_inventory_order_ids as string[]).join(", "),
-      kind: "inventory order",
+      by: [...runIds, ...orderIds].join(", ") || "templates chosen",
+      kind: runIds.length ? "production run" : "inventory order",
     })
     /*
      * Re-read when it actually went. A dispatch moves `dispatch_state`,
