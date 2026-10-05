@@ -1,3 +1,15 @@
+# [13.171.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.170.0...v13.171.0) (2026-10-05)
+
+
+### Bug Fixes
+
+* **partner-ui:** inventory kits land on the right variant and can be edited ([#2339](https://github.com/Jaal-Yantra-Textiles/v2/issues/2339)) ([643fdf1](https://github.com/Jaal-Yantra-Textiles/v2/commit/643fdf1354d2ab0a24b3d2d1128e03768592635b))
+
+
+### Features
+
+* **mcp:** book inventory-order couriers; keep group_id on new raw materials ([#2338](https://github.com/Jaal-Yantra-Textiles/v2/issues/2338)) ([042135d](https://github.com/Jaal-Yantra-Textiles/v2/commit/042135ddd74bc8e475b5c1777b3e14090d70584b)), closes [#817](https://github.com/Jaal-Yantra-Textiles/v2/issues/817)
+
 # [13.170.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.169.0...v13.170.0) (2026-10-05)
 
 
