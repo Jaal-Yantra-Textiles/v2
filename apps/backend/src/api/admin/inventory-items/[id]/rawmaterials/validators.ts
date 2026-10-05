@@ -57,6 +57,10 @@ const rawMaterialDataSchema = z.object({
   metadata: z.record(z.string(), z.any()).optional(),
   material_type: z.string().optional(),
   material_type_id: z.string().optional(),
+  // #817 — the raw_material_group this colour belongs to. The workflow has
+  // taken it all along; without it here the parse stripped it in silence and
+  // the material was created ungrouped.
+  group_id: z.string().optional(),
   media: z.record(z.string(), z.any()).optional()
 });
 

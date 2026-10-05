@@ -2021,6 +2021,119 @@ export const ADMIN_MCP_TOOLS: AdminMcpToolDef[] = [
     ],
   },
   {
+    name: "list_inventory_order_shipping_rates",
+    description:
+      "List the courier options (rate, ETA, recommended flag) for moving an inventory order's goods from its source to its destination location. Read. Call this before create_inventory_order_shipment to pick a preferred_courier_id. " +
+      "🔑 Quote the REAL parcel: send weight_grams and all three sides of the box. The carrier bills the greater of actual and volumetric weight, and a quote at the wrong weight can offer a courier that will not carry the parcel. Book with the SAME weight and box so the quote and the booking agree.",
+    method: "GET",
+    path: "/admin/inventory-orders/:id/shiprocket-rates",
+    pathParams: ["id"],
+    queryParams: [
+      "carrier",
+      "weight_grams",
+      "length",
+      "breadth",
+      "height",
+      "pickup_stock_location_id",
+    ],
+    inputSchema: obj(
+      {
+        id: STR("Inventory order id, e.g. 'inv_order_...'."),
+        carrier: STR("Optional carrier to scope the quote to (e.g. 'shiprocket'). Omit for the configured default."),
+        weight_grams: { type: "number", description: "Real parcel weight in grams." },
+        length: { type: "number", description: "Box length in cm. Send all three sides or none." },
+        breadth: { type: "number", description: "Box breadth (width) in cm." },
+        height: { type: "number", description: "Box height in cm." },
+        pickup_stock_location_id: STR(
+          "Quote from this ship-from location instead of the order's own source. Use only when the goods are physically somewhere else; get ids from list_stock_locations."
+        ),
+      },
+      ["id"]
+    ),
+    nextSteps: ["create_inventory_order_shipment"],
+  },
+  {
+    name: "create_inventory_order_shipment",
+    description:
+      "Book a real carrier shipment for an inventory order: creates the forward shipment, gets the AWB and buys the label. Sensitive: requires confirm:true. " +
+      "🔑 Allowed ONLY from Processing, Ready for Delivery, Partial or Shipped. A Pending order is refused, and admin has no Start: the partner must start the order first. " +
+      "Call list_inventory_order_shipping_rates first with the same weight and box, and pass its courier id. " +
+      "🔴 The carrier's `pickup_scheduled_date` in the response can differ from the pickup_date asked for. Read it, and tell the person to check the pickup in Shiprocket when it does. " +
+      "🔴 A shipment is NOT a receipt. No stock moves until the goods are received (receive_inventory_order).",
+    method: "POST",
+    path: "/admin/inventory-orders/:id/shipment",
+    pathParams: ["id"],
+    previewPath: "/admin/inventory-orders/:id",
+    write: true,
+    sensitive: true,
+    bodyParams: [
+      "carrier",
+      "preferred_courier_id",
+      "weight_grams",
+      "dimensions_cm",
+      "pickup_date",
+      "pickup_stock_location_id",
+    ],
+    inputSchema: obj(
+      {
+        id: STR("Inventory order id, e.g. 'inv_order_...'."),
+        carrier: STR("Carrier to book with (e.g. 'shiprocket'). Omit for the configured default."),
+        preferred_courier_id: STR("Courier id from list_inventory_order_shipping_rates."),
+        weight_grams: {
+          type: "number",
+          description: "Real parcel weight in grams. ALWAYS send it, and use the weight you quoted.",
+        },
+        dimensions_cm: {
+          type: "object",
+          description:
+            "Box size in CENTIMETRES: { length, breadth, height }. Send all three; volumetric weight can exceed actual weight and decide the price.",
+          properties: {
+            length: { type: "number", description: "Length in cm." },
+            breadth: { type: "number", description: "Breadth (width) in cm." },
+            height: { type: "number", description: "Height in cm." },
+          },
+        },
+        pickup_date: STR(
+          "Requested pickup date, 'YYYY-MM-DD'. Omit to let the carrier pick the earliest slot. A pickup is a promise to a driver: only ask for a day the goods will be packed."
+        ),
+        pickup_stock_location_id: STR(
+          "Ship from this location instead of the order's own source. Use the same one you quoted from."
+        ),
+      },
+      ["id"]
+    ),
+    sideEffects:
+      "Calls the live carrier API, books a real shipment and buys a label. This costs money and sends a courier to the pickup address.",
+    nextSteps: ["get_inventory_order", "receive_inventory_order"],
+  },
+  {
+    name: "link_raw_material_group_colors",
+    description:
+      "Put existing raw materials into a raw material group as its colours, by setting each one's group_id. Sensitive: requires confirm:true. " +
+      "No stock item is created: each colour keeps its own inventory item. A colour already in another group MOVES to this one. " +
+      "Use this to group colours that already exist; add_inventory_raw_material can also take a group_id when it creates a new one. Read the group's colour list back from the response.",
+    method: "POST",
+    path: "/admin/raw-material-groups/:id/colors/link",
+    pathParams: ["id"],
+    previewPath: "/admin/raw-material-groups/:id",
+    write: true,
+    sensitive: true,
+    tier: "write",
+    bodyParams: ["raw_material_ids"],
+    inputSchema: obj(
+      {
+        id: STR("Raw material group id (from list_raw_material_groups)."),
+        raw_material_ids: {
+          type: "array",
+          items: { type: "string" },
+          description: "Raw material ids to put in the group (not inventory item ids). Get them from list_raw_materials.",
+        },
+      },
+      ["id", "raw_material_ids"]
+    ),
+    nextSteps: ["list_raw_material_groups"],
+  },
+  {
     name: "list_location_ownership",
     description:
       "Which stock locations are OURS, and which are a partner's. Read. " +
@@ -6838,7 +6951,7 @@ export const ADMIN_MCP_TOOLS: AdminMcpToolDef[] = [
         rawMaterialData: {
           type: "object",
           description:
-            "Required: name, composition. Optional: description, color, grade, width, weight, unit_of_measure (Meter|Yard|Kilogram|Gram|Piece|Roll|Other), unit_cost, cost_currency, minimum_order_quantity, lead_time_days, certification, usage_guidelines, storage_requirements, status (Active|Discontinued|Under_Review|Development), material_type (a category NAME, find-or-create) or material_type_id, metadata, specifications (the attribute store), media ({ files: [url] }).",
+            "Required: name, composition. Optional: description, color, grade, width, weight, unit_of_measure (Meter|Yard|Kilogram|Gram|Piece|Roll|Other), unit_cost, cost_currency, minimum_order_quantity, lead_time_days, certification, usage_guidelines, storage_requirements, status (Active|Discontinued|Under_Review|Development), material_type (a category NAME, find-or-create) or material_type_id, group_id (the raw material group this colour belongs to; to group materials that already exist use link_raw_material_group_colors), metadata, specifications (the attribute store), media ({ files: [url] }).",
         },
       },
       ["id", "rawMaterialData"]
