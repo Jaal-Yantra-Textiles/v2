@@ -456,5 +456,161 @@ setupSharedTestSuite(() => {
         expect(startRes.status).toBe(202)
       }
     })
+
+    /**
+     * #2306 — two partners working the SAME pieces in turn, as separate runs.
+     *
+     * Approval's `order` splits pieces between partners, so "embroider these 2,
+     * then stitch the same 2" was inexpressible: each stage is its own run under
+     * its own parent, and the wait could not be added afterwards. The release
+     * on completion also only looked at SIBLINGS, so even a wait written by hand
+     * across parents would never have fired.
+     */
+    it("attaches a wait across parents after approval, and the finished stage releases it", async () => {
+      const { api } = getSharedTestEnv()
+      const unique = Date.now()
+      const embroiderName = `embroider-${unique}`
+      const stitchName = `stitch-same-pieces-${unique}`
+
+      const mkTemplate = async (name: string) => {
+        const res = await api.post(
+          "/admin/task-templates",
+          {
+            name,
+            description: name,
+            priority: "medium",
+            estimated_duration: 30,
+            eventable: false,
+            notifiable: false,
+            metadata: { workflow_type: "production_run" },
+            category_id: templateCategoryId,
+          },
+          adminHeaders
+        )
+        expect(res.status).toBe(201)
+        return res.data.task_template.id as string
+      }
+      await mkTemplate(embroiderName)
+      const stitchTemplateId = await mkTemplate(stitchName)
+
+      const approveOne = async (assignment: Record<string, any>) => {
+        const created = await api.post(
+          "/admin/production-runs",
+          { design_id: designId, quantity: 2 },
+          adminHeaders
+        )
+        const parentId = created.data.production_run.id
+        const approved = await api
+          .post(
+            `/admin/production-runs/${parentId}/approve`,
+            { assignments: [assignment] },
+            adminHeaders
+          )
+          .catch((err: any) => {
+            logAxiosErr(`approve ${parentId}`, err)
+            throw err
+          })
+        const children = approved.data.result?.children || []
+        expect(children.length).toBe(1)
+        return { parentId, child: children[0] }
+      }
+
+      // Stage 1 — embroidery, under its OWN parent, dispatched now.
+      const embroider = await approveOne({
+        partner_id: partnerAId,
+        role: "embroidery",
+        template_names: [embroiderName],
+      })
+      // Stage 2 — stitching, under ANOTHER parent, approved with no templates
+      // (exactly how the real stitching stage was left).
+      const stitch = await approveOne({ partner_id: partnerBId, role: "stitching" })
+      expect(embroider.parentId).not.toBe(stitch.parentId)
+
+      await waitFor(async () => {
+        const res = await api.get(`/admin/production-runs/${embroider.child.id}`, adminHeaders)
+        return String(res.data.production_run?.status) === "sent_to_partner"
+      })
+
+      // Refusals: a run waiting on itself, and a loop.
+      const selfWait = await api
+        .post(
+          `/admin/production-runs/${stitch.child.id}`,
+          { depends_on_run_ids: [stitch.child.id] },
+          adminHeaders
+        )
+        .catch((e: any) => e.response)
+      expect(selfWait.status).toBe(400)
+
+      // Attach: stitching waits on embroidery, and is sent with these steps.
+      const attach = await api
+        .post(
+          `/admin/production-runs/${stitch.child.id}`,
+          {
+            depends_on_run_ids: [embroider.child.id],
+            dispatch_template_ids: [stitchTemplateId],
+          },
+          adminHeaders
+        )
+        .catch((err: any) => {
+          logAxiosErr("attach wait", err)
+          throw err
+        })
+      expect(attach.status).toBe(200)
+      expect(attach.data.production_run.depends_on_run_ids).toEqual([embroider.child.id])
+      expect(attach.data.production_run.dispatch_template_ids).toEqual([stitchTemplateId])
+      // Embroidery is not finished, so nothing was sent yet.
+      expect(attach.data.dependency_release?.result).toBe("waiting")
+      expect(attach.data.production_run.status).toBe("approved")
+
+      const loop = await api
+        .post(
+          `/admin/production-runs/${embroider.child.id}`,
+          { depends_on_run_ids: [stitch.child.id] },
+          adminHeaders
+        )
+        .catch((e: any) => e.response)
+      expect(loop.status).toBe(400)
+
+      // Dispatching stitching by hand is still refused while embroidery runs.
+      const early = await api
+        .post(`/admin/production-runs/${stitch.child.id}/start-dispatch`, {}, adminHeaders)
+        .catch((e: any) => e.response)
+      expect(early.status).toBe(400)
+
+      // Embroiderer accepts and finishes.
+      await api.post(
+        `/partners/production-runs/${embroider.child.id}/accept`,
+        {},
+        partnerAHeaders
+      )
+      const embroiderRun = await api.get(
+        `/admin/production-runs/${embroider.child.id}`,
+        adminHeaders
+      )
+      const embroiderTasks = (embroiderRun.data.tasks || []).filter(
+        (t: any) => t.title === embroiderName
+      )
+      expect(embroiderTasks.length).toBeGreaterThan(0)
+      for (const t of embroiderTasks) {
+        await api
+          .post(`/partners/assigned-tasks/${t.id}/finish`, {}, partnerAHeaders)
+          .catch((err: any) => {
+            logAxiosErr(`finish ${t.id}`, err)
+            throw err
+          })
+      }
+
+      // The stitching run — under a DIFFERENT parent — is released and sent,
+      // with the template chosen when the wait was attached.
+      await waitFor(
+        async () => {
+          const res = await api.get(`/admin/production-runs/${stitch.child.id}`, adminHeaders)
+          return String(res.data.production_run?.status) === "sent_to_partner"
+        },
+        { timeoutMs: 20_000 }
+      )
+      const sent = await api.get(`/admin/production-runs/${stitch.child.id}`, adminHeaders)
+      expect(sent.data.production_run.dispatched_template_ids).toEqual([stitchTemplateId])
+    })
   })
 })

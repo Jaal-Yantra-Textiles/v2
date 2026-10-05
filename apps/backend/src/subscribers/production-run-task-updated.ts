@@ -4,8 +4,6 @@ import type { IEventBusModuleService, Logger } from "@medusajs/types"
 
 import { PRODUCTION_RUNS_MODULE } from "../modules/production_runs"
 import type ProductionRunService from "../modules/production_runs/service"
-import { releaseRunIfReady } from "../workflows/production-runs/lib/release-dependent-runs"
-import { notifyDispatchByHand } from "../workflows/production-runs/lib/notify-dispatch-by-hand"
 import { mirrorRunStatusToUnifiedOrder } from "../workflows/production-runs/dual-write-unified-run-order"
 
 export default async function productionRunTaskUpdatedHandler({
@@ -152,66 +150,13 @@ export default async function productionRunTaskUpdatedHandler({
       return
     }
 
-    // Auto-dispatch sibling runs that depend on this now-completed run
-    try {
-      const siblings = await productionRunService.listProductionRuns({
-        parent_run_id: String(parentRunId),
-      } as any)
-
-      for (const sibling of siblings || []) {
-        const depIds = (sibling as any).depends_on_run_ids as string[] | null
-        if (!depIds?.length) continue
-        if (!depIds.includes(String(productionRunId))) continue
-        if (String((sibling as any).status) !== "approved") continue
-
-        // Are ALL of this sibling's dependencies met? Both kinds count — a
-        // stage can wait on another partner's run AND on goods being supplied
-        // to it (#1529) — and the answer comes from the same helper the
-        // dispatch guard uses, so a run released here is never bounced there.
-        const outcome = await releaseRunIfReady(container, sibling)
-
-        switch (outcome.result) {
-          case "dispatched":
-            logger.info(
-              `[tasks.task.updated] Auto-dispatched dependent run ${outcome.run_id} after ${productionRunId} completed`
-            )
-            break
-          case "waiting":
-            // Not ready yet — another upstream edge is outstanding. It will be
-            // reconsidered when that one lands.
-            break
-          case "no_templates":
-            logger.info(
-              `[tasks.task.updated] Dependent run ${outcome.run_id} is ready for dispatch but has no pre-configured templates. Manual dispatch required.`
-            )
-            // Same silence as the inventory-order path, same fix (#2202): the
-            // upstream run finished, this one could start, and nothing will
-            // happen until a person is told.
-            await notifyDispatchByHand(
-              container,
-              {
-                runId: outcome.run_id,
-                releasedBy: productionRunId,
-                releasedByKind: "production run",
-              },
-              logger
-            )
-            break
-          case "failed":
-            // #1268's lesson, applied to the cascade: one child failing to
-            // dispatch must not stop the siblings behind it, and the reason has
-            // to be recoverable from the log.
-            logger.error(
-              `[tasks.task.updated] Dependent run ${outcome.run_id} failed to dispatch: ${outcome.message}`
-            )
-            break
-        }
-      }
-    } catch (e: any) {
-      logger.warn(
-        `[tasks.task.updated] Failed to auto-dispatch dependent runs: ${e?.message || String(e)}`
-      )
-    }
+    /*
+     * Runs waiting on this one are released by
+     * `production-run-completed-release-runs`, off the `production_run.completed`
+     * emitted above — NOT here. This used to scan only this run's siblings,
+     * which missed a wait attached after approval to a run under another parent
+     * (#2306), and doing it in both places would dispatch the same run twice.
+     */
 
     // Cascade: mark parent completed if all children are done
     const parentLockKey = `production-run-complete:${String(parentRunId)}`
