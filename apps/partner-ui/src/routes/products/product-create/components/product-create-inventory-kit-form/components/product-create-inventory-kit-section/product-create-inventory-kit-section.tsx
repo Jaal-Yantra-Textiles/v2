@@ -42,7 +42,7 @@ function InventoryItemRow({
     selectedValue: selectedInventoryItemId,
     queryFn: (params) => sdk.client.fetch<any>("/partners/inventory-items", { method: "GET", query: params }),
     getOptions: (data) =>
-      data.inventory_items.map((item) => ({
+      data.inventory_items.map((item: { id: string; title?: string | null; sku?: string | null }) => ({
         label: `${item.title} ${item.sku ? `(${item.sku})` : ""}`,
         value: item.id,
       })),

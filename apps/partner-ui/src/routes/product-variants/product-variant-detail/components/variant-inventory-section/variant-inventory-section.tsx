@@ -33,10 +33,7 @@ export function VariantInventorySection({
     pageSize: PAGE_SIZE,
   })
 
-  // One item used more than once (a 12 m pack) is a kit too.
-  const hasKit =
-    inventoryItems.length > 1 ||
-    inventoryItems.some((i: any) => (i.required_quantity ?? 1) > 1)
+  const hasKit = inventoryItems.length > 1
 
   return (
     <Container className="divide-y p-0">
