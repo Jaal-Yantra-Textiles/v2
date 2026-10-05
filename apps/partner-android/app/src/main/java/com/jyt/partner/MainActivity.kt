@@ -56,6 +56,13 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    override fun onStart() {
+        super.onStart()
+        // Back in the foreground: keep the session alive (refreshes only
+        // once the token is 6 h old, so rotations and quick switches are free).
+        auth.onForeground()
+    }
+
     private fun requestPushPermissionIfNeeded() {
         if (Build.VERSION.SDK_INT >= 33 &&
             ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS)

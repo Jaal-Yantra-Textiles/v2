@@ -7,6 +7,9 @@ import com.jyt.partner.TokenStore
 import com.jyt.partner.models.AttachMediaBody
 import com.jyt.partner.models.AttachMediaFile
 import com.jyt.partner.models.CompleteInventoryOrderBody
+import com.jyt.partner.models.CreateShipmentBody
+import com.jyt.partner.models.CreateShipmentResponse
+import com.jyt.partner.models.CreatedShipment
 import com.jyt.partner.models.DesignDetail
 import com.jyt.partner.models.DesignDetailResponse
 import com.jyt.partner.models.IncomingDeliveriesResponse
@@ -23,9 +26,18 @@ import com.jyt.partner.models.PartnerOrderListResponse
 import com.jyt.partner.models.ProductionRunDetail
 import com.jyt.partner.models.ProductionRunListResponse
 import com.jyt.partner.models.ReceiveIncomingBody
+import com.jyt.partner.models.RunCostSummary
+import com.jyt.partner.models.RunCostSummaryResponse
+import com.jyt.partner.models.ShippingRatesResponse
 import com.jyt.partner.models.UploadFile
 import com.jyt.partner.models.UploadFilesResponse
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.channels.BufferOverflow
+import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.SharedFlow
+import kotlinx.coroutines.flow.asSharedFlow
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
@@ -56,6 +68,12 @@ import java.util.concurrent.TimeUnit
  * [baseUrlOverride]) so the integration tests can drive the whole client
  * — OkHttp, serialization, auth headers, multipart — against a local
  * mock server on the JVM, no emulator.
+ *
+ * Session keep-alive: JWTs live one day. [refreshToken] swaps the stored
+ * token for a fresh one (the backend accepts one up to 30 days expired),
+ * and every authenticated call that gets a 401 refreshes once and retries
+ * once. When that cannot recover the session, [sessionExpired] fires and
+ * the call throws [PartnerException.SessionExpired].
  */
 class PartnerApi private constructor(
     private val context: Context?,
@@ -69,6 +87,10 @@ class PartnerApi private constructor(
         fun load(context: Context?): String?
         fun save(context: Context?, token: String)
         fun clear(context: Context?)
+
+        /** When the token was last issued or refreshed (epoch millis). */
+        fun lastRefreshAt(context: Context?): Long? = null
+        fun saveLastRefreshAt(context: Context?, epochMillis: Long) {}
     }
 
     internal object RealTokenAccess : TokenAccess {
@@ -81,6 +103,13 @@ class PartnerApi private constructor(
 
         override fun clear(context: Context?) {
             context?.let { TokenStore.clearToken(it) }
+        }
+
+        override fun lastRefreshAt(context: Context?): Long? =
+            context?.let { TokenStore.lastRefreshAt(it) }
+
+        override fun saveLastRefreshAt(context: Context?, epochMillis: Long) {
+            context?.let { TokenStore.saveLastRefreshAt(it, epochMillis) }
         }
     }
 
@@ -112,14 +141,15 @@ class PartnerApi private constructor(
     suspend fun login(email: String, password: String): LoginOutcome {
         val map = postObject(
             "auth/partner/emailpass",
-            json.encodeToString(LoginBody.serializer(), LoginBody(email, password))
+            json.encodeToString(LoginBody.serializer(), LoginBody(email, password)),
+            retryOn401 = false,
         )
         if (map["verification_required"] as? Boolean == true) {
             return LoginOutcome(verificationRequired = true, email = email)
         }
         val token = map["token"] as? String ?: map["access_token"] as? String
             ?: throw PartnerException.InvalidResponse
-        tokens.save(context, token)
+        storeFreshToken(token)
         return LoginOutcome(verificationRequired = false, email = email)
     }
 
@@ -131,11 +161,12 @@ class PartnerApi private constructor(
     suspend fun loginWithPhone(phone: String, pin: String) {
         val map = postObject(
             "auth/partner/phone-pin",
-            json.encodeToString(PhonePinBody.serializer(), PhonePinBody(phone, pin))
+            json.encodeToString(PhonePinBody.serializer(), PhonePinBody(phone, pin)),
+            retryOn401 = false,
         )
         val token = map["token"] as? String ?: map["access_token"] as? String
             ?: throw PartnerException.InvalidResponse
-        tokens.save(context, token)
+        storeFreshToken(token)
     }
 
     fun logout() {
@@ -143,6 +174,101 @@ class PartnerApi private constructor(
     }
 
     suspend fun me(): PartnerMe = get("partners/me")
+
+    // ── Session refresh ─────────────────────────────────────────────────
+
+    /** What a refresh attempt came to. */
+    enum class RefreshOutcome {
+        /** A new token is stored. */
+        REFRESHED,
+        /** The server refused (401) — the session is over; the token is cleared. */
+        REJECTED,
+        /** Network down or the server erred (5xx, odd body) — the old token is kept. */
+        FAILED,
+    }
+
+    private val refreshMutex = Mutex()
+
+    private val _sessionExpired = MutableSharedFlow<Unit>(
+        extraBufferCapacity = 1,
+        onBufferOverflow = BufferOverflow.DROP_OLDEST,
+    )
+
+    /** Fires when an authenticated call got a 401 the refresh could not fix. */
+    val sessionExpired: SharedFlow<Unit> = _sessionExpired.asSharedFlow()
+
+    /** True when a token is stored and it was issued/refreshed more than
+     *  [maxAgeMillis] ago, or when that time is unknown. */
+    fun refreshDue(
+        nowMillis: Long = System.currentTimeMillis(),
+        maxAgeMillis: Long = REFRESH_INTERVAL_MILLIS,
+    ): Boolean {
+        if (tokens.load(context) == null) return false
+        val last = tokens.lastRefreshAt(context) ?: return true
+        return nowMillis - last > maxAgeMillis
+    }
+
+    /** POST /partners/auth/refresh with the stored token (it may be expired)
+     *  and store the new one. Shares a mutex with the 401-retry refresh. */
+    suspend fun refreshToken(): RefreshOutcome = refreshMutex.withLock {
+        val current = tokens.load(context) ?: return@withLock RefreshOutcome.REJECTED
+        refreshLocked(current)
+    }
+
+    /** Called under [refreshMutex]. Never goes through the 401-retry path. */
+    private suspend fun refreshLocked(token: String): RefreshOutcome {
+        val request = Request.Builder()
+            .url(url("partners/auth/refresh"))
+            .header("Authorization", "Bearer $token")
+            .post("{}".toRequestBody("application/json".toMediaType()))
+            .build()
+        val (status, data) = try {
+            send(request)
+        } catch (e: java.io.IOException) {
+            return RefreshOutcome.FAILED
+        }
+        if (status == 401) {
+            // Only clear the token we tried to refresh — a newer sign-in stays.
+            if (tokens.load(context) == token) tokens.clear(context)
+            return RefreshOutcome.REJECTED
+        }
+        if (status !in 200..299) return RefreshOutcome.FAILED
+        val fresh = runCatching {
+            (Json.parseToJsonElement(String(data)).jsonObject["token"] as? JsonPrimitive)
+                ?.takeIf { it.isString }?.content
+        }.getOrNull()?.takeIf { it.isNotBlank() } ?: return RefreshOutcome.FAILED
+        storeFreshToken(fresh)
+        return RefreshOutcome.REFRESHED
+    }
+
+    private fun storeFreshToken(token: String) {
+        tokens.save(context, token)
+        tokens.saveLastRefreshAt(context, System.currentTimeMillis())
+    }
+
+    /** What [recoverFrom401] found. */
+    private sealed interface Recovery {
+        data class Retry(val token: String) : Recovery
+        data object Expired : Recovery
+        data object Unavailable : Recovery
+    }
+
+    /**
+     * After [staleToken] drew a 401, make sure a usable token is stored.
+     * Concurrent 401s queue on the mutex; those arriving after a successful
+     * refresh see the token has changed and retry with it, no second refresh.
+     */
+    private suspend fun recoverFrom401(staleToken: String): Recovery = refreshMutex.withLock {
+        val current = tokens.load(context) ?: return@withLock Recovery.Expired
+        if (current != staleToken) return@withLock Recovery.Retry(current)
+        when (refreshLocked(current)) {
+            RefreshOutcome.REFRESHED ->
+                tokens.load(context)?.let { Recovery.Retry(it) } ?: Recovery.Expired
+            RefreshOutcome.REJECTED -> Recovery.Expired
+            // Network/5xx — no verdict on the session, so don't sign out.
+            RefreshOutcome.FAILED -> Recovery.Unavailable
+        }
+    }
 
     // ── Orders ──────────────────────────────────────────────────────────
 
@@ -187,6 +313,10 @@ class PartnerApi private constructor(
 
     suspend fun productionRun(id: String): ProductionRunDetail =
         get("partners/production-runs/$id")
+
+    /** The run's cost rollup — your rate and total, materials, cost per piece. */
+    suspend fun productionRunCostSummary(id: String): RunCostSummary =
+        get<RunCostSummaryResponse>("partners/production-runs/$id/cost-summary").costSummary
 
     // ── Run lifecycle actions ────────────────────────────────────────────
 
@@ -307,7 +437,9 @@ class PartnerApi private constructor(
         post("partners/inventory-orders/$id/start")
     }
 
-    /** Processing/Partial → Ready for Delivery — goods packed. */
+    /** Partial → Ready for Delivery — goods packed. The backend allows it
+     *  ONLY from Partial (a delivery must be recorded first; a full delivery
+     *  goes straight to Shipped), and 400s from any other status. */
     suspend fun markInventoryOrderReadyForDelivery(id: String) {
         post("partners/inventory-orders/$id/ready-for-delivery")
     }
@@ -318,6 +450,37 @@ class PartnerApi private constructor(
             "partners/inventory-orders/$id/complete",
             json.encodeToString(CompleteInventoryOrderBody.serializer(), body)
         )
+    }
+
+    /** Courier quotes for the order's shipment, so the partner can choose one.
+     *  Every refinement is optional; blanks are left off the query. */
+    suspend fun inventoryOrderShippingRates(
+        orderId: String,
+        carrier: String,
+        weightGrams: Int? = null,
+        length: Double? = null,
+        breadth: Double? = null,
+        height: Double? = null,
+    ): ShippingRatesResponse {
+        var path = "partners/inventory-orders/$orderId/shiprocket-rates?carrier=${urlEncode(carrier)}"
+        weightGrams?.let { path += "&weight_grams=$it" }
+        length?.let { path += "&length=${plainNumber(it)}" }
+        breadth?.let { path += "&breadth=${plainNumber(it)}" }
+        height?.let { path += "&height=${plainNumber(it)}" }
+        return get(path)
+    }
+
+    /** Book the carrier shipment (AWB + label, pickup on the given date). */
+    suspend fun createInventoryOrderShipment(
+        orderId: String,
+        body: CreateShipmentBody,
+    ): CreatedShipment {
+        val request = baseRequest("partners/inventory-orders/$orderId/shipment")
+            .post(
+                json.encodeToString(CreateShipmentBody.serializer(), body)
+                    .toRequestBody("application/json".toMediaType())
+            ).build()
+        return decodeBody<CreateShipmentResponse>(execute(request)).shipment
     }
 
     // ── Incoming deliveries (#2286) ──────────────────────────────────────
@@ -388,6 +551,10 @@ class PartnerApi private constructor(
     private fun urlEncode(value: String): String =
         java.net.URLEncoder.encode(value, "UTF-8")
 
+    /** "12" for 12.0, "12.5" otherwise — query values, never locale-formatted. */
+    private fun plainNumber(value: Double): String =
+        if (value == value.toLong().toDouble()) value.toLong().toString() else value.toString()
+
     private fun baseRequest(path: String): Request.Builder {
         val builder = Request.Builder().url(url(path))
         tokens.load(context)?.let {
@@ -396,23 +563,65 @@ class PartnerApi private constructor(
         return builder
     }
 
-    private suspend fun execute(request: Request): ByteArray {
-        return withContext(Dispatchers.IO) {
+    /** One round trip — status and body, no error mapping. */
+    private suspend fun send(request: Request): Pair<Int, ByteArray> =
+        withContext(Dispatchers.IO) {
             client.newCall(request).execute().use { response ->
-                val data = response.body?.bytes() ?: ByteArray(0)
-                if (!response.isSuccessful) {
-                    throw httpError(response.code, String(data))
-                }
-                data
+                response.code to (response.body?.bytes() ?: ByteArray(0))
             }
         }
+
+    /**
+     * Runs [request]. A 401 on an authenticated call refreshes the token
+     * once and retries the call once; if the session can't be recovered,
+     * [sessionExpired] fires and [PartnerException.SessionExpired] is thrown.
+     * The login endpoints pass [retryOn401] = false: a 401 there is a wrong
+     * password, not an expired session.
+     */
+    private suspend fun execute(request: Request, retryOn401: Boolean = true): ByteArray {
+        val (status, data) = send(request)
+        if (status in 200..299) return data
+
+        val sentToken = request.header("Authorization")?.removePrefix("Bearer ")
+        if (status != 401 || !retryOn401 || sentToken.isNullOrBlank()) {
+            throw httpError(status, String(data))
+        }
+
+        val token = when (val recovery = recoverFrom401(sentToken)) {
+            is Recovery.Retry -> recovery.token
+            Recovery.Expired -> {
+                _sessionExpired.tryEmit(Unit)
+                throw PartnerException.SessionExpired
+            }
+            Recovery.Unavailable -> throw httpError(status, String(data))
+        }
+
+        val (retryStatus, retryData) = send(
+            request.newBuilder().header("Authorization", "Bearer $token").build()
+        )
+        if (retryStatus in 200..299) return retryData
+        if (retryStatus == 401) {
+            _sessionExpired.tryEmit(Unit)
+            throw PartnerException.SessionExpired
+        }
+        throw httpError(retryStatus, String(retryData))
     }
 
+    /** The server's own words — `message`, else `error` — or nothing, in
+     *  which case PartnerException.Http falls back to a short generic line.
+     *  Never the raw body: a JSON dump or an HTML gateway page is not a
+     *  message a partner can act on. */
     private fun httpError(status: Int, body: String): PartnerException {
         val message = runCatching {
             val obj = Json.parseToJsonElement(body).jsonObject
-            (obj["message"] as? JsonPrimitive)?.content
-        }.getOrNull() ?: body.take(300)
+            listOf("message", "error").firstNotNullOfOrNull { key ->
+                (obj[key] as? JsonPrimitive)
+                    ?.takeIf { it.isString }
+                    ?.content
+                    ?.trim()
+                    ?.takeIf { it.isNotEmpty() }
+            }
+        }.getOrNull()
         return PartnerException.Http(status, message ?: "")
     }
 
@@ -439,10 +648,14 @@ class PartnerApi private constructor(
     }
 
     /** POST returning the parsed top-level JSON object (login). */
-    private suspend fun postObject(path: String, body: String): Map<String, Any?> {
+    private suspend fun postObject(
+        path: String,
+        body: String,
+        retryOn401: Boolean = true,
+    ): Map<String, Any?> {
         val request = baseRequest(path)
             .post(body.toRequestBody("application/json".toMediaType())).build()
-        val data = execute(request)
+        val data = execute(request, retryOn401)
         val element = runCatching { Json.parseToJsonElement(String(data)) }.getOrNull()
         val obj = element as? JsonObject ?: return emptyMap()
         return obj.mapValues { (_, v) ->
@@ -459,6 +672,9 @@ class PartnerApi private constructor(
     }
 
     companion object {
+        /** The foreground refresh runs once the token is older than this. */
+        const val REFRESH_INTERVAL_MILLIS: Long = 6 * 60 * 60 * 1000L
+
         @Volatile
         private var instance: PartnerApi? = null
 

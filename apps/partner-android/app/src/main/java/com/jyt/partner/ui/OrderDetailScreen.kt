@@ -414,7 +414,7 @@ fun OrderDetailScreen(
                                     Spacer(Modifier.size(12.dp))
                                     Text(
                                         (run.runType?.replaceFirstChar { it.uppercase() } ?: "Run") +
-                                            " · ${formatQuantity((run.quantity ?: 0).toDouble())} pcs",
+                                            " · ${formatQuantity(run.quantity ?: 0.0)} pcs",
                                     )
                                 }
                             }
@@ -444,10 +444,23 @@ fun OrderDetailScreen(
 
     if (showComplete) {
         CompleteRunSheet(
-            orderedQuantity = activeRun?.quantity ?: 0,
+            orderedQuantity = activeRun?.quantity ?: 0.0,
             materials = design?.inventoryItems.orEmpty(),
             run = activeRun,
-            onConfirm = { body -> scope.launch { run(RunAction.COMPLETE, completeBody = body) } },
+            // Throws on failure, so the sheet keeps the input and shows why.
+            onSubmit = { body ->
+                val runId = activeRun?.id
+                    ?: throw IllegalStateException("This run is no longer active.")
+                PartnerApi.get(context).completeRun(runId, body)
+                scope.launch {
+                    // Re-read everything — status, runs and design media all change.
+                    detail = null
+                    design = null
+                    runs = emptyList()
+                    runTasks = emptyMap()
+                    load()
+                }
+            },
             onDismiss = { showComplete = false },
         )
     }

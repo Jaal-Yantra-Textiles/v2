@@ -2,6 +2,8 @@ package com.jyt.partner.models
 
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
+import kotlinx.serialization.json.JsonElement
+import kotlinx.serialization.json.JsonPrimitive
 
 // The inventory-order API contract — the Kotlin mirror of the iOS app's
 // InventoryOrderModels.swift. The partner is the SUPPLIER here: they are
@@ -96,6 +98,8 @@ data class PartnerInventoryOrder(
     @SerialName("is_sample") val isSample: Boolean? = null,
     @SerialName("order_lines") val orderLines: List<InventoryOrderLine>? = null,
     @SerialName("partner_info") val partnerInfo: InventoryOrderPartnerInfo? = null,
+    /** Carrier shipments, newest first (the partner GET detail route). */
+    val shipments: List<InventoryShipment>? = null,
     @SerialName("created_at") val createdAt: String? = null,
     @SerialName("updated_at") val updatedAt: String? = null,
 ) {
@@ -158,4 +162,79 @@ data class CompleteInventoryOrderBody(
         @SerialName("order_line_id") val orderLineId: String,
         val quantity: Double,
     )
+}
+
+/** A carrier shipment on an inventory order (the inventory_shipment row). */
+@Serializable
+data class InventoryShipment(
+    val id: String? = null,
+    val carrier: String? = null,
+    val awb: String? = null,
+    @SerialName("tracking_number") val trackingNumber: String? = null,
+    @SerialName("tracking_url") val trackingUrl: String? = null,
+    /** created | pickup_scheduled | picked_up | in_transit | out_for_delivery
+     *  | delivered | rto | cancelled */
+    val status: String? = null,
+    @SerialName("pickup_scheduled_date") val pickupScheduledDate: String? = null,
+    @SerialName("created_at") val createdAt: String? = null,
+)
+
+/** GET /partners/inventory-orders/:id/shiprocket-rates. */
+@Serializable
+data class ShippingRatesResponse(
+    @SerialName("origin_pincode") val originPincode: String? = null,
+    @SerialName("destination_pincode") val destinationPincode: String? = null,
+    @SerialName("weight_grams") val weightGrams: Double? = null,
+    val cod: Boolean? = null,
+    val rates: List<ShippingRate> = emptyList(),
+)
+
+@Serializable
+data class ShippingRate(
+    /** A string or a number depending on the carrier — kept raw. */
+    @SerialName("courier_id") val courierIdRaw: JsonElement? = null,
+    @SerialName("courier_name") val courierName: String? = null,
+    val amount: Double = 0.0,
+    @SerialName("currency_code") val currencyCode: String? = null,
+    @SerialName("estimated_days") val estimatedDays: Double? = null,
+    @SerialName("is_recommended") val isRecommended: Boolean? = null,
+) {
+    /** The id as text — what the shipment's preferred_courier_id takes. */
+    val courierId: String?
+        get() = (courierIdRaw as? JsonPrimitive)?.content?.takeIf { it.isNotBlank() && it != "null" }
+}
+
+/** POST /partners/inventory-orders/:id/shipment. Nulls are left out. */
+@Serializable
+data class CreateShipmentBody(
+    val carrier: String,
+    @SerialName("weight_grams") val weightGrams: Int? = null,
+    @SerialName("dimensions_cm") val dimensionsCm: Dimensions? = null,
+    @SerialName("preferred_courier_id") val preferredCourierId: String? = null,
+    /** "YYYY-MM-DD". */
+    @SerialName("pickup_date") val pickupDate: String? = null,
+) {
+    @Serializable
+    data class Dimensions(
+        val length: Double? = null,
+        val breadth: Double? = null,
+        val height: Double? = null,
+    )
+}
+
+/** `{ shipment }` — the workflow's ShipmentResult plus the scheduled pickup. */
+@Serializable
+data class CreateShipmentResponse(val shipment: CreatedShipment)
+
+@Serializable
+data class CreatedShipment(
+    val carrier: String? = null,
+    val awb: String? = null,
+    @SerialName("tracking_number") val trackingNumber: String? = null,
+    @SerialName("tracking_url") val trackingUrl: String? = null,
+    @SerialName("label_url") val labelUrl: String? = null,
+    val pickup: Pickup? = null,
+) {
+    @Serializable
+    data class Pickup(@SerialName("scheduled_date") val scheduledDate: String? = null)
 }

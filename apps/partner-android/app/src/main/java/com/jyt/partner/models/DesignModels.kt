@@ -164,7 +164,16 @@ data class ProductionRun(
     val status: String? = null,
     @SerialName("run_type") val runType: String? = null,
     val role: String? = null,
-    val quantity: Int? = null,
+    /** The ORDERED quantity — a float column on the backend, and the payout
+     *  multiplier for a per-piece cost. Display with formatQuantity. */
+    val quantity: Double? = null,
+    @SerialName("produced_quantity") val producedQuantity: Double? = null,
+    /** The partner's cost, per piece or for the whole run per [costType]. */
+    @SerialName("partner_cost_estimate") val partnerCostEstimate: Double? = null,
+    /** "per_unit" | "total". */
+    @SerialName("cost_type") val costType: String? = null,
+    /** What the cost is denominated in (#1979); null → INR in the UI. */
+    @SerialName("cost_currency") val costCurrency: String? = null,
     @SerialName("design_id") val designId: String? = null,
     @SerialName("accepted_at") val acceptedAt: String? = null,
     @SerialName("started_at") val startedAt: String? = null,
@@ -202,6 +211,34 @@ data class ProductionRunDetail(
     @SerialName("production_run") val productionRun: ProductionRun,
     val tasks: List<RunTask>? = null,
 )
+
+/** GET /partners/production-runs/:id/cost-summary — the run's cost rollup. */
+@Serializable
+data class RunCostSummaryResponse(
+    @SerialName("cost_summary") val costSummary: RunCostSummary,
+)
+
+@Serializable
+data class RunCostSummary(
+    /** Lower-cased by the backend, or null when the run never stated one. */
+    val currency: String? = null,
+    val quantity: Double? = null,
+    @SerialName("produced_quantity") val producedQuantity: Double? = null,
+    val partner: Partner? = null,
+    val material: Material? = null,
+    @SerialName("grand_total") val grandTotal: Double? = null,
+    @SerialName("cost_per_unit") val costPerUnit: Double? = null,
+) {
+    @Serializable
+    data class Partner(
+        val estimate: Double? = null,
+        @SerialName("cost_type") val costType: String? = null,
+        val total: Double? = null,
+    )
+
+    @Serializable
+    data class Material(val total: Double? = null)
+}
 
 // MARK: Lenient JSON scalars
 

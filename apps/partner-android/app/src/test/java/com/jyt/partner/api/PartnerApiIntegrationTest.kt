@@ -163,6 +163,38 @@ class PartnerApiIntegrationTest {
     }
 
     @Test
+    fun `an error falls back to the error field`() = runBlocking {
+        enqueueJson("""{"error":"Partner authentication required"}""", code = 403)
+
+        try {
+            api.incomingDeliveries()
+            fail("expected PartnerException.Http")
+        } catch (e: PartnerException.Http) {
+            assertEquals("Partner authentication required", e.message)
+        }
+    }
+
+    @Test
+    fun `an error never shows the raw body`() = runBlocking {
+        enqueueJson("""{"errors":[{"stack":"at node_modules/x.js"}]}""", code = 500)
+        try {
+            api.incomingDeliveries()
+            fail("expected PartnerException.Http")
+        } catch (e: PartnerException.Http) {
+            assertFalse(e.message!!.contains("{"))
+            assertTrue(e.message!!.contains("500"))
+        }
+
+        server.enqueue(MockResponse().setResponseCode(502).setBody("<html>Bad gateway</html>"))
+        try {
+            api.incomingDeliveries()
+            fail("expected PartnerException.Http")
+        } catch (e: PartnerException.Http) {
+            assertFalse(e.message!!.contains("<html>"))
+        }
+    }
+
+    @Test
     fun `an unparseable body throws InvalidResponse`() = runBlocking {
         server.enqueue(MockResponse().setBody("<html>gateway</html>"))
 
@@ -240,8 +272,49 @@ class PartnerApiIntegrationTest {
 
         assertEquals("/partners/production-runs/run-9", take().path)
         assertEquals("in_progress", detail.productionRun.status)
-        assertEquals(3, detail.productionRun.quantity)
+        assertEquals(3.0, detail.productionRun.quantity!!, 0.0)
         assertEquals("Stitching", detail.tasks!!.single().title)
+    }
+
+    @Test
+    fun `run detail decodes a float quantity and the cost fields`() = runBlocking {
+        enqueueJson(
+            """
+            {"production_run": {"id": "run-9", "status": "completed", "quantity": 12.5,
+              "produced_quantity": 12, "partner_cost_estimate": 450, "cost_type": "per_unit",
+              "cost_currency": "inr"}}
+            """.trimIndent()
+        )
+
+        val run = api.productionRun("run-9").productionRun
+
+        assertEquals(12.5, run.quantity!!, 0.0)
+        assertEquals(12.0, run.producedQuantity!!, 0.0)
+        assertEquals(450.0, run.partnerCostEstimate!!, 0.0)
+        assertEquals("per_unit", run.costType)
+        assertEquals("inr", run.costCurrency)
+    }
+
+    @Test
+    fun `cost summary decodes the partner rate, total and cost per piece`() = runBlocking {
+        enqueueJson(
+            """
+            {"cost_summary": {"currency": "inr", "quantity": 10, "produced_quantity": 9,
+              "partner": {"estimate": 45, "cost_type": "per_unit", "total": 450},
+              "material": {"total": 120.5, "items": []}, "energy": {"total": 0, "breakdown": []},
+              "grand_total": 570.5, "cost_per_unit": 57.05}}
+            """.trimIndent()
+        )
+
+        val summary = api.productionRunCostSummary("run-9")
+
+        assertEquals("/partners/production-runs/run-9/cost-summary", take().path)
+        assertEquals("inr", summary.currency)
+        assertEquals(45.0, summary.partner!!.estimate!!, 0.0)
+        assertEquals("per_unit", summary.partner!!.costType)
+        assertEquals(450.0, summary.partner!!.total!!, 0.0)
+        assertEquals(120.5, summary.material!!.total!!, 0.0)
+        assertEquals(57.05, summary.costPerUnit!!, 0.0)
     }
 
     // ── Run lifecycle ─────────────────────────────────────────────────────
@@ -433,6 +506,129 @@ class PartnerApiIntegrationTest {
         assertTrue(body.contains("\"order_line_id\":\"l2\""))
         assertTrue(body.contains("\"quantity\":0.0")) // a line that brought nothing
         assertTrue(body.contains("\"notes\":\"2 m short — bolt was cut\""))
+    }
+
+    // ── Inventory order: ready for delivery, carrier shipments ────────────
+
+    @Test
+    fun `ready for delivery posts to its route`() = runBlocking {
+        enqueueJson("""{"order":{"id":"inv-1","status":"Ready for Delivery"}}""")
+        api.markInventoryOrderReadyForDelivery("inv-1")
+
+        val request = take()
+        assertEquals("POST", request.method)
+        assertEquals("/partners/inventory-orders/inv-1/ready-for-delivery", request.path)
+    }
+
+    @Test
+    fun `order detail decodes its shipments`() = runBlocking {
+        enqueueJson(
+            """
+            {"inventoryOrder": {"id": "inv-1", "status": "Shipped", "order_lines": [],
+              "shipments": [{"id": "ish_1", "carrier": "shiprocket", "awb": "AWB123",
+                "status": "pickup_scheduled", "pickup_scheduled_date": "2026-10-05",
+                "metadata": {"x": 1}}]}}
+            """.trimIndent()
+        )
+
+        val order = api.inventoryOrder("inv-1")
+
+        val shipment = order.shipments!!.single()
+        assertEquals("shiprocket", shipment.carrier)
+        assertEquals("AWB123", shipment.awb)
+        assertEquals("pickup_scheduled", shipment.status)
+        assertEquals("2026-10-05", shipment.pickupScheduledDate)
+    }
+
+    @Test
+    fun `rates query carries the carrier and only the refinements given`() = runBlocking {
+        enqueueJson(
+            """
+            {"origin_pincode": "110001", "destination_pincode": "400001", "weight_grams": 1500,
+             "cod": false, "rates": [
+               {"courier_id": 24, "courier_name": "Xpressbees", "amount": 140.5, "currency_code": "INR", "estimated_days": 4},
+               {"courier_id": "10", "courier_name": "Delhivery Air", "amount": 99, "currency_code": "INR", "is_recommended": true}
+             ]}
+            """.trimIndent()
+        )
+
+        val quote = api.inventoryOrderShippingRates(
+            orderId = "inv-1",
+            carrier = "shiprocket",
+            weightGrams = 1500,
+            length = 30.0,
+            height = 12.5,
+        )
+
+        assertEquals(
+            "/partners/inventory-orders/inv-1/shiprocket-rates?carrier=shiprocket&weight_grams=1500&length=30&height=12.5",
+            take().path,
+        )
+        assertEquals(listOf("24", "10"), quote.rates.map { it.courierId })
+        assertEquals(140.5, quote.rates[0].amount, 0.0)
+        assertEquals(true, quote.rates[1].isRecommended)
+    }
+
+    @Test
+    fun `create shipment posts the snake_case body and returns the AWB`() = runBlocking {
+        enqueueJson(
+            """
+            {"shipment": {"carrier": "shiprocket", "awb": "AWB999", "tracking_number": "AWB999",
+              "tracking_url": "https://track/AWB999", "pickup": {"scheduled_date": "2026-10-05"}}}
+            """.trimIndent()
+        )
+
+        val shipment = api.createInventoryOrderShipment(
+            "inv-1",
+            com.jyt.partner.models.CreateShipmentBody(
+                carrier = "shiprocket",
+                weightGrams = 1500,
+                dimensionsCm = com.jyt.partner.models.CreateShipmentBody.Dimensions(30.0, 20.0, 10.0),
+                preferredCourierId = "24",
+                pickupDate = "2026-10-05",
+            ),
+        )
+
+        val request = take()
+        assertEquals("POST", request.method)
+        assertEquals("/partners/inventory-orders/inv-1/shipment", request.path)
+        assertEquals(
+            """{"carrier":"shiprocket","weight_grams":1500,"dimensions_cm":{"length":30.0,"breadth":20.0,"height":10.0},"preferred_courier_id":"24","pickup_date":"2026-10-05"}""",
+            request.body.readUtf8(),
+        )
+        assertEquals("AWB999", shipment.awb)
+        assertEquals("2026-10-05", shipment.pickup?.scheduledDate)
+    }
+
+    @Test
+    fun `create shipment leaves out what the partner did not fill`() = runBlocking {
+        enqueueJson("""{"shipment": {"awb": "A1"}}""")
+
+        api.createInventoryOrderShipment(
+            "inv-1",
+            com.jyt.partner.models.CreateShipmentBody(carrier = "delhivery", pickupDate = "2026-10-05"),
+        )
+
+        assertEquals(
+            """{"carrier":"delhivery","pickup_date":"2026-10-05"}""",
+            take().body.readUtf8(),
+        )
+    }
+
+    @Test
+    fun `a shipment error shows the server message as is`() = runBlocking {
+        val message = "Pickup address must include a house/flat/road number."
+        enqueueJson("""{"message":"$message"}""", code = 400)
+
+        try {
+            api.createInventoryOrderShipment(
+                "inv-1",
+                com.jyt.partner.models.CreateShipmentBody(carrier = "shiprocket"),
+            )
+            fail("expected PartnerException.Http")
+        } catch (e: PartnerException.Http) {
+            assertEquals(message, e.message)
+        }
     }
 
     // ── Push device tokens ────────────────────────────────────────────────

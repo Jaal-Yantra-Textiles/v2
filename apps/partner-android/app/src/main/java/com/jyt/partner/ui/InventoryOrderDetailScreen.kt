@@ -55,8 +55,9 @@ import java.util.Date
 import java.util.Locale
 
 /** An inventory order — the InventoryOrderDetailView counterpart. Leads
- *  with the next step (start / record the delivery), lists the goods lines
- *  with fulfilled vs outstanding, shows what charges make the order payable. */
+ *  with the next steps (start / record the delivery / mark ready / book a
+ *  carrier shipment), lists the goods lines with fulfilled vs outstanding,
+ *  the carrier shipments, and what charges make the order payable. */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun InventoryOrderDetailScreen(
@@ -74,7 +75,9 @@ fun InventoryOrderDetailScreen(
     var actionError by remember { mutableStateOf<String?>(null) }
     var acting by remember { mutableStateOf(false) }
     var showStartConfirm by remember { mutableStateOf(false) }
+    var showReadyConfirm by remember { mutableStateOf(false) }
     var showReceipt by remember { mutableStateOf(false) }
+    var showShipment by remember { mutableStateOf(false) }
 
     suspend fun load() {
         loading = detail == null
@@ -92,11 +95,7 @@ fun InventoryOrderDetailScreen(
 
     LaunchedEffect(Unit) { load() }
 
-    val nextStep: NextStep = when (detail?.statusEnum) {
-        InventoryOrderStatus.PENDING -> NextStep.START
-        InventoryOrderStatus.PROCESSING, InventoryOrderStatus.PARTIAL -> NextStep.RECORD_DELIVERY
-        else -> NextStep.NONE
-    }
+    val steps: List<OrderStep> = orderSteps(detail?.statusEnum)
 
     Column(modifier = Modifier.fillMaxSize()) {
         TopAppBar(
@@ -151,29 +150,36 @@ fun InventoryOrderDetailScreen(
                     }
                 }
 
-                if (nextStep != NextStep.NONE) {
+                if (steps.isNotEmpty()) {
                     item {
                         SectionCard("Your next step") {
                             Text(
-                                if (nextStep == NextStep.START)
-                                    "Confirm you can supply this order — it moves to Processing and the team is notified."
-                                else
-                                    "Record what you delivered — the quantities the team receives against stock, with the delivery date and tracking number.",
+                                nextStepHint(current.statusEnum),
                                 fontSize = 13.sp,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                             )
-                            Button(
-                                onClick = {
-                                    if (nextStep == NextStep.START) showStartConfirm = true
-                                    else showReceipt = true
-                                },
-                                enabled = !acting,
-                                modifier = Modifier.fillMaxWidth().padding(top = 6.dp),
-                            ) {
-                                Text(
-                                    if (nextStep == NextStep.START) "Start this order" else "Record delivery",
-                                    fontWeight = FontWeight.SemiBold,
-                                )
+                            steps.forEachIndexed { index, step ->
+                                val onClick = {
+                                    when (step) {
+                                        OrderStep.START -> showStartConfirm = true
+                                        OrderStep.RECORD_DELIVERY -> showReceipt = true
+                                        OrderStep.READY_FOR_DELIVERY -> showReadyConfirm = true
+                                        OrderStep.CREATE_SHIPMENT -> showShipment = true
+                                    }
+                                }
+                                val modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(top = if (index == 0) 6.dp else 0.dp)
+                                // The first step leads; the rest are alternatives.
+                                if (index == 0) {
+                                    Button(onClick = onClick, enabled = !acting, modifier = modifier) {
+                                        Text(step.label, fontWeight = FontWeight.SemiBold)
+                                    }
+                                } else {
+                                    OutlinedButton(onClick = onClick, enabled = !acting, modifier = modifier) {
+                                        Text(step.label)
+                                    }
+                                }
                             }
                         }
                     }
@@ -205,6 +211,41 @@ fun InventoryOrderDetailScreen(
                                         fontSize = 12.sp,
                                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                                     )
+                                }
+                            }
+                        }
+                    }
+                }
+
+                val shipments = current.shipments.orEmpty()
+                if (shipments.isNotEmpty()) {
+                    item {
+                        SectionCard("Shipments") {
+                            shipments.forEachIndexed { index, shipment ->
+                                if (index > 0) {
+                                    androidx.compose.material3.HorizontalDivider(Modifier.padding(vertical = 4.dp))
+                                }
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                ) {
+                                    Text(
+                                        shipment.carrier?.replaceFirstChar { it.uppercase() } ?: "Carrier",
+                                        fontWeight = FontWeight.Medium,
+                                    )
+                                    shipment.status?.let {
+                                        Text(
+                                            shipmentStatusLabel(it),
+                                            fontSize = 12.sp,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        )
+                                    }
+                                }
+                                (shipment.awb ?: shipment.trackingNumber)?.takeIf { it.isNotBlank() }?.let {
+                                    StatRow("AWB", it)
+                                }
+                                shipment.pickupScheduledDate?.takeIf { it.isNotBlank() }?.let {
+                                    StatRow("Pickup", formatYmd(it))
                                 }
                             }
                         }
@@ -285,13 +326,57 @@ fun InventoryOrderDetailScreen(
         )
     }
 
+    if (showReadyConfirm) {
+        AlertDialog(
+            onDismissRequest = { showReadyConfirm = false },
+            title = { Text("Ready for delivery?") },
+            text = { Text("Confirm the goods are packed and ready to hand to the carrier.") },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        showReadyConfirm = false
+                        scope.launch {
+                            acting = true
+                            try {
+                                PartnerApi.get(context).markInventoryOrderReadyForDelivery(orderId)
+                                detail = null
+                                load()
+                            } catch (e: Exception) {
+                                actionError = e.message
+                            }
+                            acting = false
+                        }
+                    },
+                ) { Text("Mark ready") }
+            },
+            dismissButton = { TextButton(onClick = { showReadyConfirm = false }) { Text("Cancel") } },
+        )
+    }
+
+    // Closing the sheet — submitted or cancelled — always clears the flag;
+    // it used to stay true, so the dialog came straight back.
     if (showReceipt && detail != null) {
-        DeliveryReceiptSheet(order = detail!!) {
-            scope.launch {
-                detail = null
-                load()
-            }
-        }
+        DeliveryReceiptSheet(
+            order = detail!!,
+            onDismiss = { showReceipt = false },
+            onRecorded = {
+                showReceipt = false
+                scope.launch {
+                    detail = null
+                    load()
+                }
+            },
+        )
+    }
+
+    if (showShipment) {
+        CreateShipmentSheet(
+            orderId = orderId,
+            onDismiss = { showShipment = false },
+            // Reload behind the sheet so the new shipment is listed by the
+            // time the partner closes the confirmation.
+            onCreated = { scope.launch { load() } },
+        )
     }
 
     if (actionError != null) {
@@ -304,7 +389,54 @@ fun InventoryOrderDetailScreen(
     }
 }
 
-private enum class NextStep { START, RECORD_DELIVERY, NONE }
+internal enum class OrderStep(val label: String) {
+    START("Start this order"),
+    RECORD_DELIVERY("Record delivery"),
+    READY_FOR_DELIVERY("Mark ready for delivery"),
+    CREATE_SHIPMENT("Create shipment"),
+}
+
+/** What the partner can do next, by status — the backend's own gates:
+ *  ready-for-delivery only from Partial; a carrier shipment from
+ *  Processing, Partial, Ready for Delivery or Shipped (shipment-guard). */
+internal fun orderSteps(status: InventoryOrderStatus?): List<OrderStep> = when (status) {
+    InventoryOrderStatus.PENDING -> listOf(OrderStep.START)
+    InventoryOrderStatus.PROCESSING -> listOf(OrderStep.RECORD_DELIVERY, OrderStep.CREATE_SHIPMENT)
+    InventoryOrderStatus.PARTIAL -> listOf(
+        OrderStep.RECORD_DELIVERY,
+        OrderStep.READY_FOR_DELIVERY,
+        OrderStep.CREATE_SHIPMENT,
+    )
+    InventoryOrderStatus.READY_FOR_DELIVERY, InventoryOrderStatus.SHIPPED ->
+        listOf(OrderStep.CREATE_SHIPMENT)
+    else -> emptyList()
+}
+
+private fun nextStepHint(status: InventoryOrderStatus?): String = when (status) {
+    InventoryOrderStatus.PENDING ->
+        "Confirm you can supply this order — it moves to Processing and the team is notified."
+    InventoryOrderStatus.PROCESSING ->
+        "Record what you delivered — the quantities the team receives against stock — or book a carrier shipment to send the goods."
+    InventoryOrderStatus.PARTIAL ->
+        "Part of this order is recorded as delivered. Record the rest, mark it ready once the goods are packed, or book a carrier shipment."
+    InventoryOrderStatus.READY_FOR_DELIVERY ->
+        "The goods are packed. Book a carrier shipment to send them."
+    InventoryOrderStatus.SHIPPED ->
+        "This order has shipped. Book another carrier shipment if more goods still have to go."
+    else -> ""
+}
+
+private fun shipmentStatusLabel(raw: String): String = when (raw) {
+    "created" -> "Created"
+    "pickup_scheduled" -> "Pickup scheduled"
+    "picked_up" -> "Picked up"
+    "in_transit" -> "In transit"
+    "out_for_delivery" -> "Out for delivery"
+    "delivered" -> "Delivered"
+    "rto" -> "Returning to sender"
+    "cancelled" -> "Cancelled"
+    else -> raw.replace('_', ' ').replaceFirstChar { it.uppercase() }
+}
 
 /** The goods receipt — per-line delivered quantities (prefilled with what's
  *  outstanding), delivery date, tracking number and notes. Quantities are
@@ -312,7 +444,11 @@ private enum class NextStep { START, RECORD_DELIVERY, NONE }
  *  steppers alone can't record what actually shipped (iOS parity — its
  *  sheet pairs the steppers with a .decimalPad text field). */
 @Composable
-private fun DeliveryReceiptSheet(order: PartnerInventoryOrder, onDone: () -> Unit) {
+private fun DeliveryReceiptSheet(
+    order: PartnerInventoryOrder,
+    onDismiss: () -> Unit,
+    onRecorded: () -> Unit,
+) {
     // The clamped numeric truth, plus the raw editable text per line.
     var quantities by remember(order.id) {
         mutableStateOf(
@@ -348,8 +484,14 @@ private fun DeliveryReceiptSheet(order: PartnerInventoryOrder, onDone: () -> Uni
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
 
+    // Fewer than what's outstanding on any line is a partial delivery, and
+    // (as on the web) the team needs a note saying why.
+    val isPartial = order.orderLines.orEmpty().any { line ->
+        (quantities[line.id] ?: 0.0) < line.outstanding
+    }
+
     AlertDialog(
-        onDismissRequest = { if (!sending) onDone() },
+        onDismissRequest = { if (!sending) onDismiss() },
         title = { Text("Record delivery") },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -437,9 +579,22 @@ private fun DeliveryReceiptSheet(order: PartnerInventoryOrder, onDone: () -> Uni
                 OutlinedTextField(
                     value = notes,
                     onValueChange = { notes = it },
-                    label = { Text("Anything the team should know (optional)") },
+                    label = {
+                        Text(
+                            if (isPartial) "Why is this a partial delivery? (required)"
+                            else "Anything the team should know (optional)"
+                        )
+                    },
+                    isError = isPartial && notes.isBlank(),
                     modifier = Modifier.fillMaxWidth(),
                 )
+                if (isPartial) {
+                    Text(
+                        "Partial delivery — add a note, or set every line to what's outstanding.",
+                        fontSize = 12.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
                 if (sendError != null) {
                     Text(sendError ?: "", fontSize = 12.sp, color = MaterialTheme.colorScheme.error)
                 }
@@ -461,6 +616,10 @@ private fun DeliveryReceiptSheet(order: PartnerInventoryOrder, onDone: () -> Uni
                             sendError = "Record at least one line's delivered quantity."
                             return@TextButton
                         }
+                        if (isPartial && notes.isBlank()) {
+                            sendError = "Add a note when delivering less than what's outstanding."
+                            return@TextButton
+                        }
                         sending = true
                         scope.launch {
                             try {
@@ -474,7 +633,7 @@ private fun DeliveryReceiptSheet(order: PartnerInventoryOrder, onDone: () -> Uni
                                         lines = lines,
                                     ),
                                 )
-                                onDone()
+                                onRecorded()
                             } catch (e: Exception) {
                                 sendError = e.message ?: "Couldn't record the delivery."
                             }
@@ -485,7 +644,7 @@ private fun DeliveryReceiptSheet(order: PartnerInventoryOrder, onDone: () -> Uni
             }
         },
         dismissButton = {
-            OutlinedButton(onClick = { if (!sending) onDone() }) { Text("Cancel") }
+            OutlinedButton(onClick = { if (!sending) onDismiss() }) { Text("Cancel") }
         },
     )
 }
