@@ -11,6 +11,7 @@ export const INVENTORY_ORDER_ACTIVITY_EVENTS = [
   INVENTORY_ORDER_STATUS_CHANGED_EVENT,
   "inventory_order_assigned_to_partner",
   "inventory_order_partner_link_rolled_back",
+  "inventory_order_partner_wait_expired",
 ] as const;
 
 export type InventoryOrderActivityInput = {
@@ -74,6 +75,15 @@ export function buildInventoryOrderActivity(
       kind: "assigned_to_partner",
       summary: "Order sent to partner",
       payload: data.notes ? { notes: data.notes } : null,
+    };
+  }
+
+  if (eventName === "inventory_order_partner_wait_expired") {
+    return {
+      ...base,
+      kind: "partner_wait_expired",
+      summary: `No update from partner in ${data.timeout_days ?? 23} days — still assigned`,
+      payload: { timeout_days: data.timeout_days ?? null },
     };
   }
 

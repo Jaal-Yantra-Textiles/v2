@@ -61,6 +61,23 @@ describe("buildInventoryOrderActivity (#778 H4)", () => {
     });
   });
 
+  it("maps the 23-day wait expiring as 'still assigned', not a rollback", () => {
+    expect(INVENTORY_ORDER_ACTIVITY_EVENTS).toContain(
+      "inventory_order_partner_wait_expired"
+    );
+    const a = buildInventoryOrderActivity(
+      "inventory_order_partner_wait_expired",
+      { inventory_order_id: "inv_order_1", partner_id: "partner_1", timeout_days: 23 },
+      OCCURRED
+    );
+    expect(a).toMatchObject({
+      inventory_order_id: "inv_order_1",
+      kind: "partner_wait_expired",
+      partner_id: "partner_1",
+      summary: "No update from partner in 23 days — still assigned",
+    });
+  });
+
   it("returns null for an unknown event", () => {
     expect(
       buildInventoryOrderActivity("inventory_order.something_else", { id: "x" }, OCCURRED)
@@ -83,11 +100,12 @@ describe("buildInventoryOrderActivity (#778 H4)", () => {
     ).toBeNull();
   });
 
-  it("exposes exactly the three subscribed events", () => {
+  it("exposes exactly the four subscribed events", () => {
     expect(INVENTORY_ORDER_ACTIVITY_EVENTS).toEqual([
       INVENTORY_ORDER_STATUS_CHANGED_EVENT,
       "inventory_order_assigned_to_partner",
       "inventory_order_partner_link_rolled_back",
+      "inventory_order_partner_wait_expired",
     ]);
   });
 });
