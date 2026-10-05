@@ -245,7 +245,12 @@ export function ManageVariantInventoryItemsForm({
     )
   }
 
-  const hasKit = inventory.fields.length > 1
+  // One item used more than once (a 12 m pack) is a kit too.
+  const hasKit =
+    inventory.fields.length > 1 ||
+    !!inventoryFormData?.some(
+      (i) => Number(castNumber(i.required_quantity as any)) > 1
+    )
 
   const { mutateAsync, isPending } = useProductVariantsInventoryItemsBatch(
     variant?.product_id!

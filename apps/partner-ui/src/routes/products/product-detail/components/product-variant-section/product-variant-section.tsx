@@ -301,7 +301,14 @@ const useColumns = (product: HttpTypes.AdminProduct) => {
         ?.map((i) => i.inventory)
         .filter(Boolean) as HttpTypes.AdminInventoryItem[]
 
-      const hasInventoryKit = inventoryItems.length > 1
+      // A kit is more than one item OR one item used more than once: a
+      // "12 m pack" is ONE per-metre item with required_quantity 12. Same
+      // rule as the order summary section.
+      const hasInventoryKit =
+        inventoryItems.length > 1 ||
+        (castVariant.inventory_items ?? []).some(
+          (i) => (i.required_quantity ?? 1) > 1
+        )
 
       const locations: Record<string, boolean> = {}
 
