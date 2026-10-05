@@ -1,9 +1,7 @@
 import { StepResponse, createStep } from "@medusajs/framework/workflows-sdk"
 import { TestEmailResult } from "../types"
-import {
-  buildEmailData,
-  convertContentToHtml,
-} from "../utils/build-email-data"
+import { buildEmailData } from "../utils/build-email-data"
+import { resolveBlogEmailHtml } from "../utils/email-html"
 import { sendNotificationEmailWorkflow } from "../../../email/send-notification-email"
 
 export const sendTestEmailStepId = "send-test-email"
@@ -49,7 +47,7 @@ export const sendTestEmailStep = createStep(
       // Convert TipTap content to HTML via the shared helper
       let htmlContent = ''
       try {
-        htmlContent = convertContentToHtml(input.blogData.content)
+        htmlContent = resolveBlogEmailHtml(input.blogData)
         console.log('Converted blog content to HTML')
       } catch (contentError) {
         console.warn(`Failed to convert content to HTML: ${contentError.message}`)

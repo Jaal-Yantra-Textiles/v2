@@ -12,10 +12,8 @@ import EmailProviderManagerService from "../../../../modules/email-provider-mana
 import { EMAIL_TEMPLATES_MODULE } from "../../../../modules/email_templates"
 import EmailTemplatesService from "../../../../modules/email_templates/service"
 import * as Handlebars from "handlebars"
-import {
-  buildEmailData,
-  convertContentToHtml,
-} from "../utils/build-email-data"
+import { buildEmailData } from "../utils/build-email-data"
+import { resolveBlogEmailHtml } from "../utils/email-html"
 
 export const processAllBatchesStepId = "process-all-batches"
 
@@ -168,7 +166,7 @@ export const processAllBatchesStep = createStep(
     let sharedBlogHtml: string | null = null
     if (allSubscribers.length > 0) {
       try {
-        sharedBlogHtml = convertContentToHtml(allSubscribers[0].blogData.content)
+        sharedBlogHtml = resolveBlogEmailHtml(allSubscribers[0].blogData)
       } catch {
         sharedBlogHtml = String(allSubscribers[0].blogData.content || "No content available")
       }
