@@ -33,6 +33,8 @@
  * parked for reassignment — is refused with no write at all.
  */
 import { MedusaError } from "@medusajs/framework/utils"
+import { logger } from "@medusajs/framework"
+import { Modules, TransactionHandlerType } from "@medusajs/framework/utils"
 import {
   StepResponse,
   WorkflowResponse,
@@ -48,6 +50,15 @@ import {
   completeProductionRunWorkflow,
   type CompleteProductionRunInput,
 } from "./complete-production-run"
+import {
+  isAlreadySignalled,
+  isMissingLifecycleTransaction,
+} from "./lib/lifecycle-signal-errors"
+import {
+  awaitRunFinishStepId,
+  awaitRunStartStepId,
+  lifecycleWorkflowId,
+} from "./run-production-run-lifecycle"
 
 export type AdminCompleteProductionRunInput = CompleteProductionRunInput & {
   /** Free-form partner message this completion was raised from, if any. */
@@ -244,6 +255,89 @@ export const applyAdminCompletionOverrideStep = createStep(
 )
 
 // ---------------------------------------------------------------------------
+// Step: catch the lifecycle workflow up to the override
+// ---------------------------------------------------------------------------
+
+/**
+ * The run's lifecycle workflow awaits start → finish → complete, in order. The
+ * override above stamps `started_at`/`finished_at` on the RUN but never
+ * signalled those awaits, so for a run that was only accepted the completion's
+ * `await-run-complete` signal hit a step the transaction had not reached yet:
+ * "Cannot set step success when status is idle" (Embroprint, 2026-10-04).
+ *
+ * Signal start, then finish, before completing. A step the partner already
+ * signalled, or a lifecycle that expired, is fine — anything else surfaces,
+ * and the nested completion never runs.
+ *
+ * ⚠️ Not compensated: a workflow step cannot be un-signalled. If the
+ * completion then fails, the run's fields roll back but its lifecycle sits at
+ * `await-run-complete`; a later start/finish signal reads as already-signalled
+ * and is ignored, so the partner path still works.
+ */
+export const catchUpRunLifecycleStep = createStep(
+  "admin-complete-catch-up-run-lifecycle",
+  async (input: { production_run_id: string }, { container }) => {
+    const productionRunService: ProductionRunService = container.resolve(
+      PRODUCTION_RUNS_MODULE
+    )
+    const run: any = await productionRunService.retrieveProductionRun(
+      input.production_run_id
+    )
+    const transactionId: string | null = run?.lifecycle_transaction_id || null
+    if (!transactionId) {
+      return new StepResponse({ signalled: [] as string[] })
+    }
+
+    const engine = container.resolve(Modules.WORKFLOW_ENGINE) as any
+    const signal = async (stepId: string) => {
+      // The engine may still be advancing the transaction past the previous
+      // await when the next signal lands — "idle" then means "not reached
+      // YET". Give it a moment rather than failing the completion.
+      for (let attempt = 0; ; attempt++) {
+        try {
+          return await engine.setStepSuccess({
+            idempotencyKey: {
+              action: TransactionHandlerType.INVOKE,
+              transactionId,
+              stepId,
+              workflowId: lifecycleWorkflowId,
+            },
+            stepResponse: new StepResponse(true),
+          })
+        } catch (e: any) {
+          if (attempt < 5 && /status is idle/i.test(String(e?.message || ""))) {
+            await new Promise((r) => setTimeout(r, 300))
+            continue
+          }
+          throw e
+        }
+      }
+    }
+
+    const signalled: string[] = []
+    for (const stepId of [awaitRunStartStepId, awaitRunFinishStepId]) {
+      try {
+        await signal(stepId)
+        signalled.push(stepId)
+      } catch (e: any) {
+        const message = String(e?.message || "")
+        if (isAlreadySignalled(message)) {
+          continue
+        }
+        if (isMissingLifecycleTransaction(message)) {
+          logger.warn(
+            `[admin-complete] lifecycle ${transactionId} for run ${input.production_run_id} is gone — completing without it: ${message}`
+          )
+          break
+        }
+        throw e
+      }
+    }
+    return new StepResponse({ signalled })
+  }
+)
+
+// ---------------------------------------------------------------------------
 // Workflow
 // ---------------------------------------------------------------------------
 
@@ -255,6 +349,8 @@ export const adminCompleteProductionRunWorkflow = createWorkflow(
       partner_id: input.partner_id,
       override_note: input.override_note,
     })
+
+    catchUpRunLifecycleStep({ production_run_id: input.production_run_id })
 
     // Nested so that ANY failure inside the completion compensates the
     // override above and puts the run back exactly as it was.
