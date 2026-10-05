@@ -19,7 +19,11 @@ import type { HostingProviderName } from "../../modules/deployment/providers/typ
 import PartnerService from "../../modules/partner/service"
 import { WEBSITE_MODULE } from "../../modules/website"
 import type WebsiteService from "../../modules/website/service"
-import { seedDefaultPagesWorkflow } from "../website/seed-default-pages"
+import {
+  type DefaultPageStore,
+  seedDefaultPagesWorkflow,
+  storeFromPartner,
+} from "../website/seed-default-pages"
 
 export type ProvisionStorefrontInput = {
   partner_id: string
@@ -600,10 +604,25 @@ const createWebsiteRecordStep = createStep(
 // Step: Seed default pages for the website (idempotent, non-fatal).
 const seedDefaultWebsitePagesStep = createStep(
   "seed-default-website-pages",
-  async (input: { websiteId: string }, { container }) => {
+  async (input: { websiteId: string; partnerId: string }, { container }) => {
+    // The pages speak as the partner's store: its name, and its own email /
+    // phone when known. A missing detail is left out — never fatal.
+    let store: DefaultPageStore = {}
+    try {
+      const partnerService: PartnerService = container.resolve("partner")
+      const partner = await partnerService.retrievePartner(input.partnerId, {
+        relations: ["admins"],
+      })
+      store = storeFromPartner(partner)
+    } catch (e: any) {
+      console.warn(
+        "[provision-storefront] Could not load partner details for default pages:",
+        e?.message
+      )
+    }
     try {
       const { result } = await seedDefaultPagesWorkflow(container).run({
-        input: { website_id: input.websiteId },
+        input: { website_id: input.websiteId, store },
       })
       return new StepResponse({ pages: result?.pages, skipped_slugs: result?.skipped })
     } catch (e: any) {
@@ -629,6 +648,7 @@ export const provisionStorefrontWorkflow = createWorkflow(
 
     seedDefaultWebsitePagesStep({
       websiteId: websiteResult.website.id as unknown as string,
+      partnerId: input.partner_id,
     })
 
     // Pick provider/account (rotation; default Cloudflare Pages; env fallback).
