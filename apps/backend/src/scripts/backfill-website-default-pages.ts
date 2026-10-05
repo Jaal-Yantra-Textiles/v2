@@ -2,11 +2,12 @@
  * Backfill: default pages for every existing website.
  *
  * Some websites were created before the provisioning workflow seeded
- * Terms, Privacy, and Contact pages — or were created via paths that
- * skipped the seed step entirely. This script walks every website and
- * runs `seedDefaultPagesWorkflow` for each one. The seed workflow is
- * idempotent (it skips slugs that already exist), so this is safe to
- * re-run.
+ * Terms, Privacy, Contact, Shipping & Returns and FAQ pages — or were
+ * created via paths that skipped the seed step entirely. This script walks
+ * every website and runs `seedDefaultPagesWorkflow` for each one. The seed
+ * workflow is idempotent (it skips slugs that already exist), so this is
+ * safe to re-run. No store details are passed, so pages it creates use the
+ * neutral wording ("this store", "use the form below").
  *
  * Run:
  *   npx medusa exec ./src/scripts/backfill-website-default-pages.ts
