@@ -79,6 +79,44 @@ data class MoodboardScene(
         }
 }
 
+/**
+ * One board from `GET /partners/designs/:id/moodboards` (#2017). Boards are rows
+ * now; the old single `design.moodboard` blob is only a fallback the server
+ * folds in (`is_legacy`).
+ */
+@Serializable
+data class MoodboardBoard(
+    val id: String,
+    @SerialName("owner_type") val ownerType: String? = null,
+    val title: String? = null,
+    val scene: MoodboardScene? = null,
+    @SerialName("is_own") val isOwn: Boolean = false,
+    @SerialName("is_legacy") val isLegacy: Boolean = false,
+)
+
+/** `own` is this partner's board; `others` are everyone else's (the admin's core board among them), read-only. */
+@Serializable
+data class MoodboardBoardsResponse(
+    val own: MoodboardBoard? = null,
+    val others: List<MoodboardBoard> = emptyList(),
+) {
+    companion object {
+        /**
+         * Every image across the boards, own first, each picture once. Falls back
+         * to the design's legacy blob when the boards call failed or holds no
+         * images, so a design that was never migrated still shows its board.
+         */
+        fun images(boards: MoodboardBoardsResponse?, legacy: MoodboardScene?): List<String> {
+            val fromBoards = boards?.let { listOfNotNull(it.own) + it.others }
+                .orEmpty()
+                .flatMap { board -> board.scene?.imageDataUrls.orEmpty().map { it.second } }
+                .distinct()
+            if (fromBoards.isNotEmpty()) return fromBoards
+            return legacy?.imageDataUrls.orEmpty().map { it.second }.distinct()
+        }
+    }
+}
+
 @Serializable
 data class DesignColorRow(
     val id: String,

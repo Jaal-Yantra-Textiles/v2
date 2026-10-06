@@ -25,8 +25,10 @@ android {
         applicationId = "com.jyt.partner"
         minSdk = 26
         targetSdk = 36
-        versionCode = 4
-        versionName = "0.1.3"
+        // CI (partner-android-release.yml) passes -PversionCode / -PversionName:
+        // Play refuses any upload whose versionCode is not higher than the last.
+        versionCode = (project.findProperty("versionCode") as String?)?.toInt() ?: 4
+        versionName = (project.findProperty("versionName") as String?) ?: "0.1.3"
 
         // The backend the app talks to. The Android emulator reaches the
         // host's localhost through 10.0.2.2 — the counterpart of the iOS
