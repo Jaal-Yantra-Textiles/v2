@@ -107,6 +107,7 @@ node_modules 2/
 **/.env.local
 **/.env.*.local
 .e2e-seed.json
+.e2e-seed.*.json
 test-results/
 apps/backend/test-results/
 

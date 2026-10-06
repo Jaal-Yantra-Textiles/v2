@@ -66,6 +66,13 @@ export const fetchBlogDataStep = createStep(
         }
       }
       
+      // #2349 — the email version built in the Email tab, if any. It lives on the
+      // same main block as the TipTap text; the send prefers it when present.
+      const emailBlock: any = (page.blocks || []).find(
+        (block: any) => typeof block?.content?.email_html === "string" && block.content.email_html.trim()
+      )
+      const emailHtml: string | null = emailBlock ? String(emailBlock.content.email_html) : null
+
       // If no specific block with TipTap content is found, use the page content as fallback
       if (!blogContent) {
         blogContent = page.content
@@ -77,6 +84,7 @@ export const fetchBlogDataStep = createStep(
         title: page.title,
         slug: page.slug,
         content: blogContent, // Use the extracted TipTap content
+        email_html: emailHtml,
         status: page.status,
         blocks: page.blocks,
         created_at: page.created_at,

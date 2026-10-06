@@ -1,4 +1,4 @@
-import { Button, Prompt, Switch, Text, toast } from "@medusajs/ui";
+import { Button, Prompt, Switch, Tabs, Text, toast } from "@medusajs/ui";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "@medusajs/framework/zod";
@@ -8,6 +8,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { RouteNonFocusModal } from "../modal/route-non-focus";
 import { useTranslation } from "react-i18next";
 import { SimpleEditor } from "../editor/editor";
+import { EmailComposer, type EmailComposerValue } from "../email-editor/email-composer";
 
 const blockSchema = z.object({
   content: z.object({
@@ -40,6 +41,43 @@ const EditBlogBlockInner = ({ websiteId, pageId, blockId, block, onSuccess }: Ed
   const [showConfirmationPrompt, setShowConfirmationPrompt] = useState(false);
   const promptPromiseResolveRef = useRef<((value: boolean | PromiseLike<boolean>) => void) | null>(null);
   const updateBlock = useUpdateBlock(websiteId, pageId, blockId);
+  const [activeTab, setActiveTab] = useState<"website" | "email">("website");
+
+  // #2349 — the website text and the email version live in the same
+  // `block.content`. The server deep-merges a content patch onto the stored
+  // block (update-block.ts), so each editor sends only its own fields. What the
+  // client must guarantee is ORDER: autosave fires per keystroke, and parallel
+  // saves can land out of order so an older text wins. Saves therefore run one
+  // at a time, and edits made while one is in flight merge into a single
+  // follow-up save of the newest content.
+  const saveQueueRef = useRef<Promise<unknown>>(Promise.resolve());
+  const pendingPatchRef = useRef<Record<string, any>>({});
+  const pendingExtraRef = useRef<Record<string, any>>({});
+  const saveContent = useCallback(
+    (patch: Record<string, any>, extra: Record<string, any> = {}) => {
+      Object.assign(pendingPatchRef.current, patch);
+      Object.assign(pendingExtraRef.current, extra);
+      const run = async () => {
+        const p = pendingPatchRef.current;
+        const e = pendingExtraRef.current;
+        if (!Object.keys(p).length && !Object.keys(e).length) return; // merged into an earlier run
+        pendingPatchRef.current = {};
+        pendingExtraRef.current = {};
+        try {
+          await updateBlock.mutateAsync({ ...e, content: p });
+        } catch (error) {
+          // Keep what failed so the next save carries it (newer edits win).
+          pendingPatchRef.current = { ...p, ...pendingPatchRef.current };
+          pendingExtraRef.current = { ...e, ...pendingExtraRef.current };
+          throw error;
+        }
+      };
+      const next = saveQueueRef.current.then(run, run);
+      saveQueueRef.current = next.catch(() => undefined);
+      return next;
+    },
+    [updateBlock]
+  );
 
 
 
@@ -122,17 +160,13 @@ const EditBlogBlockInner = ({ websiteId, pageId, blockId, block, onSuccess }: Ed
     const currentImageUrl = extractFirstImageUrlFromJson(content) || firstImageUrl;
 
     try {
-      const payload = {
-        content: {
-          ...block.content,
-          text: content,
-          image: {
-            type: "image",
-            content: currentImageUrl,
-          },
+      await saveContent({
+        text: content,
+        image: {
+          type: "image",
+          content: currentImageUrl,
         },
-      };
-      await updateBlock.mutateAsync(payload);
+      });
       lastSavedContentRef.current = content;
 
       if (currentImageUrl !== firstImageUrl) {
@@ -144,7 +178,7 @@ const EditBlogBlockInner = ({ websiteId, pageId, blockId, block, onSuccess }: Ed
       toast.error("Error saving content", { id: "content-save-error" });
       console.error(error);
     }
-  }, [block.content, updateBlock, firstImageUrl, extractFirstImageUrlFromJson]);
+  }, [saveContent, firstImageUrl, extractFirstImageUrlFromJson]);
 
   const handleEditorChange = useCallback((content: any) => {
     setEditorContent(content);
@@ -167,11 +201,8 @@ const EditBlogBlockInner = ({ websiteId, pageId, blockId, block, onSuccess }: Ed
       // Extract image URL from JSON content (SimpleEditor doesn't provide editor instance)
       const currentImageUrl = extractFirstImageUrlFromJson(data.content.text) || firstImageUrl;
 
-      const payload = {
-        name: block.name,
-        type: "MainContent" as const,
-        content: {
-          ...block.content,
+      await saveContent(
+        {
           text: data.content.text,
           layout: "full" as const,
           image: {
@@ -179,13 +210,15 @@ const EditBlogBlockInner = ({ websiteId, pageId, blockId, block, onSuccess }: Ed
             content: currentImageUrl,
           },
         },
-        settings: {
-          alignment: "left" as const,
-        },
-        order: block.order || 0,
-      };
-
-      await updateBlock.mutateAsync(payload);
+        {
+          name: block.name,
+          type: "MainContent" as const,
+          settings: {
+            alignment: "left" as const,
+          },
+          order: block.order || 0,
+        }
+      );
 
       if (currentImageUrl !== firstImageUrl) {
         setFirstImageUrl(currentImageUrl);
@@ -205,6 +238,17 @@ const EditBlogBlockInner = ({ websiteId, pageId, blockId, block, onSuccess }: Ed
   });
 
 
+
+  const saveEmail = useCallback(
+    async ({ json, html }: EmailComposerValue) => {
+      await saveContent({
+        email_doc: json,
+        email_html: html,
+        email_updated_at: new Date().toISOString(),
+      });
+    },
+    [saveContent]
+  );
 
   const handleBeforeClose = useCallback(async () => {
     console.log("Checking before close...");
@@ -246,8 +290,16 @@ const EditBlogBlockInner = ({ websiteId, pageId, blockId, block, onSuccess }: Ed
     <>
       <RouteNonFocusModal.Header>
         <div className="flex items-center justify-between w-full px-8 py-2">
-          <Text size="large" weight="plus">Edit Blog Content</Text>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-4">
+            <Text size="large" weight="plus">Edit Blog Content</Text>
+            <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as "website" | "email")}>
+              <Tabs.List>
+                <Tabs.Trigger value="website">Website</Tabs.Trigger>
+                <Tabs.Trigger value="email">Email</Tabs.Trigger>
+              </Tabs.List>
+            </Tabs>
+          </div>
+          <div className={activeTab === "website" ? "flex items-center gap-2" : "hidden"}>
             <Text size="small">Autosave</Text>
             <Switch
               checked={autoSaveEnabled}
@@ -259,7 +311,15 @@ const EditBlogBlockInner = ({ websiteId, pageId, blockId, block, onSuccess }: Ed
 
       <RouteNonFocusModal.Body className="flex flex-1 flex-col overflow-hidden">
         <div className="flex h-full w-full flex-col">
-          <div className="flex-1 h-full overflow-y-auto">
+          {/* Both stay mounted so switching tabs never drops unsaved editor state. */}
+          <div className={activeTab === "email" ? "flex-1 h-full overflow-hidden" : "hidden"}>
+            <EmailComposer
+              initialContent={block.content?.email_doc ?? null}
+              blogDoc={editorContent}
+              onSave={saveEmail}
+            />
+          </div>
+          <div className={activeTab === "website" ? "flex-1 h-full overflow-y-auto" : "hidden"}>
             {/* <TextEditor
               editorContent={editorContent}
               setEditorContent={handleEditorChange}

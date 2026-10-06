@@ -6,7 +6,8 @@ import { KIT_MODULE } from "../../../../modules/kit"
 import type KitService from "../../../../modules/kit/service"
 import { EMAIL_TEMPLATES_MODULE } from "../../../../modules/email_templates"
 import type EmailTemplatesService from "../../../../modules/email_templates/service"
-import { buildKitEmailData, convertContentToHtml } from "../utils/build-email-data"
+import { buildKitEmailData } from "../utils/build-email-data"
+import { resolveBlogEmailHtml } from "../utils/email-html"
 
 export const createKitBroadcastStepId = "create-kit-broadcast"
 
@@ -70,7 +71,7 @@ export const createKitBroadcastStep = createStep(
     const compiledHtml = Handlebars.compile(template.html_content)
     const compiledSubject = Handlebars.compile(template.subject)
 
-    const blogHtml = convertContentToHtml(input.blogData.content)
+    const blogHtml = resolveBlogEmailHtml(input.blogData)
     const data = buildKitEmailData(input.blogData, blogHtml, input.emailConfig)
 
     const subject = compiledSubject(data)
