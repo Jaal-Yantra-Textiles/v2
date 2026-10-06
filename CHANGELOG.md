@@ -1,3 +1,15 @@
+# [13.173.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.172.0...v13.173.0) (2026-10-06)
+
+
+### Bug Fixes
+
+* **whatsapp:** one WhatsApp number belongs to one partner ([#2350](https://github.com/Jaal-Yantra-Textiles/v2/issues/2350)) ([#2353](https://github.com/Jaal-Yantra-Textiles/v2/issues/2353)) ([d31b92b](https://github.com/Jaal-Yantra-Textiles/v2/commit/d31b92b261581ca3e69a91fe545023b102966bd9))
+
+
+### Features
+
+* **blog-email:** product cards + frame-matched templates in the Email tab ([#2349](https://github.com/Jaal-Yantra-Textiles/v2/issues/2349) S4) ([#2355](https://github.com/Jaal-Yantra-Textiles/v2/issues/2355)) ([8ef60aa](https://github.com/Jaal-Yantra-Textiles/v2/commit/8ef60aa9267ed57b0500dd4fd1f828f0d4fa65e0))
+
 # [13.172.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.171.0...v13.172.0) (2026-10-06)
 
 
