@@ -40,6 +40,32 @@ export const useProducts = (
   return { ...data, ...rest };
 };
 
+export type EmailEditorProduct = {
+  id: string;
+  title: string;
+  handle: string | null;
+  thumbnail: string | null;
+  images?: { url: string | null }[] | null;
+  variants?: { prices?: { amount: number; currency_code: string }[] | null }[] | null;
+};
+
+/** #2349 S4 — the house store's published products, for the Email tab's product cards. */
+export const useEmailEditorProducts = (
+  query: { q?: string; limit?: number },
+  options?: { enabled?: boolean }
+) => {
+  const { data, ...rest } = useQuery({
+    queryFn: () =>
+      sdk.client.fetch<{ products: EmailEditorProduct[]; count: number }>(
+        "/admin/email-editor/products",
+        { query }
+      ),
+    queryKey: productsQueryKeys.list({ email_editor: true, ...query }),
+    ...options,
+  });
+  return { ...data, ...rest };
+};
+
 // useProduct hook similar to useInventoryItem
 export const useProduct = (
   id: string,
