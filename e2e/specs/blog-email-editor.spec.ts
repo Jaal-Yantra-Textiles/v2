@@ -127,7 +127,7 @@ test.describe("Blog Email tab (#2349)", () => {
     await page.getByRole("menuitem", { name: /Newsletter/ }).click()
     const editor = page.locator(".tiptap").filter({ hasText: "A short opening line" })
     await expect(editor).toBeVisible()
-    await expect(editor.getByText("Read on jaalyantra.com")).toBeVisible()
+    await expect(editor.getByText("What we've been making")).toBeVisible()
     await expect(editor.locator('[data-type="two-columns"], .node-columns').first()).toBeVisible()
     await expect(page.getByText("Saved", { exact: true })).toBeVisible({ timeout: 20_000 })
     await page.screenshot({ path: path.join(SHOTS, "blog-email-tab-newsletter.png"), fullPage: true })
@@ -135,7 +135,8 @@ test.describe("Blog Email tab (#2349)", () => {
     let block = await readBlock(page, pageId, blockId)
     expect(block.content.email_doc?.type).toBe("doc")
     expect(block.content.email_html).toContain("A short opening line")
-    expect(block.content.email_html).toContain("https://jaalyantra.com")
+    // The template's inline styles (the frame's uppercase eyebrow) survive the editor.
+    expect(block.content.email_html).toMatch(/text-transform:\s*uppercase/)
     expect(block.content.email_html).toMatch(/<body[\s>]/i)
     // Kept as an artifact so the whole email can be rendered in its frame.
     fs.writeFileSync(path.join(SHOTS, "blog-email-tab-newsletter.html"), block.content.email_html)

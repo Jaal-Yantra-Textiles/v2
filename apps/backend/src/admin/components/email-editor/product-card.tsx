@@ -1,6 +1,7 @@
 import { EmailNode } from "@react-email/editor/core"
 import { NodeViewWrapper, ReactNodeViewRenderer } from "@tiptap/react"
 import type { CSSProperties } from "react"
+import { EMAIL_BRAND as B } from "./email-brand"
 import { productCardHref, type ProductCardAttrs } from "./product-card-data"
 
 export const PRODUCT_CARD_NODE = "productCard"
@@ -20,23 +21,23 @@ const ATTR_KEYS: Array<keyof ProductCardAttrs> = [
 ]
 const dataAttr = (key: string) => `data-${key.replace(/[A-Z]/g, (c) => `-${c.toLowerCase()}`)}`
 
-// Brand values from JYT_EMAIL_THEME; the card is a fixed piece, not themed per node.
+// The frame's type and colours (email-brand.ts); the card is a fixed piece, not themed per node.
 const TITLE_STYLE: CSSProperties = {
-  fontFamily: "Georgia, 'Times New Roman', serif",
-  fontSize: "18px",
+  fontFamily: B.serif,
+  fontSize: "19px",
   lineHeight: "1.3",
-  color: "#16151b",
-  paddingTop: "12px",
+  color: B.heading,
+  paddingTop: "14px",
 }
-const PRICE_STYLE: CSSProperties = { fontSize: "15px", lineHeight: "1.5", color: "#454550", paddingTop: "4px" }
+const PRICE_STYLE: CSSProperties = { fontSize: "14px", lineHeight: "1.5", color: B.muted, paddingTop: "4px" }
 const BUTTON_STYLE: CSSProperties = {
   display: "inline-block",
-  backgroundColor: "#33348e",
+  backgroundColor: B.ink,
   color: "#ffffff",
-  borderRadius: "8px",
-  fontSize: "15px",
+  fontSize: "12px",
   fontWeight: 600,
-  padding: "11px 26px",
+  letterSpacing: "0.04em",
+  padding: "13px 22px",
   textDecoration: "none",
 }
 const IMAGE_STYLE: CSSProperties = {
@@ -44,7 +45,6 @@ const IMAGE_STYLE: CSSProperties = {
   width: "100%",
   height: "auto",
   border: 0,
-  borderRadius: "8px",
 }
 
 /** In the editor: what the email will show, so the founder sees the real card. */
@@ -54,12 +54,12 @@ const ProductCardView = ({ node, selected }: { node: { attrs: ProductCardAttrs }
     <NodeViewWrapper
       data-type="product-card"
       data-drag-handle
-      className={`my-4 rounded-lg p-1 ${selected ? "outline outline-2 outline-[#33348e]" : ""}`}
+      className={`my-4 p-1 ${selected ? "outline outline-2 outline-[#d5b16d]" : ""}`}
     >
       {imageUrl ? (
         <img src={imageUrl} alt={title} style={IMAGE_STYLE} draggable={false} />
       ) : (
-        <div className="bg-ui-bg-subtle text-ui-fg-muted flex h-40 items-center justify-center rounded-lg text-sm">
+        <div className="bg-ui-bg-subtle text-ui-fg-muted flex h-40 items-center justify-center text-sm">
           No photo
         </div>
       )}
@@ -69,7 +69,7 @@ const ProductCardView = ({ node, selected }: { node: { attrs: ProductCardAttrs }
       ) : (
         <div style={{ ...PRICE_STYLE, color: "#b42318" }}>No price in this currency</div>
       )}
-      <div style={{ paddingTop: "12px" }}>
+      <div style={{ paddingTop: "14px" }}>
         <span style={BUTTON_STYLE}>{buttonLabel}</span>
       </div>
     </NodeViewWrapper>
@@ -150,7 +150,7 @@ export const ProductCard = EmailNode.create<ProductCardOptions>({
             </tr>
           )}
           <tr>
-            <td style={{ paddingTop: "12px" }}>
+            <td style={{ paddingTop: "14px" }}>
               <a href={href} target="_blank" style={BUTTON_STYLE}>
                 {attrs.buttonLabel || "Shop now"}
               </a>

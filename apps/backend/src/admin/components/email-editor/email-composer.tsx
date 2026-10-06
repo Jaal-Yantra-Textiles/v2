@@ -206,8 +206,9 @@ export const EmailComposer = ({ initialContent, blogDoc, campaign, onSave }: Ema
         </Text>
       </div>
 
-      <div className="flex-1 overflow-y-auto bg-ui-bg-subtle px-8 py-6">
-        <div className="mx-auto max-w-[620px] rounded-lg bg-white px-9 py-6 shadow-elevation-card-rest">
+      {/* The frame's linen background and paper column, 620px with 42px sides. */}
+      <div className="flex-1 overflow-y-auto bg-[#eeeae2] px-8 py-6">
+        <div className="mx-auto max-w-[620px] bg-[#fcfbf8] px-[42px] py-8">
           <EmailEditor
             key={seed.key}
             content={(seed.content as any) ?? undefined}
