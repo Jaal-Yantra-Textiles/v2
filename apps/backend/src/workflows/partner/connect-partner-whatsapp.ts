@@ -12,6 +12,7 @@ import { MESSAGING_MODULE } from "../../modules/messaging"
 import { TEMPLATE_NAMES } from "../../scripts/whatsapp-templates/partner-run-templates"
 import { composeOutreachText } from "../whatsapp/whatsapp-outreach-prose"
 import { sanitizeTemplateParam } from "../whatsapp/whatsapp-template-params"
+import { assertWhatsappNumberFree } from "./whatsapp-number-owner"
 
 const DEFAULT_TEMPLATE = TEMPLATE_NAMES.PARTNER_WELCOME
 const DEFAULT_LANG = process.env.WHATSAPP_TEMPLATE_LANG || "hi"
@@ -68,6 +69,8 @@ const setPartnerWhatsappStep = createStep(
   async (input: ConnectPartnerWhatsappInput, { container }) => {
     const partnerService: any = container.resolve(PARTNER_MODULE)
     const partner = await partnerService.retrievePartner(input.partner_id)
+    // #2350 — refuse before saving, so a wrong number sends no welcome either.
+    await assertWhatsappNumberFree(partnerService, input.phone, input.partner_id, "admin")
     await partnerService.updatePartners({
       id: input.partner_id,
       whatsapp_number: input.phone,

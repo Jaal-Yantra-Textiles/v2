@@ -48,6 +48,7 @@ import { buildPartnerProductUrl } from "./partner-product-url"
 import { handleFreeFormPartnerReply, isFreeformChatEnabled } from "./whatsapp-freeform-chat"
 import { extractPartnerIntent } from "./whatsapp-intent"
 import { phoneMatches } from "./whatsapp-phone"
+import { partnersHoldingNumber } from "../partner/whatsapp-number-owner"
 
 interface IncomingMessage {
   from: string // WhatsApp phone number
@@ -96,29 +97,62 @@ export async function resolvePartnerByPhone(
     )
 
     // Priority 1: Match against partner.whatsapp_number (verified)
-    for (const partner of partners || []) {
-      if (!partner.whatsapp_number || !partner.whatsapp_verified) continue
-      const waNormalized = partner.whatsapp_number.replace(/[^0-9]/g, "")
-      if (phoneMatches(waNormalized, normalized)) {
-        // Find which admin this phone belongs to
-        const matchedAdmin = (partner.admins || []).find((a: any) => {
-          if (!a.phone) return false
-          return phoneMatches(a.phone.replace(/[^0-9]/g, ""), normalized)
-        })
-        return {
-          partnerId: partner.id,
-          adminName: matchedAdmin
-            ? [matchedAdmin.first_name, matchedAdmin.last_name].filter(Boolean).join(" ")
-            : partner.admins?.[0]
-              ? [partner.admins[0].first_name, partner.admins[0].last_name].filter(Boolean).join(" ")
-              : partner.name || "Partner",
-          adminId: matchedAdmin?.id,
-        }
+    // #2350 — collect EVERY match first. A number held by two partners must act
+    // for neither: taking the first match let one partner accept or start
+    // another's run. Treated as unregistered ("contact the admin") instead.
+    const verifiedMatches = (partners || []).filter(
+      (partner: any) =>
+        partner.whatsapp_number &&
+        partner.whatsapp_verified &&
+        phoneMatches(partner.whatsapp_number.replace(/[^0-9]/g, ""), normalized)
+    )
+    if (verifiedMatches.length > 1) {
+      console.error(
+        `[whatsapp-handler] #2350 ${normalized} is the verified WhatsApp of ${verifiedMatches.length} partners (${verifiedMatches
+          .map((p: any) => p.id)
+          .join(", ")}) — acting for none`
+      )
+      return null
+    }
+    const verified: any = verifiedMatches[0]
+    if (verified) {
+      // Find which admin this phone belongs to
+      const matchedAdmin = (verified.admins || []).find((a: any) => {
+        if (!a.phone) return false
+        return phoneMatches(a.phone.replace(/[^0-9]/g, ""), normalized)
+      })
+      return {
+        partnerId: verified.id,
+        adminName: matchedAdmin
+          ? [matchedAdmin.first_name, matchedAdmin.last_name].filter(Boolean).join(" ")
+          : verified.admins?.[0]
+            ? [verified.admins[0].first_name, verified.admins[0].last_name].filter(Boolean).join(" ")
+            : verified.name || "Partner",
+        adminId: matchedAdmin?.id,
       }
     }
 
     // Priority 2: Match against admin phone numbers (even if partner whatsapp not verified)
     // This enables multi-admin WhatsApp — any admin with a phone can message in
+    // #2350 — the same refusal when admins of two DIFFERENT partners share it.
+    const adminMatchPartnerIds = new Set(
+      (partners || [])
+        .filter((partner: any) =>
+          (partner.admins || []).some(
+            (admin: any) =>
+              admin.phone && admin.is_active && phoneMatches(admin.phone.replace(/[^0-9]/g, ""), normalized)
+          )
+        )
+        .map((partner: any) => partner.id)
+    )
+    if (adminMatchPartnerIds.size > 1) {
+      console.error(
+        `[whatsapp-handler] #2350 ${normalized} is an admin phone on ${adminMatchPartnerIds.size} partners (${[
+          ...adminMatchPartnerIds,
+        ].join(", ")}) — acting for none`
+      )
+      return null
+    }
     for (const partner of partners || []) {
       for (const admin of partner.admins || []) {
         if (!admin.phone || !admin.is_active) continue
@@ -148,8 +182,12 @@ export async function resolvePartnerByPhone(
             }
           }
 
-          // Also update partner-level whatsapp if not set
-          if (!partner.whatsapp_number || !partner.whatsapp_verified) {
+          // Also update partner-level whatsapp if not set — unless another
+          // partner already holds this number (#2350).
+          if (
+            (!partner.whatsapp_number || !partner.whatsapp_verified) &&
+            !partnersHoldingNumber(partners || [], phone, partner.id).length
+          ) {
             try {
               await partnerService.updatePartners({
                 id: partner.id,

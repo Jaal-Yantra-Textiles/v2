@@ -4285,7 +4285,7 @@ export const ADMIN_MCP_TOOLS: AdminMcpToolDef[] = [
   {
     name: "connect_partner_whatsapp",
     description:
-      "Set a partner's WhatsApp number and send the welcome template to start onboarding. Sensitive: requires confirm:true. Pass use_prose:true to send the PROSE carrier for this one call — a sentence written for this partner instead of the fixed welcome — which is how the carrier gets tested on a real number without flipping it on for every new partner.",
+      "Set a partner's WhatsApp number and send the welcome template to start onboarding. Sensitive: requires confirm:true. Pass use_prose:true to send the PROSE carrier for this one call — a sentence written for this partner instead of the fixed welcome — which is how the carrier gets tested on a real number without flipping it on for every new partner. 🔴 REFUSED (409, naming the holder) when ANOTHER partner already has this number — one number belongs to one partner (#2350: Embroprint was once connected to Lucknavi boutique's number and its job alerts went there). Before connecting, compare with list_partner_admins phones and the partner's existing conversation; if they disagree, ask — a message to the wrong phone cannot be recalled.",
     method: "POST",
     path: "/admin/partners/:id/whatsapp-verify",
     pathParams: ["id"],

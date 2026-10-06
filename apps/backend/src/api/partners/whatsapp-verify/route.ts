@@ -3,6 +3,7 @@ import { MedusaError } from "@medusajs/framework/utils"
 import { PARTNER_MODULE } from "../../../modules/partner"
 import { SOCIAL_PROVIDER_MODULE } from "../../../modules/social-provider"
 import type SocialProviderService from "../../../modules/social-provider/service"
+import { assertWhatsappNumberFree } from "../../../workflows/partner/whatsapp-number-owner"
 
 // In-memory OTP store (use Redis in production for multi-instance)
 const otpStore = new Map<string, { code: string; phone: string; expiresAt: number }>()
@@ -49,6 +50,14 @@ export const POST = async (
       "Invalid phone number. Include country code, e.g. 393933806825"
     )
   }
+
+  // #2350 — never send a code to a number another partner already holds.
+  await assertWhatsappNumberFree(
+    req.scope.resolve(PARTNER_MODULE),
+    normalized,
+    partnerId,
+    "partner"
+  )
 
   const otp = generateOtp()
   const expiresAt = Date.now() + 10 * 60 * 1000 // 10 minutes
@@ -114,6 +123,8 @@ async function verifyOtp(
 
   // OTP is valid — update partner with verified WhatsApp number
   const partnerService = req.scope.resolve(PARTNER_MODULE) as any
+  // Re-checked here: another partner may have taken the number while the code was out.
+  await assertWhatsappNumberFree(partnerService, stored.phone, partnerId, "partner")
   await partnerService.updatePartners({
     id: partnerId,
     whatsapp_number: stored.phone,

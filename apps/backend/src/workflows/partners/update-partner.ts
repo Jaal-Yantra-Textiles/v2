@@ -2,6 +2,7 @@ import { createStep, createWorkflow, StepResponse, WorkflowResponse } from "@med
 import { ContainerRegistrationKeys, MedusaError, Modules } from "@medusajs/framework/utils"
 import { PARTNER_MODULE } from "../../modules/partner"
 import PartnerService from "../../modules/partner/service"
+import { assertWhatsappNumberFree } from "../partner/whatsapp-number-owner"
 import Scrypt from "scrypt-kdf"
 import type { IAuthModuleService, RemoteQueryFunction } from "@medusajs/types"
 
@@ -74,6 +75,12 @@ export const updatePartnerStep = createStep(
         MedusaError.Types.NOT_FOUND,
         `Partner with id ${input.id} was not found`
       )
+    }
+
+    // #2350 — a profile edit must not put another partner's number on this one.
+    const nextNumber = (input.data as any)?.whatsapp_number
+    if (typeof nextNumber === "string" && nextNumber.trim()) {
+      await assertWhatsappNumberFree(partnerService, nextNumber, input.id, "partner")
     }
 
     const updated = await partnerService.updatePartners({
