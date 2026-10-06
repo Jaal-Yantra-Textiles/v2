@@ -3,6 +3,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "@medusajs/framework/zod";
 import { useUpdateBlock } from "../../hooks/api/blocks";
+import { usePage } from "../../hooks/api/pages";
 import { useRouteNonFocusModal } from "../modal/route-non-focus";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { RouteNonFocusModal } from "../modal/route-non-focus";
@@ -41,6 +42,8 @@ const EditBlogBlockInner = ({ websiteId, pageId, blockId, block, onSuccess }: Ed
   const [showConfirmationPrompt, setShowConfirmationPrompt] = useState(false);
   const promptPromiseResolveRef = useRef<((value: boolean | PromiseLike<boolean>) => void) | null>(null);
   const updateBlock = useUpdateBlock(websiteId, pageId, blockId);
+  // The send path tags newsletter links with the post's slug; product cards do too.
+  const { page } = usePage(websiteId, pageId);
   const [activeTab, setActiveTab] = useState<"website" | "email">("website");
 
   // #2349 — the website text and the email version live in the same
@@ -316,6 +319,7 @@ const EditBlogBlockInner = ({ websiteId, pageId, blockId, block, onSuccess }: Ed
             <EmailComposer
               initialContent={block.content?.email_doc ?? null}
               blogDoc={editorContent}
+              campaign={page?.slug}
               onSave={saveEmail}
             />
           </div>

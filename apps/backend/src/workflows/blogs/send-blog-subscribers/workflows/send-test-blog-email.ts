@@ -43,8 +43,15 @@ export const sendTestBlogEmailWorkflow = createWorkflow(
   (
     input: WorkflowData<TestBlogEmailInput>
   ): WorkflowResponse<TestEmailResult> => {
-    // Step 1: Fetch blog data
-    const blogData = fetchBlogDataStep(input)
+    // Step 1: Fetch blog data. A test may go out from a draft, so the email
+    // can be checked before the post is published.
+    const fetchInput = transform({ input }, ({ input }) => ({
+      page_id: input.page_id,
+      subject: input.subject ?? "",
+      customMessage: input.customMessage,
+      allow_unpublished: true,
+    }))
+    const blogData = fetchBlogDataStep(fetchInput)
     
     // Prepare data for test email step
     const testEmailData = transform({ input, blogData }, (data) => {

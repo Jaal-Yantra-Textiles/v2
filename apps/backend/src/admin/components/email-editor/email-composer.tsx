@@ -1,14 +1,21 @@
 import { Button, Drawer, DropdownMenu, Heading, Text, toast, usePrompt } from "@medusajs/ui"
 import { EmailEditor, type EmailEditorRef } from "@react-email/editor"
+import { StarterKit } from "@react-email/editor/extensions"
+import { EmailTheming } from "@react-email/editor/plugins"
 import "@react-email/editor/themes/default.css"
-import { useCallback, useEffect, useRef, useState } from "react"
+import { Placeholder } from "@tiptap/extension-placeholder"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { useFileUpload } from "../../hooks/api/upload"
 import { convertTipTapToHtml } from "../../../workflows/blogs/send-blog-subscribers/utils/tiptap-to-html"
+import { PRODUCT_CARD_NODE, ProductCard } from "./product-card"
+import type { ProductCardAttrs } from "./product-card-data"
+import { ProductPicker } from "./product-picker"
 import { JYT_EMAIL_THEME, STARTER_TEMPLATES } from "./starter-templates"
 
 const MAX_IMAGE_BYTES = 5 * 1024 * 1024
 const SAVE_DEBOUNCE_MS = 1200
-const PERSON_MADE_ATOMS = new Set(["image", "button", "horizontalRule"])
+const PERSON_MADE_ATOMS = new Set(["image", "button", "horizontalRule", PRODUCT_CARD_NODE])
+const PLACEHOLDER = "Pick a template above, or type “/” to add blocks"
 
 export type EmailComposerValue = { json: unknown; html: string }
 
@@ -17,6 +24,8 @@ type EmailComposerProps = {
   initialContent: unknown | null
   /** The blog post's TipTap JSON, for "Start from this blog post". */
   blogDoc: unknown
+  /** The post's slug — the utm_campaign on product card links, as on every other newsletter link. */
+  campaign?: string | null
   onSave: (value: EmailComposerValue) => Promise<void>
 }
 
@@ -32,7 +41,7 @@ const blogDocToHtml = (doc: unknown): string => {
  * `blog-subscriber` email: columns, buttons, sized/aligned/clickable images.
  * Saves editor JSON (to reopen it) and email HTML (to send it).
  */
-export const EmailComposer = ({ initialContent, blogDoc, onSave }: EmailComposerProps) => {
+export const EmailComposer = ({ initialContent, blogDoc, campaign, onSave }: EmailComposerProps) => {
   const prompt = usePrompt()
   const { mutateAsync: uploadFile } = useFileUpload()
   const editorRef = useRef<EmailEditorRef | null>(null)
@@ -43,6 +52,22 @@ export const EmailComposer = ({ initialContent, blogDoc, onSave }: EmailComposer
   })
   const [status, setStatus] = useState<"idle" | "saving" | "saved" | "error">("idle")
   const [previewHtml, setPreviewHtml] = useState<string | null>(null)
+  const [pickerOpen, setPickerOpen] = useState(false)
+  const campaignRef = useRef(campaign)
+  campaignRef.current = campaign
+
+  // Passing `extensions` replaces the editor's defaults, so this is its default
+  // set (StarterKit, Placeholder, theming) plus the product card. Built once:
+  // new extensions would rebuild the editor and drop unsaved state.
+  const extensions = useMemo(
+    () => [
+      StarterKit.configure(),
+      Placeholder.configure({ placeholder: PLACEHOLDER, includeChildren: true }),
+      EmailTheming.configure({ theme: JYT_EMAIL_THEME }),
+      ProductCard.configure({ getUtmCampaign: () => campaignRef.current }),
+    ],
+    []
+  )
 
   useEffect(() => () => clearTimeout(saveTimerRef.current), [])
 
@@ -115,6 +140,11 @@ export const EmailComposer = ({ initialContent, blogDoc, onSave }: EmailComposer
     [prompt]
   )
 
+  const insertProductCard = useCallback((card: ProductCardAttrs) => {
+    setPickerOpen(false)
+    editorRef.current?.editor?.chain().focus().insertContent({ type: PRODUCT_CARD_NODE, attrs: card }).run()
+  }, [])
+
   const openPreview = useCallback(async () => {
     const ref = editorRef.current
     if (!ref) return
@@ -161,6 +191,9 @@ export const EmailComposer = ({ initialContent, blogDoc, onSave }: EmailComposer
           >
             Image
           </Button>
+          <Button size="small" variant="secondary" onClick={() => setPickerOpen(true)}>
+            Product
+          </Button>
           <Button size="small" variant="secondary" onClick={openPreview}>
             Preview
           </Button>
@@ -173,12 +206,16 @@ export const EmailComposer = ({ initialContent, blogDoc, onSave }: EmailComposer
         </Text>
       </div>
 
-      <div className="flex-1 overflow-y-auto bg-ui-bg-subtle px-8 py-6">
-        <div className="mx-auto max-w-[620px] rounded-lg bg-white px-9 py-6 shadow-elevation-card-rest">
+      {/* The frame's linen background and paper column, 620px with 42px sides. */}
+      <div className="flex-1 overflow-y-auto bg-[#eeeae2] px-8 py-6">
+        <div className="mx-auto max-w-[620px] bg-[#fcfbf8] px-[42px] py-8">
           <EmailEditor
             key={seed.key}
             content={(seed.content as any) ?? undefined}
             theme={JYT_EMAIL_THEME}
+            extensions={extensions}
+            // The text toolbar (bold, links…) means nothing on a product card.
+            bubbleMenu={{ hideWhenActiveNodes: ["button", "horizontalRule", PRODUCT_CARD_NODE] }}
             onUploadImage={uploadImage}
             onUpdate={handleUpdate}
             onReady={(ref) => {
@@ -186,10 +223,11 @@ export const EmailComposer = ({ initialContent, blogDoc, onSave }: EmailComposer
               // A freshly chosen template is a change worth keeping.
               if (seed.key > 0) handleUpdate(ref)
             }}
-            placeholder="Pick a template above, or type “/” to add blocks"
           />
         </div>
       </div>
+
+      <ProductPicker open={pickerOpen} onOpenChange={setPickerOpen} onPick={insertProductCard} />
 
       <Drawer open={previewHtml !== null} onOpenChange={(open) => !open && setPreviewHtml(null)}>
         <Drawer.Content className="max-w-[720px]">

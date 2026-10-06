@@ -127,7 +127,7 @@ test.describe("Blog Email tab (#2349)", () => {
     await page.getByRole("menuitem", { name: /Newsletter/ }).click()
     const editor = page.locator(".tiptap").filter({ hasText: "A short opening line" })
     await expect(editor).toBeVisible()
-    await expect(editor.getByText("Read on jaalyantra.com")).toBeVisible()
+    await expect(editor.getByText("What we've been making")).toBeVisible()
     await expect(editor.locator('[data-type="two-columns"], .node-columns').first()).toBeVisible()
     await expect(page.getByText("Saved", { exact: true })).toBeVisible({ timeout: 20_000 })
     await page.screenshot({ path: path.join(SHOTS, "blog-email-tab-newsletter.png"), fullPage: true })
@@ -135,7 +135,8 @@ test.describe("Blog Email tab (#2349)", () => {
     let block = await readBlock(page, pageId, blockId)
     expect(block.content.email_doc?.type).toBe("doc")
     expect(block.content.email_html).toContain("A short opening line")
-    expect(block.content.email_html).toContain("https://jaalyantra.com")
+    // The template's inline styles (the frame's uppercase eyebrow) survive the editor.
+    expect(block.content.email_html).toMatch(/text-transform:\s*uppercase/)
     expect(block.content.email_html).toMatch(/<body[\s>]/i)
     // Kept as an artifact so the whole email can be rendered in its frame.
     fs.writeFileSync(path.join(SHOTS, "blog-email-tab-newsletter.html"), block.content.email_html)
@@ -180,5 +181,122 @@ test.describe("Blog Email tab (#2349)", () => {
     await expect(preview.getByText(BLOG_HEADING)).toBeVisible()
     await page.waitForTimeout(500) // let the drawer finish sliding in
     await page.screenshot({ path: path.join(SHOTS, "blog-email-tab-preview.png"), fullPage: true })
+  })
+})
+
+test.describe("Blog Email tab — product cards (#2349 S4)", () => {
+  let pageId = ""
+  let productId = ""
+
+  test.beforeAll(() => {
+    if (!fs.existsSync(SEED_FILE)) {
+      throw new Error(`E2E seed file not found at ${SEED_FILE}. Run "pnpm e2e:seed" first.`)
+    }
+    seed = JSON.parse(fs.readFileSync(SEED_FILE, "utf-8"))
+    fs.mkdirSync(SHOTS, { recursive: true })
+  })
+
+  test.afterEach(async ({ page }) => {
+    if (pageId) {
+      await page.request.delete(`/admin/websites/${seed.websiteId}/pages/${pageId}`).catch(() => undefined)
+    }
+    if (productId) {
+      await page.request.delete(`/admin/products/${productId}`).catch(() => undefined)
+    }
+  })
+
+  test("a house-store product becomes a card with a UTM-tagged shop link", async ({ page }) => {
+    test.setTimeout(120_000)
+    await login(page)
+    const stamp = Date.now()
+
+    // A published product in the house store (the store with no partner).
+    const storesRes = await page.request.get("/admin/stores?fields=id,default_sales_channel_id,metadata")
+    expect(storesRes.ok()).toBeTruthy()
+    const house = (await storesRes.json()).stores.find((s: any) => !s.metadata?.partner_id)
+    expect(house?.default_sales_channel_id, "house store with a sales channel").toBeTruthy()
+
+    const title = `E2E Card Shawl ${stamp}`
+    const handle = `e2e-card-shawl-${stamp}`
+    const productRes = await page.request.post("/admin/products", {
+      data: {
+        title,
+        handle,
+        status: "published",
+        thumbnail: "https://placehold.co/600x600/png?text=Shawl",
+        sales_channels: [{ id: house.default_sales_channel_id }],
+        options: [{ title: "Size", values: ["One", "Two"] }],
+        variants: [
+          { title: "One", options: { Size: "One" }, manage_inventory: false, prices: [{ currency_code: "inr", amount: 2500 }] },
+          { title: "Two", options: { Size: "Two" }, manage_inventory: false, prices: [{ currency_code: "inr", amount: 3200 }] },
+        ],
+      },
+    })
+    expect(productRes.status(), await productRes.text()).toBe(200)
+    productId = (await productRes.json()).product.id
+
+    // A blog page whose slug becomes the link's utm_campaign.
+    const slug = `e2e-card-${stamp}`
+    const created = await page.request.post(`/admin/websites/${seed.websiteId}/pages`, {
+      data: { title: `E2E card ${stamp}`, slug, content: "e2e", page_type: "Blog", status: "Draft" },
+    })
+    expect(created.status(), await created.text()).toBe(201)
+    pageId = (await created.json()).page.id
+    const blockRes = await page.request.post(`/admin/websites/${seed.websiteId}/pages/${pageId}/blocks`, {
+      data: {
+        blocks: [
+          {
+            name: "Main Blog",
+            type: "MainContent",
+            content: { type: "blog", authors: [], layout: "full", image: { type: "image", content: "" }, text: BLOG_DOC },
+          },
+        ],
+      },
+    })
+    expect(blockRes.status(), await blockRes.text()).toBe(201)
+    const blockId = (await blockRes.json()).blocks[0].id
+    const blockUrl = `/app/websites/${seed.websiteId}/pages/${pageId}/blocks/${blockId}`
+
+    await page.goto(blockUrl)
+    await expect(page.getByText("Edit Blog Content")).toBeVisible({ timeout: 30_000 })
+    await page.getByRole("tab", { name: "Email" }).click()
+
+    // ── Pick the product ────────────────────────────────────────────────────
+    await page.getByRole("button", { name: "Product", exact: true }).click()
+    await page.getByPlaceholder("Search products").fill(title)
+    const item = page.getByTestId("product-picker-item").filter({ hasText: title })
+    await expect(item).toBeVisible({ timeout: 20_000 })
+    await expect(item).toContainText("From ₹2,500")
+    await item.click()
+
+    const card = page.locator('.tiptap [data-type="product-card"]')
+    await expect(card).toContainText(title)
+    await expect(card).toContainText("Shop now")
+    await expect(page.getByText("Saved", { exact: true })).toBeVisible({ timeout: 20_000 })
+    await page.screenshot({ path: path.join(SHOTS, "blog-email-product-card.png"), fullPage: true })
+
+    // ── Read the saved email back ───────────────────────────────────────────
+    const block = await readBlock(page, pageId, blockId)
+    const html: string = block.content.email_html ?? ""
+    expect(html).toContain(title)
+    expect(html).toContain("From ₹2,500")
+    expect(html).toContain('src="https://placehold.co/600x600/png?text=Shawl"')
+    const hrefs = [...html.matchAll(/href="([^"]+)"/g)].map((m) => m[1].replace(/&amp;/g, "&"))
+    const shop = hrefs.filter((h) => h.startsWith(`https://cicilabel.com/products/${handle}?`))
+    expect(shop.length, `shop links in ${hrefs.join(", ")}`).toBe(2) // the photo and the button
+    const params = Object.fromEntries(new URL(shop[0]).searchParams)
+    expect(params).toEqual({
+      utm_source: "newsletter",
+      utm_medium: "email",
+      utm_campaign: slug,
+      utm_content: "product_card",
+    })
+    fs.writeFileSync(path.join(SHOTS, "blog-email-product-card.html"), html)
+
+    // ── It reopens as a card, not lost text ─────────────────────────────────
+    await page.reload()
+    await expect(page.getByText("Edit Blog Content")).toBeVisible({ timeout: 30_000 })
+    await page.getByRole("tab", { name: "Email" }).click()
+    await expect(page.locator('.tiptap [data-type="product-card"]')).toContainText(title)
   })
 })

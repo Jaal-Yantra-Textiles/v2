@@ -19,6 +19,7 @@ import { parseCorsOrigins, ContainerRegistrationKeys } from "@medusajs/framework
 import cors from "cors";
 import { z } from "@medusajs/framework/zod";
 import { personSchema, listPersonsQuerySchema, UpdatePersonSchema, ReadPersonQuerySchema } from "./admin/persons/validators";
+import { listEmailEditorProductsQuerySchema } from "./admin/email-editor/products/validators";
 import { OpsMaintenanceRunSchema, OpsMaintenanceRunsQuerySchema, OpsMaintenanceBatchSchema, OpsMaintenanceBatchesQuerySchema } from "./admin/ops/maintenance-jobs/validators";
 import { AdminPostLocationOwnershipReq } from "./admin/location-ownership/validators";
 import { AdminUpdateTextileAnalysisSchema } from "./admin/textile-analyses/validators";
@@ -5700,6 +5701,12 @@ export default defineMiddlewares({
       matcher: "/admin/websites/:id/pages/:pageId/blocks",
       method: "GET",
       middlewares: [validateAndTransformQuery(wrapSchema(ReadBlocksQuerySchema), {})],
+    },
+
+    {
+      matcher: "/admin/email-editor/products",
+      method: "GET",
+      middlewares: [validateAndTransformQuery(wrapSchema(listEmailEditorProductsQuerySchema), {})],
     },
 
     {

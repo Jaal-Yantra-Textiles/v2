@@ -20,6 +20,8 @@ export interface SendBlogSubscribersInput {
   page_id: string
   subject: string
   customMessage?: string
+  /** Test sends only: a draft may be emailed to the founder before publishing. */
+  allow_unpublished?: boolean
 }
 
 /**

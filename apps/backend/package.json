@@ -118,6 +118,7 @@
     "@tiptap/extension-highlight": "^3.0.7",
     "@tiptap/extension-image": "^3.0.7",
     "@tiptap/extension-link": "^3.0.7",
+    "@tiptap/extension-placeholder": "3.30.2",
     "@tiptap/extension-subscript": "^3.0.7",
     "@tiptap/extension-superscript": "^3.0.7",
     "@tiptap/extension-task-item": "^3.0.7",

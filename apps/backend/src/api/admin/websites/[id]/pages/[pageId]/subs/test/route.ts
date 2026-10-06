@@ -108,12 +108,6 @@
  *   "error": "Only blog pages can be sent as test emails"
  * }
  *
- * @apiErrorExample {json} Blog Not Published:
- * {
- *   "message": "Blog not published",
- *   "error": "Only published blogs can be sent as test emails"
- * }
- *
  * @apiErrorExample {json} Server Error:
  * {
  *   "message": "Failed to send test blog email",
@@ -174,14 +168,9 @@ export const POST = async (
       });
     }
     
-    // Check if the page is published
-    if (page.status !== "Published") {
-      return res.status(400).json({
-        message: "Blog not published",
-        error: "Only published blogs can be sent as test emails"
-      });
-    }
-    
+    // A test may go out from a draft (#2349): check the email before publishing.
+    // Sending to subscribers still requires Published.
+
     // Start the workflow to send a test email
     const { result } = await sendTestBlogEmailWorkflow(req.scope)
       .run({
