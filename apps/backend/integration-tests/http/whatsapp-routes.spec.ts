@@ -1,5 +1,6 @@
 import { setupSharedTestSuite, getSharedTestEnv } from "./shared-test-setup"
 import { createAdminUser, getAuthHeaders } from "../helpers/create-admin-user"
+import { PARTNER_MODULE } from "../../src/modules/partner"
 
 const TEST_PARTNER_PASSWORD = "supersecret"
 const TEST_PHONE = process.env.WHATSAPP_TEST_RECIPIENT || "393933806825"
@@ -168,6 +169,66 @@ setupSharedTestSuite(() => {
         .catch((err: any) => err.response)
 
       expect(res.status).toBe(400)
+    })
+
+    // ─── #2350 — one WhatsApp number belongs to one partner ───
+    //
+    // 2026-10-05 Embroprint was connected to Lucknavi boutique's number and two
+    // Embroprint job alerts reached Lucknavi's owner. Every write path must now
+    // refuse a number another partner holds — before saving it, and before any
+    // WhatsApp (welcome / OTP) is sent to it.
+    describe("a number another partner already holds (#2350)", () => {
+      // A made-up number: if the guard ever regressed, the welcome / OTP would go
+      // to it, so it must never be a real person's phone.
+      const HELD = "919000000001"
+      let holderName: string
+
+      beforeEach(async () => {
+        const partnerService: any = getContainer().resolve(PARTNER_MODULE)
+        holderName = `Number Holder ${Date.now()}`
+        await partnerService.createPartners({
+          name: holderName,
+          handle: `number-holder-${Date.now()}`,
+          whatsapp_number: HELD,
+          whatsapp_verified: true,
+        })
+      })
+
+      const readNumber = async () => {
+        const partnerService: any = getContainer().resolve(PARTNER_MODULE)
+        return (await partnerService.retrievePartner(partnerId)).whatsapp_number ?? null
+      }
+
+      it("admin connect is refused with 409 naming the holder, and nothing is saved", async () => {
+        const before = await readNumber()
+        const adminHeaders = await getAuthHeaders(api)
+        const res = await api
+          .post(`/admin/partners/${partnerId}/whatsapp-verify`, { phone: HELD }, adminHeaders)
+          .catch((err: any) => err.response)
+
+        expect(res.status).toBe(409)
+        expect(res.data.message).toContain(holderName)
+        expect(await readNumber()).toBe(before)
+      })
+
+      it("a partner asking for an OTP to it is refused without learning whose it is", async () => {
+        const res = await api
+          .post("/partners/whatsapp-verify", { phone: HELD }, partnerHeaders)
+          .catch((err: any) => err.response)
+
+        expect(res.status).toBe(409)
+        expect(res.data.message).not.toContain(holderName)
+      })
+
+      it("a partner profile edit to it is refused", async () => {
+        const before = await readNumber()
+        const res = await api
+          .put("/partners/update", { whatsapp_number: HELD }, partnerHeaders)
+          .catch((err: any) => err.response)
+
+        expect(res.status).toBe(409)
+        expect(await readNumber()).toBe(before)
+      })
     })
   })
 })
