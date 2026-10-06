@@ -1,3 +1,17 @@
+# [13.172.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.171.0...v13.172.0) (2026-10-06)
+
+
+### Bug Fixes
+
+* **storefront:** default website pages speak as the partner's store ([#2346](https://github.com/Jaal-Yantra-Textiles/v2/issues/2346)) ([a93b05e](https://github.com/Jaal-Yantra-Textiles/v2/commit/a93b05e9cfc056fff2b3d592f8c87e499910ac5f))
+* **inventory-orders:** when the 23-day wait runs out, keep the partner and tell a person ([#2347](https://github.com/Jaal-Yantra-Textiles/v2/issues/2347)) ([a367e39](https://github.com/Jaal-Yantra-Textiles/v2/commit/a367e39f155c6b924dace3ec11f72263ae52999e))
+
+
+### Features
+
+* **production-runs:** a run can wait on another run after approval, across parents ([#2306](https://github.com/Jaal-Yantra-Textiles/v2/issues/2306)) ([#2343](https://github.com/Jaal-Yantra-Textiles/v2/issues/2343)) ([ab34ac2](https://github.com/Jaal-Yantra-Textiles/v2/commit/ab34ac29c2f7e122931cef83402ab764fdfc6e66))
+* **blog-email:** Email tab with the React Email editor + starter templates ([#2349](https://github.com/Jaal-Yantra-Textiles/v2/issues/2349)) ([#2351](https://github.com/Jaal-Yantra-Textiles/v2/issues/2351)) ([3702fbb](https://github.com/Jaal-Yantra-Textiles/v2/commit/3702fbb3d2d175c751f50d486b1c403317eb2e26)), closes [#33348](https://github.com/Jaal-Yantra-Textiles/v2/issues/33348)
+
 # [13.171.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.170.0...v13.171.0) (2026-10-05)
 
 
