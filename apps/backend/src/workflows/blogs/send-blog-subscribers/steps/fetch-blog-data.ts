@@ -7,8 +7,31 @@ import WebsiteService from "../../../../modules/website/service"
 export const fetchBlogDataStepId = "fetch-blog-data"
 
 /**
+ * A blog or newsletter page, Published — except for a TEST send, which may go
+ * out from a draft so the founder can check the email before publishing.
+ */
+export const assertBlogSendable = (
+  page: { page_type?: string | null; status?: string | null },
+  options: { allowUnpublished?: boolean } = {}
+) => {
+  if (page.page_type !== "Blog" && page.page_type !== "Newsletter") {
+    throw new MedusaError(
+      MedusaError.Types.INVALID_DATA,
+      "Only blog or newsletter pages can be sent to subscribers"
+    )
+  }
+  if (page.status !== "Published" && !options.allowUnpublished) {
+    throw new MedusaError(
+      MedusaError.Types.INVALID_DATA,
+      "Only published blogs can be sent to subscribers"
+    )
+  }
+}
+
+/**
  * This step fetches the blog data that will be sent to subscribers.
- * It validates that the blog exists, is of type Blog, and is published.
+ * It validates that the blog exists, is of type Blog, and is published
+ * (a test send may skip the last check — see assertBlogSendable).
  *
  * @example
  * const blogData = fetchBlogDataStep({ page_id: "blog_123", subject: "New Blog Post" })
@@ -30,19 +53,7 @@ export const fetchBlogDataStep = createStep(
         )
       }
       
-      if (page.page_type !== "Blog" && page.page_type !== "Newsletter") {
-        throw new MedusaError(
-          MedusaError.Types.INVALID_DATA,
-          "Only blog or newsletter pages can be sent to subscribers"
-        )
-      }
-      
-      if (page.status !== "Published") {
-        throw new MedusaError(
-          MedusaError.Types.INVALID_DATA,
-          "Only published blogs can be sent to subscribers"
-        )
-      }
+      assertBlogSendable(page, { allowUnpublished: input.allow_unpublished })
       
       console.log(`Successfully fetched blog: ${page.title}`)
       
