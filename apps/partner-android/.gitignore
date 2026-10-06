@@ -11,3 +11,7 @@
 keystore.properties
 *.keystore
 *.jks
+# Firebase client config for project luna-d094c; CI writes it from GOOGLE_SERVICES_JSON.
+app/google-services.json
+# Kotlin compiler cache
+.kotlin/

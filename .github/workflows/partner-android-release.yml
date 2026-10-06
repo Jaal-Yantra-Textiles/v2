@@ -18,6 +18,12 @@ name: Partner Android Release
 #   PLAY_SERVICE_ACCOUNT_JSON         Play Console service-account JSON with
 #                                     "Release to testing tracks" on com.jyt.partner
 #
+#   GOOGLE_SERVICES_JSON (optional)   Firebase client config (google-services.json)
+#                                     for com.jyt.partner in project luna-d094c —
+#                                     the project the backend sends push through.
+#                                     Without it the release still ships, with
+#                                     push switched off (the app's guarded no-op).
+#
 # Until all five exist the job SKIPS with a notice instead of failing: a job
 # that is red on every merge to main trains everyone to ignore it.
 #
@@ -134,6 +140,24 @@ jobs:
             echo "keyPassword=$KEY_PASSWORD"
           } > keystore.properties
 
+      # Optional: the google-services plugin is applied only when this file
+      # exists (app/build.gradle.kts), so without it push is simply off.
+      - name: Write Firebase config
+        if: steps.secrets.outputs.ready == 'true'
+        id: firebase
+        env:
+          GOOGLE_SERVICES_JSON: ${{ secrets.GOOGLE_SERVICES_JSON }}
+        run: |
+          if [ -n "$GOOGLE_SERVICES_JSON" ]; then
+            echo "$GOOGLE_SERVICES_JSON" > app/google-services.json
+            grep -q '"com.jyt.partner"' app/google-services.json \
+              || { echo "::error::GOOGLE_SERVICES_JSON has no client for com.jyt.partner"; exit 1; }
+            echo "push=on" >> "$GITHUB_OUTPUT"
+          else
+            echo "::warning title=Push disabled::GOOGLE_SERVICES_JSON is not set — this build ships with push notifications off."
+            echo "push=off" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Version
         if: steps.secrets.outputs.ready == 'true'
         id: version
@@ -179,12 +203,12 @@ jobs:
 
       - name: Remove signing material
         if: always() && steps.secrets.outputs.ready == 'true'
-        run: rm -f release.jks keystore.properties
+        run: rm -f release.jks keystore.properties app/google-services.json
 
       - name: Summary
         if: steps.secrets.outputs.ready == 'true'
         run: |
           {
             echo "### Partner Android ${{ steps.version.outputs.name }} (${{ steps.version.outputs.code }})"
-            echo "Uploaded to Play track \`${{ inputs.track || 'internal' }}\` as \`${{ inputs.status || 'completed' }}\`, backend ${{ env.BACKEND_URL }}."
+            echo "Uploaded to Play track \`${{ inputs.track || 'internal' }}\` as \`${{ inputs.status || 'completed' }}\`, backend ${{ env.BACKEND_URL }}, push ${{ steps.firebase.outputs.push }}."
           } >> "$GITHUB_STEP_SUMMARY"
