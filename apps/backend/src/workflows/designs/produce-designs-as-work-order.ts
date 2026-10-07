@@ -255,7 +255,10 @@ export async function produceDesignsAsWorkOrder(
           input: {
             production_run_id: run.id,
             template_ids: row.template_ids,
-          } as any,
+            // The batch is collated below, once every run is dispatched —
+            // dispatch must not mint each run an order of its own first.
+            defer_work_order: true,
+          },
         })
         reports.push({
           design_id: designId,

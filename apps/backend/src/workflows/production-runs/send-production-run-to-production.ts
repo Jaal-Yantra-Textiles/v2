@@ -51,6 +51,15 @@ export type SendProductionRunToProductionInput = {
    * mean. Takes precedence over `template_names` when both are given.
    */
   template_ids?: string[]
+  /**
+   * The caller puts this run on a work order itself, AFTER dispatch — so
+   * dispatch must not mint a per-run one (#2306 S3's mint for a run with no
+   * order). `produceDesignsAsWorkOrder` collates its whole batch once every
+   * run is dispatched; a per-run order minted here first left each run already
+   * on an order, and the collation threw "Cannot create multiple links between
+   * 'order' and 'production_runs'".
+   */
+  defer_work_order?: boolean
 }
 
 /** One resolved template, identified rather than merely named. */
@@ -620,6 +629,7 @@ export const sendProductionRunToProductionWorkflow = createWorkflow(
     // #342 — partner is committed now: D3 link + partner_status "assigned"
     mirrorRunPartnerLinkOnUnifiedOrderStep({
       production_run_id: input.production_run_id,
+      defer_work_order: input.defer_work_order,
     })
 
     // Success notification — shown in admin feed
